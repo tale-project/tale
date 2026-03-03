@@ -39,10 +39,7 @@ export function TeamCreateDialog({
   const schema = useMemo(
     () =>
       z.object({
-        name: z
-          .string()
-          .min(1, nameRequiredError)
-          .transform((val) => val.trim()),
+        name: z.string().trim().min(1, nameRequiredError),
       }),
     [nameRequiredError],
   );

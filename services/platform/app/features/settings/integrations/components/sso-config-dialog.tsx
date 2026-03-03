@@ -76,8 +76,8 @@ export function SSOConfigDialog({
   });
 
   const isFormValid = isConnected
-    ? !!issuer && !!clientId
-    : !!issuer && !!clientId && !!clientSecret;
+    ? !!issuer?.trim() && !!clientId?.trim()
+    : !!issuer?.trim() && !!clientId?.trim() && !!clientSecret?.trim();
 
   const footer = isConnected ? (
     <>

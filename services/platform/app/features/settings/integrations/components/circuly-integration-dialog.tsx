@@ -151,27 +151,16 @@ export function CirculyIntegrationDialog({
 
   const footer =
     isConnected && onDisconnect ? (
-      <>
-        <Button
-          variant="destructive"
-          onClick={handleDisconnect}
-          disabled={isSubmitting}
-          className="flex-1"
-        >
-          {isSubmitting
-            ? t('integrations.disconnecting')
-            : t('integrations.disconnect')}
-        </Button>
-        <Button
-          onClick={handleSubmit(handleConnect)}
-          disabled={isSubmitting || !isFormValid}
-          className="flex-1"
-        >
-          {isSubmitting
-            ? t('integrations.circuly.updating')
-            : t('integrations.circuly.update')}
-        </Button>
-      </>
+      <Button
+        variant="destructive"
+        onClick={handleDisconnect}
+        disabled={isSubmitting}
+        className="flex-1"
+      >
+        {isSubmitting
+          ? t('integrations.disconnecting')
+          : t('integrations.disconnect')}
+      </Button>
     ) : (
       <>
         <Button

@@ -56,6 +56,7 @@ export function VendorEditDialog({
       z.object({
         name: z
           .string()
+          .trim()
           .min(1, tCommon('validation.required', { field: tVendors('name') })),
         email: z.string().email(tCommon('validation.email')),
         locale: z

@@ -242,7 +242,12 @@ export function ScheduleCreateDialog({
                 type="button"
                 variant="secondary"
                 size="sm"
-                onClick={() => setValue('cronExpression', preset.value)}
+                onClick={() =>
+                  setValue('cronExpression', preset.value, {
+                    shouldValidate: true,
+                    shouldDirty: true,
+                  })
+                }
               >
                 {t(`triggers.schedules.form.presets.${preset.label}`)}
               </Button>

@@ -56,6 +56,7 @@ export function CustomerEditDialog({
       z.object({
         name: z
           .string()
+          .trim()
           .min(
             1,
             tCommon('validation.required', { field: tCustomers('name') }),

@@ -57,7 +57,7 @@ export function EditWebsiteDialog({
 
   const {
     handleSubmit,
-    formState: { errors, isValid },
+    formState: { errors, isValid, isDirty },
     reset,
     setValue,
     watch,
@@ -110,7 +110,7 @@ export function EditWebsiteDialog({
       onOpenChange={() => onClose()}
       title={tWebsites('editWebsite')}
       isSubmitting={isLoading}
-      isValid={isValid}
+      isValid={isValid && isDirty}
       onSubmit={handleSubmit(onSubmit)}
     >
       <Input
@@ -122,7 +122,9 @@ export function EditWebsiteDialog({
 
       <Select
         value={scanInterval}
-        onValueChange={(value) => setValue('scanInterval', value)}
+        onValueChange={(value) =>
+          setValue('scanInterval', value, { shouldDirty: true })
+        }
         disabled={isLoading}
         id="scanInterval"
         label={tWebsites('scanInterval')}

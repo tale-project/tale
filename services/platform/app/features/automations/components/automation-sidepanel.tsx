@@ -124,6 +124,7 @@ interface StepEditorContentProps {
   onSave: () => void;
   isSaving: boolean;
   isValid: boolean;
+  isDirty: boolean;
   errors: string[];
   warnings: string[];
   stepOptions: Array<{
@@ -142,6 +143,7 @@ const StepEditorContent = memo(function StepEditorContent({
   onSave,
   isSaving,
   isValid,
+  isDirty,
   errors,
   warnings,
   stepOptions,
@@ -178,7 +180,7 @@ const StepEditorContent = memo(function StepEditorContent({
       <HStack className="bg-background shrink-0 border-t p-3">
         <Button
           onClick={onSave}
-          disabled={isSaving || !isValid}
+          disabled={isSaving || !isValid || !isDirty}
           size="sm"
           className="flex-1"
         >
@@ -292,8 +294,17 @@ export function AutomationSidePanel({
     [step?.nextSteps],
   );
 
+  const originalConfigJson = useMemo(
+    () => (step?.config ? JSON.stringify(step.config, null, 2) : ''),
+    [step?.config],
+  );
+
+  const isConfigDirty = editState.config !== originalConfigJson;
+
   const isNextStepsDirty =
     JSON.stringify(editState.nextSteps) !== originalNextStepsJson;
+
+  const isDirty = isConfigDirty || isNextStepsDirty;
 
   useEffect(() => {
     setEditState({
@@ -334,7 +345,7 @@ export function AutomationSidePanel({
   }, []);
 
   const handleSave = useCallback(() => {
-    if (!step || !parsedEditedConfig || !isValid) return;
+    if (!step || !parsedEditedConfig || !isValid || !isDirty) return;
 
     const updates: Record<string, unknown> = { config: parsedEditedConfig };
     if (isNextStepsDirty) {
@@ -366,6 +377,7 @@ export function AutomationSidePanel({
     step,
     parsedEditedConfig,
     isValid,
+    isDirty,
     isNextStepsDirty,
     editState.nextSteps,
     updateStep,
@@ -519,6 +531,7 @@ export function AutomationSidePanel({
           onSave={handleSave}
           isSaving={isSaving}
           isValid={isValid}
+          isDirty={isDirty}
           errors={errors}
           warnings={warnings}
           stepOptions={stepOptions}

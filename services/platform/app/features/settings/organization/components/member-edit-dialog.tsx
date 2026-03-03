@@ -115,12 +115,14 @@ export function EditMemberDialog({
         );
       }
 
-      await Promise.all(promises);
+      if (promises.length > 0) {
+        await Promise.all(promises);
 
-      toast({
-        title: t('organization.memberUpdated'),
-        variant: 'success',
-      });
+        toast({
+          title: t('organization.memberUpdated'),
+          variant: 'success',
+        });
+      }
     } catch (error) {
       console.error(error);
       toast({
@@ -131,7 +133,7 @@ export function EditMemberDialog({
   };
 
   const { handleSubmit, register, reset, watch, formState } = form;
-  const { isSubmitting, isValid } = formState;
+  const { isSubmitting, isValid, isDirty } = formState;
 
   const isEditingSelf = currentUserMemberId === member?._id;
 
@@ -157,7 +159,7 @@ export function EditMemberDialog({
       onOpenChange={handleOpenChange}
       title={t('organization.editMember')}
       isSubmitting={isSubmitting}
-      isValid={isValid}
+      isValid={isValid && isDirty}
       onSubmit={handleSubmit(onSubmit)}
     >
       {/* Name Field */}

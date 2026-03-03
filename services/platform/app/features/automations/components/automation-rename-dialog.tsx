@@ -33,12 +33,15 @@ export function AutomationRenameDialog({
   const formSchema = useMemo(
     () =>
       z.object({
-        name: z.string().min(
-          1,
-          tCommon('validation.required', {
-            field: tAutomations('configuration.name'),
-          }),
-        ),
+        name: z
+          .string()
+          .trim()
+          .min(
+            1,
+            tCommon('validation.required', {
+              field: tAutomations('configuration.name'),
+            }),
+          ),
       }),
     [tCommon, tAutomations],
   );

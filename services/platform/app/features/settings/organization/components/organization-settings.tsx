@@ -58,13 +58,14 @@ export function OrganizationSettings({
   const debouncedSearch = useDebounce(searchQuery, 300);
 
   const form = useForm<OrganizationFormData>({
+    mode: 'onChange',
     defaultValues: {
       name: organization?.name || '',
     },
   });
 
   const { formState, handleSubmit, register, reset } = form;
-  const { isSubmitting, isValid } = formState;
+  const { isSubmitting, isDirty } = formState;
 
   const { members: allMembers, isLoading: isMembersLoading } = useMembers(
     organization?._id ?? '',
@@ -124,7 +125,7 @@ export function OrganizationSettings({
             {...register('name')}
             wrapperClassName="max-w-sm flex-1"
           />
-          <Button type="submit" disabled={isSubmitting || !isValid}>
+          <Button type="submit" disabled={isSubmitting || !isDirty}>
             {isSubmitting
               ? tCommon('actions.saving')
               : tCommon('actions.saveChanges')}

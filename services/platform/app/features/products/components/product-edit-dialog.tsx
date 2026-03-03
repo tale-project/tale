@@ -54,12 +54,15 @@ export function ProductEditDialog({
   const formSchema = useMemo(
     () =>
       z.object({
-        name: z.string().min(
-          1,
-          tCommon('validation.required', {
-            field: tProducts('edit.labels.name'),
-          }),
-        ),
+        name: z
+          .string()
+          .trim()
+          .min(
+            1,
+            tCommon('validation.required', {
+              field: tProducts('edit.labels.name'),
+            }),
+          ),
         description: z.string(),
         imageUrl: z.string(),
         stock: z.string(),
