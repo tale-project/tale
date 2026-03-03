@@ -4,9 +4,9 @@ import { v } from 'convex/values';
 import type { Doc } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
 
-import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
 import { DEFAULT_COUNT_CAP } from '../lib/helpers/count_items_in_org';
 import { queryWithRLS } from '../lib/rls';
+import { jsonValueValidator } from '../lib/validators/json';
 import { executeDryRun } from '../workflow_engine/execution/dry_run_executor';
 import { listAutomations as listAutomationsHandler } from '../workflows/definitions/list_automations';
 import { listAutomationsPaginated as listAutomationsPaginatedHelper } from '../workflows/definitions/list_automations_paginated';

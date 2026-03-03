@@ -1,81 +1,109 @@
 /**
  * Convex validators for integration operations
- *
- * Note: Some schemas use jsonRecordSchema which contains z.lazy() for recursive types.
- * zodToConvex doesn't support z.lazy(), so those validators are defined using native Convex v.
  */
 
-import { zodToConvex } from 'convex-helpers/server/zod4';
 import { v } from 'convex/values';
 
-import {
-  integrationTypeSchema,
-  integrationAuthMethodSchema,
-  integrationStatusSchema,
-  operationTypeSchema,
-  sqlEngineSchema,
-  apiKeyAuthSchema,
-  apiKeyAuthEncryptedSchema,
-  basicAuthSchema,
-  basicAuthEncryptedSchema,
-  oauth2AuthSchema,
-  oauth2AuthEncryptedSchema,
-  oauth2ConfigSchema,
-  oauth2ConfigStoredSchema,
-  connectionConfigSchema,
-  capabilitiesSchema,
-  testConnectionResultSchema,
-} from '../../lib/shared/schemas/integrations';
-import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
+import { jsonRecordValidator } from '../lib/validators/json';
 
-export {
-  integrationTypeSchema,
-  integrationAuthMethodSchema,
-  integrationStatusSchema,
-  operationTypeSchema,
-  sqlEngineSchema,
-  apiKeyAuthSchema,
-  apiKeyAuthEncryptedSchema,
-  basicAuthSchema,
-  basicAuthEncryptedSchema,
-  oauth2AuthSchema,
-  oauth2AuthEncryptedSchema,
-  oauth2ConfigSchema,
-  oauth2ConfigStoredSchema,
-  connectionConfigSchema,
-  capabilitiesSchema,
-  testConnectionResultSchema,
-} from '../../lib/shared/schemas/integrations';
-
-// Simple schemas that work with zodToConvex
-export const integrationTypeValidator = zodToConvex(integrationTypeSchema);
-export const authMethodValidator = zodToConvex(integrationAuthMethodSchema);
-export const statusValidator = zodToConvex(integrationStatusSchema);
-export const operationTypeValidator = zodToConvex(operationTypeSchema);
-export const sqlEngineValidator = zodToConvex(sqlEngineSchema);
-export const apiKeyAuthValidator = zodToConvex(apiKeyAuthSchema);
-export const apiKeyAuthEncryptedValidator = zodToConvex(
-  apiKeyAuthEncryptedSchema,
-);
-export const basicAuthValidator = zodToConvex(basicAuthSchema);
-export const basicAuthEncryptedValidator = zodToConvex(
-  basicAuthEncryptedSchema,
-);
-export const oauth2AuthValidator = zodToConvex(oauth2AuthSchema);
-export const oauth2AuthEncryptedValidator = zodToConvex(
-  oauth2AuthEncryptedSchema,
-);
-export const oauth2ConfigValidator = zodToConvex(oauth2ConfigSchema);
-export const oauth2ConfigStoredValidator = zodToConvex(
-  oauth2ConfigStoredSchema,
-);
-export const connectionConfigValidator = zodToConvex(connectionConfigSchema);
-export const capabilitiesValidator = zodToConvex(capabilitiesSchema);
-export const testConnectionResultValidator = zodToConvex(
-  testConnectionResultSchema,
+export const integrationTypeValidator = v.union(
+  v.literal('rest_api'),
+  v.literal('sql'),
 );
 
-// Complex schemas that use jsonRecordSchema (contains z.lazy) - defined with native Convex v
+export const authMethodValidator = v.union(
+  v.literal('api_key'),
+  v.literal('bearer_token'),
+  v.literal('basic_auth'),
+  v.literal('oauth2'),
+);
+
+export const statusValidator = v.union(
+  v.literal('active'),
+  v.literal('inactive'),
+  v.literal('error'),
+  v.literal('testing'),
+);
+
+export const operationTypeValidator = v.union(
+  v.literal('read'),
+  v.literal('write'),
+);
+
+export const sqlEngineValidator = v.union(
+  v.literal('mssql'),
+  v.literal('postgres'),
+  v.literal('mysql'),
+);
+
+export const apiKeyAuthValidator = v.object({
+  key: v.string(),
+  keyPrefix: v.optional(v.string()),
+});
+
+export const apiKeyAuthEncryptedValidator = v.object({
+  keyEncrypted: v.string(),
+  keyPrefix: v.optional(v.string()),
+});
+
+export const basicAuthValidator = v.object({
+  username: v.string(),
+  password: v.string(),
+});
+
+export const basicAuthEncryptedValidator = v.object({
+  username: v.string(),
+  passwordEncrypted: v.string(),
+});
+
+export const oauth2AuthValidator = v.object({
+  accessToken: v.string(),
+  refreshToken: v.optional(v.string()),
+  tokenExpiry: v.optional(v.number()),
+  scopes: v.optional(v.array(v.string())),
+});
+
+export const oauth2AuthEncryptedValidator = v.object({
+  accessTokenEncrypted: v.string(),
+  refreshTokenEncrypted: v.optional(v.string()),
+  tokenExpiry: v.optional(v.number()),
+  scopes: v.optional(v.array(v.string())),
+});
+
+export const oauth2ConfigValidator = v.object({
+  authorizationUrl: v.string(),
+  tokenUrl: v.string(),
+  scopes: v.optional(v.array(v.string())),
+});
+
+export const oauth2ConfigStoredValidator = v.object({
+  authorizationUrl: v.string(),
+  tokenUrl: v.string(),
+  scopes: v.optional(v.array(v.string())),
+  clientId: v.optional(v.string()),
+  clientSecretEncrypted: v.optional(v.string()),
+});
+
+export const connectionConfigValidator = v.object({
+  domain: v.optional(v.string()),
+  apiVersion: v.optional(v.string()),
+  apiEndpoint: v.optional(v.string()),
+  timeout: v.optional(v.number()),
+  rateLimit: v.optional(v.number()),
+});
+
+export const capabilitiesValidator = v.object({
+  canSync: v.optional(v.boolean()),
+  canPush: v.optional(v.boolean()),
+  canWebhook: v.optional(v.boolean()),
+  syncFrequency: v.optional(v.string()),
+});
+
+export const testConnectionResultValidator = v.object({
+  success: v.boolean(),
+  message: v.string(),
+});
+
 export const connectorOperationValidator = v.object({
   name: v.string(),
   title: v.optional(v.string()),

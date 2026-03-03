@@ -4,13 +4,104 @@
  * Validates LLM step configurations.
  */
 
-import { z } from 'zod/v4';
-
-import type { JsonSchemaDefinition } from '../../../types/nodes';
 import type { ValidationResult } from '../types';
 
 import { isRecord } from '../../../../../lib/utils/type-guards';
 import { TOOL_NAMES } from '../../../../agent_tools/tool_names';
+
+const VALID_JSON_SCHEMA_TYPES = new Set([
+  'string',
+  'number',
+  'integer',
+  'boolean',
+  'array',
+  'object',
+]);
+
+/**
+ * Validate a JSON Schema property structure (recursive).
+ * Replaces z.fromJSONSchema() to avoid bundling zod into query files.
+ */
+function validateJsonSchemaProperty(prop: unknown, path: string): string[] {
+  const errors: string[] = [];
+
+  if (!isRecord(prop)) {
+    errors.push(`${path}: must be an object`);
+    return errors;
+  }
+
+  if (!prop.type || typeof prop.type !== 'string') {
+    errors.push(`${path}: missing or invalid "type" field`);
+    return errors;
+  }
+
+  if (!VALID_JSON_SCHEMA_TYPES.has(prop.type)) {
+    errors.push(
+      `${path}: invalid type "${prop.type}". Must be one of: ${[...VALID_JSON_SCHEMA_TYPES].join(', ')}`,
+    );
+  }
+
+  if (prop.type === 'array' && prop.items != null) {
+    errors.push(...validateJsonSchemaProperty(prop.items, `${path}.items`));
+  }
+
+  if (prop.type === 'object' && prop.properties != null) {
+    if (!isRecord(prop.properties)) {
+      errors.push(`${path}.properties: must be an object`);
+    } else {
+      for (const [key, value] of Object.entries(prop.properties)) {
+        errors.push(
+          ...validateJsonSchemaProperty(value, `${path}.properties.${key}`),
+        );
+      }
+    }
+
+    if (prop.required != null) {
+      if (!Array.isArray(prop.required)) {
+        errors.push(`${path}.required: must be an array`);
+      } else if (prop.required.some((r: unknown) => typeof r !== 'string')) {
+        errors.push(`${path}.required: all entries must be strings`);
+      }
+    }
+  }
+
+  return errors;
+}
+
+/**
+ * Validate a JSON Schema definition for LLM output.
+ * Structural check that the schema is a valid JSON Schema object definition.
+ */
+function validateJsonSchema(schema: unknown): string[] {
+  if (!isRecord(schema)) {
+    return ['outputSchema must be an object'];
+  }
+
+  if (schema.type !== 'object') {
+    return ['outputSchema.type must be "object"'];
+  }
+
+  if (!schema.properties || !isRecord(schema.properties)) {
+    return ['outputSchema.properties is required and must be an object'];
+  }
+
+  const errors: string[] = [];
+  for (const [key, value] of Object.entries(schema.properties)) {
+    errors.push(
+      ...validateJsonSchemaProperty(value, `outputSchema.properties.${key}`),
+    );
+  }
+
+  if (schema.required != null) {
+    if (!Array.isArray(schema.required)) {
+      errors.push('outputSchema.required must be an array');
+    } else if (schema.required.some((r: unknown) => typeof r !== 'string')) {
+      errors.push('outputSchema.required: all entries must be strings');
+    }
+  }
+
+  return errors;
+}
 
 /**
  * Validate an LLM step configuration
@@ -79,12 +170,9 @@ export function validateLlmStep(
 
   // Validate schema syntax if provided
   if (hasOutputSchema) {
-    try {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-      z.fromJSONSchema(llmConfig.outputSchema as JsonSchemaDefinition);
-    } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      errors.push(`LLM step "outputSchema" is invalid: ${message}`);
+    const schemaErrors = validateJsonSchema(llmConfig.outputSchema);
+    for (const err of schemaErrors) {
+      errors.push(`LLM step "outputSchema" is invalid: ${err}`);
     }
   }
 

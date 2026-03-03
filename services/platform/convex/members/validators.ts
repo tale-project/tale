@@ -1,34 +1,43 @@
 /**
  * Convex validators for members operations
  *
- * Note: Some schemas use jsonRecordSchema which contains z.lazy() for recursive types.
- * zodToConvex doesn't support z.lazy(), so complex validators are defined with native Convex v.
+ * All validators use native Convex v.* to avoid bundling zod into query files.
  */
 
-import { zodToConvex } from 'convex-helpers/server/zod4';
 import { v } from 'convex/values';
 
-import {
-  memberSchema,
-  memberContextSchema,
-  addMemberResponseSchema,
-} from '../../lib/shared/schemas/members';
-import { memberRoleSchema } from '../../lib/shared/schemas/organizations';
-import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
+import { jsonRecordValidator } from '../lib/validators/json';
 
-export {
-  memberListItemSchema,
-  memberSchema,
-  memberContextSchema,
-} from '../../lib/shared/schemas/members';
+export const memberRoleValidator = v.union(
+  v.literal('disabled'),
+  v.literal('member'),
+  v.literal('editor'),
+  v.literal('developer'),
+  v.literal('admin'),
+);
 
-// Simple schemas without z.lazy()
-export const memberRoleValidator = zodToConvex(memberRoleSchema);
-export const memberValidator = zodToConvex(memberSchema);
-export const memberContextValidator = zodToConvex(memberContextSchema);
-export const addMemberResponseValidator = zodToConvex(addMemberResponseSchema);
+export const memberValidator = v.object({
+  _id: v.string(),
+  _creationTime: v.number(),
+  organizationId: v.string(),
+  identityId: v.optional(v.string()),
+  email: v.optional(v.string()),
+  role: v.optional(memberRoleValidator),
+  displayName: v.optional(v.string()),
+});
 
-// Complex schemas with jsonRecordSchema (contains z.lazy) - use native Convex v
+export const memberContextValidator = v.object({
+  member: v.union(memberValidator, v.null()),
+  role: v.union(memberRoleValidator, v.null()),
+  isAdmin: v.boolean(),
+  canManageMembers: v.boolean(),
+  canChangePassword: v.boolean(),
+});
+
+export const addMemberResponseValidator = v.object({
+  memberId: v.string(),
+});
+
 export const memberListItemValidator = v.object({
   _id: v.string(),
   _creationTime: v.number(),

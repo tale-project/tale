@@ -8,8 +8,8 @@ import type { QueryCtx, MutationCtx } from '../_generated/server';
 import type { OAuthAccount, UpdateTokensArgs } from './types';
 
 import { components } from '../_generated/api';
-import { authComponent } from '../auth';
 import { createDebugLog } from '../lib/debug_log';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 
 const debugLog = createDebugLog('DEBUG_ACCOUNTS', '[Accounts]');
 
@@ -22,13 +22,13 @@ const debugLog = createDebugLog('DEBUG_ACCOUNTS', '[Accounts]');
  * OAuth-only users (e.g. Microsoft SSO) won't have one.
  */
 export async function hasCredentialAccount(ctx: QueryCtx): Promise<boolean> {
-  const authUser = await authComponent.safeGetAuthUser(ctx);
+  const authUser = await getAuthUserIdentity(ctx);
   if (!authUser) return false;
 
   const result = await ctx.runQuery(components.betterAuth.adapter.findMany, {
     model: 'account',
     where: [
-      { field: 'userId', value: String(authUser._id), operator: 'eq' },
+      { field: 'userId', value: authUser.userId, operator: 'eq' },
       { field: 'providerId', value: 'credential', operator: 'eq' },
     ],
     paginationOpts: { cursor: null, numItems: 1 },
@@ -47,18 +47,15 @@ export async function hasCredentialAccount(ctx: QueryCtx): Promise<boolean> {
 export async function getMicrosoftAccount(
   ctx: QueryCtx,
 ): Promise<OAuthAccount | null> {
-  const authUser = await authComponent.safeGetAuthUser(ctx);
+  const authUser = await getAuthUserIdentity(ctx);
   if (!authUser) {
     return null;
   }
 
   try {
-    const betterAuthInternalUserId = String(authUser._id);
-
     debugLog('getMicrosoftAccount: Looking for Microsoft account', {
-      userId: betterAuthInternalUserId,
+      userId: authUser.userId,
       authUserEmail: authUser.email,
-      authUserObject: authUser,
     });
 
     const microsoftResult = await ctx.runQuery(
@@ -68,7 +65,7 @@ export async function getMicrosoftAccount(
         where: [
           {
             field: 'userId',
-            value: String(betterAuthInternalUserId),
+            value: authUser.userId,
             operator: 'eq',
           },
           { field: 'providerId', value: 'microsoft', operator: 'eq' },
@@ -185,14 +182,14 @@ export async function getMicrosoftAccountByUserId(
  * Check if current user has a Microsoft account connected.
  */
 export async function hasMicrosoftAccount(ctx: QueryCtx): Promise<boolean> {
-  const authUser = await authComponent.safeGetAuthUser(ctx);
+  const authUser = await getAuthUserIdentity(ctx);
   if (!authUser) return false;
 
   try {
     const result = await ctx.runQuery(components.betterAuth.adapter.findMany, {
       model: 'account',
       where: [
-        { field: 'userId', value: String(authUser._id), operator: 'eq' },
+        { field: 'userId', value: authUser.userId, operator: 'eq' },
         { field: 'providerId', value: 'microsoft', operator: 'eq' },
       ],
       paginationOpts: {
