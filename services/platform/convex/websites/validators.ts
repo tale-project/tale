@@ -1,25 +1,19 @@
 /**
  * Convex validators for website operations
- *
- * Note: Some schemas use jsonRecordSchema which contains z.lazy() for recursive types.
- * zodToConvex doesn't support z.lazy(), so complex validators are defined with native Convex v.
  */
 
-import { zodToConvex } from 'convex-helpers/server/zod4';
 import { v } from 'convex/values';
 
-import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
-import { websiteStatusSchema } from '../../lib/shared/schemas/websites';
+import { jsonRecordValidator } from '../lib/validators/json';
 
-export {
-  websiteStatusSchema,
-  websiteSchema,
-} from '../../lib/shared/schemas/websites';
+export const websiteStatusValidator = v.union(
+  v.literal('idle'),
+  v.literal('scanning'),
+  v.literal('active'),
+  v.literal('error'),
+  v.literal('deleting'),
+);
 
-// Simple schemas without z.lazy()
-export const websiteStatusValidator = zodToConvex(websiteStatusSchema);
-
-// Complex schemas with jsonRecordSchema (contains z.lazy) - use native Convex v
 export const websiteValidator = v.object({
   _id: v.string(),
   _creationTime: v.number(),

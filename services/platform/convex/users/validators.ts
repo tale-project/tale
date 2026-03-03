@@ -4,8 +4,13 @@
  * Users use Better Auth for storage - no schema table.
  */
 
-import { zodToConvex } from 'convex-helpers/server/zod4';
+import { v } from 'convex/values';
 
-import { roleSchema } from '../../lib/shared/schemas/users';
-
-export const roleValidator = zodToConvex(roleSchema);
+export const roleValidator = v.union(
+  v.literal('owner'),
+  v.literal('admin'),
+  v.literal('developer'),
+  v.literal('editor'),
+  v.literal('member'),
+  v.literal('disabled'),
+);

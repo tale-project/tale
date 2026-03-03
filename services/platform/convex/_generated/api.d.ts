@@ -353,6 +353,7 @@ import type * as lib_summarize_context from "../lib/summarize_context.js";
 import type * as lib_team_access from "../lib/team_access.js";
 import type * as lib_type_cast_helpers from "../lib/type_cast_helpers.js";
 import type * as lib_validators_common from "../lib/validators/common.js";
+import type * as lib_validators_json from "../lib/validators/json.js";
 import type * as lib_variables_build_context from "../lib/variables/build_context.js";
 import type * as lib_variables_evaluate_expression from "../lib/variables/evaluate_expression.js";
 import type * as lib_variables_jexl_instance from "../lib/variables/jexl_instance.js";
@@ -1189,6 +1190,7 @@ declare const fullApi: ApiFromModules<{
   "lib/team_access": typeof lib_team_access;
   "lib/type_cast_helpers": typeof lib_type_cast_helpers;
   "lib/validators/common": typeof lib_validators_common;
+  "lib/validators/json": typeof lib_validators_json;
   "lib/variables/build_context": typeof lib_variables_build_context;
   "lib/variables/evaluate_expression": typeof lib_variables_evaluate_expression;
   "lib/variables/jexl_instance": typeof lib_variables_jexl_instance;
