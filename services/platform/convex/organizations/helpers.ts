@@ -6,7 +6,6 @@
 export * from './validators';
 
 // Model operations
-export * from './get_current_organization';
 export * from './create_organization';
 export * from './get_organization';
 export * from './update_organization';

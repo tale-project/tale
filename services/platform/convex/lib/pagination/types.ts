@@ -4,15 +4,9 @@
 
 import type { GenericValidator } from 'convex/values';
 
-import { zodToConvex } from 'convex-helpers/server/zod4';
 import { v } from 'convex/values';
 
-import {
-  cursorPaginationOptsSchema,
-  DEFAULT_PAGE_SIZE,
-} from '../../../lib/shared/schemas/pagination';
-
-export * from '../../../lib/shared/schemas/pagination';
+export const DEFAULT_PAGE_SIZE = 20;
 
 /**
  * Input options for cursor-based pagination.
@@ -37,9 +31,11 @@ export interface CursorPaginatedResult<T> {
 /**
  * Validator for cursor pagination options input
  */
-export const cursorPaginationOptsValidator = zodToConvex(
-  cursorPaginationOptsSchema,
-);
+export const cursorPaginationOptsValidator = v.object({
+  numItems: v.number(),
+  cursor: v.union(v.string(), v.null()),
+  id: v.optional(v.number()),
+});
 
 /**
  * Creates a validator for cursor paginated results.
@@ -54,5 +50,3 @@ export function cursorPaginatedResultValidator<V extends GenericValidator>(
     continueCursor: v.string(),
   });
 }
-
-export { DEFAULT_PAGE_SIZE };

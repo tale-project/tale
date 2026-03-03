@@ -9,9 +9,9 @@ import { Infer } from 'convex/values';
 
 import type { Doc, Id } from '../../../_generated/dataModel';
 
-import { jsonValueValidator } from '../../../../lib/shared/schemas/utils/json-value';
 import { isRecord } from '../../../../lib/utils/type-guards';
 import { internal } from '../../../_generated/api';
+import { jsonValueValidator } from '../../../lib/validators/json';
 
 type ConvexJsonValue = Infer<typeof jsonValueValidator>;
 
