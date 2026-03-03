@@ -11,6 +11,8 @@ export type {
   Organization,
 } from '../../lib/shared/schemas/organizations';
 
+// Intentionally duplicated in members/validators.ts to keep module bundles independent.
+// Do not consolidate — cross-module imports risk pulling transitive deps into query bundles.
 export const memberRoleValidator = v.union(
   v.literal('disabled'),
   v.literal('member'),

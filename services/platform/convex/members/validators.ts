@@ -8,6 +8,8 @@ import { v } from 'convex/values';
 
 import { jsonRecordValidator } from '../lib/validators/json';
 
+// Intentionally duplicated in organizations/validators.ts to keep module bundles independent.
+// Do not consolidate — cross-module imports risk pulling transitive deps into query bundles.
 export const memberRoleValidator = v.union(
   v.literal('disabled'),
   v.literal('member'),
