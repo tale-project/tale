@@ -16,7 +16,46 @@ const VALID_JSON_SCHEMA_TYPES = new Set([
   'boolean',
   'array',
   'object',
+  'null',
 ]);
+
+/**
+ * Parse the `type` field from a JSON Schema property.
+ * Handles both string (`"string"`) and array-of-types (`["string", "null"]`) syntax.
+ */
+function parseTypeField(
+  prop: Record<string, unknown>,
+  path: string,
+): { types: string[]; errors: string[] } {
+  const typeValue = prop.type;
+  if (typeValue == null) {
+    return { types: [], errors: [`${path}: missing "type" field`] };
+  }
+
+  const raw = Array.isArray(typeValue) ? typeValue : [typeValue];
+  const types: string[] = [];
+  for (const t of raw) {
+    if (typeof t !== 'string') {
+      return {
+        types: [],
+        errors: [`${path}: "type" must be a string or array of strings`],
+      };
+    }
+    types.push(t);
+  }
+
+  const invalid = types.filter((t) => !VALID_JSON_SCHEMA_TYPES.has(t));
+  if (invalid.length > 0) {
+    return {
+      types,
+      errors: [
+        `${path}: invalid type(s) "${invalid.join(', ')}". Must be one of: ${[...VALID_JSON_SCHEMA_TYPES].join(', ')}`,
+      ],
+    };
+  }
+
+  return { types, errors: [] };
+}
 
 /**
  * Validate a JSON Schema property structure (recursive).
@@ -30,22 +69,16 @@ function validateJsonSchemaProperty(prop: unknown, path: string): string[] {
     return errors;
   }
 
-  if (!prop.type || typeof prop.type !== 'string') {
-    errors.push(`${path}: missing or invalid "type" field`);
-    return errors;
+  const { types, errors: typeErrors } = parseTypeField(prop, path);
+  if (typeErrors.length > 0) {
+    return typeErrors;
   }
 
-  if (!VALID_JSON_SCHEMA_TYPES.has(prop.type)) {
-    errors.push(
-      `${path}: invalid type "${prop.type}". Must be one of: ${[...VALID_JSON_SCHEMA_TYPES].join(', ')}`,
-    );
-  }
-
-  if (prop.type === 'array' && prop.items != null) {
+  if (types.includes('array') && prop.items != null) {
     errors.push(...validateJsonSchemaProperty(prop.items, `${path}.items`));
   }
 
-  if (prop.type === 'object' && prop.properties != null) {
+  if (types.includes('object') && prop.properties != null) {
     if (!isRecord(prop.properties)) {
       errors.push(`${path}.properties: must be an object`);
     } else {

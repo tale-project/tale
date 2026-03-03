@@ -426,7 +426,6 @@ import type * as organizations_actions from "../organizations/actions.js";
 import type * as organizations_create_organization from "../organizations/create_organization.js";
 import type * as organizations_delete_organization from "../organizations/delete_organization.js";
 import type * as organizations_delete_organization_logo from "../organizations/delete_organization_logo.js";
-import type * as organizations_get_current_organization from "../organizations/get_current_organization.js";
 import type * as organizations_get_organization from "../organizations/get_organization.js";
 import type * as organizations_helpers from "../organizations/helpers.js";
 import type * as organizations_queries from "../organizations/queries.js";
@@ -1263,7 +1262,6 @@ declare const fullApi: ApiFromModules<{
   "organizations/create_organization": typeof organizations_create_organization;
   "organizations/delete_organization": typeof organizations_delete_organization;
   "organizations/delete_organization_logo": typeof organizations_delete_organization_logo;
-  "organizations/get_current_organization": typeof organizations_get_current_organization;
   "organizations/get_organization": typeof organizations_get_organization;
   "organizations/helpers": typeof organizations_helpers;
   "organizations/queries": typeof organizations_queries;
