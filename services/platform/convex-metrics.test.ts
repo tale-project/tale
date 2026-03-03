@@ -319,6 +319,66 @@ describe('convertVmhistogramToPrometheus', () => {
     expect(sumIdx).toBeLessThan(countIdx);
   });
 
+  test('produces exact output for label values containing curly braces', () => {
+    const input = [
+      '# TYPE http_duration vmhistogram',
+      'http_duration_bucket{endpoint="/api/{client_version}/sync",method="GET",vmrange="1.000e-4...2.000e-4"} 3',
+      'http_duration_bucket{endpoint="/api/{client_version}/sync",method="GET",vmrange="2.000e-4...3.000e-4"} 2',
+      'http_duration_sum{endpoint="/api/{client_version}/sync",method="GET"} 0.0005',
+      'http_duration_count{endpoint="/api/{client_version}/sync",method="GET"} 5',
+    ].join('\n');
+
+    const expected = [
+      '# TYPE http_duration histogram',
+      'http_duration_bucket{endpoint="/api/{client_version}/sync",method="GET",le="0.0002"} 3',
+      'http_duration_bucket{endpoint="/api/{client_version}/sync",method="GET",le="0.0003"} 5',
+      'http_duration_bucket{endpoint="/api/{client_version}/sync",method="GET",le="+Inf"} 5',
+      'http_duration_sum{endpoint="/api/{client_version}/sync",method="GET"} 0.0005',
+      'http_duration_count{endpoint="/api/{client_version}/sync",method="GET"} 5',
+    ].join('\n');
+
+    expect(convertVmhistogramToPrometheus(input)).toBe(expected);
+  });
+
+  test('handles vmrange in middle with curly braces in preceding label', () => {
+    const input = [
+      '# TYPE rpc vmhistogram',
+      'rpc_bucket{endpoint="/api/{id}/data",vmrange="1.000e-1...2.000e-1",region="us"} 4',
+      'rpc_bucket{endpoint="/api/{id}/data",vmrange="2.000e-1...3.000e-1",region="us"} 6',
+      'rpc_sum{endpoint="/api/{id}/data",region="us"} 2.5',
+      'rpc_count{endpoint="/api/{id}/data",region="us"} 10',
+    ].join('\n');
+
+    const expected = [
+      '# TYPE rpc histogram',
+      'rpc_bucket{endpoint="/api/{id}/data",region="us",le="0.2"} 4',
+      'rpc_bucket{endpoint="/api/{id}/data",region="us",le="0.3"} 10',
+      'rpc_bucket{endpoint="/api/{id}/data",region="us",le="+Inf"} 10',
+      'rpc_sum{endpoint="/api/{id}/data",region="us"} 2.5',
+      'rpc_count{endpoint="/api/{id}/data",region="us"} 10',
+    ].join('\n');
+
+    expect(convertVmhistogramToPrometheus(input)).toBe(expected);
+  });
+
+  test('skips malformed bucket line without closing brace', () => {
+    const input = [
+      '# TYPE ops vmhistogram',
+      'ops_bucket{vmrange="1.000e-2...2.000e-2" 10',
+      'ops_sum 0.15',
+      'ops_count 10',
+      '# TYPE healthy counter',
+      'healthy_total 42',
+    ].join('\n');
+
+    const result = convertVmhistogramToPrometheus(input);
+
+    expect(result).not.toContain('NaN');
+    expect(result).toContain('# TYPE healthy counter');
+    expect(result).toContain('healthy_total 42');
+    expect(result).toContain('ops_bucket{le="+Inf"} 10');
+  });
+
   test('handles CRLF line endings', () => {
     const input = [
       '# TYPE ops vmhistogram',

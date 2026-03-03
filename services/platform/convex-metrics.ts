@@ -90,8 +90,10 @@ export function convertVmhistogramToPrometheus(text: string): string {
       const rangeEnd = line.indexOf('"', rangeStart);
       const vmrange = line.slice(rangeStart, rangeEnd);
 
-      // Extract the value after the closing brace
-      const braceEnd = line.indexOf('}', rangeEnd);
+      // In valid Prometheus lines, the last } is always the label-block closer
+      // (the value portion after } is always numeric, never contains braces)
+      const braceEnd = line.lastIndexOf('}');
+      if (braceEnd === -1) continue;
       const count = parseFloat(line.slice(braceEnd + 2));
 
       // Build the label key without vmrange for grouping
@@ -186,8 +188,8 @@ function flushBucketsForCount(
   bucketGroups: Map<string, Bucket[]>,
   countLine: string,
 ): void {
-  // Extract total count value (first space after '}' or metric name)
-  const braceClose = countLine.indexOf('}');
+  // In valid Prometheus lines, the last } is always the label-block closer
+  const braceClose = countLine.lastIndexOf('}');
   const valueStart =
     braceClose !== -1
       ? countLine.indexOf(' ', braceClose)
