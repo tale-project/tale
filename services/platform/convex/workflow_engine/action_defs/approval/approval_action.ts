@@ -13,7 +13,7 @@ import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import {
   jsonRecordValidator,
   type ConvexJsonRecord,
-} from '../../../../lib/shared/schemas/utils/json-value';
+} from '../../../lib/validators/json';
 import { createApproval } from './helpers/create_approval';
 
 // Common field validators

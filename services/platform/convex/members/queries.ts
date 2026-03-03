@@ -1,11 +1,8 @@
 import { v } from 'convex/values';
 
+import type { MemberRole } from '../../lib/shared/schemas/organizations';
 import type { BetterAuthFindManyResult, BetterAuthMember } from './types';
 
-import {
-  memberRoleSchema,
-  type MemberRole,
-} from '../../lib/shared/schemas/organizations';
 import { components } from '../_generated/api';
 import { query } from '../_generated/server';
 import {
@@ -30,8 +27,16 @@ interface BetterAuthTeamMember {
   createdAt?: number | null;
 }
 
+const VALID_ROLES = new Set<string>([
+  'disabled',
+  'member',
+  'editor',
+  'developer',
+  'admin',
+]);
+
 function isValidRole(role: string): role is MemberRole {
-  return memberRoleSchema.safeParse(role).success;
+  return VALID_ROLES.has(role);
 }
 
 export const getCurrentMemberContext = query({
@@ -133,9 +138,8 @@ export const listByOrganization = query({
           },
         );
 
-        const parsedRole = memberRoleSchema.safeParse(member.role);
-        const role: MemberRole = parsedRole.success
-          ? parsedRole.data
+        const role: MemberRole = isValidRole(member.role)
+          ? member.role
           : 'member';
 
         return {

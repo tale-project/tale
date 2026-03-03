@@ -1,4 +1,4 @@
-import type { ConvexJsonRecord } from '../../../../../lib/shared/schemas/utils/json-value';
+import type { ConvexJsonRecord } from '../../../../lib/validators/json';
 import type { EmailType } from './types';
 
 import { toConvexJsonRecord } from '../../../../lib/type_cast_helpers';

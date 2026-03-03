@@ -4,7 +4,7 @@ import { v } from 'convex/values';
 import {
   jsonRecordValidator,
   jsonValueValidator,
-} from '../../lib/shared/schemas/utils/json-value';
+} from '../lib/validators/json';
 import { stepConfigValidator } from '../workflow_engine/types/nodes';
 import { workflowStatusValidator } from './definitions/validators';
 import { executionStatusValidator } from './executions/validators';

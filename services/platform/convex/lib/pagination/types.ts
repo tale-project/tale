@@ -6,7 +6,7 @@ import type { GenericValidator } from 'convex/values';
 
 import { v } from 'convex/values';
 
-export { DEFAULT_PAGE_SIZE } from '../../../lib/shared/schemas/pagination';
+export const DEFAULT_PAGE_SIZE = 20;
 
 /**
  * Input options for cursor-based pagination.
