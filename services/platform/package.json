@@ -35,7 +35,7 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "2.0.95",
-    "@ai-sdk/provider-utils": "4.0.16",
+    "@ai-sdk/provider-utils": "4.0.17",
     "@casl/ability": "^6.8.0",
     "@convex-dev/action-cache": "0.3.0",
     "@convex-dev/agent": "^0.3.2",
