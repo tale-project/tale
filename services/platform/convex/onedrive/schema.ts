@@ -1,7 +1,7 @@
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
-import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
+import { jsonRecordValidator } from '../lib/validators/json';
 
 export const onedriveSyncConfigsTable = defineTable({
   organizationId: v.string(),
