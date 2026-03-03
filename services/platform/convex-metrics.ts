@@ -31,6 +31,10 @@ function parseVmrangeUpperBound(vmrange: string): number {
 /**
  * Convert raw Convex metrics text from vmhistogram format to standard
  * Prometheus histogram format. Counter and gauge metrics pass through unchanged.
+ *
+ * Assumes Convex backend emits metrics in grouped format: all _bucket lines
+ * for a label set, then _sum, then _count. Interleaved label groups across
+ * non-adjacent lines are not supported.
  */
 export function convertVmhistogramToPrometheus(text: string): string {
   const lines = text.replace(/\r/g, '').split('\n');
@@ -274,12 +278,17 @@ export async function convexMetricsResponse(
       return new Response('Convex metrics unavailable', { status: 502 });
     }
     const raw = await res.text();
-    const isRaw = format === 'raw';
-    const body = isRaw ? raw : convertVmhistogramToPrometheus(raw);
+    let body: string;
+    try {
+      body = format === 'raw' ? raw : convertVmhistogramToPrometheus(raw);
+    } catch (err) {
+      console.error('Convex metrics conversion failed:', err);
+      body = raw;
+    }
+    const contentType =
+      format === 'raw' ? PLAIN_CONTENT_TYPE : PROMETHEUS_CONTENT_TYPE;
     return new Response(body, {
-      headers: {
-        'Content-Type': isRaw ? PLAIN_CONTENT_TYPE : PROMETHEUS_CONTENT_TYPE,
-      },
+      headers: { 'Content-Type': contentType },
     });
   } catch (error) {
     console.error('Failed to fetch Convex metrics:', error);

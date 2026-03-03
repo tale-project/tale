@@ -1,6 +1,9 @@
-import { describe, expect, test } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 
-import { convertVmhistogramToPrometheus } from './convex-metrics';
+import {
+  convertVmhistogramToPrometheus,
+  convexMetricsResponse,
+} from './convex-metrics';
 
 describe('convertVmhistogramToPrometheus', () => {
   test('converts vmhistogram buckets to cumulative le buckets', () => {
@@ -412,6 +415,71 @@ describe('convertVmhistogramToPrometheus', () => {
     expect(convertVmhistogramToPrometheus(input)).toBe(expected);
   });
 
+  test('produces exact output for a labeled histogram', () => {
+    const input = [
+      '# HELP rpc_duration RPC duration',
+      '# TYPE rpc_duration vmhistogram',
+      'rpc_duration_bucket{service="a",vmrange="1.000e0...2.000e0"} 3',
+      'rpc_duration_bucket{service="a",vmrange="2.000e0...3.000e0"} 2',
+      'rpc_duration_sum{service="a"} 7.5',
+      'rpc_duration_count{service="a"} 5',
+      'rpc_duration_bucket{service="b",vmrange="1.000e0...2.000e0"} 7',
+      'rpc_duration_sum{service="b"} 10.5',
+      'rpc_duration_count{service="b"} 7',
+    ].join('\n');
+
+    const expected = [
+      '# HELP rpc_duration RPC duration',
+      '# TYPE rpc_duration histogram',
+      'rpc_duration_bucket{service="a",le="2"} 3',
+      'rpc_duration_bucket{service="a",le="3"} 5',
+      'rpc_duration_bucket{service="a",le="+Inf"} 5',
+      'rpc_duration_sum{service="a"} 7.5',
+      'rpc_duration_count{service="a"} 5',
+      'rpc_duration_bucket{service="b",le="2"} 7',
+      'rpc_duration_bucket{service="b",le="+Inf"} 7',
+      'rpc_duration_sum{service="b"} 10.5',
+      'rpc_duration_count{service="b"} 7',
+    ].join('\n');
+
+    expect(convertVmhistogramToPrometheus(input)).toBe(expected);
+  });
+
+  test('produces exact output for mixed metric types', () => {
+    const input = [
+      '# HELP requests_total Counter',
+      '# TYPE requests_total counter',
+      'requests_total 42',
+      '# HELP duration Histogram',
+      '# TYPE duration vmhistogram',
+      'duration_bucket{vmrange="1.000e-2...2.000e-2"} 10',
+      'duration_bucket{vmrange="2.000e-2...5.000e-2"} 5',
+      'duration_sum 0.45',
+      'duration_count 15',
+      '# HELP goroutines Gauge',
+      '# TYPE goroutines gauge',
+      'goroutines 8',
+    ].join('\n');
+
+    const expected = [
+      '# HELP requests_total Counter',
+      '# TYPE requests_total counter',
+      'requests_total 42',
+      '# HELP duration Histogram',
+      '# TYPE duration histogram',
+      'duration_bucket{le="0.02"} 10',
+      'duration_bucket{le="0.05"} 15',
+      'duration_bucket{le="+Inf"} 15',
+      'duration_sum 0.45',
+      'duration_count 15',
+      '# HELP goroutines Gauge',
+      '# TYPE goroutines gauge',
+      'goroutines 8',
+    ].join('\n');
+
+    expect(convertVmhistogramToPrometheus(input)).toBe(expected);
+  });
+
   test('handles trailing newline in input', () => {
     const input = [
       '# TYPE ops vmhistogram',
@@ -423,5 +491,74 @@ describe('convertVmhistogramToPrometheus', () => {
 
     const result = convertVmhistogramToPrometheus(input);
     expect(result.endsWith('\n')).toBe(true);
+  });
+});
+
+describe('convexMetricsResponse', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test('returns converted metrics with Prometheus content type', async () => {
+    const raw = [
+      '# TYPE ops vmhistogram',
+      'ops_bucket{vmrange="1.000e-2...2.000e-2"} 10',
+      'ops_sum 0.15',
+      'ops_count 10',
+    ].join('\n');
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(new Response(raw, { status: 200 }))),
+    );
+
+    const res = await convexMetricsResponse();
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Content-Type')).toBe(
+      'text/plain; version=0.0.4; charset=utf-8',
+    );
+    const body = await res.text();
+    expect(body).toContain('# TYPE ops histogram');
+    expect(body).not.toContain('vmrange');
+  });
+
+  test('returns raw metrics when format=raw', async () => {
+    const raw = '# TYPE ops vmhistogram\nops_count 10\n';
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(new Response(raw, { status: 200 }))),
+    );
+
+    const res = await convexMetricsResponse('raw');
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Content-Type')).toBe('text/plain; charset=utf-8');
+    expect(await res.text()).toBe(raw);
+  });
+
+  test('returns 502 on upstream non-OK response', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(new Response('', { status: 503 }))),
+    );
+
+    const res = await convexMetricsResponse();
+
+    expect(res.status).toBe(502);
+    expect(await res.text()).toBe('Convex metrics unavailable');
+  });
+
+  test('returns 502 on fetch failure', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.reject(new Error('Connection refused'))),
+    );
+
+    const res = await convexMetricsResponse();
+
+    expect(res.status).toBe(502);
+    expect(await res.text()).toBe('Convex metrics unavailable');
   });
 });
