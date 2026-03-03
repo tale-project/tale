@@ -161,6 +161,12 @@ ENV NODE_ENV=production \
     # USER_HEAP 256MB + EXTRA 128MB = 384MB total heap limit per isolate.
     ISOLATE_MAX_USER_HEAP_SIZE=268435456 \
     ISOLATE_MAX_HEAP_EXTRA_SIZE=134217728 \
+    # Increase V8 isolate idle timeout from default 10min to 1 hour.
+    # Keeps warm isolates alive longer, avoiding cold-start latency on
+    # queries that fire every 5-10 minutes.
+    ISOLATE_IDLE_TIMEOUT_SECONDS=3600 \
+    # Increase isolate max lifetime from default 1h to 4h (must be >= idle timeout).
+    ISOLATE_MAX_LIFETIME_SECONDS=14400 \
     # CA cert path for self-signed mode - entrypoint script checks if file exists
     # With Let's Encrypt, this file doesn't exist and is safely ignored
     CADDY_CA_CERT_PATH=/caddy-data/caddy/pki/authorities/local/root.crt \
