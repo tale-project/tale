@@ -144,8 +144,8 @@
 			reverse_proxy platform:3000
 		}
 		handle /metrics/convex {
-			rewrite * /metrics
-			reverse_proxy platform:3210
+			rewrite * /metrics/convex
+			reverse_proxy platform:3000
 		}
 	}
 
