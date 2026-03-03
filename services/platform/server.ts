@@ -1,5 +1,6 @@
 import { join, resolve } from 'node:path';
 
+import { convexMetricsResponse } from './convex-metrics';
 import { initTelemetry, metricsResponse } from './telemetry';
 
 interface EnvConfig {
@@ -42,6 +43,10 @@ Bun.serve({
 
     if (pathname === '/metrics') {
       return metricsResponse();
+    }
+
+    if (pathname === '/metrics/convex') {
+      return convexMetricsResponse();
     }
 
     if (pathname !== '/') {
