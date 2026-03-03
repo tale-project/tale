@@ -150,11 +150,13 @@
 	}
 
 	# Block all other /metrics requests (no token, wrong token, or unknown service)
+	# Returns 401 so scrapers (e.g. Grafana Cloud) know auth is required
 	@metricsBlock {
 		path_regexp (?i)^/metrics(/.*)?$
 	}
 	handle @metricsBlock {
-		respond "Not Found" 404
+		header WWW-Authenticate "Bearer"
+		respond "Unauthorized" 401
 	}
 
 	# ============================================================================
