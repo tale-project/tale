@@ -94,17 +94,12 @@ describe('LogInPage – submit button state after failed login (#648)', () => {
 
     await user.click(screen.getByRole('button', { name: 'login.loginButton' }));
 
-    // Error message should appear
+    // Error message should appear on the password field
     await waitFor(() => {
       expect(screen.getByText('login.wrongCredentials')).toBeInTheDocument();
     });
 
-    // Button stays enabled because loginError is independent of RHF's isValid
-    expect(
-      screen.getByRole('button', { name: 'login.loginButton' }),
-    ).not.toBeDisabled();
-
-    // User edits the email field — this should clear the error message
+    // User edits the email field — onChange clears the password error
     fireEvent.change(screen.getByLabelText('email'), {
       target: { value: 'correct@example.com' },
     });

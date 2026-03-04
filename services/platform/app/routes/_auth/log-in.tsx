@@ -4,7 +4,7 @@ import {
   useNavigate,
   useSearch,
 } from '@tanstack/react-router';
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useMemo, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -84,32 +84,22 @@ export function LogInPage() {
   });
 
   const { isSubmitting, isValid, errors } = form.formState;
-  const [loginError, setLoginError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const subscription = form.watch(() => {
-      if (loginError) {
-        setLoginError(null);
-      }
-    });
-    return () => subscription.unsubscribe();
-  }, [form, loginError]);
 
   const handleSubmit = async (data: LogInFormData) => {
-    setLoginError(null);
+    form.clearErrors('password');
 
     try {
       const response = await authClient.signIn.email(
         { email: data.email, password: data.password },
         {
           onError: () => {
-            setLoginError(t('login.wrongCredentials'));
+            form.setError('password', { message: t('login.wrongCredentials') });
           },
         },
       );
 
       if (!response.data?.user) {
-        setLoginError(t('login.wrongCredentials'));
+        form.setError('password', { message: t('login.wrongCredentials') });
         return;
       }
 
@@ -156,7 +146,9 @@ export function LogInPage() {
               autoComplete="email"
               errorMessage={errors.email?.message}
               className="shadow-xs"
-              {...form.register('email')}
+              {...form.register('email', {
+                onChange: () => form.clearErrors('password'),
+              })}
             />
 
             <Input
@@ -167,9 +159,11 @@ export function LogInPage() {
               placeholder={t('passwordPlaceholder')}
               disabled={isSubmitting}
               autoComplete="current-password"
-              errorMessage={errors.password?.message ?? loginError ?? undefined}
+              errorMessage={errors.password?.message}
               className="shadow-xs"
-              {...form.register('password')}
+              {...form.register('password', {
+                onChange: () => form.clearErrors('password'),
+              })}
             />
 
             <Button
