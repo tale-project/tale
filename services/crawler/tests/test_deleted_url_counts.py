@@ -97,6 +97,27 @@ class TestSaveDiscoveredUrls:
         assert result == 0
 
 
+class TestGetUrlsNeedingRecrawlFailCountLimit:
+    async def test_default_max_fail_count_filters_query(self, site_store, mock_conn):
+        await site_store.get_urls_needing_recrawl()
+
+        sql = mock_conn.fetch.call_args[0][0]
+        assert "fail_count < $2" in sql
+
+    async def test_custom_max_fail_count_passed_to_query(self, site_store, mock_conn):
+        await site_store.get_urls_needing_recrawl(max_fail_count=5)
+
+        args = mock_conn.fetch.call_args[0]
+        # args[0] = SQL, args[1] = domain, args[2] = max_fail_count
+        assert args[2] == 5
+
+    async def test_with_crawled_before_includes_fail_count_filter(self, site_store, mock_conn):
+        await site_store.get_urls_needing_recrawl(crawled_before=1000000.0)
+
+        sql = mock_conn.fetch.call_args[0][0]
+        assert "fail_count < $2" in sql
+
+
 class TestMarkUrlsDeleted:
     async def test_deletes_chunks_and_hashes_then_soft_deletes(self, site_store, mock_conn):
         await site_store.mark_urls_deleted(["https://example.com/gone"])

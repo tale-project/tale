@@ -75,18 +75,22 @@ class PgWebsiteStore:
                 for r in rows
             ]
 
-    async def get_urls_needing_recrawl(self, limit: int = 20, crawled_before: float | None = None) -> list[str]:
+    async def get_urls_needing_recrawl(
+        self, limit: int = 20, crawled_before: float | None = None, max_fail_count: int = 10
+    ) -> list[str]:
         async with acquire_with_retry(self._pool) as conn:
             if crawled_before is not None:
                 ts = datetime.fromtimestamp(crawled_before, tz=UTC)
                 rows = await conn.fetch(
                     """SELECT url FROM website_urls
                        WHERE domain = $1 AND status != 'deleted'
-                         AND (last_crawled_at IS NULL OR last_crawled_at < $2)
+                         AND fail_count < $2
+                         AND (last_crawled_at IS NULL OR last_crawled_at < $3)
                        ORDER BY CASE WHEN content_hash IS NULL THEN 0 ELSE 1 END,
                               last_crawled_at ASC NULLS FIRST
-                       LIMIT $3""",
+                       LIMIT $4""",
                     self._domain,
+                    max_fail_count,
                     ts,
                     limit,
                 )
@@ -94,10 +98,12 @@ class PgWebsiteStore:
                 rows = await conn.fetch(
                     """SELECT url FROM website_urls
                        WHERE domain = $1 AND status != 'deleted'
+                         AND fail_count < $2
                        ORDER BY CASE WHEN content_hash IS NULL THEN 0 ELSE 1 END,
                               last_crawled_at ASC NULLS FIRST
-                       LIMIT $2""",
+                       LIMIT $3""",
                     self._domain,
+                    max_fail_count,
                     limit,
                 )
             return [r["url"] for r in rows]
@@ -141,6 +147,12 @@ class PgWebsiteStore:
             )
 
     async def mark_urls_deleted(self, urls: list[str]) -> None:
+        """Permanently soft-delete URLs: remove chunks/hashes and clear all content fields.
+
+        This is a one-way operation. Deleted URLs cannot be resurrected by
+        re-discovery (save_discovered_urls uses ON CONFLICT DO NOTHING).
+        Recovery requires manual database intervention.
+        """
         if not urls:
             return
         async with acquire_with_retry(self._pool) as conn, conn.transaction():
@@ -205,7 +217,8 @@ class PgWebsiteStore:
                     status,
                 )
             return await conn.fetchval(
-                "SELECT COUNT(*) FROM website_urls WHERE domain = $1 AND content_hash IS NOT NULL AND status != 'deleted'",
+                """SELECT COUNT(*) FROM website_urls
+                   WHERE domain = $1 AND content_hash IS NOT NULL AND status != 'deleted'""",
                 self._domain,
             )
 

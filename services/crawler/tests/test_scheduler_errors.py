@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 import stamina
 
-from app.services.scheduler import _PERMANENT_HTTP_ERRORS, _scan_website
+from app.services.scheduler import _MAX_DELETION_RATIO, _PERMANENT_HTTP_ERRORS, _scan_website
 
 pytestmark = pytest.mark.asyncio
 
@@ -70,7 +70,7 @@ class TestPermanentHttpErrors:
 class TestSchedulerErrorClassification:
     """Test that _scan_website correctly classifies HTTP errors."""
 
-    async def _run_scan(self, store_manager, mock_conn, crawl_results, urls_to_crawl):
+    async def _run_scan(self, store_manager, mock_conn, crawl_results, urls_to_crawl, total_count=0):
         """Helper: run _scan_website with mocked dependencies."""
         crawler_service = AsyncMock()
         crawler_service.initialized = True
@@ -90,7 +90,7 @@ class TestSchedulerErrorClassification:
         site_store.increment_fail_count = AsyncMock()
         site_store.touch_crawled_at = AsyncMock()
         site_store.update_cache_headers = AsyncMock()
-        site_store.get_total_count = AsyncMock(return_value=0)
+        site_store.get_total_count = AsyncMock(return_value=total_count)
 
         store_manager.update_scan_status = AsyncMock()
         store_manager.update_website_metadata = AsyncMock()
@@ -108,7 +108,7 @@ class TestSchedulerErrorClassification:
         urls = ["https://example.com/gone"]
         results = [_crawl_result("https://example.com/gone", 404)]
 
-        site_store = await self._run_scan(store_manager, mock_conn, results, urls)
+        site_store = await self._run_scan(store_manager, mock_conn, results, urls, total_count=100)
 
         site_store.mark_urls_deleted.assert_called_once_with(["https://example.com/gone"])
         site_store.increment_fail_count.assert_not_called()
@@ -117,7 +117,7 @@ class TestSchedulerErrorClassification:
         urls = ["https://example.com/removed"]
         results = [_crawl_result("https://example.com/removed", 410)]
 
-        site_store = await self._run_scan(store_manager, mock_conn, results, urls)
+        site_store = await self._run_scan(store_manager, mock_conn, results, urls, total_count=100)
 
         site_store.mark_urls_deleted.assert_called_once_with(["https://example.com/removed"])
         site_store.increment_fail_count.assert_not_called()
@@ -163,7 +163,7 @@ class TestSchedulerErrorClassification:
             # timeout URL not in results
         ]
 
-        site_store = await self._run_scan(store_manager, mock_conn, results, urls)
+        site_store = await self._run_scan(store_manager, mock_conn, results, urls, total_count=100)
 
         site_store.mark_urls_deleted.assert_called_once_with(["https://example.com/gone"])
         site_store.increment_fail_count.assert_called_once_with(
@@ -187,3 +187,81 @@ class TestSchedulerErrorClassification:
 
         site_store.mark_urls_deleted.assert_not_called()
         site_store.increment_fail_count.assert_called_once_with(["https://example.com/broken"])
+
+
+class TestMassDeletionThreshold:
+    """Mass deletion guard: block deletion when >50% of URLs are 404/410 in a batch."""
+
+    async def _run_scan(self, store_manager, mock_conn, crawl_results, urls_to_crawl, total_count):
+        """Helper: same as TestSchedulerErrorClassification._run_scan."""
+        crawler_service = AsyncMock()
+        crawler_service.initialized = True
+        crawler_service.discover_urls = AsyncMock(return_value=[])
+        crawler_service.crawl_urls = AsyncMock(return_value=crawl_results)
+
+        mock_conn.fetch = AsyncMock(return_value=[])
+        mock_conn.fetchval = AsyncMock(return_value=0)
+
+        site_store = store_manager.get_site_store("example.com")
+        site_store.save_discovered_urls = AsyncMock(return_value=0)
+        site_store.get_urls_needing_recrawl = AsyncMock(return_value=urls_to_crawl)
+        site_store.get_cache_headers = AsyncMock(return_value={})
+        site_store.update_content_hashes = AsyncMock()
+        site_store.mark_urls_deleted = AsyncMock()
+        site_store.increment_fail_count = AsyncMock()
+        site_store.touch_crawled_at = AsyncMock()
+        site_store.update_cache_headers = AsyncMock()
+        site_store.get_total_count = AsyncMock(return_value=total_count)
+
+        store_manager.update_scan_status = AsyncMock()
+        store_manager.update_website_metadata = AsyncMock()
+        store_manager.update_last_scanned = AsyncMock()
+        store_manager.get_site_store = MagicMock(return_value=site_store)
+
+        with patch("app.services.scheduler._bulk_head_check", new_callable=AsyncMock) as mock_head:
+            mock_head.return_value = ([], urls_to_crawl, set())
+            await _scan_website("example.com", store_manager, crawler_service)
+
+        return site_store
+
+    async def test_blocks_deletion_when_ratio_exceeds_threshold(self, store_manager, mock_conn):
+        """When >50% of known URLs return 404, fall back to fail_count increment."""
+        gone = [f"https://example.com/{i}" for i in range(4)]
+        results = [_crawl_result(u, 404) for u in gone]
+
+        site_store = await self._run_scan(store_manager, mock_conn, results, gone, total_count=6)
+
+        site_store.mark_urls_deleted.assert_not_called()
+        site_store.increment_fail_count.assert_called_once_with(gone)
+
+    async def test_allows_deletion_when_ratio_below_threshold(self, store_manager, mock_conn):
+        """When <50% of known URLs return 404, proceed with deletion."""
+        gone = [f"https://example.com/{i}" for i in range(4)]
+        results = [_crawl_result(u, 404) for u in gone]
+
+        site_store = await self._run_scan(store_manager, mock_conn, results, gone, total_count=100)
+
+        site_store.mark_urls_deleted.assert_called_once_with(gone)
+        site_store.increment_fail_count.assert_not_called()
+
+    async def test_allows_deletion_when_total_is_zero(self, store_manager, mock_conn):
+        """When total_count is 0, ratio check is skipped (no division by zero)."""
+        gone = ["https://example.com/only"]
+        results = [_crawl_result(gone[0], 404)]
+
+        site_store = await self._run_scan(store_manager, mock_conn, results, gone, total_count=0)
+
+        site_store.mark_urls_deleted.assert_called_once_with(gone)
+
+    async def test_exactly_at_threshold_allows_deletion(self, store_manager, mock_conn):
+        """When exactly 50% of URLs return 404, deletion is allowed (strict >)."""
+        gone = [f"https://example.com/{i}" for i in range(5)]
+        results = [_crawl_result(u, 410) for u in gone]
+
+        site_store = await self._run_scan(store_manager, mock_conn, results, gone, total_count=10)
+
+        site_store.mark_urls_deleted.assert_called_once_with(gone)
+        site_store.increment_fail_count.assert_not_called()
+
+    async def test_threshold_constant_is_half(self):
+        assert _MAX_DELETION_RATIO == 0.5

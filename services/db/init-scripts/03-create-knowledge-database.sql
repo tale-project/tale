@@ -107,6 +107,7 @@ CREATE TABLE IF NOT EXISTS public_web.chunks (
 CREATE INDEX IF NOT EXISTS idx_pw_chunks_domain ON public_web.chunks(domain);
 CREATE INDEX IF NOT EXISTS idx_pw_chunks_url ON public_web.chunks(url);
 CREATE INDEX IF NOT EXISTS idx_pw_chunks_url_content_hash ON public_web.chunks(url, content_hash);
+CREATE INDEX IF NOT EXISTS idx_pw_chunks_domain_url ON public_web.chunks(domain, url);
 
 -- BM25 full-text index (ParadeDB pg_search)
 DO $$

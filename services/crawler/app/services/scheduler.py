@@ -24,6 +24,8 @@ _HEAD_TIMEOUT = 10
 _HEAD_CONCURRENCY = 5
 _HEAD_BATCH_SIZE = 50
 _PERMANENT_HTTP_ERRORS = {404, 410}
+_MAX_DELETION_RATIO = 0.5
+_MAX_FAIL_COUNT = 10
 
 _scan_trigger: asyncio.Event | None = None
 _cancelled_domains: set[str] = set()
@@ -238,7 +240,9 @@ async def _scan_website(
             await store_manager.update_scan_status(domain, "idle")
             return
         scan_start = time.time()
-        all_urls = await site_store.get_urls_needing_recrawl(limit=10000, crawled_before=scan_start)
+        all_urls = await site_store.get_urls_needing_recrawl(
+            limit=10000, crawled_before=scan_start, max_fail_count=_MAX_FAIL_COUNT
+        )
         if not all_urls:
             logger.info(f"Scan [{domain}]: no URLs need recrawling")
             await store_manager.update_last_scanned(domain)
@@ -323,10 +327,21 @@ async def _scan_website(
                         logger.exception(f"Indexing failed for {p['url']}")
 
             if gone_urls:
-                sample = gone_urls[:5]
-                suffix = f" (and {len(gone_urls) - 5} more)" if len(gone_urls) > 5 else ""
-                logger.info(f"Scan [{domain}]: deleting {len(gone_urls)} gone URLs (404/410): {sample}{suffix}")
-                await site_store.mark_urls_deleted(gone_urls)
+                total_count = await site_store.get_total_count()
+                ratio = len(gone_urls) / total_count if total_count > 0 else 0.0
+                if total_count > 0 and ratio > _MAX_DELETION_RATIO:
+                    logger.error(
+                        f"Scan [{domain}]: mass deletion blocked — "
+                        f"{len(gone_urls)}/{total_count} URLs ({ratio:.0%}) exceed "
+                        f"{_MAX_DELETION_RATIO:.0%} threshold. "
+                        f"Falling back to fail_count increment."
+                    )
+                    await site_store.increment_fail_count(gone_urls)
+                else:
+                    sample = gone_urls[:5]
+                    suffix = f" (and {len(gone_urls) - 5} more)" if len(gone_urls) > 5 else ""
+                    logger.info(f"Scan [{domain}]: deleting {len(gone_urls)} gone URLs (404/410): {sample}{suffix}")
+                    await site_store.mark_urls_deleted(gone_urls)
 
             error_urls = transient_error_urls + network_failed_urls
             if error_urls:
