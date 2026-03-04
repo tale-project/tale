@@ -8,6 +8,7 @@ import { ErrorDisplayCompact } from '@/app/components/error-boundaries/displays/
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { Heading } from '@/app/components/ui/typography/heading';
+import { ChatLayoutProvider } from '@/app/features/chat/context/chat-layout-context';
 import { ImagePreviewDialog } from '@/app/features/chat/components/message-bubble';
 import { useT } from '@/lib/i18n/client';
 
@@ -32,9 +33,10 @@ function TestChatPanelContent({
 
   const {
     displayItems,
-    isBusy,
+    isLoading,
     isUploading,
     threadId,
+    activeMessage,
     inputValue,
     setInputValue,
     attachments,
@@ -57,7 +59,6 @@ function TestChatPanelContent({
     organizationId,
     agentId,
     onReset,
-    errorMessageText: t('customAgents.testChat.sendFailed'),
   });
 
   return (
@@ -92,7 +93,8 @@ function TestChatPanelContent({
         <div className="flex flex-1 flex-col space-y-2.5 p-3">
           <TestMessageList
             displayItems={displayItems}
-            isBusy={isBusy}
+            isLoading={isLoading}
+            activeMessage={activeMessage}
             organizationId={organizationId}
             onImagePreview={(src, alt) =>
               setPreviewImage({ isOpen: true, src, alt })
@@ -108,7 +110,7 @@ function TestChatPanelContent({
         onKeyDown={handleKeyDown}
         onPaste={handlePaste}
         onSend={handleSendMessage}
-        isBusy={isBusy}
+        isBusy={isLoading}
         isUploading={isUploading}
         attachments={attachments}
         uploadingFiles={uploadingFiles}
@@ -150,9 +152,11 @@ export function TestChatPanel(props: TestChatPanelProps) {
         />
       )}
     >
-      <FileUpload.Root>
-        <TestChatPanelContent {...props} />
-      </FileUpload.Root>
+      <ChatLayoutProvider organizationId={props.organizationId}>
+        <FileUpload.Root>
+          <TestChatPanelContent {...props} />
+        </FileUpload.Root>
+      </ChatLayoutProvider>
     </ErrorBoundaryBase>
   );
 }

@@ -1,5 +1,6 @@
 'use client';
 
+import type { UIMessage } from '@convex-dev/agent/react';
 import { Bot } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -11,23 +12,25 @@ import { Image } from '@/app/components/ui/data-display/image';
 import { Text } from '@/app/components/ui/typography/text';
 import { HumanInputRequestCard } from '@/app/features/chat/components/human-input-request-card';
 import { IntegrationApprovalCard } from '@/app/features/chat/components/integration-approval-card';
+import { ThinkingAnimation } from '@/app/features/chat/components/thinking-animation';
 import { WorkflowCreationApprovalCard } from '@/app/features/chat/components/workflow-creation-approval-card';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import { AssistantMessageInfo } from './assistant-message-info';
-import { ThinkingDots } from './thinking-dots';
 
 interface TestMessageListProps {
   displayItems: ChatItem[];
-  isBusy: boolean;
+  isLoading: boolean;
+  activeMessage?: UIMessage;
   organizationId: string;
   onImagePreview: (src: string, alt: string) => void;
 }
 
 export function TestMessageList({
   displayItems,
-  isBusy,
+  isLoading,
+  activeMessage,
   organizationId,
   onImagePreview,
 }: TestMessageListProps) {
@@ -191,7 +194,7 @@ export function TestMessageList({
           </div>
         );
       })}
-      {isBusy && <ThinkingDots />}
+      {isLoading && <ThinkingAnimation streamingMessage={activeMessage} />}
     </>
   );
 }
