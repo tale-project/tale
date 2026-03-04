@@ -204,7 +204,12 @@ const TOOL_FILE_MAP: Record<
 > = {
   image: {
     accept: ['image/*'],
-    mimeTypes: [MIME_TYPES.JPEG, MIME_TYPES.PNG, MIME_TYPES.GIF, MIME_TYPES.WEBP],
+    mimeTypes: [
+      MIME_TYPES.JPEG,
+      MIME_TYPES.PNG,
+      MIME_TYPES.GIF,
+      MIME_TYPES.WEBP,
+    ],
   },
   pdf: {
     accept: ['.pdf', MIME_TYPES.PDF],
@@ -223,7 +228,14 @@ const TOOL_FILE_MAP: Record<
     mimeTypes: [MIME_TYPES.PLAIN],
   },
   excel: {
-    accept: ['.xls', '.xlsx', '.csv', MIME_TYPES.XLS, MIME_TYPES.XLSX, MIME_TYPES.CSV],
+    accept: [
+      '.xls',
+      '.xlsx',
+      '.csv',
+      MIME_TYPES.XLS,
+      MIME_TYPES.XLSX,
+      MIME_TYPES.CSV,
+    ],
     mimeTypes: [MIME_TYPES.XLS, MIME_TYPES.XLSX, MIME_TYPES.CSV],
   },
 };
@@ -235,7 +247,9 @@ const DOCUMENT_TOOL_NAMES = new Set(Object.keys(TOOL_FILE_MAP));
  * document tools. Returns `undefined` when no document tools are enabled
  * (file upload should be hidden).
  */
-export function getAcceptForTools(toolNames: readonly string[]): string | undefined {
+export function getAcceptForTools(
+  toolNames: readonly string[],
+): string | undefined {
   const parts: string[] = [];
   for (const tool of toolNames) {
     const mapping = TOOL_FILE_MAP[tool];
