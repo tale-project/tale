@@ -34,9 +34,7 @@ class PgWebsiteStore:
             await conn.executemany(
                 """INSERT INTO website_urls (domain, url, discovered_at)
                    VALUES ($1, $2, NOW())
-                   ON CONFLICT (domain, url) DO UPDATE
-                     SET status = 'discovered', fail_count = 0, last_crawled_at = NULL
-                     WHERE website_urls.status = 'deleted'""",
+                   ON CONFLICT (domain, url) DO NOTHING""",
                 [(self._domain, u["url"]) for u in urls],
             )
             count_after = await conn.fetchval("SELECT COUNT(*) FROM website_urls WHERE domain = $1", self._domain)
@@ -145,19 +143,25 @@ class PgWebsiteStore:
     async def mark_urls_deleted(self, urls: list[str]) -> None:
         if not urls:
             return
-        async with acquire_with_retry(self._pool) as conn:
-            params = [(self._domain, url) for url in urls]
-            await conn.executemany(
-                "DELETE FROM chunks WHERE domain = $1 AND url = $2",
-                params,
+        async with acquire_with_retry(self._pool) as conn, conn.transaction():
+            await conn.execute(
+                "DELETE FROM chunks WHERE domain = $1 AND url = ANY($2)",
+                self._domain,
+                urls,
             )
-            await conn.executemany(
-                "DELETE FROM page_paragraph_hashes WHERE domain = $1 AND url = $2",
-                params,
+            await conn.execute(
+                "DELETE FROM page_paragraph_hashes WHERE domain = $1 AND url = ANY($2)",
+                self._domain,
+                urls,
             )
-            await conn.executemany(
-                "UPDATE website_urls SET status = 'deleted' WHERE domain = $1 AND url = $2",
-                params,
+            await conn.execute(
+                """UPDATE website_urls
+                   SET status = 'deleted', content_hash = NULL, content = NULL,
+                       title = NULL, word_count = NULL, metadata = NULL,
+                       structured_data = NULL, etag = NULL, last_modified = NULL
+                   WHERE domain = $1 AND url = ANY($2)""",
+                self._domain,
+                urls,
             )
 
     async def get_cache_headers(self, urls: list[str]) -> dict[str, dict]:

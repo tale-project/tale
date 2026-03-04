@@ -323,7 +323,9 @@ async def _scan_website(
                         logger.exception(f"Indexing failed for {p['url']}")
 
             if gone_urls:
-                logger.info(f"Scan [{domain}]: marking {len(gone_urls)} URLs as deleted (404/410): {gone_urls}")
+                sample = gone_urls[:5]
+                suffix = f" (and {len(gone_urls) - 5} more)" if len(gone_urls) > 5 else ""
+                logger.info(f"Scan [{domain}]: deleting {len(gone_urls)} gone URLs (404/410): {sample}{suffix}")
                 await site_store.mark_urls_deleted(gone_urls)
 
             error_urls = transient_error_urls + network_failed_urls

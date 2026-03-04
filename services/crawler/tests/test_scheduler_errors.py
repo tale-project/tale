@@ -178,3 +178,12 @@ class TestSchedulerErrorClassification:
 
         site_store.mark_urls_deleted.assert_not_called()
         site_store.increment_fail_count.assert_not_called()
+
+    async def test_none_status_code_treated_as_transient(self, store_manager, mock_conn):
+        urls = ["https://example.com/broken"]
+        results = [_crawl_result("https://example.com/broken", None)]
+
+        site_store = await self._run_scan(store_manager, mock_conn, results, urls)
+
+        site_store.mark_urls_deleted.assert_not_called()
+        site_store.increment_fail_count.assert_called_once_with(["https://example.com/broken"])

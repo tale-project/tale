@@ -1,4 +1,4 @@
-"""Tests for deleted URL exclusion from page counts and resurrection on re-discovery."""
+"""Tests for deleted URL exclusion from page counts and soft deletion of gone URLs."""
 
 from unittest.mock import AsyncMock, MagicMock
 
@@ -74,27 +74,23 @@ class TestGetTotalCountExcludesDeleted:
         assert "status = $2" in sql
 
 
-class TestSaveDiscoveredUrlsResurrection:
-    async def test_upsert_resurrects_deleted_urls(self, site_store, mock_conn):
+class TestSaveDiscoveredUrls:
+    async def test_upsert_uses_on_conflict_do_nothing(self, site_store, mock_conn):
         mock_conn.fetchval = AsyncMock(side_effect=[5, 6])
 
         await site_store.save_discovered_urls([{"url": "https://example.com/page"}])
 
         sql = mock_conn.executemany.call_args[0][0]
         assert "ON CONFLICT" in sql
-        assert "DO UPDATE" in sql
-        assert "status = 'discovered'" in sql
-        assert "fail_count = 0" in sql
-        assert "website_urls.status = 'deleted'" in sql
+        assert "DO NOTHING" in sql
 
-    async def test_upsert_only_affects_deleted_urls(self, site_store, mock_conn):
-        """The WHERE clause ensures active/discovered URLs are not modified."""
-        mock_conn.fetchval = AsyncMock(side_effect=[5, 5])
+    async def test_skips_already_known_urls(self, site_store, mock_conn):
+        """DO NOTHING means deleted URLs stay deleted — no re-discovery loop."""
+        mock_conn.fetchval = AsyncMock(side_effect=[10, 10])
 
-        await site_store.save_discovered_urls([{"url": "https://example.com/existing"}])
+        result = await site_store.save_discovered_urls([{"url": "https://example.com/known"}])
 
-        sql = mock_conn.executemany.call_args[0][0]
-        assert "WHERE website_urls.status = 'deleted'" in sql
+        assert result == 0
 
     async def test_empty_urls_returns_zero(self, site_store):
         result = await site_store.save_discovered_urls([])
@@ -102,33 +98,51 @@ class TestSaveDiscoveredUrlsResurrection:
 
 
 class TestMarkUrlsDeleted:
-    async def test_mark_urls_deleted_cleans_chunks_and_hashes(self, site_store, mock_conn):
+    async def test_deletes_chunks_and_hashes_then_soft_deletes(self, site_store, mock_conn):
         await site_store.mark_urls_deleted(["https://example.com/gone"])
 
-        calls = [str(c) for c in mock_conn.executemany.call_args_list]
-        sqls = [mock_conn.executemany.call_args_list[i][0][0] for i in range(len(calls))]
-
-        assert any("DELETE FROM chunks" in sql for sql in sqls)
-        assert any("DELETE FROM page_paragraph_hashes" in sql for sql in sqls)
-        assert any("status = 'deleted'" in sql for sql in sqls)
-
-    async def test_mark_urls_deleted_deletes_chunks_before_status_update(self, site_store, mock_conn):
-        """Chunks and hashes are deleted before the status update."""
-        await site_store.mark_urls_deleted(["https://example.com/gone"])
-
-        sqls = [mock_conn.executemany.call_args_list[i][0][0] for i in range(3)]
+        sqls = [mock_conn.execute.call_args_list[i][0][0] for i in range(3)]
         assert "DELETE FROM chunks" in sqls[0]
         assert "DELETE FROM page_paragraph_hashes" in sqls[1]
         assert "status = 'deleted'" in sqls[2]
 
-    async def test_mark_urls_deleted_empty_list_noop(self, site_store, mock_conn):
+    async def test_clears_all_content_fields(self, site_store, mock_conn):
+        await site_store.mark_urls_deleted(["https://example.com/gone"])
+
+        update_sql = mock_conn.execute.call_args_list[2][0][0]
+        for field in [
+            "content_hash = NULL",
+            "content = NULL",
+            "title = NULL",
+            "word_count = NULL",
+            "metadata = NULL",
+            "structured_data = NULL",
+            "etag = NULL",
+            "last_modified = NULL",
+        ]:
+            assert field in update_sql
+
+    async def test_uses_transaction(self, site_store, mock_conn):
+        await site_store.mark_urls_deleted(["https://example.com/gone"])
+
+        mock_conn.transaction.assert_called_once()
+
+    async def test_uses_any_for_bulk_params(self, site_store, mock_conn):
+        urls = ["https://example.com/a", "https://example.com/b"]
+        await site_store.mark_urls_deleted(urls)
+
+        for call in mock_conn.execute.call_args_list:
+            assert "ANY($2)" in call[0][0]
+            assert call[0][2] == urls
+
+    async def test_empty_list_noop(self, site_store, mock_conn):
         await site_store.mark_urls_deleted([])
 
-        mock_conn.executemany.assert_not_called()
+        mock_conn.execute.assert_not_called()
 
-    async def test_mark_urls_deleted_idempotent(self, site_store, mock_conn):
-        """Marking the same URL twice should not error."""
+    async def test_idempotent(self, site_store, mock_conn):
+        """Deleting the same URL twice should not error."""
         await site_store.mark_urls_deleted(["https://example.com/gone"])
         await site_store.mark_urls_deleted(["https://example.com/gone"])
 
-        assert mock_conn.executemany.call_count == 6  # 3 calls per deletion
+        assert mock_conn.execute.call_count == 6  # 3 calls per deletion
