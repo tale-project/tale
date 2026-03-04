@@ -102,6 +102,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     if stuck:
         logger.info(f"Re-enqueued {len(stuck)} stuck deletion(s)")
 
+    # Reset any scans interrupted by a previous crash
+    stuck_scans = await pg_store_manager.recover_stuck_scans()
+    for domain in stuck_scans:
+        logger.warning(f"Resetting stuck scan for {domain}")
+        await pg_store_manager.update_scan_status(domain, "idle")
+    if stuck_scans:
+        logger.info(f"Reset {len(stuck_scans)} stuck scan(s) to idle")
+
     # Start background scheduler
     scheduler_task = asyncio.create_task(
         run_scheduler(

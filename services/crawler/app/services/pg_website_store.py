@@ -284,6 +284,18 @@ class PgWebsiteStoreManager:
             rows = await conn.fetch("SELECT domain FROM websites WHERE status = 'deleting'")
         return [r["domain"] for r in rows]
 
+    async def recover_stuck_scans(self) -> list[str]:
+        """Find domains stuck in 'scanning' status for >30 min (e.g. after a crash).
+
+        Uses a 30-minute threshold to avoid resetting websites that are actively
+        being scanned by another container during blue-green deployments.
+        """
+        async with acquire_with_retry(self._pool) as conn:
+            rows = await conn.fetch(
+                "SELECT domain FROM websites WHERE status = 'scanning' AND updated_at < NOW() - INTERVAL '30 minutes'"
+            )
+        return [r["domain"] for r in rows]
+
     async def get_due_websites(self) -> list[dict]:
         async with acquire_with_retry(self._pool) as conn:
             rows = await conn.fetch(
