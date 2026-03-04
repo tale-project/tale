@@ -679,7 +679,8 @@
         "sendFailed": "Failed to send test message",
         "messagePlaceholder": "Type a message to test...",
         "uploading": "Uploading...",
-        "attachFiles": "Attach files"
+        "attachFiles": "Attach files",
+        "send": "Send message"
       },
       "createDialog": {
         "continue": "Continue",
