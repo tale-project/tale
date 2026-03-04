@@ -83,11 +83,13 @@ const { getAuthUserIdentity, getOrganizationMember } =
   await import('../../lib/rls');
 const { UnauthorizedError } = await import('../../lib/rls/errors');
 const { getIntegration } = await import('../get_integration');
+const { getIntegrationByName } = await import('../get_integration_by_name');
 const { listIntegrations } = await import('../list_integrations');
 
 const mockedGetAuthUser = vi.mocked(getAuthUserIdentity);
 const mockedGetOrgMember = vi.mocked(getOrganizationMember);
 const mockedGetIntegration = vi.mocked(getIntegration);
+const mockedGetIntegrationByName = vi.mocked(getIntegrationByName);
 const mockedListIntegrations = vi.mocked(listIntegrations);
 
 function createMockCtx() {
@@ -188,6 +190,90 @@ describe('get handler', () => {
     expect(result).toMatchObject({
       _id: 'int_1',
       iconUrl: null,
+    });
+  });
+});
+
+describe('getByName handler', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns null when not authenticated', async () => {
+    mockedGetAuthUser.mockResolvedValue(null);
+    const ctx = createMockCtx();
+    const { getByName } = await import('../queries');
+    const handler = (getByName as unknown as { handler: Function }).handler;
+
+    const result = await handler(ctx, {
+      organizationId: 'org_1',
+      name: 'My Integration',
+    });
+
+    expect(result).toBeNull();
+  });
+
+  it('returns null when unauthorized', async () => {
+    mockedGetAuthUser.mockResolvedValue({ userId: 'user_1' });
+    mockedGetOrgMember.mockRejectedValue(new UnauthorizedError());
+    const ctx = createMockCtx();
+    const { getByName } = await import('../queries');
+    const handler = (getByName as unknown as { handler: Function }).handler;
+
+    const result = await handler(ctx, {
+      organizationId: 'org_1',
+      name: 'My Integration',
+    });
+
+    expect(result).toBeNull();
+  });
+
+  it('re-throws non-authorization errors from getOrganizationMember', async () => {
+    mockedGetAuthUser.mockResolvedValue({ userId: 'user_1' });
+    mockedGetOrgMember.mockRejectedValue(new Error('DB failure'));
+    const ctx = createMockCtx();
+    const { getByName } = await import('../queries');
+    const handler = (getByName as unknown as { handler: Function }).handler;
+
+    await expect(
+      handler(ctx, { organizationId: 'org_1', name: 'My Integration' }),
+    ).rejects.toThrow('DB failure');
+  });
+
+  it('returns null when integration not found', async () => {
+    mockedGetAuthUser.mockResolvedValue({ userId: 'user_1' });
+    mockedGetOrgMember.mockResolvedValue({} as never);
+    mockedGetIntegrationByName.mockResolvedValue(null);
+    const ctx = createMockCtx();
+    const { getByName } = await import('../queries');
+    const handler = (getByName as unknown as { handler: Function }).handler;
+
+    const result = await handler(ctx, {
+      organizationId: 'org_1',
+      name: 'Nonexistent',
+    });
+
+    expect(result).toBeNull();
+  });
+
+  it('returns integration with icon URL on success', async () => {
+    mockedGetAuthUser.mockResolvedValue({ userId: 'user_1' });
+    mockedGetOrgMember.mockResolvedValue({} as never);
+    const doc = makeIntegrationDoc({ iconStorageId: 'storage_icon' });
+    mockedGetIntegrationByName.mockResolvedValue(doc);
+    const ctx = createMockCtx();
+    ctx.storage.getUrl.mockResolvedValue('https://storage.example.com/icon');
+    const { getByName } = await import('../queries');
+    const handler = (getByName as unknown as { handler: Function }).handler;
+
+    const result = await handler(ctx, {
+      organizationId: 'org_1',
+      name: 'Test Integration',
+    });
+
+    expect(result).toMatchObject({
+      _id: 'int_1',
+      iconUrl: 'https://storage.example.com/icon',
     });
   });
 });

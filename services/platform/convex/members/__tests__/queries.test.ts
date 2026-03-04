@@ -75,7 +75,8 @@ vi.mock('../../_generated/server', async (importOriginal) => {
 
 const { getAuthUserIdentity, getOrganizationMember } =
   await import('../../lib/rls');
-const { UnauthorizedError } = await import('../../lib/rls/errors');
+const { UnauthenticatedError, UnauthorizedError } =
+  await import('../../lib/rls/errors');
 const {
   getMyTeamsHandler,
   approxCountMyTeamsHandler,
@@ -92,6 +93,100 @@ function createMockCtx() {
     auth: {},
   };
 }
+
+describe('getCurrentMemberContext handler', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  async function getHandler() {
+    const { getCurrentMemberContext } = await import('../queries');
+    return (getCurrentMemberContext as unknown as { handler: Function })
+      .handler;
+  }
+
+  it('throws UnauthenticatedError when not authenticated', async () => {
+    mockedGetAuthUser.mockResolvedValue(null);
+    const ctx = createMockCtx();
+    const handler = await getHandler();
+
+    await expect(
+      handler(ctx, { organizationId: 'org_1' }),
+    ).rejects.toBeInstanceOf(UnauthenticatedError);
+  });
+
+  it('returns null when unauthorized', async () => {
+    mockedGetAuthUser.mockResolvedValue({ userId: 'user_1', name: 'Alice' });
+    mockedGetOrgMember.mockRejectedValue(new UnauthorizedError());
+    const ctx = createMockCtx();
+    const handler = await getHandler();
+
+    const result = await handler(ctx, { organizationId: 'org_1' });
+
+    expect(result).toBeNull();
+  });
+
+  it('re-throws non-authorization errors from getOrganizationMember', async () => {
+    mockedGetAuthUser.mockResolvedValue({ userId: 'user_1', name: 'Alice' });
+    mockedGetOrgMember.mockRejectedValue(new Error('DB failure'));
+    const ctx = createMockCtx();
+    const handler = await getHandler();
+
+    await expect(handler(ctx, { organizationId: 'org_1' })).rejects.toThrow(
+      'DB failure',
+    );
+  });
+
+  it('returns member context on success', async () => {
+    mockedGetAuthUser.mockResolvedValue({ userId: 'user_1', name: 'Alice' });
+    mockedGetOrgMember.mockResolvedValue({
+      _id: 'om_1',
+      organizationId: 'org_1',
+      userId: 'user_1',
+      role: 'admin',
+      createdAt: 1000,
+    });
+    const ctx = createMockCtx();
+    const handler = await getHandler();
+
+    const result = await handler(ctx, { organizationId: 'org_1' });
+
+    expect(result).toEqual({
+      memberId: 'om_1',
+      organizationId: 'org_1',
+      userId: 'user_1',
+      role: 'admin',
+      createdAt: 1000,
+      displayName: 'Alice',
+      isAdmin: true,
+    });
+  });
+
+  it('defaults to member role for invalid roles', async () => {
+    mockedGetAuthUser.mockResolvedValue({ userId: 'user_1', name: 'Bob' });
+    mockedGetOrgMember.mockResolvedValue({
+      _id: 'om_2',
+      organizationId: 'org_1',
+      userId: 'user_1',
+      role: 'superadmin',
+      createdAt: 2000,
+    });
+    const ctx = createMockCtx();
+    const handler = await getHandler();
+
+    const result = await handler(ctx, { organizationId: 'org_1' });
+
+    expect(result).toEqual({
+      memberId: 'om_2',
+      organizationId: 'org_1',
+      userId: 'user_1',
+      role: 'member',
+      createdAt: 2000,
+      displayName: 'Bob',
+      isAdmin: false,
+    });
+  });
+});
 
 describe('getMyTeamsHandler', () => {
   beforeEach(() => {
