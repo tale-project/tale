@@ -132,7 +132,7 @@ function InstructionsTab() {
   });
 
   const systemInstructionsField = form.register('systemInstructions', {
-    required: true,
+    required: t('customAgents.form.systemInstructionsRequired'),
   });
 
   return (
@@ -150,7 +150,7 @@ function InstructionsTab() {
           {...systemInstructionsField}
           onBlur={(e) => {
             void systemInstructionsField.onBlur(e);
-            void save(form.getValues());
+            void form.handleSubmit((data) => save(data))();
           }}
           required
           rows={8}
