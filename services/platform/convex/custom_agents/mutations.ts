@@ -214,6 +214,10 @@ export const createCustomAgent = mutation({
     validateToolNames(args.toolNames);
     validateModelId(args.modelId);
 
+    if (args.systemInstructions.trim().length === 0) {
+      throw new Error('System instructions cannot be empty');
+    }
+
     const { organizationId, toolNames, ...agentFields } = args;
 
     // Sync tool list based on retrieval modes
@@ -287,6 +291,13 @@ export const updateCustomAgent = mutation({
       validateToolNames(args.toolNames);
     }
     validateModelId(args.modelId);
+
+    if (
+      args.systemInstructions !== undefined &&
+      args.systemInstructions.trim().length === 0
+    ) {
+      throw new Error('System instructions cannot be empty');
+    }
 
     const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
     if (!hasTeamAccess(draft, userTeamIds)) {
