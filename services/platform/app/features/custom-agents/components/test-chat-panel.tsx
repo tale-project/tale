@@ -8,8 +8,8 @@ import { ErrorDisplayCompact } from '@/app/components/error-boundaries/displays/
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { Heading } from '@/app/components/ui/typography/heading';
-import { ChatLayoutProvider } from '@/app/features/chat/context/chat-layout-context';
 import { ImagePreviewDialog } from '@/app/features/chat/components/message-bubble';
+import { ChatLayoutProvider } from '@/app/features/chat/context/chat-layout-context';
 import { useT } from '@/lib/i18n/client';
 
 import { useTestChat } from '../hooks/use-test-chat';

@@ -1,6 +1,7 @@
 'use client';
 
 import type { UIMessage } from '@convex-dev/agent/react';
+
 import { Bot } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';

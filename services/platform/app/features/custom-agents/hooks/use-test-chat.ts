@@ -116,7 +116,6 @@ export function useTestChat({
   const { throttledScrollToBottom, cleanup } = useThrottledScroll({
     delay: 16,
   });
-
   const { mutateAsync: testAgent } = useTestAgent();
   const { mutateAsync: createChatThread } = useCreateThread();
   const { mutateAsync: deleteChatThread } = useDeleteThread();
