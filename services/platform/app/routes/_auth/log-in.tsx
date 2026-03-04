@@ -4,7 +4,7 @@ import {
   useNavigate,
   useSearch,
 } from '@tanstack/react-router';
-import { useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -43,7 +43,7 @@ type LogInFormData = {
   password: string;
 };
 
-function LogInPage() {
+export function LogInPage() {
   const navigate = useNavigate();
   const queryClient = useReactQueryClient();
   const { redirectTo } = useSearch({ from: '/_auth/log-in' });
@@ -83,23 +83,25 @@ function LogInPage() {
     },
   });
 
-  const { isSubmitting, isValid, errors } = form.formState;
+  const [loginError, setLoginError] = useState<string | null>(null);
+
+  const { isSubmitting, isValid } = form.formState;
 
   const handleSubmit = async (data: LogInFormData) => {
-    form.clearErrors('password');
+    setLoginError(null);
 
     try {
       const response = await authClient.signIn.email(
         { email: data.email, password: data.password },
         {
           onError: () => {
-            form.setError('password', { message: t('login.wrongCredentials') });
+            setLoginError(t('login.wrongCredentials'));
           },
         },
       );
 
       if (!response.data?.user) {
-        form.setError('password', { message: t('login.wrongCredentials') });
+        setLoginError(t('login.wrongCredentials'));
         return;
       }
 
@@ -144,9 +146,10 @@ function LogInPage() {
               placeholder={t('emailPlaceholder')}
               disabled={isSubmitting}
               autoComplete="email"
-              errorMessage={errors.email?.message}
               className="shadow-xs"
-              {...form.register('email')}
+              {...form.register('email', {
+                onChange: () => setLoginError(null),
+              })}
             />
 
             <Input
@@ -157,9 +160,11 @@ function LogInPage() {
               placeholder={t('passwordPlaceholder')}
               disabled={isSubmitting}
               autoComplete="current-password"
-              errorMessage={errors.password?.message}
+              errorMessage={loginError ?? undefined}
               className="shadow-xs"
-              {...form.register('password')}
+              {...form.register('password', {
+                onChange: () => setLoginError(null),
+              })}
             />
 
             <Button
