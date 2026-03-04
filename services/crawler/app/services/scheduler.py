@@ -23,6 +23,9 @@ logger = logging.getLogger(__name__)
 _HEAD_TIMEOUT = 10
 _HEAD_CONCURRENCY = 5
 _HEAD_BATCH_SIZE = 50
+_PERMANENT_HTTP_ERRORS = {404, 410}
+_MAX_DELETION_RATIO = 0.5
+_MAX_FAIL_COUNT = 10
 
 _scan_trigger: asyncio.Event | None = None
 _cancelled_domains: set[str] = set()
@@ -237,7 +240,9 @@ async def _scan_website(
             await store_manager.update_scan_status(domain, "idle")
             return
         scan_start = time.time()
-        all_urls = await site_store.get_urls_needing_recrawl(limit=10000, crawled_before=scan_start)
+        all_urls = await site_store.get_urls_needing_recrawl(
+            limit=10000, crawled_before=scan_start, max_fail_count=_MAX_FAIL_COUNT
+        )
         if not all_urls:
             logger.info(f"Scan [{domain}]: no URLs need recrawling")
             await store_manager.update_last_scanned(domain)
@@ -270,10 +275,17 @@ async def _scan_website(
             )
             results = await crawler_service.crawl_urls(urls=batch)
 
-            # Split: pages with content vs HTTP 4xx/5xx errors vs network failures
+            # Split: pages with content vs permanent errors vs transient errors vs network failures
             all_returned_urls = {p["url"] for p in results}
             crawled_pages = [p for p in results if p.get("content") is not None]
-            http_error_urls = [p["url"] for p in results if p.get("content") is None]
+            gone_urls = [
+                p["url"] for p in results if p.get("content") is None and p.get("status_code") in _PERMANENT_HTTP_ERRORS
+            ]
+            transient_error_urls = [
+                p["url"]
+                for p in results
+                if p.get("content") is None and p.get("status_code") not in _PERMANENT_HTTP_ERRORS
+            ]
             network_failed_urls = [u for u in batch if u not in all_returned_urls]
 
             updates = [
@@ -314,11 +326,28 @@ async def _scan_website(
                     except Exception:
                         logger.exception(f"Indexing failed for {p['url']}")
 
-            error_urls = http_error_urls + network_failed_urls
+            if gone_urls:
+                total_count = await site_store.get_total_count()
+                ratio = len(gone_urls) / total_count if total_count > 0 else 0.0
+                if total_count > 0 and ratio > _MAX_DELETION_RATIO:
+                    logger.error(
+                        f"Scan [{domain}]: mass deletion blocked — "
+                        f"{len(gone_urls)}/{total_count} URLs ({ratio:.0%}) exceed "
+                        f"{_MAX_DELETION_RATIO:.0%} threshold. "
+                        f"Falling back to fail_count increment."
+                    )
+                    await site_store.increment_fail_count(gone_urls)
+                else:
+                    sample = gone_urls[:5]
+                    suffix = f" (and {len(gone_urls) - 5} more)" if len(gone_urls) > 5 else ""
+                    logger.info(f"Scan [{domain}]: deleting {len(gone_urls)} gone URLs (404/410): {sample}{suffix}")
+                    await site_store.mark_urls_deleted(gone_urls)
+
+            error_urls = transient_error_urls + network_failed_urls
             if error_urls:
                 logger.warning(
                     f"Scan [{domain}]: {len(error_urls)} URLs failed in batch "
-                    f"({len(http_error_urls)} HTTP errors, {len(network_failed_urls)} network failures)"
+                    f"({len(transient_error_urls)} HTTP errors, {len(network_failed_urls)} network failures)"
                 )
                 await site_store.increment_fail_count(error_urls)
 
