@@ -169,6 +169,7 @@ export function TestChatInput({
                 }
                 size="icon"
                 className="rounded-full"
+                aria-label={t('customAgents.testChat.send')}
               >
                 <Send className="size-4" />
               </Button>
