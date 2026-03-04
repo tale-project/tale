@@ -155,4 +155,35 @@ describe('getBrandingHandler', () => {
       accentColor: undefined,
     });
   });
+
+  it('returns null for URLs when storage fetch fails', async () => {
+    const { ctx } = createMockQueryCtx({
+      _id: 'branding_1',
+      organizationId: 'org_1',
+      appName: 'Acme',
+      logoStorageId: 'storage_logo',
+      faviconLightStorageId: 'storage_fav_light',
+      faviconDarkStorageId: 'storage_fav_dark',
+      updatedAt: 1000,
+    });
+
+    ctx.storage.getUrl
+      .mockResolvedValueOnce('https://storage.example.com/storage_logo')
+      .mockRejectedValueOnce(new Error('Storage unavailable'))
+      .mockResolvedValueOnce('https://storage.example.com/storage_fav_dark');
+
+    const result = await getBrandingHandler(ctx as unknown as QueryCtx, {
+      organizationId: 'org_1',
+    });
+
+    expect(result).toEqual({
+      appName: 'Acme',
+      textLogo: undefined,
+      logoUrl: 'https://storage.example.com/storage_logo',
+      faviconLightUrl: null,
+      faviconDarkUrl: 'https://storage.example.com/storage_fav_dark',
+      brandColor: undefined,
+      accentColor: undefined,
+    });
+  });
 });
