@@ -13,6 +13,13 @@ import {
 import { UnauthenticatedError, UnauthorizedError } from '../lib/rls/errors';
 import { memberRoleValidator } from './validators';
 
+interface BetterAuthTeam {
+  _id: string;
+  name: string;
+  organizationId: string;
+  createdAt?: number | null;
+}
+
 interface BetterAuthTeamMember {
   _id: string;
   teamId: string;
@@ -90,8 +97,11 @@ export async function listByOrganizationHandler(
 
   try {
     await getOrganizationMember(ctx, args.organizationId, authUser);
-  } catch {
-    return [];
+  } catch (error) {
+    if (error instanceof UnauthorizedError) {
+      return [];
+    }
+    throw error;
   }
 
   const result: BetterAuthFindManyResult<BetterAuthMember> = await ctx.runQuery(
@@ -127,8 +137,12 @@ export async function listByOrganizationHandler(
         );
         displayName = userResult?.name;
         email = userResult?.email;
-      } catch {
-        // Graceful degradation: member appears without name/email
+      } catch (error) {
+        console.warn(
+          '[Members] Failed to fetch user details',
+          member.userId,
+          error,
+        );
       }
 
       const role: MemberRole = isValidRole(member.role)
@@ -226,26 +240,32 @@ export async function approxCountMyTeamsHandler(
     return 0;
   }
 
-  const teamResults = await Promise.all(
-    membershipsResult.page.map(async (membership) => {
-      try {
-        return await ctx.runQuery(components.betterAuth.adapter.findMany, {
-          model: 'team',
-          paginationOpts: { cursor: null, numItems: 1 },
-          where: [
-            { field: '_id', operator: 'eq', value: membership.teamId },
-            {
-              field: 'organizationId',
-              operator: 'eq',
-              value: args.organizationId,
-            },
-          ],
-        });
-      } catch {
-        return null;
-      }
-    }),
-  );
+  const teamResults: (BetterAuthFindManyResult<BetterAuthTeam> | null)[] =
+    await Promise.all(
+      membershipsResult.page.map(async (membership) => {
+        try {
+          return await ctx.runQuery(components.betterAuth.adapter.findMany, {
+            model: 'team',
+            paginationOpts: { cursor: null, numItems: 1 },
+            where: [
+              { field: '_id', operator: 'eq', value: membership.teamId },
+              {
+                field: 'organizationId',
+                operator: 'eq',
+                value: args.organizationId,
+              },
+            ],
+          });
+        } catch (error) {
+          console.warn(
+            '[Members] Failed to look up team',
+            membership.teamId,
+            error,
+          );
+          return null;
+        }
+      }),
+    );
 
   return teamResults.filter((r) => r && r.page.length > 0).length;
 }
@@ -278,26 +298,28 @@ export async function getMyTeamsHandler(
 
   const teamIds = membershipsResult.page.map((m) => m.teamId);
 
-  const teamResults = await Promise.all(
-    teamIds.map(async (teamId) => {
-      try {
-        return await ctx.runQuery(components.betterAuth.adapter.findMany, {
-          model: 'team',
-          paginationOpts: { cursor: null, numItems: 1 },
-          where: [
-            { field: '_id', operator: 'eq', value: teamId },
-            {
-              field: 'organizationId',
-              operator: 'eq',
-              value: args.organizationId,
-            },
-          ],
-        });
-      } catch {
-        return null;
-      }
-    }),
-  );
+  const teamResults: (BetterAuthFindManyResult<BetterAuthTeam> | null)[] =
+    await Promise.all(
+      teamIds.map(async (teamId) => {
+        try {
+          return await ctx.runQuery(components.betterAuth.adapter.findMany, {
+            model: 'team',
+            paginationOpts: { cursor: null, numItems: 1 },
+            where: [
+              { field: '_id', operator: 'eq', value: teamId },
+              {
+                field: 'organizationId',
+                operator: 'eq',
+                value: args.organizationId,
+              },
+            ],
+          });
+        } catch (error) {
+          console.warn('[Members] Failed to look up team', teamId, error);
+          return null;
+        }
+      }),
+    );
 
   const teams: Array<{ id: string; name: string }> = [];
   for (const teamResult of teamResults) {

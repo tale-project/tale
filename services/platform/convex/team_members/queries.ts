@@ -3,6 +3,7 @@ import { v } from 'convex/values';
 import { components } from '../_generated/api';
 import { query } from '../_generated/server';
 import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
+import { UnauthorizedError } from '../lib/rls/errors';
 
 export const listByTeam = query({
   args: {
@@ -35,8 +36,11 @@ export const listByTeam = query({
 
     try {
       await getOrganizationMember(ctx, team.organizationId, authUser);
-    } catch {
-      return [];
+    } catch (error) {
+      if (error instanceof UnauthorizedError) {
+        return [];
+      }
+      throw error;
     }
 
     const result = await ctx.runQuery(components.betterAuth.adapter.findMany, {
@@ -83,8 +87,12 @@ export const listByTeam = query({
                 : undefined;
             userMap.set(userId, { name, email });
           }
-        } catch {
-          // Graceful degradation: member appears without name/email
+        } catch (error) {
+          console.warn(
+            '[TeamMembers] Failed to fetch user details',
+            userId,
+            error,
+          );
         }
       }),
     );

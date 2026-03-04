@@ -26,7 +26,12 @@ export async function getBrandingHandler(
     if (!storageId) return null;
     try {
       return await ctx.storage.getUrl(storageId);
-    } catch {
+    } catch (error) {
+      console.warn(
+        '[Branding] Failed to resolve storage URL',
+        storageId,
+        error,
+      );
       return null;
     }
   }

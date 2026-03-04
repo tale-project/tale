@@ -4,6 +4,7 @@ import type { Doc } from '../_generated/dataModel';
 
 import { query, QueryCtx } from '../_generated/server';
 import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
+import { UnauthorizedError } from '../lib/rls/errors';
 import { getIntegration } from './get_integration';
 import { getIntegrationByName } from './get_integration_by_name';
 import { listIntegrations } from './list_integrations';
@@ -19,8 +20,12 @@ async function withIconUrl(
   if (integration.iconStorageId) {
     try {
       iconUrl = await ctx.storage.getUrl(integration.iconStorageId);
-    } catch {
-      // Graceful degradation: integration appears without icon
+    } catch (error) {
+      console.warn(
+        '[Integrations] Failed to resolve icon URL',
+        integration.iconStorageId,
+        error,
+      );
     }
   }
   return { ...integration, iconUrl };
@@ -44,8 +49,11 @@ export const get = query({
 
     try {
       await getOrganizationMember(ctx, integration.organizationId, authUser);
-    } catch {
-      return null;
+    } catch (error) {
+      if (error instanceof UnauthorizedError) {
+        return null;
+      }
+      throw error;
     }
 
     return await withIconUrl(ctx, integration);
@@ -66,8 +74,11 @@ export const getByName = query({
 
     try {
       await getOrganizationMember(ctx, args.organizationId, authUser);
-    } catch {
-      return null;
+    } catch (error) {
+      if (error instanceof UnauthorizedError) {
+        return null;
+      }
+      throw error;
     }
 
     const integration = await getIntegrationByName(ctx, args);
@@ -93,8 +104,11 @@ export const list = query({
 
     try {
       await getOrganizationMember(ctx, args.organizationId, authUser);
-    } catch {
-      return [];
+    } catch (error) {
+      if (error instanceof UnauthorizedError) {
+        return [];
+      }
+      throw error;
     }
 
     const integrations = await listIntegrations(ctx, args);

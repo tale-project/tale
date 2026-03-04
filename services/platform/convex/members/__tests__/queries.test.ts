@@ -19,18 +19,29 @@ vi.mock('../../lib/rls', () => ({
   getUserOrganizations: vi.fn(),
 }));
 
-vi.mock('../../lib/rls/errors', () => ({
-  UnauthenticatedError: class extends Error {
-    constructor() {
-      super('Unauthenticated');
+vi.mock('../../lib/rls/errors', () => {
+  class RLSError extends Error {
+    constructor(
+      message: string,
+      public code: string,
+    ) {
+      super(message);
+      this.name = 'RLSError';
     }
-  },
-  UnauthorizedError: class extends Error {
-    constructor() {
-      super('Unauthorized');
-    }
-  },
-}));
+  }
+  return {
+    UnauthenticatedError: class extends RLSError {
+      constructor() {
+        super('Authentication required', 'UNAUTHENTICATED');
+      }
+    },
+    UnauthorizedError: class extends RLSError {
+      constructor() {
+        super('Not authorized to access this resource', 'UNAUTHORIZED');
+      }
+    },
+  };
+});
 
 vi.mock('convex/values', () => {
   const stub = () => 'validator';
@@ -64,6 +75,7 @@ vi.mock('../../_generated/server', async (importOriginal) => {
 
 const { getAuthUserIdentity, getOrganizationMember } =
   await import('../../lib/rls');
+const { UnauthorizedError } = await import('../../lib/rls/errors');
 const {
   getMyTeamsHandler,
   approxCountMyTeamsHandler,
@@ -89,6 +101,19 @@ describe('getMyTeamsHandler', () => {
   it('returns empty array when not authenticated', async () => {
     mockedGetAuthUser.mockResolvedValue(null);
     const ctx = createMockCtx();
+
+    const result = await getMyTeamsHandler(ctx as unknown as QueryCtx, {
+      organizationId: 'org_1',
+    });
+
+    expect(result).toEqual([]);
+  });
+
+  it('returns empty array when user has no team memberships', async () => {
+    mockedGetAuthUser.mockResolvedValue({ userId: 'user_1' });
+    const ctx = createMockCtx();
+
+    ctx.runQuery.mockResolvedValueOnce({ page: [] });
 
     const result = await getMyTeamsHandler(ctx as unknown as QueryCtx, {
       organizationId: 'org_1',
@@ -185,6 +210,17 @@ describe('approxCountMyTeamsHandler', () => {
     vi.clearAllMocks();
   });
 
+  it('returns 0 when not authenticated', async () => {
+    mockedGetAuthUser.mockResolvedValue(null);
+    const ctx = createMockCtx();
+
+    const result = await approxCountMyTeamsHandler(ctx as unknown as QueryCtx, {
+      organizationId: 'org_1',
+    });
+
+    expect(result).toBe(0);
+  });
+
   it('counts teams correctly', async () => {
     mockedGetAuthUser.mockResolvedValue({ userId: 'user_1' });
     const ctx = createMockCtx();
@@ -235,6 +271,41 @@ describe('approxCountMyTeamsHandler', () => {
 describe('listByOrganizationHandler', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('returns empty array when not authenticated', async () => {
+    mockedGetAuthUser.mockResolvedValue(null);
+    const ctx = createMockCtx();
+
+    const result = await listByOrganizationHandler(ctx as unknown as QueryCtx, {
+      organizationId: 'org_1',
+    });
+
+    expect(result).toEqual([]);
+  });
+
+  it('returns empty array when unauthorized', async () => {
+    mockedGetAuthUser.mockResolvedValue({ userId: 'user_1' });
+    mockedGetOrgMember.mockRejectedValue(new UnauthorizedError());
+    const ctx = createMockCtx();
+
+    const result = await listByOrganizationHandler(ctx as unknown as QueryCtx, {
+      organizationId: 'org_1',
+    });
+
+    expect(result).toEqual([]);
+  });
+
+  it('re-throws non-authorization errors from getOrganizationMember', async () => {
+    mockedGetAuthUser.mockResolvedValue({ userId: 'user_1' });
+    mockedGetOrgMember.mockRejectedValue(new Error('DB connection lost'));
+    const ctx = createMockCtx();
+
+    await expect(
+      listByOrganizationHandler(ctx as unknown as QueryCtx, {
+        organizationId: 'org_1',
+      }),
+    ).rejects.toThrow('DB connection lost');
   });
 
   it('returns members with user details', async () => {
