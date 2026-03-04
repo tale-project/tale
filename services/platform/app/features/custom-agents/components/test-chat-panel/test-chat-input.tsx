@@ -12,7 +12,6 @@ import { HStack, VStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
-import { TEXT_FILE_ACCEPT } from '@/lib/utils/text-file-types';
 
 interface ChatAttachment {
   fileId: Id<'_storage'>;
@@ -36,6 +35,8 @@ interface TestChatInputProps {
   removeAttachment: (fileId: Id<'_storage'>) => void;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   onFileInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  fileUploadEnabled: boolean;
+  fileAccept: string | undefined;
 }
 
 export function TestChatInput({
@@ -52,19 +53,23 @@ export function TestChatInput({
   removeAttachment,
   fileInputRef,
   onFileInputChange,
+  fileUploadEnabled,
+  fileAccept,
 }: TestChatInputProps) {
   const { t } = useT('settings');
 
   return (
     <>
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        accept={TEXT_FILE_ACCEPT}
-        onChange={onFileInputChange}
-        style={{ display: 'none' }}
-      />
+      {fileUploadEnabled && fileAccept && (
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept={fileAccept}
+          onChange={onFileInputChange}
+          style={{ display: 'none' }}
+        />
+      )}
 
       <PanelFooter>
         <FileUpload.DropZone
@@ -143,15 +148,17 @@ export function TestChatInput({
               />
             </div>
             <HStack justify="between" className="px-1">
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isBusy}
-                className="text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                title={t('customAgents.testChat.attachFiles')}
-              >
-                <Paperclip className="size-4" />
-              </button>
+              {fileUploadEnabled && (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isBusy}
+                  className="text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                  title={t('customAgents.testChat.attachFiles')}
+                >
+                  <Paperclip className="size-4" />
+                </button>
+              )}
 
               <Button
                 onClick={onSend}

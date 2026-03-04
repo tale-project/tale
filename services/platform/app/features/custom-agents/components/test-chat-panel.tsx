@@ -46,6 +46,8 @@ function TestChatPanelContent({
     containerRef,
     messagesEndRef,
     fileInputRef,
+    fileUploadEnabled,
+    fileAccept,
     handleFileInputChange,
     handlePaste,
     handleSendMessage,
@@ -114,6 +116,8 @@ function TestChatPanelContent({
         removeAttachment={removeAttachment}
         fileInputRef={fileInputRef}
         onFileInputChange={handleFileInputChange}
+        fileUploadEnabled={fileUploadEnabled}
+        fileAccept={fileAccept}
       />
 
       {previewImage && (

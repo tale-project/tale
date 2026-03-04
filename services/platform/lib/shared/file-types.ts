@@ -194,6 +194,84 @@ export const DOCUMENT_MAX_FILE_SIZE = 100 * 1024 * 1024;
 export const MAX_BATCH_FILE_IDS = 10;
 
 // ---------------------------------------------------------------------------
+// Tool name → file type mapping (for agent-scoped file uploads)
+// ---------------------------------------------------------------------------
+
+/** Maps document tool names to their accepted file extensions and MIME types. */
+const TOOL_FILE_MAP: Record<
+  string,
+  { accept: string[]; mimeTypes: readonly string[] }
+> = {
+  image: {
+    accept: ['image/*'],
+    mimeTypes: [MIME_TYPES.JPEG, MIME_TYPES.PNG, MIME_TYPES.GIF, MIME_TYPES.WEBP],
+  },
+  pdf: {
+    accept: ['.pdf', MIME_TYPES.PDF],
+    mimeTypes: [MIME_TYPES.PDF],
+  },
+  docx: {
+    accept: ['.doc', '.docx', MIME_TYPES.DOC, MIME_TYPES.DOCX],
+    mimeTypes: [MIME_TYPES.DOC, MIME_TYPES.DOCX],
+  },
+  pptx: {
+    accept: ['.ppt', '.pptx', MIME_TYPES.PPT, MIME_TYPES.PPTX],
+    mimeTypes: [MIME_TYPES.PPT, MIME_TYPES.PPTX],
+  },
+  txt: {
+    accept: ['.txt', MIME_TYPES.PLAIN],
+    mimeTypes: [MIME_TYPES.PLAIN],
+  },
+  excel: {
+    accept: ['.xls', '.xlsx', '.csv', MIME_TYPES.XLS, MIME_TYPES.XLSX, MIME_TYPES.CSV],
+    mimeTypes: [MIME_TYPES.XLS, MIME_TYPES.XLSX, MIME_TYPES.CSV],
+  },
+};
+
+const DOCUMENT_TOOL_NAMES = new Set(Object.keys(TOOL_FILE_MAP));
+
+/**
+ * Returns the `<input accept="...">` string scoped to the agent's enabled
+ * document tools. Returns `undefined` when no document tools are enabled
+ * (file upload should be hidden).
+ */
+export function getAcceptForTools(toolNames: readonly string[]): string | undefined {
+  const parts: string[] = [];
+  for (const tool of toolNames) {
+    const mapping = TOOL_FILE_MAP[tool];
+    if (mapping) {
+      parts.push(...mapping.accept);
+    }
+  }
+  return parts.length > 0 ? parts.join(',') : undefined;
+}
+
+/**
+ * Returns the allowed MIME types for client-side validation scoped to the
+ * agent's enabled document tools. Returns `undefined` when no document
+ * tools are enabled.
+ */
+export function getAllowedMimeTypesForTools(
+  toolNames: readonly string[],
+): string[] | undefined {
+  const mimeTypes: string[] = [];
+  for (const tool of toolNames) {
+    const mapping = TOOL_FILE_MAP[tool];
+    if (mapping) {
+      mimeTypes.push(...mapping.mimeTypes);
+    }
+  }
+  return mimeTypes.length > 0 ? mimeTypes : undefined;
+}
+
+/**
+ * Returns whether any document/file tools are enabled for the given agent.
+ */
+export function hasFileTools(toolNames: readonly string[]): boolean {
+  return toolNames.some((t) => DOCUMENT_TOOL_NAMES.has(t));
+}
+
+// ---------------------------------------------------------------------------
 // Parse endpoint routing
 // ---------------------------------------------------------------------------
 

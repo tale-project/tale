@@ -17,6 +17,11 @@ import {
 import { useConvexFileUpload } from '@/app/features/chat/hooks/use-convex-file-upload';
 import { useMergedChatItems } from '@/app/features/chat/hooks/use-merged-chat-items';
 import { useThrottledScroll } from '@/app/hooks/use-throttled-scroll';
+import {
+  getAcceptForTools,
+  getAllowedMimeTypesForTools,
+  hasFileTools,
+} from '@/lib/shared/file-types';
 
 import type { FilePart, Message } from '../components/test-chat-panel/types';
 
@@ -62,13 +67,32 @@ export function useTestChat({
   onReset,
   errorMessageText,
 }: UseTestChatOptions) {
+  const { agent: currentAgent } = useCustomAgentVersion();
+
+  const fileUploadEnabled = useMemo(
+    () => hasFileTools(currentAgent.toolNames),
+    [currentAgent.toolNames],
+  );
+
+  const fileAccept = useMemo(
+    () => getAcceptForTools(currentAgent.toolNames),
+    [currentAgent.toolNames],
+  );
+
+  const allowedMimeTypes = useMemo(
+    () => getAllowedMimeTypesForTools(currentAgent.toolNames),
+    [currentAgent.toolNames],
+  );
+
   const {
     attachments,
     uploadingFiles,
     uploadFiles,
     removeAttachment,
     clearAttachments,
-  } = useConvexFileUpload();
+  } = useConvexFileUpload(
+    allowedMimeTypes ? { allowedTypes: allowedMimeTypes } : undefined,
+  );
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -87,7 +111,6 @@ export function useTestChat({
     delay: 16,
   });
 
-  const { agent: currentAgent } = useCustomAgentVersion();
   const { mutateAsync: testAgent } = useTestAgent();
   const { mutateAsync: createChatThread } = useCreateThread();
   const { mutateAsync: deleteChatThread } = useDeleteThread();
@@ -441,6 +464,8 @@ export function useTestChat({
     containerRef,
     messagesEndRef,
     fileInputRef,
+    fileUploadEnabled,
+    fileAccept,
     handleFileInputChange,
     handlePaste,
     handleSendMessage,
