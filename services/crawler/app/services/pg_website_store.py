@@ -34,7 +34,9 @@ class PgWebsiteStore:
             await conn.executemany(
                 """INSERT INTO website_urls (domain, url, discovered_at)
                    VALUES ($1, $2, NOW())
-                   ON CONFLICT (domain, url) DO NOTHING""",
+                   ON CONFLICT (domain, url) DO UPDATE
+                     SET status = 'discovered', fail_count = 0, last_crawled_at = NULL
+                     WHERE website_urls.status = 'deleted'""",
                 [(self._domain, u["url"]) for u in urls],
             )
             count_after = await conn.fetchval("SELECT COUNT(*) FROM website_urls WHERE domain = $1", self._domain)
@@ -144,9 +146,18 @@ class PgWebsiteStore:
         if not urls:
             return
         async with acquire_with_retry(self._pool) as conn:
+            params = [(self._domain, url) for url in urls]
+            await conn.executemany(
+                "DELETE FROM chunks WHERE domain = $1 AND url = $2",
+                params,
+            )
+            await conn.executemany(
+                "DELETE FROM page_paragraph_hashes WHERE domain = $1 AND url = $2",
+                params,
+            )
             await conn.executemany(
                 "UPDATE website_urls SET status = 'deleted' WHERE domain = $1 AND url = $2",
-                [(self._domain, url) for url in urls],
+                params,
             )
 
     async def get_cache_headers(self, urls: list[str]) -> dict[str, dict]:
@@ -190,7 +201,7 @@ class PgWebsiteStore:
                     status,
                 )
             return await conn.fetchval(
-                "SELECT COUNT(*) FROM website_urls WHERE domain = $1 AND content_hash IS NOT NULL",
+                "SELECT COUNT(*) FROM website_urls WHERE domain = $1 AND content_hash IS NOT NULL AND status != 'deleted'",
                 self._domain,
             )
 
@@ -334,8 +345,8 @@ class PgWebsiteStoreManager:
                           COALESCE(u.crawled, 0) AS crawled_count
                    FROM websites w
                    LEFT JOIN LATERAL (
-                       SELECT COUNT(*) AS total,
-                              COUNT(*) FILTER (WHERE content_hash IS NOT NULL) AS crawled
+                       SELECT COUNT(*) FILTER (WHERE status != 'deleted') AS total,
+                              COUNT(*) FILTER (WHERE content_hash IS NOT NULL AND status != 'deleted') AS crawled
                        FROM website_urls WHERE domain = w.domain
                    ) u ON true
                    WHERE w.domain = $1""",
