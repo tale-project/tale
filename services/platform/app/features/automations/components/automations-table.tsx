@@ -58,6 +58,7 @@ export function AutomationsTable({ organizationId }: AutomationsTableProps) {
       void navigate({
         to: '/dashboard/$id/automations/$amId',
         params: { id: organizationId, amId },
+        search: { panel: 'ai-chat' },
       });
     },
     [navigate, organizationId, activeVersionMap],

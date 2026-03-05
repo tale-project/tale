@@ -159,7 +159,6 @@ export function ChatInput({
                   (!inputValue.trim() && attachments.length === 0) || isLoading
                 }
                 size="icon"
-                className="rounded-full"
               >
                 <Send className="size-4" />
               </Button>
