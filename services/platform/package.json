@@ -70,7 +70,7 @@
     "@tanstack/react-router": "1.166.2",
     "@tanstack/react-table": "8.21.3",
     "@xyflow/react": "12.10.1",
-    "ai": "5.0.144",
+    "ai": "5.0.146",
     "base64-arraybuffer": "1.0.2",
     "better-auth": "1.4.9",
     "class-variance-authority": "0.7.1",
