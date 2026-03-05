@@ -31,5 +31,5 @@ activationType: always_on
 - Always ask first before any destructive action
 
 ## Workspace Commands
-- USE npm workspaces for running scripts: `npm run <script> --workspace=@tale/<workspace>`
-- Example: `npm run lint --workspace=@tale/platform`
+- USE Bun workspaces for running scripts: `bun run --filter @tale/<workspace> <script>`
+- Example: `bun run --filter @tale/platform lint`
