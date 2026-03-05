@@ -18,6 +18,7 @@ export const useAutomationsTableConfig = createTableConfigHook<'wfDefinitions'>(
       accessorKey: 'name',
       header: tTables('headers.automation'),
       size: 328,
+      meta: { hasAvatar: false },
       cell: ({ row }) => (
         <Text as="span" variant="label" truncate>
           {row.original.name}
@@ -28,6 +29,7 @@ export const useAutomationsTableConfig = createTableConfigHook<'wfDefinitions'>(
       accessorKey: 'status',
       header: tTables('headers.status'),
       size: 140,
+      meta: { skeleton: { type: 'badge' } },
       cell: ({ row }) => {
         const status = row.original.status;
         return (
@@ -45,6 +47,7 @@ export const useAutomationsTableConfig = createTableConfigHook<'wfDefinitions'>(
       id: 'active',
       header: tEntity('columns.active'),
       size: 80,
+      meta: { skeleton: { type: 'switch' } },
       cell: ({ row }) => <AutomationActiveToggle automation={row.original} />,
     },
     {
@@ -55,7 +58,7 @@ export const useAutomationsTableConfig = createTableConfigHook<'wfDefinitions'>(
         </span>
       ),
       size: 100,
-      meta: { headerLabel: tTables('headers.version') },
+      meta: { headerLabel: tTables('headers.version'), align: 'right' },
       cell: ({ row }) => (
         <Text as="span" variant="caption" className="block text-right">
           {row.original.version}

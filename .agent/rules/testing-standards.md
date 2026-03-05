@@ -19,7 +19,7 @@ modelDecision: Apply this rule when creating new features, fixing bugs, or modif
 
 ## Test Execution
 - Run tests after changes to confirm nothing is broken
-- Use `npm run test` for JavaScript/TypeScript tests
+- Use `bun run test` for JavaScript/TypeScript tests
 - Use appropriate test runners for Python services
 
 ## Test Organization
