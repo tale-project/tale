@@ -7,7 +7,7 @@
 ARG VERSION=dev
 
 # ParadeDB includes pg_search (BM25), pgvector, and PostgreSQL 16
-FROM paradedb/paradedb:0.21.11-pg16
+FROM paradedb/paradedb:0.21.12-pg16
 
 # Re-declare VERSION arg (ARGs don't persist after FROM)
 ARG VERSION=dev
