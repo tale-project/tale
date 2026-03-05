@@ -34,7 +34,7 @@
     "stress-test:shard-compare": "bun stress-tests/scenarios/shard-comparison.ts"
   },
   "dependencies": {
-    "@ai-sdk/openai": "2.0.95",
+    "@ai-sdk/openai": "2.0.97",
     "@ai-sdk/provider-utils": "4.0.17",
     "@casl/ability": "^6.8.0",
     "@convex-dev/action-cache": "0.3.0",
