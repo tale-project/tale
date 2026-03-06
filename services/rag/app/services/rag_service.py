@@ -18,7 +18,14 @@ from tale_knowledge.vision import VisionClient
 from tale_shared.db import acquire_with_retry
 
 from ..config import settings
-from .database import SCHEMA, close_pool, ensure_embedding_dimensions, ensure_error_column, init_pool
+from .database import (
+    SCHEMA,
+    close_pool,
+    ensure_content_hash_index,
+    ensure_embedding_dimensions,
+    ensure_error_column,
+    init_pool,
+)
 from .indexing_service import index_document
 from .search_service import RagSearchService
 
@@ -79,6 +86,7 @@ class RagService:
         # Ensure embedding dimensions and HNSW index
         await ensure_embedding_dimensions(self._pool, dimensions)
         await ensure_error_column(self._pool)
+        await ensure_content_hash_index(self._pool)
 
         # Vision client (optional — only if model is configured)
         try:

@@ -439,20 +439,46 @@ export const uploadDocumentToRag = internalAction({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const rawResult = await ragAction.execute(
-      ctx,
-      { operation: 'upload_document', recordId: args.documentId },
-      {},
-    );
-    const resultRec = isRecord(rawResult) ? rawResult : undefined;
-    const success = resultRec
-      ? (getBoolean(resultRec, 'success') ?? false)
-      : false;
-
-    if (!success) {
-      console.error(
-        `[uploadDocumentToRag] Failed to upload document ${args.documentId} to RAG`,
+    try {
+      const rawResult = await ragAction.execute(
+        ctx,
+        { operation: 'upload_document', recordId: args.documentId },
+        {},
       );
+      const resultRec = isRecord(rawResult) ? rawResult : undefined;
+      const success = resultRec
+        ? (getBoolean(resultRec, 'success') ?? false)
+        : false;
+
+      if (!success) {
+        const error =
+          (resultRec ? getString(resultRec, 'error') : undefined) ??
+          'Upload to RAG failed';
+        console.error(
+          `[uploadDocumentToRag] Failed to upload document ${args.documentId}: ${error}`,
+        );
+        await ctx.runMutation(
+          internal.documents.internal_mutations.updateDocumentRagInfo,
+          {
+            documentId: args.documentId,
+            ragInfo: { status: 'failed', error },
+          },
+        );
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Upload to RAG failed';
+      console.error(
+        `[uploadDocumentToRag] Error uploading document ${args.documentId}: ${message}`,
+      );
+      await ctx.runMutation(
+        internal.documents.internal_mutations.updateDocumentRagInfo,
+        {
+          documentId: args.documentId,
+          ragInfo: { status: 'failed', error: message },
+        },
+      );
+      throw error;
     }
 
     return null;

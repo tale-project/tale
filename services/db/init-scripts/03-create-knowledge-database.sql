@@ -173,6 +173,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_pk_docs_unique_scope
 CREATE INDEX IF NOT EXISTS idx_pk_docs_docid ON private_knowledge.documents(document_id);
 CREATE INDEX IF NOT EXISTS idx_pk_docs_team ON private_knowledge.documents(team_id) WHERE team_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_pk_docs_user ON private_knowledge.documents(user_id) WHERE user_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_pk_docs_content_hash ON private_knowledge.documents(content_hash) WHERE content_hash IS NOT NULL;
 
 -- Chunks
 CREATE TABLE IF NOT EXISTS private_knowledge.chunks (

@@ -194,7 +194,6 @@ async def _background_ingest(
 ) -> None:
     """Run document ingestion in the background, recording status in documents table."""
     try:
-        await _insert_processing_row(document_id, filename, user_id)
         result = await rag_service.add_document(
             content=content,
             document_id=document_id,
@@ -317,6 +316,8 @@ async def upload_document(
         _parse_metadata(metadata)
 
         doc_id = document_id or f"file-{uuid4().hex}"
+
+        await _insert_processing_row(doc_id, file.filename, user_id)
 
         background_tasks.add_task(
             _background_ingest,

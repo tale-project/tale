@@ -2278,7 +2278,7 @@
       "deleteSyncFolder": "Delete sync folder",
       "deleteFolderFailed": "Failed to delete folder",
       "deleteFileFailed": "An unexpected error occurred while deleting the file.",
-      "manageTeams": "Manage teams",
+      "manageTeams": "Assign team",
       "reindex": "Reindex"
     },
     "teamTags": {
@@ -2345,10 +2345,10 @@
       "filesUploadedSuccessfully": "{count} {count, plural, one {file} other {files}} uploaded successfully",
       "uploadCancelled": "Upload cancelled",
       "uploadFailed": "Upload failed",
-      "selectTeams": "Select teams",
-      "selectTeamsDescription": "Choose which teams can access the uploaded documents",
+      "selectTeams": "Select team",
+      "selectTeamsDescription": "Choose which team the uploaded documents belong to",
       "noTeamsAvailable": "You are not a member of any teams",
-      "allMembersHint": "Documents without team tags are accessible to everyone in the organization."
+      "allMembersHint": "Organization-wide documents are accessible to everyone in the organization."
     },
     "import": {
       "noResponseBody": "No response body received"
