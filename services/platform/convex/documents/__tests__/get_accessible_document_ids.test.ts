@@ -2,6 +2,14 @@ import { describe, it, expect, vi } from 'vitest';
 
 import { getAccessibleDocumentIds } from '../get_accessible_document_ids';
 
+vi.mock('../../lib/get_user_teams', () => ({
+  getUserTeamIds: vi.fn(),
+}));
+
+import { getUserTeamIds } from '../../lib/get_user_teams';
+
+const mockGetUserTeamIds = vi.mocked(getUserTeamIds);
+
 function createMockCtx(docs: Array<Record<string, unknown>>) {
   const asyncIterator = {
     [Symbol.asyncIterator]() {
@@ -28,6 +36,7 @@ function createMockCtx(docs: Array<Record<string, unknown>>) {
 
 describe('getAccessibleDocumentIds', () => {
   it('returns completed org-wide documents', async () => {
+    mockGetUserTeamIds.mockResolvedValue([]);
     const ctx = createMockCtx([
       { _id: 'doc1', ragInfo: { status: 'completed' } },
       { _id: 'doc2', ragInfo: { status: 'completed' }, teamId: undefined },
@@ -35,13 +44,14 @@ describe('getAccessibleDocumentIds', () => {
 
     const ids = await getAccessibleDocumentIds(ctx, {
       organizationId: 'org1',
-      userTeamIds: [],
+      userId: 'user1',
     });
 
     expect(ids).toEqual(['doc1', 'doc2']);
   });
 
   it('returns documents in user teams', async () => {
+    mockGetUserTeamIds.mockResolvedValue(['team-a']);
     const ctx = createMockCtx([
       { _id: 'doc1', ragInfo: { status: 'completed' }, teamId: 'team-a' },
       { _id: 'doc2', ragInfo: { status: 'completed' }, teamId: 'team-b' },
@@ -49,26 +59,28 @@ describe('getAccessibleDocumentIds', () => {
 
     const ids = await getAccessibleDocumentIds(ctx, {
       organizationId: 'org1',
-      userTeamIds: ['team-a'],
+      userId: 'user1',
     });
 
     expect(ids).toEqual(['doc1']);
   });
 
   it('excludes documents from other teams', async () => {
+    mockGetUserTeamIds.mockResolvedValue(['team-a', 'team-b']);
     const ctx = createMockCtx([
       { _id: 'doc1', ragInfo: { status: 'completed' }, teamId: 'team-x' },
     ]);
 
     const ids = await getAccessibleDocumentIds(ctx, {
       organizationId: 'org1',
-      userTeamIds: ['team-a', 'team-b'],
+      userId: 'user1',
     });
 
     expect(ids).toEqual([]);
   });
 
   it('excludes non-completed documents', async () => {
+    mockGetUserTeamIds.mockResolvedValue([]);
     const ctx = createMockCtx([
       { _id: 'doc1', ragInfo: { status: 'queued' } },
       { _id: 'doc2', ragInfo: { status: 'running' } },
@@ -78,24 +90,26 @@ describe('getAccessibleDocumentIds', () => {
 
     const ids = await getAccessibleDocumentIds(ctx, {
       organizationId: 'org1',
-      userTeamIds: [],
+      userId: 'user1',
     });
 
     expect(ids).toEqual([]);
   });
 
   it('returns empty array for empty organization', async () => {
+    mockGetUserTeamIds.mockResolvedValue(['team-a']);
     const ctx = createMockCtx([]);
 
     const ids = await getAccessibleDocumentIds(ctx, {
       organizationId: 'org1',
-      userTeamIds: ['team-a'],
+      userId: 'user1',
     });
 
     expect(ids).toEqual([]);
   });
 
   it('combines org-wide and team documents', async () => {
+    mockGetUserTeamIds.mockResolvedValue(['team-a']);
     const ctx = createMockCtx([
       { _id: 'doc1', ragInfo: { status: 'completed' } },
       { _id: 'doc2', ragInfo: { status: 'completed' }, teamId: 'team-a' },
@@ -105,7 +119,7 @@ describe('getAccessibleDocumentIds', () => {
 
     const ids = await getAccessibleDocumentIds(ctx, {
       organizationId: 'org1',
-      userTeamIds: ['team-a'],
+      userId: 'user1',
     });
 
     expect(ids).toEqual(['doc1', 'doc2']);

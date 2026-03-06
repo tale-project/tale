@@ -1,11 +1,13 @@
 import type { QueryCtx } from '../_generated/server';
 
+import { getUserTeamIds } from '../lib/get_user_teams';
+
 /**
  * Get all RAG-indexed document IDs accessible to a user within an organization.
  *
- * A document is accessible if:
- * - It has no teamId (org-wide), OR
- * - Its teamId is in the user's team list
+ * Resolves the user's team memberships internally, then filters documents:
+ * - Org-wide documents (no teamId) are always included
+ * - Team-scoped documents are included if the user belongs to that team
  *
  * Only returns documents with ragInfo.status === 'completed'.
  */
@@ -13,10 +15,11 @@ export async function getAccessibleDocumentIds(
   ctx: QueryCtx,
   args: {
     organizationId: string;
-    userTeamIds: string[];
+    userId: string;
   },
 ): Promise<string[]> {
-  const teamSet = new Set(args.userTeamIds);
+  const teamIds = await getUserTeamIds(ctx, args.userId);
+  const teamSet = new Set([`org_${args.organizationId}`, ...teamIds]);
 
   const ids: string[] = [];
   const query = ctx.db

@@ -51,7 +51,7 @@ Returns numbered document excerpts with relevance scores.`,
       query: z.string().describe('Query text to search the knowledge base for'),
     }),
     handler: async (ctx: ToolCtx, args): Promise<string> => {
-      const { userId, organizationId, userTeamIds } = ctx;
+      const { userId, organizationId } = ctx;
 
       debugLog('tool:rag_search start', { query: args.query });
 
@@ -64,7 +64,7 @@ Returns numbered document excerpts with relevance scores.`,
 
       const documentIds: string[] = await ctx.runQuery(
         internal.documents.internal_queries.getAccessibleDocumentIds,
-        { organizationId, userTeamIds: userTeamIds ?? [] },
+        { organizationId, userId },
       );
 
       if (documentIds.length === 0) {
@@ -84,6 +84,7 @@ Returns numbered document excerpts with relevance scores.`,
 
       debugLog('tool:rag_search requesting search', {
         documentCount: documentIds.length,
+        documentIds,
       });
 
       try {

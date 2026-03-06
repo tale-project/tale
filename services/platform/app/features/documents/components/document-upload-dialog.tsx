@@ -223,12 +223,14 @@ export function DocumentUploadDialog({
             </EmptyPlaceholder>
           ) : (
             <Select
-              value={selectedTeamId_local ?? ''}
-              onValueChange={(value) => handleSelectTeam(value || undefined)}
+              value={selectedTeamId_local ?? 'org-wide'}
+              onValueChange={(value) =>
+                handleSelectTeam(value === 'org-wide' ? undefined : value)
+              }
               disabled={isUploading}
               options={[
                 {
-                  value: '',
+                  value: 'org-wide',
                   label: tDocuments('teamTags.orgWide'),
                 },
                 ...teams.map((team: { id: string; name: string }) => ({

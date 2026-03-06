@@ -79,66 +79,6 @@ describe('testCustomAgent', () => {
     });
   });
 
-  describe('RAG team ID construction', () => {
-    it('should include teamId when present', () => {
-      const draft = createMockDraftAgent({
-        teamId: 'team_1',
-        includeOrgKnowledge: false,
-      });
-
-      const ragTeamIds: string[] = [];
-      if (draft.teamId) ragTeamIds.push(draft.teamId);
-      if (draft.includeOrgKnowledge)
-        ragTeamIds.push(`org_${draft.organizationId}`);
-
-      expect(ragTeamIds).toEqual(['team_1']);
-    });
-
-    it('should include org knowledge when enabled', () => {
-      const draft = createMockDraftAgent({
-        teamId: 'team_1',
-        includeOrgKnowledge: true,
-      });
-
-      const ragTeamIds: string[] = [];
-      if (draft.teamId) ragTeamIds.push(draft.teamId);
-      if (draft.includeOrgKnowledge)
-        ragTeamIds.push(`org_${draft.organizationId}`);
-
-      expect(ragTeamIds).toEqual(['team_1', 'org_org_1']);
-    });
-
-    it('should return empty when no team and no org knowledge', () => {
-      const draft = createMockDraftAgent({
-        teamId: undefined,
-        includeOrgKnowledge: false,
-      });
-
-      const ragTeamIds: string[] = [];
-      if (draft.teamId) ragTeamIds.push(draft.teamId);
-      if (draft.includeOrgKnowledge)
-        ragTeamIds.push(`org_${draft.organizationId}`);
-
-      expect(ragTeamIds).toEqual([]);
-    });
-
-    it('should only include org knowledge when explicitly enabled', () => {
-      const draft = createMockDraftAgent({
-        teamId: undefined,
-        includeOrgKnowledge: false,
-        knowledgeEnabled: true,
-      });
-
-      const ragTeamIds: string[] = [];
-      if (draft.teamId) ragTeamIds.push(draft.teamId);
-      if (draft.includeOrgKnowledge)
-        ragTeamIds.push(`org_${draft.organizationId}`);
-
-      expect(ragTeamIds).toEqual([]);
-      expect(ragTeamIds).not.toContain(`org_${draft.organizationId}`);
-    });
-  });
-
   describe('file preprocessing instructions', () => {
     it('should not append preprocessing instructions when disabled', () => {
       const draft = createMockDraftAgent({ filePreprocessingEnabled: false });
@@ -253,59 +193,6 @@ describe('testCustomAgent', () => {
         const config = toSerializableConfig(draft);
         expect(config.webSearchMode).toBe(mode);
       }
-    });
-  });
-
-  describe('ragTeamIds passed to startAgentChat', () => {
-    function buildRagTeamIds(
-      agent: Doc<'customAgents'>,
-      organizationId: string,
-    ) {
-      const ragTeamIds: string[] = [];
-      if (agent.teamId) ragTeamIds.push(agent.teamId);
-      if (agent.includeOrgKnowledge) ragTeamIds.push(`org_${organizationId}`);
-      return ragTeamIds;
-    }
-
-    it('should always pass ragTeamIds array for custom agents, never undefined', () => {
-      const draft = createMockDraftAgent({
-        teamId: undefined,
-        includeOrgKnowledge: false,
-        knowledgeEnabled: true,
-      });
-
-      const ragTeamIds = buildRagTeamIds(draft, draft.organizationId);
-
-      // Must be an array (even if empty), NOT undefined.
-      // Passing undefined causes start_agent_chat to fall back to user's
-      // full team access, leaking org documents.
-      expect(ragTeamIds).toBeDefined();
-      expect(Array.isArray(ragTeamIds)).toBe(true);
-    });
-
-    it('should not leak org documents when includeOrgKnowledge is false', () => {
-      const draft = createMockDraftAgent({
-        teamId: 'team_1',
-        includeOrgKnowledge: false,
-        knowledgeEnabled: true,
-      });
-
-      const ragTeamIds = buildRagTeamIds(draft, draft.organizationId);
-
-      expect(ragTeamIds).toEqual(['team_1']);
-      expect(ragTeamIds).not.toContain(`org_${draft.organizationId}`);
-    });
-
-    it('should include org documents only when includeOrgKnowledge is true', () => {
-      const draft = createMockDraftAgent({
-        teamId: 'team_1',
-        includeOrgKnowledge: true,
-        knowledgeEnabled: true,
-      });
-
-      const ragTeamIds = buildRagTeamIds(draft, draft.organizationId);
-
-      expect(ragTeamIds).toEqual(['team_1', 'org_org_1']);
     });
   });
 });

@@ -52,7 +52,7 @@ export const findDocumentByExternalId = internalQuery({
 export const getAccessibleDocumentIds = internalQuery({
   args: {
     organizationId: v.string(),
-    userTeamIds: v.array(v.string()),
+    userId: v.string(),
   },
   handler: async (ctx, args) => {
     return await getAccessibleDocumentIdsHelper(ctx, args);

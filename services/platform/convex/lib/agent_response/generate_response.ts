@@ -205,7 +205,6 @@ export async function generateAgentResponse(
     streamId,
     promptMessageId,
     maxSteps: _maxSteps,
-    userTeamIds,
   } = args;
 
   const debugLog = createDebugLog(
@@ -311,7 +310,7 @@ export async function generateAgentResponse(
     if (needsKnowledgeContext && userId && organizationId && promptMessage) {
       const accessibleDocIds: string[] = await ctx.runQuery(
         internal.documents.internal_queries.getAccessibleDocumentIds,
-        { organizationId, userTeamIds: userTeamIds ?? [] },
+        { organizationId, userId },
       );
       if (accessibleDocIds.length === 0) {
         debugLog('No accessible RAG documents, skipping knowledge context');
@@ -434,7 +433,6 @@ export async function generateAgentResponse(
       ...ctx,
       organizationId,
       threadId,
-      userTeamIds: userTeamIds ?? [],
       variables: { actionDeadlineMs: String(actionDeadline) },
     };
 
@@ -688,7 +686,6 @@ export async function generateAgentResponse(
           ...ctx,
           organizationId,
           threadId,
-          userTeamIds: userTeamIds ?? [],
           variables: { actionDeadlineMs: String(actionDeadline) },
           ...(parentThreadId ? { parentThreadId } : {}),
         };
