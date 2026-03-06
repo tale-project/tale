@@ -331,10 +331,10 @@ export const runAgentGeneration = internalAction({
           paginationOpts: { cursor: null, numItems: 5 },
           excludeToolMessages: true,
         });
-        const hasFailedAssistant = msgs.page.some(
-          (m: MessageDoc) =>
-            m.message?.role === 'assistant' && m.status === 'failed',
+        const newestAssistant = msgs.page.find(
+          (m: MessageDoc) => m.message?.role === 'assistant',
         );
+        const hasFailedAssistant = newestAssistant?.status === 'failed';
         if (!hasFailedAssistant) {
           await saveMessage(ctx, components.agent, {
             threadId,

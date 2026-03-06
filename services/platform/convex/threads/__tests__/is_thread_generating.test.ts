@@ -48,6 +48,11 @@ describe('isThreadGenerating — zombie stream detection', () => {
     });
 
     expect(result).toBe(false);
+    expect(mockListStreams).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      { threadId: 'thread_1', includeStatuses: ['streaming'] },
+    );
     expect(mockListMessages).not.toHaveBeenCalled();
   });
 

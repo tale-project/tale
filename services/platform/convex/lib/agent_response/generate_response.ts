@@ -22,6 +22,7 @@ import {
   listStreams,
   saveMessage,
   type MessageDoc,
+  type StreamMessage,
 } from '@convex-dev/agent';
 
 import type {
@@ -1213,20 +1214,25 @@ export async function generateAgentResponse(
     // State-driven cleanup: check DB state and act only if needed.
     // No heuristic error-message parsing — works regardless of cause.
 
-    // Check if user already cancelled via cancelGeneration
+    // Single query for both aborted and streaming SDK streams, then
+    // partition locally to check cancellation and clean up zombies.
     let userCancelled = false;
+    let stuckStreams: StreamMessage[] = [];
     try {
-      const abortedStreams = await listStreams(ctx, components.agent, {
+      const allStreams = await listStreams(ctx, components.agent, {
         threadId,
-        includeStatuses: ['aborted'],
+        includeStatuses: ['aborted', 'streaming'],
       });
-      userCancelled = abortedStreams.some(
-        (s) => !baselineAbortedIds.has(s.streamId),
+      userCancelled = allStreams.some(
+        (s) => s.status === 'aborted' && !baselineAbortedIds.has(s.streamId),
       );
-    } catch (cancelCheckError) {
+      if (!userCancelled) {
+        stuckStreams = allStreams.filter((s) => s.status === 'streaming');
+      }
+    } catch (streamQueryError) {
       console.error(
-        '[generateAgentResponse] Failed to check cancellation status:',
-        cancelCheckError,
+        '[generateAgentResponse] Failed to query stream statuses:',
+        streamQueryError,
       );
     }
 
@@ -1245,34 +1251,19 @@ export async function generateAgentResponse(
       }
     }
 
-    // Abort any stuck agent SDK streams for this thread (skip if user
-    // already cancelled — cancelGeneration handles its own abort).
-    // The SDK's DeltaStreamer.fail() may not have been called if the action
-    // threw before the SDK could clean up. abortStream is idempotent — safe
-    // to call even if the stream was already finished or aborted.
-    if (!userCancelled) {
+    // Abort any stuck agent SDK streams. The SDK's DeltaStreamer.fail() may
+    // not have been called if the action threw before the SDK could clean up.
+    // abortStream is idempotent — safe even if already finished or aborted.
+    for (const stream of stuckStreams) {
       try {
-        const stuckStreams = await listStreams(ctx, components.agent, {
-          threadId,
-          includeStatuses: ['streaming'],
+        await abortStream(ctx, components.agent, {
+          streamId: stream.streamId,
+          reason: 'error',
         });
-        for (const stream of stuckStreams) {
-          try {
-            await abortStream(ctx, components.agent, {
-              streamId: stream.streamId,
-              reason: 'error',
-            });
-          } catch (abortError) {
-            console.error(
-              `[generateAgentResponse] Failed to abort stream ${stream.streamId}:`,
-              abortError,
-            );
-          }
-        }
-      } catch (sdkStreamError) {
+      } catch (abortError) {
         console.error(
-          '[generateAgentResponse] Failed to list agent SDK streams:',
-          sdkStreamError,
+          `[generateAgentResponse] Failed to abort stream ${stream.streamId}:`,
+          abortError,
         );
       }
     }
@@ -1284,10 +1275,10 @@ export async function generateAgentResponse(
         paginationOpts: { cursor: null, numItems: 5 },
         excludeToolMessages: true,
       });
-      const hasFailedAssistant = msgs.page.some(
-        (m: MessageDoc) =>
-          m.message?.role === 'assistant' && m.status === 'failed',
+      const newestAssistant = msgs.page.find(
+        (m: MessageDoc) => m.message?.role === 'assistant',
       );
+      const hasFailedAssistant = newestAssistant?.status === 'failed';
       if (!hasFailedAssistant) {
         await saveMessage(ctx, components.agent, {
           threadId,
