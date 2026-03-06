@@ -10,7 +10,7 @@ import type { DocumentItem } from '@/types/documents';
 import { OneDriveIcon } from '@/app/components/icons/onedrive-icon';
 import { SharePointIcon } from '@/app/components/icons/sharepoint-icon';
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
-import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
+import { CopyableTimestamp } from '@/app/components/ui/data-display/copyable-timestamp';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { HStack } from '@/app/components/ui/layout/layout';
@@ -260,9 +260,9 @@ export function useDocumentsTableConfig({
           align: 'right' as const,
         },
         cell: ({ row }) => (
-          <TableDateCell
+          <CopyableTimestamp
             date={row.original.lastModified}
-            preset="short"
+            preset="long"
             alignRight
           />
         ),
