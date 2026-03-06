@@ -49,10 +49,10 @@ import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
       control: 'boolean',
       description: 'Whether the form is being submitted',
     },
-    isValid: {
+    isDirty: {
       control: 'boolean',
       description:
-        'Whether the form is currently valid (e.g. from react-hook-form formState.isValid)',
+        'Whether the form has been modified (e.g. from react-hook-form formState.isDirty)',
     },
     large: {
       control: 'boolean',
@@ -158,7 +158,7 @@ export const InvalidForm: Story = {
           open={open}
           onOpenChange={setOpen}
           title="Create new item"
-          isValid={false}
+          isDirty={false}
           onSubmit={(e) => e.preventDefault()}
         >
           <Input label="Name" placeholder="Enter name (required)" />

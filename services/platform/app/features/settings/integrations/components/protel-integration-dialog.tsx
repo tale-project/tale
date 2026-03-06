@@ -48,11 +48,10 @@ export function ProtelIntegrationDialog({
   const {
     register,
     handleSubmit,
-    formState: { isSubmitting, isValid, errors },
+    formState: { isSubmitting, errors },
     reset,
   } = useForm<ProtelFormValues>({
     resolver: zodResolver(protelSchema),
-    mode: 'onChange',
     defaultValues: {
       server: credentials?.server || '',
       port: credentials?.port || 1433,
@@ -126,7 +125,7 @@ export function ProtelIntegrationDialog({
         </Button>
         <Button
           type="submit"
-          disabled={isSubmitting || !isValid}
+          disabled={isSubmitting}
           className="flex-1"
         >
           {isSubmitting
@@ -143,7 +142,6 @@ export function ProtelIntegrationDialog({
       title={t('integrations.protel.title')}
       description={t('integrations.protel.description')}
       isSubmitting={isSubmitting}
-      isValid={isValid}
       onSubmit={handleSubmit(handleConnect)}
       submitText={t('integrations.protel.connect')}
       submittingText={t('integrations.protel.connecting')}

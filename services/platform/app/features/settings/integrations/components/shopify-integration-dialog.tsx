@@ -59,10 +59,9 @@ export function ShopifyIntegrationDialog({
     register,
     handleSubmit: formHandleSubmit,
     reset,
-    formState: { isValid: isFormValid, errors },
+    formState: { errors },
   } = useForm<ShopifyFormValues>({
     resolver: zodResolver(shopifySchema),
-    mode: 'onChange',
     defaultValues: {
       domain: credentials?.domain || '',
       accessToken: '',
@@ -145,7 +144,7 @@ export function ShopifyIntegrationDialog({
         </Button>
         <Button
           onClick={formHandleSubmit(handleConnect)}
-          disabled={isSubmitting || !isFormValid}
+          disabled={isSubmitting}
           className="flex-1"
         >
           {isSubmitting
@@ -165,7 +164,7 @@ export function ShopifyIntegrationDialog({
         <Button
           onClick={formHandleSubmit(handleConnect)}
           className="flex-1"
-          disabled={isSubmitting || !isFormValid}
+          disabled={isSubmitting}
         >
           {isSubmitting
             ? t('integrations.shopify.connecting')

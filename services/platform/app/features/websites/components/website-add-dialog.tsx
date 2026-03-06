@@ -59,13 +59,12 @@ export function AddWebsiteDialog({
   const {
     register,
     handleSubmit,
-    formState: { errors, isValid },
+    formState: { errors },
     reset,
     setValue,
     watch,
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
-    mode: 'onChange',
     defaultValues: {
       domain: '',
       scanInterval: '6h',
@@ -113,7 +112,6 @@ export function AddWebsiteDialog({
       title={tWebsites('addWebsite')}
       submittingText={tWebsites('adding')}
       isSubmitting={isLoading}
-      isValid={isValid}
       onSubmit={handleSubmit(onSubmit)}
     >
       <Input
@@ -128,7 +126,7 @@ export function AddWebsiteDialog({
 
       <Select
         value={scanInterval}
-        onValueChange={(value) => setValue('scanInterval', value)}
+        onValueChange={(value) => setValue('scanInterval', value, { shouldDirty: true })}
         disabled={isLoading}
         id="scanInterval"
         label={tWebsites('scanInterval')}

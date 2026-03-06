@@ -77,10 +77,9 @@ export function ProductEditDialog({
     register,
     handleSubmit,
     reset,
-    formState: { isValid, errors },
+    formState: { errors, isDirty },
   } = useForm<ProductFormData>({
     resolver: zodResolver(formSchema),
-    mode: 'onChange',
     defaultValues: {
       name: product.name,
       description: product.description || '',
@@ -142,7 +141,7 @@ export function ProductEditDialog({
       title={tProducts('edit.title')}
       description={tProducts('edit.description')}
       isSubmitting={isSubmitting}
-      isValid={isValid}
+      isDirty={isDirty}
       onSubmit={handleSubmit(onSubmit)}
       large
     >

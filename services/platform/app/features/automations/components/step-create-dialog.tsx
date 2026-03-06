@@ -126,13 +126,12 @@ export function CreateStepDialog({
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting, isValid },
+    formState: { errors, isSubmitting },
     reset,
     setValue,
     watch,
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
-    mode: 'onChange',
     defaultValues: {
       name: '',
       stepType: 'action',
@@ -146,7 +145,7 @@ export function CreateStepDialog({
   // Update config template when step type changes
   useEffect(() => {
     const defaults = getDefaultTemplates(stepType);
-    setValue('config', defaults.config);
+    setValue('config', defaults.config, { shouldDirty: true });
   }, [stepType, setValue]);
 
   const onSubmit = async (data: FormData) => {
@@ -210,7 +209,7 @@ export function CreateStepDialog({
       'loop',
     ] as const);
     if (narrowed) {
-      setValue('stepType', narrowed);
+      setValue('stepType', narrowed, { shouldDirty: true });
     }
   };
 
@@ -223,7 +222,6 @@ export function CreateStepDialog({
       submitText={t('createStep.createButton')}
       submittingText={t('createStep.creating')}
       isSubmitting={isSubmitting}
-      isValid={isValid}
       onSubmit={handleSubmit(onSubmit)}
       large
     >
@@ -254,7 +252,7 @@ export function CreateStepDialog({
           id="step-config"
           label={t('createStep.configLabel')}
           value={config}
-          onChange={(value) => setValue('config', value)}
+          onChange={(value) => setValue('config', value, { shouldDirty: true })}
           placeholder='{"key":"value"}'
           rows={4}
           disabled={isSubmitting}

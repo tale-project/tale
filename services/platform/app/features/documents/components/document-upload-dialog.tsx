@@ -145,7 +145,7 @@ export function DocumentUploadDialog({
       submitText={tCommon('actions.upload')}
       submittingText={tDocuments('upload.uploading')}
       isSubmitting={isUploading}
-      isValid={selectedFiles.length > 0}
+      isDirty={selectedFiles.length > 0}
       onSubmit={handleSubmit}
       large
     >

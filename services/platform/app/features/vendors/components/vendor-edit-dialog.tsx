@@ -72,13 +72,12 @@ export function VendorEditDialog({
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting, isValid },
+    formState: { errors, isSubmitting, isDirty },
     reset,
     setValue,
     watch,
   } = useForm<VendorFormData>({
     resolver: zodResolver(formSchema),
-    mode: 'onChange',
     defaultValues: {
       name: vendor.name || '',
       email: vendor.email || '',
@@ -134,7 +133,7 @@ export function VendorEditDialog({
       onOpenChange={handleOpenChange}
       title={tVendors('editVendor')}
       isSubmitting={isSubmitting}
-      isValid={isValid}
+      isDirty={isDirty}
       onSubmit={handleSubmit(onSubmit)}
     >
       <Input
