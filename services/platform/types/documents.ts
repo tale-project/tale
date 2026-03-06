@@ -12,7 +12,7 @@ export interface DocumentItem {
   name?: string;
   type: 'file' | 'folder';
   size?: number;
-  storagePath?: string;
+  folderId?: string;
   sourceProvider?: 'onedrive' | 'upload' | 'sharepoint';
   sourceMode?: 'auto' | 'manual';
   lastModified?: number;

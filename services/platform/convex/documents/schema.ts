@@ -40,9 +40,11 @@ export const documentsTable = defineTable({
     }),
   ),
   createdBy: v.optional(v.string()),
+  folderId: v.optional(v.id('folders')),
   metadata: v.optional(jsonRecordValidator),
 })
   .index('by_organizationId', ['organizationId'])
+  .index('by_organizationId_and_folderId', ['organizationId', 'folderId'])
   .index('by_organizationId_and_createdBy', ['organizationId', 'createdBy'])
   .index('by_organizationId_and_sourceProvider', [
     'organizationId',
