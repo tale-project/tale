@@ -378,12 +378,12 @@ async def add_document(request: DocumentAddRequest, background_tasks: Background
 
 @router.post("/documents/upload", response_model=DocumentAddResponse)
 async def upload_document(
+    background_tasks: BackgroundTasks,
     file: UploadFile = _FILE_UPLOAD,
     metadata: str | None = Form(None, description="Optional metadata as JSON string"),
     document_id: str | None = Form(None, description="Optional custom document ID"),
     user_id: str | None = Form(None, description="User ID for multi-tenant isolation"),
     team_ids: str = Form(..., description="Comma-separated team IDs (required, e.g., 'team1,team2')"),
-    background_tasks: BackgroundTasks | None = None,
 ):
     """Upload a file to the knowledge base.
 
@@ -415,17 +415,14 @@ async def upload_document(
 
         doc_id = document_id or f"file-{uuid4().hex}"
 
-        if background_tasks is not None:
-            background_tasks.add_task(
-                _background_ingest,
-                file_bytes,
-                doc_id,
-                file.filename,
-                user_id,
-                team_id_list,
-            )
-        else:
-            await _background_ingest(file_bytes, doc_id, file.filename, user_id, team_id_list)
+        background_tasks.add_task(
+            _background_ingest,
+            file_bytes,
+            doc_id,
+            file.filename,
+            user_id,
+            team_id_list,
+        )
 
         return DocumentAddResponse(
             success=True,
