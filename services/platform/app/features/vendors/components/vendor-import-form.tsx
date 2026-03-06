@@ -49,7 +49,7 @@ export function VendorImportForm({
     if (!file) return;
 
     if (isSpreadsheet(file.name)) {
-      setValue('file', file);
+      setValue('file', file, { shouldDirty: true });
     } else {
       toast({
         title: tCommon('validation.unsupportedFileType'),
@@ -66,7 +66,9 @@ export function VendorImportForm({
       {!hideTabs && !mode && (
         <Tabs
           value={dataSource}
-          onValueChange={(value) => setValue('dataSource', value)}
+          onValueChange={(value) =>
+            setValue('dataSource', value, { shouldDirty: true })
+          }
           className="w-full"
           listClassName="grid w-full grid-cols-2"
           items={[
@@ -131,7 +133,7 @@ export function VendorImportForm({
           {fileValue && (
             <FilePreviewCard
               fileName={fileValue.name}
-              onRemove={() => setValue('file', null)}
+              onRemove={() => setValue('file', null, { shouldDirty: true })}
             />
           )}
         </FormSection>

@@ -49,5 +49,10 @@ export interface UpdateCustomersResult {
 export interface BulkCreateResult {
   success: number;
   failed: number;
-  errors: Array<{ index: number; error: string; customer: unknown }>;
+  errors: Array<{
+    index: number;
+    error: string;
+    errorCode: string;
+    customer: unknown;
+  }>;
 }

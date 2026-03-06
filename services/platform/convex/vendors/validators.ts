@@ -62,6 +62,7 @@ export const vendorListResponseValidator = v.object({
 export const bulkCreateErrorItemValidator = v.object({
   index: v.number(),
   error: v.string(),
+  errorCode: v.string(),
   vendor: jsonValueValidator,
 });
 

@@ -91,7 +91,6 @@ export function ImportVendorsDialog({
 
   const formMethods = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    mode: 'onChange',
     defaultValues: {
       dataSource: mode === 'manual' ? 'manual_import' : 'file_upload',
     },
@@ -167,9 +166,18 @@ export function ImportVendorsDialog({
           onSuccess?.();
           handleClose();
         } else {
+          const firstError = result.errors[0];
+          const errorCodeKeys: Record<string, string> = {
+            duplicate_email: 'import.errorCodes.duplicate_email',
+            duplicate_external_id: 'import.errorCodes.duplicate_external_id',
+            unknown: 'import.errorCodes.unknown',
+          };
+          const errorKey = firstError
+            ? (errorCodeKeys[firstError.errorCode] ?? errorCodeKeys['unknown'])
+            : undefined;
           toast({
-            title: t('import.failed'),
-            description: t('noneImported'),
+            title: t('noneImported'),
+            description: errorKey ? t(errorKey) : undefined,
             variant: 'destructive',
           });
         }
