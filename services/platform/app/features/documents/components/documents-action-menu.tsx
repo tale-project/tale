@@ -69,33 +69,21 @@ export function DocumentsActionMenu({
     hasMicrosoftAccount,
   ]);
 
-  if (!hasMicrosoftAccount) {
-    return (
-      <>
+  return (
+    <>
+      {hasMicrosoftAccount ? (
+        <DataTableActionMenu
+          label={tDocuments('upload.importDocuments')}
+          icon={Plus}
+          menuItems={menuItems}
+        />
+      ) : (
         <DataTableActionMenu
           label={tDocuments('upload.importDocuments')}
           icon={Plus}
           onClick={handleDeviceUpload}
         />
-
-        {isUploadDialogOpen && (
-          <DocumentUploadDialog
-            open={isUploadDialogOpen}
-            onOpenChange={setIsUploadDialogOpen}
-            organizationId={organizationId}
-          />
-        )}
-      </>
-    );
-  }
-
-  return (
-    <>
-      <DataTableActionMenu
-        label={tDocuments('upload.importDocuments')}
-        icon={Plus}
-        menuItems={menuItems}
-      />
+      )}
 
       {isUploadDialogOpen && (
         <DocumentUploadDialog
