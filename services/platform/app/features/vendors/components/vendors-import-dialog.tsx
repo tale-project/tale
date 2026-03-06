@@ -167,15 +167,13 @@ export function ImportVendorsDialog({
           handleClose();
         } else {
           const firstError = result.errors[0];
-          const errorCodeKeys = {
+          const errorCodeKeys: Record<string, string> = {
             duplicate_email: 'import.errorCodes.duplicate_email',
             duplicate_external_id: 'import.errorCodes.duplicate_external_id',
             unknown: 'import.errorCodes.unknown',
-          } as const;
+          };
           const errorKey = firstError
-            ? (errorCodeKeys[
-                firstError.errorCode as keyof typeof errorCodeKeys
-              ] ?? errorCodeKeys.unknown)
+            ? (errorCodeKeys[firstError.errorCode] ?? errorCodeKeys['unknown'])
             : undefined;
           toast({
             title: t('noneImported'),

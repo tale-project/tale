@@ -62,7 +62,12 @@ export function DocumentsActionMenu({
     }
 
     return items;
-  }, [tDocuments, handleDeviceUpload, handleOneDriveClick, hasMicrosoftAccount]);
+  }, [
+    tDocuments,
+    handleDeviceUpload,
+    handleOneDriveClick,
+    hasMicrosoftAccount,
+  ]);
 
   if (!hasMicrosoftAccount) {
     return (

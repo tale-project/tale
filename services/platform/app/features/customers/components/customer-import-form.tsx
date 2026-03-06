@@ -68,7 +68,9 @@ export function CustomerImportForm({
       {!hideTabs && !mode && (
         <Tabs
           value={dataSource}
-          onValueChange={(value) => setValue('dataSource', value, { shouldDirty: true })}
+          onValueChange={(value) =>
+            setValue('dataSource', value, { shouldDirty: true })
+          }
           className="w-full"
           listClassName="grid w-auto grid-cols-3"
           items={[

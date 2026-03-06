@@ -66,7 +66,9 @@ export function VendorImportForm({
       {!hideTabs && !mode && (
         <Tabs
           value={dataSource}
-          onValueChange={(value) => setValue('dataSource', value, { shouldDirty: true })}
+          onValueChange={(value) =>
+            setValue('dataSource', value, { shouldDirty: true })
+          }
           className="w-full"
           listClassName="grid w-full grid-cols-2"
           items={[
