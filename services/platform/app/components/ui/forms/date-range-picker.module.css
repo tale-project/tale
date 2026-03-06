@@ -7,7 +7,7 @@
 }
 
 .wrapper :global(.react-datepicker) {
-  @apply ring-1 ring-border rounded-lg p-2 bg-popover font-sans shadow-lg;
+  @apply ring-border bg-popover rounded-lg p-2 font-sans shadow-lg ring-1;
   border: none !important;
 }
 
@@ -16,7 +16,7 @@
 }
 
 .wrapper :global(.react-datepicker__header) {
-  @apply p-0 bg-transparent border-b-0 rounded-none;
+  @apply rounded-none border-b-0 bg-transparent p-0;
   background-color: transparent !important;
   border-bottom: none !important;
 }
@@ -30,12 +30,12 @@
 }
 
 .wrapper :global(.react-datepicker__day-names) {
-  @apply flex justify-between gap-0.5 mb-1;
+  @apply mb-1 flex justify-between gap-0.5;
   margin-bottom: 0.25rem !important;
 }
 
 .wrapper :global(.react-datepicker__day-name) {
-  @apply text-muted-foreground text-xs font-semibold text-center;
+  @apply text-muted-foreground text-center text-xs font-semibold;
   height: 2rem;
   width: 2rem;
   line-height: 2rem;
@@ -52,11 +52,11 @@
 }
 
 .wrapper :global(.react-datepicker__week) {
-  @apply flex justify-between gap-0.5 mb-0.5;
+  @apply mb-0.5 flex justify-between gap-0.5;
 }
 
 .wrapper :global(.react-datepicker__day) {
-  @apply text-xs text-foreground cursor-pointer transition-all text-center inline-flex items-center justify-center;
+  @apply text-foreground inline-flex cursor-pointer items-center justify-center text-center text-xs transition-all;
   height: 2rem;
   width: 2rem;
   line-height: 1;
@@ -82,7 +82,7 @@
 }
 
 .wrapper :global(.react-datepicker__day--today) {
-  @apply ring-1 ring-primary;
+  @apply ring-primary ring-1;
   background-color: transparent !important;
   color: hsl(var(--foreground)) !important;
   font-weight: 600;
@@ -188,7 +188,7 @@
 }
 
 .wrapper :global(.react-datepicker__day--disabled) {
-  @apply opacity-30 cursor-not-allowed;
+  @apply cursor-not-allowed opacity-30;
   color: hsl(var(--muted-foreground)) !important;
 }
 
