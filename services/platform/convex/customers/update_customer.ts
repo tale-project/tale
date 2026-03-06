@@ -33,7 +33,8 @@ export async function updateCustomer(
   const { customerId, ...updateData } = args;
 
   if (updateData.email) {
-    updateData.email = updateData.email.toLowerCase().trim();
+    const normalized = updateData.email.toLowerCase().trim();
+    updateData.email = normalized || undefined;
   }
 
   // Get the existing customer to check organization

@@ -49,7 +49,7 @@ export async function bulkCreateCustomers(
     const customerData = customers[i];
 
     try {
-      const email = customerData.email?.toLowerCase().trim();
+      const email = customerData.email?.toLowerCase().trim() || undefined;
 
       // Check for duplicates
       if (email) {

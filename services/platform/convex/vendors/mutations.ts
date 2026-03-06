@@ -30,7 +30,8 @@ export const updateVendor = mutationWithRLS({
     const { vendorId, ...updateData } = args;
 
     if (updateData.email) {
-      updateData.email = updateData.email.toLowerCase().trim();
+      const normalized = updateData.email.toLowerCase().trim();
+      updateData.email = normalized || undefined;
     }
 
     const existingVendor = await ctx.db.get(vendorId);

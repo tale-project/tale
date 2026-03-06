@@ -31,6 +31,9 @@ export async function createCustomerPublic(
   args: CreateCustomerPublicArgs,
 ): Promise<Id<'customers'>> {
   const email = args.email.toLowerCase().trim();
+  if (!email) {
+    throw new Error('Email is required');
+  }
 
   // Check if customer with same email already exists
   if (email) {
