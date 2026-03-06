@@ -126,7 +126,9 @@ export function AddWebsiteDialog({
 
       <Select
         value={scanInterval}
-        onValueChange={(value) => setValue('scanInterval', value, { shouldDirty: true })}
+        onValueChange={(value) =>
+          setValue('scanInterval', value, { shouldDirty: true })
+        }
         disabled={isLoading}
         id="scanInterval"
         label={tWebsites('scanInterval')}

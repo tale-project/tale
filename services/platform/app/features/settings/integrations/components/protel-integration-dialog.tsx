@@ -123,11 +123,7 @@ export function ProtelIntegrationDialog({
             ? t('integrations.protel.disconnecting')
             : t('integrations.protel.disconnect')}
         </Button>
-        <Button
-          type="submit"
-          disabled={isSubmitting}
-          className="flex-1"
-        >
+        <Button type="submit" disabled={isSubmitting} className="flex-1">
           {isSubmitting
             ? t('integrations.protel.updating')
             : t('integrations.protel.update')}

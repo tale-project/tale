@@ -210,7 +210,9 @@ export function ApiKeyCreateDialog({
           id="expiresIn"
           label={tSettings('apiKeys.form.expiresIn')}
           value={expiresInValue}
-          onValueChange={(value) => setValue('expiresIn', value, { shouldDirty: true })}
+          onValueChange={(value) =>
+            setValue('expiresIn', value, { shouldDirty: true })
+          }
           options={expiresOptions}
         />
       </FormSection>

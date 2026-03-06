@@ -145,14 +145,14 @@ export const Submitting: Story = {
   },
 };
 
-export const InvalidForm: Story = {
-  render: function InvalidFormStory() {
+export const PristineForm: Story = {
+  render: function PristineFormStory() {
     const [open, setOpen] = useState(false);
 
     return (
       <>
         <Button onClick={() => setOpen(true)}>
-          Open dialog (invalid form)
+          Open dialog (pristine form)
         </Button>
         <FormDialog
           open={open}
@@ -170,7 +170,7 @@ export const InvalidForm: Story = {
     docs: {
       description: {
         story:
-          'Submit button is disabled when the form is invalid (e.g. required fields not filled).',
+          'Submit button is disabled until the form has been modified (dirty state).',
       },
     },
   },
