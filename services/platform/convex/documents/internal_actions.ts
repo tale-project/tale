@@ -329,6 +329,16 @@ export const checkRagDocumentStatus = internalAction({
         return null;
       }
 
+      if (
+        status !== 'processing' &&
+        status !== 'completed' &&
+        status !== 'failed'
+      ) {
+        console.warn(
+          `[checkRagDocumentStatus] Unexpected status "${status}" for ${args.documentId} (attempt ${args.attempt}/${maxAttempts})`,
+        );
+      }
+
       if (status === 'processing' && document.ragInfo.status !== 'running') {
         await ctx.runMutation(
           internal.documents.internal_mutations.updateDocumentRagInfo,
@@ -362,7 +372,7 @@ export const checkRagDocumentStatus = internalAction({
   },
 });
 
-/** Backward-compat alias for already-scheduled calls. Remove after ~48h. */
+/** Backward-compat alias for already-scheduled calls. Remove after 2026-03-08. */
 export const checkRagJobStatus = internalAction({
   args: {
     documentId: v.id('documents'),

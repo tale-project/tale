@@ -12,6 +12,8 @@ import { getRagConfig } from './helpers/get_rag_config';
 import { uploadFileDirect } from './helpers/upload_file_direct';
 import { uploadTextDocument } from './helpers/upload_text_document';
 
+const INITIAL_POLLING_DELAY_MS = 10_000;
+
 export const ragAction: ActionDefinition<RagActionParams> = {
   type: 'rag',
   title: 'RAG Document Manager',
@@ -137,7 +139,7 @@ export const ragAction: ActionDefinition<RagActionParams> = {
         );
 
         await ctx.scheduler.runAfter(
-          10 * 1000,
+          INITIAL_POLLING_DELAY_MS,
           internal.documents.internal_actions.checkRagDocumentStatus,
           { documentId, attempt: 1 },
         );

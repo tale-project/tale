@@ -209,6 +209,36 @@ async def _record_failure(
             )
 
 
+async def _mark_completed(
+    document_id: str,
+    targets: list[tuple[str | None, str | None]],
+) -> None:
+    """Mark document status rows as completed (used when content is unchanged on re-upload)."""
+    pool = await get_pool()
+    async with acquire_with_retry(pool) as conn:
+        for team_id_val, user_id_val in targets:
+            await conn.execute(
+                f"""
+                UPDATE {SCHEMA}.documents
+                SET status = 'completed', error = NULL, updated_at = NOW()
+                WHERE document_id = $1
+                  AND COALESCE(team_id, '') = COALESCE($2, '')
+                  AND COALESCE(user_id, '') = COALESCE($3, '')
+                """,
+                document_id,
+                team_id_val,
+                user_id_val,
+            )
+
+
+def _sanitize_error(exc: Exception, max_length: int = 500) -> str:
+    """Return a truncated error message safe for DB storage."""
+    msg = str(exc)
+    if len(msg) > max_length:
+        return msg[:max_length] + "..."
+    return msg
+
+
 async def _background_ingest(
     content: bytes,
     document_id: str,
@@ -227,6 +257,8 @@ async def _background_ingest(
             user_id=user_id,
             team_ids=team_ids,
         )
+        if result.get("skipped"):
+            await _mark_completed(document_id, targets)
         logger.info(
             "Background ingestion completed",
             extra={
@@ -242,7 +274,7 @@ async def _background_ingest(
             document_id,
         )
         try:
-            await _record_failure(document_id, filename, str(exc), targets)
+            await _record_failure(document_id, filename, _sanitize_error(exc), targets)
         except Exception as record_exc:
             logger.critical("Could not record failure for {}: {}", document_id, record_exc)
     finally:
@@ -351,7 +383,7 @@ async def upload_document(
     document_id: str | None = Form(None, description="Optional custom document ID"),
     user_id: str | None = Form(None, description="User ID for multi-tenant isolation"),
     team_ids: str = Form(..., description="Comma-separated team IDs (required, e.g., 'team1,team2')"),
-    background_tasks: BackgroundTasks = None,
+    background_tasks: BackgroundTasks | None = None,
 ):
     """Upload a file to the knowledge base.
 
