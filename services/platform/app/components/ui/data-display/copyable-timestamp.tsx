@@ -3,8 +3,8 @@
 import { Check, Copy } from 'lucide-react';
 import * as React from 'react';
 
-import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useCopyButton } from '@/app/hooks/use-copy';
+import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { type DatePreset } from '@/lib/utils/date/format';
@@ -107,14 +107,14 @@ function CopyableTimestampInner({
       )}
     >
       <span
-        className="text-sm text-muted-foreground whitespace-nowrap"
+        className="text-muted-foreground text-sm whitespace-nowrap"
         title={titleText}
       >
         {formatted}
       </span>
       <button
         type="button"
-        className="shrink-0 cursor-pointer rounded p-0.5 transition-colors hover:bg-muted"
+        className="hover:bg-muted shrink-0 cursor-pointer rounded p-0.5 transition-colors"
         aria-label={tCommon('actions.copy')}
         onClick={(e) => {
           e.stopPropagation();
@@ -130,9 +130,7 @@ function CopyableTimestampInner({
           <Copy className="text-muted-foreground size-3.5" aria-hidden="true" />
         )}
       </button>
-      {copied && (
-        <span className="sr-only">{tCommon('actions.copied')}</span>
-      )}
+      {copied && <span className="sr-only">{tCommon('actions.copied')}</span>}
     </span>
   );
 }

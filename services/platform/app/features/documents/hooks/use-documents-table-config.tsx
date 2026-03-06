@@ -9,8 +9,8 @@ import type { DocumentItem } from '@/types/documents';
 
 import { OneDriveIcon } from '@/app/components/icons/onedrive-icon';
 import { SharePointIcon } from '@/app/components/icons/sharepoint-icon';
-import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { CopyableTimestamp } from '@/app/components/ui/data-display/copyable-timestamp';
+import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { HStack } from '@/app/components/ui/layout/layout';

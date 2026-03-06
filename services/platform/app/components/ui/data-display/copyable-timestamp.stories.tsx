@@ -104,7 +104,7 @@ export const Empty: Story = {
 
 export const AlignRight: Story = {
   render: () => (
-    <div className="w-48 border rounded p-2">
+    <div className="w-48 rounded border p-2">
       <CopyableTimestamp date={NOW} preset="short" alignRight />
     </div>
   ),
@@ -119,11 +119,11 @@ export const AlignRight: Story = {
 
 export const InTableRow: Story = {
   render: () => (
-    <table className="text-sm border-collapse">
+    <table className="border-collapse text-sm">
       <thead>
         <tr>
-          <th className="text-left p-2 border">Name</th>
-          <th className="text-right p-2 border">Modified</th>
+          <th className="border p-2 text-left">Name</th>
+          <th className="border p-2 text-right">Modified</th>
         </tr>
       </thead>
       <tbody>
@@ -133,8 +133,8 @@ export const InTableRow: Story = {
           { name: 'Onboarding guide.pdf', date: LAST_WEEK },
         ].map(({ name, date }) => (
           <tr key={name}>
-            <td className="p-2 border">{name}</td>
-            <td className="p-2 border">
+            <td className="border p-2">{name}</td>
+            <td className="border p-2">
               <CopyableTimestamp date={date} preset="short" alignRight />
             </td>
           </tr>
