@@ -175,6 +175,7 @@ class TestGetDocumentContent:
 
         assert result is not None
         assert result["content"] == ""
+        assert result["chunk_range"] == {"start": 0, "end": 0}
 
     async def test_single_chunk_document(self):
         service = _make_service()
@@ -191,17 +192,25 @@ class TestGetDocumentContent:
         assert result["chunk_range"] == {"start": 1, "end": 1}
         assert result["total_chunks"] == 1
 
+    async def test_max_chunk_window_caps_unbounded_request(self):
+        service = _make_service()
+        mock_conn = _mock_conn(fetchrow_return=DOC_ROW, fetch_return=CHUNK_ROWS)
+
+        with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
+            await service.get_document_content("doc-1", team_ids=["team-a"], chunk_start=1)
+
+        fetch_call = mock_conn.fetch.call_args
+        sql = fetch_call[0][0]
+        assert "chunk_index <= $3" in sql
+        chunk_end_param = fetch_call[0][3]
+        assert chunk_end_param == service.MAX_CHUNK_WINDOW - 1
+
 
 class TestGetDocumentContentNoTenant:
     """Verify service rejects calls without tenant context."""
 
     async def test_no_tenant_raises_value_error(self):
         service = _make_service()
-        mock_conn = _mock_conn(fetchrow_return=DOC_ROW, fetch_return=CHUNK_ROWS[:1])
 
-        with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
-            result = await service.get_document_content("doc-1")
-
-        # Without tenant filtering, the query still runs but SQL won't restrict
-        # The endpoint layer enforces the requirement; service layer is permissive
-        assert result is not None
+        with pytest.raises(ValueError, match="At least one of team_ids or user_id must be provided"):
+            await service.get_document_content("doc-1")

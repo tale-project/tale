@@ -158,13 +158,20 @@ class DocumentAddResponse(BaseModel):
     )
 
 
+class ChunkRange(BaseModel):
+    """Range of chunks returned in a content response."""
+
+    start: int = Field(..., description="First chunk returned (1-indexed)")
+    end: int = Field(..., description="Last chunk returned (1-indexed, inclusive)")
+
+
 class DocumentContentResponse(BaseModel):
     """Response containing reassembled document content."""
 
     document_id: str = Field(..., description="Document identifier")
     title: str | None = Field(default=None, description="Original filename")
     content: str = Field(..., description="Reassembled text content")
-    chunk_range: dict[str, int] = Field(..., description="Range of chunks returned (1-indexed, inclusive)")
+    chunk_range: ChunkRange = Field(..., description="Range of chunks returned (1-indexed, inclusive)")
     total_chunks: int = Field(..., description="Total number of chunks in the document")
     total_chars: int = Field(..., description="Total character count of returned content")
 

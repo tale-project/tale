@@ -428,7 +428,7 @@ async def get_document_content(
     if result is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Document '{document_id}' not found",
+            detail="Document not found",
         )
 
     return DocumentContentResponse(**result)
