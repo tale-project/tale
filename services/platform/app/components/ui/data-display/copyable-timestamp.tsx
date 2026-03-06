@@ -39,7 +39,7 @@ export const CopyableTimestamp = React.memo(function CopyableTimestamp({
   emptyText = '—',
   alignRight = false,
 }: CopyableTimestampProps) {
-  const { formatDate } = useFormatDate();
+  const { formatDate, timezone } = useFormatDate();
   const { t: tCommon } = useT('common');
 
   if (date === null || date === undefined) {
@@ -63,11 +63,10 @@ export const CopyableTimestamp = React.memo(function CopyableTimestamp({
 
   const timestampMs = String(dateObj.valueOf());
   const formatted = formatDate(dateObj, preset);
-  const titleText = formatDate(dateObj, 'long');
+  const titleText = `${formatDate(dateObj, 'long')} (${timezone})`;
 
   return (
     <CopyableTimestampInner
-      dateObj={dateObj}
       timestampMs={timestampMs}
       formatted={formatted}
       titleText={titleText}
@@ -79,7 +78,6 @@ export const CopyableTimestamp = React.memo(function CopyableTimestamp({
 });
 
 interface CopyableTimestampInnerProps {
-  dateObj: Date;
   timestampMs: string;
   formatted: string;
   titleText: string;
@@ -101,7 +99,7 @@ function CopyableTimestampInner({
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1',
+        'group inline-flex items-center gap-1',
         alignRight && 'justify-end w-full',
         className,
       )}
@@ -114,7 +112,11 @@ function CopyableTimestampInner({
       </span>
       <button
         type="button"
-        className="hover:bg-muted shrink-0 cursor-pointer rounded p-0.5 transition-colors"
+        className={cn(
+          'shrink-0 cursor-pointer rounded p-0.5 transition-colors',
+          'opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
+          'hover:bg-muted',
+        )}
         aria-label={tCommon('actions.copy')}
         onClick={(e) => {
           e.stopPropagation();
@@ -130,7 +132,14 @@ function CopyableTimestampInner({
           <Copy className="text-muted-foreground size-3.5" aria-hidden="true" />
         )}
       </button>
-      {copied && <span className="sr-only">{tCommon('actions.copied')}</span>}
+      <span
+        className="sr-only"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {copied ? tCommon('actions.copied') : ''}
+      </span>
     </span>
   );
 }
