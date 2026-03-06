@@ -32,6 +32,10 @@ export async function updateCustomer(
 ): Promise<Doc<'customers'> | null> {
   const { customerId, ...updateData } = args;
 
+  if (updateData.email) {
+    updateData.email = updateData.email.toLowerCase().trim();
+  }
+
   // Get the existing customer to check organization
   const existingCustomer = await ctx.db.get(customerId);
   if (!existingCustomer) {

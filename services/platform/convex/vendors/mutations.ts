@@ -29,6 +29,10 @@ export const updateVendor = mutationWithRLS({
   handler: async (ctx, args) => {
     const { vendorId, ...updateData } = args;
 
+    if (updateData.email) {
+      updateData.email = updateData.email.toLowerCase().trim();
+    }
+
     const existingVendor = await ctx.db.get(vendorId);
     if (!existingVendor) {
       throw new Error('Vendor not found');
@@ -129,8 +133,9 @@ export const bulkCreateVendors = mutationWithRLS({
       const vendorData = args.vendors[i];
 
       try {
-        if (vendorData.email) {
-          const { email } = vendorData;
+        const email = vendorData.email?.toLowerCase().trim();
+
+        if (email) {
           const existing = await ctx.db
             .query('vendors')
             .withIndex('by_organizationId_and_email', (q) =>
@@ -140,7 +145,7 @@ export const bulkCreateVendors = mutationWithRLS({
 
           if (existing) {
             throw new BulkCreateError(
-              `Vendor with email ${vendorData.email} already exists`,
+              `Vendor with email ${email} already exists`,
               'duplicate_email',
             );
           }
@@ -168,6 +173,7 @@ export const bulkCreateVendors = mutationWithRLS({
         await ctx.db.insert('vendors', {
           organizationId: args.organizationId,
           ...vendorData,
+          ...(email !== undefined && { email }),
         });
 
         results.success++;

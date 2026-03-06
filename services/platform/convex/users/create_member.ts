@@ -67,6 +67,8 @@ export async function createMember(
     throw new Error('Only Admins can create members');
   }
 
+  const email = args.email.toLowerCase().trim();
+
   // Check if user already exists by querying Better Auth directly
   const existingUserResult = await ctx.runQuery(
     components.betterAuth.adapter.findMany,
@@ -79,7 +81,7 @@ export async function createMember(
       where: [
         {
           field: 'email',
-          value: args.email,
+          value: email,
           operator: 'eq',
         },
       ],
@@ -153,7 +155,7 @@ export async function createMember(
 
   const signupResult = await auth.api.signUpEmail({
     body: {
-      email: args.email,
+      email,
       password: args.password,
       name: args.displayName ?? '',
     },
@@ -174,7 +176,7 @@ export async function createMember(
       where: [
         {
           field: 'email',
-          value: args.email,
+          value: email,
           operator: 'eq',
         },
       ],
@@ -186,7 +188,7 @@ export async function createMember(
       'Failed to retrieve user after signup. ' +
         'The user was created in Better Auth but could not be found. ' +
         'Email: ' +
-        args.email,
+        email,
     );
   }
 

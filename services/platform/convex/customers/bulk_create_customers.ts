@@ -49,9 +49,10 @@ export async function bulkCreateCustomers(
     const customerData = customers[i];
 
     try {
+      const email = customerData.email?.toLowerCase().trim();
+
       // Check for duplicates
-      if (customerData.email) {
-        const { email } = customerData;
+      if (email) {
         const existing = await ctx.db
           .query('customers')
           .withIndex('by_organizationId_and_email', (q) =>
@@ -61,7 +62,7 @@ export async function bulkCreateCustomers(
 
         if (existing) {
           throw new BulkCreateError(
-            `Customer with email ${customerData.email} already exists`,
+            `Customer with email ${email} already exists`,
             'duplicate_email',
           );
         }
@@ -87,6 +88,7 @@ export async function bulkCreateCustomers(
       await ctx.db.insert('customers', {
         organizationId,
         ...customerData,
+        ...(email !== undefined && { email }),
         metadata: toConvexJsonRecord(customerData.metadata),
       });
 
