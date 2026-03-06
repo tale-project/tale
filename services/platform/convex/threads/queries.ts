@@ -1,4 +1,4 @@
-import { listMessages, listStreams, type MessageDoc } from '@convex-dev/agent';
+import { listMessages, listStreams } from '@convex-dev/agent';
 import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
@@ -51,8 +51,8 @@ export const isThreadGenerating = query({
       paginationOpts: { numItems: 5, cursor: null },
       excludeToolMessages: true,
     });
-    const latestAssistant = messages.page.findLast(
-      (m: MessageDoc) => m.message?.role === 'assistant',
+    const latestAssistant = messages.page.find(
+      (m) => m.message?.role === 'assistant',
     );
     if (
       latestAssistant?.status === 'failed' ||

@@ -920,4 +920,110 @@ describe('generateAgentResponse — agent SDK stream cleanup', () => {
 
     expect(mockSaveMessage).toHaveBeenCalledOnce();
   });
+
+  it('does not call abortStream when no SDK streams are stuck', async () => {
+    const ctx = createMockCtx();
+
+    // Both listStreams calls return empty
+    mockListStreams.mockResolvedValue([]);
+    mockBuildStructuredContext.mockRejectedValueOnce(
+      new Error('early failure'),
+    );
+
+    await expect(
+      generateAgentResponse(createMockConfig(), createMockArgs(ctx)),
+    ).rejects.toThrow('early failure');
+
+    expect(mockAbortStream).not.toHaveBeenCalled();
+    expect(mockSaveMessage).toHaveBeenCalledOnce();
+  });
+
+  it('still saves failed message when listStreams for streaming throws', async () => {
+    const ctx = createMockCtx();
+
+    // First call (aborted check) → empty, second call (streaming check) → throws
+    mockListStreams
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(new Error('streaming query failed'));
+    mockBuildStructuredContext.mockRejectedValueOnce(new Error('some error'));
+
+    await expect(
+      generateAgentResponse(createMockConfig(), createMockArgs(ctx)),
+    ).rejects.toThrow('some error');
+
+    expect(mockAbortStream).not.toHaveBeenCalled();
+    expect(mockSaveMessage).toHaveBeenCalledOnce();
+  });
+
+  it('ignores stale aborted streams from prior generations (baselineAbortedIds filter)', async () => {
+    const ctx = createMockCtx();
+
+    // Baseline query returns a stale aborted stream
+    ctx.runQuery.mockResolvedValue([
+      { streamId: 'stale_abort_1', status: 'aborted' },
+    ]);
+
+    // Catch block listStreams (aborted) → same stale stream
+    mockListStreams
+      .mockResolvedValueOnce([{ streamId: 'stale_abort_1', status: 'aborted' }])
+      .mockResolvedValueOnce([
+        { streamId: 'stuck_stream', status: 'streaming' },
+      ]);
+    mockBuildStructuredContext.mockRejectedValueOnce(
+      new Error('genuine error'),
+    );
+
+    await expect(
+      generateAgentResponse(
+        createMockConfig({ enableStreaming: true }),
+        createMockArgs(ctx, { streamId: 'persistent_1' }),
+      ),
+    ).rejects.toThrow('genuine error');
+
+    // userCancelled should be false (stale abort filtered out), so cleanup should run
+    expect(ctx.runMutation).toHaveBeenCalledWith('mock-errorStream', {
+      streamId: 'persistent_1',
+    });
+    expect(mockAbortStream).toHaveBeenCalledWith(ctx, expect.anything(), {
+      streamId: 'stuck_stream',
+      reason: 'error',
+    });
+  });
+
+  it('aborts remaining streams even if first abortStream fails', async () => {
+    const ctx = createMockCtx();
+
+    mockListStreams.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      { streamId: 'stream_a', status: 'streaming' },
+      { streamId: 'stream_b', status: 'streaming' },
+      { streamId: 'stream_c', status: 'streaming' },
+    ]);
+
+    mockAbortStream
+      .mockRejectedValueOnce(new Error('abort stream_a failed'))
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(true);
+
+    mockBuildStructuredContext.mockRejectedValueOnce(new Error('timeout'));
+
+    await expect(
+      generateAgentResponse(createMockConfig(), createMockArgs(ctx)),
+    ).rejects.toThrow('timeout');
+
+    // All three should be attempted despite first failure
+    expect(mockAbortStream).toHaveBeenCalledTimes(3);
+    expect(mockAbortStream).toHaveBeenCalledWith(ctx, expect.anything(), {
+      streamId: 'stream_a',
+      reason: 'error',
+    });
+    expect(mockAbortStream).toHaveBeenCalledWith(ctx, expect.anything(), {
+      streamId: 'stream_b',
+      reason: 'error',
+    });
+    expect(mockAbortStream).toHaveBeenCalledWith(ctx, expect.anything(), {
+      streamId: 'stream_c',
+      reason: 'error',
+    });
+    expect(mockSaveMessage).toHaveBeenCalledOnce();
+  });
 });

@@ -220,8 +220,9 @@ export async function generateAgentResponse(
   const startTime = Date.now();
   const abortController = new AbortController();
 
-  // Declared outside try so the catch block can access it for cleanup
+  // Declared outside try so the catch block can access them for cleanup
   let abortWatcher: AbortWatcher | undefined;
+  let baselineAbortedIds = new Set<string>();
 
   try {
     debugLog(`generate${capitalize(agentType)}Response called`, {
@@ -244,7 +245,6 @@ export async function generateAgentResponse(
 
     // Snapshot existing aborted streams and the newest assistant message
     // so the watcher can distinguish stale state from new cancellations.
-    let baselineAbortedIds = new Set<string>();
     let baselineNewestAssistantId: string | undefined;
     if (enableStreaming) {
       try {
@@ -1220,7 +1220,9 @@ export async function generateAgentResponse(
         threadId,
         includeStatuses: ['aborted'],
       });
-      userCancelled = abortedStreams.length > 0;
+      userCancelled = abortedStreams.some(
+        (s) => !baselineAbortedIds.has(s.streamId),
+      );
     } catch (cancelCheckError) {
       console.error(
         '[generateAgentResponse] Failed to check cancellation status:',
@@ -1255,14 +1257,21 @@ export async function generateAgentResponse(
           includeStatuses: ['streaming'],
         });
         for (const stream of stuckStreams) {
-          await abortStream(ctx, components.agent, {
-            streamId: stream.streamId,
-            reason: 'error',
-          });
+          try {
+            await abortStream(ctx, components.agent, {
+              streamId: stream.streamId,
+              reason: 'error',
+            });
+          } catch (abortError) {
+            console.error(
+              `[generateAgentResponse] Failed to abort stream ${stream.streamId}:`,
+              abortError,
+            );
+          }
         }
       } catch (sdkStreamError) {
         console.error(
-          '[generateAgentResponse] Failed to abort agent SDK streams:',
+          '[generateAgentResponse] Failed to list agent SDK streams:',
           sdkStreamError,
         );
       }
