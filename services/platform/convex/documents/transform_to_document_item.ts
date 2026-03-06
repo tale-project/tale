@@ -71,7 +71,7 @@ export function transformToDocumentItem(
       document.extension ??
       metadata?.extension ??
       extractExtension(document.title),
-    storagePath: metadata?.storagePath,
+    folderId: document.folderId ? String(document.folderId) : undefined,
     sourceProvider:
       document.sourceProvider ?? metadata?.sourceProvider ?? 'upload',
     sourceMode: normalizeSourceMode(metadata?.sourceMode),

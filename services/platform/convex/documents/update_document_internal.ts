@@ -17,6 +17,7 @@ export type UpdateDocumentInternalArgs = {
   externalItemId?: string;
   contentHash?: string;
   teamId?: string;
+  folderId?: Id<'folders'>;
 };
 
 export async function updateDocumentInternal(

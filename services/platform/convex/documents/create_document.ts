@@ -31,6 +31,7 @@ export async function createDocument(
     contentHash: args.contentHash,
     ...teamFields,
     createdBy: args.createdBy,
+    folderId: args.folderId,
   });
 
   return {

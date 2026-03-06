@@ -93,6 +93,7 @@ export const createDocumentFromUpload = mutation({
     contentHash: v.optional(v.string()),
     metadata: v.optional(jsonRecordValidator),
     teamId: v.optional(v.string()),
+    folderId: v.optional(v.id('folders')),
   },
   returns: v.object({
     success: v.boolean(),
@@ -120,6 +121,7 @@ export const createDocumentFromUpload = mutation({
       teamId: args.teamId,
       metadata: args.metadata,
       createdBy: String(authUser._id),
+      folderId: args.folderId,
     });
 
     return {

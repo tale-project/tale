@@ -234,6 +234,9 @@ import type * as documents_upload_base64_to_storage from "../documents/upload_ba
 import type * as documents_validators from "../documents/validators.js";
 import type * as files_mutations from "../files/mutations.js";
 import type * as files_queries from "../files/queries.js";
+import type * as folders_get_or_create_path from "../folders/get_or_create_path.js";
+import type * as folders_mutations from "../folders/mutations.js";
+import type * as folders_queries from "../folders/queries.js";
 import type * as http from "../http.js";
 import type * as integrations_actions from "../integrations/actions.js";
 import type * as integrations_build_test_secrets from "../integrations/build_test_secrets.js";
@@ -369,6 +372,7 @@ import type * as members_types from "../members/types.js";
 import type * as members_validators from "../members/validators.js";
 import type * as message_metadata_internal_mutations from "../message_metadata/internal_mutations.js";
 import type * as message_metadata_queries from "../message_metadata/queries.js";
+import type * as migrations_backfill_folders from "../migrations/backfill_folders.js";
 import type * as migrations_backfill_thread_metadata from "../migrations/backfill_thread_metadata.js";
 import type * as migrations_backfill_workflow_schedules from "../migrations/backfill_workflow_schedules.js";
 import type * as migrations_remove_deprecated_llm_fields from "../migrations/remove_deprecated_llm_fields.js";
@@ -1064,6 +1068,9 @@ declare const fullApi: ApiFromModules<{
   "documents/validators": typeof documents_validators;
   "files/mutations": typeof files_mutations;
   "files/queries": typeof files_queries;
+  "folders/get_or_create_path": typeof folders_get_or_create_path;
+  "folders/mutations": typeof folders_mutations;
+  "folders/queries": typeof folders_queries;
   http: typeof http;
   "integrations/actions": typeof integrations_actions;
   "integrations/build_test_secrets": typeof integrations_build_test_secrets;
@@ -1199,6 +1206,7 @@ declare const fullApi: ApiFromModules<{
   "members/validators": typeof members_validators;
   "message_metadata/internal_mutations": typeof message_metadata_internal_mutations;
   "message_metadata/queries": typeof message_metadata_queries;
+  "migrations/backfill_folders": typeof migrations_backfill_folders;
   "migrations/backfill_thread_metadata": typeof migrations_backfill_thread_metadata;
   "migrations/backfill_workflow_schedules": typeof migrations_backfill_workflow_schedules;
   "migrations/remove_deprecated_llm_fields": typeof migrations_remove_deprecated_llm_fields;
