@@ -21,7 +21,7 @@ import {
   getString,
   narrowStringUnion,
 } from '../../../lib/utils/type-guards';
-import { components, internal } from '../../_generated/api';
+import { components } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
 import {
   createDelegationTool,
@@ -322,31 +322,9 @@ export const runAgentGeneration = internalAction({
         ),
       });
 
-      // Signal failure to frontend so isPending clears via terminalAssistantCount.
-      // Idempotent — safe if generateAgentResponse already saved a failed message.
-      if (streamId) {
-        try {
-          // Check for user-initiated abort to avoid overwriting cancellation status
-          const streams = await ctx.runQuery(components.agent.streams.list, {
-            threadId,
-            statuses: ['aborted'],
-          });
-          const alreadyAborted = streams.some(
-            (s: { streamId: string }) => s.streamId === streamId,
-          );
-          if (!alreadyAborted) {
-            await ctx.runMutation(
-              internal.streaming.internal_mutations.errorStream,
-              { streamId },
-            );
-          }
-        } catch (streamError) {
-          console.error(
-            '[runAgentGeneration] Failed to mark stream as errored:',
-            streamError,
-          );
-        }
-      }
+      // Stream cleanup (persistent text stream + agent SDK streams) is handled
+      // by generateAgentResponse's catch block. This outer catch only ensures
+      // a failed assistant message exists for the frontend.
       try {
         const msgs = await listMessages(ctx, components.agent, {
           threadId,
