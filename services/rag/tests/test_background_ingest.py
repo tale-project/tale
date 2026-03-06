@@ -166,14 +166,12 @@ class TestBackgroundIngest:
         }
 
         with (
-            patch("app.routers.documents._insert_processing_row", new_callable=AsyncMock) as mock_insert,
             patch("app.routers.documents.rag_service") as mock_rag,
             patch("app.routers.documents.cleanup_memory"),
         ):
             mock_rag.add_document = AsyncMock(return_value=add_result)
             await _background_ingest(b"content", "doc-1", "test.txt", user_id="user-1")
 
-        mock_insert.assert_awaited_once()
         mock_rag.add_document.assert_awaited_once()
 
     async def test_skipped_content_marks_completed(self):
@@ -188,7 +186,6 @@ class TestBackgroundIngest:
         }
 
         with (
-            patch("app.routers.documents._insert_processing_row", new_callable=AsyncMock),
             patch("app.routers.documents._mark_completed", new_callable=AsyncMock) as mock_mark,
             patch("app.routers.documents.rag_service") as mock_rag,
             patch("app.routers.documents.cleanup_memory"),
@@ -209,7 +206,6 @@ class TestBackgroundIngest:
         }
 
         with (
-            patch("app.routers.documents._insert_processing_row", new_callable=AsyncMock),
             patch("app.routers.documents._mark_completed", new_callable=AsyncMock) as mock_mark,
             patch("app.routers.documents.rag_service") as mock_rag,
             patch("app.routers.documents.cleanup_memory"),
@@ -223,7 +219,6 @@ class TestBackgroundIngest:
         from app.routers.documents import _background_ingest
 
         with (
-            patch("app.routers.documents._insert_processing_row", new_callable=AsyncMock),
             patch("app.routers.documents._record_failure", new_callable=AsyncMock) as mock_fail,
             patch("app.routers.documents.rag_service") as mock_rag,
             patch("app.routers.documents.cleanup_memory"),
@@ -239,7 +234,6 @@ class TestBackgroundIngest:
         from app.routers.documents import _background_ingest
 
         with (
-            patch("app.routers.documents._insert_processing_row", new_callable=AsyncMock),
             patch(
                 "app.routers.documents._record_failure",
                 new_callable=AsyncMock,
@@ -255,7 +249,6 @@ class TestBackgroundIngest:
         from app.routers.documents import _background_ingest
 
         with (
-            patch("app.routers.documents._insert_processing_row", new_callable=AsyncMock),
             patch("app.routers.documents._record_failure", new_callable=AsyncMock),
             patch("app.routers.documents.rag_service") as mock_rag,
             patch("app.routers.documents.cleanup_memory") as mock_cleanup,
