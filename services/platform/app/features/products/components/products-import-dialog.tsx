@@ -58,7 +58,6 @@ export function ProductsImportDialog({
 
   const formMethods = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    mode: 'onChange',
   });
 
   const {

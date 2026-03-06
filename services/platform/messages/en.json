@@ -2627,7 +2627,12 @@
       "error": "Import error",
       "addCustomers": "Add customers",
       "uploadCustomers": "Upload customers",
-      "import": "Import"
+      "import": "Import",
+      "errorCodes": {
+        "duplicate_email": "A customer with this email already exists",
+        "duplicate_external_id": "A customer with this external ID already exists",
+        "unknown": "An unexpected error occurred"
+      }
     }
   },
   "vendors": {
@@ -2685,7 +2690,12 @@
       "success": "Import successful",
       "successDescription": "Successfully imported {success} vendors{failed, select, 0 {} other {, {failed} failed}}",
       "failed": "Import failed",
-      "error": "Failed to import vendors"
+      "error": "Failed to import vendors",
+      "errorCodes": {
+        "duplicate_email": "A vendor with this email already exists",
+        "duplicate_external_id": "A vendor with this external ID already exists",
+        "unknown": "An unexpected error occurred"
+      }
     }
   },
   "websites": {

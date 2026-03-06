@@ -61,6 +61,7 @@ export const bulkCreateCustomers = mutationWithRLS({
       v.object({
         index: v.number(),
         error: v.string(),
+        errorCode: v.string(),
         customer: v.any(),
       }),
     ),

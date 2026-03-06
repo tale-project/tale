@@ -1,10 +1,8 @@
 'use client';
 
-import { useNavigate } from '@tanstack/react-router';
 import { Plus, HardDrive, NotepadText } from 'lucide-react';
 import { useState, useCallback } from 'react';
 
-import { CirculyIcon } from '@/app/components/icons/circuly-icon';
 import { DataTableActionMenu } from '@/app/components/ui/data-table/data-table-action-menu';
 import { useT } from '@/lib/i18n/client';
 
@@ -20,7 +18,6 @@ export function CustomersActionMenu({
   organizationId,
 }: CustomersActionMenuProps) {
   const { t: tCustomers } = useT('customers');
-  const navigate = useNavigate();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [importMode, setImportMode] = useState<ImportMode>('manual');
 
@@ -34,14 +31,6 @@ export function CustomersActionMenu({
     setIsDialogOpen(true);
   }, []);
 
-  const handleCirculyClick = useCallback(() => {
-    void navigate({
-      to: '/dashboard/$id/settings/integrations',
-      params: { id: organizationId },
-      search: { tab: 'circuly' },
-    });
-  }, [navigate, organizationId]);
-
   return (
     <>
       <DataTableActionMenu
@@ -52,11 +41,6 @@ export function CustomersActionMenu({
             label: tCustomers('importMenu.fromDevice'),
             icon: HardDrive,
             onClick: handleUploadClick,
-          },
-          {
-            label: tCustomers('importMenu.fromCirculy'),
-            icon: CirculyIcon,
-            onClick: handleCirculyClick,
           },
           {
             label: tCustomers('importMenu.manualEntry'),

@@ -105,12 +105,22 @@ export const bulkCreateVendors = mutationWithRLS({
   },
   returns: bulkCreateVendorsResponseValidator,
   handler: async (ctx, args) => {
+    class BulkCreateError extends Error {
+      constructor(
+        message: string,
+        readonly errorCode: string,
+      ) {
+        super(message);
+      }
+    }
+
     const results = {
       success: 0,
       failed: 0,
       errors: [] as Array<{
         index: number;
         error: string;
+        errorCode: string;
         vendor: ConvexJsonValue;
       }>,
     };
@@ -129,8 +139,9 @@ export const bulkCreateVendors = mutationWithRLS({
             .first();
 
           if (existing) {
-            throw new Error(
+            throw new BulkCreateError(
               `Vendor with email ${vendorData.email} already exists`,
+              'duplicate_email',
             );
           }
         }
@@ -147,8 +158,9 @@ export const bulkCreateVendors = mutationWithRLS({
             .first();
 
           if (existing) {
-            throw new Error(
+            throw new BulkCreateError(
               `Vendor with external ID ${vendorData.externalId} already exists`,
+              'duplicate_external_id',
             );
           }
         }
@@ -164,6 +176,8 @@ export const bulkCreateVendors = mutationWithRLS({
         results.errors.push({
           index: i,
           error: error instanceof Error ? error.message : 'Unknown error',
+          errorCode:
+            error instanceof BulkCreateError ? error.errorCode : 'unknown',
           vendor: vendorData,
         });
       }
