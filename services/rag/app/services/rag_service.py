@@ -435,11 +435,11 @@ class RagService:
         """Get statuses for multiple documents by document_id.
 
         Returns a dict mapping document_id to status info or None if not found.
-        When a document has multiple scope rows, priority is: completed > failed > processing.
+        When a document has multiple scope rows, priority is: processing > failed > completed.
 
-        Each Convex document uploads once with a fixed set of team_ids.
-        All scope rows for a single document transition together, so
-        DISTINCT ON with status priority correctly returns the canonical status.
+        If ANY scope row is still processing, the document is considered processing.
+        This ensures reindex operations are visible even when other scope rows
+        remain completed.
         """
         if not self.initialized:
             await self.initialize()
@@ -456,9 +456,10 @@ class RagService:
                 WHERE document_id = ANY($1)
                 ORDER BY document_id,
                     CASE status
-                        WHEN 'completed' THEN 0
+                        WHEN 'processing' THEN 0
                         WHEN 'failed' THEN 1
-                        ELSE 2
+                        WHEN 'completed' THEN 2
+                        ELSE 3
                     END,
                     updated_at DESC
                 """,
