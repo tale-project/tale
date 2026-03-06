@@ -14,6 +14,7 @@
  * - Context window building and token estimation
  */
 
+import type { StreamMessage } from '@convex-dev/agent/validators';
 import type { ModelMessage } from 'ai';
 
 import {
@@ -22,7 +23,6 @@ import {
   listStreams,
   saveMessage,
   type MessageDoc,
-  type StreamMessage,
 } from '@convex-dev/agent';
 
 import type {
