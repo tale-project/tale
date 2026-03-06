@@ -50,12 +50,6 @@ class Settings(BaseServiceSettings):
     enable_metrics: bool = True
     enable_query_logging: bool = False
 
-    # Job Cleanup
-    job_completed_ttl_hours: int = Field(default=336, ge=0)
-    job_failed_ttl_hours: int = Field(default=336, ge=0)
-    job_orphaned_ttl_hours: int = Field(default=24, ge=0)
-    job_cleanup_on_startup: bool = True
-
     def get_database_url(self) -> str:
         """Get database URL from RAG_DATABASE_URL only; no fallbacks."""
         if self.database_url:

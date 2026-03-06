@@ -78,8 +78,6 @@ export async function uploadTextDocument({
 
   const ragDocumentId =
     getString(result, 'document_id') || getString(result, 'id');
-  const queued = getBoolean(result, 'queued') ?? false;
-  const jobId = getString(result, 'job_id') || undefined;
 
   return {
     success: getBoolean(result, 'success') ?? true,
@@ -92,7 +90,5 @@ export async function uploadTextDocument({
     chunksCreated: getNumber(result, 'chunks_created') || 0,
     processingTimeMs: Date.now() - startTime,
     timestamp: Date.now(),
-    queued,
-    jobId,
   };
 }

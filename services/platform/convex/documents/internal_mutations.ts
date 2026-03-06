@@ -36,6 +36,26 @@ export const updateDocumentRagInfo = internalMutation({
   },
 });
 
+export const batchUpdateDocumentsRagInfo = internalMutation({
+  args: {
+    updates: v.array(
+      v.object({
+        documentId: v.id('documents'),
+        ragInfo: ragInfoValidator,
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    await Promise.all(
+      args.updates.map(async ({ documentId, ragInfo }) => {
+        const doc = await ctx.db.get(documentId);
+        if (!doc) return;
+        await ctx.db.patch(documentId, { ragInfo });
+      }),
+    );
+  },
+});
+
 export const deleteDocumentById = internalMutation({
   args: {
     documentId: v.id('documents'),

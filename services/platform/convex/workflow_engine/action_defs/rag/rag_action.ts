@@ -95,12 +95,12 @@ export const ragAction: ActionDefinition<RagActionParams> = {
           : [`org_${String(documentInfo.metadata.organizationId)}`];
 
       if (documentInfo.type === 'text') {
-        // Upload text content directly
         uploadResult = await uploadTextDocument({
           ragServiceUrl: ragConfig.serviceUrl,
           // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex field type
           content: documentInfo.content as string,
           metadata: documentInfo.metadata,
+          recordId: processedParams.recordId,
           teamIds,
         });
       } else {
@@ -121,32 +121,27 @@ export const ragAction: ActionDefinition<RagActionParams> = {
     // Update document ragInfo and schedule status check (for document uploads only)
     if (
       processedParams.operation === 'upload_document' &&
-      uploadResult.success &&
-      uploadResult.jobId
+      uploadResult.success
     ) {
       const documentId = toId<'documents'>(processedParams.recordId);
 
       try {
-        // Update document with ragInfo = queued
         await ctx.runMutation(
           internal.documents.internal_mutations.updateDocumentRagInfo,
           {
             documentId,
             ragInfo: {
               status: 'queued',
-              jobId: uploadResult.jobId,
             },
           },
         );
 
-        // Schedule first status check in 10 seconds
         await ctx.scheduler.runAfter(
           10 * 1000,
-          internal.documents.internal_actions.checkRagJobStatus,
+          internal.documents.internal_actions.checkRagDocumentStatus,
           { documentId, attempt: 1 },
         );
       } catch (error) {
-        // Log but don't fail the upload - ragInfo update is best-effort
         console.error('[ragAction] Failed to update ragInfo:', error);
       }
     }

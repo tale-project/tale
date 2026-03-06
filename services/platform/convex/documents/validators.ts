@@ -36,7 +36,6 @@ export const ragInfoStatusValidator = v.union(
 
 export const ragInfoValidator = v.object({
   status: ragInfoStatusValidator,
-  jobId: v.optional(v.string()),
   indexedAt: v.optional(v.number()),
   error: v.optional(v.string()),
 });

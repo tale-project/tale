@@ -406,8 +406,6 @@ const ragSchemas: Record<string, OutputSchema> = {
       timestamp: { type: 'number', description: 'Upload timestamp' },
       executionTimeMs: { type: 'number', optional: true },
       documentType: { type: 'string', optional: true },
-      queued: { type: 'boolean', optional: true },
-      jobId: { type: 'string', optional: true },
     },
   },
   upload_text: {
@@ -422,8 +420,6 @@ const ragSchemas: Record<string, OutputSchema> = {
       timestamp: { type: 'number' },
       executionTimeMs: { type: 'number', optional: true },
       documentType: { type: 'string', optional: true },
-      queued: { type: 'boolean', optional: true },
-      jobId: { type: 'string', optional: true },
     },
   },
 };

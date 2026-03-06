@@ -18,7 +18,7 @@ from tale_knowledge.vision import VisionClient
 from tale_shared.db import acquire_with_retry
 
 from ..config import settings
-from .database import SCHEMA, close_pool, ensure_embedding_dimensions, init_pool
+from .database import SCHEMA, close_pool, ensure_embedding_dimensions, ensure_error_column, init_pool
 from .indexing_service import index_document, prepare_document, store_prepared_document
 from .search_service import RagSearchService
 
@@ -78,6 +78,7 @@ class RagService:
 
         # Ensure embedding dimensions and HNSW index
         await ensure_embedding_dimensions(self._pool, dimensions)
+        await ensure_error_column(self._pool)
 
         # Vision client (optional — only if model is configured)
         try:
@@ -426,6 +427,42 @@ class RagService:
             "total_chunks": total_chunks,
             "total_chars": len(combined),
         }
+
+    async def get_document_statuses(
+        self,
+        document_ids: list[str],
+    ) -> dict[str, dict[str, Any] | None]:
+        """Get statuses for multiple documents by document_id.
+
+        Returns a dict mapping document_id to status info or None if not found.
+        When a document has multiple scope rows, priority is: completed > failed > processing.
+        """
+        if not self.initialized:
+            await self.initialize()
+
+        if self._pool is None:
+            raise RuntimeError("RagService not initialized: database pool is None")
+
+        async with acquire_with_retry(self._pool) as conn:
+            rows = await conn.fetch(
+                f"""
+                SELECT DISTINCT ON (document_id)
+                    document_id, status, error
+                FROM {SCHEMA}.documents
+                WHERE document_id = ANY($1)
+                ORDER BY document_id,
+                    CASE status
+                        WHEN 'completed' THEN 0
+                        WHEN 'failed' THEN 1
+                        ELSE 2
+                    END,
+                    updated_at DESC
+                """,
+                document_ids,
+            )
+
+        found = {row["document_id"]: {"status": row["status"], "error": row["error"]} for row in rows}
+        return {did: found.get(did) for did in document_ids}
 
     async def delete_document(
         self,

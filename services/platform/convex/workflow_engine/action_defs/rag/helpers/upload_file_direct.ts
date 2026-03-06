@@ -19,8 +19,6 @@ export interface UploadFileDirectArgs {
 interface RagApiUploadResponse {
   document_id?: string;
   id?: string;
-  queued?: boolean;
-  job_id?: string;
   success?: boolean;
   chunks_created?: number;
 }
@@ -140,8 +138,6 @@ export async function uploadFileDirect({
   const result = (await response.json()) as RagApiUploadResponse;
 
   const ragDocumentId = result.document_id || result.id;
-  const queued = result.queued ?? false;
-  const jobId = result.job_id;
 
   return {
     success: result.success ?? true,
@@ -150,7 +146,5 @@ export async function uploadFileDirect({
     chunksCreated: result.chunks_created || 0,
     processingTimeMs: Date.now() - startTime,
     timestamp: Date.now(),
-    queued,
-    jobId,
   };
 }

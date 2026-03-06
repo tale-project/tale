@@ -1,6 +1,5 @@
 """Pydantic models for Tale RAG API."""
 
-from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
@@ -144,10 +143,6 @@ class DocumentAddResponse(BaseModel):
         default=False,
         description="Whether ingestion was queued for background processing",
     )
-    job_id: str | None = Field(
-        default=None,
-        description="Background job identifier when ingestion is queued",
-    )
     skipped: bool = Field(
         default=False,
         description="Whether ingestion was skipped due to content being unchanged",
@@ -202,58 +197,34 @@ class DocumentDeleteResponse(BaseModel):
 
 
 # ============================================================================
-# Job Status Models
+# Document Status Models
 # ============================================================================
 
 
-class JobState(StrEnum):
-    """State of a background ingestion job."""
+class DocumentStatusInfo(BaseModel):
+    """Status info for a single document."""
 
-    QUEUED = "queued"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
+    status: str = Field(..., description="Document status: processing, completed, or failed")
+    error: str | None = Field(default=None, description="Error message when status is failed")
 
 
-class JobStatus(BaseModel):
-    """Status of a background ingestion job.
+class DocumentStatusRequest(BaseModel):
+    """Request to check statuses of multiple documents."""
 
-    This is stored on disk as JSON and returned by the job status endpoint.
-    """
-
-    job_id: str = Field(..., description="Identifier for the background job")
-    document_id: str | None = Field(
-        default=None,
-        description="Associated document identifier, if known",
-    )
-    state: JobState = Field(..., description="Current job state")
-    chunks_created: int = Field(
-        default=0,
-        description="Number of chunks created so far (final value when completed)",
-    )
-    message: str | None = Field(
-        default=None,
-        description="Human-readable status message",
-    )
-    error: str | None = Field(
-        default=None,
-        description="Error message when the job is in FAILED state",
-    )
-    skipped: bool = Field(
-        default=False,
-        description="Whether ingestion was skipped (e.g., content unchanged)",
-    )
-    skip_reason: str | None = Field(
-        default=None,
-        description="Reason for skipping ingestion (e.g., 'content_unchanged')",
-    )
-    created_at: float = Field(
+    document_ids: list[str] = Field(
         ...,
-        description="Unix timestamp (seconds) when the job record was created",
+        min_length=1,
+        max_length=200,
+        description="List of document IDs to check (max 200)",
     )
-    updated_at: float = Field(
+
+
+class DocumentStatusResponse(BaseModel):
+    """Response with document statuses."""
+
+    statuses: dict[str, DocumentStatusInfo | None] = Field(
         ...,
-        description="Unix timestamp (seconds) when the job record was last updated",
+        description="Map of document_id to status info (null if not found)",
     )
 
 

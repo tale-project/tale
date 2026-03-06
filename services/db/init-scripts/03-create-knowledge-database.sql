@@ -162,6 +162,7 @@ CREATE TABLE IF NOT EXISTS private_knowledge.documents (
     team_id       TEXT,
     user_id       TEXT,
     status        TEXT NOT NULL DEFAULT 'processing' CHECK (status IN ('processing', 'completed', 'failed')),
+    error         TEXT,
     chunks_count  INTEGER NOT NULL DEFAULT 0,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -227,23 +228,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- RAG jobs
-CREATE TABLE IF NOT EXISTS private_knowledge.rag_jobs (
-    job_id          TEXT PRIMARY KEY,
-    document_id     TEXT,
-    state           TEXT NOT NULL DEFAULT 'queued' CHECK (state IN ('queued', 'running', 'completed', 'failed')),
-    chunks_created  INTEGER NOT NULL DEFAULT 0,
-    message         TEXT,
-    error           TEXT,
-    skipped         BOOLEAN NOT NULL DEFAULT FALSE,
-    skip_reason     TEXT,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_pk_jobs_state ON private_knowledge.rag_jobs(state);
-CREATE INDEX IF NOT EXISTS idx_pk_jobs_updated ON private_knowledge.rag_jobs(updated_at);
-CREATE INDEX IF NOT EXISTS idx_pk_jobs_docid ON private_knowledge.rag_jobs(document_id);
 
 
 -- ============================================================================

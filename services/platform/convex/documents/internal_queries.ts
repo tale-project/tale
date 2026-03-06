@@ -38,6 +38,34 @@ export const queryDocuments = internalQuery({
   },
 });
 
+export const getDocumentsForRagSync = internalQuery({
+  args: {
+    documentIds: v.array(v.id('documents')),
+  },
+  handler: async (ctx, args) => {
+    const docs = [];
+
+    for (const id of args.documentIds) {
+      const doc = await ctx.db.get(id);
+      if (!doc?.ragInfo) continue;
+      const { status } = doc.ragInfo;
+      if (
+        status === 'queued' ||
+        status === 'running' ||
+        status === 'completed'
+      ) {
+        docs.push({
+          _id: doc._id,
+          _creationTime: doc._creationTime,
+          ragInfo: doc.ragInfo,
+        });
+      }
+    }
+
+    return docs;
+  },
+});
+
 export const findDocumentByExternalId = internalQuery({
   args: {
     organizationId: v.string(),

@@ -93,28 +93,7 @@ const documentRagSyncWorkflow: PredefinedWorkflowDefinition = {
       },
     },
 
-    // Step 5: Update Document Metadata with RAG Job
-    {
-      stepSlug: 'update_document_metadata',
-      name: 'Update Document Metadata (RAG Job)',
-      stepType: 'action',
-      order: 5,
-      config: {
-        type: 'document',
-        parameters: {
-          operation: 'update',
-          documentId: '{{steps.find_unprocessed_document.output.data._id}}',
-          metadata: {
-            rag_job_id: '{{steps.upload_to_rag.output.data.jobId}}',
-          },
-        },
-      },
-      nextSteps: {
-        success: 'record_processed',
-      },
-    },
-
-    // Step 6: Record Document as Processed
+    // Step 5: Record Document as Processed
     {
       stepSlug: 'record_processed',
       name: 'Record Processed',

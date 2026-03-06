@@ -60,6 +60,16 @@ async def close_pool() -> None:
         logger.info("Closed RAG database connection pool")
 
 
+async def ensure_error_column(pool: asyncpg.Pool) -> None:
+    """Add error column to documents table if it doesn't exist (no migration system)."""
+    async with acquire_with_retry(pool) as conn:
+        try:
+            await conn.execute(f"ALTER TABLE {SCHEMA}.documents ADD COLUMN IF NOT EXISTS error TEXT")
+            logger.info("Ensured error column exists on {}.documents", SCHEMA)
+        except asyncpg.exceptions.UndefinedTableError:
+            logger.warning("{}.documents table does not exist yet, skipping error column check", SCHEMA)
+
+
 async def ensure_embedding_dimensions(pool: asyncpg.Pool, dimensions: int) -> None:
     """Pin the embedding column to explicit dimensions and create HNSW index."""
     async with acquire_with_retry(pool) as conn:

@@ -5,6 +5,7 @@ import { type Row } from '@tanstack/react-table';
 import { ClipboardList } from 'lucide-react';
 import { useMemo, useState, useCallback } from 'react';
 
+import type { Id } from '@/convex/_generated/dataModel';
 import type { DocumentItem } from '@/types/documents';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
@@ -20,6 +21,7 @@ import {
   useListDocumentsPaginated,
 } from '../hooks/queries';
 import { useDocumentsTableConfig } from '../hooks/use-documents-table-config';
+import { useSyncRagStatuses } from '../hooks/use-sync-rag-statuses';
 import { BreadcrumbNavigation } from './breadcrumb-navigation';
 import { DocumentPreviewDialog } from './document-preview-dialog';
 import { DocumentsActionMenu } from './documents-action-menu';
@@ -61,6 +63,14 @@ export function DocumentsTable({
     organizationId,
     initialNumItems: 20,
   });
+
+  const visibleDocumentIds = useMemo(
+    () =>
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex branded Id<'documents'> stored as plain string in DocumentItem.id
+      paginatedResult.results.map((d) => d.id as Id<'documents'>),
+    [paginatedResult.results],
+  );
+  useSyncRagStatuses(organizationId, visibleDocumentIds);
 
   const filteredResults = useMemo(() => {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex paginated query results match DocumentItem shape

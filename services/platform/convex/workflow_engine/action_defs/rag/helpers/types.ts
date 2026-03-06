@@ -52,10 +52,6 @@ export interface RagUploadResult {
   executionTimeMs?: number;
   /** Type of document that was uploaded (text/file). */
   documentType?: string;
-  /** Whether the RAG service queued ingestion for background processing. */
-  queued?: boolean;
-  /** Background job identifier if provided by the RAG service. */
-  jobId?: string;
 }
 
 /**

@@ -193,6 +193,7 @@ import type * as customers_update_customers from "../customers/update_customers.
 import type * as customers_validators from "../customers/validators.js";
 import type * as documents_actions from "../documents/actions.js";
 import type * as documents_check_membership from "../documents/check_membership.js";
+import type * as documents_compute_status_updates from "../documents/compute_status_updates.js";
 import type * as documents_create_document from "../documents/create_document.js";
 import type * as documents_create_onedrive_sync_config from "../documents/create_onedrive_sync_config.js";
 import type * as documents_delete_document from "../documents/delete_document.js";
@@ -1029,6 +1030,7 @@ declare const fullApi: ApiFromModules<{
   "customers/validators": typeof customers_validators;
   "documents/actions": typeof documents_actions;
   "documents/check_membership": typeof documents_check_membership;
+  "documents/compute_status_updates": typeof documents_compute_status_updates;
   "documents/create_document": typeof documents_create_document;
   "documents/create_onedrive_sync_config": typeof documents_create_onedrive_sync_config;
   "documents/delete_document": typeof documents_delete_document;

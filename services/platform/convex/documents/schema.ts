@@ -33,7 +33,6 @@ export const documentsTable = defineTable({
         v.literal('completed'),
         v.literal('failed'),
       ),
-      jobId: v.optional(v.string()),
       indexedAt: v.optional(v.number()),
       error: v.optional(v.string()),
     }),
