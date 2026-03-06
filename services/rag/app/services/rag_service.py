@@ -325,6 +325,108 @@ class RagService:
             logger.error("Generation failed: {}", e)
             raise
 
+    MAX_CHUNK_WINDOW = 200
+
+    async def get_document_content(
+        self,
+        document_id: str,
+        *,
+        team_ids: list[str] | None = None,
+        user_id: str | None = None,
+        chunk_start: int = 1,
+        chunk_end: int | None = None,
+    ) -> dict[str, Any] | None:
+        """Retrieve document content by reassembling stored chunks.
+
+        Args:
+            document_id: Logical document identifier.
+            team_ids: Team IDs for tenant filtering.
+            user_id: User ID for tenant filtering.
+            chunk_start: First chunk to return (1-indexed).
+            chunk_end: Last chunk to return (1-indexed, inclusive). None = capped by MAX_CHUNK_WINDOW.
+
+        Returns:
+            Response dict with content and metadata, or None if not found.
+        """
+        if not team_ids and not user_id:
+            raise ValueError("At least one of team_ids or user_id must be provided")
+
+        if not self.initialized:
+            await self.initialize()
+
+        if self._pool is None:
+            raise RuntimeError("RagService not initialized: database pool is None")
+
+        if chunk_end is None:
+            chunk_end = chunk_start + self.MAX_CHUNK_WINDOW - 1
+
+        # Build tenant WHERE clause
+        conditions: list[str] = []
+        params: list[Any] = []
+        idx = 1
+
+        conditions.append(f"document_id = ${idx}")
+        params.append(document_id)
+
+        tenant_parts: list[str] = []
+        if team_ids:
+            idx += 1
+            tenant_parts.append(f"team_id = ANY(${idx})")
+            params.append(team_ids)
+        if user_id:
+            idx += 1
+            tenant_parts.append(f"user_id = ${idx}")
+            params.append(user_id)
+
+        conditions.append(f"({' OR '.join(tenant_parts)})")
+        where = " AND ".join(conditions)
+
+        async with acquire_with_retry(self._pool) as conn:
+            doc = await conn.fetchrow(
+                f"SELECT id, document_id, filename, chunks_count FROM {SCHEMA}.documents WHERE {where} LIMIT 1",
+                *params,
+            )
+
+            if doc is None:
+                return None
+
+            doc_uuid = doc["id"]
+            total_chunks = doc["chunks_count"]
+
+            # Convert 1-indexed API params to 0-indexed chunk_index
+            chunk_params: list[Any] = [doc_uuid, chunk_start - 1, chunk_end - 1]
+
+            rows = await conn.fetch(
+                f"SELECT chunk_index, chunk_content FROM {SCHEMA}.chunks "
+                f"WHERE document_id = $1 AND chunk_index >= $2 AND chunk_index <= $3 "
+                f"ORDER BY chunk_index ASC",
+                *chunk_params,
+            )
+
+        if not rows:
+            return {
+                "document_id": document_id,
+                "title": doc["filename"],
+                "content": "",
+                "chunk_range": {"start": 0, "end": 0},
+                "total_chunks": total_chunks,
+                "total_chars": 0,
+            }
+
+        combined = "\n\n".join(row["chunk_content"] for row in rows)
+
+        actual_start = rows[0]["chunk_index"] + 1
+        actual_end = rows[-1]["chunk_index"] + 1
+
+        return {
+            "document_id": document_id,
+            "title": doc["filename"],
+            "content": combined,
+            "chunk_range": {"start": actual_start, "end": actual_end},
+            "total_chunks": total_chunks,
+            "total_chars": len(combined),
+        }
+
     async def delete_document(
         self,
         document_id: str,
