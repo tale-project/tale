@@ -23,6 +23,19 @@ export function useFormatDate() {
   const { locale } = useLocale();
   const { t } = useT('common');
 
+  const timezone = useMemo(
+    () => Intl.DateTimeFormat().resolvedOptions().timeZone,
+    [],
+  );
+
+  const timezoneShort = useMemo(
+    () =>
+      new Intl.DateTimeFormat(locale, { timeZoneName: 'short' })
+        .formatToParts(new Date())
+        .find((p) => p.type === 'timeZoneName')?.value ?? timezone,
+    [locale, timezone],
+  );
+
   const todayLabel = t('dates.today');
   const yesterdayLabel = t('dates.yesterday');
 
@@ -37,9 +50,9 @@ export function useFormatDate() {
       preset: DatePreset = 'medium',
       options: Omit<FormatDateOptions, 'locale' | 'preset'> = {},
     ): string => {
-      return formatDate(date, { ...options, preset, locale });
+      return formatDate(date, { timezone, ...options, preset, locale });
     },
-    [locale],
+    [locale, timezone],
   );
 
   const formatDateSmartWithLocale = useCallback(
@@ -50,11 +63,11 @@ export function useFormatDate() {
     ): string => {
       return formatDateSmart(
         date,
-        { ...options, preset, locale },
+        { timezone, ...options, preset, locale },
         dateTranslations,
       );
     },
-    [locale, dateTranslations],
+    [locale, timezone, dateTranslations],
   );
 
   const formatDateHeaderWithLocale = useCallback(
@@ -62,16 +75,20 @@ export function useFormatDate() {
       date: string | Date | Dayjs,
       options: Omit<FormatDateOptions, 'locale'> = {},
     ): string => {
-      return formatDateHeader(date, { ...options, locale }, dateTranslations);
+      return formatDateHeader(
+        date,
+        { timezone, ...options, locale },
+        dateTranslations,
+      );
     },
-    [locale, dateTranslations],
+    [locale, timezone, dateTranslations],
   );
 
   const formatRelative = useCallback(
     (date: string | Date | Dayjs): string => {
-      return formatDate(date, { preset: 'relative', locale });
+      return formatDate(date, { preset: 'relative', locale, timezone });
     },
-    [locale],
+    [locale, timezone],
   );
 
   return useMemo(
@@ -81,6 +98,8 @@ export function useFormatDate() {
       formatDateHeader: formatDateHeaderWithLocale,
       formatRelative,
       locale,
+      timezone,
+      timezoneShort,
     }),
     [
       formatDateWithLocale,
@@ -88,6 +107,8 @@ export function useFormatDate() {
       formatDateHeaderWithLocale,
       formatRelative,
       locale,
+      timezone,
+      timezoneShort,
     ],
   );
 }
