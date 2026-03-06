@@ -18,6 +18,10 @@ vi.mock('../hooks/mutations', () => ({
   useUpdateCustomer: () => ({ mutateAsync: mockMutateAsync }),
 }));
 
+vi.mock('@/app/hooks/use-organization-id', () => ({
+  useOrganizationId: () => 'org-1',
+}));
+
 function makeCustomer(overrides = {}) {
   return {
     _id: 'customer-1' as never,

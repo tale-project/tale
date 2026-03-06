@@ -99,7 +99,7 @@ export function ImportVendorsDialog({
 
   const {
     handleSubmit,
-    formState: { isSubmitting, isValid },
+    formState: { isSubmitting },
   } = formMethods;
 
   const { mutateAsync: bulkCreateVendors } = useBulkCreateVendors();
@@ -202,7 +202,6 @@ export function ImportVendorsDialog({
       submitText={tCommon('actions.import')}
       submittingText={tCommon('actions.importing')}
       isSubmitting={isSubmitting}
-      isValid={isValid}
       onSubmit={handleSubmit(onSubmit)}
     >
       <FormProvider {...formMethods}>
