@@ -59,15 +59,6 @@ export function getArray(
   return Array.isArray(val) ? val : undefined;
 }
 
-/** Safely extract a nested record from a record. Returns `undefined` when missing or wrong type. */
-export function getRecord(
-  obj: Record<string, unknown>,
-  key: string,
-): Record<string, unknown> | undefined {
-  const val = obj[key];
-  return isRecord(val) ? val : undefined;
-}
-
 /**
  * Runtime-validate that a string belongs to a known set of values.
  * Returns `undefined` if the value is not in the set.

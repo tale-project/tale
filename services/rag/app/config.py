@@ -7,7 +7,6 @@ OPENAI_FAST_MODEL, OPENAI_EMBEDDING_MODEL) with RAG_* overrides available.
 
 import os
 
-from pydantic import Field
 from pydantic_settings import SettingsConfigDict
 from tale_shared.config import BaseServiceSettings
 
