@@ -39,6 +39,8 @@ export async function createUserWithoutSession(
   ctx: MutationCtx,
   args: CreateUserWithoutSessionArgs,
 ): Promise<CreateUserWithoutSessionResult> {
+  const email = args.email.toLowerCase().trim();
+
   // First check if user already exists by querying Better Auth directly
   const existingUserResult = await ctx.runQuery(
     components.betterAuth.adapter.findMany,
@@ -51,7 +53,7 @@ export async function createUserWithoutSession(
       where: [
         {
           field: 'email',
-          value: args.email,
+          value: email,
           operator: 'eq',
         },
       ],
@@ -69,7 +71,7 @@ export async function createUserWithoutSession(
   // This does NOT create a session, so the admin's session remains active
   const signupResult = await auth.api.signUpEmail({
     body: {
-      email: args.email,
+      email,
       password: args.password,
       name: args.name ?? args.displayName ?? '',
     },
@@ -91,7 +93,7 @@ export async function createUserWithoutSession(
       where: [
         {
           field: 'email',
-          value: args.email,
+          value: email,
           operator: 'eq',
         },
       ],
@@ -103,7 +105,7 @@ export async function createUserWithoutSession(
       'Failed to retrieve user after signup. ' +
         'The user was created in Better Auth but could not be found. ' +
         'Email: ' +
-        args.email,
+        email,
     );
   }
 
