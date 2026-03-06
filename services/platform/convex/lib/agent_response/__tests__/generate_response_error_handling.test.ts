@@ -1,10 +1,14 @@
 import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock @convex-dev/agent before importing the module under test
-const mockSaveMessage = vi.fn();
+const mockAbortStream = vi.fn();
 const mockListMessages = vi.fn();
+const mockListStreams = vi.fn();
+const mockSaveMessage = vi.fn();
 vi.mock('@convex-dev/agent', () => ({
+  abortStream: mockAbortStream,
   listMessages: mockListMessages,
+  listStreams: mockListStreams,
   saveMessage: mockSaveMessage,
 }));
 
@@ -130,6 +134,8 @@ describe('generateAgentResponse error handling', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockListMessages.mockResolvedValue({ page: [] });
+    mockListStreams.mockResolvedValue([]);
+    mockAbortStream.mockResolvedValue(true);
   });
 
   it('saves a failed assistant message when an error occurs', async () => {
@@ -253,6 +259,8 @@ describe('generateAgentResponse — user cancellation (state-driven)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockListMessages.mockResolvedValue({ page: [] });
+    mockListStreams.mockResolvedValue([]);
+    mockAbortStream.mockResolvedValue(true);
   });
 
   it('does NOT save a failed message when cancelGeneration already created one', async () => {
@@ -271,8 +279,9 @@ describe('generateAgentResponse — user cancellation (state-driven)', () => {
   it('does NOT mark stream as errored when stream is already aborted', async () => {
     const ctx = createMockCtx();
 
-    ctx.runQuery.mockResolvedValue([
-      { streamId: 'stream_abc', status: 'aborted' },
+    // listStreams with 'aborted' → user cancelled
+    mockListStreams.mockResolvedValue([
+      { streamId: 'stream_sdk_1', status: 'aborted' },
     ]);
     mockListMessages.mockResolvedValue({ page: [cancelledAssistant] });
     mockBuildStructuredContext.mockRejectedValueOnce(new Error('aborted'));
@@ -293,8 +302,9 @@ describe('generateAgentResponse — user cancellation (state-driven)', () => {
   it('skips both errorStream and saveMessage when stream is aborted and failed message exists', async () => {
     const ctx = createMockCtx();
 
-    ctx.runQuery.mockResolvedValue([
-      { streamId: 'stream_xyz', status: 'aborted' },
+    // listStreams with 'aborted' → user cancelled
+    mockListStreams.mockResolvedValue([
+      { streamId: 'stream_sdk_1', status: 'aborted' },
     ]);
     mockListMessages.mockResolvedValue({ page: [cancelledAssistant] });
     mockBuildStructuredContext.mockRejectedValueOnce(
@@ -363,8 +373,9 @@ describe('generateAgentResponse — user cancellation (state-driven)', () => {
     const ctx = createMockCtx();
     const error = new Error('Something unexpected happened');
 
-    ctx.runQuery.mockResolvedValue([
-      { streamId: 'stream_check', status: 'aborted' },
+    // listStreams with 'aborted' → user cancelled
+    mockListStreams.mockResolvedValue([
+      { streamId: 'stream_sdk_1', status: 'aborted' },
     ]);
     mockListMessages.mockResolvedValue({ page: [cancelledAssistant] });
     mockBuildStructuredContext.mockRejectedValueOnce(error);
@@ -386,7 +397,7 @@ describe('generateAgentResponse — user cancellation (state-driven)', () => {
   it('saves failed message when stream query fails but no prior failed message exists', async () => {
     const ctx = createMockCtx();
 
-    ctx.runQuery.mockRejectedValue(new Error('Query failed'));
+    mockListStreams.mockRejectedValue(new Error('Query failed'));
     mockBuildStructuredContext.mockRejectedValueOnce(new Error('Some error'));
 
     await expect(
@@ -409,6 +420,8 @@ describe('generateAgentResponse — abort watcher', () => {
     vi.clearAllMocks();
     vi.useFakeTimers();
     mockListMessages.mockResolvedValue({ page: [] });
+    mockListStreams.mockResolvedValue([]);
+    mockAbortStream.mockResolvedValue(true);
   });
 
   afterEach(() => {
@@ -476,12 +489,17 @@ describe('generateAgentResponse — abort watcher', () => {
     const error = new Error('Internal SDK error 42');
 
     // Baseline query → empty (no prior aborts)
-    // Watcher polls + catch block query → newly aborted stream
+    // Watcher polls → newly aborted stream
     ctx.runQuery
       .mockResolvedValueOnce([])
       .mockResolvedValue([
         { _id: 'sid_watch', streamId: 'stream_watch', status: 'aborted' },
       ]);
+
+    // Catch block listStreams → aborted (user cancelled)
+    mockListStreams.mockResolvedValue([
+      { streamId: 'stream_watch', status: 'aborted' },
+    ]);
 
     // cancelGeneration also creates a failed assistant message
     mockListMessages.mockResolvedValueOnce({ page: [] }).mockResolvedValue({
@@ -522,12 +540,17 @@ describe('generateAgentResponse — abort watcher', () => {
   it('does not overwrite truncated content (no errorStream / no saveMessage) when watcher detects abort', async () => {
     const ctx = createMockCtx();
 
-    // Baseline → empty, watcher + catch block → newly aborted
+    // Baseline → empty, watcher → newly aborted
     ctx.runQuery
       .mockResolvedValueOnce([])
       .mockResolvedValue([
         { _id: 'sid_content', streamId: 'stream_content', status: 'aborted' },
       ]);
+
+    // Catch block listStreams → aborted (user cancelled)
+    mockListStreams.mockResolvedValue([
+      { streamId: 'stream_content', status: 'aborted' },
+    ]);
 
     // cancelGeneration also creates a failed assistant message
     mockListMessages.mockResolvedValueOnce({ page: [] }).mockResolvedValue({
@@ -569,12 +592,17 @@ describe('generateAgentResponse — abort watcher', () => {
   it('aborts the AbortController when watcher detects cancellation during long operation', async () => {
     const ctx = createMockCtx();
 
-    // Baseline → empty, watcher + catch block → newly aborted
+    // Baseline → empty, watcher → newly aborted
     ctx.runQuery
       .mockResolvedValueOnce([])
       .mockResolvedValue([
         { _id: 'sid_tools', streamId: 'stream_tools', status: 'aborted' },
       ]);
+
+    // Catch block listStreams → aborted (user cancelled)
+    mockListStreams.mockResolvedValue([
+      { streamId: 'stream_tools', status: 'aborted' },
+    ]);
 
     // cancelGeneration also creates a failed assistant message
     mockListMessages.mockResolvedValueOnce({ page: [] }).mockResolvedValue({
@@ -695,16 +723,17 @@ describe('generateAgentResponse — abort watcher', () => {
     expect(mockSaveMessage).not.toHaveBeenCalled();
   });
 
-  it('does not create duplicate when stale failed assistant exists alongside SDK messages', async () => {
+  it('saves failed message when newest assistant is not failed despite stale failed assistant in history', async () => {
     const ctx = createMockCtx();
 
     // No aborted streams
     ctx.runQuery.mockResolvedValue([]);
 
     // Baseline: stale failed assistant from previous cancellation.
-    // Watcher poll: SDK has created its own NEW assistant (status undefined/success).
+    // Watcher poll: SDK has created its own NEW assistant (status undefined).
     // The watcher should NOT trigger because the new message is not failed.
-    // The catch block also finds the stale failed assistant and skips saving.
+    // The catch block finds the newest assistant (status undefined, not failed)
+    // and correctly saves a new failed message for the current error.
     const staleFailedAssistant = {
       _id: 'msg_stale_failed',
       message: { role: 'assistant', content: '' },
@@ -736,8 +765,8 @@ describe('generateAgentResponse — abort watcher', () => {
     await vi.advanceTimersByTimeAsync(600);
     await expect(promise).rejects.toThrow('Network failure');
 
-    // Stale failed assistant exists → catch block skips creating a duplicate
-    expect(mockSaveMessage).not.toHaveBeenCalled();
+    // Newest assistant has status undefined (not failed) → save new failed message
+    expect(mockSaveMessage).toHaveBeenCalledOnce();
   });
 
   it('ignores stale aborted streams from previous cancellations', async () => {
@@ -773,5 +802,227 @@ describe('generateAgentResponse — abort watcher', () => {
     // aborted stream was already in the baseline. The error handler should
     // save an error message (since this is a real error, not user cancel).
     expect(mockSaveMessage).toHaveBeenCalled();
+  });
+});
+
+// ============================================================================
+// Agent SDK stream cleanup on error
+// ============================================================================
+
+describe('generateAgentResponse — agent SDK stream cleanup', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockListMessages.mockResolvedValue({ page: [] });
+    mockListStreams.mockResolvedValue([]);
+    mockAbortStream.mockResolvedValue(true);
+  });
+
+  it('aborts stuck agent SDK streams on error', async () => {
+    const ctx = createMockCtx();
+
+    // Merged listStreams call returns one stuck streaming stream
+    mockListStreams.mockResolvedValueOnce([
+      { streamId: 'agent_stream_1', status: 'streaming' },
+    ]);
+
+    mockBuildStructuredContext.mockRejectedValueOnce(
+      new Error('OpenRouter timeout'),
+    );
+
+    await expect(
+      generateAgentResponse(
+        createMockConfig(),
+        createMockArgs(ctx, { streamId: 'persistent_stream_1' }),
+      ),
+    ).rejects.toThrow('OpenRouter timeout');
+
+    // Should abort the stuck agent SDK stream
+    expect(mockAbortStream).toHaveBeenCalledWith(
+      ctx,
+      expect.objectContaining({ streams: expect.anything() }),
+      { streamId: 'agent_stream_1', reason: 'error' },
+    );
+
+    // Should have queried with both statuses in one call
+    expect(mockListStreams).toHaveBeenCalledWith(ctx, expect.anything(), {
+      threadId: 'thread_123',
+      includeStatuses: ['aborted', 'streaming'],
+    });
+  });
+
+  it('aborts multiple stuck agent SDK streams', async () => {
+    const ctx = createMockCtx();
+
+    mockListStreams.mockResolvedValueOnce([
+      { streamId: 'stream_a', status: 'streaming' },
+      { streamId: 'stream_b', status: 'streaming' },
+    ]);
+
+    mockBuildStructuredContext.mockRejectedValueOnce(new Error('timeout'));
+
+    await expect(
+      generateAgentResponse(createMockConfig(), createMockArgs(ctx)),
+    ).rejects.toThrow('timeout');
+
+    expect(mockAbortStream).toHaveBeenCalledTimes(2);
+    expect(mockAbortStream).toHaveBeenCalledWith(ctx, expect.anything(), {
+      streamId: 'stream_a',
+      reason: 'error',
+    });
+    expect(mockAbortStream).toHaveBeenCalledWith(ctx, expect.anything(), {
+      streamId: 'stream_b',
+      reason: 'error',
+    });
+  });
+
+  it('does not abort agent SDK streams when user cancelled', async () => {
+    const ctx = createMockCtx();
+
+    // listStreams with 'aborted' → user cancelled
+    mockListStreams.mockResolvedValue([
+      { streamId: 'stream_cancelled', status: 'aborted' },
+    ]);
+    mockListMessages.mockResolvedValue({
+      page: [
+        {
+          _id: 'msg_fail',
+          message: { role: 'assistant', content: '' },
+          status: 'failed',
+        },
+      ],
+    });
+
+    mockBuildStructuredContext.mockRejectedValueOnce(new Error('aborted'));
+
+    await expect(
+      generateAgentResponse(
+        createMockConfig(),
+        createMockArgs(ctx, { streamId: 'persistent_1' }),
+      ),
+    ).rejects.toThrow();
+
+    // abortStream should not be called for cleanup (streams already aborted by cancel)
+    expect(mockAbortStream).not.toHaveBeenCalled();
+  });
+
+  it('handles abortStream failure gracefully', async () => {
+    const ctx = createMockCtx();
+
+    mockListStreams.mockResolvedValueOnce([
+      { streamId: 'stream_fail', status: 'streaming' },
+    ]);
+
+    mockAbortStream.mockRejectedValueOnce(new Error('abort failed'));
+    mockBuildStructuredContext.mockRejectedValueOnce(new Error('timeout'));
+
+    // Should still throw the original error, not the abort error
+    await expect(
+      generateAgentResponse(createMockConfig(), createMockArgs(ctx)),
+    ).rejects.toThrow('timeout');
+
+    expect(mockSaveMessage).toHaveBeenCalledOnce();
+  });
+
+  it('does not call abortStream when no SDK streams are stuck', async () => {
+    const ctx = createMockCtx();
+
+    // Both listStreams calls return empty
+    mockListStreams.mockResolvedValue([]);
+    mockBuildStructuredContext.mockRejectedValueOnce(
+      new Error('early failure'),
+    );
+
+    await expect(
+      generateAgentResponse(createMockConfig(), createMockArgs(ctx)),
+    ).rejects.toThrow('early failure');
+
+    expect(mockAbortStream).not.toHaveBeenCalled();
+    expect(mockSaveMessage).toHaveBeenCalledOnce();
+  });
+
+  it('still saves failed message when listStreams throws', async () => {
+    const ctx = createMockCtx();
+
+    // Merged listStreams call throws
+    mockListStreams.mockRejectedValueOnce(new Error('stream query failed'));
+    mockBuildStructuredContext.mockRejectedValueOnce(new Error('some error'));
+
+    await expect(
+      generateAgentResponse(createMockConfig(), createMockArgs(ctx)),
+    ).rejects.toThrow('some error');
+
+    expect(mockAbortStream).not.toHaveBeenCalled();
+    expect(mockSaveMessage).toHaveBeenCalledOnce();
+  });
+
+  it('ignores stale aborted streams from prior generations (baselineAbortedIds filter)', async () => {
+    const ctx = createMockCtx();
+
+    // Baseline query returns a stale aborted stream
+    ctx.runQuery.mockResolvedValue([
+      { streamId: 'stale_abort_1', status: 'aborted' },
+    ]);
+
+    // Merged listStreams call returns stale abort + stuck streaming stream
+    mockListStreams.mockResolvedValueOnce([
+      { streamId: 'stale_abort_1', status: 'aborted' },
+      { streamId: 'stuck_stream', status: 'streaming' },
+    ]);
+    mockBuildStructuredContext.mockRejectedValueOnce(
+      new Error('genuine error'),
+    );
+
+    await expect(
+      generateAgentResponse(
+        createMockConfig({ enableStreaming: true }),
+        createMockArgs(ctx, { streamId: 'persistent_1' }),
+      ),
+    ).rejects.toThrow('genuine error');
+
+    // userCancelled should be false (stale abort filtered out), so cleanup should run
+    expect(ctx.runMutation).toHaveBeenCalledWith('mock-errorStream', {
+      streamId: 'persistent_1',
+    });
+    expect(mockAbortStream).toHaveBeenCalledWith(ctx, expect.anything(), {
+      streamId: 'stuck_stream',
+      reason: 'error',
+    });
+  });
+
+  it('aborts remaining streams even if first abortStream fails', async () => {
+    const ctx = createMockCtx();
+
+    mockListStreams.mockResolvedValueOnce([
+      { streamId: 'stream_a', status: 'streaming' },
+      { streamId: 'stream_b', status: 'streaming' },
+      { streamId: 'stream_c', status: 'streaming' },
+    ]);
+
+    mockAbortStream
+      .mockRejectedValueOnce(new Error('abort stream_a failed'))
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(true);
+
+    mockBuildStructuredContext.mockRejectedValueOnce(new Error('timeout'));
+
+    await expect(
+      generateAgentResponse(createMockConfig(), createMockArgs(ctx)),
+    ).rejects.toThrow('timeout');
+
+    // All three should be attempted despite first failure
+    expect(mockAbortStream).toHaveBeenCalledTimes(3);
+    expect(mockAbortStream).toHaveBeenCalledWith(ctx, expect.anything(), {
+      streamId: 'stream_a',
+      reason: 'error',
+    });
+    expect(mockAbortStream).toHaveBeenCalledWith(ctx, expect.anything(), {
+      streamId: 'stream_b',
+      reason: 'error',
+    });
+    expect(mockAbortStream).toHaveBeenCalledWith(ctx, expect.anything(), {
+      streamId: 'stream_c',
+      reason: 'error',
+    });
+    expect(mockSaveMessage).toHaveBeenCalledOnce();
   });
 });
