@@ -49,10 +49,9 @@ export function CreateAutomationDialog({
     register,
     handleSubmit,
     setError,
-    formState: { isSubmitting, isValid, errors },
+    formState: { isSubmitting, errors },
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
-    mode: 'onChange',
   });
   const navigate = useNavigate();
 
@@ -102,7 +101,6 @@ export function CreateAutomationDialog({
       submitText={t('createDialog.continue')}
       submittingText={t('createDialog.creating')}
       isSubmitting={isSubmitting}
-      isValid={isValid}
       onSubmit={handleSubmit(onSubmit)}
     >
       <Input

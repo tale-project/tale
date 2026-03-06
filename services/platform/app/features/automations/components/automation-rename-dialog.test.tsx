@@ -39,16 +39,11 @@ describe('AutomationRenameDialog', () => {
     expect(input).toBeInTheDocument();
   });
 
-  it('closes without calling onRename when name is unchanged', async () => {
-    const { user } = render(<AutomationRenameDialog {...defaultProps} />);
+  it('disables save button when name is unchanged', () => {
+    render(<AutomationRenameDialog {...defaultProps} />);
 
     const submitButton = screen.getByRole('button', { name: /save/i });
-    await user.click(submitButton);
-
-    await waitFor(() => {
-      expect(defaultProps.onOpenChange).toHaveBeenCalledWith(false);
-    });
-    expect(defaultProps.onRename).not.toHaveBeenCalled();
+    expect(submitButton).toBeDisabled();
   });
 
   it('calls onRename and closes dialog on success', async () => {

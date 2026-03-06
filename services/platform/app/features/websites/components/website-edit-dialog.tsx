@@ -57,13 +57,12 @@ export function EditWebsiteDialog({
 
   const {
     handleSubmit,
-    formState: { errors, isValid, isDirty },
+    formState: { errors, isDirty },
     reset,
     setValue,
     watch,
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
-    mode: 'onChange',
     defaultValues: {
       scanInterval: website.scanInterval,
     },
@@ -110,7 +109,7 @@ export function EditWebsiteDialog({
       onOpenChange={() => onClose()}
       title={tWebsites('editWebsite')}
       isSubmitting={isLoading}
-      isValid={isValid && isDirty}
+      isDirty={isDirty}
       onSubmit={handleSubmit(onSubmit)}
     >
       <Input

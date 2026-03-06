@@ -79,7 +79,6 @@ export function ApiKeyCreateDialog({
 
   const form = useForm<ApiKeyFormData>({
     resolver: zodResolver(schema),
-    mode: 'onChange',
     defaultValues: {
       name: '',
       expiresIn: '2592000',
@@ -195,7 +194,6 @@ export function ApiKeyCreateDialog({
       submitText={tCommon('actions.create')}
       submittingText={tCommon('actions.loading')}
       isSubmitting={isSubmitting}
-      isValid={formState.isValid}
       onSubmit={handleSubmit(onSubmit)}
     >
       <FormSection>
@@ -212,7 +210,9 @@ export function ApiKeyCreateDialog({
           id="expiresIn"
           label={tSettings('apiKeys.form.expiresIn')}
           value={expiresInValue}
-          onValueChange={(value) => setValue('expiresIn', value)}
+          onValueChange={(value) =>
+            setValue('expiresIn', value, { shouldDirty: true })
+          }
           options={expiresOptions}
         />
       </FormSection>

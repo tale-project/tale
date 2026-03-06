@@ -62,7 +62,6 @@ export function BrandingForm({
 
   const form = useForm<BrandingFormData>({
     resolver: zodResolver(brandingFormSchema),
-    mode: 'onChange',
     defaultValues: {
       appName: branding?.appName ?? '',
       textLogo: branding?.textLogo ?? '',
@@ -72,7 +71,7 @@ export function BrandingForm({
   });
 
   const { formState, handleSubmit, register, watch, setValue } = form;
-  const { isSubmitting, isDirty, isValid } = formState;
+  const { isSubmitting, isDirty } = formState;
 
   const watchedValues = watch();
 
@@ -272,7 +271,7 @@ export function BrandingForm({
         <div className="ml-auto pt-6">
           <Button
             type="submit"
-            disabled={isSubmitting || !isDirty || !isValid}
+            disabled={isSubmitting || !isDirty}
             className="bg-foreground text-background hover:bg-foreground/90"
           >
             {isSubmitting

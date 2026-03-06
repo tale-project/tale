@@ -63,7 +63,7 @@ export function ProductsImportDialog({
 
   const {
     handleSubmit,
-    formState: { isSubmitting, isValid },
+    formState: { isSubmitting },
   } = formMethods;
 
   const createProduct = useCreateProduct();
@@ -231,7 +231,6 @@ export function ProductsImportDialog({
       submitText={tCommon('actions.import')}
       submittingText={tCommon('actions.importing')}
       isSubmitting={isSubmitting}
-      isValid={isValid}
       onSubmit={handleSubmit(onSubmit)}
     >
       <FormProvider {...formMethods}>

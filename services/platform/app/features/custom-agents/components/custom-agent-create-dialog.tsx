@@ -66,10 +66,9 @@ export function CreateCustomAgentDialog({
   const {
     register,
     handleSubmit,
-    formState: { isSubmitting, isValid, errors },
+    formState: { isSubmitting, errors },
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
-    mode: 'onChange',
     defaultValues: {
       name: '',
       displayName: '',
@@ -114,7 +113,6 @@ export function CreateCustomAgentDialog({
       submitText={t('customAgents.createDialog.continue')}
       submittingText={t('customAgents.createDialog.creating')}
       isSubmitting={isSubmitting}
-      isValid={isValid}
       onSubmit={handleSubmit(onSubmit)}
     >
       <Input

@@ -102,7 +102,7 @@ export function ImportCustomersDialog({
 
   const {
     handleSubmit,
-    formState: { isSubmitting, isValid },
+    formState: { isSubmitting },
   } = formMethods;
 
   const { mutateAsync: bulkCreateCustomers } = useBulkCreateCustomers();
@@ -217,7 +217,6 @@ export function ImportCustomersDialog({
       submitText={tCustomers('import.import')}
       submittingText={tCommon('actions.importing')}
       isSubmitting={isSubmitting}
-      isValid={isValid}
       onSubmit={handleSubmit(onSubmit)}
     >
       <FormProvider {...formMethods}>
