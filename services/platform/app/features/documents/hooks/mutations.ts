@@ -37,6 +37,7 @@ interface UploadResult {
 
 interface UploadFilesOptions {
   teamId?: string;
+  folderId?: string;
 }
 
 interface CreateDocumentResult {
@@ -154,6 +155,9 @@ export function useDocumentUpload(options: UploadOptions) {
             sourceMode: 'manual',
           },
           teamId: uploadOptions?.teamId,
+          folderId: uploadOptions?.folderId
+            ? toId<'folders'>(uploadOptions.folderId)
+            : undefined,
         });
 
         return result;

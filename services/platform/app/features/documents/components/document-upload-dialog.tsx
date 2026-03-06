@@ -30,6 +30,7 @@ interface DocumentUploadDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   organizationId: string;
+  folderId?: string;
   onSuccess?: () => void;
 }
 
@@ -37,6 +38,7 @@ export function DocumentUploadDialog({
   open,
   onOpenChange,
   organizationId,
+  folderId,
   onSuccess,
 }: DocumentUploadDialogProps) {
   const { t: tDocuments } = useT('documents');
@@ -120,9 +122,12 @@ export function DocumentUploadDialog({
 
       if (selectedFiles.length === 0) return;
 
-      await uploadFiles(selectedFiles, { teamId: selectedTeamId_local });
+      await uploadFiles(selectedFiles, {
+        teamId: selectedTeamId_local,
+        folderId,
+      });
     },
-    [selectedFiles, selectedTeamId_local, uploadFiles],
+    [selectedFiles, selectedTeamId_local, folderId, uploadFiles],
   );
 
   return (

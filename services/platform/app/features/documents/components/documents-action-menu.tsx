@@ -106,6 +106,7 @@ export function DocumentsActionMenu({
           open={isUploadDialogOpen}
           onOpenChange={setIsUploadDialogOpen}
           organizationId={organizationId}
+          folderId={currentFolderId}
         />
       )}
 
