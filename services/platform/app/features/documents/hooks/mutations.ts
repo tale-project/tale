@@ -261,6 +261,10 @@ export function useDocumentUpload(options: UploadOptions) {
   };
 }
 
+export function useCreateFolder() {
+  return useConvexMutation(api.folders.mutations.createFolder);
+}
+
 export function useDeleteDocument() {
   return useConvexMutation(api.documents.mutations.deleteDocument);
 }

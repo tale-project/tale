@@ -1,11 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
 
 import { getOrCreateFolderPath } from '../get_or_create_path';
-
-type FolderId = Id<'folders'>;
 
 function createMockCtx() {
   const store = new Map<

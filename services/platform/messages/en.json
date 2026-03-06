@@ -2281,6 +2281,15 @@
       "manageTeams": "Assign team",
       "reindex": "Reindex"
     },
+    "folder": {
+      "newFolder": "New folder",
+      "createFolder": "Create folder",
+      "folderName": "Folder name",
+      "folderNamePlaceholder": "Enter folder name",
+      "creating": "Creating...",
+      "created": "Folder created",
+      "createFailed": "Failed to create folder"
+    },
     "teamTags": {
       "title": "Assign document team",
       "description": "Choose which team \"{name}\" belongs to",

@@ -5,6 +5,7 @@ import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useReactQuery } from '@/app/hooks/use-react-query';
 import { api } from '@/convex/_generated/api';
+import { toId } from '@/convex/lib/type_cast_helpers';
 
 export type Document = ConvexItemOf<typeof api.documents.queries.listDocuments>;
 
@@ -24,6 +25,13 @@ export function useDocuments(organizationId: string) {
     documents: data ?? [],
     isLoading,
   };
+}
+
+export function useFolders(organizationId: string, parentFolderId?: string) {
+  return useConvexQuery(api.folders.queries.listFolders, {
+    organizationId,
+    parentId: parentFolderId ? toId<'folders'>(parentFolderId) : undefined,
+  });
 }
 
 export function useOneDriveFiles(

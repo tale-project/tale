@@ -17,6 +17,7 @@ import { filterByTextSearch } from '@/lib/utils/filtering';
 
 import {
   useApproxDocumentCount,
+  useFolders,
   useListDocumentsPaginated,
 } from '../hooks/queries';
 import { useDocumentsTableConfig } from '../hooks/use-documents-table-config';
@@ -62,6 +63,19 @@ export function DocumentsTable({
     initialNumItems: 20,
   });
 
+  const { data: folders } = useFolders(organizationId, currentFolderId);
+
+  const folderRows = useMemo<DocumentItem[]>(() => {
+    if (!folders) return [];
+    return folders.map((folder) => ({
+      id: folder._id,
+      name: folder.name,
+      type: 'folder' as const,
+      folderId: folder._id,
+      lastModified: folder._creationTime,
+    }));
+  }, [folders]);
+
   const filteredResults = useMemo(() => {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex paginated query results match DocumentItem shape
     let filtered = paginatedResult.results as DocumentItem[];
@@ -70,18 +84,24 @@ export function DocumentsTable({
         (doc) => !doc.teamId || doc.teamId === selectedTeamId,
       );
     }
-    if (currentFolderId) {
-      filtered = filtered.filter((doc) => doc.folderId === currentFolderId);
-    }
+    // Filter documents to current folder level (exact match or root)
+    filtered = filtered.filter((doc) =>
+      currentFolderId ? doc.folderId === currentFolderId : !doc.folderId,
+    );
     if (debouncedQuery) {
+      const filteredFolders = filterByTextSearch(folderRows, debouncedQuery, [
+        'name',
+      ]);
       filtered = filterByTextSearch(filtered, debouncedQuery, ['name']);
+      return [...filteredFolders, ...filtered];
     }
-    return filtered;
+    return [...folderRows, ...filtered];
   }, [
     paginatedResult.results,
     selectedTeamId,
     currentFolderId,
     debouncedQuery,
+    folderRows,
   ]);
 
   const previewDocument = useMemo(() => {
@@ -214,6 +234,7 @@ export function DocumentsTable({
         actionMenu={
           <DocumentsActionMenu
             organizationId={organizationId}
+            currentFolderId={currentFolderId}
             hasMicrosoftAccount={hasMicrosoftAccount}
           />
         }
