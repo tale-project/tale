@@ -84,6 +84,154 @@ async def prepare_document(
     )
 
 
+async def find_existing_by_hash(
+    pool: asyncpg.Pool,
+    content_hash: str,
+) -> int | None:
+    """Find a completed document with the given content hash (any scope).
+
+    Returns the internal UUID (documents.id) if found, else None.
+    """
+    async with acquire_with_retry(pool) as conn:
+        row = await conn.fetchrow(
+            f"SELECT id FROM {SCHEMA}.documents WHERE content_hash = $1 AND status = 'completed' LIMIT 1",
+            content_hash,
+        )
+    return row["id"] if row else None
+
+
+async def clone_from_existing(
+    pool: asyncpg.Pool,
+    source_doc_id: int,
+    document_id: str,
+    filename: str,
+    content_hash: str,
+    *,
+    user_id: str | None = None,
+) -> dict[str, Any]:
+    """Clone chunks from an existing document into a new scope.
+
+    Skips if the target scope already has the same content hash.
+    Falls back to None if the source document no longer exists.
+    """
+    async with acquire_with_retry(pool) as conn:
+        existing = await conn.fetchrow(
+            f"""
+            SELECT id, content_hash FROM {SCHEMA}.documents
+            WHERE document_id = $1
+              AND COALESCE(user_id, '') = COALESCE($2, '')
+            """,
+            document_id,
+            user_id,
+        )
+
+    if existing and existing["content_hash"] == content_hash:
+        logger.info("Document {} content unchanged for user={}, skipping (clone path)", document_id, user_id)
+        return {
+            "success": True,
+            "document_id": document_id,
+            "chunks_created": 0,
+            "skipped": True,
+            "skip_reason": "content_unchanged",
+        }
+
+    existing_id = existing["id"] if existing else None
+
+    for attempt in range(2):
+        try:
+            result = await _do_clone(
+                pool,
+                source_doc_id,
+                document_id,
+                filename,
+                content_hash,
+                existing_id,
+                user_id=user_id,
+            )
+            if result is None:
+                return None  # type: ignore[return-value]
+            logger.info(
+                "Cloned document {}: {} chunks for user={} (from source {})",
+                document_id,
+                result["chunks_created"],
+                user_id,
+                source_doc_id,
+            )
+            return result
+        except asyncpg.exceptions.InternalServerError as exc:
+            if _HNSW_CORRUPTION_MARKER in str(exc) and attempt == 0:
+                await _reindex_chunks_hnsw(pool)
+                continue
+            raise
+
+
+async def _do_clone(
+    pool: asyncpg.Pool,
+    source_doc_id: int,
+    document_id: str,
+    filename: str,
+    content_hash: str,
+    existing_id: int | None,
+    *,
+    user_id: str | None = None,
+) -> dict[str, Any] | None:
+    """Clone chunks from source document in a single transaction.
+
+    Returns None if the source document has no chunks (e.g. deleted concurrently).
+    """
+    async with acquire_with_retry(pool) as conn, conn.transaction():
+        source = await conn.fetchrow(
+            f"SELECT chunks_count FROM {SCHEMA}.documents WHERE id = $1 AND status = 'completed'",
+            source_doc_id,
+        )
+        if not source:
+            return None
+
+        if existing_id is not None:
+            await conn.execute(f"DELETE FROM {SCHEMA}.chunks WHERE document_id = $1", existing_id)
+            await conn.execute(f"DELETE FROM {SCHEMA}.documents WHERE id = $1", existing_id)
+
+        doc_row = await conn.fetchrow(
+            f"""
+            INSERT INTO {SCHEMA}.documents
+                (document_id, filename, content_hash, user_id, status, chunks_count)
+            VALUES ($1, $2, $3, $4, 'completed', $5)
+            RETURNING id
+            """,
+            document_id,
+            filename,
+            content_hash,
+            user_id,
+            source["chunks_count"],
+        )
+        new_doc_uuid = doc_row["id"]
+
+        chunks_created = await conn.fetchval(
+            f"""
+            WITH inserted AS (
+                INSERT INTO {SCHEMA}.chunks
+                    (document_id, user_id, chunk_index, chunk_content, content_hash, embedding)
+                SELECT $1, $2, chunk_index, chunk_content, content_hash, embedding
+                FROM {SCHEMA}.chunks
+                WHERE document_id = $3
+                RETURNING 1
+            )
+            SELECT count(*) FROM inserted
+            """,
+            new_doc_uuid,
+            user_id,
+            source_doc_id,
+        )
+
+    return {
+        "success": True,
+        "document_id": document_id,
+        "chunks_created": chunks_created,
+        "skipped": False,
+        "skip_reason": None,
+    }
+
+
 async def _reindex_chunks_hnsw(pool: asyncpg.Pool) -> None:
     """Rebuild the HNSW vector index to recover from page corruption."""
     logger.warning("HNSW index corruption detected — rebuilding {}", _HNSW_INDEX)
@@ -99,7 +247,6 @@ async def _do_store(
     prepared: PreparedDocument,
     existing_id: int | None,
     *,
-    team_id: str | None = None,
     user_id: str | None = None,
 ) -> dict[str, Any]:
     """Execute the delete-old + insert-new DB operations in a single transaction."""
@@ -111,14 +258,13 @@ async def _do_store(
         doc_row = await conn.fetchrow(
             f"""
                 INSERT INTO {SCHEMA}.documents
-                    (document_id, filename, content_hash, team_id, user_id, status, chunks_count)
-                VALUES ($1, $2, $3, $4, $5, 'completed', $6)
+                    (document_id, filename, content_hash, user_id, status, chunks_count)
+                VALUES ($1, $2, $3, $4, 'completed', $5)
                 RETURNING id
                 """,
             document_id,
             filename,
             prepared.content_hash,
-            team_id,
             user_id,
             len(prepared.chunks),
         )
@@ -127,7 +273,6 @@ async def _do_store(
         chunk_rows = [
             (
                 doc_uuid,
-                team_id,
                 user_id,
                 chunk.index,
                 chunk.content,
@@ -139,9 +284,9 @@ async def _do_store(
         await conn.executemany(
             f"""
                 INSERT INTO {SCHEMA}.chunks
-                    (document_id, team_id, user_id, chunk_index, chunk_content,
+                    (document_id, user_id, chunk_index, chunk_content,
                      content_hash, embedding)
-                VALUES ($1, $2, $3, $4, $5, $6, $7::vector)
+                VALUES ($1, $2, $3, $4, $5, $6::vector)
                 """,
             chunk_rows,
         )
@@ -161,10 +306,9 @@ async def store_prepared_document(
     filename: str,
     prepared: PreparedDocument,
     *,
-    team_id: str | None = None,
     user_id: str | None = None,
 ) -> dict[str, Any]:
-    """Store a pre-processed document for a single tenant scope.
+    """Store a pre-processed document.
 
     Handles dedup check, old-version replacement, and HNSW index self-healing.
     """
@@ -173,16 +317,14 @@ async def store_prepared_document(
             f"""
             SELECT id, content_hash FROM {SCHEMA}.documents
             WHERE document_id = $1
-              AND COALESCE(team_id, '') = COALESCE($2, '')
-              AND COALESCE(user_id, '') = COALESCE($3, '')
+              AND COALESCE(user_id, '') = COALESCE($2, '')
             """,
             document_id,
-            team_id,
             user_id,
         )
 
     if existing and existing["content_hash"] == prepared.content_hash:
-        logger.info("Document {} content unchanged for team={} user={}, skipping", document_id, team_id, user_id)
+        logger.info("Document {} content unchanged for user={}, skipping", document_id, user_id)
         return {
             "success": True,
             "document_id": document_id,
@@ -192,7 +334,7 @@ async def store_prepared_document(
         }
 
     if existing:
-        logger.info("Document {} content changed, replacing for team={} user={}", document_id, team_id, user_id)
+        logger.info("Document {} content changed, replacing for user={}", document_id, user_id)
 
     existing_id = existing["id"] if existing else None
 
@@ -204,14 +346,12 @@ async def store_prepared_document(
                 filename,
                 prepared,
                 existing_id,
-                team_id=team_id,
                 user_id=user_id,
             )
             logger.info(
-                "Indexed document {}: {} chunks for team={} user={}",
+                "Indexed document {}: {} chunks for user={}",
                 document_id,
                 result["chunks_created"],
-                team_id,
                 user_id,
             )
             return result
@@ -228,14 +368,33 @@ async def index_document(
     content_bytes: bytes,
     filename: str,
     *,
-    team_id: str | None = None,
     user_id: str | None = None,
     embedding_service: EmbeddingService,
     vision_client: VisionClient | None = None,
     chunk_size: int = 2048,
     chunk_overlap: int = 200,
 ) -> dict[str, Any]:
-    """Index a document: extract, chunk, embed, and store (single-tenant shortcut)."""
+    """Index a document: extract, chunk, embed, and store.
+
+    Attempts content-hash dedup first: if another document already has the same
+    content, clone its chunks instead of re-extracting/embedding.
+    """
+    content_hash = compute_content_hash(content_bytes)
+    source_id = await find_existing_by_hash(pool, content_hash)
+
+    if source_id is not None:
+        result = await clone_from_existing(
+            pool,
+            source_id,
+            document_id,
+            filename,
+            content_hash,
+            user_id=user_id,
+        )
+        if result is not None:
+            return result
+        logger.warning("Clone source {} vanished, falling back to full processing", source_id)
+
     prepared = await prepare_document(
         content_bytes,
         filename,
@@ -259,6 +418,5 @@ async def index_document(
         document_id,
         filename,
         prepared,
-        team_id=team_id,
         user_id=user_id,
     )

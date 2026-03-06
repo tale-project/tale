@@ -1,12 +1,11 @@
 'use client';
 
 import { Users } from 'lucide-react';
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 
-import { SelectableRow } from '@/app/components/ui/data-display/selectable-row';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { EmptyState } from '@/app/components/ui/feedback/empty-state';
-import { Checkbox } from '@/app/components/ui/forms/checkbox';
+import { Select } from '@/app/components/ui/forms/select';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
@@ -17,52 +16,51 @@ import { useT } from '@/lib/i18n/client';
 
 import { useUpdateDocument } from '../hooks/mutations';
 
-interface DocumentTeamTagsDialogProps {
+interface DocumentTeamDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   documentId: string;
   documentName?: string | null;
-  currentTeamTags?: string[];
+  currentTeamId?: string | null;
 }
 
-const EMPTY_TEAM_TAGS: string[] = [];
+const ORG_WIDE_VALUE = '__org_wide__';
 
 /**
  * Internal content component containing all hooks.
  * IMPORTANT: This component must only be rendered when the dialog is open.
  * Rendering it during Radix UI's closing animation causes "Maximum update depth exceeded"
- * errors due to hooks triggering re-renders during the animation phase. See the wrapper component below for the guard pattern.
+ * errors due to hooks triggering re-renders during the animation phase.
  */
-function DocumentTeamTagsDialogContent({
+function DocumentTeamDialogContent({
   open,
   onOpenChange,
   documentId,
   documentName,
-  currentTeamTags = EMPTY_TEAM_TAGS,
-}: DocumentTeamTagsDialogProps) {
+  currentTeamId,
+}: DocumentTeamDialogProps) {
   const { t: tDocuments } = useT('documents');
   const { t: tCommon } = useT('common');
 
-  const [selectedTeams, setSelectedTeams] = useState<Set<string>>(
-    () => new Set(currentTeamTags),
+  const [selectedValue, setSelectedValue] = useState<string>(
+    () => currentTeamId ?? ORG_WIDE_VALUE,
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const updateDocument = useUpdateDocument();
-
   const { teams, isLoading } = useTeams();
 
-  const handleToggleTeam = useCallback((teamId: string) => {
-    setSelectedTeams((prev) => {
-      const next = new Set(prev);
-      if (next.has(teamId)) {
-        next.delete(teamId);
-      } else {
-        next.add(teamId);
+  const teamOptions = useMemo(() => {
+    const items = [
+      { value: ORG_WIDE_VALUE, label: tDocuments('teamTags.orgWide') },
+    ];
+    if (teams) {
+      for (const team of teams) {
+        items.push({ value: team.id, label: team.name });
       }
-      return next;
-    });
-  }, []);
+    }
+    return items;
+  }, [teams, tDocuments]);
 
   const handleClose = () => {
     if (!isSubmitting) {
@@ -74,9 +72,11 @@ function DocumentTeamTagsDialogContent({
     setIsSubmitting(true);
 
     try {
+      const newTeamId = selectedValue === ORG_WIDE_VALUE ? null : selectedValue;
+
       await updateDocument.mutateAsync({
         documentId: toId<'documents'>(documentId),
-        teamTags: Array.from(selectedTeams),
+        teamId: newTeamId,
       });
 
       toast({
@@ -96,15 +96,10 @@ function DocumentTeamTagsDialogContent({
     }
   };
 
-  // Check if there are any changes
   const hasChanges = useMemo(() => {
-    const currentSet = new Set(currentTeamTags);
-    if (currentSet.size !== selectedTeams.size) return true;
-    for (const teamId of selectedTeams) {
-      if (!currentSet.has(teamId)) return true;
-    }
-    return false;
-  }, [currentTeamTags, selectedTeams]);
+    const currentValue = currentTeamId ?? ORG_WIDE_VALUE;
+    return currentValue !== selectedValue;
+  }, [currentTeamId, selectedValue]);
 
   const displayName = useMemo(() => {
     if (!documentName) return '';
@@ -156,21 +151,12 @@ function DocumentTeamTagsDialogContent({
             className="py-8"
           />
         ) : (
-          <Stack gap={2}>
-            {teams.map((team: { id: string; name: string }) => (
-              <SelectableRow
-                key={team.id}
-                onClick={() => handleToggleTeam(team.id)}
-              >
-                <Checkbox
-                  id={`team-tag-${team.id}`}
-                  checked={selectedTeams.has(team.id)}
-                  onCheckedChange={() => handleToggleTeam(team.id)}
-                  label={team.name}
-                />
-              </SelectableRow>
-            ))}
-          </Stack>
+          <Select
+            options={teamOptions}
+            value={selectedValue}
+            onValueChange={setSelectedValue}
+            label={tDocuments('teamTags.selectLabel')}
+          />
         )}
 
         <Text variant="caption">{tDocuments('teamTags.hint')}</Text>
@@ -180,22 +166,18 @@ function DocumentTeamTagsDialogContent({
 }
 
 /**
- * Dialog for managing team tags on a document.
+ * Dialog for managing team assignment on a document.
  *
  * CRITICAL: This wrapper pattern prevents "Maximum update depth exceeded" errors.
- * Radix UI Dialog keeps components mounted during closing animations. When hooks run during this phase, they trigger state updates that
- * conflict with Radix's usePresence hook, causing infinite re-render loops.
+ * Radix UI Dialog keeps components mounted during closing animations.
  *
- * The fix: Return null when closed to fully unmount the content component,
- * ensuring hooks don't execute during animations.
- *
- * DO NOT refactor this to render DocumentTeamTagsDialogContent unconditionally.
+ * DO NOT refactor this to render DocumentTeamDialogContent unconditionally.
  * See: https://github.com/radix-ui/primitives/issues/3675
  */
-export function DocumentTeamTagsDialog(props: DocumentTeamTagsDialogProps) {
+export function DocumentTeamTagsDialog(props: DocumentTeamDialogProps) {
   if (!props.open) {
     return null;
   }
 
-  return <DocumentTeamTagsDialogContent {...props} />;
+  return <DocumentTeamDialogContent {...props} />;
 }

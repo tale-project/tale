@@ -46,7 +46,6 @@ const agentFieldsValidator = {
   filePreprocessingEnabled: v.optional(v.boolean()),
   structuredResponsesEnabled: v.optional(v.boolean()),
   teamId: v.optional(v.string()),
-  sharedWithTeamIds: v.optional(v.array(v.string())),
   delegateAgentIds: v.optional(v.array(v.id('customAgents'))),
   maxSteps: v.optional(v.number()),
   timeoutMs: v.optional(v.number()),
@@ -274,7 +273,6 @@ export const updateCustomAgent = mutation({
     filePreprocessingEnabled: v.optional(v.boolean()),
     structuredResponsesEnabled: v.optional(v.boolean()),
     teamId: v.optional(v.string()),
-    sharedWithTeamIds: v.optional(v.array(v.string())),
     delegateAgentIds: v.optional(v.array(v.id('customAgents'))),
     maxSteps: v.optional(v.number()),
     timeoutMs: v.optional(v.number()),
@@ -334,7 +332,6 @@ export const updateCustomAgentMetadata = mutation({
     description: v.optional(v.string()),
     avatarUrl: v.optional(v.string()),
     teamId: v.optional(v.string()),
-    sharedWithTeamIds: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args): Promise<null> => {
     const authUser = await authComponent.getAuthUser(ctx);

@@ -121,7 +121,6 @@ function createMockArgs(
     streamId: undefined,
     promptMessageId: undefined,
     maxSteps: undefined,
-    userTeamIds: undefined,
     deadlineMs: undefined,
     ...overrides,
   };

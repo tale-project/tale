@@ -45,7 +45,7 @@ export const importFiles = action({
     items: v.array(importItemValidator),
     organizationId: v.string(),
     importType: v.union(v.literal('one-time'), v.literal('sync')),
-    teamTags: v.optional(v.array(v.string())),
+    teamId: v.optional(v.string()),
   },
   returns: v.object({
     success: v.boolean(),
@@ -75,7 +75,7 @@ export const importFiles = action({
         items: args.items as ImportItem[],
         organizationId: args.organizationId,
         importType: args.importType,
-        teamTags: args.teamTags,
+        teamId: args.teamId,
         token: tokenResult.token,
         userId: tokenResult.userId,
       },

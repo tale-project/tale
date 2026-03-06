@@ -38,7 +38,6 @@ interface DocumentEntry {
   ragIndexedAt?: number;
   ragError?: string;
   teamId?: string | null;
-  teamTags?: string[];
 }
 
 function DocumentRow({ doc }: { doc: DocumentEntry }) {
@@ -91,9 +90,7 @@ export function CustomAgentKnowledge({
 
   const teamDocuments = useMemo(() => {
     if (!agent?.teamId) return [];
-    return documents.filter((doc) =>
-      doc.teamTags?.includes(agent.teamId ?? ''),
-    );
+    return documents.filter((doc) => doc.teamId === agent.teamId);
   }, [documents, agent?.teamId]);
 
   const [knowledgeMode, setKnowledgeMode] = useState<RetrievalMode | undefined>(
@@ -117,9 +114,7 @@ export function CustomAgentKnowledge({
 
   const orgDocuments = useMemo(() => {
     if (!isEnabled || !includeOrgKnowledge) return [];
-    return documents.filter(
-      (doc) => !doc.teamTags || doc.teamTags.length === 0,
-    );
+    return documents.filter((doc) => !doc.teamId);
   }, [documents, isEnabled, includeOrgKnowledge]);
 
   const knowledgeData = useMemo(

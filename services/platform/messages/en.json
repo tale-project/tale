@@ -2278,16 +2278,18 @@
       "deleteSyncFolder": "Delete sync folder",
       "deleteFolderFailed": "Failed to delete folder",
       "deleteFileFailed": "An unexpected error occurred while deleting the file.",
-      "manageTeams": "Manage teams",
+      "manageTeams": "Assign team",
       "reindex": "Reindex"
     },
     "teamTags": {
-      "title": "Manage document teams",
-      "description": "Select which teams can access \"{name}\"",
-      "updated": "Document teams updated",
-      "updateFailed": "Failed to update document teams",
+      "title": "Assign document team",
+      "description": "Choose which team \"{name}\" belongs to",
+      "updated": "Document team updated",
+      "updateFailed": "Failed to update document team",
       "noTeams": "No teams available. Create teams in Settings to enable team-based access control.",
-      "hint": "Documents without any team tags are accessible to all organization members."
+      "selectLabel": "Team",
+      "hint": "Organization-wide documents are accessible to all members.",
+      "orgWide": "Organization-wide"
     },
     "deleteFile": {
       "title": "Delete file",
@@ -2343,10 +2345,10 @@
       "filesUploadedSuccessfully": "{count} {count, plural, one {file} other {files}} uploaded successfully",
       "uploadCancelled": "Upload cancelled",
       "uploadFailed": "Upload failed",
-      "selectTeams": "Select teams",
-      "selectTeamsDescription": "Choose which teams can access the uploaded documents",
+      "selectTeams": "Select team",
+      "selectTeamsDescription": "Choose which team the uploaded documents belong to",
       "noTeamsAvailable": "You are not a member of any teams",
-      "allMembersHint": "Documents without team tags are accessible to everyone in the organization."
+      "allMembersHint": "Organization-wide documents are accessible to everyone in the organization."
     },
     "import": {
       "noResponseBody": "No response body received"

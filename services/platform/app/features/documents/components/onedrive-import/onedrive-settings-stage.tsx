@@ -5,13 +5,13 @@ import { Database, Loader2, Users } from 'lucide-react';
 import { SelectableRow } from '@/app/components/ui/data-display/selectable-row';
 import { EmptyPlaceholder } from '@/app/components/ui/feedback/empty-placeholder';
 import { Spinner } from '@/app/components/ui/feedback/spinner';
-import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Description } from '@/app/components/ui/forms/description';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import {
   RadioGroup,
   RadioGroupItem,
 } from '@/app/components/ui/forms/radio-group';
+import { Select } from '@/app/components/ui/forms/select';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { SectionHeader } from '@/app/components/ui/layout/section-header';
 import { Separator } from '@/app/components/ui/layout/separator';
@@ -27,9 +27,9 @@ interface OneDriveSettingsStageProps {
   isImporting: boolean;
   teams: Array<{ id: string; name: string }> | undefined;
   isLoadingTeams: boolean;
-  selectedTeams: Set<string>;
+  selectedTeamId?: string;
   onImportTypeChange: (type: ImportType) => void;
-  onToggleTeam: (teamId: string) => void;
+  onSelectTeam: (teamId: string | undefined) => void;
   onBack: () => void;
   onImport: () => void;
 }
@@ -40,9 +40,9 @@ export function OneDriveSettingsStage({
   isImporting,
   teams,
   isLoadingTeams,
-  selectedTeams,
+  selectedTeamId,
   onImportTypeChange,
-  onToggleTeam,
+  onSelectTeam,
   onBack,
   onImport,
 }: OneDriveSettingsStageProps) {
@@ -159,23 +159,21 @@ export function OneDriveSettingsStage({
               {t('upload.noTeamsAvailable')}
             </EmptyPlaceholder>
           ) : (
-            <Stack gap={2}>
-              {teams.map((team) => (
-                <SelectableRow
-                  key={team.id}
-                  onClick={() => onToggleTeam(team.id)}
-                  disabled={isImporting}
-                >
-                  <Checkbox
-                    id={`onedrive-team-${team.id}`}
-                    checked={selectedTeams.has(team.id)}
-                    onCheckedChange={() => onToggleTeam(team.id)}
-                    disabled={isImporting}
-                    label={team.name}
-                  />
-                </SelectableRow>
-              ))}
-            </Stack>
+            <Select
+              value={selectedTeamId ?? ''}
+              onValueChange={(value) => onSelectTeam(value || undefined)}
+              disabled={isImporting}
+              options={[
+                {
+                  value: '',
+                  label: t('teamTags.orgWide'),
+                },
+                ...teams.map((team) => ({
+                  value: team.id,
+                  label: team.name,
+                })),
+              ]}
+            />
           )}
 
           <Description>{t('upload.allMembersHint')}</Description>

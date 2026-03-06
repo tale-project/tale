@@ -29,7 +29,6 @@ interface RagStatusBadgeProps {
 type BadgeVariant = NonNullable<BadgeProps['variant']>;
 
 const statusConfig: Record<RagStatus, { variant: BadgeVariant }> = {
-  pending: { variant: 'blue' },
   queued: { variant: 'blue' },
   running: { variant: 'blue' },
   completed: { variant: 'green' },
@@ -55,7 +54,6 @@ export function RagStatusBadge({
   const getStatusLabel = useCallback(
     (s: RagStatus) => {
       const labels: Record<RagStatus, string> = {
-        pending: t('rag.status.pending'),
         queued: t('rag.status.queued'),
         running: t('rag.status.indexing'),
         completed: t('rag.status.indexed'),

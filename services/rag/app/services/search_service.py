@@ -1,7 +1,7 @@
 """Hybrid search service for the RAG pipeline.
 
 BM25 full-text (pg_search) + pgvector similarity with RRF fusion.
-Multi-tenant filtering via WHERE team_id/user_id.
+Scoping via document_ids.
 """
 
 from __future__ import annotations
@@ -30,16 +30,14 @@ class RagSearchService:
         self,
         query: str,
         *,
-        team_ids: list[str] | None = None,
-        user_id: str | None = None,
+        document_ids: list[str] | None = None,
         top_k: int = 10,
     ) -> list[dict[str, Any]]:
-        """Hybrid BM25 + vector search with tenant filtering.
+        """Hybrid BM25 + vector search with document scoping.
 
         Args:
             query: Search query text.
-            team_ids: Optional team IDs to filter by.
-            user_id: Optional user ID to filter by.
+            document_ids: Optional document IDs to restrict search to.
             top_k: Maximum number of results to return.
 
         Returns:
@@ -48,10 +46,10 @@ class RagSearchService:
         query_embedding: list[float] | None = None
         try:
             embedding_task = asyncio.create_task(self._embedding.embed_query(query))
-            fts_task = asyncio.create_task(self._fts_search(query, team_ids, user_id, top_k * 3))
+            fts_task = asyncio.create_task(self._fts_search(query, document_ids, top_k * 3))
 
             query_embedding, fts_results = await asyncio.gather(embedding_task, fts_task)
-            vector_results = await self._vector_search(query_embedding, team_ids, user_id, top_k * 3)
+            vector_results = await self._vector_search(query_embedding, document_ids, top_k * 3)
 
             if not fts_results and not vector_results:
                 return []
@@ -87,7 +85,7 @@ class RagSearchService:
 
                 if query_embedding is None:
                     query_embedding = await self._embedding.embed_query(query)
-                vector_results = await self._vector_search(query_embedding, team_ids, user_id, top_k)
+                vector_results = await self._vector_search(query_embedding, document_ids, top_k)
                 return [
                     {
                         "content": item["chunk_content"],
@@ -98,27 +96,14 @@ class RagSearchService:
                 ]
             raise
 
-    def _build_tenant_clause(
-        self, team_ids: list[str] | None, user_id: str | None, param_offset: int
-    ) -> tuple[str, list[Any]]:
-        """Build WHERE clause for tenant filtering."""
-        conditions: list[str] = []
-        params: list[Any] = []
-        idx = param_offset
+    def _build_scope_clause(self, document_ids: list[str] | None, param_offset: int) -> tuple[str, list[Any]]:
+        """Build WHERE clause for document scoping."""
+        if not document_ids:
+            return "", []
 
-        if team_ids:
-            idx += 1
-            conditions.append(f"team_id = ANY(${idx})")
-            params.append(team_ids)
-        if user_id:
-            idx += 1
-            conditions.append(f"user_id = ${idx}")
-            params.append(user_id)
-
-        if not conditions:
-            return "", params
-
-        return " AND (" + " OR ".join(conditions) + ")", params
+        idx = param_offset + 1
+        clause = f" AND document_id IN (SELECT id FROM {SCHEMA}.documents WHERE document_id = ANY(${idx}))"
+        return clause, [document_ids]
 
     async def _rebuild_bm25_index(self) -> None:
         """Rebuild the BM25 index after corruption. Runs as a background task."""
@@ -133,11 +118,10 @@ class RagSearchService:
     async def _fts_search(
         self,
         query: str,
-        team_ids: list[str] | None,
-        user_id: str | None,
+        document_ids: list[str] | None,
         limit: int,
     ) -> list[dict[str, Any]]:
-        tenant_clause, tenant_params = self._build_tenant_clause(team_ids, user_id, 1)
+        tenant_clause, tenant_params = self._build_scope_clause(document_ids, 1)
 
         sql = f"""
             SELECT id, chunk_content, chunk_index, document_id,
@@ -158,20 +142,17 @@ class RagSearchService:
             logger.warning("BM25 index corrupted: {}", e)
             return []
         except asyncpg.InternalServerError as e:
-            if "bm25" in str(e).lower():
-                logger.warning("BM25 search failed: {}", e)
-                return []
-            raise
+            logger.warning("FTS search failed: {}", e)
+            return []
 
     async def _vector_search(
         self,
         embedding: list[float],
-        team_ids: list[str] | None,
-        user_id: str | None,
+        document_ids: list[str] | None,
         limit: int,
     ) -> list[dict[str, Any]]:
         vec_str = json.dumps(embedding)
-        tenant_clause, tenant_params = self._build_tenant_clause(team_ids, user_id, 1)
+        tenant_clause, tenant_params = self._build_scope_clause(document_ids, 1)
 
         sql = f"""
             SELECT id, chunk_content, chunk_index, document_id,

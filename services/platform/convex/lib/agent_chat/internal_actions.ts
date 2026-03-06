@@ -117,7 +117,6 @@ export const runAgentGeneration = internalAction({
     streamId: v.optional(v.string()),
     promptMessageId: v.optional(v.string()),
     maxSteps: v.optional(v.number()),
-    userTeamIds: v.optional(v.array(v.string())),
     deadlineMs: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
@@ -146,7 +145,6 @@ export const runAgentGeneration = internalAction({
       streamId,
       promptMessageId,
       maxSteps,
-      userTeamIds,
       deadlineMs,
     } = args;
 
@@ -273,7 +271,6 @@ export const runAgentGeneration = internalAction({
           streamId,
           promptMessageId,
           maxSteps,
-          userTeamIds,
           deadlineMs,
         },
       );
@@ -418,7 +415,6 @@ function buildHooksFromConfig(hooksConfig: {
         userId: args.userId,
         promptMessage: args.promptMessage,
         organizationId: args.organizationId,
-        userTeamIds: args.userTeamIds,
       });
       // runAction returns unknown; we trust the hook contract
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- hook return type guaranteed by contract

@@ -75,8 +75,7 @@ vi.mock('../../_generated/server', async (importOriginal) => {
 
 const { getAuthUserIdentity, getOrganizationMember } =
   await import('../../lib/rls');
-const { UnauthenticatedError, UnauthorizedError } =
-  await import('../../lib/rls/errors');
+const { UnauthorizedError } = await import('../../lib/rls/errors');
 const {
   getMyTeamsHandler,
   approxCountMyTeamsHandler,
@@ -105,14 +104,14 @@ describe('getCurrentMemberContext handler', () => {
       .handler;
   }
 
-  it('throws UnauthenticatedError when not authenticated', async () => {
+  it('returns null when not authenticated', async () => {
     mockedGetAuthUser.mockResolvedValue(null);
     const ctx = createMockCtx();
     const handler = await getHandler();
 
-    await expect(
-      handler(ctx, { organizationId: 'org_1' }),
-    ).rejects.toBeInstanceOf(UnauthenticatedError);
+    const result = await handler(ctx, { organizationId: 'org_1' });
+
+    expect(result).toBeNull();
   });
 
   it('returns null when unauthorized', async () => {

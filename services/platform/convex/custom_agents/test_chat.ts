@@ -58,11 +58,6 @@ export const testCustomAgent = mutation({
     const agentConfig = toSerializableConfig(agent);
     const { model, provider } = getDefaultAgentRuntimeConfig();
 
-    const ragTeamIds: string[] = [];
-    if (agent.teamId) ragTeamIds.push(agent.teamId);
-    if (agent.includeOrgKnowledge)
-      ragTeamIds.push(`org_${args.organizationId}`);
-
     const hooks = await createCustomAgentHookHandles(
       ctx,
       agent.filePreprocessingEnabled,
@@ -81,7 +76,6 @@ export const testCustomAgent = mutation({
       provider,
       debugTag: `[CustomAgent:${agent.name}:test]`,
       enableStreaming: true,
-      ragTeamIds,
       hooks,
     });
   },

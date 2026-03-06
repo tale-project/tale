@@ -15,7 +15,7 @@ export async function createOneDriveSyncConfig(
     itemPath?: string;
     targetBucket: string;
     storagePrefix?: string;
-    teamTags?: string[];
+    teamId?: string;
   },
 ): Promise<{ success: boolean; configId?: string; error?: string }> {
   try {
@@ -44,7 +44,7 @@ export async function createOneDriveSyncConfig(
         itemPath: args.itemPath,
         targetBucket: args.targetBucket,
         storagePrefix: args.storagePrefix,
-        teamTags: args.teamTags,
+        teamId: args.teamId,
       });
 
       return {
@@ -63,7 +63,7 @@ export async function createOneDriveSyncConfig(
       itemPath: args.itemPath,
       targetBucket: args.targetBucket,
       storagePrefix: args.storagePrefix,
-      teamTags: args.teamTags,
+      teamId: args.teamId,
       status: 'active',
     });
 

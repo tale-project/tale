@@ -66,8 +66,8 @@ export function DocumentsTable({
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex paginated query results match DocumentItem shape
     let filtered = paginatedResult.results as DocumentItem[];
     if (selectedTeamId) {
-      filtered = filtered.filter((doc) =>
-        doc.teamTags?.includes(selectedTeamId),
+      filtered = filtered.filter(
+        (doc) => !doc.teamId || doc.teamId === selectedTeamId,
       );
     }
     if (currentFolderPath) {

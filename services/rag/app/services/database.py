@@ -60,6 +60,29 @@ async def close_pool() -> None:
         logger.info("Closed RAG database connection pool")
 
 
+async def ensure_error_column(pool: asyncpg.Pool) -> None:
+    """Add error column to documents table if it doesn't exist (no migration system)."""
+    async with acquire_with_retry(pool) as conn:
+        try:
+            await conn.execute(f"ALTER TABLE {SCHEMA}.documents ADD COLUMN IF NOT EXISTS error TEXT")
+            logger.debug("Ensured error column exists on {}.documents", SCHEMA)
+        except asyncpg.exceptions.UndefinedTableError:
+            logger.warning("{}.documents table does not exist yet, skipping error column check", SCHEMA)
+
+
+async def ensure_content_hash_index(pool: asyncpg.Pool) -> None:
+    """Create content_hash index on documents table if it doesn't exist."""
+    async with acquire_with_retry(pool) as conn:
+        try:
+            await conn.execute(
+                f"CREATE INDEX IF NOT EXISTS idx_pk_docs_content_hash "
+                f"ON {SCHEMA}.documents(content_hash) WHERE content_hash IS NOT NULL"
+            )
+            logger.debug("Ensured content_hash index exists on {}.documents", SCHEMA)
+        except asyncpg.exceptions.UndefinedTableError:
+            logger.warning("{}.documents table does not exist yet, skipping content_hash index", SCHEMA)
+
+
 async def ensure_embedding_dimensions(pool: asyncpg.Pool, dimensions: int) -> None:
     """Pin the embedding column to explicit dimensions and create HNSW index."""
     async with acquire_with_retry(pool) as conn:

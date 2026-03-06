@@ -1,7 +1,7 @@
 """Tests for document content retrieval endpoint and service method.
 
 Covers:
-- get_document_content() service: normal retrieval, chunk ranges, tenant isolation, 404
+- get_document_content() service: normal retrieval, chunk ranges, 404
 - GET /documents/{doc_id}/content router: validation, error handling
 """
 
@@ -73,7 +73,7 @@ class TestGetDocumentContent:
         mock_conn = _mock_conn(fetchrow_return=DOC_ROW, fetch_return=CHUNK_ROWS)
 
         with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
-            result = await service.get_document_content("doc-1", team_ids=["team-a"])
+            result = await service.get_document_content("doc-1")
 
         assert result is not None
         assert result["document_id"] == "doc-1"
@@ -95,7 +95,7 @@ class TestGetDocumentContent:
         )
 
         with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
-            result = await service.get_document_content("doc-1", team_ids=["team-a"])
+            result = await service.get_document_content("doc-1")
 
         assert result["content"] == "AAA\n\nBBB"
 
@@ -104,7 +104,7 @@ class TestGetDocumentContent:
         mock_conn = _mock_conn(fetchrow_return=None)
 
         with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
-            result = await service.get_document_content("nonexistent", team_ids=["team-a"])
+            result = await service.get_document_content("nonexistent")
 
         assert result is None
 
@@ -117,7 +117,7 @@ class TestGetDocumentContent:
         mock_conn = _mock_conn(fetchrow_return=DOC_ROW, fetch_return=filtered_chunks)
 
         with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
-            result = await service.get_document_content("doc-1", team_ids=["team-a"], chunk_start=2, chunk_end=3)
+            result = await service.get_document_content("doc-1", chunk_start=2, chunk_end=3)
 
         assert result is not None
         assert result["chunk_range"] == {"start": 2, "end": 3}
@@ -134,44 +134,17 @@ class TestGetDocumentContent:
         mock_conn = _mock_conn(fetchrow_return=DOC_ROW, fetch_return=chunks)
 
         with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
-            result = await service.get_document_content("doc-1", team_ids=["team-a"], chunk_start=4)
+            result = await service.get_document_content("doc-1", chunk_start=4)
 
         assert result is not None
         assert result["chunk_range"] == {"start": 4, "end": 5}
-
-    async def test_tenant_filtering_with_user_id(self):
-        service = _make_service()
-        mock_conn = _mock_conn(fetchrow_return=DOC_ROW, fetch_return=CHUNK_ROWS[:1])
-
-        with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
-            result = await service.get_document_content("doc-1", user_id="user-123")
-
-        assert result is not None
-        # Verify the SQL query included user_id parameter
-        fetchrow_call = mock_conn.fetchrow.call_args
-        sql = fetchrow_call[0][0]
-        assert "user_id" in sql
-
-    async def test_tenant_filtering_with_both_team_and_user(self):
-        service = _make_service()
-        mock_conn = _mock_conn(fetchrow_return=DOC_ROW, fetch_return=CHUNK_ROWS[:1])
-
-        with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
-            result = await service.get_document_content("doc-1", team_ids=["team-a"], user_id="user-123")
-
-        assert result is not None
-        fetchrow_call = mock_conn.fetchrow.call_args
-        sql = fetchrow_call[0][0]
-        assert "team_id" in sql
-        assert "user_id" in sql
-        assert "OR" in sql
 
     async def test_empty_chunks_returns_empty_content(self):
         service = _make_service()
         mock_conn = _mock_conn(fetchrow_return=DOC_ROW, fetch_return=[])
 
         with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
-            result = await service.get_document_content("doc-1", team_ids=["team-a"], chunk_start=100)
+            result = await service.get_document_content("doc-1", chunk_start=100)
 
         assert result is not None
         assert result["content"] == ""
@@ -185,7 +158,7 @@ class TestGetDocumentContent:
         )
 
         with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
-            result = await service.get_document_content("doc-1", team_ids=["team-a"])
+            result = await service.get_document_content("doc-1")
 
         assert result is not None
         assert result["content"] == "Only chunk."
@@ -197,20 +170,10 @@ class TestGetDocumentContent:
         mock_conn = _mock_conn(fetchrow_return=DOC_ROW, fetch_return=CHUNK_ROWS)
 
         with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
-            await service.get_document_content("doc-1", team_ids=["team-a"], chunk_start=1)
+            await service.get_document_content("doc-1", chunk_start=1)
 
         fetch_call = mock_conn.fetch.call_args
         sql = fetch_call[0][0]
         assert "chunk_index <= $3" in sql
         chunk_end_param = fetch_call[0][3]
         assert chunk_end_param == service.MAX_CHUNK_WINDOW - 1
-
-
-class TestGetDocumentContentNoTenant:
-    """Verify service rejects calls without tenant context."""
-
-    async def test_no_tenant_raises_value_error(self):
-        service = _make_service()
-
-        with pytest.raises(ValueError, match="At least one of team_ids or user_id must be provided"):
-            await service.get_document_content("doc-1")

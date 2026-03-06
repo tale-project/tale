@@ -8,7 +8,6 @@ import { components, internal } from '../../_generated/api';
 import { mutation } from '../../_generated/server';
 import { toSerializableConfig } from '../../custom_agents/config';
 import { getDefaultAgentRuntimeConfig } from '../../lib/agent_runtime_config';
-import { getUserTeamIds } from '../../lib/get_user_teams';
 import { getOrganizationMember } from '../../lib/rls';
 import { persistentStreaming } from '../../streaming/helpers';
 
@@ -106,10 +105,6 @@ export const submitHumanInputResponse = mutation({
     const thread = await ctx.runQuery(components.agent.threads.getThread, {
       threadId,
     });
-    const userTeamIds = thread?.userId
-      ? await getUserTeamIds(ctx, thread.userId)
-      : [];
-
     // Load system default chat agent from DB
     const systemChatQuery = ctx.db
       .query('customAgents')
@@ -152,7 +147,6 @@ export const submitHumanInputResponse = mutation({
         promptMessageId,
         maxSteps: 500,
         userId: thread?.userId,
-        userTeamIds,
       },
     );
 

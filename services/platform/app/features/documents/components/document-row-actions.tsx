@@ -26,7 +26,7 @@ interface DocumentRowActionsProps {
   syncConfigId?: string;
   isDirectlySelected?: boolean;
   sourceMode?: StorageSourceMode;
-  teamTags?: string[];
+  teamId?: string | null;
 }
 
 export function DocumentRowActions({
@@ -36,7 +36,7 @@ export function DocumentRowActions({
   syncConfigId,
   isDirectlySelected,
   sourceMode,
-  teamTags,
+  teamId,
 }: DocumentRowActionsProps) {
   const { t: tDocuments } = useT('documents');
   const { t: tCommon } = useT('common');
@@ -191,7 +191,7 @@ export function DocumentRowActions({
         onOpenChange={dialogs.setOpen.teamTags}
         documentId={documentId}
         documentName={name}
-        currentTeamTags={teamTags}
+        currentTeamId={teamId}
       />
     </>
   );

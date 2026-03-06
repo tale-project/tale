@@ -405,25 +405,6 @@ const ragSchemas: Record<string, OutputSchema> = {
       error: { type: 'string', optional: true },
       timestamp: { type: 'number', description: 'Upload timestamp' },
       executionTimeMs: { type: 'number', optional: true },
-      documentType: { type: 'string', optional: true },
-      queued: { type: 'boolean', optional: true },
-      jobId: { type: 'string', optional: true },
-    },
-  },
-  upload_text: {
-    description: 'RAG text upload result',
-    fields: {
-      success: { type: 'boolean' },
-      recordId: { type: 'string' },
-      ragDocumentId: { type: 'string', optional: true },
-      chunksCreated: { type: 'number', optional: true },
-      processingTimeMs: { type: 'number', optional: true },
-      error: { type: 'string', optional: true },
-      timestamp: { type: 'number' },
-      executionTimeMs: { type: 'number', optional: true },
-      documentType: { type: 'string', optional: true },
-      queued: { type: 'boolean', optional: true },
-      jobId: { type: 'string', optional: true },
     },
   },
 };
@@ -590,34 +571,6 @@ const websiteSchemas: Record<string, OutputSchema> = {
 };
 
 // =============================================================================
-// WORKFLOW ACTION SCHEMAS
-// =============================================================================
-
-const workflowSchemas: Record<string, OutputSchema> = {
-  upload_all_workflows: {
-    description: 'Workflow upload result',
-    fields: {
-      success: { type: 'boolean' },
-      uploaded: {
-        type: 'number',
-        optional: true,
-        description: 'Number of workflows uploaded',
-      },
-      failed: {
-        type: 'number',
-        optional: true,
-        description: 'Number of workflows failed',
-      },
-      errors: { type: 'array', optional: true, description: 'Error details' },
-      executionTimeMs: {
-        type: 'number',
-        description: 'Execution time in milliseconds',
-      },
-    },
-  },
-};
-
-// =============================================================================
 // ACTION OUTPUT SCHEMA REGISTRY
 // =============================================================================
 
@@ -637,7 +590,6 @@ const workflowSchemas: Record<string, OutputSchema> = {
  * - onedrive: OneDrive file operations
  * - crawler: Website crawling
  * - website: Website management
- * - workflow: Workflow utility operations
  */
 export const actionOutputSchemaRegistry: ActionOutputSchemaRegistry = {
   product: productSchemas,
@@ -652,7 +604,6 @@ export const actionOutputSchemaRegistry: ActionOutputSchemaRegistry = {
   onedrive: onedriveSchemas,
   crawler: crawlerSchemas,
   website: websiteSchemas,
-  workflow: workflowSchemas,
 };
 
 /**

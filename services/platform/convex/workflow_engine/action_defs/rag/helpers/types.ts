@@ -7,28 +7,10 @@ export type RagActionParams =
       recordId: string;
     }
   | {
-      operation: 'upload_text';
-      /** Optional for upload_text; when provided, also used as endpoint document_id. */
-      recordId?: string;
-      content: string;
-      metadata: Record<string, unknown>;
-    }
-  | {
       operation: 'delete_document';
       /** Document record ID from the platform */
       recordId: string;
     };
-
-/**
- * Document Content
- */
-export interface DocumentContent {
-  type: 'text' | 'file';
-  content: string | ArrayBuffer;
-  filename?: string;
-  contentType?: string;
-  metadata: Record<string, unknown>;
-}
 
 /**
  * RAG Upload Result
@@ -50,12 +32,6 @@ export interface RagUploadResult {
   timestamp: number;
   /** Total execution time of the Convex action step wrapping the upload. */
   executionTimeMs?: number;
-  /** Type of document that was uploaded (text/file). */
-  documentType?: string;
-  /** Whether the RAG service queued ingestion for background processing. */
-  queued?: boolean;
-  /** Background job identifier if provided by the RAG service. */
-  jobId?: string;
 }
 
 /**

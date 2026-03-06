@@ -91,7 +91,6 @@ function GeneralTab() {
         displayName: data.displayName,
         description: data.description || undefined,
         teamId: data.teamId ?? '',
-        sharedWithTeamIds: data.sharedWithTeamIds,
       });
     },
     [agentId, updateMetadata],

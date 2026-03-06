@@ -48,34 +48,16 @@ export async function getDocumentsCursor(
 
   // Filter function for search, folder path, and team access
   const filter = (doc: Doc<'documents'>): boolean => {
-    // Team-based access control (unified fields with teamTags fallback)
     if (args.userTeamIds !== undefined) {
-      const userTeamIds = args.userTeamIds;
-      if (doc.teamId !== undefined) {
-        if (!hasTeamAccess(doc, userTeamIds)) {
-          return false;
-        }
-      } else if (doc.teamTags && doc.teamTags.length > 0) {
-        const hasAccess = doc.teamTags.some((tag) => userTeamIds.includes(tag));
-        if (!hasAccess) {
-          return false;
-        }
+      if (!hasTeamAccess(doc, args.userTeamIds)) {
+        return false;
       }
     }
 
-    // Team filter: when a specific team is selected, show only
-    // org-wide docs + docs belonging to/shared with the selected team
+    // Team filter: show org-wide docs + docs belonging to the selected team
     if (args.filterTeamId) {
-      if (doc.teamId !== undefined) {
-        if (doc.teamId !== null && doc.teamId !== args.filterTeamId) {
-          if (!doc.sharedWithTeamIds?.includes(args.filterTeamId)) {
-            return false;
-          }
-        }
-      } else if (doc.teamTags && doc.teamTags.length > 0) {
-        if (!doc.teamTags.includes(args.filterTeamId)) {
-          return false;
-        }
+      if (doc.teamId && doc.teamId !== args.filterTeamId) {
+        return false;
       }
     }
 

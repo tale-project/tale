@@ -10,7 +10,7 @@ import {
   getOrganizationMember,
   getUserOrganizations,
 } from '../lib/rls';
-import { UnauthenticatedError, UnauthorizedError } from '../lib/rls/errors';
+import { UnauthorizedError } from '../lib/rls/errors';
 import { memberRoleValidator } from './validators';
 
 interface BetterAuthTeam {
@@ -56,7 +56,7 @@ export const getCurrentMemberContext = query({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new UnauthenticatedError();
+      return null;
     }
 
     try {

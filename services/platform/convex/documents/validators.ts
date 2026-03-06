@@ -18,7 +18,6 @@ export const sourceModeValidator = v.union(
 );
 
 export const ragStatusValidator = v.union(
-  v.literal('pending'),
   v.literal('queued'),
   v.literal('running'),
   v.literal('completed'),
@@ -36,7 +35,6 @@ export const ragInfoStatusValidator = v.union(
 
 export const ragInfoValidator = v.object({
   status: ragInfoStatusValidator,
-  jobId: v.optional(v.string()),
   indexedAt: v.optional(v.number()),
   error: v.optional(v.string()),
 });
@@ -67,7 +65,6 @@ export const documentItemValidator = v.object({
   ragIndexedAt: v.optional(v.number()),
   ragError: v.optional(v.string()),
   teamId: v.optional(v.union(v.string(), v.null())),
-  teamTags: v.optional(v.array(v.string())),
   createdBy: v.optional(v.string()),
   createdByName: v.optional(v.string()),
 });

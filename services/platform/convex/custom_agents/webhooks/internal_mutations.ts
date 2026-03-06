@@ -69,11 +69,6 @@ export const chatViaWebhook = internalMutation({
     const agentConfig = toSerializableConfig(activeVersion);
     const { model, provider } = getDefaultAgentRuntimeConfig();
 
-    const ragTeamIds: string[] = [];
-    if (activeVersion.teamId) ragTeamIds.push(activeVersion.teamId);
-    if (activeVersion.includeOrgKnowledge)
-      ragTeamIds.push(`org_${args.organizationId}`);
-
     const hooks = await createCustomAgentHookHandles(
       ctx,
       activeVersion.filePreprocessingEnabled,
@@ -91,7 +86,6 @@ export const chatViaWebhook = internalMutation({
       provider,
       debugTag: `[CustomAgent:webhook:${activeVersion.name}]`,
       enableStreaming: args.enableStreaming ?? true,
-      ragTeamIds,
       hooks,
     });
 

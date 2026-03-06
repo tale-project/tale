@@ -205,7 +205,6 @@ export async function generateAgentResponse(
     streamId,
     promptMessageId,
     maxSteps: _maxSteps,
-    userTeamIds,
   } = args;
 
   const debugLog = createDebugLog(
@@ -308,19 +307,27 @@ export async function generateAgentResponse(
 
     // Start context injection queries (non-blocking) for context/both modes
     let knowledgeContextPromise: Promise<string | undefined> | undefined;
-    if (needsKnowledgeContext && userId && promptMessage) {
-      knowledgeContextPromise = queryRagContext(
-        promptMessage,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        { userId, teamIds: userTeamIds ?? [] },
+    if (needsKnowledgeContext && userId && organizationId && promptMessage) {
+      const accessibleDocIds: string[] = await ctx.runQuery(
+        internal.documents.internal_queries.getAccessibleDocumentIds,
+        { organizationId, userId },
       );
-      debugLog('Knowledge context query started', {
-        threadId,
-        elapsedMs: Date.now() - startTime,
-      });
+      if (accessibleDocIds.length === 0) {
+        debugLog('No accessible RAG documents, skipping knowledge context');
+      } else {
+        knowledgeContextPromise = queryRagContext(
+          promptMessage,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          { documentIds: accessibleDocIds },
+        );
+        debugLog('Knowledge context query started', {
+          threadId,
+          elapsedMs: Date.now() - startTime,
+        });
+      }
     }
 
     let webContextPromise: Promise<string | undefined> | undefined;
@@ -426,7 +433,6 @@ export async function generateAgentResponse(
       ...ctx,
       organizationId,
       threadId,
-      userTeamIds: userTeamIds ?? [],
       variables: { actionDeadlineMs: String(actionDeadline) },
     };
 
@@ -680,7 +686,6 @@ export async function generateAgentResponse(
           ...ctx,
           organizationId,
           threadId,
-          userTeamIds: userTeamIds ?? [],
           variables: { actionDeadlineMs: String(actionDeadline) },
           ...(parentThreadId ? { parentThreadId } : {}),
         };

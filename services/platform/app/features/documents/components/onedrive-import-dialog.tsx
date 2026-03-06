@@ -61,9 +61,9 @@ export function OneDriveImportDialog({
 
   const [stage, setStage] = useState<Stage>('picker');
   const [importType, setImportType] = useState<ImportType>('one-time');
-  const [selectedTeams, setSelectedTeams] = useState<Set<string>>(() =>
-    selectedTeamId ? new Set([selectedTeamId]) : new Set(),
-  );
+  const [selectedTeamId_local, setSelectedTeamId_local] = useState<
+    string | undefined
+  >(() => selectedTeamId ?? undefined);
 
   const [sourceTab, setSourceTab] = useState<SourceTab>('onedrive');
   const [selectedSite, setSelectedSite] = useState<SharePointSite | null>(null);
@@ -88,16 +88,8 @@ export function OneDriveImportDialog({
 
   const { teams, isLoading: isLoadingTeams } = useTeams();
 
-  const handleToggleTeam = useCallback((teamId: string) => {
-    setSelectedTeams((prev) => {
-      const next = new Set(prev);
-      if (next.has(teamId)) {
-        next.delete(teamId);
-      } else {
-        next.add(teamId);
-      }
-      return next;
-    });
+  const handleSelectTeam = useCallback((teamId: string | undefined) => {
+    setSelectedTeamId_local(teamId);
   }, []);
 
   const {
@@ -375,9 +367,6 @@ export function OneDriveImportDialog({
             : t('onedrive.syncingItems', { count: allFiles.length }),
       });
 
-      const teamTags =
-        selectedTeams.size > 0 ? Array.from(selectedTeams) : undefined;
-
       const isSharePoint =
         sourceTab === 'sharepoint' && selectedSite && selectedDrive;
 
@@ -399,7 +388,7 @@ export function OneDriveImportDialog({
         })),
         organizationId,
         importType,
-        teamTags,
+        teamId: selectedTeamId_local,
       });
 
       if (result.success) {
@@ -532,9 +521,9 @@ export function OneDriveImportDialog({
       isImporting,
       teams: teams ?? undefined,
       isLoadingTeams,
-      selectedTeams,
+      selectedTeamId: selectedTeamId_local,
       onImportTypeChange: setImportType,
-      onToggleTeam: handleToggleTeam,
+      onSelectTeam: handleSelectTeam,
       onBack: () => setStage('picker'),
       onImport: handleImport,
     });

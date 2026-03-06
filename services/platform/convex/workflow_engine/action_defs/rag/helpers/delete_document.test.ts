@@ -29,7 +29,7 @@ describe('deleteDocumentById', () => {
     return new URL(fetchSpy.mock.calls[0][0]);
   }
 
-  it('includes team_ids in query params when provided', async () => {
+  it('calls correct URL path', async () => {
     mockFetch({
       success: true,
       deleted_count: 1,
@@ -40,29 +40,10 @@ describe('deleteDocumentById', () => {
     await deleteDocumentById({
       ragServiceUrl: 'http://rag:8000',
       documentId: 'doc-123',
-      teamIds: ['team-a', 'team-b'],
     });
 
     const url = getCalledUrl();
-    expect(url.searchParams.get('team_ids')).toBe('team-a,team-b');
     expect(url.pathname).toBe('/api/v1/documents/doc-123');
-  });
-
-  it('omits team_ids from query params when not provided', async () => {
-    mockFetch({
-      success: true,
-      deleted_count: 0,
-      deleted_data_ids: [],
-      message: 'No docs found',
-    });
-
-    await deleteDocumentById({
-      ragServiceUrl: 'http://rag:8000',
-      documentId: 'doc-456',
-    });
-
-    const url = getCalledUrl();
-    expect(url.searchParams.has('team_ids')).toBe(false);
   });
 
   it('returns parsed result on success', async () => {
@@ -77,7 +58,6 @@ describe('deleteDocumentById', () => {
     const result = await deleteDocumentById({
       ragServiceUrl: 'http://rag:8000',
       documentId: 'doc-abc',
-      teamIds: ['team-x'],
     });
 
     expect(result.success).toBe(true);
@@ -87,7 +67,7 @@ describe('deleteDocumentById', () => {
   });
 
   it('returns error result on HTTP failure', async () => {
-    mockFetch({ detail: 'team_id required' }, 400);
+    mockFetch({ detail: 'not found' }, 400);
 
     const result = await deleteDocumentById({
       ragServiceUrl: 'http://rag:8000',
@@ -104,7 +84,6 @@ describe('deleteDocumentById', () => {
     await deleteDocumentById({
       ragServiceUrl: 'http://rag:8000',
       documentId: 'doc/with spaces',
-      teamIds: ['team-a'],
     });
 
     expect(fetchSpy.mock.calls[0][0]).toContain('doc%2Fwith%20spaces');
