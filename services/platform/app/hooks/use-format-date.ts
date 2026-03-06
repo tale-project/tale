@@ -28,6 +28,14 @@ export function useFormatDate() {
     [],
   );
 
+  const timezoneShort = useMemo(
+    () =>
+      new Intl.DateTimeFormat(locale, { timeZoneName: 'short' })
+        .formatToParts(new Date())
+        .find((p) => p.type === 'timeZoneName')?.value ?? timezone,
+    [locale, timezone],
+  );
+
   const todayLabel = t('dates.today');
   const yesterdayLabel = t('dates.yesterday');
 
@@ -91,6 +99,7 @@ export function useFormatDate() {
       formatRelative,
       locale,
       timezone,
+      timezoneShort,
     }),
     [
       formatDateWithLocale,
@@ -99,6 +108,7 @@ export function useFormatDate() {
       formatRelative,
       locale,
       timezone,
+      timezoneShort,
     ],
   );
 }

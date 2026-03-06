@@ -39,7 +39,7 @@ export const CopyableTimestamp = React.memo(function CopyableTimestamp({
   emptyText = '—',
   alignRight = false,
 }: CopyableTimestampProps) {
-  const { formatDate, timezone } = useFormatDate();
+  const { formatDate, timezone, timezoneShort } = useFormatDate();
   const { t: tCommon } = useT('common');
 
   if (date === null || date === undefined) {
@@ -62,7 +62,10 @@ export const CopyableTimestamp = React.memo(function CopyableTimestamp({
       : date;
 
   const timestampMs = String(dateObj.valueOf());
-  const formatted = formatDate(dateObj, preset);
+  const showTimezone = preset === 'long' || preset === 'time';
+  const formatted = showTimezone
+    ? `${formatDate(dateObj, preset)} ${timezoneShort}`
+    : formatDate(dateObj, preset);
   const titleText = `${formatDate(dateObj, 'long')} (${timezone})`;
 
   return (
