@@ -199,7 +199,7 @@ async def _record_failure(
                 INSERT INTO {SCHEMA}.documents (document_id, filename, team_id, user_id, status, error)
                 VALUES ($1, $2, $3, $4, 'failed', $5)
                 ON CONFLICT (document_id, COALESCE(team_id, ''), COALESCE(user_id, ''))
-                DO UPDATE SET status = 'failed', error = EXCLUDED.error, updated_at = NOW()
+                DO UPDATE SET status = 'failed', error = EXCLUDED.error, chunks_count = 0, updated_at = NOW()
                 """,
                 document_id,
                 filename,

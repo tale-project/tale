@@ -236,6 +236,18 @@ export const checkRagDocumentStatus = internalAction({
         signal: AbortSignal.timeout(10000),
       });
 
+      if (response.status === 429) {
+        console.warn(
+          `[checkRagDocumentStatus] Rate limited (attempt ${args.attempt}/${maxAttempts})`,
+        );
+        await ctx.scheduler.runAfter(
+          getPollingInterval(args.attempt),
+          internal.documents.internal_actions.checkRagDocumentStatus,
+          { documentId: args.documentId, attempt: args.attempt + 1 },
+        );
+        return null;
+      }
+
       if (response.status >= 400 && response.status < 500) {
         console.error(
           `[checkRagDocumentStatus] RAG returned ${response.status} for ${args.documentId}, not retrying`,
@@ -265,7 +277,13 @@ export const checkRagDocumentStatus = internalAction({
         return null;
       }
 
-      const body: unknown = await response.json();
+      let body: unknown;
+      try {
+        body = await response.json();
+      } catch {
+        throw new Error('RAG returned non-JSON response');
+      }
+
       if (!isRecord(body)) {
         throw new Error('Invalid response shape from RAG statuses endpoint');
       }
