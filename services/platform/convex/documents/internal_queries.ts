@@ -43,10 +43,12 @@ export const getDocumentsForRagSync = internalQuery({
     documentIds: v.array(v.id('documents')),
   },
   handler: async (ctx, args) => {
-    const docs = [];
+    const results = await Promise.all(
+      args.documentIds.map((id) => ctx.db.get(id)),
+    );
 
-    for (const id of args.documentIds) {
-      const doc = await ctx.db.get(id);
+    const docs = [];
+    for (const doc of results) {
       if (!doc?.ragInfo) continue;
       const { status } = doc.ragInfo;
       if (

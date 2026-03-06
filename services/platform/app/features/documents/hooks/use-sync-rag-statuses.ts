@@ -15,18 +15,25 @@ export function useSyncRagStatuses(
     api.documents.actions.syncRagStatuses,
   );
 
-  const hasSynced = useRef(false);
+  const syncRef = useRef(syncRagStatuses);
+  syncRef.current = syncRagStatuses;
 
   useEffect(() => {
     if (documentIds.length === 0) return;
-    if (hasSynced.current) return;
 
     const key = `rag-sync-${organizationId}`;
     const lastSync = sessionStorage.getItem(key);
     if (lastSync && Date.now() - Number(lastSync) < SYNC_INTERVAL_MS) return;
 
-    hasSynced.current = true;
     sessionStorage.setItem(key, String(Date.now()));
-    syncRagStatuses({ documentIds });
-  }, [organizationId, documentIds, syncRagStatuses]);
+    syncRef.current(
+      { documentIds },
+      {
+        onError: (error) => {
+          console.warn('[useSyncRagStatuses] Sync failed:', error);
+          sessionStorage.removeItem(key);
+        },
+      },
+    );
+  }, [organizationId, documentIds]);
 }

@@ -7,6 +7,7 @@ import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
 import { authComponent } from '../auth';
 import { getRagConfig } from '../lib/helpers/rag_config';
+import { checkUserRateLimit } from '../lib/rate_limiter/helpers';
 import { ragAction } from '../workflow_engine/action_defs/rag/rag_action';
 import { computeStatusUpdates } from './compute_status_updates';
 
@@ -57,6 +58,7 @@ export const retryRagIndexing = action({
 });
 
 const BATCH_SIZE = 200;
+const MAX_DOCUMENT_IDS = 500;
 const PER_BATCH_TIMEOUT_MS = 10_000;
 const TOTAL_TIMEOUT_MS = 30_000;
 
@@ -66,28 +68,33 @@ export const syncRagStatuses = action({
   },
   returns: v.object({
     synced: v.number(),
+    failed: v.number(),
     error: v.optional(v.string()),
   }),
   handler: async (ctx, args) => {
     try {
       const authUser = await authComponent.getAuthUser(ctx);
       if (!authUser) {
-        return { synced: 0, error: 'Unauthenticated' };
+        return { synced: 0, failed: 0, error: 'Unauthenticated' };
       }
 
+      await checkUserRateLimit(ctx, 'file:rag-sync', authUser._id);
+
+      const cappedIds = args.documentIds.slice(0, MAX_DOCUMENT_IDS);
       const documents = await ctx.runQuery(
         internal.documents.internal_queries.getDocumentsForRagSync,
-        { documentIds: args.documentIds },
+        { documentIds: cappedIds },
       );
 
       if (documents.length === 0) {
-        return { synced: 0 };
+        return { synced: 0, failed: 0 };
       }
 
       const ragUrl = getRagConfig().serviceUrl;
       const now = Date.now();
       const startTime = now;
       let totalUpdates = 0;
+      let failedBatches = 0;
 
       const allStatuses: Record<
         string,
@@ -99,6 +106,7 @@ export const syncRagStatuses = action({
           console.warn(
             '[syncRagStatuses] Total timeout reached, aborting remaining batches',
           );
+          failedBatches += Math.ceil((documents.length - i) / BATCH_SIZE);
           break;
         }
 
@@ -117,6 +125,7 @@ export const syncRagStatuses = action({
             console.warn(
               `[syncRagStatuses] RAG returned ${response.status}, skipping batch`,
             );
+            failedBatches++;
             continue;
           }
 
@@ -125,6 +134,7 @@ export const syncRagStatuses = action({
             console.warn(
               '[syncRagStatuses] Invalid response shape, skipping batch',
             );
+            failedBatches++;
             continue;
           }
 
@@ -140,6 +150,7 @@ export const syncRagStatuses = action({
           }
         } catch (batchError) {
           console.warn('[syncRagStatuses] Batch fetch failed:', batchError);
+          failedBatches++;
           continue;
         }
       }
@@ -147,7 +158,7 @@ export const syncRagStatuses = action({
       const updates = computeStatusUpdates(documents, allStatuses, now);
 
       if (updates.length === 0) {
-        return { synced: 0 };
+        return { synced: 0, failed: failedBatches };
       }
 
       for (let i = 0; i < updates.length; i += BATCH_SIZE) {
@@ -159,11 +170,12 @@ export const syncRagStatuses = action({
         totalUpdates += batch.length;
       }
 
-      return { synced: totalUpdates };
+      return { synced: totalUpdates, failed: failedBatches };
     } catch (error) {
       console.error('[syncRagStatuses] Error:', error);
       return {
         synced: 0,
+        failed: 0,
         error: error instanceof Error ? error.message : 'Sync failed',
       };
     }

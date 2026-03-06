@@ -79,11 +79,12 @@ export function computeStatusUpdates(
       convexStatus === 'running' &&
       now - doc._creationTime > PROCESSING_TIMEOUT_MS
     ) {
+      const elapsed = Math.round((now - doc._creationTime) / (60 * 60 * 1000));
       updates.push({
         documentId: doc._id,
         ragInfo: {
           status: 'failed',
-          error: 'Processing timed out',
+          error: `Processing timed out after ${elapsed}h`,
         },
       });
     } else if (

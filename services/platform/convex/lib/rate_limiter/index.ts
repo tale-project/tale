@@ -96,6 +96,11 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 10,
     period: MINUTE,
   },
+  'file:rag-sync': {
+    kind: 'fixed window',
+    rate: 2,
+    period: MINUTE,
+  },
   'file:generate-document': {
     kind: 'fixed window',
     rate: 20,

@@ -49,7 +49,8 @@ export const batchUpdateDocumentsRagInfo = internalMutation({
     await Promise.all(
       args.updates.map(async ({ documentId, ragInfo }) => {
         const doc = await ctx.db.get(documentId);
-        if (!doc) return;
+        if (!doc?.ragInfo) return;
+        if (doc.ragInfo.status === ragInfo.status) return;
         await ctx.db.patch(documentId, { ragInfo });
       }),
     );

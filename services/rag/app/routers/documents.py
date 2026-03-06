@@ -175,7 +175,7 @@ async def _insert_processing_rows(
                 INSERT INTO {SCHEMA}.documents (document_id, filename, team_id, user_id, status)
                 VALUES ($1, $2, $3, $4, 'processing')
                 ON CONFLICT (document_id, COALESCE(team_id, ''), COALESCE(user_id, ''))
-                DO UPDATE SET status = 'processing', error = NULL, updated_at = NOW()
+                DO UPDATE SET status = 'processing', error = NULL, chunks_count = 0, updated_at = NOW()
                 """,
                 document_id,
                 filename,

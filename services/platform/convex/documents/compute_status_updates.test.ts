@@ -101,7 +101,7 @@ describe('computeStatusUpdates', () => {
     expect(updates).toEqual([
       {
         documentId: docId('d1'),
-        ragInfo: { status: 'failed', error: 'Processing timed out' },
+        ragInfo: { status: 'failed', error: 'Processing timed out after 25h' },
       },
     ]);
   });

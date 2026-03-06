@@ -18,7 +18,6 @@ export const sourceModeValidator = v.union(
 );
 
 export const ragStatusValidator = v.union(
-  v.literal('pending'),
   v.literal('queued'),
   v.literal('running'),
   v.literal('completed'),

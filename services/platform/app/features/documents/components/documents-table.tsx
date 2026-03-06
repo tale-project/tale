@@ -217,6 +217,23 @@ export function DocumentsTable({
         <BreadcrumbNavigation currentFolderPath={currentFolderPath} />
       )}
 
+      <div
+        className="sr-only"
+        role="status"
+        aria-live="polite"
+        aria-atomic="false"
+      >
+        {filteredResults
+          .filter(
+            (d) => d.ragStatus === 'completed' || d.ragStatus === 'failed',
+          )
+          .map((d) => (
+            <span key={d.id}>
+              {d.name} {d.ragStatus}
+            </span>
+          ))}
+      </div>
+
       <DataTable
         columns={columns}
         onRowClick={handleRowClick}
