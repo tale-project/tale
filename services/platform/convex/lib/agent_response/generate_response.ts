@@ -308,14 +308,18 @@ export async function generateAgentResponse(
 
     // Start context injection queries (non-blocking) for context/both modes
     let knowledgeContextPromise: Promise<string | undefined> | undefined;
-    if (needsKnowledgeContext && userId && promptMessage) {
+    if (needsKnowledgeContext && userId && organizationId && promptMessage) {
+      const accessibleDocIds: string[] = await ctx.runQuery(
+        internal.documents.internal_queries.getAccessibleDocumentIds,
+        { organizationId, userTeamIds: userTeamIds ?? [] },
+      );
       knowledgeContextPromise = queryRagContext(
         promptMessage,
         undefined,
         undefined,
         undefined,
         undefined,
-        { userId, teamIds: userTeamIds ?? [] },
+        { userId, documentIds: accessibleDocIds },
       );
       debugLog('Knowledge context query started', {
         threadId,

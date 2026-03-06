@@ -12,7 +12,7 @@ export const onedriveSyncConfigsTable = defineTable({
   itemPath: v.optional(v.string()),
   targetBucket: v.string(),
   storagePrefix: v.optional(v.string()),
-  teamTags: v.optional(v.array(v.string())),
+  teamId: v.optional(v.string()),
   status: v.union(
     v.literal('active'),
     v.literal('inactive'),

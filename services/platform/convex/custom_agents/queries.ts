@@ -83,8 +83,7 @@ export const listCustomAgents = query({
         if (
           args.filterTeamId &&
           agent.teamId &&
-          agent.teamId !== args.filterTeamId &&
-          !agent.sharedWithTeamIds?.includes(args.filterTeamId)
+          agent.teamId !== args.filterTeamId
         ) {
           continue;
         }
@@ -105,8 +104,7 @@ export const listCustomAgents = query({
       if (
         args.filterTeamId &&
         agent.teamId &&
-        agent.teamId !== args.filterTeamId &&
-        !agent.sharedWithTeamIds?.includes(args.filterTeamId)
+        agent.teamId !== args.filterTeamId
       ) {
         continue;
       }

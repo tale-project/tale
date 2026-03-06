@@ -26,7 +26,6 @@ function createMockDraftAgent(
     modelPreset: 'standard',
     includeOrgKnowledge: true,
     teamId: 'team_1',
-    sharedWithTeamIds: [],
     createdBy: 'user_1',
     versionNumber: 1,
     status: 'draft',

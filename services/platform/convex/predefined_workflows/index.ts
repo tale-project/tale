@@ -5,20 +5,16 @@ import circulySyncProducts from './circuly_sync_products';
 import circulySyncSubscriptions from './circuly_sync_subscriptions';
 import conversationAutoArchive from './conversation_auto_archive';
 import conversationSync from './conversation_sync';
-import customerRagSync from './customer_rag_sync';
 import documentRagSync from './document_rag_sync';
 import generalCustomerStatusAssessment from './general_customer_status_assessment';
 import generalProductRecommendation from './general_product_recommendation';
 import loopiCustomerStatusAssessment from './loopi_customer_status_assessment';
 import loopiProductRecommendation from './loopi_product_recommendation';
 import onedriveSync from './onedrive_sync';
-import productRagSync from './product_rag_sync';
 import productRecommendationEmail from './product_recommendation_email';
 import productRelationshipAnalysis from './product_relationship_analysis';
 import shopifySyncCustomers from './shopify_sync_customers';
 import shopifySyncProducts from './shopify_sync_products';
-import workflowRagSync from './workflow_rag_sync';
-
 // Dynamic Orchestration Examples
 // (examples directory removed)
 
@@ -35,10 +31,7 @@ export const workflows = {
   generalCustomerStatusAssessment,
 
   documentRagSync,
-  productRagSync,
-  customerRagSync,
   onedriveSync,
-  workflowRagSync,
   conversationAutoArchive,
   conversationSync,
   loopiCustomerStatusAssessment,

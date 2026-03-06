@@ -20,6 +20,17 @@ import pytest
 pytestmark = pytest.mark.asyncio
 
 
+@pytest.fixture(autouse=True)
+def _no_cross_scope_clone():
+    """Disable cross-scope clone lookup by default so existing tests are unaffected."""
+    with patch(
+        "app.services.indexing_service.find_existing_by_hash",
+        new_callable=AsyncMock,
+        return_value=None,
+    ):
+        yield
+
+
 @dataclass
 class ContentChunk:
     """Local stub matching tale_knowledge.chunking.ContentChunk interface."""
@@ -74,7 +85,6 @@ def _async_ctx(mock_conn):
 SAMPLE_CONTENT = b"Hello, this is a sample document with enough text to chunk."
 SAMPLE_FILENAME = "test.txt"
 SAMPLE_DOC_ID = "doc-123"
-SAMPLE_TEAM_ID = "team-abc"
 SAMPLE_USER_ID = "user-xyz"
 SAMPLE_HASH = "abcdef1234567890"
 DIFFERENT_HASH = "ffffffffffffffff"
@@ -115,7 +125,6 @@ class TestSuccessfulIndexing:
                 SAMPLE_DOC_ID,
                 SAMPLE_CONTENT,
                 SAMPLE_FILENAME,
-                team_id=SAMPLE_TEAM_ID,
                 user_id=SAMPLE_USER_ID,
                 embedding_service=mock_embed,
             )
@@ -171,7 +180,6 @@ class TestSuccessfulIndexing:
                 SAMPLE_DOC_ID,
                 SAMPLE_CONTENT,
                 SAMPLE_FILENAME,
-                team_id=SAMPLE_TEAM_ID,
                 embedding_service=mock_embed,
             )
 
@@ -263,7 +271,6 @@ class TestContentHashDedup:
                 SAMPLE_DOC_ID,
                 SAMPLE_CONTENT,
                 SAMPLE_FILENAME,
-                team_id=SAMPLE_TEAM_ID,
                 embedding_service=mock_embed,
             )
 
@@ -306,7 +313,6 @@ class TestContentHashDedup:
                 SAMPLE_DOC_ID,
                 SAMPLE_CONTENT,
                 SAMPLE_FILENAME,
-                team_id=SAMPLE_TEAM_ID,
                 embedding_service=mock_embed,
             )
 
@@ -363,7 +369,6 @@ class TestExplicitChunkDeletion:
                 SAMPLE_DOC_ID,
                 SAMPLE_CONTENT,
                 SAMPLE_FILENAME,
-                team_id=SAMPLE_TEAM_ID,
                 embedding_service=mock_embed,
             )
 
@@ -399,7 +404,6 @@ class TestExplicitChunkDeletion:
                 SAMPLE_DOC_ID,
                 SAMPLE_CONTENT,
                 SAMPLE_FILENAME,
-                team_id=SAMPLE_TEAM_ID,
                 embedding_service=mock_embed,
             )
 
@@ -599,7 +603,7 @@ class TestHnswIndexSelfHealing:
                 SAMPLE_DOC_ID,
                 SAMPLE_FILENAME,
                 prepared,
-                team_id=SAMPLE_TEAM_ID,
+                user_id=SAMPLE_USER_ID,
             )
 
         assert result["success"] is True
@@ -637,7 +641,7 @@ class TestHnswIndexSelfHealing:
                     SAMPLE_DOC_ID,
                     SAMPLE_FILENAME,
                     prepared,
-                    team_id=SAMPLE_TEAM_ID,
+                    user_id=SAMPLE_USER_ID,
                 )
 
     async def test_non_hnsw_internal_error_not_retried(self):
@@ -665,8 +669,185 @@ class TestHnswIndexSelfHealing:
                     SAMPLE_DOC_ID,
                     SAMPLE_FILENAME,
                     prepared,
-                    team_id=SAMPLE_TEAM_ID,
+                    user_id=SAMPLE_USER_ID,
                 )
 
         reindex_calls = [c for c in mock_conn.execute.call_args_list if "REINDEX" in str(c)]
         assert len(reindex_calls) == 0
+
+
+class TestCrossHashClone:
+    """Cross-scope content hash dedup: clone chunks from existing document."""
+
+    @pytest.fixture(autouse=True)
+    def _no_cross_scope_clone(self):
+        """Override the module-level autouse fixture so clone functions are not patched."""
+        yield
+
+    async def test_find_existing_by_hash_returns_id_when_found(self):
+        from app.services.indexing_service import find_existing_by_hash
+
+        pool, mock_conn = _mock_pool()
+        mock_conn.fetchrow = AsyncMock(return_value={"id": 42})
+
+        with _patch_acquire(mock_conn):
+            result = await find_existing_by_hash(pool, SAMPLE_HASH)
+
+        assert result == 42
+
+    async def test_find_existing_by_hash_returns_none_when_not_found(self):
+        from app.services.indexing_service import find_existing_by_hash
+
+        pool, mock_conn = _mock_pool()
+        mock_conn.fetchrow = AsyncMock(return_value=None)
+
+        with _patch_acquire(mock_conn):
+            result = await find_existing_by_hash(pool, SAMPLE_HASH)
+
+        assert result is None
+
+    async def test_clone_skips_when_target_has_same_hash(self):
+        from app.services.indexing_service import clone_from_existing
+
+        pool, mock_conn = _mock_pool()
+        mock_conn.fetchrow = AsyncMock(return_value={"id": "existing-target-uuid", "content_hash": SAMPLE_HASH})
+
+        with _patch_acquire(mock_conn):
+            result = await clone_from_existing(
+                pool,
+                42,
+                SAMPLE_DOC_ID,
+                SAMPLE_FILENAME,
+                SAMPLE_HASH,
+                user_id="user-new",
+            )
+
+        assert result["skipped"] is True
+        assert result["skip_reason"] == "content_unchanged"
+
+    async def test_clone_copies_chunks_from_source(self):
+        from app.services.indexing_service import clone_from_existing
+
+        pool, mock_conn = _mock_pool()
+        # fetchrow calls: 1) dedup check → None, 2) source check → exists, 3) INSERT doc → id
+        mock_conn.fetchrow = AsyncMock(
+            side_effect=[
+                None,
+                {"chunks_count": 5},
+                {"id": "new-uuid"},
+            ]
+        )
+        mock_conn.fetchval = AsyncMock(return_value=5)
+
+        with _patch_acquire(mock_conn):
+            result = await clone_from_existing(
+                pool,
+                42,
+                SAMPLE_DOC_ID,
+                SAMPLE_FILENAME,
+                SAMPLE_HASH,
+                user_id="user-new",
+            )
+
+        assert result["success"] is True
+        assert result["chunks_created"] == 5
+        assert result["skipped"] is False
+
+    async def test_clone_returns_none_when_source_vanished(self):
+        from app.services.indexing_service import clone_from_existing
+
+        pool, mock_conn = _mock_pool()
+        # fetchrow calls: 1) dedup check → None, 2) source check → None (deleted)
+        mock_conn.fetchrow = AsyncMock(side_effect=[None, None])
+
+        with _patch_acquire(mock_conn):
+            result = await clone_from_existing(
+                pool,
+                42,
+                SAMPLE_DOC_ID,
+                SAMPLE_FILENAME,
+                SAMPLE_HASH,
+                user_id="user-new",
+            )
+
+        assert result is None
+
+    async def test_index_document_uses_clone_when_hash_exists(self):
+        """index_document should clone instead of extracting when hash match found."""
+        from app.services.indexing_service import index_document
+
+        pool, mock_conn = _mock_pool(existing_row=None)
+        mock_embed = AsyncMock()
+
+        with (
+            _patch_acquire(mock_conn),
+            patch(
+                "app.services.indexing_service.find_existing_by_hash",
+                new_callable=AsyncMock,
+                return_value=99,
+            ),
+            patch(
+                "app.services.indexing_service.clone_from_existing",
+                new_callable=AsyncMock,
+                return_value={
+                    "success": True,
+                    "document_id": SAMPLE_DOC_ID,
+                    "chunks_created": 3,
+                    "skipped": False,
+                    "skip_reason": None,
+                },
+            ) as mock_clone,
+            patch("app.services.indexing_service.compute_content_hash", return_value=SAMPLE_HASH),
+            patch("app.services.indexing_service.extract_text", new_callable=AsyncMock) as mock_extract,
+        ):
+            result = await index_document(
+                pool,
+                SAMPLE_DOC_ID,
+                SAMPLE_CONTENT,
+                SAMPLE_FILENAME,
+                embedding_service=mock_embed,
+            )
+
+        assert result["chunks_created"] == 3
+        mock_clone.assert_awaited_once()
+        mock_extract.assert_not_awaited()
+
+    async def test_index_document_falls_back_when_clone_returns_none(self):
+        """If clone source vanishes, fall back to full processing."""
+        from app.services.indexing_service import index_document
+
+        pool, mock_conn = _mock_pool(existing_row=None)
+        mock_embed = AsyncMock()
+        mock_embed.embed_texts = AsyncMock(return_value=SAMPLE_EMBEDDINGS)
+
+        with (
+            _patch_acquire(mock_conn),
+            patch(
+                "app.services.indexing_service.find_existing_by_hash",
+                new_callable=AsyncMock,
+                return_value=99,
+            ),
+            patch(
+                "app.services.indexing_service.clone_from_existing",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch("app.services.indexing_service.compute_content_hash", return_value=SAMPLE_HASH),
+            patch(
+                "app.services.indexing_service.extract_text",
+                new_callable=AsyncMock,
+                return_value=("Extracted text", False),
+            ),
+            patch("app.services.indexing_service.chunk_content", return_value=SAMPLE_CHUNKS),
+        ):
+            result = await index_document(
+                pool,
+                SAMPLE_DOC_ID,
+                SAMPLE_CONTENT,
+                SAMPLE_FILENAME,
+                embedding_service=mock_embed,
+            )
+
+        assert result["success"] is True
+        assert result["chunks_created"] == 2
+        assert result["skipped"] is False

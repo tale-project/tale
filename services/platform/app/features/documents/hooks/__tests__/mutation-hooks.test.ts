@@ -78,18 +78,18 @@ describe('useUpdateDocument', () => {
     expect(result).toHaveProperty('isPending');
   });
 
-  it('calls mutation with documentId and teamTags', async () => {
+  it('calls mutation with documentId and teamId', async () => {
     mockMutateAsync.mockResolvedValueOnce(undefined);
     const { mutateAsync: updateDocument } = useUpdateDocument();
 
     await updateDocument({
       documentId: toId<'documents'>('doc-123'),
-      teamTags: ['team-1', 'team-2'],
+      teamId: 'team-1',
     });
 
     expect(mockMutateAsync).toHaveBeenCalledWith({
       documentId: toId<'documents'>('doc-123'),
-      teamTags: ['team-1', 'team-2'],
+      teamId: 'team-1',
     });
   });
 
@@ -111,7 +111,7 @@ describe('useUpdateDocument', () => {
     await expect(
       updateDocument({
         documentId: toId<'documents'>('doc-789'),
-        teamTags: ['team-1'],
+        teamId: 'team-1',
       }),
     ).rejects.toThrow('Update failed');
   });

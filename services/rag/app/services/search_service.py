@@ -1,7 +1,7 @@
 """Hybrid search service for the RAG pipeline.
 
 BM25 full-text (pg_search) + pgvector similarity with RRF fusion.
-Multi-tenant filtering via WHERE team_id/user_id.
+Scoping via document_ids and/or user_id.
 """
 
 from __future__ import annotations
@@ -30,15 +30,15 @@ class RagSearchService:
         self,
         query: str,
         *,
-        team_ids: list[str] | None = None,
+        document_ids: list[str] | None = None,
         user_id: str | None = None,
         top_k: int = 10,
     ) -> list[dict[str, Any]]:
-        """Hybrid BM25 + vector search with tenant filtering.
+        """Hybrid BM25 + vector search with document/user scoping.
 
         Args:
             query: Search query text.
-            team_ids: Optional team IDs to filter by.
+            document_ids: Optional document IDs to restrict search to.
             user_id: Optional user ID to filter by.
             top_k: Maximum number of results to return.
 
@@ -48,10 +48,10 @@ class RagSearchService:
         query_embedding: list[float] | None = None
         try:
             embedding_task = asyncio.create_task(self._embedding.embed_query(query))
-            fts_task = asyncio.create_task(self._fts_search(query, team_ids, user_id, top_k * 3))
+            fts_task = asyncio.create_task(self._fts_search(query, document_ids, user_id, top_k * 3))
 
             query_embedding, fts_results = await asyncio.gather(embedding_task, fts_task)
-            vector_results = await self._vector_search(query_embedding, team_ids, user_id, top_k * 3)
+            vector_results = await self._vector_search(query_embedding, document_ids, user_id, top_k * 3)
 
             if not fts_results and not vector_results:
                 return []
@@ -87,7 +87,7 @@ class RagSearchService:
 
                 if query_embedding is None:
                     query_embedding = await self._embedding.embed_query(query)
-                vector_results = await self._vector_search(query_embedding, team_ids, user_id, top_k)
+                vector_results = await self._vector_search(query_embedding, document_ids, user_id, top_k)
                 return [
                     {
                         "content": item["chunk_content"],
@@ -98,18 +98,18 @@ class RagSearchService:
                 ]
             raise
 
-    def _build_tenant_clause(
-        self, team_ids: list[str] | None, user_id: str | None, param_offset: int
+    def _build_scope_clause(
+        self, document_ids: list[str] | None, user_id: str | None, param_offset: int
     ) -> tuple[str, list[Any]]:
-        """Build WHERE clause for tenant filtering."""
+        """Build WHERE clause for document/user scoping."""
         conditions: list[str] = []
         params: list[Any] = []
         idx = param_offset
 
-        if team_ids:
+        if document_ids:
             idx += 1
-            conditions.append(f"team_id = ANY(${idx})")
-            params.append(team_ids)
+            conditions.append(f"document_id IN (SELECT id FROM {SCHEMA}.documents WHERE document_id = ANY(${idx}))")
+            params.append(document_ids)
         if user_id:
             idx += 1
             conditions.append(f"user_id = ${idx}")
@@ -133,11 +133,11 @@ class RagSearchService:
     async def _fts_search(
         self,
         query: str,
-        team_ids: list[str] | None,
+        document_ids: list[str] | None,
         user_id: str | None,
         limit: int,
     ) -> list[dict[str, Any]]:
-        tenant_clause, tenant_params = self._build_tenant_clause(team_ids, user_id, 1)
+        tenant_clause, tenant_params = self._build_scope_clause(document_ids, user_id, 1)
 
         sql = f"""
             SELECT id, chunk_content, chunk_index, document_id,
@@ -166,12 +166,12 @@ class RagSearchService:
     async def _vector_search(
         self,
         embedding: list[float],
-        team_ids: list[str] | None,
+        document_ids: list[str] | None,
         user_id: str | None,
         limit: int,
     ) -> list[dict[str, Any]]:
         vec_str = json.dumps(embedding)
-        tenant_clause, tenant_params = self._build_tenant_clause(team_ids, user_id, 1)
+        tenant_clause, tenant_params = self._build_scope_clause(document_ids, user_id, 1)
 
         sql = f"""
             SELECT id, chunk_content, chunk_index, document_id,

@@ -12,7 +12,6 @@ from tale_shared.db import acquire_with_retry
 
 from ..config import settings
 from ..models import (
-    DocumentAddRequest,
     DocumentAddResponse,
     DocumentContentResponse,
     DocumentDeleteResponse,
@@ -24,7 +23,6 @@ from ..secret_scanner import scan_file_for_secrets
 from ..services.database import SCHEMA, get_pool
 from ..services.rag_service import rag_service
 from ..utils import cleanup_memory
-from ..utils.sanitize import sanitize_team_id
 
 router = APIRouter(prefix="/api/v1", tags=["Documents"])
 
@@ -117,118 +115,67 @@ SUPPORTED_EXTENSIONS = {
 }
 
 
-def _parse_team_ids(team_ids: str | None, *, required: bool = False) -> list[str] | None:
-    """Parse and sanitize comma-separated team IDs."""
-    if not team_ids:
-        if required:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="At least one valid team_id is required",
-            )
-        return None
-
-    result: list[str] = []
-    for tid in team_ids.split(","):
-        tid = tid.strip()
-        if tid:
-            try:
-                sanitized = sanitize_team_id(tid)
-                if sanitized:
-                    result.append(sanitized)
-            except ValueError:
-                continue
-
-    if not result:
-        if required:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="At least one valid team_id is required",
-            )
-        return None
-
-    return result
-
-
-def _build_target_scopes(user_id: str | None, team_ids: list[str] | None) -> list[tuple[str | None, str | None]]:
-    """Build (team_id, user_id) tuples matching rag_service.add_document logic."""
-    targets: list[tuple[str | None, str | None]] = []
-    if user_id:
-        targets.append((None, user_id))
-    if team_ids:
-        targets.extend((tid, None) for tid in team_ids)
-    if not targets:
-        targets.append((None, None))
-    return targets
-
-
-async def _insert_processing_rows(
+async def _insert_processing_row(
     document_id: str,
     filename: str,
-    targets: list[tuple[str | None, str | None]],
+    user_id: str | None = None,
 ) -> None:
-    """Insert processing status rows at ingestion start."""
+    """Insert a processing status row at ingestion start."""
     pool = await get_pool()
     async with acquire_with_retry(pool) as conn:
-        for team_id_val, user_id_val in targets:
-            await conn.execute(
-                f"""
-                INSERT INTO {SCHEMA}.documents (document_id, filename, team_id, user_id, status)
-                VALUES ($1, $2, $3, $4, 'processing')
-                ON CONFLICT (document_id, COALESCE(team_id, ''), COALESCE(user_id, ''))
-                DO UPDATE SET status = 'processing', error = NULL, chunks_count = 0, updated_at = NOW()
-                """,
-                document_id,
-                filename,
-                team_id_val,
-                user_id_val,
-            )
+        await conn.execute(
+            f"""
+            INSERT INTO {SCHEMA}.documents (document_id, filename, user_id, status)
+            VALUES ($1, $2, $3, 'processing')
+            ON CONFLICT (document_id, COALESCE(team_id, ''), COALESCE(user_id, ''))
+            DO UPDATE SET status = 'processing', error = NULL, chunks_count = 0, updated_at = NOW()
+            """,
+            document_id,
+            filename,
+            user_id,
+        )
 
 
 async def _record_failure(
     document_id: str,
     filename: str,
     error: str,
-    targets: list[tuple[str | None, str | None]],
+    user_id: str | None = None,
 ) -> None:
-    """Record failure status in documents table for all target scopes."""
+    """Record failure status in documents table."""
     pool = await get_pool()
     async with acquire_with_retry(pool) as conn:
-        for team_id_val, user_id_val in targets:
-            await conn.execute(
-                f"""
-                INSERT INTO {SCHEMA}.documents (document_id, filename, team_id, user_id, status, error)
-                VALUES ($1, $2, $3, $4, 'failed', $5)
-                ON CONFLICT (document_id, COALESCE(team_id, ''), COALESCE(user_id, ''))
-                DO UPDATE SET status = 'failed', error = EXCLUDED.error, chunks_count = 0, updated_at = NOW()
-                """,
-                document_id,
-                filename,
-                team_id_val,
-                user_id_val,
-                error,
-            )
+        await conn.execute(
+            f"""
+            INSERT INTO {SCHEMA}.documents (document_id, filename, user_id, status, error)
+            VALUES ($1, $2, $3, 'failed', $4)
+            ON CONFLICT (document_id, COALESCE(team_id, ''), COALESCE(user_id, ''))
+            DO UPDATE SET status = 'failed', error = EXCLUDED.error, chunks_count = 0, updated_at = NOW()
+            """,
+            document_id,
+            filename,
+            user_id,
+            error,
+        )
 
 
 async def _mark_completed(
     document_id: str,
-    targets: list[tuple[str | None, str | None]],
+    user_id: str | None = None,
 ) -> None:
-    """Mark document status rows as completed (used when content is unchanged on re-upload)."""
+    """Mark document status as completed (used when content is unchanged on re-upload)."""
     pool = await get_pool()
     async with acquire_with_retry(pool) as conn:
-        for team_id_val, user_id_val in targets:
-            await conn.execute(
-                f"""
-                UPDATE {SCHEMA}.documents
-                SET status = 'completed', error = NULL, updated_at = NOW()
-                WHERE document_id = $1
-                  AND COALESCE(team_id, '') = COALESCE($2, '')
-                  AND COALESCE(user_id, '') = COALESCE($3, '')
-                """,
-                document_id,
-                team_id_val,
-                user_id_val,
-            )
+        await conn.execute(
+            f"""
+            UPDATE {SCHEMA}.documents
+            SET status = 'completed', error = NULL, updated_at = NOW()
+            WHERE document_id = $1
+              AND COALESCE(user_id, '') = COALESCE($2, '')
+            """,
+            document_id,
+            user_id,
+        )
 
 
 def _sanitize_error(exc: Exception, max_length: int = 500) -> str:
@@ -244,21 +191,18 @@ async def _background_ingest(
     document_id: str,
     filename: str,
     user_id: str | None = None,
-    team_ids: list[str] | None = None,
 ) -> None:
     """Run document ingestion in the background, recording status in documents table."""
-    targets = _build_target_scopes(user_id, team_ids)
     try:
-        await _insert_processing_rows(document_id, filename, targets)
+        await _insert_processing_row(document_id, filename, user_id)
         result = await rag_service.add_document(
             content=content,
             document_id=document_id,
             filename=filename,
             user_id=user_id,
-            team_ids=team_ids,
         )
         if result.get("skipped"):
-            await _mark_completed(document_id, targets)
+            await _mark_completed(document_id, user_id)
         logger.info(
             "Background ingestion completed",
             extra={
@@ -274,7 +218,7 @@ async def _background_ingest(
             document_id,
         )
         try:
-            await _record_failure(document_id, filename, _sanitize_error(exc), targets)
+            await _record_failure(document_id, filename, _sanitize_error(exc), user_id)
         except Exception as record_exc:
             logger.critical("Could not record failure for {}: {}", document_id, record_exc)
     finally:
@@ -338,44 +282,6 @@ def _parse_metadata(metadata_str: str | None) -> dict[str, Any]:
     return parsed_value
 
 
-@router.post("/documents", response_model=DocumentAddResponse)
-async def add_document(request: DocumentAddRequest, background_tasks: BackgroundTasks):
-    """Add a text document to the knowledge base.
-
-    Heavy ingestion work is delegated to a background task so callers
-    (including Convex workflows) don't block on processing.
-    """
-    rejected, reason = scan_file_for_secrets(request.content.encode("utf-8"))
-    if rejected:
-        logger.warning(
-            "Text document rejected by secret scanner",
-            extra={"reason": reason},
-        )
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Document rejected: {reason}",
-        )
-
-    doc_id = request.document_id or f"doc-{uuid4().hex}"
-
-    background_tasks.add_task(
-        _background_ingest,
-        request.content.encode("utf-8"),
-        doc_id,
-        f"{doc_id}.txt",
-        request.user_id,
-        request.team_ids,
-    )
-
-    return DocumentAddResponse(
-        success=True,
-        document_id=doc_id,
-        chunks_created=0,
-        message="Document ingestion queued",
-        queued=True,
-    )
-
-
 @router.post("/documents/upload", response_model=DocumentAddResponse)
 async def upload_document(
     background_tasks: BackgroundTasks,
@@ -383,15 +289,12 @@ async def upload_document(
     metadata: str | None = Form(None, description="Optional metadata as JSON string"),
     document_id: str | None = Form(None, description="Optional custom document ID"),
     user_id: str | None = Form(None, description="User ID for multi-tenant isolation"),
-    team_ids: str = Form(..., description="Comma-separated team IDs (required, e.g., 'team1,team2')"),
 ):
     """Upload a file to the knowledge base.
 
     The uploaded file is validated and read into memory during the request,
     but heavy ingestion work is delegated to a background task.
     """
-    team_id_list = _parse_team_ids(team_ids, required=True)
-
     try:
         if not file.filename:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Filename is required")
@@ -421,7 +324,6 @@ async def upload_document(
             doc_id,
             file.filename,
             user_id,
-            team_id_list,
         )
 
         return DocumentAddResponse(
@@ -443,15 +345,10 @@ async def upload_document(
 
 
 @router.delete("/documents/{document_id}", response_model=DocumentDeleteResponse)
-async def delete_document(
-    document_id: str,
-    team_ids: str | None = None,
-):
+async def delete_document(document_id: str):
     """Delete a document from the knowledge base by ID."""
-    team_id_list = _parse_team_ids(team_ids, required=True)
-
     try:
-        result = await rag_service.delete_document(document_id, team_ids=team_id_list)
+        result = await rag_service.delete_document(document_id)
 
         return DocumentDeleteResponse(
             success=result["success"],
@@ -474,21 +371,11 @@ async def get_document_content(
     document_id: str,
     chunk_start: int = Query(default=1, ge=1, description="Start chunk (1-indexed)"),
     chunk_end: int | None = Query(default=None, ge=1, description="End chunk (1-indexed, inclusive)"),
-    team_ids: str | None = Query(default=None, description="Comma-separated team IDs"),
-    user_id: str | None = Query(default=None, description="User ID for private documents"),
 ):
     """Retrieve full document text by reassembling stored chunks.
 
     Use chunk_start/chunk_end to paginate through large documents.
     """
-    team_id_list = _parse_team_ids(team_ids)
-
-    if not team_id_list and not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="At least one of team_ids or user_id is required",
-        )
-
     if chunk_end is not None and chunk_start > chunk_end:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -498,8 +385,6 @@ async def get_document_content(
     try:
         result = await rag_service.get_document_content(
             document_id,
-            team_ids=team_id_list,
-            user_id=user_id,
             chunk_start=chunk_start,
             chunk_end=chunk_end,
         )

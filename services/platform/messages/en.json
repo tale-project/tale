@@ -2282,12 +2282,14 @@
       "reindex": "Reindex"
     },
     "teamTags": {
-      "title": "Manage document teams",
-      "description": "Select which teams can access \"{name}\"",
-      "updated": "Document teams updated",
-      "updateFailed": "Failed to update document teams",
+      "title": "Assign document team",
+      "description": "Choose which team \"{name}\" belongs to",
+      "updated": "Document team updated",
+      "updateFailed": "Failed to update document team",
       "noTeams": "No teams available. Create teams in Settings to enable team-based access control.",
-      "hint": "Documents without any team tags are accessible to all organization members."
+      "selectLabel": "Team",
+      "hint": "Organization-wide documents are accessible to all members.",
+      "orgWide": "Organization-wide"
     },
     "deleteFile": {
       "title": "Delete file",

@@ -99,15 +99,9 @@ export async function listDocumentsPaginated(
   const result = await query.paginate(args.paginationOpts);
 
   const userTeamSet = new Set(args.userTeamIds);
-  const accessibleDocs = result.page.filter((doc: Doc<'documents'>) => {
-    if (doc.teamId !== undefined) {
-      return hasTeamAccess(doc, userTeamSet);
-    }
-    if (doc.teamTags && doc.teamTags.length > 0) {
-      return doc.teamTags.some((tag) => userTeamSet.has(tag));
-    }
-    return true;
-  });
+  const accessibleDocs = result.page.filter((doc: Doc<'documents'>) =>
+    hasTeamAccess(doc, userTeamSet),
+  );
 
   const transformedPage = await transformDocumentsBatch(ctx, accessibleDocs);
 

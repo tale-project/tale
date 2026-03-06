@@ -396,28 +396,10 @@ export const deleteDocumentFromRag = internalAction({
   handler: async (ctx, args): Promise<null> => {
     const ragUrl = getRagConfig().serviceUrl;
 
-    // Look up document for team scoping
-    const document = await ctx.runQuery(
-      internal.documents.internal_queries.getDocumentByIdRaw,
-      { documentId: args.documentId },
-    );
-
-    const teamIds = document?.teamTags?.length
-      ? document.teamTags
-      : document?.organizationId
-        ? [`org_${String(document.organizationId)}`]
-        : [];
-
-    // Step 1: Delete from RAG service first
-    const params = new URLSearchParams();
-    if (teamIds.length > 0) {
-      params.set('team_ids', teamIds.join(','));
-    }
-
     let ragSuccess = false;
     try {
       const response = await fetch(
-        `${ragUrl}/api/v1/documents/${encodeURIComponent(args.documentId)}?${params.toString()}`,
+        `${ragUrl}/api/v1/documents/${encodeURIComponent(args.documentId)}`,
         {
           method: 'DELETE',
           signal: AbortSignal.timeout(60000),
@@ -451,38 +433,12 @@ export const deleteDocumentFromRag = internalAction({
   },
 });
 
-export const reindexDocumentRag = internalAction({
+export const uploadDocumentToRag = internalAction({
   args: {
     documentId: v.id('documents'),
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const ragUrl = getRagConfig().serviceUrl;
-
-    // Step 1: Delete document from RAG
-    try {
-      const deleteResponse = await fetch(
-        `${ragUrl}/api/v1/documents/${encodeURIComponent(args.documentId)}`,
-        {
-          method: 'DELETE',
-          signal: AbortSignal.timeout(60000),
-        },
-      );
-
-      if (!deleteResponse.ok) {
-        const errorText = await deleteResponse.text();
-        console.warn(
-          `[reindexDocumentRag] Failed to delete document ${args.documentId} from RAG: ${deleteResponse.status} ${errorText}`,
-        );
-      }
-    } catch (error) {
-      console.error(
-        `[reindexDocumentRag] Error deleting document ${args.documentId} from RAG:`,
-        error,
-      );
-    }
-
-    // Step 2: Re-upload document with new team_ids
     const rawResult = await ragAction.execute(
       ctx,
       { operation: 'upload_document', recordId: args.documentId },
@@ -495,7 +451,7 @@ export const reindexDocumentRag = internalAction({
 
     if (!success) {
       console.error(
-        `[reindexDocumentRag] Failed to re-upload document ${args.documentId} to RAG`,
+        `[uploadDocumentToRag] Failed to upload document ${args.documentId} to RAG`,
       );
     }
 

@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
 
 import { internalQuery } from '../_generated/server';
+import { getAccessibleDocumentIds as getAccessibleDocumentIdsHelper } from './get_accessible_document_ids';
 import * as DocumentsHelpers from './helpers';
 import { sourceProviderValidator } from './validators';
 
@@ -45,5 +46,15 @@ export const findDocumentByExternalId = internalQuery({
   },
   handler: async (ctx, args) => {
     return await DocumentsHelpers.findDocumentByExternalId(ctx, args);
+  },
+});
+
+export const getAccessibleDocumentIds = internalQuery({
+  args: {
+    organizationId: v.string(),
+    userTeamIds: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    return await getAccessibleDocumentIdsHelper(ctx, args);
   },
 });

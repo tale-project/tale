@@ -16,7 +16,7 @@ export type UpdateDocumentInternalArgs = {
   sourceProvider?: 'onedrive' | 'upload' | 'sharepoint';
   externalItemId?: string;
   contentHash?: string;
-  teamTags?: string[];
+  teamId?: string;
 };
 
 export async function updateDocumentInternal(

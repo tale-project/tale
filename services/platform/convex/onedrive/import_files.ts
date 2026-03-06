@@ -72,7 +72,7 @@ export interface ImportFilesDependencies {
     sourceProvider: 'onedrive' | 'sharepoint';
     externalItemId: string;
     contentHash?: string;
-    teamTags?: string[];
+    teamId?: string;
     metadata?: Record<string, unknown>;
     createdBy?: string;
   }) => Promise<Id<'documents'>>;
@@ -83,7 +83,7 @@ export interface ImportFilesDependencies {
     sourceProvider: 'onedrive' | 'sharepoint';
     externalItemId: string;
     contentHash?: string;
-    teamTags?: string[];
+    teamId?: string;
     metadata?: Record<string, unknown>;
   }) => Promise<void>;
 }
@@ -93,7 +93,7 @@ export async function importFiles(
     items: ImportItem[];
     organizationId: string;
     importType: 'one-time' | 'sync';
-    teamTags?: string[];
+    teamId?: string;
     token: string;
     userId: string;
   },
@@ -194,7 +194,7 @@ export async function importFiles(
           externalItemId: item.id,
           contentHash,
           metadata,
-          teamTags: args.teamTags,
+          teamId: args.teamId,
         });
         documentId = existingDoc._id;
       } else {
@@ -205,7 +205,7 @@ export async function importFiles(
           sourceProvider,
           externalItemId: item.id,
           contentHash,
-          teamTags: args.teamTags,
+          teamId: args.teamId,
           metadata,
           createdBy: args.userId,
         });

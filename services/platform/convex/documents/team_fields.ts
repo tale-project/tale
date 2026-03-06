@@ -1,31 +1,34 @@
 /**
- * Helper to convert teamTags to unified team fields.
+ * Helper to compute legacy teamTags from teamId.
  *
- * Used during the transition from teamTags to teamId + sharedWithTeamIds.
- * Ensures both old and new fields are kept in sync when writing documents.
+ * Used during the transition period to keep the deprecated teamTags field
+ * in sync when writing documents via the new single-team model.
  */
 
-export interface UnifiedTeamFields {
+export interface TeamFields {
   teamId?: string;
+  teamTags?: string[];
   sharedWithTeamIds?: string[];
 }
 
 /**
- * Convert teamTags array to unified teamId + sharedWithTeamIds fields.
+ * Compute all team fields from a single teamId.
  *
- * - undefined / [] → { teamId: undefined, sharedWithTeamIds: undefined } (org-wide)
- * - ['sales'] → { teamId: 'sales', sharedWithTeamIds: undefined }
- * - ['sales', 'marketing'] → { teamId: 'sales', sharedWithTeamIds: ['marketing'] }
+ * - undefined → org-wide (all fields undefined)
+ * - 'sales' → { teamId: 'sales', teamTags: ['sales'], sharedWithTeamIds: undefined }
  */
-export function teamTagsToUnifiedFields(
-  teamTags: string[] | undefined,
-): UnifiedTeamFields {
-  if (!teamTags || teamTags.length === 0) {
-    return { teamId: undefined, sharedWithTeamIds: undefined };
+export function teamIdToFields(teamId: string | undefined): TeamFields {
+  if (!teamId) {
+    return {
+      teamId: undefined,
+      teamTags: undefined,
+      sharedWithTeamIds: undefined,
+    };
   }
 
   return {
-    teamId: teamTags[0],
-    sharedWithTeamIds: teamTags.length > 1 ? teamTags.slice(1) : undefined,
+    teamId,
+    teamTags: [teamId],
+    sharedWithTeamIds: undefined,
   };
 }

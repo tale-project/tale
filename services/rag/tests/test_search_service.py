@@ -2,7 +2,7 @@
 
 Covers:
 - Hybrid search (FTS + vector) with RRF fusion
-- Tenant filtering (team_id, user_id, both, neither)
+- Scope filtering (document_ids, user_id, both, neither)
 - Graceful fallback when BM25 index not ready
 - UndefinedTableError / UndefinedColumnError handling
 - Empty results from both search channels
@@ -107,7 +107,7 @@ class TestHybridSearch:
             service._fts_search = AsyncMock(return_value=fts_rows)
             service._vector_search = AsyncMock(return_value=vector_rows)
 
-            results = await service.search("test query", team_ids=["team-1"])
+            results = await service.search("test query", document_ids=["doc-1"])
 
         assert len(results) > 0
         for r in results:
@@ -174,86 +174,87 @@ class TestHybridSearch:
         embed_svc.embed_query.assert_awaited_once_with("my search query")
 
 
-class TestTenantFiltering:
-    """Tenant clause construction and parameter passing."""
+class TestScopeFiltering:
+    """Scope clause construction and parameter passing."""
 
-    def test_build_tenant_clause_team_ids_only(self):
+    def test_build_scope_clause_document_ids_only(self):
         from app.services.search_service import RagSearchService
 
         pool = MagicMock()
         embed = MagicMock()
         service = RagSearchService(pool, embed)
 
-        clause, params = service._build_tenant_clause(["team-a", "team-b"], None, 1)
+        clause, params = service._build_scope_clause(["doc-a", "doc-b"], None, 1)
 
-        assert "team_id = ANY($2)" in clause
-        assert params == [["team-a", "team-b"]]
+        assert "document_id" in clause
+        assert "ANY($2)" in clause
+        assert params == [["doc-a", "doc-b"]]
 
-    def test_build_tenant_clause_user_id_only(self):
+    def test_build_scope_clause_user_id_only(self):
         from app.services.search_service import RagSearchService
 
         pool = MagicMock()
         embed = MagicMock()
         service = RagSearchService(pool, embed)
 
-        clause, params = service._build_tenant_clause(None, "user-1", 1)
+        clause, params = service._build_scope_clause(None, "user-1", 1)
 
         assert "user_id = $2" in clause
         assert params == ["user-1"]
 
-    def test_build_tenant_clause_both(self):
+    def test_build_scope_clause_both(self):
         from app.services.search_service import RagSearchService
 
         pool = MagicMock()
         embed = MagicMock()
         service = RagSearchService(pool, embed)
 
-        clause, params = service._build_tenant_clause(["team-x"], "user-y", 1)
+        clause, params = service._build_scope_clause(["doc-x"], "user-y", 1)
 
-        assert "team_id = ANY($2)" in clause
-        assert "user_id = $3" in clause
+        assert "document_id" in clause
+        assert "user_id" in clause
         assert "OR" in clause
-        assert params == [["team-x"], "user-y"]
+        assert params == [["doc-x"], "user-y"]
 
-    def test_build_tenant_clause_neither(self):
+    def test_build_scope_clause_neither(self):
         from app.services.search_service import RagSearchService
 
         pool = MagicMock()
         embed = MagicMock()
         service = RagSearchService(pool, embed)
 
-        clause, params = service._build_tenant_clause(None, None, 1)
+        clause, params = service._build_scope_clause(None, None, 1)
 
         assert clause == ""
         assert params == []
 
-    def test_build_tenant_clause_respects_param_offset(self):
+    def test_build_scope_clause_respects_param_offset(self):
         from app.services.search_service import RagSearchService
 
         pool = MagicMock()
         embed = MagicMock()
         service = RagSearchService(pool, embed)
 
-        clause, params = service._build_tenant_clause(["team-a"], "user-b", 3)
+        clause, params = service._build_scope_clause(["doc-a"], "user-b", 3)
 
         assert "$4" in clause
         assert "$5" in clause
 
-    async def test_search_passes_team_ids_to_fts_and_vector(self):
+    async def test_search_passes_document_ids_to_fts_and_vector(self):
         service, *_ = _build_service()
         service._fts_search = AsyncMock(return_value=[])
         service._vector_search = AsyncMock(return_value=[])
 
-        await service.search("query", team_ids=["t1", "t2"], user_id="u1")
+        await service.search("query", document_ids=["doc-1", "doc-2"], user_id="u1")
 
         service._fts_search.assert_awaited_once()
         fts_args = service._fts_search.call_args
-        assert fts_args[0][1] == ["t1", "t2"]
+        assert fts_args[0][1] == ["doc-1", "doc-2"]
         assert fts_args[0][2] == "u1"
 
         service._vector_search.assert_awaited_once()
         vec_args = service._vector_search.call_args
-        assert vec_args[0][1] == ["t1", "t2"]
+        assert vec_args[0][1] == ["doc-1", "doc-2"]
         assert vec_args[0][2] == "u1"
 
 

@@ -6,10 +6,10 @@ import { useState, useCallback } from 'react';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { EmptyPlaceholder } from '@/app/components/ui/feedback/empty-placeholder';
 import { Spinner } from '@/app/components/ui/feedback/spinner';
-import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Description } from '@/app/components/ui/forms/description';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { FormSection } from '@/app/components/ui/forms/form-section';
+import { Select } from '@/app/components/ui/forms/select';
 import { Center, Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
@@ -43,9 +43,9 @@ export function DocumentUploadDialog({
   const { t: tCommon } = useT('common');
   const { selectedTeamId } = useTeamFilter();
 
-  const [selectedTeams, setSelectedTeams] = useState<Set<string>>(() =>
-    selectedTeamId ? new Set([selectedTeamId]) : new Set(),
-  );
+  const [selectedTeamId_local, setSelectedTeamId_local] = useState<
+    string | undefined
+  >(() => selectedTeamId ?? undefined);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
   const { teams, isLoading: isLoadingTeams } = useTeams();
@@ -62,9 +62,7 @@ export function DocumentUploadDialog({
   const handleOpenChange = useCallback(
     (newOpen: boolean) => {
       if (!newOpen) {
-        setSelectedTeams(
-          selectedTeamId ? new Set([selectedTeamId]) : new Set(),
-        );
+        setSelectedTeamId_local(selectedTeamId ?? undefined);
         setSelectedFiles([]);
       }
       onOpenChange(newOpen);
@@ -72,16 +70,8 @@ export function DocumentUploadDialog({
     [onOpenChange, selectedTeamId],
   );
 
-  const handleToggleTeam = useCallback((teamId: string) => {
-    setSelectedTeams((prev) => {
-      const next = new Set(prev);
-      if (next.has(teamId)) {
-        next.delete(teamId);
-      } else {
-        next.add(teamId);
-      }
-      return next;
-    });
+  const handleSelectTeam = useCallback((teamId: string | undefined) => {
+    setSelectedTeamId_local(teamId);
   }, []);
 
   const processFiles = useCallback(
@@ -130,11 +120,9 @@ export function DocumentUploadDialog({
 
       if (selectedFiles.length === 0) return;
 
-      const teamTags =
-        selectedTeams.size > 0 ? Array.from(selectedTeams) : undefined;
-      await uploadFiles(selectedFiles, { teamTags });
+      await uploadFiles(selectedFiles, { teamId: selectedTeamId_local });
     },
-    [selectedFiles, selectedTeams, uploadFiles],
+    [selectedFiles, selectedTeamId_local, uploadFiles],
   );
 
   return (
@@ -234,22 +222,21 @@ export function DocumentUploadDialog({
               {tDocuments('upload.noTeamsAvailable')}
             </EmptyPlaceholder>
           ) : (
-            <Stack gap={2}>
-              {teams.map((team: { id: string; name: string }) => (
-                <div
-                  key={team.id}
-                  className="bg-card hover:bg-accent/50 rounded-lg border p-3 transition-colors"
-                >
-                  <Checkbox
-                    id={`upload-team-${team.id}`}
-                    checked={selectedTeams.has(team.id)}
-                    onCheckedChange={() => handleToggleTeam(team.id)}
-                    disabled={isUploading}
-                    label={team.name}
-                  />
-                </div>
-              ))}
-            </Stack>
+            <Select
+              value={selectedTeamId_local ?? ''}
+              onValueChange={(value) => handleSelectTeam(value || undefined)}
+              disabled={isUploading}
+              options={[
+                {
+                  value: '',
+                  label: tDocuments('teamTags.orgWide'),
+                },
+                ...teams.map((team: { id: string; name: string }) => ({
+                  value: team.id,
+                  label: team.name,
+                })),
+              ]}
+            />
           )}
 
           <Description>{tDocuments('upload.allMembersHint')}</Description>

@@ -70,7 +70,7 @@ export interface CreateDocumentArgs {
   sourceProvider?: SourceProvider;
   externalItemId?: string;
   contentHash?: string;
-  teamTags?: string[];
+  teamId?: string;
   createdBy?: string;
 }
 

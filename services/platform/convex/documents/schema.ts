@@ -22,8 +22,10 @@ export const documentsTable = defineTable({
   driveId: v.optional(v.string()),
   contentHash: v.optional(v.string()),
   historyFiles: v.optional(v.array(v.id('_storage'))),
-  teamTags: v.optional(v.array(v.string())),
   teamId: v.optional(v.string()),
+  /** @deprecated Use teamId instead. Kept for backward compatibility during migration. */
+  teamTags: v.optional(v.array(v.string())),
+  /** @deprecated Removed in single-team model. Kept for backward compatibility during migration. */
   sharedWithTeamIds: v.optional(v.array(v.string())),
   ragInfo: v.optional(
     v.object({

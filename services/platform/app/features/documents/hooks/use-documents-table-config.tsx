@@ -195,36 +195,36 @@ export function useDocumentsTableConfig({
         size: 160,
         meta: { skeleton: { type: 'badge' as const } },
         cell: ({ row }) => {
-          const tags = row.original.teamTags;
-          if (row.original.type === 'folder' || !tags || tags.length === 0) {
+          if (row.original.type === 'folder') {
             return (
               <Text as="span" variant="muted">
                 —
               </Text>
             );
           }
+          const { teamId } = row.original;
+          if (!teamId) {
+            return (
+              <Badge variant="outline" className="text-xs">
+                {tDocuments('teamTags.orgWide')}
+              </Badge>
+            );
+          }
           if (isLoadingTeams) {
             return <Skeleton className="h-5 w-20" />;
           }
-          const filteredTags = tags
-            .map((tagId) => ({ tagId, teamName: teamMap.get(tagId) }))
-            .filter(
-              (item): item is { tagId: string; teamName: string } =>
-                !!item.teamName,
+          const teamName = teamMap.get(teamId);
+          if (!teamName) {
+            return (
+              <Text as="span" variant="muted">
+                —
+              </Text>
             );
+          }
           return (
-            <HStack gap={1} className="flex-wrap">
-              {filteredTags.slice(0, 2).map(({ tagId, teamName }) => (
-                <Badge key={tagId} variant="blue" className="text-xs">
-                  {teamName}
-                </Badge>
-              ))}
-              {filteredTags.length > 2 && (
-                <Badge variant="outline" className="text-xs">
-                  +{filteredTags.length - 2}
-                </Badge>
-              )}
-            </HStack>
+            <Badge variant="blue" className="text-xs">
+              {teamName}
+            </Badge>
           );
         },
       },
@@ -280,7 +280,7 @@ export function useDocumentsTableConfig({
               syncConfigId={row.original.syncConfigId}
               isDirectlySelected={row.original.isDirectlySelected}
               sourceMode={row.original.sourceMode}
-              teamTags={row.original.teamTags}
+              teamId={row.original.teamId}
             />
           </HStack>
         ),

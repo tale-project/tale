@@ -1,50 +1,8 @@
 """Pydantic models for Tale RAG API."""
 
-from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
-
-from app.utils.sanitize import sanitize_team_id
-
-
-def _validate_and_sanitize_tenant_ids(
-    user_id: str | None,
-    team_ids: list[str] | None,
-) -> list[str] | None:
-    """Validate tenant IDs and sanitize team_ids.
-
-    Args:
-        user_id: Optional user ID for private documents
-        team_ids: Optional list of team IDs for shared documents
-
-    Returns:
-        Sanitized team_ids list, or None if not provided
-
-    Raises:
-        ValueError: If neither user_id nor team_ids is provided,
-                   or if all team_ids sanitize to empty strings
-    """
-    if not user_id and not team_ids:
-        raise ValueError("At least one of user_id or team_ids must be provided")
-
-    if not team_ids:
-        return None
-
-    sanitized_ids: list[str] = []
-    for tid in team_ids:
-        try:
-            sanitized = sanitize_team_id(tid)
-            if sanitized:
-                sanitized_ids.append(sanitized)
-        except ValueError:
-            # Skip team IDs that sanitize to empty (invalid characters only)
-            continue
-
-    if not sanitized_ids:
-        raise ValueError("At least one valid team_id is required after sanitization")
-
-    return sanitized_ids
 
 
 # ============================================================================
@@ -77,54 +35,6 @@ class ConfigResponse(BaseModel):
 # ============================================================================
 # Document Management Models
 # ============================================================================
-
-
-class ContentType(StrEnum):
-    """Content type for document addition (text only)."""
-
-    TEXT = "text"
-
-
-class DocumentAddRequest(BaseModel):
-    """Request to add a text document to the knowledge base."""
-
-    content: str = Field(..., max_length=10_000_000, description="Document content (plain text)")
-    content_type: ContentType = Field(
-        default=ContentType.TEXT,
-        description="Type of content. Only 'text' is supported; URL ingestion via this endpoint has been removed.",
-    )
-    metadata: dict[str, Any] | None = Field(
-        default=None,
-        description="Optional metadata for the document",
-    )
-    document_id: str | None = Field(
-        default=None,
-        description="Optional custom document ID",
-    )
-    # Multi-tenancy support
-    # user_id and team_ids are mutually exclusive for upload:
-    # - user_id provided → private document (team_ids ignored)
-    # - team_ids only → shared team document
-    user_id: str | None = Field(
-        default=None,
-        description="User ID for private document storage. If provided, document is stored "
-        "in user's private dataset (team_ids is ignored). At least one of user_id "
-        "or team_ids must be provided.",
-    )
-    team_ids: list[str] | None = Field(
-        default=None,
-        max_length=50,
-        description="Team IDs for shared document storage. Document will be added to each "
-        "team's dataset (tale_team_{team_id}). Ignored if user_id is provided.",
-    )
-
-    @model_validator(mode="after")
-    def validate_and_sanitize(self):
-        """Validate and sanitize tenant IDs."""
-        sanitized = _validate_and_sanitize_tenant_ids(self.user_id, self.team_ids)
-        if sanitized is not None:
-            object.__setattr__(self, "team_ids", sanitized)
-        return self
 
 
 class DocumentAddResponse(BaseModel):
@@ -245,27 +155,21 @@ class QueryRequest(BaseModel):
         default=None, ge=0.0, le=1.0, description="Minimum similarity score (overrides default)"
     )
     include_metadata: bool = Field(default=True, description="Whether to include metadata in results")
-    # Multi-tenancy support
-    # Search can include both user's private dataset and team datasets
     user_id: str | None = Field(
         default=None,
-        description="User ID for searching user's private documents. If provided, user's "
-        "private dataset (tale_user_{uuid}) is included in search.",
+        description="User ID for searching user's private documents.",
     )
-    team_ids: list[str] | None = Field(
+    document_ids: list[str] | None = Field(
         default=None,
-        max_length=50,
-        description="Team IDs for searching shared team documents. Each team's dataset "
-        "(tale_team_{team_id}) is included in search. At least one of user_id "
-        "or team_ids must be provided.",
+        max_length=500,
+        description="Document IDs to restrict search to. At least one of user_id or document_ids must be provided.",
     )
 
     @model_validator(mode="after")
-    def validate_and_sanitize_query(self):
-        """Validate and sanitize tenant IDs."""
-        sanitized = _validate_and_sanitize_tenant_ids(self.user_id, self.team_ids)
-        if sanitized is not None:
-            object.__setattr__(self, "team_ids", sanitized)
+    def validate_scope(self):
+        """Validate that at least one scope filter is provided."""
+        if not self.user_id and not self.document_ids:
+            raise ValueError("At least one of user_id or document_ids must be provided")
         return self
 
 
@@ -309,18 +213,17 @@ class GenerateRequest(BaseModel):
         default=None,
         description="User ID for retrieving user's private documents as context.",
     )
-    team_ids: list[str] | None = Field(
+    document_ids: list[str] | None = Field(
         default=None,
-        max_length=50,
-        description="Team IDs to retrieve context from. At least one of user_id or team_ids must be provided.",
+        max_length=500,
+        description="Document IDs to retrieve context from. At least one of user_id or document_ids must be provided.",
     )
 
     @model_validator(mode="after")
-    def validate_and_sanitize(self):
-        """Validate and sanitize tenant IDs."""
-        sanitized = _validate_and_sanitize_tenant_ids(self.user_id, self.team_ids)
-        if sanitized is not None:
-            object.__setattr__(self, "team_ids", sanitized)
+    def validate_scope(self):
+        """Validate that at least one scope filter is provided."""
+        if not self.user_id and not self.document_ids:
+            raise ValueError("At least one of user_id or document_ids must be provided")
         return self
 
 

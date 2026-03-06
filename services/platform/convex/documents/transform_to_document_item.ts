@@ -83,9 +83,7 @@ export function transformToDocumentItem(
     ragStatus: document.ragInfo?.status,
     ragIndexedAt: document.ragInfo?.indexedAt,
     ragError: document.ragInfo?.error,
-    // Team assignment for multi-tenancy support
     teamId: document.teamId ?? null,
-    teamTags: document.teamTags,
     // Creator tracking
     createdBy: document.createdBy,
     createdByName,

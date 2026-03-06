@@ -52,19 +52,8 @@ export async function rlsRules(
       ? new Set(await getUserTeamIds(ctx, user.userId))
       : new Set<string>());
 
-  // Helper to check team access for documents
-  // Uses unified teamId + sharedWithTeamIds fields with teamTags fallback
-  const hasDocumentTeamAccess = (doc: {
-    teamId?: string | null;
-    sharedWithTeamIds?: string[];
-    teamTags?: string[];
-  }): boolean => {
-    if (doc.teamId !== undefined) {
-      return hasTeamAccess(doc, userTeamIds);
-    }
-    if (!doc.teamTags || doc.teamTags.length === 0) return true;
-    return doc.teamTags.some((tag) => userTeamIds.has(tag));
-  };
+  const hasDocumentTeamAccess = (doc: { teamId?: string | null }): boolean =>
+    hasTeamAccess(doc, userTeamIds);
 
   return {
     // Custom Agents - organization-scoped with team-based access control
@@ -120,7 +109,6 @@ export async function rlsRules(
       insert: async ({ user: ruleUser }, doc) => {
         if (!ruleUser) return false;
         if (!userOrgIds.has(doc.organizationId)) return false;
-        // User can only create documents with teamTags they belong to (or no teamTags)
         if (!hasDocumentTeamAccess(doc)) return false;
         const membership = userOrganizations.find(
           (m) => m.organizationId === doc.organizationId,

@@ -5,7 +5,6 @@ Covers:
 - _background_ingest: happy path, skipped content re-upload, failure recording
 - _mark_completed: restores status on skipped re-uploads
 - _sanitize_error: truncation of long error messages
-- _build_target_scopes: target tuple construction
 
 Note: Tests that import from app.routers.documents require python-multipart
 and are skipped if the dependency is not available in the test environment.
@@ -153,29 +152,6 @@ class TestSanitizeError:
 
 
 @_requires_multipart
-class TestBuildTargetScopes:
-    def test_user_only(self):
-        from app.routers.documents import _build_target_scopes
-
-        assert _build_target_scopes("user-1", None) == [(None, "user-1")]
-
-    def test_teams_only(self):
-        from app.routers.documents import _build_target_scopes
-
-        assert _build_target_scopes(None, ["team-a", "team-b"]) == [("team-a", None), ("team-b", None)]
-
-    def test_user_and_teams(self):
-        from app.routers.documents import _build_target_scopes
-
-        assert _build_target_scopes("user-1", ["team-a"]) == [(None, "user-1"), ("team-a", None)]
-
-    def test_neither_returns_null_scope(self):
-        from app.routers.documents import _build_target_scopes
-
-        assert _build_target_scopes(None, None) == [(None, None)]
-
-
-@_requires_multipart
 class TestBackgroundIngest:
     """Tests for the _background_ingest async function."""
 
@@ -190,12 +166,12 @@ class TestBackgroundIngest:
         }
 
         with (
-            patch("app.routers.documents._insert_processing_rows", new_callable=AsyncMock) as mock_insert,
+            patch("app.routers.documents._insert_processing_row", new_callable=AsyncMock) as mock_insert,
             patch("app.routers.documents.rag_service") as mock_rag,
             patch("app.routers.documents.cleanup_memory"),
         ):
             mock_rag.add_document = AsyncMock(return_value=add_result)
-            await _background_ingest(b"content", "doc-1", "test.txt", team_ids=["team-a"])
+            await _background_ingest(b"content", "doc-1", "test.txt", user_id="user-1")
 
         mock_insert.assert_awaited_once()
         mock_rag.add_document.assert_awaited_once()
@@ -212,15 +188,15 @@ class TestBackgroundIngest:
         }
 
         with (
-            patch("app.routers.documents._insert_processing_rows", new_callable=AsyncMock),
+            patch("app.routers.documents._insert_processing_row", new_callable=AsyncMock),
             patch("app.routers.documents._mark_completed", new_callable=AsyncMock) as mock_mark,
             patch("app.routers.documents.rag_service") as mock_rag,
             patch("app.routers.documents.cleanup_memory"),
         ):
             mock_rag.add_document = AsyncMock(return_value=add_result)
-            await _background_ingest(b"content", "doc-1", "test.txt", team_ids=["team-a"])
+            await _background_ingest(b"content", "doc-1", "test.txt", user_id="user-1")
 
-        mock_mark.assert_awaited_once_with("doc-1", [("team-a", None)])
+        mock_mark.assert_awaited_once_with("doc-1", "user-1")
 
     async def test_non_skipped_does_not_call_mark_completed(self):
         from app.routers.documents import _background_ingest
@@ -233,13 +209,13 @@ class TestBackgroundIngest:
         }
 
         with (
-            patch("app.routers.documents._insert_processing_rows", new_callable=AsyncMock),
+            patch("app.routers.documents._insert_processing_row", new_callable=AsyncMock),
             patch("app.routers.documents._mark_completed", new_callable=AsyncMock) as mock_mark,
             patch("app.routers.documents.rag_service") as mock_rag,
             patch("app.routers.documents.cleanup_memory"),
         ):
             mock_rag.add_document = AsyncMock(return_value=add_result)
-            await _background_ingest(b"content", "doc-1", "test.txt", team_ids=["team-a"])
+            await _background_ingest(b"content", "doc-1", "test.txt", user_id="user-1")
 
         mock_mark.assert_not_awaited()
 
@@ -247,13 +223,13 @@ class TestBackgroundIngest:
         from app.routers.documents import _background_ingest
 
         with (
-            patch("app.routers.documents._insert_processing_rows", new_callable=AsyncMock),
+            patch("app.routers.documents._insert_processing_row", new_callable=AsyncMock),
             patch("app.routers.documents._record_failure", new_callable=AsyncMock) as mock_fail,
             patch("app.routers.documents.rag_service") as mock_rag,
             patch("app.routers.documents.cleanup_memory"),
         ):
             mock_rag.add_document = AsyncMock(side_effect=RuntimeError("x" * 1000))
-            await _background_ingest(b"content", "doc-1", "test.txt", team_ids=["team-a"])
+            await _background_ingest(b"content", "doc-1", "test.txt", user_id="user-1")
 
         mock_fail.assert_awaited_once()
         error_arg = mock_fail.call_args[0][2]
@@ -263,7 +239,7 @@ class TestBackgroundIngest:
         from app.routers.documents import _background_ingest
 
         with (
-            patch("app.routers.documents._insert_processing_rows", new_callable=AsyncMock),
+            patch("app.routers.documents._insert_processing_row", new_callable=AsyncMock),
             patch(
                 "app.routers.documents._record_failure",
                 new_callable=AsyncMock,
@@ -273,18 +249,18 @@ class TestBackgroundIngest:
             patch("app.routers.documents.cleanup_memory"),
         ):
             mock_rag.add_document = AsyncMock(side_effect=ValueError("ingestion failed"))
-            await _background_ingest(b"content", "doc-1", "test.txt", team_ids=["team-a"])
+            await _background_ingest(b"content", "doc-1", "test.txt", user_id="user-1")
 
     async def test_cleanup_memory_always_called(self):
         from app.routers.documents import _background_ingest
 
         with (
-            patch("app.routers.documents._insert_processing_rows", new_callable=AsyncMock),
+            patch("app.routers.documents._insert_processing_row", new_callable=AsyncMock),
             patch("app.routers.documents._record_failure", new_callable=AsyncMock),
             patch("app.routers.documents.rag_service") as mock_rag,
             patch("app.routers.documents.cleanup_memory") as mock_cleanup,
         ):
             mock_rag.add_document = AsyncMock(side_effect=RuntimeError("boom"))
-            await _background_ingest(b"content", "doc-1", "test.txt", team_ids=["team-a"])
+            await _background_ingest(b"content", "doc-1", "test.txt", user_id="user-1")
 
         mock_cleanup.assert_called_once()
