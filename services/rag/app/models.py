@@ -158,6 +158,17 @@ class DocumentAddResponse(BaseModel):
     )
 
 
+class DocumentContentResponse(BaseModel):
+    """Response containing reassembled document content."""
+
+    document_id: str = Field(..., description="Document identifier")
+    title: str | None = Field(default=None, description="Original filename")
+    content: str = Field(..., description="Reassembled text content")
+    chunk_range: dict[str, int] = Field(..., description="Range of chunks returned (1-indexed, inclusive)")
+    total_chunks: int = Field(..., description="Total number of chunks in the document")
+    total_chars: int = Field(..., description="Total character count of returned content")
+
+
 class DocumentDeleteRequest(BaseModel):
     """Request to delete a document by ID."""
 

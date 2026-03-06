@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.background import BackgroundTasks
 from loguru import logger
 
@@ -13,6 +13,7 @@ from ..config import settings
 from ..models import (
     DocumentAddRequest,
     DocumentAddResponse,
+    DocumentContentResponse,
     DocumentDeleteResponse,
 )
 from ..secret_scanner import scan_file_for_secrets
@@ -381,3 +382,53 @@ async def delete_document(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete document. Please try again.",
         ) from e
+
+
+@router.get("/documents/{document_id}/content", response_model=DocumentContentResponse)
+async def get_document_content(
+    document_id: str,
+    chunk_start: int = Query(default=1, ge=1, description="Start chunk (1-indexed)"),
+    chunk_end: int | None = Query(default=None, ge=1, description="End chunk (1-indexed, inclusive)"),
+    team_ids: str | None = Query(default=None, description="Comma-separated team IDs"),
+    user_id: str | None = Query(default=None, description="User ID for private documents"),
+):
+    """Retrieve full document text by reassembling stored chunks.
+
+    Use chunk_start/chunk_end to paginate through large documents.
+    """
+    team_id_list = _parse_team_ids(team_ids)
+
+    if not team_id_list and not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one of team_ids or user_id is required",
+        )
+
+    if chunk_end is not None and chunk_start > chunk_end:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="chunk_start must be <= chunk_end",
+        )
+
+    try:
+        result = await rag_service.get_document_content(
+            document_id,
+            team_ids=team_id_list,
+            user_id=user_id,
+            chunk_start=chunk_start,
+            chunk_end=chunk_end,
+        )
+    except Exception as e:
+        logger.error("Failed to retrieve document content for {}: {}", document_id, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve document content.",
+        ) from e
+
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Document '{document_id}' not found",
+        )
+
+    return DocumentContentResponse(**result)
