@@ -172,9 +172,11 @@ export async function queryRagContext(
         include_metadata: true,
       };
 
-      if (options?.documentIds && options.documentIds.length > 0) {
-        requestPayload.document_ids = options.documentIds;
+      if (!options?.documentIds || options.documentIds.length === 0) {
+        debugLog('No document IDs provided, skipping RAG query');
+        return undefined;
       }
+      requestPayload.document_ids = options.documentIds;
 
       const response = await fetch(url, {
         method: 'POST',

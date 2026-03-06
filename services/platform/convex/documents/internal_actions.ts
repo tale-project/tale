@@ -167,7 +167,7 @@ export const generateDocxFromTemplate = internalAction({
  * - Attempts 1-30: 2 minutes each (~60 minutes total)
  * - Attempts 31-50: Progressive increase from 15 to 129 minutes (~24 hours total)
  */
-const getPollingInterval = (attempt: number): number => {
+export const getPollingInterval = (attempt: number): number => {
   const MINUTE = 60 * 1000;
 
   if (attempt < 30) {
@@ -308,7 +308,7 @@ export const checkRagDocumentStatus = internalAction({
             documentId: args.documentId,
             ragInfo: {
               status: 'completed',
-              indexedAt: Date.now(),
+              indexedAt: Math.floor(Date.now() / 1000),
             },
           },
         );

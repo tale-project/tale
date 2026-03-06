@@ -1,6 +1,5 @@
 /** RAG ingestion status for a document */
 export type RagStatus =
-  | 'pending'
   | 'queued'
   | 'running'
   | 'completed'

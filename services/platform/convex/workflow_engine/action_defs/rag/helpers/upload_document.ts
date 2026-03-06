@@ -23,7 +23,12 @@ export async function uploadDocument(
     throw new Error(`Document not found: ${recordId}`);
   }
   if (!document.fileId) {
-    throw new Error(`Document has no file: ${recordId}`);
+    return {
+      success: false,
+      recordId,
+      error: `Document has no file: ${recordId}`,
+      timestamp: Date.now(),
+    };
   }
 
   const fileUrl = await ctx.storage.getUrl(document.fileId);
@@ -55,19 +60,15 @@ export async function uploadDocument(
   });
 
   if (result.success) {
-    try {
-      await ctx.runMutation(
-        internal.documents.internal_mutations.updateDocumentRagInfo,
-        { documentId, ragInfo: { status: 'queued' } },
-      );
-      await ctx.scheduler.runAfter(
-        INITIAL_POLLING_DELAY_MS,
-        internal.documents.internal_actions.checkRagDocumentStatus,
-        { documentId, attempt: 1 },
-      );
-    } catch (error) {
-      console.error('[ragAction] Failed to update ragInfo:', error);
-    }
+    await ctx.runMutation(
+      internal.documents.internal_mutations.updateDocumentRagInfo,
+      { documentId, ragInfo: { status: 'queued' } },
+    );
+    await ctx.scheduler.runAfter(
+      INITIAL_POLLING_DELAY_MS,
+      internal.documents.internal_actions.checkRagDocumentStatus,
+      { documentId, attempt: 1 },
+    );
   }
 
   return result;

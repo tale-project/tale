@@ -58,14 +58,6 @@ export async function updateDocument(
     updateData.sourceProvider = args.sourceProvider;
   if (args.externalItemId !== undefined)
     updateData.externalItemId = args.externalItemId;
-  if (args.teamId !== undefined) {
-    const newTeamId = args.teamId ?? undefined;
-    const teamFields = teamIdToFields(newTeamId);
-    updateData.teamId = teamFields.teamId;
-    updateData.teamTags = teamFields.teamTags;
-    updateData.sharedWithTeamIds = teamFields.sharedWithTeamIds;
-  }
-
   if (args.extension !== undefined) {
     updateData.extension = args.extension;
   } else if (args.title !== undefined) {
@@ -84,6 +76,14 @@ export async function updateDocument(
   const cleanUpdateData = Object.fromEntries(
     Object.entries(updateData).filter(([, value]) => value !== undefined),
   );
+
+  if (args.teamId !== undefined) {
+    const newTeamId = args.teamId ?? undefined;
+    const teamFields = teamIdToFields(newTeamId);
+    cleanUpdateData.teamId = teamFields.teamId;
+    cleanUpdateData.teamTags = teamFields.teamTags;
+    cleanUpdateData.sharedWithTeamIds = teamFields.sharedWithTeamIds;
+  }
 
   await ctx.db.patch(args.documentId, cleanUpdateData);
 }

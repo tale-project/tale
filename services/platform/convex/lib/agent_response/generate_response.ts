@@ -313,18 +313,22 @@ export async function generateAgentResponse(
         internal.documents.internal_queries.getAccessibleDocumentIds,
         { organizationId, userTeamIds: userTeamIds ?? [] },
       );
-      knowledgeContextPromise = queryRagContext(
-        promptMessage,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        { documentIds: accessibleDocIds },
-      );
-      debugLog('Knowledge context query started', {
-        threadId,
-        elapsedMs: Date.now() - startTime,
-      });
+      if (accessibleDocIds.length === 0) {
+        debugLog('No accessible RAG documents, skipping knowledge context');
+      } else {
+        knowledgeContextPromise = queryRagContext(
+          promptMessage,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          { documentIds: accessibleDocIds },
+        );
+        debugLog('Knowledge context query started', {
+          threadId,
+          elapsedMs: Date.now() - startTime,
+        });
+      }
     }
 
     let webContextPromise: Promise<string | undefined> | undefined;

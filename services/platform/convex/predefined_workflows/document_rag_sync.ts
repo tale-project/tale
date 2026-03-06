@@ -89,7 +89,7 @@ const documentRagSyncWorkflow: PredefinedWorkflowDefinition = {
         },
       },
       nextSteps: {
-        success: 'update_document_metadata',
+        success: 'record_processed',
       },
     },
 
