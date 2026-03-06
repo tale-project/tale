@@ -91,7 +91,6 @@ export function ImportVendorsDialog({
 
   const formMethods = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    mode: 'onChange',
     defaultValues: {
       dataSource: mode === 'manual' ? 'manual_import' : 'file_upload',
     },
@@ -99,7 +98,7 @@ export function ImportVendorsDialog({
 
   const {
     handleSubmit,
-    formState: { isSubmitting, isValid },
+    formState: { isSubmitting },
   } = formMethods;
 
   const { mutateAsync: bulkCreateVendors } = useBulkCreateVendors();
@@ -167,9 +166,20 @@ export function ImportVendorsDialog({
           onSuccess?.();
           handleClose();
         } else {
+          const firstError = result.errors[0];
+          const errorCodeKeys = {
+            duplicate_email: 'import.errorCodes.duplicate_email',
+            duplicate_external_id: 'import.errorCodes.duplicate_external_id',
+            unknown: 'import.errorCodes.unknown',
+          } as const;
+          const errorKey = firstError
+            ? (errorCodeKeys[
+                firstError.errorCode as keyof typeof errorCodeKeys
+              ] ?? errorCodeKeys.unknown)
+            : undefined;
           toast({
-            title: t('import.failed'),
-            description: t('noneImported'),
+            title: t('noneImported'),
+            description: errorKey ? t(errorKey) : undefined,
             variant: 'destructive',
           });
         }
@@ -202,7 +212,6 @@ export function ImportVendorsDialog({
       submitText={tCommon('actions.import')}
       submittingText={tCommon('actions.importing')}
       isSubmitting={isSubmitting}
-      isValid={isValid}
       onSubmit={handleSubmit(onSubmit)}
     >
       <FormProvider {...formMethods}>

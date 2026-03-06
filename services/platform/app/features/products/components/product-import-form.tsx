@@ -40,7 +40,7 @@ export function ProductImportForm({
     if (!file) return;
 
     if (isSpreadsheet(file.name)) {
-      setValue('file', file);
+      setValue('file', file, { shouldDirty: true });
     } else {
       toast({
         title: tCommon('validation.unsupportedFileType'),
@@ -89,7 +89,7 @@ export function ProductImportForm({
         {fileValue && (
           <FilePreviewCard
             fileName={fileValue.name}
-            onRemove={() => setValue('file', null)}
+            onRemove={() => setValue('file', null, { shouldDirty: true })}
           />
         )}
       </FormSection>

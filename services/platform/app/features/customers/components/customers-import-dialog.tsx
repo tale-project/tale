@@ -94,7 +94,6 @@ export function ImportCustomersDialog({
 
   const formMethods = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    mode: 'onChange',
     defaultValues: {
       dataSource: mode === 'manual' ? 'manual_import' : 'file_upload',
     },
@@ -102,7 +101,7 @@ export function ImportCustomersDialog({
 
   const {
     handleSubmit,
-    formState: { isSubmitting, isValid },
+    formState: { isSubmitting },
   } = formMethods;
 
   const { mutateAsync: bulkCreateCustomers } = useBulkCreateCustomers();
@@ -179,9 +178,20 @@ export function ImportCustomersDialog({
           onSuccess?.();
           handleClose();
         } else {
+          const firstError = result.errors[0];
+          const errorCodeKeys = {
+            duplicate_email: 'import.errorCodes.duplicate_email',
+            duplicate_external_id: 'import.errorCodes.duplicate_external_id',
+            unknown: 'import.errorCodes.unknown',
+          } as const;
+          const errorKey = firstError
+            ? (errorCodeKeys[
+                firstError.errorCode as keyof typeof errorCodeKeys
+              ] ?? errorCodeKeys.unknown)
+            : undefined;
           toast({
-            title: tCustomers('import.failed'),
-            description: tCustomers('import.noneImported'),
+            title: tCustomers('import.noneImported'),
+            description: errorKey ? tCustomers(errorKey) : undefined,
             variant: 'destructive',
           });
         }
@@ -217,7 +227,6 @@ export function ImportCustomersDialog({
       submitText={tCustomers('import.import')}
       submittingText={tCommon('actions.importing')}
       isSubmitting={isSubmitting}
-      isValid={isValid}
       onSubmit={handleSubmit(onSubmit)}
     >
       <FormProvider {...formMethods}>

@@ -44,11 +44,6 @@ export function DocumentsActionMenu({
     setIsOneDriveDialogOpen(true);
   }, []);
 
-  const handleOneDriveSuccess = useCallback(() => {
-    setIsOneDriveDialogOpen(false);
-  }, []);
-
-  // Build menu items conditionally
   const menuItems = useMemo<DataTableActionMenuItem[]>(() => {
     const items: DataTableActionMenuItem[] = [
       {
@@ -67,12 +62,27 @@ export function DocumentsActionMenu({
     }
 
     return items;
-  }, [
-    tDocuments,
-    handleDeviceUpload,
-    handleOneDriveClick,
-    hasMicrosoftAccount,
-  ]);
+  }, [tDocuments, handleDeviceUpload, handleOneDriveClick, hasMicrosoftAccount]);
+
+  if (!hasMicrosoftAccount) {
+    return (
+      <>
+        <DataTableActionMenu
+          label={tDocuments('upload.importDocuments')}
+          icon={Plus}
+          onClick={handleDeviceUpload}
+        />
+
+        {isUploadDialogOpen && (
+          <DocumentUploadDialog
+            open={isUploadDialogOpen}
+            onOpenChange={setIsUploadDialogOpen}
+            organizationId={organizationId}
+          />
+        )}
+      </>
+    );
+  }
 
   return (
     <>
@@ -95,7 +105,7 @@ export function DocumentsActionMenu({
           open={isOneDriveDialogOpen}
           onOpenChange={setIsOneDriveDialogOpen}
           organizationId={organizationId}
-          onSuccess={handleOneDriveSuccess}
+          onSuccess={() => setIsOneDriveDialogOpen(false)}
         />
       )}
     </>
