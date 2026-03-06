@@ -27,7 +27,6 @@ async def search(request: QueryRequest):
             query=request.query,
             top_k=request.top_k,
             similarity_threshold=request.similarity_threshold,
-            user_id=request.user_id,
             document_ids=request.document_ids,
         )
 
@@ -69,7 +68,6 @@ async def generate(request: GenerateRequest):
     try:
         result = await rag_service.generate(
             query=request.query,
-            user_id=request.user_id,
             document_ids=request.document_ids,
         )
 

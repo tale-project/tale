@@ -155,7 +155,6 @@ class TestSearch:
         service._search_service.search.assert_awaited_once_with(
             "test query",
             document_ids=["doc-1"],
-            user_id=None,
             top_k=10,
         )
 
@@ -189,7 +188,6 @@ class TestSearch:
         service._search_service.search.assert_awaited_once_with(
             "query",
             document_ids=None,
-            user_id=None,
             top_k=20,
         )
 
@@ -223,19 +221,18 @@ class TestSearch:
 
         assert len(results) == 1
 
-    async def test_passes_user_id_and_document_ids(self):
+    async def test_passes_document_ids(self):
         service = _make_service()
         service._search_service.search = AsyncMock(return_value=[])
 
         with patch("app.services.rag_service.settings") as mock_settings:
             mock_settings.top_k = 10
             mock_settings.similarity_threshold = 0.0
-            await service.search("q", user_id="u1", document_ids=["doc-1", "doc-2"])
+            await service.search("q", document_ids=["doc-1", "doc-2"])
 
         service._search_service.search.assert_awaited_once_with(
             "q",
             document_ids=["doc-1", "doc-2"],
-            user_id="u1",
             top_k=10,
         )
 
@@ -363,15 +360,14 @@ class TestGenerate:
         user_msg = create_call.call_args[1]["messages"][1]["content"]
         assert len(user_msg) < RAG_MAX_CONTEXT_CHARS + 1000
 
-    async def test_passes_user_id_and_document_ids_to_search(self):
+    async def test_passes_document_ids_to_search(self):
         service = _make_service()
 
         with patch.object(service, "search", new_callable=AsyncMock, return_value=[]) as mock_search:
-            await service.generate("q", user_id="u1", document_ids=["doc-1"])
+            await service.generate("q", document_ids=["doc-1"])
 
         mock_search.assert_awaited_once()
         call_kwargs = mock_search.call_args[1]
-        assert call_kwargs["user_id"] == "u1"
         assert call_kwargs["document_ids"] == ["doc-1"]
 
     async def test_none_content_from_llm_returns_empty_string(self):

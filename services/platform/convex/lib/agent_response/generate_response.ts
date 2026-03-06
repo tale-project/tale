@@ -319,7 +319,7 @@ export async function generateAgentResponse(
         undefined,
         undefined,
         undefined,
-        { userId, documentIds: accessibleDocIds },
+        { documentIds: accessibleDocIds },
       );
       debugLog('Knowledge context query started', {
         threadId,

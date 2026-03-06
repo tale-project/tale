@@ -117,8 +117,6 @@ Current question: ${currentQuery}`;
  * Options for RAG context queries.
  */
 export interface RagContextOptions {
-  /** User ID for multi-tenant search */
-  userId?: string;
   /** Document IDs to scope the search to */
   documentIds?: string[];
 }
@@ -167,7 +165,6 @@ export async function queryRagContext(
     const fetchSignal = signal || controller.signal;
 
     try {
-      // Build request payload with multi-tenant support
       const requestPayload: Record<string, unknown> = {
         query: expandedQuery,
         top_k: topK,
@@ -175,9 +172,6 @@ export async function queryRagContext(
         include_metadata: true,
       };
 
-      if (options?.userId) {
-        requestPayload.user_id = options.userId;
-      }
       if (options?.documentIds && options.documentIds.length > 0) {
         requestPayload.document_ids = options.documentIds;
       }

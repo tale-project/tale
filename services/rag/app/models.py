@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 
 
 # ============================================================================
@@ -155,22 +155,12 @@ class QueryRequest(BaseModel):
         default=None, ge=0.0, le=1.0, description="Minimum similarity score (overrides default)"
     )
     include_metadata: bool = Field(default=True, description="Whether to include metadata in results")
-    user_id: str | None = Field(
-        default=None,
-        description="User ID for searching user's private documents.",
-    )
-    document_ids: list[str] | None = Field(
-        default=None,
+    document_ids: list[str] = Field(
+        ...,
+        min_length=1,
         max_length=500,
-        description="Document IDs to restrict search to. At least one of user_id or document_ids must be provided.",
+        description="Document IDs to restrict search to.",
     )
-
-    @model_validator(mode="after")
-    def validate_scope(self):
-        """Validate that at least one scope filter is provided."""
-        if not self.user_id and not self.document_ids:
-            raise ValueError("At least one of user_id or document_ids must be provided")
-        return self
 
 
 class SearchResult(BaseModel):
@@ -209,22 +199,12 @@ class GenerateRequest(BaseModel):
     """
 
     query: str = Field(..., max_length=10_000, description="User query")
-    user_id: str | None = Field(
-        default=None,
-        description="User ID for retrieving user's private documents as context.",
-    )
-    document_ids: list[str] | None = Field(
-        default=None,
+    document_ids: list[str] = Field(
+        ...,
+        min_length=1,
         max_length=500,
-        description="Document IDs to retrieve context from. At least one of user_id or document_ids must be provided.",
+        description="Document IDs to retrieve context from.",
     )
-
-    @model_validator(mode="after")
-    def validate_scope(self):
-        """Validate that at least one scope filter is provided."""
-        if not self.user_id and not self.document_ids:
-            raise ValueError("At least one of user_id or document_ids must be provided")
-        return self
 
 
 class GenerateResponse(BaseModel):

@@ -145,7 +145,6 @@ class RagService:
         *,
         top_k: int | None = None,
         similarity_threshold: float | None = None,
-        user_id: str | None = None,
         document_ids: list[str] | None = None,
     ) -> list[dict[str, Any]]:
         """Search the knowledge base using hybrid BM25 + vector search."""
@@ -161,7 +160,6 @@ class RagService:
         results = await self._search_service.search(
             query,
             document_ids=document_ids,
-            user_id=user_id,
             top_k=effective_top_k,
         )
 
@@ -173,7 +171,6 @@ class RagService:
     async def generate(
         self,
         query: str,
-        user_id: str | None = None,
         document_ids: list[str] | None = None,
     ) -> dict[str, Any]:
         """Generate a response using RAG: search -> context assembly -> LLM."""
@@ -186,7 +183,7 @@ class RagService:
         try:
             start_time = time.time()
 
-            search_results = await self.search(query, top_k=RAG_TOP_K, user_id=user_id, document_ids=document_ids)
+            search_results = await self.search(query, top_k=RAG_TOP_K, document_ids=document_ids)
 
             if not search_results:
                 return {

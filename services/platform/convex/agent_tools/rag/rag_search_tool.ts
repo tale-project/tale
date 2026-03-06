@@ -76,7 +76,6 @@ Returns numbered document excerpts with relevance scores.`,
 
       const payload = {
         query: args.query,
-        user_id: userId,
         document_ids: documentIds,
         top_k: DEFAULT_TOP_K,
         similarity_threshold: DEFAULT_SIMILARITY_THRESHOLD,
@@ -84,7 +83,6 @@ Returns numbered document excerpts with relevance scores.`,
       };
 
       debugLog('tool:rag_search requesting search', {
-        userId,
         documentCount: documentIds.length,
       });
 
