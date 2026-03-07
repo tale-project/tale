@@ -3,38 +3,50 @@ import { describe, expect, it, vi } from 'vitest';
 import { hasTeamAccess } from '../../lib/team_access';
 import { validateFolderName } from '../mutations';
 
+type MockFolder = {
+  _id: string;
+  organizationId: string;
+  name: string;
+  parentId?: string;
+  teamId?: string;
+};
+
+type MockDocument = {
+  _id: string;
+  organizationId: string;
+  folderId?: string;
+  parentId?: string;
+  teamId?: string;
+};
+
+type MockRecord = MockFolder | MockDocument;
+
+interface MockQueryBuilder {
+  eq: (field: string, value: unknown) => MockQueryBuilder;
+}
+
 function createMockMutationCtx() {
-  const folders = new Map<
-    string,
-    {
-      _id: string;
-      organizationId: string;
-      name: string;
-      parentId?: string;
-      teamId?: string;
-    }
-  >();
-  const documents = new Map<
-    string,
-    { _id: string; organizationId: string; folderId?: string }
-  >();
+  const folders = new Map<string, MockFolder>();
+  const documents = new Map<string, MockDocument>();
 
   let insertCounter = 0;
 
   const ctx = {
     db: {
-      get: vi.fn().mockImplementation((id: string) => {
-        return Promise.resolve(folders.get(id) ?? documents.get(id) ?? null);
-      }),
+      get: vi
+        .fn<(id: string) => Promise<MockRecord | null>>()
+        .mockImplementation((id: string) => {
+          return Promise.resolve(folders.get(id) ?? documents.get(id) ?? null);
+        }),
       query: vi.fn().mockImplementation((table: string) => {
         const store = table === 'folders' ? folders : documents;
-        let filters: Record<string, unknown> = {};
+        const filters: Record<string, unknown> = {};
 
         const builder = {
           withIndex: vi
             .fn()
             .mockImplementation(
-              (_indexName: string, cb: (q: unknown) => void) => {
+              (_indexName: string, cb: (q: MockQueryBuilder) => void) => {
                 const qb = {
                   eq: vi
                     .fn()
@@ -141,11 +153,14 @@ describe('checkDuplicateName (via createMockCtx)', () => {
     });
 
     const query = ctx.db.query('folders');
-    const builder = query.withIndex('by_org_parent_name', (q: any) => {
-      q.eq('organizationId', 'org_1');
-      q.eq('parentId', undefined);
-      q.eq('name', 'docs');
-    });
+    const builder = query.withIndex(
+      'by_org_parent_name',
+      (q: MockQueryBuilder) => {
+        q.eq('organizationId', 'org_1');
+        q.eq('parentId', undefined);
+        q.eq('name', 'docs');
+      },
+    );
     const existing = await builder.first();
 
     expect(existing).not.toBeNull();
@@ -162,11 +177,14 @@ describe('checkDuplicateName (via createMockCtx)', () => {
     });
 
     const query = ctx.db.query('folders');
-    const builder = query.withIndex('by_org_parent_name', (q: any) => {
-      q.eq('organizationId', 'org_1');
-      q.eq('parentId', 'parent_b');
-      q.eq('name', 'docs');
-    });
+    const builder = query.withIndex(
+      'by_org_parent_name',
+      (q: MockQueryBuilder) => {
+        q.eq('organizationId', 'org_1');
+        q.eq('parentId', 'parent_b');
+        q.eq('name', 'docs');
+      },
+    );
     const existing = await builder.first();
 
     expect(existing).toBeNull();
@@ -182,11 +200,14 @@ describe('checkDuplicateName (via createMockCtx)', () => {
     });
 
     const query = ctx.db.query('folders');
-    const builder = query.withIndex('by_org_parent_name', (q: any) => {
-      q.eq('organizationId', 'org_2');
-      q.eq('parentId', undefined);
-      q.eq('name', 'docs');
-    });
+    const builder = query.withIndex(
+      'by_org_parent_name',
+      (q: MockQueryBuilder) => {
+        q.eq('organizationId', 'org_2');
+        q.eq('parentId', undefined);
+        q.eq('name', 'docs');
+      },
+    );
     const existing = await builder.first();
 
     expect(existing).toBeNull();
@@ -209,10 +230,13 @@ describe('deleteFolder constraints', () => {
     });
 
     const query = ctx.db.query('folders');
-    const builder = query.withIndex('by_org_parent_name', (q: any) => {
-      q.eq('organizationId', 'org_1');
-      q.eq('parentId', 'parent_1');
-    });
+    const builder = query.withIndex(
+      'by_org_parent_name',
+      (q: MockQueryBuilder) => {
+        q.eq('organizationId', 'org_1');
+        q.eq('parentId', 'parent_1');
+      },
+    );
     const childFolder = await builder.first();
 
     expect(childFolder).not.toBeNull();
@@ -235,7 +259,7 @@ describe('deleteFolder constraints', () => {
     const query = ctx.db.query('documents');
     const builder = query.withIndex(
       'by_organizationId_and_folderId',
-      (q: any) => {
+      (q: MockQueryBuilder) => {
         q.eq('organizationId', 'org_1');
         q.eq('folderId', 'folder_1');
       },
@@ -257,7 +281,7 @@ describe('deleteFolder constraints', () => {
     const folderQuery = ctx.db.query('folders');
     const folderBuilder = folderQuery.withIndex(
       'by_org_parent_name',
-      (q: any) => {
+      (q: MockQueryBuilder) => {
         q.eq('organizationId', 'org_1');
         q.eq('parentId', 'folder_1');
       },
@@ -267,7 +291,7 @@ describe('deleteFolder constraints', () => {
     const docQuery = ctx.db.query('documents');
     const docBuilder = docQuery.withIndex(
       'by_organizationId_and_folderId',
-      (q: any) => {
+      (q: MockQueryBuilder) => {
         q.eq('organizationId', 'org_1');
         q.eq('folderId', 'folder_1');
       },
@@ -290,7 +314,7 @@ describe('parent folder validation', () => {
 
     const parent = await ctx.db.get('parent_other_org');
     expect(parent).not.toBeNull();
-    expect(parent!.organizationId).not.toBe('org_1');
+    expect(parent?.organizationId).not.toBe('org_1');
   });
 
   it('rejects non-existent parentId', async () => {
@@ -310,7 +334,7 @@ describe('parent folder validation', () => {
 
     const parent = await ctx.db.get('parent_1');
     expect(parent).not.toBeNull();
-    expect(parent!.organizationId).toBe('org_1');
+    expect(parent?.organizationId).toBe('org_1');
   });
 });
 
@@ -351,10 +375,12 @@ describe('team access validation', () => {
 
     const parent = await ctx.db.get('team_folder');
     expect(parent).not.toBeNull();
-    expect(parent!.teamId).toBe('team_sales');
+    expect(parent?.teamId).toBe('team_sales');
 
     const userTeamIds = ['team_marketing'];
-    expect(hasTeamAccess(parent!, userTeamIds)).toBe(false);
+    expect(hasTeamAccess(parent ?? { teamId: undefined }, userTeamIds)).toBe(
+      false,
+    );
   });
 
   it('parent folder with team allows child creation for members', async () => {
@@ -368,7 +394,9 @@ describe('team access validation', () => {
 
     const parent = await ctx.db.get('team_folder');
     const userTeamIds = ['team_sales', 'team_marketing'];
-    expect(hasTeamAccess(parent!, userTeamIds)).toBe(true);
+    expect(hasTeamAccess(parent ?? { teamId: undefined }, userTeamIds)).toBe(
+      true,
+    );
   });
 });
 
@@ -398,7 +426,7 @@ describe('folder depth validation', () => {
     let depth = 1;
     let ancestorId: string | undefined = 'level_2';
     while (ancestorId) {
-      const ancestor = await ctx.db.get(ancestorId);
+      const ancestor: MockRecord | null = await ctx.db.get(ancestorId);
       if (!ancestor) break;
       depth++;
       ancestorId = ancestor.parentId;
@@ -424,7 +452,7 @@ describe('folder depth validation', () => {
     let ancestorId: string | undefined = (await ctx.db.get('level_24'))
       ?.parentId;
     while (ancestorId && depth < MAX_FOLDER_DEPTH) {
-      const ancestor = await ctx.db.get(ancestorId);
+      const ancestor: MockRecord | null = await ctx.db.get(ancestorId);
       if (!ancestor) break;
       depth++;
       ancestorId = ancestor.parentId;
