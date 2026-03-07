@@ -1,14 +1,19 @@
 'use client';
 
+import { Link } from '@tanstack/react-router';
 import {
   CheckCircle,
   ChevronDown,
   ChevronRight,
+  ExternalLink,
   Loader2,
   Play,
   XCircle,
 } from 'lucide-react';
-import { memo, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
+
+import type { Id } from '@/convex/_generated/dataModel';
+import type { WorkflowRunMetadata } from '@/convex/approvals/types';
 
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { ActionRow } from '@/app/components/ui/layout/action-row';
@@ -18,9 +23,8 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useExecuteApprovedWorkflowRun } from '@/app/features/approvals/hooks/actions';
 import { useUpdateApprovalStatus } from '@/app/features/approvals/hooks/mutations';
+import { useExecutionStatus } from '@/app/features/chat/hooks/use-execution-status';
 import { useAuth } from '@/app/hooks/use-convex-auth';
-import { Id } from '@/convex/_generated/dataModel';
-import { WorkflowRunMetadata } from '@/convex/approvals/types';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -34,11 +38,26 @@ interface WorkflowRunApprovalCardProps {
   className?: string;
 }
 
+function formatElapsed(startMs: number) {
+  const elapsed = Math.floor((Date.now() - startMs) / 1000);
+  if (elapsed < 60) return `${elapsed}s`;
+  const minutes = Math.floor(elapsed / 60);
+  if (minutes < 60) return `${minutes}m ${elapsed % 60}s`;
+  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+}
+
+function formatOutputPreview(output: unknown) {
+  if (output === null || output === undefined) return null;
+  const str =
+    typeof output === 'string' ? output : JSON.stringify(output, null, 2);
+  return str.length > 300 ? `${str.slice(0, 300)}…` : str;
+}
+
 function WorkflowRunApprovalCardComponent({
   approvalId,
+  organizationId,
   status,
   metadata,
-  executedAt,
   executionError,
   className,
 }: WorkflowRunApprovalCardProps) {
@@ -48,9 +67,31 @@ function WorkflowRunApprovalCardComponent({
   const [isRejecting, setIsRejecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showParams, setShowParams] = useState(false);
+  const [showOutput, setShowOutput] = useState(false);
+  const [elapsed, setElapsed] = useState('');
 
   const { mutateAsync: updateApprovalStatus } = useUpdateApprovalStatus();
   const { mutateAsync: executeApprovedRun } = useExecuteApprovedWorkflowRun();
+
+  const executionId =
+    status === 'approved' && metadata.executionId
+      ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- metadata.executionId is a string from Convex approval doc; cast to branded Id type required by the query
+        (metadata.executionId as Id<'wfExecutions'>)
+      : undefined;
+  const { data: executionStatus } = useExecutionStatus(executionId);
+
+  const isRunning =
+    executionStatus?.status === 'pending' ||
+    executionStatus?.status === 'running';
+
+  useEffect(() => {
+    if (!isRunning || !executionStatus?.startedAt) return;
+    setElapsed(formatElapsed(executionStatus.startedAt));
+    const interval = setInterval(() => {
+      setElapsed(formatElapsed(executionStatus.startedAt));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isRunning, executionStatus?.startedAt]);
 
   const isPending = status === 'pending';
   const isProcessing = isApproving || isRejecting;
@@ -182,16 +223,90 @@ function WorkflowRunApprovalCardComponent({
         </Stack>
       )}
 
-      {/* Execution Result */}
-      {status === 'approved' && executedAt && !executionError && (
-        <HStack gap={1} className="mb-3 text-xs text-green-600">
-          <CheckCircle className="size-3" />
-          {t('statusApprovedSuccess')}
-        </HStack>
+      {/* Live Execution Status */}
+      {status === 'approved' && executionId && (
+        <Stack gap={1} className="mb-3" aria-live="polite">
+          {isRunning && (
+            <>
+              <HStack gap={1} className="text-primary text-xs">
+                <Loader2 className="size-3 animate-spin" />
+                {executionStatus?.currentStepSlug
+                  ? t('executionRunningStep', {
+                      step: executionStatus.currentStepSlug,
+                    })
+                  : t('executionRunning')}
+              </HStack>
+              {elapsed && (
+                <Text as="div" variant="caption">
+                  {t('executionElapsed', { duration: elapsed })}
+                </Text>
+              )}
+            </>
+          )}
+
+          {executionStatus?.status === 'completed' && (
+            <>
+              <HStack gap={1} className="text-xs text-green-600">
+                <CheckCircle className="size-3" />
+                {t('executionCompleted')}
+              </HStack>
+              {executionStatus.output != null && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setShowOutput(!showOutput)}
+                    className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs transition-colors"
+                    aria-expanded={showOutput}
+                  >
+                    {showOutput ? (
+                      <ChevronDown className="size-3" />
+                    ) : (
+                      <ChevronRight className="size-3" />
+                    )}
+                    {showOutput ? t('hideOutput') : t('showOutput')}
+                  </button>
+                  {showOutput && (
+                    <pre className="bg-muted/50 max-h-40 overflow-auto rounded-md p-2 font-mono text-[10px] break-all whitespace-pre-wrap">
+                      {formatOutputPreview(executionStatus.output)}
+                    </pre>
+                  )}
+                </>
+              )}
+            </>
+          )}
+
+          {executionStatus?.status === 'failed' && (
+            <HStack
+              gap={1}
+              align="start"
+              className="text-destructive text-xs wrap-break-word"
+            >
+              <XCircle className="size-3 shrink-0" />
+              <Text as="span" className="min-w-0">
+                {executionStatus.error || t('executionFailed')}
+              </Text>
+            </HStack>
+          )}
+
+          {(executionStatus?.status === 'completed' ||
+            executionStatus?.status === 'failed') && (
+            <Link
+              to="/dashboard/$id/automations/$amId/executions"
+              params={{
+                id: organizationId,
+                amId: metadata.workflowId,
+              }}
+              className="text-primary flex items-center gap-1 text-xs hover:underline"
+            >
+              {t('viewDetails')}
+              <ExternalLink className="size-3" />
+            </Link>
+          )}
+        </Stack>
       )}
 
-      {/* Execution Error (persisted from backend) */}
-      {status === 'approved' && executionError && (
+      {/* Execution startup error (no executionId — workflow failed to start) */}
+      {status === 'approved' && !executionId && executionError && (
         <HStack
           gap={1}
           align="start"
@@ -262,14 +377,10 @@ function WorkflowRunApprovalCardComponent({
         </ActionRow>
       )}
 
-      {/* Status message for resolved approvals */}
-      {!isPending && (
+      {/* Status message for rejected approvals */}
+      {status === 'rejected' && (
         <Text as="div" variant="caption">
-          {status === 'approved' && executionError
-            ? t('statusApprovedFailed')
-            : status === 'approved'
-              ? t('statusApprovedSuccess')
-              : t('statusRejected')}
+          {t('statusRejected')}
         </Text>
       )}
     </div>

@@ -2065,7 +2065,15 @@
     "statusApprovedFailed": "Workflow execution was approved but failed to start.",
     "statusRejected": "Workflow execution was cancelled.",
     "showParameters": "Show parameters",
-    "hideParameters": "Hide parameters"
+    "hideParameters": "Hide parameters",
+    "executionRunning": "Running...",
+    "executionRunningStep": "Running step: {step}",
+    "executionElapsed": "Running for {duration}",
+    "executionCompleted": "Completed successfully",
+    "executionFailed": "Execution failed",
+    "viewDetails": "View execution details",
+    "showOutput": "Show output",
+    "hideOutput": "Hide output"
   },
   "integrationApproval": {
     "approve": "Approve",

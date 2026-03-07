@@ -77,4 +77,41 @@ export async function handleWorkflowComplete(
       },
     );
   }
+
+  await postCompletionMessageToThread(ctx, exec, kind, result);
+}
+
+async function postCompletionMessageToThread(
+  ctx: MutationCtx,
+  exec: Doc<'wfExecutions'>,
+  kind: string | undefined,
+  result: ComponentRunResult,
+): Promise<void> {
+  const triggerData = isRecord(exec.triggerData) ? exec.triggerData : null;
+  const approvalIdStr = triggerData
+    ? getString(triggerData, 'approvalId')
+    : undefined;
+  if (!approvalIdStr) return;
+
+  try {
+    const approval = await ctx.db.get(toId<'approvals'>(approvalIdStr));
+    if (!approval?.threadId) return;
+
+    const workflowName = exec.workflowSlug || 'unknown';
+    const errorMsg = result.kind === 'failed' ? result.error : 'unknown error';
+    const messageContent =
+      kind === 'success'
+        ? `[WORKFLOW_COMPLETED]\nWorkflow "${workflowName}" completed successfully.\n\nExecution Details:\n- Execution ID: ${exec._id}\n- Status: completed\n\nInstructions:\n- Inform the user that the workflow has completed successfully`
+        : `[WORKFLOW_FAILED]\nWorkflow "${workflowName}" failed.\n\nExecution Details:\n- Execution ID: ${exec._id}\n- Status: failed\n- Error: ${errorMsg || 'unknown error'}\n\nInstructions:\n- Inform the user that the workflow has failed and provide the error details`;
+
+    await ctx.runMutation(
+      internal.agent_tools.workflows.internal_mutations.saveSystemMessage,
+      {
+        threadId: approval.threadId,
+        content: messageContent,
+      },
+    );
+  } catch {
+    // System message failure is non-critical; execution status is already persisted
+  }
 }
