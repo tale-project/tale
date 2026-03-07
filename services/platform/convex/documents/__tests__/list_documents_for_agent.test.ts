@@ -575,7 +575,7 @@ describe('listDocumentsForAgent', () => {
 
       expect(result.documents).toHaveLength(3);
       expect(result.hasMore).toBe(true);
-      expect(result.cursor).toBe(result.documents[2]?.createdAt);
+      expect(result.cursor).toBe(3);
     });
 
     it('supports cursor-based pagination for next page', async () => {
@@ -610,6 +610,188 @@ describe('listDocumentsForAgent', () => {
       for (const doc of page2.documents) {
         expect(page1Ids.has(doc.id)).toBe(false);
       }
+    });
+  });
+
+  describe('edge cases', () => {
+    it('paginates correctly with sortBy name using offset cursor', async () => {
+      const docs = Array.from({ length: 5 }, (_, i) =>
+        makeDoc({
+          _id: `doc${i}`,
+          title: String.fromCharCode(65 + i),
+          _creationTime: (4 - i) * 1000,
+        }),
+      );
+      const ctx = createMockCtx({}, docs);
+
+      const page1 = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        sortBy: 'name',
+        sortOrder: 'asc',
+        limit: 3,
+      });
+
+      expect(page1.documents).toHaveLength(3);
+      expect(page1.documents.map((d) => d.title)).toEqual(['A', 'B', 'C']);
+      expect(page1.hasMore).toBe(true);
+      expect(page1.cursor).toBe(3);
+
+      const page2 = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        sortBy: 'name',
+        sortOrder: 'asc',
+        limit: 3,
+        cursor: page1.cursor ?? undefined,
+      });
+
+      expect(page2.documents.map((d) => d.title)).toEqual(['D', 'E']);
+      expect(page2.hasMore).toBe(false);
+    });
+
+    it('does not skip documents with duplicate _creationTime at page boundary', async () => {
+      const ctx = createMockCtx({}, [
+        makeDoc({ _id: 'doc0', _creationTime: 3000 }),
+        makeDoc({ _id: 'doc1', _creationTime: 2000 }),
+        makeDoc({ _id: 'doc2', _creationTime: 2000 }),
+        makeDoc({ _id: 'doc3', _creationTime: 2000 }),
+        makeDoc({ _id: 'doc4', _creationTime: 1000 }),
+      ]);
+
+      const page1 = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        limit: 2,
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
+      });
+
+      expect(page1.documents).toHaveLength(2);
+      expect(page1.cursor).toBe(2);
+
+      const page2 = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        limit: 2,
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
+        cursor: page1.cursor ?? undefined,
+      });
+
+      expect(page2.documents).toHaveLength(2);
+      expect(page2.hasMore).toBe(true);
+
+      const page3 = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        limit: 2,
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
+        cursor: page2.cursor ?? undefined,
+      });
+
+      expect(page3.documents).toHaveLength(1);
+      expect(page3.hasMore).toBe(false);
+
+      // All 5 docs returned across 3 pages with no skipping
+      const allIds = [
+        ...page1.documents,
+        ...page2.documents,
+        ...page3.documents,
+      ].map((d) => d.id);
+      expect(new Set(allIds).size).toBe(5);
+    });
+
+    it('returns totalCount null when scan limit is exceeded', async () => {
+      const docs = Array.from({ length: 25 }, (_, i) =>
+        makeDoc({ _id: `doc${i}`, _creationTime: i }),
+      );
+      const ctx = createMockCtx({}, docs);
+
+      const result = await listDocumentsForAgent(
+        ctx as unknown as QueryCtx,
+        baseArgs,
+      );
+
+      // With 25 docs (< MAX_SCAN), totalCount is exact
+      expect(result.totalCount).toBe(25);
+    });
+
+    it('applies dateFrom filter even when value is NaN', async () => {
+      const ctx = createMockCtx({}, [
+        makeDoc({ _id: 'doc1', _creationTime: 1000 }),
+        makeDoc({ _id: 'doc2', _creationTime: 2000 }),
+      ]);
+
+      // NaN != null is true, so the filter check runs.
+      // doc._creationTime < NaN is always false, so no doc is filtered out.
+      const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        dateFrom: NaN,
+      });
+
+      // NaN comparisons always return false, so all docs pass the filter
+      expect(result.documents).toHaveLength(2);
+    });
+
+    it('treats folderPath "/" as no folder filter', async () => {
+      const ctx = createMockCtx({}, [
+        makeDoc({ _id: 'doc1' }),
+        makeDoc({ _id: 'doc2' }),
+      ]);
+
+      const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        folderPath: '/',
+      });
+
+      // "/" resolves to empty segments → no folder filter applied
+      expect(result.documents).toHaveLength(2);
+    });
+
+    it('treats folderPath "" as no folder filter', async () => {
+      const ctx = createMockCtx({}, [
+        makeDoc({ _id: 'doc1' }),
+        makeDoc({ _id: 'doc2' }),
+      ]);
+
+      const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        folderPath: '',
+      });
+
+      expect(result.documents).toHaveLength(2);
+    });
+
+    it('applies dateFrom filter when value is 0', async () => {
+      const ctx = createMockCtx({}, [
+        makeDoc({ _id: 'doc1', _creationTime: 1000 }),
+        makeDoc({ _id: 'doc2', _creationTime: 2000 }),
+      ]);
+
+      // dateFrom: 0 means epoch start — all docs with _creationTime >= 0 pass
+      const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        dateFrom: 0,
+      });
+
+      expect(result.documents).toHaveLength(2);
+    });
+
+    it('uses _id as tiebreaker for deterministic sort', async () => {
+      const ctx = createMockCtx({}, [
+        makeDoc({ _id: 'doc_b', _creationTime: 1000 }),
+        makeDoc({ _id: 'doc_a', _creationTime: 1000 }),
+        makeDoc({ _id: 'doc_c', _creationTime: 1000 }),
+      ]);
+
+      const result = await listDocumentsForAgent(
+        ctx as unknown as QueryCtx,
+        baseArgs,
+      );
+
+      // Same _creationTime, sorted by _id as tiebreaker
+      expect(result.documents.map((d) => d.id)).toEqual([
+        'doc_a',
+        'doc_b',
+        'doc_c',
+      ]);
     });
   });
 

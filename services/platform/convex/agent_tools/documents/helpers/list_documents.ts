@@ -1,24 +1,12 @@
 import type { ToolCtx } from '@convex-dev/agent';
+import type { z } from 'zod/v4';
 
+import type { documentListArgs } from '../document_list_tool';
 import type { DocumentListResult } from './types';
 
 import { internal } from '../../../_generated/api';
 
-const DEFAULT_LIMIT = 20;
-const MAX_LIMIT = 50;
-
-export interface ListDocumentsArgs {
-  folderPath?: string;
-  extension?: string;
-  teamId?: string;
-  dateFrom?: string;
-  dateTo?: string;
-  query?: string;
-  sortBy?: 'createdAt' | 'name';
-  sortOrder?: 'asc' | 'desc';
-  limit?: number;
-  cursor?: number;
-}
+export type ListDocumentsArgs = z.infer<typeof documentListArgs>;
 
 export async function listDocuments(
   ctx: ToolCtx,
@@ -35,13 +23,10 @@ export async function listDocuments(
     throw new Error('userId is required in context for listing documents');
   }
 
-  const limit = Math.min(Math.max(args.limit ?? DEFAULT_LIMIT, 1), MAX_LIMIT);
-
   const dateFrom = args.dateFrom
     ? new Date(args.dateFrom).getTime()
     : undefined;
-  // Add end-of-day (23:59:59.999) when only a date is provided so that
-  // documents created during that day are included
+  // End-of-day (23:59:59.999) so documents created during that day are included
   const dateTo = args.dateTo
     ? new Date(args.dateTo).getTime() + 86_400_000 - 1
     : undefined;
@@ -57,7 +42,7 @@ export async function listDocuments(
     query: args.query,
     sortBy: args.sortBy,
     sortOrder: args.sortOrder,
-    limit,
+    limit: args.limit,
     cursor: args.cursor,
   });
 }

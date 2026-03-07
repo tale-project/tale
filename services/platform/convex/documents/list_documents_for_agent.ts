@@ -29,7 +29,7 @@ export interface AgentDocumentItem {
 
 export interface AgentDocumentListResult {
   documents: AgentDocumentItem[];
-  totalCount: number;
+  totalCount: number | null;
   hasMore: boolean;
   cursor: number | null;
 }
@@ -76,7 +76,9 @@ export async function listDocumentsForAgent(
       args.organizationId,
       args.folderPath,
     );
-    if (!resolved) return emptyResult;
+    // undefined means path resolved to empty segments (e.g., "/", "///")
+    // — treat as "no folder filter". null means a named folder was not found.
+    if (resolved === null) return emptyResult;
     folderId = resolved;
   }
 
@@ -110,8 +112,8 @@ export async function listDocumentsForAgent(
     }
 
     // Date range filter
-    if (args.dateFrom && doc._creationTime < args.dateFrom) continue;
-    if (args.dateTo && doc._creationTime > args.dateTo) continue;
+    if (args.dateFrom != null && doc._creationTime < args.dateFrom) continue;
+    if (args.dateTo != null && doc._creationTime > args.dateTo) continue;
 
     // Title search
     if (searchQuery) {
@@ -122,29 +124,21 @@ export async function listDocumentsForAgent(
     matches.push(doc);
   }
 
-  const totalCount = scanLimitHit ? -1 : matches.length;
+  const totalCount = scanLimitHit ? null : matches.length;
 
-  // Sort
+  // Sort with _id tiebreaker for deterministic ordering
   matches.sort((a, b) => {
     const aVal = sortBy === 'name' ? (a.title ?? '') : a._creationTime;
     const bVal = sortBy === 'name' ? (b.title ?? '') : b._creationTime;
-    if (aVal === bVal) return 0;
-    const comparison = aVal < bVal ? -1 : 1;
-    return sortOrder === 'asc' ? comparison : -comparison;
+    if (aVal !== bVal) {
+      const comparison = aVal < bVal ? -1 : 1;
+      return sortOrder === 'asc' ? comparison : -comparison;
+    }
+    return a._id < b._id ? -1 : a._id > b._id ? 1 : 0;
   });
 
-  // Apply cursor — only supported for createdAt sort (cursor is a timestamp)
-  let startIndex = 0;
-  const cursorValue = args.cursor;
-  if (cursorValue != null && sortBy === 'createdAt') {
-    startIndex = matches.findIndex((doc) =>
-      sortOrder === 'desc'
-        ? doc._creationTime < cursorValue
-        : doc._creationTime > cursorValue,
-    );
-    if (startIndex === -1) startIndex = matches.length;
-  }
-
+  // Offset-based pagination (cursor is a start index)
+  const startIndex = args.cursor ?? 0;
   const page = matches.slice(startIndex, startIndex + limit);
   const hasMore = startIndex + limit < matches.length;
 
@@ -162,8 +156,7 @@ export async function listDocumentsForAgent(
     sizeBytes: extractSize(doc.metadata),
   }));
 
-  const lastDoc = page[page.length - 1];
-  const nextCursor = hasMore && lastDoc ? lastDoc._creationTime : null;
+  const nextCursor = hasMore ? startIndex + limit : null;
 
   return { documents, totalCount, hasMore, cursor: nextCursor };
 }
@@ -172,12 +165,13 @@ async function resolveFolderPath(
   ctx: QueryCtx,
   organizationId: string,
   folderPath: string,
-): Promise<Id<'folders'> | undefined> {
+): Promise<Id<'folders'> | null | undefined> {
   const cleanPath = folderPath.startsWith('/')
     ? folderPath.slice(1)
     : folderPath;
   const segments = cleanPath.split('/').filter(Boolean);
 
+  // Empty segments (e.g., "/", "///") — treat as no folder filter
   if (segments.length === 0) return undefined;
 
   let currentFolderId: Id<'folders'> | undefined;
@@ -192,7 +186,8 @@ async function resolveFolderPath(
       )
       .first();
 
-    if (!folder) return undefined;
+    // Named folder not found
+    if (!folder) return null;
     currentFolderId = folder._id;
   }
 

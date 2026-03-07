@@ -5,8 +5,6 @@
  * Supports filtering by folder, extension, team, date range, and title search.
  */
 
-import type { ToolCtx } from '@convex-dev/agent';
-
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
@@ -15,12 +13,12 @@ import type { DocumentListResult } from './helpers/types';
 
 import { listDocuments } from './helpers/list_documents';
 
-const documentListArgs = z.object({
+export const documentListArgs = z.object({
   folderPath: z
     .string()
     .optional()
     .describe(
-      'Filter by folder path (e.g., "contracts/2024", "marketing"). Nested paths use "/" separator. Omit to search all folders.',
+      'Filter by folder path (e.g., "contracts/2024", "marketing"). Filters to documents directly in the specified folder, not recursively. Nested paths use "/" separator. Omit to search all folders.',
     ),
   extension: z
     .string()
@@ -36,15 +34,17 @@ const documentListArgs = z.object({
     ),
   dateFrom: z
     .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Must be YYYY-MM-DD format')
     .optional()
     .describe(
-      'Filter documents created on or after this date. ISO 8601 format (e.g., "2026-01-01").',
+      'Filter documents created on or after this date. UTC date in YYYY-MM-DD format (e.g., "2026-01-01").',
     ),
   dateTo: z
     .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Must be YYYY-MM-DD format')
     .optional()
     .describe(
-      'Filter documents created on or before this date. ISO 8601 format (e.g., "2026-03-31").',
+      'Filter documents created on or before this date. UTC date in YYYY-MM-DD format (e.g., "2026-03-31").',
     ),
   query: z
     .string()
@@ -68,7 +68,7 @@ const documentListArgs = z.object({
     .number()
     .optional()
     .describe(
-      'Pagination cursor from previous response. Pass the cursor value to get the next page.',
+      'Pagination offset from previous response. Pass the cursor value to get the next page.',
     ),
 });
 
@@ -90,7 +90,7 @@ DO NOT USE THIS TOOL FOR:
 
 RESPONSE FIELDS:
 • documents: Array of {id, title, extension, folderPath, teamId, createdAt, sizeBytes}
-• totalCount: Total matching documents (-1 if too many to count)
+• totalCount: Total matching documents (null if too many to count efficiently)
 • hasMore: Whether more results are available
 • cursor: Pass to next call to get the next page
 
@@ -101,11 +101,12 @@ PAGINATION:
 
 TIPS:
 • Combine filters to narrow results (e.g., folderPath + extension + dateFrom)
-• Use limit=1 with filters to efficiently count matching documents via totalCount
-• Default sort is newest first (createdAt desc)`,
+• Use limit=1 with filters to check totalCount (minimizes response size)
+• Default sort is newest first (createdAt desc)
+• Dates are interpreted as UTC`,
     args: documentListArgs,
-    handler: async (ctx: ToolCtx, args): Promise<DocumentListResult> => {
+    handler: async (ctx, args): Promise<DocumentListResult> => {
       return listDocuments(ctx, args);
     },
   }),
-} as const;
+} as const satisfies ToolDefinition;
