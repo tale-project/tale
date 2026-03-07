@@ -30,11 +30,9 @@ export function DocumentDeleteFolderDialog({
         open={open}
         onOpenChange={onOpenChange}
         title={tDocuments('deleteSyncFolder.title')}
-        description={
-          <>
-            {tDocuments('deleteSyncFolder.confirmation')} {folderName}?
-          </>
-        }
+        description={tDocuments('deleteSyncFolder.confirmation', {
+          name: folderName,
+        })}
         deleteText={tDocuments('deleteSyncFolder.deleteButton')}
         isDeleting={isLoading}
         onDelete={onConfirmDelete}
@@ -73,11 +71,9 @@ export function DocumentDeleteFolderDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={tDocuments('deleteFolder.title')}
-      description={
-        <>
-          {tDocuments('deleteFolder.confirmation')} {folderName}?
-        </>
-      }
+      description={tDocuments('deleteFolder.confirmation', {
+        name: folderName,
+      })}
       deleteText={tDocuments('deleteFolder.deleteButton')}
       isDeleting={isLoading}
       onDelete={onConfirmDelete}

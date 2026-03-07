@@ -36,4 +36,16 @@ describe('validateFolderName', () => {
     const maxName = 'a'.repeat(255);
     expect(validateFolderName(maxName)).toBe(maxName);
   });
+
+  it('throws for names containing forward slash', () => {
+    expect(() => validateFolderName('reports/2024')).toThrow(
+      'Folder name cannot contain path separators',
+    );
+  });
+
+  it('throws for names containing backslash', () => {
+    expect(() => validateFolderName('reports\\2024')).toThrow(
+      'Folder name cannot contain path separators',
+    );
+  });
 });

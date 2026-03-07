@@ -27,6 +27,7 @@ interface DocumentRowActionsProps {
   isDirectlySelected?: boolean;
   sourceMode?: StorageSourceMode;
   teamId?: string | null;
+  onFolderDeleted?: () => void;
 }
 
 export function DocumentRowActions({
@@ -37,6 +38,7 @@ export function DocumentRowActions({
   isDirectlySelected,
   sourceMode,
   teamId,
+  onFolderDeleted,
 }: DocumentRowActionsProps) {
   const { t: tDocuments } = useT('documents');
   const { t: tCommon } = useT('common');
@@ -71,7 +73,10 @@ export function DocumentRowActions({
     deleteFolder(
       { folderId: toId<'folders'>(documentId) },
       {
-        onSuccess: () => dialogs.setOpen.deleteFolder(false),
+        onSuccess: () => {
+          dialogs.setOpen.deleteFolder(false);
+          onFolderDeleted?.();
+        },
         onError: (error) => {
           console.error('Failed to delete folder:', error);
           toast({
@@ -81,7 +86,7 @@ export function DocumentRowActions({
         },
       },
     );
-  }, [deleteFolder, documentId, dialogs.setOpen, tDocuments]);
+  }, [deleteFolder, documentId, dialogs.setOpen, tDocuments, onFolderDeleted]);
 
   const handleDeleteClick = useCallback(() => {
     if (itemType === 'folder') {

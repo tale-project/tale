@@ -26,6 +26,7 @@ export const listFolders = query({
       name: authUser.name,
     });
 
+    const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
     const folders: Doc<'folders'>[] = [];
 
     const q = ctx.db
@@ -37,6 +38,7 @@ export const listFolders = query({
       );
 
     for await (const folder of q) {
+      if (!hasTeamAccess(folder, userTeamIds)) continue;
       folders.push(folder);
     }
 
@@ -76,6 +78,8 @@ export const getFolderBreadcrumb = query({
   },
 });
 
+const MAX_BREADCRUMB_DEPTH = 20;
+
 export async function buildBreadcrumb(
   ctx: QueryCtx,
   folderId: Id<'folders'>,
@@ -84,7 +88,7 @@ export async function buildBreadcrumb(
   const visited = new Set<string>();
   let currentId: Id<'folders'> | undefined = folderId;
 
-  while (currentId) {
+  while (currentId && chain.length < MAX_BREADCRUMB_DEPTH) {
     if (visited.has(currentId)) break;
     visited.add(currentId);
 

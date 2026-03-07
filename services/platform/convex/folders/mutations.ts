@@ -21,6 +21,9 @@ export function validateFolderName(name: string): string {
   if (RESERVED_NAMES.has(trimmed)) {
     throw new Error('Invalid folder name');
   }
+  if (trimmed.includes('/') || trimmed.includes('\\')) {
+    throw new Error('Folder name cannot contain path separators');
+  }
   return trimmed;
 }
 
@@ -29,6 +32,7 @@ async function checkDuplicateName(
   organizationId: string,
   parentId: Id<'folders'> | undefined,
   name: string,
+  excludeId?: Id<'folders'>,
 ) {
   const existing = await ctx.db
     .query('folders')
@@ -40,7 +44,7 @@ async function checkDuplicateName(
     )
     .first();
 
-  if (existing) {
+  if (existing && existing._id !== excludeId) {
     throw new Error('A folder with this name already exists');
   }
 }
@@ -121,6 +125,7 @@ export const renameFolder = mutation({
       folder.organizationId,
       folder.parentId,
       trimmedName,
+      args.folderId,
     );
 
     await ctx.db.patch(args.folderId, { name: trimmedName });

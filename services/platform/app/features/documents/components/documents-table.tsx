@@ -159,6 +159,11 @@ export function DocumentsTable({
     });
   }, [navigate, organizationId, query, currentFolderId]);
 
+  const handleFolderDeleted = useCallback(
+    () => navigateToFolder(undefined),
+    [navigateToFolder],
+  );
+
   const handleDocumentClick = useCallback(
     (item: DocumentItem, e: React.MouseEvent) => {
       e.stopPropagation();
@@ -175,6 +180,7 @@ export function DocumentsTable({
   const { columns, stickyLayout, pageSize, searchPlaceholder } =
     useDocumentsTableConfig({
       onDocumentClick: handleDocumentClick,
+      onFolderDeleted: handleFolderDeleted,
       isLoadingTeams,
       teamMap,
     });

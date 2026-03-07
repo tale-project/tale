@@ -1,6 +1,7 @@
 'use client';
 
 import { ChevronLeft } from 'lucide-react';
+import { useEffect } from 'react';
 
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
@@ -24,58 +25,70 @@ export function BreadcrumbNavigation({
     { folderId: toId<'folders'>(folderId) },
   );
 
+  useEffect(() => {
+    if (breadcrumb !== undefined && breadcrumb.length === 0) {
+      onNavigate(undefined);
+    }
+  }, [breadcrumb, onNavigate]);
+
   const segments = breadcrumb ?? [];
 
   return (
-    <nav className="bg-background sticky top-14 z-10 mb-4 flex items-center gap-1">
-      <button
-        onClick={() => onNavigate(undefined)}
-        className="text-muted-foreground hover:text-foreground/90 size-4 shrink-0 cursor-pointer transition-colors"
-        aria-label={tCommon('aria.backTo', { page: t('breadcrumb.documents') })}
-      >
-        <ChevronLeft className="size-4" />
-      </button>
+    <nav
+      className="bg-background sticky top-14 z-10 mb-4"
+      aria-label={t('breadcrumb.navigation')}
+    >
+      <ol className="flex items-center gap-1">
+        <li className="flex items-center gap-1">
+          <button
+            onClick={() => onNavigate(undefined)}
+            className="text-muted-foreground hover:text-foreground/90 focus-visible:ring-ring size-4 shrink-0 cursor-pointer rounded-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
+            aria-label={tCommon('aria.backTo', {
+              page: t('breadcrumb.documents'),
+            })}
+          >
+            <ChevronLeft className="size-4" />
+          </button>
 
-      <button
-        onClick={() => onNavigate(undefined)}
-        className="text-muted-foreground hover:text-foreground/90 cursor-pointer text-xs font-medium whitespace-nowrap transition-colors"
-      >
-        {t('breadcrumb.documents')}
-      </button>
+          <button
+            onClick={() => onNavigate(undefined)}
+            className="text-muted-foreground hover:text-foreground/90 focus-visible:ring-ring cursor-pointer rounded-sm text-xs font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:outline-none"
+          >
+            {t('breadcrumb.documents')}
+          </button>
+        </li>
 
-      {segments.map((folder, index) => {
-        const isLast = index === segments.length - 1;
+        {segments.map((folder, index) => {
+          const isLast = index === segments.length - 1;
 
-        return (
-          <div key={folder._id} className="flex items-center gap-1">
-            <div
-              className="text-muted-foreground mx-1 text-[14px] leading-4 font-medium"
-              style={{ fontFamily: 'DM Sans, sans-serif' }}
-              aria-hidden="true"
-            >
-              /
-            </div>
-
-            {isLast ? (
+          return (
+            <li key={folder._id} className="flex items-center gap-1">
               <span
-                className="text-foreground text-xs font-semibold whitespace-nowrap"
-                style={{ fontFamily: 'Inter, sans-serif' }}
-                aria-current="page"
+                className="text-muted-foreground mx-1 text-[14px] leading-4 font-medium"
+                aria-hidden="true"
               >
-                {folder.name}
+                /
               </span>
-            ) : (
-              <button
-                onClick={() => onNavigate(folder._id)}
-                className="text-muted-foreground hover:text-foreground/90 cursor-pointer text-xs font-medium whitespace-nowrap transition-colors"
-                style={{ fontFamily: 'Inter, sans-serif' }}
-              >
-                {folder.name}
-              </button>
-            )}
-          </div>
-        );
-      })}
+
+              {isLast ? (
+                <span
+                  className="text-foreground text-xs font-semibold whitespace-nowrap"
+                  aria-current="page"
+                >
+                  {folder.name}
+                </span>
+              ) : (
+                <button
+                  onClick={() => onNavigate(folder._id)}
+                  className="text-muted-foreground hover:text-foreground/90 focus-visible:ring-ring cursor-pointer rounded-sm text-xs font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:outline-none"
+                >
+                  {folder.name}
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ol>
     </nav>
   );
 }

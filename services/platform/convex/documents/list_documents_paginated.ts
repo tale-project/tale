@@ -75,18 +75,13 @@ export async function listDocumentsPaginated(
   ctx: QueryCtx,
   args: ListDocumentsPaginatedArgs,
 ): Promise<PaginatedDocumentResult> {
-  const useFolderIndex = 'folderId' in args;
   const filterArgs: FilterArgs = {
-    ...(useFolderIndex && {
-      folderId: args.folderId ? String(args.folderId) : undefined,
-    }),
+    folderId: args.folderId ? String(args.folderId) : undefined,
     sourceProvider: args.sourceProvider,
     extension: args.extension,
   };
 
-  const primary = useFolderIndex
-    ? FILTER_INDEXES[0]
-    : FILTER_INDEXES.find(({ field }) => filterArgs[field]);
+  const primary = FILTER_INDEXES.find(({ field }) => field === 'folderId');
   let query = buildBaseQuery(
     ctx,
     args.organizationId,

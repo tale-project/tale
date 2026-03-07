@@ -35,7 +35,7 @@ function createMockQueryBuilder(
 const DEFAULT_PAGINATION_OPTS = { numItems: 20, cursor: null, id: 0 };
 
 describe('listDocumentsPaginated', () => {
-  it('uses by_organizationId index when no filters', async () => {
+  it('always uses folderId index for root view (no folderId)', async () => {
     const { ctx, builder } = createMockQueryBuilder();
 
     await listDocumentsPaginated(ctx as unknown as QueryCtx, {
@@ -46,14 +46,14 @@ describe('listDocumentsPaginated', () => {
 
     expect(ctx.db.query).toHaveBeenCalledWith('documents');
     expect(builder.withIndex).toHaveBeenCalledWith(
-      'by_organizationId',
+      'by_organizationId_and_folderId',
       expect.any(Function),
     );
     expect(builder.order).toHaveBeenCalledWith('desc');
     expect(builder.filter).not.toHaveBeenCalled();
   });
 
-  it('dispatches to by_organizationId_and_sourceProvider when sourceProvider is provided', async () => {
+  it('uses folderId index with sourceProvider as secondary filter', async () => {
     const { ctx, builder } = createMockQueryBuilder();
 
     await listDocumentsPaginated(ctx as unknown as QueryCtx, {
@@ -64,45 +64,45 @@ describe('listDocumentsPaginated', () => {
     });
 
     expect(builder.withIndex).toHaveBeenCalledWith(
-      'by_organizationId_and_sourceProvider',
-      expect.any(Function),
-    );
-    expect(builder.filter).not.toHaveBeenCalled();
-  });
-
-  it('dispatches to by_organizationId_and_extension when extension is provided (no sourceProvider)', async () => {
-    const { ctx, builder } = createMockQueryBuilder();
-
-    await listDocumentsPaginated(ctx as unknown as QueryCtx, {
-      paginationOpts: DEFAULT_PAGINATION_OPTS,
-      organizationId: 'org_1',
-      extension: 'pdf',
-      userTeamIds: [],
-    });
-
-    expect(builder.withIndex).toHaveBeenCalledWith(
-      'by_organizationId_and_extension',
-      expect.any(Function),
-    );
-    expect(builder.filter).not.toHaveBeenCalled();
-  });
-
-  it('uses sourceProvider index and filters extension when both are provided', async () => {
-    const { ctx, builder } = createMockQueryBuilder();
-
-    await listDocumentsPaginated(ctx as unknown as QueryCtx, {
-      paginationOpts: DEFAULT_PAGINATION_OPTS,
-      organizationId: 'org_1',
-      sourceProvider: 'upload',
-      extension: 'pdf',
-      userTeamIds: [],
-    });
-
-    expect(builder.withIndex).toHaveBeenCalledWith(
-      'by_organizationId_and_sourceProvider',
+      'by_organizationId_and_folderId',
       expect.any(Function),
     );
     expect(builder.filter).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses folderId index with extension as secondary filter', async () => {
+    const { ctx, builder } = createMockQueryBuilder();
+
+    await listDocumentsPaginated(ctx as unknown as QueryCtx, {
+      paginationOpts: DEFAULT_PAGINATION_OPTS,
+      organizationId: 'org_1',
+      extension: 'pdf',
+      userTeamIds: [],
+    });
+
+    expect(builder.withIndex).toHaveBeenCalledWith(
+      'by_organizationId_and_folderId',
+      expect.any(Function),
+    );
+    expect(builder.filter).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses folderId index and filters both sourceProvider and extension', async () => {
+    const { ctx, builder } = createMockQueryBuilder();
+
+    await listDocumentsPaginated(ctx as unknown as QueryCtx, {
+      paginationOpts: DEFAULT_PAGINATION_OPTS,
+      organizationId: 'org_1',
+      sourceProvider: 'upload',
+      extension: 'pdf',
+      userTeamIds: [],
+    });
+
+    expect(builder.withIndex).toHaveBeenCalledWith(
+      'by_organizationId_and_folderId',
+      expect.any(Function),
+    );
+    expect(builder.filter).toHaveBeenCalledTimes(2);
   });
 
   it('filters out documents without team access', async () => {

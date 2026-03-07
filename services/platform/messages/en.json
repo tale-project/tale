@@ -2246,13 +2246,13 @@
     "deleteDocument": "Delete document",
     "deleteFolder": {
       "title": "Delete folder",
-      "confirmation": "Are you sure you want to delete the folder",
+      "confirmation": "Are you sure you want to delete the folder {name}?",
       "requirement": "The folder must be empty before it can be deleted. Remove all files and subfolders first.",
       "deleteButton": "Delete folder"
     },
     "deleteSyncFolder": {
       "title": "Delete sync folder",
-      "confirmation": "Are you sure you want to delete the sync folder",
+      "confirmation": "Are you sure you want to delete the sync folder {name}?",
       "thisWillDelete": "This will permanently delete:",
       "willDelete": {
         "filesAndSubfolders": "All files and subfolders",
@@ -2292,6 +2292,7 @@
       "createFolder": "Create folder",
       "folderName": "Folder name",
       "folderNamePlaceholder": "Enter folder name",
+      "nameRequired": "Folder name is required",
       "creating": "Creating...",
       "created": "Folder created",
       "createFailed": "Failed to create folder"
@@ -2314,6 +2315,7 @@
       "deleteButton": "Delete file"
     },
     "breadcrumb": {
+      "navigation": "Breadcrumb",
       "documents": "Documents",
       "oneDrive": "OneDrive",
       "uploads": "Uploads"

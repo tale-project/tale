@@ -36,7 +36,7 @@ export function CreateFolderDialog({
   const { toast } = useToast();
   const { mutateAsync: createFolder } = useCreateFolder();
 
-  const nameRequiredError = tDocuments('folder.folderNamePlaceholder');
+  const nameRequiredError = tDocuments('folder.nameRequired');
   const schema = useMemo(
     () =>
       z.object({
