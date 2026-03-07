@@ -56,10 +56,16 @@ export async function listDocuments(
 }
 
 function toTimestamp(dateStr: string): number {
-  const ts = new Date(dateStr).getTime();
+  const parsed = new Date(dateStr);
+  const ts = parsed.getTime();
   if (!Number.isFinite(ts)) {
     throw new Error(
       `Invalid date: "${dateStr}". Must be a valid YYYY-MM-DD date.`,
+    );
+  }
+  if (parsed.toISOString().slice(0, 10) !== dateStr) {
+    throw new Error(
+      `Invalid date: "${dateStr}" resolved to "${parsed.toISOString().slice(0, 10)}". Check the date value.`,
     );
   }
   return ts;

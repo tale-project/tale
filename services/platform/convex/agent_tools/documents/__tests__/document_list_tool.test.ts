@@ -128,6 +128,22 @@ describe('listDocuments helper', () => {
     ).rejects.toThrow('Invalid date');
   });
 
+  it('throws on date rollover like 2026-02-30', async () => {
+    const ctx = createMockCtx();
+
+    await expect(
+      listDocuments(ctx as never, { dateFrom: '2026-02-30' }),
+    ).rejects.toThrow('Invalid date: "2026-02-30"');
+  });
+
+  it('throws on date rollover like 2026-04-31', async () => {
+    const ctx = createMockCtx();
+
+    await expect(
+      listDocuments(ctx as never, { dateTo: '2026-04-31' }),
+    ).rejects.toThrow('Invalid date: "2026-04-31"');
+  });
+
   it('accepts valid dates', async () => {
     const ctx = createMockCtx();
 
