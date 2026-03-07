@@ -31,7 +31,7 @@ export const listFolders = query({
 
     const q = ctx.db
       .query('folders')
-      .withIndex('by_organizationId_and_parentId', (qb) =>
+      .withIndex('by_org_parent_name', (qb) =>
         qb
           .eq('organizationId', args.organizationId)
           .eq('parentId', args.parentId),

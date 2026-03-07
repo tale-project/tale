@@ -92,6 +92,7 @@ export interface ImportFilesDependencies {
     organizationId: string,
     pathSegments: string[],
     createdBy?: string,
+    teamId?: string,
   ) => Promise<Id<'folders'> | undefined>;
 }
 
@@ -198,6 +199,7 @@ export async function importFiles(
             args.organizationId,
             segments,
             args.userId,
+            args.teamId,
           );
         }
       }

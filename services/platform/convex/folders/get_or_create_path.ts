@@ -22,6 +22,9 @@ export async function getOrCreateFolderPath(
     try {
       validName = validateFolderName(segment);
     } catch {
+      // Intentionally stop on invalid segments rather than throwing.
+      // Callers (migration backfill, OneDrive import) rely on partial
+      // path creation with their own error handling wrappers.
       break;
     }
 

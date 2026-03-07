@@ -106,6 +106,11 @@ export function useDocumentsTableConfig({
                 type="button"
                 title={fullPath}
                 className="text-left"
+                aria-label={
+                  row.original.type === 'folder'
+                    ? tDocuments('aria.openFolder', { name: fileName })
+                    : tDocuments('aria.openDocument', { name: fileName })
+                }
                 onClick={(e) => onDocumentClick(row.original, e)}
               >
                 <Text

@@ -30,6 +30,13 @@ export async function updateDocumentInternal(
     throw new Error('Document not found');
   }
 
+  if (updateData.folderId) {
+    const folder = await ctx.db.get(updateData.folderId);
+    if (!folder || folder.organizationId !== document.organizationId) {
+      throw new Error('Folder not found');
+    }
+  }
+
   // Check if file content has changed (by comparing hash)
   const hashChanged =
     contentHash !== undefined && document.contentHash !== contentHash;

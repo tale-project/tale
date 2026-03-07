@@ -1,7 +1,7 @@
 'use client';
 
 import { ChevronLeft } from 'lucide-react';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
@@ -19,17 +19,19 @@ export function BreadcrumbNavigation({
 }: BreadcrumbNavigationProps) {
   const { t } = useT('documents');
   const { t: tCommon } = useT('common');
+  const onNavigateRef = useRef(onNavigate);
+  onNavigateRef.current = onNavigate;
 
-  const { data: breadcrumb } = useConvexQuery(
+  const { data: breadcrumb, isLoading } = useConvexQuery(
     api.folders.queries.getFolderBreadcrumb,
     { folderId: toId<'folders'>(folderId) },
   );
 
   useEffect(() => {
-    if (breadcrumb !== undefined && breadcrumb.length === 0) {
-      onNavigate(undefined);
+    if (!isLoading && breadcrumb !== undefined && breadcrumb.length === 0) {
+      onNavigateRef.current(undefined);
     }
-  }, [breadcrumb, onNavigate]);
+  }, [breadcrumb, isLoading]);
 
   const segments = breadcrumb ?? [];
 

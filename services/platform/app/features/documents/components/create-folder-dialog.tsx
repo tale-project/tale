@@ -75,6 +75,7 @@ export function CreateFolderDialog({
       console.error('Failed to create folder:', error);
       toast({
         title: tDocuments('folder.createFailed'),
+        description: error instanceof Error ? error.message : undefined,
         variant: 'destructive',
       });
     } finally {

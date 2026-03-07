@@ -8,6 +8,7 @@ export const getOrCreateFolderPath = internalMutation({
     organizationId: v.string(),
     pathSegments: v.array(v.string()),
     createdBy: v.optional(v.string()),
+    teamId: v.optional(v.string()),
   },
   returns: v.union(v.id('folders'), v.null()),
   handler: async (ctx, args) => {
@@ -17,6 +18,7 @@ export const getOrCreateFolderPath = internalMutation({
         args.organizationId,
         args.pathSegments,
         args.createdBy,
+        args.teamId,
       )) ?? null
     );
   },

@@ -13,6 +13,13 @@ export async function createDocument(
   ctx: MutationCtx,
   args: CreateDocumentArgs,
 ): Promise<CreateDocumentResult> {
+  if (args.folderId) {
+    const folder = await ctx.db.get(args.folderId);
+    if (!folder || folder.organizationId !== args.organizationId) {
+      throw new Error('Folder not found');
+    }
+  }
+
   const extension = args.extension ?? extractExtension(args.title);
 
   const teamFields = teamIdToFields(args.teamId);

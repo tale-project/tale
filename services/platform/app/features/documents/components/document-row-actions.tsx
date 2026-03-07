@@ -81,6 +81,7 @@ export function DocumentRowActions({
           console.error('Failed to delete folder:', error);
           toast({
             title: tDocuments('actions.deleteFolderFailed'),
+            description: error instanceof Error ? error.message : undefined,
             variant: 'destructive',
           });
         },

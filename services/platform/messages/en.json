@@ -2320,6 +2320,10 @@
       "oneDrive": "OneDrive",
       "uploads": "Uploads"
     },
+    "aria": {
+      "openFolder": "Open folder {name}",
+      "openDocument": "Open document {name}"
+    },
     "sourceType": {
       "oneDriveSynced": "OneDrive (synced)",
       "oneDrive": "OneDrive",
