@@ -130,6 +130,9 @@ export function TestMessageList({
                       <button
                         key={part.url}
                         type="button"
+                        aria-label={t('customAgents.testChat.previewImage', {
+                          filename: part.filename || 'Image',
+                        })}
                         onClick={() =>
                           onImagePreview(part.url, part.filename || 'Image')
                         }
@@ -173,7 +176,7 @@ export function TestMessageList({
                   ) : (
                     <Text
                       variant="body-sm"
-                      className="leading-relaxed break-words whitespace-pre-wrap"
+                      className="leading-relaxed wrap-break-word whitespace-pre-wrap"
                     >
                       {message.content}
                     </Text>

@@ -680,7 +680,9 @@
         "messagePlaceholder": "Type a message to test...",
         "uploading": "Uploading...",
         "attachFiles": "Attach files",
-        "send": "Send message"
+        "send": "Send message",
+        "previewImage": "Preview {filename}",
+        "removeAttachment": "Remove attachment"
       },
       "createDialog": {
         "continue": "Continue",
@@ -1795,6 +1797,7 @@
       "messagePlaceholder": "Type your message...",
       "attachFiles": "Attach files",
       "automationDetails": "Automation details",
+      "previewImage": "Preview {filename}",
       "fallbackImage": "Image",
       "fallbackFile": "File",
       "loading": "Loading...",

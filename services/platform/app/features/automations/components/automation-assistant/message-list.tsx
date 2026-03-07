@@ -93,6 +93,10 @@ export function MessageList({
                       <button
                         key={partIndex}
                         type="button"
+                        aria-label={t('assistant.previewImage', {
+                          filename:
+                            part.filename || t('assistant.fallbackImage'),
+                        })}
                         onClick={() =>
                           onImagePreview(
                             part.url,

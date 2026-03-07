@@ -70,11 +70,12 @@ function ToolsTab() {
           title: t('customAgents.tools.webModeSaved'),
           variant: 'success',
         });
-      } catch {
+      } catch (error) {
         toast({
           title: t('customAgents.tools.webModeSaveFailed'),
           variant: 'destructive',
         });
+        throw error;
       }
     },
     [agentId, updateAgent, toast, t],
@@ -104,11 +105,12 @@ function ToolsTab() {
           title: t('customAgents.tools.toolsSaved'),
           variant: 'success',
         });
-      } catch {
+      } catch (error) {
         toast({
           title: t('customAgents.tools.toolsSaveFailed'),
           variant: 'destructive',
         });
+        throw error;
       }
     },
     [agentId, updateAgent, toast, t],

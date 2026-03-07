@@ -96,10 +96,7 @@ export function TestChatInput({
                     key={attachment.fileId}
                     className="group relative size-11 overflow-hidden rounded-lg shadow-sm"
                   >
-                    <button
-                      type="button"
-                      className="bg-secondary/20 focus:ring-ring size-full cursor-pointer transition-opacity hover:opacity-90 focus:ring-2 focus:ring-offset-2 focus:outline-none"
-                    >
+                    <div className="bg-secondary/20 size-full">
                       {attachment.previewUrl ? (
                         <img
                           src={attachment.previewUrl}
@@ -109,12 +106,12 @@ export function TestChatInput({
                       ) : (
                         <div className="flex size-full items-center justify-center bg-linear-to-br from-blue-100 to-blue-200" />
                       )}
-                    </button>
+                    </div>
                     <button
                       type="button"
                       aria-label={t('customAgents.testChat.removeAttachment')}
                       onClick={() => removeAttachment(attachment.fileId)}
-                      className="bg-background absolute top-0.5 right-0.5 flex size-5 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100"
+                      className="bg-background absolute top-0.5 right-0.5 flex size-5 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
                     >
                       <X className="text-muted-foreground size-3" />
                     </button>
@@ -128,12 +125,7 @@ export function TestChatInput({
                   >
                     <DocumentIcon fileName={attachment.fileName} />
                     <VStack className="min-w-0 flex-1">
-                      <Text
-                        as="div"
-                        variant="label"
-                        truncate
-                        className="ellipsis"
-                      >
+                      <Text as="div" variant="label" truncate>
                         {attachment.fileName}
                       </Text>
                     </VStack>
@@ -141,7 +133,7 @@ export function TestChatInput({
                       type="button"
                       aria-label={t('customAgents.testChat.removeAttachment')}
                       onClick={() => removeAttachment(attachment.fileId)}
-                      className="bg-background absolute top-0.5 right-0.5 flex size-5 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100"
+                      className="bg-background absolute top-0.5 right-0.5 flex size-5 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
                     >
                       <X className="text-muted-foreground size-3" />
                     </button>

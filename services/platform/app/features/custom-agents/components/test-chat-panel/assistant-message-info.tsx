@@ -1,7 +1,7 @@
 'use client';
 
 import { CheckIcon, CopyIcon, Info } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { MessageInfoDialog } from '@/app/features/chat/components/message-info-dialog';
@@ -25,6 +25,12 @@ export function AssistantMessageInfo({
   const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const { metadata } = useMessageMetadata(messageId);
 
+  useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+    };
+  }, []);
+
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(content);
@@ -47,7 +53,7 @@ export function AssistantMessageInfo({
       />
       <IconButton
         icon={Info}
-        aria-label="Message info"
+        aria-label={t('actions.showInfo')}
         onClick={() => setIsOpen(true)}
         iconSize={3}
         className="text-muted-foreground hover:text-foreground p-1"
