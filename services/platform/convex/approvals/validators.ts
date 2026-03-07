@@ -25,6 +25,7 @@ export const approvalResourceTypeValidator = v.union(
   v.literal('product_recommendation'),
   v.literal('integration_operation'),
   v.literal('workflow_creation'),
+  v.literal('workflow_run'),
   v.literal('human_input_request'),
 );
 

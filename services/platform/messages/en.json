@@ -2003,7 +2003,8 @@
     "types": {
       "reviewReply": "Review reply",
       "recommendProduct": "Recommend product",
-      "review": "Review"
+      "review": "Review",
+      "runWorkflow": "Run workflow"
     },
     "labels": {
       "purchase": "Purchase",
@@ -2054,6 +2055,17 @@
       "reject": "Reject",
       "approve": "Approve"
     }
+  },
+  "workflowRunApproval": {
+    "approve": "Run workflow",
+    "reject": "Cancel",
+    "approveTooltip": "Approve and run this workflow",
+    "rejectTooltip": "Cancel workflow execution",
+    "statusApprovedSuccess": "Workflow execution started successfully.",
+    "statusApprovedFailed": "Workflow execution was approved but failed to start.",
+    "statusRejected": "Workflow execution was cancelled.",
+    "showParameters": "Show parameters",
+    "hideParameters": "Hide parameters"
   },
   "integrationApproval": {
     "approve": "Approve",

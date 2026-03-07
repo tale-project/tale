@@ -31,6 +31,28 @@ export const executeApprovedIntegrationOperation = action({
   },
 });
 
+export const executeApprovedWorkflowRun = action({
+  args: {
+    approvalId: v.id('approvals'),
+  },
+  returns: jsonValueValidator,
+  handler: async (ctx, args): Promise<JsonValue> => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) {
+      throw new Error('Unauthenticated');
+    }
+
+    return await ctx.runAction(
+      internal.agent_tools.workflows.internal_actions
+        .executeApprovedWorkflowRun,
+      {
+        approvalId: args.approvalId,
+        approvedBy: String(authUser._id),
+      },
+    );
+  },
+});
+
 export const executeApprovedWorkflowCreation = action({
   args: {
     approvalId: v.id('approvals'),
