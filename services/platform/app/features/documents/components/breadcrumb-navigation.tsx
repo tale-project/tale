@@ -2,6 +2,7 @@
 
 import { ChevronLeft } from 'lucide-react';
 import { useEffect, useRef } from 'react';
+import { toast } from 'sonner';
 
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
@@ -29,9 +30,10 @@ export function BreadcrumbNavigation({
 
   useEffect(() => {
     if (!isLoading && breadcrumb !== undefined && breadcrumb.length === 0) {
+      toast.info(t('folderNotFound'));
       onNavigateRef.current(undefined);
     }
-  }, [breadcrumb, isLoading]);
+  }, [breadcrumb, isLoading, t]);
 
   const segments = breadcrumb ?? [];
 
@@ -83,6 +85,9 @@ export function BreadcrumbNavigation({
                 <button
                   onClick={() => onNavigate(folder._id)}
                   className="text-muted-foreground hover:text-foreground/90 focus-visible:ring-ring cursor-pointer rounded-sm text-xs font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:outline-none"
+                  aria-label={t('aria.navigateToFolder', {
+                    name: folder.name,
+                  })}
                 >
                   {folder.name}
                 </button>

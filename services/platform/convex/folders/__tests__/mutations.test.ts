@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { hasTeamAccess } from '../../lib/team_access';
 import { validateFolderName } from '../mutations';
 
 function createMockMutationCtx() {
@@ -310,5 +311,125 @@ describe('parent folder validation', () => {
     const parent = await ctx.db.get('parent_1');
     expect(parent).not.toBeNull();
     expect(parent!.organizationId).toBe('org_1');
+  });
+});
+
+describe('team access validation', () => {
+  it('hasTeamAccess returns true for org-wide resources (no teamId)', () => {
+    expect(hasTeamAccess({}, ['team_a'])).toBe(true);
+    expect(hasTeamAccess({ teamId: undefined }, ['team_a'])).toBe(true);
+    expect(hasTeamAccess({ teamId: null }, ['team_a'])).toBe(true);
+  });
+
+  it('hasTeamAccess returns true when user belongs to resource team', () => {
+    expect(hasTeamAccess({ teamId: 'team_a' }, ['team_a', 'team_b'])).toBe(
+      true,
+    );
+  });
+
+  it('hasTeamAccess returns false when user does not belong to resource team', () => {
+    expect(hasTeamAccess({ teamId: 'team_c' }, ['team_a', 'team_b'])).toBe(
+      false,
+    );
+  });
+
+  it('hasTeamAccess works with Set input', () => {
+    expect(hasTeamAccess({ teamId: 'team_a' }, new Set(['team_a']))).toBe(true);
+    expect(hasTeamAccess({ teamId: 'team_b' }, new Set(['team_a']))).toBe(
+      false,
+    );
+  });
+
+  it('parent folder with team restricts child creation for non-members', async () => {
+    const { ctx, folders } = createMockMutationCtx();
+    folders.set('team_folder', {
+      _id: 'team_folder',
+      organizationId: 'org_1',
+      name: 'sales-docs',
+      teamId: 'team_sales',
+    });
+
+    const parent = await ctx.db.get('team_folder');
+    expect(parent).not.toBeNull();
+    expect(parent!.teamId).toBe('team_sales');
+
+    const userTeamIds = ['team_marketing'];
+    expect(hasTeamAccess(parent!, userTeamIds)).toBe(false);
+  });
+
+  it('parent folder with team allows child creation for members', async () => {
+    const { ctx, folders } = createMockMutationCtx();
+    folders.set('team_folder', {
+      _id: 'team_folder',
+      organizationId: 'org_1',
+      name: 'sales-docs',
+      teamId: 'team_sales',
+    });
+
+    const parent = await ctx.db.get('team_folder');
+    const userTeamIds = ['team_sales', 'team_marketing'];
+    expect(hasTeamAccess(parent!, userTeamIds)).toBe(true);
+  });
+});
+
+describe('folder depth validation', () => {
+  it('counts depth correctly for nested folders', async () => {
+    const { ctx, folders } = createMockMutationCtx();
+
+    folders.set('level_1', {
+      _id: 'level_1',
+      organizationId: 'org_1',
+      name: 'level-1',
+      parentId: undefined,
+    });
+    folders.set('level_2', {
+      _id: 'level_2',
+      organizationId: 'org_1',
+      name: 'level-2',
+      parentId: 'level_1',
+    });
+    folders.set('level_3', {
+      _id: 'level_3',
+      organizationId: 'org_1',
+      name: 'level-3',
+      parentId: 'level_2',
+    });
+
+    let depth = 1;
+    let ancestorId: string | undefined = 'level_2';
+    while (ancestorId) {
+      const ancestor = await ctx.db.get(ancestorId);
+      if (!ancestor) break;
+      depth++;
+      ancestorId = ancestor.parentId;
+    }
+
+    expect(depth).toBe(3);
+  });
+
+  it('stops counting at MAX_FOLDER_DEPTH', async () => {
+    const { ctx, folders } = createMockMutationCtx();
+    const MAX_FOLDER_DEPTH = 20;
+
+    for (let i = 1; i <= 25; i++) {
+      folders.set(`level_${i}`, {
+        _id: `level_${i}`,
+        organizationId: 'org_1',
+        name: `level-${i}`,
+        parentId: i > 1 ? `level_${i - 1}` : undefined,
+      });
+    }
+
+    let depth = 1;
+    let ancestorId: string | undefined = (await ctx.db.get('level_24'))
+      ?.parentId;
+    while (ancestorId && depth < MAX_FOLDER_DEPTH) {
+      const ancestor = await ctx.db.get(ancestorId);
+      if (!ancestor) break;
+      depth++;
+      ancestorId = ancestor.parentId;
+    }
+
+    expect(depth).toBeGreaterThanOrEqual(MAX_FOLDER_DEPTH);
   });
 });

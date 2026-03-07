@@ -227,4 +227,31 @@ describe('getOrCreateFolderPath', () => {
       ctx.db.query.mock.results[0].value.withIndex.mock.calls[0];
     expect(withIndexCall[0]).toBe('by_org_parent_name');
   });
+
+  it('stops at invalid segment mid-path and returns partial result', async () => {
+    const { ctx } = createMockCtx();
+
+    const result = await getOrCreateFolderPath(
+      ctx as unknown as MutationCtx,
+      'org_1',
+      ['docs', 'invalid/name', 'reports'],
+    );
+
+    // Should create 'docs' then stop at 'invalid/name' (contains /)
+    expect(ctx.db.insert).toHaveBeenCalledTimes(1);
+    expect(result).toBe('folder_1');
+  });
+
+  it('returns undefined when first segment is invalid', async () => {
+    const { ctx } = createMockCtx();
+
+    const result = await getOrCreateFolderPath(
+      ctx as unknown as MutationCtx,
+      'org_1',
+      ['..', 'docs'],
+    );
+
+    expect(ctx.db.insert).not.toHaveBeenCalled();
+    expect(result).toBeUndefined();
+  });
 });

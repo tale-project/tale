@@ -25,6 +25,9 @@ export async function getOrCreateFolderPath(
       // Intentionally stop on invalid segments rather than throwing.
       // Callers (migration backfill, OneDrive import) rely on partial
       // path creation with their own error handling wrappers.
+      console.warn(
+        `[getOrCreateFolderPath] Stopped at invalid segment "${segment}" in path [${pathSegments.join('/')}]`,
+      );
       break;
     }
 

@@ -5,9 +5,13 @@ import type { MutationCtx } from '../_generated/server';
 
 import { mutation } from '../_generated/server';
 import { authComponent } from '../auth';
+import { getUserTeamIds } from '../lib/get_user_teams';
+import { checkOrganizationRateLimit } from '../lib/rate_limiter/helpers';
 import { getOrganizationMember } from '../lib/rls';
+import { hasTeamAccess } from '../lib/team_access';
 
 const MAX_FOLDER_NAME_LENGTH = 255;
+const MAX_FOLDER_DEPTH = 20;
 const RESERVED_NAMES = new Set(['.', '..']);
 
 export function validateFolderName(name: string): string {
@@ -69,12 +73,39 @@ export const createFolder = mutation({
       name: authUser.name,
     });
 
+    await checkOrganizationRateLimit(ctx, 'folder:mutate', args.organizationId);
+
     const trimmedName = validateFolderName(args.name);
 
     if (args.parentId) {
       const parent = await ctx.db.get(args.parentId);
       if (!parent || parent.organizationId !== args.organizationId) {
         throw new Error('Parent folder not found');
+      }
+      if (parent.teamId) {
+        const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
+        if (!hasTeamAccess(parent, userTeamIds)) {
+          throw new Error('Parent folder not accessible');
+        }
+      }
+
+      let depth = 1;
+      let ancestorId = parent.parentId;
+      while (ancestorId && depth < MAX_FOLDER_DEPTH) {
+        const ancestor = await ctx.db.get(ancestorId);
+        if (!ancestor) break;
+        depth++;
+        ancestorId = ancestor.parentId;
+      }
+      if (depth >= MAX_FOLDER_DEPTH) {
+        throw new Error('Maximum folder nesting depth exceeded');
+      }
+    }
+
+    if (args.teamId) {
+      const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
+      if (!userTeamIds.includes(args.teamId)) {
+        throw new Error('Cannot create folder in a team you do not belong to');
       }
     }
 
@@ -118,6 +149,19 @@ export const renameFolder = mutation({
       name: authUser.name,
     });
 
+    await checkOrganizationRateLimit(
+      ctx,
+      'folder:mutate',
+      folder.organizationId,
+    );
+
+    if (folder.teamId) {
+      const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
+      if (!hasTeamAccess(folder, userTeamIds)) {
+        throw new Error('Access denied');
+      }
+    }
+
     const trimmedName = validateFolderName(args.name);
 
     await checkDuplicateName(
@@ -154,6 +198,19 @@ export const deleteFolder = mutation({
       email: authUser.email,
       name: authUser.name,
     });
+
+    await checkOrganizationRateLimit(
+      ctx,
+      'folder:mutate',
+      folder.organizationId,
+    );
+
+    if (folder.teamId) {
+      const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
+      if (!hasTeamAccess(folder, userTeamIds)) {
+        throw new Error('Access denied');
+      }
+    }
 
     const childFolder = await ctx.db
       .query('folders')

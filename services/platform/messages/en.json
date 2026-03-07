@@ -2322,8 +2322,10 @@
     },
     "aria": {
       "openFolder": "Open folder {name}",
-      "openDocument": "Open document {name}"
+      "openDocument": "Open document {name}",
+      "navigateToFolder": "Navigate to folder {name}"
     },
+    "folderNotFound": "Folder not found or no longer accessible",
     "sourceType": {
       "oneDriveSynced": "OneDrive (synced)",
       "oneDrive": "OneDrive",

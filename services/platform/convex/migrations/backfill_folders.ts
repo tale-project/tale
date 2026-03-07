@@ -80,7 +80,14 @@ export const backfillFolders = internalMutation({
             skipped++;
           }
         } catch (err) {
-          console.error('[backfillFolders] Error processing doc', doc._id, err);
+          const metadata = isRecord(doc.metadata) ? doc.metadata : undefined;
+          const storagePath = metadata
+            ? getString(metadata, 'storagePath')
+            : 'unknown';
+          console.error(
+            `[backfillFolders] Error processing doc ${String(doc._id)} (path: ${storagePath}):`,
+            err,
+          );
           skipped++;
           continue;
         }

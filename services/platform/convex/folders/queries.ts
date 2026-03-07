@@ -67,24 +67,38 @@ export const getFolderBreadcrumb = query({
       name: authUser.name,
     });
 
-    if (folder.teamId) {
-      const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
-      if (!hasTeamAccess(folder, userTeamIds)) {
-        return [];
-      }
+    const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
+
+    if (folder.teamId && !hasTeamAccess(folder, userTeamIds)) {
+      return [];
     }
 
-    return buildBreadcrumb(ctx, args.folderId);
+    const breadcrumb = await buildBreadcrumb(ctx, args.folderId);
+
+    const accessibleBreadcrumb: Array<{ _id: Id<'folders'>; name: string }> =
+      [];
+    for (const item of breadcrumb) {
+      if (!hasTeamAccess(item, userTeamIds)) break;
+      accessibleBreadcrumb.push({ _id: item._id, name: item.name });
+    }
+
+    return accessibleBreadcrumb;
   },
 });
 
 const MAX_BREADCRUMB_DEPTH = 20;
 
+interface BreadcrumbItem {
+  _id: Id<'folders'>;
+  name: string;
+  teamId?: string | null;
+}
+
 export async function buildBreadcrumb(
   ctx: QueryCtx,
   folderId: Id<'folders'>,
-): Promise<Array<{ _id: Id<'folders'>; name: string }>> {
-  const chain: Array<{ _id: Id<'folders'>; name: string }> = [];
+): Promise<BreadcrumbItem[]> {
+  const chain: BreadcrumbItem[] = [];
   const visited = new Set<string>();
   let currentId: Id<'folders'> | undefined = folderId;
 
@@ -94,7 +108,7 @@ export async function buildBreadcrumb(
 
     const folder: Doc<'folders'> | null = await ctx.db.get(currentId);
     if (!folder) break;
-    chain.push({ _id: folder._id, name: folder.name });
+    chain.push({ _id: folder._id, name: folder.name, teamId: folder.teamId });
     currentId = folder.parentId;
   }
 

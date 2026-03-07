@@ -81,7 +81,9 @@ export async function listDocumentsPaginated(
     extension: args.extension,
   };
 
-  const primary = FILTER_INDEXES.find(({ field }) => field === 'folderId');
+  const primary = FILTER_INDEXES.find(
+    ({ field }) => filterArgs[field] !== undefined,
+  );
   let query = buildBaseQuery(
     ctx,
     args.organizationId,

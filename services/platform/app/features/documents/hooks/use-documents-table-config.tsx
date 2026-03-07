@@ -105,7 +105,7 @@ export function useDocumentsTableConfig({
               <button
                 type="button"
                 title={fullPath}
-                className="text-left"
+                className="cursor-pointer text-left"
                 aria-label={
                   row.original.type === 'folder'
                     ? tDocuments('aria.openFolder', { name: fileName })
