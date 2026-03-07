@@ -22,13 +22,10 @@ export const documentListArgs = z.object({
     ),
   extension: z
     .string()
-    .refine(
-      (val) => !val.startsWith('.'),
-      'Omit the leading dot (e.g., "pdf" not ".pdf")',
-    )
+    .transform((val) => (val.startsWith('.') ? val.slice(1) : val))
     .optional()
     .describe(
-      'Filter by file extension without dot (e.g., "pdf", "docx", "xlsx"). Case-sensitive.',
+      'Filter by file extension without dot (e.g., "pdf", "docx", "xlsx"). Case-sensitive. Always use lowercase.',
     ),
   teamId: z
     .string()
@@ -96,7 +93,7 @@ DO NOT USE THIS TOOL FOR:
 
 RESPONSE FIELDS:
 • documents: Array of {id, title, extension, folderPath, teamId, createdAt (Unix ms UTC), sizeBytes}
-• totalCount: Total matching documents. null means results may be incomplete — narrow your filters.
+• totalCount: Total matching documents (number), or null if the scan limit was reached and the true count is unknown — this does NOT mean zero results.
 • hasMore: Whether more results are available
 • cursor: Pass to next call to get the next page
 • warning: null normally. If present, results may be incomplete — follow the guidance in the message.

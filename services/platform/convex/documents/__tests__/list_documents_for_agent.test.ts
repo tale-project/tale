@@ -854,7 +854,7 @@ describe('listDocumentsForAgent', () => {
       });
 
       expect(result.totalCount).toBeNull();
-      expect(result.warning).toContain('scan limit');
+      expect(result.warning).toContain('Scan limit reached');
     });
 
     it('returns no warning when under scan limit', async () => {
@@ -981,6 +981,122 @@ describe('listDocumentsForAgent', () => {
 
       expect(result.documents).toHaveLength(2);
       expect(result.documents.every((d) => d.extension === 'pdf')).toBe(true);
+    });
+  });
+
+  describe('dateTo filter', () => {
+    it('filters by dateTo without dateFrom', async () => {
+      const ctx = createMockCtx({}, [
+        makeDoc({ _id: 'doc1', _creationTime: 1000 }),
+        makeDoc({ _id: 'doc2', _creationTime: 2000 }),
+        makeDoc({ _id: 'doc3', _creationTime: 3000 }),
+      ]);
+
+      const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        dateTo: 2500,
+      });
+
+      expect(result.documents).toHaveLength(2);
+      const ids = result.documents.map((d) => d.id);
+      expect(ids).toContain('doc1');
+      expect(ids).toContain('doc2');
+    });
+
+    it('filters by dateFrom and dateTo on the same day', async () => {
+      const dayStart = new Date('2026-03-15').getTime();
+      const dayEnd = dayStart + 86_400_000 - 1;
+
+      const ctx = createMockCtx({}, [
+        makeDoc({ _id: 'doc1', _creationTime: dayStart - 1 }),
+        makeDoc({ _id: 'doc2', _creationTime: dayStart }),
+        makeDoc({ _id: 'doc3', _creationTime: dayStart + 43_200_000 }),
+        makeDoc({ _id: 'doc4', _creationTime: dayEnd }),
+        makeDoc({ _id: 'doc5', _creationTime: dayEnd + 1 }),
+      ]);
+
+      const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        dateFrom: dayStart,
+        dateTo: dayEnd,
+      });
+
+      expect(result.documents).toHaveLength(3);
+      const ids = result.documents.map((d) => d.id);
+      expect(ids).toContain('doc2');
+      expect(ids).toContain('doc3');
+      expect(ids).toContain('doc4');
+    });
+  });
+
+  describe('whitespace query', () => {
+    it('treats whitespace-only query as no filter', async () => {
+      const ctx = createMockCtx({}, [
+        makeDoc({ _id: 'doc1', title: 'Alpha' }),
+        makeDoc({ _id: 'doc2', title: 'Bravo' }),
+      ]);
+
+      const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        query: '   ',
+      });
+
+      expect(result.documents).toHaveLength(2);
+    });
+  });
+
+  describe('metadata.name fallback', () => {
+    it('uses metadata.name as fallback when title is undefined', async () => {
+      const ctx = createMockCtx({}, [
+        makeDoc({
+          _id: 'doc1',
+          title: undefined,
+          metadata: { name: 'Invoice Q3' },
+        }),
+      ]);
+
+      const result = await listDocumentsForAgent(
+        ctx as unknown as QueryCtx,
+        baseArgs,
+      );
+
+      expect(result.documents[0]?.title).toBe('Invoice Q3');
+    });
+
+    it('ignores non-string metadata.name', async () => {
+      const ctx = createMockCtx({}, [
+        makeDoc({
+          _id: 'doc1',
+          title: undefined,
+          metadata: { name: 123 },
+        }),
+      ]);
+
+      const result = await listDocumentsForAgent(
+        ctx as unknown as QueryCtx,
+        baseArgs,
+      );
+
+      expect(result.documents[0]?.title).toBe('Untitled');
+    });
+
+    it('searches by metadata.name when title is undefined', async () => {
+      const ctx = createMockCtx({}, [
+        makeDoc({
+          _id: 'doc1',
+          title: undefined,
+          metadata: { name: 'Invoice Q3' },
+        }),
+        makeDoc({ _id: 'doc2', title: 'Budget Report' }),
+      ]);
+
+      const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        query: 'invoice',
+      });
+
+      expect(result.documents).toHaveLength(1);
+      expect(result.documents[0]?.id).toBe('doc1');
     });
   });
 

@@ -141,6 +141,20 @@ describe('listDocuments helper', () => {
     expect(Number.isFinite(args.dateTo)).toBe(true);
   });
 
+  it('returns empty with warning when dateFrom is after dateTo', async () => {
+    const ctx = createMockCtx();
+
+    const result = await listDocuments(ctx as never, {
+      dateFrom: '2026-03-15',
+      dateTo: '2026-03-01',
+    });
+
+    expect(result.documents).toEqual([]);
+    expect(result.totalCount).toBe(0);
+    expect(result.warning).toContain('dateFrom is after dateTo');
+    expect(ctx.runQuery).not.toHaveBeenCalled();
+  });
+
   it('forwards all filter arguments', async () => {
     const ctx = createMockCtx();
 
@@ -203,8 +217,9 @@ describe('documentListArgs schema validation', () => {
     expect(result.cursor).toBe(0);
   });
 
-  it('rejects extension with leading dot', () => {
-    expect(() => documentListArgs.parse({ extension: '.pdf' })).toThrow();
+  it('strips leading dot from extension', () => {
+    const result = documentListArgs.parse({ extension: '.pdf' });
+    expect(result.extension).toBe('pdf');
   });
 
   it('accepts extension without dot', () => {

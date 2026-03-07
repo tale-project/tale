@@ -29,6 +29,16 @@ export async function listDocuments(
     ? toTimestamp(args.dateTo) + 86_400_000 - 1
     : undefined;
 
+  if (dateFrom != null && dateTo != null && dateFrom > dateTo) {
+    return {
+      documents: [],
+      totalCount: 0,
+      hasMore: false,
+      cursor: null,
+      warning: 'dateFrom is after dateTo. Check your date range.',
+    };
+  }
+
   return ctx.runQuery(internal.documents.internal_queries.listForAgent, {
     organizationId,
     userId,

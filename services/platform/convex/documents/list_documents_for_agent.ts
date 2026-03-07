@@ -119,9 +119,12 @@ export async function listDocumentsForAgent(
     if (args.dateFrom != null && doc._creationTime < args.dateFrom) continue;
     if (args.dateTo != null && doc._creationTime > args.dateTo) continue;
 
-    // Title search
+    // Title search (check metadata.name fallback, consistent with UI)
     if (searchQuery) {
-      const titleMatch = doc.title?.toLowerCase().includes(searchQuery);
+      const titleMatch =
+        doc.title?.toLowerCase().includes(searchQuery) ||
+        (typeof doc.metadata?.name === 'string' &&
+          doc.metadata.name.toLowerCase().includes(searchQuery));
       if (!titleMatch) continue;
     }
 
@@ -132,8 +135,18 @@ export async function listDocumentsForAgent(
 
   // Sort with _id tiebreaker for deterministic ordering
   matches.sort((a, b) => {
-    const aVal = sortBy === 'name' ? (a.title ?? '') : a._creationTime;
-    const bVal = sortBy === 'name' ? (b.title ?? '') : b._creationTime;
+    const aVal =
+      sortBy === 'name'
+        ? (a.title ??
+          (typeof a.metadata?.name === 'string' ? a.metadata.name : '') ??
+          '')
+        : a._creationTime;
+    const bVal =
+      sortBy === 'name'
+        ? (b.title ??
+          (typeof b.metadata?.name === 'string' ? b.metadata.name : '') ??
+          '')
+        : b._creationTime;
     if (aVal !== bVal) {
       const comparison = aVal < bVal ? -1 : 1;
       return sortOrder === 'asc' ? comparison : -comparison;
@@ -152,7 +165,10 @@ export async function listDocumentsForAgent(
   // Build response
   const documents: AgentDocumentItem[] = page.map((doc) => ({
     id: doc._id,
-    title: doc.title ?? 'Untitled',
+    title:
+      doc.title ??
+      (typeof doc.metadata?.name === 'string' ? doc.metadata.name : null) ??
+      'Untitled',
     extension: doc.extension ?? null,
     folderPath: doc.folderId ? (folderPathMap.get(doc.folderId) ?? null) : null,
     teamId: doc.teamId ?? null,
@@ -163,7 +179,7 @@ export async function listDocumentsForAgent(
   const nextCursor = hasMore ? startIndex + limit : null;
 
   const warning = scanLimitHit
-    ? 'Result set exceeded scan limit. Results may be incomplete. Narrow your filters (folderPath, extension, teamId, dateFrom/dateTo) for complete results.'
+    ? `Scan limit reached: scanned ${maxScan} documents, found ${matches.length} matches. Results may be incomplete. Narrow your filters (folderPath, extension, teamId, dateFrom/dateTo) for complete results.`
     : null;
 
   return { documents, totalCount, hasMore, cursor: nextCursor, warning };
