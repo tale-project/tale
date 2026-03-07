@@ -1,8 +1,49 @@
 import { v } from 'convex/values';
 
+import type { Id } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
+
 import { mutation } from '../_generated/server';
 import { authComponent } from '../auth';
 import { getOrganizationMember } from '../lib/rls';
+
+const MAX_FOLDER_NAME_LENGTH = 255;
+const RESERVED_NAMES = new Set(['.', '..']);
+
+export function validateFolderName(name: string): string {
+  const trimmed = name.trim();
+  if (trimmed.length === 0) {
+    throw new Error('Folder name cannot be empty');
+  }
+  if (trimmed.length > MAX_FOLDER_NAME_LENGTH) {
+    throw new Error('Folder name is too long');
+  }
+  if (RESERVED_NAMES.has(trimmed)) {
+    throw new Error('Invalid folder name');
+  }
+  return trimmed;
+}
+
+async function checkDuplicateName(
+  ctx: MutationCtx,
+  organizationId: string,
+  parentId: Id<'folders'> | undefined,
+  name: string,
+) {
+  const existing = await ctx.db
+    .query('folders')
+    .withIndex('by_org_parent_name', (q) =>
+      q
+        .eq('organizationId', organizationId)
+        .eq('parentId', parentId)
+        .eq('name', name),
+    )
+    .first();
+
+  if (existing) {
+    throw new Error('A folder with this name already exists');
+  }
+}
 
 export const createFolder = mutation({
   args: {
@@ -24,10 +65,7 @@ export const createFolder = mutation({
       name: authUser.name,
     });
 
-    const trimmedName = args.name.trim();
-    if (trimmedName.length === 0) {
-      throw new Error('Folder name cannot be empty');
-    }
+    const trimmedName = validateFolderName(args.name);
 
     if (args.parentId) {
       const parent = await ctx.db.get(args.parentId);
@@ -35,6 +73,13 @@ export const createFolder = mutation({
         throw new Error('Parent folder not found');
       }
     }
+
+    await checkDuplicateName(
+      ctx,
+      args.organizationId,
+      args.parentId,
+      trimmedName,
+    );
 
     return ctx.db.insert('folders', {
       organizationId: args.organizationId,
@@ -69,7 +114,16 @@ export const renameFolder = mutation({
       name: authUser.name,
     });
 
-    await ctx.db.patch(args.folderId, { name: args.name });
+    const trimmedName = validateFolderName(args.name);
+
+    await checkDuplicateName(
+      ctx,
+      folder.organizationId,
+      folder.parentId,
+      trimmedName,
+    );
+
+    await ctx.db.patch(args.folderId, { name: trimmedName });
     return null;
   },
 });

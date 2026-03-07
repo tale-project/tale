@@ -51,7 +51,7 @@ export async function getDocumentByPath(
         .first();
 
       if (!folder) {
-        return { success: false, error: 'Document not found' };
+        return { success: false, error: 'Path not found' };
       }
       folderId = folder._id;
     }
@@ -64,23 +64,12 @@ export async function getDocumentByPath(
       );
 
     let document = null;
-    let fallback = null;
     for await (const doc of docQuery) {
       if (doc.title === fileName) {
         document = doc;
         break;
       }
-      if (!fallback) {
-        const storedPath = doc.metadata?.storagePath;
-        if (typeof storedPath === 'string') {
-          const storedName = storedPath.split('/').pop();
-          if (storedName === fileName) {
-            fallback = doc;
-          }
-        }
-      }
     }
-    document = document ?? fallback;
 
     if (!document) {
       return { success: false, error: 'Document not found' };

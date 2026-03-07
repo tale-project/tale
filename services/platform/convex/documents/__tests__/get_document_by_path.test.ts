@@ -174,7 +174,7 @@ describe('getDocumentByPath', () => {
 
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error).toBe('Document not found');
+      expect(result.error).toBe('Path not found');
     }
   });
 
@@ -192,7 +192,7 @@ describe('getDocumentByPath', () => {
     }
   });
 
-  it('falls back to storagePath filename when title does not match', async () => {
+  it('returns not found when no document matches by title', async () => {
     const ctx = createMockCtx({}, [
       {
         _id: 'doc1',
@@ -208,37 +208,9 @@ describe('getDocumentByPath', () => {
       storagePath: 'original.pdf',
     });
 
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.item.id).toBe('doc1');
-    }
-  });
-
-  it('prefers title match over storagePath fallback', async () => {
-    const ctx = createMockCtx({}, [
-      {
-        _id: 'doc_fallback',
-        title: 'Other',
-        organizationId: 'org1',
-        folderId: undefined,
-        metadata: { storagePath: 'org1/report.pdf' },
-      },
-      {
-        _id: 'doc_title',
-        title: 'report.pdf',
-        organizationId: 'org1',
-        folderId: undefined,
-      },
-    ]);
-
-    const result = await getDocumentByPath(ctx as unknown as QueryCtx, {
-      organizationId: 'org1',
-      storagePath: 'report.pdf',
-    });
-
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.item.id).toBe('doc_title');
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toBe('Document not found');
     }
   });
 });

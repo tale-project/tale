@@ -5,7 +5,9 @@ import type { QueryCtx } from '../_generated/server';
 
 import { query } from '../_generated/server';
 import { authComponent } from '../auth';
+import { getUserTeamIds } from '../lib/get_user_teams';
 import { getOrganizationMember } from '../lib/rls';
+import { hasTeamAccess } from '../lib/team_access';
 
 export const listFolders = query({
   args: {
@@ -62,6 +64,13 @@ export const getFolderBreadcrumb = query({
       email: authUser.email,
       name: authUser.name,
     });
+
+    if (folder.teamId) {
+      const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
+      if (!hasTeamAccess(folder, userTeamIds)) {
+        return [];
+      }
+    }
 
     return buildBreadcrumb(ctx, args.folderId);
   },

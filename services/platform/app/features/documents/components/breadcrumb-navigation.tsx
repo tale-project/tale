@@ -2,16 +2,10 @@
 
 import { ChevronLeft } from 'lucide-react';
 
-import type { Id } from '@/convex/_generated/dataModel';
-
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
-
-function toFolderId(value: string) {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex branded Id type requires cast from URL param string
-  return value as unknown as Id<'folders'>;
-}
 
 interface BreadcrumbNavigationProps {
   folderId: string;
@@ -27,7 +21,7 @@ export function BreadcrumbNavigation({
 
   const { data: breadcrumb } = useConvexQuery(
     api.folders.queries.getFolderBreadcrumb,
-    { folderId: toFolderId(folderId) },
+    { folderId: toId<'folders'>(folderId) },
   );
 
   const segments = breadcrumb ?? [];
@@ -57,6 +51,7 @@ export function BreadcrumbNavigation({
             <div
               className="text-muted-foreground mx-1 text-[14px] leading-4 font-medium"
               style={{ fontFamily: 'DM Sans, sans-serif' }}
+              aria-hidden="true"
             >
               /
             </div>
@@ -65,6 +60,7 @@ export function BreadcrumbNavigation({
               <span
                 className="text-foreground text-xs font-semibold whitespace-nowrap"
                 style={{ fontFamily: 'Inter, sans-serif' }}
+                aria-current="page"
               >
                 {folder.name}
               </span>
