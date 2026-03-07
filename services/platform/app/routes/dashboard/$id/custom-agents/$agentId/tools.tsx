@@ -6,10 +6,10 @@ import { RadioGroup } from '@/app/components/ui/forms/radio-group';
 import { SectionHeader } from '@/app/components/ui/layout/section-header';
 import { StickySectionHeader } from '@/app/components/ui/layout/sticky-section-header';
 import { ToolSelector } from '@/app/features/custom-agents/components/tool-selector';
-import { useToast } from '@/app/hooks/use-toast';
 import { useUpdateCustomAgent } from '@/app/features/custom-agents/hooks/mutations';
 import { useAutoSave } from '@/app/features/custom-agents/hooks/use-auto-save';
 import { useCustomAgentVersion } from '@/app/features/custom-agents/hooks/use-custom-agent-version-context';
+import { useToast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
@@ -66,9 +66,15 @@ function ToolsTab() {
           customAgentId: toId<'customAgents'>(agentId),
           webSearchMode: data.webSearchMode,
         });
-        toast({ title: t('customAgents.tools.webModeSaved'), variant: 'success' });
+        toast({
+          title: t('customAgents.tools.webModeSaved'),
+          variant: 'success',
+        });
       } catch {
-        toast({ title: t('customAgents.tools.webModeSaveFailed'), variant: 'destructive' });
+        toast({
+          title: t('customAgents.tools.webModeSaveFailed'),
+          variant: 'destructive',
+        });
       }
     },
     [agentId, updateAgent, toast, t],
@@ -94,9 +100,15 @@ function ToolsTab() {
           toolNames: data.toolNames,
           integrationBindings: data.integrationBindings,
         });
-        toast({ title: t('customAgents.tools.toolsSaved'), variant: 'success' });
+        toast({
+          title: t('customAgents.tools.toolsSaved'),
+          variant: 'success',
+        });
       } catch {
-        toast({ title: t('customAgents.tools.toolsSaveFailed'), variant: 'destructive' });
+        toast({
+          title: t('customAgents.tools.toolsSaveFailed'),
+          variant: 'destructive',
+        });
       }
     },
     [agentId, updateAgent, toast, t],

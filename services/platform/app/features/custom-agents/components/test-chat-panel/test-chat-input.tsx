@@ -108,7 +108,6 @@ export function TestChatInput({
                         />
                       ) : (
                         <div className="flex size-full items-center justify-center bg-linear-to-br from-blue-100 to-blue-200" />
-
                       )}
                     </button>
                     <button
@@ -129,7 +128,12 @@ export function TestChatInput({
                   >
                     <DocumentIcon fileName={attachment.fileName} />
                     <VStack className="min-w-0 flex-1">
-                      <Text as="div" variant="label" truncate className="ellipsis">
+                      <Text
+                        as="div"
+                        variant="label"
+                        truncate
+                        className="ellipsis"
+                      >
                         {attachment.fileName}
                       </Text>
                     </VStack>
