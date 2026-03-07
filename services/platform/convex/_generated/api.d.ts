@@ -24,6 +24,9 @@ import type * as agent_tools_database_helpers_schema_definitions from "../agent_
 import type * as agent_tools_database_helpers_types from "../agent_tools/database/helpers/types.js";
 import type * as agent_tools_delegation_create_delegation_tool from "../agent_tools/delegation/create_delegation_tool.js";
 import type * as agent_tools_delegation_load_delegation_agents from "../agent_tools/delegation/load_delegation_agents.js";
+import type * as agent_tools_documents_document_list_tool from "../agent_tools/documents/document_list_tool.js";
+import type * as agent_tools_documents_helpers_list_documents from "../agent_tools/documents/helpers/list_documents.js";
+import type * as agent_tools_documents_helpers_types from "../agent_tools/documents/helpers/types.js";
 import type * as agent_tools_files_docx_tool from "../agent_tools/files/docx_tool.js";
 import type * as agent_tools_files_excel_tool from "../agent_tools/files/excel_tool.js";
 import type * as agent_tools_files_helpers_analyze_image from "../agent_tools/files/helpers/analyze_image.js";
@@ -218,6 +221,7 @@ import type * as documents_internal_actions from "../documents/internal_actions.
 import type * as documents_internal_mutations from "../documents/internal_mutations.js";
 import type * as documents_internal_queries from "../documents/internal_queries.js";
 import type * as documents_list_documents_by_extension from "../documents/list_documents_by_extension.js";
+import type * as documents_list_documents_for_agent from "../documents/list_documents_for_agent.js";
 import type * as documents_list_documents_paginated from "../documents/list_documents_paginated.js";
 import type * as documents_migrate_team_fields from "../documents/migrate_team_fields.js";
 import type * as documents_mutations from "../documents/mutations.js";
@@ -859,6 +863,9 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/database/helpers/types": typeof agent_tools_database_helpers_types;
   "agent_tools/delegation/create_delegation_tool": typeof agent_tools_delegation_create_delegation_tool;
   "agent_tools/delegation/load_delegation_agents": typeof agent_tools_delegation_load_delegation_agents;
+  "agent_tools/documents/document_list_tool": typeof agent_tools_documents_document_list_tool;
+  "agent_tools/documents/helpers/list_documents": typeof agent_tools_documents_helpers_list_documents;
+  "agent_tools/documents/helpers/types": typeof agent_tools_documents_helpers_types;
   "agent_tools/files/docx_tool": typeof agent_tools_files_docx_tool;
   "agent_tools/files/excel_tool": typeof agent_tools_files_excel_tool;
   "agent_tools/files/helpers/analyze_image": typeof agent_tools_files_helpers_analyze_image;
@@ -1053,6 +1060,7 @@ declare const fullApi: ApiFromModules<{
   "documents/internal_mutations": typeof documents_internal_mutations;
   "documents/internal_queries": typeof documents_internal_queries;
   "documents/list_documents_by_extension": typeof documents_list_documents_by_extension;
+  "documents/list_documents_for_agent": typeof documents_list_documents_for_agent;
   "documents/list_documents_paginated": typeof documents_list_documents_paginated;
   "documents/migrate_team_fields": typeof documents_migrate_team_fields;
   "documents/mutations": typeof documents_mutations;

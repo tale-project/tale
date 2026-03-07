@@ -31,6 +31,7 @@ export const TOOL_NAMES = [
   'verify_approval',
   'database_schema',
   'request_human_input',
+  'document_list',
 ] as const;
 
 export type ToolName = (typeof TOOL_NAMES)[number];
