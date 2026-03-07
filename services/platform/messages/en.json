@@ -2244,6 +2244,12 @@
     "searchPlaceholder": "Search documents",
     "addButton": "Add document",
     "deleteDocument": "Delete document",
+    "deleteFolder": {
+      "title": "Delete folder",
+      "confirmation": "Are you sure you want to delete the folder",
+      "requirement": "The folder must be empty before it can be deleted. Remove all files and subfolders first.",
+      "deleteButton": "Delete folder"
+    },
     "deleteSyncFolder": {
       "title": "Delete sync folder",
       "confirmation": "Are you sure you want to delete the sync folder",

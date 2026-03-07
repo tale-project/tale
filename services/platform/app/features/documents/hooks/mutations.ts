@@ -269,6 +269,10 @@ export function useCreateFolder() {
   return useConvexMutation(api.folders.mutations.createFolder);
 }
 
+export function useDeleteFolder() {
+  return useConvexMutation(api.folders.mutations.deleteFolder);
+}
+
 export function useDeleteDocument() {
   return useConvexMutation(api.documents.mutations.deleteDocument);
 }

@@ -52,6 +52,17 @@ export const getFolderBreadcrumb = query({
       throw new Error('Unauthenticated');
     }
 
+    const folder = await ctx.db.get(args.folderId);
+    if (!folder) {
+      return [];
+    }
+
+    await getOrganizationMember(ctx, folder.organizationId, {
+      userId: String(authUser._id),
+      email: authUser.email,
+      name: authUser.name,
+    });
+
     return buildBreadcrumb(ctx, args.folderId);
   },
 });
@@ -61,11 +72,14 @@ export async function buildBreadcrumb(
   folderId: Id<'folders'>,
 ): Promise<Array<{ _id: Id<'folders'>; name: string }>> {
   const chain: Array<{ _id: Id<'folders'>; name: string }> = [];
+  const visited = new Set<string>();
   let currentId: Id<'folders'> | undefined = folderId;
 
   while (currentId) {
-    const folder: Awaited<ReturnType<typeof ctx.db.get<'folders'>>> =
-      await ctx.db.get(currentId);
+    if (visited.has(currentId)) break;
+    visited.add(currentId);
+
+    const folder: Doc<'folders'> | null = await ctx.db.get(currentId);
     if (!folder) break;
     chain.push({ _id: folder._id, name: folder.name });
     currentId = folder.parentId;

@@ -101,16 +101,20 @@ export function useSharePointDrives(
 
 interface ListDocumentsPaginatedArgs {
   organizationId: string;
+  folderId?: string;
   sourceProvider?: string;
   extension?: string;
   initialNumItems: number;
 }
 
 export function useListDocumentsPaginated(args: ListDocumentsPaginatedArgs) {
-  const { initialNumItems, ...queryArgs } = args;
+  const { initialNumItems, folderId, ...queryArgs } = args;
   return useCachedPaginatedQuery(
     api.documents.queries.listDocumentsPaginated,
-    queryArgs,
+    {
+      ...queryArgs,
+      folderId: folderId ? toId<'folders'>(folderId) : undefined,
+    },
     { initialNumItems },
   );
 }

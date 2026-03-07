@@ -60,6 +60,7 @@ export function DocumentsTable({
 
   const paginatedResult = useListDocumentsPaginated({
     organizationId,
+    folderId: currentFolderId,
     initialNumItems: 20,
   });
 
@@ -84,10 +85,6 @@ export function DocumentsTable({
         (doc) => !doc.teamId || doc.teamId === selectedTeamId,
       );
     }
-    // Filter documents to current folder level (exact match or root)
-    filtered = filtered.filter((doc) =>
-      currentFolderId ? doc.folderId === currentFolderId : !doc.folderId,
-    );
     if (debouncedQuery) {
       const filteredFolders = filterByTextSearch(folderRows, debouncedQuery, [
         'name',
@@ -96,13 +93,7 @@ export function DocumentsTable({
       return [...filteredFolders, ...filtered];
     }
     return [...folderRows, ...filtered];
-  }, [
-    paginatedResult.results,
-    selectedTeamId,
-    currentFolderId,
-    debouncedQuery,
-    folderRows,
-  ]);
+  }, [paginatedResult.results, selectedTeamId, debouncedQuery, folderRows]);
 
   const previewDocument = useMemo(() => {
     if (!docId || !filteredResults.length) return null;

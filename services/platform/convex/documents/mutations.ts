@@ -111,6 +111,13 @@ export const createDocumentFromUpload = mutation({
       name: authUser.name,
     });
 
+    if (args.folderId) {
+      const folder = await ctx.db.get(args.folderId);
+      if (!folder || folder.organizationId !== args.organizationId) {
+        throw new Error('Folder not found');
+      }
+    }
+
     const result = await createDocument(ctx, {
       organizationId: args.organizationId,
       title: args.fileName,

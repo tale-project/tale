@@ -82,4 +82,33 @@ describe('buildBreadcrumb', () => {
     // Should include f2 but stop when parent 'deleted' is not found
     expect(result).toEqual([{ _id: 'f2', name: 'Orphan' }]);
   });
+
+  it('detects self-referencing cycle and terminates', async () => {
+    const ctx = createMockCtx({
+      f1: { name: 'SelfRef', parentId: 'f1' },
+    });
+
+    const result = await buildBreadcrumb(
+      ctx as unknown as QueryCtx,
+      'f1' as unknown as FolderId,
+    );
+
+    expect(result).toEqual([{ _id: 'f1', name: 'SelfRef' }]);
+  });
+
+  it('detects A→B→A cycle and terminates', async () => {
+    const ctx = createMockCtx({
+      f1: { name: 'A', parentId: 'f2' },
+      f2: { name: 'B', parentId: 'f1' },
+    });
+
+    const result = await buildBreadcrumb(
+      ctx as unknown as QueryCtx,
+      'f1' as unknown as FolderId,
+    );
+
+    // Should include both but not loop forever
+    expect(result.length).toBeLessThanOrEqual(2);
+    expect(result.some((b) => b._id === 'f1')).toBe(true);
+  });
 });

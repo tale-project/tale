@@ -7,41 +7,26 @@ export async function getOrCreateFolderPath(
   pathSegments: string[],
   createdBy?: string,
 ): Promise<Id<'folders'> | undefined> {
-  if (pathSegments.length === 0) {
+  const segments = pathSegments.filter((s) => s.trim().length > 0);
+  if (segments.length === 0) {
     return undefined;
   }
 
   let parentId: Id<'folders'> | undefined;
 
-  for (const segment of pathSegments) {
+  for (const segment of segments) {
     const existing = await ctx.db
       .query('folders')
-      .withIndex('by_organizationId_and_parentId', (q) =>
-        q.eq('organizationId', organizationId).eq('parentId', parentId),
+      .withIndex('by_org_parent_name', (q) =>
+        q
+          .eq('organizationId', organizationId)
+          .eq('parentId', parentId)
+          .eq('name', segment),
       )
       .first();
 
-    let found: Id<'folders'> | undefined;
-
-    if (existing && existing.name === segment) {
-      found = existing._id;
-    } else {
-      const q = ctx.db
-        .query('folders')
-        .withIndex('by_organizationId_and_parentId', (qb) =>
-          qb.eq('organizationId', organizationId).eq('parentId', parentId),
-        );
-
-      for await (const folder of q) {
-        if (folder.name === segment) {
-          found = folder._id;
-          break;
-        }
-      }
-    }
-
-    if (found) {
-      parentId = found;
+    if (existing) {
+      parentId = existing._id;
     } else {
       parentId = await ctx.db.insert('folders', {
         organizationId,

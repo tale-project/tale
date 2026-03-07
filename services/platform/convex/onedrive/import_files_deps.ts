@@ -38,5 +38,10 @@ export function createImportFilesDeps(ctx: ActionCtx): ImportFilesDependencies {
         updateArgs,
       );
     },
+    getOrCreateFolderPath: async (organizationId, pathSegments, createdBy) =>
+      (await ctx.runMutation(
+        internal.folders.internal_mutations.getOrCreateFolderPath,
+        { organizationId, pathSegments, createdBy },
+      )) ?? undefined,
   };
 }

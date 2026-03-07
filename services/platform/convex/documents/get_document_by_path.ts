@@ -37,27 +37,23 @@ export async function getDocumentByPath(
       return { success: false, error: 'Invalid path' };
     }
 
-    // Traverse folder hierarchy
+    // Traverse folder hierarchy using compound index
     let folderId: Id<'folders'> | undefined;
     for (const segment of parts) {
-      const q = ctx.db
+      const folder = await ctx.db
         .query('folders')
-        .withIndex('by_organizationId_and_parentId', (qb) =>
-          qb.eq('organizationId', organizationId).eq('parentId', folderId),
-        );
+        .withIndex('by_org_parent_name', (qb) =>
+          qb
+            .eq('organizationId', organizationId)
+            .eq('parentId', folderId)
+            .eq('name', segment),
+        )
+        .first();
 
-      let found = false;
-      for await (const folder of q) {
-        if (folder.name === segment) {
-          folderId = folder._id;
-          found = true;
-          break;
-        }
-      }
-
-      if (!found) {
+      if (!folder) {
         return { success: false, error: 'Document not found' };
       }
+      folderId = folder._id;
     }
 
     // Find document by title in the resolved folder
@@ -68,12 +64,23 @@ export async function getDocumentByPath(
       );
 
     let document = null;
+    let fallback = null;
     for await (const doc of docQuery) {
       if (doc.title === fileName) {
         document = doc;
         break;
       }
+      if (!fallback) {
+        const storedPath = doc.metadata?.storagePath;
+        if (typeof storedPath === 'string') {
+          const storedName = storedPath.split('/').pop();
+          if (storedName === fileName) {
+            fallback = doc;
+          }
+        }
+      }
     }
+    document = document ?? fallback;
 
     if (!document) {
       return { success: false, error: 'Document not found' };

@@ -235,6 +235,7 @@ import type * as documents_validators from "../documents/validators.js";
 import type * as files_mutations from "../files/mutations.js";
 import type * as files_queries from "../files/queries.js";
 import type * as folders_get_or_create_path from "../folders/get_or_create_path.js";
+import type * as folders_internal_mutations from "../folders/internal_mutations.js";
 import type * as folders_mutations from "../folders/mutations.js";
 import type * as folders_queries from "../folders/queries.js";
 import type * as http from "../http.js";
@@ -1069,6 +1070,7 @@ declare const fullApi: ApiFromModules<{
   "files/mutations": typeof files_mutations;
   "files/queries": typeof files_queries;
   "folders/get_or_create_path": typeof folders_get_or_create_path;
+  "folders/internal_mutations": typeof folders_internal_mutations;
   "folders/mutations": typeof folders_mutations;
   "folders/queries": typeof folders_queries;
   http: typeof http;

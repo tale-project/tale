@@ -24,6 +24,11 @@ export const createFolder = mutation({
       name: authUser.name,
     });
 
+    const trimmedName = args.name.trim();
+    if (trimmedName.length === 0) {
+      throw new Error('Folder name cannot be empty');
+    }
+
     if (args.parentId) {
       const parent = await ctx.db.get(args.parentId);
       if (!parent || parent.organizationId !== args.organizationId) {
@@ -33,7 +38,7 @@ export const createFolder = mutation({
 
     return ctx.db.insert('folders', {
       organizationId: args.organizationId,
-      name: args.name,
+      name: trimmedName,
       parentId: args.parentId,
       teamId: args.teamId,
       createdBy: String(authUser._id),
