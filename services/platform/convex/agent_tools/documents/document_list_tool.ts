@@ -18,7 +18,7 @@ export const documentListArgs = z.object({
     .string()
     .optional()
     .describe(
-      'Filter by folder path (e.g., "contracts/2024", "marketing"). Filters to documents directly in the specified folder, not recursively. Nested paths use "/" separator. Omit to search all folders.',
+      'Filter by folder path (e.g., "contracts/2024", "marketing"). Case-sensitive exact match. Filters to documents directly in the specified folder, not recursively. Nested paths use "/" separator. Omit to search all folders.',
     ),
   extension: z
     .string()

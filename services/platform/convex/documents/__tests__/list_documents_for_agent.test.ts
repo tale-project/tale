@@ -1143,6 +1143,27 @@ describe('listDocumentsForAgent', () => {
       expect(broken?.folderPath).toBeNull();
       expect(healthy?.folderPath).toBe('ok-folder');
     });
+
+    it('logs console.warn when buildBreadcrumb throws', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const { buildBreadcrumb } = await import('../../folders/queries');
+      const mockBuildBreadcrumb = vi.mocked(buildBreadcrumb);
+      mockBuildBreadcrumb.mockRejectedValue(new Error('corrupt folder'));
+
+      const ctx = createMockCtx({}, [
+        makeDoc({ _id: 'doc1', folderId: 'f_broken' }),
+      ]);
+
+      await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+      });
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('buildBreadcrumb failed for folder'),
+        expect.any(Error),
+      );
+      warnSpy.mockRestore();
+    });
   });
 
   describe('lock-in: current behavior before refactor', () => {
@@ -1167,7 +1188,7 @@ describe('listDocumentsForAgent', () => {
       ]);
     });
 
-    it('returns no warning when teamId filter is not in user teams', async () => {
+    it('returns warning when teamId filter is not in user teams', async () => {
       const ctx = createMockCtx({}, [
         makeDoc({ _id: 'doc1', teamId: 'team3' }),
       ]);
@@ -1179,10 +1200,12 @@ describe('listDocumentsForAgent', () => {
       });
 
       expect(result.documents).toEqual([]);
-      expect(result.warning).toBeNull();
+      expect(result.warning).toBe(
+        'No access to the specified team, or team does not exist.',
+      );
     });
 
-    it('returns no warning when folder path not found', async () => {
+    it('returns warning when folder path not found', async () => {
       const ctx = createMockCtx({}, [makeDoc({ _id: 'doc1' })]);
 
       const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
@@ -1191,7 +1214,9 @@ describe('listDocumentsForAgent', () => {
       });
 
       expect(result.documents).toEqual([]);
-      expect(result.warning).toBeNull();
+      expect(result.warning).toBe(
+        "Folder path 'nonexistent' not found. Folder names are case-sensitive.",
+      );
     });
 
     it('matches untitled docs when searching for "untitled" via getDocumentTitle', async () => {

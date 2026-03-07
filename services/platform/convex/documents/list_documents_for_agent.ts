@@ -69,7 +69,10 @@ export async function listDocumentsForAgent(
 
   // Validate teamId filter against user's teams
   if (args.teamId && !teamIdSet.has(args.teamId)) {
-    return emptyResult;
+    return {
+      ...emptyResult,
+      warning: 'No access to the specified team, or team does not exist.',
+    };
   }
 
   // Resolve folderPath to folderId
@@ -82,7 +85,12 @@ export async function listDocumentsForAgent(
     );
     // undefined means path resolved to empty segments (e.g., "/", "///")
     // — treat as "no folder filter". null means a named folder was not found.
-    if (resolved === null) return emptyResult;
+    if (resolved === null) {
+      return {
+        ...emptyResult,
+        warning: `Folder path '${args.folderPath}' not found. Folder names are case-sensitive.`,
+      };
+    }
     folderId = resolved;
   }
 
@@ -271,8 +279,8 @@ async function resolveFolderPaths(
       const breadcrumb = await buildBreadcrumb(ctx, id);
       const path = breadcrumb.map((b) => b.name).join('/');
       pathMap.set(id, path);
-    } catch {
-      // Orphaned/corrupt folder — document will show folderPath: null
+    } catch (err) {
+      console.warn(`buildBreadcrumb failed for folder ${id}:`, err);
     }
   });
 
