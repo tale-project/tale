@@ -7,6 +7,7 @@ export interface ToastProps {
   className?: string;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  duration?: number;
 }
 
 export type ToastActionElement = ReactElement;

@@ -1,18 +1,18 @@
 'use client';
 
-import { LoaderCircle, Paperclip, Send, X } from 'lucide-react';
+import { ArrowUp, LoaderCircle, Paperclip, X } from 'lucide-react';
 
 import type { Id } from '@/convex/_generated/dataModel';
 
-import { PanelFooter } from '@/app/components/layout/panel-footer';
+import { EnterKeyIcon } from '@/app/components/icons/enter-key-icon';
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { HStack, VStack } from '@/app/components/ui/layout/layout';
+import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
-import { TEXT_FILE_ACCEPT } from '@/lib/utils/text-file-types';
 
 interface ChatAttachment {
   fileId: Id<'_storage'>;
@@ -52,6 +52,15 @@ export function ChatInput({
   onFileInputChange,
 }: ChatInputProps) {
   const { t } = useT('automations');
+  const { t: tChat } = useT('chat');
+  const { t: tDialogs } = useT('dialogs');
+
+  const imageAttachments = attachments.filter((att) =>
+    att.fileType.startsWith('image/'),
+  );
+  const fileAttachments = attachments.filter(
+    (att) => !att.fileType.startsWith('image/'),
+  );
 
   return (
     <>
@@ -59,99 +68,126 @@ export function ChatInput({
         ref={fileInputRef}
         type="file"
         multiple
-        accept={TEXT_FILE_ACCEPT}
         onChange={onFileInputChange}
         style={{ display: 'none' }}
       />
 
-      <PanelFooter className="mx-2">
-        <FileUpload.DropZone
-          className="border-muted rounded-t-3xl border-[0.5rem] border-b-0"
-          onFilesSelected={uploadFiles}
-          clickable={false}
-        >
-          <FileUpload.Overlay className="rounded-t-2xl" />
-          <div className="bg-background border-muted-foreground/50 relative rounded-t-[0.875rem] border border-b-0 p-1">
+      <FileUpload.DropZone
+        className="relative flex min-h-0 shrink-0 flex-col"
+        onFilesSelected={uploadFiles}
+        clickable={false}
+      >
+        <FileUpload.Overlay className="mx-2 rounded-t-3xl" />
+
+        <div className="border-muted mx-2 rounded-t-3xl border-[0.5rem] border-b-0">
+          <div className="bg-background border-muted-foreground/50 relative flex flex-col gap-2 rounded-t-2xl border border-b-0 px-4 pt-3">
             {(attachments.length > 0 || uploadingFiles.length > 0) && (
-              <HStack gap={2} wrap className="p-1">
-                {uploadingFiles.map((fileId) => (
-                  <HStack
-                    key={fileId}
-                    gap={1}
-                    className="bg-muted rounded-lg px-2 py-1"
+              <HStack gap={1} wrap className="mb-2">
+                {imageAttachments.map((attachment) => (
+                  <div
+                    key={attachment.fileId}
+                    className="group relative size-11 overflow-hidden rounded-lg shadow-sm"
                   >
-                    <LoaderCircle className="size-3 animate-spin" />
-                    <Text as="span" variant="caption">
-                      {t('assistant.upload.uploading')}
-                    </Text>
-                  </HStack>
+                    <button
+                      type="button"
+                      className="bg-secondary/20 focus:ring-ring size-full cursor-pointer transition-opacity hover:opacity-90 focus:ring-2 focus:ring-offset-2 focus:outline-none"
+                    >
+                      {attachment.previewUrl ? (
+                        <img
+                          src={attachment.previewUrl}
+                          alt={attachment.fileName}
+                          className="size-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex size-full items-center justify-center bg-linear-to-br from-blue-100 to-blue-200" />
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={tChat('removeAttachment')}
+                      onClick={() => removeAttachment(attachment.fileId)}
+                      className="bg-background absolute top-0.5 right-0.5 flex size-5 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100"
+                    >
+                      <X className="text-muted-foreground size-3" />
+                    </button>
+                  </div>
                 ))}
 
-                {attachments
-                  .filter((att) => att.fileType.startsWith('image/'))
-                  .map((attachment) => (
-                    <div key={attachment.fileId} className="group relative">
-                      <img
-                        src={attachment.previewUrl}
-                        alt={attachment.fileName}
-                        className="border-border size-8 rounded-lg border object-cover"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeAttachment(attachment.fileId)}
-                        className="bg-destructive text-destructive-foreground absolute -top-1 -right-1 rounded-full p-0.5 opacity-0 transition-opacity group-hover:opacity-100"
+                {fileAttachments.map((attachment) => (
+                  <div
+                    key={attachment.fileId}
+                    className="bg-secondary/20 group relative flex max-w-[216px] items-center gap-2 rounded-lg px-2 py-1"
+                  >
+                    <DocumentIcon fileName={attachment.fileName} />
+                    <VStack className="min-w-0 flex-1">
+                      <Text
+                        as="div"
+                        variant="label"
+                        truncate
+                        className="ellipsis"
                       >
-                        <X className="size-3" />
-                      </button>
-                    </div>
-                  ))}
-
-                {attachments
-                  .filter((att) => !att.fileType.startsWith('image/'))
-                  .map((attachment) => (
-                    <div
-                      key={attachment.fileId}
-                      className="group bg-secondary/20 relative flex max-w-[150px] items-center gap-2 rounded-lg px-2 py-1"
+                        {attachment.fileName}
+                      </Text>
+                    </VStack>
+                    <button
+                      type="button"
+                      aria-label={tChat('removeAttachment')}
+                      onClick={() => removeAttachment(attachment.fileId)}
+                      className="bg-background absolute top-0.5 right-0.5 flex size-5 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100"
                     >
-                      <DocumentIcon fileName={attachment.fileName} />
-                      <VStack className="min-w-0 flex-1">
-                        <Text as="div" variant="label-sm" truncate>
-                          {attachment.fileName}
-                        </Text>
-                      </VStack>
-                      <button
-                        type="button"
-                        onClick={() => removeAttachment(attachment.fileId)}
-                        className="text-muted-foreground hover:text-destructive transition-colors"
-                      >
-                        <X className="size-3" />
-                      </button>
-                    </div>
-                  ))}
+                      <X className="text-muted-foreground size-3" />
+                    </button>
+                  </div>
+                ))}
+
+                {uploadingFiles.map((fileId) => (
+                  <div
+                    key={fileId}
+                    className="bg-secondary/20 grid size-[2.75rem] place-content-center rounded-lg p-2"
+                  >
+                    <LoaderCircle className="size-4 animate-spin" />
+                  </div>
+                ))}
               </HStack>
             )}
 
-            <div className="h-[5rem] overflow-y-auto transition-all duration-300 ease-in-out">
+            <div className="relative">
               <Textarea
                 value={inputValue}
                 onChange={(e) => onInputChange(e.target.value)}
                 onKeyDown={onKeyDown}
                 onPaste={onPaste}
-                placeholder={t('assistant.messagePlaceholder')}
-                className="resize-none border-0 bg-transparent p-2 text-sm outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                className="text-foreground placeholder:text-muted-foreground relative min-h-[100px] resize-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
                 disabled={isLoading}
+                placeholder=""
               />
+              {inputValue.length === 0 && !isLoading && (
+                <Text
+                  as="div"
+                  variant="muted"
+                  className="pointer-events-none absolute top-0 left-0 flex items-center gap-1"
+                >
+                  {t('assistant.messagePlaceholder')}
+                  <div className="border-muted-foreground/30 text-muted-foreground flex size-4 items-center justify-center rounded border">
+                    <EnterKeyIcon className="size-3" />
+                  </div>
+                  {tDialogs('toSend')}
+                </Text>
+              )}
             </div>
-            <HStack justify="between" className="px-1">
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isLoading}
-                className="text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                title={t('assistant.attachFiles')}
-              >
-                <Paperclip className="size-4" />
-              </button>
+
+            <HStack justify="between" align="center" className="pb-3">
+              <Tooltip content={tDialogs('attach')} side="top">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isLoading}
+                  aria-label={tDialogs('attach')}
+                >
+                  <Paperclip className="size-4" />
+                </Button>
+              </Tooltip>
 
               <Button
                 onClick={onSend}
@@ -159,13 +195,14 @@ export function ChatInput({
                   (!inputValue.trim() && attachments.length === 0) || isLoading
                 }
                 size="icon"
+                aria-label={tChat('send')}
               >
-                <Send className="size-4" />
+                <ArrowUp className="size-4" />
               </Button>
             </HStack>
           </div>
-        </FileUpload.DropZone>
-      </PanelFooter>
+        </div>
+      </FileUpload.DropZone>
     </>
   );
 }

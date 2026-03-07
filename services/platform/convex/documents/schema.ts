@@ -37,6 +37,8 @@ export const documentsTable = defineTable({
       ),
       indexedAt: v.optional(v.number()),
       error: v.optional(v.string()),
+      /** @deprecated No longer written, kept for backward compatibility with existing data. */
+      jobId: v.optional(v.string()),
     }),
   ),
   createdBy: v.optional(v.string()),
