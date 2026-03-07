@@ -119,13 +119,9 @@ export async function listDocumentsForAgent(
     if (args.dateFrom != null && doc._creationTime < args.dateFrom) continue;
     if (args.dateTo != null && doc._creationTime > args.dateTo) continue;
 
-    // Title search (check metadata.name fallback, consistent with UI)
+    // Title search
     if (searchQuery) {
-      const titleMatch =
-        doc.title?.toLowerCase().includes(searchQuery) ||
-        (typeof doc.metadata?.name === 'string' &&
-          doc.metadata.name.toLowerCase().includes(searchQuery));
-      if (!titleMatch) continue;
+      if (!getDocumentTitle(doc).toLowerCase().includes(searchQuery)) continue;
     }
 
     matches.push(doc);
@@ -134,25 +130,29 @@ export async function listDocumentsForAgent(
   const totalCount = scanLimitHit ? null : matches.length;
 
   // Sort with _id tiebreaker for deterministic ordering
-  matches.sort((a, b) => {
-    const aVal =
-      sortBy === 'name'
-        ? (a.title ??
-          (typeof a.metadata?.name === 'string' ? a.metadata.name : '') ??
-          '')
-        : a._creationTime;
-    const bVal =
-      sortBy === 'name'
-        ? (b.title ??
-          (typeof b.metadata?.name === 'string' ? b.metadata.name : '') ??
-          '')
-        : b._creationTime;
-    if (aVal !== bVal) {
-      const comparison = aVal < bVal ? -1 : 1;
-      return sortOrder === 'asc' ? comparison : -comparison;
-    }
-    return a._id < b._id ? -1 : a._id > b._id ? 1 : 0;
-  });
+  if (sortBy === 'name') {
+    const entries = matches.map((doc) => ({
+      doc,
+      key: getDocumentTitle(doc).toLowerCase(),
+    }));
+    entries.sort((a, b) => {
+      if (a.key !== b.key) {
+        const cmp = a.key < b.key ? -1 : 1;
+        return sortOrder === 'asc' ? cmp : -cmp;
+      }
+      return a.doc._id < b.doc._id ? -1 : a.doc._id > b.doc._id ? 1 : 0;
+    });
+    matches.length = 0;
+    for (const e of entries) matches.push(e.doc);
+  } else {
+    matches.sort((a, b) => {
+      if (a._creationTime !== b._creationTime) {
+        const cmp = a._creationTime < b._creationTime ? -1 : 1;
+        return sortOrder === 'asc' ? cmp : -cmp;
+      }
+      return a._id < b._id ? -1 : a._id > b._id ? 1 : 0;
+    });
+  }
 
   // Offset-based pagination (cursor is a start index)
   const startIndex = Math.max(0, args.cursor ?? 0);
@@ -165,10 +165,7 @@ export async function listDocumentsForAgent(
   // Build response
   const documents: AgentDocumentItem[] = page.map((doc) => ({
     id: doc._id,
-    title:
-      doc.title ??
-      (typeof doc.metadata?.name === 'string' ? doc.metadata.name : null) ??
-      'Untitled',
+    title: getDocumentTitle(doc),
     extension: doc.extension ?? null,
     folderPath: doc.folderId ? (folderPathMap.get(doc.folderId) ?? null) : null,
     teamId: doc.teamId ?? null,
@@ -183,6 +180,14 @@ export async function listDocumentsForAgent(
     : null;
 
   return { documents, totalCount, hasMore, cursor: nextCursor, warning };
+}
+
+function getDocumentTitle(doc: Doc<'documents'>): string {
+  return (
+    doc.title ??
+    (typeof doc.metadata?.name === 'string' ? doc.metadata.name : null) ??
+    'Untitled'
+  );
 }
 
 async function resolveFolderPath(

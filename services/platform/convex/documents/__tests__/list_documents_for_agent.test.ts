@@ -1101,7 +1101,7 @@ describe('listDocumentsForAgent', () => {
   });
 
   describe('title search edge cases', () => {
-    it('does not match documents with undefined title', async () => {
+    it('matches untitled docs when searching for "untitled"', async () => {
       const ctx = createMockCtx({}, [
         makeDoc({ _id: 'doc1', title: undefined }),
         makeDoc({ _id: 'doc2', title: 'Report' }),
@@ -1112,7 +1112,8 @@ describe('listDocumentsForAgent', () => {
         query: 'untitled',
       });
 
-      expect(result.documents).toHaveLength(0);
+      expect(result.documents).toHaveLength(1);
+      expect(result.documents[0]?.id).toBe('doc1');
     });
   });
 
@@ -1141,6 +1142,71 @@ describe('listDocumentsForAgent', () => {
       const healthy = result.documents.find((d) => d.id === 'doc2');
       expect(broken?.folderPath).toBeNull();
       expect(healthy?.folderPath).toBe('ok-folder');
+    });
+  });
+
+  describe('lock-in: current behavior before refactor', () => {
+    it('sorts by name case-insensitively', async () => {
+      const ctx = createMockCtx({}, [
+        makeDoc({ _id: 'doc1', title: 'banana' }),
+        makeDoc({ _id: 'doc2', title: 'Apple' }),
+        makeDoc({ _id: 'doc3', title: 'Cherry' }),
+      ]);
+
+      const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        sortBy: 'name',
+        sortOrder: 'asc',
+      });
+
+      // Case-insensitive: apple < banana < cherry
+      expect(result.documents.map((d) => d.title)).toEqual([
+        'Apple',
+        'banana',
+        'Cherry',
+      ]);
+    });
+
+    it('returns no warning when teamId filter is not in user teams', async () => {
+      const ctx = createMockCtx({}, [
+        makeDoc({ _id: 'doc1', teamId: 'team3' }),
+      ]);
+
+      const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        userTeamIds: ['team1'],
+        teamId: 'team3',
+      });
+
+      expect(result.documents).toEqual([]);
+      expect(result.warning).toBeNull();
+    });
+
+    it('returns no warning when folder path not found', async () => {
+      const ctx = createMockCtx({}, [makeDoc({ _id: 'doc1' })]);
+
+      const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        folderPath: 'nonexistent',
+      });
+
+      expect(result.documents).toEqual([]);
+      expect(result.warning).toBeNull();
+    });
+
+    it('matches untitled docs when searching for "untitled" via getDocumentTitle', async () => {
+      const ctx = createMockCtx({}, [
+        makeDoc({ _id: 'doc1', title: undefined }),
+        makeDoc({ _id: 'doc2', title: 'Report' }),
+      ]);
+
+      const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        query: 'untitled',
+      });
+
+      expect(result.documents).toHaveLength(1);
+      expect(result.documents[0]?.id).toBe('doc1');
     });
   });
 });
