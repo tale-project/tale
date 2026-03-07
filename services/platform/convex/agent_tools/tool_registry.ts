@@ -10,6 +10,7 @@ import type { ToolDefinition } from './types';
 
 import { customerReadTool } from './customers/customer_read_tool';
 import { databaseSchemaTool } from './database/database_schema_tool';
+import { documentListTool } from './documents/document_list_tool';
 import { docxTool } from './files/docx_tool';
 import { excelTool } from './files/excel_tool';
 import { imageTool } from './files/image_tool';
@@ -58,6 +59,7 @@ export const TOOL_REGISTRY = [
   verifyApprovalTool,
   databaseSchemaTool,
   requestHumanInputTool,
+  documentListTool,
 ] as const;
 
 /**
