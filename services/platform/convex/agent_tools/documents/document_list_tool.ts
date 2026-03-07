@@ -8,8 +8,8 @@
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
+import type { AgentDocumentListResult as DocumentListResult } from '../../documents/list_documents_for_agent';
 import type { ToolDefinition } from '../types';
-import type { DocumentListResult } from './helpers/types';
 
 import { listDocuments } from './helpers/list_documents';
 

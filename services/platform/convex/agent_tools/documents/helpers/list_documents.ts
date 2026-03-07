@@ -1,8 +1,8 @@
 import type { ToolCtx } from '@convex-dev/agent';
 import type { z } from 'zod/v4';
 
+import type { AgentDocumentListResult as DocumentListResult } from '../../../documents/list_documents_for_agent';
 import type { documentListArgs } from '../document_list_tool';
-import type { DocumentListResult } from './types';
 
 import { internal } from '../../../_generated/api';
 
