@@ -32,6 +32,7 @@ export const TOOL_NAMES = [
   'database_schema',
   'request_human_input',
   'document_list',
+  'document_retrieve',
 ] as const;
 
 export type ToolName = (typeof TOOL_NAMES)[number];

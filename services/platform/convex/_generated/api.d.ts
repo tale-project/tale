@@ -25,7 +25,9 @@ import type * as agent_tools_database_helpers_types from "../agent_tools/databas
 import type * as agent_tools_delegation_create_delegation_tool from "../agent_tools/delegation/create_delegation_tool.js";
 import type * as agent_tools_delegation_load_delegation_agents from "../agent_tools/delegation/load_delegation_agents.js";
 import type * as agent_tools_documents_document_list_tool from "../agent_tools/documents/document_list_tool.js";
+import type * as agent_tools_documents_document_retrieve_tool from "../agent_tools/documents/document_retrieve_tool.js";
 import type * as agent_tools_documents_helpers_list_documents from "../agent_tools/documents/helpers/list_documents.js";
+import type * as agent_tools_documents_helpers_retrieve_document from "../agent_tools/documents/helpers/retrieve_document.js";
 import type * as agent_tools_files_docx_tool from "../agent_tools/files/docx_tool.js";
 import type * as agent_tools_files_excel_tool from "../agent_tools/files/excel_tool.js";
 import type * as agent_tools_files_helpers_analyze_image from "../agent_tools/files/helpers/analyze_image.js";
@@ -863,7 +865,9 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/delegation/create_delegation_tool": typeof agent_tools_delegation_create_delegation_tool;
   "agent_tools/delegation/load_delegation_agents": typeof agent_tools_delegation_load_delegation_agents;
   "agent_tools/documents/document_list_tool": typeof agent_tools_documents_document_list_tool;
+  "agent_tools/documents/document_retrieve_tool": typeof agent_tools_documents_document_retrieve_tool;
   "agent_tools/documents/helpers/list_documents": typeof agent_tools_documents_helpers_list_documents;
+  "agent_tools/documents/helpers/retrieve_document": typeof agent_tools_documents_helpers_retrieve_document;
   "agent_tools/files/docx_tool": typeof agent_tools_files_docx_tool;
   "agent_tools/files/excel_tool": typeof agent_tools_files_excel_tool;
   "agent_tools/files/helpers/analyze_image": typeof agent_tools_files_helpers_analyze_image;

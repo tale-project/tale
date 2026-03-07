@@ -29,7 +29,7 @@ const TOOL_CATEGORIES: Record<string, ToolName[]> = {
   CRM: ['customer_read', 'product_read'],
   Web: ['web'],
   Documents: ['pdf', 'image', 'pptx', 'docx', 'txt', 'excel', 'document_list'],
-  Knowledge: ['rag_search'],
+  Knowledge: ['rag_search', 'document_retrieve'],
   Workflows: [
     'workflow_read',
     'workflow_examples',
