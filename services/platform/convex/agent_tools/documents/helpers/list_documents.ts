@@ -23,12 +23,10 @@ export async function listDocuments(
     throw new Error('userId is required in context for listing documents');
   }
 
-  const dateFrom = args.dateFrom
-    ? new Date(args.dateFrom).getTime()
-    : undefined;
+  const dateFrom = args.dateFrom ? toTimestamp(args.dateFrom) : undefined;
   // End-of-day (23:59:59.999) so documents created during that day are included
   const dateTo = args.dateTo
-    ? new Date(args.dateTo).getTime() + 86_400_000 - 1
+    ? toTimestamp(args.dateTo) + 86_400_000 - 1
     : undefined;
 
   return ctx.runQuery(internal.documents.internal_queries.listForAgent, {
@@ -45,4 +43,14 @@ export async function listDocuments(
     limit: args.limit,
     cursor: args.cursor,
   });
+}
+
+function toTimestamp(dateStr: string): number {
+  const ts = new Date(dateStr).getTime();
+  if (!Number.isFinite(ts)) {
+    throw new Error(
+      `Invalid date: "${dateStr}". Must be a valid YYYY-MM-DD date.`,
+    );
+  }
+  return ts;
 }

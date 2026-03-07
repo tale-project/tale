@@ -157,6 +157,7 @@ describe('listDocumentsForAgent', () => {
       expect(result.totalCount).toBe(0);
       expect(result.hasMore).toBe(false);
       expect(result.cursor).toBeNull();
+      expect(result.warning).toBeNull();
     });
 
     it('returns documents with correct fields', async () => {
@@ -698,7 +699,7 @@ describe('listDocumentsForAgent', () => {
       expect(new Set(allIds).size).toBe(5);
     });
 
-    it('returns totalCount null when scan limit is exceeded', async () => {
+    it('returns exact totalCount when under scan limit', async () => {
       const docs = Array.from({ length: 25 }, (_, i) =>
         makeDoc({ _id: `doc${i}`, _creationTime: i }),
       );
@@ -713,20 +714,17 @@ describe('listDocumentsForAgent', () => {
       expect(result.totalCount).toBe(25);
     });
 
-    it('applies dateFrom filter even when value is NaN', async () => {
+    it('does not filter when dateFrom is NaN (NaN comparisons are always false)', async () => {
       const ctx = createMockCtx({}, [
         makeDoc({ _id: 'doc1', _creationTime: 1000 }),
         makeDoc({ _id: 'doc2', _creationTime: 2000 }),
       ]);
 
-      // NaN != null is true, so the filter check runs.
-      // doc._creationTime < NaN is always false, so no doc is filtered out.
       const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
         ...baseArgs,
         dateFrom: NaN,
       });
 
-      // NaN comparisons always return false, so all docs pass the filter
       expect(result.documents).toHaveLength(2);
     });
 
@@ -840,6 +838,193 @@ describe('listDocumentsForAgent', () => {
       });
 
       expect(result.documents).toHaveLength(1);
+    });
+  });
+
+  describe('scan limit and warning', () => {
+    it('sets warning and totalCount null when scan limit is hit', async () => {
+      const docs = Array.from({ length: 8 }, (_, i) =>
+        makeDoc({ _id: `doc${i}`, _creationTime: i * 1000 }),
+      );
+      const ctx = createMockCtx({}, docs);
+
+      const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        _maxScan: 5,
+      });
+
+      expect(result.totalCount).toBeNull();
+      expect(result.warning).toContain('scan limit');
+    });
+
+    it('returns no warning when under scan limit', async () => {
+      const docs = Array.from({ length: 3 }, (_, i) =>
+        makeDoc({ _id: `doc${i}`, _creationTime: i * 1000 }),
+      );
+      const ctx = createMockCtx({}, docs);
+
+      const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        _maxScan: 100,
+      });
+
+      expect(result.totalCount).toBe(3);
+      expect(result.warning).toBeNull();
+    });
+
+    it('terminates pagination without infinite loop when scan limit is hit', async () => {
+      const docs = Array.from({ length: 10 }, (_, i) =>
+        makeDoc({ _id: `doc${i}`, _creationTime: i * 1000 }),
+      );
+      const ctx = createMockCtx({}, docs);
+
+      const allIds: string[] = [];
+      let cursor: number | undefined;
+      let pages = 0;
+
+      // Paginate until done — should terminate
+      while (pages < 20) {
+        const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+          ...baseArgs,
+          limit: 3,
+          _maxScan: 7,
+          cursor,
+        });
+
+        allIds.push(...result.documents.map((d) => d.id));
+        pages++;
+
+        if (!result.hasMore) break;
+        cursor = result.cursor ?? undefined;
+      }
+
+      // Should terminate well under 20 pages
+      expect(pages).toBeLessThan(10);
+      // Should have gotten some documents
+      expect(allIds.length).toBeGreaterThan(0);
+      // No duplicates
+      expect(new Set(allIds).size).toBe(allIds.length);
+    });
+  });
+
+  describe('defensive cursor handling', () => {
+    it('clamps negative cursor to 0', async () => {
+      const ctx = createMockCtx({}, [
+        makeDoc({ _id: 'doc1', _creationTime: 2000 }),
+        makeDoc({ _id: 'doc2', _creationTime: 1000 }),
+      ]);
+
+      const withNegative = await listDocumentsForAgent(
+        ctx as unknown as QueryCtx,
+        { ...baseArgs, cursor: -5 },
+      );
+      const withZero = await listDocumentsForAgent(
+        ctx as unknown as QueryCtx,
+        baseArgs,
+      );
+
+      expect(withNegative.documents.map((d) => d.id)).toEqual(
+        withZero.documents.map((d) => d.id),
+      );
+    });
+
+    it('returns empty page for cursor beyond total results', async () => {
+      const ctx = createMockCtx({}, [
+        makeDoc({ _id: 'doc1' }),
+        makeDoc({ _id: 'doc2' }),
+      ]);
+
+      const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        cursor: 999,
+      });
+
+      expect(result.documents).toEqual([]);
+      expect(result.hasMore).toBe(false);
+    });
+  });
+
+  describe('combined filters', () => {
+    it('filters by extension when both extension and folderId are provided', async () => {
+      const ctx = createMockCtx(
+        {
+          f_contracts: {
+            name: 'contracts',
+            organizationId: 'org1',
+            parentId: undefined,
+          },
+        },
+        [
+          makeDoc({
+            _id: 'doc1',
+            folderId: 'f_contracts',
+            extension: 'pdf',
+          }),
+          makeDoc({
+            _id: 'doc2',
+            folderId: 'f_contracts',
+            extension: 'docx',
+          }),
+          makeDoc({
+            _id: 'doc3',
+            folderId: 'f_contracts',
+            extension: 'pdf',
+          }),
+        ],
+      );
+
+      const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        folderPath: 'contracts',
+        extension: 'pdf',
+      });
+
+      expect(result.documents).toHaveLength(2);
+      expect(result.documents.every((d) => d.extension === 'pdf')).toBe(true);
+    });
+  });
+
+  describe('title search edge cases', () => {
+    it('does not match documents with undefined title', async () => {
+      const ctx = createMockCtx({}, [
+        makeDoc({ _id: 'doc1', title: undefined }),
+        makeDoc({ _id: 'doc2', title: 'Report' }),
+      ]);
+
+      const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        query: 'untitled',
+      });
+
+      expect(result.documents).toHaveLength(0);
+    });
+  });
+
+  describe('resolveFolderPaths error isolation', () => {
+    it('returns folderPath null when buildBreadcrumb throws', async () => {
+      const { buildBreadcrumb } = await import('../../folders/queries');
+      const mockBuildBreadcrumb = vi.mocked(buildBreadcrumb);
+      mockBuildBreadcrumb.mockImplementation((_ctx, folderId) => {
+        if (folderId === 'f_broken') {
+          return Promise.reject(new Error('corrupt folder'));
+        }
+        return Promise.resolve([{ _id: folderId, name: 'ok-folder' }] as never);
+      });
+
+      const ctx = createMockCtx({}, [
+        makeDoc({ _id: 'doc1', folderId: 'f_broken' }),
+        makeDoc({ _id: 'doc2', folderId: 'f_healthy' }),
+      ]);
+
+      const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+      });
+
+      expect(result.documents).toHaveLength(2);
+      const broken = result.documents.find((d) => d.id === 'doc1');
+      const healthy = result.documents.find((d) => d.id === 'doc2');
+      expect(broken?.folderPath).toBeNull();
+      expect(healthy?.folderPath).toBe('ok-folder');
     });
   });
 });

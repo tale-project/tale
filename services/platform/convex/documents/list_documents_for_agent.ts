@@ -32,6 +32,7 @@ export interface AgentDocumentListResult {
   totalCount: number | null;
   hasMore: boolean;
   cursor: number | null;
+  warning: string | null;
 }
 
 export async function listDocumentsForAgent(
@@ -49,8 +50,10 @@ export async function listDocumentsForAgent(
     sortOrder?: 'asc' | 'desc';
     limit?: number;
     cursor?: number;
+    _maxScan?: number;
   },
 ): Promise<AgentDocumentListResult> {
+  const maxScan = args._maxScan ?? MAX_SCAN;
   const limit = Math.min(Math.max(args.limit ?? DEFAULT_LIMIT, 1), MAX_LIMIT);
   const sortBy = args.sortBy ?? 'createdAt';
   const sortOrder = args.sortOrder ?? 'desc';
@@ -61,6 +64,7 @@ export async function listDocumentsForAgent(
     totalCount: 0,
     hasMore: false,
     cursor: null,
+    warning: null,
   };
 
   // Validate teamId filter against user's teams
@@ -97,7 +101,7 @@ export async function listDocumentsForAgent(
 
   for await (const doc of baseQuery) {
     scanned++;
-    if (scanned > MAX_SCAN) {
+    if (scanned > maxScan) {
       scanLimitHit = true;
       break;
     }
@@ -138,7 +142,7 @@ export async function listDocumentsForAgent(
   });
 
   // Offset-based pagination (cursor is a start index)
-  const startIndex = args.cursor ?? 0;
+  const startIndex = Math.max(0, args.cursor ?? 0);
   const page = matches.slice(startIndex, startIndex + limit);
   const hasMore = startIndex + limit < matches.length;
 
@@ -158,7 +162,11 @@ export async function listDocumentsForAgent(
 
   const nextCursor = hasMore ? startIndex + limit : null;
 
-  return { documents, totalCount, hasMore, cursor: nextCursor };
+  const warning = scanLimitHit
+    ? 'Result set exceeded scan limit. Results may be incomplete. Narrow your filters (folderPath, extension, teamId, dateFrom/dateTo) for complete results.'
+    : null;
+
+  return { documents, totalCount, hasMore, cursor: nextCursor, warning };
 }
 
 async function resolveFolderPath(
@@ -200,6 +208,7 @@ function buildQuery(
   folderId: Id<'folders'> | undefined,
   extension: string | undefined,
 ) {
+  // desc order ensures newest docs are scanned first when MAX_SCAN is hit
   if (folderId) {
     return ctx.db
       .query('documents')
@@ -237,9 +246,13 @@ async function resolveFolderPaths(
 
   const pathMap = new Map<Id<'folders'>, string>();
   const breadcrumbPromises = [...uniqueFolderIds].map(async (id) => {
-    const breadcrumb = await buildBreadcrumb(ctx, id);
-    const path = breadcrumb.map((b) => b.name).join('/');
-    pathMap.set(id, path);
+    try {
+      const breadcrumb = await buildBreadcrumb(ctx, id);
+      const path = breadcrumb.map((b) => b.name).join('/');
+      pathMap.set(id, path);
+    } catch {
+      // Orphaned/corrupt folder — document will show folderPath: null
+    }
   });
 
   await Promise.all(breadcrumbPromises);

@@ -22,6 +22,10 @@ export const documentListArgs = z.object({
     ),
   extension: z
     .string()
+    .refine(
+      (val) => !val.startsWith('.'),
+      'Omit the leading dot (e.g., "pdf" not ".pdf")',
+    )
     .optional()
     .describe(
       'Filter by file extension without dot (e.g., "pdf", "docx", "xlsx"). Case-sensitive.',
@@ -66,9 +70,11 @@ export const documentListArgs = z.object({
     .describe('Max results to return, 1-50. Default: 20.'),
   cursor: z
     .number()
+    .int()
+    .min(0)
     .optional()
     .describe(
-      'Pagination offset from previous response. Pass the cursor value to get the next page.',
+      'Pagination offset from previous response. Pass the exact numeric value returned to get the next page. Do not fabricate values.',
     ),
 });
 
@@ -89,10 +95,11 @@ DO NOT USE THIS TOOL FOR:
 • Reading document content — use pdf, docx, txt, excel, image, or pptx tools instead
 
 RESPONSE FIELDS:
-• documents: Array of {id, title, extension, folderPath, teamId, createdAt, sizeBytes}
-• totalCount: Total matching documents (null if too many to count efficiently)
+• documents: Array of {id, title, extension, folderPath, teamId, createdAt (Unix ms UTC), sizeBytes}
+• totalCount: Total matching documents. null means results may be incomplete — narrow your filters.
 • hasMore: Whether more results are available
 • cursor: Pass to next call to get the next page
+• warning: null normally. If present, results may be incomplete — follow the guidance in the message.
 
 PAGINATION:
 1. First call: omit cursor
@@ -101,7 +108,8 @@ PAGINATION:
 
 TIPS:
 • Combine filters to narrow results (e.g., folderPath + extension + dateFrom)
-• Use limit=1 with filters to check totalCount (minimizes response size)
+• For large document sets, always provide at least one filter (folderPath, extension, teamId, or date range) to ensure complete results
+• If warning is present in the response, narrow your filters before continuing
 • Default sort is newest first (createdAt desc)
 • Dates are interpreted as UTC`,
     args: documentListArgs,
