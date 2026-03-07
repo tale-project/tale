@@ -16,19 +16,23 @@ import { listDocuments } from './helpers/list_documents';
 export const documentListArgs = z.object({
   folderPath: z
     .string()
+    .max(500)
     .optional()
     .describe(
       'Filter by folder path (e.g., "contracts/2024", "marketing"). Case-sensitive exact match. Filters to documents directly in the specified folder, not recursively. Nested paths use "/" separator. Omit to search all folders.',
     ),
   extension: z
     .string()
+    .min(1)
     .transform((val) => (val.startsWith('.') ? val.slice(1) : val))
+    .transform((val) => val.toLowerCase())
     .optional()
     .describe(
-      'Filter by file extension without dot (e.g., "pdf", "docx", "xlsx"). Case-sensitive. Always use lowercase.',
+      'Filter by file extension without dot (e.g., "pdf", "docx", "xlsx"). Auto-normalized to lowercase.',
     ),
   teamId: z
     .string()
+    .min(1)
     .optional()
     .describe(
       'Filter by team ID. Only returns documents belonging to this team. You must be a member of the team.',
@@ -49,6 +53,7 @@ export const documentListArgs = z.object({
     ),
   query: z
     .string()
+    .max(200)
     .optional()
     .describe(
       'Search by document title (case-insensitive substring match). For semantic/content search, use rag_search instead.',

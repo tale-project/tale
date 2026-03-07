@@ -226,4 +226,37 @@ describe('documentListArgs schema validation', () => {
     const result = documentListArgs.parse({ extension: 'pdf' });
     expect(result.extension).toBe('pdf');
   });
+
+  it('rejects empty extension', () => {
+    expect(() => documentListArgs.parse({ extension: '' })).toThrow();
+  });
+
+  it('rejects empty teamId', () => {
+    expect(() => documentListArgs.parse({ teamId: '' })).toThrow();
+  });
+
+  it('lowercases extension', () => {
+    const result = documentListArgs.parse({ extension: 'PDF' });
+    expect(result.extension).toBe('pdf');
+  });
+
+  it('lowercases extension with dot', () => {
+    const result = documentListArgs.parse({ extension: '.DOCX' });
+    expect(result.extension).toBe('docx');
+  });
+
+  it('rejects folderPath exceeding 500 chars', () => {
+    expect(() =>
+      documentListArgs.parse({ folderPath: 'a'.repeat(501) }),
+    ).toThrow();
+  });
+
+  it('rejects query exceeding 200 chars', () => {
+    expect(() => documentListArgs.parse({ query: 'a'.repeat(201) })).toThrow();
+  });
+
+  it('accepts folderPath at 500 chars', () => {
+    const result = documentListArgs.parse({ folderPath: 'a'.repeat(500) });
+    expect(result.folderPath).toHaveLength(500);
+  });
 });
