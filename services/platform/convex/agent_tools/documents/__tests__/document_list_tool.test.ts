@@ -86,7 +86,7 @@ describe('listDocuments helper', () => {
 
     const args = ctx.runQuery.mock.calls[0]?.[1];
     expect(args.dateFrom).toBe(new Date('2026-01-01').getTime());
-    expect(args.dateTo).toBe(new Date('2026-03-31').getTime());
+    expect(args.dateTo).toBe(new Date('2026-03-31').getTime() + 86_400_000 - 1);
   });
 
   it('forwards all filter arguments', async () => {

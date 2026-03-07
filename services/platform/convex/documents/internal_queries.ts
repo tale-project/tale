@@ -67,21 +67,9 @@ export const listForAgent = internalQuery({
     cursor: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const userTeamIds = await getUserTeamIds(ctx, args.userId);
-    return listDocumentsForAgentHelper(ctx, {
-      organizationId: args.organizationId,
-      userTeamIds,
-      folderPath: args.folderPath,
-      extension: args.extension,
-      teamId: args.teamId,
-      dateFrom: args.dateFrom,
-      dateTo: args.dateTo,
-      query: args.query,
-      sortBy: args.sortBy,
-      sortOrder: args.sortOrder,
-      limit: args.limit,
-      cursor: args.cursor,
-    });
+    const { userId, ...rest } = args;
+    const userTeamIds = await getUserTeamIds(ctx, userId);
+    return listDocumentsForAgentHelper(ctx, { ...rest, userTeamIds });
   },
 });
 

@@ -9,7 +9,7 @@
 import type { Doc, Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
 
-import { isRecord, getNumber } from '../../lib/utils/type-guards';
+import { getNumber } from '../../lib/utils/type-guards';
 import { buildBreadcrumb } from '../folders/queries';
 import { hasTeamAccess } from '../lib/team_access';
 
@@ -100,14 +100,7 @@ export async function listDocumentsForAgent(
       break;
     }
 
-    // Extension filter (when not using extension index)
-    if (args.extension && !folderId && doc.extension !== args.extension) {
-      continue;
-    }
-    // Extension filter (when using folderId index but also filtering by extension)
-    if (args.extension && folderId && doc.extension !== args.extension) {
-      continue;
-    }
+    if (args.extension && doc.extension !== args.extension) continue;
 
     // Team filter
     if (args.teamId) {
@@ -140,17 +133,15 @@ export async function listDocumentsForAgent(
     return sortOrder === 'asc' ? comparison : -comparison;
   });
 
-  // Apply cursor (skip docs at or before cursor position)
+  // Apply cursor — only supported for createdAt sort (cursor is a timestamp)
   let startIndex = 0;
   const cursorValue = args.cursor;
-  if (cursorValue != null) {
-    startIndex = matches.findIndex((doc) => {
-      const val = sortBy === 'name' ? (doc.title ?? '') : doc._creationTime;
-      if (sortOrder === 'desc') {
-        return typeof val === 'number' ? val < cursorValue : true;
-      }
-      return typeof val === 'number' ? val > cursorValue : true;
-    });
+  if (cursorValue != null && sortBy === 'createdAt') {
+    startIndex = matches.findIndex((doc) =>
+      sortOrder === 'desc'
+        ? doc._creationTime < cursorValue
+        : doc._creationTime > cursorValue,
+    );
     if (startIndex === -1) startIndex = matches.length;
   }
 
@@ -263,7 +254,6 @@ async function resolveFolderPaths(
 function extractSize(
   metadata: Record<string, unknown> | undefined,
 ): number | null {
-  if (!metadata || !isRecord(metadata)) return null;
-  const size = getNumber(metadata, 'size');
-  return size ?? null;
+  if (!metadata) return null;
+  return getNumber(metadata, 'size') ?? null;
 }

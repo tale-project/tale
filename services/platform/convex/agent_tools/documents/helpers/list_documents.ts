@@ -40,7 +40,11 @@ export async function listDocuments(
   const dateFrom = args.dateFrom
     ? new Date(args.dateFrom).getTime()
     : undefined;
-  const dateTo = args.dateTo ? new Date(args.dateTo).getTime() : undefined;
+  // Add end-of-day (23:59:59.999) when only a date is provided so that
+  // documents created during that day are included
+  const dateTo = args.dateTo
+    ? new Date(args.dateTo).getTime() + 86_400_000 - 1
+    : undefined;
 
   return ctx.runQuery(internal.documents.internal_queries.listForAgent, {
     organizationId,
