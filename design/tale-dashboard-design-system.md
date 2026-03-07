@@ -421,21 +421,32 @@ All icons use **Lucide** (`iconFontFamily: "lucide"`).
 | **Effect** | `background_blur`, radius 8 |
 | **Layout** | `none` (absolute positioning for dialog) |
 | **Size** | Typically 1232x720 (Conversations, covers main content) or 1280x720 (Chat, covers full screen) |
-| **Structure** | DialogSlot (`CSZ5O`, slot frame) containing: Title text (`poqsv`), Description text (`pCn9D`), Actions frame (`IHpTr`) with Cancel button (`Vrufi` + `tQA8s`) and Confirm button (`04phX` + `RgYEP`) |
+| **Structure** | DialogSlot (`CSZ5O`, slot frame, layout: vertical, gap: 16, padding: 24, cornerRadius: 12) containing: Header frame (`M4krg`, horizontal, space_between) with Title text (`gmZvb`, 16px semibold) + CloseButton frame (`KyIH9`, 28x28, cornerRadius: 6) with X icon, Description text (`pCn9D`, 14px, lineHeight 1.5, fixed-width), Actions frame (`IHpTr`) with Cancel button (`Vrufi` + `tQA8s`) and Confirm button (`04phX` + `RgYEP`) |
 
-**Usage:** Used for all confirmation dialogs across Chat and Conversations:
+**Usage:** Used for all confirmation dialogs and view modals across Chat, Conversations, and Knowledge:
 - **ConfirmClose**: overrides title to "Close conversation?", confirm button uses `$button-primary-bg`
 - **ConfirmSpam**: overrides title to "Mark as spam?", confirm button uses `#DC2626` (red)
 - **Chat DeleteConfirmation**: overrides title to "Delete conversation", confirm button uses `#DC2626`, dialog width 360px
+- **Products-View**: overrides dialog content entirely (custom header with Edit button, product detail fields), hides default Actions (`IHpTr: {enabled: false}`)
 
-**Instance override pattern:**
+**Instance override pattern (confirmation dialog):**
 ```
 {type: "ref", ref: "TNz4n", width: 1232, height: 720, descendants: {
-  "poqsv": {content: "Dialog title"},
+  "gmZvb": {content: "Dialog title"},
   "pCn9D": {content: "Description text"},
   "RgYEP": {content: "Confirm label"},
   "04phX": {fill: "#DC2626"},  // or $button-primary-bg
   "CSZ5O": {gap: 20, width: 400, x: 416, y: 250}
+}}
+```
+
+**Instance override pattern (view modal with custom content):**
+```
+{type: "ref", ref: "TNz4n", width: 1280, height: 720, descendants: {
+  "CSZ5O": {width: 420, x: 430, y: 140, cornerRadius: 16},
+  "M4krg": {enabled: false},   // hide default header (replace with custom)
+  "pCn9D": {enabled: false},   // hide default description
+  "IHpTr": {enabled: false}    // hide default actions
 }}
 ```
 
@@ -1485,3 +1496,252 @@ When the AI generates a document, it renders the **full document content as rich
 - Position varies: sidebar items use no-arrow to the right; header items show below with shortcuts
 - **Reply bar tooltips**: bottom variant (`ZLBoY`, arrow up) — "Attach files" on attach button, "Improve with AI" on AI rewrite button. Positioned absolutely in the Main Content frame (not inside the reply box) to avoid clipping. Hidden by default (`enabled: false`).
 - **Bulk action bar tooltips**: bottom variant (`ZLBoY`, arrow up) — "Send reply", "Close conversation", "Mark as spam", "Archive". Positioned absolutely in Main Content at y:138. Hidden by default (`enabled: false`).
+
+---
+
+## Knowledge
+
+The Knowledge section manages a user's uploaded documents and crawled websites that feed the AI assistant's knowledge base. Accessed via sidebar icon, it uses a tabbed layout: Documents, Websites, Products, Customers, Vendors.
+
+### Canvas Organization
+
+| Container Frame | ID | Contents |
+|----------------|-----|----------|
+| `--- Pages/Knowledge ---` | `DCNid` | All Knowledge screens — light on top row, dark on bottom row (y+820) |
+
+### Components
+
+#### FilterDropdown
+
+Reusable filter panel that appears below the toolbar when the "Filter" button is clicked. Three state variants:
+
+| Variant | ID | Description |
+|---------|-----|-------------|
+| Collapsed | `su0rz` | Default open state — "Filters" title, collapsible "Status" and "Interval" rows with chevron-right |
+| Expanded | `42fFR` | One section open — section header shows neutral "N selected" badge + chevron-down, checkbox options visible. "Clear all" action in header. |
+| Selected | `VKlSB` | All sections collapsed with neutral "N selected" badges on each row. "Clear all" action in header. |
+| Products/Collapsed | `kkBNZ` | Ref instance of Collapsed with single "Status" row, explicit height 91px (Interval row + divider hidden) |
+| Products/Expanded | `Vxo2d` | Ref instance of Expanded with Status options: Active, Inactive, Draft, Archived (Active + Inactive checked). Height 247px, Interval row hidden. |
+| Products/Selected | `ku1XK` | Ref instance of Selected with Status "2 selected" badge. Height 93px, Interval row hidden. |
+
+**Structure:**
+- Width: 260px, cornerRadius: 10, `$surface-primary` fill, `$border-primary` 1px border
+- Shadow: double outer (`#0000001A` blur 12 + `#0000000D` blur 4). Dark mode: `#00000066` blur 12 + `#00000033` blur 4
+- Header: padding `[16, 16]`, `justifyContent: space_between`
+  - Title: "Filters", Inter 14px semibold, `$text-primary`
+  - "Clear all": Inter 13px medium, `$badge-text` (blue) — only visible when selections exist
+- Section rows: padding `[12, 16]`, `justifyContent: space_between`
+  - Label: Inter 13px medium, `$text-secondary` (e.g., "Status", "Interval")
+  - Right side: neutral badge (`$surface-active` fill, `$text-secondary` text, cornerRadius 6) + chevron icon (`$text-tertiary`)
+- Dividers: 1px `$border-primary` between all sections
+- Checkbox options: padding `[8, 10]`, gap 10, cornerRadius 6
+  - Checked rows: `$surface-active` background fill
+  - Unchecked rows: no fill
+  - Checkbox refs: `mxvM9` (checked), `7hnOB` (unchecked)
+  - Label: Inter 13px normal, `$text-primary`
+
+**Filter button (in toolbar):**
+- Default: `$surface-primary` fill, `$border-hover` 1px stroke, cornerRadius 8, shadow, Lucide `list-filter` 16x16 `$text-tertiary` + "Filter" Inter 14px `$text-secondary`
+- Active (dropdown open): `$surface-active` fill, `$border-primary` stroke
+- Filters applied: blue dot indicator (8x8 `$badge-text` ellipse) at top-right corner
+
+**Design decisions:**
+- Badges use neutral style (`$surface-active` / `$text-secondary`) not blue — the count is metadata, not an action. Blue is reserved for "Clear all" interactive text.
+- Labels use sentence case ("Status", "Interval") not uppercase — softer, more readable in a compact dropdown.
+- Badge + chevron are always right-aligned together as a unit; label is always left-aligned. Consistent across collapsed and expanded states.
+
+### Documents Screens
+
+| Screen | ID | Theme | Description |
+|--------|-----|-------|-------------|
+| Documents (empty) | `emGIH` | Light | Empty state — centered file icon + "No documents yet" + "Upload documents to train your AI assistant" + "Upload documents" CTA button |
+| Documents (empty) - Dark | `EW3no` | Dark | Dark variant |
+| Documents-Default | `uot1F` | Light | Table with 4 sample docs — columns: Document, Size, Source, RAG status, Teams, Uploaded by, Modified. Search bar + "Upload document" button in toolbar |
+| Documents-Default - Dark | `UjeeZ` | Dark | Dark variant |
+| Documents-ContextMenu | `6dGyl` | Light | Right-click context menu on row — View (eye), Reindex, Manage teams, Delete (red) |
+| Documents-ContextMenu - Dark | `9iJuS` | Dark | Dark variant |
+| Documents-View | `bvyHE` | Light | Document preview modal — split layout: left pane shows rendered document page (white page on `#F8F8F8` bg) with page navigation (prev/next + "Page 1 of 12"), right sidebar shows metadata (Document, Size, Source, RAG status badge, Teams, Uploaded by, Modified) with divider separations. Header: "Document preview" + Download button + Close X. No Edit button — documents are uploaded files, not editable. Dialog 780x640, cornerRadius 16 |
+| Documents-View - Dark | `SylgH` | Dark | Dark variant |
+| Documents-Delete | `ENebl` | Light | Delete confirmation modal — "Delete document" / "Are you sure you want to delete this document? This action cannot be undone." / Cancel + red Delete button |
+| Documents-Delete - Dark | `8PifU` | Dark | Dark variant |
+| Documents-ManageTeams | `vlJKT` | Light | Manage teams modal — "Manage teams" / subtitle showing doc name / team list with checkboxes / "Save changes" button |
+| Documents-ManageTeams - Dark | `lVKif` | Dark | Dark variant |
+| Documents-ManageTeams-Empty | `FsFRg` | Light | Manage teams modal with no teams — empty state with people icon + "No teams yet" + "Create teams in Settings..." + "Go to Settings" link |
+| Documents-ManageTeams-Empty - Dark | `nKFcU` | Dark | Dark variant |
+| Documents-Loading | `X5jBQ` | Light | Skeleton loading state — table header visible, row content replaced with rounded skeleton bars (`$surface-disabled` fill, cornerRadius 4, height 12, varying widths per column) |
+| Documents-Loading - Dark | `jGvTZ` | Dark | Dark variant |
+| Documents-EmptySearch | `e4KAC` | Light | Empty search results — search input shows "xyz123", table has header + centered empty state: search-x icon (32x32, `$text-disabled`) + "No results found" (14px medium, `$text-secondary`) + "Try adjusting your search or filters" (13px, `$text-tertiary`) |
+| Documents-EmptySearch - Dark | `tnRkv` | Dark | Dark variant |
+| Documents-FilterCollapsed | `TyTAZ` | Light | Filter dropdown open — collapsed state. Uses `FilterDropdown/Documents/Collapsed` component ref |
+| Documents-FilterCollapsed - Dark | `XzV5V` | Dark | Dark variant |
+| Documents-FilterExpanded | `CoQnq` | Light | Filter dropdown — RAG status section expanded with checkboxes (Indexed + Failed checked). Uses `FilterDropdown/Documents/Expanded` component ref |
+| Documents-FilterExpanded - Dark | `kt3jE` | Dark | Dark variant |
+| Documents-FilterSelected | `n5PzR` | Light | Filter dropdown — all sections collapsed with selection count badges. Blue dot on filter button. Uses `FilterDropdown/Documents/Selected` component ref |
+| Documents-FilterSelected - Dark | `JCf7T` | Dark | Dark variant |
+
+**Table columns:** Document (file-text icon + name), Size, Source (Upload/API), RAG status (badge: Indexed/Processing/Reindexing/Failed), Teams, Uploaded by, Modified (chevron-down sort indicator)
+
+**Context menu:** 4 options — View (eye icon), Reindex (refresh-cw icon), Manage teams (users icon), Delete (trash-2 icon, red `#DC2626`). No divider — red text is sufficient. Width 180px, cornerRadius 10, padding `[4, 0]`.
+
+### Websites Screens
+
+| Screen | ID | Theme | Description |
+|--------|-----|-------|-------------|
+| Websites (empty) | `Dg9Li` | Light | Empty state — centered globe icon + "Add websites" + "Add website URLs to crawl and index for your AI assistant" + "Add website" CTA button |
+| Websites (empty) - Dark | `QFoXH` | Dark | Dark variant |
+| Websites-Default | `veby2` | Light | Table with 4 sample websites — columns: Website, Status, Title, Description, Indexed, Scanned, Interval. Search + Filter button + "Add website" in toolbar |
+| Websites-Default - Dark | `wb7RD` | Dark | Dark variant |
+| Websites-ContextMenu | `N3ibn` | Light | Right-click context menu on row 1 — View (eye), Edit (pencil), Delete (trash-2, red). Row 1 highlighted with `$surface-active` |
+| Websites-ContextMenu - Dark | `Li1Um` | Dark | Dark variant |
+| Websites-View | `5nLLK` | Light | View modal — "Website details" / read-only fields: URL, Status (badge), Title, Indexed pages, Last scanned, Scan interval, Description (full-width paragraph at bottom) |
+| Websites-View - Dark | `A57JR` | Dark | Dark variant |
+| Websites-Delete | `wGncz` | Light | Delete confirmation — "Delete website" / mentions URL + "All indexed pages will be removed" / Cancel + red Delete |
+| Websites-Delete - Dark | `G0D1Y` | Dark | Dark variant |
+| Websites-Edit | `wNpvl` | Light | Edit modal — "Edit website" / Domain input (pre-filled) + Scan interval dropdown (expanded, showing 7 options from "Every 1 hour" to "Every 30 days") / Cancel + "Save changes" |
+| Websites-Edit - Dark | `AQ5in` | Dark | Dark variant |
+| Websites-Add | `hgRGt` | Light | Add modal — "Add website" / Domain input (placeholder "Enter domain") + Scan interval dropdown (placeholder "Select interval") / Cancel + "Add website" button |
+| Websites-Add - Dark | `PcFyb` | Dark | Dark variant |
+| Websites-FilterCollapsed | `daywW` | Light | Filter dropdown open — collapsed state, no selections. Uses `FilterDropdown/Collapsed` component ref |
+| Websites-FilterCollapsed - Dark | `KGSax` | Dark | Dark variant |
+| Websites-FilterExpanded | `1NZua` | Light | Filter dropdown — Status section expanded with checkboxes (Active + Scanning checked). Uses `FilterDropdown/Expanded` component ref |
+| Websites-FilterExpanded - Dark | `wtuJg` | Dark | Dark variant |
+| Websites-FilterSelected | `HVdrz` | Light | Filter dropdown — all sections collapsed with selection count badges. Uses `FilterDropdown/Selected` component ref |
+| Websites-FilterSelected - Dark | `QLS9V` | Dark | Dark variant |
+| Websites-Loading | `E5btD` | Light | Skeleton loading state — table header visible, row content replaced with skeleton bars |
+| Websites-Loading - Dark | `jFSZS` | Dark | Dark variant |
+| Websites-EmptySearch | `38L6s` | Light | Empty search results — same pattern as Documents-EmptySearch |
+| Websites-EmptySearch - Dark | `sQ81P` | Dark | Dark variant |
+
+**Table columns:** Website (globe icon + URL), Status (badge: Active/Scanning/Paused/Error), Title, Description, Indexed (count), Scanned (date, chevron-down sort indicator), Interval (short: 7d, 1d, 30d)
+
+**Context menu:** 3 options — View (eye icon), Edit (pencil icon), Delete (trash-2 icon, red `#DC2626`). Width 180px, cornerRadius 10, padding `[4, 0]`.
+
+**Modals:** All 384px width, padding 24, gap 20. Dark mode modal shadows use `#00000066` instead of `#0000001A`.
+
+**Scan interval options (long format, used in dropdowns/modals):** Every 1 hour, Every 6 hours, Every 12 hours, Every 1 day, Every 5 days, Every 7 days, Every 30 days
+
+**Scan interval (short format, used in table):** 1h, 6h, 12h, 1d, 5d, 7d, 30d
+
+### Design Tokens (Knowledge-specific)
+
+| Variable | Light | Dark | Usage |
+|----------|-------|------|-------|
+| `$badge-bg` | `#EFF6FF` | `#0C2D5E` | Blue badge background (send-action style) |
+| `$badge-text` | `#056CFF` | `#5098FF` | Blue badge/action text |
+| `$surface-disabled` | `#F9FAFB` | `#111827` | Table header background (3-tier: rows < header < hover) |
+
+**Dark mode table contrast tiers:**
+- Table rows: `$surface-primary` (`#030712`)
+- Table header: `$surface-disabled` (`#111827`)
+- Hover/active row: `$surface-active` (`#1F2937`)
+
+### Products Screens
+
+| Screen | ID | Theme | Description |
+|--------|-----|-------|-------------|
+| Products (empty) | `LZYs5` | Light | Empty state — centered package icon + "Add products" + "Import your product catalog to help your AI assistant" + "Import products" CTA button |
+| Products (empty) - Dark | `d1KlZ` | Dark | Dark variant |
+| Products-Default | `WnswJ` | Light | Table with 4 sample products — columns: Product, Description, Stock, Updated. Search + Filter + "Import products" in toolbar |
+| Products-Default - Dark | `xaxrn` | Dark | Dark variant |
+| Products-ContextMenu | `iiWD6` | Light | Ellipsis context menu on row — View (eye), Edit (pencil), Delete (trash-2, red). No divider — red text is sufficient to distinguish destructive action |
+| Products-ContextMenu - Dark | `iUWmQ` | Dark | Dark variant |
+| Products-View | `iJGZ2` | Light | View modal — "Product details" with Edit button + close X. Fields: Image (64x64 thumbnail), Product, Product ID, Status (Active/Inactive badge), Category, Price, Stock, Updated. Description shown as full-width paragraph section (label on top, text below) for better readability of long text |
+| Products-View - Dark | `Z3ttz` | Dark | Dark variant |
+| Products-Edit | `1oENo` | Light | Edit modal — "Edit product" with Cancel + "Save changes" buttons. Form fields: Product name (text input), Description (textarea), Image URL (text input), Price + Currency side by side (text input + dropdown), Stock (text input), Category (dropdown) |
+| Products-Edit - Dark | `UuTs9` | Dark | Dark variant |
+| Products-Delete | `ucIzM` | Light | Delete confirmation — "Delete product" / "Are you sure you want to delete this product? This action cannot be undone." / Cancel + red Delete |
+| Products-Delete - Dark | `mUt1G` | Dark | Dark variant |
+| Products-FilterCollapsed | `swZSu` | Light | Filter dropdown open — collapsed state with single "Status" row. Uses `FilterDropdown/Products/Collapsed` component ref |
+| Products-FilterCollapsed - Dark | `TMK98` | Dark | Dark variant |
+| Products-FilterExpanded | `1q3ZD` | Light | Filter dropdown — Status section expanded with checkboxes (Active + Inactive checked, Draft + Archived unchecked). Uses `FilterDropdown/Products/Expanded` component ref |
+| Products-FilterExpanded - Dark | `vCcHQ` | Dark | Dark variant |
+| Products-FilterSelected | `SbkJ1` | Light | Filter dropdown — Status row collapsed with "2 selected" badge. Uses `FilterDropdown/Products/Selected` component ref |
+| Products-FilterSelected - Dark | `0xG4o` | Dark | Dark variant |
+
+**Table columns:** Product (product image thumbnail 36x36 cornerRadius 6 + name), Description (300px, wrapping text), Stock (80px, right-aligned numbers), Updated (120px, chevron-down sort indicator), Actions (ellipsis)
+
+**Product column:** Uses product image thumbnails instead of icons — products are visual items, so showing the actual image helps users identify them quickly.
+
+**Stock column:** Numbers are right-aligned — standard convention for numeric data in tables, makes values easier to compare at a glance.
+
+**Context menu:** 3 options — View (eye icon), Edit (pencil icon), Delete (trash-2 icon, red `#DC2626`). Width 160px, cornerRadius 10, padding `[4, 0]`. No divider line before Delete — the red color already distinguishes the destructive action.
+
+**View modal:** 420px width, padding 24, gap 20, cornerRadius 16. Includes a Status field (Active/Inactive) using the Success badge component after Product ID. Description is rendered as a full-width block (label on top, paragraph text below spanning full width) rather than a label-value row — descriptions can be long and right-aligned wrapping text creates awkward layouts.
+
+**Edit modal:** 440px width (wider than standard 384px to fit side-by-side Price + Currency fields), padding 24, gap 20, cornerRadius 16. Form fields pre-populated with current product data. Price (fill_container) and Currency (140px dropdown) sit side-by-side in a horizontal row with gap 12. Cancel + "Save changes" primary button in footer. Product name field has a red `#DC2626` asterisk indicating it's required.
+
+**Row click behavior:** Clicking a product row opens the View modal directly (no row highlight needed — the overlay dims the background, making it clear which context you're in).
+
+**Filter section:** Status (Active, Inactive, Draft, Archived). Single section only — products don't have multi-axis filtering like Documents (RAG status + Source + Teams) or Websites (Status + Interval). Filter dropdown positioned at x:304, y:164 inside Main Content (directly below the Filter button in the toolbar). Uses `FilterDropdown/Products/*` component refs which hide the Interval row from the base FilterDropdown.
+
+### Customers Screens
+
+| Screen | ID | Theme | Description |
+|--------|-----|-------|-------------|
+| Customers (empty) | `M26Cl` | Light | Empty state — centered users icon + "No customers yet" + "Import your customer data to help your AI assistant" + "Import customers" CTA button |
+| Customers (empty) - Dark | `tNSPr` | Dark | Dark variant |
+| Customers-Default | `WkpvN` | Light | Table with 4 sample customers — columns: Name (200px), Status (100px), Source (fill_container), Created (220px), Actions (44px). Search + "Import customers" in toolbar. Built from Websites template with 3 blank spacer columns |
+| Customers-Default - Dark | `5yAjf` | Dark | Dark variant |
+| Customers-ContextMenu | `Rfrbj` | Light | Ellipsis context menu on row — View (eye), Edit (pencil), Delete (trash-2, red). Context menu positioned at x:1026, y:260 |
+| Customers-ContextMenu - Dark | `WYnJL` | Dark | Dark variant |
+| Customers-View | `OzjZP` | Light | View modal — "Customer details" with Edit button + close X. Fields: Avatar (48x48 circle, #E0E7FF fill, #4F46E5 initials "SJ"), Name, Email, Status (Active badge), Source, Created, Phone, Last active, Notes (full-width paragraph section) |
+| Customers-View - Dark | `8HltV` | Dark | Dark variant |
+| Customers-Edit | `yqNdt` | Light | Edit modal — "Edit customer" with Cancel + "Save changes" buttons. Form fields: Name (text input, required *), Notes (textarea), Email (text input), Phone (text input), Source (text input), Status (dropdown with "Active") |
+| Customers-Edit - Dark | `IjSHy` | Dark | Dark variant |
+| Customers-Delete | `ujXWt` | Light | Delete confirmation — "Delete customer" / "Are you sure you want to delete this customer? This action cannot be undone and all associated data will be permanently removed." / Cancel + red Delete |
+| Customers-Delete - Dark | `zkm0u` | Dark | Dark variant |
+
+**Table columns:** Name (200px, user icon + name), Status (100px, Active/Inactive badge), Source (fill_container, Import/API/Manual), Created (220px), + 3 blank spacer columns (100px, 120px, 100px inherited from Websites template), Actions (44px, ellipsis)
+
+**Status badges:** Active uses green (`#DCFCE7` fill, `#15803D` text), Inactive uses gray (`#F3F4F6` fill, `#6B7280` text). Badges override the fill color on existing badge component instances rather than changing the ref type.
+
+**Context menu:** 3 options — View (eye icon), Edit (pencil icon), Delete (trash-2 icon, red `#DC2626`). Same pattern as Products context menu (160px width).
+
+**View modal:** 420px width, padding 20, gap 20, cornerRadius 16. Avatar circle (48x48, `#E0E7FF` fill, `#4F46E5` initials text). Rows: Avatar, Name, Email, Status, Source, Created, Phone, Last active, Notes (full-width paragraph section). Includes Edit button + Close X in header.
+
+**Edit modal:** 440px width (matches Products-Edit), padding 20, gap 20, cornerRadius 16. Name field has red `#DC2626` asterisk indicating required. Fields: Name (text input), Notes (textarea), Email (text input), Phone (text input), Source (text input), Status (dropdown). Cancel + "Save changes" primary button in footer.
+
+**Row click behavior:** Same as Products — clicking a customer row opens the View modal directly.
+
+### Vendors Screens
+
+| Screen | ID | Theme | Description |
+|--------|-----|-------|-------------|
+| Vendors | `LB0UF` | Light | Vendors tab content |
+| Vendors - Dark | `JjfJN` | Dark | Dark variant |
+
+### Interaction Behaviors (Knowledge)
+
+**Filter workflow:**
+1. User clicks "Filter" button in toolbar → dropdown opens (Collapsed state)
+2. User clicks a section row → section expands showing checkbox options (Expanded state)
+3. User checks/unchecks options → badge count updates, "Clear all" appears in header
+4. User clicks section header again → section collapses, badge remains (Selected state)
+5. User clicks outside dropdown → dropdown closes
+6. Active filter indicator (blue dot) appears on toolbar filter button when any filters are applied
+
+**Context menu trigger:** Right-click on any table row, or click the `...` (ellipsis) icon in the Actions column. Row highlights with `$surface-active` on hover/right-click.
+
+**Row click behavior:** Clicking any table row in Documents, Websites, Products, or Customers opens the View modal directly. No row highlight is applied — the modal overlay already provides sufficient visual context. The ellipsis menu still exists for accessing context-specific actions (Edit, Delete, Reindex, Manage teams, etc.).
+
+**Sort indicators:** Active sort column shows a chevron-down icon (Lucide `chevron-down`, 14x14, `$text-tertiary`) next to the column header text. Chevron-down is the standard convention used by modern table UIs (Shadcn, Notion, GitHub). Currently applied to: Documents "Modified", Websites "Scanned", Products "Updated".
+
+**Modal patterns:**
+- All modals use `$overlay-bg` backdrop with background blur
+- Standard DialogSlot width: **384px** (centered at x:448). Exceptions: Products-View 420px, Products-Edit 440px (side-by-side fields), Documents-View 780px (split preview layout)
+- Close: X button (top-right) — present on all modals via the `ModalOverlay` base component
+- Cancel button for confirmation/form modals
+- Destructive actions: red `#DC2626` button with white text
+- Primary actions: `$button-primary-bg` button, text uses `$button-primary-text` for proper light/dark contrast
+- View modals include an "Edit" button in the header (pencil icon + "Edit" text, `$border-hover` stroke, subtle shadow) — opens the Edit modal
+- Edit modals use form inputs pre-populated with current data, Cancel + primary "Save changes" button
+- No row highlight needed when modal is open — the overlay dims the background sufficiently
+
+**Context menu design decisions:**
+- No divider line before Delete option — the red text (`#DC2626`) already clearly distinguishes the destructive action. Adding a divider would be redundant.
+- Products context menu: View, Edit, Delete (160px width)
+- Documents context menu: View, Reindex, Manage teams, Delete (180px width)
+- Websites context menu: View, Edit, Delete (180px width)
+- Customers context menu: View, Edit, Delete (same pattern as Products)
+
+**Long text in modals:** For fields that can contain long text (e.g., product descriptions, website descriptions), use a full-width section layout (label on top, text below spanning full width) rather than side-by-side label-value rows. This prevents awkward right-aligned text wrapping. Applied in Products-View and Websites-View modals.
