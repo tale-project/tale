@@ -25,6 +25,7 @@ export const executeApprovedWorkflowCreation = internalAction({
       resourceType: string;
       organizationId: string;
       threadId?: string;
+      executedAt?: number;
       metadata?: unknown;
     } | null = await ctx.runQuery(
       internal.approvals.internal_queries.getApprovalById,
@@ -46,6 +47,13 @@ export const executeApprovedWorkflowCreation = internalAction({
     if (approval.resourceType !== 'workflow_creation') {
       throw new Error(
         `Invalid approval type: expected "workflow_creation", got "${approval.resourceType}"`,
+      );
+    }
+
+    // Idempotency guard: prevent double-execution from rapid clicks or retries
+    if (approval.executedAt) {
+      throw new Error(
+        'This workflow creation approval has already been executed',
       );
     }
 

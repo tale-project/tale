@@ -33,6 +33,7 @@ function createMockCtx(overrides?: Record<string, unknown>) {
     organizationId: 'org1',
     userId: 'user1',
     threadId: 'thread-current',
+    messageId: 'msg-123',
     runQuery: vi.fn(),
     runMutation: vi.fn(),
     ...overrides,
@@ -171,6 +172,65 @@ describe('run_workflow tool handler', () => {
 
     expect(result.success).toBe(false);
     expect(result.message).toContain('DB error');
+  });
+
+  it('forwards messageId from context to approval mutation', async () => {
+    const handler = await getHandler();
+    const workflow = createMockWorkflow();
+    const mockRunMutation = vi.fn().mockResolvedValue('approval-id-4');
+    const ctx = createMockCtx({
+      runQuery: vi.fn().mockResolvedValue(workflow),
+      runMutation: mockRunMutation,
+      messageId: 'msg-abc',
+    });
+
+    await handler(ctx, { workflowId: 'wf-def-123' });
+
+    expect(mockRunMutation).toHaveBeenCalledWith(
+      'mock-createWorkflowRunApproval',
+      expect.objectContaining({
+        messageId: 'msg-abc',
+      }),
+    );
+  });
+
+  it('passes undefined messageId when not present in context', async () => {
+    const handler = await getHandler();
+    const workflow = createMockWorkflow();
+    const mockRunMutation = vi.fn().mockResolvedValue('approval-id-5');
+    const ctx = createMockCtx({
+      runQuery: vi.fn().mockResolvedValue(workflow),
+      runMutation: mockRunMutation,
+      messageId: undefined,
+    });
+
+    await handler(ctx, { workflowId: 'wf-def-123' });
+
+    expect(mockRunMutation).toHaveBeenCalledWith(
+      'mock-createWorkflowRunApproval',
+      expect.objectContaining({
+        messageId: undefined,
+      }),
+    );
+  });
+
+  it('forwards resolved threadId to approval mutation', async () => {
+    const handler = await getHandler();
+    const workflow = createMockWorkflow();
+    const mockRunMutation = vi.fn().mockResolvedValue('approval-id-6');
+    const ctx = createMockCtx({
+      runQuery: vi.fn().mockResolvedValue(workflow),
+      runMutation: mockRunMutation,
+    });
+
+    await handler(ctx, { workflowId: 'wf-def-123' });
+
+    expect(mockRunMutation).toHaveBeenCalledWith(
+      'mock-createWorkflowRunApproval',
+      expect.objectContaining({
+        threadId: 'thread-123',
+      }),
+    );
   });
 });
 

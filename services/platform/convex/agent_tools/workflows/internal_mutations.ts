@@ -11,6 +11,7 @@ import { jsonRecordValidator } from '../../../lib/shared/schemas/utils/json-valu
 import { components } from '../../_generated/api';
 import { internalMutation } from '../../_generated/server';
 import { createApproval } from '../../approvals/helpers';
+import { checkOrganizationRateLimit } from '../../lib/rate_limiter/helpers';
 
 type ApprovalMetadata = Doc<'approvals'>['metadata'];
 
@@ -22,7 +23,8 @@ export const updateWorkflowApprovalWithResult = internalMutation({
   },
   handler: async (ctx, args): Promise<void> => {
     const approval = await ctx.db.get(args.approvalId);
-    if (!approval) return;
+    if (!approval) throw new Error('Approval not found');
+    if (approval.executedAt) return;
 
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- approval.metadata is v.any() but always matches WorkflowCreationMetadata for workflow_creation approvals
     const metadata = (approval.metadata || {}) as WorkflowCreationMetadata;
@@ -141,6 +143,8 @@ export const createWorkflowRunApproval = internalMutation({
     messageId: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<Id<'approvals'>> => {
+    await checkOrganizationRateLimit(ctx, 'workflow:run', args.organizationId);
+
     const metadata: WorkflowRunMetadata = {
       workflowId: args.workflowId,
       workflowName: args.workflowName,
@@ -173,7 +177,8 @@ export const updateWorkflowRunApprovalWithResult = internalMutation({
   },
   handler: async (ctx, args): Promise<void> => {
     const approval = await ctx.db.get(args.approvalId);
-    if (!approval) return;
+    if (!approval) throw new Error('Approval not found');
+    if (approval.executedAt) return;
 
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- approval.metadata is v.any() but always matches WorkflowRunMetadata for workflow_run approvals
     const metadata = (approval.metadata || {}) as WorkflowRunMetadata;

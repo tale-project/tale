@@ -69,7 +69,7 @@ This tool creates an approval card in the chat. The user must click "Run Workflo
       approvalMessage?: string;
       message: string;
     }> => {
-      const { organizationId, threadId: currentThreadId } = ctx;
+      const { organizationId, threadId: currentThreadId, messageId } = ctx;
 
       if (!organizationId) {
         return {
@@ -122,6 +122,7 @@ This tool creates an approval card in the chat. The user must click "Run Workflo
             workflowDescription: wfDefinition.description,
             parameters: args.parameters,
             threadId,
+            messageId,
           },
         );
 
