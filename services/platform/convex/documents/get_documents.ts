@@ -5,7 +5,7 @@
  * Filters are applied during iteration instead of using .filter() which still scans all records.
  */
 
-import type { Doc } from '../_generated/dataModel';
+import type { Doc, Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
 import type { DocumentListResponse } from './types';
 
@@ -19,7 +19,7 @@ export async function getDocuments(
     page?: number;
     size?: number;
     query?: string;
-    folderPath?: string;
+    folderId?: Id<'folders'>;
     sortField?: string;
     sortOrder?: 'asc' | 'desc';
   },
@@ -27,30 +27,28 @@ export async function getDocuments(
   const page = args.page ?? 1;
   const size = args.size ?? 10;
   const searchQuery = args.query?.trim().toLowerCase() ?? '';
-  const folderPath = args.folderPath ?? '';
 
   try {
-    // Get documents for the organization using descending order for newest first
-    const baseQuery = ctx.db
-      .query('documents')
-      .withIndex('by_organizationId', (q) =>
-        q.eq('organizationId', args.organizationId),
-      )
-      .order('desc');
+    const baseQuery = args.folderId
+      ? ctx.db
+          .query('documents')
+          .withIndex('by_organizationId_and_folderId', (q) =>
+            q
+              .eq('organizationId', args.organizationId)
+              .eq('folderId', args.folderId),
+          )
+          .order('desc')
+      : ctx.db
+          .query('documents')
+          .withIndex('by_organizationId', (q) =>
+            q.eq('organizationId', args.organizationId),
+          )
+          .order('desc');
 
     // Use async iteration with filtering
     const matchingDocuments: Array<Doc<'documents'>> = [];
 
     for await (const doc of baseQuery) {
-      // Apply folder path filter
-      if (folderPath) {
-        const meta = isRecord(doc.metadata) ? doc.metadata : undefined;
-        const docPath = meta ? getString(meta, 'storagePath') : undefined;
-        if (docPath !== folderPath) {
-          continue;
-        }
-      }
-
       // Apply search filter (case-insensitive contains)
       if (searchQuery) {
         const titleMatch = doc.title?.toLowerCase().includes(searchQuery);

@@ -22,21 +22,14 @@ interface DocumentPreviewDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   organizationId: string;
-  storagePath?: string;
   documentId?: string;
   fileName?: string;
 }
-
-const extractNameFromStoragePath = (storagePath: string) => {
-  const parts = storagePath.split('/');
-  return parts[parts.length - 1];
-};
 
 export function DocumentPreviewDialog({
   open,
   onOpenChange,
   organizationId,
-  storagePath,
   documentId,
   fileName,
 }: DocumentPreviewDialogProps) {
@@ -47,22 +40,11 @@ export function DocumentPreviewDialog({
   const { documents, isLoading } = useDocuments(organizationId);
 
   const doc = useMemo(() => {
-    if (!documents || !open) return undefined;
-    if (documentId) {
-      return documents.find((d) => d.id === documentId);
-    }
-    if (storagePath) {
-      return documents.find((d) => d.storagePath === storagePath);
-    }
-    return undefined;
-  }, [documents, open, documentId, storagePath]);
+    if (!documents || !open || !documentId) return undefined;
+    return documents.find((d) => d.id === documentId);
+  }, [documents, open, documentId]);
 
-  const displayName =
-    fileName ||
-    doc?.name ||
-    (storagePath
-      ? extractNameFromStoragePath(storagePath)
-      : t('preview.document'));
+  const displayName = fileName || doc?.name || t('preview.document');
 
   const handleDownload = async () => {
     if (!doc?.url) return;

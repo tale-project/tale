@@ -72,6 +72,7 @@ export interface CreateDocumentArgs {
   contentHash?: string;
   teamId?: string;
   createdBy?: string;
+  folderId?: Id<'folders'>;
 }
 
 export interface CreateDocumentResult {

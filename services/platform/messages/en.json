@@ -2244,9 +2244,15 @@
     "searchPlaceholder": "Search documents",
     "addButton": "Add document",
     "deleteDocument": "Delete document",
+    "deleteFolder": {
+      "title": "Delete folder",
+      "confirmation": "Are you sure you want to delete the folder {name}?",
+      "requirement": "The folder must be empty before it can be deleted. Remove all files and subfolders first.",
+      "deleteButton": "Delete folder"
+    },
     "deleteSyncFolder": {
       "title": "Delete sync folder",
-      "confirmation": "Are you sure you want to delete the sync folder",
+      "confirmation": "Are you sure you want to delete the sync folder {name}?",
       "thisWillDelete": "This will permanently delete:",
       "willDelete": {
         "filesAndSubfolders": "All files and subfolders",
@@ -2281,6 +2287,16 @@
       "manageTeams": "Assign team",
       "reindex": "Reindex"
     },
+    "folder": {
+      "newFolder": "New folder",
+      "createFolder": "Create folder",
+      "folderName": "Folder name",
+      "folderNamePlaceholder": "Enter folder name",
+      "nameRequired": "Folder name is required",
+      "creating": "Creating...",
+      "created": "Folder created",
+      "createFailed": "Failed to create folder"
+    },
     "teamTags": {
       "title": "Assign document team",
       "description": "Choose which team \"{name}\" belongs to",
@@ -2299,10 +2315,17 @@
       "deleteButton": "Delete file"
     },
     "breadcrumb": {
+      "navigation": "Breadcrumb",
       "documents": "Documents",
       "oneDrive": "OneDrive",
       "uploads": "Uploads"
     },
+    "aria": {
+      "openFolder": "Open folder {name}",
+      "openDocument": "Open document {name}",
+      "navigateToFolder": "Navigate to folder {name}"
+    },
+    "folderNotFound": "Folder not found or no longer accessible",
     "sourceType": {
       "oneDriveSynced": "OneDrive (synced)",
       "oneDrive": "OneDrive",

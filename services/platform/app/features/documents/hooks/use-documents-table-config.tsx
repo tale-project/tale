@@ -66,6 +66,7 @@ function getSourceInfo(
 
 interface DocumentsTableConfigParams {
   onDocumentClick: (item: DocumentItem, e: React.MouseEvent) => void;
+  onFolderDeleted: () => void;
   isLoadingTeams: boolean;
   teamMap: Map<string, string>;
 }
@@ -79,6 +80,7 @@ interface DocumentsTableConfig {
 
 export function useDocumentsTableConfig({
   onDocumentClick,
+  onFolderDeleted,
   isLoadingTeams,
   teamMap,
 }: DocumentsTableConfigParams): DocumentsTableConfig {
@@ -103,7 +105,12 @@ export function useDocumentsTableConfig({
               <button
                 type="button"
                 title={fullPath}
-                className="text-left"
+                className="cursor-pointer text-left"
+                aria-label={
+                  row.original.type === 'folder'
+                    ? tDocuments('aria.openFolder', { name: fileName })
+                    : tDocuments('aria.openDocument', { name: fileName })
+                }
                 onClick={(e) => onDocumentClick(row.original, e)}
               >
                 <Text
@@ -281,12 +288,20 @@ export function useDocumentsTableConfig({
               isDirectlySelected={row.original.isDirectlySelected}
               sourceMode={row.original.sourceMode}
               teamId={row.original.teamId}
+              onFolderDeleted={onFolderDeleted}
             />
           </HStack>
         ),
       },
     ],
-    [onDocumentClick, isLoadingTeams, teamMap, tTables, tDocuments],
+    [
+      onDocumentClick,
+      onFolderDeleted,
+      isLoadingTeams,
+      teamMap,
+      tTables,
+      tDocuments,
+    ],
   );
 
   return {

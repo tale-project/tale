@@ -11991,7 +11991,7 @@
                 "type": "string",
                 "nullable": true
               },
-              "folderPath": {
+              "folderId": {
                 "type": "string"
               },
               "numItems": {

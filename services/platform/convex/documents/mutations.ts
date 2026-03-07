@@ -7,7 +7,9 @@ import {
 import { internal } from '../_generated/api';
 import { mutation } from '../_generated/server';
 import { authComponent } from '../auth';
+import { getUserTeamIds } from '../lib/get_user_teams';
 import { getOrganizationMember } from '../lib/rls';
+import { hasTeamAccess } from '../lib/team_access';
 import { createDocument } from './create_document';
 import { updateDocument as updateDocumentHelper } from './update_document';
 import { sourceProviderValidator } from './validators';
@@ -93,6 +95,7 @@ export const createDocumentFromUpload = mutation({
     contentHash: v.optional(v.string()),
     metadata: v.optional(jsonRecordValidator),
     teamId: v.optional(v.string()),
+    folderId: v.optional(v.id('folders')),
   },
   returns: v.object({
     success: v.boolean(),
@@ -110,6 +113,19 @@ export const createDocumentFromUpload = mutation({
       name: authUser.name,
     });
 
+    if (args.folderId) {
+      const folder = await ctx.db.get(args.folderId);
+      if (!folder || folder.organizationId !== args.organizationId) {
+        throw new Error('Folder not found');
+      }
+      if (folder.teamId) {
+        const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
+        if (!hasTeamAccess(folder, userTeamIds)) {
+          throw new Error('Folder not accessible');
+        }
+      }
+    }
+
     const result = await createDocument(ctx, {
       organizationId: args.organizationId,
       title: args.fileName,
@@ -120,6 +136,7 @@ export const createDocumentFromUpload = mutation({
       teamId: args.teamId,
       metadata: args.metadata,
       createdBy: String(authUser._id),
+      folderId: args.folderId,
     });
 
     return {

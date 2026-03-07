@@ -70,6 +70,7 @@ export const listDocumentsPaginated = query({
   args: {
     paginationOpts: paginationOptsValidator,
     organizationId: v.string(),
+    folderId: v.optional(v.id('folders')),
     sourceProvider: v.optional(v.string()),
     extension: v.optional(v.string()),
   },
