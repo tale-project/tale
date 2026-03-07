@@ -52,7 +52,14 @@ export interface WorkflowStep {
   wfDefinitionId: string;
   stepSlug: string;
   name: string;
-  stepType: 'start' | 'trigger' | 'llm' | 'condition' | 'action' | 'loop';
+  stepType:
+    | 'start'
+    | 'trigger'
+    | 'llm'
+    | 'condition'
+    | 'action'
+    | 'loop'
+    | 'end';
   order: number;
   config: unknown;
   nextSteps: Record<string, string>;

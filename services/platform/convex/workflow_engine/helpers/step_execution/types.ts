@@ -11,7 +11,8 @@ export type StepType =
   | 'llm'
   | 'condition'
   | 'action'
-  | 'loop';
+  | 'loop'
+  | 'end';
 
 export interface StepDefinition {
   stepSlug: string;

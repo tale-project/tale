@@ -43,10 +43,13 @@ Processing multiple entities (customers/products/conversations/approvals)?
 - llm: AI decision-making and content generation (requires name + systemPrompt)
 - condition: JEXL expression branching (nextSteps: true/false)
 - loop: Iterate over arrays (for data sync, NOT entity processing)
+- end: Workflow output (defines what the workflow returns via outputMapping)
+
+**IMPORTANT:** Every new workflow MUST have an end step. The end step defines what gets returned as the workflow output.
 
 **NEXT STEPS:**
 1. Get pattern details: workflow_examples(operation='get_syntax_reference', category='common_patterns')
-2. Get step syntax: workflow_examples(operation='get_syntax_reference', category='start|llm|action|condition|loop')`,
+2. Get step syntax: workflow_examples(operation='get_syntax_reference', category='start|llm|action|condition|loop|end')`,
 
   common_patterns: `## COMMON WORKFLOW PATTERNS
 
@@ -480,6 +483,50 @@ Action outputs are wrapped: steps.{step_slug}.output.data
 
 **IMPORTANT:** Use |first instead of [0] when the array might be undefined (e.g., branching paths where only one step runs). [0] will throw an error on undefined arrays, while |first safely returns undefined.`,
 
+  end: `## End Step (stepType: 'end')
+
+Config: { outputMapping?: Record<string, string> }
+NextSteps: {} (empty — end steps have no outgoing connections)
+
+The end step defines what the workflow returns as its final output. Every new workflow MUST include an end step.
+Use outputMapping to select which variables or step outputs to include. Values support {{...}} template syntax with full type preservation.
+
+**End with Output Mapping:**
+\`\`\`json
+{
+  "stepSlug": "finish",
+  "name": "Return Results",
+  "stepType": "end",
+  "order": 6,
+  "config": {
+    "outputMapping": {
+      "analysis": "{{steps.analyze.output.data}}",
+      "customerId": "{{customerId}}",
+      "processedAt": "{{now}}"
+    }
+  },
+  "nextSteps": {}
+}
+\`\`\`
+
+**End with No Output (side-effect-only workflow):**
+\`\`\`json
+{
+  "stepSlug": "finish",
+  "name": "Done",
+  "stepType": "end",
+  "order": 4,
+  "config": {},
+  "nextSteps": {}
+}
+\`\`\`
+
+**IMPORTANT:**
+- outputMapping values are {{...}} templates — they preserve types (objects, arrays, numbers stay as-is)
+- Do NOT reference secrets in outputMapping (e.g., {{secrets.apiKey}}) — this leaks sensitive data
+- If outputMapping is empty or omitted, the workflow output is null
+- nextSteps MUST be empty: {}`,
+
   // NOTE: 'all' is intentionally not included to prevent prompt overflow
   // The full WORKFLOW_SYNTAX_COMPACT is too long for agent context
   // Instead, agent should query specific categories as needed
@@ -525,6 +572,7 @@ const SYNTAX_CATEGORY_DESCRIPTIONS: Record<string, string> = {
   action: 'Action step types and parameters',
   condition: 'Condition step with JEXL expressions',
   loop: 'Loop step for iteration',
+  end: 'End step configuration (workflow output via outputMapping)',
   email: 'Email sending pattern (conversation + approval)',
   entity_processing: 'One-at-a-time entity processing pattern',
   workflow_config:

@@ -34,6 +34,7 @@ const TRANSITION_KEYS_BY_TYPE: Record<Doc<'wfStepDefs'>['stepType'], string[]> =
     condition: ['true', 'false'],
     action: ['success', 'failure'],
     loop: ['loop', 'done'],
+    end: [],
   };
 
 export function NextStepsEditor({

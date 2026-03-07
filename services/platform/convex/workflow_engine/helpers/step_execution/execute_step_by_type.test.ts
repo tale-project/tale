@@ -7,7 +7,7 @@ import { describe, it, expect } from 'vitest';
 // Since executeStepByType imports from '../../../_generated/api' (Convex generated),
 // we test the dispatch pattern with a simplified mock to verify the routing logic.
 
-type StepType = 'trigger' | 'llm' | 'condition' | 'action' | 'loop';
+type StepType = 'trigger' | 'llm' | 'condition' | 'action' | 'loop' | 'end';
 
 interface MockStepDef {
   stepSlug: string;
@@ -24,6 +24,7 @@ describe('executeStepByType dispatch routing', () => {
     'condition',
     'action',
     'loop',
+    'end',
   ];
 
   it.each(stepTypes)('should handle step type "%s"', (stepType) => {
@@ -46,6 +47,7 @@ describe('executeStepByType dispatch routing', () => {
       condition: 'executeConditionNode',
       action: 'executeActionNode',
       loop: 'executeLoopNode',
+      end: 'inline',
     };
 
     // Verify all step types have unique action mappings
@@ -54,12 +56,13 @@ describe('executeStepByType dispatch routing', () => {
   });
 
   it('should pass threadId only to step types that support it', () => {
-    // condition steps don't receive threadId per the source code
+    // condition and end steps don't receive threadId per the source code
     const stepsWithThreadId = ['trigger', 'llm', 'action', 'loop'];
-    const stepsWithoutThreadId = ['condition'];
+    const stepsWithoutThreadId = ['condition', 'end'];
 
     expect(stepsWithThreadId).not.toContain('condition');
     expect(stepsWithoutThreadId).toContain('condition');
+    expect(stepsWithoutThreadId).toContain('end');
   });
 
   it('should use correct config casting for each step type', () => {

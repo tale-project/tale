@@ -54,6 +54,7 @@ export const executeStep = internalAction({
       v.literal('condition'),
       v.literal('action'),
       v.literal('loop'),
+      v.literal('end'),
     ),
     stepName: v.optional(v.string()),
     threadId: v.optional(v.string()),

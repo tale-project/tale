@@ -9,8 +9,10 @@ import type {
   llmStepConfigValidator,
 } from '../../types/nodes';
 
+import { isRecord } from '../../../../lib/utils/type-guards';
 import { internal } from '../../../_generated/api';
 import { ActionCtx } from '../../../_generated/server';
+import { replaceVariables } from '../../../lib/variables/replace_variables';
 import { StepDefinition, StepExecutionResult } from './types';
 
 export async function executeStepByType(
@@ -102,6 +104,26 @@ export async function executeStepByType(
           threadId,
         },
       );
+
+    case 'end': {
+      const mapping = isRecord(stepDef.config)
+        ? stepDef.config.outputMapping
+        : undefined;
+      let mappedOutput: unknown = null;
+      if (isRecord(mapping) && Object.keys(mapping).length > 0) {
+        try {
+          mappedOutput = replaceVariables(mapping, variables);
+        } catch {
+          // Bad output mapping template should not fail the workflow
+          mappedOutput = null;
+        }
+      }
+      return {
+        port: 'success',
+        output: { type: 'end', data: mappedOutput },
+        variables: { __workflowOutput: mappedOutput },
+      };
+    }
 
     default: {
       const _exhaustiveCheck: never = stepDef.stepType;

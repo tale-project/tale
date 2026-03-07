@@ -143,6 +143,14 @@ export function validateWorkflowDefinition(
     );
   }
 
+  // Check for end step
+  const hasEnd = stepsConfig.some((step) => step?.stepType === 'end');
+  if (!hasEnd) {
+    warnings.push(
+      'No end step found. Workflows should include an end step to define explicit output.',
+    );
+  }
+
   // Validate variable references (step existence, execution order, path structure)
   const variableRefValidation = validateWorkflowVariableReferences(stepsConfig);
   errors.push(...variableRefValidation.errors);

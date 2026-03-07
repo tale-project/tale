@@ -1678,7 +1678,8 @@
       "llm": "LLM",
       "condition": "Condition",
       "loop": "Loop",
-      "action": "Action"
+      "action": "Action",
+      "end": "End"
     },
     "step": {
       "openStep": "Open {name} step",
@@ -1718,7 +1719,8 @@
       "types": {
         "action": "Action",
         "llm": "LLM",
-        "condition": "Condition"
+        "condition": "Condition",
+        "end": "End"
       },
       "configLabel": "Config (JSON)",
       "configDescription": "Configuration settings",

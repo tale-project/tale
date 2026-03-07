@@ -14,6 +14,7 @@ export const stepTypeValidator = v.union(
   v.literal('condition'),
   v.literal('action'),
   v.literal('loop'),
+  v.literal('end'),
 );
 
 export const editModeValidator = v.union(

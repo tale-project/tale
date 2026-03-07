@@ -39,7 +39,7 @@ const EMPTY_STEP_OPTIONS: NonNullable<CreateStepDialogProps['stepOptions']> =
 
 type FormData = {
   name: string;
-  stepType: 'start' | 'llm' | 'condition' | 'action' | 'loop';
+  stepType: 'start' | 'llm' | 'condition' | 'action' | 'loop' | 'end';
   config: string;
 };
 
@@ -74,6 +74,15 @@ const getDefaultTemplates = (
         expression: '{{score}} > 0.7',
         description: 'Check if score is above threshold',
         variables: {},
+      };
+      return {
+        config: JSON.stringify(cfg, null, 2),
+      };
+    }
+
+    case 'end': {
+      const cfg = {
+        outputMapping: {},
       };
       return {
         config: JSON.stringify(cfg, null, 2),
@@ -117,7 +126,14 @@ export function CreateStepDialog({
             /^[a-zA-Z_][a-zA-Z0-9_-]*$/,
             t('createStep.validation.nameFormat'),
           ),
-        stepType: z.enum(['start', 'llm', 'condition', 'action', 'loop']),
+        stepType: z.enum([
+          'start',
+          'llm',
+          'condition',
+          'action',
+          'loop',
+          'end',
+        ]),
         config: z.string(),
       }),
     [t],
@@ -207,6 +223,7 @@ export function CreateStepDialog({
       'condition',
       'action',
       'loop',
+      'end',
     ] as const);
     if (narrowed) {
       setValue('stepType', narrowed, { shouldDirty: true });
@@ -244,6 +261,7 @@ export function CreateStepDialog({
           { value: 'action', label: t('createStep.types.action') },
           { value: 'llm', label: t('createStep.types.llm') },
           { value: 'condition', label: t('createStep.types.condition') },
+          { value: 'end', label: t('createStep.types.end') },
         ]}
       />
 
