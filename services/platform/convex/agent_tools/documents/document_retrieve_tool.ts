@@ -77,7 +77,7 @@ RESPONSE FIELDS:
 • chunkRange: { start, end } — actual chunk range returned (1-indexed)
 • totalChunks: Total chunks in the document
 • truncated: Whether content was truncated to fit the ~50K char limit
-• totalChars: Total character count of returned content
+• totalChars: Total character count of the requested chunk range (before truncation)
 
 PAGINATION (for large documents):
 1. First call: omit chunkStart and chunkEnd to get the first chunks

@@ -234,6 +234,34 @@ describe('retrieveDocument helper', () => {
     expect(url).not.toContain('doc/with/slashes/content');
   });
 
+  it('throws timeout error when fetch is aborted', async () => {
+    globalThis.fetch = Object.assign(
+      vi
+        .fn()
+        .mockRejectedValue(
+          new DOMException('The operation was aborted', 'AbortError'),
+        ),
+      { preconnect: vi.fn() },
+    );
+    const ctx = createMockCtx();
+
+    await expect(
+      retrieveDocument(ctx as never, { documentId: 'doc123' }),
+    ).rejects.toThrow('timed out after 60s');
+  });
+
+  it('re-throws network errors from fetch', async () => {
+    globalThis.fetch = Object.assign(
+      vi.fn().mockRejectedValue(new TypeError('Failed to fetch')),
+      { preconnect: vi.fn() },
+    );
+    const ctx = createMockCtx();
+
+    await expect(
+      retrieveDocument(ctx as never, { documentId: 'doc123' }),
+    ).rejects.toThrow('Failed to fetch');
+  });
+
   it('returns "Untitled" when RAG response has null title', async () => {
     mockFetchSuccess(createRagResponse({ title: null }));
     const ctx = createMockCtx();

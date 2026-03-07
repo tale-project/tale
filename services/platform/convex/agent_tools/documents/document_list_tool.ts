@@ -97,7 +97,8 @@ USE THIS TOOL TO:
 
 DO NOT USE THIS TOOL FOR:
 • Semantic/content search — use rag_search instead
-• Reading document content — use pdf, docx, txt, excel, image, or pptx tools instead
+• Reading indexed document content — use document_retrieve with the document ID instead
+• Extracting data from uploaded files — use pdf, docx, txt, excel, image, or pptx tools instead
 
 RESPONSE FIELDS:
 • documents: Array of {id, title, extension, folderPath, teamId, createdAt (Unix ms UTC), sizeBytes}
