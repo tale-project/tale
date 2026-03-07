@@ -82,7 +82,7 @@
     "date-fns": "4.1.0",
     "dayjs": "1.11.19",
     "dompurify": "3.3.2",
-    "framer-motion": "12.35.0",
+    "framer-motion": "12.35.1",
     "he": "1.2.0",
     "i18next": "^25.7.4",
     "i18next-icu": "^2.4.1",
