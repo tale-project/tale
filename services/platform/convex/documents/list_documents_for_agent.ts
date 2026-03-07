@@ -231,6 +231,7 @@ async function resolveFolderPath(
   return currentFolderId;
 }
 
+// Index priority: folderId (most selective) > extension > org-only (broadest)
 function buildQuery(
   ctx: QueryCtx,
   organizationId: string,

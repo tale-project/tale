@@ -44,14 +44,14 @@ describe('listDocuments helper', () => {
     );
   });
 
-  it('passes limit through to runQuery without clamping', async () => {
+  it('passes limit through to runQuery', async () => {
     const ctx = createMockCtx();
 
-    await listDocuments(ctx as never, { limit: 100 });
+    await listDocuments(ctx as never, { limit: 50 });
 
     expect(ctx.runQuery).toHaveBeenCalledWith(
       'mock-list-for-agent',
-      expect.objectContaining({ limit: 100 }),
+      expect.objectContaining({ limit: 50 }),
     );
   });
 
@@ -218,6 +218,23 @@ describe('documentListArgs schema validation', () => {
 
   it('rejects invalid sortBy enum', () => {
     expect(() => documentListArgs.parse({ sortBy: 'invalid' })).toThrow();
+  });
+
+  it('rejects limit below 1', () => {
+    expect(() => documentListArgs.parse({ limit: 0 })).toThrow();
+  });
+
+  it('rejects limit above 50', () => {
+    expect(() => documentListArgs.parse({ limit: 51 })).toThrow();
+  });
+
+  it('rejects float limit', () => {
+    expect(() => documentListArgs.parse({ limit: 1.5 })).toThrow();
+  });
+
+  it('accepts limit of 1', () => {
+    const result = documentListArgs.parse({ limit: 1 });
+    expect(result.limit).toBe(1);
   });
 
   it('rejects negative cursor', () => {

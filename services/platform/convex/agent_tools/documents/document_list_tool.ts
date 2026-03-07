@@ -68,6 +68,9 @@ export const documentListArgs = z.object({
     .describe('Sort direction. Default: "desc" (newest first).'),
   limit: z
     .number()
+    .int()
+    .min(1)
+    .max(50)
     .optional()
     .describe('Max results to return, 1-50. Default: 20.'),
   cursor: z
