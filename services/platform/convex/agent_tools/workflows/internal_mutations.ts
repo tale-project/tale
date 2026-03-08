@@ -82,6 +82,7 @@ export const createWorkflowCreationApproval = internalMutation({
           v.literal('action'),
           v.literal('condition'),
           v.literal('loop'),
+          v.literal('output'),
         ),
         order: v.number(),
         config: jsonRecordValidator,
