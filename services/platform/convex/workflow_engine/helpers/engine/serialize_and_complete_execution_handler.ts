@@ -10,6 +10,7 @@ import type { ActionCtx } from '../../../_generated/server';
 
 import { internal } from '../../../_generated/api';
 import { createDebugLog } from '../../../lib/debug_log';
+import { deserializeVariablesInAction } from '../serialization/deserialize_variables';
 import { serializeOutput } from '../serialization/serialize_output';
 import { serializeVariables } from '../serialization/serialize_variables';
 
@@ -42,12 +43,8 @@ export async function handleSerializeAndCompleteExecution(
   let output: unknown = {};
   if (execution.variables) {
     try {
-      const vars = JSON.parse(execution.variables);
-      if (
-        typeof vars === 'object' &&
-        vars !== null &&
-        '__workflowOutput' in vars
-      ) {
+      const vars = await deserializeVariablesInAction(ctx, execution.variables);
+      if ('__workflowOutput' in vars) {
         output = vars.__workflowOutput;
       } else {
         output = sanitizeOutputVariables(vars);
