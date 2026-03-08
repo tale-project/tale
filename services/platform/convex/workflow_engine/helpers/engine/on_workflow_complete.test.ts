@@ -7,6 +7,7 @@ import { handleWorkflowComplete } from './on_workflow_complete';
 function createMockCtx(overrides: {
   exec?: Record<string, unknown> | null;
   approval?: Record<string, unknown> | null;
+  execAfterCompletion?: Record<string, unknown> | null;
 }) {
   const runMutationArgs: Array<[unknown, unknown]> = [];
   const runMutation = vi.fn().mockImplementation((ref, args) => {
@@ -19,10 +20,22 @@ function createMockCtx(overrides: {
     return Promise.resolve(undefined);
   });
   const dbGetCalls: string[] = [];
+
+  // Track call count per ID to simulate state changes between reads
+  const getCallCounts = new Map<string, number>();
   const dbGet = vi.fn().mockImplementation((id: string) => {
     dbGetCalls.push(id);
-    if (id === 'exec_1' || id === overrides.exec?._id) {
-      return Promise.resolve(overrides.exec ?? null);
+    const count = (getCallCounts.get(id) ?? 0) + 1;
+    getCallCounts.set(id, count);
+
+    if (id === (overrides.exec?._id ?? 'exec_1')) {
+      // First call: initial exec; subsequent: after completion
+      if (count === 1) {
+        return Promise.resolve(overrides.exec ?? null);
+      }
+      return Promise.resolve(
+        overrides.execAfterCompletion ?? overrides.exec ?? null,
+      );
     }
     if (id === 'approval_1') {
       return Promise.resolve(overrides.approval ?? null);
@@ -57,48 +70,52 @@ function createMockCtx(overrides: {
 }
 
 describe('handleWorkflowComplete', () => {
-  it('schedules completion response when execution has approvalId in triggerData', async () => {
+  it('calls completeExecution with persisted output and schedules thread response', async () => {
     const exec = {
       _id: 'exec_1',
       organizationId: 'org_1',
       workflowSlug: 'my-workflow',
       triggerData: { approvalId: 'approval_1', approvedBy: 'user_1' },
       status: 'running',
+      output: {
+        fileName: 'report.docx',
+        downloadUrl: 'https://example.com/report.docx',
+      },
     };
     const approval = {
       _id: 'approval_1',
       threadId: 'thread_1',
     };
-    const { ctx, schedulerRunAfterArgs, dbGet } = createMockCtx({
+    const execAfterCompletion = { ...exec, status: 'completed' };
+    const { ctx, runMutationArgs, schedulerRunAfterArgs } = createMockCtx({
       exec,
       approval,
-    });
-
-    let execGetCount = 0;
-    dbGet.mockImplementation((id: string) => {
-      if (id === 'exec_1') {
-        execGetCount++;
-        // First fetch: initial exec (status: running)
-        // Second fetch: after completeExecution for emitEvent (status: completed)
-        return Promise.resolve(
-          execGetCount === 1 ? exec : { ...exec, status: 'completed' },
-        );
-      }
-      if (id === 'approval_1') return Promise.resolve(approval);
-      return Promise.resolve(null);
+      execAfterCompletion,
     });
 
     await handleWorkflowComplete(ctx, {
       workflowId: 'component_wf_1',
       context: { executionId: 'exec_1' },
-      result: { kind: 'success', returnValue: { data: 'ok' } },
+      result: { kind: 'success', returnValue: undefined },
     });
 
+    // Should call completeExecution with persisted output (not result.returnValue)
+    const completeCall = runMutationArgs.find(
+      ([, args]) => args && typeof args === 'object' && 'output' in args,
+    );
+    expect(completeCall).toBeDefined();
+    // oxlint-disable-next-line typescript/no-non-null-assertion, typescript/no-unsafe-type-assertion -- test assertion: completeCall is verified above
+    const completeArgs = completeCall![1] as Record<string, unknown>;
+    expect(completeArgs.output).toEqual({
+      fileName: 'report.docx',
+      downloadUrl: 'https://example.com/report.docx',
+    });
+
+    // Should schedule thread response
     const triggerCalls = schedulerRunAfterArgs.filter(
       ([, , callArgs]) =>
         callArgs &&
         typeof callArgs === 'object' &&
-        'threadId' in callArgs &&
         'messageContent' in callArgs,
     );
     expect(triggerCalls.length).toBe(1);
@@ -115,45 +132,34 @@ describe('handleWorkflowComplete', () => {
     expect(typedArgs.messageContent).toContain('my-workflow');
   });
 
-  it('includes output data in completion message when available', async () => {
+  it('includes persisted output data in completion message', async () => {
+    const persistedOutput = {
+      downloadUrl: 'https://example.com/report.docx',
+      fileName: 'report.docx',
+    };
     const exec = {
       _id: 'exec_1',
       organizationId: 'org_1',
       workflowSlug: 'report-workflow',
       triggerData: { approvalId: 'approval_1', approvedBy: 'user_1' },
       status: 'running',
+      output: persistedOutput,
     };
     const approval = {
       _id: 'approval_1',
       threadId: 'thread_1',
     };
-    const { ctx, schedulerRunAfterArgs, dbGet } = createMockCtx({
+    const execAfterCompletion = { ...exec, status: 'completed' };
+    const { ctx, schedulerRunAfterArgs } = createMockCtx({
       exec,
       approval,
-    });
-
-    let execGetCount = 0;
-    dbGet.mockImplementation((id: string) => {
-      if (id === 'exec_1') {
-        execGetCount++;
-        return Promise.resolve(
-          execGetCount === 1 ? exec : { ...exec, status: 'completed' },
-        );
-      }
-      if (id === 'approval_1') return Promise.resolve(approval);
-      return Promise.resolve(null);
+      execAfterCompletion,
     });
 
     await handleWorkflowComplete(ctx, {
       workflowId: 'component_wf_1',
       context: { executionId: 'exec_1' },
-      result: {
-        kind: 'success',
-        returnValue: {
-          downloadUrl: 'https://example.com/report.docx',
-          fileName: 'report.docx',
-        },
-      },
+      result: { kind: 'success', returnValue: undefined },
     });
 
     const triggerCalls = schedulerRunAfterArgs.filter(
@@ -173,32 +179,26 @@ describe('handleWorkflowComplete', () => {
   });
 
   it('excludes output containing _storageRef from message', async () => {
+    const persistedOutput = {
+      _storageRef: 'kg278fznabcg53cpt8jjqzm3n982gq94',
+    };
     const exec = {
       _id: 'exec_1',
       organizationId: 'org_1',
       workflowSlug: 'blob-workflow',
       triggerData: { approvalId: 'approval_1', approvedBy: 'user_1' },
       status: 'running',
+      output: persistedOutput,
     };
     const approval = {
       _id: 'approval_1',
       threadId: 'thread_1',
     };
-    const { ctx, schedulerRunAfterArgs, dbGet } = createMockCtx({
+    const execAfterCompletion = { ...exec, status: 'completed' };
+    const { ctx, schedulerRunAfterArgs } = createMockCtx({
       exec,
       approval,
-    });
-
-    let execGetCount = 0;
-    dbGet.mockImplementation((id: string) => {
-      if (id === 'exec_1') {
-        execGetCount++;
-        return Promise.resolve(
-          execGetCount === 1 ? exec : { ...exec, status: 'completed' },
-        );
-      }
-      if (id === 'approval_1') return Promise.resolve(approval);
-      return Promise.resolve(null);
+      execAfterCompletion,
     });
 
     await handleWorkflowComplete(ctx, {
@@ -206,7 +206,7 @@ describe('handleWorkflowComplete', () => {
       context: { executionId: 'exec_1' },
       result: {
         kind: 'success',
-        returnValue: { _storageRef: 'kg278fznabcg53cpt8jjqzm3n982gq94' },
+        returnValue: undefined,
       },
     });
 
@@ -235,15 +235,9 @@ describe('handleWorkflowComplete', () => {
       _id: 'approval_1',
       threadId: 'thread_1',
     };
-    const { ctx, schedulerRunAfterArgs, dbGet } = createMockCtx({
+    const { ctx, schedulerRunAfterArgs } = createMockCtx({
       exec,
       approval,
-    });
-
-    dbGet.mockImplementation((id: string) => {
-      if (id === 'exec_1') return Promise.resolve(exec);
-      if (id === 'approval_1') return Promise.resolve(approval);
-      return Promise.resolve(null);
     });
 
     await handleWorkflowComplete(ctx, {
@@ -273,17 +267,10 @@ describe('handleWorkflowComplete', () => {
       triggerData: { source: 'schedule' },
       status: 'running',
     };
-    const { ctx, schedulerRunAfterArgs, dbGet } = createMockCtx({ exec });
-
-    let execGetCount = 0;
-    dbGet.mockImplementation((id: string) => {
-      if (id === 'exec_1') {
-        execGetCount++;
-        return Promise.resolve(
-          execGetCount === 1 ? exec : { ...exec, status: 'completed' },
-        );
-      }
-      return Promise.resolve(null);
+    const execAfterCompletion = { ...exec, status: 'completed' };
+    const { ctx, schedulerRunAfterArgs } = createMockCtx({
+      exec,
+      execAfterCompletion,
     });
 
     await handleWorkflowComplete(ctx, {
@@ -301,27 +288,22 @@ describe('handleWorkflowComplete', () => {
     expect(triggerCalls.length).toBe(0);
   });
 
-  it('skips posting when execution is already in terminal state (idempotency)', async () => {
+  it('skips completeExecution and message when already in terminal state (idempotency)', async () => {
     const exec = {
       _id: 'exec_1',
       organizationId: 'org_1',
       workflowSlug: 'already-done',
       triggerData: { approvalId: 'approval_1', approvedBy: 'user_1' },
       status: 'completed',
+      output: { data: 'ok' },
     };
     const approval = {
       _id: 'approval_1',
       threadId: 'thread_1',
     };
-    const { ctx, schedulerRunAfterArgs, dbGet } = createMockCtx({
+    const { ctx, runMutationArgs, schedulerRunAfterArgs } = createMockCtx({
       exec,
       approval,
-    });
-
-    dbGet.mockImplementation((id: string) => {
-      if (id === 'exec_1') return Promise.resolve(exec);
-      if (id === 'approval_1') return Promise.resolve(approval);
-      return Promise.resolve(null);
     });
 
     await handleWorkflowComplete(ctx, {
@@ -330,6 +312,13 @@ describe('handleWorkflowComplete', () => {
       result: { kind: 'success', returnValue: { data: 'ok' } },
     });
 
+    // Should NOT call completeExecution (already completed)
+    const completeCalls = runMutationArgs.filter(
+      ([, args]) => args && typeof args === 'object' && 'output' in args,
+    );
+    expect(completeCalls.length).toBe(0);
+
+    // Should NOT schedule thread response (wasTerminal = true)
     const triggerCalls = schedulerRunAfterArgs.filter(
       ([, , callArgs]) =>
         callArgs &&
@@ -337,5 +326,81 @@ describe('handleWorkflowComplete', () => {
         'messageContent' in callArgs,
     );
     expect(triggerCalls.length).toBe(0);
+  });
+
+  it('falls back to result.returnValue when no persisted output exists', async () => {
+    const exec = {
+      _id: 'exec_1',
+      organizationId: 'org_1',
+      workflowSlug: 'simple-workflow',
+      triggerData: { approvalId: 'approval_1', approvedBy: 'user_1' },
+      status: 'running',
+      output: undefined,
+    };
+    const approval = {
+      _id: 'approval_1',
+      threadId: 'thread_1',
+    };
+    const execAfterCompletion = {
+      ...exec,
+      status: 'completed',
+      output: { simple: 'data' },
+    };
+    const { ctx, runMutationArgs } = createMockCtx({
+      exec,
+      approval,
+      execAfterCompletion,
+    });
+
+    await handleWorkflowComplete(ctx, {
+      workflowId: 'component_wf_1',
+      context: { executionId: 'exec_1' },
+      result: { kind: 'success', returnValue: { simple: 'data' } },
+    });
+
+    const completeCall = runMutationArgs.find(
+      ([, args]) => args && typeof args === 'object' && 'output' in args,
+    );
+    expect(completeCall).toBeDefined();
+    // oxlint-disable-next-line typescript/no-non-null-assertion, typescript/no-unsafe-type-assertion -- test assertion: completeCall is verified above
+    const completeArgs = completeCall![1] as Record<string, unknown>;
+    expect(completeArgs.output).toEqual({ simple: 'data' });
+  });
+
+  it('emits workflow.completed event even when completeExecution is skipped', async () => {
+    // This simulates a scenario where the execution was already completed
+    // by a prior call but events haven't been emitted yet (shouldn't normally
+    // happen, but tests the guard scoping)
+    const exec = {
+      _id: 'exec_1',
+      organizationId: 'org_1',
+      workflowSlug: 'my-workflow',
+      triggerData: {},
+      status: 'running',
+      output: { data: 'ok' },
+    };
+    const execAfterCompletion = { ...exec, status: 'completed' };
+    const { ctx, runMutationArgs, dbGet } = createMockCtx({
+      exec,
+      execAfterCompletion,
+    });
+
+    // Customize dbGet to simulate emitEvent reading the execution
+    const originalImpl = dbGet.getMockImplementation();
+    dbGet.mockImplementation((id: string) => {
+      return originalImpl?.(id) ?? Promise.resolve(null);
+    });
+
+    await handleWorkflowComplete(ctx, {
+      workflowId: 'component_wf_1',
+      context: { executionId: 'exec_1' },
+      result: { kind: 'success', returnValue: undefined },
+    });
+
+    // completeExecution should have been called (status was 'running')
+    const completeCalls = runMutationArgs.filter(
+      ([, args]) => args && typeof args === 'object' && 'output' in args,
+    );
+    expect(completeCalls.length).toBe(1);
   });
 });

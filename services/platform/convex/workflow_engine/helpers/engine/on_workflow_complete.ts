@@ -2,7 +2,9 @@
  * Workflow completion hook business logic
  *
  * Handles the logic when a workflow completes execution.
- * Mirrors final status to wfExecutions table.
+ * This is the sole authority for transitioning execution status to terminal
+ * states (completed/failed). The serialize action persists output and variables
+ * before this callback fires.
  */
 
 import type { Doc } from '../../../_generated/dataModel';
@@ -43,14 +45,27 @@ export async function handleWorkflowComplete(
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- args.result comes from @convex-dev/workflow component callback; shape is ComponentRunResult at runtime
   const result = args.result as ComponentRunResult;
   const kind = result?.kind;
+
+  // Track the pre-completion status so postCompletionMessageToThread can detect
+  // first-time vs re-invocation
+  const wasTerminal = exec.status === 'completed' || exec.status === 'failed';
+
   if (kind === 'success') {
-    await ctx.runMutation(
-      internal.wf_executions.internal_mutations.completeExecution,
-      {
-        executionId: toId<'wfExecutions'>(exec._id),
-        output: toConvexJsonValue(result.returnValue),
-      },
-    );
+    // Only transition to completed if not already done (the serialize action
+    // does NOT set status; this callback is the sole completion authority).
+    // The idempotency guard in completeExecution also protects against races.
+    if (!wasTerminal) {
+      // Use the already-persisted output from the serialize action.
+      // Fall back to result.returnValue for simple workflows that skip serialization.
+      const output = exec.output ?? toConvexJsonValue(result.returnValue);
+      await ctx.runMutation(
+        internal.wf_executions.internal_mutations.completeExecution,
+        {
+          executionId: toId<'wfExecutions'>(exec._id),
+          output,
+        },
+      );
+    }
     const updatedExec = await ctx.db.get(exec._id);
     if (updatedExec) {
       await emitEvent(ctx, {
@@ -78,7 +93,9 @@ export async function handleWorkflowComplete(
     );
   }
 
-  await postCompletionMessageToThread(ctx, exec, kind, result);
+  if (!wasTerminal) {
+    await postCompletionMessageToThread(ctx, exec, kind, result);
+  }
 }
 
 async function postCompletionMessageToThread(
@@ -87,10 +104,6 @@ async function postCompletionMessageToThread(
   kind: string | undefined,
   result: ComponentRunResult,
 ): Promise<void> {
-  // Idempotency guard: exec snapshot was fetched before status update.
-  // If already in a terminal state, this is a re-invocation — skip.
-  if (exec.status === 'completed' || exec.status === 'failed') return;
-
   const triggerData = isRecord(exec.triggerData) ? exec.triggerData : null;
   const approvalIdStr = triggerData
     ? getString(triggerData, 'approvalId')
@@ -104,12 +117,17 @@ async function postCompletionMessageToThread(
     const workflowName = exec.workflowSlug || 'unknown';
     const errorMsg = result.kind === 'failed' ? result.error : 'unknown error';
 
+    // Read the persisted output for the summary instead of using
+    // result.returnValue (which is void for dynamic workflows)
     let outputSummary = '';
-    if (result.kind === 'success' && result.returnValue) {
+    if (kind === 'success') {
       try {
-        const raw = JSON.stringify(result.returnValue, null, 2);
-        if (!raw.includes('_storageRef')) {
-          outputSummary = `\n\nWorkflow Output:\n${raw.slice(0, 8000)}`;
+        const freshExec = await ctx.db.get(exec._id);
+        if (freshExec?.output) {
+          const raw = JSON.stringify(freshExec.output, null, 2);
+          if (!raw.includes('_storageRef')) {
+            outputSummary = `\n\nWorkflow Output:\n${raw.slice(0, 8000)}`;
+          }
         }
       } catch {
         // Non-critical: skip output if serialization fails

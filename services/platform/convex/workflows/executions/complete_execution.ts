@@ -24,6 +24,10 @@ export async function completeExecution(
   args: CompleteExecutionArgs,
 ): Promise<null> {
   const execution = await ctx.db.get(args.executionId);
+
+  // Idempotency: already completed — nothing to do
+  if (execution?.status === 'completed') return null;
+
   const oldVariablesStorageId = execution?.variablesStorageId;
   const oldOutputStorageId = execution?.outputStorageId;
 

@@ -79,7 +79,7 @@ export async function handleDynamicWorkflow(
 
   if (stepDefinitions.length === 0) {
     await step.runAction(
-      internal.workflow_engine.internal_actions.serializeAndCompleteExecution,
+      internal.workflow_engine.internal_actions.serializeExecutionOutput,
       {
         executionId,
       },
@@ -198,7 +198,7 @@ export async function handleDynamicWorkflow(
   }
 
   await step.runAction(
-    internal.workflow_engine.internal_actions.serializeAndCompleteExecution,
+    internal.workflow_engine.internal_actions.serializeExecutionOutput,
     {
       executionId,
     },

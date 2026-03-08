@@ -787,6 +787,7 @@ import type * as workflows_executions_list_executions from "../workflows/executi
 import type * as workflows_executions_list_executions_cursor from "../workflows/executions/list_executions_cursor.js";
 import type * as workflows_executions_list_executions_paginated_native from "../workflows/executions/list_executions_paginated_native.js";
 import type * as workflows_executions_patch_execution from "../workflows/executions/patch_execution.js";
+import type * as workflows_executions_persist_execution_output from "../workflows/executions/persist_execution_output.js";
 import type * as workflows_executions_resume_execution from "../workflows/executions/resume_execution.js";
 import type * as workflows_executions_set_component_workflow from "../workflows/executions/set_component_workflow.js";
 import type * as workflows_executions_types from "../workflows/executions/types.js";
@@ -1636,6 +1637,7 @@ declare const fullApi: ApiFromModules<{
   "workflows/executions/list_executions_cursor": typeof workflows_executions_list_executions_cursor;
   "workflows/executions/list_executions_paginated_native": typeof workflows_executions_list_executions_paginated_native;
   "workflows/executions/patch_execution": typeof workflows_executions_patch_execution;
+  "workflows/executions/persist_execution_output": typeof workflows_executions_persist_execution_output;
   "workflows/executions/resume_execution": typeof workflows_executions_resume_execution;
   "workflows/executions/set_component_workflow": typeof workflows_executions_set_component_workflow;
   "workflows/executions/types": typeof workflows_executions_types;
