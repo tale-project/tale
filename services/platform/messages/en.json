@@ -680,7 +680,9 @@
         "messagePlaceholder": "Type a message to test...",
         "uploading": "Uploading...",
         "attachFiles": "Attach files",
-        "send": "Send message"
+        "send": "Send message",
+        "previewImage": "Preview {filename}",
+        "removeAttachment": "Remove attachment"
       },
       "createDialog": {
         "continue": "Continue",
@@ -785,7 +787,11 @@
         "webModeOffDescription": "Web search disabled",
         "webModeToolDescription": "Agent searches the web on demand",
         "webModeContextDescription": "Automatically inject relevant web results into every response",
-        "webModeBothDescription": "Auto-inject web results and allow on-demand search"
+        "webModeBothDescription": "Auto-inject web results and allow on-demand search",
+        "toolsSaved": "Tools settings saved",
+        "toolsSaveFailed": "Failed to save tools settings",
+        "webModeSaved": "Web search settings saved",
+        "webModeSaveFailed": "Failed to save web search settings"
       },
       "versions": {
         "title": "Version history",
@@ -1793,6 +1799,7 @@
       "messagePlaceholder": "Type your message...",
       "attachFiles": "Attach files",
       "automationDetails": "Automation details",
+      "previewImage": "Preview {filename}",
       "fallbackImage": "Image",
       "fallbackFile": "File",
       "loading": "Loading...",

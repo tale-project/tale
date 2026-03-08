@@ -102,7 +102,7 @@ function CopyableTimestampInner({
   return (
     <span
       className={cn(
-        'group inline-flex items-center gap-1',
+        'inline-flex items-center gap-1',
         alignRight && 'justify-end w-full',
         className,
       )}
@@ -117,7 +117,7 @@ function CopyableTimestampInner({
         type="button"
         className={cn(
           'shrink-0 cursor-pointer rounded p-0.5 transition-colors',
-          'opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
+          'focus-visible:opacity-100',
           'hover:bg-muted',
         )}
         aria-label={tCommon('actions.copy')}

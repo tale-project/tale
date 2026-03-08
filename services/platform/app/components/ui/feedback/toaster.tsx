@@ -42,7 +42,7 @@ export function Toaster() {
   const { toasts } = useToast();
 
   return (
-    <ToastPrimitives.Provider>
+    <ToastPrimitives.Provider duration={3500}>
       {toasts.map(
         ({ id, title, description, action, variant, className, ...props }) => {
           const icon = <VariantIcon variant={variant} />;
