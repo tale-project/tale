@@ -288,11 +288,12 @@ async def upload_document(
     metadata: str | None = Form(None, description="Optional metadata as JSON string"),
     document_id: str | None = Form(None, description="Optional custom document ID"),
     user_id: str | None = Form(None, description="User ID for multi-tenant isolation"),
+    sync: bool = Query(False, description="If true, wait for ingestion to complete before responding"),
 ):
     """Upload a file to the knowledge base.
 
-    The uploaded file is validated and read into memory during the request,
-    but heavy ingestion work is delegated to a background task.
+    By default, heavy ingestion work is delegated to a background task.
+    Set `sync=true` to wait for ingestion to complete before responding.
     """
     try:
         if not file.filename:
@@ -318,6 +319,28 @@ async def upload_document(
         doc_id = document_id or f"file-{uuid4().hex}"
 
         await _insert_processing_row(doc_id, file.filename, user_id)
+
+        if sync:
+            result = await rag_service.add_document(
+                content=file_bytes,
+                document_id=doc_id,
+                filename=file.filename,
+                user_id=user_id,
+            )
+            if result.get("skipped"):
+                await _mark_completed(doc_id, user_id)
+
+            skipped = result.get("skipped", False)
+            skip_reason = result.get("skip_reason")
+            return DocumentAddResponse(
+                success=True,
+                document_id=doc_id,
+                chunks_created=result.get("chunks_created", 0),
+                message=f"File '{file.filename}' ingested synchronously",
+                queued=False,
+                skipped=skipped,
+                skip_reason=skip_reason,
+            )
 
         background_tasks.add_task(
             _background_ingest,
@@ -372,10 +395,12 @@ async def get_document_content(
     document_id: str,
     chunk_start: int = Query(default=1, ge=1, description="Start chunk (1-indexed)"),
     chunk_end: int | None = Query(default=None, ge=1, description="End chunk (1-indexed, inclusive)"),
+    return_chunks: bool = Query(default=False, description="If true, include individual chunks as a list"),
 ):
     """Retrieve full document text by reassembling stored chunks.
 
     Use chunk_start/chunk_end to paginate through large documents.
+    Set return_chunks=true to get individual chunks as an array.
     """
     if chunk_end is not None and chunk_start > chunk_end:
         raise HTTPException(
@@ -388,6 +413,7 @@ async def get_document_content(
             document_id,
             chunk_start=chunk_start,
             chunk_end=chunk_end,
+            return_chunks=return_chunks,
         )
     except Exception as e:
         logger.error("Failed to retrieve document content for {}: {}", document_id, e)

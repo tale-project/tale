@@ -263,6 +263,7 @@ class RagService:
         *,
         chunk_start: int = 1,
         chunk_end: int | None = None,
+        return_chunks: bool = False,
     ) -> dict[str, Any] | None:
         """Retrieve document content by reassembling stored chunks.
 
@@ -270,6 +271,7 @@ class RagService:
             document_id: Logical document identifier.
             chunk_start: First chunk to return (1-indexed).
             chunk_end: Last chunk to return (1-indexed, inclusive). None = capped by MAX_CHUNK_WINDOW.
+            return_chunks: If True, include individual chunks as a list.
 
         Returns:
             Response dict with content and metadata, or None if not found.
@@ -323,7 +325,7 @@ class RagService:
         actual_start = rows[0]["chunk_index"] + 1
         actual_end = rows[-1]["chunk_index"] + 1
 
-        return {
+        result = {
             "document_id": document_id,
             "title": doc["filename"],
             "content": combined,
@@ -331,6 +333,11 @@ class RagService:
             "total_chunks": total_chunks,
             "total_chars": len(combined),
         }
+
+        if return_chunks:
+            result["chunks"] = [{"index": row["chunk_index"] + 1, "content": row["chunk_content"]} for row in rows]
+
+        return result
 
     async def get_document_statuses(
         self,

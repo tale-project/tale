@@ -70,6 +70,13 @@ class ChunkRange(BaseModel):
     end: int = Field(..., description="Last chunk returned (1-indexed, inclusive)")
 
 
+class DocumentChunk(BaseModel):
+    """A single document chunk."""
+
+    index: int = Field(..., description="Chunk index (1-indexed)")
+    content: str = Field(..., description="Chunk text content")
+
+
 class DocumentContentResponse(BaseModel):
     """Response containing reassembled document content."""
 
@@ -79,6 +86,10 @@ class DocumentContentResponse(BaseModel):
     chunk_range: ChunkRange = Field(..., description="Range of chunks returned (1-indexed, inclusive)")
     total_chunks: int = Field(..., description="Total number of chunks in the document")
     total_chars: int = Field(..., description="Total character count of returned content")
+    chunks: list[DocumentChunk] | None = Field(
+        default=None,
+        description="Individual chunks (only when return_chunks=true)",
+    )
 
 
 class DocumentDeleteRequest(BaseModel):
@@ -168,6 +179,7 @@ class SearchResult(BaseModel):
     content: str = Field(..., description="Content of the result")
     score: float = Field(..., description="Similarity score")
     document_id: str | None = Field(default=None, description="Source document ID")
+    filename: str | None = Field(default=None, description="Source document filename")
     metadata: dict[str, Any] | None = Field(default=None, description="Result metadata")
 
 
