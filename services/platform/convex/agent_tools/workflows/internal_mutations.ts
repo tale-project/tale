@@ -166,7 +166,7 @@ export const createWorkflowCreationApproval = internalMutation({
           v.literal('loop'),
           v.literal('output'),
         ),
-        order: v.number(),
+        order: v.optional(v.number()),
         config: stepConfigValidator,
         nextSteps: v.record(v.string(), v.string()),
       }),

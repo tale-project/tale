@@ -16,7 +16,7 @@ export const createStep = action({
     stepSlug: v.string(),
     name: v.string(),
     stepType: stepTypeValidator,
-    order: v.number(),
+    order: v.optional(v.number()),
     config: stepConfigValidator,
     nextSteps: v.record(v.string(), v.string()),
     editMode: editModeValidator,

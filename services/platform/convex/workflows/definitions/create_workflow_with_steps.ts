@@ -8,6 +8,7 @@ import type { MutationCtx } from '../../_generated/server';
 import type { StepConfig } from '../../workflow_engine/types/nodes';
 import type { WorkflowConfig, WorkflowType } from './types';
 
+import { computeStepOrder } from '../../workflow_engine/helpers/graph/compute_step_order';
 import { validateWorkflowSteps } from '../../workflow_engine/helpers/validation/validate_workflow_steps';
 import { createWorkflowDraft } from './create_workflow_draft';
 
@@ -24,7 +25,7 @@ export interface CreateWorkflowWithStepsArgs {
     stepSlug: string;
     name: string;
     stepType: Doc<'wfStepDefs'>['stepType'];
-    order: number;
+    order?: number;
     config: StepConfig;
     nextSteps: Record<string, string>;
   }>;
@@ -41,6 +42,9 @@ export async function createWorkflowWithSteps(
 ): Promise<CreateWorkflowWithStepsResult> {
   // Validate workflow steps configuration before saving
   validateWorkflowSteps(args.stepsConfig);
+
+  // Auto-compute step order from the nextSteps graph
+  const orderMap = computeStepOrder(args.stepsConfig);
 
   // Create a new draft workflow, enforcing name uniqueness per organization
   const workflowId: Id<'wfDefinitions'> = await createWorkflowDraft(ctx, {
@@ -61,7 +65,7 @@ export async function createWorkflowWithSteps(
         stepSlug: stepConfig.stepSlug,
         name: stepConfig.name,
         stepType: stepConfig.stepType,
-        order: stepConfig.order,
+        order: orderMap.get(stepConfig.stepSlug) ?? stepConfig.order ?? 0,
         config: stepConfig.config,
         nextSteps: stepConfig.nextSteps,
         organizationId: args.organizationId,

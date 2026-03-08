@@ -43,7 +43,7 @@ export interface WorkflowCreationMetadata {
     stepSlug: string;
     name: string;
     stepType: Doc<'wfStepDefs'>['stepType'];
-    order: number;
+    order?: number;
     config: Record<string, unknown>;
     nextSteps: Record<string, string>;
   }>;

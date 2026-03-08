@@ -92,7 +92,10 @@ const stepConfigSchema = z.object({
     .describe('Step type.'),
   order: z
     .number()
-    .describe('Step order number (determines execution sequence).'),
+    .optional()
+    .describe(
+      'Step order number (auto-computed from nextSteps graph if omitted).',
+    ),
   config: z
     .record(z.string(), z.unknown())
     .describe('Step configuration object; structure depends on step type.'),
@@ -123,7 +126,7 @@ Skip calling workflow_examples; only use it when building a workflow from scratc
 3. Call this tool with complete workflow definition
 
 **STEP STRUCTURE:**
-Each step requires: stepSlug, name, stepType, order, config, nextSteps
+Each step requires: stepSlug, name, stepType, config, nextSteps (order is auto-computed)
 - stepSlug: snake_case unique identifier (e.g., "find_customers")
 - stepType: start | llm | action | condition | loop | output
 - config: Configuration object (varies by stepType)

@@ -6,7 +6,10 @@
     "workflowType": "predefined",
     "config": {
       "timeout": 300000,
-      "retryPolicy": { "maxRetries": 3, "backoffMs": 2000 },
+      "retryPolicy": {
+        "maxRetries": 3,
+        "backoffMs": 2000
+      },
       "variables": {
         "organizationId": "",
         "conversationStatus": "open"
@@ -18,15 +21,15 @@
       "stepSlug": "start",
       "name": "Start",
       "stepType": "start",
-      "order": 1,
       "config": {},
-      "nextSteps": { "success": "query_latest_inbound_message" }
+      "nextSteps": {
+        "success": "query_latest_inbound_message"
+      }
     },
     {
       "stepSlug": "query_latest_inbound_message",
       "name": "Query Latest Inbound Message",
       "stepType": "action",
-      "order": 2,
       "config": {
         "type": "conversation",
         "parameters": {
@@ -37,13 +40,14 @@
           "integrationName": "outlook"
         }
       },
-      "nextSteps": { "success": "check_has_cursor" }
+      "nextSteps": {
+        "success": "check_has_cursor"
+      }
     },
     {
       "stepSlug": "check_has_cursor",
       "name": "Check Has Cursor",
       "stepType": "condition",
-      "order": 3,
       "config": {
         "expression": "steps.query_latest_inbound_message.output.data.message != null",
         "description": "Check if we have a previously synced message to use as cursor"
@@ -57,7 +61,6 @@
       "stepSlug": "fetch_latest_email",
       "name": "Fetch Latest Email (First Run)",
       "stepType": "action",
-      "order": 4,
       "config": {
         "type": "integration",
         "parameters": {
@@ -72,13 +75,14 @@
           }
         }
       },
-      "nextSteps": { "success": "check_has_emails" }
+      "nextSteps": {
+        "success": "check_has_emails"
+      }
     },
     {
       "stepSlug": "fetch_new_emails",
       "name": "Fetch New Emails (Incremental)",
       "stepType": "action",
-      "order": 5,
       "config": {
         "type": "integration",
         "parameters": {
@@ -94,13 +98,14 @@
           }
         }
       },
-      "nextSteps": { "success": "check_has_emails" }
+      "nextSteps": {
+        "success": "check_has_emails"
+      }
     },
     {
       "stepSlug": "check_has_emails",
       "name": "Check Has Emails",
       "stepType": "condition",
-      "order": 6,
       "config": {
         "expression": "(steps.fetch_new_emails.output.data.result.data|length > 0) || (steps.fetch_latest_email.output.data.result.data|length > 0)",
         "description": "Check if any emails were fetched from either path"
@@ -114,7 +119,6 @@
       "stepSlug": "set_conversation_id",
       "name": "Extract Conversation ID",
       "stepType": "action",
-      "order": 7,
       "config": {
         "type": "set_variables",
         "parameters": {
@@ -126,13 +130,14 @@
           ]
         }
       },
-      "nextSteps": { "success": "fetch_thread_messages" }
+      "nextSteps": {
+        "success": "fetch_thread_messages"
+      }
     },
     {
       "stepSlug": "fetch_thread_messages",
       "name": "Fetch Thread Messages",
       "stepType": "action",
-      "order": 8,
       "config": {
         "type": "integration",
         "parameters": {
@@ -148,13 +153,14 @@
           }
         }
       },
-      "nextSteps": { "success": "insert_email_to_conversation" }
+      "nextSteps": {
+        "success": "insert_email_to_conversation"
+      }
     },
     {
       "stepSlug": "insert_email_to_conversation",
       "name": "Insert Emails to Conversation",
       "stepType": "action",
-      "order": 9,
       "config": {
         "type": "conversation",
         "parameters": {
@@ -164,7 +170,9 @@
           "integrationName": "outlook"
         }
       },
-      "nextSteps": { "success": "noop" }
+      "nextSteps": {
+        "success": "noop"
+      }
     }
   ]
 }

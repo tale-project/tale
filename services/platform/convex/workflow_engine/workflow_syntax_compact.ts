@@ -7,7 +7,7 @@
 export const WORKFLOW_SYNTAX_COMPACT = `
 ## Workflow Structure
 \`\`\`
-{ workflowConfig: { name, description?, version?, workflowType: 'predefined', config?: { timeout?, retryPolicy?: { maxRetries, backoffMs }, variables?, secrets? } }, stepsConfig: [{ stepSlug, name, stepType, order, config, nextSteps }] }
+{ workflowConfig: { name, description?, version?, workflowType: 'predefined', config?: { timeout?, retryPolicy?: { maxRetries, backoffMs }, variables?, secrets? } }, stepsConfig: [{ stepSlug, name, stepType, config, nextSteps, order? }] }
 \`\`\`
 
 ## Step Types

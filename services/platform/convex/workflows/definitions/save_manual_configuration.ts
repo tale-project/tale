@@ -7,6 +7,8 @@ import type { MutationCtx } from '../../_generated/server';
 import type { StepConfig } from '../../workflow_engine/types/nodes';
 import type { WorkflowConfig } from './types';
 
+import { computeStepOrder } from '../../workflow_engine/helpers/graph/compute_step_order';
+
 export interface SaveManualConfigurationArgs {
   organizationId: string;
   createdBy: string;
@@ -21,7 +23,7 @@ export interface SaveManualConfigurationArgs {
     stepSlug: string;
     name: string;
     stepType: Doc<'wfStepDefs'>['stepType'];
-    order: number;
+    order?: number;
     config: StepConfig;
     nextSteps: Record<string, string>;
   }>;
@@ -36,6 +38,9 @@ export async function saveManualConfiguration(
   ctx: MutationCtx,
   args: SaveManualConfigurationArgs,
 ): Promise<SaveManualConfigurationResult> {
+  // Auto-compute step order from the nextSteps graph
+  const orderMap = computeStepOrder(args.stepsConfig);
+
   // Create the workflow first
   const workflowId: Id<'wfDefinitions'> = await ctx.db.insert('wfDefinitions', {
     organizationId: args.organizationId,
@@ -65,7 +70,7 @@ export async function saveManualConfiguration(
         stepSlug: stepConfig.stepSlug,
         name: stepConfig.name,
         stepType: stepConfig.stepType,
-        order: stepConfig.order,
+        order: orderMap.get(stepConfig.stepSlug) ?? stepConfig.order ?? 0,
         config: stepConfig.config,
         nextSteps: stepConfig.nextSteps,
         organizationId: args.organizationId,
