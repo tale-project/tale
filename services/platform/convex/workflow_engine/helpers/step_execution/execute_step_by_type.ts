@@ -113,8 +113,11 @@ export async function executeStepByType(
       if (isRecord(mapping) && Object.keys(mapping).length > 0) {
         try {
           mappedOutput = replaceVariables(mapping, variables);
-        } catch {
-          // Bad output mapping template should not fail the workflow
+        } catch (error) {
+          console.error(
+            `[output step] Failed to apply output mapping template:`,
+            error,
+          );
           mappedOutput = null;
         }
       }

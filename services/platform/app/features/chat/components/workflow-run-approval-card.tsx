@@ -48,8 +48,16 @@ function formatElapsed(startMs: number) {
 
 function formatOutputPreview(output: unknown) {
   if (output === null || output === undefined) return null;
-  const str =
-    typeof output === 'string' ? output : JSON.stringify(output, null, 2);
+  let str: string;
+  if (typeof output === 'string') {
+    str = output;
+  } else {
+    try {
+      str = JSON.stringify(output, null, 2);
+    } catch {
+      str = '[Complex object]';
+    }
+  }
   return str.length > 300 ? `${str.slice(0, 300)}…` : str;
 }
 
@@ -180,9 +188,13 @@ function WorkflowRunApprovalCardComponent({
                 ? 'destructive'
                 : 'blue'
           }
-          className="text-xs capitalize"
+          className="text-xs"
         >
-          {status}
+          {status === 'pending'
+            ? t('statusPending')
+            : status === 'approved'
+              ? t('statusApproved')
+              : t('statusRejected')}
         </Badge>
       </HStack>
 
@@ -194,6 +206,7 @@ function WorkflowRunApprovalCardComponent({
             onClick={() => setShowParams(!showParams)}
             className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs transition-colors"
             aria-expanded={showParams}
+            aria-label={showParams ? t('hideParameters') : t('showParameters')}
           >
             {showParams ? (
               <ChevronDown className="size-3" />
@@ -257,6 +270,7 @@ function WorkflowRunApprovalCardComponent({
                     onClick={() => setShowOutput(!showOutput)}
                     className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs transition-colors"
                     aria-expanded={showOutput}
+                    aria-label={showOutput ? t('hideOutput') : t('showOutput')}
                   >
                     {showOutput ? (
                       <ChevronDown className="size-3" />

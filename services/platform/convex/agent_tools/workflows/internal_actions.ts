@@ -222,7 +222,7 @@ The user has approved the workflow run request.
 
 Execution Details:
 - Execution ID: ${executionId}
-- Workflow: ${metadata.workflowName}
+- Workflow: ${metadata.workflowName ?? 'Unknown Workflow'}
 - Status: running
 
 Instructions:
@@ -236,15 +236,15 @@ Instructions:
               content: messageContent,
             },
           );
-        } catch {
-          // System message failure is non-critical; execution already started
+        } catch (error) {
+          console.error('Failed to save workflow run system message:', error);
         }
       }
 
       return {
         success: true,
         executionId,
-        message: `Workflow "${metadata.workflowName}" started successfully.`,
+        message: `Workflow "${metadata.workflowName ?? 'Unknown Workflow'}" started successfully.`,
       };
     } catch (error) {
       const errorMessage =

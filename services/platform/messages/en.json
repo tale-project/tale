@@ -2075,7 +2075,10 @@
     "executionFailed": "Execution failed",
     "viewDetails": "View execution details",
     "showOutput": "Show output",
-    "hideOutput": "Hide output"
+    "hideOutput": "Hide output",
+    "statusPending": "Pending",
+    "statusApproved": "Approved",
+    "statusRejected": "Rejected"
   },
   "integrationApproval": {
     "approve": "Approve",

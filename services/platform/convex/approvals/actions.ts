@@ -2,12 +2,40 @@
 
 import { v, type Infer } from 'convex/values';
 
+import type { Id } from '../_generated/dataModel';
+
 import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
 import { internal } from '../_generated/api';
-import { action } from '../_generated/server';
+import { ActionCtx, action } from '../_generated/server';
 import { authComponent } from '../auth';
 
 type JsonValue = Infer<typeof jsonValueValidator>;
+type AuthUser = NonNullable<
+  Awaited<ReturnType<typeof authComponent.getAuthUser>>
+>;
+
+async function verifyApprovalAccess(
+  ctx: ActionCtx,
+  approvalId: Id<'approvals'>,
+  authUser: AuthUser,
+) {
+  const approval = await ctx.runQuery(
+    internal.approvals.internal_queries.getApprovalById,
+    { approvalId },
+  );
+  if (!approval) {
+    throw new Error('Approval not found');
+  }
+  await ctx.runQuery(
+    internal.approvals.internal_queries.verifyOrganizationMembership,
+    {
+      organizationId: approval.organizationId,
+      userId: String(authUser._id),
+      email: authUser.email,
+      name: authUser.name ?? '',
+    },
+  );
+}
 
 export const executeApprovedIntegrationOperation = action({
   args: {
@@ -19,6 +47,8 @@ export const executeApprovedIntegrationOperation = action({
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
+
+    await verifyApprovalAccess(ctx, args.approvalId, authUser);
 
     return await ctx.runAction(
       internal.agent_tools.integrations.internal_actions
@@ -42,6 +72,8 @@ export const executeApprovedWorkflowRun = action({
       throw new Error('Unauthenticated');
     }
 
+    await verifyApprovalAccess(ctx, args.approvalId, authUser);
+
     return await ctx.runAction(
       internal.agent_tools.workflows.internal_actions
         .executeApprovedWorkflowRun,
@@ -63,6 +95,8 @@ export const executeApprovedWorkflowCreation = action({
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
+
+    await verifyApprovalAccess(ctx, args.approvalId, authUser);
 
     return await ctx.runAction(
       internal.agent_tools.workflows.internal_actions
