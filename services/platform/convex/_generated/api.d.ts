@@ -776,6 +776,7 @@ import type * as workflows_definitions_update_workflow_status from "../workflows
 import type * as workflows_definitions_validators from "../workflows/definitions/validators.js";
 import type * as workflows_executions_cleanup_execution_storage from "../workflows/executions/cleanup_execution_storage.js";
 import type * as workflows_executions_complete_execution from "../workflows/executions/complete_execution.js";
+import type * as workflows_executions_delete_storage_blob from "../workflows/executions/delete_storage_blob.js";
 import type * as workflows_executions_fail_execution from "../workflows/executions/fail_execution.js";
 import type * as workflows_executions_get_execution from "../workflows/executions/get_execution.js";
 import type * as workflows_executions_get_execution_step_journal from "../workflows/executions/get_execution_step_journal.js";
@@ -1624,6 +1625,7 @@ declare const fullApi: ApiFromModules<{
   "workflows/definitions/validators": typeof workflows_definitions_validators;
   "workflows/executions/cleanup_execution_storage": typeof workflows_executions_cleanup_execution_storage;
   "workflows/executions/complete_execution": typeof workflows_executions_complete_execution;
+  "workflows/executions/delete_storage_blob": typeof workflows_executions_delete_storage_blob;
   "workflows/executions/fail_execution": typeof workflows_executions_fail_execution;
   "workflows/executions/get_execution": typeof workflows_executions_get_execution;
   "workflows/executions/get_execution_step_journal": typeof workflows_executions_get_execution_step_journal;

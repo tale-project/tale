@@ -2,6 +2,7 @@ import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
 
 export const STORAGE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+export const INTERMEDIATE_STORAGE_RETENTION_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 export interface CleanupExecutionStorageArgs {
   executionId: Id<'wfExecutions'>;

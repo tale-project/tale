@@ -9,6 +9,7 @@ import { describe, it, expect, vi } from 'vitest';
 import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
 
+import { INTERMEDIATE_STORAGE_RETENTION_MS } from '../../workflows/executions/cleanup_execution_storage';
 import { updateExecutionVariables } from '../../workflows/executions/update_execution_variables';
 
 function createMockCtx(executionOverrides: Record<string, unknown> = {}) {
@@ -21,6 +22,8 @@ function createMockCtx(executionOverrides: Record<string, unknown> = {}) {
     ...executionOverrides,
   };
 
+  const scheduledJobs: { delay: number; args: Record<string, unknown> }[] = [];
+
   return {
     db: {
       get: vi.fn().mockResolvedValue(execution),
@@ -29,6 +32,14 @@ function createMockCtx(executionOverrides: Record<string, unknown> = {}) {
     storage: {
       delete: vi.fn(),
     },
+    scheduler: {
+      runAfter: vi.fn(
+        async (delay: number, _fn: unknown, args: Record<string, unknown>) => {
+          scheduledJobs.push({ delay, args });
+        },
+      ),
+    },
+    _scheduledJobs: scheduledJobs,
   };
 }
 
@@ -88,7 +99,7 @@ describe('updateExecutionVariables', () => {
   });
 
   describe('storage cleanup', () => {
-    it('should delete old storage when transitioning from storage to inline', async () => {
+    it('should schedule deferred deletion when transitioning from storage to inline', async () => {
       const ctx = createMockCtx({ variablesStorageId: 'old_storage' });
 
       await updateExecutionVariables(ctx as unknown as MutationCtx, {
@@ -96,10 +107,15 @@ describe('updateExecutionVariables', () => {
         variablesSerialized: '{"inline": true}',
       });
 
-      expect(ctx.storage.delete).toHaveBeenCalledWith('old_storage');
+      expect(ctx.storage.delete).not.toHaveBeenCalled();
+      expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
+        INTERMEDIATE_STORAGE_RETENTION_MS,
+        expect.anything(),
+        { storageId: 'old_storage' },
+      );
     });
 
-    it('should delete old storage when storage ID changes', async () => {
+    it('should schedule deferred deletion when storage ID changes', async () => {
       const ctx = createMockCtx({ variablesStorageId: 'old_storage' });
 
       await updateExecutionVariables(ctx as unknown as MutationCtx, {
@@ -108,10 +124,15 @@ describe('updateExecutionVariables', () => {
         variablesStorageId: 'new_storage' as Id<'_storage'>,
       });
 
-      expect(ctx.storage.delete).toHaveBeenCalledWith('old_storage');
+      expect(ctx.storage.delete).not.toHaveBeenCalled();
+      expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
+        INTERMEDIATE_STORAGE_RETENTION_MS,
+        expect.anything(),
+        { storageId: 'old_storage' },
+      );
     });
 
-    it('should not delete storage when IDs are the same', async () => {
+    it('should not schedule deletion when IDs are the same', async () => {
       const ctx = createMockCtx({ variablesStorageId: 'same_id' });
 
       await updateExecutionVariables(ctx as unknown as MutationCtx, {
@@ -121,9 +142,10 @@ describe('updateExecutionVariables', () => {
       });
 
       expect(ctx.storage.delete).not.toHaveBeenCalled();
+      expect(ctx.scheduler.runAfter).not.toHaveBeenCalled();
     });
 
-    it('should not delete anything when no old storage exists', async () => {
+    it('should not schedule deletion when no old storage exists', async () => {
       const ctx = createMockCtx();
 
       await updateExecutionVariables(ctx as unknown as MutationCtx, {
@@ -132,6 +154,7 @@ describe('updateExecutionVariables', () => {
       });
 
       expect(ctx.storage.delete).not.toHaveBeenCalled();
+      expect(ctx.scheduler.runAfter).not.toHaveBeenCalled();
     });
   });
 

@@ -6,6 +6,7 @@ import { internal } from '../_generated/api';
 import { mutationWithRLS } from '../lib/rls';
 import { workflowManagers } from '../workflow_engine/engine';
 import { safeShardIndex } from '../workflow_engine/helpers/engine/shard';
+import { STORAGE_RETENTION_MS } from '../workflows/executions/cleanup_execution_storage';
 
 const CLEANUP_DELAY_MS = 10_000;
 
@@ -49,6 +50,17 @@ export const cancelExecution = mutationWithRLS({
         cancelledAt: Date.now(),
       }),
     });
+
+    // Schedule deferred cleanup of storage blobs after 30 days
+    const variablesStorageId = execution.variablesStorageId;
+    const outputStorageId = execution.outputStorageId;
+    if (variablesStorageId || outputStorageId) {
+      await ctx.scheduler.runAfter(
+        STORAGE_RETENTION_MS,
+        internal.wf_executions.internal_mutations.cleanupExecutionStorage,
+        { executionId: args.executionId, variablesStorageId, outputStorageId },
+      );
+    }
 
     return null;
   },

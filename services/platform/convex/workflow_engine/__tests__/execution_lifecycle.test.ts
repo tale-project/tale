@@ -11,10 +11,12 @@ import type { MutationCtx } from '../../_generated/server';
 
 import {
   cleanupExecutionStorage,
+  INTERMEDIATE_STORAGE_RETENTION_MS,
   STORAGE_RETENTION_MS,
 } from '../../workflows/executions/cleanup_execution_storage';
 import { completeExecution } from '../../workflows/executions/complete_execution';
 import { failExecution } from '../../workflows/executions/fail_execution';
+import { resumeExecution } from '../../workflows/executions/resume_execution';
 import { updateExecutionStatus } from '../../workflows/executions/update_execution_status';
 
 function createMockCtx() {
@@ -171,7 +173,7 @@ describe('completeExecution', () => {
     );
   });
 
-  it('should immediately delete old storage when replaced by different storage', async () => {
+  it('should schedule deferred deletion of old storage when replaced by different storage', async () => {
     const ctx = createMockCtx();
     ctx._storedExecution.variablesStorageId = 'old_storage';
 
@@ -182,10 +184,15 @@ describe('completeExecution', () => {
       variablesStorageId: 'new_storage' as Id<'_storage'>,
     });
 
-    expect(ctx.storage.delete).toHaveBeenCalledWith('old_storage');
+    expect(ctx.storage.delete).not.toHaveBeenCalled();
+    expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
+      INTERMEDIATE_STORAGE_RETENTION_MS,
+      expect.anything(),
+      { storageId: 'old_storage' },
+    );
   });
 
-  it('should not immediately delete storage when IDs match', async () => {
+  it('should not schedule deferred deletion when IDs match', async () => {
     const ctx = createMockCtx();
     ctx._storedExecution.variablesStorageId = 'same_storage';
 
@@ -199,7 +206,7 @@ describe('completeExecution', () => {
     expect(ctx._deletedStorageIds).not.toContain('same_storage');
   });
 
-  it('should NOT immediately delete storage when no replacement is provided', async () => {
+  it('should NOT schedule deferred deletion when no replacement is provided', async () => {
     const ctx = createMockCtx();
     ctx._storedExecution.variablesStorageId = 'existing_storage';
 
@@ -432,5 +439,100 @@ describe('updateExecutionStatus', () => {
       'exec_1',
       expect.objectContaining({ waitingFor: 'approval_task_123' }),
     );
+  });
+});
+
+describe('resumeExecution', () => {
+  it('should set status to running and clear waitingFor', async () => {
+    const ctx = createMockCtx();
+
+    await resumeExecution(ctx as unknown as MutationCtx, {
+      executionId: 'exec_1' as Id<'wfExecutions'>,
+    });
+
+    expect(ctx.db.patch).toHaveBeenCalledWith(
+      'exec_1',
+      expect.objectContaining({
+        status: 'running',
+        waitingFor: undefined,
+      }),
+    );
+  });
+
+  it('should schedule deferred deletion when storage ID changes', async () => {
+    const ctx = createMockCtx();
+    ctx._storedExecution.variablesStorageId = 'old_storage';
+
+    await resumeExecution(ctx as unknown as MutationCtx, {
+      executionId: 'exec_1' as Id<'wfExecutions'>,
+      variablesSerialized: '{"_storageRef":"new_storage"}',
+      variablesStorageId: 'new_storage' as Id<'_storage'>,
+    });
+
+    expect(ctx.storage.delete).not.toHaveBeenCalled();
+    expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
+      INTERMEDIATE_STORAGE_RETENTION_MS,
+      expect.anything(),
+      { storageId: 'old_storage' },
+    );
+  });
+
+  it('should schedule deferred deletion when transitioning from storage to inline', async () => {
+    const ctx = createMockCtx();
+    ctx._storedExecution.variablesStorageId = 'old_storage';
+
+    await resumeExecution(ctx as unknown as MutationCtx, {
+      executionId: 'exec_1' as Id<'wfExecutions'>,
+      variablesSerialized: '{"inline": true}',
+    });
+
+    expect(ctx.storage.delete).not.toHaveBeenCalled();
+    expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
+      INTERMEDIATE_STORAGE_RETENTION_MS,
+      expect.anything(),
+      { storageId: 'old_storage' },
+    );
+  });
+
+  it('should not schedule deletion when storage IDs match', async () => {
+    const ctx = createMockCtx();
+    ctx._storedExecution.variablesStorageId = 'same_id';
+
+    await resumeExecution(ctx as unknown as MutationCtx, {
+      executionId: 'exec_1' as Id<'wfExecutions'>,
+      variablesSerialized: '{"_storageRef":"same_id"}',
+      variablesStorageId: 'same_id' as Id<'_storage'>,
+    });
+
+    expect(ctx.storage.delete).not.toHaveBeenCalled();
+    expect(ctx.scheduler.runAfter).not.toHaveBeenCalled();
+  });
+
+  it('should not schedule deletion when no old storage exists', async () => {
+    const ctx = createMockCtx();
+
+    await resumeExecution(ctx as unknown as MutationCtx, {
+      executionId: 'exec_1' as Id<'wfExecutions'>,
+      variablesSerialized: '{"data": true}',
+    });
+
+    expect(ctx.storage.delete).not.toHaveBeenCalled();
+    expect(ctx.scheduler.runAfter).not.toHaveBeenCalled();
+  });
+
+  it('should merge metadata when provided', async () => {
+    const ctx = createMockCtx();
+    ctx._storedExecution.metadata = JSON.stringify({ existing: true });
+
+    await resumeExecution(ctx as unknown as MutationCtx, {
+      executionId: 'exec_1' as Id<'wfExecutions'>,
+      metadata: { newField: 'value' },
+    });
+
+    const patchCall = ctx.db.patch.mock.calls[0][1];
+    expect(JSON.parse(patchCall.metadata as string)).toEqual({
+      existing: true,
+      newField: 'value',
+    });
   });
 });

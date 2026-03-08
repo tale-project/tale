@@ -5,6 +5,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Id } from '../../../_generated/dataModel';
 import type { MutationCtx } from '../../../_generated/server';
 
+import { STORAGE_RETENTION_MS } from '../../../workflows/executions/cleanup_execution_storage';
 import { recoverStuckExecutions } from './recover_stuck_executions';
 
 const NOW = new Date('2026-02-12T12:00:00Z').getTime();
@@ -21,6 +22,8 @@ function makeExecution(
     componentWorkflowId: string;
     shardIndex: number;
     workflowConfig: string;
+    variablesStorageId: string;
+    outputStorageId: string;
   }> = {},
 ) {
   return {
@@ -34,6 +37,8 @@ function makeExecution(
     componentWorkflowId: overrides.componentWorkflowId,
     shardIndex: overrides.shardIndex,
     workflowConfig: overrides.workflowConfig,
+    variablesStorageId: overrides.variablesStorageId,
+    outputStorageId: overrides.outputStorageId,
   };
 }
 
@@ -306,7 +311,7 @@ describe('recoverStuckExecutions', () => {
     );
   });
 
-  it('should gracefully handle executions without componentWorkflowId', async () => {
+  it('should gracefully handle executions without componentWorkflowId and no storage', async () => {
     const execution = makeExecution({
       _id: 'exec_no_component',
       status: 'running',
@@ -323,5 +328,51 @@ describe('recoverStuckExecutions', () => {
     expect(result.recovered).toBe(1);
     expect(_cancelCalls).toHaveLength(0);
     expect(ctx.scheduler.runAfter).not.toHaveBeenCalled();
+  });
+
+  it('should schedule storage cleanup when recovered execution has storage IDs', async () => {
+    const execution = makeExecution({
+      _id: 'exec_with_storage',
+      status: 'running',
+      updatedAt: SEVEN_HOURS_AGO,
+      variablesStorageId: 'var_storage_123',
+      outputStorageId: 'out_storage_456',
+    });
+    const ctx = createMockCtx([execution]);
+    const { managers } = createMockManagers();
+
+    await recoverStuckExecutions(ctx as unknown as MutationCtx, managers);
+
+    expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
+      STORAGE_RETENTION_MS,
+      expect.anything(),
+      expect.objectContaining({
+        executionId: 'exec_with_storage',
+        variablesStorageId: 'var_storage_123',
+        outputStorageId: 'out_storage_456',
+      }),
+    );
+  });
+
+  it('should schedule storage cleanup for pending execution with storage IDs', async () => {
+    const execution = makeExecution({
+      _id: 'exec_pending_storage',
+      status: 'pending',
+      updatedAt: SEVEN_HOURS_AGO,
+      variablesStorageId: 'var_storage_789',
+    });
+    const ctx = createMockCtx([execution]);
+    const { managers } = createMockManagers();
+
+    await recoverStuckExecutions(ctx as unknown as MutationCtx, managers);
+
+    expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
+      STORAGE_RETENTION_MS,
+      expect.anything(),
+      expect.objectContaining({
+        executionId: 'exec_pending_storage',
+        variablesStorageId: 'var_storage_789',
+      }),
+    );
   });
 });

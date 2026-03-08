@@ -4,7 +4,10 @@ import type { ConvexJsonValue } from '../../lib/validators/json';
 import type { CompleteExecutionArgs } from './types';
 
 import { internal } from '../../_generated/api';
-import { STORAGE_RETENTION_MS } from './cleanup_execution_storage';
+import {
+  INTERMEDIATE_STORAGE_RETENTION_MS,
+  STORAGE_RETENTION_MS,
+} from './cleanup_execution_storage';
 
 type CompleteExecutionData = {
   output: ConvexJsonValue;
@@ -39,38 +42,30 @@ export async function completeExecution(
 
   await ctx.db.patch(args.executionId, updates);
 
-  // Immediately delete old variables storage only when replaced by a different blob
+  // Schedule deferred cleanup of old variables storage when replaced by a different blob
   if (
     oldVariablesStorageId &&
     args.variablesStorageId &&
     oldVariablesStorageId !== args.variablesStorageId
   ) {
-    try {
-      await ctx.storage.delete(oldVariablesStorageId);
-    } catch (error) {
-      console.warn(
-        '[completeExecution] Failed to delete old variables storage:',
-        oldVariablesStorageId,
-        error,
-      );
-    }
+    await ctx.scheduler.runAfter(
+      INTERMEDIATE_STORAGE_RETENTION_MS,
+      internal.wf_executions.internal_mutations.deleteStorageBlob,
+      { storageId: oldVariablesStorageId },
+    );
   }
 
-  // Immediately delete old output storage only when replaced by a different blob
+  // Schedule deferred cleanup of old output storage when replaced by a different blob
   if (
     oldOutputStorageId &&
     args.outputStorageId &&
     oldOutputStorageId !== args.outputStorageId
   ) {
-    try {
-      await ctx.storage.delete(oldOutputStorageId);
-    } catch (error) {
-      console.warn(
-        '[completeExecution] Failed to delete old output storage:',
-        oldOutputStorageId,
-        error,
-      );
-    }
+    await ctx.scheduler.runAfter(
+      INTERMEDIATE_STORAGE_RETENTION_MS,
+      internal.wf_executions.internal_mutations.deleteStorageBlob,
+      { storageId: oldOutputStorageId },
+    );
   }
 
   // Schedule delayed cleanup of final storage blobs after 30 days
