@@ -24,6 +24,7 @@ export const TOOL_NAMES = [
   'update_workflow_step',
   'save_workflow_definition',
   'create_workflow',
+  'run_workflow',
   'excel',
   'integration',
   'integration_batch',

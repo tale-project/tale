@@ -336,6 +336,7 @@ export async function linkApprovalsToMessage(
   const resourceTypesToLink = [
     'integration_operation',
     'workflow_creation',
+    'workflow_run',
     'human_input_request',
   ] as const;
 

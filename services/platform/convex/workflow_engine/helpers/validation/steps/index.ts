@@ -10,11 +10,13 @@ export * from './llm';
 export * from './condition';
 export * from './action';
 export * from './loop';
+export * from './output';
 
 import { validateActionStep } from './action';
 import { validateConditionStep } from './condition';
 import { validateLlmStep } from './llm';
 import { validateLoopStep } from './loop';
+import { validateOutputStep } from './output';
 import { validateStartStep } from './start';
 
 /**
@@ -29,6 +31,7 @@ const stepValidators: Record<
   condition: validateConditionStep,
   action: validateActionStep,
   loop: validateLoopStep,
+  output: validateOutputStep,
 };
 
 /**

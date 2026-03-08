@@ -3,6 +3,7 @@ import { v } from 'convex/values';
 import { mutation } from '../_generated/server';
 import * as AuditLogHelpers from '../audit_logs/helpers';
 import { authComponent } from '../auth';
+import { getOrganizationMember } from '../lib/rls';
 import * as ApprovalsHelpers from './helpers';
 import { approvalStatusValidator } from './validators';
 
@@ -23,6 +24,8 @@ export const updateApprovalStatus = mutation({
     if (!approval) {
       throw new Error('Approval not found');
     }
+
+    await getOrganizationMember(ctx, approval.organizationId);
 
     const previousStatus = approval.status;
 
@@ -75,6 +78,8 @@ export const removeRecommendedProduct = mutation({
     if (!approval) {
       throw new Error('Approval not found');
     }
+
+    await getOrganizationMember(ctx, approval.organizationId);
 
     await ApprovalsHelpers.removeRecommendedProduct(ctx, {
       approvalId: args.approvalId,

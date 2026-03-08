@@ -58,6 +58,24 @@ export const getRawExecution = queryWithRLS({
   },
 });
 
+export const getExecutionStatus = queryWithRLS({
+  args: {
+    executionId: v.id('wfExecutions'),
+  },
+  handler: async (ctx, args) => {
+    const exec = await ctx.db.get(args.executionId);
+    if (!exec) return null;
+    return {
+      status: exec.status,
+      currentStepSlug: exec.currentStepSlug,
+      error: exec.error,
+      startedAt: exec.startedAt,
+      completedAt: exec.completedAt,
+      output: exec.output,
+    };
+  },
+});
+
 export const approxCountExecutions = queryWithRLS({
   args: {
     wfDefinitionId: v.id('wfDefinitions'),

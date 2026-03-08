@@ -21,7 +21,7 @@ const workflowEntries = Object.entries(workflows);
 // Special step slugs that are valid terminations (not actual steps)
 const SPECIAL_TERMINATION_STEPS = new Set([
   'noop',
-  'end',
+  'output',
   'terminate',
   'complete',
 ]);

@@ -38,6 +38,7 @@ interface ListApprovalsPaginatedArgs {
     | 'product_recommendation'
     | 'integration_operation'
     | 'workflow_creation'
+    | 'workflow_run'
     | 'human_input_request';
   excludeStatus?: 'pending' | 'approved' | 'rejected';
   initialNumItems: number;

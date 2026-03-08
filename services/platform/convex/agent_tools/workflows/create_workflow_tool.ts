@@ -142,7 +142,7 @@ Reference: generalCustomerStatusAssessment, productRecommendationEmail`,
       validationErrors?: string[];
       validationWarnings?: string[];
     }> => {
-      const { organizationId, threadId: currentThreadId } = ctx;
+      const { organizationId, threadId: currentThreadId, messageId } = ctx;
 
       // Look up parent thread from thread summary (stable, database-backed)
       // This ensures approvals from sub-agents link to the main chat thread
@@ -193,6 +193,7 @@ Reference: generalCustomerStatusAssessment, productRecommendationEmail`,
               config: step.config,
             })),
             threadId,
+            messageId,
           },
         );
 

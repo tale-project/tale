@@ -4,6 +4,7 @@ import type {
   HumanInputRequest,
   IntegrationApproval,
   WorkflowCreationApproval,
+  WorkflowRunApproval,
 } from './queries';
 import type { ChatMessage } from './use-message-processing';
 
@@ -11,12 +12,14 @@ export type ChatItem =
   | { type: 'message'; data: ChatMessage }
   | { type: 'approval'; data: IntegrationApproval }
   | { type: 'workflow_approval'; data: WorkflowCreationApproval }
+  | { type: 'workflow_run_approval'; data: WorkflowRunApproval }
   | { type: 'human_input_request'; data: HumanInputRequest };
 
 interface UseMergedChatItemsParams {
   messages: ChatMessage[];
   integrationApprovals: IntegrationApproval[] | undefined;
   workflowCreationApprovals: WorkflowCreationApproval[] | undefined;
+  workflowRunApprovals: WorkflowRunApproval[] | undefined;
   humanInputRequests: HumanInputRequest[] | undefined;
 }
 
@@ -28,6 +31,7 @@ export function useMergedChatItems({
   messages,
   integrationApprovals,
   workflowCreationApprovals,
+  workflowRunApprovals,
   humanInputRequests,
 }: UseMergedChatItemsParams): ChatItem[] {
   return useMemo((): ChatItem[] => {
@@ -71,6 +75,18 @@ export function useMergedChatItems({
       items.push({ type: 'workflow_approval', data: approval });
     }
 
+    // Filter and add workflow run approvals
+    const filteredWorkflowRunApprovals = (workflowRunApprovals || []).filter(
+      (approval) => {
+        if (!approval.messageId) return false;
+        return loadedMessageIds.has(approval.messageId);
+      },
+    );
+
+    for (const approval of filteredWorkflowRunApprovals) {
+      items.push({ type: 'workflow_run_approval', data: approval });
+    }
+
     // Filter and add human input requests
     const filteredHumanInputRequests = (humanInputRequests || []).filter(
       (request) => {
@@ -97,6 +113,7 @@ export function useMergedChatItems({
           // Use different offsets to maintain consistent ordering
           let offset = 0.1;
           if (item.type === 'workflow_approval') offset = 0.11;
+          if (item.type === 'workflow_run_approval') offset = 0.115;
           if (item.type === 'human_input_request') offset = 0.12;
           return messageTime + offset;
         }
@@ -111,6 +128,7 @@ export function useMergedChatItems({
     messages,
     integrationApprovals,
     workflowCreationApprovals,
+    workflowRunApprovals,
     humanInputRequests,
   ]);
 }

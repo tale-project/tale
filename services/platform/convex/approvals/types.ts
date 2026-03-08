@@ -53,6 +53,17 @@ export interface WorkflowCreationMetadata {
   executionError?: string;
 }
 
+export interface WorkflowRunMetadata {
+  workflowId: string;
+  workflowName: string;
+  workflowDescription?: string;
+  parameters?: Record<string, unknown>;
+  requestedAt: number;
+  executedAt?: number;
+  executionId?: string;
+  executionError?: string;
+}
+
 export interface CreateApprovalArgs {
   organizationId: string;
   resourceType: ApprovalResourceType;

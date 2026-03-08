@@ -4,6 +4,7 @@ import type { Doc } from '../_generated/dataModel';
 import type { ApprovalItem } from './types';
 
 import { internalQuery } from '../_generated/server';
+import { getOrganizationMember } from '../lib/rls';
 import * as ApprovalsHelpers from './helpers';
 import { approvalItemValidator } from './validators';
 
@@ -14,6 +15,22 @@ export const getApprovalById = internalQuery({
   returns: v.union(approvalItemValidator, v.null()),
   handler: async (ctx, args): Promise<ApprovalItem | null> => {
     return await ApprovalsHelpers.getApproval(ctx, args.approvalId);
+  },
+});
+
+export const verifyOrganizationMembership = internalQuery({
+  args: {
+    organizationId: v.string(),
+    userId: v.string(),
+    email: v.string(),
+    name: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await getOrganizationMember(ctx, args.organizationId, {
+      userId: args.userId,
+      email: args.email,
+      name: args.name,
+    });
   },
 });
 

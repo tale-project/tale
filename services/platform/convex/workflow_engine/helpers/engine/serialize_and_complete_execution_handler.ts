@@ -37,11 +37,21 @@ export async function handleSerializeAndCompleteExecution(
     throw new Error(`Execution not found: ${args.executionId}`);
   }
 
-  // Parse variables to use as output
+  // Extract output: use output node's __workflowOutput if present, otherwise
+  // fall back to sanitized variables (strips secrets and system fields)
   let output: unknown = {};
   if (execution.variables) {
     try {
-      output = JSON.parse(execution.variables);
+      const vars = JSON.parse(execution.variables);
+      if (
+        typeof vars === 'object' &&
+        vars !== null &&
+        '__workflowOutput' in vars
+      ) {
+        output = vars.__workflowOutput;
+      } else {
+        output = sanitizeOutputVariables(vars);
+      }
     } catch {
       output = {};
     }
@@ -84,4 +94,22 @@ export async function handleSerializeAndCompleteExecution(
   });
 
   return null;
+}
+
+const SENSITIVE_OUTPUT_KEYS = [
+  'secrets',
+  'organizationId',
+  'wfDefinitionId',
+  'rootWfDefinitionId',
+];
+
+function sanitizeOutputVariables(vars: unknown): unknown {
+  if (typeof vars !== 'object' || vars === null || Array.isArray(vars)) {
+    return vars;
+  }
+  const sanitized = { ...vars } as Record<string, unknown>;
+  for (const key of SENSITIVE_OUTPUT_KEYS) {
+    delete sanitized[key];
+  }
+  return sanitized;
 }

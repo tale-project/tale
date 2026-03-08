@@ -206,6 +206,18 @@ export const loopNodeConfigValidator = v.object({
 });
 
 // =============================================================================
+// OUTPUT NODE TYPES
+// =============================================================================
+
+export interface OutputNodeConfig {
+  outputMapping?: Record<string, string>;
+}
+
+export const outputNodeConfigValidator = v.object({
+  outputMapping: v.optional(v.record(v.string(), v.string())),
+});
+
+// =============================================================================
 // START NODE TYPES (VALIDATOR)
 // =============================================================================
 
@@ -339,6 +351,7 @@ export const stepConfigValidator = v.union(
   conditionNodeConfigValidator,
   actionNodeConfigValidator,
   loopNodeConfigValidator,
+  outputNodeConfigValidator,
 );
 
 /** Inferred type from stepConfigValidator */

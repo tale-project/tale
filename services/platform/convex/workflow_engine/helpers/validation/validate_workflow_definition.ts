@@ -3,7 +3,7 @@
  *
  * Validates a complete workflow definition structure.
  * Checks:
- * - Valid stepTypes (trigger, llm, action, condition, loop)
+ * - Valid stepTypes (trigger, llm, action, condition, loop, output)
  * - Required fields for each step type
  * - Valid nextSteps references
  * - Config structure for each step type

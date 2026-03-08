@@ -2,12 +2,16 @@ import { saveMessage } from '@convex-dev/agent';
 import { v } from 'convex/values';
 
 import type { Doc, Id } from '../../_generated/dataModel';
-import type { WorkflowCreationMetadata } from '../../approvals/types';
+import type {
+  WorkflowCreationMetadata,
+  WorkflowRunMetadata,
+} from '../../approvals/types';
 
 import { jsonRecordValidator } from '../../../lib/shared/schemas/utils/json-value';
 import { components } from '../../_generated/api';
 import { internalMutation } from '../../_generated/server';
 import { createApproval } from '../../approvals/helpers';
+import { checkOrganizationRateLimit } from '../../lib/rate_limiter/helpers';
 
 type ApprovalMetadata = Doc<'approvals'>['metadata'];
 
@@ -19,7 +23,8 @@ export const updateWorkflowApprovalWithResult = internalMutation({
   },
   handler: async (ctx, args): Promise<void> => {
     const approval = await ctx.db.get(args.approvalId);
-    if (!approval) return;
+    if (!approval) throw new Error('Approval not found');
+    if (approval.executedAt) return;
 
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- approval.metadata is v.any() but always matches WorkflowCreationMetadata for workflow_creation approvals
     const metadata = (approval.metadata || {}) as WorkflowCreationMetadata;
@@ -124,5 +129,71 @@ export const createWorkflowCreationApproval = internalMutation({
     });
 
     return approvalId;
+  },
+});
+
+export const createWorkflowRunApproval = internalMutation({
+  args: {
+    organizationId: v.string(),
+    workflowId: v.id('wfDefinitions'),
+    workflowName: v.string(),
+    workflowDescription: v.optional(v.string()),
+    parameters: v.optional(jsonRecordValidator),
+    threadId: v.optional(v.string()),
+    messageId: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<Id<'approvals'>> => {
+    await checkOrganizationRateLimit(ctx, 'workflow:run', args.organizationId);
+
+    const metadata: WorkflowRunMetadata = {
+      workflowId: args.workflowId,
+      workflowName: args.workflowName,
+      workflowDescription: args.workflowDescription,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex jsonRecordValidator returns broader type; parameters is always Record<string, unknown>
+      parameters: args.parameters as Record<string, unknown> | undefined,
+      requestedAt: Date.now(),
+    };
+
+    const approvalId = await createApproval(ctx, {
+      organizationId: args.organizationId,
+      resourceType: 'workflow_run',
+      resourceId: `workflow_run:${args.workflowId}`,
+      priority: 'high',
+      description: `Run workflow: ${args.workflowName}${args.workflowDescription ? ` - ${args.workflowDescription}` : ''}`,
+      threadId: args.threadId,
+      messageId: args.messageId,
+      metadata,
+    });
+
+    return approvalId;
+  },
+});
+
+export const updateWorkflowRunApprovalWithResult = internalMutation({
+  args: {
+    approvalId: v.id('approvals'),
+    executionId: v.union(v.id('wfExecutions'), v.null()),
+    executionError: v.union(v.string(), v.null()),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    const approval = await ctx.db.get(args.approvalId);
+    if (!approval) throw new Error('Approval not found');
+    if (approval.executedAt) return;
+
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- approval.metadata is v.any() but always matches WorkflowRunMetadata for workflow_run approvals
+    const metadata = (approval.metadata || {}) as WorkflowRunMetadata;
+
+    const now = Date.now();
+    await ctx.db.patch(args.approvalId, {
+      executedAt: now,
+      executionError: args.executionError ?? undefined,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- constructing approval metadata from known WorkflowRunMetadata fields
+      metadata: {
+        ...metadata,
+        executedAt: now,
+        ...(args.executionId ? { executionId: args.executionId } : {}),
+        ...(args.executionError ? { executionError: args.executionError } : {}),
+      } as ApprovalMetadata,
+    });
   },
 });

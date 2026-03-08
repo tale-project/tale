@@ -2,7 +2,10 @@ import { useUIMessages } from '@convex-dev/agent/react';
 import { useMemo } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
-import type { WorkflowCreationMetadata } from '@/convex/approvals/types';
+import type {
+  WorkflowCreationMetadata,
+  WorkflowRunMetadata,
+} from '@/convex/approvals/types';
 import type { HumanInputRequestMetadata } from '@/lib/shared/schemas/approvals';
 import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 
@@ -244,6 +247,49 @@ export function useWorkflowCreationApprovals(
 
   return {
     approvals: workflowCreationApprovals,
+    isLoading,
+  };
+}
+
+export interface WorkflowRunApproval {
+  _id: Id<'approvals'>;
+  status: 'pending' | 'approved' | 'rejected';
+  metadata: WorkflowRunMetadata;
+  executedAt?: number;
+  executionError?: string;
+  _creationTime: number;
+  messageId?: string;
+}
+
+export function useWorkflowRunApprovals(
+  organizationId: string,
+  threadId: string | undefined,
+) {
+  const { approvals, isLoading } = useApprovals(organizationId);
+
+  const workflowRunApprovals = useMemo((): WorkflowRunApproval[] => {
+    if (!approvals || !threadId) return [];
+    return approvals
+      .filter(
+        (a) =>
+          a.threadId === threadId &&
+          a.resourceType === 'workflow_run' &&
+          a.metadata !== undefined,
+      )
+      .map((a) => ({
+        _id: toId<'approvals'>(a._id),
+        status: a.status,
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Metadata shape is guaranteed by resourceType filter above
+        metadata: a.metadata as unknown as WorkflowRunMetadata,
+        executedAt: a.executedAt,
+        executionError: a.executionError,
+        _creationTime: a._creationTime,
+        messageId: a.messageId,
+      }));
+  }, [approvals, threadId]);
+
+  return {
+    approvals: workflowRunApprovals,
     isLoading,
   };
 }

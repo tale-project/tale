@@ -127,6 +127,8 @@ export function useApprovalColumns({
           return t('types.reviewReply');
         case 'product_recommendation':
           return t('types.recommendProduct');
+        case 'workflow_run':
+          return t('types.runWorkflow');
         default:
           return t('types.review');
       }

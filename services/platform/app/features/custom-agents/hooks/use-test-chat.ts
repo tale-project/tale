@@ -9,6 +9,7 @@ import {
 import {
   useIntegrationApprovals,
   useWorkflowCreationApprovals,
+  useWorkflowRunApprovals,
   useHumanInputRequests,
 } from '@/app/features/chat/hooks/queries';
 import { useChatLoadingState } from '@/app/features/chat/hooks/use-chat-loading-state';
@@ -128,6 +129,10 @@ export function useTestChat({
     organizationId,
     threadId ?? undefined,
   );
+  const { approvals: workflowRunApprovals } = useWorkflowRunApprovals(
+    organizationId,
+    threadId ?? undefined,
+  );
   const { requests: humanInputRequests } = useHumanInputRequests(
     organizationId,
     threadId ?? undefined,
@@ -164,6 +169,7 @@ export function useTestChat({
     messages,
     integrationApprovals,
     workflowCreationApprovals,
+    workflowRunApprovals,
     humanInputRequests,
   });
 

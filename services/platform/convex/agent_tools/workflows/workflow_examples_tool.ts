@@ -28,13 +28,14 @@ const workflowExamplesArgs = z.object({
       'action',
       'condition',
       'loop',
+      'output',
       'email',
       'entity_processing',
       'variables',
     ])
     .optional()
     .describe(
-      "Category of syntax to retrieve. START with 'quick_start' for decision tree, then 'common_patterns' for skeletons. Other options: 'start', 'llm', 'action', 'condition', 'loop', 'email', 'entity_processing', 'variables'.",
+      "Category of syntax to retrieve. START with 'quick_start' for decision tree, then 'common_patterns' for skeletons. Other options: 'start', 'llm', 'action', 'condition', 'loop', 'output', 'email', 'entity_processing', 'variables'.",
     ),
 });
 
