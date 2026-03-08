@@ -95,6 +95,7 @@ export const ragAction: ActionDefinition<RagActionParams> = {
           if (error instanceof Error && error.name === 'AbortError') {
             throw new Error(
               `RAG search timed out after ${SEARCH_TIMEOUT_MS / 1000}s`,
+              { cause: error },
             );
           }
           throw error;

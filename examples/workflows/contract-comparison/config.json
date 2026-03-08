@@ -1,0 +1,212 @@
+{
+  "workflowConfig": {
+    "name": "Contract Comparison",
+    "description": "Compare multiple legal contracts using chunk-level RAG search to identify differences and frequently amended clauses, producing a structured DOCX comparison report",
+    "version": "1.0.0",
+    "workflowType": "predefined",
+    "config": {
+      "timeout": 1800000,
+      "retryPolicy": { "maxRetries": 2, "backoffMs": 5000 },
+      "variables": {}
+    }
+  },
+  "stepsConfig": [
+    {
+      "stepSlug": "start",
+      "name": "Start",
+      "stepType": "start",
+      "order": 1,
+      "config": {
+        "inputSchema": {
+          "baseFileId": { "type": "string", "description": "Document ID of the base contract" },
+          "comparisonFileIds": { "type": "array", "items": { "type": "string" }, "description": "Document IDs of contracts to compare against" }
+        }
+      },
+      "nextSteps": { "success": "init_variables" }
+    },
+    {
+      "stepSlug": "init_variables",
+      "name": "Initialize Variables",
+      "stepType": "action",
+      "order": 2,
+      "config": {
+        "type": "set_variables",
+        "parameters": {
+          "variables": [
+            {
+              "name": "allFileIds",
+              "value": "{{[baseFileId]|concat(comparisonFileIds)}}"
+            },
+            {
+              "name": "chunkResults",
+              "value": []
+            }
+          ]
+        }
+      },
+      "nextSteps": { "success": "loop_ensure_indexed" }
+    },
+    {
+      "stepSlug": "loop_ensure_indexed",
+      "name": "Loop: Ensure All Documents Indexed",
+      "stepType": "loop",
+      "order": 3,
+      "config": {
+        "items": "{{allFileIds}}",
+        "itemVariable": "item"
+      },
+      "nextSteps": {
+        "loop": "index_document",
+        "done": "retrieve_base_chunks"
+      }
+    },
+    {
+      "stepSlug": "index_document",
+      "name": "Index Document (Sync)",
+      "stepType": "action",
+      "order": 4,
+      "config": {
+        "type": "rag",
+        "parameters": {
+          "operation": "upload_document",
+          "recordId": "{{loop.item}}",
+          "sync": true
+        }
+      },
+      "nextSteps": { "success": "loop_ensure_indexed" }
+    },
+    {
+      "stepSlug": "retrieve_base_chunks",
+      "name": "Retrieve Base Document Chunks",
+      "stepType": "action",
+      "order": 5,
+      "config": {
+        "type": "document",
+        "parameters": {
+          "operation": "retrieve",
+          "documentId": "{{baseFileId}}",
+          "returnChunks": true
+        }
+      },
+      "nextSteps": { "success": "loop_chunks" }
+    },
+    {
+      "stepSlug": "loop_chunks",
+      "name": "Loop: Compare Each Chunk",
+      "stepType": "loop",
+      "order": 6,
+      "config": {
+        "items": "{{steps.retrieve_base_chunks.output.data.chunks}}",
+        "itemVariable": "item"
+      },
+      "nextSteps": {
+        "loop": "search_similar",
+        "done": "generate_summary"
+      }
+    },
+    {
+      "stepSlug": "search_similar",
+      "name": "Search Similar Passages in Comparison Docs",
+      "stepType": "action",
+      "order": 7,
+      "config": {
+        "type": "rag",
+        "parameters": {
+          "operation": "search",
+          "query": "{{loop.item.content}}",
+          "documentIds": "{{comparisonFileIds}}",
+          "topK": 3
+        }
+      },
+      "nextSteps": { "success": "check_has_results" }
+    },
+    {
+      "stepSlug": "check_has_results",
+      "name": "Check if Similar Passages Found",
+      "stepType": "condition",
+      "order": 8,
+      "config": {
+        "expression": "steps.search_similar.output.data.results|length > 0",
+        "description": "Skip comparison if no similar passages found in comparison documents"
+      },
+      "nextSteps": {
+        "true": "compare_chunk",
+        "false": "loop_chunks"
+      }
+    },
+    {
+      "stepSlug": "compare_chunk",
+      "name": "Compare Chunk with Similar Passages",
+      "stepType": "llm",
+      "order": 9,
+      "config": {
+        "name": "Contract Clause Comparator",
+        "systemPrompt": "You are an expert legal document analyst specializing in contract comparison. Analyze the base clause against matching passages from other contracts. Identify differences precisely: additions, deletions, modifications, and unchanged sections. Use legal terminology. Output in markdown format.",
+        "userPrompt": "Compare the following base contract clause with similar passages found in comparison contracts.\n\n## Base Clause (Chunk {{loop.item.index}})\n{{loop.item.content}}\n\n## Similar Passages from Comparison Contracts\n{{steps.search_similar.output.data.results|map('filename ~ \": \" ~ content')|join('\n\n---\n\n')}}\n\n## Instructions\n1. Identify the clause type (e.g., indemnification, limitation of liability, termination, confidentiality)\n2. List specific differences between the base clause and each comparison passage\n3. Classify each difference as: Addition, Deletion, Modification, or Rewording\n4. Note any differences that could have significant legal implications\n5. Format your analysis as a concise markdown section",
+        "outputFormat": "text"
+      },
+      "nextSteps": { "success": "accumulate_results" }
+    },
+    {
+      "stepSlug": "accumulate_results",
+      "name": "Accumulate Comparison Results",
+      "stepType": "action",
+      "order": 10,
+      "config": {
+        "type": "set_variables",
+        "parameters": {
+          "variables": [
+            {
+              "name": "chunkResults",
+              "value": "{{chunkResults|concat([steps.compare_chunk.output.data])}}"
+            }
+          ]
+        }
+      },
+      "nextSteps": { "success": "loop_chunks" }
+    },
+    {
+      "stepSlug": "generate_summary",
+      "name": "Generate Comparison Summary Report",
+      "stepType": "llm",
+      "order": 11,
+      "config": {
+        "name": "Contract Comparison Summarizer",
+        "systemPrompt": "You are an expert legal analyst. Synthesize chunk-level contract comparison results into a comprehensive markdown report. Focus on actionable insights for legal reviewers.",
+        "userPrompt": "Based on the following chunk-level comparison results, generate a comprehensive contract comparison report in markdown format.\n\n## Chunk-Level Comparison Results\n{{chunkResults|join('\n\n---\n\n')}}\n\n## Report Requirements\n1. **Executive Summary**: Brief overview of key findings\n2. **Clause-by-Clause Comparison Table**: Summarize differences by clause type with columns for clause type, difference type, and significance level (High/Medium/Low)\n3. **Frequently Amended Clauses**: Identify which clause types show the most variation across contracts, with frequency counts\n4. **Significant Legal Differences**: Highlight differences that could have material legal impact\n5. **Recommendations**: Suggest areas that need careful legal review\n\nFormat the entire report in clean, professional markdown suitable for conversion to DOCX.",
+        "outputFormat": "text"
+      },
+      "nextSteps": { "success": "generate_report" }
+    },
+    {
+      "stepSlug": "generate_report",
+      "name": "Generate DOCX Report",
+      "stepType": "action",
+      "order": 12,
+      "config": {
+        "type": "document",
+        "parameters": {
+          "operation": "generate_docx",
+          "fileName": "contract-comparison-report.docx",
+          "sourceType": "markdown",
+          "content": "{{steps.generate_summary.output.data}}"
+        }
+      },
+      "nextSteps": { "success": "output" }
+    },
+    {
+      "stepSlug": "output",
+      "name": "Output Results",
+      "stepType": "output",
+      "order": 13,
+      "config": {
+        "outputMapping": {
+          "fileStorageId": "{{steps.generate_report.output.data.fileStorageId}}",
+          "downloadUrl": "{{steps.generate_report.output.data.downloadUrl}}",
+          "fileName": "{{steps.generate_report.output.data.fileName}}"
+        }
+      },
+      "nextSteps": {}
+    }
+  ]
+}
