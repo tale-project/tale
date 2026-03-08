@@ -52,7 +52,7 @@ export function AutomationStep({ data }: AutomationStepProps) {
     condition: 'bg-amber-100 text-amber-600',
     loop: 'bg-cyan-100 text-cyan-600',
     action: 'bg-orange-100 text-orange-600',
-    end: 'bg-green-100 text-green-600',
+    output: 'bg-green-100 text-green-600',
   };
 
   const getIcon = (
@@ -81,7 +81,7 @@ export function AutomationStep({ data }: AutomationStepProps) {
       condition: t('stepTypes.condition'),
       loop: t('stepTypes.loop'),
       action: t('stepTypes.action'),
-      end: t('stepTypes.end'),
+      output: t('stepTypes.output'),
     };
     return labels[stepType] || stepType;
   };

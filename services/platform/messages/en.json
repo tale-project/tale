@@ -1679,7 +1679,7 @@
       "condition": "Condition",
       "loop": "Loop",
       "action": "Action",
-      "end": "End"
+      "output": "Output"
     },
     "step": {
       "openStep": "Open {name} step",
@@ -1720,7 +1720,7 @@
         "action": "Action",
         "llm": "LLM",
         "condition": "Condition",
-        "end": "End"
+        "output": "Output"
       },
       "configLabel": "Config (JSON)",
       "configDescription": "Configuration settings",

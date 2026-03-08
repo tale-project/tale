@@ -1,16 +1,16 @@
 import { describe, it, expect } from 'vitest';
 
-import { validateEndStep } from './end';
+import { validateOutputStep } from './output';
 
-describe('validateEndStep', () => {
+describe('validateOutputStep', () => {
   it('passes with no outputMapping', () => {
-    const result = validateEndStep({});
+    const result = validateOutputStep({});
     expect(result.valid).toBe(true);
     expect(result.errors).toHaveLength(0);
   });
 
   it('passes with valid outputMapping', () => {
-    const result = validateEndStep({
+    const result = validateOutputStep({
       outputMapping: {
         analysis: '{{steps.analyze.output.data}}',
         customerId: '{{customerId}}',
@@ -21,13 +21,13 @@ describe('validateEndStep', () => {
   });
 
   it('passes with empty outputMapping', () => {
-    const result = validateEndStep({ outputMapping: {} });
+    const result = validateOutputStep({ outputMapping: {} });
     expect(result.valid).toBe(true);
     expect(result.errors).toHaveLength(0);
   });
 
   it('fails when outputMapping is not an object', () => {
-    const result = validateEndStep({ outputMapping: 'bad' });
+    const result = validateOutputStep({ outputMapping: 'bad' });
     expect(result.valid).toBe(false);
     expect(result.errors.some((e) => e.includes('must be an object'))).toBe(
       true,
@@ -35,7 +35,7 @@ describe('validateEndStep', () => {
   });
 
   it('fails when outputMapping value is not a string', () => {
-    const result = validateEndStep({
+    const result = validateOutputStep({
       outputMapping: { key: 123 },
     });
     expect(result.valid).toBe(false);
@@ -45,7 +45,7 @@ describe('validateEndStep', () => {
   });
 
   it('fails when outputMapping value is empty string', () => {
-    const result = validateEndStep({
+    const result = validateOutputStep({
       outputMapping: { key: '  ' },
     });
     expect(result.valid).toBe(false);
@@ -55,7 +55,7 @@ describe('validateEndStep', () => {
   });
 
   it('warns when outputMapping references secrets', () => {
-    const result = validateEndStep({
+    const result = validateOutputStep({
       outputMapping: {
         token: '{{secrets.apiKey}}',
       },
@@ -68,7 +68,7 @@ describe('validateEndStep', () => {
   });
 
   it('warns with spaces in secrets template', () => {
-    const result = validateEndStep({
+    const result = validateOutputStep({
       outputMapping: {
         token: '{{ secrets.apiKey }}',
       },
@@ -78,7 +78,7 @@ describe('validateEndStep', () => {
   });
 
   it('does not warn for non-secret references', () => {
-    const result = validateEndStep({
+    const result = validateOutputStep({
       outputMapping: {
         data: '{{steps.fetch.output.data}}',
         id: '{{entityId}}',

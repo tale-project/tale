@@ -1,8 +1,8 @@
 /**
- * End Step Validator
+ * Output Step Validator
  *
- * Validates end step configurations.
- * End steps define the output mapping for a workflow.
+ * Validates output step configurations.
+ * Output steps define the output mapping for a workflow.
  */
 
 import type { ValidationResult } from '../types';
@@ -11,7 +11,7 @@ import { isRecord } from '../../../../../lib/utils/type-guards';
 
 const SECRETS_PATTERN = /\{\{\s*secrets\./;
 
-export function validateEndStep(
+export function validateOutputStep(
   config: Record<string, unknown>,
 ): ValidationResult {
   const errors: string[] = [];
@@ -19,18 +19,18 @@ export function validateEndStep(
 
   if (config.outputMapping !== undefined) {
     if (!isRecord(config.outputMapping)) {
-      errors.push('End step "outputMapping" must be an object if provided');
+      errors.push('Output step "outputMapping" must be an object if provided');
       return { valid: false, errors, warnings };
     }
 
     for (const [key, value] of Object.entries(config.outputMapping)) {
       if (typeof value !== 'string' || value.trim() === '') {
         errors.push(
-          `End step outputMapping key "${key}" must be a non-empty string`,
+          `Output step outputMapping key "${key}" must be a non-empty string`,
         );
       } else if (SECRETS_PATTERN.test(value)) {
         warnings.push(
-          `End step outputMapping key "${key}" references secrets — avoid exposing secrets in workflow output`,
+          `Output step outputMapping key "${key}" references secrets — avoid exposing secrets in workflow output`,
         );
       }
     }

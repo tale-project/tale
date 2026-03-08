@@ -59,7 +59,7 @@ export interface WorkflowStep {
     | 'condition'
     | 'action'
     | 'loop'
-    | 'end';
+    | 'output';
   order: number;
   config: unknown;
   nextSteps: Record<string, string>;
@@ -152,6 +152,7 @@ export const workflowStepValidator = v.object({
     v.literal('condition'),
     v.literal('action'),
     v.literal('loop'),
+    v.literal('output'),
   ),
   order: v.number(),
   config: stepConfigValidator,

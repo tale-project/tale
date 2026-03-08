@@ -88,7 +88,7 @@ const stepConfigSchema = z.object({
     .string()
     .describe('Human-readable step name (e.g., "Find Inactive Customers").'),
   stepType: z
-    .enum(['start', 'llm', 'action', 'condition', 'loop'])
+    .enum(['start', 'llm', 'action', 'condition', 'loop', 'output'])
     .describe('Step type.'),
   order: z
     .number()
@@ -125,7 +125,7 @@ Skip calling workflow_examples; only use it when building a workflow from scratc
 **STEP STRUCTURE:**
 Each step requires: stepSlug, name, stepType, order, config, nextSteps
 - stepSlug: snake_case unique identifier (e.g., "find_customers")
-- stepType: start | llm | action | condition | loop
+- stepType: start | llm | action | condition | loop | output
 - config: Configuration object (varies by stepType)
 - nextSteps: Route to next steps (e.g., {success: "next_step", failure: "error"})
 

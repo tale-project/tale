@@ -105,7 +105,7 @@ export async function executeStepByType(
         },
       );
 
-    case 'end': {
+    case 'output': {
       const mapping = isRecord(stepDef.config)
         ? stepDef.config.outputMapping
         : undefined;
@@ -120,7 +120,7 @@ export async function executeStepByType(
       }
       return {
         port: 'success',
-        output: { type: 'end', data: mappedOutput },
+        output: { type: 'output', data: mappedOutput },
         variables: { __workflowOutput: mappedOutput },
       };
     }

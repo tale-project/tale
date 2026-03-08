@@ -37,7 +37,7 @@ export async function handleSerializeAndCompleteExecution(
     throw new Error(`Execution not found: ${args.executionId}`);
   }
 
-  // Extract output: use end node's __workflowOutput if present, otherwise
+  // Extract output: use output node's __workflowOutput if present, otherwise
   // fall back to sanitized variables (strips secrets and system fields)
   let output: unknown = {};
   if (execution.variables) {

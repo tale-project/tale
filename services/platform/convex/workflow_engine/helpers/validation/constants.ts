@@ -23,7 +23,7 @@ export const VALID_STEP_TYPES = [
   'condition',
   'action',
   'loop',
-  'end',
+  'output',
 ] as const;
 
 export type StepType = (typeof VALID_STEP_TYPES)[number];

@@ -12,7 +12,7 @@ export type StepType =
   | 'condition'
   | 'action'
   | 'loop'
-  | 'end';
+  | 'output';
 
 export interface StepDefinition {
   stepSlug: string;

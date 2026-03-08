@@ -39,7 +39,7 @@ const EMPTY_STEP_OPTIONS: NonNullable<CreateStepDialogProps['stepOptions']> =
 
 type FormData = {
   name: string;
-  stepType: 'start' | 'llm' | 'condition' | 'action' | 'loop' | 'end';
+  stepType: 'start' | 'llm' | 'condition' | 'action' | 'loop' | 'output';
   config: string;
 };
 
@@ -80,7 +80,7 @@ const getDefaultTemplates = (
       };
     }
 
-    case 'end': {
+    case 'output': {
       const cfg = {
         outputMapping: {},
       };
@@ -132,7 +132,7 @@ export function CreateStepDialog({
           'condition',
           'action',
           'loop',
-          'end',
+          'output',
         ]),
         config: z.string(),
       }),
@@ -223,7 +223,7 @@ export function CreateStepDialog({
       'condition',
       'action',
       'loop',
-      'end',
+      'output',
     ] as const);
     if (narrowed) {
       setValue('stepType', narrowed, { shouldDirty: true });
@@ -261,7 +261,7 @@ export function CreateStepDialog({
           { value: 'action', label: t('createStep.types.action') },
           { value: 'llm', label: t('createStep.types.llm') },
           { value: 'condition', label: t('createStep.types.condition') },
-          { value: 'end', label: t('createStep.types.end') },
+          { value: 'output', label: t('createStep.types.output') },
         ]}
       />
 

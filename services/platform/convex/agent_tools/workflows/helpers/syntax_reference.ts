@@ -43,13 +43,11 @@ Processing multiple entities (customers/products/conversations/approvals)?
 - llm: AI decision-making and content generation (requires name + systemPrompt)
 - condition: JEXL expression branching (nextSteps: true/false)
 - loop: Iterate over arrays (for data sync, NOT entity processing)
-- end: Workflow output (defines what the workflow returns via outputMapping)
-
-**IMPORTANT:** Every new workflow MUST have an end step. The end step defines what gets returned as the workflow output.
+- output: (Optional) Defines what the workflow returns via outputMapping
 
 **NEXT STEPS:**
 1. Get pattern details: workflow_examples(operation='get_syntax_reference', category='common_patterns')
-2. Get step syntax: workflow_examples(operation='get_syntax_reference', category='start|llm|action|condition|loop|end')`,
+2. Get step syntax: workflow_examples(operation='get_syntax_reference', category='start|llm|action|condition|loop|output')`,
 
   common_patterns: `## COMMON WORKFLOW PATTERNS
 
@@ -483,20 +481,21 @@ Action outputs are wrapped: steps.{step_slug}.output.data
 
 **IMPORTANT:** Use |first instead of [0] when the array might be undefined (e.g., branching paths where only one step runs). [0] will throw an error on undefined arrays, while |first safely returns undefined.`,
 
-  end: `## End Step (stepType: 'end')
+  output: `## Output Step (stepType: 'output')
 
 Config: { outputMapping?: Record<string, string> }
-NextSteps: {} (empty — end steps have no outgoing connections)
+NextSteps: {} (empty — output steps have no outgoing connections)
 
-The end step defines what the workflow returns as its final output. Every new workflow MUST include an end step.
+The output step is optional. It defines what the workflow returns as its final output.
+If omitted, the workflow output falls back to sanitized variables (secrets and system fields stripped).
 Use outputMapping to select which variables or step outputs to include. Values support {{...}} template syntax with full type preservation.
 
-**End with Output Mapping:**
+**Output with Mapping:**
 \`\`\`json
 {
   "stepSlug": "finish",
   "name": "Return Results",
-  "stepType": "end",
+  "stepType": "output",
   "order": 6,
   "config": {
     "outputMapping": {
@@ -509,12 +508,12 @@ Use outputMapping to select which variables or step outputs to include. Values s
 }
 \`\`\`
 
-**End with No Output (side-effect-only workflow):**
+**Output with No Mapping (side-effect-only workflow):**
 \`\`\`json
 {
   "stepSlug": "finish",
   "name": "Done",
-  "stepType": "end",
+  "stepType": "output",
   "order": 4,
   "config": {},
   "nextSteps": {}
@@ -572,7 +571,7 @@ const SYNTAX_CATEGORY_DESCRIPTIONS: Record<string, string> = {
   action: 'Action step types and parameters',
   condition: 'Condition step with JEXL expressions',
   loop: 'Loop step for iteration',
-  end: 'End step configuration (workflow output via outputMapping)',
+  output: 'Output step configuration (workflow output via outputMapping)',
   email: 'Email sending pattern (conversation + approval)',
   entity_processing: 'One-at-a-time entity processing pattern',
   workflow_config:
