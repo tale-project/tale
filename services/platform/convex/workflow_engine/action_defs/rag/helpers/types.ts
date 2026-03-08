@@ -9,8 +9,14 @@ export type RagActionParams =
     }
   | {
       operation: 'delete_document';
-      /** Document record ID from the platform */
       recordId: string;
+    }
+  | {
+      operation: 'search';
+      query: string;
+      documentIds: string[];
+      topK?: number;
+      similarityThreshold?: number;
     };
 
 /**
