@@ -19,8 +19,8 @@
       "config": {
         "inputSchema": {
           "properties": {
-            "baseFileId": { "type": "string", "description": "Document ID of the base contract" },
-            "comparisonFileIds": { "type": "array", "description": "Document IDs of contracts to compare against" }
+            "baseFileId": { "type": "string", "description": "File storage ID of the base contract" },
+            "comparisonFileIds": { "type": "array", "description": "File storage IDs of contracts to compare against" }
           },
           "required": ["baseFileId", "comparisonFileIds"]
         }
@@ -72,7 +72,7 @@
         "type": "rag",
         "parameters": {
           "operation": "upload_document",
-          "recordId": "{{loop.item}}",
+          "fileId": "{{loop.item}}",
           "sync": true
         }
       },
@@ -87,7 +87,7 @@
         "type": "document",
         "parameters": {
           "operation": "retrieve",
-          "documentId": "{{baseFileId}}",
+          "fileId": "{{baseFileId}}",
           "returnChunks": true
         }
       },
@@ -117,7 +117,7 @@
         "parameters": {
           "operation": "search",
           "query": "{{loop.item.content}}",
-          "documentIds": "{{comparisonFileIds}}",
+          "fileIds": "{{comparisonFileIds}}",
           "topK": 3
         }
       },

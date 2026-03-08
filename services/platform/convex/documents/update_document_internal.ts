@@ -5,6 +5,8 @@
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 
+import { internal } from '../_generated/api';
+
 export type UpdateDocumentInternalArgs = {
   documentId: Id<'documents'>;
   title?: string;
@@ -61,12 +63,37 @@ export async function updateDocumentInternal(
     finalUpdateData.historyFiles = historyFiles;
   }
 
+  // If file changed and document was RAG-indexed, mark as queued for re-indexing
+  const needsReindex =
+    hashChanged &&
+    hasNewFile &&
+    document.ragInfo?.status === 'completed' &&
+    document.fileId;
+
+  if (needsReindex) {
+    finalUpdateData.ragInfo = {
+      ...document.ragInfo,
+      status: 'queued',
+    };
+  }
+
   // Remove undefined values
   const cleanUpdateData = Object.fromEntries(
     Object.entries(finalUpdateData).filter(([_, value]) => value !== undefined),
   );
 
+  const oldFileId = document.fileId;
+
   if (Object.keys(cleanUpdateData).length > 0) {
     await ctx.db.patch(documentId, cleanUpdateData);
+  }
+
+  // Schedule RAG re-index after the patch
+  if (needsReindex && oldFileId) {
+    await ctx.scheduler.runAfter(
+      0,
+      internal.documents.internal_actions.reindexDocumentInRag,
+      { documentId, oldFileId },
+    );
   }
 }

@@ -391,9 +391,9 @@ const ragSchemas: Record<string, OutputSchema> = {
     description: 'RAG document upload result',
     fields: {
       success: { type: 'boolean', description: 'Whether the upload succeeded' },
-      recordId: {
+      fileId: {
         type: 'string',
-        description: 'Caller-level record identifier',
+        description: 'File storage ID that was uploaded to RAG',
       },
       ragDocumentId: {
         type: 'string',

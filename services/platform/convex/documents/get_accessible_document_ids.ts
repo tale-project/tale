@@ -41,3 +41,41 @@ export async function getAccessibleDocumentIds(
 
   return ids;
 }
+
+/**
+ * Get all RAG-indexed file storage IDs accessible to a user within an organization.
+ *
+ * Same access control logic as getAccessibleDocumentIds, but returns file storage IDs
+ * instead of document IDs. Skips documents without a fileId.
+ */
+export async function getAccessibleFileIds(
+  ctx: QueryCtx,
+  args: {
+    organizationId: string;
+    userId: string;
+  },
+): Promise<string[]> {
+  const teamIds = await getUserTeamIds(ctx, args.userId);
+  const teamSet = new Set([`org_${args.organizationId}`, ...teamIds]);
+
+  const ids: string[] = [];
+  const query = ctx.db
+    .query('documents')
+    .withIndex('by_organizationId', (q) =>
+      q.eq('organizationId', args.organizationId),
+    );
+
+  for await (const doc of query) {
+    if (doc.ragInfo?.status !== 'completed') continue;
+    if (!doc.fileId) continue;
+
+    const isOrgWide = !doc.teamId;
+    const isInUserTeam = doc.teamId ? teamSet.has(doc.teamId) : false;
+
+    if (isOrgWide || isInUserTeam) {
+      ids.push(doc.fileId);
+    }
+  }
+
+  return ids;
+}

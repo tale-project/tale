@@ -9,6 +9,7 @@ import { useT } from '@/lib/i18n/client';
 import {
   CHAT_UPLOAD_ALLOWED_TYPES,
   CHAT_MAX_FILE_SIZE,
+  resolveFileType,
 } from '@/lib/shared/file-types';
 import { compressImage } from '@/lib/utils/compress-image';
 import { isTextBasedFile } from '@/lib/utils/text-file-types';
@@ -46,18 +47,19 @@ export function useConvexFileUpload(config?: ConvexFileUploadConfig) {
 
   const uploadFiles = useCallback(
     async (files: File[]) => {
-      const validFiles: File[] = [];
+      const validFiles: { file: File; resolvedType: string }[] = [];
       const invalidFiles: File[] = [];
 
       for (const file of files) {
+        const resolvedType = resolveFileType(file.name, file.type);
         const isAllowedType =
-          mergedConfig.allowedTypes.includes(file.type) ||
-          isTextBasedFile(file.name, file.type);
+          mergedConfig.allowedTypes.includes(resolvedType) ||
+          isTextBasedFile(file.name, resolvedType);
 
         if (file.size > mergedConfig.maxFileSize || !isAllowedType) {
           invalidFiles.push(file);
         } else {
-          validFiles.push(file);
+          validFiles.push({ file, resolvedType });
         }
       }
 
@@ -71,14 +73,14 @@ export function useConvexFileUpload(config?: ConvexFileUploadConfig) {
 
       if (validFiles.length === 0) return;
 
-      const uploadPromises = validFiles.map(async (file) => {
+      const uploadPromises = validFiles.map(async ({ file, resolvedType }) => {
         const fileId = `${file.name}-${Date.now()}`;
         setUploadingFiles((prev) => [...prev, fileId]);
 
         try {
           let fileToUpload = file;
 
-          if (file.type.startsWith('image/')) {
+          if (resolvedType.startsWith('image/')) {
             const compressionResult = await compressImage(file);
             fileToUpload = compressionResult.file;
           }
@@ -88,7 +90,7 @@ export function useConvexFileUpload(config?: ConvexFileUploadConfig) {
           const result = await fetch(uploadUrl, {
             method: 'POST',
             headers: {
-              'Content-Type': fileToUpload.type || 'application/octet-stream',
+              'Content-Type': resolvedType || 'application/octet-stream',
             },
             body: fileToUpload,
           });
@@ -106,9 +108,9 @@ export function useConvexFileUpload(config?: ConvexFileUploadConfig) {
           const attachment: FileAttachment = {
             fileId: storageId,
             fileName: fileToUpload.name,
-            fileType: fileToUpload.type,
+            fileType: resolvedType,
             fileSize: fileToUpload.size,
-            previewUrl: fileToUpload.type.startsWith('image/')
+            previewUrl: resolvedType.startsWith('image/')
               ? URL.createObjectURL(fileToUpload)
               : undefined,
           };

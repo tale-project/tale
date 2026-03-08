@@ -14,6 +14,8 @@ import { getRagConfig } from '../lib/helpers/rag_config';
 import { ragAction } from '../workflow_engine/action_defs/rag/rag_action';
 import * as DocumentsHelpers from './helpers';
 
+const INITIAL_POLLING_DELAY_MS = 10_000;
+
 const documentSourceTypeValidator = v.union(
   v.literal('markdown'),
   v.literal('html'),
@@ -232,7 +234,9 @@ export const checkRagDocumentStatus = internalAction({
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ document_ids: [args.documentId] }),
+        body: JSON.stringify({
+          document_ids: [document.ragInfo.indexedFileId ?? args.documentId],
+        }),
         signal: AbortSignal.timeout(10000),
       });
 
@@ -293,7 +297,8 @@ export const checkRagDocumentStatus = internalAction({
         throw new Error('Invalid statuses field in RAG response');
       }
 
-      const docStatus = statuses[args.documentId];
+      const ragKey = document.ragInfo.indexedFileId ?? args.documentId;
+      const docStatus = statuses[ragKey];
       const status = isRecord(docStatus)
         ? getString(docStatus, 'status')
         : null;
@@ -396,10 +401,18 @@ export const deleteDocumentFromRag = internalAction({
   handler: async (ctx, args): Promise<null> => {
     const ragUrl = getRagConfig().serviceUrl;
 
+    const document = await ctx.runQuery(
+      internal.documents.internal_queries.getDocumentByIdRaw,
+      { documentId: args.documentId },
+    );
+
+    const ragKey =
+      document?.ragInfo?.indexedFileId ?? document?.fileId ?? args.documentId;
+
     let ragSuccess = false;
     try {
       const response = await fetch(
-        `${ragUrl}/api/v1/documents/${encodeURIComponent(args.documentId)}`,
+        `${ragUrl}/api/v1/documents/${encodeURIComponent(ragKey)}`,
         {
           method: 'DELETE',
           signal: AbortSignal.timeout(60000),
@@ -421,7 +434,6 @@ export const deleteDocumentFromRag = internalAction({
       );
     }
 
-    // Step 2: Only delete Convex record if RAG cleanup succeeded
     if (ragSuccess) {
       await ctx.runMutation(
         internal.documents.internal_mutations.deleteDocumentById,
@@ -440,9 +452,26 @@ export const uploadDocumentToRag = internalAction({
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     try {
+      const document = await ctx.runQuery(
+        internal.documents.internal_queries.getDocumentByIdRaw,
+        { documentId: args.documentId },
+      );
+
+      if (!document) {
+        throw new Error(`Document not found: ${args.documentId}`);
+      }
+      if (!document.fileId) {
+        throw new Error(`Document has no file: ${args.documentId}`);
+      }
+
       const rawResult = await ragAction.execute(
         ctx,
-        { operation: 'upload_document', recordId: args.documentId },
+        {
+          operation: 'upload_document',
+          fileId: document.fileId,
+          fileName: document.title,
+          contentType: document.mimeType,
+        },
         {},
       );
       const resultRec = isRecord(rawResult) ? rawResult : undefined;
@@ -450,7 +479,23 @@ export const uploadDocumentToRag = internalAction({
         ? (getBoolean(resultRec, 'success') ?? false)
         : false;
 
-      if (!success) {
+      if (success) {
+        await ctx.runMutation(
+          internal.documents.internal_mutations.updateDocumentRagInfo,
+          {
+            documentId: args.documentId,
+            ragInfo: {
+              status: 'queued',
+              indexedFileId: document.fileId,
+            },
+          },
+        );
+        await ctx.scheduler.runAfter(
+          INITIAL_POLLING_DELAY_MS,
+          internal.documents.internal_actions.checkRagDocumentStatus,
+          { documentId: args.documentId, attempt: 1 },
+        );
+      } else {
         const error =
           (resultRec ? getString(resultRec, 'error') : undefined) ??
           'Upload to RAG failed';
@@ -479,6 +524,107 @@ export const uploadDocumentToRag = internalAction({
         },
       );
       throw error;
+    }
+
+    return null;
+  },
+});
+
+export const reindexDocumentInRag = internalAction({
+  args: {
+    documentId: v.id('documents'),
+    oldFileId: v.id('_storage'),
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const ragUrl = getRagConfig().serviceUrl;
+
+    // Delete old RAG entry (ignore 404 — may not have been indexed)
+    try {
+      const response = await fetch(
+        `${ragUrl}/api/v1/documents/${encodeURIComponent(args.oldFileId)}`,
+        { method: 'DELETE', signal: AbortSignal.timeout(60000) },
+      );
+      if (!response.ok && response.status !== 404) {
+        console.warn(
+          `[reindexDocumentInRag] Failed to delete old RAG entry ${args.oldFileId}: ${response.status}`,
+        );
+      }
+    } catch (error) {
+      console.warn(
+        `[reindexDocumentInRag] Error deleting old RAG entry ${args.oldFileId}:`,
+        error,
+      );
+    }
+
+    // Look up current document
+    const document = await ctx.runQuery(
+      internal.documents.internal_queries.getDocumentByIdRaw,
+      { documentId: args.documentId },
+    );
+
+    if (!document || !document.fileId) {
+      return null;
+    }
+
+    // Upload new file to RAG
+    try {
+      const rawResult = await ragAction.execute(
+        ctx,
+        {
+          operation: 'upload_document',
+          fileId: document.fileId,
+          fileName: document.title,
+          contentType: document.mimeType,
+        },
+        {},
+      );
+      const resultRec = isRecord(rawResult) ? rawResult : undefined;
+      const success = resultRec
+        ? (getBoolean(resultRec, 'success') ?? false)
+        : false;
+
+      if (success) {
+        await ctx.runMutation(
+          internal.documents.internal_mutations.updateDocumentRagInfo,
+          {
+            documentId: args.documentId,
+            ragInfo: {
+              status: 'queued',
+              indexedFileId: document.fileId,
+            },
+          },
+        );
+        await ctx.scheduler.runAfter(
+          INITIAL_POLLING_DELAY_MS,
+          internal.documents.internal_actions.checkRagDocumentStatus,
+          { documentId: args.documentId, attempt: 1 },
+        );
+      } else {
+        const error =
+          (resultRec ? getString(resultRec, 'error') : undefined) ??
+          'Re-index upload failed';
+        await ctx.runMutation(
+          internal.documents.internal_mutations.updateDocumentRagInfo,
+          {
+            documentId: args.documentId,
+            ragInfo: { status: 'failed', error },
+          },
+        );
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Re-index upload failed';
+      console.error(
+        `[reindexDocumentInRag] Error re-indexing document ${args.documentId}: ${message}`,
+      );
+      await ctx.runMutation(
+        internal.documents.internal_mutations.updateDocumentRagInfo,
+        {
+          documentId: args.documentId,
+          ragInfo: { status: 'failed', error: message },
+        },
+      );
     }
 
     return null;

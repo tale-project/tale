@@ -88,6 +88,50 @@ export function isSpreadsheet(fileName: string): boolean {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Extension → MIME resolution (handles unreliable browser MIME detection)
+// ---------------------------------------------------------------------------
+
+const EXTENSION_TO_MIME: Readonly<Record<string, MimeType>> = {
+  jpg: MIME_TYPES.JPEG,
+  jpeg: MIME_TYPES.JPEG,
+  png: MIME_TYPES.PNG,
+  gif: MIME_TYPES.GIF,
+  webp: MIME_TYPES.WEBP,
+  pdf: MIME_TYPES.PDF,
+  doc: MIME_TYPES.DOC,
+  docx: MIME_TYPES.DOCX,
+  ppt: MIME_TYPES.PPT,
+  pptx: MIME_TYPES.PPTX,
+  xls: MIME_TYPES.XLS,
+  xlsx: MIME_TYPES.XLSX,
+  csv: MIME_TYPES.CSV,
+  txt: MIME_TYPES.PLAIN,
+};
+
+const KNOWN_MIME_TYPES: ReadonlySet<string> = new Set(
+  Object.values(MIME_TYPES),
+);
+
+/**
+ * Resolve the correct MIME type for a file, falling back to extension-based
+ * lookup when the browser reports a generic or empty MIME type.
+ *
+ * Browsers may report `.docx` as `application/zip`, `application/octet-stream`,
+ * or empty string instead of the correct Office XML MIME type.
+ */
+export function resolveFileType(fileName: string, browserMime: string): string {
+  if (browserMime && KNOWN_MIME_TYPES.has(browserMime)) {
+    return browserMime;
+  }
+  const ext = extractExtension(fileName);
+  if (ext) {
+    const resolved = EXTENSION_TO_MIME[ext];
+    if (resolved) return resolved;
+  }
+  return browserMime;
+}
+
 function isParseable(fileName: string): boolean {
   const lower = fileName.toLowerCase();
   return (

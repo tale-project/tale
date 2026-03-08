@@ -20,17 +20,19 @@ export const ragAction: ActionDefinition<RagActionParams> = {
   parametersValidator: v.union(
     v.object({
       operation: v.literal('upload_document'),
-      recordId: v.string(),
+      fileId: v.string(),
+      fileName: v.optional(v.string()),
+      contentType: v.optional(v.string()),
       sync: v.optional(v.boolean()),
     }),
     v.object({
       operation: v.literal('delete_document'),
-      recordId: v.string(),
+      fileId: v.string(),
     }),
     v.object({
       operation: v.literal('search'),
       query: v.string(),
-      documentIds: v.array(v.string()),
+      fileIds: v.array(v.string()),
       topK: v.optional(v.number()),
       similarityThreshold: v.optional(v.number()),
     }),
@@ -40,17 +42,27 @@ export const ragAction: ActionDefinition<RagActionParams> = {
     const startTime = Date.now();
     const { serviceUrl } = getRagConfig();
 
-    switch (params.operation) {
+    // Backward compatibility: map old param names from user-created workflows
+    const migratedParams = migrateParams(params);
+
+    switch (migratedParams.operation) {
       case 'upload_document': {
-        const result = await uploadDocument(ctx, serviceUrl, params.recordId, {
-          sync: params.sync,
-        });
+        const result = await uploadDocument(
+          ctx,
+          serviceUrl,
+          migratedParams.fileId,
+          {
+            sync: migratedParams.sync,
+            fileName: migratedParams.fileName,
+            contentType: migratedParams.contentType,
+          },
+        );
         return { ...result, executionTimeMs: Date.now() - startTime };
       }
       case 'delete_document': {
         const result = await deleteDocumentById({
           ragServiceUrl: serviceUrl,
-          documentId: params.recordId,
+          fileId: migratedParams.fileId,
         });
         return { ...result, executionTimeMs: Date.now() - startTime };
       }
@@ -66,10 +78,10 @@ export const ragAction: ActionDefinition<RagActionParams> = {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              query: params.query,
-              document_ids: params.documentIds,
-              top_k: params.topK ?? 10,
-              similarity_threshold: params.similarityThreshold ?? 0.0,
+              query: migratedParams.query,
+              document_ids: migratedParams.fileIds,
+              top_k: migratedParams.topK ?? 10,
+              similarity_threshold: migratedParams.similarityThreshold ?? 0.0,
               include_metadata: true,
             }),
             signal: controller.signal,
@@ -104,3 +116,23 @@ export const ragAction: ActionDefinition<RagActionParams> = {
     }
   },
 };
+
+/**
+ * Backward compatibility: map old param names (recordId, documentIds)
+ * to new names (fileId, fileIds) for user-created workflows stored in DB.
+ */
+function migrateParams(params: Record<string, unknown>): RagActionParams {
+  const migrated = { ...params };
+
+  if ('recordId' in migrated && !('fileId' in migrated)) {
+    migrated.fileId = migrated.recordId;
+    delete migrated.recordId;
+  }
+  if ('documentIds' in migrated && !('fileIds' in migrated)) {
+    migrated.fileIds = migrated.documentIds;
+    delete migrated.documentIds;
+  }
+
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- backward compat migration
+  return migrated as unknown as RagActionParams;
+}

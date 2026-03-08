@@ -90,9 +90,13 @@ Output (query_messages): \`{ page: [...messages], isDone: boolean, continueCurso
 Output (create/update): \`{ data: {...conversation} }\` - returns full conversation entity
 
 ### document
-Ops: update
-Params (update): documentId (required), title?, content?, metadata?, fileId?, mimeType?, extension?, sourceProvider?
+Ops: update, retrieve, generate_docx
+Params (update): documentId (required), title?, content?, metadata?, mimeType?, extension?, sourceProvider?
+Params (retrieve): fileId (required - file storage ID), chunkStart? (number), chunkEnd? (number), returnChunks? (boolean)
+Params (generate_docx): fileName (required), sourceType (required: 'markdown'|'html'), content (required)
 Output (update): \`{ data: {...document} }\` - returns full document entity
+Output (retrieve): \`{ data: { content, chunks?, ... } }\` - returns document content from RAG
+Output (generate_docx): \`{ data: { fileStorageId, downloadUrl, fileName } }\`
 
 ### integration
 Params: name (required - e.g., 'shopify', 'circuly'), operation (required), params?
@@ -106,10 +110,11 @@ Output: \`{ variables: {...processedVariables} }\` - NOT wrapped in data
 - Later variables can reference earlier ones in the same step
 
 ### rag
-Ops: upload_document, delete_document
-Params (upload_document): recordId (required - document ID from documents table)
-Params (delete_document): recordId (required - document ID to delete from RAG)
-Output: \`{ data: { success, executionTimeMs, recordId, ragDocumentId?, ... } }\`
+Ops: upload_document, delete_document, search
+Params (upload_document): fileId (required - file storage ID), fileName? (optional), contentType? (optional), sync? (optional boolean)
+Params (delete_document): fileId (required - file storage ID to delete from RAG)
+Params (search): query (required), fileIds (required - array of file storage IDs), topK? (optional number), similarityThreshold? (optional number)
+Output (upload_document): \`{ data: { success, executionTimeMs, fileId, ragDocumentId?, ... } }\`
 
 ### approval
 Ops: create_approval

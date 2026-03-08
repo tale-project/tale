@@ -36,6 +36,7 @@ export const ragInfoStatusValidator = v.union(
 export const ragInfoValidator = v.object({
   status: ragInfoStatusValidator,
   indexedAt: v.optional(v.number()),
+  indexedFileId: v.optional(v.id('_storage')),
   error: v.optional(v.string()),
 });
 

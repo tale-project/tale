@@ -14,7 +14,7 @@ interface RagContentResponse {
 }
 
 export interface DocumentContentResult {
-  documentId: string;
+  fileId: string;
   name: string;
   content: string;
   chunkRange: { start: number; end: number };
@@ -36,7 +36,7 @@ export interface FetchDocumentContentOptions {
  */
 export async function fetchDocumentContent(
   ragServiceUrl: string,
-  documentId: string,
+  fileId: string,
   options?: FetchDocumentContentOptions,
 ): Promise<DocumentContentResult> {
   const params = new URLSearchParams();
@@ -50,7 +50,7 @@ export async function fetchDocumentContent(
     params.set('return_chunks', 'true');
   }
   const query = params.toString();
-  const url = `${ragServiceUrl}/api/v1/documents/${encodeURIComponent(documentId)}/content${query ? `?${query}` : ''}`;
+  const url = `${ragServiceUrl}/api/v1/documents/${encodeURIComponent(fileId)}/content${query ? `?${query}` : ''}`;
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -61,7 +61,7 @@ export async function fetchDocumentContent(
 
     if (response.status === 404) {
       throw new Error(
-        `Document "${documentId}" was not found in the knowledge base. ` +
+        `Document "${fileId}" was not found in the knowledge base. ` +
           'It may not have been indexed yet.',
       );
     }
@@ -90,7 +90,7 @@ export async function fetchDocumentContent(
       : rawContent;
 
     return {
-      documentId: result.document_id,
+      fileId: result.document_id,
       name: result.title ?? 'Untitled',
       content,
       chunkRange: result.chunk_range,
@@ -104,7 +104,7 @@ export async function fetchDocumentContent(
 
     if (error instanceof Error && error.name === 'AbortError') {
       throw new Error(
-        `RAG service timed out after ${FETCH_TIMEOUT_MS / 1000}s while retrieving document "${documentId}".`,
+        `RAG service timed out after ${FETCH_TIMEOUT_MS / 1000}s while retrieving document "${fileId}".`,
         { cause: error },
       );
     }

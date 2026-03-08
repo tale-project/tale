@@ -5,7 +5,7 @@ export interface UploadFileArgs {
   file: Blob;
   filename: string;
   contentType: string;
-  documentId: string;
+  fileId: string;
   metadata?: Record<string, unknown>;
   timeoutMs?: number;
   sync?: boolean;
@@ -29,7 +29,7 @@ export async function uploadFile({
   file,
   filename,
   contentType,
-  documentId,
+  fileId,
   metadata,
   timeoutMs,
   sync = false,
@@ -40,7 +40,7 @@ export async function uploadFile({
 
   const formData = new FormData();
   formData.append('file', file, filename);
-  formData.append('document_id', documentId);
+  formData.append('document_id', fileId);
   formData.append(
     'metadata',
     JSON.stringify({ ...metadata, content_type: contentType }),
@@ -74,7 +74,7 @@ export async function uploadFile({
 
   return {
     success: result.success ?? true,
-    recordId: documentId,
+    fileId,
     ragDocumentId,
     chunksCreated: result.chunks_created || 0,
     processingTimeMs: Date.now() - startTime,

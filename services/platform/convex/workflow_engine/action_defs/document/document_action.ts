@@ -26,7 +26,6 @@ type DocumentActionParams =
       documentId: Id<'documents'>;
       title?: string;
       content?: string;
-      fileId?: Id<'_storage'>;
       mimeType?: string;
       extension?: string;
       metadata?: Record<string, unknown>;
@@ -34,7 +33,7 @@ type DocumentActionParams =
     }
   | {
       operation: 'retrieve';
-      documentId: string;
+      fileId: string;
       chunkStart?: number;
       chunkEnd?: number;
       returnChunks?: boolean;
@@ -58,7 +57,6 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
       documentId: v.id('documents'),
       title: v.optional(v.string()),
       content: v.optional(v.string()),
-      fileId: v.optional(v.id('_storage')),
       mimeType: v.optional(v.string()),
       extension: v.optional(v.string()),
       metadata: v.optional(jsonRecordValidator),
@@ -68,7 +66,7 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
     }),
     v.object({
       operation: v.literal('retrieve'),
-      documentId: v.string(),
+      fileId: v.string(),
       chunkStart: v.optional(v.number()),
       chunkEnd: v.optional(v.number()),
       returnChunks: v.optional(v.boolean()),
@@ -95,7 +93,6 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
             metadata: params.metadata
               ? toConvexJsonRecord(params.metadata)
               : undefined,
-            fileId: params.fileId,
             mimeType: params.mimeType,
             extension: params.extension,
             sourceProvider: params.sourceProvider,
@@ -130,19 +127,19 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
           );
         }
 
-        const accessibleIds: string[] = await ctx.runQuery(
-          internal.documents.internal_queries.getAccessibleDocumentIds,
+        const accessibleFileIds: string[] = await ctx.runQuery(
+          internal.documents.internal_queries.getAccessibleFileIds,
           { organizationId, userId },
         );
 
-        if (!accessibleIds.includes(params.documentId)) {
+        if (!accessibleFileIds.includes(params.fileId)) {
           throw new Error(
-            `Document not found or access denied: "${params.documentId}"`,
+            `File not found or access denied: "${params.fileId}"`,
           );
         }
 
         const { serviceUrl } = getRagConfig();
-        return await fetchDocumentContent(serviceUrl, params.documentId, {
+        return await fetchDocumentContent(serviceUrl, params.fileId, {
           chunkStart: params.chunkStart,
           chunkEnd: params.chunkEnd,
           returnChunks: params.returnChunks,

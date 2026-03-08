@@ -194,6 +194,22 @@ function getStepConfigEntries(
         });
       break;
     }
+
+    case 'output': {
+      const mapping = isRecord(config.outputMapping)
+        ? config.outputMapping
+        : undefined;
+      if (mapping) {
+        for (const [key, val] of Object.entries(mapping)) {
+          entries.push({
+            label: key,
+            value: str(val),
+            mono: true,
+          });
+        }
+      }
+      break;
+    }
   }
 
   const nextStepEntries = Object.entries(nextSteps);

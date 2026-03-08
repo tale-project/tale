@@ -6,6 +6,7 @@ import type { documentRetrieveArgs } from '../document_retrieve_tool';
 import { internal } from '../../../_generated/api';
 import { createDebugLog } from '../../../lib/debug_log';
 import { getRagConfig } from '../../../lib/helpers/rag_config';
+import { toId } from '../../../lib/type_cast_helpers';
 import {
   fetchDocumentContent,
   type DocumentContentResult,
@@ -50,9 +51,20 @@ export async function retrieveDocument(
     );
   }
 
+  // Look up document to get its file storage ID for RAG content retrieval
+  const document = await ctx.runQuery(
+    internal.documents.internal_queries.getDocumentByIdRaw,
+    { documentId: toId<'documents'>(args.documentId) },
+  );
+  if (!document?.fileId) {
+    throw new Error(
+      `Document "${args.documentId}" has no file associated with it.`,
+    );
+  }
+
   const ragServiceUrl = getRagConfig().serviceUrl;
 
-  const result = await fetchDocumentContent(ragServiceUrl, args.documentId, {
+  const result = await fetchDocumentContent(ragServiceUrl, document.fileId, {
     chunkStart: args.chunkStart,
     chunkEnd: args.chunkEnd,
   });
