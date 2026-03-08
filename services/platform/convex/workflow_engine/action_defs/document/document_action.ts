@@ -114,30 +114,6 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
       }
 
       case 'retrieve': {
-        const organizationId =
-          typeof variables.organizationId === 'string'
-            ? variables.organizationId
-            : undefined;
-        const userId =
-          typeof variables.userId === 'string' ? variables.userId : undefined;
-
-        if (!organizationId || !userId) {
-          throw new Error(
-            'organizationId and userId are required in workflow variables for document retrieve',
-          );
-        }
-
-        const accessibleFileIds: string[] = await ctx.runQuery(
-          internal.documents.internal_queries.getAccessibleFileIds,
-          { organizationId, userId },
-        );
-
-        if (!accessibleFileIds.includes(params.fileId)) {
-          throw new Error(
-            `File not found or access denied: "${params.fileId}"`,
-          );
-        }
-
         const { serviceUrl } = getRagConfig();
         return await fetchDocumentContent(serviceUrl, params.fileId, {
           chunkStart: params.chunkStart,

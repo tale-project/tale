@@ -585,6 +585,7 @@ import type * as wf_definitions_mutations from "../wf_definitions/mutations.js";
 import type * as wf_definitions_queries from "../wf_definitions/queries.js";
 import type * as wf_executions_internal_mutations from "../wf_executions/internal_mutations.js";
 import type * as wf_executions_internal_queries from "../wf_executions/internal_queries.js";
+import type * as wf_executions_mutations from "../wf_executions/mutations.js";
 import type * as wf_executions_queries from "../wf_executions/queries.js";
 import type * as wf_step_defs_actions from "../wf_step_defs/actions.js";
 import type * as wf_step_defs_audit from "../wf_step_defs/audit.js";
@@ -1432,6 +1433,7 @@ declare const fullApi: ApiFromModules<{
   "wf_definitions/queries": typeof wf_definitions_queries;
   "wf_executions/internal_mutations": typeof wf_executions_internal_mutations;
   "wf_executions/internal_queries": typeof wf_executions_internal_queries;
+  "wf_executions/mutations": typeof wf_executions_mutations;
   "wf_executions/queries": typeof wf_executions_queries;
   "wf_step_defs/actions": typeof wf_step_defs_actions;
   "wf_step_defs/audit": typeof wf_step_defs_audit;
