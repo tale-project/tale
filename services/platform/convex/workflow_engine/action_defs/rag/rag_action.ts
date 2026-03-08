@@ -17,6 +17,7 @@ export const ragAction: ActionDefinition<RagActionParams> = {
     v.object({
       operation: v.literal('upload_document'),
       recordId: v.string(),
+      sync: v.optional(v.boolean()),
     }),
     v.object({
       operation: v.literal('delete_document'),
@@ -30,7 +31,9 @@ export const ragAction: ActionDefinition<RagActionParams> = {
 
     switch (params.operation) {
       case 'upload_document': {
-        const result = await uploadDocument(ctx, serviceUrl, params.recordId);
+        const result = await uploadDocument(ctx, serviceUrl, params.recordId, {
+          sync: params.sync,
+        });
         return { ...result, executionTimeMs: Date.now() - startTime };
       }
       case 'delete_document': {

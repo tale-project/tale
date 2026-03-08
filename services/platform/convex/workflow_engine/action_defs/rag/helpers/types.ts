@@ -5,6 +5,7 @@ export type RagActionParams =
   | {
       operation: 'upload_document';
       recordId: string;
+      sync?: boolean;
     }
   | {
       operation: 'delete_document';

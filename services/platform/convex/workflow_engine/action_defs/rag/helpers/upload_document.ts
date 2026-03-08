@@ -12,6 +12,7 @@ export async function uploadDocument(
   ctx: ActionCtx,
   ragServiceUrl: string,
   recordId: string,
+  options?: { sync?: boolean },
 ): Promise<RagUploadResult> {
   const documentId = toId<'documents'>(recordId);
 
@@ -45,6 +46,8 @@ export async function uploadDocument(
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
   const meta = (document.metadata as DocumentMetadata | undefined) || {};
 
+  const sync = options?.sync ?? false;
+
   const result = await uploadFile({
     ragServiceUrl,
     file,
@@ -57,18 +60,26 @@ export async function uploadDocument(
       title: document.title,
       ...meta,
     },
+    sync,
   });
 
   if (result.success) {
-    await ctx.runMutation(
-      internal.documents.internal_mutations.updateDocumentRagInfo,
-      { documentId, ragInfo: { status: 'queued' } },
-    );
-    await ctx.scheduler.runAfter(
-      INITIAL_POLLING_DELAY_MS,
-      internal.documents.internal_actions.checkRagDocumentStatus,
-      { documentId, attempt: 1 },
-    );
+    if (sync) {
+      await ctx.runMutation(
+        internal.documents.internal_mutations.updateDocumentRagInfo,
+        { documentId, ragInfo: { status: 'completed' } },
+      );
+    } else {
+      await ctx.runMutation(
+        internal.documents.internal_mutations.updateDocumentRagInfo,
+        { documentId, ragInfo: { status: 'queued' } },
+      );
+      await ctx.scheduler.runAfter(
+        INITIAL_POLLING_DELAY_MS,
+        internal.documents.internal_actions.checkRagDocumentStatus,
+        { documentId, attempt: 1 },
+      );
+    }
   }
 
   return result;

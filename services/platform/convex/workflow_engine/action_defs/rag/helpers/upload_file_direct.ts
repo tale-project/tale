@@ -8,6 +8,7 @@ export interface UploadFileArgs {
   documentId: string;
   metadata?: Record<string, unknown>;
   timeoutMs?: number;
+  sync?: boolean;
 }
 
 interface RagApiUploadResponse {
@@ -20,6 +21,9 @@ interface RagApiUploadResponse {
 /**
  * Upload a file to the RAG service via multipart/form-data.
  */
+const SYNC_TIMEOUT_MS = 120_000;
+const DEFAULT_TIMEOUT_MS = 30_000;
+
 export async function uploadFile({
   ragServiceUrl,
   file,
@@ -27,8 +31,11 @@ export async function uploadFile({
   contentType,
   documentId,
   metadata,
-  timeoutMs = 30000,
+  timeoutMs,
+  sync = false,
 }: UploadFileArgs): Promise<RagUploadResult> {
+  const effectiveTimeout =
+    timeoutMs ?? (sync ? SYNC_TIMEOUT_MS : DEFAULT_TIMEOUT_MS);
   const startTime = Date.now();
 
   const formData = new FormData();
@@ -40,9 +47,13 @@ export async function uploadFile({
   );
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const timeoutId = setTimeout(() => controller.abort(), effectiveTimeout);
 
-  const response = await fetch(`${ragServiceUrl}/api/v1/documents/upload`, {
+  const uploadUrl = sync
+    ? `${ragServiceUrl}/api/v1/documents/upload?sync=true`
+    : `${ragServiceUrl}/api/v1/documents/upload`;
+
+  const response = await fetch(uploadUrl, {
     method: 'POST',
     body: formData,
     signal: controller.signal,
