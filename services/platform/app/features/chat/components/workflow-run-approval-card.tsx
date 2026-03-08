@@ -156,19 +156,16 @@ function WorkflowRunApprovalCardComponent({
   return (
     <div
       className={cn(
-        'border rounded-lg p-4 bg-card shadow-sm max-w-md overflow-hidden',
-        status === 'approved' && 'border-success/30 bg-success/5',
-        status === 'rejected' && 'border-destructive/30 bg-destructive/5',
-        status === 'pending' && 'border-primary/30 bg-primary/5',
+        'rounded-xl border border-border p-4 bg-card max-w-md overflow-hidden',
+        status === 'approved' && 'border-success/30',
+        status === 'rejected' && 'border-destructive/30',
         className,
       )}
     >
       {/* Header */}
       <HStack gap={2} align="start" justify="between" className="mb-3">
         <HStack gap={2}>
-          <div className="bg-primary/10 rounded-md p-1.5">
-            <Play className="text-primary size-4" />
-          </div>
+          <Play className="text-primary size-4 shrink-0" />
           <div>
             <Text as="div" variant="label">
               {metadata.workflowName}
@@ -180,22 +177,14 @@ function WorkflowRunApprovalCardComponent({
             )}
           </div>
         </HStack>
-        <Badge
-          variant={
-            status === 'approved'
-              ? 'green'
-              : status === 'rejected'
-                ? 'destructive'
-                : 'blue'
-          }
-          className="text-xs"
-        >
-          {status === 'pending'
-            ? t('statusPending')
-            : status === 'approved'
-              ? t('statusApproved')
-              : t('statusRejected')}
-        </Badge>
+        {status !== 'pending' && (
+          <Badge
+            variant={status === 'approved' ? 'green' : 'destructive'}
+            className="text-xs"
+          >
+            {status === 'approved' ? t('statusApproved') : t('statusRejected')}
+          </Badge>
+        )}
       </HStack>
 
       {/* Parameters Preview */}
@@ -354,18 +343,14 @@ function WorkflowRunApprovalCardComponent({
           <Tooltip content={t('approveTooltip')}>
             <Button
               size="sm"
-              variant="success"
+              variant="primary"
               onClick={handleApprove}
               disabled={isProcessing}
               aria-busy={isApproving}
               aria-label={t('approve')}
               className="flex-1"
             >
-              {isApproving ? (
-                <Loader2 className="mr-1 size-4 animate-spin" />
-              ) : (
-                <Play className="mr-1 size-4" />
-              )}
+              {isApproving && <Loader2 className="mr-1 size-4 animate-spin" />}
               {t('approve')}
             </Button>
           </Tooltip>
@@ -373,18 +358,14 @@ function WorkflowRunApprovalCardComponent({
           <Tooltip content={t('rejectTooltip')}>
             <Button
               size="sm"
-              variant="destructive"
+              variant="secondary"
               onClick={handleReject}
               disabled={isProcessing}
               aria-busy={isRejecting}
               aria-label={t('reject')}
               className="flex-1"
             >
-              {isRejecting ? (
-                <Loader2 className="mr-1 size-4 animate-spin" />
-              ) : (
-                <XCircle className="mr-1 size-4" />
-              )}
+              {isRejecting && <Loader2 className="mr-1 size-4 animate-spin" />}
               {t('reject')}
             </Button>
           </Tooltip>

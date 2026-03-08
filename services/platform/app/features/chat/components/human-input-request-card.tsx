@@ -250,19 +250,16 @@ function HumanInputRequestCardComponent({
   return (
     <div
       className={cn(
-        'border rounded-lg p-5 bg-card shadow-sm w-full max-w-xl',
-        status === 'approved' && 'border-success/30 bg-success/5',
-        status === 'rejected' && 'border-destructive/30 bg-destructive/5',
-        status === 'pending' && 'border-primary/30 bg-primary/5',
+        'rounded-xl border border-border p-5 bg-card w-full max-w-xl',
+        status === 'approved' && 'border-success/30',
+        status === 'rejected' && 'border-destructive/30',
         className,
       )}
     >
       {/* Header */}
       <HStack gap={3} align="start" justify="between" className="mb-4">
         <HStack gap={3}>
-          <div className="bg-primary/10 rounded-lg p-2">
-            <MessageCircleQuestion className="text-primary size-5" />
-          </div>
+          <MessageCircleQuestion className="text-primary size-5 shrink-0" />
           <div>
             <div className="text-base font-semibold">Question</div>
             <Badge variant="outline" className="mt-1 text-xs capitalize">

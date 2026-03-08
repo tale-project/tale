@@ -299,19 +299,16 @@ function WorkflowCreationApprovalCardComponent({
   return (
     <div
       className={cn(
-        'border rounded-lg p-4 bg-card shadow-sm max-w-md overflow-hidden',
-        status === 'approved' && 'border-success/30 bg-success/5',
-        status === 'rejected' && 'border-destructive/30 bg-destructive/5',
-        status === 'pending' && 'border-primary/30 bg-primary/5',
+        'rounded-xl border border-border p-4 bg-card max-w-md overflow-hidden',
+        status === 'approved' && 'border-success/30',
+        status === 'rejected' && 'border-destructive/30',
         className,
       )}
     >
       {/* Header */}
       <HStack gap={2} align="start" justify="between" className="mb-3">
         <HStack gap={2}>
-          <div className="bg-primary/10 rounded-md p-1.5">
-            <Workflow className="text-primary size-4" />
-          </div>
+          <Workflow className="text-primary size-4 shrink-0" />
           <div>
             <Text as="div" variant="label">
               {metadata.workflowName}
@@ -323,18 +320,14 @@ function WorkflowCreationApprovalCardComponent({
             )}
           </div>
         </HStack>
-        <Badge
-          variant={
-            status === 'approved'
-              ? 'green'
-              : status === 'rejected'
-                ? 'destructive'
-                : 'blue'
-          }
-          className="text-xs capitalize"
-        >
-          {status}
-        </Badge>
+        {status !== 'pending' && (
+          <Badge
+            variant={status === 'approved' ? 'green' : 'destructive'}
+            className="text-xs capitalize"
+          >
+            {status}
+          </Badge>
+        )}
       </HStack>
 
       {/* Workflow Steps Preview */}
@@ -510,16 +503,12 @@ function WorkflowCreationApprovalCardComponent({
           <Tooltip content="Approve and create this workflow">
             <Button
               size="sm"
-              variant="success"
+              variant="primary"
               onClick={handleApprove}
               disabled={isProcessing}
               className="flex-1"
             >
-              {isApproving ? (
-                <Loader2 className="mr-1 size-4 animate-spin" />
-              ) : (
-                <CheckCircle className="mr-1 size-4" />
-              )}
+              {isApproving && <Loader2 className="mr-1 size-4 animate-spin" />}
               Create Workflow
             </Button>
           </Tooltip>
@@ -527,16 +516,12 @@ function WorkflowCreationApprovalCardComponent({
           <Tooltip content="Cancel workflow creation">
             <Button
               size="sm"
-              variant="destructive"
+              variant="secondary"
               onClick={handleReject}
               disabled={isProcessing}
               className="flex-1"
             >
-              {isRejecting ? (
-                <Loader2 className="mr-1 size-4 animate-spin" />
-              ) : (
-                <XCircle className="mr-1 size-4" />
-              )}
+              {isRejecting && <Loader2 className="mr-1 size-4 animate-spin" />}
               Cancel
             </Button>
           </Tooltip>
