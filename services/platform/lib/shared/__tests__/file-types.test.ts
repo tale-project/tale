@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { extractExtension, resolveFileType } from '../file-types';
+import {
+  extractExtension,
+  mimeToExtension,
+  resolveFileType,
+} from '../file-types';
 
 describe('extractExtension', () => {
   it('extracts standard extension', () => {
@@ -103,5 +107,57 @@ describe('resolveFileType', () => {
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     );
     expect(resolveFileType('data.csv', '')).toBe('text/csv');
+  });
+});
+
+describe('mimeToExtension', () => {
+  it.each([
+    ['image/jpeg', 'jpg'],
+    ['image/png', 'png'],
+    ['image/gif', 'gif'],
+    ['image/webp', 'webp'],
+    ['application/pdf', 'pdf'],
+    ['application/msword', 'doc'],
+    [
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'docx',
+    ],
+    ['application/vnd.ms-powerpoint', 'ppt'],
+    [
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'pptx',
+    ],
+    ['application/vnd.ms-excel', 'xls'],
+    [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'xlsx',
+    ],
+    ['text/csv', 'csv'],
+    ['text/plain', 'txt'],
+  ])('maps %s to %s', (mime, expected) => {
+    expect(mimeToExtension(mime)).toBe(expected);
+  });
+
+  it('returns undefined for application/octet-stream', () => {
+    expect(mimeToExtension('application/octet-stream')).toBeUndefined();
+  });
+
+  it('returns undefined for unknown MIME types', () => {
+    expect(mimeToExtension('application/x-custom')).toBeUndefined();
+    expect(mimeToExtension('video/mp4')).toBeUndefined();
+  });
+
+  it('returns undefined for empty string', () => {
+    expect(mimeToExtension('')).toBeUndefined();
+  });
+
+  it('strips MIME parameters', () => {
+    expect(mimeToExtension('text/plain; charset=utf-8')).toBe('txt');
+    expect(mimeToExtension('application/pdf; version=1.7')).toBe('pdf');
+  });
+
+  it('handles uppercase MIME types', () => {
+    expect(mimeToExtension('IMAGE/JPEG')).toBe('jpg');
+    expect(mimeToExtension('Application/PDF')).toBe('pdf');
   });
 });

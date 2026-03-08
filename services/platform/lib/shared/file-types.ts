@@ -109,6 +109,22 @@ const EXTENSION_TO_MIME: Readonly<Record<string, MimeType>> = {
   txt: MIME_TYPES.PLAIN,
 };
 
+const MIME_TO_EXTENSION: Readonly<Record<string, string>> = {
+  [MIME_TYPES.JPEG]: 'jpg',
+  [MIME_TYPES.PNG]: 'png',
+  [MIME_TYPES.GIF]: 'gif',
+  [MIME_TYPES.WEBP]: 'webp',
+  [MIME_TYPES.PDF]: 'pdf',
+  [MIME_TYPES.DOC]: 'doc',
+  [MIME_TYPES.DOCX]: 'docx',
+  [MIME_TYPES.PPT]: 'ppt',
+  [MIME_TYPES.PPTX]: 'pptx',
+  [MIME_TYPES.XLS]: 'xls',
+  [MIME_TYPES.XLSX]: 'xlsx',
+  [MIME_TYPES.CSV]: 'csv',
+  [MIME_TYPES.PLAIN]: 'txt',
+};
+
 const KNOWN_MIME_TYPES: ReadonlySet<string> = new Set(
   Object.values(MIME_TYPES),
 );
@@ -367,4 +383,13 @@ export function getFileTypeLabelKey(mimeType: string): string {
     return 'xlsx';
   if (mimeType === MIME_TYPES.CSV) return 'csv';
   return 'file';
+}
+
+/**
+ * Map a MIME type to its canonical file extension (without dot).
+ * Returns `undefined` for unknown or generic types like `application/octet-stream`.
+ */
+export function mimeToExtension(mime: string): string | undefined {
+  const base = mime.split(';')[0].trim().toLowerCase();
+  return MIME_TO_EXTENSION[base];
 }

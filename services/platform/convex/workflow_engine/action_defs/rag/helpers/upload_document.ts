@@ -1,8 +1,26 @@
 import type { ActionCtx } from '../../../../_generated/server';
 import type { RagUploadResult } from './types';
 
+import {
+  extractExtension,
+  mimeToExtension,
+} from '../../../../../lib/shared/file-types';
+import { internal } from '../../../../_generated/api';
 import { toId } from '../../../../lib/type_cast_helpers';
 import { uploadFile } from './upload_file_direct';
+
+function ensureExtension(fileName: string, contentType: string): string {
+  if (extractExtension(fileName)) {
+    return fileName;
+  }
+
+  const ext = mimeToExtension(contentType);
+  if (ext) {
+    return `${fileName}.${ext}`;
+  }
+
+  return fileName;
+}
 
 export async function uploadDocument(
   ctx: ActionCtx,
@@ -28,15 +46,30 @@ export async function uploadDocument(
   }
   const file = await fileResponse.blob();
 
-  const sync = options?.sync ?? false;
+  const metadata = await ctx.runQuery(
+    internal.file_metadata.internal_queries.getByStorageId,
+    { storageId },
+  );
+
+  if (!metadata) {
+    throw new Error(
+      `File metadata not found for storageId: ${fileId}. Every uploaded file must have a fileMetadata record.`,
+    );
+  }
+
+  const contentType = options?.contentType || metadata.contentType;
+  const fileName = ensureExtension(
+    options?.fileName || metadata.fileName,
+    contentType,
+  );
 
   return uploadFile({
     ragServiceUrl,
     file,
-    filename: options?.fileName || 'document',
-    contentType: options?.contentType || 'application/octet-stream',
+    filename: fileName,
+    contentType,
     fileId,
     metadata: options?.metadata,
-    sync,
+    sync: options?.sync ?? false,
   });
 }

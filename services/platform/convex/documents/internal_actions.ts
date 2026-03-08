@@ -116,6 +116,7 @@ const docxContentValidator = v.object({
 
 export const generateDocument = internalAction({
   args: {
+    organizationId: v.optional(v.string()),
     fileName: v.string(),
     sourceType: documentSourceTypeValidator,
     outputFormat: documentOutputFormatValidator,
@@ -127,40 +128,55 @@ export const generateDocument = internalAction({
     wrapInTemplate: v.optional(v.boolean()),
   },
   handler: async (ctx, args): Promise<GenerateDocumentResult> => {
-    return await DocumentsHelpers.generateDocument(ctx, args);
+    return await DocumentsHelpers.generateDocument(ctx, {
+      ...args,
+      organizationId: args.organizationId ?? 'system',
+    });
   },
 });
 
 export const generatePptx = internalAction({
   args: {
+    organizationId: v.optional(v.string()),
     fileName: v.string(),
     slidesContent: v.array(slideContentValidator),
     branding: pptxBrandingValidator,
     templateStorageId: v.id('_storage'),
   },
   handler: async (ctx, args): Promise<GeneratePptxResult> => {
-    return await DocumentsHelpers.generatePptx(ctx, args);
+    return await DocumentsHelpers.generatePptx(ctx, {
+      ...args,
+      organizationId: args.organizationId ?? 'system',
+    });
   },
 });
 
 export const generateDocx = internalAction({
   args: {
+    organizationId: v.optional(v.string()),
     fileName: v.string(),
     content: docxContentValidator,
   },
   handler: async (ctx, args): Promise<GenerateDocxResult> => {
-    return await DocumentsHelpers.generateDocx(ctx, args);
+    return await DocumentsHelpers.generateDocx(ctx, {
+      ...args,
+      organizationId: args.organizationId ?? 'system',
+    });
   },
 });
 
 export const generateDocxFromTemplate = internalAction({
   args: {
+    organizationId: v.optional(v.string()),
     fileName: v.string(),
     content: docxContentValidator,
     templateStorageId: v.id('_storage'),
   },
   handler: async (ctx, args): Promise<GenerateDocxFromTemplateResult> => {
-    return await DocumentsHelpers.generateDocxFromTemplate(ctx, args);
+    return await DocumentsHelpers.generateDocxFromTemplate(ctx, {
+      ...args,
+      organizationId: args.organizationId ?? 'system',
+    });
   },
 });
 

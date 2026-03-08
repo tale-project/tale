@@ -13,7 +13,10 @@ import { getFileMetadata } from './get_file_metadata';
  * Create dependencies for the importFiles function.
  * Binds Convex context to the dependency functions.
  */
-export function createImportFilesDeps(ctx: ActionCtx): ImportFilesDependencies {
+export function createImportFilesDeps(
+  ctx: ActionCtx,
+  organizationId: string,
+): ImportFilesDependencies {
   return {
     getFileMetadata: (itemId, token, siteId, driveId) =>
       getFileMetadata(itemId, token, siteId, driveId),
@@ -38,15 +41,16 @@ export function createImportFilesDeps(ctx: ActionCtx): ImportFilesDependencies {
         updateArgs,
       );
     },
-    getOrCreateFolderPath: async (
-      organizationId,
-      pathSegments,
-      createdBy,
-      teamId,
-    ) =>
+    getOrCreateFolderPath: async (orgId, pathSegments, createdBy, teamId) =>
       (await ctx.runMutation(
         internal.folders.internal_mutations.getOrCreateFolderPath,
-        { organizationId, pathSegments, createdBy, teamId },
+        { organizationId: orgId, pathSegments, createdBy, teamId },
       )) ?? undefined,
+    saveFileMetadata: async (storageId, fileName, contentType, size) => {
+      await ctx.runMutation(
+        internal.file_metadata.internal_mutations.saveFileMetadata,
+        { organizationId, storageId, fileName, contentType, size },
+      );
+    },
   };
 }

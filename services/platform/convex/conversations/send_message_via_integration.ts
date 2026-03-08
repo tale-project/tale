@@ -59,11 +59,18 @@ export async function sendMessageViaIntegration(
 
   const now = Date.now();
 
-  // Build attachment metadata so outbound messages display their attachments
+  // Save file metadata and build attachment metadata for outbound messages
   let attachmentsMeta: Array<Record<string, unknown>> | undefined;
   if (args.attachments && args.attachments.length > 0) {
     attachmentsMeta = await Promise.all(
       args.attachments.map(async (att) => {
+        await ctx.db.insert('fileMetadata', {
+          organizationId: args.organizationId,
+          storageId: att.storageId,
+          fileName: att.fileName,
+          contentType: att.contentType,
+          size: att.size,
+        });
         const url = await ctx.storage.getUrl(att.storageId);
         return {
           id: att.storageId,

@@ -239,6 +239,10 @@ import type * as documents_update_document_internal from "../documents/update_do
 import type * as documents_update_document_rag_info from "../documents/update_document_rag_info.js";
 import type * as documents_upload_base64_to_storage from "../documents/upload_base64_to_storage.js";
 import type * as documents_validators from "../documents/validators.js";
+import type * as file_metadata_helpers from "../file_metadata/helpers.js";
+import type * as file_metadata_internal_mutations from "../file_metadata/internal_mutations.js";
+import type * as file_metadata_internal_queries from "../file_metadata/internal_queries.js";
+import type * as file_metadata_mutations from "../file_metadata/mutations.js";
 import type * as files_mutations from "../files/mutations.js";
 import type * as files_queries from "../files/queries.js";
 import type * as folders_get_or_create_path from "../folders/get_or_create_path.js";
@@ -1082,6 +1086,10 @@ declare const fullApi: ApiFromModules<{
   "documents/update_document_rag_info": typeof documents_update_document_rag_info;
   "documents/upload_base64_to_storage": typeof documents_upload_base64_to_storage;
   "documents/validators": typeof documents_validators;
+  "file_metadata/helpers": typeof file_metadata_helpers;
+  "file_metadata/internal_mutations": typeof file_metadata_internal_mutations;
+  "file_metadata/internal_queries": typeof file_metadata_internal_queries;
+  "file_metadata/mutations": typeof file_metadata_mutations;
   "files/mutations": typeof files_mutations;
   "files/queries": typeof files_queries;
   "folders/get_or_create_path": typeof folders_get_or_create_path;

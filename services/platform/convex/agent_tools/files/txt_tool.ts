@@ -12,6 +12,7 @@ import { z } from 'zod/v4';
 
 import type { ToolDefinition } from '../types';
 
+import { internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
 import { analyzeTextContent } from './helpers/analyze_text';
 
@@ -110,6 +111,18 @@ Returns: { success, url (for generate), result (for parse), char_count, line_cou
             type: 'text/plain; charset=utf-8',
           });
           const fileId = await ctx.storage.store(blob);
+
+          await ctx.runMutation(
+            internal.file_metadata.internal_mutations.saveFileMetadata,
+            {
+              organizationId: ctx.organizationId ?? 'system',
+              storageId: fileId,
+              fileName: filename,
+              contentType: 'text/plain; charset=utf-8',
+              size: blob.size,
+            },
+          );
+
           const url = await ctx.storage.getUrl(fileId);
 
           if (!url) {

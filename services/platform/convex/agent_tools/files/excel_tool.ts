@@ -210,6 +210,19 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
           type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         });
         const fileId = await ctx.storage.store(blob);
+
+        await ctx.runMutation(
+          internal.file_metadata.internal_mutations.saveFileMetadata,
+          {
+            organizationId: ctx.organizationId ?? 'system',
+            storageId: fileId,
+            fileName: result.fileName,
+            contentType:
+              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            size: blob.size,
+          },
+        );
+
         const url = await ctx.storage.getUrl(fileId);
 
         if (!url) {

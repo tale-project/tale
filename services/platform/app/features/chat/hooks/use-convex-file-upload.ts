@@ -4,7 +4,9 @@ import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
 
+import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { toast } from '@/app/hooks/use-toast';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import {
   CHAT_UPLOAD_ALLOWED_TYPES,
@@ -25,23 +27,27 @@ interface FileAttachment {
 }
 
 interface ConvexFileUploadConfig {
+  organizationId: string;
   maxFileSize?: number;
   allowedTypes?: string[];
 }
 
-const DEFAULT_CONFIG: Required<ConvexFileUploadConfig> = {
+const DEFAULT_UPLOAD_CONFIG = {
   maxFileSize: CHAT_MAX_FILE_SIZE,
   allowedTypes: [...CHAT_UPLOAD_ALLOWED_TYPES],
 };
 
-export function useConvexFileUpload(config?: ConvexFileUploadConfig) {
+export function useConvexFileUpload(config: ConvexFileUploadConfig) {
   const { t } = useT('chat');
   const [attachments, setAttachments] = useState<FileAttachment[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState<string[]>([]);
   const { mutateAsync: generateUploadUrl } = useGenerateUploadUrl();
+  const { mutateAsync: saveFileMetadata } = useConvexMutation(
+    api.file_metadata.mutations.saveFileMetadata,
+  );
 
   const mergedConfig = useMemo(
-    () => ({ ...DEFAULT_CONFIG, ...config }),
+    () => ({ ...DEFAULT_UPLOAD_CONFIG, ...config }),
     [config],
   );
 
@@ -105,6 +111,14 @@ export function useConvexFileUpload(config?: ConvexFileUploadConfig) {
             throw new Error(t('uploadFailed'));
           }
 
+          await saveFileMetadata({
+            organizationId: config.organizationId,
+            storageId,
+            fileName: fileToUpload.name,
+            contentType: resolvedType || 'application/octet-stream',
+            size: fileToUpload.size,
+          });
+
           const attachment: FileAttachment = {
             fileId: storageId,
             fileName: fileToUpload.name,
@@ -135,7 +149,13 @@ export function useConvexFileUpload(config?: ConvexFileUploadConfig) {
 
       await Promise.all(uploadPromises);
     },
-    [generateUploadUrl, mergedConfig, t],
+    [
+      generateUploadUrl,
+      saveFileMetadata,
+      config.organizationId,
+      mergedConfig,
+      t,
+    ],
   );
 
   const removeAttachment = useCallback((fileId: Id<'_storage'>) => {

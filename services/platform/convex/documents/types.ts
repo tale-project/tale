@@ -152,6 +152,7 @@ export interface GenerateDocumentUrlOptions {
 }
 
 export interface GenerateDocumentArgs {
+  organizationId: string;
   fileName: string;
   sourceType: DocumentSourceType;
   outputFormat: DocumentOutputFormat;

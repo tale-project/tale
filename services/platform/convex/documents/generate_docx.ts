@@ -11,6 +11,7 @@ import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 
 import { fetchJson } from '../../lib/utils/type-cast-helpers';
+import { internal } from '../_generated/api';
 import { createDebugLog } from '../lib/debug_log';
 import { buildDownloadUrl, getCrawlerUrl } from './generate_document_helpers';
 
@@ -39,6 +40,7 @@ export interface DocxContent {
 }
 
 export interface GenerateDocxArgs {
+  organizationId: string;
   fileName: string;
   content: DocxContent;
 }
@@ -116,6 +118,17 @@ export async function generateDocx(
   const finalFileName = args.fileName.toLowerCase().endsWith('.docx')
     ? args.fileName
     : `${args.fileName}.docx`;
+
+  await ctx.runMutation(
+    internal.file_metadata.internal_mutations.saveFileMetadata,
+    {
+      organizationId: args.organizationId,
+      storageId,
+      fileName: finalFileName,
+      contentType,
+      size: docxBytes.length,
+    },
+  );
 
   // Build download URL using our custom HTTP endpoint that sets Content-Disposition
   // This ensures the downloaded file has the correct filename instead of the storage ID

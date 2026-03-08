@@ -164,6 +164,7 @@ export function useDocumentUpload(options: UploadOptions) {
           folderId: uploadOptions?.folderId
             ? toId<'folders'>(uploadOptions.folderId)
             : undefined,
+          fileSize: file.size,
         });
 
         return result;

@@ -96,6 +96,7 @@ export const createDocumentFromUpload = mutation({
     metadata: v.optional(jsonRecordValidator),
     teamId: v.optional(v.string()),
     folderId: v.optional(v.id('folders')),
+    fileSize: v.optional(v.number()),
   },
   returns: v.object({
     success: v.boolean(),
@@ -124,6 +125,16 @@ export const createDocumentFromUpload = mutation({
           throw new Error('Folder not accessible');
         }
       }
+    }
+
+    if (args.fileSize != null) {
+      await ctx.db.insert('fileMetadata', {
+        organizationId: args.organizationId,
+        storageId: args.fileId,
+        fileName: args.fileName,
+        contentType: args.contentType ?? 'application/octet-stream',
+        size: args.fileSize,
+      });
     }
 
     const result = await createDocument(ctx, {
