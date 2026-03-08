@@ -43,6 +43,10 @@ type DocumentActionParams =
       fileName: string;
       sourceType: 'markdown' | 'html';
       content: string;
+    }
+  | {
+      operation: 'get_metadata';
+      fileIds: string[];
     };
 
 export const documentAction: ActionDefinition<DocumentActionParams> = {
@@ -76,6 +80,10 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
       fileName: v.string(),
       sourceType: v.union(v.literal('markdown'), v.literal('html')),
       content: v.string(),
+    }),
+    v.object({
+      operation: v.literal('get_metadata'),
+      fileIds: v.array(v.string()),
     }),
   ),
 
@@ -132,6 +140,22 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
             content: params.content,
           },
         );
+      }
+
+      case 'get_metadata': {
+        const results = await Promise.all(
+          params.fileIds.map(async (fileId) => {
+            const metadata = await ctx.runQuery(
+              internal.file_metadata.internal_queries.getByStorageId,
+              { storageId: fileId as Id<'_storage'> },
+            );
+            return {
+              fileId,
+              fileName: metadata?.fileName ?? 'Unknown',
+            };
+          }),
+        );
+        return results;
       }
 
       default:

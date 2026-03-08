@@ -43,6 +43,10 @@
             {
               "name": "chunkResults",
               "value": []
+            },
+            {
+              "name": "searchTopK",
+              "value": "{{(comparisonFileIds|length) * 3}}"
             }
           ]
         }
@@ -60,7 +64,7 @@
       },
       "nextSteps": {
         "loop": "index_document",
-        "done": "retrieve_base_chunks"
+        "done": "get_file_names"
       }
     },
     {
@@ -79,10 +83,42 @@
       "nextSteps": { "success": "loop_ensure_indexed" }
     },
     {
+      "stepSlug": "get_file_names",
+      "name": "Get File Names",
+      "stepType": "action",
+      "order": 5,
+      "config": {
+        "type": "document",
+        "parameters": {
+          "operation": "get_metadata",
+          "fileIds": "{{comparisonFileIds}}"
+        }
+      },
+      "nextSteps": { "success": "store_file_names" }
+    },
+    {
+      "stepSlug": "store_file_names",
+      "name": "Store File Names",
+      "stepType": "action",
+      "order": 6,
+      "config": {
+        "type": "set_variables",
+        "parameters": {
+          "variables": [
+            {
+              "name": "comparisonDocNames",
+              "value": "{{steps.get_file_names.output.data|map('fileName')}}"
+            }
+          ]
+        }
+      },
+      "nextSteps": { "success": "retrieve_base_chunks" }
+    },
+    {
       "stepSlug": "retrieve_base_chunks",
       "name": "Retrieve Base Document Chunks",
       "stepType": "action",
-      "order": 5,
+      "order": 7,
       "config": {
         "type": "document",
         "parameters": {
@@ -91,13 +127,31 @@
           "returnChunks": true
         }
       },
+      "nextSteps": { "success": "store_base_doc_name" }
+    },
+    {
+      "stepSlug": "store_base_doc_name",
+      "name": "Store Base Document Name",
+      "stepType": "action",
+      "order": 8,
+      "config": {
+        "type": "set_variables",
+        "parameters": {
+          "variables": [
+            {
+              "name": "baseDocName",
+              "value": "{{steps.retrieve_base_chunks.output.data.name}}"
+            }
+          ]
+        }
+      },
       "nextSteps": { "success": "loop_chunks" }
     },
     {
       "stepSlug": "loop_chunks",
       "name": "Loop: Compare Each Chunk",
       "stepType": "loop",
-      "order": 6,
+      "order": 9,
       "config": {
         "items": "{{steps.retrieve_base_chunks.output.data.chunks}}",
         "itemVariable": "item"
@@ -111,14 +165,14 @@
       "stepSlug": "search_similar",
       "name": "Search Similar Passages in Comparison Docs",
       "stepType": "action",
-      "order": 7,
+      "order": 10,
       "config": {
         "type": "rag",
         "parameters": {
           "operation": "search",
           "query": "{{loop.item.content}}",
           "fileIds": "{{comparisonFileIds}}",
-          "topK": 3
+          "topK": "{{searchTopK}}"
         }
       },
       "nextSteps": { "success": "check_has_results" }
@@ -127,7 +181,7 @@
       "stepSlug": "check_has_results",
       "name": "Check if Similar Passages Found",
       "stepType": "condition",
-      "order": 8,
+      "order": 11,
       "config": {
         "expression": "steps.search_similar.output.data.results|length > 0",
         "description": "Skip comparison if no similar passages found in comparison documents"
@@ -141,11 +195,11 @@
       "stepSlug": "compare_chunk",
       "name": "Compare Chunk with Similar Passages",
       "stepType": "llm",
-      "order": 9,
+      "order": 12,
       "config": {
         "name": "Contract Clause Comparator",
         "systemPrompt": "You are an expert legal document analyst specializing in contract comparison. Produce structured, self-contained clause analyses with difference tables including legal significance. Use precise legal terminology. Do NOT include standalone summary sections, risk matrices, overall conclusions, or cross-clause commentary.",
-        "userPrompt": "Compare the following base contract clause with similar passages found in comparison contracts.\n\n## Base Clause (Chunk {{loop.item.index}})\n{{loop.item.content}}\n\n## Similar Passages from Comparison Contracts\n{{steps.search_similar.output.data.results|formatList('{filename}: {content}', '\n\n---\n\n')}}\n\n## Output Format\n**Clause Type:** [one-line identification, e.g., Indemnification, Limitation of Liability, Termination]\n\nFor each comparison document, output a table:\n\n### [Document filename]\n| Aspect | Classification | Description | Legal Significance |\n|--------|---------------|-------------|--------------------|\n| ... | Addition/Deletion/Modification/Rewording | Factual description (1-2 sentences) | Brief note on legal impact |\n\nRules:\n- One row per difference\n- Classification must be exactly one of: Addition, Deletion, Modification, Rewording\n- Keep descriptions to 1-2 sentences\n- Legal Significance should be a brief factual note (e.g., 'Shifts performance risk to buyer', 'Eliminates seller financing')\n- If no differences found for a document, state 'No material differences identified'\n- Do NOT add standalone summary sections, risk matrices, or overall conclusions after the tables",
+        "userPrompt": "Compare the following base contract clause with similar passages found in comparison contracts.\n\n## Base Clause from \"{{baseDocName}}\" (Chunk {{loop.item.index}})\n{{loop.item.content}}\n\n## Comparison Documents\nThe following documents are being compared against the base contract:\n{{comparisonDocNames|join(', ')}}\n\n## Similar Passages Found via RAG Search\n{{steps.search_similar.output.data.results|formatList('{filename}: {content}', '\n\n---\n\n')}}\n\n## Output Format\n**Clause Type:** [one-line identification, e.g., Indemnification, Limitation of Liability, Termination]\n\nYou MUST include a section for EVERY comparison document listed above, even if no matching passages were found in the RAG search results.\n\nFor each comparison document, output a table:\n\n### [Document filename]\n| Aspect | Classification | Description | Legal Significance |\n|--------|---------------|-------------|--------------------|\n| ... | Addition/Deletion/Modification/Rewording | Factual description (1-2 sentences) | Brief note on legal impact |\n\nRules:\n- One row per difference\n- Classification must be exactly one of: Addition, Deletion, Modification, Rewording\n- Keep descriptions to 1-2 sentences\n- Legal Significance should be a brief factual note (e.g., 'Shifts performance risk to buyer', 'Eliminates seller financing')\n- If no differences found for a document, state 'No material differences identified'\n- If no matching passages were found for a comparison document in the RAG search results above, output: '**No corresponding clause found in this document.** This clause from the base contract does not appear to have an equivalent provision in [document filename].'\n- Do NOT add standalone summary sections, risk matrices, or overall conclusions after the tables",
         "outputFormat": "text"
       },
       "nextSteps": { "success": "accumulate_results" }
@@ -154,7 +208,7 @@
       "stepSlug": "accumulate_results",
       "name": "Accumulate Comparison Results",
       "stepType": "action",
-      "order": 10,
+      "order": 13,
       "config": {
         "type": "set_variables",
         "parameters": {
@@ -172,11 +226,11 @@
       "stepSlug": "generate_overview",
       "name": "Generate Report Overview",
       "stepType": "llm",
-      "order": 11,
+      "order": 14,
       "config": {
         "name": "Contract Comparison Overview",
         "systemPrompt": "You are an expert legal analyst. Generate a brief executive introduction for a contract comparison report. Be professional and concise.",
-        "userPrompt": "Write a 2-3 paragraph executive introduction for a contract comparison report with the following metadata:\n\n- Total clauses analyzed: {{chunkResults|length}}\n- Number of comparison documents: {{comparisonFileIds|length}}\n\nThe introduction should:\n1. Describe the scope and methodology (chunk-level RAG comparison of contract clauses)\n2. Note the total number of clauses analyzed and documents compared\n3. Direct the reader to the detailed clause-by-clause comparison that follows\n\nKeep it under 150 words. Do NOT attempt to summarize findings — you do not have access to the comparison data.",
+        "userPrompt": "Write a 2-3 paragraph executive introduction for a contract comparison report with the following metadata:\n\n- Base document: {{baseDocName}}\n- Comparison documents: {{comparisonDocNames|join(', ')}}\n- Total clauses analyzed: {{chunkResults|length}}\n- Number of comparison documents: {{comparisonFileIds|length}}\n\nThe introduction should:\n1. Identify the base document and each comparison document by name\n2. Describe the scope and methodology (chunk-level RAG comparison of contract clauses)\n3. Note the total number of clauses analyzed and documents compared\n4. Direct the reader to the detailed clause-by-clause comparison that follows\n\nKeep it under 150 words. Do NOT attempt to summarize findings — you do not have access to the comparison data.",
         "outputFormat": "text"
       },
       "nextSteps": { "success": "generate_report" }
@@ -185,14 +239,14 @@
       "stepSlug": "generate_report",
       "name": "Generate DOCX Report",
       "stepType": "action",
-      "order": 12,
+      "order": 15,
       "config": {
         "type": "document",
         "parameters": {
           "operation": "generate_docx",
           "fileName": "contract-comparison-report.docx",
           "sourceType": "markdown",
-          "content": "# Contract Comparison Report\n\n{{steps.generate_overview.output.data}}\n\n---\n\n# Clause-by-Clause Comparison\n\n{{chunkResults|join('\n\n---\n\n')}}"
+          "content": "# Contract Comparison Report\n\n**Base Document:** {{baseDocName}}\n\n**Comparison Documents:** {{comparisonDocNames|join(', ')}}\n\n{{steps.generate_overview.output.data}}\n\n---\n\n# Clause-by-Clause Comparison\n\n{{chunkResults|join('\n\n---\n\n')}}"
         }
       },
       "nextSteps": { "success": "output" }
@@ -201,7 +255,7 @@
       "stepSlug": "output",
       "name": "Output Results",
       "stepType": "output",
-      "order": 13,
+      "order": 16,
       "config": {
         "outputMapping": {
           "fileStorageId": "{{steps.generate_report.output.data.fileStorageId}}",

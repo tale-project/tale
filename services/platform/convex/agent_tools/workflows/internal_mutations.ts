@@ -1,4 +1,5 @@
 import { saveMessage } from '@convex-dev/agent';
+import { createFunctionHandle, makeFunctionReference } from 'convex/server';
 import { v } from 'convex/values';
 
 import type { Doc, Id } from '../../_generated/dataModel';
@@ -8,11 +9,18 @@ import type {
 } from '../../approvals/types';
 
 import { jsonRecordValidator } from '../../../lib/shared/schemas/utils/json-value';
-import { components } from '../../_generated/api';
+import { components, internal } from '../../_generated/api';
 import { internalMutation } from '../../_generated/server';
 import { createApproval } from '../../approvals/helpers';
+import { toSerializableConfig } from '../../custom_agents/config';
+import { getDefaultAgentRuntimeConfig } from '../../lib/agent_runtime_config';
 import { checkOrganizationRateLimit } from '../../lib/rate_limiter/helpers';
+import { persistentStreaming } from '../../streaming/helpers';
 import { stepConfigValidator } from '../../workflow_engine/types/nodes';
+
+const beforeGenerateHookRef = makeFunctionReference<'action'>(
+  'lib/agent_chat/internal_actions:beforeGenerateHook',
+);
 
 type ApprovalMetadata = Doc<'approvals'>['metadata'];
 
@@ -57,6 +65,79 @@ export const saveSystemMessage = internalMutation({
       threadId: args.threadId,
       message: { role: 'system', content: args.content },
     });
+  },
+});
+
+export const triggerWorkflowCompletionResponse = internalMutation({
+  args: {
+    threadId: v.string(),
+    organizationId: v.string(),
+    messageContent: v.string(),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    const { threadId, organizationId, messageContent } = args;
+
+    const systemChatQuery = ctx.db
+      .query('customAgents')
+      .withIndex('by_org_system_slug', (q) =>
+        q.eq('organizationId', organizationId).eq('systemAgentSlug', 'chat'),
+      );
+
+    let chatAgent = null;
+    for await (const agent of systemChatQuery) {
+      if (agent.status === 'active') {
+        chatAgent = agent;
+        break;
+      }
+    }
+
+    if (!chatAgent) {
+      console.warn(
+        '[triggerWorkflowCompletionResponse] System default chat agent not found for org:',
+        organizationId,
+      );
+      return;
+    }
+
+    const thread = await ctx.runQuery(components.agent.threads.getThread, {
+      threadId,
+    });
+
+    const { messageId: promptMessageId } = await saveMessage(
+      ctx,
+      components.agent,
+      {
+        threadId,
+        message: { role: 'user', content: messageContent },
+      },
+    );
+
+    const agentConfig = toSerializableConfig(chatAgent);
+    const { model, provider } = getDefaultAgentRuntimeConfig();
+    const streamId = await persistentStreaming.createStream(ctx);
+    const beforeGenerate = await createFunctionHandle(beforeGenerateHookRef);
+
+    await ctx.scheduler.runAfter(
+      0,
+      internal.lib.agent_chat.internal_actions.runAgentGeneration,
+      {
+        agentType: 'custom',
+        agentConfig,
+        model: agentConfig.model ?? model,
+        provider,
+        debugTag: '[ChatAgent:WorkflowComplete]',
+        enableStreaming: true,
+        hooks: { beforeGenerate },
+        threadId,
+        organizationId,
+        promptMessage: messageContent,
+        streamId,
+        promptMessageId,
+        maxSteps: 20,
+        userId: thread?.userId,
+        deadlineMs: Date.now() + 60_000,
+      },
+    );
   },
 });
 

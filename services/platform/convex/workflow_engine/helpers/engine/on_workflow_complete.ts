@@ -87,6 +87,10 @@ async function postCompletionMessageToThread(
   kind: string | undefined,
   result: ComponentRunResult,
 ): Promise<void> {
+  // Idempotency guard: exec snapshot was fetched before status update.
+  // If already in a terminal state, this is a re-invocation — skip.
+  if (exec.status === 'completed' || exec.status === 'failed') return;
+
   const triggerData = isRecord(exec.triggerData) ? exec.triggerData : null;
   const approvalIdStr = triggerData
     ? getString(triggerData, 'approvalId')
@@ -99,19 +103,35 @@ async function postCompletionMessageToThread(
 
     const workflowName = exec.workflowSlug || 'unknown';
     const errorMsg = result.kind === 'failed' ? result.error : 'unknown error';
+
+    let outputSummary = '';
+    if (result.kind === 'success' && result.returnValue) {
+      try {
+        const raw = JSON.stringify(result.returnValue, null, 2);
+        if (!raw.includes('_storageRef')) {
+          outputSummary = `\n\nWorkflow Output:\n${raw.slice(0, 8000)}`;
+        }
+      } catch {
+        // Non-critical: skip output if serialization fails
+      }
+    }
+
     const messageContent =
       kind === 'success'
-        ? `[WORKFLOW_COMPLETED]\nWorkflow "${workflowName}" completed successfully.\n\nExecution Details:\n- Execution ID: ${exec._id}\n- Status: completed\n\nInstructions:\n- Inform the user that the workflow has completed successfully`
+        ? `[WORKFLOW_COMPLETED]\nWorkflow "${workflowName}" completed successfully.\n\nExecution Details:\n- Execution ID: ${exec._id}\n- Status: completed${outputSummary}\n\nInstructions:\n- Inform the user that the workflow has completed successfully and present the output details`
         : `[WORKFLOW_FAILED]\nWorkflow "${workflowName}" failed.\n\nExecution Details:\n- Execution ID: ${exec._id}\n- Status: failed\n- Error: ${errorMsg || 'unknown error'}\n\nInstructions:\n- Inform the user that the workflow has failed and provide the error details`;
 
-    await ctx.runMutation(
-      internal.agent_tools.workflows.internal_mutations.saveSystemMessage,
+    await ctx.scheduler.runAfter(
+      0,
+      internal.agent_tools.workflows.internal_mutations
+        .triggerWorkflowCompletionResponse,
       {
         threadId: approval.threadId,
-        content: messageContent,
+        organizationId: exec.organizationId,
+        messageContent,
       },
     );
   } catch {
-    // System message failure is non-critical; execution status is already persisted
+    // Completion response trigger failure is non-critical; execution status is already persisted
   }
 }
