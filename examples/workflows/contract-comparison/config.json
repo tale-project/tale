@@ -18,8 +18,11 @@
       "order": 1,
       "config": {
         "inputSchema": {
-          "baseFileId": { "type": "string", "description": "Document ID of the base contract" },
-          "comparisonFileIds": { "type": "array", "items": { "type": "string" }, "description": "Document IDs of contracts to compare against" }
+          "properties": {
+            "baseFileId": { "type": "string", "description": "Document ID of the base contract" },
+            "comparisonFileIds": { "type": "array", "description": "Document IDs of contracts to compare against" }
+          },
+          "required": ["baseFileId", "comparisonFileIds"]
         }
       },
       "nextSteps": { "success": "init_variables" }

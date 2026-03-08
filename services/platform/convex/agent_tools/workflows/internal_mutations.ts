@@ -12,6 +12,7 @@ import { components } from '../../_generated/api';
 import { internalMutation } from '../../_generated/server';
 import { createApproval } from '../../approvals/helpers';
 import { checkOrganizationRateLimit } from '../../lib/rate_limiter/helpers';
+import { stepConfigValidator } from '../../workflow_engine/types/nodes';
 
 type ApprovalMetadata = Doc<'approvals'>['metadata'];
 
@@ -85,7 +86,7 @@ export const createWorkflowCreationApproval = internalMutation({
           v.literal('output'),
         ),
         order: v.number(),
-        config: jsonRecordValidator,
+        config: stepConfigValidator,
         nextSteps: v.record(v.string(), v.string()),
       }),
     ),
