@@ -104,7 +104,7 @@
       },
       "nextSteps": {
         "loop": "search_similar",
-        "done": "generate_summary"
+        "done": "generate_overview"
       }
     },
     {
@@ -144,8 +144,8 @@
       "order": 9,
       "config": {
         "name": "Contract Clause Comparator",
-        "systemPrompt": "You are an expert legal document analyst specializing in contract comparison. Analyze the base clause against matching passages from other contracts. Identify differences precisely: additions, deletions, modifications, and unchanged sections. Use legal terminology. Output in markdown format.",
-        "userPrompt": "Compare the following base contract clause with similar passages found in comparison contracts.\n\n## Base Clause (Chunk {{loop.item.index}})\n{{loop.item.content}}\n\n## Similar Passages from Comparison Contracts\n{{steps.search_similar.output.data.results|formatList('{filename}: {content}', '\n\n---\n\n')}}\n\n## Instructions\n1. Identify the clause type (e.g., indemnification, limitation of liability, termination, confidentiality)\n2. List specific differences between the base clause and each comparison passage\n3. Classify each difference as: Addition, Deletion, Modification, or Rewording\n4. Note any differences that could have significant legal implications\n5. Format your analysis as a concise markdown section",
+        "systemPrompt": "You are an expert legal document analyst specializing in contract comparison. Produce structured, self-contained clause analyses with difference tables including legal significance. Use precise legal terminology. Do NOT include standalone summary sections, risk matrices, overall conclusions, or cross-clause commentary.",
+        "userPrompt": "Compare the following base contract clause with similar passages found in comparison contracts.\n\n## Base Clause (Chunk {{loop.item.index}})\n{{loop.item.content}}\n\n## Similar Passages from Comparison Contracts\n{{steps.search_similar.output.data.results|formatList('{filename}: {content}', '\n\n---\n\n')}}\n\n## Output Format\n**Clause Type:** [one-line identification, e.g., Indemnification, Limitation of Liability, Termination]\n\nFor each comparison document, output a table:\n\n### [Document filename]\n| Aspect | Classification | Description | Legal Significance |\n|--------|---------------|-------------|--------------------|\n| ... | Addition/Deletion/Modification/Rewording | Factual description (1-2 sentences) | Brief note on legal impact |\n\nRules:\n- One row per difference\n- Classification must be exactly one of: Addition, Deletion, Modification, Rewording\n- Keep descriptions to 1-2 sentences\n- Legal Significance should be a brief factual note (e.g., 'Shifts performance risk to buyer', 'Eliminates seller financing')\n- If no differences found for a document, state 'No material differences identified'\n- Do NOT add standalone summary sections, risk matrices, or overall conclusions after the tables",
         "outputFormat": "text"
       },
       "nextSteps": { "success": "accumulate_results" }
@@ -169,14 +169,14 @@
       "nextSteps": { "success": "loop_chunks" }
     },
     {
-      "stepSlug": "generate_summary",
-      "name": "Generate Comparison Summary Report",
+      "stepSlug": "generate_overview",
+      "name": "Generate Report Overview",
       "stepType": "llm",
       "order": 11,
       "config": {
-        "name": "Contract Comparison Summarizer",
-        "systemPrompt": "You are an expert legal analyst. Synthesize chunk-level contract comparison results into a comprehensive markdown report. Focus on actionable insights for legal reviewers.",
-        "userPrompt": "Based on the following chunk-level comparison results, generate a comprehensive contract comparison report in markdown format.\n\n## Chunk-Level Comparison Results\n{{chunkResults|join('\n\n---\n\n')}}\n\n## Report Requirements\n1. **Executive Summary**: Brief overview of key findings\n2. **Clause-by-Clause Comparison Table**: Summarize differences by clause type with columns for clause type, difference type, and significance level (High/Medium/Low)\n3. **Frequently Amended Clauses**: Identify which clause types show the most variation across contracts, with frequency counts\n4. **Significant Legal Differences**: Highlight differences that could have material legal impact\n5. **Recommendations**: Suggest areas that need careful legal review\n\nFormat the entire report in clean, professional markdown suitable for conversion to DOCX.",
+        "name": "Contract Comparison Overview",
+        "systemPrompt": "You are an expert legal analyst. Generate a brief executive introduction for a contract comparison report. Be professional and concise.",
+        "userPrompt": "Write a 2-3 paragraph executive introduction for a contract comparison report with the following metadata:\n\n- Total clauses analyzed: {{chunkResults|length}}\n- Number of comparison documents: {{comparisonFileIds|length}}\n\nThe introduction should:\n1. Describe the scope and methodology (chunk-level RAG comparison of contract clauses)\n2. Note the total number of clauses analyzed and documents compared\n3. Direct the reader to the detailed clause-by-clause comparison that follows\n\nKeep it under 150 words. Do NOT attempt to summarize findings — you do not have access to the comparison data.",
         "outputFormat": "text"
       },
       "nextSteps": { "success": "generate_report" }
@@ -192,7 +192,7 @@
           "operation": "generate_docx",
           "fileName": "contract-comparison-report.docx",
           "sourceType": "markdown",
-          "content": "{{steps.generate_summary.output.data}}"
+          "content": "# Contract Comparison Report\n\n{{steps.generate_overview.output.data}}\n\n---\n\n# Clause-by-Clause Comparison\n\n{{chunkResults|join('\n\n---\n\n')}}"
         }
       },
       "nextSteps": { "success": "output" }
