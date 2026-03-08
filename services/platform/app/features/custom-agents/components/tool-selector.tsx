@@ -36,6 +36,7 @@ const TOOL_CATEGORIES: Record<string, ToolName[]> = {
     'update_workflow_step',
     'save_workflow_definition',
     'create_workflow',
+    'run_workflow',
   ],
   Integrations: ['integration', 'integration_batch', 'integration_introspect'],
   Data: ['database_schema'],

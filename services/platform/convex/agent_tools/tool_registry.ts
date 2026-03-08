@@ -27,6 +27,7 @@ import { productReadTool } from './products/product_read_tool';
 import { ragSearchTool } from './rag/rag_search_tool';
 import { webTool } from './web/web_tool';
 import { createWorkflowTool } from './workflows/create_workflow_tool';
+import { runWorkflowTool } from './workflows/run_workflow_tool';
 import { saveWorkflowDefinitionTool } from './workflows/save_workflow_definition_tool';
 import { updateWorkflowStepTool } from './workflows/update_workflow_step_tool';
 import { workflowExamplesTool } from './workflows/workflow_examples_tool';
@@ -48,6 +49,7 @@ export const TOOL_REGISTRY = [
   updateWorkflowStepTool,
   saveWorkflowDefinitionTool,
   createWorkflowTool,
+  runWorkflowTool,
   excelTool,
   pdfTool,
   imageTool,

@@ -9,6 +9,7 @@ import {
   Cpu,
   HelpCircle,
   Repeat,
+  ArrowRightFromLine,
   Users,
   MessageSquare,
   Package,
@@ -50,6 +51,7 @@ const STEP_TYPE_ICON_MAP: Record<string, LucideIcon> = {
   llm: Cpu,
   condition: HelpCircle,
   loop: Repeat,
+  output: ArrowRightFromLine,
 };
 
 const DEFAULT_ACTION_ICON = Settings;

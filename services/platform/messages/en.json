@@ -1684,7 +1684,8 @@
       "llm": "LLM",
       "condition": "Condition",
       "loop": "Loop",
-      "action": "Action"
+      "action": "Action",
+      "output": "Output"
     },
     "step": {
       "openStep": "Open {name} step",
@@ -1724,7 +1725,8 @@
       "types": {
         "action": "Action",
         "llm": "LLM",
-        "condition": "Condition"
+        "condition": "Condition",
+        "output": "Output"
       },
       "configLabel": "Config (JSON)",
       "configDescription": "Configuration settings",
@@ -2010,7 +2012,8 @@
     "types": {
       "reviewReply": "Review reply",
       "recommendProduct": "Recommend product",
-      "review": "Review"
+      "review": "Review",
+      "runWorkflow": "Run workflow"
     },
     "labels": {
       "purchase": "Purchase",
@@ -2061,6 +2064,28 @@
       "reject": "Reject",
       "approve": "Approve"
     }
+  },
+  "workflowRunApproval": {
+    "approve": "Run workflow",
+    "reject": "Cancel",
+    "approveTooltip": "Approve and run this workflow",
+    "rejectTooltip": "Cancel workflow execution",
+    "statusApprovedSuccess": "Workflow execution started successfully.",
+    "statusApprovedFailed": "Workflow execution was approved but failed to start.",
+    "statusRejected": "Workflow execution was cancelled.",
+    "showParameters": "Show parameters",
+    "hideParameters": "Hide parameters",
+    "executionRunning": "Running...",
+    "executionRunningStep": "Running step: {step}",
+    "executionElapsed": "Running for {duration}",
+    "executionCompleted": "Completed successfully",
+    "executionFailed": "Execution failed",
+    "viewDetails": "View execution details",
+    "showOutput": "Show output",
+    "hideOutput": "Hide output",
+    "statusPending": "Pending",
+    "statusApproved": "Approved",
+    "statusRejected": "Rejected"
   },
   "integrationApproval": {
     "approve": "Approve",

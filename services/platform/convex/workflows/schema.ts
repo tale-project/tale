@@ -86,6 +86,7 @@ export const wfStepDefsTable = defineTable({
     v.literal('condition'),
     v.literal('action'),
     v.literal('loop'),
+    v.literal('output'),
   ),
   order: v.number(),
   nextSteps: v.record(v.string(), v.string()),

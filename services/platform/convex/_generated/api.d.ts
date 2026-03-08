@@ -90,6 +90,7 @@ import type * as agent_tools_workflows_helpers_syntax_reference from "../agent_t
 import type * as agent_tools_workflows_helpers_types from "../agent_tools/workflows/helpers/types.js";
 import type * as agent_tools_workflows_internal_actions from "../agent_tools/workflows/internal_actions.js";
 import type * as agent_tools_workflows_internal_mutations from "../agent_tools/workflows/internal_mutations.js";
+import type * as agent_tools_workflows_run_workflow_tool from "../agent_tools/workflows/run_workflow_tool.js";
 import type * as agent_tools_workflows_save_workflow_definition_tool from "../agent_tools/workflows/save_workflow_definition_tool.js";
 import type * as agent_tools_workflows_update_workflow_step_tool from "../agent_tools/workflows/update_workflow_step_tool.js";
 import type * as agent_tools_workflows_workflow_examples_tool from "../agent_tools/workflows/workflow_examples_tool.js";
@@ -712,6 +713,7 @@ import type * as workflow_engine_helpers_validation_steps_condition from "../wor
 import type * as workflow_engine_helpers_validation_steps_index from "../workflow_engine/helpers/validation/steps/index.js";
 import type * as workflow_engine_helpers_validation_steps_llm from "../workflow_engine/helpers/validation/steps/llm.js";
 import type * as workflow_engine_helpers_validation_steps_loop from "../workflow_engine/helpers/validation/steps/loop.js";
+import type * as workflow_engine_helpers_validation_steps_output from "../workflow_engine/helpers/validation/steps/output.js";
 import type * as workflow_engine_helpers_validation_steps_start from "../workflow_engine/helpers/validation/steps/start.js";
 import type * as workflow_engine_helpers_validation_types from "../workflow_engine/helpers/validation/types.js";
 import type * as workflow_engine_helpers_validation_validate_action_parameters from "../workflow_engine/helpers/validation/validate_action_parameters.js";
@@ -930,6 +932,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/workflows/helpers/types": typeof agent_tools_workflows_helpers_types;
   "agent_tools/workflows/internal_actions": typeof agent_tools_workflows_internal_actions;
   "agent_tools/workflows/internal_mutations": typeof agent_tools_workflows_internal_mutations;
+  "agent_tools/workflows/run_workflow_tool": typeof agent_tools_workflows_run_workflow_tool;
   "agent_tools/workflows/save_workflow_definition_tool": typeof agent_tools_workflows_save_workflow_definition_tool;
   "agent_tools/workflows/update_workflow_step_tool": typeof agent_tools_workflows_update_workflow_step_tool;
   "agent_tools/workflows/workflow_examples_tool": typeof agent_tools_workflows_workflow_examples_tool;
@@ -1552,6 +1555,7 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/helpers/validation/steps/index": typeof workflow_engine_helpers_validation_steps_index;
   "workflow_engine/helpers/validation/steps/llm": typeof workflow_engine_helpers_validation_steps_llm;
   "workflow_engine/helpers/validation/steps/loop": typeof workflow_engine_helpers_validation_steps_loop;
+  "workflow_engine/helpers/validation/steps/output": typeof workflow_engine_helpers_validation_steps_output;
   "workflow_engine/helpers/validation/steps/start": typeof workflow_engine_helpers_validation_steps_start;
   "workflow_engine/helpers/validation/types": typeof workflow_engine_helpers_validation_types;
   "workflow_engine/helpers/validation/validate_action_parameters": typeof workflow_engine_helpers_validation_validate_action_parameters;

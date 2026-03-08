@@ -15,7 +15,8 @@ export type StepType =
   | 'llm'
   | 'condition'
   | 'action'
-  | 'loop';
+  | 'loop'
+  | 'output';
 
 // =============================================================================
 // MANUAL TYPES (no corresponding validator)
