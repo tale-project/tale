@@ -49,10 +49,6 @@
               "value": []
             },
             {
-              "name": "allClauses",
-              "value": []
-            },
-            {
               "name": "transitionSummaries",
               "value": []
             },
@@ -138,67 +134,17 @@
         "userPrompt": "Analyze the changes from \"{{files[loop.index].fileName}}\" to \"{{loop.item.fileName}}\".\n\nTransition {{loop.index + 1}} of {{filesToCompare | length}} in the version sequence.\n\nOutput language:\n{{language || 'auto-detect from documents'}}\n\nDiff statistics:\n\nModified paragraphs: {{steps.compare_documents.output.data.stats.modified}}\nAdded paragraphs: {{steps.compare_documents.output.data.stats.added}}\nDeleted paragraphs: {{steps.compare_documents.output.data.stats.deleted}}\nUnchanged paragraphs: {{steps.compare_documents.output.data.stats.unchanged}}\nHigh divergence: {{steps.compare_documents.output.data.stats.highDivergence}}\nTruncated: {{steps.compare_documents.output.data.truncated}}\n\nIf high divergence is true, the documents differ substantially. This commonly occurs when a draft expands significantly between versions.\n\nIf truncated is true, only the first 500 detected changes are available for analysis.\n\nChange blocks:\n\n{{steps.compare_documents.output.data.changeBlocks|string}}\n\nInstructions:\n\n1. Group rows under clause family headings using \"###\".\n2. Produce one row for each meaningful change cluster.\n3. Avoid merging unrelated changes into one row.\n4. Use cautious interpretation in the final column.\n5. Focus on factual differences rather than speculation.",
         "outputFormat": "text"
       },
-      "nextSteps": { "success": "classify_clauses" }
-    },
-    {
-      "stepSlug": "classify_clauses",
-      "name": "Extract Clause Classifications",
-      "stepType": "llm",
-      "order": 8,
-      "config": {
-        "name": "Clause Classification Extractor",
-        "systemPrompt": "You extract structured clause data from a markdown legal analysis into JSON.\n\nThe analysis contains markdown tables grouped under ### headings. Each ### heading is the clause type (e.g., \"Indemnification\", \"Limitation of Liability\", \"Purchase Price\"). Each table has columns: Clause Reference | Change Type | Description | Potential Implications.\n\nFor each table row, create one JSON object:\n- clauseType: the ### heading text above the table\n- classification: the Change Type cell value (must be exactly \"Editorial\", \"Structural\", or \"Substantive\")\n- clauseRef: the Clause Reference cell value, or null if empty\n- versionFrom: use the source file name provided below\n- versionTo: use the target file name provided below\n\nExample — given this markdown:\n\n### Limitation of Liability\n| Clause Reference | Change Type | Description | Potential Implications |\n|---|---|---|---|\n| Section 7.1 | Substantive | Changed liability cap from fixed EUR 5M to 10% of purchase price | May shift risk exposure depending on final purchase price. |\n| Section 7.2 | Editorial | Minor wording adjustment in liability notice period | No material change. |\n\n### Indemnification\n| Clause Reference | Change Type | Description | Potential Implications |\n|---|---|---|---|\n| Section 8.1 | Substantive | Added new indemnification carve-out for tax liabilities | Could expand seller exposure for pre-closing tax matters. |\n\nWith source file \"v1.docx\" and target file \"v2.docx\", extract:\n[{\"clauseType\":\"Limitation of Liability\",\"classification\":\"Substantive\",\"clauseRef\":\"Section 7.1\",\"versionFrom\":\"v1.docx\",\"versionTo\":\"v2.docx\"},{\"clauseType\":\"Limitation of Liability\",\"classification\":\"Editorial\",\"clauseRef\":\"Section 7.2\",\"versionFrom\":\"v1.docx\",\"versionTo\":\"v2.docx\"},{\"clauseType\":\"Indemnification\",\"classification\":\"Substantive\",\"clauseRef\":\"Section 8.1\",\"versionFrom\":\"v1.docx\",\"versionTo\":\"v2.docx\"}]\n\nExtract every single table row. Do not skip any.\n\nCLAUSE TYPE NORMALIZATION: Normalize clauseType to canonical English forms regardless of heading language. Common normalizations:\n- \"Indemnity\", \"Indemnities\", \"Hold Harmless\" → \"Indemnification\"\n- \"Liability Cap\", \"Liability Limitation\", \"Liability Limitations\" → \"Limitation of Liability\"\n- \"Reps & Warranties\", \"Representations\", \"Seller Warranties\" → \"Representations and Warranties\"\n- \"Non-Competition\", \"Restrictive Covenants\" → \"Non-Compete\"\n- \"Consideration\", \"Price\" → \"Purchase Price\"\n- \"Term and Termination\" → \"Termination\" (unless truly about contract term/duration)\n\nFor clause types not in this list, use the most concise canonical English form. Be consistent across all extractions.\n\nIf a clause does not fit any standard family, preserve the ### heading text as-is.",
-        "userPrompt": "Source file: \"{{files[loop.index].fileName}}\"\nTarget file: \"{{loop.item.fileName}}\"\n\n{{steps.analyze_differences.output.data}}",
-        "outputFormat": "json",
-        "outputSchema": {
-          "type": "object",
-          "properties": {
-            "clauses": {
-              "type": "array",
-              "description": "Structured clause classifications extracted from the analysis",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "clauseType": {
-                    "type": "string",
-                    "description": "The identified clause type (e.g., 'Indemnification', 'Limitation of Liability')"
-                  },
-                  "classification": {
-                    "type": "string",
-                    "enum": ["Editorial", "Structural", "Substantive"],
-                    "description": "Change significance level (always English)"
-                  },
-                  "clauseRef": {
-                    "type": ["string", "null"],
-                    "description": "The clause/section reference if identified (e.g., 'Section 7.1.2', 'Ziff. 3.2')"
-                  },
-                  "versionFrom": {
-                    "type": "string",
-                    "description": "Source version file name"
-                  },
-                  "versionTo": {
-                    "type": "string",
-                    "description": "Target version file name"
-                  }
-                },
-                "required": ["clauseType", "classification", "versionFrom", "versionTo"]
-              }
-            }
-          },
-          "required": ["clauses"]
-        }
-      },
       "nextSteps": { "success": "summarize_transition" }
     },
     {
       "stepSlug": "summarize_transition",
       "name": "Summarize Version Transition",
       "stepType": "llm",
-      "order": 9,
+      "order": 8,
       "config": {
         "name": "Transition Summary Analyst",
-        "systemPrompt": "You are a transaction analyst. Given a detailed change analysis between two contract versions, produce a concise summary of how the contract evolved in this transition. Focus on:\n- What negotiation positions appear to have shifted\n- How risk allocation may have changed between parties\n- Whether new deal mechanisms were introduced or removed (e.g., earn-out, escrow, locked-box, MAC clauses, non-compete)\n- The overall direction of the negotiation (tightening, loosening, converging)\n\nUse hedged language for interpretive conclusions (\"appears to\", \"may indicate\", \"suggests\"). Write 3-5 sentences maximum. Write in the language specified by the language parameter. If no language parameter is provided or empty, write in the same language as the source documents.",
-        "userPrompt": "Output language: {{language || 'auto-detect from documents'}}\n\nTransition {{loop.index + 1}} of {{filesToCompare | length}}: \"{{files[loop.index].fileName}}\" → \"{{loop.item.fileName}}\"\n\nBelow is the detailed change analysis for this version transition. Summarize the key transaction-level developments.\n\n{{steps.analyze_differences.output.data}}",
+        "systemPrompt": "You are a transaction analyst. Given a detailed change analysis between two contract versions, produce a concise summary of how the contract evolved in this transition. Focus on:\n- What negotiation positions appear to have shifted\n- How risk allocation may have changed between parties\n- Whether new deal mechanisms were introduced or removed (e.g., earn-out, escrow, locked-box, MAC clauses, non-compete)\n- The overall direction of the negotiation (tightening, loosening, converging)\n\nUse hedged language for interpretive conclusions (\"appears to\", \"may indicate\", \"suggests\"). Write 3-5 sentences maximum. Write in the language specified by the language parameter. If no language parameter is provided or empty, write in the same language as the source documents.\n\nAt the very end, append a single statistics line in this exact format:\nChanges: X Substantive, Y Editorial, Z Structural\n\nCount the rows in each Change Type column from the markdown tables in the input. This line must always be in English regardless of the output language.",
+        "userPrompt": "Output language: {{language || 'auto-detect from documents'}}\n\nTransition {{loop.index + 1}} of {{filesToCompare | length}}: \"{{files[loop.index].fileName}}\" → \"{{loop.item.fileName}}\"\n\nBelow is the detailed change analysis for this version transition. Summarize the key transaction-level developments.\n\nCount the table rows grouped under each ### heading and their Change Type column values (Editorial, Structural, or Substantive) to produce the statistics line at the end.\n\n{{steps.analyze_differences.output.data}}",
         "outputFormat": "text"
       },
       "nextSteps": { "success": "accumulate_results" }
@@ -207,7 +153,7 @@
       "stepSlug": "accumulate_results",
       "name": "Accumulate Comparison Results",
       "stepType": "action",
-      "order": 10,
+      "order": 9,
       "config": {
         "type": "set_variables",
         "parameters": {
@@ -215,10 +161,6 @@
             {
               "name": "comparisonResults",
               "value": "{{comparisonResults|concat(['## ' + files[loop.index].fileName + ' → ' + loop.item.fileName + '\\n\\n---\\n\\n' + steps.analyze_differences.output.data])}}"
-            },
-            {
-              "name": "allClauses",
-              "value": "{{allClauses|concat(steps.classify_clauses.output.data.clauses)}}"
             },
             {
               "name": "transitionSummaries",
@@ -233,11 +175,11 @@
       "stepSlug": "generate_overview",
       "name": "Generate Executive Insights",
       "stepType": "llm",
-      "order": 11,
+      "order": 10,
       "config": {
         "name": "Contract Comparison Executive Insights",
-        "systemPrompt": "You are a transaction analyst generating executive insights for a contract version comparison report.\n\nYour analysis should tell the story of how a transaction evolved through its negotiation — not merely summarize statistics.\n\nFocus on negotiation dynamics. Clearly distinguish between data-backed observations and interpretive conclusions.\n\nUse cautious language for uncertain inferences:\n\"appears to\"\n\"may suggest\"\n\"could indicate\"\n\nDo not present speculation as fact.\n\nWrite in the language specified by the language parameter. If no language parameter is provided or empty, write in the same language as the source documents.\n\nStructure your output with these exact section headings:\n\n### Negotiation Arc\n2-3 paragraphs describing how the transaction evolved across versions.\n\n### Risk Allocation Shifts\n1-2 paragraphs on how risk moved between parties.\n\n### Key Findings\n4-6 specific, data-backed bullet points referencing clause types and version transitions.\n\n### Methodology\n1 sentence on the comparison approach.\n\nADDITIONAL RULES\n\n1. Do not describe risk allocation as one-sided if the pattern is mixed across economic and legal provisions.\n2. Prefer observations about clause families and transaction structure over conclusions about which party \"won\" the negotiation.",
-        "userPrompt": "Write executive insights for a contract comparison report.\n\nOutput language:\n{{language || 'auto-detect from documents'}}\n\nDocument versions (chronological):\n{{fileNames|join(' → ')}}\n\nNumber of version transitions analyzed:\n{{filesToCompare|length}}\n\nTotal clause changes identified:\n{{allClauses|length}}\n\nPer-transition summaries:\n\n{{transitionSummaries|join('\\n\\n')}}\n\nClause amendment data:\nThe classification field indicates change significance: Editorial (no legal impact), Structural (reorganization only), Substantive (material legal change). The clauseType field identifies the provision category.\n{{allClauses|string}}\n\nFor the Negotiation Arc section, use the per-transition summaries to describe the trajectory.\nFor the Risk Allocation Shifts section, analyze which clause types saw the most substantive amendments and in which direction.\nFor the Key Findings section, provide specific bullets referencing clause types and transitions (e.g., \"Indemnification was substantively amended in 3 of 4 transitions...\").\nFor the Methodology section, note: deterministic paragraph-level text comparison across sequential version pairs with AI-powered change classification.\n\nKeep the total between 300 and 400 words.",
+        "systemPrompt": "You are a transaction analyst generating executive insights for a contract version comparison report.\n\nYour analysis should tell the story of how a transaction evolved through its negotiation — not merely summarize statistics.\n\nFocus on negotiation dynamics. Clearly distinguish between data-backed observations and interpretive conclusions.\n\nUse cautious language for uncertain inferences:\n\"appears to\"\n\"may suggest\"\n\"could indicate\"\n\nDo not present speculation as fact.\n\nWrite in the language specified by the language parameter. If no language parameter is provided or empty, write in the same language as the source documents.\n\nStructure your output with these exact section headings:\n\n### Negotiation Arc\n2-3 paragraphs describing how the transaction evolved across versions.\n\n### Risk Allocation Shifts\n1-2 paragraphs on how risk moved between parties.\n\n### Key Findings\n4-6 specific, data-backed bullet points referencing clause types and version transitions.\n\nADDITIONAL RULES\n\n1. Do not describe risk allocation as one-sided if the pattern is mixed across economic and legal provisions.\n2. Prefer observations about clause families and transaction structure over conclusions about which party \"won\" the negotiation.",
+        "userPrompt": "Write executive insights for a contract comparison report.\n\nOutput language:\n{{language || 'auto-detect from documents'}}\n\nDocument versions (chronological):\n{{fileNames|join(' → ')}}\n\nNumber of version transitions analyzed:\n{{filesToCompare|length}}\n\nPer-transition summaries (each ending with a change statistics line):\n\n{{transitionSummaries|join('\\n\\n')}}\n\nFor the Negotiation Arc section, use the per-transition summaries to describe the trajectory.\nFor the Risk Allocation Shifts section, use the change statistics and summaries to analyze which areas saw the most substantive amendments and in which direction.\nFor the Key Findings section, provide specific bullets referencing clause types and transitions.\n\nKeep the total concise, roughly 300 words.",
         "outputFormat": "text"
       },
       "nextSteps": { "success": "generate_report" }
@@ -246,14 +188,14 @@
       "stepSlug": "generate_report",
       "name": "Generate DOCX Report",
       "stepType": "action",
-      "order": 12,
+      "order": 11,
       "config": {
         "type": "document",
         "parameters": {
           "operation": "generate_docx",
           "fileName": "contract-comparison-report.docx",
           "sourceType": "markdown",
-          "content": "# Contract Comparison Report\n\n**Document Versions:** {{fileNames|join(' → ')}}\n\n**Total Transitions Analyzed:** {{filesToCompare|length}}\n\n---\n\n# Executive Insights\n\n{{steps.generate_overview.output.data}}\n\n---\n\n# Detailed Evolution Analysis\n\n{{comparisonResults|join('\\n\\n---\\n\\n')}}"
+          "content": "# Contract Comparison Report\n\n**Document Versions:** {{fileNames|join(' → ')}}\n\n**Total Transitions Analyzed:** {{filesToCompare|length}}\n\n---\n\n# Executive Insights\n\n{{steps.generate_overview.output.data}}\n\n### Methodology\n\nDeterministic paragraph-level text comparison across sequential version pairs with AI-powered change classification.\n\n---\n\n# Detailed Evolution Analysis\n\n{{comparisonResults|join('\\n\\n---\\n\\n')}}"
         }
       },
       "nextSteps": { "success": "output" }
@@ -262,7 +204,7 @@
       "stepSlug": "output",
       "name": "Output Results",
       "stepType": "output",
-      "order": 13,
+      "order": 12,
       "config": {
         "outputMapping": {
           "fileStorageId": "{{steps.generate_report.output.data.fileStorageId}}",

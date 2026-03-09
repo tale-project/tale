@@ -7,7 +7,7 @@
 import type { Doc } from '../../../_generated/dataModel';
 import type { ActionCtx } from '../../../_generated/server';
 
-import { isLoopProgress, isRecord } from '../../../../lib/utils/type-guards';
+import { isRecord } from '../../../../lib/utils/type-guards';
 import { internal } from '../../../_generated/api';
 import { createDebugLog } from '../../../lib/debug_log';
 import { toId } from '../../../lib/type_cast_helpers';
@@ -15,6 +15,7 @@ import { replaceVariables } from '../../../lib/variables/replace_variables';
 import { buildStepsMap } from '../step_execution/build_steps_map';
 import { executeStepByType } from '../step_execution/execute_step_by_type';
 import { extractEssentialLoopVariables } from '../step_execution/extract_essential_loop_variables';
+import { getActiveLoopProgress } from '../step_execution/get_active_loop_progress';
 import { initializeExecutionVariables } from '../step_execution/initialize_execution_variables';
 import { loadAndValidateExecution } from '../step_execution/load_and_validate_execution';
 import { persistExecutionResult } from '../step_execution/persist_execution_result';
@@ -71,13 +72,7 @@ export async function handleExecuteStep(
   );
 
   // 4. Update current step for real-time progress tracking (after variable init so loop context is available)
-  const loopProgress =
-    isRecord(fullVariables.loop) && isLoopProgress(fullVariables.loop.state)
-      ? {
-          current: fullVariables.loop.state.currentIndex + 1,
-          total: fullVariables.loop.state.totalItems,
-        }
-      : null;
+  const loopProgress = getActiveLoopProgress(fullVariables.loop);
 
   await ctx.runMutation(
     internal.wf_executions.internal_mutations.updateExecutionStatus,
