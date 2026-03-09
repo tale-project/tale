@@ -7,7 +7,7 @@
 import type { Doc } from '../../../_generated/dataModel';
 import type { ActionCtx } from '../../../_generated/server';
 
-import { isRecord } from '../../../../lib/utils/type-guards';
+import { isLoopProgress, isRecord } from '../../../../lib/utils/type-guards';
 import { internal } from '../../../_generated/api';
 import { createDebugLog } from '../../../lib/debug_log';
 import { toId } from '../../../lib/type_cast_helpers';
@@ -48,18 +48,7 @@ export async function handleExecuteStep(
   const { execution, stepConfig, workflowConfig } =
     await loadAndValidateExecution(ctx, args.executionId, args.stepSlug);
 
-  // 2. Update current step for real-time progress tracking
-  await ctx.runMutation(
-    internal.wf_executions.internal_mutations.updateExecutionStatus,
-    {
-      executionId: toId<'wfExecutions'>(args.executionId),
-      status: 'running',
-      currentStepSlug: args.stepSlug,
-      currentStepName: args.stepName || args.stepSlug,
-    },
-  );
-
-  // 3. Build step definition
+  // 2. Build step definition
   const stepDef = {
     stepSlug: args.stepSlug,
     name: args.stepName || args.stepSlug,
@@ -68,7 +57,7 @@ export async function handleExecuteStep(
     organizationId: args.organizationId,
   };
 
-  // 4. Initialize and merge variables
+  // 3. Initialize and merge variables
   const fullVariables = await initializeExecutionVariables(
     ctx,
     execution,
@@ -79,6 +68,26 @@ export async function handleExecuteStep(
       initialInput: args.initialInput,
     },
     workflowConfig,
+  );
+
+  // 4. Update current step for real-time progress tracking (after variable init so loop context is available)
+  const loopProgress =
+    isRecord(fullVariables.loop) && isLoopProgress(fullVariables.loop.state)
+      ? {
+          current: fullVariables.loop.state.currentIndex + 1,
+          total: fullVariables.loop.state.totalItems,
+        }
+      : null;
+
+  await ctx.runMutation(
+    internal.wf_executions.internal_mutations.updateExecutionStatus,
+    {
+      executionId: toId<'wfExecutions'>(args.executionId),
+      status: 'running',
+      currentStepSlug: args.stepSlug,
+      currentStepName: args.stepName || args.stepSlug,
+      loopProgress,
+    },
   );
 
   // 5. Process config with variable replacement

@@ -218,7 +218,10 @@ function WorkflowRunApprovalCardComponent({
           {showParams && (
             <div className="bg-muted/50 space-y-0.5 rounded-md p-2">
               {paramEntries.map(([key, value]) => (
-                <div key={key} className="flex gap-1.5 text-[11px]">
+                <div
+                  key={key}
+                  className="flex items-baseline gap-1.5 text-[11px]"
+                >
                   <Text as="span" className="text-muted-foreground shrink-0">
                     {key}:
                   </Text>
@@ -237,16 +240,22 @@ function WorkflowRunApprovalCardComponent({
 
       {/* Live Execution Status */}
       {status === 'approved' && executionId && (
-        <Stack gap={1} className="mb-3" aria-live="polite">
+        <Stack gap={1} className="mb-3" role="status" aria-live="polite">
           {isRunning && (
             <>
               <HStack gap={1} justify="between" className="text-xs">
                 <HStack gap={1} className="text-primary">
                   <Loader2 className="size-3 animate-spin" />
                   {executionStatus?.currentStepName
-                    ? t('executionRunningStep', {
-                        step: executionStatus.currentStepName,
-                      })
+                    ? executionStatus.loopProgress
+                      ? t('executionRunningStepWithProgress', {
+                          step: executionStatus.currentStepName,
+                          current: executionStatus.loopProgress.current,
+                          total: executionStatus.loopProgress.total,
+                        })
+                      : t('executionRunningStep', {
+                          step: executionStatus.currentStepName,
+                        })
                     : t('executionRunning')}
                 </HStack>
                 <Tooltip content={t('stopTooltip')}>

@@ -7,6 +7,7 @@ type ExecutionUpdateData = Partial<
     | 'status'
     | 'currentStepSlug'
     | 'currentStepName'
+    | 'loopProgress'
     | 'waitingFor'
     | 'metadata'
     | 'completedAt'
@@ -30,6 +31,10 @@ export async function updateExecutionStatus(
 
   if (args.currentStepName !== undefined) {
     updates.currentStepName = args.currentStepName;
+  }
+
+  if (args.loopProgress !== undefined) {
+    updates.loopProgress = args.loopProgress ?? undefined;
   }
 
   if (args.waitingFor !== undefined) {

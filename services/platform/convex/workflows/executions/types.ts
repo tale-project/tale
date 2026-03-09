@@ -28,6 +28,7 @@ export interface UpdateExecutionStatusArgs {
   status: ExecutionStatus;
   currentStepSlug?: string;
   currentStepName?: string;
+  loopProgress?: { current: number; total: number } | null;
   waitingFor?: string;
   error?: string;
 }
