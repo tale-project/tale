@@ -15,6 +15,7 @@ import type { Id } from '../../../_generated/dataModel';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 
 import { internal } from '../../../_generated/api';
+import { fetchDocumentComparison } from '../../../agent_tools/documents/helpers/fetch_document_comparison';
 import { fetchDocumentContent } from '../../../agent_tools/documents/helpers/fetch_document_content';
 import { getRagConfig } from '../../../lib/helpers/rag_config';
 import { toConvexJsonRecord, toId } from '../../../lib/type_cast_helpers';
@@ -47,6 +48,12 @@ type DocumentActionParams =
   | {
       operation: 'get_metadata';
       fileIds: string[];
+    }
+  | {
+      operation: 'compare';
+      baseFileId: string;
+      comparisonFileId: string;
+      maxChanges?: number;
     };
 
 export const documentAction: ActionDefinition<DocumentActionParams> = {
@@ -84,6 +91,12 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
     v.object({
       operation: v.literal('get_metadata'),
       fileIds: v.array(v.string()),
+    }),
+    v.object({
+      operation: v.literal('compare'),
+      baseFileId: v.string(),
+      comparisonFileId: v.string(),
+      maxChanges: v.optional(v.number()),
     }),
   ),
 
@@ -139,6 +152,16 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
             outputFormat: 'docx',
             content: params.content,
           },
+        );
+      }
+
+      case 'compare': {
+        const { serviceUrl } = getRagConfig();
+        return await fetchDocumentComparison(
+          serviceUrl,
+          params.baseFileId,
+          params.comparisonFileId,
+          params.maxChanges,
         );
       }
 

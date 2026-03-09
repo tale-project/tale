@@ -13,6 +13,8 @@ from tale_shared.db import acquire_with_retry
 from ..config import settings
 from ..models import (
     DocumentAddResponse,
+    DocumentCompareRequest,
+    DocumentCompareResponse,
     DocumentContentResponse,
     DocumentDeleteResponse,
     DocumentStatusInfo,
@@ -429,6 +431,49 @@ async def get_document_content(
         )
 
     return DocumentContentResponse(**result)
+
+
+@router.post("/documents/compare", response_model=DocumentCompareResponse)
+async def compare_documents(request: DocumentCompareRequest):
+    """Compare two documents using deterministic paragraph-level diffing.
+
+    Returns structured change blocks with context, statistics, and
+    divergence detection.
+    """
+    if request.base_document_id == request.comparison_document_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Base and comparison documents must be different",
+        )
+
+    try:
+        result = await rag_service.compare_documents(
+            request.base_document_id,
+            request.comparison_document_id,
+            max_changes=request.max_changes,
+        )
+    except Exception as e:
+        logger.error("Failed to compare documents: {}", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to compare documents.",
+        ) from e
+
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Unexpected error during comparison",
+        )
+
+    if result.get("error") == "not_found":
+        role = result.get("role", "")
+        doc_id = result.get("document_id", "")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"{role.capitalize()} document not found: {doc_id}",
+        )
+
+    return DocumentCompareResponse(**result)
 
 
 @router.post("/documents/statuses", response_model=DocumentStatusResponse)

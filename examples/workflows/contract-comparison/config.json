@@ -1,8 +1,8 @@
 {
   "workflowConfig": {
     "name": "Contract Comparison",
-    "description": "Compare multiple legal contracts using chunk-level RAG search to identify differences and frequently amended clauses, producing a structured DOCX comparison report",
-    "version": "1.0.0",
+    "description": "Compare multiple legal contracts using deterministic paragraph-level text diffing to identify all additions, deletions, and modifications, producing a structured DOCX comparison report with clause amendment frequency analysis",
+    "version": "2.0.0",
     "workflowType": "predefined",
     "config": {
       "timeout": 14400000,
@@ -37,14 +37,6 @@
         "parameters": {
           "variables": [
             {
-              "name": "allFileIds",
-              "value": "{{[baselineFile.fileId]|concat(comparisonFiles|map('fileId'))}}"
-            },
-            {
-              "name": "comparisonFileIds",
-              "value": "{{comparisonFiles|map('fileId')}}"
-            },
-            {
               "name": "baseDocName",
               "value": "{{baselineFile.fileName}}"
             },
@@ -53,116 +45,118 @@
               "value": "{{comparisonFiles|map('fileName')}}"
             },
             {
-              "name": "chunkResults",
+              "name": "comparisonResults",
               "value": []
             },
             {
-              "name": "searchTopK",
-              "value": "{{(comparisonFiles|length) * 3}}"
+              "name": "allClauses",
+              "value": []
             }
           ]
         }
       },
-      "nextSteps": { "success": "loop_ensure_indexed" }
+      "nextSteps": { "success": "index_baseline" }
     },
     {
-      "stepSlug": "loop_ensure_indexed",
-      "name": "Loop: Ensure All Documents Indexed",
-      "stepType": "loop",
-      "order": 3,
-      "config": {
-        "items": "{{allFileIds}}",
-        "itemVariable": "item"
-      },
-      "nextSteps": {
-        "loop": "index_document",
-        "done": "retrieve_base_chunks"
-      }
-    },
-    {
-      "stepSlug": "index_document",
-      "name": "Index Document (Sync)",
+      "stepSlug": "index_baseline",
+      "name": "Index Baseline Document in RAG",
       "stepType": "action",
-      "order": 4,
+      "order": 3,
       "config": {
         "type": "rag",
         "parameters": {
           "operation": "upload_document",
-          "fileId": "{{loop.item}}",
+          "fileId": "{{baselineFile.fileId}}",
+          "fileName": "{{baselineFile.fileName}}",
           "sync": true
         }
       },
-      "nextSteps": { "success": "loop_ensure_indexed" }
+      "nextSteps": { "success": "loop_comparison_files" }
     },
     {
-      "stepSlug": "retrieve_base_chunks",
-      "name": "Retrieve Base Document Chunks",
-      "stepType": "action",
-      "order": 5,
-      "config": {
-        "type": "document",
-        "parameters": {
-          "operation": "retrieve",
-          "fileId": "{{baselineFile.fileId}}",
-          "returnChunks": true
-        }
-      },
-      "nextSteps": { "success": "loop_chunks" }
-    },
-    {
-      "stepSlug": "loop_chunks",
-      "name": "Loop: Compare Each Chunk",
+      "stepSlug": "loop_comparison_files",
+      "name": "Loop: Compare Each Document",
       "stepType": "loop",
-      "order": 6,
+      "order": 4,
       "config": {
-        "items": "{{steps.retrieve_base_chunks.output.data.chunks}}",
+        "items": "{{comparisonFiles}}",
         "itemVariable": "item"
       },
       "nextSteps": {
-        "loop": "search_similar",
+        "loop": "index_comparison_doc",
         "done": "generate_overview"
       }
     },
     {
-      "stepSlug": "search_similar",
-      "name": "Search Similar Passages in Comparison Docs",
+      "stepSlug": "index_comparison_doc",
+      "name": "Index Comparison Document in RAG",
       "stepType": "action",
-      "order": 7,
+      "order": 5,
       "config": {
         "type": "rag",
         "parameters": {
-          "operation": "search",
-          "query": "{{loop.item.content}}",
-          "fileIds": "{{comparisonFileIds}}",
-          "topK": "{{searchTopK}}"
+          "operation": "upload_document",
+          "fileId": "{{loop.item.fileId}}",
+          "fileName": "{{loop.item.fileName}}",
+          "sync": true
         }
       },
-      "nextSteps": { "success": "check_has_results" }
+      "nextSteps": { "success": "compare_documents" }
     },
     {
-      "stepSlug": "check_has_results",
-      "name": "Check if Similar Passages Found",
-      "stepType": "condition",
-      "order": 8,
+      "stepSlug": "compare_documents",
+      "name": "Compare Documents (Deterministic Diff)",
+      "stepType": "action",
+      "order": 6,
       "config": {
-        "expression": "steps.search_similar.output.data.results|length > 0",
-        "description": "Skip comparison if no similar passages found in comparison documents"
+        "type": "document",
+        "parameters": {
+          "operation": "compare",
+          "baseFileId": "{{baselineFile.fileId}}",
+          "comparisonFileId": "{{loop.item.fileId}}",
+          "maxChanges": 500
+        }
       },
-      "nextSteps": {
-        "true": "compare_chunk",
-        "false": "loop_chunks"
-      }
+      "nextSteps": { "success": "analyze_differences" }
     },
     {
-      "stepSlug": "compare_chunk",
-      "name": "Compare Chunk with Similar Passages",
+      "stepSlug": "analyze_differences",
+      "name": "Analyze Differences with Legal Expertise",
       "stepType": "llm",
-      "order": 9,
+      "order": 7,
       "config": {
-        "name": "Contract Clause Comparator",
-        "systemPrompt": "You are an expert legal document analyst specializing in contract comparison. Produce structured, self-contained clause analyses with difference tables including legal significance. Use precise legal terminology. Do NOT include standalone summary sections, risk matrices, overall conclusions, or cross-clause commentary. Output ONLY the formatted analysis. Never include meta-commentary, self-reflection, reasoning about the output format, or internal notes.",
-        "userPrompt": "Compare the following base contract clause with similar passages found in comparison contracts.\n\n## Base Clause from \"{{baseDocName}}\" (Chunk {{loop.item.index}})\n{{loop.item.content}}\n\n## Comparison Documents\nThe following documents are being compared against the base contract:\n{{comparisonDocNames|join(', ')}}\n\n## Similar Passages Found via RAG Search\n{{steps.search_similar.output.data.results|formatList('{filename}: {content}', '\n\n---\n\n')}}\n\n## Output Format\n**Clause Type:** [one-line identification, e.g., Indemnification, Limitation of Liability, Termination]\n\nYou MUST include a section for EVERY comparison document listed above, even if no matching passages were found in the RAG search results.\n\nFor each comparison document, output a table:\n\n### [Document filename]\n| Aspect | Classification | Description | Legal Significance |\n|--------|---------------|-------------|--------------------|\n| ... | Addition/Deletion/Modification/Rewording | Factual description (1-2 sentences) | Brief note on legal impact |\n\nRules:\n- One row per difference\n- Classification must be exactly one of: Addition, Deletion, Modification, Rewording\n- Keep descriptions to 1-2 sentences\n- Legal Significance should be a brief factual note (e.g., 'Shifts performance risk to buyer', 'Eliminates seller financing')\n- If no differences found for a document, state 'No material differences identified'\n- If no matching passages were found for a comparison document in the RAG search results above, output: '**No corresponding clause found in this document.** This clause from the base contract does not appear to have an equivalent provision in [document filename].'\n- Do NOT add standalone summary sections, risk matrices, or overall conclusions after the tables\n- Output ONLY the clause type header, document sections, and difference tables. Do not include any text that is not part of the analysis itself (no self-checks, no meta-commentary, no notes about your approach)",
-        "outputFormat": "text"
+        "name": "Contract Difference Analyzer",
+        "systemPrompt": "You are an expert legal document analyst specializing in contract comparison. You receive structured diff output showing paragraph-level text differences between two contracts. Produce a comprehensive legal analysis with structured tables. Use precise legal terminology. Distinguish between substantive modifications (different legal effect) and rewordings (same legal effect, different language). Identify cross-reference renumbering separately from substantive changes. Output valid JSON only.",
+        "userPrompt": "Analyze the following differences between the base contract \"{{baseDocName}}\" and comparison contract \"{{loop.item.fileName}}\".\n\n## Diff Statistics\n- Modified paragraphs: {{steps.compare_documents.output.data.stats.modified}}\n- Added paragraphs: {{steps.compare_documents.output.data.stats.added}}\n- Deleted paragraphs: {{steps.compare_documents.output.data.stats.deleted}}\n- Unchanged paragraphs: {{steps.compare_documents.output.data.stats.unchanged}}\n- High divergence: {{steps.compare_documents.output.data.stats.highDivergence}}\n- Truncated: {{steps.compare_documents.output.data.truncated}}\n\nNote: If high divergence is true, the documents differ significantly (>70% changed). This often occurs when comparing a draft against a substantially expanded final version. Still analyze all available changes thoroughly. If truncated is true, only the first 500 change items are shown.\n\n## Change Blocks\n{{steps.compare_documents.output.data.changeBlocks|string}}\n\n## Output Requirements\nReturn a JSON object with exactly two fields:\n\n1. \"analysis\": A markdown string containing your legal analysis. For each change block, produce:\n   - **Clause Type** identification (e.g., Indemnification, Limitation of Liability, Representations)\n   - A table with columns: Aspect | Classification | Description | Legal Significance\n   - Classification must be exactly one of: Addition, Deletion, Modification, Rewording\n     - Modification = different legal effect (substantive change)\n     - Rewording = same legal effect, different language (cosmetic/style change)\n   - If changes are purely cross-reference renumbering, classify as \"Rewording\" and note it\n   - Keep descriptions to 1-2 sentences\n   - If there are many changes, group similar clause types together rather than analyzing each paragraph individually\n\n2. \"clauses\": An array of objects, each with:\n   - \"clauseType\": string (the clause type you identified)\n   - \"classification\": one of \"Addition\", \"Deletion\", \"Modification\", \"Rewording\"\n\nThis structured data will be used for amendment frequency analysis across all comparison documents.",
+        "outputFormat": "json",
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "analysis": {
+              "type": "string",
+              "description": "Markdown legal analysis with clause-by-clause tables"
+            },
+            "clauses": {
+              "type": "array",
+              "description": "Structured clause classifications for frequency analysis",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "clauseType": {
+                    "type": "string",
+                    "description": "The identified clause type (e.g., Indemnification, Limitation of Liability)"
+                  },
+                  "classification": {
+                    "type": "string",
+                    "description": "One of: Addition, Deletion, Modification, Rewording"
+                  }
+                },
+                "required": ["clauseType", "classification"]
+              }
+            }
+          },
+          "required": ["analysis", "clauses"]
+        }
       },
       "nextSteps": { "success": "accumulate_results" }
     },
@@ -170,29 +164,33 @@
       "stepSlug": "accumulate_results",
       "name": "Accumulate Comparison Results",
       "stepType": "action",
-      "order": 10,
+      "order": 8,
       "config": {
         "type": "set_variables",
         "parameters": {
           "variables": [
             {
-              "name": "chunkResults",
-              "value": "{{chunkResults|concat([steps.compare_chunk.output.data])}}"
+              "name": "comparisonResults",
+              "value": "{{comparisonResults|concat(['## ' + loop.item.fileName + '\\n\\n' + steps.analyze_differences.output.data.analysis])}}"
+            },
+            {
+              "name": "allClauses",
+              "value": "{{allClauses|concat(steps.analyze_differences.output.data.clauses)}}"
             }
           ]
         }
       },
-      "nextSteps": { "success": "loop_chunks" }
+      "nextSteps": { "success": "loop_comparison_files" }
     },
     {
       "stepSlug": "generate_overview",
-      "name": "Generate Report Overview",
+      "name": "Generate Report Overview with Frequency Analysis",
       "stepType": "llm",
-      "order": 11,
+      "order": 9,
       "config": {
         "name": "Contract Comparison Overview",
-        "systemPrompt": "You are an expert legal analyst. Generate a brief executive introduction for a contract comparison report. Be professional and concise.",
-        "userPrompt": "Write a 2-3 paragraph executive introduction for a contract comparison report with the following metadata:\n\n- Base document: {{baseDocName}}\n- Comparison documents: {{comparisonDocNames|join(', ')}}\n- Total clauses analyzed: {{chunkResults|length}}\n- Number of comparison documents: {{comparisonFiles|length}}\n\nThe introduction should:\n1. Identify the base document and each comparison document by name\n2. Describe the scope and methodology (chunk-level RAG comparison of contract clauses)\n3. Note the total number of clauses analyzed and documents compared\n4. Direct the reader to the detailed clause-by-clause comparison that follows\n\nKeep it under 150 words. Do NOT attempt to summarize findings — you do not have access to the comparison data.",
+        "systemPrompt": "You are an expert legal analyst. Generate a professional executive introduction for a contract comparison report that includes amendment frequency analysis. Be concise and data-driven.",
+        "userPrompt": "Write a 3-4 paragraph executive introduction for a contract comparison report with the following metadata:\n\n- Base document: {{baseDocName}}\n- Comparison documents: {{comparisonDocNames|join(', ')}}\n- Number of comparison documents: {{comparisonFiles|length}}\n- Total clause classifications across all comparisons: {{allClauses|length}}\n\n## Clause Amendment Data\n{{allClauses|string}}\n\nThe introduction should:\n1. Identify the base document and each comparison document by name\n2. Describe the scope and methodology (deterministic paragraph-level text comparison)\n3. Analyze the clause amendment data to identify:\n   - Which clause types were most frequently modified or negotiated across all comparison documents\n   - The distribution of change types (Addition vs Deletion vs Modification vs Rewording)\n   - Any patterns (e.g., certain clauses consistently modified across all versions)\n4. Direct the reader to the detailed comparison that follows\n\nKeep it under 250 words. Be specific about which clauses were most frequently amended.",
         "outputFormat": "text"
       },
       "nextSteps": { "success": "generate_report" }
@@ -201,14 +199,14 @@
       "stepSlug": "generate_report",
       "name": "Generate DOCX Report",
       "stepType": "action",
-      "order": 12,
+      "order": 10,
       "config": {
         "type": "document",
         "parameters": {
           "operation": "generate_docx",
           "fileName": "contract-comparison-report.docx",
           "sourceType": "markdown",
-          "content": "# Contract Comparison Report\n\n**Base Document:** {{baseDocName}}\n\n**Comparison Documents:** {{comparisonDocNames|join(', ')}}\n\n{{steps.generate_overview.output.data}}\n\n---\n\n# Clause-by-Clause Comparison\n\n{{chunkResults|join('\n\n---\n\n')}}"
+          "content": "# Contract Comparison Report\n\n**Base Document:** {{baseDocName}}\n\n**Comparison Documents:** {{comparisonDocNames|join(', ')}}\n\n**Methodology:** Deterministic paragraph-level text comparison with AI-powered legal analysis\n\n---\n\n{{steps.generate_overview.output.data}}\n\n---\n\n# Detailed Clause-by-Clause Comparison\n\n{{comparisonResults|join('\n\n---\n\n')}}"
         }
       },
       "nextSteps": { "success": "output" }
@@ -217,7 +215,7 @@
       "stepSlug": "output",
       "name": "Output Results",
       "stepType": "output",
-      "order": 13,
+      "order": 11,
       "config": {
         "outputMapping": {
           "fileStorageId": "{{steps.generate_report.output.data.fileStorageId}}",
