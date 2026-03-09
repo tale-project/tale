@@ -251,8 +251,6 @@ function HumanInputRequestCardComponent({
     <div
       className={cn(
         'rounded-xl border border-border p-5 bg-card w-full max-w-xl',
-        status === 'approved' && 'border-success/30',
-        status === 'rejected' && 'border-destructive/30',
         className,
       )}
     >
@@ -267,14 +265,6 @@ function HumanInputRequestCardComponent({
             </Badge>
           </div>
         </HStack>
-        {!isPending && (
-          <Badge
-            variant={status === 'approved' ? 'green' : 'destructive'}
-            className="text-xs capitalize"
-          >
-            {status === 'approved' ? 'Responded' : status}
-          </Badge>
-        )}
       </HStack>
 
       {/* Question */}
@@ -316,6 +306,18 @@ function HumanInputRequestCardComponent({
         </Stack>
       ) : (
         renderResponse()
+      )}
+
+      {/* Status badge */}
+      {!isPending && (
+        <HStack justify="end" className="mt-2">
+          <Badge
+            variant={status === 'approved' ? 'green' : 'destructive'}
+            className="shrink-0 text-xs capitalize"
+          >
+            {status === 'approved' ? 'Responded' : status}
+          </Badge>
+        </HStack>
       )}
     </div>
   );

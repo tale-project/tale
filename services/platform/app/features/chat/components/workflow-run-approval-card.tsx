@@ -177,8 +177,6 @@ function WorkflowRunApprovalCardComponent({
     <div
       className={cn(
         'rounded-xl border border-border p-4 bg-card max-w-md overflow-hidden',
-        status === 'approved' && 'border-success/30',
-        status === 'rejected' && 'border-destructive/30',
         className,
       )}
     >
@@ -197,14 +195,6 @@ function WorkflowRunApprovalCardComponent({
             )}
           </div>
         </HStack>
-        {status !== 'pending' && (
-          <Badge
-            variant={status === 'approved' ? 'green' : 'destructive'}
-            className="text-xs"
-          >
-            {status === 'approved' ? t('statusApproved') : t('statusRejected')}
-          </Badge>
-        )}
       </HStack>
 
       {/* Parameters Preview */}
@@ -411,11 +401,25 @@ function WorkflowRunApprovalCardComponent({
         </ActionRow>
       )}
 
-      {/* Status message for rejected approvals */}
-      {status === 'rejected' && (
-        <Text as="div" variant="caption">
-          {t('statusRejected')}
-        </Text>
+      {/* Status badge */}
+      {status !== 'pending' && (
+        <HStack
+          justify={status === 'rejected' ? 'between' : 'end'}
+          align="center"
+          className="mt-2"
+        >
+          {status === 'rejected' && (
+            <Text as="div" variant="caption">
+              {t('statusRejected')}
+            </Text>
+          )}
+          <Badge
+            variant={status === 'approved' ? 'green' : 'destructive'}
+            className="shrink-0 text-xs"
+          >
+            {status === 'approved' ? t('statusApproved') : t('statusRejected')}
+          </Badge>
+        </HStack>
       )}
     </div>
   );
