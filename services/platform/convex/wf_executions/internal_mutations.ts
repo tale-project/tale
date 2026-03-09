@@ -63,6 +63,10 @@ export const updateExecutionStatus = internalMutation({
     executionId: v.id('wfExecutions'),
     status: executionStatusValidator,
     currentStepSlug: v.optional(v.string()),
+    currentStepName: v.optional(v.string()),
+    loopProgress: v.optional(
+      v.union(v.object({ current: v.number(), total: v.number() }), v.null()),
+    ),
     waitingFor: v.optional(v.string()),
     error: v.optional(v.string()),
   },

@@ -60,6 +60,20 @@ export function getArray(
 }
 
 /**
+ * Narrows an unknown value to a loop state with `currentIndex` and `totalItems`.
+ * Used for safely extracting loop progress without type casts.
+ */
+export function isLoopProgress(
+  val: unknown,
+): val is { currentIndex: number; totalItems: number } {
+  return (
+    isRecord(val) &&
+    typeof val.currentIndex === 'number' &&
+    typeof val.totalItems === 'number'
+  );
+}
+
+/**
  * Runtime-validate that a string belongs to a known set of values.
  * Returns `undefined` if the value is not in the set.
  */

@@ -2080,6 +2080,7 @@
     "hideParameters": "Hide parameters",
     "executionRunning": "Running...",
     "executionRunningStep": "Running step: {step}",
+    "executionRunningStepWithProgress": "Running step: {step} (iteration {current}/{total})",
     "executionElapsed": "Running for {duration}",
     "executionCompleted": "Completed successfully",
     "executionFailed": "Execution failed",
