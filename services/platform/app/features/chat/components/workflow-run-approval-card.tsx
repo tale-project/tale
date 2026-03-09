@@ -243,9 +243,9 @@ function WorkflowRunApprovalCardComponent({
               <HStack gap={1} justify="between" className="text-xs">
                 <HStack gap={1} className="text-primary">
                   <Loader2 className="size-3 animate-spin" />
-                  {executionStatus?.currentStepSlug
+                  {executionStatus?.currentStepName
                     ? t('executionRunningStep', {
-                        step: executionStatus.currentStepSlug,
+                        step: executionStatus.currentStepName,
                       })
                     : t('executionRunning')}
                 </HStack>

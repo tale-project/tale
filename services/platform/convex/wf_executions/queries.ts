@@ -68,6 +68,7 @@ export const getExecutionStatus = queryWithRLS({
     return {
       status: exec.status,
       currentStepSlug: exec.currentStepSlug,
+      currentStepName: exec.currentStepName,
       error: exec.error,
       startedAt: exec.startedAt,
       completedAt: exec.completedAt,

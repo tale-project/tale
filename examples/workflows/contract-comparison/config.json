@@ -1,8 +1,8 @@
 {
   "workflowConfig": {
     "name": "Contract Comparison",
-    "description": "Compare sequential versions of a contract using deterministic paragraph-level text diffing to identify all additions, deletions, and modifications across the negotiation chain, producing a structured DOCX report with clause amendment frequency analysis",
-    "version": "3.0.0",
+    "description": "Compare sequential versions of a contract using deterministic paragraph-level text diffing to identify all additions, deletions, and modifications across the negotiation chain, producing a structured DOCX report with layered analysis: executive insights, clause type evolution, and detailed change tables",
+    "version": "4.0.0",
     "workflowType": "predefined",
     "config": {
       "timeout": 14400000,
@@ -53,6 +53,10 @@
               "value": []
             },
             {
+              "name": "transitionSummaries",
+              "value": []
+            },
+            {
               "name": "language",
               "value": "{{language || ''}}"
             }
@@ -72,7 +76,7 @@
       },
       "nextSteps": {
         "loop": "index_base_doc",
-        "done": "generate_overview"
+        "done": "precompute_statistics"
       }
     },
     {
@@ -125,13 +129,13 @@
     },
     {
       "stepSlug": "analyze_differences",
-      "name": "Analyze Differences with Legal Expertise",
+      "name": "Analyze Differences with Change Detection",
       "stepType": "llm",
       "order": 7,
       "config": {
         "name": "Contract Difference Analyzer",
-        "systemPrompt": "You are an expert legal document analyst specializing in contract comparison. You receive structured diff output showing paragraph-level text differences between adjacent versions in a document sequence. Produce a comprehensive legal analysis with structured tables using precise legal terminology.\n\nCORE PRINCIPLE: Do not assume that textual change equals legal change. Classify the type of change before interpreting legal impact. Every detected difference must be classified into one of three categories:\n\n1. Editorial — Wording changes without material legal effect: synonym replacements, grammatical adjustments, style edits, clarifying phrases that do not alter obligations. Example: changing 'shall indemnify for losses' to 'shall hold harmless against damages' — same legal effect, different words. Example: adding a parenthetical '(including its subsidiaries)' where the definition section already covers subsidiaries.\n\n2. Structural — Reorganization without substantive modification: clause renumbering, section relocation, splitting or merging clauses, cross-reference updates, removing redundant sub-clauses merged elsewhere. Example: splitting Section 7 (Liability) into Sections 7, 8, and 9 with the same content redistributed. Example: deleting a 'for the avoidance of doubt' repetition during clause consolidation.\n\n3. Substantive — Material modifications to legal rights, obligations, or risk allocation: new obligations, removed protections, changed liability caps or thresholds, modified limitation periods, introduction of new mechanisms (earn-out, non-compete, locked-box). Example: changing a liability cap from a fixed amount to a percentage of the purchase price. If a structural change also alters legal rights or obligations, classify it as Substantive.\n\nUse ### for clause type headings and #### for sub-sections. These are the only heading levels you may use. Some change items include an `inline_diff` field showing word-level changes with `[-deleted-]` and `{+added+}` markers, and a `clause_ref` field with the extracted section reference. Use these to inform your classification and description.\n\nTABLE FORMAT: Every table must have exactly 4 columns with header: `| Clause Reference | Change Type | Description | Legal Significance |`. Change Type column must contain exactly one of: `Editorial`, `Structural`, `Substantive` (always in English, regardless of output language). Clause Reference must never be empty — use descriptive labels (e.g., 'Preamble', 'Recital B', 'Definition: Business Day') for unnumbered sections.\n\nLANGUAGE: If a `language` parameter is provided, produce all output in that language. If no language parameter is provided, detect the language from the input documents and use it consistently. This applies to table headers, descriptions, and all analysis text. The only exception is the Change Type column values, which must always be in English (Editorial, Structural, Substantive) for downstream extraction.",
-        "userPrompt": "Analyze the changes from \"{{files[loop.index].fileName}}\" to \"{{loop.item.fileName}}\" (transition {{loop.index + 1}} of {{filesToCompare | length}} in the version sequence).\n\nOutput language: {{language || 'auto-detect from documents'}}\n\n## Diff Statistics\n- Modified paragraphs: {{steps.compare_documents.output.data.stats.modified}}\n- Added paragraphs: {{steps.compare_documents.output.data.stats.added}}\n- Deleted paragraphs: {{steps.compare_documents.output.data.stats.deleted}}\n- Unchanged paragraphs: {{steps.compare_documents.output.data.stats.unchanged}}\n- High divergence: {{steps.compare_documents.output.data.stats.highDivergence}}\n- Truncated: {{steps.compare_documents.output.data.truncated}}\n\nNote: If high divergence is true, the documents differ significantly (>70% changed). This often occurs when comparing a draft against a substantially expanded version. Still analyze all available changes thoroughly. If truncated is true, only the first 500 change items are shown.\n\n## Change Blocks\n{{steps.compare_documents.output.data.changeBlocks|string}}\n\nProduce a markdown legal analysis with clause-by-clause tables as described in the system instructions. For each change block:\n- Identify the **Clause Type** (e.g., Indemnification, Limitation of Liability, Representations)\n- Produce a table with columns: Clause Reference | Change Type | Description | Legal Significance\n- Description: 1-2 sentences. When an `inline_diff` field is available, reference the specific words that changed rather than describing the change generically\n- Legal Significance: for Editorial/Structural changes, briefly state no material legal change; for Substantive changes, describe the actual legal impact\n- Group changes under clause type headings",
+        "systemPrompt": "You are an expert change-detection analyst specializing in contract comparison. You receive structured diff output showing paragraph-level text differences between adjacent versions in a document sequence. Your role is to identify, classify, and describe changes factually. You do NOT provide legal advice — you flag items that may have legal significance for human review.\n\nCORE PRINCIPLE: Textual change does not equal legal change. Classify the type of change before describing implications. Every detected difference must be classified into one of three categories:\n\n1. Editorial — Wording changes without material legal effect: synonym replacements, grammatical adjustments, style edits, gender-neutral language updates, clarifying phrases that do not alter obligations. Example: changing 'shall indemnify for losses' to 'shall hold harmless against damages' — same legal effect, different words. Example: 'Verkäuferin' → 'Verkäufer' is Editorial unless surrounding context clearly establishes an actual change of contracting party. Example: adding '(including its subsidiaries)' where the definition section already covers subsidiaries.\n\n2. Structural — Reorganization without substantive modification: clause renumbering, section relocation, splitting or merging clauses, cross-reference updates, removing redundant sub-clauses merged elsewhere. Example: splitting Section 7 (Liability) into Sections 7, 8, and 9 with the same content redistributed.\n\n3. Substantive — Material modifications to legal rights, obligations, or risk allocation: new obligations, removed protections, changed liability caps or thresholds, modified limitation periods, introduction of new mechanisms (earn-out, non-compete, locked-box). Example: changing a liability cap from a fixed amount to a percentage of the purchase price. BOUNDARY CASES: Adding 'material' before 'breach' is Substantive (raises the threshold), not Editorial. If a structural change also alters legal rights, classify as Substantive.\n\nORGANIZATION: Group changes under ### headings by clause type (e.g., ### Indemnification, ### Limitation of Liability, ### Purchase Price). Derive natural groupings from the actual contract content. Use identical clause type names if analyzing multiple transitions of the same contract.\n\nTABLE FORMAT: Every table must have exactly 4 columns: `| Clause Reference | Change Type | Description | Potential Implications |`. Change Type must contain exactly one of: `Editorial`, `Structural`, `Substantive` (always in English, regardless of output language). Clause Reference must never be empty — use descriptive labels (e.g., 'Preamble', 'Recital B', 'Definition: Business Day') for unnumbered sections.\n\nCOLUMN GUIDELINES:\n- Description: 1-2 sentences stating factually what changed. When an `inline_diff` field is available, reference the specific words that changed rather than describing generically.\n- Potential Implications: For Editorial/Structural changes, state \"No material change.\" For Substantive changes, describe what may be affected using hedged language: \"may affect\", \"could shift\", \"appears to modify\", \"a legal reviewer should assess whether this impacts...\". Never state uncertain interpretations as established facts. If a textual change has multiple plausible explanations, note the ambiguity.\n\nSome change items include an `inline_diff` field with `[-deleted-]` and `{+added+}` markers, and a `clause_ref` field with the extracted section reference. Use these to inform your classification and description.\n\nHEADING LEVELS: Use ### for clause type headings. This is the only heading level you may use.\n\nLANGUAGE: If a `language` parameter is provided, produce all output in that language. If not provided, detect from documents. Change Type values are always English. The column header \"Potential Implications\" may be translated.",
+        "userPrompt": "Analyze the changes from \"{{files[loop.index].fileName}}\" to \"{{loop.item.fileName}}\" (transition {{loop.index + 1}} of {{filesToCompare | length}} in the version sequence).\n\nOutput language: {{language || 'auto-detect from documents'}}\n\n## Diff Statistics\n- Modified paragraphs: {{steps.compare_documents.output.data.stats.modified}}\n- Added paragraphs: {{steps.compare_documents.output.data.stats.added}}\n- Deleted paragraphs: {{steps.compare_documents.output.data.stats.deleted}}\n- Unchanged paragraphs: {{steps.compare_documents.output.data.stats.unchanged}}\n- High divergence: {{steps.compare_documents.output.data.stats.highDivergence}}\n- Truncated: {{steps.compare_documents.output.data.truncated}}\n\nNote: If high divergence is true, the documents differ significantly (>70% changed). Still analyze all available changes thoroughly. If truncated is true, only the first 500 change items are shown.\n\n## Change Blocks\n{{steps.compare_documents.output.data.changeBlocks|string}}\n\nGroup and analyze the changes following the system instructions:\n1. Group changes under ### headings by clause type\n2. For each change, produce a table row: Clause Reference | Change Type | Description | Potential Implications\n3. Use hedged language in Potential Implications — flag items for human review rather than stating legal conclusions\n4. Reference specific words from `inline_diff` where available",
         "outputFormat": "text"
       },
       "nextSteps": { "success": "classify_clauses" }
@@ -143,7 +147,7 @@
       "order": 8,
       "config": {
         "name": "Clause Classification Extractor",
-        "systemPrompt": "You extract structured clause data from a markdown legal analysis into JSON.\n\nThe analysis contains markdown tables grouped under ### headings. Each ### heading is the clause type (e.g., \"Kaufgegenstand und Kaufpreis\", \"Indemnification\"). Each table has columns: Clause Reference | Change Type | Description | Legal Significance.\n\nFor each table row, create one JSON object:\n- clauseType: the ### heading text above the table\n- classification: the Change Type cell value (must be exactly \"Editorial\", \"Structural\", or \"Substantive\")\n- clauseRef: the Clause Reference cell value, or null if empty\n- versionFrom: use the source file name provided below\n- versionTo: use the target file name provided below\n\nExample — given this markdown:\n\n### Indemnification\n| Clause Reference | Change Type | Description | Legal Significance |\n|---|---|---|---|\n| Section 7.1 | Substantive | Changed liability cap from fixed to percentage | Material change to risk allocation |\n| Section 7.2 | Editorial | Minor wording adjustment | No material legal change |\n\nWith source file \"v1.docx\" and target file \"v2.docx\", extract:\n[{\"clauseType\":\"Indemnification\",\"classification\":\"Substantive\",\"clauseRef\":\"Section 7.1\",\"versionFrom\":\"v1.docx\",\"versionTo\":\"v2.docx\"},{\"clauseType\":\"Indemnification\",\"classification\":\"Editorial\",\"clauseRef\":\"Section 7.2\",\"versionFrom\":\"v1.docx\",\"versionTo\":\"v2.docx\"}]\n\nExtract every single table row. Do not skip any.",
+        "systemPrompt": "You extract structured clause data from a markdown legal analysis into JSON.\n\nThe analysis contains markdown tables grouped under ### headings. Each ### heading is the clause type (e.g., \"Indemnification\", \"Limitation of Liability\", \"Purchase Price\"). Each table has columns: Clause Reference | Change Type | Description | Potential Implications.\n\nFor each table row, create one JSON object:\n- clauseType: the ### heading text above the table\n- classification: the Change Type cell value (must be exactly \"Editorial\", \"Structural\", or \"Substantive\")\n- clauseRef: the Clause Reference cell value, or null if empty\n- versionFrom: use the source file name provided below\n- versionTo: use the target file name provided below\n\nExample — given this markdown:\n\n### Limitation of Liability\n| Clause Reference | Change Type | Description | Potential Implications |\n|---|---|---|---|\n| Section 7.1 | Substantive | Changed liability cap from fixed EUR 5M to 10% of purchase price | May shift risk exposure depending on final purchase price. |\n| Section 7.2 | Editorial | Minor wording adjustment in liability notice period | No material change. |\n\n### Indemnification\n| Clause Reference | Change Type | Description | Potential Implications |\n|---|---|---|---|\n| Section 8.1 | Substantive | Added new indemnification carve-out for tax liabilities | Could expand seller exposure for pre-closing tax matters. |\n\nWith source file \"v1.docx\" and target file \"v2.docx\", extract:\n[{\"clauseType\":\"Limitation of Liability\",\"classification\":\"Substantive\",\"clauseRef\":\"Section 7.1\",\"versionFrom\":\"v1.docx\",\"versionTo\":\"v2.docx\"},{\"clauseType\":\"Limitation of Liability\",\"classification\":\"Editorial\",\"clauseRef\":\"Section 7.2\",\"versionFrom\":\"v1.docx\",\"versionTo\":\"v2.docx\"},{\"clauseType\":\"Indemnification\",\"classification\":\"Substantive\",\"clauseRef\":\"Section 8.1\",\"versionFrom\":\"v1.docx\",\"versionTo\":\"v2.docx\"}]\n\nExtract every single table row. Do not skip any.",
         "userPrompt": "Source file: \"{{files[loop.index].fileName}}\"\nTarget file: \"{{loop.item.fileName}}\"\n\n{{steps.analyze_differences.output.data}}",
         "outputFormat": "json",
         "outputSchema": {
@@ -157,7 +161,7 @@
                 "properties": {
                   "clauseType": {
                     "type": "string",
-                    "description": "The identified clause type (e.g., Indemnification, Limitation of Liability)"
+                    "description": "The identified clause type (e.g., 'Indemnification', 'Limitation of Liability')"
                   },
                   "classification": {
                     "type": "string",
@@ -184,13 +188,26 @@
           "required": ["clauses"]
         }
       },
+      "nextSteps": { "success": "summarize_transition" }
+    },
+    {
+      "stepSlug": "summarize_transition",
+      "name": "Summarize Version Transition",
+      "stepType": "llm",
+      "order": 9,
+      "config": {
+        "name": "Transition Summary Analyst",
+        "systemPrompt": "You are a transaction analyst. Given a detailed change analysis between two contract versions, produce a concise summary of how the contract evolved in this transition. Focus on:\n- What negotiation positions appear to have shifted\n- How risk allocation may have changed between parties\n- Whether new deal mechanisms were introduced or removed (e.g., earn-out, escrow, locked-box, MAC clauses, non-compete)\n- The overall direction of the negotiation (tightening, loosening, converging)\n\nUse hedged language for interpretive conclusions (\"appears to\", \"may indicate\", \"suggests\"). Write 3-5 sentences maximum. Write in the language specified by the language parameter. If no language parameter is provided or empty, write in the same language as the source documents.",
+        "userPrompt": "Output language: {{language || 'auto-detect from documents'}}\n\nTransition {{loop.index + 1}} of {{filesToCompare | length}}: \"{{files[loop.index].fileName}}\" → \"{{loop.item.fileName}}\"\n\nBelow is the detailed change analysis for this version transition. Summarize the key transaction-level developments.\n\n{{steps.analyze_differences.output.data}}",
+        "outputFormat": "text"
+      },
       "nextSteps": { "success": "accumulate_results" }
     },
     {
       "stepSlug": "accumulate_results",
       "name": "Accumulate Comparison Results",
       "stepType": "action",
-      "order": 9,
+      "order": 10,
       "config": {
         "type": "set_variables",
         "parameters": {
@@ -202,6 +219,10 @@
             {
               "name": "allClauses",
               "value": "{{allClauses|concat(steps.classify_clauses.output.data.clauses)}}"
+            },
+            {
+              "name": "transitionSummaries",
+              "value": "{{transitionSummaries|concat([files[loop.index].fileName + ' → ' + loop.item.fileName + ': ' + steps.summarize_transition.output.data])}}"
             }
           ]
         }
@@ -209,14 +230,32 @@
       "nextSteps": { "success": "loop_comparison_files" }
     },
     {
-      "stepSlug": "generate_overview",
-      "name": "Generate Report Overview with Frequency Analysis",
-      "stepType": "llm",
-      "order": 10,
+      "stepSlug": "precompute_statistics",
+      "name": "Pre-compute Clause Statistics",
+      "stepType": "action",
+      "order": 11,
       "config": {
-        "name": "Contract Comparison Overview",
-        "systemPrompt": "You are an expert legal analyst. Generate a professional executive introduction for a contract version comparison report that includes amendment frequency analysis across the negotiation chain. Be concise and data-driven. Write in the language specified by the language parameter. If no language parameter is provided or it is empty, write in the same language as the source documents being compared.",
-        "userPrompt": "Output language: {{language || 'auto-detect from documents'}}\n\nWrite a 3-4 paragraph executive introduction for a contract comparison report with the following metadata:\n\n- Document versions (chronological): {{fileNames|join(' → ')}}\n- Number of version transitions analyzed: {{filesToCompare|length}}\n- Total clause classifications across all transitions: {{allClauses|length}}\n\n## Clause Amendment Data\nThe `classification` field indicates change significance: Editorial (no legal impact), Structural (reorganization only), or Substantive (material legal change).\n{{allClauses|string}}\n\nThe introduction should:\n1. Identify all document versions in the negotiation sequence by name, in chronological order\n2. Describe the scope and methodology (deterministic paragraph-level text comparison across sequential version pairs)\n3. Analyze the clause amendment data to identify:\n   - The distribution of change significance (Editorial vs Structural vs Substantive) — lead with substantive changes as the primary signal\n   - Which clause types received the most substantive amendments across version transitions\n   - Note what proportion of total changes were editorial or structural (the noise filter — helps calibrate expectations)\n   - Evolution patterns: whether substantive changes tapered off in later versions (convergence) or escalated (unresolved disputes)\n   - Use the versionFrom/versionTo fields to identify which transitions affected each clause\n4. Direct the reader to the detailed version-by-version analysis that follows\n\nKeep it under 300 words. Be specific about which clauses were most frequently amended substantively and in which transitions.",
+        "type": "set_variables",
+        "parameters": {
+          "variables": [
+            {
+              "name": "clauseStatistics",
+              "value": "{{allClauses|string}}"
+            }
+          ]
+        }
+      },
+      "nextSteps": { "success": "generate_overview" }
+    },
+    {
+      "stepSlug": "generate_overview",
+      "name": "Generate Executive Insights",
+      "stepType": "llm",
+      "order": 12,
+      "config": {
+        "name": "Contract Comparison Executive Insights",
+        "systemPrompt": "You are a transaction analyst generating executive insights for a contract version comparison report. Your analysis should tell the story of how a transaction evolved through its negotiation — not merely summarize statistics. Clearly distinguish between data-backed observations and interpretive conclusions. Use hedged language for uncertain inferences (\"appears to\", \"may suggest\", \"could indicate\"). Write in the language specified by the language parameter. If no language parameter is provided or empty, write in the same language as the source documents.\n\nStructure your output with these exact section headings:\n\n### Negotiation Arc\n2-3 paragraphs describing how the transaction evolved across versions.\n\n### Risk Allocation Shifts\n1-2 paragraphs on how risk moved between parties.\n\n### Key Findings\n4-6 specific, data-backed bullet points referencing clause types and version transitions.\n\n### Methodology\n1 sentence on the comparison approach.",
+        "userPrompt": "Output language: {{language || 'auto-detect from documents'}}\n\nGenerate executive insights for a contract comparison report.\n\n- Document versions (chronological): {{fileNames|join(' → ')}}\n- Number of version transitions analyzed: {{filesToCompare|length}}\n- Total clause classifications across all transitions: {{allClauses|length}}\n\n## Per-Transition Summaries\nThese summaries capture the key transaction-level developments in each version transition:\n{{transitionSummaries|join('\\n\\n')}}\n\n## Clause Amendment Data\nThe `classification` field indicates change significance: Editorial (no legal impact), Structural (reorganization only), Substantive (material legal change). The `clauseType` field identifies the provision category.\n{{clauseStatistics}}\n\nFor the **Negotiation Arc** section, use the per-transition summaries to describe the trajectory. For the **Risk Allocation Shifts** section, analyze which clause types saw the most substantive amendments and in which direction. For the **Key Findings** section, provide specific bullets referencing clause types and transitions (e.g., \"Indemnification was substantively amended in 3 of 4 transitions...\"). For the **Methodology** section, note: deterministic paragraph-level text comparison across sequential version pairs with AI-powered change classification.\n\nKeep the total under 400 words.",
         "outputFormat": "text"
       },
       "nextSteps": { "success": "generate_report" }
@@ -225,14 +264,14 @@
       "stepSlug": "generate_report",
       "name": "Generate DOCX Report",
       "stepType": "action",
-      "order": 11,
+      "order": 13,
       "config": {
         "type": "document",
         "parameters": {
           "operation": "generate_docx",
           "fileName": "contract-comparison-report.docx",
           "sourceType": "markdown",
-          "content": "# Contract Comparison Report\n\n**Document Versions:** {{fileNames|join(' → ')}}\n\n**Total Transitions Analyzed:** {{filesToCompare|length}}\n\n**Methodology:** Deterministic paragraph-level text comparison across sequential version pairs with AI-powered legal analysis\n\n---\n\n{{steps.generate_overview.output.data}}\n\n---\n\n# Version-by-Version Evolution Analysis\n\n{{comparisonResults|join('\\n\\n---\\n\\n')}}"
+          "content": "# Contract Comparison Report\n\n**Document Versions:** {{fileNames|join(' → ')}}\n\n**Total Transitions Analyzed:** {{filesToCompare|length}}\n\n---\n\n# Executive Insights\n\n{{steps.generate_overview.output.data}}\n\n---\n\n# Detailed Evolution Analysis\n\n{{comparisonResults|join('\\n\\n---\\n\\n')}}"
         }
       },
       "nextSteps": { "success": "output" }
@@ -241,7 +280,7 @@
       "stepSlug": "output",
       "name": "Output Results",
       "stepType": "output",
-      "order": 12,
+      "order": 14,
       "config": {
         "outputMapping": {
           "fileStorageId": "{{steps.generate_report.output.data.fileStorageId}}",

@@ -27,6 +27,7 @@ export interface UpdateExecutionStatusArgs {
   executionId: Doc<'wfExecutions'>['_id'];
   status: ExecutionStatus;
   currentStepSlug?: string;
+  currentStepName?: string;
   waitingFor?: string;
   error?: string;
 }

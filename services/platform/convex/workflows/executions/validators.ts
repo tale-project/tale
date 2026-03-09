@@ -23,6 +23,7 @@ export const updateExecutionStatusArgsValidator = v.object({
   executionId: v.string(),
   status: executionStatusValidator,
   currentStepSlug: v.optional(v.string()),
+  currentStepName: v.optional(v.string()),
   waitingFor: v.optional(v.string()),
   error: v.optional(v.string()),
 });

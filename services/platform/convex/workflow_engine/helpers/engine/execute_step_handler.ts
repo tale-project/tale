@@ -8,7 +8,9 @@ import type { Doc } from '../../../_generated/dataModel';
 import type { ActionCtx } from '../../../_generated/server';
 
 import { isRecord } from '../../../../lib/utils/type-guards';
+import { internal } from '../../../_generated/api';
 import { createDebugLog } from '../../../lib/debug_log';
+import { toId } from '../../../lib/type_cast_helpers';
 import { replaceVariables } from '../../../lib/variables/replace_variables';
 import { buildStepsMap } from '../step_execution/build_steps_map';
 import { executeStepByType } from '../step_execution/execute_step_by_type';
@@ -46,7 +48,18 @@ export async function handleExecuteStep(
   const { execution, stepConfig, workflowConfig } =
     await loadAndValidateExecution(ctx, args.executionId, args.stepSlug);
 
-  // 2. Build step definition
+  // 2. Update current step for real-time progress tracking
+  await ctx.runMutation(
+    internal.wf_executions.internal_mutations.updateExecutionStatus,
+    {
+      executionId: toId<'wfExecutions'>(args.executionId),
+      status: 'running',
+      currentStepSlug: args.stepSlug,
+      currentStepName: args.stepName || args.stepSlug,
+    },
+  );
+
+  // 3. Build step definition
   const stepDef = {
     stepSlug: args.stepSlug,
     name: args.stepName || args.stepSlug,
@@ -55,7 +68,7 @@ export async function handleExecuteStep(
     organizationId: args.organizationId,
   };
 
-  // 3. Initialize and merge variables
+  // 4. Initialize and merge variables
   const fullVariables = await initializeExecutionVariables(
     ctx,
     execution,
@@ -68,7 +81,7 @@ export async function handleExecuteStep(
     workflowConfig,
   );
 
-  // 4. Process config with variable replacement
+  // 5. Process config with variable replacement
   // Special handling for set_variables action: skip pre-processing to allow
   // sequential variable resolution within the action itself
   const isSetVariablesAction =
@@ -144,7 +157,7 @@ export async function handleExecuteStep(
 
   const processedStepDef = { ...stepDef, config: processedConfig };
 
-  // 5. Execute step by type
+  // 6. Execute step by type
   const result = await executeStepByType(
     ctx,
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
@@ -160,13 +173,13 @@ export async function handleExecuteStep(
     args.threadId,
   );
 
-  // 6. Build steps map
+  // 7. Build steps map
   const stepsMap = await buildStepsMap(ctx, args.executionId, stepDef, result);
 
-  // 7. Extract essential loop variables
+  // 8. Extract essential loop variables
   const essentialLoop = extractEssentialLoopVariables(result.variables);
 
-  // 8. Persist execution result
+  // 9. Persist execution result
   await persistExecutionResult(
     ctx,
     args.executionId,
@@ -177,7 +190,7 @@ export async function handleExecuteStep(
     essentialLoop,
   );
 
-  // 9. Return essential control information
+  // 10. Return essential control information
   return {
     port: result.port,
     error: result.error,

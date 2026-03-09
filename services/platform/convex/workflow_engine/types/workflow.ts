@@ -35,6 +35,7 @@ export interface WorkflowExecution {
   wfDefinitionId: string;
   status: 'pending' | 'running' | 'completed' | 'failed';
   currentStepSlug: string;
+  currentStepName?: string;
   startedAt: number;
   completedAt?: number;
   updatedAt: number;
