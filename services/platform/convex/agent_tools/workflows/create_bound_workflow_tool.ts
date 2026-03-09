@@ -26,15 +26,29 @@ interface BoundWorkflowDefinition {
   description?: string;
 }
 
-const boundWorkflowArgs = z.object({
-  parameters: z
-    .record(z.string(), z.unknown())
-    .optional()
-    .describe(
-      'Input parameters passed to the workflow as initial variables. ' +
-        'Keys become variable names accessible to all steps via {{variableName}}.',
-    ),
-});
+const ZOD_TYPE_MAP: Record<string, () => z.ZodTypeAny> = {
+  string: () => z.string(),
+  number: () => z.number(),
+  integer: () => z.number().int(),
+  boolean: () => z.boolean(),
+  array: () => z.array(z.unknown()),
+  object: () => z.record(z.string(), z.unknown()),
+};
+
+function buildArgsSchema(inputSchema: WorkflowInputSchema | undefined) {
+  if (!inputSchema || Object.keys(inputSchema.properties).length === 0) {
+    return z.object({});
+  }
+
+  const shape: Record<string, z.ZodTypeAny> = {};
+  for (const [name, prop] of Object.entries(inputSchema.properties)) {
+    let field = (ZOD_TYPE_MAP[prop.type] ?? (() => z.unknown()))();
+    if (prop.description) field = field.describe(prop.description);
+    if (!inputSchema.required?.includes(name)) field = field.optional();
+    shape[name] = field;
+  }
+  return z.object(shape);
+}
 
 /**
  * Create a tool bound to a specific workflow.
@@ -48,10 +62,11 @@ export function createBoundWorkflowTool(
   inputSchema: WorkflowInputSchema | undefined,
 ) {
   const description = buildDescription(wfDefinition, inputSchema);
+  const argsSchema = buildArgsSchema(inputSchema);
 
   return createTool({
     description,
-    args: boundWorkflowArgs,
+    args: argsSchema,
 
     handler: async (
       ctx: ToolCtx,
@@ -106,10 +121,7 @@ export function createBoundWorkflowTool(
       );
 
       const runtimeInputSchema = extractInputSchema(startStepConfig);
-      const validation = validateWorkflowInput(
-        args.parameters,
-        runtimeInputSchema,
-      );
+      const validation = validateWorkflowInput(args, runtimeInputSchema);
 
       if (!validation.valid) {
         return {
@@ -129,7 +141,7 @@ export function createBoundWorkflowTool(
             workflowId: resolvedWf._id,
             workflowName: resolvedWf.name,
             workflowDescription: resolvedWf.description,
-            parameters: args.parameters,
+            parameters: args,
             threadId,
             messageId,
           },
@@ -167,11 +179,11 @@ function formatInputSchema(inputSchema: WorkflowInputSchema): string {
   const lines: string[] = [];
   for (const [name, schema] of Object.entries(inputSchema.properties)) {
     const required = inputSchema.required?.includes(name);
-    const parts = [
-      `  - ${name}`,
-      `(${schema.type}${required ? ', required' : ''})`,
-    ];
-    lines.push(parts.join(' '));
+    let line = `  - ${name} (${schema.type}${required ? ', required' : ''})`;
+    if (schema.description) {
+      line += `: ${schema.description}`;
+    }
+    lines.push(line);
   }
   return lines.join('\n');
 }

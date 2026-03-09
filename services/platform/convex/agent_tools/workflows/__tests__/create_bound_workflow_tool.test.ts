@@ -81,7 +81,10 @@ describe('createBoundWorkflowTool', () => {
       { _id: 'wf-123' as never, name: 'My Workflow' },
       {
         properties: {
-          targetFolder: { type: 'string' },
+          targetFolder: {
+            type: 'string',
+            description: 'The folder to process',
+          },
           daysBack: { type: 'number' },
         },
         required: ['targetFolder'],
@@ -94,7 +97,25 @@ describe('createBoundWorkflowTool', () => {
     expect(description).toContain('targetFolder');
     expect(description).toContain('string');
     expect(description).toContain('required');
+    expect(description).toContain('The folder to process');
     expect(description).toContain('daysBack');
+  });
+
+  it('omits description suffix when property has no description', () => {
+    const tool = createBoundWorkflowTool(
+      { _id: 'wf-123' as never, name: 'My Workflow' },
+      {
+        properties: {
+          count: { type: 'number' },
+        },
+      },
+    );
+
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test-only
+    const description = (tool as unknown as { _description: string })
+      ._description;
+    expect(description).toContain('count (number)');
+    expect(description).not.toMatch(/count \(number\):/);
   });
 
   it('creates approval on happy path', async () => {
@@ -207,7 +228,7 @@ describe('createBoundWorkflowTool', () => {
     });
 
     const params = { targetFolder: '/invoices', daysBack: 30 };
-    await handler(ctx, { parameters: params });
+    await handler(ctx, params);
 
     expect(mockRunMutation).toHaveBeenCalledWith(
       'mock-createWorkflowRunApproval',
