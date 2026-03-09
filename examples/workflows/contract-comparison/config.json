@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "workflowType": "predefined",
     "config": {
-      "timeout": 7200000,
+      "timeout": 14400000,
       "retryPolicy": { "maxRetries": 2, "backoffMs": 5000 },
       "variables": {}
     }
