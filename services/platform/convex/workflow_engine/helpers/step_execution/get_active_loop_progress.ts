@@ -11,8 +11,9 @@ export function getActiveLoopProgress(
   if (!isRecord(loop)) return null;
 
   const state = loop.state;
+  if (!isRecord(state)) return null;
+  if (state.isComplete === true) return null;
   if (!isLoopProgress(state)) return null;
-  if (isRecord(state) && state.isComplete === true) return null;
 
   return {
     current: state.currentIndex + 1,
