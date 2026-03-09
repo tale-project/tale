@@ -7,6 +7,10 @@ interface RagDiffItem {
   base_content: string | null;
   comparison_content: string | null;
   content: string | null;
+  inline_diff?: string | null;
+  clause_ref?: string | null;
+  base_page?: number | null;
+  comparison_page?: number | null;
 }
 
 interface RagChangeBlock {
@@ -44,6 +48,10 @@ export interface DiffItem {
   baseContent: string | null;
   comparisonContent: string | null;
   content: string | null;
+  inlineDiff?: string | null;
+  clauseRef?: string | null;
+  basePage?: number | null;
+  comparisonPage?: number | null;
 }
 
 export interface ChangeBlock {
@@ -81,6 +89,10 @@ function mapDiffItem(item: RagDiffItem): DiffItem {
     baseContent: item.base_content,
     comparisonContent: item.comparison_content,
     content: item.content,
+    inlineDiff: item.inline_diff ?? null,
+    clauseRef: item.clause_ref ?? null,
+    basePage: item.base_page ?? null,
+    comparisonPage: item.comparison_page ?? null,
   };
 }
 

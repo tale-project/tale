@@ -248,6 +248,12 @@ class ComparisonDiffItem(BaseModel):
     base_content: str | None = Field(default=None, description="Content from base document")
     comparison_content: str | None = Field(default=None, description="Content from comparison document")
     content: str | None = Field(default=None, description="Context content (for type='context' only)")
+    inline_diff: str | None = Field(
+        default=None, description="Word-level inline diff with [-deleted-] and {+added+} markers"
+    )
+    clause_ref: str | None = Field(default=None, description="Extracted clause/section reference")
+    base_page: int | None = Field(default=None, description="Page number in the base document")
+    comparison_page: int | None = Field(default=None, description="Page number in the comparison document")
 
 
 class ComparisonChangeBlock(BaseModel):

@@ -22,7 +22,7 @@ class TestExtractTextFromDocxBytes:
     @pytest.mark.asyncio
     async def test_basic_text_extraction(self):
         docx_bytes = _make_simple_docx("Hello World")
-        text, vision_used = await extract_text_from_docx_bytes(docx_bytes)
+        text, vision_used, _ = await extract_text_from_docx_bytes(docx_bytes)
         assert "Hello World" in text
         assert vision_used is False
 
@@ -39,7 +39,7 @@ class TestExtractTextFromDocxBytes:
         buf = BytesIO()
         doc.save(buf)
 
-        text, _ = await extract_text_from_docx_bytes(buf.getvalue())
+        text, _, _ = await extract_text_from_docx_bytes(buf.getvalue())
         assert "First paragraph" in text
         assert "Second paragraph" in text
         assert "Third paragraph" in text
@@ -59,7 +59,7 @@ class TestExtractTextFromDocxBytes:
         buf = BytesIO()
         doc.save(buf)
 
-        text, _ = await extract_text_from_docx_bytes(buf.getvalue())
+        text, _, _ = await extract_text_from_docx_bytes(buf.getvalue())
         assert "A1" in text
         assert "B1" in text
         assert "[Table]" in text
@@ -67,9 +67,7 @@ class TestExtractTextFromDocxBytes:
     @pytest.mark.asyncio
     async def test_no_vision_without_client(self):
         docx_bytes = _make_simple_docx("No vision needed")
-        text, vision_used = await extract_text_from_docx_bytes(
-            docx_bytes, vision_client=None
-        )
+        text, vision_used, _ = await extract_text_from_docx_bytes(docx_bytes, vision_client=None)
         assert "No vision needed" in text
         assert vision_used is False
 
@@ -88,7 +86,7 @@ class TestExtractTextFromDocxBytes:
         buf = BytesIO()
         doc.save(buf)
 
-        text, _ = await extract_text_from_docx_bytes(buf.getvalue())
+        text, _, _ = await extract_text_from_docx_bytes(buf.getvalue())
         assert "[Header]" in text
         assert "My Header" in text
         assert text.index("[Header]") < text.index("Body text")
@@ -108,7 +106,7 @@ class TestExtractTextFromDocxBytes:
         buf = BytesIO()
         doc.save(buf)
 
-        text, _ = await extract_text_from_docx_bytes(buf.getvalue())
+        text, _, _ = await extract_text_from_docx_bytes(buf.getvalue())
         assert "[Footer]" in text
         assert "My Footer" in text
         assert text.index("Body text") < text.index("[Footer]")
@@ -129,7 +127,7 @@ class TestExtractTextFromDocxBytes:
         buf = BytesIO()
         doc.save(buf)
 
-        text, _ = await extract_text_from_docx_bytes(buf.getvalue())
+        text, _, _ = await extract_text_from_docx_bytes(buf.getvalue())
         header_pos = text.index("Doc Header")
         body_pos = text.index("Middle content")
         footer_pos = text.index("Doc Footer")
@@ -156,5 +154,127 @@ class TestExtractTextFromDocxBytes:
         buf = BytesIO()
         doc.save(buf)
 
-        text, _ = await extract_text_from_docx_bytes(buf.getvalue())
+        text, _, _ = await extract_text_from_docx_bytes(buf.getvalue())
         assert text.count("[Header]\nSame Header") == 1
+
+
+class TestPageBreakDetection:
+    @pytest.mark.asyncio
+    async def test_no_page_breaks(self):
+        docx_bytes = _make_simple_docx("Simple text")
+        _, _, page_breaks = await extract_text_from_docx_bytes(docx_bytes)
+        assert page_breaks == []
+
+    @pytest.mark.asyncio
+    async def test_inline_page_break(self):
+        from io import BytesIO
+        from lxml import etree
+
+        from docx import Document
+
+        doc = Document()
+        doc.add_paragraph("Page one content")
+        p = doc.add_paragraph()
+        run = p.add_run("Page two content")
+        br = etree.SubElement(
+            run._element,
+            "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}br",
+        )
+        br.set(
+            "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}type",
+            "page",
+        )
+        doc.add_paragraph("After break")
+        buf = BytesIO()
+        doc.save(buf)
+
+        text, _, page_breaks = await extract_text_from_docx_bytes(buf.getvalue())
+        assert len(page_breaks) >= 1
+        assert "Page one content" in text
+        assert "After break" in text
+
+    @pytest.mark.asyncio
+    async def test_page_break_before_style(self):
+        from io import BytesIO
+        from lxml import etree
+
+        from docx import Document
+
+        WP = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+        doc = Document()
+        doc.add_paragraph("First page")
+        p = doc.add_paragraph("Second page")
+        pPr = p._element.find(f"{WP}pPr")
+        if pPr is None:
+            pPr = etree.SubElement(p._element, f"{WP}pPr")
+            p._element.insert(0, pPr)
+        etree.SubElement(pPr, f"{WP}pageBreakBefore")
+        buf = BytesIO()
+        doc.save(buf)
+
+        text, _, page_breaks = await extract_text_from_docx_bytes(buf.getvalue())
+        assert len(page_breaks) >= 1
+        assert "First page" in text
+        assert "Second page" in text
+
+    @pytest.mark.asyncio
+    async def test_multiple_page_breaks(self):
+        from io import BytesIO
+        from lxml import etree
+
+        from docx import Document
+
+        WP = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+        doc = Document()
+        doc.add_paragraph("Page 1")
+
+        p2 = doc.add_paragraph("Page 2")
+        run2 = p2.runs[0]._element if p2.runs else p2.add_run("Page 2")._element
+        br2 = etree.SubElement(run2, f"{WP}br")
+        br2.set(f"{WP}type", "page")
+
+        doc.add_paragraph("Still page 2")
+
+        p3 = doc.add_paragraph("Page 3")
+        run3 = p3.runs[0]._element if p3.runs else p3.add_run("Page 3")._element
+        br3 = etree.SubElement(run3, f"{WP}br")
+        br3.set(f"{WP}type", "page")
+
+        buf = BytesIO()
+        doc.save(buf)
+
+        _, _, page_breaks = await extract_text_from_docx_bytes(buf.getvalue())
+        assert len(page_breaks) == 2
+
+    @pytest.mark.asyncio
+    async def test_text_unchanged_with_page_breaks(self):
+        from io import BytesIO
+        from lxml import etree
+
+        from docx import Document
+
+        WP = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+
+        doc_no_breaks = Document()
+        doc_no_breaks.add_paragraph("Hello")
+        doc_no_breaks.add_paragraph("World")
+        buf1 = BytesIO()
+        doc_no_breaks.save(buf1)
+
+        doc_with_breaks = Document()
+        doc_with_breaks.add_paragraph("Hello")
+        p = doc_with_breaks.add_paragraph("World")
+        pPr = p._element.find(f"{WP}pPr")
+        if pPr is None:
+            pPr = etree.SubElement(p._element, f"{WP}pPr")
+            p._element.insert(0, pPr)
+        etree.SubElement(pPr, f"{WP}pageBreakBefore")
+        buf2 = BytesIO()
+        doc_with_breaks.save(buf2)
+
+        text1, _, breaks1 = await extract_text_from_docx_bytes(buf1.getvalue())
+        text2, _, breaks2 = await extract_text_from_docx_bytes(buf2.getvalue())
+
+        assert text1 == text2
+        assert breaks1 == []
+        assert len(breaks2) >= 1

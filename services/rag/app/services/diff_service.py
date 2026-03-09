@@ -13,6 +13,50 @@ from dataclasses import dataclass, field
 CONTEXT_TRUNCATE_CHARS = 200
 MERGE_GAP_THRESHOLD = 5
 DIVERGENCE_THRESHOLD = 0.7
+INLINE_DIFF_MAX_CHARS = 2000
+
+_CLAUSE_REF_PATTERN = re.compile(
+    r"(?:Section|Ziff\.|Ziffer|§§?|Art\.|Artikel|Abs\.|Absatz|Abschnitt|Klausel|Anhang)\s*"
+    r"(\d+(?:\.\d+)*(?:\s*(?:bis|und|,|-)\s*\d+(?:\.\d+)*)*)"
+    r"(?:\s*ff\.)?",
+    re.IGNORECASE,
+)
+
+
+def compute_inline_diff(base: str, comparison: str) -> str | None:
+    """Compute word-level inline diff between two paragraphs.
+
+    Returns a merged string with [-deleted-] and {+added+} markers.
+    Returns None if either text exceeds INLINE_DIFF_MAX_CHARS.
+    """
+    if len(base) > INLINE_DIFF_MAX_CHARS or len(comparison) > INLINE_DIFF_MAX_CHARS:
+        return None
+
+    base_words = base.split()
+    comp_words = comparison.split()
+    if not base_words and not comp_words:
+        return None
+
+    matcher = difflib.SequenceMatcher(None, base_words, comp_words, autojunk=False)
+
+    parts: list[str] = []
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == "equal":
+            parts.append(" ".join(base_words[i1:i2]))
+        elif tag == "replace":
+            parts.append("[-" + " ".join(base_words[i1:i2]) + "-]")
+            parts.append("{+" + " ".join(comp_words[j1:j2]) + "+}")
+        elif tag == "delete":
+            parts.append("[-" + " ".join(base_words[i1:i2]) + "-]")
+        elif tag == "insert":
+            parts.append("{+" + " ".join(comp_words[j1:j2]) + "+}")
+    return " ".join(parts)
+
+
+def extract_clause_ref(text: str) -> str | None:
+    """Extract the first clause/section reference from paragraph text."""
+    match = _CLAUSE_REF_PATTERN.search(text)
+    return match.group(0).strip() if match else None
 
 
 @dataclass
@@ -21,15 +65,28 @@ class DiffItem:
     base_content: str | None = None
     comparison_content: str | None = None
     content: str | None = None  # for "context" type
+    inline_diff: str | None = None
+    clause_ref: str | None = None
+    base_page: int | None = None
+    comparison_page: int | None = None
 
     def to_dict(self) -> dict:
         if self.type == "context":
             return {"type": "context", "content": self.content}
-        return {
+        result = {
             "type": self.type,
             "base_content": self.base_content,
             "comparison_content": self.comparison_content,
         }
+        if self.inline_diff is not None:
+            result["inline_diff"] = self.inline_diff
+        if self.clause_ref is not None:
+            result["clause_ref"] = self.clause_ref
+        if self.base_page is not None:
+            result["base_page"] = self.base_page
+        if self.comparison_page is not None:
+            result["comparison_page"] = self.comparison_page
+        return result
 
 
 @dataclass
@@ -140,11 +197,33 @@ def _truncate(text: str, max_chars: int = CONTEXT_TRUNCATE_CHARS) -> str:
     return text[:max_chars] + "..."
 
 
+def _build_page_map(n_paragraphs: int, page_breaks: list[int]) -> list[int]:
+    """Build a list mapping paragraph index to page number (1-based).
+
+    page_breaks contains element position indices where explicit page breaks
+    occur. Paragraphs before the first break are page 1, between first and
+    second break are page 2, etc.
+    """
+    if not page_breaks:
+        return [1] * n_paragraphs
+    pages = []
+    current_page = 1
+    break_idx = 0
+    for i in range(n_paragraphs):
+        if break_idx < len(page_breaks) and i >= page_breaks[break_idx]:
+            current_page += 1
+            break_idx += 1
+        pages.append(current_page)
+    return pages
+
+
 def compute_diff(
     base_text: str,
     comparison_text: str,
     *,
     max_changes: int = 500,
+    base_page_breaks: list[int] | None = None,
+    comp_page_breaks: list[int] | None = None,
 ) -> DiffResult:
     """Compute paragraph-level diff between two documents.
 
@@ -161,6 +240,10 @@ def compute_diff(
 
     base_paras = split_paragraphs(base_normalized)
     comp_paras = split_paragraphs(comp_normalized)
+
+    base_pages = _build_page_map(len(base_paras), base_page_breaks or [])
+    comp_pages = _build_page_map(len(comp_paras), comp_page_breaks or [])
+    has_pages = bool(base_page_breaks or comp_page_breaks)
 
     matcher = difflib.SequenceMatcher(None, base_paras, comp_paras, autojunk=False)
     opcodes = matcher.get_opcodes()
@@ -187,21 +270,47 @@ def compute_diff(
                 b = base_slice[k] if k < len(base_slice) else None
                 c = comp_slice[k] if k < len(comp_slice) else None
                 if b is not None and c is not None:
-                    items.append(DiffItem(type="modified", base_content=b, comparison_content=c))
+                    item = DiffItem(type="modified", base_content=b, comparison_content=c)
+                    item.inline_diff = compute_inline_diff(b, c)
+                    item.clause_ref = extract_clause_ref(c) or extract_clause_ref(b)
+                    if has_pages:
+                        item.base_page = base_pages[i1 + k] if i1 + k < len(base_pages) else None
+                        item.comparison_page = comp_pages[j1 + k] if j1 + k < len(comp_pages) else None
+                    items.append(item)
                     stats.modified += 1
                 elif b is None:
-                    items.append(DiffItem(type="added", comparison_content=c))
+                    item = DiffItem(type="added", comparison_content=c)
+                    item.clause_ref = extract_clause_ref(c)
+                    if has_pages:
+                        item.comparison_page = comp_pages[j1 + k] if j1 + k < len(comp_pages) else None
+                    items.append(item)
                     stats.added += 1
                 else:
-                    items.append(DiffItem(type="deleted", base_content=b))
+                    item = DiffItem(type="deleted", base_content=b)
+                    item.clause_ref = extract_clause_ref(b)
+                    if has_pages:
+                        item.base_page = base_pages[i1 + k] if i1 + k < len(base_pages) else None
+                    items.append(item)
                     stats.deleted += 1
             segments.append(("change", items))
         elif tag == "insert":
-            items = [DiffItem(type="added", comparison_content=comp_paras[j]) for j in range(j1, j2)]
+            items = []
+            for j in range(j1, j2):
+                item = DiffItem(type="added", comparison_content=comp_paras[j])
+                item.clause_ref = extract_clause_ref(comp_paras[j])
+                if has_pages:
+                    item.comparison_page = comp_pages[j] if j < len(comp_pages) else None
+                items.append(item)
             stats.added += j2 - j1
             segments.append(("change", items))
         elif tag == "delete":
-            items = [DiffItem(type="deleted", base_content=base_paras[i]) for i in range(i1, i2)]
+            items = []
+            for i in range(i1, i2):
+                item = DiffItem(type="deleted", base_content=base_paras[i])
+                item.clause_ref = extract_clause_ref(base_paras[i])
+                if has_pages:
+                    item.base_page = base_pages[i] if i < len(base_pages) else None
+                items.append(item)
             stats.deleted += i2 - i1
             segments.append(("change", items))
 

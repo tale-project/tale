@@ -16,10 +16,13 @@ import pytest
 
 from app.services.diff_service import (
     DIVERGENCE_THRESHOLD,
+    INLINE_DIFF_MAX_CHARS,
     MERGE_GAP_THRESHOLD,
     ChangeBlock,
     DiffItem,
     compute_diff,
+    compute_inline_diff,
+    extract_clause_ref,
     normalize_text,
     split_paragraphs,
 )
@@ -337,3 +340,158 @@ class TestSerialization:
         item = DiffItem(type="modified", base_content="old", comparison_content="new")
         d = item.to_dict()
         assert d == {"type": "modified", "base_content": "old", "comparison_content": "new"}
+
+    def test_diff_item_with_inline_diff_and_clause_ref(self):
+        item = DiffItem(
+            type="modified",
+            base_content="old",
+            comparison_content="new",
+            inline_diff="[-old-] {+new+}",
+            clause_ref="Section 7.1",
+        )
+        d = item.to_dict()
+        assert d["inline_diff"] == "[-old-] {+new+}"
+        assert d["clause_ref"] == "Section 7.1"
+
+    def test_diff_item_none_fields_omitted(self):
+        item = DiffItem(type="added", comparison_content="new text")
+        d = item.to_dict()
+        assert "inline_diff" not in d
+        assert "clause_ref" not in d
+
+
+# ============================================================================
+# Inline Diff
+# ============================================================================
+
+
+class TestComputeInlineDiff:
+    def test_single_word_change(self):
+        result = compute_inline_diff("deadline is 30 days", "deadline is 60 days")
+        assert "[-30-]" in result
+        assert "{+60+}" in result
+        assert "deadline is" in result
+
+    def test_word_addition(self):
+        result = compute_inline_diff("shall pay", "shall promptly pay")
+        assert "{+promptly+}" in result
+
+    def test_word_deletion(self):
+        result = compute_inline_diff("shall immediately notify", "shall notify")
+        assert "[-immediately-]" in result
+
+    def test_long_text_returns_none(self):
+        long_text = "word " * (INLINE_DIFF_MAX_CHARS // 4)
+        assert compute_inline_diff(long_text, long_text) is None
+
+    def test_boundary_length(self):
+        text = "a" * INLINE_DIFF_MAX_CHARS
+        result = compute_inline_diff(text, text)
+        assert result is not None
+
+    def test_empty_strings(self):
+        assert compute_inline_diff("", "") is None
+
+    def test_single_word_paragraphs(self):
+        result = compute_inline_diff("Yes", "No")
+        assert "[-Yes-]" in result
+        assert "{+No+}" in result
+
+    def test_unicode_german(self):
+        result = compute_inline_diff("Frist beträgt 30 Tage", "Frist beträgt 60 Tage")
+        assert "[-30-]" in result
+        assert "{+60+}" in result
+
+    def test_punctuation_change(self):
+        result = compute_inline_diff("30 days.", "30 days,")
+        assert "[-days.-]" in result
+        assert "{+days,+}" in result
+
+    def test_integrated_in_compute_diff(self):
+        base = "The deadline is 30 days."
+        comp = "The deadline is 60 days."
+        result = compute_diff(base, comp)
+        items = [i for b in result.change_blocks for i in b.items if i.type == "modified"]
+        assert len(items) == 1
+        assert items[0].inline_diff is not None
+        assert "[-30-]" in items[0].inline_diff
+
+
+# ============================================================================
+# Clause Reference Extraction
+# ============================================================================
+
+
+class TestExtractClauseRef:
+    def test_section_ref(self):
+        assert extract_clause_ref("Section 7.1.2 provides...") == "Section 7.1.2"
+
+    def test_ziff_ref(self):
+        assert extract_clause_ref("Gemäss Ziff. 3.2 hat...") == "Ziff. 3.2"
+
+    def test_single_paragraph_mark(self):
+        assert extract_clause_ref("§ 5 regelt...") == "§ 5"
+
+    def test_double_paragraph_mark(self):
+        assert extract_clause_ref("§§ 205, 210 OR") == "§§ 205, 210"
+
+    def test_art_ref(self):
+        assert extract_clause_ref("Art. 192 OR") == "Art. 192"
+
+    def test_artikel_ff(self):
+        assert extract_clause_ref("Artikel 23 ff. OR") == "Artikel 23 ff."
+
+    def test_abs_ref(self):
+        assert extract_clause_ref("Abs. 2 regelt...") == "Abs. 2"
+
+    def test_anhang_ref(self):
+        assert extract_clause_ref("Anhang 1") == "Anhang 1"
+
+    def test_no_ref(self):
+        assert extract_clause_ref("The parties agree...") is None
+
+    def test_ref_in_parens(self):
+        result = extract_clause_ref("(siehe Art. 192 OR)")
+        assert result == "Art. 192"
+
+    def test_integrated_in_compute_diff(self):
+        base = "Section 7.1 old text"
+        comp = "Section 7.1 new text"
+        result = compute_diff(base, comp)
+        items = [i for b in result.change_blocks for i in b.items if i.type == "modified"]
+        assert len(items) == 1
+        assert items[0].clause_ref == "Section 7.1"
+
+
+# ============================================================================
+# Page Number Integration
+# ============================================================================
+
+
+class TestPageNumbers:
+    def test_no_page_breaks_no_pages(self):
+        result = compute_diff("A\n\nB", "A\n\nC")
+        items = [i for b in result.change_blocks for i in b.items if i.type != "context"]
+        assert all(i.base_page is None for i in items)
+        assert all(i.comparison_page is None for i in items)
+
+    def test_page_breaks_annotate_items(self):
+        base = "Para 1\n\nPara 2\n\nPara 3"
+        comp = "Para 1\n\nPara 2 modified\n\nPara 3"
+        result = compute_diff(base, comp, base_page_breaks=[1], comp_page_breaks=[1])
+        items = [i for b in result.change_blocks for i in b.items if i.type == "modified"]
+        assert len(items) == 1
+        assert items[0].base_page is not None
+        assert items[0].comparison_page is not None
+
+    def test_page_numbers_serialization(self):
+        item = DiffItem(type="modified", base_content="a", comparison_content="b", base_page=2, comparison_page=3)
+        d = item.to_dict()
+        assert d["base_page"] == 2
+        assert d["comparison_page"] == 3
+
+    def test_page_numbers_omitted_when_none(self):
+        item = DiffItem(type="modified", base_content="a", comparison_content="b")
+        d = item.to_dict()
+        assert "base_page" not in d
+        assert "comparison_page" not in d
