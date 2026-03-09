@@ -7,6 +7,9 @@ import type { MutationCtx } from '../../_generated/server';
 // Inline serialization removed. Always pre-serialize in an action before calling this mutation.
 import type { ResumeExecutionArgs, WorkflowExecution } from './types';
 
+import { internal } from '../../_generated/api';
+import { INTERMEDIATE_STORAGE_RETENTION_MS } from './cleanup_execution_storage';
+
 type ResumeExecutionData = Partial<
   Pick<WorkflowExecution, 'variables' | 'metadata'>
 > & {
@@ -34,14 +37,19 @@ export async function resumeExecution(
     updates.variables = args.variablesSerialized;
     updates.variablesStorageId = args.variablesStorageId;
 
-    // Clean up old storage in these cases:
+    // Schedule deferred cleanup of old storage blob:
     // 1. Storage ID changed (new storage file created)
     // 2. Transitioned from storage to inline (oldStorageId exists but new one doesn't)
     if (oldStorageId) {
-      if (!args.variablesStorageId) {
-        await ctx.storage.delete(oldStorageId);
-      } else if (oldStorageId !== args.variablesStorageId) {
-        await ctx.storage.delete(oldStorageId);
+      if (
+        !args.variablesStorageId ||
+        oldStorageId !== args.variablesStorageId
+      ) {
+        await ctx.scheduler.runAfter(
+          INTERMEDIATE_STORAGE_RETENTION_MS,
+          internal.wf_executions.internal_mutations.deleteStorageBlob,
+          { storageId: oldStorageId },
+        );
       }
     }
   }

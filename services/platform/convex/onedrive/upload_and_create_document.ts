@@ -39,6 +39,12 @@ export interface UploadAndCreateDocDependencies {
     sourceProvider?: 'onedrive' | 'upload';
     externalItemId?: string;
   }) => Promise<void>;
+  saveFileMetadata: (
+    storageId: Id<'_storage'>,
+    fileName: string,
+    contentType: string,
+    size: number,
+  ) => Promise<void>;
 }
 
 /**
@@ -69,6 +75,12 @@ export async function uploadAndCreateDocument(
     }
 
     const storageId = await deps.storageStore(blob);
+    await deps.saveFileMetadata(
+      storageId,
+      args.fileName,
+      args.contentType || 'application/octet-stream',
+      blob.size,
+    );
 
     const externalItemId =
       args.metadata.oneDriveItemId ?? args.metadata.oneDriveId;

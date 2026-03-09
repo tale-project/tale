@@ -61,6 +61,7 @@ class RagSearchService:
                     "content": item["chunk_content"],
                     "score": item["rrf_score"],
                     "document_id": str(item["document_id"]) if item.get("document_id") else None,
+                    "filename": item.get("filename"),
                 }
                 for item in merged
             ]
@@ -91,6 +92,7 @@ class RagSearchService:
                         "content": item["chunk_content"],
                         "score": 1.0 / (i + 1),
                         "document_id": str(item["document_id"]) if item.get("document_id") else None,
+                        "filename": item.get("filename"),
                     }
                     for i, item in enumerate(vector_results)
                 ]
@@ -102,7 +104,7 @@ class RagSearchService:
             return "", []
 
         idx = param_offset + 1
-        clause = f" AND document_id IN (SELECT id FROM {SCHEMA}.documents WHERE document_id = ANY(${idx}))"
+        clause = f" AND c.document_id IN (SELECT id FROM {SCHEMA}.documents WHERE document_id = ANY(${idx}))"
         return clause, [document_ids]
 
     async def _rebuild_bm25_index(self) -> None:
@@ -124,10 +126,12 @@ class RagSearchService:
         tenant_clause, tenant_params = self._build_scope_clause(document_ids, 1)
 
         sql = f"""
-            SELECT id, chunk_content, chunk_index, document_id,
-                   paradedb.score(id) AS score
-            FROM {SCHEMA}.chunks
-            WHERE id @@@ paradedb.match('chunk_content', $1)
+            SELECT c.id, c.chunk_content, c.chunk_index, c.document_id,
+                   d.filename,
+                   paradedb.score(c.id) AS score
+            FROM {SCHEMA}.chunks c
+            LEFT JOIN {SCHEMA}.documents d ON c.document_id = d.id
+            WHERE c.id @@@ paradedb.match('chunk_content', $1)
             {tenant_clause}
             ORDER BY score DESC
             LIMIT ${2 + len(tenant_params)}
@@ -155,12 +159,14 @@ class RagSearchService:
         tenant_clause, tenant_params = self._build_scope_clause(document_ids, 1)
 
         sql = f"""
-            SELECT id, chunk_content, chunk_index, document_id,
-                   1 - (embedding <=> $1::vector) AS score
-            FROM {SCHEMA}.chunks
-            WHERE embedding IS NOT NULL
+            SELECT c.id, c.chunk_content, c.chunk_index, c.document_id,
+                   d.filename,
+                   1 - (c.embedding <=> $1::vector) AS score
+            FROM {SCHEMA}.chunks c
+            LEFT JOIN {SCHEMA}.documents d ON c.document_id = d.id
+            WHERE c.embedding IS NOT NULL
             {tenant_clause}
-            ORDER BY embedding <=> $1::vector
+            ORDER BY c.embedding <=> $1::vector
             LIMIT ${2 + len(tenant_params)}
         """
         params = [vec_str, *tenant_params, limit]

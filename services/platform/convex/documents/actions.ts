@@ -32,9 +32,18 @@ export const retryRagIndexing = action({
         return { success: false, error: 'Document not found' };
       }
 
+      if (!document.fileId) {
+        return { success: false, error: 'Document has no file' };
+      }
+
       const rawResult = await ragAction.execute(
         ctx,
-        { operation: 'upload_document', recordId: args.documentId },
+        {
+          operation: 'upload_document',
+          fileId: document.fileId,
+          fileName: document.title,
+          contentType: document.mimeType,
+        },
         {},
       );
       const result = isRecord(rawResult) ? rawResult : undefined;

@@ -99,6 +99,8 @@ export const downloadAndStoreFile = internalAction({
   args: {
     itemId: v.string(),
     token: v.string(),
+    organizationId: v.optional(v.string()),
+    fileName: v.optional(v.string()),
   },
   returns: v.object({
     success: v.boolean(),
@@ -109,6 +111,18 @@ export const downloadAndStoreFile = internalAction({
   handler: async (ctx, args) => {
     return await downloadAndStoreFileImpl(args, {
       storeFile: async (blob) => ctx.storage.store(blob),
+      saveFileMetadata: async (storageId, contentType, size) => {
+        await ctx.runMutation(
+          internal.file_metadata.internal_mutations.saveFileMetadata,
+          {
+            organizationId: args.organizationId ?? 'system',
+            storageId,
+            fileName: args.fileName ?? args.itemId,
+            contentType,
+            size,
+          },
+        );
+      },
     });
   },
 });
@@ -140,7 +154,7 @@ export const uploadToStorage = internalAction({
         documentIdToUpdate: args.documentIdToUpdate,
         createdBy: args.createdBy,
       },
-      createUploadAndCreateDocDeps(ctx),
+      createUploadAndCreateDocDeps(ctx, args.organizationId),
     );
   },
 });

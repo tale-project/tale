@@ -70,13 +70,13 @@ export const executeStep = internalAction({
   },
 });
 
-export const serializeAndCompleteExecution = internalAction({
+export const serializeExecutionOutput = internalAction({
   args: {
     executionId: v.id('wfExecutions'),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    return await EngineHelpers.handleSerializeAndCompleteExecution(ctx, args);
+    return await EngineHelpers.handleSerializeExecutionOutput(ctx, args);
   },
 });
 

@@ -11,10 +11,12 @@
 import { listMessages, type MessageDoc } from '@convex-dev/agent';
 
 import type { ActionCtx } from '../../_generated/server';
+import type { ToolOutputAge } from './message_formatter';
 
 import { isRecord } from '../../../lib/utils/type-guards';
 import { components, internal } from '../../_generated/api';
-import { estimateTokens } from './estimate_tokens';
+import { DEFAULT_MAX_HISTORY_TOKENS } from './constants';
+import { estimateMessageDocTokens, estimateTokens } from './estimate_tokens';
 import * as fmt from './message_formatter';
 
 /**
@@ -96,7 +98,9 @@ export interface BuildStructuredContextParams {
   threadId: string;
   ragContext?: string;
   webContext?: string;
-  maxMessages?: number;
+  /** Token budget for conversation history. Conversational messages (user/assistant/system)
+   * are loaded first; remaining budget is filled with tool messages (newest first). */
+  maxHistoryTokens?: number;
   /** Additional structured context as key-value pairs */
   additionalContext?: Record<string, string>;
   /** Parent thread ID (for sub-agent mode, indicates this is a delegated task) */
@@ -120,17 +124,17 @@ export async function buildStructuredContext(
     threadId,
     ragContext,
     webContext,
-    maxMessages = 20,
+    maxHistoryTokens = DEFAULT_MAX_HISTORY_TOKENS,
     additionalContext,
     parentThreadId,
   } = params;
 
-  // 1. Query message history
-  const messagesResult = await listMessages(ctx, components.agent, {
+  // 1. Load prioritized message history (conversational first, then tool messages)
+  const { messages, toolMessageAges } = await loadPrioritizedMessages(
+    ctx,
     threadId,
-    paginationOpts: { cursor: null, numItems: maxMessages },
-    excludeToolMessages: false,
-  });
+    maxHistoryTokens,
+  );
 
   // 2. Query related approvals for this thread
   const approvals = await ctx.runQuery(
@@ -141,16 +145,10 @@ export async function buildStructuredContext(
   // 3. Build structured context parts
   const contextParts: string[] = [];
 
-  // Parent thread reference (for sub-agent mode)
   if (parentThreadId) {
     contextParts.push(fmt.formatParentThread(parentThreadId));
   }
 
-  // Note: promptMessage is NOT added here - it's passed via `prompt` parameter.
-  // For main chat: user message is already in message history.
-  // For sub-agents: task is passed via the `prompt` parameter to generateText().
-
-  // Additional context (key-value pairs as XML sections)
   if (additionalContext) {
     for (const [key, value] of Object.entries(additionalContext)) {
       if (value) {
@@ -159,21 +157,19 @@ export async function buildStructuredContext(
     }
   }
 
-  // Knowledge base (RAG)
   if (ragContext) {
     contextParts.push(fmt.formatKnowledgeBase(ragContext));
   }
 
-  // Web search context
   if (webContext) {
     contextParts.push(fmt.formatWebContext(webContext));
   }
 
   // 4. Format messages with approvals interleaved
-  // Note: currentUserMessage is NOT included in context - it's passed via `prompt` parameter
   const { historyMessages } = formatMessagesWithApprovals(
-    messagesResult.page,
+    messages,
     approvals ?? [],
+    toolMessageAges,
   );
   if (historyMessages.length > 0) {
     contextParts.push(fmt.formatHistorySection(historyMessages.join('\n\n')));
@@ -182,20 +178,155 @@ export async function buildStructuredContext(
   // 5. Join all parts
   const contextText = contextParts.join('\n\n');
 
-  // 6. Calculate stats
   const stats = {
     totalTokens: estimateTokens(contextText),
-    messageCount: messagesResult.page.length,
+    messageCount: messages.length,
     approvalCount: approvals?.length ?? 0,
     hasRag: !!ragContext,
     hasWebContext: !!webContext,
   };
 
-  // 7. Return thread context
   return {
     threadContext: contextText,
     stats,
   };
+}
+
+/**
+ * Maximum tokens a single message can consume (50% of budget).
+ * Prevents a single enormous message from starving the entire history.
+ */
+const MAX_SINGLE_MESSAGE_BUDGET_RATIO = 0.5;
+
+/**
+ * Page size for loading messages from the thread.
+ */
+const MESSAGE_PAGE_SIZE = 100;
+
+/**
+ * Assign age tiers to tool messages based on their position in the list.
+ * First 30% → recent, next 40% → mid, rest → old.
+ */
+function assignToolAges(
+  toolMessages: MessageDoc[],
+): Map<string, ToolOutputAge> {
+  const ages = new Map<string, ToolOutputAge>();
+  const total = toolMessages.length;
+  if (total === 0) return ages;
+
+  const recentBoundary = Math.ceil(total * 0.3);
+  const midBoundary = Math.ceil(total * 0.7);
+
+  for (let i = 0; i < total; i++) {
+    let age: ToolOutputAge;
+    if (i < recentBoundary) {
+      age = 'recent';
+    } else if (i < midBoundary) {
+      age = 'mid';
+    } else {
+      age = 'old';
+    }
+    ages.set(toolMessages[i]._id, age);
+  }
+  return ages;
+}
+
+interface PrioritizedMessagesResult {
+  messages: MessageDoc[];
+  toolMessageAges: Map<string, ToolOutputAge>;
+}
+
+/**
+ * Load messages with priority: conversational messages (user/assistant/system) first,
+ * then fill remaining token budget with tool messages (newest first).
+ * Returns messages sorted chronologically by (order, stepOrder).
+ */
+async function loadPrioritizedMessages(
+  ctx: ActionCtx,
+  threadId: string,
+  maxTokens: number,
+): Promise<PrioritizedMessagesResult> {
+  // Load all messages in a single paginated pass
+  const allMessages: MessageDoc[] = [];
+  let cursor: string | null = null;
+  let isDone = false;
+
+  while (!isDone) {
+    const result = await listMessages(ctx, components.agent, {
+      threadId,
+      paginationOpts: { cursor, numItems: MESSAGE_PAGE_SIZE },
+      excludeToolMessages: false,
+    });
+    allMessages.push(...result.page);
+    cursor = result.continueCursor;
+    isDone = result.isDone;
+
+    // Early exit: if we've loaded enough raw tokens to exceed 2x budget,
+    // no need to paginate further (messages are newest-first)
+    const rawTokens = allMessages.reduce(
+      (sum, m) => sum + estimateMessageDocTokens(m),
+      0,
+    );
+    if (rawTokens > maxTokens * 2) break;
+  }
+
+  // Partition into conversational vs tool messages (preserving newest-first order)
+  const conversational: MessageDoc[] = [];
+  const toolMessages: MessageDoc[] = [];
+  for (const msg of allMessages) {
+    if (msg.message?.role === 'tool') {
+      toolMessages.push(msg);
+    } else {
+      conversational.push(msg);
+    }
+  }
+
+  // Phase 1: Accept conversational messages (newest first) within budget
+  const accepted = new Set<string>();
+  let usedTokens = 0;
+  const maxSingleMessage = Math.floor(
+    maxTokens * MAX_SINGLE_MESSAGE_BUDGET_RATIO,
+  );
+
+  for (const msg of conversational) {
+    let tokens = estimateMessageDocTokens(msg);
+    // Cap oversized individual messages
+    if (tokens > maxSingleMessage) {
+      tokens = maxSingleMessage;
+    }
+    if (usedTokens + tokens > maxTokens && accepted.size > 0) break;
+    // Always include at least one conversational message
+    accepted.add(msg._id);
+    usedTokens += tokens;
+  }
+
+  // Phase 2: Fill remaining budget with tool messages (newest first)
+  const remainingTokens = maxTokens - usedTokens;
+  const acceptedToolMessages: MessageDoc[] = [];
+
+  if (remainingTokens > 0) {
+    let toolTokensUsed = 0;
+    for (const msg of toolMessages) {
+      const tokens = estimateMessageDocTokens(msg);
+      if (toolTokensUsed + tokens > remainingTokens) break;
+      accepted.add(msg._id);
+      acceptedToolMessages.push(msg);
+      toolTokensUsed += tokens;
+    }
+  }
+
+  // Assign age tiers to accepted tool messages
+  const toolMessageAges = assignToolAges(acceptedToolMessages);
+
+  // Merge and sort chronologically by (order, stepOrder)
+  const result = allMessages
+    .filter((m) => accepted.has(m._id))
+    .sort((a, b) => {
+      if (a.order !== b.order) return a.order - b.order;
+      return a.stepOrder - b.stepOrder;
+    });
+
+  return { messages: result, toolMessageAges };
 }
 
 /**
@@ -212,6 +343,7 @@ interface FormattedMessagesResult {
 function formatMessagesWithApprovals(
   messages: MessageDoc[],
   approvals: ApprovalItem[],
+  toolMessageAges?: Map<string, ToolOutputAge>,
 ): FormattedMessagesResult {
   const result: string[] = [];
 
@@ -273,12 +405,14 @@ function formatMessagesWithApprovals(
         }
         // If we have output (inline result), format as summary (non-mimicable format)
         if (tc.output !== undefined) {
+          const age = toolMessageAges?.get(msg._id);
           result.push(
             fmt.formatToolCallSummary(
               tc.toolName,
               tc.output,
               timestamp,
               tc.isError ? 'error' : 'success',
+              age,
             ),
           );
         }
@@ -321,6 +455,7 @@ function formatMessagesWithApprovals(
     } else if (message.role === 'tool') {
       // Tool result message
       const toolResults = extractToolResults(message.content);
+      const age = toolMessageAges?.get(msg._id);
       for (const tr of toolResults) {
         // Find matching pending tool call
         const pendingCall = tr.toolCallId
@@ -334,6 +469,7 @@ function formatMessagesWithApprovals(
             tr.result,
             timestamp,
             tr.isError ? 'error' : 'success',
+            age,
           ),
         );
 

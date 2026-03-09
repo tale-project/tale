@@ -36,6 +36,7 @@ export const ragInfoStatusValidator = v.union(
 export const ragInfoValidator = v.object({
   status: ragInfoStatusValidator,
   indexedAt: v.optional(v.number()),
+  indexedFileId: v.optional(v.id('_storage')),
   error: v.optional(v.string()),
 });
 
@@ -79,8 +80,8 @@ export const documentListResponseValidator = v.object({
 
 export const generateDocumentResponseValidator = v.object({
   success: v.boolean(),
-  fileId: v.string(),
-  url: v.string(),
+  fileStorageId: v.string(),
+  downloadUrl: v.string(),
   fileName: v.string(),
   contentType: v.string(),
   extension: v.string(),
@@ -89,8 +90,8 @@ export const generateDocumentResponseValidator = v.object({
 
 export const generatePptxResponseValidator = v.object({
   success: v.boolean(),
-  fileId: v.string(),
-  url: v.string(),
+  fileStorageId: v.string(),
+  downloadUrl: v.string(),
   fileName: v.string(),
   contentType: v.string(),
   size: v.number(),
@@ -98,8 +99,8 @@ export const generatePptxResponseValidator = v.object({
 
 export const generateDocxResponseValidator = v.object({
   success: v.boolean(),
-  fileId: v.string(),
-  url: v.string(),
+  fileStorageId: v.string(),
+  downloadUrl: v.string(),
   fileName: v.string(),
   contentType: v.string(),
   size: v.number(),

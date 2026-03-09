@@ -136,8 +136,6 @@ function IntegrationApprovalCardComponent({
     <div
       className={cn(
         'rounded-xl border border-border p-4 bg-card max-w-md overflow-hidden',
-        status === 'approved' && 'border-success/30',
-        status === 'rejected' && 'border-destructive/30',
         className,
       )}
     >
@@ -154,14 +152,6 @@ function IntegrationApprovalCardComponent({
             </Text>
           </div>
         </HStack>
-        {status !== 'pending' && (
-          <Badge
-            variant={status === 'approved' ? 'green' : 'destructive'}
-            className="text-xs capitalize"
-          >
-            {status}
-          </Badge>
-        )}
       </HStack>
 
       {/* Operation Details */}
@@ -275,13 +265,21 @@ function IntegrationApprovalCardComponent({
 
       {/* Status message for resolved approvals */}
       {!isPending && (
-        <Text as="div" variant="caption">
-          {status === 'approved' && executionError
-            ? t('statusApprovedFailed')
-            : status === 'approved'
-              ? t('statusApprovedSuccess')
-              : t('statusRejected')}
-        </Text>
+        <HStack justify="between" align="center" className="mt-2">
+          <Text as="div" variant="caption">
+            {status === 'approved' && executionError
+              ? t('statusApprovedFailed')
+              : status === 'approved'
+                ? t('statusApprovedSuccess')
+                : t('statusRejected')}
+          </Text>
+          <Badge
+            variant={status === 'approved' ? 'green' : 'destructive'}
+            className="shrink-0 text-xs capitalize"
+          >
+            {status}
+          </Badge>
+        </HStack>
       )}
     </div>
   );

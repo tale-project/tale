@@ -1,6 +1,6 @@
 """Pydantic models for Tale RAG API."""
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -70,6 +70,13 @@ class ChunkRange(BaseModel):
     end: int = Field(..., description="Last chunk returned (1-indexed, inclusive)")
 
 
+class DocumentChunk(BaseModel):
+    """A single document chunk."""
+
+    index: int = Field(..., description="Chunk index (1-indexed)")
+    content: str = Field(..., description="Chunk text content")
+
+
 class DocumentContentResponse(BaseModel):
     """Response containing reassembled document content."""
 
@@ -79,6 +86,10 @@ class DocumentContentResponse(BaseModel):
     chunk_range: ChunkRange = Field(..., description="Range of chunks returned (1-indexed, inclusive)")
     total_chunks: int = Field(..., description="Total number of chunks in the document")
     total_chars: int = Field(..., description="Total character count of returned content")
+    chunks: list[DocumentChunk] | None = Field(
+        default=None,
+        description="Individual chunks (only when return_chunks=true)",
+    )
 
 
 class DocumentDeleteRequest(BaseModel):
@@ -168,6 +179,7 @@ class SearchResult(BaseModel):
     content: str = Field(..., description="Content of the result")
     score: float = Field(..., description="Similarity score")
     document_id: str | None = Field(default=None, description="Source document ID")
+    filename: str | None = Field(default=None, description="Source document filename")
     metadata: dict[str, Any] | None = Field(default=None, description="Result metadata")
 
 
@@ -214,6 +226,75 @@ class GenerateResponse(BaseModel):
     response: str = Field(..., description="Generated response")
     sources: list[SearchResult] = Field(..., description="Source documents used")
     processing_time_ms: float = Field(..., description="Total processing time in milliseconds")
+
+
+# ============================================================================
+# Document Comparison Models
+# ============================================================================
+
+
+class DocumentCompareRequest(BaseModel):
+    """Request to compare two documents."""
+
+    base_document_id: str = Field(..., description="Document ID of the base document")
+    comparison_document_id: str = Field(..., description="Document ID of the comparison document")
+    max_changes: int = Field(default=500, ge=1, le=2000, description="Maximum number of change items to return")
+
+
+class ComparisonDiffItem(BaseModel):
+    """A single diff item within a change block."""
+
+    type: Literal["added", "deleted", "modified", "context"] = Field(..., description="Type of change")
+    base_content: str | None = Field(default=None, description="Content from base document")
+    comparison_content: str | None = Field(default=None, description="Content from comparison document")
+    content: str | None = Field(default=None, description="Context content (for type='context' only)")
+    inline_diff: str | None = Field(
+        default=None, description="Word-level inline diff with [-deleted-] and {+added+} markers"
+    )
+    clause_ref: str | None = Field(default=None, description="Extracted clause/section reference")
+    base_page: int | None = Field(default=None, description="Page number in the base document")
+    comparison_page: int | None = Field(default=None, description="Page number in the comparison document")
+
+
+class ComparisonChangeBlock(BaseModel):
+    """A group of adjacent changes with surrounding context."""
+
+    context_before: str | None = Field(default=None, description="Truncated paragraph before the change block")
+    items: list[ComparisonDiffItem] = Field(..., description="Diff items in this block")
+    context_after: str | None = Field(default=None, description="Truncated paragraph after the change block")
+
+
+class ComparisonDiffStats(BaseModel):
+    """Statistics about the comparison."""
+
+    total_paragraphs_base: int = Field(..., description="Total paragraphs in base document")
+    total_paragraphs_comparison: int = Field(..., description="Total paragraphs in comparison document")
+    unchanged: int = Field(default=0, description="Number of unchanged paragraphs")
+    modified: int = Field(default=0, description="Number of modified paragraphs")
+    added: int = Field(default=0, description="Number of added paragraphs")
+    deleted: int = Field(default=0, description="Number of deleted paragraphs")
+    high_divergence: bool = Field(
+        default=False,
+        description="True if >70% of paragraphs differ (documents may be structurally incomparable)",
+    )
+
+
+class ComparisonDocumentInfo(BaseModel):
+    """Minimal document info in comparison response."""
+
+    document_id: str = Field(..., description="Document identifier")
+    title: str | None = Field(default=None, description="Document filename")
+
+
+class DocumentCompareResponse(BaseModel):
+    """Response from document comparison."""
+
+    success: bool = Field(..., description="Whether the comparison succeeded")
+    base_document: ComparisonDocumentInfo = Field(..., description="Base document info")
+    comparison_document: ComparisonDocumentInfo = Field(..., description="Comparison document info")
+    change_blocks: list[ComparisonChangeBlock] = Field(..., description="Grouped change blocks")
+    stats: ComparisonDiffStats = Field(..., description="Comparison statistics")
+    truncated: bool = Field(default=False, description="Whether changes were truncated due to max_changes limit")
 
 
 # ============================================================================

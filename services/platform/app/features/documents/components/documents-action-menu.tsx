@@ -87,19 +87,11 @@ export function DocumentsActionMenu({
 
   return (
     <>
-      {hasMicrosoftAccount ? (
-        <DataTableActionMenu
-          label={tDocuments('upload.importDocuments')}
-          icon={Plus}
-          menuItems={menuItems}
-        />
-      ) : (
-        <DataTableActionMenu
-          label={tDocuments('upload.importDocuments')}
-          icon={Plus}
-          onClick={handleDeviceUpload}
-        />
-      )}
+      <DataTableActionMenu
+        label={tDocuments('upload.importDocuments')}
+        icon={Plus}
+        menuItems={menuItems}
+      />
 
       {isUploadDialogOpen && (
         <DocumentUploadDialog

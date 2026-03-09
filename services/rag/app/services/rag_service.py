@@ -263,6 +263,7 @@ class RagService:
         *,
         chunk_start: int = 1,
         chunk_end: int | None = None,
+        return_chunks: bool = False,
     ) -> dict[str, Any] | None:
         """Retrieve document content by reassembling stored chunks.
 
@@ -270,6 +271,7 @@ class RagService:
             document_id: Logical document identifier.
             chunk_start: First chunk to return (1-indexed).
             chunk_end: Last chunk to return (1-indexed, inclusive). None = capped by MAX_CHUNK_WINDOW.
+            return_chunks: If True, include individual chunks as a list.
 
         Returns:
             Response dict with content and metadata, or None if not found.
@@ -323,7 +325,7 @@ class RagService:
         actual_start = rows[0]["chunk_index"] + 1
         actual_end = rows[-1]["chunk_index"] + 1
 
-        return {
+        result = {
             "document_id": document_id,
             "title": doc["filename"],
             "content": combined,
@@ -331,6 +333,11 @@ class RagService:
             "total_chunks": total_chunks,
             "total_chars": len(combined),
         }
+
+        if return_chunks:
+            result["chunks"] = [{"index": row["chunk_index"] + 1, "content": row["chunk_content"]} for row in rows]
+
+        return result
 
     async def get_document_statuses(
         self,
@@ -423,6 +430,47 @@ class RagService:
             "deleted_data_ids": [str(did) for did in ids_to_delete],
             "processing_time_ms": processing_time,
         }
+
+    async def compare_documents(
+        self,
+        base_document_id: str,
+        comparison_document_id: str,
+        *,
+        max_changes: int = 500,
+    ) -> dict[str, Any] | None:
+        """Compare two documents using deterministic paragraph-level diffing.
+
+        Returns structured diff with change blocks, or None for individual
+        documents that are not found (caller should check which).
+        """
+        from .diff_service import compute_diff
+
+        base = await self.get_document_content(base_document_id)
+        if base is None:
+            return {"error": "not_found", "document_id": base_document_id, "role": "base"}
+
+        comp = await self.get_document_content(comparison_document_id)
+        if comp is None:
+            return {"error": "not_found", "document_id": comparison_document_id, "role": "comparison"}
+
+        diff_result = compute_diff(
+            base["content"],
+            comp["content"],
+            max_changes=max_changes,
+        )
+
+        result = diff_result.to_dict()
+        result["success"] = True
+        result["base_document"] = {
+            "document_id": base_document_id,
+            "title": base.get("title"),
+        }
+        result["comparison_document"] = {
+            "document_id": comparison_document_id,
+            "title": comp.get("title"),
+        }
+
+        return result
 
     async def shutdown(self) -> None:
         """Clean shutdown — close pool."""

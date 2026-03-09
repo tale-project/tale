@@ -9,6 +9,7 @@ export interface SearchResult {
   content: string;
   score: number;
   document_id?: string;
+  filename?: string;
   metadata?: Record<string, unknown>;
 }
 

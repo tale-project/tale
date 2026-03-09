@@ -66,6 +66,24 @@ export const listVersionsByName = internalQuery({
   },
 });
 
+export const getStartStepConfig = internalQuery({
+  args: {
+    wfDefinitionId: v.id('wfDefinitions'),
+  },
+  handler: async (ctx, args) => {
+    for await (const step of ctx.db
+      .query('wfStepDefs')
+      .withIndex('by_definition', (q) =>
+        q.eq('wfDefinitionId', args.wfDefinitionId),
+      )) {
+      if (step.stepType === 'start' || step.stepType === 'trigger') {
+        return step.config;
+      }
+    }
+    return null;
+  },
+});
+
 export const listWorkflows = internalQuery({
   args: {
     organizationId: v.string(),

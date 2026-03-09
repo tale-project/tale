@@ -62,12 +62,12 @@ Returns numbered document excerpts with relevance scores.`,
         );
       }
 
-      const documentIds: string[] = await ctx.runQuery(
-        internal.documents.internal_queries.getAccessibleDocumentIds,
+      const fileIds: string[] = await ctx.runQuery(
+        internal.documents.internal_queries.getAccessibleFileIds,
         { organizationId, userId },
       );
 
-      if (documentIds.length === 0) {
+      if (fileIds.length === 0) {
         return 'No documents available in the knowledge base. Upload documents first.';
       }
 
@@ -76,15 +76,15 @@ Returns numbered document excerpts with relevance scores.`,
 
       const payload = {
         query: args.query,
-        document_ids: documentIds,
+        document_ids: fileIds,
         top_k: DEFAULT_TOP_K,
         similarity_threshold: DEFAULT_SIMILARITY_THRESHOLD,
         include_metadata: true,
       };
 
       debugLog('tool:rag_search requesting search', {
-        documentCount: documentIds.length,
-        documentIds,
+        fileCount: fileIds.length,
+        fileIds,
       });
 
       try {

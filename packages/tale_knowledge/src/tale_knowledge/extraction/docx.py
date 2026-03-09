@@ -17,10 +17,32 @@ from loguru import logger
 
 from ._helpers import describe_image_bytes, extract_table_text
 
+_WP_NS = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+
 if TYPE_CHECKING:
     from tale_knowledge.vision.client import VisionClient
 
 MAX_UNCOMPRESSED_SIZE = 500 * 1024 * 1024  # 500 MB
+
+
+def _has_page_break(element) -> bool:
+    """Detect explicit page breaks in a paragraph XML element.
+
+    Checks for:
+    - pageBreakBefore paragraph property
+    - w:br with type="page" inline break
+    """
+    pPr = element.find(f"{_WP_NS}pPr")
+    if pPr is not None:
+        pb = pPr.find(f"{_WP_NS}pageBreakBefore")
+        if pb is not None:
+            val = pb.get(f"{_WP_NS}val")
+            if val is None or val not in ("0", "false"):
+                return True
+    for br in element.iter(f"{_WP_NS}br"):
+        if br.get(f"{_WP_NS}type") == "page":
+            return True
+    return False
 
 
 async def extract_text_from_docx_bytes(
@@ -30,7 +52,7 @@ async def extract_text_from_docx_bytes(
     vision_client: VisionClient | None = None,
     process_images: bool = True,
     max_concurrent: int = 3,
-) -> tuple[str, bool]:
+) -> tuple[str, bool, list[int]]:
     """Extract text from DOCX bytes with optional Vision support.
 
     Args:
@@ -41,7 +63,9 @@ async def extract_text_from_docx_bytes(
         max_concurrent: Max concurrent Vision API calls.
 
     Returns:
-        Tuple of (extracted_text, vision_was_used).
+        Tuple of (extracted_text, vision_was_used, page_break_positions).
+        page_break_positions is a list of element position indices where
+        explicit page breaks occur. The text output is not modified.
     """
     logger.info(f"Processing DOCX: {filename}")
 
@@ -49,9 +73,7 @@ async def extract_text_from_docx_bytes(
         with zipfile.ZipFile(BytesIO(docx_bytes)) as zf:
             total = sum(info.file_size for info in zf.infolist())
             if total > MAX_UNCOMPRESSED_SIZE:
-                raise ValueError(
-                    f"File exceeds maximum decompressed size ({total} bytes)"
-                )
+                raise ValueError(f"File exceeds maximum decompressed size ({total} bytes)")
     except zipfile.BadZipFile:
         raise ValueError("Invalid or corrupt file")
 
@@ -71,6 +93,7 @@ async def extract_text_from_docx_bytes(
                     logger.warning(f"Failed to extract image rel {rel.rId}: {e}")
 
     processed_image_rids: set[str] = set()
+    page_break_positions: list[int] = []
 
     para_map = {p._element: p for p in doc.paragraphs}
     table_map = {t._element: t for t in doc.tables}
@@ -79,6 +102,9 @@ async def extract_text_from_docx_bytes(
         tag = element.tag.split("}")[-1] if "}" in element.tag else element.tag
 
         if tag == "p":
+            if _has_page_break(element):
+                page_break_positions.append(position)
+
             para = para_map.get(element)
 
             if para:
@@ -93,16 +119,10 @@ async def extract_text_from_docx_bytes(
 
                     for blip in element.iter(f"{blip_ns}blip"):
                         embed_id = blip.get(f"{embed_ns}embed")
-                        if (
-                            embed_id
-                            and embed_id in image_rels
-                            and embed_id not in processed_image_rids
-                        ):
+                        if embed_id and embed_id in image_rels and embed_id not in processed_image_rids:
                             processed_image_rids.add(embed_id)
                             image_bytes = image_rels[embed_id]
-                            description = await describe_image_bytes(
-                                image_bytes, semaphore, vision_client
-                            )
+                            description = await describe_image_bytes(image_bytes, semaphore, vision_client)
                             if description:
                                 elements.append((position, f"[Image: {description}]"))
                                 vision_used = True
@@ -119,9 +139,7 @@ async def extract_text_from_docx_bytes(
     if process_images and vision_client:
         for rid, image_bytes in image_rels.items():
             if rid not in processed_image_rids:
-                description = await describe_image_bytes(
-                    image_bytes, semaphore, vision_client
-                )
+                description = await describe_image_bytes(image_bytes, semaphore, vision_client)
                 if description:
                     elements.append((position, f"[Image: {description}]"))
                     vision_used = True
@@ -139,9 +157,7 @@ async def extract_text_from_docx_bytes(
             section.even_page_header,
         ):
             if hdr and not hdr.is_linked_to_previous:
-                text = "\n".join(
-                    p.text.strip() for p in hdr.paragraphs if p.text.strip()
-                )
+                text = "\n".join(p.text.strip() for p in hdr.paragraphs if p.text.strip())
                 if text and text not in seen_headers:
                     seen_headers.add(text)
                     header_texts.append(text)
@@ -152,9 +168,7 @@ async def extract_text_from_docx_bytes(
             section.even_page_footer,
         ):
             if ftr and not ftr.is_linked_to_previous:
-                text = "\n".join(
-                    p.text.strip() for p in ftr.paragraphs if p.text.strip()
-                )
+                text = "\n".join(p.text.strip() for p in ftr.paragraphs if p.text.strip())
                 if text and text not in seen_footers:
                     seen_footers.add(text)
                     footer_texts.append(text)
@@ -171,8 +185,6 @@ async def extract_text_from_docx_bytes(
     elements.sort(key=lambda x: x[0])
     content = "\n\n".join(elem[1] for elem in elements)
 
-    logger.info(
-        f"DOCX processing complete: {len(elements)} elements, Vision API used: {vision_used}"
-    )
+    logger.info(f"DOCX processing complete: {len(elements)} elements, Vision API used: {vision_used}")
 
-    return content, vision_used
+    return content, vision_used, page_break_positions

@@ -21,8 +21,8 @@ const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 interface GenerateImageResult {
   operation: 'generate';
   success: boolean;
-  fileId: string;
-  url: string;
+  fileStorageId: string;
+  downloadUrl: string;
   fileName: string;
   contentType: string;
   extension: string;
@@ -68,7 +68,7 @@ OPERATIONS:
    - sourceType: "markdown", "html", or "url"
    - content: The HTML/Markdown you wrote, or a URL to capture
    - quality: "low" (1x JPEG, smallest file, default), "standard" (1x PNG), "high" (2x PNG), "ultra" (4x PNG). Use "low" unless user requests higher quality.
-   Returns: { operation, success, url, fileName, contentType, size }
+   Returns: { operation, success, downloadUrl, fileName, contentType, size }
 
    DESIGN TIPS:
    - Use sourceType "html" for most visual content — it gives you full control over layout and styling.
@@ -95,7 +95,7 @@ EXAMPLES:
 • Analyze: { "operation": "analyze", "fileId": "kg2bazp7fbgt9srq63knfagjrd7yfenj", "question": "What is in this image?" }
 
 CRITICAL RULES:
-1. For generate operation, when presenting download links, copy the EXACT 'url' from the result. Never fabricate or modify URLs.
+1. For generate operation, when presenting download links, copy the EXACT 'downloadUrl' from the result. Never fabricate or modify URLs.
 2. For analyze operation, ALWAYS use the fileId from the image attachment context. NEVER use imageUrl for uploaded images.
 3. The fileId looks like "kg2bazp7fbgt9srq63knfagjrd7yfenj" (alphanumeric string starting with "k").
 `,
@@ -291,7 +291,7 @@ CRITICAL RULES:
 
         debugLog('tool:image generate success', {
           fileName: result.fileName,
-          fileId: result.fileId,
+          fileStorageId: result.fileStorageId,
           size: result.size,
         });
 

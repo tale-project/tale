@@ -79,7 +79,7 @@ export const importFiles = action({
         token: tokenResult.token,
         userId: tokenResult.userId,
       },
-      createImportFilesDeps(ctx),
+      createImportFilesDeps(ctx, args.organizationId),
     );
   },
 });

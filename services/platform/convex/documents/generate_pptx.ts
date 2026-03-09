@@ -11,6 +11,7 @@ import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 
 import { fetchJson } from '../../lib/utils/type-cast-helpers';
+import { internal } from '../_generated/api';
 import { createDebugLog } from '../lib/debug_log';
 import { buildDownloadUrl, getCrawlerUrl } from './generate_document_helpers';
 
@@ -52,6 +53,7 @@ export interface PptxBrandingData {
 }
 
 export interface GeneratePptxArgs {
+  organizationId: string;
   fileName: string;
   slidesContent: SlideContentData[];
   branding?: PptxBrandingData;
@@ -61,8 +63,8 @@ export interface GeneratePptxArgs {
 
 export interface GeneratePptxResult {
   success: boolean;
-  fileId: Id<'_storage'>;
-  url: string;
+  fileStorageId: Id<'_storage'>;
+  downloadUrl: string;
   fileName: string;
   contentType: string;
   size: number;
@@ -169,6 +171,17 @@ export async function generatePptx(
     ? args.fileName
     : `${args.fileName}.pptx`;
 
+  await ctx.runMutation(
+    internal.file_metadata.internal_mutations.saveFileMetadata,
+    {
+      organizationId: args.organizationId,
+      storageId,
+      fileName: finalFileName,
+      contentType,
+      size: pptxBytes.length,
+    },
+  );
+
   // Build download URL using our custom HTTP endpoint that sets Content-Disposition
   // This ensures the downloaded file has the correct filename instead of the storage ID
   const downloadUrl = buildDownloadUrl(storageId, finalFileName);
@@ -181,8 +194,8 @@ export async function generatePptx(
 
   return {
     success: true,
-    fileId: storageId,
-    url: downloadUrl,
+    fileStorageId: storageId,
+    downloadUrl,
     fileName: finalFileName,
     contentType,
     size: pptxBytes.length,

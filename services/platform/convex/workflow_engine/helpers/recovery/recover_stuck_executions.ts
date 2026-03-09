@@ -13,6 +13,7 @@ import type { Doc } from '../../../_generated/dataModel';
 import type { MutationCtx } from '../../../_generated/server';
 
 import { internal } from '../../../_generated/api';
+import { STORAGE_RETENTION_MS } from '../../../workflows/executions/cleanup_execution_storage';
 import { safeShardIndex } from '../engine/shard';
 
 const DEFAULT_TIMEOUT_MS = 6 * 60 * 60 * 1000; // 6 hours
@@ -69,6 +70,20 @@ async function cancelComponentWorkflow(
   );
 }
 
+async function scheduleStorageCleanup(
+  ctx: MutationCtx,
+  execution: Doc<'wfExecutions'>,
+): Promise<void> {
+  const { variablesStorageId, outputStorageId } = execution;
+  if (variablesStorageId || outputStorageId) {
+    await ctx.scheduler.runAfter(
+      STORAGE_RETENTION_MS,
+      internal.wf_executions.internal_mutations.cleanupExecutionStorage,
+      { executionId: execution._id, variablesStorageId, outputStorageId },
+    );
+  }
+}
+
 export async function recoverStuckExecutions(
   ctx: MutationCtx,
   managers: WorkflowManager[],
@@ -94,6 +109,7 @@ export async function recoverStuckExecutions(
           previousStatus: 'running',
         }),
       });
+      await scheduleStorageCleanup(ctx, execution);
       recovered++;
     }
   }
@@ -117,6 +133,7 @@ export async function recoverStuckExecutions(
           previousStatus: 'pending',
         }),
       });
+      await scheduleStorageCleanup(ctx, execution);
       recovered++;
     }
   }

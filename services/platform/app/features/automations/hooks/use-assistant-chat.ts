@@ -68,7 +68,7 @@ export function useAssistantChat({
     uploadFiles,
     removeAttachment,
     clearAttachments,
-  } = useConvexFileUpload();
+  } = useConvexFileUpload({ organizationId });
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');

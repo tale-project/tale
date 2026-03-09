@@ -12,6 +12,7 @@ import { internal } from '../_generated/api';
  */
 export function createUploadAndCreateDocDeps(
   ctx: ActionCtx,
+  organizationId: string,
 ): UploadAndCreateDocDependencies {
   return {
     storageStore: async (blob) => ctx.storage.store(blob),
@@ -38,6 +39,12 @@ export function createUploadAndCreateDocDeps(
           fileId: args.fileId,
           metadata: args.metadata,
         },
+      );
+    },
+    saveFileMetadata: async (storageId, fileName, contentType, size) => {
+      await ctx.runMutation(
+        internal.file_metadata.internal_mutations.saveFileMetadata,
+        { organizationId, storageId, fileName, contentType, size },
       );
     },
   };

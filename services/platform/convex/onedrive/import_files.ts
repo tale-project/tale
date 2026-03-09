@@ -94,6 +94,12 @@ export interface ImportFilesDependencies {
     createdBy?: string,
     teamId?: string,
   ) => Promise<Id<'folders'> | undefined>;
+  saveFileMetadata: (
+    storageId: Id<'_storage'>,
+    fileName: string,
+    contentType: string,
+    size: number,
+  ) => Promise<void>;
 }
 
 export async function importFiles(
@@ -164,6 +170,12 @@ export async function importFiles(
         type: downloadResult.mimeType || 'application/octet-stream',
       });
       const storageId = await deps.storeFile(blob);
+      await deps.saveFileMetadata(
+        storageId,
+        item.name,
+        downloadResult.mimeType || 'application/octet-stream',
+        blob.size,
+      );
 
       const storagePath = item.relativePath
         ? `${args.organizationId}/${item.relativePath}`

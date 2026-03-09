@@ -102,6 +102,16 @@ export const agentWebhookHandler = httpAction(async (ctx, req) => {
     const file = formData.get('file');
     if (file instanceof File) {
       const storageId = await ctx.storage.store(file);
+      await ctx.runMutation(
+        internal.file_metadata.internal_mutations.saveFileMetadata,
+        {
+          organizationId: webhook.organizationId,
+          storageId,
+          fileName: file.name,
+          contentType: file.type || 'application/octet-stream',
+          size: file.size,
+        },
+      );
       attachment = {
         fileId: storageId,
         fileName: file.name,

@@ -8,6 +8,7 @@ vi.mock('../../../_generated/api', () => ({
     documents: {
       internal_queries: {
         getAccessibleDocumentIds: 'mock-get-accessible-document-ids',
+        getDocumentByIdRaw: 'mock-get-document-by-id-raw',
       },
     },
   },
@@ -20,17 +21,21 @@ vi.mock('../../../lib/helpers/rag_config', () => ({
 const originalFetch = globalThis.fetch;
 
 function createMockCtx(overrides?: Record<string, unknown>) {
+  const runQuery = vi
+    .fn()
+    .mockResolvedValueOnce(['doc123', 'doc456']) // getAccessibleDocumentIds
+    .mockResolvedValueOnce({ fileId: 'file-storage-123', title: 'Test' }); // getDocumentByIdRaw
   return {
     organizationId: 'org1',
     userId: 'user1',
-    runQuery: vi.fn().mockResolvedValue(['doc123', 'doc456']),
+    runQuery,
     ...overrides,
   };
 }
 
 function createRagResponse(overrides?: Record<string, unknown>) {
   return {
-    document_id: 'doc123',
+    document_id: 'file-storage-123',
     title: 'Test Document',
     content: 'Hello world',
     chunk_range: { start: 1, end: 5 },
@@ -69,7 +74,7 @@ describe('retrieveDocument helper', () => {
     });
 
     expect(result).toEqual({
-      documentId: 'doc123',
+      fileId: 'file-storage-123',
       name: 'Test Document',
       content: 'Hello world',
       chunkRange: { start: 1, end: 5 },
@@ -104,6 +109,17 @@ describe('retrieveDocument helper', () => {
     expect(url).not.toContain('chunk_start');
     expect(url).not.toContain('chunk_end');
     expect(url).toMatch(/\/content$/);
+  });
+
+  it('uses file storage ID in RAG URL, not document ID', async () => {
+    const ctx = createMockCtx();
+
+    await retrieveDocument(ctx as never, { documentId: 'doc123' });
+
+    const fetchCall = vi.mocked(globalThis.fetch).mock.calls[0];
+    const url = fetchCall?.[0] ?? '';
+    expect(url).toContain('file-storage-123');
+    expect(url).not.toContain('doc123');
   });
 
   it('truncates content exceeding 50K chars', async () => {
@@ -160,6 +176,18 @@ describe('retrieveDocument helper', () => {
     await expect(
       retrieveDocument(ctx as never, { documentId: 'doc123' }),
     ).rejects.toThrow('Document not found or access denied');
+  });
+
+  it('throws when document has no fileId', async () => {
+    const runQuery = vi
+      .fn()
+      .mockResolvedValueOnce(['doc123'])
+      .mockResolvedValueOnce({ fileId: undefined, title: 'Test' });
+    const ctx = createMockCtx({ runQuery });
+
+    await expect(
+      retrieveDocument(ctx as never, { documentId: 'doc123' }),
+    ).rejects.toThrow('has no file associated');
   });
 
   it('throws graceful message on RAG 404', async () => {
@@ -219,10 +247,12 @@ describe('retrieveDocument helper', () => {
     expect(result.truncated).toBe(false);
   });
 
-  it('uses encodeURIComponent for documentId in URL', async () => {
-    const ctx = createMockCtx({
-      runQuery: vi.fn().mockResolvedValue(['doc/with/slashes']),
-    });
+  it('uses encodeURIComponent for fileId in URL', async () => {
+    const runQuery = vi
+      .fn()
+      .mockResolvedValueOnce(['doc/with/slashes'])
+      .mockResolvedValueOnce({ fileId: 'file/with/slashes', title: 'Test' });
+    const ctx = createMockCtx({ runQuery });
 
     await retrieveDocument(ctx as never, {
       documentId: 'doc/with/slashes',
@@ -230,8 +260,7 @@ describe('retrieveDocument helper', () => {
 
     const fetchCall = vi.mocked(globalThis.fetch).mock.calls[0];
     const url = fetchCall?.[0] ?? '';
-    expect(url).toContain('doc%2Fwith%2Fslashes');
-    expect(url).not.toContain('doc/with/slashes/content');
+    expect(url).toContain('file%2Fwith%2Fslashes');
   });
 
   it('throws timeout error when fetch is aborted', async () => {

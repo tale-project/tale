@@ -117,8 +117,8 @@ Current question: ${currentQuery}`;
  * Options for RAG context queries.
  */
 export interface RagContextOptions {
-  /** Document IDs to scope the search to */
-  documentIds?: string[];
+  /** File storage IDs to scope the search to */
+  fileIds?: string[];
 }
 
 /**
@@ -172,11 +172,11 @@ export async function queryRagContext(
         include_metadata: true,
       };
 
-      if (!options?.documentIds || options.documentIds.length === 0) {
-        debugLog('No document IDs provided, skipping RAG query');
+      if (!options?.fileIds || options.fileIds.length === 0) {
+        debugLog('No file IDs provided, skipping RAG query');
         return undefined;
       }
-      requestPayload.document_ids = options.documentIds;
+      requestPayload.document_ids = options.fileIds;
 
       const response = await fetch(url, {
         method: 'POST',

@@ -57,6 +57,14 @@ function safeStringify(value: unknown): string {
   }
 }
 
+export type ToolOutputAge = 'recent' | 'mid' | 'old';
+
+const TOOL_OUTPUT_LIMITS: Record<ToolOutputAge, number> = {
+  recent: 8000,
+  mid: 2000,
+  old: 300,
+};
+
 /**
  * Summarize output (truncate long values)
  * Default limit increased to 8000 chars to preserve meaningful tool results
@@ -66,6 +74,10 @@ function summarize(output: unknown, max = 8000): string {
   if (output === null || output === undefined) return '-';
   const str = safeStringify(output);
   return str.length > max ? str.slice(0, max) + '...' : str;
+}
+
+function summarizeForHistory(output: unknown, age: ToolOutputAge): string {
+  return summarize(output, TOOL_OUTPUT_LIMITS[age]);
 }
 
 /**
@@ -102,16 +114,22 @@ export function formatToolCall(
 
 /**
  * Format a tool call summary
- * Uses log-style format to prevent AI from mimicking this as an action instruction
+ * Uses log-style format to prevent AI from mimicking this as an action instruction.
+ * When `age` is provided, applies tiered truncation (errors always get full output).
  */
 export function formatToolCallSummary(
   toolName: string,
   output: unknown,
   _timestamp: number,
   status: 'success' | 'error' = 'success',
+  age?: ToolOutputAge,
 ): string {
   const s = status === 'success' ? '✓' : '✗';
-  return `[Tool Result] ${toolName} (${s}): ${summarize(output)}`;
+  const summary =
+    age && status !== 'error'
+      ? summarizeForHistory(output, age)
+      : summarize(output);
+  return `[Tool Result] ${toolName} (${s}): ${summary}`;
 }
 
 /**

@@ -25,10 +25,17 @@ export const CONTEXT_SAFETY_MARGIN = 0.75;
 export const DEFAULT_MODEL_CONTEXT_LIMIT = 128000;
 
 /**
- * Number of recent messages to load by default.
- * This balances context quality with token efficiency.
+ * Number of recent messages to load for context size estimation.
+ * Used only by estimateContextSize / checkAndSummarizeIfNeeded as a sampling heuristic.
  */
 export const DEFAULT_RECENT_MESSAGES = 20;
+
+/**
+ * Maximum token budget for conversation history in the context window.
+ * The actual loading uses token-aware priority selection: conversational messages
+ * (user/assistant/system) are loaded first, then tool messages fill the remainder.
+ */
+export const DEFAULT_MAX_HISTORY_TOKENS = 25_000;
 
 /**
  * Reserve tokens for model output generation.
@@ -38,9 +45,10 @@ export const OUTPUT_RESERVE = 4096;
 
 /**
  * Estimate for recent conversation history tokens.
- * Used for budget calculations when loading context.
+ * Used by ContextBuilder.build() for budget calculations.
+ * Aligned with DEFAULT_MAX_HISTORY_TOKENS.
  */
-export const RECENT_MESSAGES_TOKEN_ESTIMATE = 10000;
+export const RECENT_MESSAGES_TOKEN_ESTIMATE = 25_000;
 
 /**
  * Threshold for considering a message as "large" (in tokens).
@@ -74,7 +82,7 @@ export const AGENT_CONTEXT_CONFIGS = {
   /** Main chat agent - full context management */
   chat: {
     modelContextLimit: DEFAULT_MODEL_CONTEXT_LIMIT,
-    recentMessages: DEFAULT_RECENT_MESSAGES,
+    maxHistoryTokens: DEFAULT_MAX_HISTORY_TOKENS,
     outputReserve: OUTPUT_RESERVE,
     enableSummarization: true,
     timeoutMs: 420_000,
@@ -82,7 +90,7 @@ export const AGENT_CONTEXT_CONFIGS = {
   /** Web assistant - independent agent for web operations */
   web: {
     modelContextLimit: DEFAULT_MODEL_CONTEXT_LIMIT,
-    recentMessages: DEFAULT_RECENT_MESSAGES,
+    maxHistoryTokens: DEFAULT_MAX_HISTORY_TOKENS,
     outputReserve: 2048,
     enableSummarization: true,
     timeoutMs: 300_000,
@@ -90,7 +98,7 @@ export const AGENT_CONTEXT_CONFIGS = {
   /** Document assistant - independent agent for document operations */
   document: {
     modelContextLimit: DEFAULT_MODEL_CONTEXT_LIMIT,
-    recentMessages: DEFAULT_RECENT_MESSAGES,
+    maxHistoryTokens: DEFAULT_MAX_HISTORY_TOKENS,
     outputReserve: 4096,
     enableSummarization: true,
     timeoutMs: 180_000,
@@ -98,7 +106,7 @@ export const AGENT_CONTEXT_CONFIGS = {
   /** Integration assistant - independent agent for external system operations */
   integration: {
     modelContextLimit: DEFAULT_MODEL_CONTEXT_LIMIT,
-    recentMessages: DEFAULT_RECENT_MESSAGES,
+    maxHistoryTokens: DEFAULT_MAX_HISTORY_TOKENS,
     outputReserve: 2048,
     enableSummarization: true,
     timeoutMs: 180_000,
@@ -106,7 +114,7 @@ export const AGENT_CONTEXT_CONFIGS = {
   /** Workflow assistant - independent agent for workflow operations */
   workflow: {
     modelContextLimit: DEFAULT_MODEL_CONTEXT_LIMIT,
-    recentMessages: DEFAULT_RECENT_MESSAGES,
+    maxHistoryTokens: DEFAULT_MAX_HISTORY_TOKENS,
     outputReserve: 2048,
     enableSummarization: true,
     timeoutMs: 240_000,
@@ -114,7 +122,7 @@ export const AGENT_CONTEXT_CONFIGS = {
   /** CRM assistant - independent agent for CRM operations */
   crm: {
     modelContextLimit: DEFAULT_MODEL_CONTEXT_LIMIT,
-    recentMessages: DEFAULT_RECENT_MESSAGES,
+    maxHistoryTokens: DEFAULT_MAX_HISTORY_TOKENS,
     outputReserve: 2048,
     enableSummarization: true,
     timeoutMs: 180_000,
@@ -122,7 +130,7 @@ export const AGENT_CONTEXT_CONFIGS = {
   /** Custom agent - user-configurable agent with DB-stored config */
   custom: {
     modelContextLimit: DEFAULT_MODEL_CONTEXT_LIMIT,
-    recentMessages: DEFAULT_RECENT_MESSAGES,
+    maxHistoryTokens: DEFAULT_MAX_HISTORY_TOKENS,
     outputReserve: 2048,
     enableSummarization: true,
     timeoutMs: 420_000,
