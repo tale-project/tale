@@ -9,6 +9,7 @@ import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 
 import { fetchJson } from '../../lib/utils/type-cast-helpers';
+import { internal } from '../_generated/api';
 import { base64ToBytes } from '../lib/crypto/base64_to_bytes';
 import { createDebugLog } from '../lib/debug_log';
 import { buildDownloadUrl } from './generate_document_helpers';
@@ -16,6 +17,7 @@ import { buildDownloadUrl } from './generate_document_helpers';
 const debugLog = createDebugLog('DEBUG_DOCUMENTS', '[Documents]');
 
 export interface UploadBase64Args {
+  organizationId: string;
   fileName: string;
   contentType: string;
   dataBase64: string;
@@ -23,8 +25,8 @@ export interface UploadBase64Args {
 
 export interface UploadBase64Result {
   success: boolean;
-  fileId: Id<'_storage'>;
-  url: string;
+  fileStorageId: Id<'_storage'>;
+  downloadUrl: string;
   fileName: string;
   size: number;
   contentType: string;
@@ -34,7 +36,7 @@ export async function uploadBase64ToStorage(
   ctx: ActionCtx,
   args: UploadBase64Args,
 ): Promise<UploadBase64Result> {
-  const { fileName, contentType, dataBase64 } = args;
+  const { organizationId, fileName, contentType, dataBase64 } = args;
 
   debugLog('documents.uploadBase64ToStorage start', {
     fileName,
@@ -68,6 +70,11 @@ export async function uploadBase64ToStorage(
     uploadResponse,
   );
 
+  await ctx.runMutation(
+    internal.file_metadata.internal_mutations.saveFileMetadata,
+    { organizationId, storageId, fileName, contentType, size },
+  );
+
   // Build download URL using our custom HTTP endpoint that sets Content-Disposition
   // This ensures the downloaded file has the correct filename instead of the storage ID
   const downloadUrl = buildDownloadUrl(storageId, fileName);
@@ -80,8 +87,8 @@ export async function uploadBase64ToStorage(
 
   return {
     success: true,
-    fileId: storageId,
-    url: downloadUrl,
+    fileStorageId: storageId,
+    downloadUrl,
     fileName,
     size,
     contentType,

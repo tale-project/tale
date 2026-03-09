@@ -9,7 +9,10 @@ import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
-import { DOCUMENT_MAX_FILE_SIZE } from '@/lib/shared/file-types';
+import {
+  DOCUMENT_MAX_FILE_SIZE,
+  resolveFileType,
+} from '@/lib/shared/file-types';
 import { fetchJson } from '@/lib/utils/type-cast-helpers';
 
 /**
@@ -118,6 +121,9 @@ export function useDocumentUpload(options: UploadOptions) {
 
       // Upload files using direct HTTP upload to Convex storage
       const uploadPromises = files.map(async (file) => {
+        const resolvedType =
+          resolveFileType(file.name, file.type) || 'application/octet-stream';
+
         // Step 1: Calculate content hash for deduplication
         const contentHash = await calculateFileHash(file);
 
@@ -128,7 +134,7 @@ export function useDocumentUpload(options: UploadOptions) {
         const uploadResponse = await fetch(uploadUrl, {
           method: 'POST',
           headers: {
-            'Content-Type': file.type || 'application/octet-stream',
+            'Content-Type': resolvedType,
           },
           body: file,
           signal: abortControllerRef.current?.signal,
@@ -147,7 +153,7 @@ export function useDocumentUpload(options: UploadOptions) {
           organizationId: options.organizationId,
           fileId: toId<'_storage'>(storageId),
           fileName: file.name,
-          contentType: file.type || 'application/octet-stream',
+          contentType: resolvedType,
           contentHash,
           metadata: {
             size: file.size,
@@ -158,6 +164,7 @@ export function useDocumentUpload(options: UploadOptions) {
           folderId: uploadOptions?.folderId
             ? toId<'folders'>(uploadOptions.folderId)
             : undefined,
+          fileSize: file.size,
         });
 
         return result;

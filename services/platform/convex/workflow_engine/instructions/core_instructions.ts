@@ -13,7 +13,7 @@ When calling tools, you MUST generate valid JSON:
 2. Field names MUST be simple identifiers (e.g., "config", "userPrompt")
 3. NEVER use descriptive phrases as field names
 4. Escape quotes inside strings: \\"
-5. Multi-line strings should use \\n for newlines
+5. Multi-line strings should use \\n for newlines in JSON string values. Inside JEXL template expressions ({{ }}), \\n is also preserved as newlines from JSON parsing
 6. Do NOT include tabs or control characters in strings
 
 **TOOL USAGE GUIDELINES**

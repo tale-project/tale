@@ -14,6 +14,11 @@ export interface DownloadAndStoreFileResult {
 
 export interface DownloadAndStoreFileDeps {
   storeFile: (blob: Blob) => Promise<Id<'_storage'>>;
+  saveFileMetadata: (
+    storageId: Id<'_storage'>,
+    contentType: string,
+    size: number,
+  ) => Promise<void>;
 }
 
 export async function downloadAndStoreFile(
@@ -44,6 +49,7 @@ export async function downloadAndStoreFile(
 
     const blob = new Blob([arrayBuffer], { type: mimeType });
     const storageId = await deps.storeFile(blob);
+    await deps.saveFileMetadata(storageId, mimeType, blob.size);
 
     return {
       success: true,

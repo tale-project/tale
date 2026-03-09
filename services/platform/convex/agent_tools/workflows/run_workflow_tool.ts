@@ -15,6 +15,8 @@ import type { ToolDefinition } from '../types';
 import { internal } from '../../_generated/api';
 import { toId } from '../../lib/type_cast_helpers';
 import { getApprovalThreadId } from '../../threads/get_parent_thread_id';
+import { validateWorkflowInput } from '../../workflow_engine/helpers/validation/validate_workflow_input';
+import { extractInputSchema } from './helpers/extract_input_schema';
 
 const runWorkflowArgs = z.object({
   workflowId: z
@@ -105,6 +107,22 @@ This tool creates an approval card in the chat. The user must click "Run Workflo
         return {
           success: false,
           message: `Workflow "${wfDefinition.name}" is archived and cannot be executed. Only active or draft workflows can be run.`,
+        };
+      }
+
+      // Validate input parameters against the start step's inputSchema
+      const startStepConfig = await ctx.runQuery(
+        internal.wf_definitions.internal_queries.getStartStepConfig,
+        { wfDefinitionId: wfDefinition._id },
+      );
+
+      const inputSchema = extractInputSchema(startStepConfig);
+      const validation = validateWorkflowInput(args.parameters, inputSchema);
+
+      if (!validation.valid) {
+        return {
+          success: false,
+          message: `Invalid workflow parameters: ${validation.errors.join('; ')}. Use workflow_read(operation="get_structure") to check the expected input schema.`,
         };
       }
 

@@ -85,7 +85,10 @@ const documentRagSyncWorkflow: PredefinedWorkflowDefinition = {
         type: 'rag',
         parameters: {
           operation: 'upload_document',
-          recordId: '{{steps.find_unprocessed_document.output.data._id}}',
+          fileId: '{{steps.find_unprocessed_document.output.data.fileId}}',
+          fileName: '{{steps.find_unprocessed_document.output.data.title}}',
+          contentType:
+            '{{steps.find_unprocessed_document.output.data.mimeType}}',
         },
       },
       nextSteps: {

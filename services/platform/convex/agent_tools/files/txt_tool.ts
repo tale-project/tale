@@ -12,6 +12,7 @@ import { z } from 'zod/v4';
 
 import type { ToolDefinition } from '../types';
 
+import { internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
 import { analyzeTextContent } from './helpers/analyze_text';
 
@@ -33,8 +34,8 @@ interface TxtParseResult {
 interface TxtGenerateResult {
   operation: 'generate';
   success: boolean;
-  fileId: string;
-  url: string;
+  fileStorageId: string;
+  downloadUrl: string;
   filename: string;
   char_count: number;
   line_count: number;
@@ -93,7 +94,7 @@ EXAMPLES:
 • Parse: { "operation": "parse", "fileId": "kg2...", "filename": "error.log", "user_input": "Find all errors" }
 • Generate: { "operation": "generate", "filename": "report.txt", "content": "Your report content here..." }
 
-Returns: { success, url (for generate), result (for parse), char_count, line_count }
+Returns: { success, downloadUrl (for generate), result (for parse), char_count, line_count }
 `,
     args: txtArgs,
     handler: async (ctx: ToolCtx, args): Promise<TxtResult> => {
@@ -110,6 +111,18 @@ Returns: { success, url (for generate), result (for parse), char_count, line_cou
             type: 'text/plain; charset=utf-8',
           });
           const fileId = await ctx.storage.store(blob);
+
+          await ctx.runMutation(
+            internal.file_metadata.internal_mutations.saveFileMetadata,
+            {
+              organizationId: ctx.organizationId ?? 'system',
+              storageId: fileId,
+              fileName: filename,
+              contentType: 'text/plain; charset=utf-8',
+              size: blob.size,
+            },
+          );
+
           const url = await ctx.storage.getUrl(fileId);
 
           if (!url) {
@@ -128,8 +141,8 @@ Returns: { success, url (for generate), result (for parse), char_count, line_cou
           return {
             operation: 'generate',
             success: true,
-            fileId,
-            url,
+            fileStorageId: fileId,
+            downloadUrl: url,
             filename,
             char_count: content.length,
             line_count: lineCount,
@@ -145,8 +158,8 @@ Returns: { success, url (for generate), result (for parse), char_count, line_cou
           return {
             operation: 'generate',
             success: false,
-            fileId: '',
-            url: '',
+            fileStorageId: '',
+            downloadUrl: '',
             filename,
             char_count: 0,
             line_count: 0,

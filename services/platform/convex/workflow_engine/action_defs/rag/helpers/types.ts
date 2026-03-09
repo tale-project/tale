@@ -4,12 +4,21 @@
 export type RagActionParams =
   | {
       operation: 'upload_document';
-      recordId: string;
+      fileId: string;
+      fileName?: string;
+      contentType?: string;
+      sync?: boolean;
     }
   | {
       operation: 'delete_document';
-      /** Document record ID from the platform */
-      recordId: string;
+      fileId: string;
+    }
+  | {
+      operation: 'search';
+      query: string;
+      fileIds: string[];
+      topK?: number;
+      similarityThreshold?: number;
     };
 
 /**
@@ -18,8 +27,8 @@ export type RagActionParams =
 export interface RagUploadResult {
   /** Whether the request to RAG succeeded (enqueue + basic validation). */
   success: boolean;
-  /** Caller-level record identifier (usually from metadata.recordId). */
-  recordId: string;
+  /** File storage ID that was uploaded to RAG. */
+  fileId: string;
   /** Identifier returned by the RAG service for the ingested/queued document. */
   ragDocumentId?: string;
   /** Number of chunks created. For async ingestion this will typically be 0. */

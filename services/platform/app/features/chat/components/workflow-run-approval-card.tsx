@@ -8,6 +8,7 @@ import {
   ExternalLink,
   Loader2,
   Play,
+  Square,
   XCircle,
 } from 'lucide-react';
 import { memo, useEffect, useState } from 'react';
@@ -23,7 +24,10 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useExecuteApprovedWorkflowRun } from '@/app/features/approvals/hooks/actions';
 import { useUpdateApprovalStatus } from '@/app/features/approvals/hooks/mutations';
-import { useExecutionStatus } from '@/app/features/chat/hooks/use-execution-status';
+import {
+  useCancelExecution,
+  useExecutionStatus,
+} from '@/app/features/chat/hooks/use-execution-status';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -80,6 +84,8 @@ function WorkflowRunApprovalCardComponent({
 
   const { mutateAsync: updateApprovalStatus } = useUpdateApprovalStatus();
   const { mutateAsync: executeApprovedRun } = useExecuteApprovedWorkflowRun();
+  const { mutateAsync: cancelExecution } = useCancelExecution();
+  const [isCancelling, setIsCancelling] = useState(false);
 
   const executionId =
     status === 'approved' && metadata.executionId
@@ -153,12 +159,24 @@ function WorkflowRunApprovalCardComponent({
     }
   };
 
+  const handleCancel = async () => {
+    if (!executionId) return;
+    setIsCancelling(true);
+    setError(null);
+    try {
+      await cancelExecution({ executionId });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to stop execution');
+      console.error('Failed to cancel execution:', err);
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
   return (
     <div
       className={cn(
         'rounded-xl border border-border p-4 bg-card max-w-md overflow-hidden',
-        status === 'approved' && 'border-success/30',
-        status === 'rejected' && 'border-destructive/30',
         className,
       )}
     >
@@ -177,14 +195,6 @@ function WorkflowRunApprovalCardComponent({
             )}
           </div>
         </HStack>
-        {status !== 'pending' && (
-          <Badge
-            variant={status === 'approved' ? 'green' : 'destructive'}
-            className="text-xs"
-          >
-            {status === 'approved' ? t('statusApproved') : t('statusRejected')}
-          </Badge>
-        )}
       </HStack>
 
       {/* Parameters Preview */}
@@ -230,13 +240,32 @@ function WorkflowRunApprovalCardComponent({
         <Stack gap={1} className="mb-3" aria-live="polite">
           {isRunning && (
             <>
-              <HStack gap={1} className="text-primary text-xs">
-                <Loader2 className="size-3 animate-spin" />
-                {executionStatus?.currentStepSlug
-                  ? t('executionRunningStep', {
-                      step: executionStatus.currentStepSlug,
-                    })
-                  : t('executionRunning')}
+              <HStack gap={1} justify="between" className="text-xs">
+                <HStack gap={1} className="text-primary">
+                  <Loader2 className="size-3 animate-spin" />
+                  {executionStatus?.currentStepSlug
+                    ? t('executionRunningStep', {
+                        step: executionStatus.currentStepSlug,
+                      })
+                    : t('executionRunning')}
+                </HStack>
+                <Tooltip content={t('stopTooltip')}>
+                  <button
+                    type="button"
+                    onClick={handleCancel}
+                    disabled={isCancelling}
+                    aria-busy={isCancelling}
+                    aria-label={t('stopExecution')}
+                    className="text-muted-foreground hover:text-destructive flex cursor-pointer items-center gap-1 text-xs transition-colors disabled:opacity-50"
+                  >
+                    {isCancelling ? (
+                      <Loader2 className="size-3 animate-spin" />
+                    ) : (
+                      <Square className="size-3 fill-current" />
+                    )}
+                    {t('stopExecution')}
+                  </button>
+                </Tooltip>
               </HStack>
               {elapsed && (
                 <Text as="div" variant="caption">
@@ -372,11 +401,25 @@ function WorkflowRunApprovalCardComponent({
         </ActionRow>
       )}
 
-      {/* Status message for rejected approvals */}
-      {status === 'rejected' && (
-        <Text as="div" variant="caption">
-          {t('statusRejected')}
-        </Text>
+      {/* Status badge */}
+      {status !== 'pending' && (
+        <HStack
+          justify={status === 'rejected' ? 'between' : 'end'}
+          align="center"
+          className="mt-2"
+        >
+          {status === 'rejected' && (
+            <Text as="div" variant="caption">
+              {t('statusRejected')}
+            </Text>
+          )}
+          <Badge
+            variant={status === 'approved' ? 'green' : 'destructive'}
+            className="shrink-0 text-xs"
+          >
+            {status === 'approved' ? t('statusApproved') : t('statusRejected')}
+          </Badge>
+        </HStack>
       )}
     </div>
   );

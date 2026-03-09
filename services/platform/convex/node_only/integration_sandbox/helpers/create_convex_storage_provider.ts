@@ -11,10 +11,14 @@
 import type { ActionCtx } from '../../../_generated/server';
 import type { StorageProvider } from '../types';
 
+import { internal } from '../../../_generated/api';
 import { base64ToBytes } from '../../../lib/crypto/base64_to_bytes';
 import { validateHost } from './validate_host';
 
-export function createConvexStorageProvider(ctx: ActionCtx): StorageProvider {
+export function createConvexStorageProvider(
+  ctx: ActionCtx,
+  organizationId: string,
+): StorageProvider {
   return {
     async download({ url, headers, fileName, allowedHosts }) {
       if (allowedHosts && allowedHosts.length > 0) {
@@ -45,6 +49,17 @@ export function createConvexStorageProvider(ctx: ActionCtx): StorageProvider {
         response.headers.get('content-type') ||
         'application/octet-stream';
 
+      await ctx.runMutation(
+        internal.file_metadata.internal_mutations.saveFileMetadata,
+        {
+          organizationId,
+          storageId,
+          fileName,
+          contentType,
+          size: blob.size,
+        },
+      );
+
       return {
         fileId: String(storageId),
         url: storageUrl,
@@ -68,6 +83,17 @@ export function createConvexStorageProvider(ctx: ActionCtx): StorageProvider {
 
       const storageId = await ctx.storage.store(blob);
       const storageUrl = (await ctx.storage.getUrl(storageId)) ?? '';
+
+      await ctx.runMutation(
+        internal.file_metadata.internal_mutations.saveFileMetadata,
+        {
+          organizationId,
+          storageId,
+          fileName,
+          contentType,
+          size: blob.size,
+        },
+      );
 
       return {
         fileId: String(storageId),

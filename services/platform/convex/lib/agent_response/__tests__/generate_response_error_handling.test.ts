@@ -51,7 +51,7 @@ vi.mock('../../context_management', () => ({
   buildStructuredContext: mockBuildStructuredContext,
   AGENT_CONTEXT_CONFIGS: {
     chat: {
-      recentMessages: 10,
+      maxHistoryTokens: 25_000,
       timeoutMs: 420_000,
     },
   },

@@ -21,7 +21,7 @@
  *   ctx,
  *   threadId,
  *   additionalContext: { key: 'value' },
- *   maxMessages: config.recentMessages,
+ *   maxHistoryTokens: config.maxHistoryTokens,
  * });
  *
  * // Use system parameter for context, prompt for user request
@@ -43,6 +43,7 @@ export {
   CONTEXT_SAFETY_MARGIN,
   DEFAULT_MODEL_CONTEXT_LIMIT,
   DEFAULT_RECENT_MESSAGES,
+  DEFAULT_MAX_HISTORY_TOKENS,
   OUTPUT_RESERVE,
   RECENT_MESSAGES_TOKEN_ESTIMATE,
   LARGE_MESSAGE_THRESHOLD,

@@ -90,9 +90,10 @@ export function useTestChat({
     uploadFiles,
     removeAttachment,
     clearAttachments,
-  } = useConvexFileUpload(
-    allowedMimeTypes ? { allowedTypes: allowedMimeTypes } : undefined,
-  );
+  } = useConvexFileUpload({
+    organizationId,
+    ...(allowedMimeTypes ? { allowedTypes: allowedMimeTypes } : {}),
+  });
 
   const {
     isPending,

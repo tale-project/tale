@@ -39,7 +39,7 @@ describe('deleteDocumentById', () => {
 
     await deleteDocumentById({
       ragServiceUrl: 'http://rag:8000',
-      documentId: 'doc-123',
+      fileId: 'doc-123',
     });
 
     const url = getCalledUrl();
@@ -57,7 +57,7 @@ describe('deleteDocumentById', () => {
 
     const result = await deleteDocumentById({
       ragServiceUrl: 'http://rag:8000',
-      documentId: 'doc-abc',
+      fileId: 'doc-abc',
     });
 
     expect(result.success).toBe(true);
@@ -71,19 +71,19 @@ describe('deleteDocumentById', () => {
 
     const result = await deleteDocumentById({
       ragServiceUrl: 'http://rag:8000',
-      documentId: 'doc-fail',
+      fileId: 'doc-fail',
     });
 
     expect(result.success).toBe(false);
     expect(result.error).toContain('400');
   });
 
-  it('URL-encodes document IDs with special characters', async () => {
+  it('URL-encodes file IDs with special characters', async () => {
     mockFetch({ success: true, deleted_count: 0, deleted_data_ids: [] });
 
     await deleteDocumentById({
       ragServiceUrl: 'http://rag:8000',
-      documentId: 'doc/with spaces',
+      fileId: 'doc/with spaces',
     });
 
     expect(fetchSpy.mock.calls[0][0]).toContain('doc%2Fwith%20spaces');

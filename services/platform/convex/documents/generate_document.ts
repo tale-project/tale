@@ -10,6 +10,7 @@ import type { ActionCtx } from '../_generated/server';
 import type { GenerateDocumentArgs, GenerateDocumentResult } from './types';
 
 import { fetchJson } from '../../lib/utils/type-cast-helpers';
+import { internal } from '../_generated/api';
 import { createDebugLog } from '../lib/debug_log';
 import {
   buildDownloadUrl,
@@ -112,6 +113,17 @@ export async function generateDocument(
     ? args.fileName
     : `${args.fileName}.${safeExtension}`;
 
+  await ctx.runMutation(
+    internal.file_metadata.internal_mutations.saveFileMetadata,
+    {
+      organizationId: args.organizationId,
+      storageId,
+      fileName: finalFileName,
+      contentType,
+      size,
+    },
+  );
+
   // Build download URL using our custom HTTP endpoint that sets Content-Disposition
   // This ensures the downloaded file has the correct filename instead of the storage ID
   const downloadUrl = buildDownloadUrl(storageId, finalFileName);
@@ -126,8 +138,8 @@ export async function generateDocument(
 
   return {
     success: true,
-    fileId: storageId,
-    url: downloadUrl,
+    fileStorageId: storageId,
+    downloadUrl,
     fileName: finalFileName,
     contentType,
     size,

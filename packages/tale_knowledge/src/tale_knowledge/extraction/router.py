@@ -70,12 +70,13 @@ async def extract_text(
     if suffix in DOCX_EXTENSIONS:
         from .docx import extract_text_from_docx_bytes
 
-        return await extract_text_from_docx_bytes(
+        text, vision_used, _page_breaks = await extract_text_from_docx_bytes(
             file_bytes,
             filename,
             vision_client=vision_client,
             process_images=process_images,
         )
+        return text, vision_used
 
     if suffix in PPTX_EXTENSIONS:
         from .pptx import extract_text_from_pptx_bytes

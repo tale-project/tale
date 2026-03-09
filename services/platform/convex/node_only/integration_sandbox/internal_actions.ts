@@ -36,6 +36,7 @@ export const executeIntegration = internalAction({
     secrets: jsonRecordValidator,
     allowedHosts: v.optional(v.array(v.string())),
     timeoutMs: v.optional(v.number()),
+    organizationId: v.optional(v.string()),
   },
   returns: v.object({
     success: v.boolean(),
@@ -67,7 +68,10 @@ export const executeIntegration = internalAction({
       secrets: args.secrets as Record<string, string>,
       allowedHosts: args.allowedHosts,
       timeoutMs: args.timeoutMs,
-      storageProvider: createConvexStorageProvider(ctx),
+      storageProvider: createConvexStorageProvider(
+        ctx,
+        args.organizationId ?? 'system',
+      ),
     });
   },
 });

@@ -37,6 +37,7 @@ async def search(request: QueryRequest):
                 content=r.get("content", ""),
                 score=r.get("score", 0.0),
                 document_id=r.get("document_id"),
+                filename=r.get("filename"),
                 metadata=r.get("metadata") if request.include_metadata else None,
             )
             for r in results

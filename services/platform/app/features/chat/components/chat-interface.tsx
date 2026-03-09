@@ -76,7 +76,7 @@ export function ChatInterface({
     uploadFiles,
     removeAttachment,
     clearAttachments,
-  } = useConvexFileUpload();
+  } = useConvexFileUpload({ organizationId });
 
   usePersistedAttachments({ threadId, attachments, setAttachments });
 

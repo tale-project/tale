@@ -2083,6 +2083,8 @@
     "viewDetails": "View execution details",
     "showOutput": "Show output",
     "hideOutput": "Hide output",
+    "stopExecution": "Stop",
+    "stopTooltip": "Stop workflow execution",
     "statusPending": "Pending",
     "statusApproved": "Approved",
     "statusRejected": "Rejected"

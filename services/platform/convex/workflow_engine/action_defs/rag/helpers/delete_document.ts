@@ -10,7 +10,7 @@ import {
 
 export interface DeleteDocumentByIdArgs {
   ragServiceUrl: string;
-  documentId: string;
+  fileId: string;
   timeoutMs?: number;
 }
 
@@ -23,7 +23,7 @@ export interface DeleteDocumentByIdArgs {
  */
 export async function deleteDocumentById({
   ragServiceUrl,
-  documentId,
+  fileId,
   timeoutMs = 60000,
 }: DeleteDocumentByIdArgs): Promise<RagDeleteResult> {
   const startTime = Date.now();
@@ -32,7 +32,7 @@ export async function deleteDocumentById({
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const url = `${ragServiceUrl}/api/v1/documents/${encodeURIComponent(documentId)}`;
+    const url = `${ragServiceUrl}/api/v1/documents/${encodeURIComponent(fileId)}`;
     const response = await fetch(url, {
       method: 'DELETE',
       signal: controller.signal,

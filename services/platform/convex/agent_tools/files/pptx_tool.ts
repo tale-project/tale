@@ -136,8 +136,8 @@ interface ListTemplatesResult {
 interface GenerateResult {
   operation: 'generate';
   success: boolean;
-  fileId: string;
-  url: string;
+  fileStorageId: string;
+  downloadUrl: string;
   fileName: string;
   contentType: string;
   size: number;
@@ -188,7 +188,7 @@ SLIDE CONTENT EXAMPLES:
 - Content slide: { "title": "Agenda", "bulletPoints": ["Point 1", "Point 2"] }
 - With table: { "title": "Data", "tables": [{"headers": ["A", "B"], "rows": [["1", "2"]]}] }
 
-CRITICAL: When presenting download links, copy the exact 'url' from the result. Never fabricate URLs.`,
+CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the result. Never fabricate URLs.`,
     args: pptxArgs,
     handler: async (ctx: ToolCtx, args): Promise<PptxResult> => {
       const { organizationId } = ctx;
@@ -288,8 +288,8 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
         return {
           operation: 'generate',
           success: false,
-          fileId: '',
-          url: '',
+          fileStorageId: '',
+          downloadUrl: '',
           fileName: args.fileName || '',
           contentType: '',
           size: 0,
@@ -326,7 +326,7 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
 
         debugLog('tool:pptx generate success', {
           fileName: result.fileName,
-          fileId: result.fileId,
+          fileStorageId: result.fileStorageId,
           size: result.size,
         });
 

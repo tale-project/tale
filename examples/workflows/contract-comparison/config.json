@@ -1,0 +1,246 @@
+{
+  "workflowConfig": {
+    "name": "Contract Comparison",
+    "description": "Compare sequential versions of a contract using deterministic paragraph-level text diffing to identify all additions, deletions, and modifications across the negotiation chain, producing a structured DOCX report with clause amendment frequency analysis",
+    "version": "3.0.0",
+    "workflowType": "predefined",
+    "config": {
+      "timeout": 14400000,
+      "retryPolicy": { "maxRetries": 2, "backoffMs": 5000 },
+      "variables": {}
+    }
+  },
+  "stepsConfig": [
+    {
+      "stepSlug": "start",
+      "name": "Start",
+      "stepType": "start",
+      "order": 1,
+      "config": {
+        "inputSchema": {
+          "properties": {
+            "files": { "type": "array", "description": "File objects with fileId and fileName, ordered chronologically (oldest first). Minimum 2 required." },
+            "language": { "type": "string", "description": "Output language for the report (e.g., 'de', 'en', 'fr'). If omitted, auto-detected from documents." }
+          },
+          "required": ["files"]
+        }
+      },
+      "nextSteps": { "success": "init_variables" }
+    },
+    {
+      "stepSlug": "init_variables",
+      "name": "Initialize Variables",
+      "stepType": "action",
+      "order": 2,
+      "config": {
+        "type": "set_variables",
+        "parameters": {
+          "variables": [
+            {
+              "name": "filesToCompare",
+              "value": "{{files | slice(1)}}"
+            },
+            {
+              "name": "fileNames",
+              "value": "{{files | map('fileName')}}"
+            },
+            {
+              "name": "comparisonResults",
+              "value": []
+            },
+            {
+              "name": "allClauses",
+              "value": []
+            },
+            {
+              "name": "language",
+              "value": "{{language || ''}}"
+            }
+          ]
+        }
+      },
+      "nextSteps": { "success": "loop_comparison_files" }
+    },
+    {
+      "stepSlug": "loop_comparison_files",
+      "name": "Loop: Compare Adjacent Versions",
+      "stepType": "loop",
+      "order": 3,
+      "config": {
+        "items": "{{filesToCompare}}",
+        "itemVariable": "item"
+      },
+      "nextSteps": {
+        "loop": "index_base_doc",
+        "done": "generate_overview"
+      }
+    },
+    {
+      "stepSlug": "index_base_doc",
+      "name": "Index Base Version in RAG",
+      "stepType": "action",
+      "order": 4,
+      "config": {
+        "type": "rag",
+        "parameters": {
+          "operation": "upload_document",
+          "fileId": "{{files[loop.index].fileId}}",
+          "fileName": "{{files[loop.index].fileName}}",
+          "sync": true
+        }
+      },
+      "nextSteps": { "success": "index_comparison_doc" }
+    },
+    {
+      "stepSlug": "index_comparison_doc",
+      "name": "Index Comparison Version in RAG",
+      "stepType": "action",
+      "order": 5,
+      "config": {
+        "type": "rag",
+        "parameters": {
+          "operation": "upload_document",
+          "fileId": "{{loop.item.fileId}}",
+          "fileName": "{{loop.item.fileName}}",
+          "sync": true
+        }
+      },
+      "nextSteps": { "success": "compare_documents" }
+    },
+    {
+      "stepSlug": "compare_documents",
+      "name": "Compare Documents (Deterministic Diff)",
+      "stepType": "action",
+      "order": 6,
+      "config": {
+        "type": "document",
+        "parameters": {
+          "operation": "compare",
+          "baseFileId": "{{files[loop.index].fileId}}",
+          "comparisonFileId": "{{loop.item.fileId}}",
+          "maxChanges": 500
+        }
+      },
+      "nextSteps": { "success": "analyze_differences" }
+    },
+    {
+      "stepSlug": "analyze_differences",
+      "name": "Analyze Differences with Legal Expertise",
+      "stepType": "llm",
+      "order": 7,
+      "config": {
+        "name": "Contract Difference Analyzer",
+        "systemPrompt": "You are an expert legal document analyst specializing in contract comparison. You receive structured diff output showing paragraph-level text differences between adjacent versions in a document sequence. Produce a comprehensive legal analysis with structured tables using precise legal terminology.\n\nCORE PRINCIPLE: Do not assume that textual change equals legal change. Classify the type of change before interpreting legal impact. Every detected difference must be classified into one of three categories:\n\n1. Editorial — Wording changes without material legal effect: synonym replacements, grammatical adjustments, style edits, clarifying phrases that do not alter obligations. Example: changing 'shall indemnify for losses' to 'shall hold harmless against damages' — same legal effect, different words. Example: adding a parenthetical '(including its subsidiaries)' where the definition section already covers subsidiaries.\n\n2. Structural — Reorganization without substantive modification: clause renumbering, section relocation, splitting or merging clauses, cross-reference updates, removing redundant sub-clauses merged elsewhere. Example: splitting Section 7 (Liability) into Sections 7, 8, and 9 with the same content redistributed. Example: deleting a 'for the avoidance of doubt' repetition during clause consolidation.\n\n3. Substantive — Material modifications to legal rights, obligations, or risk allocation: new obligations, removed protections, changed liability caps or thresholds, modified limitation periods, introduction of new mechanisms (earn-out, non-compete, locked-box). Example: changing a liability cap from a fixed amount to a percentage of the purchase price. If a structural change also alters legal rights or obligations, classify it as Substantive.\n\nUse ### for clause type headings and #### for sub-sections. These are the only heading levels you may use. Some change items include an `inline_diff` field showing word-level changes with `[-deleted-]` and `{+added+}` markers, and a `clause_ref` field with the extracted section reference. Use these to inform your classification and description.\n\nLANGUAGE: If a `language` parameter is provided, produce all output in that language. If no language parameter is provided, detect the language from the input documents and use it consistently. This applies to table headers, classification labels in tables, descriptions, and all analysis text. The only exception is the `clauses` JSON array, where `classification` values must always be in English (Editorial, Structural, Substantive) for programmatic analysis.\n\nOutput valid JSON only.",
+        "userPrompt": "Analyze the changes from \"{{files[loop.index].fileName}}\" to \"{{loop.item.fileName}}\" (transition {{loop.index + 1}} of {{filesToCompare | length}} in the version sequence).\n\nOutput language: {{language || 'auto-detect from documents'}}\n\n## Diff Statistics\n- Modified paragraphs: {{steps.compare_documents.output.data.stats.modified}}\n- Added paragraphs: {{steps.compare_documents.output.data.stats.added}}\n- Deleted paragraphs: {{steps.compare_documents.output.data.stats.deleted}}\n- Unchanged paragraphs: {{steps.compare_documents.output.data.stats.unchanged}}\n- High divergence: {{steps.compare_documents.output.data.stats.highDivergence}}\n- Truncated: {{steps.compare_documents.output.data.truncated}}\n\nNote: If high divergence is true, the documents differ significantly (>70% changed). This often occurs when comparing a draft against a substantially expanded version. Still analyze all available changes thoroughly. If truncated is true, only the first 500 change items are shown.\n\n## Change Blocks\n{{steps.compare_documents.output.data.changeBlocks|string}}\n\n## Output Requirements\nReturn a JSON object with exactly two fields:\n\n1. \"analysis\": A markdown string containing your legal analysis. For each change block, produce:\n   - **Clause Type** identification (e.g., Indemnification, Limitation of Liability, Representations)\n   - A table with columns (adapt column names to the output language): Clause Reference | Change Type | Description | Legal Significance\n   - Clause Reference: the specific clause/section reference from the `clause_ref` field. Must never be empty — use descriptive labels (e.g., 'Preamble', 'Recital B', 'Definition: Business Day') for unnumbered sections\n   - Change Type: one of Editorial, Structural, or Substantive (translated to the output language in the table)\n     - Editorial = wording refined without material change to legal effect\n     - Structural = provision relocated, renumbered, or reorganized without substantive modification\n     - Substantive = legal rights, obligations, or risk allocation materially modified\n   - Description: 1-2 sentences. When an `inline_diff` field is available, reference the specific words that changed rather than describing the change generically\n   - Legal Significance: for Editorial/Structural changes, briefly state no material legal change; for Substantive changes, describe the actual legal impact\n   - Group changes under clause type headings\n\n2. \"clauses\": An array of objects, each with:\n   - \"clauseType\": string (the clause type you identified)\n   - \"classification\": one of \"Editorial\", \"Structural\", \"Substantive\" (always in English regardless of output language)\n   - \"clauseRef\": the clause/section reference if identified, or null\n   - \"versionFrom\": \"{{files[loop.index].fileName}}\"\n   - \"versionTo\": \"{{loop.item.fileName}}\"\n\nThis structured data will be used for amendment frequency analysis across all version transitions.",
+        "outputFormat": "json",
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "analysis": {
+              "type": "string",
+              "description": "Markdown legal analysis with clause-by-clause tables"
+            },
+            "clauses": {
+              "type": "array",
+              "description": "Structured clause classifications for frequency analysis",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "clauseType": {
+                    "type": "string",
+                    "description": "The identified clause type (e.g., Indemnification, Limitation of Liability)"
+                  },
+                  "classification": {
+                    "type": "string",
+                    "enum": ["Editorial", "Structural", "Substantive"],
+                    "description": "Change significance level (always English)"
+                  },
+                  "clauseRef": {
+                    "type": ["string", "null"],
+                    "description": "The clause/section reference if identified (e.g., 'Section 7.1.2', 'Ziff. 3.2')"
+                  },
+                  "versionFrom": {
+                    "type": "string",
+                    "description": "Source version file name"
+                  },
+                  "versionTo": {
+                    "type": "string",
+                    "description": "Target version file name"
+                  }
+                },
+                "required": ["clauseType", "classification", "versionFrom", "versionTo"]
+              }
+            }
+          },
+          "required": ["analysis", "clauses"]
+        }
+      },
+      "nextSteps": { "success": "accumulate_results" }
+    },
+    {
+      "stepSlug": "accumulate_results",
+      "name": "Accumulate Comparison Results",
+      "stepType": "action",
+      "order": 8,
+      "config": {
+        "type": "set_variables",
+        "parameters": {
+          "variables": [
+            {
+              "name": "comparisonResults",
+              "value": "{{comparisonResults|concat(['## ' + files[loop.index].fileName + ' → ' + loop.item.fileName + '\\n\\n---\\n\\n' + steps.analyze_differences.output.data.analysis])}}"
+            },
+            {
+              "name": "allClauses",
+              "value": "{{allClauses|concat(steps.analyze_differences.output.data.clauses)}}"
+            }
+          ]
+        }
+      },
+      "nextSteps": { "success": "loop_comparison_files" }
+    },
+    {
+      "stepSlug": "generate_overview",
+      "name": "Generate Report Overview with Frequency Analysis",
+      "stepType": "llm",
+      "order": 9,
+      "config": {
+        "name": "Contract Comparison Overview",
+        "systemPrompt": "You are an expert legal analyst. Generate a professional executive introduction for a contract version comparison report that includes amendment frequency analysis across the negotiation chain. Be concise and data-driven. Write in the language specified by the language parameter. If no language parameter is provided or it is empty, write in the same language as the source documents being compared.",
+        "userPrompt": "Output language: {{language || 'auto-detect from documents'}}\n\nWrite a 3-4 paragraph executive introduction for a contract comparison report with the following metadata:\n\n- Document versions (chronological): {{fileNames|join(' → ')}}\n- Number of version transitions analyzed: {{filesToCompare|length}}\n- Total clause classifications across all transitions: {{allClauses|length}}\n\n## Clause Amendment Data\nThe `classification` field indicates change significance: Editorial (no legal impact), Structural (reorganization only), or Substantive (material legal change).\n{{allClauses|string}}\n\nThe introduction should:\n1. Identify all document versions in the negotiation sequence by name, in chronological order\n2. Describe the scope and methodology (deterministic paragraph-level text comparison across sequential version pairs)\n3. Analyze the clause amendment data to identify:\n   - The distribution of change significance (Editorial vs Structural vs Substantive) — lead with substantive changes as the primary signal\n   - Which clause types received the most substantive amendments across version transitions\n   - Note what proportion of total changes were editorial or structural (the noise filter — helps calibrate expectations)\n   - Evolution patterns: whether substantive changes tapered off in later versions (convergence) or escalated (unresolved disputes)\n   - Use the versionFrom/versionTo fields to identify which transitions affected each clause\n4. Direct the reader to the detailed version-by-version analysis that follows\n\nKeep it under 300 words. Be specific about which clauses were most frequently amended substantively and in which transitions.",
+        "outputFormat": "text"
+      },
+      "nextSteps": { "success": "generate_report" }
+    },
+    {
+      "stepSlug": "generate_report",
+      "name": "Generate DOCX Report",
+      "stepType": "action",
+      "order": 10,
+      "config": {
+        "type": "document",
+        "parameters": {
+          "operation": "generate_docx",
+          "fileName": "contract-comparison-report.docx",
+          "sourceType": "markdown",
+          "content": "# Contract Comparison Report\n\n**Document Versions:** {{fileNames|join(' → ')}}\n\n**Total Transitions Analyzed:** {{filesToCompare|length}}\n\n**Methodology:** Deterministic paragraph-level text comparison across sequential version pairs with AI-powered legal analysis\n\n---\n\n{{steps.generate_overview.output.data}}\n\n---\n\n# Version-by-Version Evolution Analysis\n\n{{comparisonResults|join('\\n\\n---\\n\\n')}}"
+        }
+      },
+      "nextSteps": { "success": "output" }
+    },
+    {
+      "stepSlug": "output",
+      "name": "Output Results",
+      "stepType": "output",
+      "order": 11,
+      "config": {
+        "outputMapping": {
+          "fileStorageId": "{{steps.generate_report.output.data.fileStorageId}}",
+          "downloadUrl": "{{steps.generate_report.output.data.downloadUrl}}",
+          "fileName": "{{steps.generate_report.output.data.fileName}}"
+        }
+      },
+      "nextSteps": {}
+    }
+  ]
+}

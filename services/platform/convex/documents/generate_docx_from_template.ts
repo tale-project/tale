@@ -12,12 +12,14 @@ import type { ActionCtx } from '../_generated/server';
 import type { DocxContent } from './generate_docx';
 
 import { fetchJson } from '../../lib/utils/type-cast-helpers';
+import { internal } from '../_generated/api';
 import { createDebugLog } from '../lib/debug_log';
 import { buildDownloadUrl, getCrawlerUrl } from './generate_document_helpers';
 
 const debugLog = createDebugLog('DEBUG_DOCUMENTS', '[Documents]');
 
 export interface GenerateDocxFromTemplateArgs {
+  organizationId: string;
   fileName: string;
   content: DocxContent;
   templateStorageId: Id<'_storage'>;
@@ -25,8 +27,8 @@ export interface GenerateDocxFromTemplateArgs {
 
 export interface GenerateDocxFromTemplateResult {
   success: boolean;
-  fileId: Id<'_storage'>;
-  url: string;
+  fileStorageId: Id<'_storage'>;
+  downloadUrl: string;
   fileName: string;
   contentType: string;
   size: number;
@@ -123,6 +125,17 @@ export async function generateDocxFromTemplate(
     ? args.fileName
     : `${args.fileName}.docx`;
 
+  await ctx.runMutation(
+    internal.file_metadata.internal_mutations.saveFileMetadata,
+    {
+      organizationId: args.organizationId,
+      storageId,
+      fileName: finalFileName,
+      contentType,
+      size: docxBytes.length,
+    },
+  );
+
   // Build download URL using our custom HTTP endpoint
   const downloadUrl = buildDownloadUrl(storageId, finalFileName);
 
@@ -134,8 +147,8 @@ export async function generateDocxFromTemplate(
 
   return {
     success: true,
-    fileId: storageId,
-    url: downloadUrl,
+    fileStorageId: storageId,
+    downloadUrl,
     fileName: finalFileName,
     contentType,
     size: docxBytes.length,
