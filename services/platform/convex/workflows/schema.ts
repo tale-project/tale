@@ -133,6 +133,13 @@ export const wfExecutionsTable = defineTable({
   workflowVersion: v.optional(v.string()),
   status: executionStatusValidator,
   currentStepSlug: v.string(),
+  currentStepName: v.optional(v.string()),
+  loopProgress: v.optional(
+    v.object({
+      current: v.number(),
+      total: v.number(),
+    }),
+  ),
   waitingFor: v.optional(v.string()),
   startedAt: v.number(),
   updatedAt: v.number(),

@@ -4,7 +4,13 @@ import type { UpdateExecutionStatusArgs, WorkflowExecution } from './types';
 type ExecutionUpdateData = Partial<
   Pick<
     WorkflowExecution,
-    'status' | 'currentStepSlug' | 'waitingFor' | 'metadata' | 'completedAt'
+    | 'status'
+    | 'currentStepSlug'
+    | 'currentStepName'
+    | 'loopProgress'
+    | 'waitingFor'
+    | 'metadata'
+    | 'completedAt'
   >
 > & {
   updatedAt: number;
@@ -21,6 +27,14 @@ export async function updateExecutionStatus(
 
   if (args.currentStepSlug !== undefined) {
     updates.currentStepSlug = args.currentStepSlug;
+  }
+
+  if (args.currentStepName !== undefined) {
+    updates.currentStepName = args.currentStepName;
+  }
+
+  if (args.loopProgress !== undefined) {
+    updates.loopProgress = args.loopProgress ?? undefined;
   }
 
   if (args.waitingFor !== undefined) {
