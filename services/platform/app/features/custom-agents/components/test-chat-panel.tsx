@@ -8,7 +8,6 @@ import { ErrorDisplayCompact } from '@/app/components/error-boundaries/displays/
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { Heading } from '@/app/components/ui/typography/heading';
-import { ImagePreviewDialog } from '@/app/features/chat/components/message-bubble';
 import { ChatLayoutProvider } from '@/app/features/chat/context/chat-layout-context';
 import { useT } from '@/lib/i18n/client';
 
@@ -43,8 +42,6 @@ function TestChatPanelContent({
     uploadingFiles,
     uploadFiles,
     removeAttachment,
-    previewImage,
-    setPreviewImage,
     containerRef,
     messagesEndRef,
     fileInputRef,
@@ -96,9 +93,6 @@ function TestChatPanelContent({
             isLoading={isLoading}
             activeMessage={activeMessage}
             organizationId={organizationId}
-            onImagePreview={(src, alt) =>
-              setPreviewImage({ isOpen: true, src, alt })
-            }
           />
           <div ref={messagesEndRef} />
         </div>
@@ -121,17 +115,6 @@ function TestChatPanelContent({
         fileUploadEnabled={fileUploadEnabled}
         fileAccept={fileAccept}
       />
-
-      {previewImage && (
-        <ImagePreviewDialog
-          isOpen={previewImage.isOpen}
-          onOpenChange={(open) => {
-            if (!open) setPreviewImage(null);
-          }}
-          src={previewImage.src}
-          alt={previewImage.alt}
-        />
-      )}
     </div>
   );
 }

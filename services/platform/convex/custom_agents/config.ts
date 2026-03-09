@@ -64,6 +64,7 @@ export function toSerializableConfig(
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- toolNames are validated via validateToolNames() on insert; always valid ToolName values
     convexToolNames: agent.toolNames as ToolName[],
     integrationBindings: agent.integrationBindings,
+    workflowBindings: agent.workflowBindings?.map(String),
     model: resolveModel(agent),
     maxSteps: agent.maxSteps,
     enableVectorSearch: false,

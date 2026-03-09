@@ -345,6 +345,30 @@ export function hasFileTools(toolNames: readonly string[]): boolean {
   return toolNames.some((t) => DOCUMENT_TOOL_NAMES.has(t));
 }
 
+/**
+ * Returns the `<input accept="...">` string for all supported file types.
+ * Used when the agent has bound workflows that may accept file inputs.
+ */
+export function getAllAcceptForTools(): string {
+  const parts: string[] = [];
+  for (const mapping of Object.values(TOOL_FILE_MAP)) {
+    parts.push(...mapping.accept);
+  }
+  return parts.join(',');
+}
+
+/**
+ * Returns all allowed MIME types across all supported file tools.
+ * Used when the agent has bound workflows that may accept file inputs.
+ */
+export function getAllAllowedMimeTypes(): string[] {
+  const mimeTypes: string[] = [];
+  for (const mapping of Object.values(TOOL_FILE_MAP)) {
+    mimeTypes.push(...mapping.mimeTypes);
+  }
+  return mimeTypes;
+}
+
 // ---------------------------------------------------------------------------
 // Parse endpoint routing
 // ---------------------------------------------------------------------------

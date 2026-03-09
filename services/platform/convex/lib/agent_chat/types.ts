@@ -21,6 +21,8 @@ export interface SerializableAgentConfig {
   convexToolNames?: ToolName[];
   /** Integration names bound as dedicated tools (resolved at runtime) */
   integrationBindings?: string[];
+  /** Workflow root version IDs bound as dedicated tools (resolved at runtime) */
+  workflowBindings?: string[];
   /** Explicit model override */
   model?: string;
   /** Maximum number of steps for tool calls */

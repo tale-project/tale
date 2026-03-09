@@ -66,6 +66,27 @@ export const listVersionsByName = internalQuery({
   },
 });
 
+export const getActiveVersionByRoot = internalQuery({
+  args: {
+    rootVersionId: v.id('wfDefinitions'),
+  },
+  handler: async (ctx, args) => {
+    for await (const wf of ctx.db
+      .query('wfDefinitions')
+      .withIndex('by_root_status', (q) =>
+        q.eq('rootVersionId', args.rootVersionId).eq('status', 'active'),
+      )) {
+      return wf;
+    }
+
+    // Fallback: rootVersionId might be the _id itself (v1 workflow)
+    const direct = await ctx.db.get(args.rootVersionId);
+    if (direct?.status === 'active') return direct;
+
+    return null;
+  },
+});
+
 export const getStartStepConfig = internalQuery({
   args: {
     wfDefinitionId: v.id('wfDefinitions'),

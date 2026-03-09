@@ -22,6 +22,8 @@ import { useThrottledScroll } from '@/app/hooks/use-throttled-scroll';
 import { api } from '@/convex/_generated/api';
 import {
   getAcceptForTools,
+  getAllAcceptForTools,
+  getAllAllowedMimeTypes,
   getAllowedMimeTypesForTools,
   hasFileTools,
 } from '@/lib/shared/file-types';
@@ -69,19 +71,30 @@ export function useTestChat({
 }: UseTestChatOptions) {
   const { agent: currentAgent } = useCustomAgentVersion();
 
+  const hasWorkflowBindings = useMemo(
+    () => (currentAgent.workflowBindings?.length ?? 0) > 0,
+    [currentAgent.workflowBindings],
+  );
+
   const fileUploadEnabled = useMemo(
-    () => hasFileTools(currentAgent.toolNames),
-    [currentAgent.toolNames],
+    () => hasFileTools(currentAgent.toolNames) || hasWorkflowBindings,
+    [currentAgent.toolNames, hasWorkflowBindings],
   );
 
   const fileAccept = useMemo(
-    () => getAcceptForTools(currentAgent.toolNames),
-    [currentAgent.toolNames],
+    () =>
+      hasWorkflowBindings
+        ? getAllAcceptForTools()
+        : getAcceptForTools(currentAgent.toolNames),
+    [currentAgent.toolNames, hasWorkflowBindings],
   );
 
   const allowedMimeTypes = useMemo(
-    () => getAllowedMimeTypesForTools(currentAgent.toolNames),
-    [currentAgent.toolNames],
+    () =>
+      hasWorkflowBindings
+        ? getAllAllowedMimeTypes()
+        : getAllowedMimeTypesForTools(currentAgent.toolNames),
+    [currentAgent.toolNames, hasWorkflowBindings],
   );
 
   const {
@@ -110,11 +123,6 @@ export function useTestChat({
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const isSendingRef = useRef(false);
-  const [previewImage, setPreviewImage] = useState<{
-    isOpen: boolean;
-    src: string;
-    alt: string;
-  } | null>(null);
   const { throttledScrollToBottom, cleanup } = useThrottledScroll({
     delay: 16,
   });
@@ -354,8 +362,6 @@ export function useTestChat({
     uploadingFiles,
     uploadFiles,
     removeAttachment,
-    previewImage,
-    setPreviewImage,
     containerRef,
     messagesEndRef,
     fileInputRef,

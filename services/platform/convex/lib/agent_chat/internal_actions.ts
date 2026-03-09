@@ -21,7 +21,7 @@ import {
   getString,
   narrowStringUnion,
 } from '../../../lib/utils/type-guards';
-import { components } from '../../_generated/api';
+import { components, internal } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
 import {
   createDelegationTool,
@@ -32,6 +32,12 @@ import { createBoundIntegrationTool } from '../../agent_tools/integrations/creat
 import { fetchOperationsSummary } from '../../agent_tools/integrations/fetch_operations_summary';
 import { TOOL_NAMES, type ToolName } from '../../agent_tools/tool_names';
 import { getToolRegistryMap } from '../../agent_tools/tool_registry';
+import {
+  createBoundWorkflowTool,
+  sanitizeWorkflowName,
+} from '../../agent_tools/workflows/create_bound_workflow_tool';
+import { extractInputSchema } from '../../agent_tools/workflows/helpers/extract_input_schema';
+import { toId } from '../../lib/type_cast_helpers';
 import { generateAgentResponse } from '../agent_response';
 import { processAttachments } from '../attachments';
 import {
@@ -56,6 +62,7 @@ const serializableAgentConfigValidator = v.object({
   instructions: v.string(),
   convexToolNames: v.optional(v.array(v.string())),
   integrationBindings: v.optional(v.array(v.string())),
+  workflowBindings: v.optional(v.array(v.string())),
   model: v.optional(v.string()),
   maxSteps: v.optional(v.number()),
   outputFormat: v.optional(v.union(v.literal('text'), v.literal('json'))),
@@ -195,10 +202,54 @@ export const runAgentGeneration = internalAction({
       }
     }
 
+    // Build bound workflow tools eagerly
+    let workflowExtraTools: Record<string, unknown> | undefined;
+    if (agentConfig.workflowBindings?.length) {
+      workflowExtraTools = {};
+      for (const rootId of agentConfig.workflowBindings) {
+        const activeVersion = await ctx.runQuery(
+          internal.wf_definitions.internal_queries.getActiveVersionByRoot,
+          { rootVersionId: toId<'wfDefinitions'>(rootId) },
+        );
+
+        if (!activeVersion) {
+          debugLog('Skipping bound workflow (no active version)', { rootId });
+          continue;
+        }
+
+        if (activeVersion.organizationId !== organizationId) {
+          debugLog('Skipping bound workflow (wrong org)', { rootId });
+          continue;
+        }
+
+        const startStepConfig = await ctx.runQuery(
+          internal.wf_definitions.internal_queries.getStartStepConfig,
+          { wfDefinitionId: activeVersion._id },
+        );
+        const inputSchema = extractInputSchema(startStepConfig);
+
+        const toolKey = `workflow_${sanitizeWorkflowName(activeVersion.name)}_${rootId.slice(0, 6)}`;
+        workflowExtraTools[toolKey] = createBoundWorkflowTool(
+          activeVersion,
+          inputSchema,
+        );
+      }
+
+      if (Object.keys(workflowExtraTools).length > 0) {
+        debugLog('Built bound workflow tools', {
+          names: Object.keys(workflowExtraTools),
+        });
+      }
+    }
+
     // Merge all extra tools
     const allExtraTools: Record<string, unknown> | undefined =
-      integrationExtraTools || delegationExtraTools
-        ? { ...integrationExtraTools, ...delegationExtraTools }
+      integrationExtraTools || delegationExtraTools || workflowExtraTools
+        ? {
+            ...integrationExtraTools,
+            ...delegationExtraTools,
+            ...workflowExtraTools,
+          }
         : undefined;
 
     // Combine instructions with delegation agent descriptions
