@@ -17,7 +17,7 @@ import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import { internal } from '../../../_generated/api';
 import { fetchDocumentContent } from '../../../agent_tools/documents/helpers/fetch_document_content';
 import { getRagConfig } from '../../../lib/helpers/rag_config';
-import { toConvexJsonRecord } from '../../../lib/type_cast_helpers';
+import { toConvexJsonRecord, toId } from '../../../lib/type_cast_helpers';
 import { jsonRecordValidator } from '../../../lib/validators/json';
 
 type DocumentActionParams =
@@ -87,7 +87,7 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
     }),
   ),
 
-  async execute(ctx, params, variables) {
+  async execute(ctx, params, _variables) {
     switch (params.operation) {
       case 'update': {
         const documentId = params.documentId;
@@ -147,7 +147,7 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
           params.fileIds.map(async (fileId) => {
             const metadata = await ctx.runQuery(
               internal.file_metadata.internal_queries.getByStorageId,
-              { storageId: fileId as Id<'_storage'> },
+              { storageId: toId<'_storage'>(fileId) },
             );
             return {
               fileId,
