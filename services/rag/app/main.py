@@ -13,7 +13,7 @@ from tale_telemetry import init_telemetry, shutdown_telemetry
 from . import __version__
 from .config import settings
 from .models import ErrorResponse
-from .routers import documents_router, health_router, jobs_router, search_router
+from .routers import documents_router, health_router, search_router
 from .services.rag_service import rag_service
 from .utils import cleanup_memory
 
@@ -44,26 +44,6 @@ async def lifespan(app: FastAPI):
         logger.info("RAG service initialized")
     except Exception:
         logger.exception("Failed to initialize RAG service")
-
-    # Initialize job store (uses the shared pool from rag_service)
-    try:
-        from .services import job_store_db
-
-        await job_store_db.init_job_store()
-        logger.info("Job store initialized")
-    except Exception:
-        logger.exception("Failed to initialize job store")
-
-    # Job cleanup on startup
-    if settings.job_cleanup_on_startup:
-        try:
-            from .services import job_store_db
-
-            result = await job_store_db.cleanup_stale_jobs()
-            if result["deleted"] > 0:
-                logger.info("Cleaned up {} stale jobs on startup: {}", result["deleted"], result["by_reason"])
-        except Exception:
-            logger.exception("Failed to cleanup stale jobs on startup")
 
     # Start periodic GC cleanup task
     gc_task = asyncio.create_task(periodic_gc_cleanup())
@@ -143,6 +123,4 @@ async def general_exception_handler(_request, exc):
 app.include_router(health_router)
 app.include_router(documents_router)
 app.include_router(search_router)
-app.include_router(jobs_router)
-
 init_telemetry(app)

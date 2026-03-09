@@ -1,33 +1,28 @@
 /**
  * Convex validators for customer operations
- *
- * Note: Some schemas use jsonRecordSchema which contains z.lazy() for recursive types.
- * zodToConvex doesn't support z.lazy(), so complex validators are defined with native Convex v.
  */
 
-import { zodToConvex } from 'convex-helpers/server/zod4';
 import { v } from 'convex/values';
 
-import {
-  customerStatusSchema,
-  customerSourceSchema,
-  customerAddressSchema,
-} from '../../lib/shared/schemas/customers';
-import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
+import { dataSourceValidator } from '../lib/validators/common';
+import { jsonRecordValidator } from '../lib/validators/json';
 
-export {
-  customerStatusSchema,
-  customerSourceSchema,
-  customerAddressSchema,
-  customerSchema,
-} from '../../lib/shared/schemas/customers';
+export const customerStatusValidator = v.union(
+  v.literal('active'),
+  v.literal('churned'),
+  v.literal('potential'),
+);
 
-// Simple schemas without z.lazy()
-export const customerStatusValidator = zodToConvex(customerStatusSchema);
-export const customerSourceValidator = zodToConvex(customerSourceSchema);
-export const customerAddressValidator = zodToConvex(customerAddressSchema);
+export const customerSourceValidator = dataSourceValidator;
 
-// Complex schema with jsonRecordSchema (contains z.lazy) - use native Convex v
+export const customerAddressValidator = v.object({
+  street: v.optional(v.string()),
+  city: v.optional(v.string()),
+  state: v.optional(v.string()),
+  country: v.optional(v.string()),
+  postalCode: v.optional(v.string()),
+});
+
 export const customerValidator = v.object({
   _id: v.string(),
   _creationTime: v.number(),

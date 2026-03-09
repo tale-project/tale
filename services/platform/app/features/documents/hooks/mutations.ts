@@ -36,7 +36,8 @@ interface UploadResult {
 }
 
 interface UploadFilesOptions {
-  teamTags?: string[];
+  teamId?: string;
+  folderId?: string;
 }
 
 interface CreateDocumentResult {
@@ -153,7 +154,10 @@ export function useDocumentUpload(options: UploadOptions) {
             sourceProvider: 'upload',
             sourceMode: 'manual',
           },
-          teamTags: uploadOptions?.teamTags,
+          teamId: uploadOptions?.teamId,
+          folderId: uploadOptions?.folderId
+            ? toId<'folders'>(uploadOptions.folderId)
+            : undefined,
         });
 
         return result;
@@ -259,6 +263,14 @@ export function useDocumentUpload(options: UploadOptions) {
     isUploading,
     cancelUpload,
   };
+}
+
+export function useCreateFolder() {
+  return useConvexMutation(api.folders.mutations.createFolder);
+}
+
+export function useDeleteFolder() {
+  return useConvexMutation(api.folders.mutations.deleteFolder);
 }
 
 export function useDeleteDocument() {

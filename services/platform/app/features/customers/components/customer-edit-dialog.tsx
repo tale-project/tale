@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMemo, useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
@@ -54,13 +54,7 @@ export function CustomerEditDialog({
   const formSchema = useMemo(
     () =>
       z.object({
-        name: z
-          .string()
-          .trim()
-          .min(
-            1,
-            tCommon('validation.required', { field: tCustomers('name') }),
-          ),
+        name: z.string().trim(),
         email: z.string().email(tCommon('validation.email')),
         locale: z
           .string()
@@ -75,13 +69,12 @@ export function CustomerEditDialog({
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting, isValid },
+    formState: { errors, isSubmitting, isDirty },
     reset,
     setValue,
     watch,
   } = useForm<CustomerFormData>({
     resolver: zodResolver(formSchema),
-    mode: 'onChange',
     defaultValues: {
       name: customer.name || '',
       email: customer.email || '',
@@ -91,7 +84,6 @@ export function CustomerEditDialog({
 
   const locale = watch('locale');
 
-  // Reset form when customer changes
   useEffect(() => {
     reset({
       name: customer.name || '',
@@ -102,9 +94,10 @@ export function CustomerEditDialog({
 
   const onSubmit = async (data: CustomerFormData) => {
     try {
+      const trimmedName = data.name.trim();
       await updateCustomer.mutateAsync({
         customerId: customer._id,
-        name: data.name.trim(),
+        name: trimmedName || undefined,
         email: data.email.trim(),
         locale: data.locale,
       });
@@ -137,7 +130,7 @@ export function CustomerEditDialog({
       onOpenChange={handleOpenChange}
       title={tCustomers('editCustomer')}
       isSubmitting={isSubmitting}
-      isValid={isValid}
+      isDirty={isDirty}
       onSubmit={handleSubmit(onSubmit)}
     >
       <Input
@@ -147,7 +140,6 @@ export function CustomerEditDialog({
         {...register('name')}
         disabled={isSubmitting}
         errorMessage={errors.name?.message}
-        required
       />
 
       <Input

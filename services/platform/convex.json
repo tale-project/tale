@@ -1,4 +1,7 @@
 {
+  "bundler": {
+    "includeSourcesContent": false
+  },
   "node": {
     "externalPackages": [
       "mssql",

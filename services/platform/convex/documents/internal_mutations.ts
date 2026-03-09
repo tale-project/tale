@@ -19,7 +19,8 @@ export const updateDocument = internalMutation({
     sourceProvider: v.optional(sourceProviderValidator),
     externalItemId: v.optional(v.string()),
     contentHash: v.optional(v.string()),
-    teamTags: v.optional(v.array(v.string())),
+    teamId: v.optional(v.string()),
+    folderId: v.optional(v.id('folders')),
   },
   handler: async (ctx, args) => {
     await updateDocumentInternalHelper(ctx, args);
@@ -62,8 +63,9 @@ export const createDocument = internalMutation({
     externalItemId: v.optional(v.string()),
     contentHash: v.optional(v.string()),
     metadata: v.optional(jsonRecordValidator),
-    teamTags: v.optional(v.array(v.string())),
+    teamId: v.optional(v.string()),
     createdBy: v.optional(v.string()),
+    folderId: v.optional(v.id('folders')),
   },
   returns: v.id('documents'),
   handler: async (ctx, args) => {

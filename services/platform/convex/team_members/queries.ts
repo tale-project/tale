@@ -3,6 +3,7 @@ import { v } from 'convex/values';
 import { components } from '../_generated/api';
 import { query } from '../_generated/server';
 import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
+import { UnauthorizedError } from '../lib/rls/errors';
 
 export const listByTeam = query({
   args: {
@@ -35,8 +36,11 @@ export const listByTeam = query({
 
     try {
       await getOrganizationMember(ctx, team.organizationId, authUser);
-    } catch {
-      return [];
+    } catch (error) {
+      if (error instanceof UnauthorizedError) {
+        return [];
+      }
+      throw error;
     }
 
     const result = await ctx.runQuery(components.betterAuth.adapter.findMany, {
@@ -66,19 +70,29 @@ export const listByTeam = query({
     const userMap = new Map<string, { name?: string; email?: string }>();
     await Promise.all(
       [...userIds].map(async (userId) => {
-        const userResult = await ctx.runQuery(
-          components.betterAuth.adapter.findOne,
-          {
-            model: 'user',
-            where: [{ field: '_id', value: userId, operator: 'eq' }],
-          },
-        );
-        if (userResult) {
-          const name =
-            typeof userResult.name === 'string' ? userResult.name : undefined;
-          const email =
-            typeof userResult.email === 'string' ? userResult.email : undefined;
-          userMap.set(userId, { name, email });
+        try {
+          const userResult = await ctx.runQuery(
+            components.betterAuth.adapter.findOne,
+            {
+              model: 'user',
+              where: [{ field: '_id', value: userId, operator: 'eq' }],
+            },
+          );
+          if (userResult) {
+            const name =
+              typeof userResult.name === 'string' ? userResult.name : undefined;
+            const email =
+              typeof userResult.email === 'string'
+                ? userResult.email
+                : undefined;
+            userMap.set(userId, { name, email });
+          }
+        } catch (error) {
+          console.warn(
+            '[TeamMembers] Failed to fetch user details',
+            userId,
+            error,
+          );
         }
       }),
     );

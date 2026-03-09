@@ -10,6 +10,8 @@ import type { ToolDefinition } from './types';
 
 import { customerReadTool } from './customers/customer_read_tool';
 import { databaseSchemaTool } from './database/database_schema_tool';
+import { documentListTool } from './documents/document_list_tool';
+import { documentRetrieveTool } from './documents/document_retrieve_tool';
 import { docxTool } from './files/docx_tool';
 import { excelTool } from './files/excel_tool';
 import { imageTool } from './files/image_tool';
@@ -25,6 +27,7 @@ import { productReadTool } from './products/product_read_tool';
 import { ragSearchTool } from './rag/rag_search_tool';
 import { webTool } from './web/web_tool';
 import { createWorkflowTool } from './workflows/create_workflow_tool';
+import { runWorkflowTool } from './workflows/run_workflow_tool';
 import { saveWorkflowDefinitionTool } from './workflows/save_workflow_definition_tool';
 import { updateWorkflowStepTool } from './workflows/update_workflow_step_tool';
 import { workflowExamplesTool } from './workflows/workflow_examples_tool';
@@ -46,6 +49,7 @@ export const TOOL_REGISTRY = [
   updateWorkflowStepTool,
   saveWorkflowDefinitionTool,
   createWorkflowTool,
+  runWorkflowTool,
   excelTool,
   pdfTool,
   imageTool,
@@ -58,6 +62,8 @@ export const TOOL_REGISTRY = [
   verifyApprovalTool,
   databaseSchemaTool,
   requestHumanInputTool,
+  documentListTool,
+  documentRetrieveTool,
 ] as const;
 
 /**

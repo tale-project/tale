@@ -7,17 +7,22 @@ import type { CreateDocumentArgs, CreateDocumentResult } from './types';
 
 import { toConvexJsonRecord } from '../lib/type_cast_helpers';
 import { extractExtension } from './extract_extension';
-import { teamTagsToUnifiedFields } from './team_fields';
+import { teamIdToFields } from './team_fields';
 
 export async function createDocument(
   ctx: MutationCtx,
   args: CreateDocumentArgs,
 ): Promise<CreateDocumentResult> {
-  // Auto-extract extension from title if not provided
+  if (args.folderId) {
+    const folder = await ctx.db.get(args.folderId);
+    if (!folder || folder.organizationId !== args.organizationId) {
+      throw new Error('Folder not found');
+    }
+  }
+
   const extension = args.extension ?? extractExtension(args.title);
 
-  // Compute unified team fields from teamTags
-  const unifiedTeamFields = teamTagsToUnifiedFields(args.teamTags);
+  const teamFields = teamIdToFields(args.teamId);
 
   const documentId = await ctx.db.insert('documents', {
     organizationId: args.organizationId,
@@ -31,9 +36,9 @@ export async function createDocument(
     sourceProvider: args.sourceProvider,
     externalItemId: args.externalItemId,
     contentHash: args.contentHash,
-    teamTags: args.teamTags,
-    ...unifiedTeamFields,
+    ...teamFields,
     createdBy: args.createdBy,
+    folderId: args.folderId,
   });
 
   return {

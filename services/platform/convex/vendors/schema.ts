@@ -1,8 +1,8 @@
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
-import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 import { dataSourceValidator } from '../lib/validators/common';
+import { jsonRecordValidator } from '../lib/validators/json';
 
 export const vendorsTable = defineTable({
   organizationId: v.string(),

@@ -1,134 +1,101 @@
 'use client';
 
-import { useNavigate, useLocation, useSearch } from '@tanstack/react-router';
 import { ChevronLeft } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { toast } from '@/app/hooks/use-toast';
+import { api } from '@/convex/_generated/api';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 
 interface BreadcrumbNavigationProps {
-  currentFolderPath: string;
+  folderId: string;
+  onNavigate: (folderId: string | undefined) => void;
 }
 
 export function BreadcrumbNavigation({
-  currentFolderPath,
+  folderId,
+  onNavigate,
 }: BreadcrumbNavigationProps) {
   const { t } = useT('documents');
   const { t: tCommon } = useT('common');
-  const navigate = useNavigate();
-  const location = useLocation();
-  // TanStack Router useSearch with strict: false returns unknown — cast required for search params
-  const search = useSearch({ strict: false });
+  const onNavigateRef = useRef(onNavigate);
+  onNavigateRef.current = onNavigate;
 
-  const rawSegments = currentFolderPath
-    ? currentFolderPath.split('/').filter(Boolean)
-    : [];
+  const { data: breadcrumb, isLoading } = useConvexQuery(
+    api.folders.queries.getFolderBreadcrumb,
+    { folderId: toId<'folders'>(folderId) },
+  );
 
-  const pathSegments: Array<{ segment: string; originalPath: string }> = [];
-  for (let i = 0; i < rawSegments.length; i++) {
-    const segment = rawSegments[i];
-    const nextSegment = i + 1 < rawSegments.length ? rawSegments[i + 1] : null;
-
-    if (nextSegment === 'onedrive') {
-      const combined = `${segment}/onedrive`;
-      const originalPath = rawSegments.slice(0, i + 2).join('/');
-      pathSegments.push({ segment: combined, originalPath });
-      i++; // Skip the next segment since we combined it
-    } else {
-      const originalPath = rawSegments.slice(0, i + 1).join('/');
-      pathSegments.push({ segment, originalPath });
+  useEffect(() => {
+    if (!isLoading && breadcrumb !== undefined && breadcrumb.length === 0) {
+      toast({ title: t('folderNotFound') });
+      onNavigateRef.current(undefined);
     }
-  }
+  }, [breadcrumb, isLoading, t]);
 
-  const navigateToPath = (targetPath: string) => {
-    const newSearch = { ...search };
-    if (targetPath) {
-      newSearch.folderPath = targetPath;
-    } else {
-      delete newSearch.folderPath;
-    }
-    void navigate({
-      to: location.pathname,
-      search: newSearch,
-    });
-  };
-
-  // Get appropriate display name for segment
-  const getSegmentInfo = (segment: string) => {
-    if (segment === 'onedrive') {
-      return {
-        displayName: t('breadcrumb.oneDrive'),
-      };
-    }
-
-    if (segment === 'uploads') {
-      return {
-        displayName: t('breadcrumb.uploads'),
-      };
-    }
-
-    // Default for regular folders
-    return {
-      displayName: segment,
-    };
-  };
+  const segments = breadcrumb ?? [];
 
   return (
-    <nav className="bg-background sticky top-14 z-10 mb-4 flex items-center gap-1">
-      {/* Back Arrow */}
-      <button
-        onClick={() => navigateToPath('')}
-        className="text-muted-foreground hover:text-foreground/90 size-4 shrink-0 cursor-pointer transition-colors"
-        aria-label={tCommon('aria.backTo', { page: t('breadcrumb.documents') })}
-      >
-        <ChevronLeft className="size-4" />
-      </button>
-
-      {/* Documents Root */}
-      <button
-        onClick={() => navigateToPath('')}
-        className="text-muted-foreground hover:text-foreground/90 cursor-pointer text-xs font-medium whitespace-nowrap transition-colors"
-      >
-        {t('breadcrumb.documents')}
-      </button>
-
-      {/* Path segments */}
-      {pathSegments.map((segmentObj, index) => {
-        const isLast = index === pathSegments.length - 1;
-        const { displayName } = getSegmentInfo(segmentObj.segment);
-
-        return (
-          <div
-            key={segmentObj.originalPath}
-            className="flex items-center gap-1"
+    <nav
+      className="bg-background sticky top-14 z-10 mb-4"
+      aria-label={t('breadcrumb.navigation')}
+    >
+      <ol className="flex items-center gap-1">
+        <li className="flex items-center gap-1">
+          <button
+            onClick={() => onNavigate(undefined)}
+            className="text-muted-foreground hover:text-foreground/90 focus-visible:ring-ring size-4 shrink-0 cursor-pointer rounded-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
+            aria-label={tCommon('aria.backTo', {
+              page: t('breadcrumb.documents'),
+            })}
           >
-            {/* Separator */}
-            <div
-              className="text-muted-foreground mx-1 text-[14px] leading-4 font-medium"
-              style={{ fontFamily: 'DM Sans, sans-serif' }}
-            >
-              /
-            </div>
+            <ChevronLeft className="size-4" />
+          </button>
 
-            {/* Segment */}
-            {isLast ? (
+          <button
+            onClick={() => onNavigate(undefined)}
+            className="text-muted-foreground hover:text-foreground/90 focus-visible:ring-ring cursor-pointer rounded-sm text-xs font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:outline-none"
+          >
+            {t('breadcrumb.documents')}
+          </button>
+        </li>
+
+        {segments.map((folder, index) => {
+          const isLast = index === segments.length - 1;
+
+          return (
+            <li key={folder._id} className="flex items-center gap-1">
               <span
-                className="text-foreground text-xs font-semibold whitespace-nowrap"
-                style={{ fontFamily: 'Inter, sans-serif' }}
+                className="text-muted-foreground mx-1 text-[14px] leading-4 font-medium"
+                aria-hidden="true"
               >
-                {displayName}
+                /
               </span>
-            ) : (
-              <button
-                onClick={() => navigateToPath(segmentObj.originalPath)}
-                className="text-muted-foreground hover:text-foreground/90 cursor-pointer text-xs font-medium whitespace-nowrap transition-colors"
-                style={{ fontFamily: 'Inter, sans-serif' }}
-              >
-                {displayName}
-              </button>
-            )}
-          </div>
-        );
-      })}
+
+              {isLast ? (
+                <span
+                  className="text-foreground text-xs font-semibold whitespace-nowrap"
+                  aria-current="page"
+                >
+                  {folder.name}
+                </span>
+              ) : (
+                <button
+                  onClick={() => onNavigate(folder._id)}
+                  className="text-muted-foreground hover:text-foreground/90 focus-visible:ring-ring cursor-pointer rounded-sm text-xs font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:outline-none"
+                  aria-label={t('aria.navigateToFolder', {
+                    name: folder.name,
+                  })}
+                >
+                  {folder.name}
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ol>
     </nav>
   );
 }

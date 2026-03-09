@@ -1,16 +1,11 @@
 import { v } from 'convex/values';
 
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
-import type { RagActionParams, RagUploadResult } from './helpers/types';
+import type { RagActionParams } from './helpers/types';
 
-import { jsonRecordValidator } from '../../../../lib/shared/schemas/utils/json-value';
-import { internal } from '../../../_generated/api';
-import { toId } from '../../../lib/type_cast_helpers';
 import { deleteDocumentById } from './helpers/delete_document';
-import { getDocumentInfo } from './helpers/get_document_info';
 import { getRagConfig } from './helpers/get_rag_config';
-import { uploadFileDirect } from './helpers/upload_file_direct';
-import { uploadTextDocument } from './helpers/upload_text_document';
+import { uploadDocument } from './helpers/upload_document';
 
 export const ragAction: ActionDefinition<RagActionParams> = {
   type: 'rag',
@@ -24,12 +19,6 @@ export const ragAction: ActionDefinition<RagActionParams> = {
       recordId: v.string(),
     }),
     v.object({
-      operation: v.literal('upload_text'),
-      recordId: v.optional(v.string()),
-      content: v.string(),
-      metadata: jsonRecordValidator,
-    }),
-    v.object({
       operation: v.literal('delete_document'),
       recordId: v.string(),
     }),
@@ -37,126 +26,20 @@ export const ragAction: ActionDefinition<RagActionParams> = {
 
   async execute(ctx, params) {
     const startTime = Date.now();
-    const processedParams = params;
+    const { serviceUrl } = getRagConfig();
 
-    // Get RAG service configuration
-    const ragConfig = getRagConfig();
-
-    // Handle delete operation - use the recordId directly as the document ID
-    // The recordId (Convex document ID) is stored in the RAG knowledge base
-    if (processedParams.operation === 'delete_document') {
-      // Look up document to get team tags for scoped deletion
-      const document = await ctx.runQuery(
-        internal.documents.internal_queries.getDocumentByIdRaw,
-        { documentId: toId<'documents'>(processedParams.recordId) },
-      );
-
-      const teamIds = document?.teamTags?.length
-        ? document.teamTags
-        : document?.organizationId
-          ? [`org_${String(document.organizationId)}`]
-          : undefined;
-
-      const deleteResult = await deleteDocumentById({
-        ragServiceUrl: ragConfig.serviceUrl,
-        documentId: processedParams.recordId,
-        teamIds,
-      });
-
-      return {
-        ...deleteResult,
-        executionTimeMs: Date.now() - startTime,
-      };
-    }
-
-    // Handle upload operations
-    let uploadResult: RagUploadResult;
-    let documentType: string;
-
-    if (processedParams.operation === 'upload_text') {
-      // Direct text upload; metadata is passed through as provided
-      uploadResult = await uploadTextDocument({
-        ragServiceUrl: ragConfig.serviceUrl,
-        content: processedParams.content,
-        metadata: processedParams.metadata,
-        recordId: processedParams.recordId,
-      });
-      documentType = 'text';
-    } else {
-      // Document upload (from documents table)
-      const documentInfo = await getDocumentInfo(ctx, processedParams);
-
-      // Pass team IDs directly to RAG service (it handles the conversion internally)
-      // If document has team tags, use them; otherwise use organization ID as fallback (public document)
-      // This allows public documents to be accessible by all teams within the organization
-      const teamIds =
-        documentInfo.teamTags && documentInfo.teamTags.length > 0
-          ? documentInfo.teamTags
-          : [`org_${String(documentInfo.metadata.organizationId)}`];
-
-      if (documentInfo.type === 'text') {
-        // Upload text content directly
-        uploadResult = await uploadTextDocument({
-          ragServiceUrl: ragConfig.serviceUrl,
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex field type
-          content: documentInfo.content as string,
-          metadata: documentInfo.metadata,
-          teamIds,
-        });
-      } else {
-        // Upload file directly by downloading from storage and uploading to RAG
-        uploadResult = await uploadFileDirect({
-          ragServiceUrl: ragConfig.serviceUrl,
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex field type
-          fileUrl: documentInfo.fileUrl as string,
-          filename: documentInfo.filename || 'document',
-          contentType: documentInfo.contentType || 'application/octet-stream',
-          metadata: documentInfo.metadata,
-          teamIds,
-        });
+    switch (params.operation) {
+      case 'upload_document': {
+        const result = await uploadDocument(ctx, serviceUrl, params.recordId);
+        return { ...result, executionTimeMs: Date.now() - startTime };
       }
-      documentType = documentInfo.type;
-    }
-
-    // Update document ragInfo and schedule status check (for document uploads only)
-    if (
-      processedParams.operation === 'upload_document' &&
-      uploadResult.success &&
-      uploadResult.jobId
-    ) {
-      const documentId = toId<'documents'>(processedParams.recordId);
-
-      try {
-        // Update document with ragInfo = queued
-        await ctx.runMutation(
-          internal.documents.internal_mutations.updateDocumentRagInfo,
-          {
-            documentId,
-            ragInfo: {
-              status: 'queued',
-              jobId: uploadResult.jobId,
-            },
-          },
-        );
-
-        // Schedule first status check in 10 seconds
-        await ctx.scheduler.runAfter(
-          10 * 1000,
-          internal.documents.internal_actions.checkRagJobStatus,
-          { documentId, attempt: 1 },
-        );
-      } catch (error) {
-        // Log but don't fail the upload - ragInfo update is best-effort
-        console.error('[ragAction] Failed to update ragInfo:', error);
+      case 'delete_document': {
+        const result = await deleteDocumentById({
+          ragServiceUrl: serviceUrl,
+          documentId: params.recordId,
+        });
+        return { ...result, executionTimeMs: Date.now() - startTime };
       }
     }
-
-    // Return result with execution metadata
-    // Note: execute_action_node wraps this in output: { type: 'action', data: result }
-    return {
-      ...uploadResult,
-      executionTimeMs: Date.now() - startTime,
-      documentType,
-    };
   },
 };

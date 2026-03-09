@@ -106,10 +106,10 @@ Output: \`{ variables: {...processedVariables} }\` - NOT wrapped in data
 - Later variables can reference earlier ones in the same step
 
 ### rag
-Ops: upload_document, upload_text
+Ops: upload_document, delete_document
 Params (upload_document): recordId (required - document ID from documents table)
-Params (upload_text): content (required), metadata (required), recordId?
-Output: \`{ data: { success, documentType, executionTimeMs, ... } }\`
+Params (delete_document): recordId (required - document ID to delete from RAG)
+Output: \`{ data: { success, executionTimeMs, recordId, ragDocumentId?, ... } }\`
 
 ### approval
 Ops: create_approval
@@ -140,11 +140,6 @@ Params (create): domain (required), title?, description?, scanInterval? (default
 Params (update): websiteId (required), domain?, title?, description?, scanInterval?, lastScannedAt?, status?, metadata?
 Params (get_by_domain): domain (required)
 Output: \`{ data: {...website} | null }\`
-
-### workflow
-Ops: upload_all_workflows
-Params: timeout? (default: 120000ms)
-Output: \`{ data: { ...result, executionTimeMs } }\`
 
 ## EMAIL SENDING PATTERN
 

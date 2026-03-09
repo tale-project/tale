@@ -83,9 +83,14 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   },
 
   // ============================================
-  // TIER 3: File Operations (Fixed Window)
+  // TIER 3: File & Folder Operations (Fixed Window)
   // Resource-intensive operations with predictable limits
   // ============================================
+  'folder:mutate': {
+    kind: 'fixed window',
+    rate: 60,
+    period: MINUTE,
+  },
   'file:upload': {
     kind: 'fixed window',
     rate: 50,
@@ -132,6 +137,12 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   // Workflow and email sending operations
   // ============================================
   'workflow:cancel': {
+    kind: 'token bucket',
+    rate: 20,
+    period: MINUTE,
+    capacity: 25,
+  },
+  'workflow:run': {
     kind: 'token bucket',
     rate: 20,
     period: MINUTE,

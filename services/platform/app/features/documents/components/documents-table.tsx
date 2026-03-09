@@ -17,6 +17,7 @@ import { filterByTextSearch } from '@/lib/utils/filtering';
 
 import {
   useApproxDocumentCount,
+  useFolders,
   useListDocumentsPaginated,
 } from '../hooks/queries';
 import { useDocumentsTableConfig } from '../hooks/use-documents-table-config';
@@ -27,7 +28,7 @@ import { DocumentsActionMenu } from './documents-action-menu';
 interface DocumentsTableProps {
   organizationId: string;
   searchQuery?: string;
-  currentFolderPath?: string;
+  currentFolderId?: string;
   docId?: string;
   hasMicrosoftAccount?: boolean;
 }
@@ -35,7 +36,7 @@ interface DocumentsTableProps {
 export function DocumentsTable({
   organizationId,
   searchQuery,
-  currentFolderPath,
+  currentFolderId,
   docId,
   hasMicrosoftAccount = false,
 }: DocumentsTableProps) {
@@ -59,40 +60,46 @@ export function DocumentsTable({
 
   const paginatedResult = useListDocumentsPaginated({
     organizationId,
+    folderId: currentFolderId,
     initialNumItems: 20,
   });
+
+  const { data: folders } = useFolders(organizationId, currentFolderId);
+
+  const folderRows = useMemo<DocumentItem[]>(() => {
+    if (!folders) return [];
+    return folders.map((folder) => ({
+      id: folder._id,
+      name: folder.name,
+      type: 'folder' as const,
+      folderId: folder._id,
+      lastModified: folder._creationTime,
+    }));
+  }, [folders]);
 
   const filteredResults = useMemo(() => {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex paginated query results match DocumentItem shape
     let filtered = paginatedResult.results as DocumentItem[];
     if (selectedTeamId) {
-      filtered = filtered.filter((doc) =>
-        doc.teamTags?.includes(selectedTeamId),
-      );
-    }
-    if (currentFolderPath) {
-      filtered = filtered.filter((doc) =>
-        doc.storagePath?.startsWith(`${organizationId}${currentFolderPath}`),
+      filtered = filtered.filter(
+        (doc) => !doc.teamId || doc.teamId === selectedTeamId,
       );
     }
     if (debouncedQuery) {
+      const filteredFolders = filterByTextSearch(folderRows, debouncedQuery, [
+        'name',
+      ]);
       filtered = filterByTextSearch(filtered, debouncedQuery, ['name']);
+      return [...filteredFolders, ...filtered];
     }
-    return filtered;
-  }, [
-    paginatedResult.results,
-    selectedTeamId,
-    currentFolderPath,
-    organizationId,
-    debouncedQuery,
-  ]);
+    return [...folderRows, ...filtered];
+  }, [paginatedResult.results, selectedTeamId, debouncedQuery, folderRows]);
 
   const previewDocument = useMemo(() => {
     if (!docId || !filteredResults.length) return null;
     return filteredResults.find((item) => item.id === docId) ?? null;
   }, [filteredResults, docId]);
 
-  const previewPath = previewDocument?.storagePath ?? null;
   const previewFileName = previewDocument?.name ?? null;
 
   const getRowClassName = useCallback(
@@ -101,14 +108,14 @@ export function DocumentsTable({
     [],
   );
 
-  const handleFolderClick = useCallback(
-    (item: DocumentItem) => {
+  const navigateToFolder = useCallback(
+    (folderId: string | undefined) => {
       void navigate({
         to: '/dashboard/$id/documents',
         params: { id: organizationId },
         search: {
           query: query.trim() || undefined,
-          folderPath: item.storagePath?.replace(organizationId, '') ?? '',
+          folderId,
         },
       });
     },
@@ -122,23 +129,23 @@ export function DocumentsTable({
         params: { id: organizationId },
         search: {
           query: query.trim() || undefined,
-          folderPath: currentFolderPath,
+          folderId: currentFolderId,
           doc: id,
         },
       });
     },
-    [navigate, organizationId, query, currentFolderPath],
+    [navigate, organizationId, query, currentFolderId],
   );
 
   const handleRowClick = useCallback(
     (row: Row<DocumentItem>) => {
-      if (row.original.type === 'folder' && row.original.storagePath) {
-        handleFolderClick(row.original);
+      if (row.original.type === 'folder' && row.original.folderId) {
+        navigateToFolder(row.original.folderId);
       } else if (row.original.type === 'file') {
         openPreview(row.original.id);
       }
     },
-    [handleFolderClick, openPreview],
+    [navigateToFolder, openPreview],
   );
 
   const closePreview = useCallback(() => {
@@ -147,10 +154,15 @@ export function DocumentsTable({
       params: { id: organizationId },
       search: {
         query: query.trim() || undefined,
-        folderPath: currentFolderPath,
+        folderId: currentFolderId,
       },
     });
-  }, [navigate, organizationId, query, currentFolderPath]);
+  }, [navigate, organizationId, query, currentFolderId]);
+
+  const handleFolderDeleted = useCallback(
+    () => navigateToFolder(undefined),
+    [navigateToFolder],
+  );
 
   const handleDocumentClick = useCallback(
     (item: DocumentItem, e: React.MouseEvent) => {
@@ -158,16 +170,17 @@ export function DocumentsTable({
       if (item.type === 'file') {
         openPreview(item.id);
       }
-      if (item.type === 'folder' && item.storagePath) {
-        handleFolderClick(item);
+      if (item.type === 'folder' && item.folderId) {
+        navigateToFolder(item.folderId);
       }
     },
-    [handleFolderClick, openPreview],
+    [navigateToFolder, openPreview],
   );
 
   const { columns, stickyLayout, pageSize, searchPlaceholder } =
     useDocumentsTableConfig({
       onDocumentClick: handleDocumentClick,
+      onFolderDeleted: handleFolderDeleted,
       isLoadingTeams,
       teamMap,
     });
@@ -190,7 +203,7 @@ export function DocumentsTable({
           params: { id: organizationId },
           search: {
             query: value.trim() || undefined,
-            folderPath: currentFolderPath,
+            folderId: currentFolderId,
             doc: docId,
           },
         });
@@ -203,8 +216,11 @@ export function DocumentsTable({
 
   return (
     <>
-      {currentFolderPath && (
-        <BreadcrumbNavigation currentFolderPath={currentFolderPath} />
+      {currentFolderId && (
+        <BreadcrumbNavigation
+          folderId={currentFolderId}
+          onNavigate={navigateToFolder}
+        />
       )}
 
       <DataTable
@@ -215,6 +231,7 @@ export function DocumentsTable({
         actionMenu={
           <DocumentsActionMenu
             organizationId={organizationId}
+            currentFolderId={currentFolderId}
             hasMicrosoftAccount={hasMicrosoftAccount}
           />
         }
@@ -230,7 +247,6 @@ export function DocumentsTable({
         open={!!docId}
         onOpenChange={(open) => !open && closePreview()}
         organizationId={organizationId}
-        storagePath={previewPath ?? undefined}
         documentId={docId ?? undefined}
         fileName={previewFileName ?? undefined}
       />

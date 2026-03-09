@@ -25,6 +25,15 @@ export interface BulkCreateCustomerData {
   metadata?: unknown;
 }
 
+class BulkCreateError extends Error {
+  constructor(
+    message: string,
+    readonly errorCode: string,
+  ) {
+    super(message);
+  }
+}
+
 export async function bulkCreateCustomers(
   ctx: MutationCtx,
   organizationId: string,
@@ -40,9 +49,10 @@ export async function bulkCreateCustomers(
     const customerData = customers[i];
 
     try {
+      const email = customerData.email?.toLowerCase().trim() || undefined;
+
       // Check for duplicates
-      if (customerData.email) {
-        const { email } = customerData;
+      if (email) {
         const existing = await ctx.db
           .query('customers')
           .withIndex('by_organizationId_and_email', (q) =>
@@ -51,8 +61,9 @@ export async function bulkCreateCustomers(
           .first();
 
         if (existing) {
-          throw new Error(
-            `Customer with email ${customerData.email} already exists`,
+          throw new BulkCreateError(
+            `Customer with email ${email} already exists`,
+            'duplicate_email',
           );
         }
       }
@@ -67,8 +78,9 @@ export async function bulkCreateCustomers(
           .first();
 
         if (existing) {
-          throw new Error(
+          throw new BulkCreateError(
             `Customer with external ID ${customerData.externalId} already exists`,
+            'duplicate_external_id',
           );
         }
       }
@@ -76,6 +88,7 @@ export async function bulkCreateCustomers(
       await ctx.db.insert('customers', {
         organizationId,
         ...customerData,
+        ...(email !== undefined && { email }),
         metadata: toConvexJsonRecord(customerData.metadata),
       });
 
@@ -85,6 +98,8 @@ export async function bulkCreateCustomers(
       results.errors.push({
         index: i,
         error: error instanceof Error ? error.message : 'Unknown error',
+        errorCode:
+          error instanceof BulkCreateError ? error.errorCode : 'unknown',
         customer: customerData,
       });
     }

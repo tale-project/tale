@@ -10,7 +10,7 @@
 
 import type { PaginationOptions } from 'convex/server';
 
-import type { Doc } from '../_generated/dataModel';
+import type { Doc, Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
 import type { DocumentItemResponse } from './types';
 
@@ -23,6 +23,7 @@ interface FilterIndex {
 }
 
 const FILTER_INDEXES: FilterIndex[] = [
+  { field: 'folderId', index: 'by_organizationId_and_folderId' },
   { field: 'sourceProvider', index: 'by_organizationId_and_sourceProvider' },
   { field: 'extension', index: 'by_organizationId_and_extension' },
 ];
@@ -30,6 +31,7 @@ const FILTER_INDEXES: FilterIndex[] = [
 interface ListDocumentsPaginatedArgs {
   paginationOpts: PaginationOptions;
   organizationId: string;
+  folderId?: Id<'folders'>;
   sourceProvider?: string;
   extension?: string;
   userTeamIds: string[];
@@ -51,15 +53,13 @@ function buildBaseQuery(
 ) {
   if (primary) {
     const tableQuery = ctx.db.query('documents');
+    const fieldValue = filterArgs[primary.field];
     const indexFn = (q: {
       eq: (
         field: string,
         value: string | undefined,
       ) => { eq: (field: string, value: string | undefined) => unknown };
-    }) =>
-      q
-        .eq('organizationId', organizationId)
-        .eq(primary.field, filterArgs[primary.field]);
+    }) => q.eq('organizationId', organizationId).eq(primary.field, fieldValue);
     // @ts-expect-error -- dynamic index name; runtime correct, Convex types require literals
     return tableQuery.withIndex(primary.index, indexFn);
   }
@@ -76,11 +76,14 @@ export async function listDocumentsPaginated(
   args: ListDocumentsPaginatedArgs,
 ): Promise<PaginatedDocumentResult> {
   const filterArgs: FilterArgs = {
+    folderId: args.folderId ? String(args.folderId) : undefined,
     sourceProvider: args.sourceProvider,
     extension: args.extension,
   };
 
-  const primary = FILTER_INDEXES.find(({ field }) => filterArgs[field]);
+  const primary = FILTER_INDEXES.find(
+    ({ field }) => filterArgs[field] !== undefined,
+  );
   let query = buildBaseQuery(
     ctx,
     args.organizationId,
@@ -99,15 +102,9 @@ export async function listDocumentsPaginated(
   const result = await query.paginate(args.paginationOpts);
 
   const userTeamSet = new Set(args.userTeamIds);
-  const accessibleDocs = result.page.filter((doc: Doc<'documents'>) => {
-    if (doc.teamId !== undefined) {
-      return hasTeamAccess(doc, userTeamSet);
-    }
-    if (doc.teamTags && doc.teamTags.length > 0) {
-      return doc.teamTags.some((tag) => userTeamSet.has(tag));
-    }
-    return true;
-  });
+  const accessibleDocs = result.page.filter((doc: Doc<'documents'>) =>
+    hasTeamAccess(doc, userTeamSet),
+  );
 
   const transformedPage = await transformDocumentsBatch(ctx, accessibleDocs);
 

@@ -71,7 +71,7 @@ export function transformToDocumentItem(
       document.extension ??
       metadata?.extension ??
       extractExtension(document.title),
-    storagePath: metadata?.storagePath,
+    folderId: document.folderId ? String(document.folderId) : undefined,
     sourceProvider:
       document.sourceProvider ?? metadata?.sourceProvider ?? 'upload',
     sourceMode: normalizeSourceMode(metadata?.sourceMode),
@@ -83,9 +83,7 @@ export function transformToDocumentItem(
     ragStatus: document.ragInfo?.status,
     ragIndexedAt: document.ragInfo?.indexedAt,
     ragError: document.ragInfo?.error,
-    // Team assignment for multi-tenancy support
     teamId: document.teamId ?? null,
-    teamTags: document.teamTags,
     // Creator tracking
     createdBy: document.createdBy,
     createdByName,

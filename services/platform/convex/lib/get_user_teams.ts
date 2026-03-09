@@ -61,32 +61,32 @@ export async function getUserTeamIds(
 ): Promise<string[]> {
   // Check if JWT contains trusted teams (trusted headers mode)
   const identity = await ctx.auth.getUserIdentity();
-  if (!isRecord(identity)) return [];
-  const trustedTeamsRaw = getString(identity, 'trustedTeams');
-
-  if (trustedTeamsRaw) {
-    // Trusted headers mode: parse team IDs from JWT claim
-    // Format: [{id: "...", name: "..."}, ...]
-    try {
-      const teams = parseJson<Array<{ id: string; name: string }>>(
-        trustedTeamsRaw,
-      );
-      return Array.isArray(teams)
-        ? teams
-            .filter(
-              (t): t is { id: string; name: string } =>
-                isRecord(t) &&
-                typeof t.id === 'string' &&
-                typeof t.name === 'string',
-            )
-            .map((t) => t.id)
-        : [];
-    } catch {
-      return [];
+  if (isRecord(identity)) {
+    const trustedTeamsRaw = getString(identity, 'trustedTeams');
+    if (trustedTeamsRaw) {
+      // Trusted headers mode: parse team IDs from JWT claim
+      // Format: [{id: "...", name: "..."}, ...]
+      try {
+        const teams = parseJson<Array<{ id: string; name: string }>>(
+          trustedTeamsRaw,
+        );
+        return Array.isArray(teams)
+          ? teams
+              .filter(
+                (t): t is { id: string; name: string } =>
+                  isRecord(t) &&
+                  typeof t.id === 'string' &&
+                  typeof t.name === 'string',
+              )
+              .map((t) => t.id)
+          : [];
+      } catch {
+        return [];
+      }
     }
   }
 
-  // Normal auth mode: query teamMember table with pagination
+  // Fallback: query teamMember table with pagination
   const allTeamIds: string[] = [];
   let cursor: string | null = null;
   let isDone = false;

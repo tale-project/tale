@@ -49,10 +49,10 @@ import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
       control: 'boolean',
       description: 'Whether the form is being submitted',
     },
-    isValid: {
+    isDirty: {
       control: 'boolean',
       description:
-        'Whether the form is currently valid (e.g. from react-hook-form formState.isValid)',
+        'Whether the form has been modified (e.g. from react-hook-form formState.isDirty)',
     },
     large: {
       control: 'boolean',
@@ -145,20 +145,20 @@ export const Submitting: Story = {
   },
 };
 
-export const InvalidForm: Story = {
-  render: function InvalidFormStory() {
+export const PristineForm: Story = {
+  render: function PristineFormStory() {
     const [open, setOpen] = useState(false);
 
     return (
       <>
         <Button onClick={() => setOpen(true)}>
-          Open dialog (invalid form)
+          Open dialog (pristine form)
         </Button>
         <FormDialog
           open={open}
           onOpenChange={setOpen}
           title="Create new item"
-          isValid={false}
+          isDirty={false}
           onSubmit={(e) => e.preventDefault()}
         >
           <Input label="Name" placeholder="Enter name (required)" />
@@ -170,7 +170,7 @@ export const InvalidForm: Story = {
     docs: {
       description: {
         story:
-          'Submit button is disabled when the form is invalid (e.g. required fields not filled).',
+          'Submit button is disabled until the form has been modified (dirty state).',
       },
     },
   },

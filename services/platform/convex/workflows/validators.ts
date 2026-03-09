@@ -10,7 +10,7 @@
 
 import { v } from 'convex/values';
 
-import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
+import { jsonRecordValidator } from '../lib/validators/json';
 // From workflow_engine
 import { stepConfigValidator } from '../workflow_engine/types/nodes';
 
@@ -56,6 +56,7 @@ export const stepTypeValidator = v.union(
   v.literal('condition'),
   v.literal('action'),
   v.literal('loop'),
+  v.literal('output'),
 );
 
 export const wfStepDefDocValidator = v.object({

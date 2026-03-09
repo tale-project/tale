@@ -57,12 +57,7 @@ export const listDocuments = query({
         q.eq('organizationId', args.organizationId),
       )
       .order('desc')) {
-      // Team-based access control
-      if (doc.teamId !== undefined) {
-        if (!hasTeamAccess(doc, userTeamIds)) continue;
-      } else if (doc.teamTags && doc.teamTags.length > 0) {
-        if (!doc.teamTags.some((tag) => userTeamIds.includes(tag))) continue;
-      }
+      if (!hasTeamAccess(doc, userTeamIds)) continue;
 
       documents.push(doc);
     }
@@ -75,6 +70,7 @@ export const listDocumentsPaginated = query({
   args: {
     paginationOpts: paginationOptsValidator,
     organizationId: v.string(),
+    folderId: v.optional(v.id('folders')),
     sourceProvider: v.optional(v.string()),
     extension: v.optional(v.string()),
   },

@@ -1,7 +1,7 @@
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
-import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
+import { jsonRecordValidator } from '../lib/validators/json';
 
 export const onedriveSyncConfigsTable = defineTable({
   organizationId: v.string(),
@@ -12,7 +12,7 @@ export const onedriveSyncConfigsTable = defineTable({
   itemPath: v.optional(v.string()),
   targetBucket: v.string(),
   storagePrefix: v.optional(v.string()),
-  teamTags: v.optional(v.array(v.string())),
+  teamId: v.optional(v.string()),
   status: v.union(
     v.literal('active'),
     v.literal('inactive'),

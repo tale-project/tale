@@ -14,9 +14,9 @@ import { v } from 'convex/values';
 import type { Id } from '../../../_generated/dataModel';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 
-import { jsonRecordValidator } from '../../../../lib/shared/schemas/utils/json-value';
 import { internal } from '../../../_generated/api';
 import { toConvexJsonRecord } from '../../../lib/type_cast_helpers';
+import { jsonRecordValidator } from '../../../lib/validators/json';
 
 // Type for document operation params (discriminated union)
 type DocumentActionParams = {

@@ -30,17 +30,22 @@ export async function createCustomerPublic(
   ctx: MutationCtx,
   args: CreateCustomerPublicArgs,
 ): Promise<Id<'customers'>> {
+  const email = args.email.toLowerCase().trim();
+  if (!email) {
+    throw new Error('Email is required');
+  }
+
   // Check if customer with same email already exists
-  if (args.email) {
+  if (email) {
     const existingCustomer = await ctx.db
       .query('customers')
       .withIndex('by_organizationId_and_email', (q) =>
-        q.eq('organizationId', args.organizationId).eq('email', args.email),
+        q.eq('organizationId', args.organizationId).eq('email', email),
       )
       .first();
 
     if (existingCustomer) {
-      throw new Error(`Customer with email ${args.email} already exists`);
+      throw new Error(`Customer with email ${email} already exists`);
     }
   }
 
@@ -64,6 +69,7 @@ export async function createCustomerPublic(
 
   return await ctx.db.insert('customers', {
     ...args,
+    email,
     metadata: toConvexJsonRecord(args.metadata),
   });
 }

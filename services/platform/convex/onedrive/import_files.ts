@@ -72,9 +72,10 @@ export interface ImportFilesDependencies {
     sourceProvider: 'onedrive' | 'sharepoint';
     externalItemId: string;
     contentHash?: string;
-    teamTags?: string[];
+    teamId?: string;
     metadata?: Record<string, unknown>;
     createdBy?: string;
+    folderId?: Id<'folders'>;
   }) => Promise<Id<'documents'>>;
   updateDocument: (args: {
     documentId: Id<'documents'>;
@@ -83,9 +84,16 @@ export interface ImportFilesDependencies {
     sourceProvider: 'onedrive' | 'sharepoint';
     externalItemId: string;
     contentHash?: string;
-    teamTags?: string[];
+    teamId?: string;
     metadata?: Record<string, unknown>;
+    folderId?: Id<'folders'>;
   }) => Promise<void>;
+  getOrCreateFolderPath?: (
+    organizationId: string,
+    pathSegments: string[],
+    createdBy?: string,
+    teamId?: string,
+  ) => Promise<Id<'folders'> | undefined>;
 }
 
 export async function importFiles(
@@ -93,7 +101,7 @@ export async function importFiles(
     items: ImportItem[];
     organizationId: string;
     importType: 'one-time' | 'sync';
-    teamTags?: string[];
+    teamId?: string;
     token: string;
     userId: string;
   },
@@ -183,6 +191,19 @@ export async function importFiles(
         ...(item.driveId && { driveId: item.driveId }),
       };
 
+      let folderId: Id<'folders'> | undefined;
+      if (deps.getOrCreateFolderPath && item.relativePath) {
+        const segments = item.relativePath.split('/').slice(0, -1);
+        if (segments.length > 0) {
+          folderId = await deps.getOrCreateFolderPath(
+            args.organizationId,
+            segments,
+            args.userId,
+            args.teamId,
+          );
+        }
+      }
+
       let documentId: Id<'documents'>;
 
       if (existingDoc) {
@@ -194,7 +215,8 @@ export async function importFiles(
           externalItemId: item.id,
           contentHash,
           metadata,
-          teamTags: args.teamTags,
+          teamId: args.teamId,
+          folderId,
         });
         documentId = existingDoc._id;
       } else {
@@ -205,9 +227,10 @@ export async function importFiles(
           sourceProvider,
           externalItemId: item.id,
           contentHash,
-          teamTags: args.teamTags,
+          teamId: args.teamId,
           metadata,
           createdBy: args.userId,
+          folderId,
         });
       }
 

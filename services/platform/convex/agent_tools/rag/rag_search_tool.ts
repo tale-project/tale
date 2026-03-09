@@ -2,7 +2,7 @@
  * Convex Tool: RAG Search
  *
  * Search the knowledge base and return relevant document chunks.
- * Uses team IDs passed from the parent context (resolved in mutation where auth identity is available).
+ * Resolves accessible document IDs from Convex and passes them to RAG at query time.
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
@@ -13,6 +13,7 @@ import { z } from 'zod/v4';
 import type { ToolDefinition } from '../types';
 
 import { fetchJson } from '../../../lib/utils/type-cast-helpers';
+import { internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
 import { getRagConfig } from '../../lib/helpers/rag_config';
 import {
@@ -50,23 +51,24 @@ Returns numbered document excerpts with relevance scores.`,
       query: z.string().describe('Query text to search the knowledge base for'),
     }),
     handler: async (ctx: ToolCtx, args): Promise<string> => {
-      const { userId, userTeamIds } = ctx;
+      const { userId, organizationId } = ctx;
 
       debugLog('tool:rag_search start', { query: args.query });
 
-      if (!userId) {
+      if (!userId || !organizationId) {
         throw new Error(
-          'rag_search requires userId in ToolCtx. ' +
-            'Ensure the thread was created with a userId.',
+          'rag_search requires userId and organizationId in ToolCtx. ' +
+            'Ensure the thread was created with proper context.',
         );
       }
 
-      const teamIds = userTeamIds ?? [];
-      if (teamIds.length === 0) {
-        throw new Error(
-          'rag_search requires at least one team ID. ' +
-            'Ensure userTeamIds is provided in ToolCtx.',
-        );
+      const documentIds: string[] = await ctx.runQuery(
+        internal.documents.internal_queries.getAccessibleDocumentIds,
+        { organizationId, userId },
+      );
+
+      if (documentIds.length === 0) {
+        return 'No documents available in the knowledge base. Upload documents first.';
       }
 
       const ragServiceUrl = getRagConfig().serviceUrl;
@@ -74,16 +76,15 @@ Returns numbered document excerpts with relevance scores.`,
 
       const payload = {
         query: args.query,
-        user_id: userId,
-        team_ids: teamIds,
+        document_ids: documentIds,
         top_k: DEFAULT_TOP_K,
         similarity_threshold: DEFAULT_SIMILARITY_THRESHOLD,
         include_metadata: true,
       };
 
       debugLog('tool:rag_search requesting search', {
-        userId,
-        teamIds,
+        documentCount: documentIds.length,
+        documentIds,
       });
 
       try {

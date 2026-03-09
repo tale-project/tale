@@ -679,7 +679,10 @@
         "sendFailed": "Failed to send test message",
         "messagePlaceholder": "Type a message to test...",
         "uploading": "Uploading...",
-        "attachFiles": "Attach files"
+        "attachFiles": "Attach files",
+        "send": "Send message",
+        "previewImage": "Preview {filename}",
+        "removeAttachment": "Remove attachment"
       },
       "createDialog": {
         "continue": "Continue",
@@ -721,6 +724,7 @@
         "descriptionPlaceholder": "What does this agent do?",
         "systemInstructions": "System instructions",
         "systemInstructionsPlaceholder": "You are a helpful assistant that...",
+        "systemInstructionsRequired": "System instructions are required",
         "model": "Model",
         "modelPreset": "Model preset",
         "modelPresets": {
@@ -783,7 +787,11 @@
         "webModeOffDescription": "Web search disabled",
         "webModeToolDescription": "Agent searches the web on demand",
         "webModeContextDescription": "Automatically inject relevant web results into every response",
-        "webModeBothDescription": "Auto-inject web results and allow on-demand search"
+        "webModeBothDescription": "Auto-inject web results and allow on-demand search",
+        "toolsSaved": "Tools settings saved",
+        "toolsSaveFailed": "Failed to save tools settings",
+        "webModeSaved": "Web search settings saved",
+        "webModeSaveFailed": "Failed to save web search settings"
       },
       "versions": {
         "title": "Version history",
@@ -1676,7 +1684,8 @@
       "llm": "LLM",
       "condition": "Condition",
       "loop": "Loop",
-      "action": "Action"
+      "action": "Action",
+      "output": "Output"
     },
     "step": {
       "openStep": "Open {name} step",
@@ -1716,7 +1725,8 @@
       "types": {
         "action": "Action",
         "llm": "LLM",
-        "condition": "Condition"
+        "condition": "Condition",
+        "output": "Output"
       },
       "configLabel": "Config (JSON)",
       "configDescription": "Configuration settings",
@@ -1789,6 +1799,7 @@
       "messagePlaceholder": "Type your message...",
       "attachFiles": "Attach files",
       "automationDetails": "Automation details",
+      "previewImage": "Preview {filename}",
       "fallbackImage": "Image",
       "fallbackFile": "File",
       "loading": "Loading...",
@@ -2001,7 +2012,8 @@
     "types": {
       "reviewReply": "Review reply",
       "recommendProduct": "Recommend product",
-      "review": "Review"
+      "review": "Review",
+      "runWorkflow": "Run workflow"
     },
     "labels": {
       "purchase": "Purchase",
@@ -2052,6 +2064,28 @@
       "reject": "Reject",
       "approve": "Approve"
     }
+  },
+  "workflowRunApproval": {
+    "approve": "Run workflow",
+    "reject": "Cancel",
+    "approveTooltip": "Approve and run this workflow",
+    "rejectTooltip": "Cancel workflow execution",
+    "statusApprovedSuccess": "Workflow execution started successfully.",
+    "statusApprovedFailed": "Workflow execution was approved but failed to start.",
+    "statusRejected": "Workflow execution was cancelled.",
+    "showParameters": "Show parameters",
+    "hideParameters": "Hide parameters",
+    "executionRunning": "Running...",
+    "executionRunningStep": "Running step: {step}",
+    "executionElapsed": "Running for {duration}",
+    "executionCompleted": "Completed successfully",
+    "executionFailed": "Execution failed",
+    "viewDetails": "View execution details",
+    "showOutput": "Show output",
+    "hideOutput": "Hide output",
+    "statusPending": "Pending",
+    "statusApproved": "Approved",
+    "statusRejected": "Rejected"
   },
   "integrationApproval": {
     "approve": "Approve",
@@ -2242,9 +2276,15 @@
     "searchPlaceholder": "Search documents",
     "addButton": "Add document",
     "deleteDocument": "Delete document",
+    "deleteFolder": {
+      "title": "Delete folder",
+      "confirmation": "Are you sure you want to delete the folder {name}?",
+      "requirement": "The folder must be empty before it can be deleted. Remove all files and subfolders first.",
+      "deleteButton": "Delete folder"
+    },
     "deleteSyncFolder": {
       "title": "Delete sync folder",
-      "confirmation": "Are you sure you want to delete the sync folder",
+      "confirmation": "Are you sure you want to delete the sync folder {name}?",
       "thisWillDelete": "This will permanently delete:",
       "willDelete": {
         "filesAndSubfolders": "All files and subfolders",
@@ -2276,16 +2316,28 @@
       "deleteSyncFolder": "Delete sync folder",
       "deleteFolderFailed": "Failed to delete folder",
       "deleteFileFailed": "An unexpected error occurred while deleting the file.",
-      "manageTeams": "Manage teams",
+      "manageTeams": "Assign team",
       "reindex": "Reindex"
     },
+    "folder": {
+      "newFolder": "New folder",
+      "createFolder": "Create folder",
+      "folderName": "Folder name",
+      "folderNamePlaceholder": "Enter folder name",
+      "nameRequired": "Folder name is required",
+      "creating": "Creating...",
+      "created": "Folder created",
+      "createFailed": "Failed to create folder"
+    },
     "teamTags": {
-      "title": "Manage document teams",
-      "description": "Select which teams can access \"{name}\"",
-      "updated": "Document teams updated",
-      "updateFailed": "Failed to update document teams",
+      "title": "Assign document team",
+      "description": "Choose which team \"{name}\" belongs to",
+      "updated": "Document team updated",
+      "updateFailed": "Failed to update document team",
       "noTeams": "No teams available. Create teams in Settings to enable team-based access control.",
-      "hint": "Documents without any team tags are accessible to all organization members."
+      "selectLabel": "Team",
+      "hint": "Organization-wide documents are accessible to all members.",
+      "orgWide": "Organization-wide"
     },
     "deleteFile": {
       "title": "Delete file",
@@ -2295,10 +2347,17 @@
       "deleteButton": "Delete file"
     },
     "breadcrumb": {
+      "navigation": "Breadcrumb",
       "documents": "Documents",
       "oneDrive": "OneDrive",
       "uploads": "Uploads"
     },
+    "aria": {
+      "openFolder": "Open folder {name}",
+      "openDocument": "Open document {name}",
+      "navigateToFolder": "Navigate to folder {name}"
+    },
+    "folderNotFound": "Folder not found or no longer accessible",
     "sourceType": {
       "oneDriveSynced": "OneDrive (synced)",
       "oneDrive": "OneDrive",
@@ -2341,10 +2400,10 @@
       "filesUploadedSuccessfully": "{count} {count, plural, one {file} other {files}} uploaded successfully",
       "uploadCancelled": "Upload cancelled",
       "uploadFailed": "Upload failed",
-      "selectTeams": "Select teams",
-      "selectTeamsDescription": "Choose which teams can access the uploaded documents",
+      "selectTeams": "Select team",
+      "selectTeamsDescription": "Choose which team the uploaded documents belong to",
       "noTeamsAvailable": "You are not a member of any teams",
-      "allMembersHint": "Documents without team tags are accessible to everyone in the organization."
+      "allMembersHint": "Organization-wide documents are accessible to everyone in the organization."
     },
     "import": {
       "noResponseBody": "No response body received"
@@ -2623,7 +2682,12 @@
       "error": "Import error",
       "addCustomers": "Add customers",
       "uploadCustomers": "Upload customers",
-      "import": "Import"
+      "import": "Import",
+      "errorCodes": {
+        "duplicate_email": "A customer with this email already exists",
+        "duplicate_external_id": "A customer with this external ID already exists",
+        "unknown": "An unexpected error occurred"
+      }
     }
   },
   "vendors": {
@@ -2681,7 +2745,12 @@
       "success": "Import successful",
       "successDescription": "Successfully imported {success} vendors{failed, select, 0 {} other {, {failed} failed}}",
       "failed": "Import failed",
-      "error": "Failed to import vendors"
+      "error": "Failed to import vendors",
+      "errorCodes": {
+        "duplicate_email": "A vendor with this email already exists",
+        "duplicate_external_id": "A vendor with this external ID already exists",
+        "unknown": "An unexpected error occurred"
+      }
     }
   },
   "websites": {

@@ -22,14 +22,24 @@ export async function getBrandingHandler(
 
   if (!branding) return null;
 
+  async function safeGetUrl(storageId: string | undefined) {
+    if (!storageId) return null;
+    try {
+      return await ctx.storage.getUrl(storageId);
+    } catch (error) {
+      console.warn(
+        '[Branding] Failed to resolve storage URL',
+        storageId,
+        error,
+      );
+      return null;
+    }
+  }
+
   const [logoUrl, faviconLightUrl, faviconDarkUrl] = await Promise.all([
-    branding.logoStorageId ? ctx.storage.getUrl(branding.logoStorageId) : null,
-    branding.faviconLightStorageId
-      ? ctx.storage.getUrl(branding.faviconLightStorageId)
-      : null,
-    branding.faviconDarkStorageId
-      ? ctx.storage.getUrl(branding.faviconDarkStorageId)
-      : null,
+    safeGetUrl(branding.logoStorageId),
+    safeGetUrl(branding.faviconLightStorageId),
+    safeGetUrl(branding.faviconDarkStorageId),
   ]);
 
   return {

@@ -89,7 +89,6 @@ export function ScheduleCreateDialog({
 
   const form = useForm<ScheduleFormData>({
     resolver: zodResolver(schema),
-    mode: 'onChange',
     defaultValues: {
       cronExpression: schedule?.cronExpression ?? '',
     },
@@ -99,7 +98,7 @@ export function ScheduleCreateDialog({
     handleSubmit,
     register,
     reset,
-    formState: { isValid: isFormValid, errors: formErrors },
+    formState: { errors: formErrors },
     setValue,
   } = form;
 
@@ -178,7 +177,6 @@ export function ScheduleCreateDialog({
       submitText={isEdit ? tCommon('actions.save') : tCommon('actions.create')}
       submittingText={tCommon('actions.loading')}
       isSubmitting={isSubmitting}
-      isValid={isFormValid}
       onSubmit={handleSubmit(onSubmit)}
     >
       <FormSection>

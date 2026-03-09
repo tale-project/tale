@@ -29,6 +29,11 @@ export const updateVendor = mutationWithRLS({
   handler: async (ctx, args) => {
     const { vendorId, ...updateData } = args;
 
+    if (updateData.email) {
+      const normalized = updateData.email.toLowerCase().trim();
+      updateData.email = normalized || undefined;
+    }
+
     const existingVendor = await ctx.db.get(vendorId);
     if (!existingVendor) {
       throw new Error('Vendor not found');
@@ -105,12 +110,22 @@ export const bulkCreateVendors = mutationWithRLS({
   },
   returns: bulkCreateVendorsResponseValidator,
   handler: async (ctx, args) => {
+    class BulkCreateError extends Error {
+      constructor(
+        message: string,
+        readonly errorCode: string,
+      ) {
+        super(message);
+      }
+    }
+
     const results = {
       success: 0,
       failed: 0,
       errors: [] as Array<{
         index: number;
         error: string;
+        errorCode: string;
         vendor: ConvexJsonValue;
       }>,
     };
@@ -119,8 +134,9 @@ export const bulkCreateVendors = mutationWithRLS({
       const vendorData = args.vendors[i];
 
       try {
-        if (vendorData.email) {
-          const { email } = vendorData;
+        const email = vendorData.email?.toLowerCase().trim();
+
+        if (email) {
           const existing = await ctx.db
             .query('vendors')
             .withIndex('by_organizationId_and_email', (q) =>
@@ -129,8 +145,9 @@ export const bulkCreateVendors = mutationWithRLS({
             .first();
 
           if (existing) {
-            throw new Error(
-              `Vendor with email ${vendorData.email} already exists`,
+            throw new BulkCreateError(
+              `Vendor with email ${email} already exists`,
+              'duplicate_email',
             );
           }
         }
@@ -147,8 +164,9 @@ export const bulkCreateVendors = mutationWithRLS({
             .first();
 
           if (existing) {
-            throw new Error(
+            throw new BulkCreateError(
               `Vendor with external ID ${vendorData.externalId} already exists`,
+              'duplicate_external_id',
             );
           }
         }
@@ -156,6 +174,7 @@ export const bulkCreateVendors = mutationWithRLS({
         await ctx.db.insert('vendors', {
           organizationId: args.organizationId,
           ...vendorData,
+          ...(email !== undefined && { email }),
         });
 
         results.success++;
@@ -164,6 +183,8 @@ export const bulkCreateVendors = mutationWithRLS({
         results.errors.push({
           index: i,
           error: error instanceof Error ? error.message : 'Unknown error',
+          errorCode:
+            error instanceof BulkCreateError ? error.errorCode : 'unknown',
           vendor: vendorData,
         });
       }

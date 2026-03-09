@@ -4,7 +4,7 @@
 
 import { v } from 'convex/values';
 
-import { jsonRecordValidator } from '../../../lib/shared/schemas/utils/json-value';
+import { jsonRecordValidator } from '../../lib/validators/json';
 import { stepConfigValidator } from '../../workflow_engine/types/nodes';
 
 export const stepTypeValidator = v.union(
@@ -14,6 +14,7 @@ export const stepTypeValidator = v.union(
   v.literal('condition'),
   v.literal('action'),
   v.literal('loop'),
+  v.literal('output'),
 );
 
 export const editModeValidator = v.union(

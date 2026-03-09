@@ -11,7 +11,7 @@
 import { v } from 'convex/values';
 
 import { internalMutation } from '../_generated/server';
-import { teamTagsToUnifiedFields } from './team_fields';
+import { teamIdToFields } from './team_fields';
 
 export const migrateTeamFields = internalMutation({
   args: {
@@ -46,20 +46,11 @@ export const migrateTeamFields = internalMutation({
       // For org-wide docs (no teamTags), set teamId to null explicitly
       if (doc.teamId === undefined) {
         const tags = doc.teamTags ?? [];
-        const unifiedFields = teamTagsToUnifiedFields(tags);
+        const primaryTeamId = tags.length > 0 ? tags[0] : undefined;
+        const teamFields = teamIdToFields(primaryTeamId);
 
-        const patch: Record<string, unknown> = {};
-        if (unifiedFields.teamId !== undefined) {
-          patch.teamId = unifiedFields.teamId;
-        }
-        if (unifiedFields.sharedWithTeamIds !== undefined) {
-          patch.sharedWithTeamIds = unifiedFields.sharedWithTeamIds;
-        }
-
-        if (Object.keys(patch).length > 0) {
-          await ctx.db.patch(doc._id, patch);
-          migrated++;
-        }
+        await ctx.db.patch(doc._id, teamFields);
+        migrated++;
       }
 
       count++;

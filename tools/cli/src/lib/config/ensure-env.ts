@@ -275,7 +275,7 @@ function generateEnvContent(config: EnvConfig): string {
     'OPENAI_CODING_MODEL=openai/gpt-5.2',
     'OPENAI_EMBEDDING_MODEL=qwen/qwen3-embedding-4b',
     'OPENAI_VISION_MODEL=qwen/qwen3-vl-32b-instruct',
-    'EMBEDDING_DIMENSIONS=2560',
+    'EMBEDDING_DIMENSIONS=1536',
     '',
   );
 

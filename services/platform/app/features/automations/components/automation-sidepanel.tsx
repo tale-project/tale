@@ -415,7 +415,7 @@ export function AutomationSidePanel({
         aria-valuemax={MAX_WIDTH}
         aria-valuenow={width}
         className={cn(
-          'absolute left-0 top-0 bottom-0 w-px cursor-col-resize z-10 max-md:hidden',
+          'absolute left-0 top-0 bottom-0 w-px cursor-col-resize z-51 max-md:hidden',
           'hover:bg-border transition-colors',
         )}
       >

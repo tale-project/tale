@@ -107,6 +107,7 @@ CREATE TABLE IF NOT EXISTS public_web.chunks (
 CREATE INDEX IF NOT EXISTS idx_pw_chunks_domain ON public_web.chunks(domain);
 CREATE INDEX IF NOT EXISTS idx_pw_chunks_url ON public_web.chunks(url);
 CREATE INDEX IF NOT EXISTS idx_pw_chunks_url_content_hash ON public_web.chunks(url, content_hash);
+CREATE INDEX IF NOT EXISTS idx_pw_chunks_domain_url ON public_web.chunks(domain, url);
 
 -- BM25 full-text index (ParadeDB pg_search)
 DO $$
@@ -161,6 +162,7 @@ CREATE TABLE IF NOT EXISTS private_knowledge.documents (
     team_id       TEXT,
     user_id       TEXT,
     status        TEXT NOT NULL DEFAULT 'processing' CHECK (status IN ('processing', 'completed', 'failed')),
+    error         TEXT,
     chunks_count  INTEGER NOT NULL DEFAULT 0,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -171,6 +173,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_pk_docs_unique_scope
 CREATE INDEX IF NOT EXISTS idx_pk_docs_docid ON private_knowledge.documents(document_id);
 CREATE INDEX IF NOT EXISTS idx_pk_docs_team ON private_knowledge.documents(team_id) WHERE team_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_pk_docs_user ON private_knowledge.documents(user_id) WHERE user_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_pk_docs_content_hash ON private_knowledge.documents(content_hash) WHERE content_hash IS NOT NULL;
 
 -- Chunks
 CREATE TABLE IF NOT EXISTS private_knowledge.chunks (
@@ -226,23 +229,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- RAG jobs
-CREATE TABLE IF NOT EXISTS private_knowledge.rag_jobs (
-    job_id          TEXT PRIMARY KEY,
-    document_id     TEXT,
-    state           TEXT NOT NULL DEFAULT 'queued' CHECK (state IN ('queued', 'running', 'completed', 'failed')),
-    chunks_created  INTEGER NOT NULL DEFAULT 0,
-    message         TEXT,
-    error           TEXT,
-    skipped         BOOLEAN NOT NULL DEFAULT FALSE,
-    skip_reason     TEXT,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_pk_jobs_state ON private_knowledge.rag_jobs(state);
-CREATE INDEX IF NOT EXISTS idx_pk_jobs_updated ON private_knowledge.rag_jobs(updated_at);
-CREATE INDEX IF NOT EXISTS idx_pk_jobs_docid ON private_knowledge.rag_jobs(document_id);
 
 
 -- ============================================================================

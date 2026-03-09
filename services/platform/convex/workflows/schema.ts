@@ -4,7 +4,7 @@ import { v } from 'convex/values';
 import {
   jsonRecordValidator,
   jsonValueValidator,
-} from '../../lib/shared/schemas/utils/json-value';
+} from '../lib/validators/json';
 import { stepConfigValidator } from '../workflow_engine/types/nodes';
 import { workflowStatusValidator } from './definitions/validators';
 import { executionStatusValidator } from './executions/validators';
@@ -86,6 +86,7 @@ export const wfStepDefsTable = defineTable({
     v.literal('condition'),
     v.literal('action'),
     v.literal('loop'),
+    v.literal('output'),
   ),
   order: v.number(),
   nextSteps: v.record(v.string(), v.string()),

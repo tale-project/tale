@@ -18,8 +18,15 @@ from tale_knowledge.vision import VisionClient
 from tale_shared.db import acquire_with_retry
 
 from ..config import settings
-from .database import SCHEMA, close_pool, ensure_embedding_dimensions, init_pool
-from .indexing_service import index_document, prepare_document, store_prepared_document
+from .database import (
+    SCHEMA,
+    close_pool,
+    ensure_content_hash_index,
+    ensure_embedding_dimensions,
+    ensure_error_column,
+    init_pool,
+)
+from .indexing_service import index_document
 from .search_service import RagSearchService
 
 RAG_TOP_K = 30
@@ -78,6 +85,8 @@ class RagService:
 
         # Ensure embedding dimensions and HNSW index
         await ensure_embedding_dimensions(self._pool, dimensions)
+        await ensure_error_column(self._pool)
+        await ensure_content_hash_index(self._pool)
 
         # Vision client (optional — only if model is configured)
         try:
@@ -116,12 +125,8 @@ class RagService:
         filename: str,
         *,
         user_id: str | None = None,
-        team_ids: list[str] | None = None,
     ) -> dict[str, Any]:
-        """Add a document to the knowledge base.
-
-        If team_ids has multiple entries, processes each concurrently.
-        """
+        """Add a document to the knowledge base."""
         if not self.initialized:
             await self.initialize()
 
@@ -130,89 +135,17 @@ class RagService:
         if self._embedding_service is None:
             raise RuntimeError("RagService not initialized: embedding service is None")
 
-        targets: list[tuple[str | None, str | None]] = []
-        if user_id:
-            targets.append((None, user_id))
-        if team_ids:
-            for tid in team_ids:
-                targets.append((tid, None))
-
-        if not targets:
-            raise ValueError("At least one of user_id or team_ids must be provided")
-
-        if len(targets) == 1:
-            team_id, uid = targets[0]
-            return await index_document(
-                self._pool,
-                document_id,
-                content,
-                filename,
-                team_id=team_id,
-                user_id=uid,
-                embedding_service=self._embedding_service,
-                vision_client=self._vision_client,
-                chunk_size=settings.chunk_size,
-                chunk_overlap=settings.chunk_overlap,
-            )
-
-        # Multiple targets — extract/embed once, store per tenant
-        prepared = await prepare_document(
+        return await index_document(
+            self._pool,
+            document_id,
             content,
             filename,
+            user_id=user_id,
             embedding_service=self._embedding_service,
             vision_client=self._vision_client,
             chunk_size=settings.chunk_size,
             chunk_overlap=settings.chunk_overlap,
         )
-
-        if prepared is None:
-            return {
-                "success": True,
-                "document_id": document_id,
-                "chunks_created": 0,
-                "skipped": True,
-                "skip_reason": "no_text_extracted",
-            }
-
-        tasks = [
-            store_prepared_document(
-                self._pool,
-                document_id,
-                filename,
-                prepared,
-                team_id=team_id,
-                user_id=uid,
-            )
-            for team_id, uid in targets
-        ]
-
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        total_chunks = 0
-        all_skipped = True
-        skip_reason = None
-        last_error = None
-
-        for result in results:
-            if isinstance(result, Exception):
-                last_error = result
-                continue
-            if not result.get("skipped"):
-                all_skipped = False
-            total_chunks += result.get("chunks_created", 0)
-            if result.get("skip_reason"):
-                skip_reason = result["skip_reason"]
-
-        if last_error and total_chunks == 0 and all_skipped:
-            raise last_error
-
-        return {
-            "success": True,
-            "document_id": document_id,
-            "chunks_created": total_chunks,
-            "skipped": all_skipped,
-            "skip_reason": skip_reason if all_skipped else None,
-        }
 
     async def search(
         self,
@@ -220,8 +153,7 @@ class RagService:
         *,
         top_k: int | None = None,
         similarity_threshold: float | None = None,
-        user_id: str | None = None,
-        team_ids: list[str] | None = None,
+        document_ids: list[str] | None = None,
     ) -> list[dict[str, Any]]:
         """Search the knowledge base using hybrid BM25 + vector search."""
         if not self.initialized:
@@ -235,8 +167,7 @@ class RagService:
 
         results = await self._search_service.search(
             query,
-            team_ids=team_ids,
-            user_id=user_id,
+            document_ids=document_ids,
             top_k=effective_top_k,
         )
 
@@ -248,8 +179,7 @@ class RagService:
     async def generate(
         self,
         query: str,
-        user_id: str | None = None,
-        team_ids: list[str] | None = None,
+        document_ids: list[str] | None = None,
     ) -> dict[str, Any]:
         """Generate a response using RAG: search -> context assembly -> LLM."""
         if not self.initialized:
@@ -261,7 +191,7 @@ class RagService:
         try:
             start_time = time.time()
 
-            search_results = await self.search(query, top_k=RAG_TOP_K, user_id=user_id, team_ids=team_ids)
+            search_results = await self.search(query, top_k=RAG_TOP_K, document_ids=document_ids)
 
             if not search_results:
                 return {
@@ -325,10 +255,127 @@ class RagService:
             logger.error("Generation failed: {}", e)
             raise
 
+    MAX_CHUNK_WINDOW = 200
+
+    async def get_document_content(
+        self,
+        document_id: str,
+        *,
+        chunk_start: int = 1,
+        chunk_end: int | None = None,
+    ) -> dict[str, Any] | None:
+        """Retrieve document content by reassembling stored chunks.
+
+        Args:
+            document_id: Logical document identifier.
+            chunk_start: First chunk to return (1-indexed).
+            chunk_end: Last chunk to return (1-indexed, inclusive). None = capped by MAX_CHUNK_WINDOW.
+
+        Returns:
+            Response dict with content and metadata, or None if not found.
+        """
+        if not self.initialized:
+            await self.initialize()
+
+        if self._pool is None:
+            raise RuntimeError("RagService not initialized: database pool is None")
+
+        if chunk_end is None:
+            chunk_end = chunk_start + self.MAX_CHUNK_WINDOW - 1
+
+        where = "document_id = $1"
+        params: list[Any] = [document_id]
+
+        async with acquire_with_retry(self._pool) as conn:
+            doc = await conn.fetchrow(
+                f"SELECT id, document_id, filename, chunks_count FROM {SCHEMA}.documents WHERE {where} LIMIT 1",
+                *params,
+            )
+
+            if doc is None:
+                return None
+
+            doc_uuid = doc["id"]
+            total_chunks = doc["chunks_count"]
+
+            # Convert 1-indexed API params to 0-indexed chunk_index
+            chunk_params: list[Any] = [doc_uuid, chunk_start - 1, chunk_end - 1]
+
+            rows = await conn.fetch(
+                f"SELECT chunk_index, chunk_content FROM {SCHEMA}.chunks "
+                f"WHERE document_id = $1 AND chunk_index >= $2 AND chunk_index <= $3 "
+                f"ORDER BY chunk_index ASC",
+                *chunk_params,
+            )
+
+        if not rows:
+            return {
+                "document_id": document_id,
+                "title": doc["filename"],
+                "content": "",
+                "chunk_range": {"start": 0, "end": 0},
+                "total_chunks": total_chunks,
+                "total_chars": 0,
+            }
+
+        combined = "\n\n".join(row["chunk_content"] for row in rows)
+
+        actual_start = rows[0]["chunk_index"] + 1
+        actual_end = rows[-1]["chunk_index"] + 1
+
+        return {
+            "document_id": document_id,
+            "title": doc["filename"],
+            "content": combined,
+            "chunk_range": {"start": actual_start, "end": actual_end},
+            "total_chunks": total_chunks,
+            "total_chars": len(combined),
+        }
+
+    async def get_document_statuses(
+        self,
+        document_ids: list[str],
+    ) -> dict[str, dict[str, Any] | None]:
+        """Get statuses for multiple documents by document_id.
+
+        Returns a dict mapping document_id to status info or None if not found.
+        When a document has multiple scope rows, priority is: processing > failed > completed.
+
+        If ANY scope row is still processing, the document is considered processing.
+        This ensures reindex operations are visible even when other scope rows
+        remain completed.
+        """
+        if not self.initialized:
+            await self.initialize()
+
+        if self._pool is None:
+            raise RuntimeError("RagService not initialized: database pool is None")
+
+        async with acquire_with_retry(self._pool) as conn:
+            rows = await conn.fetch(
+                f"""
+                SELECT DISTINCT ON (document_id)
+                    document_id, status, error
+                FROM {SCHEMA}.documents
+                WHERE document_id = ANY($1)
+                ORDER BY document_id,
+                    CASE status
+                        WHEN 'processing' THEN 0
+                        WHEN 'failed' THEN 1
+                        WHEN 'completed' THEN 2
+                        ELSE 3
+                    END,
+                    updated_at DESC
+                """,
+                document_ids,
+            )
+
+        found = {row["document_id"]: {"status": row["status"], "error": row["error"]} for row in rows}
+        return {did: found.get(did) for did in document_ids}
+
     async def delete_document(
         self,
         document_id: str,
-        team_ids: list[str] | None = None,
     ) -> dict[str, Any]:
         """Delete a document and its chunks from the knowledge base."""
         if not self.initialized:
@@ -341,7 +388,7 @@ class RagService:
 
         async with acquire_with_retry(self._pool) as conn:
             rows = await conn.fetch(
-                f"SELECT id, team_id FROM {SCHEMA}.documents WHERE document_id = $1",
+                f"SELECT id FROM {SCHEMA}.documents WHERE document_id = $1",
                 document_id,
             )
 
@@ -355,23 +402,17 @@ class RagService:
                 "processing_time_ms": processing_time,
             }
 
-        ids_to_delete: list[Any] = []
-        for row in rows:
-            if team_ids and row["team_id"] and row["team_id"] not in team_ids:
-                logger.warning("Skipping doc {}: team '{}' not in authorized teams", row["id"], row["team_id"])
-                continue
-            ids_to_delete.append(row["id"])
+        ids_to_delete = [row["id"] for row in rows]
 
-        if ids_to_delete:
-            async with acquire_with_retry(self._pool) as conn, conn.transaction():
-                await conn.execute(
-                    f"DELETE FROM {SCHEMA}.chunks WHERE document_id = ANY($1)",
-                    ids_to_delete,
-                )
-                await conn.execute(
-                    f"DELETE FROM {SCHEMA}.documents WHERE id = ANY($1)",
-                    ids_to_delete,
-                )
+        async with acquire_with_retry(self._pool) as conn, conn.transaction():
+            await conn.execute(
+                f"DELETE FROM {SCHEMA}.chunks WHERE document_id = ANY($1)",
+                ids_to_delete,
+            )
+            await conn.execute(
+                f"DELETE FROM {SCHEMA}.documents WHERE id = ANY($1)",
+                ids_to_delete,
+            )
 
         processing_time = (time.time() - start_time) * 1000
 

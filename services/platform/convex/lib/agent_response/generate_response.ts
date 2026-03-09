@@ -14,9 +14,16 @@
  * - Context window building and token estimation
  */
 
+import type { StreamMessage } from '@convex-dev/agent/validators';
 import type { ModelMessage } from 'ai';
 
-import { listMessages, saveMessage, type MessageDoc } from '@convex-dev/agent';
+import {
+  abortStream,
+  listMessages,
+  listStreams,
+  saveMessage,
+  type MessageDoc,
+} from '@convex-dev/agent';
 
 import type {
   GenerateResponseConfig,
@@ -205,7 +212,6 @@ export async function generateAgentResponse(
     streamId,
     promptMessageId,
     maxSteps: _maxSteps,
-    userTeamIds,
   } = args;
 
   const debugLog = createDebugLog(
@@ -215,8 +221,9 @@ export async function generateAgentResponse(
   const startTime = Date.now();
   const abortController = new AbortController();
 
-  // Declared outside try so the catch block can access it for cleanup
+  // Declared outside try so the catch block can access them for cleanup
   let abortWatcher: AbortWatcher | undefined;
+  let baselineAbortedIds = new Set<string>();
 
   try {
     debugLog(`generate${capitalize(agentType)}Response called`, {
@@ -239,7 +246,6 @@ export async function generateAgentResponse(
 
     // Snapshot existing aborted streams and the newest assistant message
     // so the watcher can distinguish stale state from new cancellations.
-    let baselineAbortedIds = new Set<string>();
     let baselineNewestAssistantId: string | undefined;
     if (enableStreaming) {
       try {
@@ -308,19 +314,27 @@ export async function generateAgentResponse(
 
     // Start context injection queries (non-blocking) for context/both modes
     let knowledgeContextPromise: Promise<string | undefined> | undefined;
-    if (needsKnowledgeContext && userId && promptMessage) {
-      knowledgeContextPromise = queryRagContext(
-        promptMessage,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        { userId, teamIds: userTeamIds ?? [] },
+    if (needsKnowledgeContext && userId && organizationId && promptMessage) {
+      const accessibleDocIds: string[] = await ctx.runQuery(
+        internal.documents.internal_queries.getAccessibleDocumentIds,
+        { organizationId, userId },
       );
-      debugLog('Knowledge context query started', {
-        threadId,
-        elapsedMs: Date.now() - startTime,
-      });
+      if (accessibleDocIds.length === 0) {
+        debugLog('No accessible RAG documents, skipping knowledge context');
+      } else {
+        knowledgeContextPromise = queryRagContext(
+          promptMessage,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          { documentIds: accessibleDocIds },
+        );
+        debugLog('Knowledge context query started', {
+          threadId,
+          elapsedMs: Date.now() - startTime,
+        });
+      }
     }
 
     let webContextPromise: Promise<string | undefined> | undefined;
@@ -426,7 +440,6 @@ export async function generateAgentResponse(
       ...ctx,
       organizationId,
       threadId,
-      userTeamIds: userTeamIds ?? [],
       variables: { actionDeadlineMs: String(actionDeadline) },
     };
 
@@ -680,7 +693,6 @@ export async function generateAgentResponse(
           ...ctx,
           organizationId,
           threadId,
-          userTeamIds: userTeamIds ?? [],
           variables: { actionDeadlineMs: String(actionDeadline) },
           ...(parentThreadId ? { parentThreadId } : {}),
         };
@@ -1202,26 +1214,56 @@ export async function generateAgentResponse(
     // State-driven cleanup: check DB state and act only if needed.
     // No heuristic error-message parsing — works regardless of cause.
 
-    // Mark stream as errored — skip if already aborted by cancelGeneration
-    if (streamId) {
+    // Single query for both aborted and streaming SDK streams, then
+    // partition locally to check cancellation and clean up zombies.
+    let userCancelled = false;
+    let stuckStreams: StreamMessage[] = [];
+    try {
+      const allStreams = await listStreams(ctx, components.agent, {
+        threadId,
+        includeStatuses: ['aborted', 'streaming'],
+      });
+      userCancelled = allStreams.some(
+        (s) => s.status === 'aborted' && !baselineAbortedIds.has(s.streamId),
+      );
+      if (!userCancelled) {
+        stuckStreams = allStreams.filter((s) => s.status === 'streaming');
+      }
+    } catch (streamQueryError) {
+      console.error(
+        '[generateAgentResponse] Failed to query stream statuses:',
+        streamQueryError,
+      );
+    }
+
+    // Mark persistent text stream as errored (skip if user cancelled)
+    if (streamId && !userCancelled) {
       try {
-        const streams = await ctx.runQuery(components.agent.streams.list, {
-          threadId,
-          statuses: ['aborted'] as const,
-        });
-        const alreadyAborted = streams.some(
-          (s: { streamId: string }) => s.streamId === streamId,
+        await ctx.runMutation(
+          internal.streaming.internal_mutations.errorStream,
+          { streamId },
         );
-        if (!alreadyAborted) {
-          await ctx.runMutation(
-            internal.streaming.internal_mutations.errorStream,
-            { streamId },
-          );
-        }
       } catch (streamError) {
         console.error(
           '[generateAgentResponse] Failed to mark stream as errored:',
           streamError,
+        );
+      }
+    }
+
+    // Abort any stuck agent SDK streams. The SDK's DeltaStreamer.fail() may
+    // not have been called if the action threw before the SDK could clean up.
+    // abortStream is idempotent — safe even if already finished or aborted.
+    for (const stream of stuckStreams) {
+      try {
+        await abortStream(ctx, components.agent, {
+          streamId: stream.streamId,
+          reason: 'error',
+        });
+      } catch (abortError) {
+        console.error(
+          `[generateAgentResponse] Failed to abort stream ${stream.streamId}:`,
+          abortError,
         );
       }
     }
@@ -1233,10 +1275,10 @@ export async function generateAgentResponse(
         paginationOpts: { cursor: null, numItems: 5 },
         excludeToolMessages: true,
       });
-      const hasFailedAssistant = msgs.page.some(
-        (m: MessageDoc) =>
-          m.message?.role === 'assistant' && m.status === 'failed',
+      const newestAssistant = msgs.page.find(
+        (m: MessageDoc) => m.message?.role === 'assistant',
       );
+      const hasFailedAssistant = newestAssistant?.status === 'failed';
       if (!hasFailedAssistant) {
         await saveMessage(ctx, components.agent, {
           threadId,

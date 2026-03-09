@@ -1,6 +1,6 @@
 'use client';
 
-import { Plus, HardDrive } from 'lucide-react';
+import { FolderPlus, Plus, HardDrive } from 'lucide-react';
 import { useState, useCallback, useMemo } from 'react';
 
 import { MicrosoftIcon } from '@/app/components/icons/microsoft-icon';
@@ -10,6 +10,8 @@ import {
 } from '@/app/components/ui/data-table/data-table-action-menu';
 import { useT } from '@/lib/i18n/client';
 import { lazyComponent } from '@/lib/utils/lazy-component';
+
+import { CreateFolderDialog } from './create-folder-dialog';
 
 const OneDriveImportDialog = lazyComponent(() =>
   import('./onedrive-import-dialog').then((mod) => ({
@@ -25,16 +27,19 @@ const DocumentUploadDialog = lazyComponent(() =>
 
 export interface DocumentsActionMenuProps {
   organizationId: string;
+  currentFolderId?: string;
   hasMicrosoftAccount?: boolean;
 }
 
 export function DocumentsActionMenu({
   organizationId,
+  currentFolderId,
   hasMicrosoftAccount,
 }: DocumentsActionMenuProps) {
   const { t: tDocuments } = useT('documents');
   const [isOneDriveDialogOpen, setIsOneDriveDialogOpen] = useState(false);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
+  const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
 
   const handleDeviceUpload = useCallback(() => {
     setIsUploadDialogOpen(true);
@@ -44,11 +49,10 @@ export function DocumentsActionMenu({
     setIsOneDriveDialogOpen(true);
   }, []);
 
-  const handleOneDriveSuccess = useCallback(() => {
-    setIsOneDriveDialogOpen(false);
+  const handleCreateFolder = useCallback(() => {
+    setIsCreateFolderOpen(true);
   }, []);
 
-  // Build menu items conditionally
   const menuItems = useMemo<DataTableActionMenuItem[]>(() => {
     const items: DataTableActionMenuItem[] = [
       {
@@ -66,27 +70,43 @@ export function DocumentsActionMenu({
       });
     }
 
+    items.push({
+      label: tDocuments('folder.newFolder'),
+      icon: FolderPlus,
+      onClick: handleCreateFolder,
+    });
+
     return items;
   }, [
     tDocuments,
     handleDeviceUpload,
     handleOneDriveClick,
+    handleCreateFolder,
     hasMicrosoftAccount,
   ]);
 
   return (
     <>
-      <DataTableActionMenu
-        label={tDocuments('upload.importDocuments')}
-        icon={Plus}
-        menuItems={menuItems}
-      />
+      {hasMicrosoftAccount ? (
+        <DataTableActionMenu
+          label={tDocuments('upload.importDocuments')}
+          icon={Plus}
+          menuItems={menuItems}
+        />
+      ) : (
+        <DataTableActionMenu
+          label={tDocuments('upload.importDocuments')}
+          icon={Plus}
+          onClick={handleDeviceUpload}
+        />
+      )}
 
       {isUploadDialogOpen && (
         <DocumentUploadDialog
           open={isUploadDialogOpen}
           onOpenChange={setIsUploadDialogOpen}
           organizationId={organizationId}
+          folderId={currentFolderId}
         />
       )}
 
@@ -95,7 +115,16 @@ export function DocumentsActionMenu({
           open={isOneDriveDialogOpen}
           onOpenChange={setIsOneDriveDialogOpen}
           organizationId={organizationId}
-          onSuccess={handleOneDriveSuccess}
+          onSuccess={() => setIsOneDriveDialogOpen(false)}
+        />
+      )}
+
+      {isCreateFolderOpen && (
+        <CreateFolderDialog
+          open={isCreateFolderOpen}
+          onOpenChange={setIsCreateFolderOpen}
+          organizationId={organizationId}
+          parentFolderId={currentFolderId}
         />
       )}
     </>

@@ -1,22 +1,23 @@
 /**
  * Common validators for RLS-enabled functions
- * Re-exports shared Zod schemas and generates Convex validators from them
+ *
+ * Uses native Convex v.* validators to avoid pulling zod into the query bundle.
+ * Zod schemas for client-side validation live in lib/shared/schemas/rls.ts.
  */
 
-import { zodToConvex } from 'convex-helpers/server/zod4';
+import { v } from 'convex/values';
 
-import {
-  organizationIdArgSchema,
-  rlsWithPaginationArgsSchema,
-  rlsWithSearchArgsSchema,
-} from '../../../lib/shared/schemas/rls';
-
-export * from '../../../lib/shared/schemas/rls';
-
-export const organizationIdArg = zodToConvex(organizationIdArgSchema);
+export const organizationIdArg = v.string();
 
 export const rlsValidators = {
   organizationId: organizationIdArg,
-  withPagination: zodToConvex(rlsWithPaginationArgsSchema),
-  withSearch: zodToConvex(rlsWithSearchArgsSchema),
+  withPagination: v.object({
+    organizationId: v.string(),
+    page: v.optional(v.number()),
+    size: v.optional(v.number()),
+  }),
+  withSearch: v.object({
+    organizationId: v.string(),
+    query: v.optional(v.string()),
+  }),
 };

@@ -95,6 +95,15 @@ export const llmOutputSchema: OutputSchema = {
 };
 
 // =============================================================================
+// OUTPUT STEP OUTPUT SCHEMA
+// =============================================================================
+
+export const outputStepSchema: OutputSchema = {
+  description:
+    'Output step - dynamic structure based on outputMapping configuration',
+};
+
+// =============================================================================
 // BASE ACTION OUTPUT WRAPPER
 // =============================================================================
 
@@ -121,6 +130,8 @@ export function getStepTypeOutputSchema(stepType: string): OutputSchema {
       return startOutputSchema;
     case 'llm':
       return llmOutputSchema;
+    case 'output':
+      return outputStepSchema;
     case 'action':
       // Action schemas are dynamic based on action type and operation
       return {

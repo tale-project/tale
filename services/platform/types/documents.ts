@@ -1,6 +1,5 @@
 /** RAG ingestion status for a document */
 export type RagStatus =
-  | 'pending'
   | 'queued'
   | 'running'
   | 'completed'
@@ -13,7 +12,7 @@ export interface DocumentItem {
   name?: string;
   type: 'file' | 'folder';
   size?: number;
-  storagePath?: string;
+  folderId?: string;
   sourceProvider?: 'onedrive' | 'upload' | 'sharepoint';
   sourceMode?: 'auto' | 'manual';
   lastModified?: number;
@@ -24,8 +23,7 @@ export interface DocumentItem {
   ragIndexedAt?: number;
   /** Error message (for failed status) */
   ragError?: string;
-  /** Team tags for multi-tenancy support - Better Auth team IDs */
-  teamTags?: string[];
+  teamId?: string | null;
   /** User ID who created/uploaded this document */
   createdBy?: string;
   /** Display name of the user who created/uploaded this document */

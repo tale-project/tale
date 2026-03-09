@@ -70,8 +70,9 @@ export interface CreateDocumentArgs {
   sourceProvider?: SourceProvider;
   externalItemId?: string;
   contentHash?: string;
-  teamTags?: string[];
+  teamId?: string;
   createdBy?: string;
+  folderId?: Id<'folders'>;
 }
 
 export interface CreateDocumentResult {

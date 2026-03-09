@@ -22,7 +22,6 @@ import { components, internal } from '../../_generated/api';
 import { persistentStreaming } from '../../streaming/helpers';
 import { AGENT_CONTEXT_CONFIGS } from '../context_management/constants';
 import { createDebugLog } from '../debug_log';
-import { getUserTeamIds } from '../get_user_teams';
 import {
   computeDeduplicationState,
   type AgentListMessagesResult,
@@ -72,8 +71,6 @@ export interface StartAgentChatArgs {
   enableStreaming: boolean;
   /** Optional hooks configuration (FunctionHandles) */
   hooks?: AgentHooksConfig;
-  /** Override team IDs for RAG search (agent-scoped knowledge) */
-  ragTeamIds?: string[];
 }
 
 export interface StartAgentChatResult {
@@ -118,20 +115,9 @@ export async function startAgentChat(
   // enableStreaming only controls the LLM call strategy (streamText vs generateText).
   const streamId = await persistentStreaming.createStream(ctx);
 
-  // Get thread to retrieve userId, then resolve team IDs for RAG search.
-  // If ragTeamIds is provided (e.g. custom agents), use those instead of the user's teams.
   const thread = await ctx.runQuery(components.agent.threads.getThread, {
     threadId,
   });
-  let userTeamIds: string[];
-  if (args.ragTeamIds) {
-    userTeamIds = args.ragTeamIds;
-  } else {
-    const teamIds = thread?.userId
-      ? await getUserTeamIds(ctx, thread.userId)
-      : [];
-    userTeamIds = [`org_${organizationId}`, ...teamIds];
-  }
 
   // Load recent non-tool messages for deduplication
   const existingMessages: AgentListMessagesResult = await listMessages(
@@ -215,7 +201,6 @@ export async function startAgentChat(
       streamId: streamId || undefined,
       promptMessageId,
       maxSteps,
-      userTeamIds,
       additionalContext,
       deadlineMs,
     },

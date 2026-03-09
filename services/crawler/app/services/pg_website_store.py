@@ -75,18 +75,22 @@ class PgWebsiteStore:
                 for r in rows
             ]
 
-    async def get_urls_needing_recrawl(self, limit: int = 20, crawled_before: float | None = None) -> list[str]:
+    async def get_urls_needing_recrawl(
+        self, limit: int = 20, crawled_before: float | None = None, max_fail_count: int = 10
+    ) -> list[str]:
         async with acquire_with_retry(self._pool) as conn:
             if crawled_before is not None:
                 ts = datetime.fromtimestamp(crawled_before, tz=UTC)
                 rows = await conn.fetch(
                     """SELECT url FROM website_urls
                        WHERE domain = $1 AND status != 'deleted'
-                         AND (last_crawled_at IS NULL OR last_crawled_at < $2)
+                         AND fail_count < $2
+                         AND (last_crawled_at IS NULL OR last_crawled_at < $3)
                        ORDER BY CASE WHEN content_hash IS NULL THEN 0 ELSE 1 END,
                               last_crawled_at ASC NULLS FIRST
-                       LIMIT $3""",
+                       LIMIT $4""",
                     self._domain,
+                    max_fail_count,
                     ts,
                     limit,
                 )
@@ -94,10 +98,12 @@ class PgWebsiteStore:
                 rows = await conn.fetch(
                     """SELECT url FROM website_urls
                        WHERE domain = $1 AND status != 'deleted'
+                         AND fail_count < $2
                        ORDER BY CASE WHEN content_hash IS NULL THEN 0 ELSE 1 END,
                               last_crawled_at ASC NULLS FIRST
-                       LIMIT $2""",
+                       LIMIT $3""",
                     self._domain,
+                    max_fail_count,
                     limit,
                 )
             return [r["url"] for r in rows]
@@ -141,12 +147,33 @@ class PgWebsiteStore:
             )
 
     async def mark_urls_deleted(self, urls: list[str]) -> None:
+        """Permanently soft-delete URLs: remove chunks/hashes and clear all content fields.
+
+        This is a one-way operation. Deleted URLs cannot be resurrected by
+        re-discovery (save_discovered_urls uses ON CONFLICT DO NOTHING).
+        Recovery requires manual database intervention.
+        """
         if not urls:
             return
-        async with acquire_with_retry(self._pool) as conn:
-            await conn.executemany(
-                "UPDATE website_urls SET status = 'deleted' WHERE domain = $1 AND url = $2",
-                [(self._domain, url) for url in urls],
+        async with acquire_with_retry(self._pool) as conn, conn.transaction():
+            await conn.execute(
+                "DELETE FROM chunks WHERE domain = $1 AND url = ANY($2)",
+                self._domain,
+                urls,
+            )
+            await conn.execute(
+                "DELETE FROM page_paragraph_hashes WHERE domain = $1 AND url = ANY($2)",
+                self._domain,
+                urls,
+            )
+            await conn.execute(
+                """UPDATE website_urls
+                   SET status = 'deleted', content_hash = NULL, content = NULL,
+                       title = NULL, word_count = NULL, metadata = NULL,
+                       structured_data = NULL, etag = NULL, last_modified = NULL
+                   WHERE domain = $1 AND url = ANY($2)""",
+                self._domain,
+                urls,
             )
 
     async def get_cache_headers(self, urls: list[str]) -> dict[str, dict]:
@@ -190,7 +217,8 @@ class PgWebsiteStore:
                     status,
                 )
             return await conn.fetchval(
-                "SELECT COUNT(*) FROM website_urls WHERE domain = $1 AND content_hash IS NOT NULL",
+                """SELECT COUNT(*) FROM website_urls
+                   WHERE domain = $1 AND content_hash IS NOT NULL AND status != 'deleted'""",
                 self._domain,
             )
 
@@ -284,6 +312,18 @@ class PgWebsiteStoreManager:
             rows = await conn.fetch("SELECT domain FROM websites WHERE status = 'deleting'")
         return [r["domain"] for r in rows]
 
+    async def recover_stuck_scans(self) -> list[str]:
+        """Find domains stuck in 'scanning' status for >30 min (e.g. after a crash).
+
+        Uses a 30-minute threshold to avoid resetting websites that are actively
+        being scanned by another container during blue-green deployments.
+        """
+        async with acquire_with_retry(self._pool) as conn:
+            rows = await conn.fetch(
+                "SELECT domain FROM websites WHERE status = 'scanning' AND updated_at < NOW() - INTERVAL '30 minutes'"
+            )
+        return [r["domain"] for r in rows]
+
     async def get_due_websites(self) -> list[dict]:
         async with acquire_with_retry(self._pool) as conn:
             rows = await conn.fetch(
@@ -322,8 +362,8 @@ class PgWebsiteStoreManager:
                           COALESCE(u.crawled, 0) AS crawled_count
                    FROM websites w
                    LEFT JOIN LATERAL (
-                       SELECT COUNT(*) AS total,
-                              COUNT(*) FILTER (WHERE content_hash IS NOT NULL) AS crawled
+                       SELECT COUNT(*) FILTER (WHERE status != 'deleted') AS total,
+                              COUNT(*) FILTER (WHERE content_hash IS NOT NULL AND status != 'deleted') AS crawled
                        FROM website_urls WHERE domain = w.domain
                    ) u ON true
                    WHERE w.domain = $1""",

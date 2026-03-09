@@ -9,30 +9,24 @@ import type {
 } from '../../../_generated/server';
 import type { AuthenticatedUser } from '../types';
 
-import { authComponent } from '../../../auth';
 import { UnauthenticatedError } from '../errors';
+import { getAuthUserIdentity } from './get_auth_user_identity';
 
 /**
- * Require authenticated user from context
+ * Require authenticated user from context.
+ *
+ * Uses JWT identity (0 DB queries) rather than authComponent.getAuthUser
+ * which performs 2 cross-component DB queries. The JWT is already
+ * cryptographically validated by Convex before the function runs.
+ *
  * @throws {UnauthenticatedError} When user is not authenticated
  */
 export async function requireAuthenticatedUser(
   ctx: QueryCtx | MutationCtx | ActionCtx,
 ): Promise<AuthenticatedUser> {
-  let authUser;
-  try {
-    authUser = await authComponent.getAuthUser(ctx);
-  } catch {
+  const user = await getAuthUserIdentity(ctx);
+  if (!user) {
     throw new UnauthenticatedError();
   }
-
-  if (!authUser || !authUser._id) {
-    throw new UnauthenticatedError();
-  }
-
-  return {
-    userId: authUser._id,
-    email: authUser.email ?? undefined,
-    name: authUser.name ?? undefined,
-  };
+  return user;
 }

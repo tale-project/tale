@@ -46,7 +46,6 @@ const agentFieldsValidator = {
   filePreprocessingEnabled: v.optional(v.boolean()),
   structuredResponsesEnabled: v.optional(v.boolean()),
   teamId: v.optional(v.string()),
-  sharedWithTeamIds: v.optional(v.array(v.string())),
   delegateAgentIds: v.optional(v.array(v.id('customAgents'))),
   maxSteps: v.optional(v.number()),
   timeoutMs: v.optional(v.number()),
@@ -214,6 +213,10 @@ export const createCustomAgent = mutation({
     validateToolNames(args.toolNames);
     validateModelId(args.modelId);
 
+    if (args.systemInstructions.trim().length === 0) {
+      throw new Error('System instructions cannot be empty');
+    }
+
     const { organizationId, toolNames, ...agentFields } = args;
 
     // Sync tool list based on retrieval modes
@@ -270,7 +273,6 @@ export const updateCustomAgent = mutation({
     filePreprocessingEnabled: v.optional(v.boolean()),
     structuredResponsesEnabled: v.optional(v.boolean()),
     teamId: v.optional(v.string()),
-    sharedWithTeamIds: v.optional(v.array(v.string())),
     delegateAgentIds: v.optional(v.array(v.id('customAgents'))),
     maxSteps: v.optional(v.number()),
     timeoutMs: v.optional(v.number()),
@@ -287,6 +289,13 @@ export const updateCustomAgent = mutation({
       validateToolNames(args.toolNames);
     }
     validateModelId(args.modelId);
+
+    if (
+      args.systemInstructions !== undefined &&
+      args.systemInstructions.trim().length === 0
+    ) {
+      throw new Error('System instructions cannot be empty');
+    }
 
     const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
     if (!hasTeamAccess(draft, userTeamIds)) {
@@ -323,7 +332,6 @@ export const updateCustomAgentMetadata = mutation({
     description: v.optional(v.string()),
     avatarUrl: v.optional(v.string()),
     teamId: v.optional(v.string()),
-    sharedWithTeamIds: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args): Promise<null> => {
     const authUser = await authComponent.getAuthUser(ctx);

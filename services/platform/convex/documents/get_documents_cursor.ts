@@ -5,7 +5,7 @@
  * preventing the "Too many bytes read" error regardless of data volume.
  */
 
-import type { Doc } from '../_generated/dataModel';
+import type { Doc, Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
 import type { DocumentItemResponse } from './types';
 
@@ -19,7 +19,7 @@ export interface GetDocumentsCursorArgs {
   numItems?: number;
   cursor: string | null;
   query?: string;
-  folderPath?: string;
+  folderId?: Id<'folders'>;
   userTeamIds?: string[];
   filterTeamId?: string;
 }
@@ -36,53 +36,33 @@ export async function getDocumentsCursor(
 ): Promise<CursorPaginatedDocumentsResult> {
   const numItems = args.numItems ?? DEFAULT_PAGE_SIZE;
   const searchQuery = args.query?.trim().toLowerCase() ?? '';
-  const folderPath = args.folderPath ?? '';
 
-  // Build query with optimal index
-  const baseQuery = ctx.db
-    .query('documents')
-    .withIndex('by_organizationId', (q) =>
-      q.eq('organizationId', args.organizationId),
-    )
-    .order('desc');
+  const baseQuery = args.folderId
+    ? ctx.db
+        .query('documents')
+        .withIndex('by_organizationId_and_folderId', (q) =>
+          q
+            .eq('organizationId', args.organizationId)
+            .eq('folderId', args.folderId),
+        )
+        .order('desc')
+    : ctx.db
+        .query('documents')
+        .withIndex('by_organizationId', (q) =>
+          q.eq('organizationId', args.organizationId),
+        )
+        .order('desc');
 
-  // Filter function for search, folder path, and team access
   const filter = (doc: Doc<'documents'>): boolean => {
-    // Team-based access control (unified fields with teamTags fallback)
     if (args.userTeamIds !== undefined) {
-      const userTeamIds = args.userTeamIds;
-      if (doc.teamId !== undefined) {
-        if (!hasTeamAccess(doc, userTeamIds)) {
-          return false;
-        }
-      } else if (doc.teamTags && doc.teamTags.length > 0) {
-        const hasAccess = doc.teamTags.some((tag) => userTeamIds.includes(tag));
-        if (!hasAccess) {
-          return false;
-        }
+      if (!hasTeamAccess(doc, args.userTeamIds)) {
+        return false;
       }
     }
 
-    // Team filter: when a specific team is selected, show only
-    // org-wide docs + docs belonging to/shared with the selected team
+    // Team filter: show org-wide docs + docs belonging to the selected team
     if (args.filterTeamId) {
-      if (doc.teamId !== undefined) {
-        if (doc.teamId !== null && doc.teamId !== args.filterTeamId) {
-          if (!doc.sharedWithTeamIds?.includes(args.filterTeamId)) {
-            return false;
-          }
-        }
-      } else if (doc.teamTags && doc.teamTags.length > 0) {
-        if (!doc.teamTags.includes(args.filterTeamId)) {
-          return false;
-        }
-      }
-    }
-
-    // Apply folder path filter
-    if (folderPath) {
-      const docPath = getMetadataString(doc.metadata, 'storagePath');
-      if (docPath !== folderPath) {
+      if (doc.teamId && doc.teamId !== args.filterTeamId) {
         return false;
       }
     }

@@ -9,7 +9,7 @@ import { seo } from '@/lib/utils/seo';
 
 const searchSchema = z.object({
   query: z.string().optional(),
-  folderPath: z.string().optional(),
+  folderId: z.string().optional(),
   doc: z.string().optional(),
 });
 
@@ -28,7 +28,7 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/documents')({
 
 function DocumentsPage() {
   const { id: organizationId } = Route.useParams();
-  const { query: searchQuery, folderPath, doc } = Route.useSearch();
+  const { query: searchQuery, folderId, doc } = Route.useSearch();
 
   const { data: hasMicrosoftAccount = false } = useHasMicrosoftAccount();
 
@@ -36,7 +36,7 @@ function DocumentsPage() {
     <DocumentsTable
       organizationId={organizationId}
       searchQuery={searchQuery?.trim()}
-      currentFolderPath={folderPath}
+      currentFolderId={folderId}
       docId={doc}
       hasMicrosoftAccount={hasMicrosoftAccount}
     />

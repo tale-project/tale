@@ -2,7 +2,7 @@
 
 Covers:
 - Hybrid search (FTS + vector) with RRF fusion
-- Tenant filtering (team_id, user_id, both, neither)
+- Scope filtering (document_ids, none)
 - Graceful fallback when BM25 index not ready
 - UndefinedTableError / UndefinedColumnError handling
 - Empty results from both search channels
@@ -107,7 +107,7 @@ class TestHybridSearch:
             service._fts_search = AsyncMock(return_value=fts_rows)
             service._vector_search = AsyncMock(return_value=vector_rows)
 
-            results = await service.search("test query", team_ids=["team-1"])
+            results = await service.search("test query", document_ids=["doc-1"])
 
         assert len(results) > 0
         for r in results:
@@ -174,87 +174,59 @@ class TestHybridSearch:
         embed_svc.embed_query.assert_awaited_once_with("my search query")
 
 
-class TestTenantFiltering:
-    """Tenant clause construction and parameter passing."""
+class TestScopeFiltering:
+    """Scope clause construction and parameter passing."""
 
-    def test_build_tenant_clause_team_ids_only(self):
+    def test_build_scope_clause_with_document_ids(self):
         from app.services.search_service import RagSearchService
 
         pool = MagicMock()
         embed = MagicMock()
         service = RagSearchService(pool, embed)
 
-        clause, params = service._build_tenant_clause(["team-a", "team-b"], None, 1)
+        clause, params = service._build_scope_clause(["doc-a", "doc-b"], 1)
 
-        assert "team_id = ANY($2)" in clause
-        assert params == [["team-a", "team-b"]]
+        assert "document_id" in clause
+        assert "ANY($2)" in clause
+        assert params == [["doc-a", "doc-b"]]
 
-    def test_build_tenant_clause_user_id_only(self):
+    def test_build_scope_clause_without_document_ids(self):
         from app.services.search_service import RagSearchService
 
         pool = MagicMock()
         embed = MagicMock()
         service = RagSearchService(pool, embed)
 
-        clause, params = service._build_tenant_clause(None, "user-1", 1)
-
-        assert "user_id = $2" in clause
-        assert params == ["user-1"]
-
-    def test_build_tenant_clause_both(self):
-        from app.services.search_service import RagSearchService
-
-        pool = MagicMock()
-        embed = MagicMock()
-        service = RagSearchService(pool, embed)
-
-        clause, params = service._build_tenant_clause(["team-x"], "user-y", 1)
-
-        assert "team_id = ANY($2)" in clause
-        assert "user_id = $3" in clause
-        assert "OR" in clause
-        assert params == [["team-x"], "user-y"]
-
-    def test_build_tenant_clause_neither(self):
-        from app.services.search_service import RagSearchService
-
-        pool = MagicMock()
-        embed = MagicMock()
-        service = RagSearchService(pool, embed)
-
-        clause, params = service._build_tenant_clause(None, None, 1)
+        clause, params = service._build_scope_clause(None, 1)
 
         assert clause == ""
         assert params == []
 
-    def test_build_tenant_clause_respects_param_offset(self):
+    def test_build_scope_clause_respects_param_offset(self):
         from app.services.search_service import RagSearchService
 
         pool = MagicMock()
         embed = MagicMock()
         service = RagSearchService(pool, embed)
 
-        clause, params = service._build_tenant_clause(["team-a"], "user-b", 3)
+        clause, params = service._build_scope_clause(["doc-a"], 3)
 
         assert "$4" in clause
-        assert "$5" in clause
 
-    async def test_search_passes_team_ids_to_fts_and_vector(self):
+    async def test_search_passes_document_ids_to_fts_and_vector(self):
         service, *_ = _build_service()
         service._fts_search = AsyncMock(return_value=[])
         service._vector_search = AsyncMock(return_value=[])
 
-        await service.search("query", team_ids=["t1", "t2"], user_id="u1")
+        await service.search("query", document_ids=["doc-1", "doc-2"])
 
         service._fts_search.assert_awaited_once()
         fts_args = service._fts_search.call_args
-        assert fts_args[0][1] == ["t1", "t2"]
-        assert fts_args[0][2] == "u1"
+        assert fts_args[0][1] == ["doc-1", "doc-2"]
 
         service._vector_search.assert_awaited_once()
         vec_args = service._vector_search.call_args
-        assert vec_args[0][1] == ["t1", "t2"]
-        assert vec_args[0][2] == "u1"
+        assert vec_args[0][1] == ["doc-1", "doc-2"]
 
 
 class TestGracefulFallback:
@@ -362,7 +334,7 @@ class TestDataCorruptionRecovery:
             mock_acq.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
             mock_acq.return_value.__aexit__ = AsyncMock(return_value=False)
 
-            results = await service._fts_search("query", None, None, 10)
+            results = await service._fts_search("query", None, 10)
 
         assert results == []
 
@@ -424,12 +396,31 @@ class TestFtsSearch:
             mock_acq.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
             mock_acq.return_value.__aexit__ = AsyncMock(return_value=False)
 
-            results = await service._fts_search("query", None, None, 10)
+            results = await service._fts_search("query", None, 10)
 
         assert results == []
 
-    async def test_fts_non_bm25_error_propagates(self):
-        """Non-BM25 errors from _fts_search should propagate."""
+    async def test_fts_internal_server_error_returns_empty(self):
+        """Any InternalServerError from _fts_search returns empty (e.g. ParadeDB unsupported query)."""
+        from app.services.search_service import RagSearchService
+
+        pool = MagicMock()
+        embed = MagicMock()
+        service = RagSearchService(pool, embed)
+
+        mock_conn = AsyncMock()
+        mock_conn.fetch = AsyncMock(side_effect=asyncpg.InternalServerError("Unsupported query shape"))
+
+        with patch("app.services.search_service.acquire_with_retry") as mock_acq:
+            mock_acq.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_acq.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            results = await service._fts_search("query", ["doc-1"], 10)
+
+        assert results == []
+
+    async def test_fts_non_db_error_propagates(self):
+        """Non-database errors from _fts_search should propagate."""
         from app.services.search_service import RagSearchService
 
         pool = MagicMock()
@@ -444,4 +435,4 @@ class TestFtsSearch:
             mock_acq.return_value.__aexit__ = AsyncMock(return_value=False)
 
             with pytest.raises(RuntimeError, match="connection refused"):
-                await service._fts_search("query", None, None, 10)
+                await service._fts_search("query", None, 10)

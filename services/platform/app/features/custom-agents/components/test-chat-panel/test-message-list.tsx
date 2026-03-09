@@ -1,5 +1,7 @@
 'use client';
 
+import type { UIMessage } from '@convex-dev/agent/react';
+
 import { Bot } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -11,23 +13,26 @@ import { Image } from '@/app/components/ui/data-display/image';
 import { Text } from '@/app/components/ui/typography/text';
 import { HumanInputRequestCard } from '@/app/features/chat/components/human-input-request-card';
 import { IntegrationApprovalCard } from '@/app/features/chat/components/integration-approval-card';
+import { ThinkingAnimation } from '@/app/features/chat/components/thinking-animation';
 import { WorkflowCreationApprovalCard } from '@/app/features/chat/components/workflow-creation-approval-card';
+import { WorkflowRunApprovalCard } from '@/app/features/chat/components/workflow-run-approval-card';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import { AssistantMessageInfo } from './assistant-message-info';
-import { ThinkingDots } from './thinking-dots';
 
 interface TestMessageListProps {
   displayItems: ChatItem[];
-  isBusy: boolean;
+  isLoading: boolean;
+  activeMessage?: UIMessage;
   organizationId: string;
   onImagePreview: (src: string, alt: string) => void;
 }
 
 export function TestMessageList({
   displayItems,
-  isBusy,
+  isLoading,
+  activeMessage,
   organizationId,
   onImagePreview,
 }: TestMessageListProps) {
@@ -87,6 +92,24 @@ export function TestMessageList({
           );
         }
 
+        if (item.type === 'workflow_run_approval') {
+          return (
+            <div
+              key={`workflow-run-approval-${item.data._id}`}
+              className="flex justify-start"
+            >
+              <WorkflowRunApprovalCard
+                approvalId={item.data._id}
+                organizationId={organizationId}
+                status={item.data.status}
+                metadata={item.data.metadata}
+                executedAt={item.data.executedAt}
+                executionError={item.data.executionError}
+              />
+            </div>
+          );
+        }
+
         if (item.type === 'human_input_request') {
           return (
             <div
@@ -111,14 +134,24 @@ export function TestMessageList({
               message.role === 'user' ? 'justify-end' : 'justify-start',
             )}
           >
-            <div className="flex max-w-[92.5%] min-w-0 flex-col gap-2">
+            <div
+              className={cn(
+                'rounded-2xl px-4 py-3',
+                message.role === 'user'
+                  ? 'bg-muted text-foreground max-w-xs lg:max-w-md'
+                  : 'text-foreground bg-background',
+              )}
+            >
               {message.fileParts && message.fileParts.length > 0 && (
-                <div className="flex flex-wrap gap-1">
+                <div className="mb-2 flex flex-wrap gap-1">
                   {message.fileParts.map((part) =>
                     part.mediaType.startsWith('image/') ? (
                       <button
                         key={part.url}
                         type="button"
+                        aria-label={t('customAgents.testChat.previewImage', {
+                          filename: part.filename || 'Image',
+                        })}
                         onClick={() =>
                           onImagePreview(part.url, part.filename || 'Image')
                         }
@@ -152,27 +185,17 @@ export function TestMessageList({
                 </div>
               )}
               {message.content && (
-                <div
-                  className={cn(
-                    'overflow-hidden rounded-lg px-2.5 py-2',
-                    message.role === 'user'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted text-foreground',
-                  )}
-                >
+                <div className="text-sm leading-5">
                   {message.role === 'assistant' ? (
-                    <div className="max-w-none text-xs break-words">
-                      <Bot className="text-muted-foreground mb-1.5 size-3.5" />
-                      <div className="prose prose-sm dark:prose-invert prose-p:my-0.5 prose-pre:my-1 prose-pre:bg-muted/50 prose-pre:border prose-pre:border-border prose-pre:rounded-md prose-pre:p-2 prose-pre:overflow-x-auto prose-pre:text-[10px] prose-headings:my-1 prose-headings:text-xs max-w-none text-xs break-words">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {message.content}
-                        </ReactMarkdown>
-                      </div>
+                    <div className="prose prose-sm dark:prose-invert prose-p:my-0.5 prose-pre:my-1 prose-pre:bg-muted/50 prose-pre:border prose-pre:border-border prose-pre:rounded-md prose-pre:p-2 prose-pre:overflow-x-auto prose-headings:my-1 max-w-none wrap-break-word">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {message.content}
+                      </ReactMarkdown>
                     </div>
                   ) : (
                     <Text
                       variant="body-sm"
-                      className="leading-relaxed break-words whitespace-pre-wrap"
+                      className="leading-relaxed wrap-break-word whitespace-pre-wrap"
                     >
                       {message.content}
                     </Text>
@@ -185,13 +208,14 @@ export function TestMessageList({
                   <AssistantMessageInfo
                     messageId={message.id}
                     timestamp={message.timestamp}
+                    content={message.content}
                   />
                 )}
             </div>
           </div>
         );
       })}
-      {isBusy && <ThinkingDots />}
+      {isLoading && <ThinkingAnimation streamingMessage={activeMessage} />}
     </>
   );
 }

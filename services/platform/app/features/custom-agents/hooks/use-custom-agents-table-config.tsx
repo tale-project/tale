@@ -40,6 +40,7 @@ export function useCustomAgentsTableConfig({
       {
         id: 'displayName',
         header: t('customAgents.columns.displayName'),
+        meta: { hasAvatar: false },
         cell: ({ row }) => (
           <Text as="span" variant="label">
             {row.original.displayName}
@@ -50,6 +51,7 @@ export function useCustomAgentsTableConfig({
       {
         id: 'status',
         header: tTables('headers.status'),
+        meta: { skeleton: { type: 'badge' } },
         cell: ({ row }) => {
           const { status } = row.original;
           return (
@@ -68,11 +70,13 @@ export function useCustomAgentsTableConfig({
         id: 'active',
         header: t('customAgents.columns.active'),
         size: 80,
+        meta: { skeleton: { type: 'switch' } },
         cell: ({ row }) => <CustomAgentActiveToggle agent={row.original} />,
       },
       {
         id: 'modelPreset',
         header: t('customAgents.columns.modelPreset'),
+        meta: { skeleton: { type: 'badge' } },
         cell: ({ row }) => {
           const preset = row.original.modelPreset;
           const presetLabel = t(`customAgents.form.modelPresets.${preset}`);
@@ -102,7 +106,7 @@ export function useCustomAgentsTableConfig({
           </span>
         ),
         size: 100,
-        meta: { headerLabel: t('customAgents.columns.tools') },
+        meta: { headerLabel: t('customAgents.columns.tools'), align: 'right' },
         cell: ({ row }) => (
           <Text as="span" variant="muted" className="block text-right">
             {row.original.toolNames.length}
@@ -112,6 +116,7 @@ export function useCustomAgentsTableConfig({
       {
         id: 'team',
         header: t('customAgents.columns.team'),
+        meta: { skeleton: { type: 'badge' } },
         cell: ({ row }) => {
           const { teamId: rowTeamId } = row.original;
           if (!rowTeamId) {

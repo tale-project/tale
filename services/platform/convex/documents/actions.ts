@@ -2,7 +2,7 @@
 
 import { v } from 'convex/values';
 
-import { isRecord, getBoolean, getString } from '../../lib/utils/type-guards';
+import { isRecord, getBoolean } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
 import { authComponent } from '../auth';
@@ -14,7 +14,6 @@ export const retryRagIndexing = action({
   },
   returns: v.object({
     success: v.boolean(),
-    jobId: v.optional(v.string()),
     error: v.optional(v.string()),
   }),
   handler: async (ctx, args) => {
@@ -40,9 +39,8 @@ export const retryRagIndexing = action({
       );
       const result = isRecord(rawResult) ? rawResult : undefined;
       const success = result ? (getBoolean(result, 'success') ?? false) : false;
-      const jobId = result ? getString(result, 'jobId') : undefined;
 
-      return { success, jobId };
+      return { success };
     } catch (error) {
       console.error('[retryRagIndexing] Error:', error);
       return {

@@ -50,10 +50,9 @@ export function AutomationRenameDialog({
     register,
     handleSubmit,
     reset,
-    formState: { isSubmitting, isValid, errors },
+    formState: { isSubmitting, isDirty, errors },
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
-    mode: 'onChange',
     defaultValues: {
       name: currentName,
     },
@@ -91,7 +90,7 @@ export function AutomationRenameDialog({
       submitText={tCommon('actions.save')}
       submittingText={tCommon('actions.saving')}
       isSubmitting={isSubmitting}
-      isValid={isValid}
+      isDirty={isDirty}
       onSubmit={handleSubmit(onSubmit)}
     >
       <Input

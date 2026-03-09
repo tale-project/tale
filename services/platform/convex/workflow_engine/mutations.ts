@@ -1,9 +1,9 @@
 import { v } from 'convex/values';
 
-import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
 import { mutation } from '../_generated/server';
 import { authComponent } from '../auth';
 import { getOrganizationMember } from '../lib/rls';
+import { jsonValueValidator } from '../lib/validators/json';
 import { workflowManagers } from './engine';
 import { handleStartWorkflow } from './helpers/engine/start_workflow_handler';
 

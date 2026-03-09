@@ -105,7 +105,6 @@ export interface RunAgentGenerationArgs {
   streamId?: string;
   promptMessageId?: string;
   maxSteps?: number;
-  userTeamIds?: string[];
 }
 
 /**

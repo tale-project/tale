@@ -9,8 +9,8 @@ import type { DocumentItem } from '@/types/documents';
 
 import { OneDriveIcon } from '@/app/components/icons/onedrive-icon';
 import { SharePointIcon } from '@/app/components/icons/sharepoint-icon';
+import { CopyableTimestamp } from '@/app/components/ui/data-display/copyable-timestamp';
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
-import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { HStack } from '@/app/components/ui/layout/layout';
@@ -66,6 +66,7 @@ function getSourceInfo(
 
 interface DocumentsTableConfigParams {
   onDocumentClick: (item: DocumentItem, e: React.MouseEvent) => void;
+  onFolderDeleted: () => void;
   isLoadingTeams: boolean;
   teamMap: Map<string, string>;
 }
@@ -79,6 +80,7 @@ interface DocumentsTableConfig {
 
 export function useDocumentsTableConfig({
   onDocumentClick,
+  onFolderDeleted,
   isLoadingTeams,
   teamMap,
 }: DocumentsTableConfigParams): DocumentsTableConfig {
@@ -103,7 +105,12 @@ export function useDocumentsTableConfig({
               <button
                 type="button"
                 title={fullPath}
-                className="text-left"
+                className="cursor-pointer text-left"
+                aria-label={
+                  row.original.type === 'folder'
+                    ? tDocuments('aria.openFolder', { name: fileName })
+                    : tDocuments('aria.openDocument', { name: fileName })
+                }
                 onClick={(e) => onDocumentClick(row.original, e)}
               >
                 <Text
@@ -195,36 +202,36 @@ export function useDocumentsTableConfig({
         size: 160,
         meta: { skeleton: { type: 'badge' as const } },
         cell: ({ row }) => {
-          const tags = row.original.teamTags;
-          if (row.original.type === 'folder' || !tags || tags.length === 0) {
+          if (row.original.type === 'folder') {
             return (
               <Text as="span" variant="muted">
                 —
               </Text>
             );
           }
+          const { teamId } = row.original;
+          if (!teamId) {
+            return (
+              <Badge variant="outline" className="text-xs">
+                {tDocuments('teamTags.orgWide')}
+              </Badge>
+            );
+          }
           if (isLoadingTeams) {
             return <Skeleton className="h-5 w-20" />;
           }
-          const filteredTags = tags
-            .map((tagId) => ({ tagId, teamName: teamMap.get(tagId) }))
-            .filter(
-              (item): item is { tagId: string; teamName: string } =>
-                !!item.teamName,
+          const teamName = teamMap.get(teamId);
+          if (!teamName) {
+            return (
+              <Text as="span" variant="muted">
+                —
+              </Text>
             );
+          }
           return (
-            <HStack gap={1} className="flex-wrap">
-              {filteredTags.slice(0, 2).map(({ tagId, teamName }) => (
-                <Badge key={tagId} variant="blue" className="text-xs">
-                  {teamName}
-                </Badge>
-              ))}
-              {filteredTags.length > 2 && (
-                <Badge variant="outline" className="text-xs">
-                  +{filteredTags.length - 2}
-                </Badge>
-              )}
-            </HStack>
+            <Badge variant="blue" className="text-xs">
+              {teamName}
+            </Badge>
           );
         },
       },
@@ -260,9 +267,9 @@ export function useDocumentsTableConfig({
           align: 'right' as const,
         },
         cell: ({ row }) => (
-          <TableDateCell
+          <CopyableTimestamp
             date={row.original.lastModified}
-            preset="short"
+            preset="long"
             alignRight
           />
         ),
@@ -280,13 +287,21 @@ export function useDocumentsTableConfig({
               syncConfigId={row.original.syncConfigId}
               isDirectlySelected={row.original.isDirectlySelected}
               sourceMode={row.original.sourceMode}
-              teamTags={row.original.teamTags}
+              teamId={row.original.teamId}
+              onFolderDeleted={onFolderDeleted}
             />
           </HStack>
         ),
       },
     ],
-    [onDocumentClick, isLoadingTeams, teamMap, tTables, tDocuments],
+    [
+      onDocumentClick,
+      onFolderDeleted,
+      isLoadingTeams,
+      teamMap,
+      tTables,
+      tDocuments,
+    ],
   );
 
   return {

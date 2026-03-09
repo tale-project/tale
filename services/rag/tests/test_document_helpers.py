@@ -1,7 +1,6 @@
 """Tests for document router helpers and config settings.
 
 Covers:
-- _parse_team_ids: None, empty, valid, invalid, required=True/False
 - _validate_file_extension: supported, unsupported, no extension
 - _parse_metadata: valid JSON, invalid JSON, non-dict JSON, None
 - SUPPORTED_EXTENSIONS: excludes legacy Office formats (.doc, .ppt, .xls)
@@ -19,78 +18,8 @@ from app.config import Settings
 from app.routers.documents import (
     SUPPORTED_EXTENSIONS,
     _parse_metadata,
-    _parse_team_ids,
     _validate_file_extension,
 )
-
-
-class TestParseTeamIds:
-    """Parse and sanitize comma-separated team IDs."""
-
-    def test_none_not_required_returns_none(self):
-        assert _parse_team_ids(None, required=False) is None
-
-    def test_empty_string_not_required_returns_none(self):
-        assert _parse_team_ids("", required=False) is None
-
-    def test_none_required_raises_400(self):
-        with pytest.raises(HTTPException) as exc_info:
-            _parse_team_ids(None, required=True)
-        assert exc_info.value.status_code == 400
-        assert "team_id" in exc_info.value.detail
-
-    def test_empty_string_required_raises_400(self):
-        with pytest.raises(HTTPException) as exc_info:
-            _parse_team_ids("", required=True)
-        assert exc_info.value.status_code == 400
-
-    def test_single_valid_team_id(self):
-        result = _parse_team_ids("team-abc")
-        assert result == ["team-abc"]
-
-    def test_multiple_valid_team_ids(self):
-        result = _parse_team_ids("team-1,team-2,team-3")
-        assert result == ["team-1", "team-2", "team-3"]
-
-    def test_strips_whitespace_around_ids(self):
-        result = _parse_team_ids(" team-1 , team-2 ")
-        assert result == ["team-1", "team-2"]
-
-    def test_skips_empty_segments(self):
-        result = _parse_team_ids("team-1,,team-2,")
-        assert result == ["team-1", "team-2"]
-
-    def test_all_invalid_ids_not_required_returns_none(self):
-        result = _parse_team_ids("!!!,@@@,###", required=False)
-        assert result is None
-
-    def test_all_invalid_ids_required_raises_400(self):
-        with pytest.raises(HTTPException) as exc_info:
-            _parse_team_ids("!!!,@@@,###", required=True)
-        assert exc_info.value.status_code == 400
-
-    def test_mixed_valid_and_invalid_ids_keeps_sanitizable(self):
-        result = _parse_team_ids("valid-team,@@@,another-ok")
-        assert "valid-team" in result
-        assert "another-ok" in result
-        assert len(result) == 2
-
-    def test_special_chars_stripped_from_ids(self):
-        result = _parse_team_ids("!!wrapped!!,clean-id")
-        assert result is not None
-        assert "wrapped" in result
-        assert "clean-id" in result
-
-    def test_sanitizes_dots_and_spaces(self):
-        result = _parse_team_ids("team.name with spaces")
-        assert result is not None
-        assert len(result) == 1
-        sanitized = result[0]
-        assert "." not in sanitized
-        assert " " not in sanitized
-
-    def test_default_required_is_false(self):
-        assert _parse_team_ids(None) is None
 
 
 class TestValidateFileExtension:

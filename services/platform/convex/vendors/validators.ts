@@ -1,36 +1,25 @@
 /**
  * Convex validators for vendor operations
- *
- * Note: Some schemas use jsonRecordSchema which contains z.lazy() for recursive types.
- * zodToConvex doesn't support z.lazy(), so complex validators are defined with native Convex v.
  */
 
-import { zodToConvex } from 'convex-helpers/server/zod4';
 import { v } from 'convex/values';
 
+import { dataSourceValidator } from '../lib/validators/common';
 import {
   jsonRecordValidator,
   jsonValueValidator,
-} from '../../lib/shared/schemas/utils/json-value';
-import {
-  vendorSourceSchema,
-  vendorAddressSchema,
-} from '../../lib/shared/schemas/vendors';
+} from '../lib/validators/json';
 
-export {
-  vendorSourceSchema,
-  vendorAddressSchema,
-  vendorItemSchema,
-  vendorInputSchema,
-  vendorListResponseSchema,
-  bulkCreateVendorsResponseSchema,
-} from '../../lib/shared/schemas/vendors';
+export const vendorSourceValidator = dataSourceValidator;
 
-// Simple schemas without z.lazy()
-export const vendorSourceValidator = zodToConvex(vendorSourceSchema);
-export const vendorAddressValidator = zodToConvex(vendorAddressSchema);
+export const vendorAddressValidator = v.object({
+  street: v.optional(v.string()),
+  city: v.optional(v.string()),
+  state: v.optional(v.string()),
+  country: v.optional(v.string()),
+  postalCode: v.optional(v.string()),
+});
 
-// Complex schemas with jsonRecordSchema (contains z.lazy) - use native Convex v
 export const vendorItemValidator = v.object({
   _id: v.string(),
   _creationTime: v.number(),
@@ -73,6 +62,7 @@ export const vendorListResponseValidator = v.object({
 export const bulkCreateErrorItemValidator = v.object({
   index: v.number(),
   error: v.string(),
+  errorCode: v.string(),
   vendor: jsonValueValidator,
 });
 

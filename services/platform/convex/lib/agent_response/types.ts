@@ -108,7 +108,6 @@ export interface GenerateResponseArgs {
   streamId?: string;
   promptMessageId?: string;
   maxSteps?: number;
-  userTeamIds?: string[];
   /** Absolute deadline (Date.now()-based) by which this generation must complete */
   deadlineMs?: number;
 }

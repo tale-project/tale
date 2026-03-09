@@ -1,22 +1,22 @@
-// Note: jsonRecordSchema contains z.lazy() which zodToConvex doesn't support,
-// so validators containing metadata use native Convex v instead.
+/**
+ * Convex validators for organization operations
+ */
 
-import { zodToConvex } from 'convex-helpers/server/zod4';
 import { v } from 'convex/values';
 
-import { memberRoleSchema } from '../../lib/shared/schemas/organizations';
-import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
+import { jsonRecordValidator } from '../lib/validators/json';
 
-export {
-  memberRoleSchema,
-  organizationSchema,
-} from '../../lib/shared/schemas/organizations';
-export type {
-  MemberRole,
-  Organization,
-} from '../../lib/shared/schemas/organizations';
+export type { MemberRole } from '../../lib/shared/schemas/organizations';
 
-export const memberRoleValidator = zodToConvex(memberRoleSchema);
+// Intentionally duplicated in members/validators.ts to keep module bundles independent.
+// Do not consolidate — cross-module imports risk pulling transitive deps into query bundles.
+export const memberRoleValidator = v.union(
+  v.literal('disabled'),
+  v.literal('member'),
+  v.literal('editor'),
+  v.literal('developer'),
+  v.literal('admin'),
+);
 
 export const organizationValidator = v.object({
   _id: v.string(),

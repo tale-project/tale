@@ -57,9 +57,9 @@ def _async_ctx(mock_conn):
 
 
 class TestAddDocument:
-    """add_document() delegates to index_document for each target."""
+    """add_document() delegates to index_document."""
 
-    async def test_single_team_calls_index_document(self):
+    async def test_user_calls_index_document(self):
         service = _make_service()
         index_result = {
             "success": True,
@@ -76,7 +76,7 @@ class TestAddDocument:
                 b"content bytes",
                 "doc-1",
                 "report.pdf",
-                team_ids=["team-a"],
+                user_id="user-1",
             )
 
         assert result["success"] is True
@@ -84,102 +84,9 @@ class TestAddDocument:
         assert result["chunks_created"] == 5
         mock_idx.assert_awaited_once()
         call_kwargs = mock_idx.call_args
-        assert call_kwargs[1]["team_id"] == "team-a"
-        assert call_kwargs[1]["user_id"] is None
-
-    async def test_single_user_calls_index_document(self):
-        service = _make_service()
-        index_result = {
-            "success": True,
-            "document_id": "doc-2",
-            "chunks_created": 3,
-            "skipped": False,
-            "skip_reason": None,
-        }
-
-        with patch(
-            "app.services.rag_service.index_document", new_callable=AsyncMock, return_value=index_result
-        ) as mock_idx:
-            result = await service.add_document(
-                b"content",
-                "doc-2",
-                "notes.txt",
-                user_id="user-1",
-            )
-
-        assert result["success"] is True
-        call_kwargs = mock_idx.call_args
-        assert call_kwargs[1]["team_id"] is None
         assert call_kwargs[1]["user_id"] == "user-1"
 
-    async def test_multiple_teams_processes_concurrently(self):
-        service = _make_service()
-        store_result = {
-            "success": True,
-            "document_id": "doc-m",
-            "chunks_created": 2,
-            "skipped": False,
-            "skip_reason": None,
-        }
-
-        mock_prepared = MagicMock()
-        with (
-            patch(
-                "app.services.rag_service.prepare_document", new_callable=AsyncMock, return_value=mock_prepared
-            ) as mock_prep,
-            patch(
-                "app.services.rag_service.store_prepared_document", new_callable=AsyncMock, return_value=store_result
-            ) as mock_store,
-        ):
-            result = await service.add_document(
-                b"content",
-                "doc-m",
-                "file.pdf",
-                team_ids=["team-1", "team-2"],
-            )
-
-        assert result["success"] is True
-        assert result["chunks_created"] == 4
-        mock_prep.assert_awaited_once()
-        assert mock_store.await_count == 2
-
-    async def test_user_and_teams_creates_targets_for_each(self):
-        service = _make_service()
-        store_result = {
-            "success": True,
-            "document_id": "doc-both",
-            "chunks_created": 1,
-            "skipped": False,
-            "skip_reason": None,
-        }
-
-        mock_prepared = MagicMock()
-        with (
-            patch("app.services.rag_service.prepare_document", new_callable=AsyncMock, return_value=mock_prepared),
-            patch(
-                "app.services.rag_service.store_prepared_document", new_callable=AsyncMock, return_value=store_result
-            ) as mock_store,
-        ):
-            result = await service.add_document(
-                b"content",
-                "doc-both",
-                "file.txt",
-                user_id="user-1",
-                team_ids=["team-a", "team-b"],
-            )
-
-        assert result["success"] is True
-        # user target + 2 team targets = 3 calls
-        assert mock_store.await_count == 3
-        assert result["chunks_created"] == 3
-
-    async def test_no_user_or_team_raises_value_error(self):
-        service = _make_service()
-
-        with pytest.raises(ValueError, match="At least one of user_id or team_ids"):
-            await service.add_document(b"content", "doc-x", "file.txt")
-
-    async def test_all_targets_skipped_returns_skipped(self):
+    async def test_skipped_returns_skipped(self):
         service = _make_service()
         index_result = {
             "success": True,
@@ -194,69 +101,11 @@ class TestAddDocument:
                 b"content",
                 "doc-skip",
                 "file.txt",
-                team_ids=["team-a"],
+                user_id="user-1",
             )
 
         assert result["skipped"] is True
         assert result["skip_reason"] == "content_unchanged"
-
-    async def test_partial_error_with_some_success_does_not_raise(self):
-        service = _make_service()
-
-        call_count = 0
-
-        async def store_side_effect(*args, **kwargs):
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                return {
-                    "success": True,
-                    "document_id": "doc-pe",
-                    "chunks_created": 3,
-                    "skipped": False,
-                    "skip_reason": None,
-                }
-            raise RuntimeError("indexing failed for team-2")
-
-        mock_prepared = MagicMock()
-        with (
-            patch("app.services.rag_service.prepare_document", new_callable=AsyncMock, return_value=mock_prepared),
-            patch(
-                "app.services.rag_service.store_prepared_document",
-                new_callable=AsyncMock,
-                side_effect=store_side_effect,
-            ),
-        ):
-            result = await service.add_document(
-                b"content",
-                "doc-pe",
-                "file.txt",
-                team_ids=["team-1", "team-2"],
-            )
-
-        assert result["success"] is True
-        assert result["chunks_created"] == 3
-        assert result["skipped"] is False
-
-    async def test_all_targets_error_raises(self):
-        service = _make_service()
-
-        mock_prepared = MagicMock()
-        with (
-            patch("app.services.rag_service.prepare_document", new_callable=AsyncMock, return_value=mock_prepared),
-            patch(
-                "app.services.rag_service.store_prepared_document",
-                new_callable=AsyncMock,
-                side_effect=RuntimeError("total failure"),
-            ),
-        ):
-            with pytest.raises(RuntimeError, match="total failure"):
-                await service.add_document(
-                    b"content",
-                    "doc-fail",
-                    "file.txt",
-                    team_ids=["team-1", "team-2"],
-                )
 
     async def test_initializes_if_not_initialized(self):
         from app.services.rag_service import RagService
@@ -280,7 +129,7 @@ class TestAddDocument:
                     "skip_reason": "x",
                 },
             ):
-                await service.add_document(b"x", "d", "f.txt", team_ids=["t"])
+                await service.add_document(b"x", "d", "f.txt", user_id="u1")
 
         mock_init.assert_awaited_once()
 
@@ -300,13 +149,12 @@ class TestSearch:
         with patch("app.services.rag_service.settings") as mock_settings:
             mock_settings.top_k = 10
             mock_settings.similarity_threshold = 0.0
-            results = await service.search("test query", team_ids=["t1"])
+            results = await service.search("test query", document_ids=["doc-1"])
 
         assert len(results) == 2
         service._search_service.search.assert_awaited_once_with(
             "test query",
-            team_ids=["t1"],
-            user_id=None,
+            document_ids=["doc-1"],
             top_k=10,
         )
 
@@ -339,8 +187,7 @@ class TestSearch:
 
         service._search_service.search.assert_awaited_once_with(
             "query",
-            team_ids=None,
-            user_id=None,
+            document_ids=None,
             top_k=20,
         )
 
@@ -374,19 +221,18 @@ class TestSearch:
 
         assert len(results) == 1
 
-    async def test_passes_user_id_and_team_ids(self):
+    async def test_passes_document_ids(self):
         service = _make_service()
         service._search_service.search = AsyncMock(return_value=[])
 
         with patch("app.services.rag_service.settings") as mock_settings:
             mock_settings.top_k = 10
             mock_settings.similarity_threshold = 0.0
-            await service.search("q", user_id="u1", team_ids=["t1", "t2"])
+            await service.search("q", document_ids=["doc-1", "doc-2"])
 
         service._search_service.search.assert_awaited_once_with(
             "q",
-            team_ids=["t1", "t2"],
-            user_id="u1",
+            document_ids=["doc-1", "doc-2"],
             top_k=10,
         )
 
@@ -416,7 +262,7 @@ class TestGenerate:
             patch("app.services.rag_service.settings") as mock_settings,
         ):
             mock_settings.get_llm_config.return_value = {"model": "gpt-4o-mini"}
-            result = await service.generate("What is X?", team_ids=["t1"])
+            result = await service.generate("What is X?", document_ids=["doc-1"])
 
         assert result["success"] is True
         assert result["response"] == "Generated answer based on context."
@@ -514,16 +360,15 @@ class TestGenerate:
         user_msg = create_call.call_args[1]["messages"][1]["content"]
         assert len(user_msg) < RAG_MAX_CONTEXT_CHARS + 1000
 
-    async def test_passes_user_id_and_team_ids_to_search(self):
+    async def test_passes_document_ids_to_search(self):
         service = _make_service()
 
         with patch.object(service, "search", new_callable=AsyncMock, return_value=[]) as mock_search:
-            await service.generate("q", user_id="u1", team_ids=["t1"])
+            await service.generate("q", document_ids=["doc-1"])
 
         mock_search.assert_awaited_once()
         call_kwargs = mock_search.call_args[1]
-        assert call_kwargs["user_id"] == "u1"
-        assert call_kwargs["team_ids"] == ["t1"]
+        assert call_kwargs["document_ids"] == ["doc-1"]
 
     async def test_none_content_from_llm_returns_empty_string(self):
         service = _make_service()
@@ -551,54 +396,36 @@ class TestGenerate:
 
 
 class TestDeleteDocument:
-    """delete_document() with team authorization filtering."""
+    """delete_document() deletes all matching documents by document_id."""
 
-    async def test_deletes_document_matching_team(self):
+    async def test_deletes_document(self):
         service = _make_service()
         mock_conn = _mock_conn(
             fetch_return=[
-                {"id": "uuid-1", "team_id": "team-a"},
+                {"id": "uuid-1"},
             ]
         )
 
         with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
-            result = await service.delete_document("doc-1", team_ids=["team-a"])
+            result = await service.delete_document("doc-1")
 
         assert result["success"] is True
         assert result["deleted_count"] == 1
         assert "uuid-1" in result["deleted_data_ids"]
 
-    async def test_skips_document_from_unauthorized_team(self):
+    async def test_deletes_multiple_matching_docs(self):
         service = _make_service()
         mock_conn = _mock_conn(
             fetch_return=[
-                {"id": "uuid-1", "team_id": "team-other"},
+                {"id": "uuid-1"},
+                {"id": "uuid-2"},
             ]
         )
 
         with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
-            result = await service.delete_document("doc-1", team_ids=["team-a"])
-
-        assert result["deleted_count"] == 0
-        assert result["deleted_data_ids"] == []
-
-    async def test_deletes_only_authorized_docs_from_multiple(self):
-        service = _make_service()
-        mock_conn = _mock_conn(
-            fetch_return=[
-                {"id": "uuid-1", "team_id": "team-a"},
-                {"id": "uuid-2", "team_id": "team-b"},
-                {"id": "uuid-3", "team_id": "team-c"},
-            ]
-        )
-
-        with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
-            result = await service.delete_document("doc-1", team_ids=["team-a", "team-c"])
+            result = await service.delete_document("doc-1")
 
         assert result["deleted_count"] == 2
-        assert "uuid-1" in result["deleted_data_ids"]
-        assert "uuid-3" in result["deleted_data_ids"]
-        assert "uuid-2" not in result["deleted_data_ids"]
 
     async def test_no_documents_found_returns_zero_deleted(self):
         service = _make_service()
@@ -611,41 +438,12 @@ class TestDeleteDocument:
         assert result["deleted_count"] == 0
         assert "nonexistent" in result["message"]
 
-    async def test_no_team_ids_deletes_all_matching(self):
-        service = _make_service()
-        mock_conn = _mock_conn(
-            fetch_return=[
-                {"id": "uuid-1", "team_id": "team-a"},
-                {"id": "uuid-2", "team_id": None},
-            ]
-        )
-
-        with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
-            result = await service.delete_document("doc-1", team_ids=None)
-
-        assert result["deleted_count"] == 2
-
-    async def test_document_with_null_team_id_always_deleted(self):
-        service = _make_service()
-        mock_conn = _mock_conn(
-            fetch_return=[
-                {"id": "uuid-1", "team_id": None},
-            ]
-        )
-
-        with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
-            result = await service.delete_document("doc-1", team_ids=["team-a"])
-
-        # team_id is None so the `row["team_id"] not in team_ids` check is skipped
-        # because `row["team_id"]` is falsy — the code checks `row["team_id"] and row["team_id"] not in team_ids`
-        assert result["deleted_count"] == 1
-
     async def test_deletes_chunks_before_documents(self):
         """Chunks must be deleted explicitly before documents to avoid BM25 index corruption."""
         service = _make_service()
         mock_conn = _mock_conn(
             fetch_return=[
-                {"id": "uuid-1", "team_id": "team-a"},
+                {"id": "uuid-1"},
             ]
         )
 
@@ -662,7 +460,7 @@ class TestDeleteDocument:
         mock_conn.execute = AsyncMock(side_effect=track_execute)
 
         with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
-            await service.delete_document("doc-1", team_ids=["team-a"])
+            await service.delete_document("doc-1")
 
         assert call_order == ["delete_chunks", "delete_documents"]
 
@@ -671,12 +469,12 @@ class TestDeleteDocument:
         service = _make_service()
         mock_conn = _mock_conn(
             fetch_return=[
-                {"id": "uuid-1", "team_id": "team-a"},
+                {"id": "uuid-1"},
             ]
         )
 
         with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
-            await service.delete_document("doc-1", team_ids=["team-a"])
+            await service.delete_document("doc-1")
 
         mock_conn.transaction.assert_called_once()
 

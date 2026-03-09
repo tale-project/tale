@@ -7,22 +7,12 @@ import {
 import { internal } from '../_generated/api';
 import { mutation } from '../_generated/server';
 import { authComponent } from '../auth';
+import { getUserTeamIds } from '../lib/get_user_teams';
 import { getOrganizationMember } from '../lib/rls';
+import { hasTeamAccess } from '../lib/team_access';
 import { createDocument } from './create_document';
 import { updateDocument as updateDocumentHelper } from './update_document';
 import { sourceProviderValidator } from './validators';
-
-function arraysEqual(
-  a: string[] | undefined,
-  b: string[] | undefined,
-): boolean {
-  if (!a && !b) return true;
-  if (!a || !b) return false;
-  if (a.length !== b.length) return false;
-  const sortedA = [...a].sort();
-  const sortedB = [...b].sort();
-  return sortedA.every((val, i) => val === sortedB[i]);
-}
 
 export const updateDocument = mutation({
   args: {
@@ -35,7 +25,7 @@ export const updateDocument = mutation({
     extension: v.optional(v.string()),
     sourceProvider: v.optional(sourceProviderValidator),
     externalItemId: v.optional(v.string()),
-    teamTags: v.optional(v.array(v.string())),
+    teamId: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
@@ -54,25 +44,11 @@ export const updateDocument = mutation({
       name: authUser.name,
     });
 
-    const oldTeamTags = document.teamTags;
-    const wasIndexed = document.ragInfo?.status === 'completed';
-
     await updateDocumentHelper(ctx, {
       ...args,
+      teamId: args.teamId,
       userId: String(authUser._id),
     });
-
-    if (
-      args.teamTags !== undefined &&
-      wasIndexed &&
-      !arraysEqual(oldTeamTags, args.teamTags)
-    ) {
-      await ctx.scheduler.runAfter(
-        0,
-        internal.documents.internal_actions.reindexDocumentRag,
-        { documentId: args.documentId },
-      );
-    }
   },
 });
 
@@ -118,7 +94,8 @@ export const createDocumentFromUpload = mutation({
     contentType: v.optional(v.string()),
     contentHash: v.optional(v.string()),
     metadata: v.optional(jsonRecordValidator),
-    teamTags: v.optional(v.array(v.string())),
+    teamId: v.optional(v.string()),
+    folderId: v.optional(v.id('folders')),
   },
   returns: v.object({
     success: v.boolean(),
@@ -136,6 +113,19 @@ export const createDocumentFromUpload = mutation({
       name: authUser.name,
     });
 
+    if (args.folderId) {
+      const folder = await ctx.db.get(args.folderId);
+      if (!folder || folder.organizationId !== args.organizationId) {
+        throw new Error('Folder not found');
+      }
+      if (folder.teamId) {
+        const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
+        if (!hasTeamAccess(folder, userTeamIds)) {
+          throw new Error('Folder not accessible');
+        }
+      }
+    }
+
     const result = await createDocument(ctx, {
       organizationId: args.organizationId,
       title: args.fileName,
@@ -143,9 +133,10 @@ export const createDocumentFromUpload = mutation({
       mimeType: args.contentType,
       contentHash: args.contentHash,
       sourceProvider: 'upload',
-      teamTags: args.teamTags,
+      teamId: args.teamId,
       metadata: args.metadata,
       createdBy: String(authUser._id),
+      folderId: args.folderId,
     });
 
     return {
