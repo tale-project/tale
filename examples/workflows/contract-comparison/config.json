@@ -1,8 +1,8 @@
 {
   "workflowConfig": {
     "name": "Contract Comparison",
-    "description": "Compare multiple legal contracts using deterministic paragraph-level text diffing to identify all additions, deletions, and modifications, producing a structured DOCX comparison report with clause amendment frequency analysis",
-    "version": "2.0.0",
+    "description": "Compare sequential versions of a contract using deterministic paragraph-level text diffing to identify all additions, deletions, and modifications across the negotiation chain, producing a structured DOCX report with clause amendment frequency analysis",
+    "version": "3.0.0",
     "workflowType": "predefined",
     "config": {
       "timeout": 14400000,
@@ -19,10 +19,9 @@
       "config": {
         "inputSchema": {
           "properties": {
-            "baselineFile": { "type": "object", "description": "Base contract object with fileId and fileName" },
-            "comparisonFiles": { "type": "array", "description": "Comparison contract objects with fileId and fileName" }
+            "files": { "type": "array", "description": "File objects with fileId and fileName, ordered chronologically (oldest first). Minimum 2 required." }
           },
-          "required": ["baselineFile", "comparisonFiles"]
+          "required": ["files"]
         }
       },
       "nextSteps": { "success": "init_variables" }
@@ -37,12 +36,12 @@
         "parameters": {
           "variables": [
             {
-              "name": "baseDocName",
-              "value": "{{baselineFile.fileName}}"
+              "name": "filesToCompare",
+              "value": "{{files | slice(1)}}"
             },
             {
-              "name": "comparisonDocNames",
-              "value": "{{comparisonFiles|map('fileName')}}"
+              "name": "fileNames",
+              "value": "{{files | map('fileName')}}"
             },
             {
               "name": "comparisonResults",
@@ -55,41 +54,41 @@
           ]
         }
       },
-      "nextSteps": { "success": "index_baseline" }
-    },
-    {
-      "stepSlug": "index_baseline",
-      "name": "Index Baseline Document in RAG",
-      "stepType": "action",
-      "order": 3,
-      "config": {
-        "type": "rag",
-        "parameters": {
-          "operation": "upload_document",
-          "fileId": "{{baselineFile.fileId}}",
-          "fileName": "{{baselineFile.fileName}}",
-          "sync": true
-        }
-      },
       "nextSteps": { "success": "loop_comparison_files" }
     },
     {
       "stepSlug": "loop_comparison_files",
-      "name": "Loop: Compare Each Document",
+      "name": "Loop: Compare Adjacent Versions",
       "stepType": "loop",
-      "order": 4,
+      "order": 3,
       "config": {
-        "items": "{{comparisonFiles}}",
+        "items": "{{filesToCompare}}",
         "itemVariable": "item"
       },
       "nextSteps": {
-        "loop": "index_comparison_doc",
+        "loop": "index_base_doc",
         "done": "generate_overview"
       }
     },
     {
+      "stepSlug": "index_base_doc",
+      "name": "Index Base Version in RAG",
+      "stepType": "action",
+      "order": 4,
+      "config": {
+        "type": "rag",
+        "parameters": {
+          "operation": "upload_document",
+          "fileId": "{{files[loop.index].fileId}}",
+          "fileName": "{{files[loop.index].fileName}}",
+          "sync": true
+        }
+      },
+      "nextSteps": { "success": "index_comparison_doc" }
+    },
+    {
       "stepSlug": "index_comparison_doc",
-      "name": "Index Comparison Document in RAG",
+      "name": "Index Comparison Version in RAG",
       "stepType": "action",
       "order": 5,
       "config": {
@@ -112,7 +111,7 @@
         "type": "document",
         "parameters": {
           "operation": "compare",
-          "baseFileId": "{{baselineFile.fileId}}",
+          "baseFileId": "{{files[loop.index].fileId}}",
           "comparisonFileId": "{{loop.item.fileId}}",
           "maxChanges": 500
         }
@@ -126,8 +125,8 @@
       "order": 7,
       "config": {
         "name": "Contract Difference Analyzer",
-        "systemPrompt": "You are an expert legal document analyst specializing in contract comparison. You receive structured diff output showing paragraph-level text differences between two contracts. Produce a comprehensive legal analysis with structured tables. Use precise legal terminology. Distinguish between substantive modifications (different legal effect) and rewordings (same legal effect, different language). Identify cross-reference renumbering separately from substantive changes. Use ### for clause type headings and #### for sub-sections. These are the only heading levels you may use. Some change items include an `inline_diff` field showing word-level changes with `[-deleted-]` and `{+added+}` markers, and a `clause_ref` field with the extracted section reference. Use these to inform your classification and description. Output valid JSON only.",
-        "userPrompt": "Analyze the following differences between the base contract \"{{baseDocName}}\" and comparison contract \"{{loop.item.fileName}}\".\n\n## Diff Statistics\n- Modified paragraphs: {{steps.compare_documents.output.data.stats.modified}}\n- Added paragraphs: {{steps.compare_documents.output.data.stats.added}}\n- Deleted paragraphs: {{steps.compare_documents.output.data.stats.deleted}}\n- Unchanged paragraphs: {{steps.compare_documents.output.data.stats.unchanged}}\n- High divergence: {{steps.compare_documents.output.data.stats.highDivergence}}\n- Truncated: {{steps.compare_documents.output.data.truncated}}\n\nNote: If high divergence is true, the documents differ significantly (>70% changed). This often occurs when comparing a draft against a substantially expanded final version. Still analyze all available changes thoroughly. If truncated is true, only the first 500 change items are shown.\n\n## Change Blocks\n{{steps.compare_documents.output.data.changeBlocks|string}}\n\n## Output Requirements\nReturn a JSON object with exactly two fields:\n\n1. \"analysis\": A markdown string containing your legal analysis. For each change block, produce:\n   - **Clause Type** identification (e.g., Indemnification, Limitation of Liability, Representations)\n   - A table with columns: Aspect | Classification | Description | Legal Significance\n   - Classification must be exactly one of: Addition, Deletion, Modification, Rewording\n     - Modification = different legal effect (substantive change)\n     - Rewording = same legal effect, different language (cosmetic/style change)\n   - If changes are purely cross-reference renumbering, classify as \"Rewording\" and note it\n   - Keep descriptions to 1-2 sentences\n   - Group changes under clause type headings. Within each group, list each change with its specific clause reference (from the `clause_ref` field) in the Description column\n   - When an `inline_diff` field is available, reference the specific words that changed rather than describing the change generically\n\n2. \"clauses\": An array of objects, each with:\n   - \"clauseType\": string (the clause type you identified)\n   - \"classification\": one of \"Addition\", \"Deletion\", \"Modification\", \"Rewording\"\n\nThis structured data will be used for amendment frequency analysis across all comparison documents.",
+        "systemPrompt": "You are an expert legal document analyst specializing in contract comparison. You receive structured diff output showing paragraph-level text differences between adjacent versions in a document sequence. Produce a comprehensive legal analysis with structured tables. Use precise legal terminology. Distinguish between substantive modifications (different legal effect) and rewordings (same legal effect, different language). Identify cross-reference renumbering separately from substantive changes. Use ### for clause type headings and #### for sub-sections. These are the only heading levels you may use. Some change items include an `inline_diff` field showing word-level changes with `[-deleted-]` and `{+added+}` markers, and a `clause_ref` field with the extracted section reference. Use these to inform your classification and description. Output valid JSON only.",
+        "userPrompt": "Analyze the changes from \"{{files[loop.index].fileName}}\" to \"{{loop.item.fileName}}\" (transition {{loop.index + 1}} of {{filesToCompare | length}} in the version sequence).\n\n## Diff Statistics\n- Modified paragraphs: {{steps.compare_documents.output.data.stats.modified}}\n- Added paragraphs: {{steps.compare_documents.output.data.stats.added}}\n- Deleted paragraphs: {{steps.compare_documents.output.data.stats.deleted}}\n- Unchanged paragraphs: {{steps.compare_documents.output.data.stats.unchanged}}\n- High divergence: {{steps.compare_documents.output.data.stats.highDivergence}}\n- Truncated: {{steps.compare_documents.output.data.truncated}}\n\nNote: If high divergence is true, the documents differ significantly (>70% changed). This often occurs when comparing a draft against a substantially expanded version. Still analyze all available changes thoroughly. If truncated is true, only the first 500 change items are shown.\n\n## Change Blocks\n{{steps.compare_documents.output.data.changeBlocks|string}}\n\n## Output Requirements\nReturn a JSON object with exactly two fields:\n\n1. \"analysis\": A markdown string containing your legal analysis. For each change block, produce:\n   - **Clause Type** identification (e.g., Indemnification, Limitation of Liability, Representations)\n   - A table with columns: Aspect | Classification | Description | Legal Significance\n   - Classification must be exactly one of: Addition, Deletion, Modification, Rewording\n     - Modification = different legal effect (substantive change)\n     - Rewording = same legal effect, different language (cosmetic/style change)\n   - If changes are purely cross-reference renumbering, classify as \"Rewording\" and note it\n   - Keep descriptions to 1-2 sentences\n   - Group changes under clause type headings. Within each group, list each change with its specific clause reference (from the `clause_ref` field) in the Description column\n   - When an `inline_diff` field is available, reference the specific words that changed rather than describing the change generically\n\n2. \"clauses\": An array of objects, each with:\n   - \"clauseType\": string (the clause type you identified)\n   - \"classification\": one of \"Addition\", \"Deletion\", \"Modification\", \"Rewording\"\n   - \"clauseRef\": the clause/section reference if identified, or null\n   - \"versionFrom\": \"{{files[loop.index].fileName}}\"\n   - \"versionTo\": \"{{loop.item.fileName}}\"\n\nThis structured data will be used for amendment frequency analysis across all version transitions.",
         "outputFormat": "json",
         "outputSchema": {
           "type": "object",
@@ -153,9 +152,17 @@
                   "clauseRef": {
                     "type": ["string", "null"],
                     "description": "The clause/section reference if identified (e.g., 'Section 7.1.2', 'Ziff. 3.2')"
+                  },
+                  "versionFrom": {
+                    "type": "string",
+                    "description": "Source version file name"
+                  },
+                  "versionTo": {
+                    "type": "string",
+                    "description": "Target version file name"
                   }
                 },
-                "required": ["clauseType", "classification"]
+                "required": ["clauseType", "classification", "versionFrom", "versionTo"]
               }
             }
           },
@@ -175,7 +182,7 @@
           "variables": [
             {
               "name": "comparisonResults",
-              "value": "{{comparisonResults|concat(['## ' + loop.item.fileName + '\\n\\n---\\n\\n' + steps.analyze_differences.output.data.analysis])}}"
+              "value": "{{comparisonResults|concat(['## ' + files[loop.index].fileName + ' → ' + loop.item.fileName + '\\n\\n---\\n\\n' + steps.analyze_differences.output.data.analysis])}}"
             },
             {
               "name": "allClauses",
@@ -193,8 +200,8 @@
       "order": 9,
       "config": {
         "name": "Contract Comparison Overview",
-        "systemPrompt": "You are an expert legal analyst. Generate a professional executive introduction for a contract comparison report that includes amendment frequency analysis. Be concise and data-driven.",
-        "userPrompt": "Write a 3-4 paragraph executive introduction for a contract comparison report with the following metadata:\n\n- Base document: {{baseDocName}}\n- Comparison documents: {{comparisonDocNames|join(', ')}}\n- Number of comparison documents: {{comparisonFiles|length}}\n- Total clause classifications across all comparisons: {{allClauses|length}}\n\n## Clause Amendment Data\n{{allClauses|string}}\n\nThe introduction should:\n1. Identify the base document and each comparison document by name\n2. Describe the scope and methodology (deterministic paragraph-level text comparison)\n3. Analyze the clause amendment data to identify:\n   - Which clause types were most frequently modified or negotiated across all comparison documents\n   - The distribution of change types (Addition vs Deletion vs Modification vs Rewording)\n   - Any patterns (e.g., certain clauses consistently modified across all versions)\n4. Direct the reader to the detailed comparison that follows\n\nKeep it under 250 words. Be specific about which clauses were most frequently amended.",
+        "systemPrompt": "You are an expert legal analyst. Generate a professional executive introduction for a contract version comparison report that includes amendment frequency analysis across the negotiation chain. Be concise and data-driven.",
+        "userPrompt": "Write a 3-4 paragraph executive introduction for a contract comparison report with the following metadata:\n\n- Document versions (chronological): {{fileNames|join(' → ')}}\n- Number of version transitions analyzed: {{filesToCompare|length}}\n- Total clause classifications across all transitions: {{allClauses|length}}\n\n## Clause Amendment Data\n{{allClauses|string}}\n\nThe introduction should:\n1. Identify all document versions in the negotiation sequence by name, in chronological order\n2. Describe the scope and methodology (deterministic paragraph-level text comparison across sequential version pairs)\n3. Analyze the clause amendment data to identify:\n   - Which clause types were most frequently negotiated across version transitions\n   - The distribution of change types (Addition vs Deletion vs Modification vs Rewording)\n   - Evolution patterns: clauses that were modified in multiple consecutive transitions vs clauses that stabilized after early changes\n   - Use the versionFrom/versionTo fields to identify which transitions affected each clause\n4. Direct the reader to the detailed version-by-version analysis that follows\n\nKeep it under 300 words. Be specific about which clauses were most frequently amended and in which transitions.",
         "outputFormat": "text"
       },
       "nextSteps": { "success": "generate_report" }
@@ -210,7 +217,7 @@
           "operation": "generate_docx",
           "fileName": "contract-comparison-report.docx",
           "sourceType": "markdown",
-          "content": "# Contract Comparison Report\n\n**Base Document:** {{baseDocName}}\n\n**Comparison Documents:** {{comparisonDocNames|join(', ')}}\n\n**Methodology:** Deterministic paragraph-level text comparison with AI-powered legal analysis\n\n---\n\n{{steps.generate_overview.output.data}}\n\n---\n\n# Detailed Clause-by-Clause Comparison\n\n{{comparisonResults|join('\n\n---\n\n')}}"
+          "content": "# Contract Comparison Report\n\n**Document Versions:** {{fileNames|join(' → ')}}\n\n**Total Transitions Analyzed:** {{filesToCompare|length}}\n\n**Methodology:** Deterministic paragraph-level text comparison across sequential version pairs with AI-powered legal analysis\n\n---\n\n{{steps.generate_overview.output.data}}\n\n---\n\n# Version-by-Version Evolution Analysis\n\n{{comparisonResults|join('\\n\\n---\\n\\n')}}"
         }
       },
       "nextSteps": { "success": "output" }

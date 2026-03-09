@@ -21,6 +21,15 @@ import { getRagConfig } from '../../../lib/helpers/rag_config';
 import { toConvexJsonRecord, toId } from '../../../lib/type_cast_helpers';
 import { jsonRecordValidator } from '../../../lib/validators/json';
 
+/**
+ * Normalize unescaped literal \n and \t sequences to actual whitespace.
+ * Uses negative lookbehind to avoid corrupting \\n (escaped backslash + n).
+ * Safety net for JEXL expressions that don't interpret escape sequences.
+ */
+export function normalizeEscapeSequences(text: string) {
+  return text.replace(/(?<!\\)\\n/g, '\n').replace(/(?<!\\)\\t/g, '\t');
+}
+
 type DocumentActionParams =
   | {
       operation: 'update';
@@ -144,13 +153,15 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
       }
 
       case 'generate_docx': {
+        const content = normalizeEscapeSequences(params.content);
+
         return await ctx.runAction(
           internal.documents.internal_actions.generateDocument,
           {
             fileName: params.fileName,
             sourceType: params.sourceType,
             outputFormat: 'docx',
-            content: params.content,
+            content,
           },
         );
       }
