@@ -35,8 +35,8 @@ interface ListTemplatesResult {
 interface GenerateDocxResult {
   operation: 'generate';
   success: boolean;
-  fileId: string;
-  url: string;
+  fileStorageId: string;
+  downloadUrl: string;
   fileName: string;
   contentType: string;
   size: number;
@@ -170,14 +170,14 @@ OPERATIONS:
       - fileName: Base name for the DOCX file (without extension)
       - sourceType: "markdown" or "html"
       - content: The markdown or HTML text
-      Returns: { success, url, fileName, contentType, size }
+      Returns: { success, downloadUrl, fileName, contentType, size }
 
    b) From structured sections:
       Use sections array for fine-grained control over document structure.
       Pass templateStorageId to use a template as base.
       Parameters:
       - fileName, title, subtitle, sections, templateStorageId
-      Returns: { success, url, fileName, contentType, size }
+      Returns: { success, downloadUrl, fileName, contentType, size }
 
 3. parse - Extract text content from an existing DOCX file
    USE THIS when a user uploads a DOCX and you need to read its content.
@@ -195,7 +195,7 @@ EXAMPLES:
 • List templates: { "operation": "list_templates" }
 • Parse: { "operation": "parse", "fileId": "kg2bazp7...", "filename": "document.docx", "user_input": "Extract the main points" }
 
-CRITICAL: When presenting download links, copy the exact 'url' from the result. Never fabricate URLs.
+CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the result. Never fabricate URLs.
 `,
     args: docxArgs,
     handler: async (ctx: ToolCtx, args): Promise<DocxResult> => {
@@ -314,7 +314,7 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
 
           debugLog('tool:docx generate from content success', {
             fileName: result.fileName,
-            fileId: result.fileId,
+            fileStorageId: result.fileStorageId,
             size: result.size,
           });
 
@@ -392,7 +392,7 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
 
           debugLog('tool:docx generate (from template) success', {
             fileName: result.fileName,
-            fileId: result.fileId,
+            fileStorageId: result.fileStorageId,
             size: result.size,
           });
 
@@ -417,7 +417,7 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
 
         debugLog('tool:docx generate success', {
           fileName: result.fileName,
-          fileId: result.fileId,
+          fileStorageId: result.fileStorageId,
           size: result.size,
         });
 

@@ -25,8 +25,8 @@ export interface UploadBase64Args {
 
 export interface UploadBase64Result {
   success: boolean;
-  fileId: Id<'_storage'>;
-  url: string;
+  fileStorageId: Id<'_storage'>;
+  downloadUrl: string;
   fileName: string;
   size: number;
   contentType: string;
@@ -87,8 +87,8 @@ export async function uploadBase64ToStorage(
 
   return {
     success: true,
-    fileId: storageId,
-    url: downloadUrl,
+    fileStorageId: storageId,
+    downloadUrl,
     fileName,
     size,
     contentType,

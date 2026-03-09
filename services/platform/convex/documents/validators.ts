@@ -80,8 +80,8 @@ export const documentListResponseValidator = v.object({
 
 export const generateDocumentResponseValidator = v.object({
   success: v.boolean(),
-  fileId: v.string(),
-  url: v.string(),
+  fileStorageId: v.string(),
+  downloadUrl: v.string(),
   fileName: v.string(),
   contentType: v.string(),
   extension: v.string(),
@@ -90,8 +90,8 @@ export const generateDocumentResponseValidator = v.object({
 
 export const generatePptxResponseValidator = v.object({
   success: v.boolean(),
-  fileId: v.string(),
-  url: v.string(),
+  fileStorageId: v.string(),
+  downloadUrl: v.string(),
   fileName: v.string(),
   contentType: v.string(),
   size: v.number(),
@@ -99,8 +99,8 @@ export const generatePptxResponseValidator = v.object({
 
 export const generateDocxResponseValidator = v.object({
   success: v.boolean(),
-  fileId: v.string(),
-  url: v.string(),
+  fileStorageId: v.string(),
+  downloadUrl: v.string(),
   fileName: v.string(),
   contentType: v.string(),
   size: v.number(),

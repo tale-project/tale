@@ -168,9 +168,9 @@ export interface GenerateDocumentResult {
   /** Whether the document was generated and uploaded successfully */
   success: boolean;
   /** Convex storage id for the generated file */
-  fileId: Id<'_storage'>;
+  fileStorageId: Id<'_storage'>;
   /** Download URL for the generated file */
-  url: string;
+  downloadUrl: string;
   /** Final file name including extension */
   fileName: string;
   /** MIME type of the generated file (e.g. application/pdf) */

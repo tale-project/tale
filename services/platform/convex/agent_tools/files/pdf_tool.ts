@@ -19,8 +19,8 @@ const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 interface GeneratePdfResult {
   operation: 'generate';
   success: boolean;
-  fileId: string;
-  url: string;
+  fileStorageId: string;
+  downloadUrl: string;
   fileName: string;
   contentType: string;
   extension: string;
@@ -48,7 +48,7 @@ OPERATIONS:
    - urlOptions: Options for URL capture (waitUntil, etc.)
    - extraCss: Additional CSS to inject
    - wrapInTemplate: Whether to wrap in HTML template
-   Returns: { success, url, fileName, contentType, size }
+   Returns: { success, downloadUrl, fileName, contentType, size }
 
 2. parse - Extract text content from an existing PDF file
    USE THIS when a user uploads a PDF and you need to read its content.
@@ -62,7 +62,7 @@ EXAMPLES:
 • Generate: { "operation": "generate", "fileName": "report", "sourceType": "markdown", "content": "# Report\\n..." }
 • Parse: { "operation": "parse", "fileId": "kg2bazp7...", "filename": "report.pdf", "user_input": "Summarize the key findings" }
 
-CRITICAL: When presenting download links, copy the exact 'url' from the result. Never fabricate URLs.
+CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the result. Never fabricate URLs.
 `,
     args: z.object({
       operation: z
@@ -194,7 +194,7 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
 
         debugLog('tool:pdf generate success', {
           fileName: result.fileName,
-          fileId: result.fileId,
+          fileStorageId: result.fileStorageId,
           size: result.size,
         });
 

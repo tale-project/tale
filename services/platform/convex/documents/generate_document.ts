@@ -138,8 +138,8 @@ export async function generateDocument(
 
   return {
     success: true,
-    fileId: storageId,
-    url: downloadUrl,
+    fileStorageId: storageId,
+    downloadUrl,
     fileName: finalFileName,
     contentType,
     size,

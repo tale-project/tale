@@ -63,8 +63,8 @@ export interface GeneratePptxArgs {
 
 export interface GeneratePptxResult {
   success: boolean;
-  fileId: Id<'_storage'>;
-  url: string;
+  fileStorageId: Id<'_storage'>;
+  downloadUrl: string;
   fileName: string;
   contentType: string;
   size: number;
@@ -194,8 +194,8 @@ export async function generatePptx(
 
   return {
     success: true,
-    fileId: storageId,
-    url: downloadUrl,
+    fileStorageId: storageId,
+    downloadUrl,
     fileName: finalFileName,
     contentType,
     size: pptxBytes.length,

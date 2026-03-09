@@ -27,8 +27,8 @@ export interface GenerateDocxFromTemplateArgs {
 
 export interface GenerateDocxFromTemplateResult {
   success: boolean;
-  fileId: Id<'_storage'>;
-  url: string;
+  fileStorageId: Id<'_storage'>;
+  downloadUrl: string;
   fileName: string;
   contentType: string;
   size: number;
@@ -147,8 +147,8 @@ export async function generateDocxFromTemplate(
 
   return {
     success: true,
-    fileId: storageId,
-    url: downloadUrl,
+    fileStorageId: storageId,
+    downloadUrl,
     fileName: finalFileName,
     contentType,
     size: docxBytes.length,

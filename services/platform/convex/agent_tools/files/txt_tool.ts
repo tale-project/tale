@@ -34,8 +34,8 @@ interface TxtParseResult {
 interface TxtGenerateResult {
   operation: 'generate';
   success: boolean;
-  fileId: string;
-  url: string;
+  fileStorageId: string;
+  downloadUrl: string;
   filename: string;
   char_count: number;
   line_count: number;
@@ -94,7 +94,7 @@ EXAMPLES:
 • Parse: { "operation": "parse", "fileId": "kg2...", "filename": "error.log", "user_input": "Find all errors" }
 • Generate: { "operation": "generate", "filename": "report.txt", "content": "Your report content here..." }
 
-Returns: { success, url (for generate), result (for parse), char_count, line_count }
+Returns: { success, downloadUrl (for generate), result (for parse), char_count, line_count }
 `,
     args: txtArgs,
     handler: async (ctx: ToolCtx, args): Promise<TxtResult> => {
@@ -141,8 +141,8 @@ Returns: { success, url (for generate), result (for parse), char_count, line_cou
           return {
             operation: 'generate',
             success: true,
-            fileId,
-            url,
+            fileStorageId: fileId,
+            downloadUrl: url,
             filename,
             char_count: content.length,
             line_count: lineCount,
@@ -158,8 +158,8 @@ Returns: { success, url (for generate), result (for parse), char_count, line_cou
           return {
             operation: 'generate',
             success: false,
-            fileId: '',
-            url: '',
+            fileStorageId: '',
+            downloadUrl: '',
             filename,
             char_count: 0,
             line_count: 0,

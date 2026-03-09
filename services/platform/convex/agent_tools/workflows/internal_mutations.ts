@@ -108,7 +108,7 @@ export const triggerWorkflowCompletionResponse = internalMutation({
       components.agent,
       {
         threadId,
-        message: { role: 'user', content: messageContent },
+        message: { role: 'system', content: messageContent },
       },
     );
 

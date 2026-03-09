@@ -20,8 +20,8 @@ const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 interface GenerateExcelResult {
   operation: 'generate';
   success: boolean;
-  fileId: string;
-  url: string;
+  fileStorageId: string;
+  downloadUrl: string;
   fileName: string;
   rowCount: number;
   sheetCount: number;
@@ -105,7 +105,7 @@ OPERATIONS:
    Parameters:
    - fileName: Base name for the Excel file (without extension)
    - sheets: Array of sheets with names, headers, and rows
-   Returns: { success, url, fileName, rowCount, sheetCount }
+   Returns: { success, downloadUrl, fileName, rowCount, sheetCount }
 
 2. parse - Extract structured data from an existing Excel file
    USE THIS when a user uploads an Excel file and you need to read its content.
@@ -118,7 +118,7 @@ EXAMPLES:
 • Generate: { "operation": "generate", "fileName": "customers", "sheets": [{ "name": "Sheet1", "headers": ["Name", "Email"], "rows": [["Alice", "alice@example.com"]] }] }
 • Parse: { "operation": "parse", "fileId": "kg2bazp7...", "filename": "report.xlsx" }
 
-CRITICAL: When presenting download links, copy the exact 'url' from the result. Never fabricate URLs.
+CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the result. Never fabricate URLs.
 `,
     args: excelArgs,
     handler: async (ctx: ToolCtx, args): Promise<ExcelResult> => {
@@ -239,8 +239,8 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
         return {
           operation: 'generate',
           success: true,
-          fileId,
-          url,
+          fileStorageId: fileId,
+          downloadUrl: url,
           fileName: result.fileName,
           rowCount: result.rowCount,
           sheetCount: result.sheetCount,
@@ -254,8 +254,8 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
         return {
           operation: 'generate' as const,
           success: false,
-          fileId: '',
-          url: '',
+          fileStorageId: '',
+          downloadUrl: '',
           fileName: args.fileName ?? 'unknown.xlsx',
           rowCount: 0,
           sheetCount: 0,
