@@ -4,22 +4,27 @@ import { useCallback, useMemo } from 'react';
 
 import type { ToolName } from '@/convex/agent_tools/tool_names';
 
-import { Badge } from '@/app/components/ui/feedback/badge';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { CheckboxGroup } from '@/app/components/ui/forms/checkbox-group';
 import { FormSection } from '@/app/components/ui/forms/form-section';
-import { Grid, HStack, Stack } from '@/app/components/ui/layout/layout';
+import { Grid, Stack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
-import { useAvailableIntegrations, useAvailableTools } from '../hooks/queries';
+import {
+  useAvailableIntegrations,
+  useAvailableTools,
+  useAvailableWorkflows,
+} from '../hooks/queries';
 
 interface ToolSelectorProps {
   value: string[];
   onChange: (tools: string[]) => void;
   integrationBindings: string[];
   onIntegrationBindingsChange: (bindings: string[]) => void;
+  workflowBindings: string[];
+  onWorkflowBindingsChange: (bindings: string[]) => void;
   organizationId: string;
   hiddenTools?: Set<string>;
   disabled?: boolean;
@@ -69,6 +74,8 @@ export function ToolSelector({
   onChange,
   integrationBindings,
   onIntegrationBindingsChange,
+  workflowBindings,
+  onWorkflowBindingsChange,
   organizationId,
   hiddenTools,
   disabled,
@@ -77,11 +84,17 @@ export function ToolSelector({
   const { tools, isLoading } = useAvailableTools();
   const { integrations, isLoading: integrationsLoading } =
     useAvailableIntegrations(organizationId);
+  const { workflows, isLoading: workflowsLoading } =
+    useAvailableWorkflows(organizationId);
 
   const selectedSet = useMemo(() => new Set(value), [value]);
-  const selectedBindingsSet = useMemo(
+  const selectedIntegrationBindingsSet = useMemo(
     () => new Set(integrationBindings),
     [integrationBindings],
+  );
+  const selectedWorkflowBindingsSet = useMemo(
+    () => new Set(workflowBindings),
+    [workflowBindings],
   );
 
   const handleCategoryChange = useCallback(
@@ -93,9 +106,9 @@ export function ToolSelector({
     [value, onChange],
   );
 
-  const toggleBinding = useCallback(
+  const toggleIntegrationBinding = useCallback(
     (integrationName: string) => {
-      if (selectedBindingsSet.has(integrationName)) {
+      if (selectedIntegrationBindingsSet.has(integrationName)) {
         onIntegrationBindingsChange(
           integrationBindings.filter((b) => b !== integrationName),
         );
@@ -103,7 +116,24 @@ export function ToolSelector({
         onIntegrationBindingsChange([...integrationBindings, integrationName]);
       }
     },
-    [integrationBindings, onIntegrationBindingsChange, selectedBindingsSet],
+    [
+      integrationBindings,
+      onIntegrationBindingsChange,
+      selectedIntegrationBindingsSet,
+    ],
+  );
+
+  const toggleWorkflowBinding = useCallback(
+    (workflowId: string) => {
+      if (selectedWorkflowBindingsSet.has(workflowId)) {
+        onWorkflowBindingsChange(
+          workflowBindings.filter((b) => b !== workflowId),
+        );
+      } else {
+        onWorkflowBindingsChange([...workflowBindings, workflowId]);
+      }
+    },
+    [workflowBindings, onWorkflowBindingsChange, selectedWorkflowBindingsSet],
   );
 
   const availableToolNames = useMemo(
@@ -129,21 +159,32 @@ export function ToolSelector({
     );
   }
 
+  const bindingsSections = (
+    <Stack gap={4}>
+      <IntegrationBindingsSection
+        integrations={integrations}
+        isLoading={integrationsLoading}
+        selectedBindingsSet={selectedIntegrationBindingsSet}
+        onToggle={toggleIntegrationBinding}
+        t={t}
+      />
+      <WorkflowBindingsSection
+        workflows={workflows}
+        isLoading={workflowsLoading}
+        selectedBindingsSet={selectedWorkflowBindingsSet}
+        onToggle={toggleWorkflowBinding}
+        t={t}
+      />
+    </Stack>
+  );
+
   return (
     <fieldset disabled={disabled}>
       <Stack gap={4}>
         {Array.from(categorized.entries()).map(([category, toolNames]) => (
           <div key={category}>
             {category === 'Other' && (
-              <div className="mb-4">
-                <IntegrationBindingsSection
-                  integrations={integrations}
-                  isLoading={integrationsLoading}
-                  selectedBindingsSet={selectedBindingsSet}
-                  onToggle={toggleBinding}
-                  t={t}
-                />
-              </div>
+              <div className="mb-4">{bindingsSections}</div>
             )}
             <CheckboxGroup
               label={category}
@@ -156,15 +197,7 @@ export function ToolSelector({
           </div>
         ))}
 
-        {!categorized.has('Other') && (
-          <IntegrationBindingsSection
-            integrations={integrations}
-            isLoading={integrationsLoading}
-            selectedBindingsSet={selectedBindingsSet}
-            onToggle={toggleBinding}
-            t={t}
-          />
-        )}
+        {!categorized.has('Other') && bindingsSections}
       </Stack>
     </fieldset>
   );
@@ -205,16 +238,60 @@ function IntegrationBindingsSection({
       ) : (
         <Grid cols={2} className="gap-x-4 gap-y-1.5">
           {integrations.map((integration) => (
-            <HStack key={integration.name} gap={2}>
-              <Checkbox
-                label={integration.title}
-                checked={selectedBindingsSet.has(integration.name)}
-                onCheckedChange={() => onToggle(integration.name)}
-              />
-              <Badge variant="outline" className="px-1 py-0 text-[10px]">
-                {integration.type === 'sql' ? 'SQL' : 'API'}
-              </Badge>
-            </HStack>
+            <Checkbox
+              key={integration.name}
+              label={integration.title}
+              checked={selectedBindingsSet.has(integration.name)}
+              onCheckedChange={() => onToggle(integration.name)}
+            />
+          ))}
+        </Grid>
+      )}
+    </FormSection>
+  );
+}
+
+function WorkflowBindingsSection({
+  workflows,
+  isLoading,
+  selectedBindingsSet,
+  onToggle,
+  t,
+}: {
+  workflows:
+    | Array<{ id: string; name: string; description?: string }>
+    | undefined;
+  isLoading: boolean;
+  selectedBindingsSet: Set<string>;
+  onToggle: (id: string) => void;
+  t: (key: string) => string;
+}) {
+  if (isLoading) {
+    return (
+      <FormSection label={t('customAgents.form.sectionWorkflowBindings')}>
+        <Skeleton className="h-6 w-full" />
+      </FormSection>
+    );
+  }
+
+  return (
+    <FormSection
+      label={t('customAgents.form.sectionWorkflowBindings')}
+      description={t('customAgents.form.sectionWorkflowBindingsDescription')}
+    >
+      {!workflows || workflows.length === 0 ? (
+        <Text variant="caption" className="italic">
+          {t('customAgents.form.noWorkflowsAvailable')}
+        </Text>
+      ) : (
+        <Grid cols={2} className="gap-x-4 gap-y-1.5">
+          {workflows.map((workflow) => (
+            <Checkbox
+              key={workflow.id}
+              label={workflow.name}
+              checked={selectedBindingsSet.has(workflow.id)}
+              onCheckedChange={() => onToggle(workflow.id)}
+            />
           ))}
         </Grid>
       )}

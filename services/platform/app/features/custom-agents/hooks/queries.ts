@@ -108,6 +108,22 @@ export function useAvailableIntegrations(organizationId: string) {
   };
 }
 
+export type AvailableWorkflow = ConvexItemOf<
+  typeof api.custom_agents.queries.getAvailableWorkflows
+>;
+
+export function useAvailableWorkflows(organizationId: string) {
+  const { data, isLoading } = useConvexQuery(
+    api.custom_agents.queries.getAvailableWorkflows,
+    { organizationId },
+  );
+
+  return {
+    workflows: data,
+    isLoading,
+  };
+}
+
 export type AvailableTool = ConvexItemOf<
   typeof api.custom_agents.queries.getAvailableTools
 >;

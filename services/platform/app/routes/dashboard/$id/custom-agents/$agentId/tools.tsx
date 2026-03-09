@@ -10,7 +10,7 @@ import { useUpdateCustomAgent } from '@/app/features/custom-agents/hooks/mutatio
 import { useAutoSave } from '@/app/features/custom-agents/hooks/use-auto-save';
 import { useCustomAgentVersion } from '@/app/features/custom-agents/hooks/use-custom-agent-version-context';
 import { useToast } from '@/app/hooks/use-toast';
-import { toId } from '@/convex/lib/type_cast_helpers';
+import { toId, toIds } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
@@ -35,6 +35,9 @@ function ToolsTab() {
   const [webSearchMode, setWebSearchMode] = useState<RetrievalMode>('off');
   const [selectedTools, setSelectedTools] = useState<string[]>([]);
   const [selectedBindings, setSelectedBindings] = useState<string[]>([]);
+  const [selectedWorkflowBindings, setSelectedWorkflowBindings] = useState<
+    string[]
+  >([]);
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
@@ -44,6 +47,7 @@ function ToolsTab() {
     setWebSearchMode(mode);
     setSelectedTools(agent.toolNames);
     setSelectedBindings(agent.integrationBindings ?? []);
+    setSelectedWorkflowBindings(agent.workflowBindings?.map(String) ?? []);
     setInitialized(true);
   }, [agent, agentId]);
 
@@ -87,19 +91,28 @@ function ToolsTab() {
     enabled: initialized && !isReadOnly,
   });
 
-  // Auto-save tools and integration bindings
+  // Auto-save tools, integration bindings, and workflow bindings
   const toolsData = useMemo(
-    () => ({ toolNames: selectedTools, integrationBindings: selectedBindings }),
-    [selectedTools, selectedBindings],
+    () => ({
+      toolNames: selectedTools,
+      integrationBindings: selectedBindings,
+      workflowBindings: selectedWorkflowBindings,
+    }),
+    [selectedTools, selectedBindings, selectedWorkflowBindings],
   );
 
   const handleToolsSave = useCallback(
-    async (data: { toolNames: string[]; integrationBindings: string[] }) => {
+    async (data: {
+      toolNames: string[];
+      integrationBindings: string[];
+      workflowBindings: string[];
+    }) => {
       try {
         await updateAgent.mutateAsync({
           customAgentId: toId<'customAgents'>(agentId),
           toolNames: data.toolNames,
           integrationBindings: data.integrationBindings,
+          workflowBindings: toIds<'wfDefinitions'>(data.workflowBindings),
         });
         toast({
           title: t('customAgents.tools.toolsSaved'),
@@ -169,6 +182,8 @@ function ToolsTab() {
         onChange={setSelectedTools}
         integrationBindings={selectedBindings}
         onIntegrationBindingsChange={setSelectedBindings}
+        workflowBindings={selectedWorkflowBindings}
+        onWorkflowBindingsChange={setSelectedWorkflowBindings}
         organizationId={organizationId}
         hiddenTools={hiddenTools}
         disabled={isReadOnly}

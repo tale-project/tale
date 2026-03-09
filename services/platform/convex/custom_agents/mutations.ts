@@ -36,6 +36,7 @@ const agentFieldsValidator = {
   systemInstructions: v.string(),
   toolNames: toolNamesValidator,
   integrationBindings: v.optional(v.array(v.string())),
+  workflowBindings: v.optional(v.array(v.id('wfDefinitions'))),
   modelPreset: modelPresetValidator,
   modelId: v.optional(v.string()),
   knowledgeMode: v.optional(retrievalModeValidator),
@@ -72,6 +73,34 @@ function validateToolNames(toolNames: string[]) {
   const invalid = toolNames.filter((name) => !validNames.has(name));
   if (invalid.length > 0) {
     throw new Error(`Invalid tool names: ${invalid.join(', ')}`);
+  }
+}
+
+const MAX_WORKFLOW_BINDINGS = 20;
+
+async function validateWorkflowBindings(
+  ctx: MutationCtx,
+  workflowBindings: Id<'wfDefinitions'>[] | undefined,
+  organizationId: string,
+) {
+  if (!workflowBindings?.length) return;
+
+  if (workflowBindings.length > MAX_WORKFLOW_BINDINGS) {
+    throw new Error(
+      `Cannot bind more than ${MAX_WORKFLOW_BINDINGS} workflows to an agent`,
+    );
+  }
+
+  for (const wfId of workflowBindings) {
+    const wf = await ctx.db.get(wfId);
+    if (!wf) {
+      throw new Error(`Workflow "${wfId}" not found`);
+    }
+    if (wf.organizationId !== organizationId) {
+      throw new Error(
+        `Workflow "${wf.name}" does not belong to this organization`,
+      );
+    }
   }
 }
 
@@ -212,6 +241,11 @@ export const createCustomAgent = mutation({
 
     validateToolNames(args.toolNames);
     validateModelId(args.modelId);
+    await validateWorkflowBindings(
+      ctx,
+      args.workflowBindings,
+      args.organizationId,
+    );
 
     if (args.systemInstructions.trim().length === 0) {
       throw new Error('System instructions cannot be empty');
@@ -263,6 +297,7 @@ export const updateCustomAgent = mutation({
     systemInstructions: v.optional(v.string()),
     toolNames: v.optional(toolNamesValidator),
     integrationBindings: v.optional(v.array(v.string())),
+    workflowBindings: v.optional(v.array(v.id('wfDefinitions'))),
     modelPreset: v.optional(modelPresetValidator),
     modelId: v.optional(v.string()),
     knowledgeMode: v.optional(retrievalModeValidator),
@@ -289,6 +324,11 @@ export const updateCustomAgent = mutation({
       validateToolNames(args.toolNames);
     }
     validateModelId(args.modelId);
+    await validateWorkflowBindings(
+      ctx,
+      args.workflowBindings,
+      draft.organizationId,
+    );
 
     if (
       args.systemInstructions !== undefined &&

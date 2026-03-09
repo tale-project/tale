@@ -82,6 +82,7 @@ import type * as agent_tools_web_helpers_query_web_context from "../agent_tools/
 import type * as agent_tools_web_helpers_search_pages from "../agent_tools/web/helpers/search_pages.js";
 import type * as agent_tools_web_helpers_types from "../agent_tools/web/helpers/types.js";
 import type * as agent_tools_web_web_tool from "../agent_tools/web/web_tool.js";
+import type * as agent_tools_workflows_create_bound_workflow_tool from "../agent_tools/workflows/create_bound_workflow_tool.js";
 import type * as agent_tools_workflows_create_workflow_tool from "../agent_tools/workflows/create_workflow_tool.js";
 import type * as agent_tools_workflows_helpers_extract_input_schema from "../agent_tools/workflows/helpers/extract_input_schema.js";
 import type * as agent_tools_workflows_helpers_read_active_version_steps from "../agent_tools/workflows/helpers/read_active_version_steps.js";
@@ -936,6 +937,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/web/helpers/search_pages": typeof agent_tools_web_helpers_search_pages;
   "agent_tools/web/helpers/types": typeof agent_tools_web_helpers_types;
   "agent_tools/web/web_tool": typeof agent_tools_web_web_tool;
+  "agent_tools/workflows/create_bound_workflow_tool": typeof agent_tools_workflows_create_bound_workflow_tool;
   "agent_tools/workflows/create_workflow_tool": typeof agent_tools_workflows_create_workflow_tool;
   "agent_tools/workflows/helpers/extract_input_schema": typeof agent_tools_workflows_helpers_extract_input_schema;
   "agent_tools/workflows/helpers/read_active_version_steps": typeof agent_tools_workflows_helpers_read_active_version_steps;

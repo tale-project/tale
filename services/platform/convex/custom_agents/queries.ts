@@ -277,6 +277,47 @@ export const getAvailableIntegrations = query({
   },
 });
 
+export const getAvailableWorkflows = query({
+  args: {
+    organizationId: v.string(),
+  },
+  handler: async (
+    ctx,
+    args,
+  ): Promise<Array<{ id: string; name: string; description?: string }>> => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) return [];
+
+    const seen = new Map<
+      string,
+      { id: string; name: string; description?: string; versionNumber: number }
+    >();
+
+    const workflowQuery = ctx.db
+      .query('wfDefinitions')
+      .withIndex('by_org_status', (q) =>
+        q.eq('organizationId', args.organizationId).eq('status', 'active'),
+      );
+
+    for await (const wf of workflowQuery) {
+      const rootId = String(wf.rootVersionId ?? wf._id);
+      const existing = seen.get(rootId);
+      if (!existing || wf.versionNumber > existing.versionNumber) {
+        seen.set(rootId, {
+          id: rootId,
+          name: wf.name,
+          description: wf.description,
+          versionNumber: wf.versionNumber,
+        });
+      }
+    }
+
+    return Array.from(seen.values()).map(
+      ({ versionNumber: _, ...rest }) => rest,
+    );
+  },
+});
+
 export const getModelPresets = query({
   args: {},
   handler: async (): Promise<{

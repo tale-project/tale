@@ -33,6 +33,7 @@ export const customAgentsTable = defineTable({
   systemInstructions: v.string(),
   toolNames: v.array(v.string()),
   integrationBindings: v.optional(v.array(v.string())),
+  workflowBindings: v.optional(v.array(v.id('wfDefinitions'))),
 
   modelPreset: modelPresetValidator,
   modelId: v.optional(v.string()),

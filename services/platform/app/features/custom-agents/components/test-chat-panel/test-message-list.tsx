@@ -8,11 +8,13 @@ import remarkGfm from 'remark-gfm';
 
 import type { ChatItem } from '@/app/features/chat/hooks/use-merged-chat-items';
 
-import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
-import { Image } from '@/app/components/ui/data-display/image';
 import { Text } from '@/app/components/ui/typography/text';
 import { HumanInputRequestCard } from '@/app/features/chat/components/human-input-request-card';
 import { IntegrationApprovalCard } from '@/app/features/chat/components/integration-approval-card';
+import {
+  FileAttachmentDisplay,
+  FilePartDisplay,
+} from '@/app/features/chat/components/message-bubble/file-displays';
 import { ThinkingAnimation } from '@/app/features/chat/components/thinking-animation';
 import { WorkflowCreationApprovalCard } from '@/app/features/chat/components/workflow-creation-approval-card';
 import { WorkflowRunApprovalCard } from '@/app/features/chat/components/workflow-run-approval-card';
@@ -26,7 +28,6 @@ interface TestMessageListProps {
   isLoading: boolean;
   activeMessage?: UIMessage;
   organizationId: string;
-  onImagePreview: (src: string, alt: string) => void;
 }
 
 export function TestMessageList({
@@ -34,7 +35,6 @@ export function TestMessageList({
   isLoading,
   activeMessage,
   organizationId,
-  onImagePreview,
 }: TestMessageListProps) {
   const { t } = useT('settings');
 
@@ -144,44 +144,9 @@ export function TestMessageList({
             >
               {message.fileParts && message.fileParts.length > 0 && (
                 <div className="mb-2 flex flex-wrap gap-1">
-                  {message.fileParts.map((part) =>
-                    part.mediaType.startsWith('image/') ? (
-                      <button
-                        key={part.url}
-                        type="button"
-                        aria-label={t('customAgents.testChat.previewImage', {
-                          filename: part.filename || 'Image',
-                        })}
-                        onClick={() =>
-                          onImagePreview(part.url, part.filename || 'Image')
-                        }
-                        className="bg-muted focus:ring-ring size-11 cursor-pointer overflow-hidden rounded-lg bg-cover bg-center bg-no-repeat transition-opacity hover:opacity-90 focus:ring-2 focus:ring-offset-2 focus:outline-none"
-                      >
-                        <Image
-                          src={part.url}
-                          alt={part.filename || 'Image'}
-                          className="size-full object-cover"
-                          width={44}
-                          height={44}
-                        />
-                      </button>
-                    ) : (
-                      <a
-                        key={part.url}
-                        href={part.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="bg-muted hover:bg-muted/80 flex max-w-[13.5rem] items-center gap-2 rounded-lg px-2 py-1.5 transition-colors"
-                      >
-                        <DocumentIcon fileName={part.filename || 'file'} />
-                        <div className="flex min-w-0 flex-1 flex-col">
-                          <Text as="div" variant="label" truncate>
-                            {part.filename || 'File'}
-                          </Text>
-                        </div>
-                      </a>
-                    ),
-                  )}
+                  {message.fileParts.map((part) => (
+                    <FilePartDisplay key={part.url} filePart={part} />
+                  ))}
                 </div>
               )}
               {message.content && (
@@ -200,6 +165,16 @@ export function TestMessageList({
                       {message.content}
                     </Text>
                   )}
+                </div>
+              )}
+              {message.attachments && message.attachments.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {message.attachments.map((attachment) => (
+                    <FileAttachmentDisplay
+                      key={attachment.fileId}
+                      attachment={attachment}
+                    />
+                  ))}
                 </div>
               )}
               {message.role === 'assistant' &&

@@ -45,6 +45,7 @@ describe('testCustomAgent', () => {
         instructions: 'You are a helpful test agent.',
         convexToolNames: ['web_search', 'document_search'],
         integrationBindings: ['integration_1'],
+        workflowBindings: undefined,
         model: 'gpt-4o',
         maxSteps: undefined,
         enableVectorSearch: false,
@@ -69,6 +70,25 @@ describe('testCustomAgent', () => {
       const config = toSerializableConfig(draft);
 
       expect(config.integrationBindings).toBeUndefined();
+    });
+
+    it('should pass through workflow bindings as strings', () => {
+      const draft = createMockDraftAgent({
+        workflowBindings: [
+          'wf-root-1' as Id<'wfDefinitions'>,
+          'wf-root-2' as Id<'wfDefinitions'>,
+        ],
+      });
+      const config = toSerializableConfig(draft);
+
+      expect(config.workflowBindings).toEqual(['wf-root-1', 'wf-root-2']);
+    });
+
+    it('should handle agent with no workflow bindings', () => {
+      const draft = createMockDraftAgent({ workflowBindings: undefined });
+      const config = toSerializableConfig(draft);
+
+      expect(config.workflowBindings).toBeUndefined();
     });
 
     it('should handle agent with empty tool names', () => {
