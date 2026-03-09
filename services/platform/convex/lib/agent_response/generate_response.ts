@@ -383,7 +383,7 @@ export async function generateAgentResponse(
       threadId,
       additionalContext,
       parentThreadId,
-      maxMessages: agentConfig.recentMessages,
+      maxHistoryTokens: agentConfig.maxHistoryTokens,
       ragContext: knowledgeContextResult ?? hookData?.ragContext,
       webContext: webContextResult,
     });
@@ -585,7 +585,7 @@ export async function generateAgentResponse(
             threadId,
             additionalContext,
             parentThreadId,
-            maxMessages: agentConfig.recentMessages,
+            maxHistoryTokens: agentConfig.maxHistoryTokens,
             ragContext: hookData?.ragContext,
           });
 
@@ -746,7 +746,7 @@ export async function generateAgentResponse(
             threadId,
             additionalContext,
             parentThreadId,
-            maxMessages: agentConfig.recentMessages,
+            maxHistoryTokens: agentConfig.maxHistoryTokens,
             ragContext: hookData?.ragContext,
           });
 
@@ -831,7 +831,7 @@ export async function generateAgentResponse(
             threadId,
             additionalContext,
             parentThreadId,
-            maxMessages: agentConfig.recentMessages,
+            maxHistoryTokens: agentConfig.maxHistoryTokens,
             ragContext: hookData?.ragContext,
           });
 
@@ -942,7 +942,7 @@ export async function generateAgentResponse(
           threadId,
           additionalContext,
           parentThreadId,
-          maxMessages: agentConfig.recentMessages,
+          maxHistoryTokens: agentConfig.maxHistoryTokens,
           ragContext: hookData?.ragContext,
         });
 

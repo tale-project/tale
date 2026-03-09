@@ -19,10 +19,10 @@
       "config": {
         "inputSchema": {
           "properties": {
-            "baseFileId": { "type": "string", "description": "File storage ID of the base contract" },
-            "comparisonFileIds": { "type": "array", "description": "File storage IDs of contracts to compare against" }
+            "baselineFile": { "type": "object", "description": "Base contract object with fileId and fileName" },
+            "comparisonFiles": { "type": "array", "description": "Comparison contract objects with fileId and fileName" }
           },
-          "required": ["baseFileId", "comparisonFileIds"]
+          "required": ["baselineFile", "comparisonFiles"]
         }
       },
       "nextSteps": { "success": "init_variables" }
@@ -38,7 +38,19 @@
           "variables": [
             {
               "name": "allFileIds",
-              "value": "{{[baseFileId]|concat(comparisonFileIds)}}"
+              "value": "{{[baselineFile.fileId]|concat(comparisonFiles|map('fileId'))}}"
+            },
+            {
+              "name": "comparisonFileIds",
+              "value": "{{comparisonFiles|map('fileId')}}"
+            },
+            {
+              "name": "baseDocName",
+              "value": "{{baselineFile.fileName}}"
+            },
+            {
+              "name": "comparisonDocNames",
+              "value": "{{comparisonFiles|map('fileName')}}"
             },
             {
               "name": "chunkResults",
@@ -46,7 +58,7 @@
             },
             {
               "name": "searchTopK",
-              "value": "{{(comparisonFileIds|length) * 3}}"
+              "value": "{{(comparisonFiles|length) * 3}}"
             }
           ]
         }
@@ -64,7 +76,7 @@
       },
       "nextSteps": {
         "loop": "index_document",
-        "done": "get_file_names"
+        "done": "retrieve_base_chunks"
       }
     },
     {
@@ -83,66 +95,16 @@
       "nextSteps": { "success": "loop_ensure_indexed" }
     },
     {
-      "stepSlug": "get_file_names",
-      "name": "Get File Names",
+      "stepSlug": "retrieve_base_chunks",
+      "name": "Retrieve Base Document Chunks",
       "stepType": "action",
       "order": 5,
       "config": {
         "type": "document",
         "parameters": {
-          "operation": "get_metadata",
-          "fileIds": "{{comparisonFileIds}}"
-        }
-      },
-      "nextSteps": { "success": "store_file_names" }
-    },
-    {
-      "stepSlug": "store_file_names",
-      "name": "Store File Names",
-      "stepType": "action",
-      "order": 6,
-      "config": {
-        "type": "set_variables",
-        "parameters": {
-          "variables": [
-            {
-              "name": "comparisonDocNames",
-              "value": "{{steps.get_file_names.output.data|map('fileName')}}"
-            }
-          ]
-        }
-      },
-      "nextSteps": { "success": "retrieve_base_chunks" }
-    },
-    {
-      "stepSlug": "retrieve_base_chunks",
-      "name": "Retrieve Base Document Chunks",
-      "stepType": "action",
-      "order": 7,
-      "config": {
-        "type": "document",
-        "parameters": {
           "operation": "retrieve",
-          "fileId": "{{baseFileId}}",
+          "fileId": "{{baselineFile.fileId}}",
           "returnChunks": true
-        }
-      },
-      "nextSteps": { "success": "store_base_doc_name" }
-    },
-    {
-      "stepSlug": "store_base_doc_name",
-      "name": "Store Base Document Name",
-      "stepType": "action",
-      "order": 8,
-      "config": {
-        "type": "set_variables",
-        "parameters": {
-          "variables": [
-            {
-              "name": "baseDocName",
-              "value": "{{steps.retrieve_base_chunks.output.data.name}}"
-            }
-          ]
         }
       },
       "nextSteps": { "success": "loop_chunks" }
@@ -151,7 +113,7 @@
       "stepSlug": "loop_chunks",
       "name": "Loop: Compare Each Chunk",
       "stepType": "loop",
-      "order": 9,
+      "order": 6,
       "config": {
         "items": "{{steps.retrieve_base_chunks.output.data.chunks}}",
         "itemVariable": "item"
@@ -165,7 +127,7 @@
       "stepSlug": "search_similar",
       "name": "Search Similar Passages in Comparison Docs",
       "stepType": "action",
-      "order": 10,
+      "order": 7,
       "config": {
         "type": "rag",
         "parameters": {
@@ -181,7 +143,7 @@
       "stepSlug": "check_has_results",
       "name": "Check if Similar Passages Found",
       "stepType": "condition",
-      "order": 11,
+      "order": 8,
       "config": {
         "expression": "steps.search_similar.output.data.results|length > 0",
         "description": "Skip comparison if no similar passages found in comparison documents"
@@ -195,7 +157,7 @@
       "stepSlug": "compare_chunk",
       "name": "Compare Chunk with Similar Passages",
       "stepType": "llm",
-      "order": 12,
+      "order": 9,
       "config": {
         "name": "Contract Clause Comparator",
         "systemPrompt": "You are an expert legal document analyst specializing in contract comparison. Produce structured, self-contained clause analyses with difference tables including legal significance. Use precise legal terminology. Do NOT include standalone summary sections, risk matrices, overall conclusions, or cross-clause commentary. Output ONLY the formatted analysis. Never include meta-commentary, self-reflection, reasoning about the output format, or internal notes.",
@@ -208,7 +170,7 @@
       "stepSlug": "accumulate_results",
       "name": "Accumulate Comparison Results",
       "stepType": "action",
-      "order": 13,
+      "order": 10,
       "config": {
         "type": "set_variables",
         "parameters": {
@@ -226,11 +188,11 @@
       "stepSlug": "generate_overview",
       "name": "Generate Report Overview",
       "stepType": "llm",
-      "order": 14,
+      "order": 11,
       "config": {
         "name": "Contract Comparison Overview",
         "systemPrompt": "You are an expert legal analyst. Generate a brief executive introduction for a contract comparison report. Be professional and concise.",
-        "userPrompt": "Write a 2-3 paragraph executive introduction for a contract comparison report with the following metadata:\n\n- Base document: {{baseDocName}}\n- Comparison documents: {{comparisonDocNames|join(', ')}}\n- Total clauses analyzed: {{chunkResults|length}}\n- Number of comparison documents: {{comparisonFileIds|length}}\n\nThe introduction should:\n1. Identify the base document and each comparison document by name\n2. Describe the scope and methodology (chunk-level RAG comparison of contract clauses)\n3. Note the total number of clauses analyzed and documents compared\n4. Direct the reader to the detailed clause-by-clause comparison that follows\n\nKeep it under 150 words. Do NOT attempt to summarize findings — you do not have access to the comparison data.",
+        "userPrompt": "Write a 2-3 paragraph executive introduction for a contract comparison report with the following metadata:\n\n- Base document: {{baseDocName}}\n- Comparison documents: {{comparisonDocNames|join(', ')}}\n- Total clauses analyzed: {{chunkResults|length}}\n- Number of comparison documents: {{comparisonFiles|length}}\n\nThe introduction should:\n1. Identify the base document and each comparison document by name\n2. Describe the scope and methodology (chunk-level RAG comparison of contract clauses)\n3. Note the total number of clauses analyzed and documents compared\n4. Direct the reader to the detailed clause-by-clause comparison that follows\n\nKeep it under 150 words. Do NOT attempt to summarize findings — you do not have access to the comparison data.",
         "outputFormat": "text"
       },
       "nextSteps": { "success": "generate_report" }
@@ -239,7 +201,7 @@
       "stepSlug": "generate_report",
       "name": "Generate DOCX Report",
       "stepType": "action",
-      "order": 15,
+      "order": 12,
       "config": {
         "type": "document",
         "parameters": {
@@ -255,7 +217,7 @@
       "stepSlug": "output",
       "name": "Output Results",
       "stepType": "output",
-      "order": 16,
+      "order": 13,
       "config": {
         "outputMapping": {
           "fileStorageId": "{{steps.generate_report.output.data.fileStorageId}}",

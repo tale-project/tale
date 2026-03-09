@@ -82,6 +82,7 @@ import type * as agent_tools_web_helpers_search_pages from "../agent_tools/web/h
 import type * as agent_tools_web_helpers_types from "../agent_tools/web/helpers/types.js";
 import type * as agent_tools_web_web_tool from "../agent_tools/web/web_tool.js";
 import type * as agent_tools_workflows_create_workflow_tool from "../agent_tools/workflows/create_workflow_tool.js";
+import type * as agent_tools_workflows_helpers_extract_input_schema from "../agent_tools/workflows/helpers/extract_input_schema.js";
 import type * as agent_tools_workflows_helpers_read_active_version_steps from "../agent_tools/workflows/helpers/read_active_version_steps.js";
 import type * as agent_tools_workflows_helpers_read_all_workflows from "../agent_tools/workflows/helpers/read_all_workflows.js";
 import type * as agent_tools_workflows_helpers_read_version_history from "../agent_tools/workflows/helpers/read_version_history.js";
@@ -375,6 +376,7 @@ import type * as lib_variables_evaluate_expression from "../lib/variables/evalua
 import type * as lib_variables_jexl_instance from "../lib/variables/jexl_instance.js";
 import type * as lib_variables_replace_variables from "../lib/variables/replace_variables.js";
 import type * as lib_variables_replace_variables_in_string from "../lib/variables/replace_variables_in_string.js";
+import type * as lib_variables_sanitize_convex_value from "../lib/variables/sanitize_convex_value.js";
 import type * as lib_variables_validate_template from "../lib/variables/validate_template.js";
 import type * as members_helpers from "../members/helpers.js";
 import type * as members_internal_queries from "../members/internal_queries.js";
@@ -725,6 +727,7 @@ import type * as workflow_engine_helpers_validation_types from "../workflow_engi
 import type * as workflow_engine_helpers_validation_validate_action_parameters from "../workflow_engine/helpers/validation/validate_action_parameters.js";
 import type * as workflow_engine_helpers_validation_validate_step_config from "../workflow_engine/helpers/validation/validate_step_config.js";
 import type * as workflow_engine_helpers_validation_validate_workflow_definition from "../workflow_engine/helpers/validation/validate_workflow_definition.js";
+import type * as workflow_engine_helpers_validation_validate_workflow_input from "../workflow_engine/helpers/validation/validate_workflow_input.js";
 import type * as workflow_engine_helpers_validation_validate_workflow_steps from "../workflow_engine/helpers/validation/validate_workflow_steps.js";
 import type * as workflow_engine_helpers_validation_variables_action_schemas from "../workflow_engine/helpers/validation/variables/action_schemas.js";
 import type * as workflow_engine_helpers_validation_variables_index from "../workflow_engine/helpers/validation/variables/index.js";
@@ -932,6 +935,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/web/helpers/types": typeof agent_tools_web_helpers_types;
   "agent_tools/web/web_tool": typeof agent_tools_web_web_tool;
   "agent_tools/workflows/create_workflow_tool": typeof agent_tools_workflows_create_workflow_tool;
+  "agent_tools/workflows/helpers/extract_input_schema": typeof agent_tools_workflows_helpers_extract_input_schema;
   "agent_tools/workflows/helpers/read_active_version_steps": typeof agent_tools_workflows_helpers_read_active_version_steps;
   "agent_tools/workflows/helpers/read_all_workflows": typeof agent_tools_workflows_helpers_read_all_workflows;
   "agent_tools/workflows/helpers/read_version_history": typeof agent_tools_workflows_helpers_read_version_history;
@@ -1225,6 +1229,7 @@ declare const fullApi: ApiFromModules<{
   "lib/variables/jexl_instance": typeof lib_variables_jexl_instance;
   "lib/variables/replace_variables": typeof lib_variables_replace_variables;
   "lib/variables/replace_variables_in_string": typeof lib_variables_replace_variables_in_string;
+  "lib/variables/sanitize_convex_value": typeof lib_variables_sanitize_convex_value;
   "lib/variables/validate_template": typeof lib_variables_validate_template;
   "members/helpers": typeof members_helpers;
   "members/internal_queries": typeof members_internal_queries;
@@ -1575,6 +1580,7 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/helpers/validation/validate_action_parameters": typeof workflow_engine_helpers_validation_validate_action_parameters;
   "workflow_engine/helpers/validation/validate_step_config": typeof workflow_engine_helpers_validation_validate_step_config;
   "workflow_engine/helpers/validation/validate_workflow_definition": typeof workflow_engine_helpers_validation_validate_workflow_definition;
+  "workflow_engine/helpers/validation/validate_workflow_input": typeof workflow_engine_helpers_validation_validate_workflow_input;
   "workflow_engine/helpers/validation/validate_workflow_steps": typeof workflow_engine_helpers_validation_validate_workflow_steps;
   "workflow_engine/helpers/validation/variables/action_schemas": typeof workflow_engine_helpers_validation_variables_action_schemas;
   "workflow_engine/helpers/validation/variables/index": typeof workflow_engine_helpers_validation_variables_index;

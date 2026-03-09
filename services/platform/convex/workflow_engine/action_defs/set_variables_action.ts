@@ -24,6 +24,7 @@ import { isRecord } from '../../../lib/utils/type-guards';
 import { createDebugLog } from '../../lib/debug_log';
 import { jsonValueValidator } from '../../lib/validators/json';
 import { replaceVariables } from '../../lib/variables/replace_variables';
+import { sanitizeConvexValue } from '../../lib/variables/sanitize_convex_value';
 
 const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
 
@@ -97,9 +98,10 @@ export const setVariablesAction: ActionDefinition<{
 
         debugLog(`set_variables Stored secure wrapper in secrets.${name}`);
       } else {
-        // Regular variable: store as-is
-        processedVariables[name] = processedValue;
-        workingContext[name] = processedValue;
+        // Regular variable: sanitize undefined → null for Convex compatibility
+        const sanitized = sanitizeConvexValue(processedValue);
+        processedVariables[name] = sanitized;
+        workingContext[name] = sanitized;
       }
     }
     debugLog('set_variables Processed variables:', processedVariables);
