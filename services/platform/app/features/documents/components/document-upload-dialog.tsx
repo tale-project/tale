@@ -221,7 +221,10 @@ export function DocumentUploadDialog({
               value={uploadProgress.bytesLoaded}
               max={uploadProgress.bytesTotal}
               label={tDocuments('upload.uploading')}
-              tooltipContent={`${uploadProgress.completedFiles} / ${uploadProgress.totalFiles} ${tDocuments('upload.filesCompleted')}`}
+              tooltipContent={tDocuments('upload.filesCompletedSummary', {
+                completed: uploadProgress.completedFiles,
+                total: uploadProgress.totalFiles,
+              })}
             />
             <Text
               variant="caption"
@@ -231,7 +234,10 @@ export function DocumentUploadDialog({
               {formatBytes(uploadProgress.bytesLoaded)} /{' '}
               {formatBytes(uploadProgress.bytesTotal)}
               {uploadProgress.totalFiles > 1 &&
-                ` · ${uploadProgress.completedFiles} / ${uploadProgress.totalFiles} ${tDocuments('upload.filesCompleted')}`}
+                ` · ${tDocuments('upload.filesCompletedSummary', {
+                  completed: uploadProgress.completedFiles,
+                  total: uploadProgress.totalFiles,
+                })}`}
             </Text>
           </Stack>
         )}

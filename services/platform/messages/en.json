@@ -2406,7 +2406,7 @@
       "filesUploadedSuccessfully": "{count} {count, plural, one {file} other {files}} uploaded successfully",
       "uploadCancelled": "Upload cancelled",
       "uploadFailed": "Upload failed",
-      "filesCompleted": "files completed",
+      "filesCompletedSummary": "{completed} / {total} files completed",
       "selectTeams": "Select team",
       "selectTeamsDescription": "Choose which team the uploaded documents belong to",
       "noTeamsAvailable": "You are not a member of any teams",

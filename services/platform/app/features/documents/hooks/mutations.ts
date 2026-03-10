@@ -78,13 +78,13 @@ function uploadWithProgress(
     xhr.open('POST', url);
     xhr.setRequestHeader('Content-Type', contentType);
 
-    xhr.upload.onprogress = (e) => {
+    xhr.upload.addEventListener('progress', (e) => {
       if (e.lengthComputable) {
         onProgress(e.loaded, e.total);
       }
-    };
+    });
 
-    xhr.onload = () => {
+    xhr.addEventListener('load', () => {
       if (xhr.status >= 200 && xhr.status < 300) {
         try {
           resolve(JSON.parse(xhr.responseText));
@@ -94,13 +94,14 @@ function uploadWithProgress(
       } else {
         reject(new Error(`Upload failed: ${xhr.statusText}`));
       }
-    };
+    });
 
-    xhr.onerror = () => reject(new Error('Upload failed: network error'));
-    xhr.onabort = () => {
-      const err = new DOMException('The operation was aborted.', 'AbortError');
-      reject(err);
-    };
+    xhr.addEventListener('error', () =>
+      reject(new Error('Upload failed: network error')),
+    );
+    xhr.addEventListener('abort', () => {
+      reject(new DOMException('The operation was aborted.', 'AbortError'));
+    });
 
     signal?.addEventListener('abort', () => xhr.abort(), { once: true });
 
