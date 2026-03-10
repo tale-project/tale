@@ -44,8 +44,13 @@ export function computeDeduplicationState(
   // If the latest message is a non-null assistant message, always treat the
   // user input as a new message (skip deduplication). Otherwise, fall back
   // to the previous "same-as-last-user" deduplication behavior.
+
+  // Empty/whitespace-only messages are never duplicates — this handles the
+  // case where a user sends an attachment with no text.
   const messageAlreadyExists =
-    !latestIsAssistantWithContent && lastUserContent === trimmedMessage;
+    trimmedMessage !== '' &&
+    !latestIsAssistantWithContent &&
+    lastUserContent === trimmedMessage;
 
   return {
     latestMessage,
