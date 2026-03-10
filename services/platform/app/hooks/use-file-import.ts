@@ -142,9 +142,19 @@ export const customerMappers = {
     const email = row[0]?.trim();
     if (!email) return null;
 
+    const second = row[1]?.trim();
+    const third = row[2]?.trim();
+    const isLocale = (value?: string) =>
+      !!value && /^[a-z]{2}(?:-[A-Z]{2})?$/i.test(value);
+
     return {
       email,
-      locale: row[1]?.trim() || 'en',
+      name: third
+        ? second || undefined
+        : isLocale(second)
+          ? undefined
+          : second || undefined,
+      locale: third || (isLocale(second) ? second : undefined) || 'en',
       status: 'churned' as const,
       source: 'manual_import' as const,
     };
@@ -158,6 +168,11 @@ export const customerMappers = {
 
     return {
       email,
+      name:
+        getString(record.name) ||
+        getString(record.Name) ||
+        getString(record.NAME) ||
+        undefined,
       locale:
         getString(record.locale) ||
         getString(record.Locale) ||

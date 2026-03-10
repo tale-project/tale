@@ -121,7 +121,7 @@ export function CustomerImportForm({
         <FormSection>
           <Textarea
             placeholder={
-              'customer@example.com\ncustomer2@example.com,en\ncustomer3@example.com,zh'
+              'customer@example.com,John Doe\ncustomer2@example.com,Jane Smith,en\ncustomer3@example.com,,zh'
             }
             className="min-h-[200px] font-mono text-sm"
             errorMessage={
@@ -133,6 +133,7 @@ export function CustomerImportForm({
           />
           <Text as="div" variant="caption" className="leading-relaxed">
             <ul className="list-outside list-disc space-y-2 pl-4">
+              <li>{t('importForm.formatHint')}</li>
               <li>{t('importForm.localeHint')}</li>
               <li className="text-yellow-600">{t('importForm.churnedNote')}</li>
             </ul>

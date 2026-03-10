@@ -2647,7 +2647,8 @@
       "upload": "Upload",
       "fromShopify": "From Shopify",
       "syncBusinessData": "Sync business data",
-      "localeHint": "You can use the following supported locales: en, fr, de, zh, as well as extended formats like en-US, de-DE, and de-CH.",
+      "formatHint": "Format: email, name (optional), locale (optional). One customer per line.",
+      "localeHint": "Supported locales: en, fr, de, zh, as well as extended formats like en-US, de-DE, and de-CH.",
       "churnedNote": "Imported customers are tagged as (Churned)"
     },
     "editCustomer": "Edit customer",

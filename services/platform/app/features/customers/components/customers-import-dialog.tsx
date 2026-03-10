@@ -16,6 +16,7 @@ import { CustomerImportForm } from './customer-import-form';
 
 export interface ParsedCustomer {
   email: string;
+  name?: string;
   locale: string;
   status: 'churned';
   source: Doc<'customers'>['source'];
