@@ -332,3 +332,29 @@ export const getModelPresets = query({
     };
   },
 });
+
+export const getSystemAgentBySlug = query({
+  args: {
+    organizationId: v.string(),
+    systemAgentSlug: v.string(),
+  },
+  returns: v.union(v.id('customAgents'), v.null()),
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) return null;
+
+    const agents = ctx.db
+      .query('customAgents')
+      .withIndex('by_org_system_slug', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('systemAgentSlug', args.systemAgentSlug),
+      );
+
+    for await (const agent of agents) {
+      return agent.rootVersionId ?? agent._id;
+    }
+
+    return null;
+  },
+});
