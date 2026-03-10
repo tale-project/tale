@@ -41,29 +41,6 @@ export interface ActivateVersionResult {
   newDraftId: Id<'wfDefinitions'>;
 }
 
-/**
- * Type for predefined workflow definitions (imported from JS/TS files).
- * Uses loose types to accommodate the inferred types from predefined workflow files.
- * The values are validated at runtime by Convex validators.
- */
-export interface PredefinedWorkflowDefinition {
-  workflowConfig: {
-    name: string;
-    description?: string;
-    version?: string;
-    workflowType?: string;
-    config?: Record<string, unknown>;
-  };
-  stepsConfig: Array<{
-    stepSlug: string;
-    name: string;
-    stepType: string;
-    order: number;
-    config: unknown;
-    nextSteps: Record<string, string | undefined>;
-  }>;
-}
-
 // =============================================================================
 // API PAYLOAD TYPES (strict types matching handler validators)
 // =============================================================================
@@ -88,57 +65,4 @@ export interface CreateWorkflowPayload {
     config: StepConfig;
     nextSteps: Record<string, string>;
   }>;
-}
-
-/**
- * Convert a PredefinedWorkflowDefinition to the strict types expected by API handlers.
- * This is the single point where loose predefined workflow types are bridged to
- * strict API types. The Convex validators provide runtime validation.
- *
- * @param def - The predefined workflow definition with loose types
- * @param configOverrides - Optional overrides for workflowConfig
- * @param stepsTransform - Optional transform function for step configs (e.g., to set trigger schedule)
- */
-export function toPredefinedWorkflowPayload(
-  def: PredefinedWorkflowDefinition,
-  configOverrides?: Partial<CreateWorkflowPayload['workflowConfig']>,
-  stepsTransform?: (
-    step: PredefinedWorkflowDefinition['stepsConfig'][number],
-  ) => PredefinedWorkflowDefinition['stepsConfig'][number],
-): CreateWorkflowPayload {
-  const workflowConfig = {
-    ...def.workflowConfig,
-    ...configOverrides,
-    // Bridge loose workflowType string to strict literal
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-    workflowType: def.workflowConfig.workflowType as WorkflowType | undefined,
-    // Bridge loose config to strict WorkflowConfig
-    config: (configOverrides?.config ?? def.workflowConfig.config) as
-      | WorkflowConfig
-      | undefined,
-  };
-
-  const stepsConfig = def.stepsConfig.map((step) => {
-    const transformedStep = stepsTransform ? stepsTransform(step) : step;
-    return {
-      stepSlug: transformedStep.stepSlug,
-      name: transformedStep.name,
-      // Bridge loose stepType string to strict StepType literal
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-      stepType: transformedStep.stepType as StepType,
-      order: transformedStep.order,
-      // Bridge loose config to strict StepConfig (validated at runtime)
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-      config: transformedStep.config as StepConfig,
-      // Filter out undefined values from nextSteps
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-      nextSteps: Object.fromEntries(
-        Object.entries(transformedStep.nextSteps).filter(
-          ([, v]) => v !== undefined,
-        ),
-      ) as Record<string, string>,
-    };
-  });
-
-  return { workflowConfig, stepsConfig };
 }

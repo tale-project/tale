@@ -1,0 +1,185 @@
+{
+  "workflowConfig": {
+    "name": "Shopify Products Sync",
+    "description": "Synchronize products from Shopify to local database with pagination",
+    "version": "3.0.0",
+    "workflowType": "predefined",
+    "config": {
+      "timeout": 300000,
+      "retryPolicy": { "maxRetries": 3, "backoffMs": 2000 },
+      "variables": {
+        "organizationId": "org_demo",
+        "pageSize": 10,
+        "maxPages": 20,
+        "currentPage": 0,
+        "nextPageInfo": null
+      }
+    }
+  },
+  "stepsConfig": [
+    {
+      "stepSlug": "trigger_start",
+      "name": "Start Products Sync",
+      "stepType": "start",
+      "config": {},
+      "nextSteps": { "success": "fetch_products" }
+    },
+    {
+      "stepSlug": "fetch_products",
+      "name": "Fetch Products from Shopify",
+      "stepType": "action",
+      "config": {
+        "type": "integration",
+        "parameters": {
+          "name": "shopify",
+          "operation": "list_products",
+          "params": {
+            "limit": "{{pageSize}}",
+            "page_info": "{{nextPageInfo}}"
+          }
+        }
+      },
+      "nextSteps": {
+        "success": "loop_products"
+      }
+    },
+    {
+      "stepSlug": "loop_products",
+      "name": "Loop Through Products",
+      "stepType": "loop",
+      "config": {
+        "items": "{{steps.fetch_products.output.data.result.data}}",
+        "itemVariable": "product"
+      },
+      "nextSteps": {
+        "loop": "query_existing_product",
+        "done": "check_has_next_page"
+      }
+    },
+    {
+      "stepSlug": "query_existing_product",
+      "name": "Query Existing Product",
+      "stepType": "action",
+      "config": {
+        "type": "product",
+        "parameters": {
+          "operation": "query",
+          "externalId": "{{loop.item.id}}",
+          "paginationOpts": {
+            "numItems": 1,
+            "cursor": null
+          }
+        }
+      },
+      "nextSteps": {
+        "success": "check_product_exists"
+      }
+    },
+    {
+      "stepSlug": "check_product_exists",
+      "name": "Check if Product Exists",
+      "stepType": "condition",
+      "config": {
+        "expression": "steps.query_existing_product.output.data.items|length > 0",
+        "description": "Check if product already exists in database"
+      },
+      "nextSteps": {
+        "true": "update_existing_product",
+        "false": "insert_new_product"
+      }
+    },
+    {
+      "stepSlug": "update_existing_product",
+      "name": "Update Existing Product",
+      "stepType": "action",
+      "config": {
+        "type": "product",
+        "parameters": {
+          "operation": "update",
+          "productId": "{{steps.query_existing_product.output.data.items[0]._id}}",
+          "updates": {
+            "name": "{{loop.item.title}}",
+            "status": "{{loop.item.status}}",
+            "metadata": {
+              "shopify": "{{loop.item}}",
+              "syncedAt": "{{now}}"
+            }
+          }
+        }
+      },
+      "nextSteps": {
+        "success": "loop_products"
+      }
+    },
+    {
+      "stepSlug": "insert_new_product",
+      "name": "Insert New Product",
+      "stepType": "action",
+      "config": {
+        "type": "product",
+        "parameters": {
+          "operation": "create",
+          "name": "{{loop.item.title}}",
+          "status": "{{loop.item.status}}",
+          "externalId": "{{loop.item.id}}",
+          "metadata": {
+            "shopify": "{{loop.item}}",
+            "syncedAt": "{{now}}"
+          }
+        }
+      },
+      "nextSteps": {
+        "success": "loop_products"
+      }
+    },
+    {
+      "stepSlug": "check_has_next_page",
+      "name": "Check Has Next Page",
+      "stepType": "condition",
+      "config": {
+        "expression": "steps.fetch_products.output.data.result.pagination.hasNextPage == true",
+        "description": "Check if Shopify has more pages to fetch"
+      },
+      "nextSteps": {
+        "true": "check_page_limit",
+        "false": "noop"
+      }
+    },
+    {
+      "stepSlug": "check_page_limit",
+      "name": "Check Page Limit",
+      "stepType": "condition",
+      "config": {
+        "expression": "currentPage < maxPages",
+        "description": "Ensure we do not exceed max page limit"
+      },
+      "nextSteps": {
+        "true": "update_pagination_vars",
+        "false": "noop"
+      }
+    },
+    {
+      "stepSlug": "update_pagination_vars",
+      "name": "Update Pagination Variables",
+      "stepType": "action",
+      "config": {
+        "type": "set_variables",
+        "parameters": {
+          "variables": [
+            {
+              "name": "currentPage",
+              "value": "{{currentPage + 1}}"
+            },
+            {
+              "name": "nextPageInfo",
+              "value": "{{steps.fetch_products.output.data.result.pagination.nextPageInfo}}"
+            }
+          ]
+        }
+      },
+      "nextSteps": {
+        "success": "fetch_products"
+      }
+    }
+  ]
+}

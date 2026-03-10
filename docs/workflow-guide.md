@@ -1231,7 +1231,7 @@ Ready to build your first workflow? Here's what to do:
 2. **Ask the AI** - Describe what you want in natural language
 3. **Test It** - Run your workflow with test data
 4. **Iterate** - Add more steps and complexity as needed
-5. **Explore Examples** - Check `services/platform/convex/predefined_workflows/` for complete working examples
+5. **Explore Examples** - Check `examples/workflows/` for complete working examples
 
 ---
 

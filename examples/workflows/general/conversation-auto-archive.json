@@ -1,0 +1,113 @@
+{
+  "workflowConfig": {
+    "name": "Conversation Auto-Archive",
+    "description": "Automatically archive conversations that have been closed for over 30 days",
+    "workflowType": "predefined",
+    "version": "1.0.0",
+    "config": {
+      "timeout": 60000,
+      "retryPolicy": { "maxRetries": 2, "backoffMs": 3000 },
+      "variables": {
+        "organizationId": "org_demo",
+        "workflowId": "conversationAutoArchive",
+        "backoffHours": 168,
+        "staleDays": 30
+      }
+    }
+  },
+  "stepsConfig": [
+    {
+      "stepSlug": "start",
+      "name": "Start",
+      "stepType": "start",
+      "config": {},
+      "nextSteps": { "success": "find_stale_conversation" }
+    },
+    {
+      "stepSlug": "find_stale_conversation",
+      "name": "Find Stale Closed Conversation",
+      "stepType": "action",
+      "config": {
+        "type": "workflow_processing_records",
+        "parameters": {
+          "operation": "find_unprocessed",
+          "tableName": "conversations",
+          "backoffHours": "{{backoffHours}}",
+          "filterExpression": "status == \"closed\" && metadata.resolved_at && daysAgo(metadata.resolved_at) > {{staleDays}}"
+        }
+      },
+      "nextSteps": { "success": "check_has_conversation" }
+    },
+    {
+      "stepSlug": "check_has_conversation",
+      "name": "Check Has Conversation",
+      "stepType": "condition",
+      "config": {
+        "expression": "steps.find_stale_conversation.output.data != null",
+        "description": "Check if a stale closed conversation was found"
+      },
+      "nextSteps": { "true": "extract_conversation_data", "false": "noop" }
+    },
+    {
+      "stepSlug": "extract_conversation_data",
+      "name": "Extract Conversation Data",
+      "stepType": "action",
+      "config": {
+        "type": "set_variables",
+        "parameters": {
+          "variables": [
+            {
+              "name": "currentConversationId",
+              "value": "{{steps.find_stale_conversation.output.data._id}}"
+            },
+            {
+              "name": "currentConversationSubject",
+              "value": "{{steps.find_stale_conversation.output.data.subject}}"
+            },
+            {
+              "name": "resolvedAt",
+              "value": "{{steps.find_stale_conversation.output.data.metadata.resolved_at}}"
+            }
+          ]
+        }
+      },
+      "nextSteps": { "success": "archive_conversation" }
+    },
+    {
+      "stepSlug": "archive_conversation",
+      "name": "Archive Conversation",
+      "stepType": "action",
+      "config": {
+        "type": "conversation",
+        "parameters": {
+          "operation": "update",
+          "conversationId": "{{currentConversationId}}",
+          "updates": {
+            "status": "archived"
+          }
+        }
+      },
+      "nextSteps": { "success": "record_processed" }
+    },
+    {
+      "stepSlug": "record_processed",
+      "name": "Record Conversation as Processed",
+      "stepType": "action",
+      "config": {
+        "type": "workflow_processing_records",
+        "parameters": {
+          "operation": "record_processed",
+          "tableName": "conversations",
+          "recordId": "{{currentConversationId}}",
+          "metadata": {
+            "action": "archived",
+            "resolvedAt": "{{resolvedAt}}",
+            "archivedAt": "{{now}}",
+            "staleDays": "{{staleDays}}"
+          }
+        }
+      },
+      "nextSteps": { "success": "noop" }
+    }
+  ]
+}

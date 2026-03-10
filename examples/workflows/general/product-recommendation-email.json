@@ -1,0 +1,225 @@
+{
+  "workflowConfig": {
+    "name": "Product Recommendation Email",
+    "description": "Generate personalized product recommendation emails from pending approvals",
+    "workflowType": "predefined",
+    "version": "1.0.0",
+    "config": {
+      "timeout": 300000,
+      "retryPolicy": { "maxRetries": 2, "backoffMs": 3000 },
+      "variables": {
+        "organizationId": "org_demo",
+        "workflowId": "product-recommendation-email",
+        "backoffHours": 24
+      }
+    }
+  },
+  "stepsConfig": [
+    {
+      "stepSlug": "start",
+      "name": "start",
+      "stepType": "start",
+      "config": {},
+      "nextSteps": { "success": "find_approved_approval" }
+    },
+    {
+      "stepSlug": "find_approved_approval",
+      "name": "Find Approved Product Recommendation Approval",
+      "stepType": "action",
+      "config": {
+        "type": "workflow_processing_records",
+        "parameters": {
+          "operation": "find_unprocessed",
+          "tableName": "approvals",
+          "backoffHours": "{{backoffHours}}",
+          "filterExpression": "status == \"approved\" && resourceType == \"product_recommendation\""
+        }
+      },
+      "nextSteps": {
+        "success": "check_has_approval"
+      }
+    },
+    {
+      "stepSlug": "check_has_approval",
+      "name": "Check if Approval Found",
+      "stepType": "condition",
+      "config": {
+        "expression": "steps.find_approved_approval.output.data != null",
+        "description": "Check if we found an approved approval"
+      },
+      "nextSteps": {
+        "true": "extract_approval_data",
+        "false": "noop"
+      }
+    },
+    {
+      "stepSlug": "extract_approval_data",
+      "name": "Extract Approval Data",
+      "stepType": "action",
+      "config": {
+        "type": "set_variables",
+        "parameters": {
+          "variables": [
+            {
+              "name": "currentApproval",
+              "value": "{{steps.find_approved_approval.output.data}}"
+            },
+            {
+              "name": "currentApprovalId",
+              "value": "{{steps.find_approved_approval.output.data._id}}"
+            },
+            {
+              "name": "customerId",
+              "value": "{{steps.find_approved_approval.output.data.metadata.customerId}}"
+            },
+            {
+              "name": "customerName",
+              "value": "{{steps.find_approved_approval.output.data.metadata.customerName}}"
+            },
+            {
+              "name": "customerEmail",
+              "value": "{{steps.find_approved_approval.output.data.metadata.customerEmail}}"
+            },
+            {
+              "name": "recommendedProducts",
+              "value": "{{steps.find_approved_approval.output.data.metadata.recommendedProducts}}"
+            }
+          ]
+        }
+      },
+      "nextSteps": {
+        "success": "select_top_products"
+      }
+    },
+    {
+      "stepSlug": "select_top_products",
+      "name": "Select Top 3 Products by Confidence",
+      "stepType": "action",
+      "config": {
+        "type": "set_variables",
+        "parameters": {
+          "variables": [
+            {
+              "name": "topProducts",
+              "value": "{{recommendedProducts|sort(\"confidence\", \"desc\")|slice(0, 3)}}"
+            }
+          ]
+        }
+      },
+      "nextSteps": {
+        "success": "generate_email"
+      }
+    },
+    {
+      "stepSlug": "generate_email",
+      "name": "Generate Product Recommendation Email",
+      "stepType": "llm",
+      "config": {
+        "name": "Email Generator",
+        "outputFormat": "json",
+        "outputSchema": {
+          "type": "object",
+          "description": "Product recommendation email content",
+          "properties": {
+            "subject": {
+              "type": "string",
+              "description": "Email subject line - compelling and personalized"
+            },
+            "body": {
+              "type": "string",
+              "description": "Full email body in Markdown format with narrative style"
+            },
+            "preview": {
+              "type": "string",
+              "description": "Email preview text shown in inbox (first line summary)"
+            }
+          },
+          "required": ["subject", "body", "preview"]
+        },
+        "tools": ["customer_read", "rag_search"],
+        "systemPrompt": "You are an expert email copywriter who crafts narrative, story-driven product recommendation emails.\nYour task is to write a short, human story that explains why these products are a great fit for the customer — not a robotic list.\n\nYou have access to tools and should use them when helpful:\n- Use the \"customer_read\" tool to load the full customer record from the customers table (including locale, status, purchase metrics such as totalSpent, orderCount, firstPurchaseAt, lastPurchaseAt, tags, and metadata). Use operation='get_by_id' with customerId, or operation='get_by_email' with email.\n- Use the \"rag_search\" tool to look up any additional knowledge base context (for example, brand guidelines or product documentation) if needed.\n\nWhen possible, call \"customer_read\" before drafting the email so you can adapt tone, language, and references to the customer's locale and purchase history (for example, frequent buyer vs. new customer, high lifetime value, recently purchased, etc.).\n\nGuidelines:\n- Use a warm, conversational tone\n- Weave recommendations into 2–4 short paragraphs; do NOT use bullet points or numbered lists in the main body\n- Focus the story around the most relevant product; mention others naturally as supporting options if helpful\n- Ground the narrative in the provided reasoning and relationshipType for each product, plus any relevant customer history\n- Emphasize benefits and outcomes, not specs\n- Include one clear call-to-action near the end\n- Format the email body in Markdown (paragraphs, bold/italic, links). Avoid tables.\n- Optional: include at most one inline image for the primary product using Markdown image syntax; do not present multiple images as a list or gallery",
+        "userPrompt": "Generate a narrative, story-style product recommendation email for:\n\nCustomer Name: {{customerName}}\nCustomer Email: {{customerEmail}}\nCustomer Id: {{customerId}} (Convex customers table id)\n\nUse the following products (JSON) as context — do NOT paste this JSON into the email body:\n{{topProducts}}\n\nBefore writing the email, if helpful, call the \"customer_read\" tool with operation='get_by_id' and the customerId (or operation='get_by_email' with email) to retrieve the full customer record (including locale, purchase metrics, tags, and metadata). Use this data to:\n- Adapt the tone and language to the customer's locale when possible\n- Reference their relationship with the brand (for example, long-time customer, high-value buyer, recently inactive, etc.) when it makes the story stronger\n\nRequirements:\n- Do not list products like \"Product 1/2/3\" and do not use bullet points\n- Write a cohesive story that naturally introduces the most relevant product and, if useful, references the others\n- Do not include product IDs, field names, or raw JSON in the body\n- If you include an image, use a single inline image for the primary product (the first item), placed near its description\n- End with a friendly, single call-to-action"
+      },
+      "nextSteps": {
+        "success": "create_conversation"
+      }
+    },
+    {
+      "stepSlug": "create_conversation",
+      "name": "Create Conversation",
+      "stepType": "action",
+      "config": {
+        "type": "conversation",
+        "parameters": {
+          "operation": "create",
+          "customerId": "{{customerId}}",
+          "subject": "{{steps.generate_email.output.data.subject}}",
+          "status": "open",
+          "priority": "medium",
+          "type": "product_recommendation",
+          "channel": "email",
+          "direction": "outbound",
+          "metadata": {
+            "emailSubject": "{{steps.generate_email.output.data.subject}}",
+            "emailBody": "{{steps.generate_email.output.data.body}}",
+            "emailPreview": "{{steps.generate_email.output.data.preview}}",
+            "customerEmail": "{{customerEmail}}",
+            "recommendedProducts": "{{topProducts}}",
+            "originalApprovalId": "{{currentApprovalId}}"
+          }
+        }
+      },
+      "nextSteps": {
+        "success": "create_email_approval"
+      }
+    },
+    {
+      "stepSlug": "create_email_approval",
+      "name": "Create Email Approval",
+      "stepType": "action",
+      "config": {
+        "type": "approval",
+        "parameters": {
+          "operation": "create_approval",
+          "resourceType": "conversations",
+          "resourceId": "{{steps.create_conversation.output.data._id}}",
+          "priority": "medium",
+          "description": "Review and approve product recommendation email before sending",
+          "metadata": {
+            "customerId": "{{customerId}}",
+            "customerName": "{{customerName}}",
+            "customerEmail": "{{customerEmail}}",
+            "emailBody": "{{steps.generate_email.output.data.body}}",
+            "recommendedProducts": "{{topProducts}}",
+            "originalApprovalId": "{{currentApprovalId}}"
+          }
+        }
+      },
+      "nextSteps": {
+        "success": "record_processed"
+      }
+    },
+    {
+      "stepSlug": "record_processed",
+      "name": "Record Approval as Processed",
+      "stepType": "action",
+      "config": {
+        "type": "workflow_processing_records",
+        "parameters": {
+          "operation": "record_processed",
+          "tableName": "approvals",
+          "recordId": "{{currentApprovalId}}",
+          "metadata": {
+            "emailGenerated": true,
+            "conversationId": "{{steps.create_conversation.output.data._id}}",
+            "emailApprovalId": "{{steps.create_email_approval.output.data._id}}",
+            "processedAt": "{{now}}"
+          }
+        }
+      },
+      "nextSteps": {
+        "success": "noop"
+      }
+    }
+  ]
+}
