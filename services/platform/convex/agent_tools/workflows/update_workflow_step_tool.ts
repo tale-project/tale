@@ -2,19 +2,19 @@
  * Convex Tool: Update Workflow Step
  *
  * Updates an existing workflow step with built-in validation.
- * Validates step configuration before saving.
+ * Requires user approval before changes are applied.
  */
 
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
-import type { Doc } from '../../_generated/dataModel';
 import type { ToolDefinition } from '../types';
 
 import { isRecord } from '../../../lib/utils/type-guards';
 import { internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
 import { toId } from '../../lib/type_cast_helpers';
+import { getApprovalThreadId } from '../../threads/get_parent_thread_id';
 import {
   validateStepConfig,
   isValidStepType,
@@ -26,11 +26,12 @@ export const updateWorkflowStepTool = {
   name: 'update_workflow_step' as const,
   tool: createTool({
     description: `Update an existing workflow step configuration.
+Requires user approval — an approval card will be created for the user to review and confirm.
 
 **REQUIRED STEPS:**
 1. Call workflow_read(operation='get_step', stepId='...') to get current config
 2. Modify config based on current values (keep ALL required fields)
-3. Call this tool with stepRecordId and updates
+3. Call this tool with stepRecordId, updates, and updateSummary
 
 **CRITICAL RULES:**
 • nextSteps goes in updates.nextSteps, NOT inside updates.config
@@ -38,10 +39,14 @@ export const updateWorkflowStepTool = {
 • Include stepType in updates when updating config
 
 **STRUCTURE:**
-{ stepRecordId: "...", updates: { stepType: "...", config: {...}, nextSteps: {...} } }
+{ stepRecordId: "...", updates: { stepType: "...", config: {...}, nextSteps: {...} }, updateSummary: "..." }
 
 **JSON RULES:**
 • Escape quotes: \\" | Escape backslashes: \\\\ | Newlines: \\n
+
+**APPROVAL:**
+When this tool returns { requiresApproval: true }, do NOT call this tool again.
+Inform the user the update is ready for review in the chat UI.
 
 **SYNTAX HELP:**
 workflow_examples(operation='get_syntax_reference', category='start|llm|action|condition|loop')`,
@@ -72,14 +77,23 @@ workflow_examples(operation='get_syntax_reference', category='start|llm|action|c
             ),
         })
         .describe('Fields to update'),
+      updateSummary: z
+        .string()
+        .describe(
+          'Markdown-formatted summary of changes. Use bullet points for multiple changes. Example:\n- Updated email template with dynamic subject line\n- Changed recipient to use contact lookup',
+        ),
     }),
     handler: async (
       ctx,
       args,
     ): Promise<{
       success: boolean;
+      requiresApproval?: boolean;
+      approvalId?: string;
+      approvalCreated?: boolean;
+      approvalMessage?: string;
       message: string;
-      step: Doc<'wfStepDefs'> | null;
+      step?: null;
       validationErrors?: string[];
       validationWarnings?: string[];
     }> => {
@@ -87,6 +101,19 @@ workflow_examples(operation='get_syntax_reference', category='start|llm|action|c
         stepRecordId: args.stepRecordId,
         updates: args.updates,
       });
+
+      const { organizationId, threadId: currentThreadId, messageId } = ctx;
+
+      if (!organizationId) {
+        return {
+          success: false,
+          message:
+            'organizationId is required in the tool context to update a workflow step.',
+          step: null,
+        };
+      }
+
+      const threadId = await getApprovalThreadId(ctx, currentThreadId);
 
       // Sanitize args.updates to prevent malformed JSON structures
       // This handles cases where LLM generates corrupted JSON with field values merged into field names
@@ -268,25 +295,60 @@ Please try again with a properly structured JSON object. Ensure all field names 
         }
       }
 
-      // stepRecordId comes from LLM, cast to expected ID type
-      const updatedStep = await ctx.runMutation(
-        internal.wf_step_defs.internal_mutations.patchStep,
-        {
-          stepRecordId: toId<'wfStepDefs'>(args.stepRecordId),
-          updates: sanitizedUpdates,
-        },
+      // Look up the step and its parent workflow for the approval card
+      const stepInfo = await ctx.runQuery(
+        internal.wf_step_defs.internal_queries.getStepWithWorkflowInfo,
+        { stepId: toId<'wfStepDefs'>(args.stepRecordId) },
       );
 
-      debugLog('update_workflow_step tool success', {
-        stepRecordId: args.stepRecordId,
-        updatedStep,
-      });
+      if (!stepInfo) {
+        return {
+          success: false,
+          message: `Step "${args.stepRecordId}" not found or its parent workflow was deleted.`,
+          step: null,
+        };
+      }
 
-      return {
-        success: true,
-        message: `Successfully updated step`,
-        step: updatedStep,
-      };
+      try {
+        const approvalId = await ctx.runMutation(
+          internal.agent_tools.workflows.internal_mutations
+            .createWorkflowStepUpdateApproval,
+          {
+            organizationId,
+            workflowId: stepInfo.workflowId,
+            workflowName: stepInfo.workflowName,
+            workflowVersionNumber: stepInfo.workflowVersionNumber,
+            updateSummary: args.updateSummary,
+            stepRecordId: toId<'wfStepDefs'>(args.stepRecordId),
+            stepName: stepInfo.step.name,
+            stepUpdates: sanitizedUpdates,
+            threadId,
+            messageId,
+          },
+        );
+
+        debugLog('update_workflow_step approval created', {
+          stepRecordId: args.stepRecordId,
+          approvalId,
+        });
+
+        return {
+          success: true,
+          requiresApproval: true,
+          approvalId,
+          approvalCreated: true,
+          approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created for updating step "${stepInfo.step.name}" in workflow "${stepInfo.workflowName}". The user must approve this update in the chat UI before changes will be applied.`,
+          message: `Step update for "${stepInfo.step.name}" is ready for approval. An approval card has been created. Changes will be applied once the user approves it.`,
+        };
+      } catch (error) {
+        return {
+          success: false,
+          message: `Failed to create step update approval: ${
+            error instanceof Error ? error.message : 'Unknown error'
+          }`,
+          step: null,
+        };
+      }
     },
   }),
 } as const satisfies ToolDefinition;

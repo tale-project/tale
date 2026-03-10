@@ -2,8 +2,7 @@
  * Convex Tool: Save or Update Workflow Definition
  *
  * Saves a complete workflow definition (metadata + all steps) in one atomic operation.
- * If a workflow with the same name already exists for the organization, it will be updated
- * and all existing steps will be replaced with the provided steps.
+ * Requires user approval before the changes are applied.
  *
  * Includes built-in validation that checks:
  * - Valid stepTypes (start, llm, action, condition, loop)
@@ -17,11 +16,11 @@ import type { ToolCtx } from '@convex-dev/agent';
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
-import type { Id } from '../../_generated/dataModel';
 import type { ToolDefinition } from '../types';
 
 import { internal } from '../../_generated/api';
 import { toId } from '../../lib/type_cast_helpers';
+import { getApprovalThreadId } from '../../threads/get_parent_thread_id';
 import { validateWorkflowDefinition } from '../../workflow_engine/helpers/validation/validate_workflow_definition';
 
 const workflowConfigSchema = z.object({
@@ -104,6 +103,7 @@ export const saveWorkflowDefinitionTool = {
   name: 'save_workflow_definition' as const,
   tool: createTool({
     description: `Save or update an entire workflow definition (metadata + all steps) in one atomic operation.
+Requires user approval — an approval card will be created for the user to review and confirm.
 
 **WHEN TO USE:**
 - Use this when you need to replace ALL steps for an existing workflow
@@ -132,7 +132,11 @@ Each step requires: stepSlug, name, stepType, config, nextSteps (order is auto-c
 - Use 'noop' in nextSteps to gracefully end workflow
 
 **VALIDATION:**
-Built-in validation checks stepTypes, required fields, and nextSteps references.`,
+Built-in validation checks stepTypes, required fields, and nextSteps references.
+
+**APPROVAL:**
+When this tool returns { requiresApproval: true }, do NOT call this tool again.
+Inform the user the update is ready for review in the chat UI.`,
     args: z.object({
       workflowConfig: workflowConfigSchema,
       stepsConfig: z
@@ -146,19 +150,33 @@ Built-in validation checks stepTypes, required fields, and nextSteps references.
         .describe(
           'ID of an existing draft workflow to update. When omitted, the tool will use the workflowId from context; if neither is available, the call will fail. This tool never creates a new workflow.',
         ),
+      updateSummary: z
+        .string()
+        .describe(
+          'Markdown-formatted summary of changes. Use bullet points for multiple changes. Example:\n- Added error handling step after API call\n- Updated email template with dynamic subject line',
+        ),
     }),
     handler: async (
       ctx: ToolCtx,
       args,
     ): Promise<{
       success: boolean;
-      workflowId?: string;
-      stepCount?: number;
+      requiresApproval?: boolean;
+      approvalId?: string;
+      approvalCreated?: boolean;
+      approvalMessage?: string;
       message: string;
       validationErrors?: string[];
       validationWarnings?: string[];
     }> => {
-      const { organizationId, workflowId: workflowIdFromContext } = ctx;
+      const {
+        organizationId,
+        workflowId: workflowIdFromContext,
+        threadId: currentThreadId,
+        messageId,
+      } = ctx;
+
+      const threadId = await getApprovalThreadId(ctx, currentThreadId);
 
       if (!organizationId) {
         return {
@@ -178,7 +196,7 @@ Built-in validation checks stepTypes, required fields, and nextSteps references.
         };
       }
 
-      // Validate workflow definition before saving
+      // Validate workflow definition before creating approval
       const validation = validateWorkflowDefinition(
         args.workflowConfig,
         args.stepsConfig as Array<Record<string, unknown>>,
@@ -194,47 +212,59 @@ Built-in validation checks stepTypes, required fields, and nextSteps references.
         };
       }
 
-      // Drop unsupported fields from workflowConfig before calling Convex
-      const mutationArgs: {
-        organizationId: string;
-        workflowConfig: {
-          description?: string;
-          version?: string;
-          workflowType?: 'predefined';
-          config?: Record<string, unknown>;
+      // Resolve workflow name and version for the approval card
+      const workflow = await ctx.runQuery(
+        internal.wf_definitions.internal_queries.resolveWorkflow,
+        { wfDefinitionId: toId<'wfDefinitions'>(targetWorkflowId) },
+      );
+
+      if (!workflow) {
+        return {
+          success: false,
+          message: `Workflow "${targetWorkflowId}" not found. It may have been deleted.`,
         };
-        stepsConfig: typeof args.stepsConfig;
-        workflowId: Id<'wfDefinitions'>;
-      } = {
-        organizationId,
-        workflowConfig: {
-          description: args.workflowConfig.description,
-          version: args.workflowConfig.version,
-          workflowType: args.workflowConfig.workflowType,
-          config: args.workflowConfig.config,
-        },
-        stepsConfig: args.stepsConfig,
-        workflowId: toId<'wfDefinitions'>(targetWorkflowId),
-      };
+      }
 
       try {
-        const result = await ctx.runMutation(
-          internal.wf_definitions.internal_mutations.saveWorkflowWithSteps,
-          mutationArgs,
+        const approvalId = await ctx.runMutation(
+          internal.agent_tools.workflows.internal_mutations
+            .createWorkflowUpdateApproval,
+          {
+            organizationId,
+            workflowId: toId<'wfDefinitions'>(targetWorkflowId),
+            workflowName: workflow.name,
+            workflowVersionNumber: workflow.versionNumber,
+            updateSummary: args.updateSummary,
+            workflowConfig: {
+              ...args.workflowConfig,
+              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Zod-validated config is Record<string, unknown> but TS infers broader z.object type
+              config: args.workflowConfig.config as
+                | Record<string, unknown>
+                | undefined,
+            },
+            stepsConfig: args.stepsConfig.map((step) => ({
+              ...step,
+              config: step.config,
+            })),
+            threadId,
+            messageId,
+          },
         );
 
         return {
           success: true,
-          workflowId: result.workflowId,
-          stepCount: args.stepsConfig.length,
-          message: `Updated workflow "${args.workflowConfig.name}" with ${args.stepsConfig.length} steps (replaced existing steps)`,
+          requiresApproval: true,
+          approvalId,
+          approvalCreated: true,
+          approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created for updating workflow "${workflow.name}". The user must approve this update in the chat UI before changes will be applied.`,
+          message: `Workflow update for "${workflow.name}" is ready for approval. An approval card has been created. Changes will be applied once the user approves it.`,
           validationWarnings:
             validation.warnings.length > 0 ? validation.warnings : undefined,
         };
       } catch (error) {
         return {
           success: false,
-          message: `Failed to save workflow definition: ${
+          message: `Failed to create workflow update approval: ${
             error instanceof Error ? error.message : 'Unknown error'
           }`,
         };

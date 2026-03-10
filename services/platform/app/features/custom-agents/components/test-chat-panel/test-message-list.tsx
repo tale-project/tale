@@ -18,6 +18,7 @@ import {
 import { ThinkingAnimation } from '@/app/features/chat/components/thinking-animation';
 import { WorkflowCreationApprovalCard } from '@/app/features/chat/components/workflow-creation-approval-card';
 import { WorkflowRunApprovalCard } from '@/app/features/chat/components/workflow-run-approval-card';
+import { WorkflowUpdateApprovalCard } from '@/app/features/chat/components/workflow-update-approval-card';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -99,6 +100,24 @@ export function TestMessageList({
               className="flex justify-start"
             >
               <WorkflowRunApprovalCard
+                approvalId={item.data._id}
+                organizationId={organizationId}
+                status={item.data.status}
+                metadata={item.data.metadata}
+                executedAt={item.data.executedAt}
+                executionError={item.data.executionError}
+              />
+            </div>
+          );
+        }
+
+        if (item.type === 'workflow_update_approval') {
+          return (
+            <div
+              key={`workflow-update-approval-${item.data._id}`}
+              className="flex justify-start"
+            >
+              <WorkflowUpdateApprovalCard
                 approvalId={item.data._id}
                 organizationId={organizationId}
                 status={item.data.status}

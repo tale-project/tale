@@ -337,6 +337,7 @@ export async function linkApprovalsToMessage(
     'integration_operation',
     'workflow_creation',
     'workflow_run',
+    'workflow_update',
     'human_input_request',
   ] as const;
 

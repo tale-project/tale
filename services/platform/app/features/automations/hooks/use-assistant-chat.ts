@@ -1,12 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { useCreateThread } from '@/app/features/chat/hooks/mutations';
 import {
-  useCreateThread,
-  useDeleteThread,
-} from '@/app/features/chat/hooks/mutations';
-import { useThreadMessages } from '@/app/features/chat/hooks/queries';
+  useThreadMessages,
+  useWorkflowCreationApprovals,
+  useWorkflowUpdateApprovals,
+} from '@/app/features/chat/hooks/queries';
 import { useConvexFileUpload } from '@/app/features/chat/hooks/use-convex-file-upload';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useThrottledScroll } from '@/app/hooks/use-throttled-scroll';
@@ -48,8 +49,6 @@ function canSendMessage(content: string, threadId: string | null): boolean {
 interface UseAssistantChatOptions {
   automationId?: Id<'wfDefinitions'>;
   organizationId: string;
-  onClearChat?: () => void;
-  onClearChatStateChange?: (canClear: boolean, clearFn: () => void) => void;
   errorMessageText: string;
   analyzeAttachmentsText: string;
 }
@@ -57,8 +56,6 @@ interface UseAssistantChatOptions {
 export function useAssistantChat({
   automationId,
   organizationId,
-  onClearChat,
-  onClearChatStateChange,
   errorMessageText,
   analyzeAttachmentsText,
 }: UseAssistantChatOptions) {
@@ -90,12 +87,19 @@ export function useAssistantChat({
   const { mutateAsync: chatWithWorkflowAssistant } =
     useChatWithWorkflowAssistant();
   const { mutateAsync: createChatThread } = useCreateThread();
-  const { mutateAsync: deleteChatThread } = useDeleteThread();
   const { mutateAsync: updateWorkflowMetadata } = useUpdateAutomationMetadata();
 
   const { data: workflow } = useWorkflow(automationId);
 
   const uiMessages = useThreadMessages(threadId);
+  const { approvals: workflowUpdateApprovals } = useWorkflowUpdateApprovals(
+    organizationId,
+    threadId ?? undefined,
+  );
+  const { approvals: workflowCreationApprovals } = useWorkflowCreationApprovals(
+    organizationId,
+    threadId ?? undefined,
+  );
 
   // Load threadId from workflow metadata when workflow is loaded
   useEffect(() => {
@@ -132,7 +136,7 @@ export function useAssistantChat({
           }));
 
         return {
-          id: m.key,
+          id: m.id,
           role: m.role,
           content: m.role === 'user' ? stripWorkflowContext(m.text) : m.text,
           timestamp: new Date(m._creationTime),
@@ -359,59 +363,6 @@ export function useAssistantChat({
     }
   };
 
-  const handleClearChat = useCallback(async () => {
-    if (!user?.userId) {
-      console.error('User not authenticated');
-      return;
-    }
-
-    try {
-      if (threadId) {
-        await deleteChatThread({
-          threadId: threadId,
-        });
-      }
-
-      if (automationId && workflow?.metadata) {
-        await updateWorkflowMetadata({
-          wfDefinitionId: automationId,
-          metadata: { ...workflow.metadata, threadId: null },
-          updatedBy: user.userId,
-        });
-      }
-
-      setThreadId(null);
-      setMessages([]);
-      setInputValue('');
-
-      onClearChat?.();
-    } catch (error) {
-      console.error('Error clearing chat:', error);
-      setThreadId(null);
-      setMessages([]);
-      setInputValue('');
-    }
-  }, [
-    user?.userId,
-    threadId,
-    automationId,
-    workflow?.metadata,
-    deleteChatThread,
-    updateWorkflowMetadata,
-    onClearChat,
-  ]);
-
-  // Report clear chat state to parent
-  useEffect(() => {
-    const canClear = displayMessages.length > 0 && !!threadId;
-    onClearChatStateChange?.(canClear, handleClearChat);
-  }, [
-    displayMessages.length,
-    threadId,
-    handleClearChat,
-    onClearChatStateChange,
-  ]);
-
   return {
     workflow,
     displayMessages,
@@ -432,5 +383,7 @@ export function useAssistantChat({
     handlePaste,
     handleSendMessage,
     handleKeyDown,
+    workflowUpdateApprovals,
+    workflowCreationApprovals,
   };
 }

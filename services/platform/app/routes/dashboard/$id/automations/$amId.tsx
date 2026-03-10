@@ -6,7 +6,7 @@ import {
   Link,
 } from '@tanstack/react-router';
 import { ChevronDown } from 'lucide-react';
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useCallback, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -25,6 +25,7 @@ import {
 import { Button } from '@/app/components/ui/primitives/button';
 import { Heading } from '@/app/components/ui/typography/heading';
 import { Text } from '@/app/components/ui/typography/text';
+import { AutomationAIChatPanel } from '@/app/features/automations/components/automation-ai-chat-panel';
 import { AutomationNavigation } from '@/app/features/automations/components/automation-navigation';
 import { useUpdateAutomation } from '@/app/features/automations/hooks/mutations';
 import {
@@ -155,6 +156,8 @@ function AutomationDetailLayout() {
     amId,
   );
 
+  const [isAIChatOpen, setIsAIChatOpen] = useState(true);
+  const [panelWidth, setPanelWidth] = useState(384);
   const [editMode, setEditMode] = useState(false);
   const { register, getValues } = useForm<{ name: string }>();
   const { mutateAsync: updateWorkflow, isPending: isUpdating } =
@@ -204,6 +207,14 @@ function AutomationDetailLayout() {
 
   const isExactAutomationPage =
     location.pathname === `/dashboard/${organizationId}/automations/${amId}`;
+
+  const handleOpenAIChat = useCallback(() => {
+    setIsAIChatOpen(true);
+  }, []);
+
+  const handleCloseAIChat = useCallback(() => {
+    setIsAIChatOpen(false);
+  }, []);
 
   return (
     <PageLayout
@@ -317,23 +328,38 @@ function AutomationDetailLayout() {
       }
       organizationId={organizationId}
     >
-      {isExactAutomationPage ? (
-        isLoading ? (
-          <AutomationStepsSkeleton />
-        ) : (
-          <Suspense fallback={<AutomationStepsSkeleton />}>
-            <AutomationSteps
-              status={status}
-              className="flex-1"
-              steps={steps || []}
-              organizationId={organizationId}
-              automationId={automationId}
-            />
-          </Suspense>
-        )
-      ) : (
-        <Outlet />
-      )}
+      <div className="flex min-h-0 flex-1">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {isExactAutomationPage ? (
+            isLoading ? (
+              <AutomationStepsSkeleton />
+            ) : (
+              <Suspense fallback={<AutomationStepsSkeleton />}>
+                <AutomationSteps
+                  status={status}
+                  className="flex-1"
+                  steps={steps || []}
+                  organizationId={organizationId}
+                  automationId={automationId}
+                  onOpenAIChat={handleOpenAIChat}
+                />
+              </Suspense>
+            )
+          ) : (
+            <Outlet />
+          )}
+        </div>
+        {isAIChatOpen && (
+          <AutomationAIChatPanel
+            key={automationId}
+            automationId={automationId}
+            organizationId={organizationId}
+            onClose={handleCloseAIChat}
+            panelWidth={panelWidth}
+            onPanelWidthChange={setPanelWidth}
+          />
+        )}
+      </div>
     </PageLayout>
   );
 }

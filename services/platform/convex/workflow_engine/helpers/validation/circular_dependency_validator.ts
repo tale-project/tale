@@ -12,7 +12,7 @@
 
 import type { ValidationResult } from './types';
 
-interface StepWithNextSteps {
+export interface StepWithNextSteps {
   stepSlug: string;
   stepType?: string;
   nextSteps?: Record<string, string>;

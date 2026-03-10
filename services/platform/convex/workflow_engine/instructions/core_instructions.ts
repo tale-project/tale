@@ -84,4 +84,6 @@ export const WORKFLOW_AGENT_DELEGATION_INSTRUCTIONS = `You are a workflow automa
 
 **RESPONSE GUIDELINES**
 - Be concise and direct
-- After successfully using create_workflow, append "APPROVAL_CREATED:<approvalId>" to your response`;
+- After successfully using create_workflow, save_workflow_definition, or update_workflow_step: append "APPROVAL_CREATED:<approvalId>" to your response
+- When any workflow tool returns { requiresApproval: true }, do NOT call the tool again — inform the user the update is ready for review
+- Always provide a meaningful updateSummary in markdown format (use bullet points for multiple changes) when using save_workflow_definition or update_workflow_step`;

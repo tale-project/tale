@@ -108,3 +108,27 @@ export const executeApprovedWorkflowCreation = action({
     );
   },
 });
+
+export const executeApprovedWorkflowUpdate = action({
+  args: {
+    approvalId: v.id('approvals'),
+  },
+  returns: jsonValueValidator,
+  handler: async (ctx, args): Promise<JsonValue> => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) {
+      throw new Error('Unauthenticated');
+    }
+
+    await verifyApprovalAccess(ctx, args.approvalId, authUser);
+
+    return await ctx.runAction(
+      internal.agent_tools.workflows.internal_actions
+        .executeApprovedWorkflowUpdate,
+      {
+        approvalId: args.approvalId,
+        approvedBy: String(authUser._id),
+      },
+    );
+  },
+});

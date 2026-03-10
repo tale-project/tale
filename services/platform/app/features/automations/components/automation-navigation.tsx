@@ -75,7 +75,7 @@ export function AutomationNavigation({
     ? [
         {
           label: t('navigation.editor'),
-          href: `/dashboard/${organizationId}/automations/${automationId}?panel=ai-chat`,
+          href: `/dashboard/${organizationId}/automations/${automationId}`,
           matchMode: 'exact',
         },
         {
@@ -150,7 +150,6 @@ export function AutomationNavigation({
       void navigate({
         to: '/dashboard/$id/automations/$amId',
         params: { id: organizationId, amId: result.draftId },
-        search: { panel: 'ai-chat' },
       });
 
       if (result.isNewDraft) {

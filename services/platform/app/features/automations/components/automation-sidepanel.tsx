@@ -1,25 +1,13 @@
 'use client';
 
 import {
-  Sparkles,
   TestTubeDiagonal,
-  Workflow,
-  Trash2,
+  X,
   Save,
   AlertCircle,
   AlertTriangle,
 } from 'lucide-react';
-import {
-  useState,
-  useRef,
-  useEffect,
-  useCallback,
-  useMemo,
-  memo,
-  type KeyboardEvent as ReactKeyboardEvent,
-  type RefObject,
-  type MouseEvent as ReactMouseEvent,
-} from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
 
 import { PanelHeader } from '@/app/components/layout/panel-header';
 import { JsonInput } from '@/app/components/ui/forms/json-input';
@@ -35,8 +23,8 @@ import { cn } from '@/lib/utils/cn';
 
 import { useUpdateStep } from '../hooks/mutations';
 import { useStepValidation } from '../hooks/queries';
+import { useResizable } from '../hooks/use-resizable';
 import { getStepIcon } from '../utils/step-icons';
-import { AutomationAssistant } from './automation-assistant';
 import { AutomationTester } from './automation-tester';
 import { NextStepsEditor } from './next-steps-editor';
 
@@ -44,7 +32,6 @@ interface AutomationSidePanelProps {
   step: Doc<'wfStepDefs'> | null;
   isOpen: boolean;
   onClose: () => void;
-  showAIChat?: boolean;
   showTestPanel?: boolean;
   automationId?: Id<'wfDefinitions'>;
   organizationId?: string;
@@ -192,60 +179,6 @@ const StepEditorContent = memo(function StepEditorContent({
   );
 });
 
-const MIN_WIDTH = 280;
-const MAX_WIDTH = 600;
-
-const RESIZE_STEP = 20;
-
-function useResizable(panelRef: RefObject<HTMLDivElement | null>) {
-  const [width, setWidth] = useState(384);
-  const [isResizing, setIsResizing] = useState(false);
-
-  const handleMouseDown = useCallback((e: ReactMouseEvent) => {
-    e.preventDefault();
-    setIsResizing(true);
-  }, []);
-
-  const handleKeyDown = useCallback((e: ReactKeyboardEvent) => {
-    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-      e.preventDefault();
-      const delta = e.key === 'ArrowLeft' ? RESIZE_STEP : -RESIZE_STEP;
-      setWidth((prev) =>
-        Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, prev + delta)),
-      );
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!isResizing) return;
-
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!panelRef.current) return;
-      const panelRect = panelRef.current.getBoundingClientRect();
-      const newWidth = panelRect.right - e.clientX;
-      if (newWidth >= MIN_WIDTH && newWidth <= MAX_WIDTH) {
-        setWidth(newWidth);
-      }
-    };
-
-    const handleMouseUp = () => setIsResizing(false);
-
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isResizing, panelRef]);
-
-  return { width, handleMouseDown, handleKeyDown };
-}
-
 const EMPTY_STEP_OPTIONS: NonNullable<AutomationSidePanelProps['stepOptions']> =
   [];
 
@@ -270,18 +203,15 @@ export function AutomationSidePanel({
   step,
   isOpen,
   onClose,
-  showAIChat = false,
   showTestPanel = false,
   automationId,
   organizationId,
   stepOptions = EMPTY_STEP_OPTIONS,
 }: AutomationSidePanelProps) {
   const { t } = useT('automations');
-  const { t: tCommon } = useT('common');
-  const [canClearChat, setCanClearChat] = useState(false);
-  const clearChatRef = useRef<(() => void) | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const { width, handleMouseDown, handleKeyDown } = useResizable(panelRef);
+  const { width, minWidth, maxWidth, handleMouseDown, handleKeyDown } =
+    useResizable(panelRef);
 
   const [editState, setEditState] = useState<EditState>({
     config: '',
@@ -384,58 +314,41 @@ export function AutomationSidePanel({
     t,
   ]);
 
-  const handleClearChatStateChange = useCallback(
-    (canClear: boolean, clearFn: () => void) => {
-      setCanClearChat(canClear);
-      clearChatRef.current = clearFn;
-    },
-    [],
-  );
-
-  const handleClearChat = useCallback(() => {
-    clearChatRef.current?.();
-  }, []);
-
   if (!isOpen) return null;
 
   return (
-    <div
+    <aside
       ref={panelRef}
+      role="complementary"
+      aria-label={
+        showTestPanel
+          ? t('sidePanel.testAutomation')
+          : (step?.name ?? t('sidePanel.stepEditor'))
+      }
       style={{ '--panel-width': `${width}px` }}
       className="bg-background border-border relative flex min-h-0 w-(--panel-width) flex-[0_0_auto] flex-col overflow-hidden border-l max-md:absolute max-md:inset-0 max-md:z-10 max-md:w-full"
     >
-      {/* Resize handle - hidden on mobile */}
+      {/* Resize handle */}
       <div
         role="separator"
         aria-orientation="vertical"
+        aria-label={t('sidePanel.resizePanel')}
         tabIndex={0}
         onMouseDown={handleMouseDown}
         onKeyDown={handleKeyDown}
-        aria-valuemin={MIN_WIDTH}
-        aria-valuemax={MAX_WIDTH}
+        aria-valuemin={minWidth}
+        aria-valuemax={maxWidth}
         aria-valuenow={width}
         className={cn(
           'absolute left-0 top-0 bottom-0 w-px cursor-col-resize z-51 max-md:hidden',
-          'hover:bg-border transition-colors',
+          'hover:bg-border focus-visible:ring-2 focus-visible:ring-ring transition-colors',
         )}
       >
         <div className="absolute top-0 bottom-0 left-0 w-2 -translate-x-1/2" />
       </div>
 
-      {/* Panel header */}
       <PanelHeader variant="compact" className="gap-3">
-        {showAIChat ? (
-          <>
-            <div className="rounded-lg bg-purple-600 p-2 text-white dark:bg-purple-700">
-              <Sparkles className="size-4" />
-            </div>
-            <div className="flex-1">
-              <Heading level={2} size="sm">
-                {t('sidePanel.aiAssistant')}
-              </Heading>
-            </div>
-          </>
-        ) : showTestPanel ? (
+        {showTestPanel ? (
           <>
             <div className="rounded-lg border bg-emerald-100 p-2 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
               <TestTubeDiagonal className="size-4" />
@@ -472,55 +385,23 @@ export function AutomationSidePanel({
             </div>
           </>
         ) : null}
-        {/* Desktop action buttons */}
-        {showAIChat && canClearChat && (
-          <div className="hidden shrink-0 items-center md:flex">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-8"
-              onClick={handleClearChat}
-              aria-label={tCommon('actions.delete')}
-            >
-              <Trash2 className="size-4" />
-            </Button>
-          </div>
-        )}
-        {/* Mobile action buttons */}
-        <HStack gap={1} className="shrink-0 md:hidden">
-          {showAIChat && canClearChat && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-8"
-              onClick={handleClearChat}
-              aria-label={tCommon('actions.delete')}
-            >
-              <Trash2 className="size-4" />
-            </Button>
-          )}
+        <HStack gap={1} className="shrink-0">
           <Button
+            variant="ghost"
             size="icon"
             className="size-8"
             onClick={onClose}
-            aria-label={t('sidePanel.viewAutomation')}
+            aria-label={t('sidePanel.close')}
           >
-            <Workflow className="size-4" />
+            <X className="size-4" />
           </Button>
         </HStack>
       </PanelHeader>
 
-      {/* Panel content */}
       {showTestPanel && automationId && organizationId ? (
         <AutomationTester
           organizationId={organizationId}
           automationId={automationId}
-        />
-      ) : showAIChat && organizationId ? (
-        <AutomationAssistant
-          automationId={automationId}
-          organizationId={organizationId}
-          onClearChatStateChange={handleClearChatStateChange}
         />
       ) : step ? (
         <StepEditorContent
@@ -537,6 +418,6 @@ export function AutomationSidePanel({
           stepOptions={stepOptions}
         />
       ) : null}
-    </div>
+    </aside>
   );
 }
