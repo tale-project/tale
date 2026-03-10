@@ -82,6 +82,16 @@ export async function deleteWorkflow(
     },
   );
 
+  // Remove deleted workflow from any custom agent workflowBindings
+  await ctx.scheduler.runAfter(
+    0,
+    internal.custom_agents.internal_mutations.removeDeletedWorkflowBindings,
+    {
+      organizationId: workflow.organizationId,
+      workflowRootId: rootId,
+    },
+  );
+
   return null;
 }
 

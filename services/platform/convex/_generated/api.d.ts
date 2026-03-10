@@ -164,6 +164,7 @@ import type * as conversations_update_conversations from "../conversations/updat
 import type * as conversations_validators from "../conversations/validators.js";
 import type * as crons from "../crons.js";
 import type * as custom_agents_config from "../custom_agents/config.js";
+import type * as custom_agents_internal_mutations from "../custom_agents/internal_mutations.js";
 import type * as custom_agents_internal_queries from "../custom_agents/internal_queries.js";
 import type * as custom_agents_list_custom_agents_paginated from "../custom_agents/list_custom_agents_paginated.js";
 import type * as custom_agents_mutations from "../custom_agents/mutations.js";
@@ -1003,6 +1004,7 @@ declare const fullApi: ApiFromModules<{
   "conversations/validators": typeof conversations_validators;
   crons: typeof crons;
   "custom_agents/config": typeof custom_agents_config;
+  "custom_agents/internal_mutations": typeof custom_agents_internal_mutations;
   "custom_agents/internal_queries": typeof custom_agents_internal_queries;
   "custom_agents/list_custom_agents_paginated": typeof custom_agents_list_custom_agents_paginated;
   "custom_agents/mutations": typeof custom_agents_mutations;
