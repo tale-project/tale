@@ -89,9 +89,10 @@
       "tags": "Tags",
       "notes": "Notes",
       "created": "Created",
+      "filter": "Filter",
       "filters": "Filters",
       "notAvailable": "N/A",
-      "nSelected": "{{count}} selected"
+      "nSelected": "{count} selected"
     },
     "status": {
       "active": "Active",
@@ -309,7 +310,7 @@
       "source": "Source",
       "created": "Created",
       "updated": "Updated",
-      "modified": "Modified",
+      "modified": "Updated",
       "actions": "Actions",
       "member": "Member",
       "role": "Role",
@@ -2349,11 +2350,11 @@
       "orgWide": "Organization-wide"
     },
     "deleteFile": {
-      "title": "Delete file",
-      "confirmation": "Are you sure you want to delete",
-      "thisFile": "this file",
-      "warning": "This action cannot be undone.",
-      "deleteButton": "Delete file"
+      "title": "Delete document",
+      "confirmationPrefix": "Are you sure you want to delete",
+      "confirmationSuffix": "? This action cannot be undone.",
+      "thisDocument": "this document",
+      "deleteButton": "Delete"
     },
     "breadcrumb": {
       "navigation": "Breadcrumb",
@@ -2372,7 +2373,21 @@
       "oneDrive": "OneDrive",
       "sharePointSynced": "SharePoint (synced)",
       "sharePoint": "SharePoint",
-      "uploaded": "Uploaded"
+      "uploaded": "Upload"
+    },
+    "filter": {
+      "ragStatus": {
+        "indexed": "Indexed",
+        "notIndexed": "Not indexed",
+        "indexing": "Indexing",
+        "failed": "Failed",
+        "needsReindex": "Needs reindex"
+      },
+      "source": {
+        "upload": "Upload",
+        "oneDrive": "OneDrive",
+        "sharePoint": "SharePoint"
+      }
     },
     "preview": {
       "loading": "Loading…",

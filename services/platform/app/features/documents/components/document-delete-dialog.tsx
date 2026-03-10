@@ -25,13 +25,16 @@ export function DocumentDeleteDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={tDocuments('deleteFile.title')}
-      description={tDocuments('deleteFile.confirmation', {
-        name: fileName ?? tDocuments('deleteFile.thisFile'),
-      })}
+      description={
+        <>
+          {tDocuments('deleteFile.confirmationPrefix')}{' '}
+          <strong>{fileName ?? tDocuments('deleteFile.thisDocument')}</strong>
+          {tDocuments('deleteFile.confirmationSuffix')}
+        </>
+      }
       deleteText={tDocuments('deleteFile.deleteButton')}
       isDeleting={isLoading}
       onDelete={onConfirmDelete}
-      warning={tDocuments('deleteFile.warning')}
     />
   );
 }
