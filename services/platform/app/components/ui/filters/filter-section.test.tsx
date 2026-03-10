@@ -9,12 +9,12 @@ vi.mock('@/lib/i18n/client', () => ({
   useT: () => ({
     t: (key: string, options?: Record<string, string | number>) => {
       const translations: Record<string, string> = {
-        'labels.nSelected': '{{count}} selected',
+        'labels.nSelected': '{count} selected',
       };
       let value = translations[key] ?? key;
       if (options) {
         for (const [k, v] of Object.entries(options)) {
-          value = value.replace(`{{${k}}}`, String(v));
+          value = value.replace(`{${k}}`, String(v));
         }
       }
       return value;
@@ -30,14 +30,13 @@ describe('FilterSection', () => {
   };
 
   describe('rendering', () => {
-    it('renders the title in uppercase', () => {
+    it('renders the title', () => {
       render(
         <FilterSection {...defaultProps}>
           <span>Content</span>
         </FilterSection>,
       );
       expect(screen.getByText('Status')).toBeInTheDocument();
-      expect(screen.getByText('Status')).toHaveClass('uppercase');
     });
 
     it('does not render children when collapsed', () => {

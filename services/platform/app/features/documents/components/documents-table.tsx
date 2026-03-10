@@ -5,7 +5,8 @@ import { type Row } from '@tanstack/react-table';
 import { ClipboardList } from 'lucide-react';
 import { useMemo, useState, useCallback } from 'react';
 
-import type { DocumentItem } from '@/types/documents';
+import type { FilterConfig } from '@/app/components/ui/data-table/data-table-filters';
+import type { DocumentItem, RagStatus } from '@/types/documents';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
@@ -57,6 +58,11 @@ export function DocumentsTable({
   }, [teams]);
 
   const { selectedTeamId } = useTeamFilter();
+  const { t: tTables } = useT('tables');
+
+  const [selectedRagStatuses, setSelectedRagStatuses] = useState<string[]>([]);
+  const [selectedSources, setSelectedSources] = useState<string[]>([]);
+  const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
 
   const paginatedResult = useListDocumentsPaginated({
     organizationId,
@@ -77,12 +83,116 @@ export function DocumentsTable({
     }));
   }, [folders]);
 
+  const ragStatusFilterMap: Record<string, RagStatus[]> = useMemo(
+    () => ({
+      indexed: ['completed'],
+      not_indexed: ['not_indexed'],
+      indexing: ['queued', 'running'],
+      failed: ['failed'],
+      stale: ['stale'],
+    }),
+    [],
+  );
+
+  const filterConfigs = useMemo<FilterConfig[]>(() => {
+    const configs: FilterConfig[] = [
+      {
+        key: 'ragStatus',
+        title: tTables('headers.ragStatus'),
+        options: [
+          { value: 'indexed', label: tDocuments('filter.ragStatus.indexed') },
+          {
+            value: 'not_indexed',
+            label: tDocuments('filter.ragStatus.notIndexed'),
+          },
+          {
+            value: 'indexing',
+            label: tDocuments('filter.ragStatus.indexing'),
+          },
+          { value: 'failed', label: tDocuments('filter.ragStatus.failed') },
+          {
+            value: 'stale',
+            label: tDocuments('filter.ragStatus.needsReindex'),
+          },
+        ],
+        selectedValues: selectedRagStatuses,
+        onChange: setSelectedRagStatuses,
+        multiSelect: true,
+      },
+      {
+        key: 'source',
+        title: tTables('headers.source'),
+        options: [
+          { value: 'upload', label: tDocuments('filter.source.upload') },
+          { value: 'onedrive', label: tDocuments('filter.source.oneDrive') },
+          {
+            value: 'sharepoint',
+            label: tDocuments('filter.source.sharePoint'),
+          },
+        ],
+        selectedValues: selectedSources,
+        onChange: setSelectedSources,
+        multiSelect: true,
+      },
+    ];
+
+    if (teams && teams.length > 0) {
+      configs.push({
+        key: 'teams',
+        title: tTables('headers.teams'),
+        options: teams.map((team) => ({
+          value: team.id,
+          label: team.name,
+        })),
+        selectedValues: selectedTeamIds,
+        onChange: setSelectedTeamIds,
+        multiSelect: true,
+      });
+    }
+
+    return configs;
+  }, [
+    tTables,
+    tDocuments,
+    selectedRagStatuses,
+    selectedSources,
+    selectedTeamIds,
+    teams,
+  ]);
+
+  const handleClearFilters = useCallback(() => {
+    setSelectedRagStatuses([]);
+    setSelectedSources([]);
+    setSelectedTeamIds([]);
+  }, []);
+
   const filteredResults = useMemo(() => {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex paginated query results match DocumentItem shape
     let filtered = paginatedResult.results as DocumentItem[];
     if (selectedTeamId) {
       filtered = filtered.filter(
         (doc) => !doc.teamId || doc.teamId === selectedTeamId,
+      );
+    }
+    if (selectedRagStatuses.length > 0) {
+      const allowedStatuses = new Set(
+        selectedRagStatuses.flatMap((key) => ragStatusFilterMap[key] ?? []),
+      );
+      filtered = filtered.filter((doc) => {
+        const status = doc.ragStatus ?? 'not_indexed';
+        return allowedStatuses.has(status);
+      });
+    }
+    if (selectedSources.length > 0) {
+      const sourceSet = new Set(selectedSources);
+      filtered = filtered.filter(
+        (doc) => doc.sourceProvider && sourceSet.has(doc.sourceProvider),
+      );
+    }
+    if (selectedTeamIds.length > 0) {
+      const teamIdSet = new Set(selectedTeamIds);
+      filtered = filtered.filter(
+        (doc) => doc.teamId && teamIdSet.has(doc.teamId),
       );
     }
     if (debouncedQuery) {
@@ -93,7 +203,16 @@ export function DocumentsTable({
       return [...filteredFolders, ...filtered];
     }
     return [...folderRows, ...filtered];
-  }, [paginatedResult.results, selectedTeamId, debouncedQuery, folderRows]);
+  }, [
+    paginatedResult.results,
+    selectedTeamId,
+    selectedRagStatuses,
+    selectedSources,
+    selectedTeamIds,
+    ragStatusFilterMap,
+    debouncedQuery,
+    folderRows,
+  ]);
 
   const previewDocument = useMemo(() => {
     if (!docId || !filteredResults.length) return null;
@@ -209,6 +328,10 @@ export function DocumentsTable({
         });
       },
       placeholder: searchPlaceholder,
+    },
+    filters: {
+      configs: filterConfigs,
+      onClear: handleClearFilters,
     },
     getRowId: (row) => row.id,
     approxRowCount: docCount,

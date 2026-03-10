@@ -14,6 +14,8 @@ interface CopyableTimestampProps {
   date: number | Date | string | null | undefined;
   /** Format preset for display */
   preset?: DatePreset;
+  /** Custom dayjs format string (overrides preset for display) */
+  customFormat?: string;
   /** Additional className */
   className?: string;
   /** Text to show when date is null/undefined */
@@ -35,6 +37,7 @@ interface CopyableTimestampProps {
 export const CopyableTimestamp = React.memo(function CopyableTimestamp({
   date,
   preset = 'short',
+  customFormat,
   className,
   emptyText = '—',
   alignRight = false,
@@ -63,9 +66,12 @@ export const CopyableTimestamp = React.memo(function CopyableTimestamp({
 
   const timestampMs = String(dateObj.valueOf());
   const showTimezone = preset === 'long' || preset === 'time';
-  const formatted = showTimezone
-    ? `${formatDate(dateObj, preset)} ${timezoneShort}`
+  const baseFormatted = customFormat
+    ? formatDate(dateObj, preset, { customFormat })
     : formatDate(dateObj, preset);
+  const formatted = showTimezone
+    ? `${baseFormatted} ${timezoneShort}`
+    : baseFormatted;
   const titleText = `${formatDate(dateObj, 'long')} (${timezone})`;
 
   return (

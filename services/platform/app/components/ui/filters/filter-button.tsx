@@ -1,4 +1,4 @@
-import { Filter } from 'lucide-react';
+import { ListFilter } from 'lucide-react';
 import { Loader2Icon } from 'lucide-react';
 import { ComponentProps } from 'react';
 
@@ -22,10 +22,9 @@ export function FilterButton({
   return (
     <Button
       variant="secondary"
-      size="icon"
-      aria-label={t('labels.filters')}
+      aria-label={t('labels.filter')}
       className={cn(
-        'hover:bg-muted relative p-2.5',
+        'hover:bg-muted relative gap-2',
         hasActiveFilters && 'border-primary',
         isLoading && 'opacity-75',
         className,
@@ -35,8 +34,9 @@ export function FilterButton({
       {isLoading ? (
         <Loader2Icon className="text-muted-foreground size-4 animate-spin" />
       ) : (
-        <Filter className="text-muted-foreground size-4" />
+        <ListFilter className="text-muted-foreground size-4" />
       )}
+      {t('labels.filter')}
       {hasActiveFilters && !isLoading && (
         <div className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-blue-500" />
       )}

@@ -188,7 +188,7 @@ export function DataTableFilters({
               }
             >
               <div className="border-border flex items-center justify-between p-3">
-                <Text as="span" variant="label" className="text-base">
+                <Text as="span" variant="label" className="text-sm">
                   {t('labels.filters')}
                 </Text>
                 {totalActiveFilters > 0 && (

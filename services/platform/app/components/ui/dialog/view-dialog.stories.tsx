@@ -111,7 +111,7 @@ export const WithHeaderActions: Story = {
             <Field label="File name">project-proposal.pdf</Field>
             <Field label="Size">2.4 MB</Field>
             <Field label="Created">January 10, 2024</Field>
-            <Field label="Modified">January 20, 2024</Field>
+            <Field label="Updated">January 20, 2024</Field>
           </FieldGroup>
         </ViewDialog>
       </>

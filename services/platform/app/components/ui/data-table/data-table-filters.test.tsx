@@ -25,7 +25,7 @@ function createFilter(overrides?: Partial<FilterConfig>): FilterConfig {
 async function openFilterPanel(
   user: ReturnType<typeof import('@testing-library/user-event').default.setup>,
 ) {
-  const filterButton = screen.getByRole('button', { name: /filters/i });
+  const filterButton = screen.getByRole('button', { name: /filter/i });
   await user.click(filterButton);
 }
 
