@@ -2351,8 +2351,7 @@
     },
     "deleteFile": {
       "title": "Delete document",
-      "confirmationPrefix": "Are you sure you want to delete",
-      "confirmationSuffix": "? This action cannot be undone.",
+      "confirmation": "Are you sure you want to delete {name}? This action cannot be undone.",
       "thisDocument": "this document",
       "deleteButton": "Delete"
     },

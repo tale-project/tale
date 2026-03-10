@@ -44,7 +44,7 @@ export function OneDriveFileTable({
   handleFolderClick,
   buildItemPath,
 }: OneDriveFileTableProps) {
-  const { formatDate } = useFormatDate();
+  const { formatDate, timezoneShort } = useFormatDate();
   const { t } = useT('documents');
   const { t: tTables } = useT('tables');
 
@@ -122,9 +122,9 @@ export function OneDriveFileTable({
             className="text-right whitespace-nowrap"
           >
             {row.original.lastModified
-              ? formatDate(new Date(row.original.lastModified), 'long', {
+              ? `${formatDate(new Date(row.original.lastModified), 'long', {
                   customFormat: 'll LT',
-                })
+                })} ${timezoneShort}`
               : ''}
           </Text>
         ),

@@ -246,7 +246,7 @@ export function useDocumentsTableConfig({
         cell: ({ row }) => (
           <CopyableTimestamp
             date={row.original.lastModified}
-            preset="long"
+            preset="long" // preset="long" triggers timezone abbreviation appending
             customFormat="ll LT"
             alignRight
           />

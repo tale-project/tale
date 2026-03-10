@@ -22,7 +22,7 @@ export function FilterButton({
   return (
     <Button
       variant="secondary"
-      aria-label={t('labels.filters')}
+      aria-label={t('labels.filter')}
       className={cn(
         'hover:bg-muted relative gap-2',
         hasActiveFilters && 'border-primary',
