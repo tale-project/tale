@@ -14,7 +14,7 @@ import { CRM_AGENT_INSTRUCTIONS } from '../agents/crm/agent';
 import { DOCUMENT_AGENT_INSTRUCTIONS } from '../agents/document/agent';
 import { INTEGRATION_AGENT_INSTRUCTIONS } from '../agents/integration/agent';
 import { WEB_AGENT_INSTRUCTIONS } from '../agents/web/agent';
-import { WORKFLOW_AGENT_DELEGATION_INSTRUCTIONS } from '../workflow_engine/instructions/core_instructions';
+import { WORKFLOW_AGENT_CORE_INSTRUCTIONS } from '../workflow_engine/instructions/core_instructions';
 
 export interface SystemDefaultAgentTemplate {
   systemAgentSlug: string;
@@ -121,7 +121,7 @@ export const SYSTEM_DEFAULT_AGENT_TEMPLATES: SystemDefaultAgentTemplate[] = [
     name: 'workflow-assistant',
     displayName: 'Automate',
     description: 'Creates and manages automation workflows',
-    systemInstructions: WORKFLOW_AGENT_DELEGATION_INSTRUCTIONS,
+    systemInstructions: WORKFLOW_AGENT_CORE_INSTRUCTIONS,
     toolNames: [
       'workflow_read',
       'workflow_examples',
@@ -136,5 +136,7 @@ export const SYSTEM_DEFAULT_AGENT_TEMPLATES: SystemDefaultAgentTemplate[] = [
     outputReserve: 2048,
     modelPreset: 'advanced',
     roleRestriction: 'admin_developer',
+    filePreprocessingEnabled: true,
+    publishOnSeed: true,
   },
 ];

@@ -76,6 +76,8 @@ function validateToolNames(toolNames: string[]) {
   }
 }
 
+const PROTECTED_SYSTEM_SLUGS = new Set(['chat', 'workflow']);
+
 const MAX_WORKFLOW_BINDINGS = 20;
 
 async function validateWorkflowBindings(
@@ -448,6 +450,15 @@ export const deleteCustomAgent = mutation({
     if (!rootAgent) throw new Error('Agent not found');
     const rootId = rootAgent.rootVersionId ?? rootAgent._id;
 
+    if (
+      rootAgent.systemAgentSlug &&
+      PROTECTED_SYSTEM_SLUGS.has(rootAgent.systemAgentSlug)
+    ) {
+      throw new Error(
+        `Cannot delete the system ${rootAgent.displayName} agent`,
+      );
+    }
+
     const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
     if (!hasTeamAccess(rootAgent, userTeamIds)) {
       throw new Error('Agent not accessible');
@@ -557,6 +568,15 @@ export const unpublishCustomAgent = mutation({
 
     const rootAgent = await ctx.db.get(args.customAgentId);
     if (!rootAgent) throw new Error('Agent not found');
+
+    if (
+      rootAgent.systemAgentSlug &&
+      PROTECTED_SYSTEM_SLUGS.has(rootAgent.systemAgentSlug)
+    ) {
+      throw new Error(
+        `Cannot deactivate the system ${rootAgent.displayName} agent`,
+      );
+    }
 
     const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
     if (!hasTeamAccess(rootAgent, userTeamIds)) {

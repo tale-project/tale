@@ -14,6 +14,7 @@ import type {
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { Image } from '@/app/components/ui/data-display/image';
 import { Text } from '@/app/components/ui/typography/text';
+import { FileAttachmentDisplay } from '@/app/features/chat/components/message-bubble/file-displays';
 import { WorkflowCreationApprovalCard } from '@/app/features/chat/components/workflow-creation-approval-card';
 import { WorkflowUpdateApprovalCard } from '@/app/features/chat/components/workflow-update-approval-card';
 import { useT } from '@/lib/i18n/client';
@@ -177,6 +178,16 @@ export function MessageList({
                         </a>
                       ),
                     )}
+                  </div>
+                )}
+                {message.attachments && message.attachments.length > 0 && (
+                  <div className="mb-2 flex flex-wrap gap-1">
+                    {message.attachments.map((attachment) => (
+                      <FileAttachmentDisplay
+                        key={attachment.fileId}
+                        attachment={attachment}
+                      />
+                    ))}
                   </div>
                 )}
                 {message.content && (
