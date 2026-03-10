@@ -27,7 +27,6 @@ export interface CreateStepArgs {
   stepSlug: string;
   name: string;
   stepType: StepType;
-  order?: number;
   config: StepConfig;
   nextSteps: Record<string, string>;
   organizationId: string;

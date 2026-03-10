@@ -30,7 +30,6 @@ const stepsConfigArg = v.array(
     stepSlug: v.string(),
     name: v.string(),
     stepType: stepTypeValidator,
-    order: v.optional(v.number()),
     config: stepConfigValidator,
     nextSteps: v.record(v.string(), v.string()),
   }),

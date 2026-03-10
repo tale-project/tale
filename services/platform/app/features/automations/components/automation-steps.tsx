@@ -357,9 +357,6 @@ function AutomationStepsInner({
         return;
       }
 
-      const nextOrder =
-        steps.length > 0 ? Math.max(...steps.map((s) => s.order)) + 1 : 1;
-
       let nextSteps: Record<string, string> = data.nextSteps || {};
 
       if (edgeToInsertStep) {
@@ -374,7 +371,6 @@ function AutomationStepsInner({
         stepSlug,
         name: data.name,
         stepType: data.stepType,
-        order: nextOrder,
         config: data.config,
         nextSteps,
         editMode: 'visual',

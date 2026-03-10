@@ -53,14 +53,6 @@ export function validateWorkflowDefinition(
       continue;
     }
 
-    // Validate fields that are not covered by validateStepConfig
-    // Note: order is auto-computed from the nextSteps graph; manual value is optional
-    if (step.order !== undefined && typeof step.order !== 'number') {
-      errors.push(
-        `${stepPrefix} Invalid "order" field (must be number if provided)`,
-      );
-    }
-
     if (!step.nextSteps || typeof step.nextSteps !== 'object') {
       errors.push(
         `${stepPrefix} Missing or invalid "nextSteps" field (must be object)`,

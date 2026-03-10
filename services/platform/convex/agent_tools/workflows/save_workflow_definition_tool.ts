@@ -90,12 +90,6 @@ const stepConfigSchema = z.object({
   stepType: z
     .enum(['start', 'llm', 'action', 'condition', 'loop', 'output'])
     .describe('Step type.'),
-  order: z
-    .number()
-    .optional()
-    .describe(
-      'Step order number (auto-computed from nextSteps graph if omitted).',
-    ),
   config: z
     .record(z.string(), z.unknown())
     .describe('Step configuration object; structure depends on step type.'),

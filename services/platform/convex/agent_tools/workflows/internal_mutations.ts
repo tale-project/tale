@@ -166,7 +166,6 @@ export const createWorkflowCreationApproval = internalMutation({
           v.literal('loop'),
           v.literal('output'),
         ),
-        order: v.optional(v.number()),
         config: stepConfigValidator,
         nextSteps: v.record(v.string(), v.string()),
       }),
@@ -192,7 +191,6 @@ export const createWorkflowCreationApproval = internalMutation({
         stepSlug: step.stepSlug,
         name: step.name,
         stepType: step.stepType,
-        order: step.order,
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex jsonRecordValidator returns broader type; config is always Record<string, unknown>
         config: step.config as Record<string, unknown>,
         nextSteps: step.nextSteps,

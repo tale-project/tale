@@ -75,9 +75,6 @@ const stepConfigSchema = z.object({
   stepType: z
     .enum(['start', 'llm', 'action', 'condition', 'loop', 'output'])
     .describe('Step type.'),
-  order: z
-    .number()
-    .describe('Step order number (determines execution sequence).'),
   config: z
     .record(z.string(), z.unknown())
     .describe('Step configuration object; structure depends on step type.'),

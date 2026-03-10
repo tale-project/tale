@@ -23,7 +23,6 @@ export interface SaveManualConfigurationArgs {
     stepSlug: string;
     name: string;
     stepType: Doc<'wfStepDefs'>['stepType'];
-    order?: number;
     config: StepConfig;
     nextSteps: Record<string, string>;
   }>;
@@ -70,7 +69,7 @@ export async function saveManualConfiguration(
         stepSlug: stepConfig.stepSlug,
         name: stepConfig.name,
         stepType: stepConfig.stepType,
-        order: orderMap.get(stepConfig.stepSlug) ?? stepConfig.order ?? 0,
+        order: orderMap.get(stepConfig.stepSlug) ?? 0,
         config: stepConfig.config,
         nextSteps: stepConfig.nextSteps,
         organizationId: args.organizationId,

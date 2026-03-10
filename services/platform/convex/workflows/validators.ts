@@ -89,7 +89,6 @@ export const createStepArgsValidator = {
   stepSlug: v.string(),
   name: v.string(),
   stepType: stepTypeValidator,
-  order: v.optional(v.number()),
   config: stepConfigValidator,
   nextSteps: v.record(v.string(), v.string()),
   organizationId: v.string(),
@@ -104,7 +103,6 @@ export const updateStepArgsValidator = {
   updates: v.object({
     name: v.optional(v.string()),
     description: v.optional(v.string()),
-    order: v.optional(v.number()),
     config: v.optional(stepConfigValidator),
     nextSteps: v.optional(v.record(v.string(), v.string())),
     inputMapping: v.optional(v.record(v.string(), v.string())),

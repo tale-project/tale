@@ -3,6 +3,7 @@
  *
  * Uses a modified Kahn's algorithm (topological sort) that:
  * - Skips "noop" targets (terminal markers, not real steps)
+ * - Identifies loop body steps via BFS from the loop's body entry
  * - Rewires loop back-edges so body steps are ordered before "done" targets
  * - Handles fan-in (diamond/merge) patterns correctly
  * - Assigns unreachable steps order = max + 1
@@ -28,27 +29,61 @@ export function computeStepOrder(
 
   const slugSet = new Set(steps.map((s) => s.stepSlug));
   const stepTypeMap = new Map(steps.map((s) => [s.stepSlug, s.stepType]));
+  const nextStepsMap = new Map(steps.map((s) => [s.stepSlug, s.nextSteps]));
 
-  // Phase 1: Identify loop structures and rewire edges.
+  // Phase 1: Identify loop body steps via BFS, then determine true back-edges.
+  //
+  // For each loop step, BFS from its "loop" port target to discover all body
+  // steps (stopping at the loop step itself to break cycles). Only edges from
+  // body steps back to their loop step are true back-edges.
   //
   // For each loop step with {loop: bodySlug, done: doneSlug}:
   //   - Keep edge: loop → bodySlug (forward into body)
   //   - Remove edge: loop → doneSlug (would bypass body)
-  //   - Find tail steps (steps whose nextSteps point back to loop)
+  //   - Find tail steps (body steps whose nextSteps point back to loop)
   //   - Add edge: tailStep → doneSlug (ensures body completes before done)
   //   - Remove back-edges: tailStep → loop (break cycle)
 
-  // Collect loop info: which steps point back to which loop steps
-  const backEdgeSources = new Map<string, string[]>(); // loopSlug → [tailStepSlugs]
+  const loopBodyMap = new Map<string, Set<string>>();
+
   for (const s of steps) {
-    for (const [port, target] of Object.entries(s.nextSteps)) {
+    if (s.stepType !== 'loop') continue;
+    const bodyEntry = s.nextSteps.loop;
+    if (!bodyEntry || !slugSet.has(bodyEntry)) continue;
+
+    const body = new Set<string>();
+    const bfsQueue = [bodyEntry];
+    let bfsFront = 0;
+    while (bfsFront < bfsQueue.length) {
+      const current = bfsQueue[bfsFront++];
+      if (body.has(current) || current === s.stepSlug) continue;
+      if (!slugSet.has(current)) continue;
+      body.add(current);
+      const ns = nextStepsMap.get(current);
+      if (ns) {
+        for (const target of Object.values(ns)) {
+          if (
+            target &&
+            target !== 'noop' &&
+            slugSet.has(target) &&
+            !body.has(target)
+          ) {
+            bfsQueue.push(target);
+          }
+        }
+      }
+    }
+    loopBodyMap.set(s.stepSlug, body);
+  }
+
+  // Back-edge sources: body steps that point back to their loop
+  const backEdgeSources = new Map<string, string[]>();
+  for (const s of steps) {
+    for (const target of Object.values(s.nextSteps)) {
       if (!target || target === 'noop' || !slugSet.has(target)) continue;
-      if (
-        stepTypeMap.get(target) === 'loop' &&
-        port !== 'done' &&
-        s.stepType !== 'start' &&
-        s.stepType !== 'trigger'
-      ) {
+      if (stepTypeMap.get(target) !== 'loop') continue;
+      const body = loopBodyMap.get(target);
+      if (body?.has(s.stepSlug)) {
         const sources = backEdgeSources.get(target) ?? [];
         sources.push(s.stepSlug);
         backEdgeSources.set(target, sources);
@@ -78,20 +113,14 @@ export function computeStepOrder(
     for (const [port, target] of Object.entries(s.nextSteps)) {
       if (!target || target === 'noop' || !slugSet.has(target)) continue;
 
-      // Skip back-edges to loop steps (body → loop)
-      const targetIsLoop = stepTypeMap.get(target) === 'loop';
-      if (
-        targetIsLoop &&
-        port !== 'done' &&
-        s.stepType !== 'start' &&
-        s.stepType !== 'trigger'
-      ) {
-        continue;
+      // Skip back-edges: only body steps pointing back to their loop
+      if (stepTypeMap.get(target) === 'loop') {
+        const body = loopBodyMap.get(target);
+        if (body?.has(s.stepSlug)) continue;
       }
 
       // For loop steps: skip the direct "done" edge if we have tail steps to rewire through
       if (isLoop && port === 'done' && tailSteps && tailSteps.length > 0) {
-        // Rewire: tail steps → done target instead of loop → done target
         for (const tail of tailSteps) {
           addEdge(tail, target);
         }
@@ -113,7 +142,6 @@ export function computeStepOrder(
   }
 
   // Fallback: if no start/trigger, seed with nodes that have in-degree 0
-  // but defer orphaned nodes (they'll be caught at the end)
   if (queue.length === 0) {
     for (const [slug, deg] of inDegree) {
       if (deg === 0) {
@@ -124,10 +152,11 @@ export function computeStepOrder(
 
   const orderMap = new Map<string, number>();
   let nextOrder = 1;
+  let front = 0;
 
-  while (queue.length > 0) {
-    const current = queue.shift();
-    if (current === undefined || orderMap.has(current)) continue;
+  while (front < queue.length) {
+    const current = queue[front++];
+    if (orderMap.has(current)) continue;
     orderMap.set(current, nextOrder++);
 
     for (const neighbor of adjacency.get(current) ?? []) {
