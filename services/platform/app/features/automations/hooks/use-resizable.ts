@@ -33,12 +33,12 @@ export function useResizable(
   const [internalWidth, setInternalWidth] = useState(
     options?.initialWidth ?? DEFAULT_INITIAL_WIDTH,
   );
-  const width = isControlled ? options.width! : internalWidth;
+  const width = isControlled ? (options?.width ?? 0) : internalWidth;
   const setWidth = useCallback(
     (value: number | ((prev: number) => number)) => {
       if (isControlled && options?.onWidthChange) {
         const next =
-          typeof value === 'function' ? value(options.width!) : value;
+          typeof value === 'function' ? value(options?.width ?? 0) : value;
         options.onWidthChange(next);
       } else {
         setInternalWidth(value);
@@ -63,7 +63,7 @@ export function useResizable(
         );
       }
     },
-    [resizeStep, minWidth, maxWidth],
+    [resizeStep, minWidth, maxWidth, setWidth],
   );
 
   useEffect(() => {
@@ -91,7 +91,7 @@ export function useResizable(
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isResizing, panelRef, minWidth, maxWidth]);
+  }, [isResizing, panelRef, minWidth, maxWidth, setWidth]);
 
   return { width, minWidth, maxWidth, handleMouseDown, handleKeyDown };
 }

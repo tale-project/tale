@@ -6,7 +6,10 @@
 
 import { describe, it, expect } from 'vitest';
 
-import { validateCircularDependencies } from './circular_dependency_validator';
+import {
+  validateCircularDependencies,
+  type StepWithNextSteps,
+} from './circular_dependency_validator';
 
 type TestStep = {
   stepSlug: string;
@@ -339,7 +342,7 @@ describe('Circular Dependency Validator', () => {
     });
 
     it('should flag same cycle as error when stepType is omitted', () => {
-      const steps = [
+      const steps: StepWithNextSteps[] = [
         { stepSlug: 'start', nextSteps: { success: 'loop_comparison_files' } },
         {
           stepSlug: 'loop_comparison_files',
