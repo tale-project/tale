@@ -13,7 +13,6 @@ import {
   DOCUMENT_MAX_FILE_SIZE,
   resolveFileType,
 } from '@/lib/shared/file-types';
-import { fetchJson } from '@/lib/utils/type-cast-helpers';
 
 /**
  * Calculate SHA-256 hash of a file using Web Crypto API
@@ -54,10 +53,69 @@ interface UploadOptions {
   onError?: (error: string) => void;
 }
 
+export interface UploadProgress {
+  completedFiles: number;
+  totalFiles: number;
+  /** Aggregate bytes loaded across all files */
+  bytesLoaded: number;
+  /** Aggregate bytes total across all files */
+  bytesTotal: number;
+}
+
+/**
+ * Upload a file via XMLHttpRequest to get byte-level progress.
+ * Returns a promise that resolves with the parsed JSON response.
+ */
+function uploadWithProgress(
+  url: string,
+  file: File,
+  contentType: string,
+  signal: AbortSignal | undefined,
+  onProgress: (loaded: number, total: number) => void,
+): Promise<{ storageId: string }> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', url);
+    xhr.setRequestHeader('Content-Type', contentType);
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) {
+        onProgress(e.loaded, e.total);
+      }
+    };
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          resolve(JSON.parse(xhr.responseText));
+        } catch {
+          reject(new Error('Failed to parse upload response'));
+        }
+      } else {
+        reject(new Error(`Upload failed: ${xhr.statusText}`));
+      }
+    };
+
+    xhr.onerror = () => reject(new Error('Upload failed: network error'));
+    xhr.onabort = () => {
+      const err = new DOMException('The operation was aborted.', 'AbortError');
+      reject(err);
+    };
+
+    signal?.addEventListener('abort', () => xhr.abort(), { once: true });
+
+    xhr.send(file);
+  });
+}
+
 export function useDocumentUpload(options: UploadOptions) {
   const { t } = useT('documents');
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(
+    null,
+  );
   const abortControllerRef = useRef<AbortController | null>(null);
+  const perFileLoadedRef = useRef<number[]>([]);
   const { mutateAsync: generateUploadUrl } = useConvexMutation(
     api.files.mutations.generateUploadUrl,
   );
@@ -113,14 +171,25 @@ export function useDocumentUpload(options: UploadOptions) {
     try {
       setIsUploading(true);
 
+      const totalBytes = files.reduce((sum, f) => sum + f.size, 0);
+      perFileLoadedRef.current = new Array(files.length).fill(0);
+      setUploadProgress({
+        completedFiles: 0,
+        totalFiles: files.length,
+        bytesLoaded: 0,
+        bytesTotal: totalBytes,
+      });
+
       // Show upload started toast
       toast({
         title: t('upload.uploadStarted'),
         description: t('upload.uploadingCount', { count: files.length }),
       });
 
-      // Upload files using direct HTTP upload to Convex storage
-      const uploadPromises = files.map(async (file) => {
+      let completedFiles = 0;
+
+      // Upload files using XHR for byte-level progress
+      const uploadPromises = files.map(async (file, fileIndex) => {
         const resolvedType =
           resolveFileType(file.name, file.type) || 'application/octet-stream';
 
@@ -130,22 +199,22 @@ export function useDocumentUpload(options: UploadOptions) {
         // Step 2: Get upload URL from Convex
         const uploadUrl = await generateUploadUrl({});
 
-        // Step 3: Upload file directly to Convex storage via HTTP
-        const uploadResponse = await fetch(uploadUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': resolvedType,
+        // Step 3: Upload file with progress tracking
+        const { storageId } = await uploadWithProgress(
+          uploadUrl,
+          file,
+          resolvedType,
+          abortControllerRef.current?.signal,
+          (loaded) => {
+            perFileLoadedRef.current[fileIndex] = loaded;
+            const bytesLoaded = perFileLoadedRef.current.reduce(
+              (sum, v) => sum + v,
+              0,
+            );
+            setUploadProgress((prev) =>
+              prev ? { ...prev, bytesLoaded } : prev,
+            );
           },
-          body: file,
-          signal: abortControllerRef.current?.signal,
-        });
-
-        if (!uploadResponse.ok) {
-          throw new Error(`Upload failed: ${uploadResponse.statusText}`);
-        }
-
-        const { storageId } = await fetchJson<{ storageId: string }>(
-          uploadResponse,
         );
 
         // Step 4: Create document record in database
@@ -166,6 +235,11 @@ export function useDocumentUpload(options: UploadOptions) {
             : undefined,
           fileSize: file.size,
         });
+
+        completedFiles++;
+        setUploadProgress((prev) =>
+          prev ? { ...prev, completedFiles } : prev,
+        );
 
         return result;
       });
@@ -238,6 +312,8 @@ export function useDocumentUpload(options: UploadOptions) {
       };
     } finally {
       setIsUploading(false);
+      setUploadProgress(null);
+      perFileLoadedRef.current = [];
       abortControllerRef.current = null;
     }
   };
@@ -268,6 +344,7 @@ export function useDocumentUpload(options: UploadOptions) {
     uploadMultipleFiles,
     uploadFiles,
     isUploading,
+    uploadProgress,
     cancelUpload,
   };
 }

@@ -2,6 +2,10 @@
 
 - DO NOT include "Co-Authored-By" in commit messages.
 
+## Design Comments
+
+- `design/comments.md` is strictly for designer-developer communication about UI/design issues. DO NOT add code-level bug analysis, root cause details, or implementation notes here — use GitHub issues for that.
+
 ## General
 
 - USE Bun workspaces for running scripts: `bun run --filter @tale/<workspace> <script>` (e.g., `bun run --filter @tale/platform lint`).

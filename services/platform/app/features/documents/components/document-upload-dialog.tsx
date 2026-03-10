@@ -5,6 +5,7 @@ import { useState, useCallback } from 'react';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { EmptyPlaceholder } from '@/app/components/ui/feedback/empty-placeholder';
+import { ProgressBar } from '@/app/components/ui/feedback/progress-bar';
 import { Spinner } from '@/app/components/ui/feedback/spinner';
 import { Description } from '@/app/components/ui/forms/description';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
@@ -52,7 +53,7 @@ export function DocumentUploadDialog({
 
   const { teams, isLoading: isLoadingTeams } = useTeams();
 
-  const { uploadFiles, isUploading } = useDocumentUpload({
+  const { uploadFiles, isUploading, uploadProgress } = useDocumentUpload({
     organizationId,
     onSuccess: () => {
       onSuccess?.();
@@ -210,6 +211,28 @@ export function DocumentUploadDialog({
                 </div>
               ))}
             </Stack>
+          </Stack>
+        )}
+
+        {/* Upload progress */}
+        {isUploading && uploadProgress && (
+          <Stack gap={1}>
+            <ProgressBar
+              value={uploadProgress.bytesLoaded}
+              max={uploadProgress.bytesTotal}
+              label={tDocuments('upload.uploading')}
+              tooltipContent={`${uploadProgress.completedFiles} / ${uploadProgress.totalFiles} ${tDocuments('upload.filesCompleted')}`}
+            />
+            <Text
+              variant="caption"
+              className="text-muted-foreground"
+              aria-live="polite"
+            >
+              {formatBytes(uploadProgress.bytesLoaded)} /{' '}
+              {formatBytes(uploadProgress.bytesTotal)}
+              {uploadProgress.totalFiles > 1 &&
+                ` · ${uploadProgress.completedFiles} / ${uploadProgress.totalFiles} ${tDocuments('upload.filesCompleted')}`}
+            </Text>
           </Stack>
         )}
 
