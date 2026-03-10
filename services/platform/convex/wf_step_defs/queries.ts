@@ -43,6 +43,7 @@ export const validateStep = queryWithRLS({
         .withIndex('by_definition', (q) => q.eq('wfDefinitionId', defId))) {
         stepsForCircularCheck.push({
           stepSlug: step.stepSlug,
+          stepType: step.stepType,
           nextSteps: step.nextSteps,
         });
       }

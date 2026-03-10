@@ -280,6 +280,106 @@ describe('Circular Dependency Validator', () => {
     });
   });
 
+  describe('regression: missing stepType causes false errors', () => {
+    it('should treat long loop body cycle as warning when stepType is provided', () => {
+      const steps: TestStep[] = [
+        {
+          stepSlug: 'start',
+          stepType: 'start',
+          nextSteps: { success: 'loop_comparison_files' },
+        },
+        {
+          stepSlug: 'loop_comparison_files',
+          stepType: 'loop',
+          nextSteps: { loop: 'index_base_doc', done: 'output' },
+        },
+        {
+          stepSlug: 'index_base_doc',
+          stepType: 'action',
+          nextSteps: { success: 'index_comparison_doc' },
+        },
+        {
+          stepSlug: 'index_comparison_doc',
+          stepType: 'action',
+          nextSteps: { success: 'compare_documents' },
+        },
+        {
+          stepSlug: 'compare_documents',
+          stepType: 'action',
+          nextSteps: { success: 'analyze_differences' },
+        },
+        {
+          stepSlug: 'analyze_differences',
+          stepType: 'llm',
+          nextSteps: { success: 'summarize_transition' },
+        },
+        {
+          stepSlug: 'summarize_transition',
+          stepType: 'llm',
+          nextSteps: { success: 'accumulate_results' },
+        },
+        {
+          stepSlug: 'accumulate_results',
+          stepType: 'action',
+          nextSteps: { success: 'loop_comparison_files' },
+        },
+        {
+          stepSlug: 'output',
+          stepType: 'output',
+          nextSteps: {},
+        },
+      ];
+
+      const result = validateCircularDependencies(steps);
+
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+      expect(result.warnings.length).toBeGreaterThan(0);
+      expect(result.warnings[0]).toContain('Intentional loop detected');
+    });
+
+    it('should flag same cycle as error when stepType is omitted', () => {
+      const steps = [
+        { stepSlug: 'start', nextSteps: { success: 'loop_comparison_files' } },
+        {
+          stepSlug: 'loop_comparison_files',
+          nextSteps: { loop: 'index_base_doc', done: 'output' },
+        },
+        {
+          stepSlug: 'index_base_doc',
+          nextSteps: { success: 'index_comparison_doc' },
+        },
+        {
+          stepSlug: 'index_comparison_doc',
+          nextSteps: { success: 'compare_documents' },
+        },
+        {
+          stepSlug: 'compare_documents',
+          nextSteps: { success: 'analyze_differences' },
+        },
+        {
+          stepSlug: 'analyze_differences',
+          nextSteps: { success: 'summarize_transition' },
+        },
+        {
+          stepSlug: 'summarize_transition',
+          nextSteps: { success: 'accumulate_results' },
+        },
+        {
+          stepSlug: 'accumulate_results',
+          nextSteps: { success: 'loop_comparison_files' },
+        },
+        { stepSlug: 'output', nextSteps: {} },
+      ];
+
+      const result = validateCircularDependencies(steps);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors[0]).toContain('Circular dependency detected');
+    });
+  });
+
   describe('edge cases', () => {
     it('should handle steps with no nextSteps property', () => {
       const steps = [

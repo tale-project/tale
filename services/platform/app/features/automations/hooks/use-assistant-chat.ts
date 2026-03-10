@@ -1,11 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
-import {
-  useCreateThread,
-  useDeleteThread,
-} from '@/app/features/chat/hooks/mutations';
+import { useCreateThread } from '@/app/features/chat/hooks/mutations';
 import {
   useThreadMessages,
   useWorkflowCreationApprovals,
@@ -52,8 +49,6 @@ function canSendMessage(content: string, threadId: string | null): boolean {
 interface UseAssistantChatOptions {
   automationId?: Id<'wfDefinitions'>;
   organizationId: string;
-  onClearChat?: () => void;
-  onClearChatStateChange?: (canClear: boolean, clearFn: () => void) => void;
   errorMessageText: string;
   analyzeAttachmentsText: string;
 }
@@ -61,8 +56,6 @@ interface UseAssistantChatOptions {
 export function useAssistantChat({
   automationId,
   organizationId,
-  onClearChat,
-  onClearChatStateChange,
   errorMessageText,
   analyzeAttachmentsText,
 }: UseAssistantChatOptions) {
@@ -94,7 +87,6 @@ export function useAssistantChat({
   const { mutateAsync: chatWithWorkflowAssistant } =
     useChatWithWorkflowAssistant();
   const { mutateAsync: createChatThread } = useCreateThread();
-  const { mutateAsync: deleteChatThread } = useDeleteThread();
   const { mutateAsync: updateWorkflowMetadata } = useUpdateAutomationMetadata();
 
   const { data: workflow } = useWorkflow(automationId);
@@ -370,59 +362,6 @@ export function useAssistantChat({
       void handleSendMessage();
     }
   };
-
-  const handleClearChat = useCallback(async () => {
-    if (!user?.userId) {
-      console.error('User not authenticated');
-      return;
-    }
-
-    try {
-      if (threadId) {
-        await deleteChatThread({
-          threadId: threadId,
-        });
-      }
-
-      if (automationId && workflow?.metadata) {
-        await updateWorkflowMetadata({
-          wfDefinitionId: automationId,
-          metadata: { ...workflow.metadata, threadId: null },
-          updatedBy: user.userId,
-        });
-      }
-
-      setThreadId(null);
-      setMessages([]);
-      setInputValue('');
-
-      onClearChat?.();
-    } catch (error) {
-      console.error('Error clearing chat:', error);
-      setThreadId(null);
-      setMessages([]);
-      setInputValue('');
-    }
-  }, [
-    user?.userId,
-    threadId,
-    automationId,
-    workflow?.metadata,
-    deleteChatThread,
-    updateWorkflowMetadata,
-    onClearChat,
-  ]);
-
-  // Report clear chat state to parent
-  useEffect(() => {
-    const canClear = displayMessages.length > 0 && !!threadId;
-    onClearChatStateChange?.(canClear, handleClearChat);
-  }, [
-    displayMessages.length,
-    threadId,
-    handleClearChat,
-    onClearChatStateChange,
-  ]);
 
   return {
     workflow,

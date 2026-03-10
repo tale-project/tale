@@ -58,6 +58,7 @@ interface AutomationStepsProps {
   automationId: Id<'wfDefinitions'>;
   status: 'draft' | 'active' | 'inactive' | 'archived';
   onStepCreated?: () => void;
+  onOpenAIChat?: () => void;
 }
 
 const nodeTypes = {
@@ -110,6 +111,7 @@ function AutomationStepsInner({
   automationId,
   status,
   onStepCreated: _onStepCreated,
+  onOpenAIChat,
 }: AutomationStepsProps) {
   const { t } = useT('automations');
   const { user } = useAuth();
@@ -139,9 +141,7 @@ function AutomationStepsInner({
   });
 
   const sidePanelMode =
-    panelState.panel === 'step' ||
-    panelState.panel === 'ai-chat' ||
-    panelState.panel === 'test'
+    panelState.panel === 'step' || panelState.panel === 'test'
       ? panelState.panel
       : null;
   const selectedStepSlug = panelState.step;
@@ -178,14 +178,18 @@ function AutomationStepsInner({
     edgesRef.current = edges;
   }, [edges]);
 
+  const prevContainerWidthRef = useRef(0);
+  const fitViewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
     const MINIMAP_BASE_WIDTH = 144;
     const MINIMAP_MAX_WIDTH = 192;
+    const WIDTH_CHANGE_THRESHOLD = 50;
 
-    const updateMinimapSize = () => {
+    const handleContainerResize = () => {
       const { width, height } = container.getBoundingClientRect();
       if (width === 0 || height === 0) return;
 
@@ -198,34 +202,36 @@ function AutomationStepsInner({
         width: baseWidth,
         height: Math.max(80, Math.min(calculatedHeight, 200)),
       });
+
+      if (
+        Math.abs(width - prevContainerWidthRef.current) > WIDTH_CHANGE_THRESHOLD
+      ) {
+        prevContainerWidthRef.current = width;
+        if (fitViewTimerRef.current) clearTimeout(fitViewTimerRef.current);
+        fitViewTimerRef.current = setTimeout(() => {
+          const currentViewport = getViewport();
+          void fitView({
+            padding: 0.2,
+            duration: 400,
+            includeHiddenNodes: false,
+            minZoom: currentViewport.zoom,
+            maxZoom: currentViewport.zoom,
+          });
+        }, 100);
+      }
     };
 
-    const resizeObserver = new ResizeObserver(updateMinimapSize);
+    const resizeObserver = new ResizeObserver(handleContainerResize);
     resizeObserver.observe(container);
-    window.addEventListener('resize', updateMinimapSize);
-    updateMinimapSize();
+    window.addEventListener('resize', handleContainerResize);
+    handleContainerResize();
 
     return () => {
       resizeObserver.disconnect();
-      window.removeEventListener('resize', updateMinimapSize);
+      window.removeEventListener('resize', handleContainerResize);
+      if (fitViewTimerRef.current) clearTimeout(fitViewTimerRef.current);
     };
-  }, []);
-
-  useEffect(() => {
-    if (nodes.length > 0) {
-      const timer = setTimeout(() => {
-        const currentViewport = getViewport();
-        void fitView({
-          padding: 0.2,
-          duration: 400,
-          includeHiddenNodes: false,
-          minZoom: currentViewport.zoom,
-          maxZoom: currentViewport.zoom,
-        });
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [sidePanelMode, fitView, getViewport, nodes.length]);
+  }, [fitView, getViewport]);
 
   const handleNodeClick = useCallback(
     (stepSlug: string) => {
@@ -240,10 +246,6 @@ function AutomationStepsInner({
   const handleCloseSidePanel = useCallback(() => {
     clearPanelState();
   }, [clearPanelState]);
-
-  const handleOpenAIChat = useCallback(() => {
-    setPanelStates({ panel: 'ai-chat', step: null });
-  }, [setPanelStates]);
 
   const handleOpenTestPanel = useCallback(() => {
     setPanelStates({ panel: 'test', step: null });
@@ -516,7 +518,7 @@ function AutomationStepsInner({
                   <Button
                     size="icon"
                     title={t('steps.toolbar.aiAssistant')}
-                    onClick={handleOpenAIChat}
+                    onClick={onOpenAIChat}
                     className="bg-purple-600 text-white hover:bg-purple-700 dark:bg-purple-700 dark:hover:bg-purple-800"
                   >
                     <Sparkles className="size-4" />
@@ -552,7 +554,6 @@ function AutomationStepsInner({
             step={selectedStep}
             isOpen={!!sidePanelMode}
             onClose={handleCloseSidePanel}
-            showAIChat={sidePanelMode === 'ai-chat'}
             showTestPanel={sidePanelMode === 'test'}
             automationId={automationId}
             organizationId={organizationId}

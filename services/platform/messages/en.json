@@ -1705,7 +1705,9 @@
       "validationWarnings": "Warnings",
       "stepSaved": "Step saved successfully",
       "stepSaveFailed": "Failed to save step",
-      "saving": "Saving..."
+      "saving": "Saving...",
+      "resizePanel": "Resize panel",
+      "stepEditor": "Step editor"
     },
     "nextSteps": {
       "endWorkflow": "End workflow",

@@ -12,15 +12,11 @@ import { MessageList } from './automation-assistant/message-list';
 interface AutomationAssistantProps {
   automationId?: Id<'wfDefinitions'>;
   organizationId: string;
-  onClearChat?: () => void;
-  onClearChatStateChange?: (canClear: boolean, clearFn: () => void) => void;
 }
 
 function AutomationAssistantContent({
   automationId,
   organizationId,
-  onClearChat,
-  onClearChatStateChange,
 }: AutomationAssistantProps) {
   const { t } = useT('automations');
 
@@ -49,18 +45,16 @@ function AutomationAssistantContent({
   } = useAssistantChat({
     automationId,
     organizationId,
-    onClearChat,
-    onClearChatStateChange,
     errorMessageText: t('assistant.errorMessage'),
     analyzeAttachmentsText: t('assistant.analyzeAttachments'),
   });
 
   return (
-    <div
-      ref={containerRef}
-      className="relative flex flex-1 flex-col overflow-y-auto"
-    >
-      <div className="flex flex-1 flex-col space-y-2.5 p-2">
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      <div
+        ref={containerRef}
+        className="flex min-h-0 flex-1 flex-col space-y-2.5 overflow-y-auto p-2"
+      >
         <MessageList
           displayMessages={displayMessages}
           isLoading={isLoading}
