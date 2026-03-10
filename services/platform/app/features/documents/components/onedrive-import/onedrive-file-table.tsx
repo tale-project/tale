@@ -155,6 +155,7 @@ export function OneDriveFileTable({
       handleFolderClick,
       tTables,
       formatDate,
+      timezoneShort,
     ],
   );
 
