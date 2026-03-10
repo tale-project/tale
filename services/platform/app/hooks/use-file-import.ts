@@ -144,7 +144,8 @@ export const customerMappers = {
 
     return {
       email,
-      locale: row[1]?.trim() || 'en',
+      name: row[1]?.trim() || undefined,
+      locale: row[2]?.trim() || 'en',
       status: 'churned' as const,
       source: 'manual_import' as const,
     };
@@ -158,6 +159,11 @@ export const customerMappers = {
 
     return {
       email,
+      name:
+        getString(record.name) ||
+        getString(record.Name) ||
+        getString(record.NAME) ||
+        undefined,
       locale:
         getString(record.locale) ||
         getString(record.Locale) ||

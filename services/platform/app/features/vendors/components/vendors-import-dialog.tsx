@@ -23,6 +23,7 @@ type FormValues = {
 
 interface ParsedVendor {
   email: string;
+  name?: string;
   locale: string;
   source: Doc<'vendors'>['source'];
 }
