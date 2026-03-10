@@ -19,6 +19,7 @@ const MAX_LIMIT = 50;
 
 export interface AgentDocumentItem {
   id: string;
+  fileId: string;
   title: string;
   extension: string | null;
   folderPath: string | null;
@@ -114,6 +115,7 @@ export async function listDocumentsForAgent(
       break;
     }
 
+    if (!doc.fileId) continue;
     if (args.extension && doc.extension !== args.extension) continue;
 
     // Team filter
@@ -173,6 +175,7 @@ export async function listDocumentsForAgent(
   // Build response
   const documents: AgentDocumentItem[] = page.map((doc) => ({
     id: doc._id,
+    fileId: doc.fileId,
     title: getDocumentTitle(doc),
     extension: doc.extension ?? null,
     folderPath: doc.folderId ? (folderPathMap.get(doc.folderId) ?? null) : null,
