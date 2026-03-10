@@ -56,9 +56,8 @@ export function MessageList({
     [displayMessages],
   );
 
-  const { approvalsByMessageId, trailingApprovals } = useMemo(() => {
+  const approvalsByMessageId = useMemo(() => {
     const byMessageId = new Map<string, ApprovalItem[]>();
-    const trailing: ApprovalItem[] = [];
 
     const allApprovals: ApprovalItem[] = [
       ...workflowUpdateApprovals.map(
@@ -75,14 +74,10 @@ export function MessageList({
         const list = byMessageId.get(mid) ?? [];
         list.push(item);
         byMessageId.set(mid, list);
-      } else {
-        trailing.push(item);
       }
     }
 
-    trailing.sort((a, b) => a.data._creationTime - b.data._creationTime);
-
-    return { approvalsByMessageId: byMessageId, trailingApprovals: trailing };
+    return byMessageId;
   }, [workflowUpdateApprovals, workflowCreationApprovals, messageIds]);
 
   if (displayMessages.length === 0) {
@@ -234,31 +229,6 @@ export function MessageList({
             </div>
           ))}
         </Fragment>
-      ))}
-      {trailingApprovals.map((item) => (
-        <div key={`approval-${item.data._id}`} className="flex justify-start">
-          {item.type === 'workflow_update' ? (
-            <WorkflowUpdateApprovalCard
-              approvalId={item.data._id}
-              organizationId={organizationId}
-              status={item.data.status}
-              metadata={item.data.metadata}
-              executedAt={item.data.executedAt}
-              executionError={item.data.executionError}
-              className="max-w-full"
-            />
-          ) : (
-            <WorkflowCreationApprovalCard
-              approvalId={item.data._id}
-              organizationId={organizationId}
-              status={item.data.status}
-              metadata={item.data.metadata}
-              executedAt={item.data.executedAt}
-              executionError={item.data.executionError}
-              className="max-w-full"
-            />
-          )}
-        </div>
       ))}
       <AnimatePresence>
         {(isLoading || isWaitingForResponse) && (

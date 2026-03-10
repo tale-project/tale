@@ -104,7 +104,7 @@ export function useThreadMessages(threadId: string | null) {
     typeof useUIMessages
   >[0];
   const { results } = useUIMessages(query, threadId ? { threadId } : 'skip', {
-    initialNumItems: 30,
+    initialNumItems: 100,
     // @ts-expect-error -- Convex agent SDK StreamQuery conditional type doesn't resolve correctly with generated API types; stream: true is valid at runtime
     stream: true,
   });
