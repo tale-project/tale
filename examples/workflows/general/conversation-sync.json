@@ -1,0 +1,174 @@
+{
+  "workflowConfig": {
+    "name": "Conversation Sync",
+    "description": "Sync messages from an integration into conversations with automatic thread grouping",
+    "version": "1.0.0",
+    "workflowType": "predefined",
+    "config": {
+      "timeout": 300000,
+      "retryPolicy": { "maxRetries": 3, "backoffMs": 2000 },
+      "variables": {
+        "organizationId": "",
+        "integrationName": "",
+        "channel": "email",
+        "conversationStatus": "open",
+        "hasGetThread": true,
+        "accountEmail": ""
+      }
+    }
+  },
+  "stepsConfig": [
+    {
+      "stepSlug": "start",
+      "name": "Start",
+      "stepType": "start",
+      "config": {},
+      "nextSteps": { "success": "query_latest_inbound_message" }
+    },
+    {
+      "stepSlug": "query_latest_inbound_message",
+      "name": "Query Latest Synced Message",
+      "stepType": "action",
+      "config": {
+        "type": "conversation",
+        "parameters": {
+          "operation": "query_latest_message_by_delivery_state",
+          "channel": "{{channel}}",
+          "direction": "inbound",
+          "deliveryState": "delivered",
+          "integrationName": "{{integrationName}}"
+        }
+      },
+      "nextSteps": { "success": "check_has_cursor" }
+    },
+    {
+      "stepSlug": "check_has_cursor",
+      "name": "Check Has Cursor",
+      "stepType": "condition",
+      "config": {
+        "expression": "steps.query_latest_inbound_message.output.data.message != null",
+        "description": "Check if we have a previously synced message to use as cursor"
+      },
+      "nextSteps": { "true": "fetch_new_messages", "false": "fetch_latest_message" }
+    },
+    {
+      "stepSlug": "fetch_latest_message",
+      "name": "Fetch Latest Message (First Run)",
+      "stepType": "action",
+      "config": {
+        "type": "integration",
+        "parameters": {
+          "name": "{{integrationName}}",
+          "operation": "list_messages",
+          "params": {
+            "maxResults": 1
+          }
+        }
+      },
+      "nextSteps": { "success": "check_has_messages" }
+    },
+    {
+      "stepSlug": "fetch_new_messages",
+      "name": "Fetch New Messages (Incremental)",
+      "stepType": "action",
+      "config": {
+        "type": "integration",
+        "parameters": {
+          "name": "{{integrationName}}",
+          "operation": "list_messages",
+          "params": {
+            "after": "{{steps.query_latest_inbound_message.output.data.message.deliveredAt|epochSeconds}}",
+            "maxResults": 1
+          }
+        }
+      },
+      "nextSteps": { "success": "check_has_messages" }
+    },
+    {
+      "stepSlug": "check_has_messages",
+      "name": "Check Has Messages",
+      "stepType": "condition",
+      "config": {
+        "expression": "(steps.fetch_new_messages.output.data.result.data|length > 0) || (steps.fetch_latest_message.output.data.result.data|length > 0)",
+        "description": "Check if any messages were fetched from either path"
+      },
+      "nextSteps": { "true": "check_has_threading", "false": "noop" }
+    },
+    {
+      "stepSlug": "check_has_threading",
+      "name": "Check Threading Support",
+      "stepType": "condition",
+      "config": {
+        "expression": "hasGetThread == true",
+        "description": "Check if the integration supports get_thread for full conversation threading"
+      },
+      "nextSteps": { "true": "extract_thread_id", "false": "insert_messages_to_conversation" }
+    },
+    {
+      "stepSlug": "extract_thread_id",
+      "name": "Extract Thread ID",
+      "stepType": "action",
+      "config": {
+        "type": "set_variables",
+        "parameters": {
+          "variables": [
+            {
+              "name": "threadId",
+              "value": "{{(steps.fetch_new_messages.output.data.result.data|first || steps.fetch_latest_message.output.data.result.data|first).threadId}}"
+            }
+          ]
+        }
+      },
+      "nextSteps": { "success": "fetch_thread_messages" }
+    },
+    {
+      "stepSlug": "fetch_thread_messages",
+      "name": "Fetch Thread Messages",
+      "stepType": "action",
+      "config": {
+        "type": "integration",
+        "parameters": {
+          "name": "{{integrationName}}",
+          "operation": "get_thread",
+          "params": {
+            "threadId": "{{threadId}}",
+            "format": "email"
+          }
+        }
+      },
+      "nextSteps": { "success": "insert_threaded_to_conversation" }
+    },
+    {
+      "stepSlug": "insert_threaded_to_conversation",
+      "name": "Create Conversation from Thread",
+      "stepType": "action",
+      "config": {
+        "type": "conversation",
+        "parameters": {
+          "operation": "create_from_email",
+          "emails": "{{steps.fetch_thread_messages.output.data.result.data}}",
+          "status": "{{conversationStatus}}",
+          "integrationName": "{{integrationName}}",
+          "accountEmail": "{{accountEmail}}"
+        }
+      },
+      "nextSteps": { "success": "noop" }
+    },
+    {
+      "stepSlug": "insert_messages_to_conversation",
+      "name": "Create Conversation from Messages",
+      "stepType": "action",
+      "config": {
+        "type": "conversation",
+        "parameters": {
+          "operation": "create_from_email",
+          "emails": "{{steps.fetch_new_messages.output.data.result.data || steps.fetch_latest_message.output.data.result.data}}",
+          "status": "{{conversationStatus}}",
+          "integrationName": "{{integrationName}}",
+          "accountEmail": "{{accountEmail}}"
+        }
+      },
+      "nextSteps": { "success": "noop" }
+    }
+  ]
+}

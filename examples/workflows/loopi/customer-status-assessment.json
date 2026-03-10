@@ -1,0 +1,162 @@
+{
+  "workflowConfig": {
+    "name": "Customer Status Assessment",
+    "description": "Automatically find and analyze one customer that needs status assessment using predefined steps",
+    "workflowType": "predefined",
+    "version": "1.0.0",
+    "config": {
+      "timeout": 120000,
+      "retryPolicy": { "maxRetries": 2, "backoffMs": 1000 },
+      "variables": {
+        "organizationId": "org_demo",
+        "workflowId": "assess-customer-status",
+        "backoffHours": 72
+      }
+    }
+  },
+  "stepsConfig": [
+    {
+      "stepSlug": "start",
+      "name": "Start",
+      "stepType": "start",
+      "config": {},
+      "nextSteps": { "success": "find_unprocessed_customer" }
+    },
+    {
+      "stepSlug": "find_unprocessed_customer",
+      "name": "Find One Unprocessed Customer",
+      "stepType": "action",
+      "config": {
+        "type": "workflow_processing_records",
+        "parameters": {
+          "operation": "find_unprocessed",
+          "tableName": "customers",
+          "backoffHours": "{{backoffHours}}"
+        }
+      },
+      "nextSteps": {
+        "success": "check_has_customer"
+      }
+    },
+    {
+      "stepSlug": "check_has_customer",
+      "name": "Check if Customer Found",
+      "stepType": "condition",
+      "config": {
+        "expression": "steps.find_unprocessed_customer.output.data != null",
+        "description": "Check if we found an unprocessed customer"
+      },
+      "nextSteps": {
+        "true": "extract_customer_data",
+        "false": "noop"
+      }
+    },
+    {
+      "stepSlug": "extract_customer_data",
+      "name": "Extract Customer Data",
+      "stepType": "action",
+      "config": {
+        "type": "set_variables",
+        "parameters": {
+          "variables": [
+            {
+              "name": "currentCustomer",
+              "value": "{{steps.find_unprocessed_customer.output.data}}"
+            },
+            {
+              "name": "currentCustomerId",
+              "value": "{{steps.find_unprocessed_customer.output.data._id}}"
+            },
+            {
+              "name": "currentCustomerName",
+              "value": "{{steps.find_unprocessed_customer.output.data.name}}"
+            },
+            {
+              "name": "currentCustomerEmail",
+              "value": "{{steps.find_unprocessed_customer.output.data.email}}"
+            }
+          ]
+        }
+      },
+      "nextSteps": {
+        "success": "analyze_status"
+      }
+    },
+    {
+      "stepSlug": "analyze_status",
+      "name": "Analyze Customer Status",
+      "stepType": "llm",
+      "config": {
+        "llmNode": {
+          "name": "Customer Status LLM",
+          "systemPrompt": "You are a Customer Status Analyzer specialized in determining customer status based on subscription data.\n\nYour task is to analyze the subscription data and determine the customer's status according to these rules:\n\nStatus determination rules:\n- If customer has NO subscriptions \t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\u2192 status: \"potential\"\n- If customer has at least ONE active subscription \t\t\t\u2192 status: \"active\"\n- If customer has subscriptions but NONE are active \t\t\t\u2192 status: \"churned\"\n\nFor churned customers, you must also:\n- Identify the latest subscription end date or cancellation date\n- Calculate the churnedAt timestamp\n- Provide a brief reason for the churn (e.g., \"All subscriptions ended\", \"Subscription cancelled\")\n\nAvailable data:\n- Customer ID: {{currentCustomerId}}\n- Customer Name: {{currentCustomerName}}\n- Customer Email: {{currentCustomerEmail}}\n- Subscriptions: {{currentCustomer.metadata.subscriptions.data}}\n\nAnalyze the subscription data and provide your determination strictly as JSON with this exact shape:\n{\"status\":\"active\"|\"churned\"|\"potential\",\"churnReason\":string|null,\"churnedAt\":number|null}\nReturn only the JSON, no extra text.",
+          "userPrompt": "Analyze the subscription data and determine the customer status (active/churned/potential)",
+          "outputFormat": "json",
+          "outputSchema": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": ["active", "churned", "potential"],
+                "description": "Customer lifecycle status"
+              },
+              "churnReason": {
+                "type": ["string", "null"],
+                "description": "Reason for churn if status is churned, otherwise null"
+              },
+              "churnedAt": {
+                "type": ["number", "null"],
+                "description": "Timestamp when customer churned if status is churned, otherwise null"
+              }
+            },
+            "required": ["status", "churnReason", "churnedAt"],
+            "additionalProperties": false
+          },
+          "tools": ["rag_search"]
+        }
+      },
+      "nextSteps": { "success": "update_customer_status" }
+    },
+    {
+      "stepSlug": "update_customer_status",
+      "name": "Update Customer Status",
+      "stepType": "action",
+      "config": {
+        "type": "customer",
+        "parameters": {
+          "operation": "update",
+          "customerId": "{{currentCustomerId}}",
+          "updates": {
+            "status": "{{steps.analyze_status.output.data.status}}",
+            "metadata": {
+              "statusAssessment": {
+                "churnReason": "{{steps.analyze_status.output.data.churnReason}}",
+                "churnedAt": "{{steps.analyze_status.output.data.churnedAt}}",
+                "assessedAt": "{{now}}"
+              }
+            }
+          }
+        }
+      },
+      "nextSteps": { "success": "record_processed" }
+    },
+    {
+      "stepSlug": "record_processed",
+      "name": "Record Customer as Processed",
+      "stepType": "action",
+      "config": {
+        "type": "workflow_processing_records",
+        "parameters": {
+          "operation": "record_processed",
+          "tableName": "customers",
+          "recordId": "{{currentCustomerId}}",
+          "metadata": {
+            "processedAt": "{{now}}",
+            "statusUpdated": true
+          }
+        }
+      },
+      "nextSteps": {}
+    }
+  ]
+}

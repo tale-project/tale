@@ -8,6 +8,7 @@ import type { MutationCtx } from '../../_generated/server';
 import type { StepConfig } from '../../workflow_engine/types/nodes';
 import type { WorkflowConfig, WorkflowType } from './types';
 
+import { computeStepOrder } from '../../workflow_engine/helpers/graph/compute_step_order';
 import { validateWorkflowSteps } from '../../workflow_engine/helpers/validation/validate_workflow_steps';
 
 export interface SaveWorkflowWithStepsArgs {
@@ -23,7 +24,6 @@ export interface SaveWorkflowWithStepsArgs {
     stepSlug: string;
     name: string;
     stepType: Doc<'wfStepDefs'>['stepType'];
-    order: number;
     config: StepConfig;
     nextSteps: Record<string, string>;
   }>;
@@ -53,6 +53,9 @@ export async function saveWorkflowWithSteps(
   if (existing.status !== 'draft') {
     throw new Error('Cannot modify a non-draft workflow');
   }
+
+  // Auto-compute step order from the nextSteps graph
+  const orderMap = computeStepOrder(args.stepsConfig);
 
   // Update workflow config/metadata
   await ctx.db.patch(args.workflowId, {
@@ -87,7 +90,7 @@ export async function saveWorkflowWithSteps(
         stepSlug: stepConfig.stepSlug,
         name: stepConfig.name,
         stepType: stepConfig.stepType,
-        order: stepConfig.order,
+        order: orderMap.get(stepConfig.stepSlug) ?? 0,
         config: stepConfig.config,
         nextSteps: stepConfig.nextSteps,
         organizationId: args.organizationId,

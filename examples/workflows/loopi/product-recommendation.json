@@ -1,0 +1,310 @@
+{
+  "workflowConfig": {
+    "name": "Product Recommendation",
+    "description": "Generate AI-powered product recommendations for active customers based on their subscription history and product relationships",
+    "workflowType": "predefined",
+    "version": "2.0.0",
+    "config": {
+      "timeout": 300000,
+      "retryPolicy": { "maxRetries": 2, "backoffMs": 3000 },
+      "variables": {
+        "organizationId": "org_demo",
+        "workflowId": "product-recommendation",
+        "backoffHours": 168
+      }
+    }
+  },
+  "stepsConfig": [
+    {
+      "stepSlug": "start",
+      "name": "start",
+      "stepType": "start",
+      "config": {},
+      "nextSteps": { "success": "find_unprocessed_customer" }
+    },
+    {
+      "stepSlug": "find_unprocessed_customer",
+      "name": "Find One Unprocessed Customer",
+      "stepType": "action",
+      "config": {
+        "type": "workflow_processing_records",
+        "parameters": {
+          "operation": "find_unprocessed",
+          "tableName": "customers",
+          "backoffHours": "{{backoffHours}}"
+        }
+      },
+      "nextSteps": {
+        "success": "check_has_customer"
+      }
+    },
+    {
+      "stepSlug": "check_has_customer",
+      "name": "Check if Customer Found",
+      "stepType": "condition",
+      "config": {
+        "expression": "steps.find_unprocessed_customer.output.data != null",
+        "description": "Check if we found an unprocessed customer"
+      },
+      "nextSteps": {
+        "true": "extract_customer_data",
+        "false": "noop"
+      }
+    },
+    {
+      "stepSlug": "extract_customer_data",
+      "name": "Extract Customer Data",
+      "stepType": "action",
+      "config": {
+        "type": "set_variables",
+        "parameters": {
+          "variables": [
+            {
+              "name": "currentCustomer",
+              "value": "{{steps.find_unprocessed_customer.output.data}}"
+            },
+            {
+              "name": "currentCustomerId",
+              "value": "{{steps.find_unprocessed_customer.output.data._id}}"
+            },
+            {
+              "name": "currentCustomerName",
+              "value": "{{steps.find_unprocessed_customer.output.data.name}}"
+            },
+            {
+              "name": "currentCustomerEmail",
+              "value": "{{steps.find_unprocessed_customer.output.data.email}}"
+            },
+            {
+              "name": "currentCustomerStatus",
+              "value": "{{steps.find_unprocessed_customer.output.data.status}}"
+            },
+            {
+              "name": "customerProductIds",
+              "value": "{{steps.find_unprocessed_customer.output.data.metadata.subscriptions.data|map(\"product_id\")|unique}}"
+            },
+            {
+              "name": "customerProductCount",
+              "value": "{{customerProductIds|length}}"
+            }
+          ]
+        }
+      },
+      "nextSteps": {
+        "success": "check_customer_active"
+      }
+    },
+    {
+      "stepSlug": "check_customer_active",
+      "name": "Check if Customer is Active",
+      "stepType": "condition",
+      "config": {
+        "expression": "currentCustomerStatus == \"active\"",
+        "description": "Only process active customers"
+      },
+      "nextSteps": {
+        "true": "check_has_subscriptions",
+        "false": "record_processed"
+      }
+    },
+    {
+      "stepSlug": "check_has_subscriptions",
+      "name": "Check Has Subscriptions",
+      "stepType": "condition",
+      "config": {
+        "expression": "customerProductCount > 0",
+        "description": "Check if customer has any product subscriptions"
+      },
+      "nextSteps": {
+        "true": "filter_customer_products",
+        "false": "record_processed"
+      }
+    },
+    {
+      "stepSlug": "filter_customer_products",
+      "name": "Filter Customer Products",
+      "stepType": "action",
+      "config": {
+        "type": "product",
+        "parameters": {
+          "operation": "filter",
+          "expression": "metadata.circuly.variants|map(\"shop_variant_id\")|hasOverlap({{customerProductIds}})"
+        }
+      },
+      "nextSteps": {
+        "success": "compose_prompts"
+      }
+    },
+    {
+      "stepSlug": "compose_prompts",
+      "name": "Compose LLM Prompts",
+      "stepType": "action",
+      "config": {
+        "type": "set_variables",
+        "parameters": {
+          "variables": [
+            {
+              "name": "llmSystemPrompt",
+              "value": "You are an expert product recommendation engine for a subscription-based baby product rental service. Analyze the customer's current subscriptions and product relationships to recommend relevant products they might be interested in.\n\n\t\u26a0\ufe0f CRITICAL REQUIREMENT: You MUST provide EXACTLY 5 product recommendations. This is non-negotiable. If you don't have 5 recommendations from relationships, you MUST use the product_read tool with operation = 'list' to browse and find more products.\n\n\tYou have access to one unified product tool:\n\t- 'product_read'\n\t  - Use operation = 'get_by_id' to look up product details by productId (supports 'fields' selection to return only needed fields)\n\t  - Use operation = 'list' to list all available products with pagination (MUST USE if relationships give < 5 products)\n\nRECOMMENDATION STRATEGY:\n1. PRIORITY 1: Use relationship metadata from customer's current products\n   - Look for relationships with confidence > 0.5 (lowered threshold for more options)\n   - Use product_get to get full details of related products\n   - Prefer \"Complementary\", \"Upgrade\", and \"Bundle\" relationship types\n   - CRITICAL: Verify stock > 0 before including any product\n\n2. PRIORITY 2: MANDATORY - If relationship products are insufficient (< 5 recommendations)\n   - You MUST immediately call list_products to browse all available products\n   - Look for products in relevant categories based on customer's current products\n   - Consider products that would naturally complement their subscriptions\n   - CRITICAL: Only recommend products with stock > 0\n   - Continue browsing with pagination until you have EXACTLY 5 total recommendations\n   - DO NOT STOP until you have 5 recommendations\n\nFocus on:\n- Products with \"Complementary\" relationships to what they already have\n- Products with \"Upgrade\" relationships as the baby grows\n- Products in the \"Bundle\" category for convenience\n- Consider the customer's subscription history and patterns\n- Recommend products that would add value to their current subscriptions\n- MANDATORY: You must provide EXACTLY 5 recommendations with stock > 0\n\nReturn recommendations in JSON format with clear reasoning."
+            },
+            {
+              "name": "llmUserPrompt",
+              "value": "Customer: {{currentCustomerName}} ({{currentCustomerEmail}})\nCustomer ID: {{currentCustomerId}}\nCustomer Status: {{currentCustomerStatus}}\n\nCustomer's Current Products (these are the products they already have subscriptions for):\n{{steps.filter_customer_products.output.data|formatList(\"Product ID: {_id}\\nName: {name}\\nCategory: {category}\\nPrice: \u20ac{price}/month\\nDescription: {description}\\nImage URL: {imageUrl}\\nStock: {stock}\\nStatus: {status}\\nRelationships: {metadata.relationships}\", \"\\n\\n---\\n\\n\")}}\n\nTask:\nGenerate EXACTLY 5 product recommendations for this customer. This is MANDATORY - you must provide 5 recommendations.\n\n\t\u26a0\ufe0f CRITICAL: You MUST use the 'product_read' tool with operation = 'list' if relationships don't give you 5 products. Do NOT return fewer than 5 recommendations. Do NOT say you need to browse more - actually call the product_read tool and browse until you have 5 recommendations.\n\nSTEP 1 - PRIORITY: Use Relationship Metadata (PREFERRED)\n1. Examine the relationships metadata in each of the customer's current products\n2. Identify relationships with confidence > 0.5 (lowered threshold) and types: \"Complementary\", \"Upgrade\", or \"Bundle\"\n\t3. Use the 'product_read' tool with operation = 'get_by_id' to look up each related product by its productId\n4. CRITICAL: Verify the product has stock > 0 (reject if stock is 0 or undefined)\n5. Add these to your recommendations list\n\nSTEP 2 - MANDATORY FALLBACK: Browse All Products\n\tIf you have fewer than 5 recommendations from relationships, you MUST immediately:\n\t1. Call 'product_read' tool with these parameters:\n\t   - operation: 'list'\n   - fields: ['_id', 'name', 'description', 'price', 'currency', 'status', 'category', 'imageUrl', 'stock']\n   - numItems: 100 (to get a good selection)\n2. Review the returned products and identify ones with stock > 0 that complement the customer's subscriptions\n\t3. For each suitable product, call 'product_read' with operation = 'get_by_id' to get full details\n4. Add products to your recommendations list until you have EXACTLY 5 total\n\t5. If the first page doesn't have enough products with stock > 0:\n\t   - Call 'product_read' again with operation = 'list' and the cursor from pagination.cursor\n   - Continue until you have 5 recommendations\n6. DO NOT STOP until you have exactly 5 recommendations with stock > 0\n\nEXAMPLE WORKFLOW:\n- Found 1 product from relationships \u2192 Need 4 more\n\t- Call product_read with operation = 'list' (no cursor, numItems: 100)\n- Review products, find 3 with stock > 0 that fit\n- Call product_get for each of those 3 products\n- Add to recommendations (now have 4 total)\n\t- Still need 1 more \u2192 Call product_read again with operation = 'list' and cursor from previous response\n- Find 1 more product with stock > 0\n- Call product_get for it\n- Add to recommendations (now have 5 total) \u2192 DONE\n\nIMPORTANT RULES:\n- YOU MUST PROVIDE EXACTLY 5 RECOMMENDATIONS - this is non-negotiable\n- EVERY recommended product MUST have stock > 0 (this is critical)\n- Relationship-based recommendations should ALWAYS be prioritized over browsed products\n\t- Use product_read tool with operation = 'get_by_id' to get full details before including any product in recommendations\n\t- When calling product_read with operation = 'get_by_id', include fields: ['_id', 'name', 'description', 'price', 'currency', 'status', 'category', 'imageUrl', 'stock']\n\t- Mandatory finalization: For EACH final recommendation, call product_read with operation = 'get_by_id' for that productId with the fields above and use the returned values in your JSON output. Do not skip this step.\n- Do not limit fields to only 'metadata' in the final call; ensure 'imageUrl' is included.\n- Do NOT recommend products the customer already has\n- Ensure all recommended products are active and have stock > 0\n\t- Extract the imageUrl field from the product data returned by product_read tool (operation = 'get_by_id')\n- Provide clear reasoning for each recommendation\n\t- If you cannot find 5 products with stock > 0, keep browsing with product_read (operation = 'list') until you do\n\nCONFIDENCE SCORING RULES:\nCalculate a confidence score (0.0 to 1.0) for each recommendation based on:\n1. Source Quality:\n   - Relationship metadata with confidence > 0.8: Use original confidence score (0.8-1.0)\n   - Relationship metadata with confidence 0.6-0.8: Use original confidence score (0.6-0.8)\n   - Relationship metadata with confidence 0.5-0.6: Use original confidence score (0.5-0.6)\n   - Browsed products (from list_products): Start at 0.5 and adjust based on relevance\n2. Relevance Factors (adjust \u00b10.1 each):\n   - Same category as customer's products: +0.1\n   - Price range similar to customer's products: +0.05\n   - Complementary relationship type: +0.1\n   - Upgrade relationship type: +0.05\n3. Final Score:\n   - Cap at 1.0 maximum\n   - Minimum 0.3 for any recommendation\n   - Each recommendation should have a UNIQUE confidence score reflecting its individual strength\n   - DO NOT assign the same confidence score to multiple products unless they truly have identical relevance\n\nReturn JSON format:\n{\n  \"recommendations\": [\n    {\n      \"productId\": \"CONVEX_PRODUCT_ID (use the _id field from product data)\",\n      \"productName\": \"Product Name (use the name field from product data)\",\n      \"imageUrl\": \"Image URL (use the imageUrl field from product data)\",\n      \"relationshipType\": \"Complementary|Upgrade|Bundle|Substitute\",\n      \"reasoning\": \"Clear explanation of why this product is recommended for this customer\",\n      \"confidence\": 0.87\n    },\n    {\n      \"productId\": \"ANOTHER_PRODUCT_ID\",\n      \"productName\": \"Another Product Name\",\n      \"imageUrl\": \"Another Image URL\",\n      \"relationshipType\": \"Upgrade\",\n      \"reasoning\": \"Different reasoning for this product\",\n      \"confidence\": 0.75\n    }\n  ],\n  \"summary\": \"Brief summary of recommendation strategy and sources used\"\n}\n\nIMPORTANT: Each recommendation must have a thoughtfully calculated confidence score that reflects:\n- The strength of the relationship or relevance\n- How well it matches the customer's needs\n- The source of the recommendation (relationship metadata vs browsed)\nDO NOT use the same confidence score for all recommendations."
+            }
+          ]
+        }
+      },
+      "nextSteps": {
+        "success": "generate_recommendations"
+      }
+    },
+    {
+      "stepSlug": "generate_recommendations",
+      "name": "Generate AI Product Recommendations",
+      "stepType": "llm",
+      "config": {
+        "name": "Product Recommendation Generator",
+        "outputFormat": "json",
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "recommendations": {
+              "type": "array",
+              "description": "List of 5 recommended products",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "productId": {
+                    "type": "string",
+                    "description": "The unique product identifier from the database"
+                  },
+                  "productName": {
+                    "type": "string",
+                    "description": "Name of the product"
+                  },
+                  "imageUrl": {
+                    "type": "string",
+                    "description": "URL of the product image"
+                  },
+                  "relationshipType": {
+                    "type": "string",
+                    "description": "Type of relationship: Complementary, Upgrade, Bundle, or Substitute"
+                  },
+                  "reasoning": {
+                    "type": "string",
+                    "description": "Why this product is recommended"
+                  },
+                  "confidence": {
+                    "type": "number",
+                    "description": "Confidence score between 0.3 and 1.0"
+                  }
+                },
+                "required": [
+                  "productId",
+                  "productName",
+                  "relationshipType",
+                  "reasoning",
+                  "confidence"
+                ]
+              }
+            },
+            "summary": {
+              "type": "string",
+              "description": "Brief summary of recommendation strategy and sources used"
+            }
+          },
+          "required": ["recommendations", "summary"],
+          "additionalProperties": false
+        },
+        "tools": ["product_read"],
+        "systemPrompt": "{{llmSystemPrompt}}",
+        "userPrompt": "{{llmUserPrompt}}"
+      },
+      "nextSteps": {
+        "success": "hydrate_recommendations"
+      }
+    },
+    {
+      "stepSlug": "hydrate_recommendations",
+      "name": "Hydrate Recommendation Data",
+      "stepType": "action",
+      "config": {
+        "type": "product",
+        "parameters": {
+          "operation": "hydrate_fields",
+          "items": "{{steps.generate_recommendations.output.data.recommendations}}",
+          "idField": "productId",
+          "mappings": {
+            "imageUrl": "imageUrl",
+            "productName": "name"
+          },
+          "preserveExisting": true
+        }
+      },
+      "nextSteps": {
+        "success": "check_has_recommendations"
+      }
+    },
+    {
+      "stepSlug": "check_has_recommendations",
+      "name": "Check Has Recommendations",
+      "stepType": "condition",
+      "config": {
+        "expression": "steps.hydrate_recommendations.output.data|length > 0",
+        "description": "Check if AI generated any recommendations for this customer"
+      },
+      "nextSteps": {
+        "true": "create_approval",
+        "false": "record_processed"
+      }
+    },
+    {
+      "stepSlug": "create_approval",
+      "name": "Create Approval for Product Recommendations",
+      "stepType": "action",
+      "config": {
+        "type": "approval",
+        "parameters": {
+          "operation": "create_approval",
+          "resourceType": "product_recommendation",
+          "resourceId": "{{currentCustomerId}}",
+          "priority": "medium",
+          "description": "AI-generated product recommendations for {{currentCustomerName}}",
+          "metadata": {
+            "customerId": "{{currentCustomerId}}",
+            "customerName": "{{currentCustomerName}}",
+            "customerEmail": "{{currentCustomerEmail}}",
+            "recommendedProducts": "{{steps.hydrate_recommendations.output.data}}",
+            "summary": "{{steps.generate_recommendations.output.data.summary}}",
+            "generatedAt": "{{now}}",
+            "workflowId": "{{rootWfDefinitionId}}"
+          }
+        }
+      },
+      "nextSteps": {
+        "success": "record_processed"
+      }
+    },
+    {
+      "stepSlug": "record_processed",
+      "name": "Record Customer as Processed",
+      "stepType": "action",
+      "config": {
+        "type": "workflow_processing_records",
+        "parameters": {
+          "operation": "record_processed",
+          "tableName": "customers",
+          "recordId": "{{currentCustomerId}}",
+          "metadata": {
+            "recommendationsGenerated": "{{steps.hydrate_recommendations.output.data|length}}",
+            "processedAt": "{{now}}",
+            "customerStatus": "{{currentCustomerStatus}}"
+          }
+        }
+      },
+      "nextSteps": {
+        "success": "noop"
+      }
+    }
+  ]
+}

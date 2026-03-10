@@ -58,7 +58,6 @@ workflow_examples(operation='get_syntax_reference', category='start|llm|action|c
             .describe(
               'New step type. Options: start (workflow entry point, optional inputSchema), llm (AI agent with tools), action (database/API operations), condition (branching logic), loop (iterate over collections)',
             ),
-          order: z.number().optional().describe('New order number'),
           config: z
             .any()
             .optional()
@@ -123,7 +122,7 @@ workflow_examples(operation='get_syntax_reference', category='start|llm|action|c
             if (/[\x00-\x1F\x7F]/.test(key) || key.length > 50) {
               // Try to extract common field names from descriptive keys
               const fieldNameMatch = key.match(
-                /^(config|userPrompt|systemPrompt|name|parameters|type|nextSteps|order|stepType)/i,
+                /^(config|userPrompt|systemPrompt|name|parameters|type|nextSteps|stepType)/i,
               );
               if (fieldNameMatch) {
                 // Normalize to proper camelCase

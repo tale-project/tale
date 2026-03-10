@@ -42,12 +42,22 @@ export async function createStep(
     }
   }
 
+  let maxOrder = 0;
+  for await (const step of ctx.db
+    .query('wfStepDefs')
+    .withIndex('by_definition', (q) =>
+      q.eq('wfDefinitionId', args.wfDefinitionId),
+    )) {
+    if (step.order > maxOrder) maxOrder = step.order;
+  }
+  const order = maxOrder + 1;
+
   return await ctx.db.insert('wfStepDefs', {
     wfDefinitionId: args.wfDefinitionId,
     stepSlug: args.stepSlug,
     name: args.name,
     stepType: args.stepType,
-    order: args.order,
+    order,
     config: args.config,
     nextSteps: args.nextSteps,
     organizationId: args.organizationId,

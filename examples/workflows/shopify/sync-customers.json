@@ -1,0 +1,173 @@
+{
+  "workflowConfig": {
+    "name": "Shopify Customers Sync",
+    "description": "Synchronize customers from Shopify to local database with pagination",
+    "version": "3.0.0",
+    "workflowType": "predefined",
+    "config": {
+      "timeout": 300000,
+      "retryPolicy": { "maxRetries": 3, "backoffMs": 2000 },
+      "variables": {
+        "organizationId": "org_demo",
+        "pageSize": 50,
+        "maxPages": 20,
+        "currentPage": 0,
+        "nextPageInfo": null
+      }
+    }
+  },
+  "stepsConfig": [
+    {
+      "stepSlug": "trigger_start",
+      "name": "Start Customers Sync",
+      "stepType": "start",
+      "config": {},
+      "nextSteps": { "success": "fetch_customers" }
+    },
+    {
+      "stepSlug": "fetch_customers",
+      "name": "Fetch Customers from Shopify",
+      "stepType": "action",
+      "config": {
+        "type": "integration",
+        "parameters": {
+          "name": "shopify",
+          "operation": "list_customers",
+          "params": {
+            "limit": "{{pageSize}}",
+            "page_info": "{{nextPageInfo}}"
+          }
+        }
+      },
+      "nextSteps": {
+        "success": "loop_customers"
+      }
+    },
+    {
+      "stepSlug": "loop_customers",
+      "name": "Loop Through Customers",
+      "stepType": "loop",
+      "config": {
+        "items": "{{steps.fetch_customers.output.data.result.data}}",
+        "itemVariable": "customer"
+      },
+      "nextSteps": {
+        "loop": "query_existing_customer",
+        "done": "check_has_next_page"
+      }
+    },
+    {
+      "stepSlug": "query_existing_customer",
+      "name": "Query Existing Customer",
+      "stepType": "action",
+      "config": {
+        "type": "customer",
+        "parameters": {
+          "operation": "query",
+          "externalId": "{{loop.item.id}}",
+          "paginationOpts": {
+            "numItems": 1,
+            "cursor": null
+          }
+        }
+      },
+      "nextSteps": {
+        "success": "check_customer_exists"
+      }
+    },
+    {
+      "stepSlug": "check_customer_exists",
+      "name": "Check Customer Exists",
+      "stepType": "condition",
+      "config": {
+        "expression": "steps.query_existing_customer.output.data.items|length > 0",
+        "description": "Check if customer already exists in database"
+      },
+      "nextSteps": {
+        "true": "update_existing_customer",
+        "false": "insert_new_customer"
+      }
+    },
+    {
+      "stepSlug": "update_existing_customer",
+      "name": "Update Existing Customer",
+      "stepType": "action",
+      "config": {
+        "type": "customer",
+        "parameters": {
+          "operation": "update",
+          "customerId": "{{steps.query_existing_customer.output.data.items[0]._id}}",
+          "updates": {
+            "name": "{{loop.item.first_name}} {{loop.item.last_name}}",
+            "email": "{{loop.item.email}}",
+            "metadata": {
+              "shopify": "{{loop.item}}",
+              "syncedAt": "{{now}}"
+            }
+          }
+        }
+      },
+      "nextSteps": {
+        "success": "loop_customers"
+      }
+    },
+    {
+      "stepSlug": "insert_new_customer",
+      "name": "Insert New Customer",
+      "stepType": "action",
+      "config": {
+        "type": "customer",
+        "parameters": {
+          "operation": "create",
+          "name": "{{loop.item.first_name}} {{loop.item.last_name}}",
+          "email": "{{loop.item.email}}",
+          "externalId": "{{loop.item.id}}",
+          "source": "shopify",
+          "metadata": {
+            "shopify": "{{loop.item}}",
+            "syncedAt": "{{now}}"
+          }
+        }
+      },
+      "nextSteps": {
+        "success": "loop_customers"
+      }
+    },
+    {
+      "stepSlug": "check_has_next_page",
+      "name": "Check Has Next Page",
+      "stepType": "condition",
+      "config": {
+        "expression": "steps.fetch_customers.output.data.result.pagination.hasNextPage == true && currentPage < maxPages",
+        "description": "Check if Shopify has more pages and we have not exceeded max page limit"
+      },
+      "nextSteps": {
+        "true": "prepare_next_page",
+        "false": "noop"
+      }
+    },
+    {
+      "stepSlug": "prepare_next_page",
+      "name": "Prepare Next Page",
+      "stepType": "action",
+      "config": {
+        "type": "set_variables",
+        "parameters": {
+          "variables": [
+            {
+              "name": "currentPage",
+              "value": "{{currentPage + 1}}"
+            },
+            {
+              "name": "nextPageInfo",
+              "value": "{{steps.fetch_customers.output.data.result.pagination.nextPageInfo}}"
+            }
+          ]
+        }
+      },
+      "nextSteps": {
+        "success": "fetch_customers"
+      }
+    }
+  ]
+}

@@ -15,7 +15,6 @@
       "stepSlug": "start",
       "name": "Start",
       "stepType": "start",
-      "order": 1,
       "config": {
         "inputSchema": {
           "properties": {
@@ -31,7 +30,6 @@
       "stepSlug": "init_variables",
       "name": "Initialize Variables",
       "stepType": "action",
-      "order": 2,
       "config": {
         "type": "set_variables",
         "parameters": {
@@ -65,7 +63,6 @@
       "stepSlug": "loop_comparison_files",
       "name": "Loop: Compare Adjacent Versions",
       "stepType": "loop",
-      "order": 3,
       "config": {
         "items": "{{filesToCompare}}",
         "itemVariable": "item"
@@ -79,7 +76,6 @@
       "stepSlug": "index_base_doc",
       "name": "Index Base Version in RAG",
       "stepType": "action",
-      "order": 4,
       "config": {
         "type": "rag",
         "parameters": {
@@ -95,7 +91,6 @@
       "stepSlug": "index_comparison_doc",
       "name": "Index Comparison Version in RAG",
       "stepType": "action",
-      "order": 5,
       "config": {
         "type": "rag",
         "parameters": {
@@ -111,7 +106,6 @@
       "stepSlug": "compare_documents",
       "name": "Compare Documents (Deterministic Diff)",
       "stepType": "action",
-      "order": 6,
       "config": {
         "type": "document",
         "parameters": {
@@ -127,7 +121,6 @@
       "stepSlug": "analyze_differences",
       "name": "Analyze Differences with Change Detection",
       "stepType": "llm",
-      "order": 7,
       "config": {
         "name": "Contract Difference Analyzer",
         "systemPrompt": "You are an expert analyst specializing in structured contract comparison.\n\nYou receive deterministic paragraph-level diff output between two sequential contract versions.\n\nYour role is to identify and describe changes factually, without providing legal advice.\n\nYour analysis must follow a strict process:\n\nSTEP 1 — Identify the type of change before interpreting it.\nTextual change does not necessarily equal legal change.\n\nSTEP 2 — Classify every change into exactly one category:\n\nEditorial\nWording changes without material legal effect.\nExamples:\n- grammar adjustments\n- gendered wording changes (e.g., Verkäufer → Verkäuferin)\n- stylistic wording changes\n- clarifying phrases that do not alter obligations\nExample: changing \"shall indemnify for losses\" to \"shall hold harmless against damages\" — same legal effect, different words.\nExample: adding \"(including its subsidiaries)\" where the definition section already covers subsidiaries.\n\nStructural\nReorganization without substantive modification.\nExamples:\n- clause renumbering\n- section relocation\n- splitting or merging clauses\n- cross-reference updates\nExample: splitting Section 7 (Liability) into Sections 7, 8, and 9 with the same content redistributed.\n\nSubstantive\nMaterial modification to legal rights, obligations, or risk allocation.\nExamples:\n- new obligations\n- removed protections\n- modified liability caps or thresholds\n- introduction of new mechanisms (earn-out, non-compete, locked-box)\n- changes to limitation periods\nExample: adding \"material\" before \"breach\" raises the threshold — this is Substantive, not Editorial.\n\nIf a structural change also alters legal rights, classify it as Substantive.\n\nIMPORTANT INTERPRETATION RULES\n\nDo NOT assume legal significance from wording changes alone.\n\nGender changes alone are normally Editorial unless the contracting party itself changes. Example: \"Verkäuferin\" → \"Verkäufer\" is Editorial unless surrounding context establishes an actual change of contracting party.\n\nIf similar language appears elsewhere in the document, consider the possibility of clause relocation rather than deletion. Flag as: \"Possible relocation — verify whether this provision was moved rather than deleted.\"\n\nWhen uncertainty exists, describe the ambiguity rather than asserting a definitive conclusion.\n\nDo not produce empty Clause Reference cells. Always provide a descriptive label if a section number is unavailable.\n\nSome change items include an `inline_diff` field with `[-deleted-]` and `{+added+}` markers showing exact word-level changes. Some include a `clause_ref` field with the extracted section reference. Use these to inform your classification and description — reference specific wording from inline_diff markers rather than describing generically.\n\nORGANIZATION\n\nGroup related rows under clause family headings using:\n\n### Clause Family Name\n\nUse common clause families such as:\n\nDefinitions\nPurchase Price\nClosing\nConditions Precedent\nRepresentations and Warranties\nIndemnification\nLimitation of Liability\nTax\nCovenants\nNon-Compete\nConfidentiality\nTermination\nGeneral Provisions\nAnnexes\n\nIf a clause does not fit any of these, create a descriptive heading. Use identical heading names across transitions for the same clause family.\n\nHEADING LEVELS: Use ### for clause type headings. This is the only heading level you may use.\n\nOUTPUT FORMAT\n\nUnder each heading produce a table with exactly four columns:\n\n| Clause Reference | Change Type | Description | Potential Implications |\n\nColumn rules:\n\nClause Reference\nUse the extracted section reference when available.\nIf none exists, create a descriptive reference (e.g., \"Preamble\", \"Recital B\", \"Definition: Business Day\").\n\nChange Type\nMust be exactly one of:\nEditorial\nStructural\nSubstantive\n\nDescription\n1–2 factual sentences explaining what changed.\nReference specific wording from inline_diff markers when available.\n\nPotential Implications\nEditorial / Structural → state \"No material change.\"\nSubstantive → explain what the change may affect using cautious language such as:\n\"may affect\"\n\"could shift\"\n\"appears to modify\"\n\"a reviewer should assess whether\"\nNever present uncertain interpretations as established facts.\n\nLANGUAGE\n\nIf a language parameter is provided, produce all output in that language.\nOtherwise detect language from the document.\n\nThe Change Type values themselves must remain in English:\nEditorial / Structural / Substantive.\n\nADDITIONAL RULES\n\n1. Potential Implications must be exactly one concise sentence.\n2. For Editorial and Structural changes, always write: \"No material change.\"\n3. Do not infer negotiation leverage, bargaining power, or party intent from a single clause change.\n4. If the legal impact is uncertain, explicitly state the ambiguity rather than choosing a definitive interpretation.",
@@ -140,7 +133,6 @@
       "stepSlug": "summarize_transition",
       "name": "Summarize Version Transition",
       "stepType": "llm",
-      "order": 8,
       "config": {
         "name": "Transition Summary Analyst",
         "systemPrompt": "You are a transaction analyst. Given a detailed change analysis between two contract versions, produce a concise summary of how the contract evolved in this transition. Focus on:\n- What negotiation positions appear to have shifted\n- How risk allocation may have changed between parties\n- Whether new deal mechanisms were introduced or removed (e.g., earn-out, escrow, locked-box, MAC clauses, non-compete)\n- The overall direction of the negotiation (tightening, loosening, converging)\n\nUse hedged language for interpretive conclusions (\"appears to\", \"may indicate\", \"suggests\"). Write 3-5 sentences maximum. Write in the language specified by the language parameter. If no language parameter is provided or empty, write in the same language as the source documents.\n\nAt the very end, append a single statistics line in this exact format:\nChanges: X Substantive, Y Editorial, Z Structural\n\nCount the rows in each Change Type column from the markdown tables in the input. This line must always be in English regardless of the output language.",
@@ -153,7 +145,6 @@
       "stepSlug": "accumulate_results",
       "name": "Accumulate Comparison Results",
       "stepType": "action",
-      "order": 9,
       "config": {
         "type": "set_variables",
         "parameters": {
@@ -175,7 +166,6 @@
       "stepSlug": "generate_overview",
       "name": "Generate Executive Insights",
       "stepType": "llm",
-      "order": 10,
       "config": {
         "name": "Contract Comparison Executive Insights",
         "systemPrompt": "You are a transaction analyst generating executive insights for a contract version comparison report.\n\nYour analysis should tell the story of how a transaction evolved through its negotiation — not merely summarize statistics.\n\nFocus on negotiation dynamics. Clearly distinguish between data-backed observations and interpretive conclusions.\n\nUse cautious language for uncertain inferences:\n\"appears to\"\n\"may suggest\"\n\"could indicate\"\n\nDo not present speculation as fact.\n\nWrite in the language specified by the language parameter. If no language parameter is provided or empty, write in the same language as the source documents.\n\nStructure your output with these exact section headings:\n\n### Negotiation Arc\n2-3 paragraphs describing how the transaction evolved across versions.\n\n### Risk Allocation Shifts\n1-2 paragraphs on how risk moved between parties.\n\n### Key Findings\n4-6 specific, data-backed bullet points referencing clause types and version transitions.\n\nADDITIONAL RULES\n\n1. Do not describe risk allocation as one-sided if the pattern is mixed across economic and legal provisions.\n2. Prefer observations about clause families and transaction structure over conclusions about which party \"won\" the negotiation.",
@@ -188,7 +178,6 @@
       "stepSlug": "generate_report",
       "name": "Generate DOCX Report",
       "stepType": "action",
-      "order": 11,
       "config": {
         "type": "document",
         "parameters": {
@@ -204,7 +193,6 @@
       "stepSlug": "output",
       "name": "Output Results",
       "stepType": "output",
-      "order": 12,
       "config": {
         "outputMapping": {
           "fileStorageId": "{{steps.generate_report.output.data.fileStorageId}}",

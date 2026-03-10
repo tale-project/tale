@@ -1,0 +1,89 @@
+{
+  "workflowConfig": {
+    "name": "Document RAG Sync",
+    "description": "Find one unprocessed document and upload it to RAG service",
+    "version": "1.0.0",
+    "workflowType": "predefined",
+    "config": {
+      "timeout": 120000,
+      "retryPolicy": { "maxRetries": 3, "backoffMs": 2000 },
+      "variables": {
+        "organizationId": "org_demo",
+        "backoffHours": 72,
+        "includeMetadata": true,
+        "workflowId": "document_rag_sync"
+      }
+    }
+  },
+  "stepsConfig": [
+    {
+      "stepSlug": "start",
+      "name": "start",
+      "stepType": "start",
+      "config": {},
+      "nextSteps": { "success": "find_unprocessed_document" }
+    },
+    {
+      "stepSlug": "find_unprocessed_document",
+      "name": "Find Unprocessed Document",
+      "stepType": "action",
+      "config": {
+        "type": "workflow_processing_records",
+        "parameters": {
+          "operation": "find_unprocessed",
+          "tableName": "documents",
+          "backoffHours": "{{backoffHours}}"
+        }
+      },
+      "nextSteps": {
+        "success": "check_document_found"
+      }
+    },
+    {
+      "stepSlug": "check_document_found",
+      "name": "Check Document Found",
+      "stepType": "condition",
+      "config": {
+        "expression": "steps.find_unprocessed_document.output.data != null",
+        "description": "Check if any unprocessed document was found"
+      },
+      "nextSteps": {
+        "true": "upload_to_rag",
+        "false": "noop"
+      }
+    },
+    {
+      "stepSlug": "upload_to_rag",
+      "name": "Upload to RAG",
+      "stepType": "action",
+      "config": {
+        "type": "rag",
+        "parameters": {
+          "operation": "upload_document",
+          "fileId": "{{steps.find_unprocessed_document.output.data.fileId}}",
+          "fileName": "{{steps.find_unprocessed_document.output.data.title}}",
+          "contentType": "{{steps.find_unprocessed_document.output.data.mimeType}}"
+        }
+      },
+      "nextSteps": {
+        "success": "record_processed"
+      }
+    },
+    {
+      "stepSlug": "record_processed",
+      "name": "Record Processed",
+      "stepType": "action",
+      "config": {
+        "type": "workflow_processing_records",
+        "parameters": {
+          "operation": "record_processed",
+          "tableName": "documents",
+          "recordId": "{{steps.find_unprocessed_document.output.data._id}}"
+        }
+      },
+      "nextSteps": {
+        "success": "noop"
+      }
+    }
+  ]
+}

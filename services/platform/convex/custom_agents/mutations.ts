@@ -82,8 +82,8 @@ async function validateWorkflowBindings(
   ctx: MutationCtx,
   workflowBindings: Id<'wfDefinitions'>[] | undefined,
   organizationId: string,
-) {
-  if (!workflowBindings?.length) return;
+): Promise<Id<'wfDefinitions'>[] | undefined> {
+  if (!workflowBindings?.length) return workflowBindings;
 
   if (workflowBindings.length > MAX_WORKFLOW_BINDINGS) {
     throw new Error(
@@ -91,17 +91,18 @@ async function validateWorkflowBindings(
     );
   }
 
+  const valid: Id<'wfDefinitions'>[] = [];
   for (const wfId of workflowBindings) {
     const wf = await ctx.db.get(wfId);
-    if (!wf) {
-      throw new Error(`Workflow "${wfId}" not found`);
-    }
+    if (!wf) continue;
     if (wf.organizationId !== organizationId) {
       throw new Error(
         `Workflow "${wf.name}" does not belong to this organization`,
       );
     }
+    valid.push(wfId);
   }
+  return valid.length ? valid : undefined;
 }
 
 type RetrievalMode = 'off' | 'tool' | 'context' | 'both';
@@ -241,7 +242,7 @@ export const createCustomAgent = mutation({
 
     validateToolNames(args.toolNames);
     validateModelId(args.modelId);
-    await validateWorkflowBindings(
+    const validatedWorkflowBindings = await validateWorkflowBindings(
       ctx,
       args.workflowBindings,
       args.organizationId,
@@ -251,7 +252,12 @@ export const createCustomAgent = mutation({
       throw new Error('System instructions cannot be empty');
     }
 
-    const { organizationId, toolNames, ...agentFields } = args;
+    const {
+      organizationId,
+      toolNames,
+      workflowBindings: _,
+      ...agentFields
+    } = args;
 
     // Sync tool list based on retrieval modes
     const syncUpdate: Record<string, unknown> = { toolNames };
@@ -272,6 +278,7 @@ export const createCustomAgent = mutation({
     const agentId = await ctx.db.insert('customAgents', {
       organizationId,
       ...agentFields,
+      workflowBindings: validatedWorkflowBindings,
       toolNames: syncedToolNames,
       knowledgeEnabled: args.knowledgeMode
         ? args.knowledgeMode !== 'off'
@@ -324,7 +331,7 @@ export const updateCustomAgent = mutation({
       validateToolNames(args.toolNames);
     }
     validateModelId(args.modelId);
-    await validateWorkflowBindings(
+    const validatedWorkflowBindings = await validateWorkflowBindings(
       ctx,
       args.workflowBindings,
       draft.organizationId,
@@ -342,11 +349,20 @@ export const updateCustomAgent = mutation({
       throw new Error('Agent not accessible');
     }
 
-    const { customAgentId: _, teamId, ...otherFields } = args;
+    const {
+      customAgentId: _,
+      teamId,
+      workflowBindings: __,
+      ...otherFields
+    } = args;
 
     const cleanUpdate: Record<string, unknown> = Object.fromEntries(
       Object.entries(otherFields).filter(([_k, value]) => value !== undefined),
     );
+
+    if (args.workflowBindings !== undefined) {
+      cleanUpdate.workflowBindings = validatedWorkflowBindings;
+    }
 
     if (teamId !== undefined) {
       cleanUpdate.teamId = teamId || undefined;

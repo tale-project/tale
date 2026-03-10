@@ -496,7 +496,7 @@ Use outputMapping to select which variables or step outputs to include. Values s
   "stepSlug": "finish",
   "name": "Return Results",
   "stepType": "output",
-  "order": 6,
+
   "config": {
     "outputMapping": {
       "analysis": "{{steps.analyze.output.data}}",
@@ -514,7 +514,7 @@ Use outputMapping to select which variables or step outputs to include. Values s
   "stepSlug": "finish",
   "name": "Done",
   "stepType": "output",
-  "order": 4,
+
   "config": {},
   "nextSteps": {}
 }

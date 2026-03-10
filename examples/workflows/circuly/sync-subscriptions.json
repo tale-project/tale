@@ -1,0 +1,141 @@
+{
+  "workflowConfig": {
+    "name": "Circuly Subscriptions Sync",
+    "description": "Synchronize subscription data from Circuly to customer metadata with pagination",
+    "version": "2.0.0",
+    "workflowType": "predefined",
+    "config": {
+      "timeout": 600000,
+      "retryPolicy": { "maxRetries": 3, "backoffMs": 2000 },
+      "variables": {
+        "organizationId": "org_demo",
+        "pageSize": 50,
+        "currentCursor": null,
+        "totalProcessed": 0
+      }
+    }
+  },
+  "stepsConfig": [
+    {
+      "stepSlug": "start",
+      "name": "start",
+      "stepType": "start",
+      "config": {},
+      "nextSteps": { "success": "fetch_circuly_customers" }
+    },
+    {
+      "stepSlug": "fetch_circuly_customers",
+      "name": "Fetch Circuly Customers",
+      "stepType": "action",
+      "config": {
+        "type": "customer",
+        "parameters": {
+          "operation": "query",
+          "source": "circuly",
+          "paginationOpts": {
+            "numItems": "{{pageSize}}",
+            "cursor": "{{currentCursor}}"
+          }
+        }
+      },
+      "nextSteps": { "success": "check_customers_found" }
+    },
+    {
+      "stepSlug": "check_customers_found",
+      "name": "Check Customers Found",
+      "stepType": "condition",
+      "config": {
+        "expression": "steps.fetch_circuly_customers.output.data.items|length > 0",
+        "description": "Check if any Circuly customers exist in current page"
+      },
+      "nextSteps": { "true": "loop_customers", "false": "noop" }
+    },
+    {
+      "stepSlug": "loop_customers",
+      "name": "Loop Through Customers",
+      "stepType": "loop",
+      "config": {
+        "items": "{{steps.fetch_circuly_customers.output.data.items}}",
+        "itemVariable": "customer"
+      },
+      "nextSteps": { "loop": "check_has_external_id", "done": "check_has_more_pages" }
+    },
+    {
+      "stepSlug": "check_has_external_id",
+      "name": "Check Has External ID",
+      "stepType": "condition",
+      "config": {
+        "expression": "loop.item.externalId != null && loop.item.externalId != \"\"",
+        "description": "Check if customer has a valid Circuly external ID"
+      },
+      "nextSteps": { "true": "fetch_customer_subscriptions", "false": "loop_customers" }
+    },
+    {
+      "stepSlug": "fetch_customer_subscriptions",
+      "name": "Fetch Customer Subscriptions",
+      "stepType": "action",
+      "config": {
+        "type": "integration",
+        "parameters": {
+          "name": "circuly",
+          "operation": "list_subscriptions",
+          "params": {
+            "customer_id": "{{loop.item.externalId}}",
+            "per_page": 100
+          }
+        }
+      },
+      "nextSteps": { "success": "update_customer_subscriptions" }
+    },
+    {
+      "stepSlug": "update_customer_subscriptions",
+      "name": "Update Customer Subscriptions",
+      "stepType": "action",
+      "config": {
+        "type": "customer",
+        "parameters": {
+          "operation": "update",
+          "customerId": "{{loop.item._id}}",
+          "updates": {
+            "metadata": {
+              "subscriptions": "{{steps.fetch_customer_subscriptions.output.data}}",
+              "subscriptionsSyncedAt": "{{now}}"
+            }
+          }
+        }
+      },
+      "nextSteps": { "success": "loop_customers" }
+    },
+    {
+      "stepSlug": "check_has_more_pages",
+      "name": "Check Has More Pages",
+      "stepType": "condition",
+      "config": {
+        "expression": "steps.fetch_circuly_customers.output.data.isDone == false",
+        "description": "Check if there are more pages of customers to process"
+      },
+      "nextSteps": { "true": "update_cursor_and_fetch_next", "false": "noop" }
+    },
+    {
+      "stepSlug": "update_cursor_and_fetch_next",
+      "name": "Update Cursor and Fetch Next Page",
+      "stepType": "action",
+      "config": {
+        "type": "set_variables",
+        "parameters": {
+          "variables": [
+            {
+              "name": "currentCursor",
+              "value": "{{steps.fetch_circuly_customers.output.data.continueCursor}}"
+            },
+            {
+              "name": "totalProcessed",
+              "value": "{{totalProcessed + steps.fetch_circuly_customers.output.data.items|length}}"
+            }
+          ]
+        }
+      },
+      "nextSteps": { "default": "fetch_circuly_customers" }
+    }
+  ]
+}

@@ -17,6 +17,7 @@ import type {
 } from './types';
 
 import { isRecord } from '../../../../../lib/utils/type-guards';
+import { computeStepOrder } from '../../graph/compute_step_order';
 import { getActionOutputSchema } from './action_schemas';
 import {
   extractStepReferences,
@@ -572,7 +573,13 @@ export function validateWorkflowVariableReferences(
 
   // Build step lookup maps
   const allSteps = new Map<string, StepInfo>();
-  const stepOrder = new Map<string, number>();
+
+  // Extract step metadata for graph-based order computation
+  const stepsForOrdering: Array<{
+    stepSlug: string;
+    stepType: string;
+    nextSteps: Record<string, string>;
+  }> = [];
 
   for (let i = 0; i < stepsConfig.length; i++) {
     const stepConfig = stepsConfig[i];
@@ -583,19 +590,31 @@ export function validateWorkflowVariableReferences(
         ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
           (stepConfig.stepType as StepInfo['stepType'])
         : undefined;
-    const order = typeof stepConfig.order === 'number' ? stepConfig.order : 0;
     const config = isRecord(stepConfig.config) ? stepConfig.config : {};
+    const nextSteps = isRecord(stepConfig.nextSteps)
+      ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data from workflow config
+        (stepConfig.nextSteps as Record<string, string>)
+      : {};
 
     if (stepSlug && stepType) {
+      stepsForOrdering.push({ stepSlug, stepType, nextSteps });
+      const order = 0; // placeholder, computed below
       const stepInfo: StepInfo = { stepSlug, stepType, order, config };
       allSteps.set(stepSlug, stepInfo);
-      stepOrder.set(stepSlug, order);
     } else {
       // Warn about malformed step configurations
       warnings.push(
         `Step at index ${i} is missing required fields (stepSlug: ${!!stepSlug}, stepType: ${!!stepType})`,
       );
     }
+  }
+
+  // Compute execution order from the nextSteps graph
+  const stepOrder = computeStepOrder(stepsForOrdering);
+
+  // Update StepInfo with computed order
+  for (const [slug, info] of allSteps) {
+    info.order = stepOrder.get(slug) ?? 0;
   }
 
   // Validate each step's variable references

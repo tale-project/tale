@@ -1,0 +1,257 @@
+{
+  "workflowConfig": {
+    "name": "OneDrive Sync",
+    "description": "Find one active OneDrive sync configuration and sync the file/folder",
+    "version": "1.0.0",
+    "workflowType": "predefined",
+    "config": {
+      "timeout": 120000,
+      "retryPolicy": { "maxRetries": 3, "backoffMs": 2000 },
+      "variables": {
+        "organizationId": "org_demo",
+        "backoffHours": 1,
+        "workflowId": "onedrive_sync"
+      }
+    }
+  },
+  "stepsConfig": [
+    {
+      "stepSlug": "start",
+      "name": "start",
+      "stepType": "start",
+      "config": {},
+      "nextSteps": { "success": "find_sync_config" }
+    },
+    {
+      "stepSlug": "find_sync_config",
+      "name": "Find Active Sync Configuration",
+      "stepType": "action",
+      "config": {
+        "type": "workflow_processing_records",
+        "parameters": {
+          "operation": "find_unprocessed",
+          "tableName": "onedriveSyncConfigs",
+          "backoffHours": "{{backoffHours}}"
+        }
+      },
+      "nextSteps": {
+        "success": "check_config_found"
+      }
+    },
+    {
+      "stepSlug": "check_config_found",
+      "name": "Check Configuration Found",
+      "stepType": "condition",
+      "config": {
+        "expression": "steps.find_sync_config.output.data != null",
+        "description": "Check if any active sync configuration was found"
+      },
+      "nextSteps": {
+        "true": "get_user_token",
+        "false": "noop"
+      }
+    },
+    {
+      "stepSlug": "get_user_token",
+      "name": "Get User Microsoft Graph Token",
+      "stepType": "action",
+      "config": {
+        "type": "onedrive",
+        "parameters": {
+          "operation": "get_user_token",
+          "userId": "{{steps.find_sync_config.output.data.userId}}"
+        }
+      },
+      "nextSteps": {
+        "success": "check_token_valid"
+      }
+    },
+    {
+      "stepSlug": "check_token_valid",
+      "name": "Check Token Valid",
+      "stepType": "condition",
+      "config": {
+        "expression": "steps.get_user_token.output.data.token != null",
+        "description": "Check if user has valid Microsoft Graph token"
+      },
+      "nextSteps": {
+        "true": "check_item_type",
+        "false": "check_needs_refresh"
+      }
+    },
+    {
+      "stepSlug": "check_needs_refresh",
+      "name": "Check Needs Refresh",
+      "stepType": "condition",
+      "config": {
+        "expression": "steps.get_user_token.output.data.needsRefresh == true",
+        "description": "Check if token needs refresh"
+      },
+      "nextSteps": {
+        "true": "refresh_token",
+        "false": "mark_config_error"
+      }
+    },
+    {
+      "stepSlug": "refresh_token",
+      "name": "Refresh Microsoft Graph Token",
+      "stepType": "action",
+      "config": {
+        "type": "onedrive",
+        "parameters": {
+          "operation": "refresh_token",
+          "accountId": "{{steps.get_user_token.output.data.accountId}}",
+          "refreshToken": "{{steps.get_user_token.output.data.refreshToken}}"
+        }
+      },
+      "nextSteps": {
+        "success": "check_item_type",
+        "failure": "mark_config_error"
+      }
+    },
+    {
+      "stepSlug": "check_item_type",
+      "name": "Check Item Type",
+      "stepType": "condition",
+      "config": {
+        "expression": "steps.find_sync_config.output.data.itemType == \"file\"",
+        "description": "Check if item is a file or folder"
+      },
+      "nextSteps": {
+        "true": "read_onedrive_file",
+        "false": "list_folder_contents"
+      }
+    },
+    {
+      "stepSlug": "read_onedrive_file",
+      "name": "Read File from OneDrive",
+      "stepType": "action",
+      "config": {
+        "type": "onedrive",
+        "parameters": {
+          "operation": "read_file",
+          "itemId": "{{steps.find_sync_config.output.data.itemId}}",
+          "token": "{{steps.refresh_token.output.data.token || steps.get_user_token.output.data.token}}"
+        }
+      },
+      "nextSteps": {
+        "success": "upload_to_storage",
+        "failure": "mark_config_error"
+      }
+    },
+    {
+      "stepSlug": "list_folder_contents",
+      "name": "List Folder Contents",
+      "stepType": "action",
+      "config": {
+        "type": "onedrive",
+        "parameters": {
+          "operation": "list_folder_contents",
+          "itemId": "{{steps.find_sync_config.output.data.itemId}}",
+          "token": "{{steps.refresh_token.output.data.token || steps.get_user_token.output.data.token}}"
+        }
+      },
+      "nextSteps": {
+        "success": "sync_folder_files",
+        "failure": "mark_config_error"
+      }
+    },
+    {
+      "stepSlug": "sync_folder_files",
+      "name": "Sync Folder Files",
+      "stepType": "action",
+      "config": {
+        "type": "onedrive",
+        "parameters": {
+          "operation": "sync_folder_files",
+          "token": "{{steps.refresh_token.output.data.token || steps.get_user_token.output.data.token}}",
+          "files": "{{steps.list_folder_contents.output.data}}",
+          "folderItemPath": "{{steps.find_sync_config.output.data.itemPath}}",
+          "configId": "{{steps.find_sync_config.output.data._id}}"
+        }
+      },
+      "nextSteps": {
+        "success": "update_sync_status",
+        "failure": "mark_config_error"
+      }
+    },
+    {
+      "stepSlug": "upload_to_storage",
+      "name": "Upload to Storage",
+      "stepType": "action",
+      "config": {
+        "type": "onedrive",
+        "parameters": {
+          "operation": "upload_to_storage",
+          "fileName": "{{steps.find_sync_config.output.data.itemName}}",
+          "fileContent": "{{steps.read_onedrive_file.output.data.content}}",
+          "contentType": "{{steps.read_onedrive_file.output.data.mimeType}}",
+          "storagePath": "{{steps.find_sync_config.output.data.storagePrefix}}/{{steps.find_sync_config.output.data.itemName}}",
+          "metadata": {
+            "oneDriveItemId": "{{steps.find_sync_config.output.data.itemId}}",
+            "itemPath": "{{steps.find_sync_config.output.data.itemPath}}",
+            "syncConfigId": "{{steps.find_sync_config.output.data._id}}",
+            "syncedAt": "{{now}}"
+          }
+        }
+      },
+      "nextSteps": {
+        "success": "update_sync_status",
+        "failure": "mark_config_error"
+      }
+    },
+    {
+      "stepSlug": "update_sync_status",
+      "name": "Update Sync Status",
+      "stepType": "action",
+      "config": {
+        "type": "onedrive",
+        "parameters": {
+          "operation": "update_sync_config",
+          "configId": "{{steps.find_sync_config.output.data._id}}",
+          "status": "active",
+          "lastSyncAt": "{{nowMs}}",
+          "lastSyncStatus": "success"
+        }
+      },
+      "nextSteps": {
+        "success": "record_processed"
+      }
+    },
+    {
+      "stepSlug": "mark_config_error",
+      "name": "Mark Configuration Error",
+      "stepType": "action",
+      "config": {
+        "type": "onedrive",
+        "parameters": {
+          "operation": "update_sync_config",
+          "configId": "{{steps.find_sync_config.output.data._id}}",
+          "status": "error",
+          "lastSyncAt": "{{nowMs}}",
+          "lastSyncStatus": "failed",
+          "errorMessage": "Failed to sync: Invalid token or file/folder read error"
+        }
+      },
+      "nextSteps": {
+        "success": "record_processed"
+      }
+    },
+    {
+      "stepSlug": "record_processed",
+      "name": "Record Processed",
+      "stepType": "action",
+      "config": {
+        "type": "workflow_processing_records",
+        "parameters": {
+          "operation": "record_processed",
+          "tableName": "onedriveSyncConfigs",
+          "recordId": "{{steps.find_sync_config.output.data._id}}"
+        }
+      },
+      "nextSteps": {
+        "success": "noop"
+      }
+    }
+  ]
+}
