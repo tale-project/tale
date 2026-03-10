@@ -44,6 +44,8 @@ function AutomationAssistantContent({
     handlePaste,
     handleSendMessage,
     handleKeyDown,
+    workflowUpdateApprovals,
+    workflowCreationApprovals,
   } = useAssistantChat({
     automationId,
     organizationId,
@@ -64,6 +66,9 @@ function AutomationAssistantContent({
           isLoading={isLoading}
           isWaitingForResponse={isWaitingForResponse}
           workflow={workflow}
+          organizationId={organizationId}
+          workflowUpdateApprovals={workflowUpdateApprovals}
+          workflowCreationApprovals={workflowCreationApprovals}
           onImagePreview={(src, alt) =>
             setPreviewImage({ isOpen: true, src, alt })
           }

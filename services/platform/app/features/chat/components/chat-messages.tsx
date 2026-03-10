@@ -16,6 +16,7 @@ import { MessageBubble } from './message-bubble';
 import { ThinkingAnimation } from './thinking-animation';
 import { WorkflowCreationApprovalCard } from './workflow-creation-approval-card';
 import { WorkflowRunApprovalCard } from './workflow-run-approval-card';
+import { WorkflowUpdateApprovalCard } from './workflow-update-approval-card';
 
 interface ChatMessagesProps {
   items: ChatItem[];
@@ -160,6 +161,23 @@ export function ChatMessages({
               className="flex justify-start"
             >
               <WorkflowRunApprovalCard
+                approvalId={approval._id}
+                organizationId={organizationId}
+                status={approval.status}
+                metadata={approval.metadata}
+                executedAt={approval.executedAt}
+                executionError={approval.executionError}
+              />
+            </div>
+          );
+        } else if (item.type === 'workflow_update_approval') {
+          const approval = item.data;
+          return (
+            <div
+              key={`workflow-update-approval-${approval._id}`}
+              className="flex justify-start"
+            >
+              <WorkflowUpdateApprovalCard
                 approvalId={approval._id}
                 organizationId={organizationId}
                 status={approval.status}

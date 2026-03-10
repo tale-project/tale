@@ -14,3 +14,7 @@ export function useExecuteApprovedWorkflowCreation() {
 export function useExecuteApprovedWorkflowRun() {
   return useConvexAction(api.approvals.actions.executeApprovedWorkflowRun);
 }
+
+export function useExecuteApprovedWorkflowUpdate() {
+  return useConvexAction(api.approvals.actions.executeApprovedWorkflowUpdate);
+}

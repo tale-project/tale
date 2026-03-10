@@ -52,6 +52,39 @@ export interface WorkflowCreationMetadata {
   executionError?: string;
 }
 
+export interface WorkflowUpdateMetadata {
+  updateType: 'full_save' | 'step_patch';
+  updateSummary: string;
+  workflowId: string;
+  workflowName: string;
+  workflowVersionNumber: number;
+  workflowConfig?: {
+    name: string;
+    description?: string;
+    version?: string;
+    workflowType?: 'predefined';
+    config?: Record<string, unknown>;
+  };
+  stepsConfig?: Array<{
+    stepSlug: string;
+    name: string;
+    stepType: Doc<'wfStepDefs'>['stepType'];
+    config: Record<string, unknown>;
+    nextSteps: Record<string, string>;
+  }>;
+  stepRecordId?: string;
+  stepName?: string;
+  stepUpdates?: {
+    name?: string;
+    stepType?: string;
+    config?: Record<string, unknown>;
+    nextSteps?: Record<string, string>;
+  };
+  requestedAt: number;
+  executedAt?: number;
+  executionError?: string;
+}
+
 export interface WorkflowRunMetadata {
   workflowId: string;
   workflowName: string;

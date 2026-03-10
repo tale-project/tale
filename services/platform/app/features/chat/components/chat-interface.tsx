@@ -23,6 +23,7 @@ import {
   useIntegrationApprovals,
   useWorkflowCreationApprovals,
   useWorkflowRunApprovals,
+  useWorkflowUpdateApprovals,
 } from '../hooks/queries';
 import { useChatLoadingState } from '../hooks/use-chat-loading-state';
 import { useConvexFileUpload } from '../hooks/use-convex-file-upload';
@@ -109,6 +110,10 @@ export function ChatInterface({
     organizationId,
     threadId,
   );
+  const { approvals: workflowUpdateApprovals } = useWorkflowUpdateApprovals(
+    organizationId,
+    threadId,
+  );
   const { approvals: workflowRunApprovals } = useWorkflowRunApprovals(
     organizationId,
     threadId,
@@ -123,6 +128,7 @@ export function ChatInterface({
     messages,
     integrationApprovals,
     workflowCreationApprovals,
+    workflowUpdateApprovals,
     workflowRunApprovals,
     humanInputRequests,
   });

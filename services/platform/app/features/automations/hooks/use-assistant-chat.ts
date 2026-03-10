@@ -6,7 +6,11 @@ import {
   useCreateThread,
   useDeleteThread,
 } from '@/app/features/chat/hooks/mutations';
-import { useThreadMessages } from '@/app/features/chat/hooks/queries';
+import {
+  useThreadMessages,
+  useWorkflowCreationApprovals,
+  useWorkflowUpdateApprovals,
+} from '@/app/features/chat/hooks/queries';
 import { useConvexFileUpload } from '@/app/features/chat/hooks/use-convex-file-upload';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useThrottledScroll } from '@/app/hooks/use-throttled-scroll';
@@ -96,6 +100,14 @@ export function useAssistantChat({
   const { data: workflow } = useWorkflow(automationId);
 
   const uiMessages = useThreadMessages(threadId);
+  const { approvals: workflowUpdateApprovals } = useWorkflowUpdateApprovals(
+    organizationId,
+    threadId ?? undefined,
+  );
+  const { approvals: workflowCreationApprovals } = useWorkflowCreationApprovals(
+    organizationId,
+    threadId ?? undefined,
+  );
 
   // Load threadId from workflow metadata when workflow is loaded
   useEffect(() => {
@@ -132,7 +144,7 @@ export function useAssistantChat({
           }));
 
         return {
-          id: m.key,
+          id: m.id,
           role: m.role,
           content: m.role === 'user' ? stripWorkflowContext(m.text) : m.text,
           timestamp: new Date(m._creationTime),
@@ -432,5 +444,7 @@ export function useAssistantChat({
     handlePaste,
     handleSendMessage,
     handleKeyDown,
+    workflowUpdateApprovals,
+    workflowCreationApprovals,
   };
 }

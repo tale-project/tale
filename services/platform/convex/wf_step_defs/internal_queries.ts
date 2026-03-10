@@ -30,3 +30,23 @@ export const getStepById = internalQuery({
     return await ctx.db.get(args.stepId);
   },
 });
+
+export const getStepWithWorkflowInfo = internalQuery({
+  args: {
+    stepId: v.id('wfStepDefs'),
+  },
+  handler: async (ctx, args) => {
+    const step = await ctx.db.get(args.stepId);
+    if (!step) return null;
+
+    const workflow = await ctx.db.get(step.wfDefinitionId);
+    if (!workflow) return null;
+
+    return {
+      step,
+      workflowId: step.wfDefinitionId,
+      workflowName: workflow.name,
+      workflowVersionNumber: workflow.versionNumber,
+    };
+  },
+});

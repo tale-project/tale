@@ -6,6 +6,7 @@ import type { Doc, Id } from '../../_generated/dataModel';
 import type {
   WorkflowCreationMetadata,
   WorkflowRunMetadata,
+  WorkflowUpdateMetadata,
 } from '../../approvals/types';
 
 import { jsonRecordValidator } from '../../../lib/shared/schemas/utils/json-value';
@@ -273,6 +274,148 @@ export const updateWorkflowRunApprovalWithResult = internalMutation({
         ...metadata,
         executedAt: now,
         ...(args.executionId ? { executionId: args.executionId } : {}),
+        ...(args.executionError ? { executionError: args.executionError } : {}),
+      } as ApprovalMetadata,
+    });
+  },
+});
+
+export const createWorkflowUpdateApproval = internalMutation({
+  args: {
+    organizationId: v.string(),
+    workflowId: v.id('wfDefinitions'),
+    workflowName: v.string(),
+    workflowVersionNumber: v.number(),
+    updateSummary: v.string(),
+    workflowConfig: v.object({
+      name: v.string(),
+      description: v.optional(v.string()),
+      version: v.optional(v.string()),
+      workflowType: v.optional(v.literal('predefined')),
+      config: v.optional(jsonRecordValidator),
+    }),
+    stepsConfig: v.array(
+      v.object({
+        stepSlug: v.string(),
+        name: v.string(),
+        stepType: v.union(
+          v.literal('start'),
+          v.literal('trigger'),
+          v.literal('llm'),
+          v.literal('action'),
+          v.literal('condition'),
+          v.literal('loop'),
+          v.literal('output'),
+        ),
+        config: stepConfigValidator,
+        nextSteps: v.record(v.string(), v.string()),
+      }),
+    ),
+    threadId: v.optional(v.string()),
+    messageId: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<Id<'approvals'>> => {
+    const metadata: WorkflowUpdateMetadata = {
+      updateType: 'full_save',
+      updateSummary: args.updateSummary,
+      workflowId: args.workflowId,
+      workflowName: args.workflowName,
+      workflowVersionNumber: args.workflowVersionNumber,
+      workflowConfig: {
+        name: args.workflowConfig.name,
+        description: args.workflowConfig.description,
+        version: args.workflowConfig.version,
+        workflowType: args.workflowConfig.workflowType,
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex jsonRecordValidator returns broader type; config is always Record<string, unknown>
+        config: args.workflowConfig.config as
+          | Record<string, unknown>
+          | undefined,
+      },
+      stepsConfig: args.stepsConfig.map((step) => ({
+        stepSlug: step.stepSlug,
+        name: step.name,
+        stepType: step.stepType,
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex jsonRecordValidator returns broader type; config is always Record<string, unknown>
+        config: step.config as Record<string, unknown>,
+        nextSteps: step.nextSteps,
+      })),
+      requestedAt: Date.now(),
+    };
+
+    return await createApproval(ctx, {
+      organizationId: args.organizationId,
+      resourceType: 'workflow_update',
+      resourceId: `workflow_update:${args.workflowId}`,
+      priority: 'high',
+      description: `Update workflow: ${args.workflowName} — ${args.updateSummary}`,
+      threadId: args.threadId,
+      messageId: args.messageId,
+      metadata,
+    });
+  },
+});
+
+export const createWorkflowStepUpdateApproval = internalMutation({
+  args: {
+    organizationId: v.string(),
+    workflowId: v.id('wfDefinitions'),
+    workflowName: v.string(),
+    workflowVersionNumber: v.number(),
+    updateSummary: v.string(),
+    stepRecordId: v.id('wfStepDefs'),
+    stepName: v.string(),
+    stepUpdates: jsonRecordValidator,
+    threadId: v.optional(v.string()),
+    messageId: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<Id<'approvals'>> => {
+    const metadata: WorkflowUpdateMetadata = {
+      updateType: 'step_patch',
+      updateSummary: args.updateSummary,
+      workflowId: args.workflowId,
+      workflowName: args.workflowName,
+      workflowVersionNumber: args.workflowVersionNumber,
+      stepRecordId: args.stepRecordId,
+      stepName: args.stepName,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex jsonRecordValidator returns broader type; stepUpdates is always Record<string, unknown>
+      stepUpdates: args.stepUpdates as Record<string, unknown>,
+      requestedAt: Date.now(),
+    };
+
+    return await createApproval(ctx, {
+      organizationId: args.organizationId,
+      resourceType: 'workflow_update',
+      resourceId: `workflow_update:${args.workflowId}:${args.stepRecordId}`,
+      priority: 'high',
+      description: `Update step "${args.stepName}" in workflow "${args.workflowName}" — ${args.updateSummary}`,
+      threadId: args.threadId,
+      messageId: args.messageId,
+      metadata,
+    });
+  },
+});
+
+export const updateWorkflowUpdateApprovalWithResult = internalMutation({
+  args: {
+    approvalId: v.id('approvals'),
+    executionError: v.union(v.string(), v.null()),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    const approval = await ctx.db.get(args.approvalId);
+    if (!approval) throw new Error('Approval not found');
+    if (approval.executedAt) return;
+
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- approval.metadata is v.any() but always matches WorkflowUpdateMetadata for workflow_update approvals
+    const metadata = (approval.metadata || {}) as WorkflowUpdateMetadata;
+
+    const now = Date.now();
+    await ctx.db.patch(args.approvalId, {
+      executedAt: now,
+      executionError: args.executionError ?? undefined,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- constructing approval metadata from known WorkflowUpdateMetadata fields
+      metadata: {
+        ...metadata,
+        executedAt: now,
         ...(args.executionError ? { executionError: args.executionError } : {}),
       } as ApprovalMetadata,
     });

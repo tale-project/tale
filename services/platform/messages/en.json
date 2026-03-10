@@ -2016,7 +2016,8 @@
       "reviewReply": "Review reply",
       "recommendProduct": "Recommend product",
       "review": "Review",
-      "runWorkflow": "Run workflow"
+      "runWorkflow": "Run workflow",
+      "updateWorkflow": "Update workflow"
     },
     "labels": {
       "purchase": "Purchase",
