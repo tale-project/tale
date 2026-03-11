@@ -197,7 +197,9 @@ export function useDocumentsTableConfig({
             return <Skeleton className="h-5 w-20" />;
           }
           const MAX_VISIBLE = 2;
-          const names = teamIds.map((id) => teamMap.get(id)).filter(Boolean);
+          const names = teamIds
+            .map((id) => teamMap.get(id))
+            .filter((name): name is string => Boolean(name));
           const visible = names.slice(0, MAX_VISIBLE);
           const remaining = names.length - MAX_VISIBLE;
           return (

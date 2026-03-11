@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { ZoomPanViewer } from '@/app/components/ui/data-display/zoom-pan-viewer';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
@@ -31,6 +31,11 @@ export function DocumentPreviewImage({
     setIsLoading(false);
     setHasError(true);
   }, []);
+
+  useEffect(() => {
+    setIsLoading(true);
+    setHasError(false);
+  }, [url]);
 
   if (hasError) {
     return (

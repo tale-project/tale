@@ -387,6 +387,11 @@
       "automationDeleteFailed": "Failed to delete automation",
       "automationDeactivateFailed": "Failed to deactivate automation",
       "automationPublishFailed": "Failed to publish automation"
+    },
+    "imagePreview": {
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "resetZoom": "Reset zoom"
     }
   },
   "dialogs": {

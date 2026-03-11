@@ -138,27 +138,23 @@ function DocumentTeamDialogContent({
       headerClassName="border-border border-b px-6 pt-5 pb-4"
       footerClassName="px-6 pt-4 pb-5"
       footer={
-        hasTeams ? (
-          <>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={handleClose}
-              disabled={isSubmitting}
-            >
-              {tCommon('actions.cancel')}
-            </Button>
-            <Button
-              type="button"
-              onClick={handleSubmit}
-              disabled={isSubmitting || !hasChanges}
-            >
-              {isSubmitting
-                ? tCommon('actions.saving')
-                : tCommon('actions.save')}
-            </Button>
-          </>
-        ) : undefined
+        <>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={handleClose}
+            disabled={isSubmitting}
+          >
+            {tCommon('actions.cancel')}
+          </Button>
+          <Button
+            type="button"
+            onClick={handleSubmit}
+            disabled={isSubmitting || !hasChanges}
+          >
+            {isSubmitting ? tCommon('actions.saving') : tCommon('actions.save')}
+          </Button>
+        </>
       }
     >
       {isLoading ? (
@@ -187,7 +183,8 @@ function DocumentTeamDialogContent({
         />
       ) : (
         <div className="flex min-w-0 flex-col gap-1 px-2 pt-2 pb-4">
-          <div role="group" aria-label={tDocuments('teamTags.title')}>
+          <fieldset className="m-0 border-none p-0">
+            <legend className="sr-only">{tDocuments('teamTags.title')}</legend>
             <div className="flex flex-col gap-1">
               <button
                 type="button"
@@ -236,7 +233,7 @@ function DocumentTeamDialogContent({
                 );
               })}
             </div>
-          </div>
+          </fieldset>
         </div>
       )}
     </Dialog>

@@ -191,8 +191,8 @@ export function DocumentsTable({
     }
     if (selectedTeamIds.length > 0) {
       const teamIdSet = new Set(selectedTeamIds);
-      filtered = filtered.filter(
-        (doc) => doc.teamId && teamIdSet.has(doc.teamId),
+      filtered = filtered.filter((doc) =>
+        doc.teamIds?.some((id) => teamIdSet.has(id)),
       );
     }
     if (debouncedQuery) {
