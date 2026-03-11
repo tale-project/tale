@@ -6,7 +6,7 @@ import {
   CheckCircle,
   XCircle,
   Loader2,
-  RefreshCw,
+  PenLine,
   ChevronDown,
   ChevronRight,
   Copy,
@@ -159,7 +159,7 @@ function WorkflowUpdateApprovalCardComponent({
       {/* Header */}
       <HStack gap={2} align="start" justify="between" className="mb-2">
         <HStack gap={2}>
-          <RefreshCw className="text-primary size-4 shrink-0" />
+          <PenLine className="text-primary size-4 shrink-0" />
           <div>
             <Text as="div" variant="label">
               {metadata.workflowName}

@@ -472,6 +472,54 @@ class RagService:
 
         return result
 
+    async def compare_files(
+        self,
+        base_bytes: bytes,
+        base_filename: str,
+        comparison_bytes: bytes,
+        comparison_filename: str,
+        *,
+        max_changes: int = 500,
+    ) -> dict[str, Any]:
+        """Compare two uploaded files using deterministic paragraph-level diffing.
+
+        Extracts text directly from file bytes — no database storage or embedding.
+        """
+        from tale_knowledge.extraction import extract_text
+
+        from .diff_service import compute_diff
+
+        base_text, _ = await extract_text(
+            base_bytes,
+            base_filename,
+            vision_client=self._vision_client,
+        )
+        if not base_text or not base_text.strip():
+            raise ValueError(f"No text could be extracted from base file: {base_filename}")
+
+        comp_text, _ = await extract_text(
+            comparison_bytes,
+            comparison_filename,
+            vision_client=self._vision_client,
+        )
+        if not comp_text or not comp_text.strip():
+            raise ValueError(f"No text could be extracted from comparison file: {comparison_filename}")
+
+        diff_result = compute_diff(base_text, comp_text, max_changes=max_changes)
+
+        result = diff_result.to_dict()
+        result["success"] = True
+        result["base_document"] = {
+            "document_id": base_filename,
+            "title": base_filename,
+        }
+        result["comparison_document"] = {
+            "document_id": comparison_filename,
+            "title": comparison_filename,
+        }
+
+        return result
+
     async def shutdown(self) -> None:
         """Clean shutdown — close pool."""
         await close_pool()

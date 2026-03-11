@@ -10,10 +10,44 @@ Provides shared infrastructure for document conversion services:
 
 import asyncio
 import logging
+import re
 
 from playwright.async_api import Browser, Page, async_playwright
 
 logger = logging.getLogger(__name__)
+
+_ATX_HEADING_RE = re.compile(r"^#{1,6}\s", re.MULTILINE)
+
+
+def _normalize_markdown_headings(text: str) -> str:
+    """Ensure blank lines before ATX headings for reliable parsing.
+
+    Skips content inside fenced code blocks (``` or ~~~).
+    """
+    lines = text.split("\n")
+    result: list[str] = []
+    in_fence = False
+    fence_marker = ""
+
+    for line in lines:
+        stripped = line.strip()
+
+        if not in_fence:
+            if stripped.startswith("```") or stripped.startswith("~~~"):
+                in_fence = True
+                fence_marker = stripped[:3]
+        elif stripped == fence_marker or (stripped.startswith(fence_marker) and stripped.rstrip("`~") == ""):
+            in_fence = False
+            result.append(line)
+            continue
+
+        if not in_fence and _ATX_HEADING_RE.match(line) and result and result[-1].strip():
+            result.append("")
+
+        result.append(line)
+
+    return "\n".join(result)
+
 
 # Default HTML template for rendering content
 # Uses Noto fonts for multi-language support:
@@ -150,15 +184,15 @@ class BaseConverterService:
         """Convert markdown to HTML using Python-Markdown."""
         import markdown as md
 
-        # Convert markdown to HTML with common extensions
+        normalized = _normalize_markdown_headings(markdown)
+
         html = md.markdown(
-            markdown,
+            normalized,
             extensions=[
                 "tables",
                 "fenced_code",
                 "codehilite",
                 "toc",
-                "nl2br",
             ],
         )
         return html
