@@ -1,18 +1,20 @@
 'use client';
 
-import { Users } from 'lucide-react';
-import { useState, useMemo } from 'react';
+import { useNavigate } from '@tanstack/react-router';
+import { Settings, Users } from 'lucide-react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { EmptyState } from '@/app/components/ui/feedback/empty-state';
-import { Select } from '@/app/components/ui/forms/select';
-import { Stack } from '@/app/components/ui/layout/layout';
+import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
+import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { toast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 
 import { useUpdateDocument } from '../hooks/mutations';
 
@@ -21,10 +23,8 @@ interface DocumentTeamDialogProps {
   onOpenChange: (open: boolean) => void;
   documentId: string;
   documentName?: string | null;
-  currentTeamId?: string | null;
+  currentTeamIds?: string[];
 }
-
-const ORG_WIDE_VALUE = '__org_wide__';
 
 /**
  * Internal content component containing all hooks.
@@ -37,46 +37,54 @@ function DocumentTeamDialogContent({
   onOpenChange,
   documentId,
   documentName,
-  currentTeamId,
+  currentTeamIds,
 }: DocumentTeamDialogProps) {
   const { t: tDocuments } = useT('documents');
   const { t: tCommon } = useT('common');
+  const navigate = useNavigate();
+  const organizationId = useOrganizationId();
 
-  const [selectedValue, setSelectedValue] = useState<string>(
-    () => currentTeamId ?? ORG_WIDE_VALUE,
+  const [selectedTeamIds, setSelectedTeamIds] = useState<Set<string>>(
+    () => new Set(currentTeamIds ?? []),
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const updateDocument = useUpdateDocument();
   const { teams, isLoading } = useTeams();
 
-  const teamOptions = useMemo(() => {
-    const items = [
-      { value: ORG_WIDE_VALUE, label: tDocuments('teamTags.orgWide') },
-    ];
-    if (teams) {
-      for (const team of teams) {
-        items.push({ value: team.id, label: team.name });
-      }
-    }
-    return items;
-  }, [teams, tDocuments]);
+  const hasTeams = teams && teams.length > 0;
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     if (!isSubmitting) {
       onOpenChange(false);
     }
-  };
+  }, [isSubmitting, onOpenChange]);
 
-  const handleSubmit = async () => {
+  const isOrgWide = selectedTeamIds.size === 0;
+
+  const handleSelectOrgWide = useCallback(() => {
+    setSelectedTeamIds(new Set());
+  }, []);
+
+  const handleToggleTeam = useCallback((teamId: string) => {
+    setSelectedTeamIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(teamId)) {
+        next.delete(teamId);
+      } else {
+        next.add(teamId);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleSubmit = useCallback(async () => {
     setIsSubmitting(true);
 
     try {
-      const newTeamId = selectedValue === ORG_WIDE_VALUE ? null : selectedValue;
-
       await updateDocument.mutateAsync({
         documentId: toId<'documents'>(documentId),
-        teamId: newTeamId,
+        teamIds: [...selectedTeamIds],
       });
 
       toast({
@@ -94,12 +102,16 @@ function DocumentTeamDialogContent({
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [documentId, selectedTeamIds, updateDocument, onOpenChange, tDocuments]);
 
   const hasChanges = useMemo(() => {
-    const currentValue = currentTeamId ?? ORG_WIDE_VALUE;
-    return currentValue !== selectedValue;
-  }, [currentTeamId, selectedValue]);
+    const currentSet = new Set(currentTeamIds ?? []);
+    if (currentSet.size !== selectedTeamIds.size) return true;
+    for (const id of currentSet) {
+      if (!selectedTeamIds.has(id)) return true;
+    }
+    return false;
+  }, [currentTeamIds, selectedTeamIds]);
 
   const displayName = useMemo(() => {
     if (!documentName) return '';
@@ -107,60 +119,126 @@ function DocumentTeamDialogContent({
     return parts[parts.length - 1] || documentName;
   }, [documentName]);
 
+  const handleGoToSettings = useCallback(() => {
+    if (!organizationId) return;
+    onOpenChange(false);
+    void navigate({
+      to: '/dashboard/$id/settings/teams',
+      params: { id: organizationId },
+    });
+  }, [organizationId, onOpenChange, navigate]);
+
   return (
     <Dialog
       open={open}
       onOpenChange={handleClose}
       title={tDocuments('teamTags.title')}
+      description={displayName || undefined}
+      className="gap-0 p-0!"
+      headerClassName="border-border border-b px-6 pt-5 pb-4"
+      footerClassName="px-6 pt-4 pb-5"
       footer={
-        <>
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={handleClose}
-            disabled={isSubmitting}
-          >
-            {tCommon('actions.cancel')}
-          </Button>
-          <Button
-            type="button"
-            onClick={handleSubmit}
-            disabled={isSubmitting || !hasChanges}
-          >
-            {isSubmitting ? tCommon('actions.saving') : tCommon('actions.save')}
-          </Button>
-        </>
+        hasTeams ? (
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={handleClose}
+              disabled={isSubmitting}
+            >
+              {tCommon('actions.cancel')}
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSubmit}
+              disabled={isSubmitting || !hasChanges}
+            >
+              {isSubmitting
+                ? tCommon('actions.saving')
+                : tCommon('actions.save')}
+            </Button>
+          </>
+        ) : undefined
       }
     >
-      <Stack gap={4} className="min-w-0">
-        {documentName && (
-          <Text variant="muted" className="wrap-break-word">
-            {tDocuments('teamTags.description', { name: displayName })}
+      {isLoading ? (
+        <div className="flex items-center justify-center py-8">
+          <Text as="span" variant="muted">
+            {tCommon('actions.loading')}
           </Text>
-        )}
-        {isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <Text as="span" variant="muted">
-              {tCommon('actions.loading')}
-            </Text>
+        </div>
+      ) : !hasTeams ? (
+        <EmptyState
+          icon={Users}
+          title={tDocuments('teamTags.noTeamsTitle')}
+          description={tDocuments('teamTags.noTeamsDescription')}
+          action={
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={handleGoToSettings}
+            >
+              <Settings className="size-3.5" aria-hidden="true" />
+              {tDocuments('teamTags.goToSettings')}
+            </Button>
+          }
+          className="py-8"
+        />
+      ) : (
+        <div className="flex min-w-0 flex-col gap-1 px-2 pt-2 pb-4">
+          <div role="group" aria-label={tDocuments('teamTags.title')}>
+            <div className="flex flex-col gap-1">
+              <button
+                type="button"
+                onClick={handleSelectOrgWide}
+                disabled={isSubmitting}
+                className={cn(
+                  'flex w-full items-center gap-3 rounded-md px-4 py-2.5 text-left transition-colors',
+                  isOrgWide ? 'bg-muted' : 'hover:bg-muted/50',
+                  isSubmitting && 'cursor-not-allowed opacity-50',
+                )}
+              >
+                <Checkbox
+                  checked={isOrgWide}
+                  onCheckedChange={handleSelectOrgWide}
+                  aria-label={tDocuments('teamTags.orgWide')}
+                  tabIndex={-1}
+                />
+                <Text as="span" className="text-sm select-none">
+                  {tDocuments('teamTags.orgWide')}
+                </Text>
+              </button>
+              {teams.map((team) => {
+                const isChecked = selectedTeamIds.has(team.id);
+                return (
+                  <button
+                    key={team.id}
+                    type="button"
+                    onClick={() => handleToggleTeam(team.id)}
+                    disabled={isSubmitting}
+                    className={cn(
+                      'flex w-full items-center gap-3 rounded-md px-4 py-2.5 text-left transition-colors',
+                      isChecked ? 'bg-muted' : 'hover:bg-muted/50',
+                      isSubmitting && 'cursor-not-allowed opacity-50',
+                    )}
+                  >
+                    <Checkbox
+                      checked={isChecked}
+                      onCheckedChange={() => handleToggleTeam(team.id)}
+                      aria-label={team.name}
+                      tabIndex={-1}
+                    />
+                    <Text as="span" className="text-sm select-none">
+                      {team.name}
+                    </Text>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        ) : !teams || teams.length === 0 ? (
-          <EmptyState
-            icon={Users}
-            title={tDocuments('teamTags.noTeams')}
-            className="py-8"
-          />
-        ) : (
-          <Select
-            options={teamOptions}
-            value={selectedValue}
-            onValueChange={setSelectedValue}
-            label={tDocuments('teamTags.selectLabel')}
-          />
-        )}
-
-        <Text variant="caption">{tDocuments('teamTags.hint')}</Text>
-      </Stack>
+        </div>
+      )}
     </Dialog>
   );
 }

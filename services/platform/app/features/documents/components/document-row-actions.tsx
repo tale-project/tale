@@ -26,7 +26,7 @@ interface DocumentRowActionsProps {
   syncConfigId?: string;
   isDirectlySelected?: boolean;
   sourceMode?: StorageSourceMode;
-  teamId?: string | null;
+  teamIds?: string[];
   onFolderDeleted?: () => void;
 }
 
@@ -37,7 +37,7 @@ export function DocumentRowActions({
   syncConfigId,
   isDirectlySelected,
   sourceMode,
-  teamId,
+  teamIds,
   onFolderDeleted,
 }: DocumentRowActionsProps) {
   const { t: tDocuments } = useT('documents');
@@ -199,7 +199,7 @@ export function DocumentRowActions({
         onOpenChange={dialogs.setOpen.teamTags}
         documentId={documentId}
         documentName={name}
-        currentTeamId={teamId}
+        currentTeamIds={teamIds}
       />
     </>
   );

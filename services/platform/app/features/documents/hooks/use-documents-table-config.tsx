@@ -8,7 +8,6 @@ import type { DocumentItem } from '@/types/documents';
 
 import { CopyableTimestamp } from '@/app/components/ui/data-display/copyable-timestamp';
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
-import { Badge } from '@/app/components/ui/feedback/badge';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { HStack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
@@ -186,29 +185,30 @@ export function useDocumentsTableConfig({
               </Text>
             );
           }
-          const { teamId } = row.original;
-          if (!teamId) {
+          const teamIds = row.original.teamIds ?? [];
+          if (teamIds.length === 0) {
             return (
-              <Badge variant="outline" className="text-xs">
+              <Text as="span" variant="muted" className="text-sm">
                 {tDocuments('teamTags.orgWide')}
-              </Badge>
+              </Text>
             );
           }
           if (isLoadingTeams) {
             return <Skeleton className="h-5 w-20" />;
           }
-          const teamName = teamMap.get(teamId);
-          if (!teamName) {
-            return (
-              <Text as="span" variant="muted">
-                —
-              </Text>
-            );
-          }
+          const MAX_VISIBLE = 2;
+          const names = teamIds.map((id) => teamMap.get(id)).filter(Boolean);
+          const visible = names.slice(0, MAX_VISIBLE);
+          const remaining = names.length - MAX_VISIBLE;
           return (
-            <Badge variant="blue" className="text-xs">
-              {teamName}
-            </Badge>
+            <Text as="span" className="text-sm">
+              {visible.join(', ')}
+              {remaining > 0 && (
+                <span className="text-muted-foreground">
+                  {` +${remaining}`}
+                </span>
+              )}
+            </Text>
           );
         },
       },
@@ -265,7 +265,7 @@ export function useDocumentsTableConfig({
               syncConfigId={row.original.syncConfigId}
               isDirectlySelected={row.original.isDirectlySelected}
               sourceMode={row.original.sourceMode}
-              teamId={row.original.teamId}
+              teamIds={row.original.teamIds ?? []}
               onFolderDeleted={onFolderDeleted}
             />
           </HStack>

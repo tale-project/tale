@@ -2340,13 +2340,13 @@
       "createFailed": "Failed to create folder"
     },
     "teamTags": {
-      "title": "Assign document team",
-      "description": "Choose which team \"{name}\" belongs to",
+      "title": "Manage teams",
       "updated": "Document team updated",
       "updateFailed": "Failed to update document team",
-      "noTeams": "No teams available. Create teams in Settings to enable team-based access control.",
-      "selectLabel": "Team",
-      "hint": "Organization-wide documents are accessible to all members.",
+      "noTeamsTitle": "No teams yet",
+      "noTeamsDescription": "Create teams in Settings to control which groups can access this document.",
+      "goToSettings": "Go to settings",
+      "hint": "Documents without teams are accessible to all organization members.",
       "orgWide": "Organization-wide"
     },
     "deleteFile": {
@@ -2402,7 +2402,20 @@
       "downloading": "Downloading...",
       "download": "Download",
       "unknownError": "Unknown error",
-      "document": "Document"
+      "document": "Document",
+      "title": "Document preview",
+      "sidebar": {
+        "document": "Document",
+        "size": "Size",
+        "source": "Source",
+        "ragStatus": "RAG status",
+        "teams": "Teams",
+        "uploadedBy": "Uploaded by",
+        "modified": "Modified",
+        "sourceUpload": "Upload",
+        "sourceOnedrive": "OneDrive",
+        "sourceSharepoint": "SharePoint"
+      }
     },
     "upload": {
       "fromComputer": "From computer",

@@ -24,6 +24,7 @@ export interface DocumentItem {
   /** Error message (for failed status) */
   ragError?: string;
   teamId?: string | null;
+  teamIds?: string[];
   /** User ID who created/uploaded this document */
   createdBy?: string;
   /** Display name of the user who created/uploaded this document */

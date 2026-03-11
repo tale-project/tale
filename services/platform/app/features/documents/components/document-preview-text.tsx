@@ -12,6 +12,7 @@ import {
 } from '@/lib/utils/text-file-types';
 
 import { useTextPreview } from '../hooks/use-document-preview';
+import { PreviewPane } from './preview-pane';
 
 interface DocumentPreviewTextProps {
   url: string;
@@ -58,7 +59,7 @@ export function DocumentPreviewText({
   );
 
   return (
-    <div className="relative mx-auto w-full flex-1 overflow-x-auto overflow-y-auto p-6">
+    <PreviewPane>
       {isLoading && (
         <Text as="div" variant="muted" align="center" className="mt-4">
           {t('preview.loading')}
@@ -87,6 +88,6 @@ export function DocumentPreviewText({
             </pre>
           </div>
         ))}
-    </div>
+    </PreviewPane>
   );
 }
