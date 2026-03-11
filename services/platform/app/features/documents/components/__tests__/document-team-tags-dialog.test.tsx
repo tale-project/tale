@@ -138,11 +138,11 @@ describe('DocumentTeamTagsDialog', () => {
     ).toBeInTheDocument();
   });
 
-  it('hides footer when no teams', () => {
+  it('shows footer with disabled save when no teams', () => {
     mockTeamsData = { teams: [], isLoading: false };
     render(<DocumentTeamTagsDialog {...defaultProps} />);
-    expect(screen.queryByText('common.actions.cancel')).not.toBeInTheDocument();
-    expect(screen.queryByText('common.actions.save')).not.toBeInTheDocument();
+    expect(screen.getByText('common.actions.cancel')).toBeInTheDocument();
+    expect(screen.getByText('common.actions.save')).toBeDisabled();
   });
 
   it('navigates to settings on go to settings click', async () => {

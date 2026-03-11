@@ -15,6 +15,7 @@ from playwright.async_api import Browser, Page, async_playwright
 
 logger = logging.getLogger(__name__)
 
+
 # Default HTML template for rendering content
 # Uses Noto fonts for multi-language support:
 # - Noto Sans: Latin (English, German, French, Spanish), Cyrillic (Russian)
@@ -147,18 +148,8 @@ class BaseConverterService:
         return DEFAULT_HTML_TEMPLATE.format(content=content, extra_head=extra_head)
 
     async def markdown_to_html(self, markdown: str) -> str:
-        """Convert markdown to HTML using Python-Markdown."""
-        import markdown as md
+        """Convert markdown to HTML using markdown-it-py (CommonMark-compliant)."""
+        from markdown_it import MarkdownIt
 
-        # Convert markdown to HTML with common extensions
-        html = md.markdown(
-            markdown,
-            extensions=[
-                "tables",
-                "fenced_code",
-                "codehilite",
-                "toc",
-                "nl2br",
-            ],
-        )
-        return html
+        md = MarkdownIt("commonmark").enable("table")
+        return md.render(markdown)

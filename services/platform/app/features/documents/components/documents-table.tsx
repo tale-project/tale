@@ -171,7 +171,7 @@ export function DocumentsTable({
     let filtered = paginatedResult.results as DocumentItem[];
     if (selectedTeamId) {
       filtered = filtered.filter(
-        (doc) => !doc.teamId || doc.teamId === selectedTeamId,
+        (doc) => !doc.teamIds?.length || doc.teamIds.includes(selectedTeamId),
       );
     }
     if (selectedRagStatuses.length > 0) {

@@ -112,7 +112,7 @@ Skip calling workflow_examples; only use it when building a workflow from scratc
 • variables: Initial variables available to all steps (organizationId auto-injected)
 
 **WORKFLOW CREATION:**
-• This requires user approval - an approval card will be shown
+• This requires user approval - an approval card will be shown below your message
 • nextSteps goes at step level, NOT inside config
 • LLM steps require: name + systemPrompt
 • Action steps require: config.type
@@ -199,8 +199,8 @@ Reference: generalCustomerStatusAssessment, productRecommendationEmail`,
           requiresApproval: true,
           approvalId,
           approvalCreated: true,
-          approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created for workflow "${args.workflowConfig.name}". The user must approve this workflow creation in the chat UI before it will be created.`,
-          message: `Workflow "${args.workflowConfig.name}" is ready for approval. An approval card has been created. The workflow will be created once the user approves it.`,
+          approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created below your message for workflow "${args.workflowConfig.name}". The user must approve this workflow creation before it will be created.`,
+          message: `Workflow "${args.workflowConfig.name}" is ready for approval. An approval card has been created below. The workflow will be created once the user approves it.`,
           validationWarnings:
             validation.warnings.length > 0 ? validation.warnings : undefined,
         };
