@@ -1,23 +1,28 @@
 'use client';
 
-import { ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
-import { useRef, useState, useEffect, useCallback, memo } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { memo, useCallback, useEffect } from 'react';
 
+import { ZoomPanViewer } from '@/app/components/ui/data-display/zoom-pan-viewer';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
-const MIN_ZOOM = 0.5;
-const MAX_ZOOM = 3;
-const ZOOM_STEP = 0.25;
+export interface GalleryImage {
+  src: string;
+  alt: string;
+}
 
 interface ImagePreviewDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   src: string;
   alt: string;
+  /** Gallery images for prev/next navigation. When provided, src/alt are ignored in favor of images[activeIndex]. */
+  images?: GalleryImage[];
+  activeIndex?: number;
+  onActiveIndexChange?: (index: number) => void;
 }
 
 export const ImagePreviewDialog = memo(function ImagePreviewDialog({
@@ -25,167 +30,97 @@ export const ImagePreviewDialog = memo(function ImagePreviewDialog({
   onOpenChange,
   src,
   alt,
+  images,
+  activeIndex = 0,
+  onActiveIndexChange,
 }: ImagePreviewDialogProps) {
   const { t } = useT('chat');
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const dragStart = useRef({ x: 0, y: 0 });
-  const panStart = useRef({ x: 0, y: 0 });
-  const containerRef = useRef<HTMLDivElement>(null);
 
-  const handleClose = useCallback(
-    (open: boolean) => {
-      onOpenChange(open);
-      if (!open) {
-        setZoom(1);
-        setPan({ x: 0, y: 0 });
-      }
-    },
-    [onOpenChange],
-  );
+  const isGallery = images && images.length > 1;
+  const currentSrc = images ? (images[activeIndex]?.src ?? src) : src;
+  const currentAlt = images ? (images[activeIndex]?.alt ?? alt) : alt;
 
-  const handleZoomIn = useCallback(() => {
-    setZoom((prev) => Math.min(prev + ZOOM_STEP, MAX_ZOOM));
-  }, []);
+  const goToPrevious = useCallback(() => {
+    if (!images || !onActiveIndexChange) return;
+    onActiveIndexChange((activeIndex - 1 + images.length) % images.length);
+  }, [images, activeIndex, onActiveIndexChange]);
 
-  const handleZoomOut = useCallback(() => {
-    setZoom((prev) => {
-      const next = Math.max(prev - ZOOM_STEP, MIN_ZOOM);
-      if (next <= 1) setPan({ x: 0, y: 0 });
-      return next;
-    });
-  }, []);
-
-  const handleResetZoom = useCallback(() => {
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
-  }, []);
-
-  const handlePointerDown = useCallback(
-    (e: React.PointerEvent) => {
-      if (zoom <= 1) return;
-      e.preventDefault();
-      setIsDragging(true);
-      dragStart.current = { x: e.clientX, y: e.clientY };
-      panStart.current = { x: pan.x, y: pan.y };
-      if (e.target instanceof HTMLElement) {
-        e.target.setPointerCapture(e.pointerId);
-      }
-    },
-    [zoom, pan],
-  );
-
-  const handlePointerMove = useCallback(
-    (e: React.PointerEvent) => {
-      if (!isDragging) return;
-      const dx = e.clientX - dragStart.current.x;
-      const dy = e.clientY - dragStart.current.y;
-      setPan({ x: panStart.current.x + dx, y: panStart.current.y + dy });
-    },
-    [isDragging],
-  );
-
-  const handlePointerUp = useCallback(() => {
-    setIsDragging(false);
-  }, []);
+  const goToNext = useCallback(() => {
+    if (!images || !onActiveIndexChange) return;
+    onActiveIndexChange((activeIndex + 1) % images.length);
+  }, [images, activeIndex, onActiveIndexChange]);
 
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
+    if (!isOpen || !isGallery) return;
 
-    const handleWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      if (e.deltaY < 0) {
-        setZoom((prev) => Math.min(prev + ZOOM_STEP, MAX_ZOOM));
-      } else {
-        setZoom((prev) => {
-          const next = Math.max(prev - ZOOM_STEP, MIN_ZOOM);
-          if (next <= 1) setPan({ x: 0, y: 0 });
-          return next;
-        });
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        goToPrevious();
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        goToNext();
       }
     };
 
-    container.addEventListener('wheel', handleWheel, { passive: false });
-    return () => container.removeEventListener('wheel', handleWheel);
-  }, []);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, isGallery, goToPrevious, goToNext]);
 
   return (
     <Dialog
       open={isOpen}
-      onOpenChange={handleClose}
+      onOpenChange={onOpenChange}
       title={t('imagePreview')}
       size="wide"
       hideClose
+      customHeader={<></>}
       className="bg-muted flex flex-col border-0 p-0 ring-0 sm:p-0"
-      customHeader={
-        <div className="absolute top-4 right-4 left-4 z-10 flex items-center justify-between">
-          <Text as="span" truncate className="text-foreground/80 max-w-[60%]">
-            {alt}
-          </Text>
-          <div className="bg-muted flex items-center gap-1 rounded-lg p-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleZoomOut}
-              disabled={zoom <= MIN_ZOOM}
-              className="text-foreground size-8 disabled:opacity-50"
-              aria-label={t('imageViewer.zoomOut')}
-            >
-              <ZoomOut className="size-4" />
-            </Button>
-            <Text as="span" align="center" className="min-w-[3rem]">
-              {Math.round(zoom * 100)}%
-            </Text>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleZoomIn}
-              disabled={zoom >= MAX_ZOOM}
-              className="text-foreground size-8 disabled:opacity-50"
-              aria-label={t('imageViewer.zoomIn')}
-            >
-              <ZoomIn className="size-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleResetZoom}
-              disabled={zoom === 1}
-              className="text-foreground size-8 disabled:opacity-50"
-              aria-label={t('imageViewer.resetZoom')}
-            >
-              <RotateCcw className="size-4" />
-            </Button>
-          </div>
-        </div>
-      }
     >
-      <div
-        ref={containerRef}
-        className={cn(
-          'flex flex-1 items-center justify-center overflow-hidden p-8 pt-16',
-          zoom > 1 ? 'cursor-grab' : 'cursor-default',
-          isDragging && 'cursor-grabbing',
-        )}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
-      >
-        <img
-          src={src}
-          alt={alt}
-          style={{
-            transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
-            transformOrigin: 'center center',
-            transition: isDragging ? 'none' : 'transform 0.15s ease-out',
-          }}
-          className="max-h-full max-w-full object-contain select-none"
-          draggable={false}
-        />
-      </div>
+      <ZoomPanViewer
+        src={currentSrc}
+        alt={currentAlt}
+        toolbarPosition="overlay"
+        headerContent={
+          <div className="flex min-w-0 items-center gap-2">
+            <Text as="span" truncate className="text-foreground/80 max-w-[60%]">
+              {currentAlt}
+            </Text>
+            {isGallery && (
+              <Text as="span" className="text-foreground/50 text-xs">
+                {t('imageCounter', {
+                  current: activeIndex + 1,
+                  total: images.length,
+                })}
+              </Text>
+            )}
+          </div>
+        }
+        className="flex-1 p-8 pt-16"
+        resetTrigger={currentSrc}
+      />
+      {isGallery && (
+        <>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="bg-background/80 hover:bg-background absolute top-1/2 left-4 z-10 -translate-y-1/2 rounded-full shadow-md"
+            onClick={goToPrevious}
+            aria-label={t('previousImage')}
+          >
+            <ChevronLeft className="size-5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="bg-background/80 hover:bg-background absolute top-1/2 right-4 z-10 -translate-y-1/2 rounded-full shadow-md"
+            onClick={goToNext}
+            aria-label={t('nextImage')}
+          >
+            <ChevronRight className="size-5" />
+          </Button>
+        </>
+      )}
     </Dialog>
   );
 });

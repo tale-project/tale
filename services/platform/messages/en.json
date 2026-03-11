@@ -405,7 +405,10 @@
       "description": "Are you sure you want to delete this? This action cannot be undone."
     },
     "imagePreview": {
-      "title": "Image preview"
+      "title": "Image preview",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "resetZoom": "Reset zoom"
     },
     "searchChat": {
       "title": "Search chat",
@@ -2112,6 +2115,9 @@
   "chat": {
     "title": "Chat",
     "imagePreview": "Image preview",
+    "previousImage": "Previous image",
+    "nextImage": "Next image",
+    "imageCounter": "{current} of {total}",
     "newChat": "New chat",
     "deleteChat": "Delete chat",
     "deleteConfirmation": "Are you sure you want to delete {title}?",
@@ -2223,11 +2229,6 @@
       "file": "File",
       "attachment": "Attachment",
       "imageAttachment": "Image attachment"
-    },
-    "imageViewer": {
-      "zoomIn": "Zoom in",
-      "zoomOut": "Zoom out",
-      "resetZoom": "Reset zoom"
     },
     "toolStatus": {
       "ragSearch": "Searching knowledge base"

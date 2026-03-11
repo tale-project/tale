@@ -78,7 +78,7 @@ const MarkdownImage = memo(function MarkdownImage({
       <button
         type="button"
         onClick={handleOpen}
-        className="focus:ring-ring font-inherit inline-block cursor-pointer appearance-none rounded-lg border-none bg-transparent p-0 transition-opacity hover:opacity-90 focus:ring-2 focus:ring-offset-2 focus:outline-none"
+        className="ring-border focus:ring-ring font-inherit inline-block cursor-pointer appearance-none overflow-hidden rounded-lg border-none bg-transparent p-0 ring-1 transition-opacity hover:opacity-90 focus:ring-2 focus:ring-offset-2 focus:outline-none"
       >
         <Image
           src={imageSrc}
@@ -107,9 +107,9 @@ const markdownImageComponent = ({
 }: { node?: unknown } & React.ImgHTMLAttributes<HTMLImageElement>) => (
   <MarkdownImage
     {...props}
-    width={44}
-    height={44}
-    className="size-[2.75rem] object-cover"
+    width={36}
+    height={36}
+    className="size-9 object-cover"
   />
 );
 
