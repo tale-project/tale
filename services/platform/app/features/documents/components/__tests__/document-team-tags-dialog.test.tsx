@@ -83,7 +83,9 @@ describe('DocumentTeamTagsDialog', () => {
 
   it('renders the dialog title', () => {
     render(<DocumentTeamTagsDialog {...defaultProps} />);
-    expect(screen.getByText('documents.teamTags.title')).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'documents.teamTags.title' }),
+    ).toBeInTheDocument();
   });
 
   it('shows the document name as description', () => {

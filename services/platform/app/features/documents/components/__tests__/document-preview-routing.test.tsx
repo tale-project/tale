@@ -56,8 +56,10 @@ vi.mock('../document-preview-text', () => ({
 }));
 
 // Track all promises from lazyComponent factories so we can resolve
-// them before running any tests.
-const lazyPromises: Promise<void>[] = [];
+// them before running any tests. vi.hoisted runs before vi.mock hoisting.
+const { lazyPromises } = vi.hoisted(() => ({
+  lazyPromises: [] as Promise<void>[],
+}));
 
 vi.mock('@/lib/utils/lazy-component', () => ({
   lazyComponent: (factory: () => Promise<{ default: unknown }>) => {
