@@ -49,7 +49,7 @@ Steps:
 1. First call integration_introspect(operation="xxx") to get required parameters
 2. Then call this tool with ALL required params filled in
 
-Write operations create approval cards. Use integration_batch for multiple parallel reads.`,
+Write operations create approval cards below your message. Use integration_batch for multiple parallel reads.`,
 
     args: integrationArgs,
 
@@ -122,7 +122,7 @@ Write operations create approval cards. Use integration_batch for multiple paral
             requiresApproval: true,
             approvalId: approvalResult.approvalId,
             approvalCreated: true,
-            approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalResult.approvalId}) has been created for "${approvalResult.operationTitle || args.operation}" on ${args.integrationName}. The user must approve or reject this operation in the chat UI before it will be executed.`,
+            approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalResult.approvalId}) has been created below your message for "${approvalResult.operationTitle || args.operation}" on ${args.integrationName}. The user must approve or reject this operation before it will be executed.`,
             data: {
               approvalId: approvalResult.approvalId,
               operationName: approvalResult.operationName,

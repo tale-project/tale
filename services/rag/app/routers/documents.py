@@ -29,6 +29,9 @@ from ..utils import cleanup_memory
 router = APIRouter(prefix="/api/v1", tags=["Documents"])
 
 _FILE_UPLOAD = File(..., description="File to upload")
+_BASE_FILE = File(..., description="Base document file")
+_COMPARISON_FILE = File(..., description="Comparison document file")
+_MAX_CHANGES_FORM = Form(default=500, ge=1, le=2000, description="Maximum number of change items")
 
 SUPPORTED_EXTENSIONS = {
     # Documents
@@ -472,6 +475,50 @@ async def compare_documents(request: DocumentCompareRequest):
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"{role.capitalize()} document not found: {doc_id}",
         )
+
+    return DocumentCompareResponse(**result)
+
+
+@router.post("/documents/compare-files", response_model=DocumentCompareResponse)
+async def compare_files(
+    base_file: UploadFile = _BASE_FILE,
+    comparison_file: UploadFile = _COMPARISON_FILE,
+    max_changes: int = _MAX_CHANGES_FORM,
+):
+    """Compare two uploaded files using deterministic paragraph-level diffing.
+
+    Extracts text directly from file bytes — no database indexing or embedding required.
+    """
+    if not base_file.filename:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Base file must have a filename")
+    if not comparison_file.filename:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Comparison file must have a filename")
+
+    _validate_file_extension(base_file.filename)
+    _validate_file_extension(comparison_file.filename)
+
+    base_bytes = await _read_upload_with_size_check(base_file, settings.max_document_size_mb)
+    comparison_bytes = await _read_upload_with_size_check(comparison_file, settings.max_document_size_mb)
+
+    try:
+        result = await rag_service.compare_files(
+            base_bytes,
+            base_file.filename,
+            comparison_bytes,
+            comparison_file.filename,
+            max_changes=max_changes,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e),
+        ) from e
+    except Exception as e:
+        logger.error("Failed to compare uploaded files: {}", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to compare uploaded files.",
+        ) from e
 
     return DocumentCompareResponse(**result)
 

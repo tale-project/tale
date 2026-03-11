@@ -12,10 +12,11 @@
 import { v } from 'convex/values';
 
 import type { Id } from '../../../_generated/dataModel';
+import type { ActionCtx } from '../../../_generated/server';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 
 import { internal } from '../../../_generated/api';
-import { fetchDocumentComparison } from '../../../agent_tools/documents/helpers/fetch_document_comparison';
+import { fetchDocumentComparisonByUrls } from '../../../agent_tools/documents/helpers/fetch_document_comparison';
 import { fetchDocumentContent } from '../../../agent_tools/documents/helpers/fetch_document_content';
 import { getRagConfig } from '../../../lib/helpers/rag_config';
 import { toConvexJsonRecord, toId } from '../../../lib/type_cast_helpers';
@@ -28,6 +29,29 @@ import { jsonRecordValidator } from '../../../lib/validators/json';
  */
 export function normalizeEscapeSequences(text: string) {
   return text.replace(/(?<!\\)\\n/g, '\n').replace(/(?<!\\)\\t/g, '\t');
+}
+
+async function resolveStorageUrl(
+  ctx: ActionCtx,
+  fileId: string,
+): Promise<string> {
+  const storageId = toId<'_storage'>(fileId);
+  const fileUrl = await ctx.storage.getUrl(storageId);
+  if (!fileUrl) {
+    throw new Error(`File URL not available: ${fileId}`);
+  }
+  return fileUrl;
+}
+
+async function resolveFileName(
+  ctx: ActionCtx,
+  fileId: string,
+): Promise<string> {
+  const metadata = await ctx.runQuery(
+    internal.file_metadata.internal_queries.getByStorageId,
+    { storageId: toId<'_storage'>(fileId) },
+  );
+  return metadata?.fileName ?? 'Unknown';
 }
 
 type DocumentActionParams =
@@ -62,6 +86,8 @@ type DocumentActionParams =
       operation: 'compare';
       baseFileId: string;
       comparisonFileId: string;
+      baseFileName?: string;
+      comparisonFileName?: string;
       maxChanges?: number;
     };
 
@@ -105,6 +131,8 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
       operation: v.literal('compare'),
       baseFileId: v.string(),
       comparisonFileId: v.string(),
+      baseFileName: v.optional(v.string()),
+      comparisonFileName: v.optional(v.string()),
       maxChanges: v.optional(v.number()),
     }),
   ),
@@ -168,10 +196,26 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
 
       case 'compare': {
         const { serviceUrl } = getRagConfig();
-        return await fetchDocumentComparison(
+
+        const [baseFileUrl, compFileUrl] = await Promise.all([
+          resolveStorageUrl(ctx, params.baseFileId),
+          resolveStorageUrl(ctx, params.comparisonFileId),
+        ]);
+
+        const [baseFileName, compFileName] =
+          params.baseFileName && params.comparisonFileName
+            ? [params.baseFileName, params.comparisonFileName]
+            : await Promise.all([
+                resolveFileName(ctx, params.baseFileId),
+                resolveFileName(ctx, params.comparisonFileId),
+              ]);
+
+        return await fetchDocumentComparisonByUrls(
           serviceUrl,
-          params.baseFileId,
-          params.comparisonFileId,
+          baseFileUrl,
+          baseFileName,
+          compFileUrl,
+          compFileName,
           params.maxChanges,
         );
       }

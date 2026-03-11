@@ -172,8 +172,13 @@ export async function listDocumentsForAgent(
   // Batch-resolve folder paths
   const folderPathMap = await resolveFolderPaths(ctx, page);
 
-  // Build response
-  const documents: AgentDocumentItem[] = page.map((doc) => ({
+  // Build response — type guard narrows fileId (already filtered on line 118)
+  const docsWithFile = page.filter(
+    (doc): doc is Doc<'documents'> & { fileId: Id<'_storage'> } =>
+      doc.fileId != null,
+  );
+
+  const documents: AgentDocumentItem[] = docsWithFile.map((doc) => ({
     id: doc._id,
     fileId: doc.fileId,
     title: getDocumentTitle(doc),
