@@ -22,8 +22,7 @@ interface FilterIndex {
   index: string;
 }
 
-const FILTER_INDEXES: FilterIndex[] = [
-  { field: 'folderId', index: 'by_organizationId_and_folderId' },
+const SECONDARY_FILTER_INDEXES: FilterIndex[] = [
   { field: 'sourceProvider', index: 'by_organizationId_and_sourceProvider' },
   { field: 'extension', index: 'by_organizationId_and_extension' },
 ];
@@ -48,26 +47,12 @@ type FilterArgs = Record<string, string | undefined>;
 function buildBaseQuery(
   ctx: QueryCtx,
   organizationId: string,
-  primary: FilterIndex | undefined,
-  filterArgs: FilterArgs,
+  folderId: Id<'folders'> | undefined,
 ) {
-  if (primary) {
-    const tableQuery = ctx.db.query('documents');
-    const fieldValue = filterArgs[primary.field];
-    const indexFn = (q: {
-      eq: (
-        field: string,
-        value: string | undefined,
-      ) => { eq: (field: string, value: string | undefined) => unknown };
-    }) => q.eq('organizationId', organizationId).eq(primary.field, fieldValue);
-    // @ts-expect-error -- dynamic index name; runtime correct, Convex types require literals
-    return tableQuery.withIndex(primary.index, indexFn);
-  }
-
   return ctx.db
     .query('documents')
-    .withIndex('by_organizationId', (q) =>
-      q.eq('organizationId', organizationId),
+    .withIndex('by_organizationId_and_folderId', (q) =>
+      q.eq('organizationId', organizationId).eq('folderId', folderId),
     );
 }
 
@@ -76,23 +61,16 @@ export async function listDocumentsPaginated(
   args: ListDocumentsPaginatedArgs,
 ): Promise<PaginatedDocumentResult> {
   const filterArgs: FilterArgs = {
-    folderId: args.folderId ? String(args.folderId) : undefined,
     sourceProvider: args.sourceProvider,
     extension: args.extension,
   };
 
-  const primary = FILTER_INDEXES.find(
-    ({ field }) => filterArgs[field] !== undefined,
+  let query = buildBaseQuery(ctx, args.organizationId, args.folderId).order(
+    'desc',
   );
-  let query = buildBaseQuery(
-    ctx,
-    args.organizationId,
-    primary,
-    filterArgs,
-  ).order('desc');
 
-  for (const { field } of FILTER_INDEXES) {
-    if (filterArgs[field] && field !== primary?.field) {
+  for (const { field } of SECONDARY_FILTER_INDEXES) {
+    if (filterArgs[field]) {
       const value = filterArgs[field];
       // @ts-expect-error -- dynamic field name; runtime is correct, Convex types require literal field paths
       query = query.filter((q) => q.eq(q.field(field), value));
