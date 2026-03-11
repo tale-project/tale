@@ -363,8 +363,9 @@ async function executeTextOutput(
   );
 
   const { agentSteps, toolDiagnostics } = processAgentResult(result);
-  const outputText =
-    isRecord(result) && typeof result.text === 'string' ? result.text : '';
+  const outputText = (
+    isRecord(result) && typeof result.text === 'string' ? result.text : ''
+  ).trim();
 
   if (!outputText || !outputText.trim()) {
     const stepsCount = Array.isArray(agentSteps) ? agentSteps.length : 0;
