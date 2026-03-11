@@ -47,7 +47,7 @@ export async function listDocuments(
     teamId: args.teamId,
     dateFrom,
     dateTo,
-    query: args.query,
+    fileName: args.fileName,
     sortBy: args.sortBy,
     sortOrder: args.sortOrder,
     limit: args.limit,

@@ -2,7 +2,7 @@
  * Convex Tool: Document List
  *
  * Browse and filter documents from the knowledge base.
- * Supports filtering by folder, extension, team, date range, and title search.
+ * Supports filtering by folder, extension, team, date range, and file name search.
  */
 
 import { createTool } from '@convex-dev/agent';
@@ -19,7 +19,7 @@ export const documentListArgs = z.object({
     .max(500)
     .optional()
     .describe(
-      'Filter by folder path (e.g., "contracts/2024", "marketing"). Case-sensitive exact match. Filters to documents directly in the specified folder, not recursively. Nested paths use "/" separator. Omit to search all folders.',
+      'Filter by folder path (e.g., "contracts/2024", "marketing"). Supports fuzzy matching — handles typos, case differences, singular/plural. Filters to documents directly in the specified folder, not recursively. Nested paths use "/" separator. Omit to search all folders.',
     ),
   extension: z
     .string()
@@ -51,12 +51,12 @@ export const documentListArgs = z.object({
     .describe(
       'Filter documents created on or before this date. UTC date in YYYY-MM-DD format (e.g., "2026-03-31").',
     ),
-  query: z
+  fileName: z
     .string()
     .max(200)
     .optional()
     .describe(
-      'Search by document title (case-insensitive substring match). For semantic/content search, use rag_search instead.',
+      'Search by file name (fuzzy match — handles typos, case differences, partial names). For semantic/content search, use rag_search instead.',
     ),
   sortBy: z
     .enum(['createdAt', 'name'])
@@ -91,7 +91,7 @@ export const documentListTool: ToolDefinition = {
 USE THIS TOOL TO:
 • List documents in a specific folder
 • Filter by file type (extension), team, or date range
-• Search documents by title
+• Search documents by file name (fuzzy match)
 • Count documents matching criteria (check totalCount in response)
 • Paginate through large result sets
 

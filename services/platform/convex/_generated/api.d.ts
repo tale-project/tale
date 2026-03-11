@@ -324,6 +324,7 @@ import type * as lib_crypto_hex_to_bytes from "../lib/crypto/hex_to_bytes.js";
 import type * as lib_crypto_internal_actions from "../lib/crypto/internal_actions.js";
 import type * as lib_debug_log from "../lib/debug_log.js";
 import type * as lib_error_classification from "../lib/error_classification.js";
+import type * as lib_fuzzy_match from "../lib/fuzzy_match.js";
 import type * as lib_get_or_throw from "../lib/get_or_throw.js";
 import type * as lib_get_user_teams from "../lib/get_user_teams.js";
 import type * as lib_helpers_build_audit_context from "../lib/helpers/build_audit_context.js";
@@ -1161,6 +1162,7 @@ declare const fullApi: ApiFromModules<{
   "lib/crypto/internal_actions": typeof lib_crypto_internal_actions;
   "lib/debug_log": typeof lib_debug_log;
   "lib/error_classification": typeof lib_error_classification;
+  "lib/fuzzy_match": typeof lib_fuzzy_match;
   "lib/get_or_throw": typeof lib_get_or_throw;
   "lib/get_user_teams": typeof lib_get_user_teams;
   "lib/helpers/build_audit_context": typeof lib_helpers_build_audit_context;

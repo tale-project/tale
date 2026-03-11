@@ -178,7 +178,7 @@ describe('listDocuments helper', () => {
       folderPath: 'contracts',
       extension: 'pdf',
       teamId: 'team1',
-      query: 'report',
+      fileName: 'report',
       sortBy: 'name',
       sortOrder: 'asc',
       cursor: 12345,
@@ -192,7 +192,7 @@ describe('listDocuments helper', () => {
         folderPath: 'contracts',
         extension: 'pdf',
         teamId: 'team1',
-        query: 'report',
+        fileName: 'report',
         sortBy: 'name',
         sortOrder: 'asc',
         cursor: 12345,
@@ -284,8 +284,10 @@ describe('documentListArgs schema validation', () => {
     ).toThrow();
   });
 
-  it('rejects query exceeding 200 chars', () => {
-    expect(() => documentListArgs.parse({ query: 'a'.repeat(201) })).toThrow();
+  it('rejects fileName exceeding 200 chars', () => {
+    expect(() =>
+      documentListArgs.parse({ fileName: 'a'.repeat(201) }),
+    ).toThrow();
   });
 
   it('accepts folderPath at 500 chars', () => {

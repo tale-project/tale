@@ -13,6 +13,23 @@ vi.mock('../../folders/queries', () => ({
         { _id: 'f_2024', name: '2024' },
       ],
       f_marketing: [{ _id: 'f_marketing', name: 'marketing' }],
+      f_sub1: [
+        { _id: 'f_templates', name: 'templates' },
+        { _id: 'f_sub1', name: 'sub' },
+      ],
+      f_sub2: [
+        { _id: 'f_templates', name: 'templates' },
+        { _id: 'f_sub1', name: 'sub' },
+        { _id: 'f_sub2', name: 'sub' },
+      ],
+      f_docs_a: [
+        { _id: 'f_a', name: 'team_a' },
+        { _id: 'f_docs_a', name: 'docs' },
+      ],
+      f_docs_b: [
+        { _id: 'f_b', name: 'team_b' },
+        { _id: 'f_docs_b', name: 'docs' },
+      ],
     };
     return Promise.resolve(paths[folderId] ?? []);
   }),
@@ -51,20 +68,27 @@ function createMockCtx(
         let indexUsed: string | undefined;
 
         const getIterator = () => {
-          const matches = documents.filter((d) => {
-            if (d.organizationId !== orgFilter) return false;
-            if (
-              indexUsed === 'by_organizationId_and_folderId' &&
-              d.folderId !== folderFilter
-            )
-              return false;
-            if (
-              indexUsed === 'by_organizationId_and_extension' &&
-              d.extension !== extensionFilter
-            )
-              return false;
-            return true;
-          });
+          let matches: unknown[];
+          if (table === 'folders') {
+            matches = Object.entries(folders)
+              .filter(([, f]) => f.organizationId === orgFilter)
+              .map(([id, f]) => ({ _id: id, ...f }));
+          } else {
+            matches = documents.filter((d) => {
+              if (d.organizationId !== orgFilter) return false;
+              if (
+                indexUsed === 'by_organizationId_and_folderId' &&
+                d.folderId !== folderFilter
+              )
+                return false;
+              if (
+                indexUsed === 'by_organizationId_and_extension' &&
+                d.extension !== extensionFilter
+              )
+                return false;
+              return true;
+            });
+          }
           let i = 0;
           return {
             next: () =>
@@ -322,7 +346,7 @@ describe('listDocumentsForAgent', () => {
       expect(result.documents[0]?.id).toBe('doc2');
     });
 
-    it('filters by title query (case-insensitive)', async () => {
+    it('filters by fileName (case-insensitive)', async () => {
       const ctx = createMockCtx({}, [
         makeDoc({ _id: 'doc1', title: 'Annual Report 2024' }),
         makeDoc({ _id: 'doc2', title: 'Budget Plan' }),
@@ -331,7 +355,7 @@ describe('listDocumentsForAgent', () => {
 
       const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
         ...baseArgs,
-        query: 'report',
+        fileName: 'report',
       });
 
       expect(result.documents).toHaveLength(2);
@@ -371,7 +395,7 @@ describe('listDocumentsForAgent', () => {
       const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
         ...baseArgs,
         extension: 'pdf',
-        query: 'report',
+        fileName: 'report',
         dateFrom: 1000,
       });
 
@@ -1065,8 +1089,8 @@ describe('listDocumentsForAgent', () => {
     });
   });
 
-  describe('whitespace query', () => {
-    it('treats whitespace-only query as no filter', async () => {
+  describe('whitespace fileName', () => {
+    it('treats whitespace-only fileName as no filter', async () => {
       const ctx = createMockCtx({}, [
         makeDoc({ _id: 'doc1', title: 'Alpha' }),
         makeDoc({ _id: 'doc2', title: 'Bravo' }),
@@ -1074,7 +1098,7 @@ describe('listDocumentsForAgent', () => {
 
       const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
         ...baseArgs,
-        query: '   ',
+        fileName: '   ',
       });
 
       expect(result.documents).toHaveLength(2);
@@ -1128,7 +1152,7 @@ describe('listDocumentsForAgent', () => {
 
       const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
         ...baseArgs,
-        query: 'invoice',
+        fileName: 'invoice',
       });
 
       expect(result.documents).toHaveLength(1);
@@ -1145,7 +1169,7 @@ describe('listDocumentsForAgent', () => {
 
       const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
         ...baseArgs,
-        query: 'untitled',
+        fileName: 'untitled',
       });
 
       expect(result.documents).toHaveLength(1);
@@ -1250,9 +1274,7 @@ describe('listDocumentsForAgent', () => {
       });
 
       expect(result.documents).toEqual([]);
-      expect(result.warning).toBe(
-        "Folder path 'nonexistent' not found. Folder names are case-sensitive.",
-      );
+      expect(result.warning).toBe("Folder 'nonexistent' not found.");
     });
 
     it('matches untitled docs when searching for "untitled" via getDocumentTitle', async () => {
@@ -1263,7 +1285,293 @@ describe('listDocumentsForAgent', () => {
 
       const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
         ...baseArgs,
-        query: 'untitled',
+        fileName: 'untitled',
+      });
+
+      expect(result.documents).toHaveLength(1);
+      expect(result.documents[0]?.id).toBe('doc1');
+    });
+  });
+
+  describe('fuzzy folder path matching', () => {
+    it('resolves case-insensitive folder name', async () => {
+      const ctx = createMockCtx(
+        {
+          f_contracts: {
+            name: 'contracts',
+            organizationId: 'org1',
+            parentId: undefined,
+          },
+        },
+        [makeDoc({ _id: 'doc1', folderId: 'f_contracts' })],
+      );
+
+      const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        folderPath: 'Contracts',
+      });
+
+      expect(result.documents).toHaveLength(1);
+    });
+
+    it('resolves prefix match (singular → plural)', async () => {
+      const ctx = createMockCtx(
+        {
+          f_contracts: {
+            name: 'contracts',
+            organizationId: 'org1',
+            parentId: undefined,
+          },
+        },
+        [makeDoc({ _id: 'doc1', folderId: 'f_contracts' })],
+      );
+
+      const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        folderPath: 'contract',
+      });
+
+      expect(result.documents).toHaveLength(1);
+    });
+
+    it('resolves typo via levenshtein', async () => {
+      const ctx = createMockCtx(
+        {
+          f_contracts: {
+            name: 'contracts',
+            organizationId: 'org1',
+            parentId: undefined,
+          },
+        },
+        [makeDoc({ _id: 'doc1', folderId: 'f_contracts' })],
+      );
+
+      const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        folderPath: 'contracs',
+      });
+
+      expect(result.documents).toHaveLength(1);
+    });
+
+    it('resolves nested fuzzy path', async () => {
+      const ctx = createMockCtx(
+        {
+          f_contracts: {
+            name: 'contracts',
+            organizationId: 'org1',
+            parentId: undefined,
+          },
+          f_2024: {
+            name: '2024',
+            organizationId: 'org1',
+            parentId: 'f_contracts',
+          },
+        },
+        [makeDoc({ _id: 'doc1', folderId: 'f_2024', title: 'invoice.pdf' })],
+      );
+
+      const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        folderPath: 'Contract/2024',
+      });
+
+      expect(result.documents).toHaveLength(1);
+    });
+
+    it('returns documents from all matching folders with warning when multiple match', async () => {
+      const ctx = createMockCtx(
+        {
+          f_contracts: {
+            name: 'contracts',
+            organizationId: 'org1',
+            parentId: undefined,
+          },
+          f_contractors: {
+            name: 'contractors',
+            organizationId: 'org1',
+            parentId: undefined,
+          },
+        },
+        [
+          makeDoc({ _id: 'doc1', folderId: 'f_contracts' }),
+          makeDoc({ _id: 'doc2', folderId: 'f_contractors' }),
+        ],
+      );
+
+      const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        folderPath: 'contract',
+      });
+
+      expect(result.documents).toHaveLength(2);
+      expect(result.warning).toContain('Showing results from 2 folders');
+      expect(result.warning).toContain('contracts');
+      expect(result.warning).toContain('contractors');
+    });
+  });
+
+  describe('global folder search (non-root folders)', () => {
+    it('finds nested folder by single-segment name', async () => {
+      const ctx = createMockCtx(
+        {
+          f_templates: {
+            name: 'templates',
+            organizationId: 'org1',
+            parentId: undefined,
+          },
+          f_sub: {
+            name: 'sub',
+            organizationId: 'org1',
+            parentId: 'f_templates',
+          },
+        },
+        [makeDoc({ _id: 'doc1', folderId: 'f_sub' })],
+      );
+
+      const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        folderPath: 'sub',
+      });
+
+      expect(result.documents).toHaveLength(1);
+      expect(result.documents[0]?.id).toBe('doc1');
+    });
+
+    it('returns documents from all same-name folders with warning', async () => {
+      const ctx = createMockCtx(
+        {
+          f_templates: {
+            name: 'templates',
+            organizationId: 'org1',
+            parentId: undefined,
+          },
+          f_sub1: {
+            name: 'sub',
+            organizationId: 'org1',
+            parentId: 'f_templates',
+          },
+          f_sub2: {
+            name: 'sub',
+            organizationId: 'org1',
+            parentId: 'f_sub1',
+          },
+        },
+        [
+          makeDoc({ _id: 'doc1', folderId: 'f_sub1' }),
+          makeDoc({ _id: 'doc2', folderId: 'f_sub2' }),
+        ],
+      );
+
+      const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        folderPath: 'sub',
+      });
+
+      expect(result.documents).toHaveLength(2);
+      expect(result.warning).toContain('Showing results from 2 folders');
+      expect(result.warning).toContain('templates/sub');
+      expect(result.warning).toContain('templates/sub/sub');
+    });
+
+    it('resolves multi-segment path not starting from root', async () => {
+      const ctx = createMockCtx(
+        {
+          f_root: {
+            name: 'projects',
+            organizationId: 'org1',
+            parentId: undefined,
+          },
+          f_templates: {
+            name: 'templates',
+            organizationId: 'org1',
+            parentId: 'f_root',
+          },
+          f_sub: {
+            name: 'sub',
+            organizationId: 'org1',
+            parentId: 'f_templates',
+          },
+        },
+        [makeDoc({ _id: 'doc1', folderId: 'f_sub' })],
+      );
+
+      const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        folderPath: 'templates/sub',
+      });
+
+      expect(result.documents).toHaveLength(1);
+      expect(result.documents[0]?.id).toBe('doc1');
+    });
+
+    it('returns documents from ambiguous folders with warning', async () => {
+      const ctx = createMockCtx(
+        {
+          f_a: {
+            name: 'team_a',
+            organizationId: 'org1',
+            parentId: undefined,
+          },
+          f_b: {
+            name: 'team_b',
+            organizationId: 'org1',
+            parentId: undefined,
+          },
+          f_docs_a: {
+            name: 'docs',
+            organizationId: 'org1',
+            parentId: 'f_a',
+          },
+          f_docs_b: {
+            name: 'docs',
+            organizationId: 'org1',
+            parentId: 'f_b',
+          },
+        },
+        [
+          makeDoc({ _id: 'doc1', folderId: 'f_docs_a' }),
+          makeDoc({ _id: 'doc2', folderId: 'f_docs_b' }),
+        ],
+      );
+
+      const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        folderPath: 'docs',
+      });
+
+      expect(result.documents).toHaveLength(2);
+      expect(result.warning).toContain('Showing results from 2 folders');
+      expect(result.warning).toContain('team_a/docs');
+      expect(result.warning).toContain('team_b/docs');
+    });
+  });
+
+  describe('fuzzy fileName matching', () => {
+    it('matches with typo in file name', async () => {
+      const ctx = createMockCtx({}, [
+        makeDoc({ _id: 'doc1', title: 'contracts_2024.pdf' }),
+        makeDoc({ _id: 'doc2', title: 'budget_plan.xlsx' }),
+      ]);
+
+      const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        fileName: 'contracs 2024',
+      });
+
+      expect(result.documents).toHaveLength(1);
+      expect(result.documents[0]?.id).toBe('doc1');
+    });
+
+    it('matches with different separators', async () => {
+      const ctx = createMockCtx({}, [
+        makeDoc({ _id: 'doc1', title: 'Q1_report_final.docx' }),
+        makeDoc({ _id: 'doc2', title: 'budget.xlsx' }),
+      ]);
+
+      const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        fileName: 'Q1 report',
       });
 
       expect(result.documents).toHaveLength(1);
