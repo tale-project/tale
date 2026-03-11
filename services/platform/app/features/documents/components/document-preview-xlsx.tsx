@@ -5,6 +5,7 @@ import { useCallback } from 'react';
 import { useT } from '@/lib/i18n/client';
 
 import { useXlsxPreview } from '../hooks/use-document-preview';
+import { PreviewPane } from './preview-pane';
 
 interface DocumentPreviewXlsxProps {
   url: string;
@@ -22,7 +23,7 @@ export function DocumentPreviewXlsx({ url }: DocumentPreviewXlsxProps) {
   );
 
   return (
-    <div className="relative mx-auto w-full flex-1 overflow-x-auto overflow-y-auto p-6">
+    <PreviewPane>
       {isLoading && (
         <div className="mt-4 text-center text-gray-500">
           {t('preview.loading')}
@@ -39,6 +40,6 @@ export function DocumentPreviewXlsx({ url }: DocumentPreviewXlsxProps) {
           className="[&_td]:border-border [&_table]:bg-background text-foreground max-w-none [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:px-3 [&_td]:py-2 [&_td]:align-top [&_th]:text-left [&_tr]:border-b"
         />
       )}
-    </div>
+    </PreviewPane>
   );
 }

@@ -84,6 +84,7 @@ export function transformToDocumentItem(
     ragIndexedAt: document.ragInfo?.indexedAt,
     ragError: document.ragInfo?.error,
     teamId: document.teamId ?? null,
+    teamIds: document.teamTags ?? [],
     // Creator tracking
     createdBy: document.createdBy,
     createdByName,

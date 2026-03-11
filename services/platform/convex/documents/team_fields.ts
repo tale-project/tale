@@ -1,8 +1,10 @@
 /**
- * Helper to compute legacy teamTags from teamId.
+ * Helper to compute team storage fields from a list of team IDs.
  *
- * Used during the transition period to keep the deprecated teamTags field
- * in sync when writing documents via the new single-team model.
+ * Documents can belong to multiple teams. The schema stores:
+ * - teamId: the first team (for backward compatibility with single-team consumers)
+ * - teamTags: full list of team IDs the document belongs to
+ * - sharedWithTeamIds: deprecated, always undefined
  */
 
 export interface TeamFields {
@@ -12,13 +14,14 @@ export interface TeamFields {
 }
 
 /**
- * Compute all team fields from a single teamId.
+ * Compute all team fields from a list of team IDs.
  *
- * - undefined → org-wide (all fields undefined)
- * - 'sales' → { teamId: 'sales', teamTags: ['sales'], sharedWithTeamIds: undefined }
+ * - [] or undefined → org-wide (all fields undefined)
+ * - ['sales'] → { teamId: 'sales', teamTags: ['sales'] }
+ * - ['sales', 'support'] → { teamId: 'sales', teamTags: ['sales', 'support'] }
  */
-export function teamIdToFields(teamId: string | undefined): TeamFields {
-  if (!teamId) {
+export function teamIdsToFields(teamIds: string[] | undefined): TeamFields {
+  if (!teamIds || teamIds.length === 0) {
     return {
       teamId: undefined,
       teamTags: undefined,
@@ -27,8 +30,16 @@ export function teamIdToFields(teamId: string | undefined): TeamFields {
   }
 
   return {
-    teamId,
-    teamTags: [teamId],
+    teamId: teamIds[0],
+    teamTags: teamIds,
     sharedWithTeamIds: undefined,
   };
+}
+
+/**
+ * Compute all team fields from a single teamId.
+ * @deprecated Use teamIdsToFields instead.
+ */
+export function teamIdToFields(teamId: string | undefined): TeamFields {
+  return teamIdsToFields(teamId ? [teamId] : undefined);
 }

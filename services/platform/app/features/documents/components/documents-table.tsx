@@ -171,7 +171,7 @@ export function DocumentsTable({
     let filtered = paginatedResult.results as DocumentItem[];
     if (selectedTeamId) {
       filtered = filtered.filter(
-        (doc) => !doc.teamId || doc.teamId === selectedTeamId,
+        (doc) => !doc.teamIds?.length || doc.teamIds.includes(selectedTeamId),
       );
     }
     if (selectedRagStatuses.length > 0) {
@@ -191,8 +191,8 @@ export function DocumentsTable({
     }
     if (selectedTeamIds.length > 0) {
       const teamIdSet = new Set(selectedTeamIds);
-      filtered = filtered.filter(
-        (doc) => doc.teamId && teamIdSet.has(doc.teamId),
+      filtered = filtered.filter((doc) =>
+        doc.teamIds?.some((id) => teamIdSet.has(id)),
       );
     }
     if (debouncedQuery) {

@@ -25,7 +25,7 @@ export const updateDocument = mutation({
     extension: v.optional(v.string()),
     sourceProvider: v.optional(sourceProviderValidator),
     externalItemId: v.optional(v.string()),
-    teamId: v.optional(v.union(v.string(), v.null())),
+    teamIds: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
@@ -46,7 +46,7 @@ export const updateDocument = mutation({
 
     await updateDocumentHelper(ctx, {
       ...args,
-      teamId: args.teamId,
+      teamIds: args.teamIds,
       userId: String(authUser._id),
     });
   },

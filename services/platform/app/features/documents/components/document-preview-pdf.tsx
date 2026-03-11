@@ -6,6 +6,8 @@ import React, { useReducer, useEffect, useRef, useCallback } from 'react';
 import { HStack } from '@/app/components/ui/layout/layout';
 import { useT } from '@/lib/i18n/client';
 
+import { PreviewPane } from './preview-pane';
+
 interface PageViewport {
   width: number;
   height: number;
@@ -285,7 +287,7 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
 
   return (
     <>
-      <div className="relative mx-auto w-full flex-1 overflow-x-visible overflow-y-auto p-6">
+      <PreviewPane className="overflow-x-visible">
         {/* Canvas */}
         <canvas
           ref={canvasRef}
@@ -351,7 +353,7 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
             {t('preview.loading')}
           </div>
         )}
-      </div>
+      </PreviewPane>
     </>
   );
 };

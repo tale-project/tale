@@ -57,6 +57,27 @@ const DocumentPreviewText = lazyComponent(
     loading: () => <PreviewSkeleton />,
   },
 );
+const DocumentPreviewImage = lazyComponent(
+  () =>
+    import('./document-preview-image').then((m) => ({
+      default: m.DocumentPreviewImage,
+    })),
+  {
+    loading: () => <PreviewSkeleton />,
+  },
+);
+
+const IMAGE_EXTENSIONS: ReadonlySet<string> = new Set([
+  'JPG',
+  'JPEG',
+  'PNG',
+  'GIF',
+  'WEBP',
+  'SVG',
+  'BMP',
+  'ICO',
+  'AVIF',
+]);
 
 export interface DocumentPreviewProps {
   url: string;
@@ -122,6 +143,10 @@ export function DocumentPreview({ url, fileName }: DocumentPreviewProps) {
 
   if (extension === 'XLSX' || extension === 'XLS') {
     return <DocumentPreviewXlsx url={url} />;
+  }
+
+  if (IMAGE_EXTENSIONS.has(extension)) {
+    return <DocumentPreviewImage url={url} fileName={fileName} />;
   }
 
   if (isTextBasedFile(fileName || url)) {
