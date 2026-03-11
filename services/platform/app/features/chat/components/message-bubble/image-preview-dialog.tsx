@@ -1,7 +1,7 @@
 'use client';
 
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { memo, useCallback, useEffect } from 'react';
+import { memo, useCallback, useEffect, useMemo } from 'react';
 
 import { ZoomPanViewer } from '@/app/components/ui/data-display/zoom-pan-viewer';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
@@ -36,9 +36,16 @@ export const ImagePreviewDialog = memo(function ImagePreviewDialog({
 }: ImagePreviewDialogProps) {
   const { t } = useT('chat');
 
-  const isGallery = images && images.length > 1;
-  const currentSrc = images ? (images[activeIndex]?.src ?? src) : src;
-  const currentAlt = images ? (images[activeIndex]?.alt ?? alt) : alt;
+  const isGallery = Boolean(images && images.length > 1 && onActiveIndexChange);
+  const safeIndex = useMemo(
+    () =>
+      images?.length
+        ? Math.min(Math.max(activeIndex, 0), images.length - 1)
+        : 0,
+    [images?.length, activeIndex],
+  );
+  const currentSrc = images ? (images[safeIndex]?.src ?? src) : src;
+  const currentAlt = images ? (images[safeIndex]?.alt ?? alt) : alt;
 
   const goToPrevious = useCallback(() => {
     if (!images || !onActiveIndexChange) return;
@@ -89,8 +96,8 @@ export const ImagePreviewDialog = memo(function ImagePreviewDialog({
             {isGallery && (
               <Text as="span" className="text-foreground/50 text-xs">
                 {t('imageCounter', {
-                  current: activeIndex + 1,
-                  total: images.length,
+                  current: safeIndex + 1,
+                  total: images?.length ?? 0,
                 })}
               </Text>
             )}

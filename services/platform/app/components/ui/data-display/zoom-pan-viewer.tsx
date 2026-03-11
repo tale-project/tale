@@ -80,6 +80,7 @@ export const ZoomPanViewer = memo(function ZoomPanViewer({
       )}
     >
       <button
+        type="button"
         onClick={zoomOut}
         disabled={!canZoomOut}
         className={buttonClass}
@@ -95,6 +96,7 @@ export const ZoomPanViewer = memo(function ZoomPanViewer({
         {Math.round(zoom * 100)}%
       </Text>
       <button
+        type="button"
         onClick={zoomIn}
         disabled={!canZoomIn}
         className={buttonClass}
@@ -103,6 +105,7 @@ export const ZoomPanViewer = memo(function ZoomPanViewer({
         <ZoomIn className="size-4" />
       </button>
       <button
+        type="button"
         onClick={reset}
         disabled={!isZoomed}
         className={buttonClass}

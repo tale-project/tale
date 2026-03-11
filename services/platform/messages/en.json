@@ -387,6 +387,11 @@
       "automationDeleteFailed": "Failed to delete automation",
       "automationDeactivateFailed": "Failed to deactivate automation",
       "automationPublishFailed": "Failed to publish automation"
+    },
+    "imagePreview": {
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "resetZoom": "Reset zoom"
     }
   },
   "dialogs": {
@@ -405,10 +410,7 @@
       "description": "Are you sure you want to delete this? This action cannot be undone."
     },
     "imagePreview": {
-      "title": "Image preview",
-      "zoomIn": "Zoom in",
-      "zoomOut": "Zoom out",
-      "resetZoom": "Reset zoom"
+      "title": "Image preview"
     },
     "searchChat": {
       "title": "Search chat",
