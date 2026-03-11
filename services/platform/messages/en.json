@@ -387,6 +387,11 @@
       "automationDeleteFailed": "Failed to delete automation",
       "automationDeactivateFailed": "Failed to deactivate automation",
       "automationPublishFailed": "Failed to publish automation"
+    },
+    "imagePreview": {
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "resetZoom": "Reset zoom"
     }
   },
   "dialogs": {
@@ -2112,6 +2117,9 @@
   "chat": {
     "title": "Chat",
     "imagePreview": "Image preview",
+    "previousImage": "Previous image",
+    "nextImage": "Next image",
+    "imageCounter": "{current} of {total}",
     "newChat": "New chat",
     "deleteChat": "Delete chat",
     "deleteConfirmation": "Are you sure you want to delete {title}?",
@@ -2223,11 +2231,6 @@
       "file": "File",
       "attachment": "Attachment",
       "imageAttachment": "Image attachment"
-    },
-    "imageViewer": {
-      "zoomIn": "Zoom in",
-      "zoomOut": "Zoom out",
-      "resetZoom": "Reset zoom"
     },
     "toolStatus": {
       "ragSearch": "Searching knowledge base"

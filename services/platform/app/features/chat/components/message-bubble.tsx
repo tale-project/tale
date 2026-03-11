@@ -6,6 +6,8 @@ import {
   useRef,
   useState,
   useEffect,
+  useMemo,
+  useCallback,
   memo,
 } from 'react';
 
@@ -16,11 +18,15 @@ import { cn } from '@/lib/utils/cn';
 
 import type { Message } from './message-bubble/types';
 
-import { useMessageMetadata } from '../hooks/queries';
+import { useMessageMetadata, useFileUrls } from '../hooks/queries';
 import {
   FileAttachmentDisplay,
   FilePartDisplay,
 } from './message-bubble/file-displays';
+import {
+  ImagePreviewDialog,
+  type GalleryImage,
+} from './message-bubble/image-preview-dialog';
 import { MessageInfoDialog } from './message-info-dialog';
 import { StructuredMessage } from './structured-message/structured-message';
 
@@ -29,6 +35,51 @@ export { ImagePreviewDialog } from './message-bubble/image-preview-dialog';
 interface MessageBubbleProps extends ComponentPropsWithoutRef<'div'> {
   message: Message;
   onSendFollowUp?: (message: string) => void;
+}
+
+function useMessageGallery(message: Message) {
+  const imageAttachments = useMemo(
+    () =>
+      message.attachments?.filter((a) => a.fileType.startsWith('image/')) ?? [],
+    [message.attachments],
+  );
+
+  const imageFileIds = useMemo(
+    () => imageAttachments.filter((a) => !a.previewUrl).map((a) => a.fileId),
+    [imageAttachments],
+  );
+
+  const { data: resolvedUrls } = useFileUrls(imageFileIds);
+
+  const galleryImages = useMemo(() => {
+    const images: GalleryImage[] = [];
+
+    // FilePart images first (assistant-generated)
+    if (message.fileParts) {
+      for (const part of message.fileParts) {
+        if (part.mediaType.startsWith('image/')) {
+          images.push({
+            src: part.url,
+            alt: part.filename || 'Image',
+          });
+        }
+      }
+    }
+
+    // Then attachment images (user-uploaded)
+    for (const attachment of imageAttachments) {
+      const url =
+        attachment.previewUrl ||
+        resolvedUrls?.find((r) => r.fileId === attachment.fileId)?.url;
+      if (url) {
+        images.push({ src: url, alt: attachment.fileName });
+      }
+    }
+
+    return images;
+  }, [message.fileParts, imageAttachments, resolvedUrls]);
+
+  return galleryImages;
 }
 
 function MessageBubbleComponent({
@@ -49,9 +100,34 @@ function MessageBubbleComponent({
 
   const [isCopied, setIsCopied] = useState(false);
   const [isInfoDialogOpen, setIsInfoDialogOpen] = useState(false);
+  const [isGalleryOpen, setIsGalleryOpen] = useState(false);
+  const [galleryIndex, setGalleryIndex] = useState(0);
   const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const { metadata } = useMessageMetadata(message.id);
+  const galleryImages = useMessageGallery(message);
+
+  // Map each filePart/attachment to its gallery index (-1 for non-images)
+  const { filePartGalleryIndices, attachmentGalleryIndices } = useMemo(() => {
+    let idx = 0;
+    const fpIndices =
+      message.fileParts?.map((p) =>
+        p.mediaType.startsWith('image/') ? idx++ : -1,
+      ) ?? [];
+    const attIndices =
+      message.attachments?.map((a) =>
+        a.fileType.startsWith('image/') ? idx++ : -1,
+      ) ?? [];
+    return {
+      filePartGalleryIndices: fpIndices,
+      attachmentGalleryIndices: attIndices,
+    };
+  }, [message.fileParts, message.attachments]);
+
+  const openGallery = useCallback((index: number) => {
+    setGalleryIndex(index);
+    setIsGalleryOpen(true);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -95,9 +171,18 @@ function MessageBubbleComponent({
       >
         {message.fileParts && message.fileParts.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-1">
-            {message.fileParts.map((part) => (
-              <FilePartDisplay key={part.url} filePart={part} />
-            ))}
+            {message.fileParts.map((part, i) => {
+              const galleryIdx = filePartGalleryIndices[i];
+              return (
+                <FilePartDisplay
+                  key={part.url}
+                  filePart={part}
+                  onImageClick={
+                    galleryIdx >= 0 ? () => openGallery(galleryIdx) : undefined
+                  }
+                />
+              );
+            })}
           </div>
         )}
 
@@ -120,12 +205,18 @@ function MessageBubbleComponent({
 
         {message.attachments && message.attachments.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
-            {message.attachments.map((attachment) => (
-              <FileAttachmentDisplay
-                key={attachment.fileId}
-                attachment={attachment}
-              />
-            ))}
+            {message.attachments.map((attachment, i) => {
+              const galleryIdx = attachmentGalleryIndices[i];
+              return (
+                <FileAttachmentDisplay
+                  key={attachment.fileId}
+                  attachment={attachment}
+                  onImageClick={
+                    galleryIdx >= 0 ? () => openGallery(galleryIdx) : undefined
+                  }
+                />
+              );
+            })}
           </div>
         )}
         {!isUser && !isAssistantStreaming && (
@@ -158,6 +249,18 @@ function MessageBubbleComponent({
               </Button>
             </Tooltip>
           </div>
+        )}
+
+        {galleryImages.length > 0 && (
+          <ImagePreviewDialog
+            isOpen={isGalleryOpen}
+            onOpenChange={setIsGalleryOpen}
+            src={galleryImages[0].src}
+            alt={galleryImages[0].alt}
+            images={galleryImages}
+            activeIndex={galleryIndex}
+            onActiveIndexChange={setGalleryIndex}
+          />
         )}
 
         <MessageInfoDialog

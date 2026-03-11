@@ -122,8 +122,10 @@ export function FileTypeIcon({
 
 export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
   attachment,
+  onImageClick,
 }: {
   attachment: FileAttachment;
+  onImageClick?: () => void;
 }) {
   const { t } = useT('chat');
   const { data: serverFileUrl } = useFileUrl(
@@ -134,18 +136,23 @@ export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
   const isImage = attachment.fileType.startsWith('image/');
 
   if (isImage && !displayUrl) {
-    return <Skeleton className="size-11 rounded-lg" />;
+    return <Skeleton className="size-9 rounded-lg" />;
   }
 
   if (isImage) {
     return (
-      <div className="bg-muted size-11 overflow-hidden rounded-lg bg-cover bg-center bg-no-repeat">
+      <button
+        type="button"
+        onClick={onImageClick}
+        className="ring-border focus:ring-ring size-9 cursor-pointer overflow-hidden rounded-lg border-none bg-transparent p-0 ring-1 transition-opacity hover:opacity-80 focus:ring-2 focus:ring-offset-2 focus:outline-none"
+        aria-label={t('fallback.image')}
+      >
         <img
           src={displayUrl}
           alt={attachment.fileName}
           className="size-full object-cover"
         />
-      </div>
+      </button>
     );
   }
 
@@ -193,21 +200,28 @@ export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
 
 export const FilePartDisplay = memo(function FilePartDisplay({
   filePart,
+  onImageClick,
 }: {
   filePart: FilePart;
+  onImageClick?: () => void;
 }) {
   const { t } = useT('chat');
   const isImage = filePart.mediaType.startsWith('image/');
 
   if (isImage) {
     return (
-      <div className="bg-muted size-11 overflow-hidden rounded-lg bg-cover bg-center bg-no-repeat">
+      <button
+        type="button"
+        onClick={onImageClick}
+        className="ring-border focus:ring-ring size-9 cursor-pointer overflow-hidden rounded-lg border-none bg-transparent p-0 ring-1 transition-opacity hover:opacity-80 focus:ring-2 focus:ring-offset-2 focus:outline-none"
+        aria-label={t('fallback.image')}
+      >
         <img
           src={filePart.url}
           alt={filePart.filename || t('fileTypes.image')}
           className="size-full object-cover"
         />
-      </div>
+      </button>
     );
   }
 
