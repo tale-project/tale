@@ -77,7 +77,7 @@
         "@tanstack/react-router": "1.166.7",
         "@tanstack/react-table": "8.21.3",
         "@xyflow/react": "12.10.1",
-        "ai": "5.0.152",
+        "ai": "5.0.153",
         "base64-arraybuffer": "1.0.2",
         "better-auth": "1.4.9",
         "class-variance-authority": "0.7.1",
@@ -1467,7 +1467,7 @@
 
     "agent-base": ["agent-base@7.1.4", "", {}, "sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ=="],
 
-    "ai": ["ai@5.0.152", "", { "dependencies": { "@ai-sdk/gateway": "2.0.57", "@ai-sdk/provider": "2.0.1", "@ai-sdk/provider-utils": "3.0.22", "@opentelemetry/api": "1.9.0" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-cKVkgaNV1iTWQqI1vUAMJztVBsco/lkIVJbmtd8A42PzHN1exyzqQPp1MZNszTCvE1T2kM4dHqmFCATQMYQMLw=="],
+    "ai": ["ai@5.0.153", "", { "dependencies": { "@ai-sdk/gateway": "2.0.57", "@ai-sdk/provider": "2.0.1", "@ai-sdk/provider-utils": "3.0.22", "@opentelemetry/api": "1.9.0" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-QNsPqqrca/03b+YBOKWmaF82HnxcA92EHw3C2U0r5kHz3TqgHb/TI0yJlHhEsqKIMgh/0X3WBcGJ6tf6Fcc8zQ=="],
 
     "ajv": ["ajv@8.18.0", "", { "dependencies": { "fast-deep-equal": "^3.1.3", "fast-uri": "^3.0.1", "json-schema-traverse": "^1.0.0", "require-from-string": "^2.0.2" } }, "sha512-PlXPeEWMXMZ7sPYOHqmDyCJzcfNrUr3fGNKtezX14ykXOEIvyK81d+qydx89KY5O71FKMPaQ2vBfBFI5NHR63A=="],
 
