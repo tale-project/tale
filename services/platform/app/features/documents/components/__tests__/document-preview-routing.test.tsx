@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, describe, it, expect, vi } from 'vitest';
+import { afterEach, beforeAll, describe, it, expect, vi } from 'vitest';
 
 vi.mock('@/lib/i18n/client', () => ({
   useT: () => ({
@@ -55,76 +55,79 @@ vi.mock('../document-preview-text', () => ({
   ),
 }));
 
+// Track all promises from lazyComponent factories so we can resolve
+// them before running any tests.
+const lazyPromises: Promise<void>[] = [];
+
 vi.mock('@/lib/utils/lazy-component', () => ({
   lazyComponent: (factory: () => Promise<{ default: unknown }>) => {
-    let Component: React.ComponentType<Record<string, unknown>> | null = null;
-    void factory().then((m) => {
-      Component = m.default as React.ComponentType<Record<string, unknown>>;
+    let Resolved: React.ComponentType<Record<string, unknown>> | null = null;
+    const p = factory().then((m) => {
+      Resolved = m.default as React.ComponentType<Record<string, unknown>>;
     });
-    return (props: Record<string, unknown>) => {
-      if (!Component) return null;
-      return <Component {...props} />;
+    lazyPromises.push(p);
+    return function Lazy(props: Record<string, unknown>) {
+      if (!Resolved) return null;
+      return <Resolved {...props} />;
     };
   },
 }));
 
-// Flush microtasks so lazy components resolve
-async function flushMicrotasks() {
-  await new Promise((resolve) => setTimeout(resolve, 0));
-}
-
 import { DocumentPreview } from '../document-preview';
+
+// Resolve all lazy component factories before tests run.
+// Since vi.mock makes dynamic imports synchronous, these promises
+// resolve immediately in the microtask queue.
+beforeAll(async () => {
+  await Promise.all(lazyPromises);
+});
 
 afterEach(cleanup);
 
 describe('DocumentPreview routing', () => {
   it.each(['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'avif'])(
     'routes .%s files to image preview',
-    async (ext) => {
+    (ext) => {
       render(
         <DocumentPreview
           url={`https://example.com/file.${ext}`}
           fileName={`photo.${ext}`}
         />,
       );
-      await flushMicrotasks();
 
       expect(screen.getByTestId('image-preview')).toBeInTheDocument();
     },
   );
 
-  it('routes .pdf files to PDF preview', async () => {
+  it('routes .pdf files to PDF preview', () => {
     render(
       <DocumentPreview
         url="https://example.com/doc.pdf"
         fileName="report.pdf"
       />,
     );
-    await flushMicrotasks();
 
     expect(screen.getByTestId('pdf-preview')).toBeInTheDocument();
   });
 
-  it('routes .docx files to DOCX preview', async () => {
+  it('routes .docx files to DOCX preview', () => {
     render(
       <DocumentPreview
         url="https://example.com/doc.docx"
         fileName="report.docx"
       />,
     );
-    await flushMicrotasks();
 
     expect(screen.getByTestId('docx-preview')).toBeInTheDocument();
   });
 
-  it('routes uppercase image extensions correctly', async () => {
+  it('routes uppercase image extensions correctly', () => {
     render(
       <DocumentPreview
         url="https://example.com/PHOTO.PNG"
         fileName="PHOTO.PNG"
       />,
     );
-    await flushMicrotasks();
 
     expect(screen.getByTestId('image-preview')).toBeInTheDocument();
   });

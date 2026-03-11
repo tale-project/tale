@@ -42,7 +42,7 @@ function SidebarRow({
 }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <Text variant="muted" size="xs" weight="medium">
+      <Text variant="label-sm" className="text-muted-foreground">
         {label}
       </Text>
       <div className="text-foreground text-[13px] leading-snug">{children}</div>
@@ -56,13 +56,17 @@ function DetailsSidebar({ doc }: { doc: Document }) {
   const { locale } = useLocale();
   const { teams } = useTeams();
 
-  const teamName = useMemo(() => {
-    if (!doc.teamId || !teams) return undefined;
-    const team = teams.find(
-      (entry: { id: string; name: string }) => entry.id === doc.teamId,
-    );
-    return team?.name;
-  }, [doc.teamId, teams]);
+  const teamNames = useMemo(() => {
+    const ids = doc.teamIds ?? [];
+    if (ids.length === 0 || !teams) return [];
+    return ids
+      .map(
+        (id) =>
+          teams.find((entry: { id: string; name: string }) => entry.id === id)
+            ?.name,
+      )
+      .filter(Boolean);
+  }, [doc.teamIds, teams]);
 
   const sourceLabel = useMemo(() => {
     const labels: Record<string, string> = {
@@ -84,7 +88,7 @@ function DetailsSidebar({ doc }: { doc: Document }) {
       aria-label={t('preview.sidebar.document')}
     >
       <SidebarRow label={t('preview.sidebar.document')}>
-        <HStack gap={1.5} className="items-center">
+        <HStack gap={2} className="items-center">
           <DocumentIcon fileName={doc.name ?? ''} className="w-4" />
           <span className="truncate">{doc.name}</span>
         </HStack>
@@ -111,8 +115,10 @@ function DetailsSidebar({ doc }: { doc: Document }) {
 
       <Separator />
 
-      {teamName && (
-        <SidebarRow label={t('preview.sidebar.teams')}>{teamName}</SidebarRow>
+      {teamNames.length > 0 && (
+        <SidebarRow label={t('preview.sidebar.teams')}>
+          {teamNames.join(', ')}
+        </SidebarRow>
       )}
 
       {doc.createdByName && (
@@ -209,7 +215,7 @@ export function DocumentPreviewDialog({
           <ActionRow gap={2}>
             {doc?.url && (
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 onClick={handleDownload}
                 disabled={isDownloading}
