@@ -51,7 +51,7 @@ export const runWorkflowTool = {
 • Updating workflow steps — use update_workflow_step instead
 
 **APPROVAL REQUIRED:**
-This tool creates an approval card in the chat. The user must click "Run Workflow" to confirm execution. The workflow will NOT start until approved.
+This tool creates an approval card below your message in the chat. The user must click "Run Workflow" to confirm execution. The workflow will NOT start until approved.
 
 **PARAMETERS:**
 • workflowId (required): The workflow definition ID
@@ -149,8 +149,8 @@ This tool creates an approval card in the chat. The user must click "Run Workflo
           requiresApproval: true,
           approvalId,
           approvalCreated: true,
-          approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created to run workflow "${wfDefinition.name}". The user must approve this in the chat UI before execution begins.`,
-          message: `Workflow "${wfDefinition.name}" is ready to run. An approval card has been created. The workflow will start once the user approves it.`,
+          approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created below your message to run workflow "${wfDefinition.name}". The user must approve this before execution begins.`,
+          message: `Workflow "${wfDefinition.name}" is ready to run. An approval card has been created below. The workflow will start once the user approves it.`,
         };
       } catch (error) {
         return {

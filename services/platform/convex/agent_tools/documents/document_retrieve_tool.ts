@@ -19,7 +19,7 @@ export const documentRetrieveArgs = z
       .string()
       .min(1)
       .describe(
-        'The Convex document ID to retrieve content from. Get IDs from document_list.',
+        'The Convex document ID (the "id" field from document_list, NOT "fileId"). Use fileId with file extraction tools instead.',
       ),
     chunkStart: z
       .number()

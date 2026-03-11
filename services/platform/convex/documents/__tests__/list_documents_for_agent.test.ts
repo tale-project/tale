@@ -24,6 +24,7 @@ interface MockDoc {
   organizationId: string;
   title?: string;
   extension?: string;
+  fileId?: string;
   teamId?: string;
   folderId?: string;
   metadata?: Record<string, unknown>;
@@ -140,6 +141,7 @@ function makeDoc(overrides: Partial<MockDoc> & { _id: string }): MockDoc {
     _creationTime: Date.now(),
     organizationId: 'org1',
     title: 'Untitled',
+    fileId: `file_${overrides._id}`,
     ...overrides,
   };
 }
@@ -164,6 +166,7 @@ describe('listDocumentsForAgent', () => {
       const ctx = createMockCtx({}, [
         makeDoc({
           _id: 'doc1',
+          fileId: 'file1',
           title: 'report.pdf',
           extension: 'pdf',
           _creationTime: 1000,
@@ -179,6 +182,7 @@ describe('listDocumentsForAgent', () => {
       expect(result.documents).toHaveLength(1);
       expect(result.documents[0]).toEqual({
         id: 'doc1',
+        fileId: 'file1',
         title: 'report.pdf',
         extension: 'pdf',
         folderPath: null,
@@ -199,6 +203,38 @@ describe('listDocumentsForAgent', () => {
       );
 
       expect(result.documents[0]?.title).toBe('Untitled');
+    });
+
+    it('returns fileId when document has a file', async () => {
+      const ctx = createMockCtx({}, [
+        makeDoc({
+          _id: 'doc1',
+          fileId: 'storage_abc123',
+          title: 'report.pdf',
+        }),
+      ]);
+
+      const result = await listDocumentsForAgent(
+        ctx as unknown as QueryCtx,
+        baseArgs,
+      );
+
+      expect(result.documents[0]?.fileId).toBe('storage_abc123');
+    });
+
+    it('skips documents without fileId', async () => {
+      const ctx = createMockCtx({}, [
+        makeDoc({ _id: 'doc1', fileId: 'file1', title: 'with-file.pdf' }),
+        makeDoc({ _id: 'doc2', fileId: undefined, title: 'no-file.txt' }),
+      ]);
+
+      const result = await listDocumentsForAgent(
+        ctx as unknown as QueryCtx,
+        baseArgs,
+      );
+
+      expect(result.documents).toHaveLength(1);
+      expect(result.documents[0]?.id).toBe('doc1');
     });
 
     it('returns null sizeBytes when metadata is missing', async () => {

@@ -105,7 +105,7 @@ function mapChangeBlock(block: RagChangeBlock): ChangeBlock {
 }
 
 /**
- * Compare two documents via the RAG service's deterministic diff endpoint.
+ * Compare two documents by ID via the RAG service's deterministic diff endpoint.
  */
 export async function fetchDocumentComparison(
   ragServiceUrl: string,
@@ -155,34 +155,112 @@ export async function fetchDocumentComparison(
     }
 
     const result = await fetchJson<RagCompareResponse>(response);
-
-    return {
-      baseDocument: {
-        documentId: result.base_document.document_id,
-        title: result.base_document.title,
-      },
-      comparisonDocument: {
-        documentId: result.comparison_document.document_id,
-        title: result.comparison_document.title,
-      },
-      changeBlocks: result.change_blocks.map(mapChangeBlock),
-      stats: {
-        totalParagraphsBase: result.stats.total_paragraphs_base,
-        totalParagraphsComparison: result.stats.total_paragraphs_comparison,
-        unchanged: result.stats.unchanged,
-        modified: result.stats.modified,
-        added: result.stats.added,
-        deleted: result.stats.deleted,
-        highDivergence: result.stats.high_divergence,
-      },
-      truncated: result.truncated,
-    };
+    return mapRagResponse(result);
   } catch (error) {
     clearTimeout(timeoutId);
 
     if (error instanceof Error && error.name === 'AbortError') {
       throw new Error(
         `RAG service timed out after ${FETCH_TIMEOUT_MS / 1000}s while comparing documents.`,
+        { cause: error },
+      );
+    }
+
+    throw error;
+  }
+}
+
+function mapRagResponse(result: RagCompareResponse): DocumentComparisonResult {
+  return {
+    baseDocument: {
+      documentId: result.base_document.document_id,
+      title: result.base_document.title,
+    },
+    comparisonDocument: {
+      documentId: result.comparison_document.document_id,
+      title: result.comparison_document.title,
+    },
+    changeBlocks: result.change_blocks.map(mapChangeBlock),
+    stats: {
+      totalParagraphsBase: result.stats.total_paragraphs_base,
+      totalParagraphsComparison: result.stats.total_paragraphs_comparison,
+      unchanged: result.stats.unchanged,
+      modified: result.stats.modified,
+      added: result.stats.added,
+      deleted: result.stats.deleted,
+      highDivergence: result.stats.high_divergence,
+    },
+    truncated: result.truncated,
+  };
+}
+
+/**
+ * Compare two files by URL via the RAG service — no pre-indexing required.
+ *
+ * Downloads both files and uploads them to the RAG service in a single
+ * function to avoid passing large Blobs through function parameters.
+ */
+export async function fetchDocumentComparisonByUrls(
+  ragServiceUrl: string,
+  baseFileUrl: string,
+  baseFileName: string,
+  comparisonFileUrl: string,
+  comparisonFileName: string,
+  maxChanges?: number,
+): Promise<DocumentComparisonResult> {
+  const [baseResponse, compResponse] = await Promise.all([
+    fetch(baseFileUrl),
+    fetch(comparisonFileUrl),
+  ]);
+  if (!baseResponse.ok) {
+    throw new Error(`Failed to download base file: ${baseResponse.status}`);
+  }
+  if (!compResponse.ok) {
+    throw new Error(
+      `Failed to download comparison file: ${compResponse.status}`,
+    );
+  }
+
+  const [baseBlob, compBlob] = await Promise.all([
+    baseResponse.blob(),
+    compResponse.blob(),
+  ]);
+
+  const url = `${ragServiceUrl}/api/v1/documents/compare-files`;
+
+  const formData = new FormData();
+  formData.append('base_file', baseBlob, baseFileName);
+  formData.append('comparison_file', compBlob, comparisonFileName);
+  if (maxChanges != null) {
+    formData.append('max_changes', String(maxChanges));
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      body: formData,
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      throw new Error(
+        `RAG service error (${response.status}): ${errorText || 'Unknown error'}`,
+      );
+    }
+
+    const result = await fetchJson<RagCompareResponse>(response);
+    return mapRagResponse(result);
+  } catch (error) {
+    clearTimeout(timeoutId);
+
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error(
+        `RAG service timed out after ${FETCH_TIMEOUT_MS / 1000}s while comparing files.`,
         { cause: error },
       );
     }

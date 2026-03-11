@@ -100,7 +100,7 @@ export function createBoundIntegrationTool(
             requiresApproval: true,
             approvalId: result.approvalId,
             approvalCreated: true,
-            approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${result.approvalId}) has been created for "${result.operationTitle || args.operation}" on ${integrationName}. The user must approve or reject this operation in the chat UI before it will be executed.`,
+            approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${result.approvalId}) has been created below your message for "${result.operationTitle || args.operation}" on ${integrationName}. The user must approve or reject this operation before it will be executed.`,
             data: {
               approvalId: result.approvalId,
               operationName: result.operationName,
@@ -147,7 +147,7 @@ function buildDescription(
   lines.push(
     '',
     `Usage: { operation: "<operation_name>", params: { ... } }`,
-    'Write operations create approval cards for user review.',
+    'Write operations create approval cards below your message for user review.',
   );
 
   return lines.join('\n');

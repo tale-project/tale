@@ -337,8 +337,8 @@ Please try again with a properly structured JSON object. Ensure all field names 
           requiresApproval: true,
           approvalId,
           approvalCreated: true,
-          approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created for updating step "${stepInfo.step.name}" in workflow "${stepInfo.workflowName}". The user must approve this update in the chat UI before changes will be applied.`,
-          message: `Step update for "${stepInfo.step.name}" is ready for approval. An approval card has been created. Changes will be applied once the user approves it.`,
+          approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created below your message for updating step "${stepInfo.step.name}" in workflow "${stepInfo.workflowName}". The user must approve this update before changes will be applied.`,
+          message: `Step update for "${stepInfo.step.name}" is ready for approval. An approval card has been created below. Changes will be applied once the user approves it.`,
         };
       } catch (error) {
         return {

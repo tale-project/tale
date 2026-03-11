@@ -97,11 +97,14 @@ USE THIS TOOL TO:
 
 DO NOT USE THIS TOOL FOR:
 • Semantic/content search — use rag_search instead
-• Reading indexed document content — use document_retrieve with the document ID instead
-• Extracting data from uploaded files — use pdf, docx, txt, excel, image, or pptx tools instead
+• Reading indexed document content — use document_retrieve with the document ID (id) instead
+• Extracting data from uploaded files — use pdf, docx, txt, excel, image, or pptx tools with the file ID (fileId) instead
 
 RESPONSE FIELDS:
-• documents: Array of {id, title, extension, folderPath, teamId, createdAt (Unix ms UTC), sizeBytes}
+• documents: Array of {id, fileId, title, extension, folderPath, teamId, createdAt (Unix ms UTC), sizeBytes}
+  - id: The document ID (Convex record ID). Use with document_retrieve to read indexed content.
+  - fileId: The storage file ID. Use with file extraction tools (pdf, docx, txt, excel, image, pptx) and any tool that operates on stored files.
+  - IMPORTANT: id and fileId are DIFFERENT identifiers for different purposes. File extraction tools (pdf, docx, excel, image, etc.) require fileId, NOT id. document_retrieve requires id, NOT fileId.
 • totalCount: Total matching documents (number), or null if the scan limit was reached and the true count is unknown — this does NOT mean zero results.
 • hasMore: Whether more results are available
 • cursor: Pass to next call to get the next page

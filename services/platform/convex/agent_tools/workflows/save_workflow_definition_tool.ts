@@ -256,8 +256,8 @@ Inform the user the update is ready for review in the chat UI.`,
           requiresApproval: true,
           approvalId,
           approvalCreated: true,
-          approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created for updating workflow "${workflow.name}". The user must approve this update in the chat UI before changes will be applied.`,
-          message: `Workflow update for "${workflow.name}" is ready for approval. An approval card has been created. Changes will be applied once the user approves it.`,
+          approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created below your message for updating workflow "${workflow.name}". The user must approve this update before changes will be applied.`,
+          message: `Workflow update for "${workflow.name}" is ready for approval. An approval card has been created below. Changes will be applied once the user approves it.`,
           validationWarnings:
             validation.warnings.length > 0 ? validation.warnings : undefined,
         };
