@@ -26,6 +26,10 @@ vi.mock('@/app/hooks/use-toast', () => ({
   toast: (...args: unknown[]) => mockToast(...args),
 }));
 
+vi.mock('@/app/hooks/use-organization-id', () => ({
+  useOrganizationId: () => 'org_1',
+}));
+
 vi.mock('../../../organization/hooks/queries', () => ({
   useMembers: () => ({ members: mockOrgMembers }),
 }));
