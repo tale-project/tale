@@ -618,7 +618,8 @@
       "memberRemoveFailed": "Failed to remove member",
       "selectMember": "Select a member to add",
       "noMembersToAdd": "All organization members are already in this team",
-      "noTeamMembers": "No members in this team yet"
+      "noTeamMembers": "No members in this team yet",
+      "cannotRemoveLastMember": "Cannot remove the last member. Delete the team instead."
     },
     "customAgents": {
       "title": "Custom agents",
