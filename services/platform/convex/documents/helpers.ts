@@ -7,7 +7,7 @@ export type {
   RagStatus,
   SourceProvider,
   DocumentItemResponse,
-  DocumentListResponse,
+  DocumentFindResponse,
   DocumentRecord,
   CreateDocumentArgs,
   CreateDocumentResult,

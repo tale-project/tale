@@ -92,14 +92,14 @@ How approvals work:
 1. You call \`integration\` with a write operation and ALL required parameters
 2. The system AUTOMATICALLY creates an approval card - you don't need to do anything extra
 3. The tool returns \`requiresApproval: true\` and an \`approvalId\` in the response
-4. The approval card appears in the user's chat UI for them to approve/reject
+4. The approval card appears BELOW your message in the chat UI for them to approve/reject
 
 Your workflow for write operations:
 1. PRE-VALIDATE: Read existing data first to verify target exists (e.g., get guest before updating)
 2. GET PARAMS: Call integration_introspect(operation='xxx') to learn required parameters
 3. GATHER INFO: If user hasn't provided all required values, ASK them before proceeding
 4. EXECUTE: Call integration with ALL required parameters - approval card is created automatically
-5. INFORM: Tell the user the approval card has been created and is waiting for their review
+5. INFORM: Tell the user the approval card has been created below and is waiting for their review
 
 Understanding the response:
 - \`requiresApproval: true\` + \`approvalId\` = SUCCESS! Approval card was created

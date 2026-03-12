@@ -2,16 +2,12 @@
 
 import type { ColumnDef } from '@tanstack/react-table';
 
-import { Monitor, RefreshCw } from 'lucide-react';
 import { useMemo } from 'react';
 
 import type { DocumentItem } from '@/types/documents';
 
-import { OneDriveIcon } from '@/app/components/icons/onedrive-icon';
-import { SharePointIcon } from '@/app/components/icons/sharepoint-icon';
 import { CopyableTimestamp } from '@/app/components/ui/data-display/copyable-timestamp';
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
-import { Badge } from '@/app/components/ui/feedback/badge';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { HStack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
@@ -24,9 +20,7 @@ import { RagStatusBadge } from '../components/rag-status-badge';
 type DocumentsT = ReturnType<typeof useT<'documents'>>['t'];
 
 interface SourceInfo {
-  icon: React.ReactElement;
   title: string;
-  synced: boolean;
 }
 
 function getSourceInfo(
@@ -36,29 +30,23 @@ function getSourceInfo(
 ): SourceInfo | null {
   if (sourceProvider === 'onedrive') {
     return {
-      icon: <OneDriveIcon className="size-6" />,
       title:
         sourceMode === 'auto'
           ? t('sourceType.oneDriveSynced')
           : t('sourceType.oneDrive'),
-      synced: sourceMode === 'auto',
     };
   }
   if (sourceProvider === 'sharepoint') {
     return {
-      icon: <SharePointIcon className="size-6" />,
       title:
         sourceMode === 'auto'
           ? t('sourceType.sharePointSynced')
           : t('sourceType.sharePoint'),
-      synced: sourceMode === 'auto',
     };
   }
   if (sourceProvider === 'upload') {
     return {
-      icon: <Monitor className="size-6" />,
       title: t('sourceType.uploaded'),
-      synced: false,
     };
   }
   return null;
@@ -69,6 +57,7 @@ interface DocumentsTableConfigParams {
   onFolderDeleted: () => void;
   isLoadingTeams: boolean;
   teamMap: Map<string, string>;
+  parentFolderTeamId?: string;
 }
 
 interface DocumentsTableConfig {
@@ -83,6 +72,7 @@ export function useDocumentsTableConfig({
   onFolderDeleted,
   isLoadingTeams,
   teamMap,
+  parentFolderTeamId,
 }: DocumentsTableConfigParams): DocumentsTableConfig {
   const { t: tTables } = useT('tables');
   const { t: tDocuments } = useT('documents');
@@ -128,15 +118,11 @@ export function useDocumentsTableConfig({
       },
       {
         accessorKey: 'size',
-        header: () => (
-          <Text as="span" align="right" className="block w-full">
-            {tTables('headers.size')}
-          </Text>
-        ),
+        header: tTables('headers.size'),
         size: 128,
-        meta: { headerLabel: tTables('headers.size'), align: 'right' as const },
+        meta: { headerLabel: tTables('headers.size') },
         cell: ({ row }) => (
-          <Text as="span" align="right" className="block whitespace-nowrap">
+          <Text as="span" className="block whitespace-nowrap">
             {row.original.type === 'folder' || !row.original.size
               ? '—'
               : formatBytes(row.original.size)}
@@ -146,9 +132,9 @@ export function useDocumentsTableConfig({
       {
         id: 'source',
         header: () => (
-          <Text as="span" align="center" className="block w-full">
+          <span className="block w-full text-center">
             {tTables('headers.source')}
-          </Text>
+          </span>
         ),
         size: 96,
         meta: {
@@ -163,17 +149,9 @@ export function useDocumentsTableConfig({
           );
           if (!source) return null;
           return (
-            <HStack gap={2} justify="center">
-              <div
-                className={source.synced ? 'relative' : undefined}
-                title={source.title}
-              >
-                {source.icon}
-                {source.synced && (
-                  <RefreshCw className="text-background bg-foreground absolute right-0.5 bottom-0 size-4 rounded-full p-0.5" />
-                )}
-              </div>
-            </HStack>
+            <Text as="span" variant="muted" className="block text-center">
+              {source.title}
+            </Text>
           );
         },
       },
@@ -202,36 +180,32 @@ export function useDocumentsTableConfig({
         size: 160,
         meta: { skeleton: { type: 'badge' as const } },
         cell: ({ row }) => {
-          if (row.original.type === 'folder') {
+          const teamIds = row.original.teamIds ?? [];
+          if (teamIds.length === 0) {
             return (
-              <Text as="span" variant="muted">
-                —
-              </Text>
-            );
-          }
-          const { teamId } = row.original;
-          if (!teamId) {
-            return (
-              <Badge variant="outline" className="text-xs">
+              <Text as="span" variant="muted" className="text-sm">
                 {tDocuments('teamTags.orgWide')}
-              </Badge>
+              </Text>
             );
           }
           if (isLoadingTeams) {
             return <Skeleton className="h-5 w-20" />;
           }
-          const teamName = teamMap.get(teamId);
-          if (!teamName) {
-            return (
-              <Text as="span" variant="muted">
-                —
-              </Text>
-            );
-          }
+          const MAX_VISIBLE = 2;
+          const names = teamIds
+            .map((id) => teamMap.get(id))
+            .filter((name): name is string => Boolean(name));
+          const visible = names.slice(0, MAX_VISIBLE);
+          const remaining = names.length - MAX_VISIBLE;
           return (
-            <Badge variant="blue" className="text-xs">
-              {teamName}
-            </Badge>
+            <Text as="span" className="text-sm">
+              {visible.join(', ')}
+              {remaining > 0 && (
+                <span className="text-muted-foreground">
+                  {` +${remaining}`}
+                </span>
+              )}
+            </Text>
           );
         },
       },
@@ -257,19 +231,20 @@ export function useDocumentsTableConfig({
       {
         accessorKey: 'lastModified',
         header: () => (
-          <Text as="span" align="right" className="block w-full">
-            {tTables('headers.modified')}
-          </Text>
+          <span className="block w-full text-right">
+            {tTables('headers.updated')}
+          </span>
         ),
         size: 192,
         meta: {
-          headerLabel: tTables('headers.modified'),
+          headerLabel: tTables('headers.updated'),
           align: 'right' as const,
         },
         cell: ({ row }) => (
           <CopyableTimestamp
             date={row.original.lastModified}
-            preset="long"
+            preset="long" // preset="long" triggers timezone abbreviation appending
+            customFormat="ll LT"
             alignRight
           />
         ),
@@ -287,8 +262,9 @@ export function useDocumentsTableConfig({
               syncConfigId={row.original.syncConfigId}
               isDirectlySelected={row.original.isDirectlySelected}
               sourceMode={row.original.sourceMode}
-              teamId={row.original.teamId}
+              teamIds={row.original.teamIds ?? []}
               onFolderDeleted={onFolderDeleted}
+              parentFolderTeamId={parentFolderTeamId}
             />
           </HStack>
         ),
@@ -299,6 +275,7 @@ export function useDocumentsTableConfig({
       onFolderDeleted,
       isLoadingTeams,
       teamMap,
+      parentFolderTeamId,
       tTables,
       tDocuments,
     ],

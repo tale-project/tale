@@ -34,12 +34,12 @@ export function FilterSection({
         <Text
           as="span"
           variant="label-sm"
-          className="text-muted-foreground/80 flex-1 text-left uppercase"
+          className="text-muted-foreground/80 flex-1 text-left"
         >
           {title}
         </Text>
         {selectedCount > 0 && (
-          <span className="rounded-xl bg-blue-100/20 px-1.5 py-0.5 text-[10px] leading-3 font-medium text-blue-600">
+          <span className="bg-muted text-muted-foreground rounded-xl px-2 py-0.5 text-[10px] leading-3 font-medium">
             {t('labels.nSelected', { count: selectedCount })}
           </span>
         )}

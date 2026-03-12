@@ -7,7 +7,7 @@
 
 import type { Doc, Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
-import type { DocumentListResponse } from './types';
+import type { DocumentFindResponse } from './types';
 
 import { isRecord, getString } from '../../lib/utils/type-guards';
 import { transformDocumentsBatch } from './transform_to_document_item';
@@ -23,7 +23,7 @@ export async function getDocuments(
     sortField?: string;
     sortOrder?: 'asc' | 'desc';
   },
-): Promise<DocumentListResponse> {
+): Promise<DocumentFindResponse> {
   const page = args.page ?? 1;
   const size = args.size ?? 10;
   const searchQuery = args.query?.trim().toLowerCase() ?? '';

@@ -66,11 +66,12 @@ export const documentItemValidator = v.object({
   ragIndexedAt: v.optional(v.number()),
   ragError: v.optional(v.string()),
   teamId: v.optional(v.union(v.string(), v.null())),
+  teamIds: v.optional(v.array(v.string())),
   createdBy: v.optional(v.string()),
   createdByName: v.optional(v.string()),
 });
 
-export const documentListResponseValidator = v.object({
+export const documentFindResponseValidator = v.object({
   success: v.boolean(),
   items: v.array(documentItemValidator),
   totalItems: v.number(),

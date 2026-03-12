@@ -5,7 +5,8 @@ import { type Row } from '@tanstack/react-table';
 import { ClipboardList } from 'lucide-react';
 import { useMemo, useState, useCallback } from 'react';
 
-import type { DocumentItem } from '@/types/documents';
+import type { FilterConfig } from '@/app/components/ui/data-table/data-table-filters';
+import type { DocumentItem, RagStatus } from '@/types/documents';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
@@ -13,14 +14,15 @@ import { useDebounce } from '@/app/hooks/use-debounce';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { useT } from '@/lib/i18n/client';
-import { filterByTextSearch } from '@/lib/utils/filtering';
 
 import {
   useApproxDocumentCount,
+  useFolder,
   useFolders,
   useListDocumentsPaginated,
 } from '../hooks/queries';
 import { useDocumentsTableConfig } from '../hooks/use-documents-table-config';
+import { filterDocumentResults } from '../utils/filter-documents';
 import { BreadcrumbNavigation } from './breadcrumb-navigation';
 import { DocumentPreviewDialog } from './document-preview-dialog';
 import { DocumentsActionMenu } from './documents-action-menu';
@@ -57,12 +59,20 @@ export function DocumentsTable({
   }, [teams]);
 
   const { selectedTeamId } = useTeamFilter();
+  const { t: tTables } = useT('tables');
+
+  const [selectedRagStatuses, setSelectedRagStatuses] = useState<string[]>([]);
+  const [selectedSources, setSelectedSources] = useState<string[]>([]);
+  const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
 
   const paginatedResult = useListDocumentsPaginated({
     organizationId,
     folderId: currentFolderId,
     initialNumItems: 20,
   });
+
+  const { data: currentFolder } = useFolder(currentFolderId);
+  const parentFolderTeamId = currentFolder?.teamId ?? undefined;
 
   const { data: folders } = useFolders(organizationId, currentFolderId);
 
@@ -74,26 +84,119 @@ export function DocumentsTable({
       type: 'folder' as const,
       folderId: folder._id,
       lastModified: folder._creationTime,
+      teamIds: folder.teamTags ?? (folder.teamId ? [folder.teamId] : []),
     }));
   }, [folders]);
 
-  const filteredResults = useMemo(() => {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex paginated query results match DocumentItem shape
-    let filtered = paginatedResult.results as DocumentItem[];
-    if (selectedTeamId) {
-      filtered = filtered.filter(
-        (doc) => !doc.teamId || doc.teamId === selectedTeamId,
-      );
+  const ragStatusFilterMap: Record<string, RagStatus[]> = useMemo(
+    () => ({
+      indexed: ['completed'],
+      not_indexed: ['not_indexed'],
+      indexing: ['queued', 'running'],
+      failed: ['failed'],
+      stale: ['stale'],
+    }),
+    [],
+  );
+
+  const filterConfigs = useMemo<FilterConfig[]>(() => {
+    const configs: FilterConfig[] = [
+      {
+        key: 'ragStatus',
+        title: tTables('headers.ragStatus'),
+        options: [
+          { value: 'indexed', label: tDocuments('filter.ragStatus.indexed') },
+          {
+            value: 'not_indexed',
+            label: tDocuments('filter.ragStatus.notIndexed'),
+          },
+          {
+            value: 'indexing',
+            label: tDocuments('filter.ragStatus.indexing'),
+          },
+          { value: 'failed', label: tDocuments('filter.ragStatus.failed') },
+          {
+            value: 'stale',
+            label: tDocuments('filter.ragStatus.needsReindex'),
+          },
+        ],
+        selectedValues: selectedRagStatuses,
+        onChange: setSelectedRagStatuses,
+        multiSelect: true,
+      },
+      {
+        key: 'source',
+        title: tTables('headers.source'),
+        options: [
+          { value: 'upload', label: tDocuments('filter.source.upload') },
+          { value: 'onedrive', label: tDocuments('filter.source.oneDrive') },
+          {
+            value: 'sharepoint',
+            label: tDocuments('filter.source.sharePoint'),
+          },
+        ],
+        selectedValues: selectedSources,
+        onChange: setSelectedSources,
+        multiSelect: true,
+      },
+    ];
+
+    if (teams && teams.length > 0) {
+      configs.push({
+        key: 'teams',
+        title: tTables('headers.teams'),
+        options: teams.map((team) => ({
+          value: team.id,
+          label: team.name,
+        })),
+        selectedValues: selectedTeamIds,
+        onChange: setSelectedTeamIds,
+        multiSelect: true,
+      });
     }
-    if (debouncedQuery) {
-      const filteredFolders = filterByTextSearch(folderRows, debouncedQuery, [
-        'name',
-      ]);
-      filtered = filterByTextSearch(filtered, debouncedQuery, ['name']);
-      return [...filteredFolders, ...filtered];
-    }
-    return [...folderRows, ...filtered];
-  }, [paginatedResult.results, selectedTeamId, debouncedQuery, folderRows]);
+
+    return configs;
+  }, [
+    tTables,
+    tDocuments,
+    selectedRagStatuses,
+    selectedSources,
+    selectedTeamIds,
+    teams,
+  ]);
+
+  const handleClearFilters = useCallback(() => {
+    setSelectedRagStatuses([]);
+    setSelectedSources([]);
+    setSelectedTeamIds([]);
+  }, []);
+
+  const filteredResults = useMemo(
+    () =>
+      filterDocumentResults(
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex paginated query results match DocumentItem shape
+        paginatedResult.results as DocumentItem[],
+        folderRows,
+        {
+          selectedTeamId,
+          selectedTeamIds,
+          selectedRagStatuses,
+          selectedSources,
+          searchQuery: debouncedQuery,
+          ragStatusFilterMap,
+        },
+      ),
+    [
+      paginatedResult.results,
+      selectedTeamId,
+      selectedRagStatuses,
+      selectedSources,
+      selectedTeamIds,
+      ragStatusFilterMap,
+      debouncedQuery,
+      folderRows,
+    ],
+  );
 
   const previewDocument = useMemo(() => {
     if (!docId || !filteredResults.length) return null;
@@ -183,6 +286,7 @@ export function DocumentsTable({
       onFolderDeleted: handleFolderDeleted,
       isLoadingTeams,
       teamMap,
+      parentFolderTeamId,
     });
 
   const list = useListPage({
@@ -210,6 +314,10 @@ export function DocumentsTable({
       },
       placeholder: searchPlaceholder,
     },
+    filters: {
+      configs: filterConfigs,
+      onClear: handleClearFilters,
+    },
     getRowId: (row) => row.id,
     approxRowCount: docCount,
   });
@@ -232,6 +340,7 @@ export function DocumentsTable({
           <DocumentsActionMenu
             organizationId={organizationId}
             currentFolderId={currentFolderId}
+            parentFolderTeamId={parentFolderTeamId}
             hasMicrosoftAccount={hasMicrosoftAccount}
           />
         }

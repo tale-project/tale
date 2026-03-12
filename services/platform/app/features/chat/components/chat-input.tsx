@@ -166,10 +166,11 @@ export function ChatInput({
                 {imageAttachments.map((attachment) => (
                   <div
                     key={attachment.fileId}
-                    className="group relative size-11 overflow-hidden rounded-lg shadow-sm"
+                    className="ring-border group relative size-9 overflow-hidden rounded-lg ring-1"
                   >
                     <button
                       type="button"
+                      aria-label={tChat('viewImage')}
                       onClick={() =>
                         attachment.previewUrl &&
                         setPreviewImage({
@@ -243,7 +244,7 @@ export function ChatInput({
                 {uploadingFiles.map((fileId) => (
                   <div
                     key={fileId}
-                    className="bg-secondary/20 grid size-[2.75rem] place-content-center rounded-lg p-2"
+                    className="bg-secondary/20 grid size-9 place-content-center rounded-lg p-2"
                   >
                     <LoaderCircleIcon className="size-4 animate-spin" />
                   </div>

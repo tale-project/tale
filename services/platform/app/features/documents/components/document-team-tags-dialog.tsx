@@ -1,30 +1,34 @@
 'use client';
 
-import { Users } from 'lucide-react';
-import { useState, useMemo } from 'react';
+import { useNavigate } from '@tanstack/react-router';
+import { Settings, Users } from 'lucide-react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { EmptyState } from '@/app/components/ui/feedback/empty-state';
 import { Select } from '@/app/components/ui/forms/select';
-import { Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
+import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { toast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 
-import { useUpdateDocument } from '../hooks/mutations';
+import { useUpdateDocument, useUpdateFolderTeams } from '../hooks/mutations';
+
+const ORG_WIDE_VALUE = '__org_wide__';
+
+type EntityType = 'file' | 'folder';
 
 interface DocumentTeamDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  documentId: string;
+  entityId: string;
+  entityType?: EntityType;
   documentName?: string | null;
-  currentTeamId?: string | null;
+  currentTeamIds?: string[];
 }
-
-const ORG_WIDE_VALUE = '__org_wide__';
 
 /**
  * Internal content component containing all hooks.
@@ -35,49 +39,52 @@ const ORG_WIDE_VALUE = '__org_wide__';
 function DocumentTeamDialogContent({
   open,
   onOpenChange,
-  documentId,
+  entityId,
+  entityType = 'file',
   documentName,
-  currentTeamId,
+  currentTeamIds,
 }: DocumentTeamDialogProps) {
   const { t: tDocuments } = useT('documents');
   const { t: tCommon } = useT('common');
+  const navigate = useNavigate();
+  const organizationId = useOrganizationId();
 
-  const [selectedValue, setSelectedValue] = useState<string>(
-    () => currentTeamId ?? ORG_WIDE_VALUE,
-  );
+  const currentTeamId = currentTeamIds?.[0] ?? ORG_WIDE_VALUE;
+  const [selectedTeamId, setSelectedTeamId] = useState(currentTeamId);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const updateDocument = useUpdateDocument();
+  const updateFolderTeams = useUpdateFolderTeams();
   const { teams, isLoading } = useTeams();
 
-  const teamOptions = useMemo(() => {
-    const items = [
-      { value: ORG_WIDE_VALUE, label: tDocuments('teamTags.orgWide') },
-    ];
-    if (teams) {
-      for (const team of teams) {
-        items.push({ value: team.id, label: team.name });
-      }
-    }
-    return items;
-  }, [teams, tDocuments]);
+  const hasTeams = teams && teams.length > 0;
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     if (!isSubmitting) {
       onOpenChange(false);
     }
-  };
+  }, [isSubmitting, onOpenChange]);
 
-  const handleSubmit = async () => {
+  const handleSubmit = useCallback(async () => {
     setIsSubmitting(true);
 
     try {
-      const newTeamId = selectedValue === ORG_WIDE_VALUE ? null : selectedValue;
+      const teamIds =
+        selectedTeamId && selectedTeamId !== ORG_WIDE_VALUE
+          ? [selectedTeamId]
+          : [];
 
-      await updateDocument.mutateAsync({
-        documentId: toId<'documents'>(documentId),
-        teamId: newTeamId,
-      });
+      if (entityType === 'folder') {
+        await updateFolderTeams.mutateAsync({
+          folderId: toId<'folders'>(entityId),
+          teamIds,
+        });
+      } else {
+        await updateDocument.mutateAsync({
+          documentId: toId<'documents'>(entityId),
+          teamIds,
+        });
+      }
 
       toast({
         title: tDocuments('teamTags.updated'),
@@ -94,12 +101,17 @@ function DocumentTeamDialogContent({
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [
+    entityId,
+    entityType,
+    selectedTeamId,
+    updateDocument,
+    updateFolderTeams,
+    onOpenChange,
+    tDocuments,
+  ]);
 
-  const hasChanges = useMemo(() => {
-    const currentValue = currentTeamId ?? ORG_WIDE_VALUE;
-    return currentValue !== selectedValue;
-  }, [currentTeamId, selectedValue]);
+  const hasChanges = selectedTeamId !== currentTeamId;
 
   const displayName = useMemo(() => {
     if (!documentName) return '';
@@ -107,11 +119,30 @@ function DocumentTeamDialogContent({
     return parts[parts.length - 1] || documentName;
   }, [documentName]);
 
+  const handleGoToSettings = useCallback(() => {
+    if (!organizationId) return;
+    onOpenChange(false);
+    void navigate({
+      to: '/dashboard/$id/settings/teams',
+      params: { id: organizationId },
+    });
+  }, [organizationId, onOpenChange, navigate]);
+
+  const teamOptions = useMemo(
+    () => [
+      { value: ORG_WIDE_VALUE, label: tDocuments('teamTags.orgWide') },
+      ...(teams ?? []).map((team) => ({ value: team.id, label: team.name })),
+    ],
+    [teams, tDocuments],
+  );
+
   return (
     <Dialog
       open={open}
       onOpenChange={handleClose}
       title={tDocuments('teamTags.title')}
+      description={displayName || undefined}
+      footerClassName="px-6 pt-4 pb-5"
       footer={
         <>
           <Button
@@ -132,41 +163,49 @@ function DocumentTeamDialogContent({
         </>
       }
     >
-      <Stack gap={4} className="min-w-0">
-        {documentName && (
-          <Text variant="muted" className="wrap-break-word">
-            {tDocuments('teamTags.description', { name: displayName })}
+      {isLoading ? (
+        <div className="flex items-center justify-center py-8">
+          <Text as="span" variant="muted">
+            {tCommon('actions.loading')}
           </Text>
-        )}
-        {isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <Text as="span" variant="muted">
-              {tCommon('actions.loading')}
-            </Text>
-          </div>
-        ) : !teams || teams.length === 0 ? (
-          <EmptyState
-            icon={Users}
-            title={tDocuments('teamTags.noTeams')}
-            className="py-8"
-          />
-        ) : (
+        </div>
+      ) : !hasTeams ? (
+        <EmptyState
+          icon={Users}
+          title={tDocuments('teamTags.noTeamsTitle')}
+          description={tDocuments('teamTags.noTeamsDescription')}
+          action={
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={handleGoToSettings}
+            >
+              <Settings className="size-3.5" aria-hidden="true" />
+              {tDocuments('teamTags.goToSettings')}
+            </Button>
+          }
+          className="py-8"
+        />
+      ) : (
+        <div className="px-6 pt-2 pb-4">
           <Select
+            id="team-assignment"
+            label={tDocuments('teamTags.team')}
+            placeholder={tDocuments('teamTags.orgWide')}
+            value={selectedTeamId}
+            onValueChange={setSelectedTeamId}
             options={teamOptions}
-            value={selectedValue}
-            onValueChange={setSelectedValue}
-            label={tDocuments('teamTags.selectLabel')}
+            disabled={isSubmitting}
           />
-        )}
-
-        <Text variant="caption">{tDocuments('teamTags.hint')}</Text>
-      </Stack>
+        </div>
+      )}
     </Dialog>
   );
 }
 
 /**
- * Dialog for managing team assignment on a document.
+ * Dialog for managing team assignment on a document or folder.
  *
  * CRITICAL: This wrapper pattern prevents "Maximum update depth exceeded" errors.
  * Radix UI Dialog keeps components mounted during closing animations.

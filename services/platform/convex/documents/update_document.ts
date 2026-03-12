@@ -10,7 +10,7 @@ import type { MutationCtx } from '../_generated/server';
 import { isRecord } from '../../lib/utils/type-guards';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { extractExtension } from './extract_extension';
-import { teamIdToFields } from './team_fields';
+import { teamIdsToFields } from './team_fields';
 
 export async function updateDocument(
   ctx: MutationCtx,
@@ -24,7 +24,7 @@ export async function updateDocument(
     extension?: string;
     sourceProvider?: 'onedrive' | 'upload' | 'sharepoint';
     externalItemId?: string;
-    teamId?: string | null;
+    teamIds?: string[];
     userId?: string;
   },
 ): Promise<void> {
@@ -33,14 +33,22 @@ export async function updateDocument(
     throw new Error('Document not found');
   }
 
-  if (args.teamId !== undefined) {
-    const newTeamId = args.teamId ?? undefined;
-    if (newTeamId) {
-      if (!args.userId) {
-        throw new Error('userId is required when updating teamId');
+  if (args.teamIds !== undefined && args.teamIds.length > 0) {
+    if (!args.userId) {
+      throw new Error('userId is required when updating teamIds');
+    }
+
+    if (document.folderId) {
+      const folder = await ctx.db.get(document.folderId);
+      if (folder?.teamId) {
+        throw new Error('Cannot change team: inherited from parent folder');
       }
-      const userTeamIds = await getUserTeamIds(ctx, args.userId);
-      if (!userTeamIds.includes(newTeamId)) {
+    }
+
+    const userTeamIds = await getUserTeamIds(ctx, args.userId);
+    const userTeamSet = new Set(userTeamIds);
+    for (const id of args.teamIds) {
+      if (!userTeamSet.has(id)) {
         throw new Error(
           'Cannot assign document to a team you do not belong to',
         );
@@ -77,9 +85,10 @@ export async function updateDocument(
     Object.entries(updateData).filter(([, value]) => value !== undefined),
   );
 
-  if (args.teamId !== undefined) {
-    const newTeamId = args.teamId ?? undefined;
-    const teamFields = teamIdToFields(newTeamId);
+  if (args.teamIds !== undefined) {
+    const teamFields = teamIdsToFields(
+      args.teamIds.length > 0 ? args.teamIds : undefined,
+    );
     cleanUpdateData.teamId = teamFields.teamId;
     cleanUpdateData.teamTags = teamFields.teamTags;
     cleanUpdateData.sharedWithTeamIds = teamFields.sharedWithTeamIds;

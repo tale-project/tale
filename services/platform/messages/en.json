@@ -89,9 +89,10 @@
       "tags": "Tags",
       "notes": "Notes",
       "created": "Created",
+      "filter": "Filter",
       "filters": "Filters",
       "notAvailable": "N/A",
-      "nSelected": "{{count}} selected"
+      "nSelected": "{count} selected"
     },
     "status": {
       "active": "Active",
@@ -309,7 +310,7 @@
       "source": "Source",
       "created": "Created",
       "updated": "Updated",
-      "modified": "Modified",
+      "modified": "Updated",
       "actions": "Actions",
       "member": "Member",
       "role": "Role",
@@ -386,6 +387,11 @@
       "automationDeleteFailed": "Failed to delete automation",
       "automationDeactivateFailed": "Failed to deactivate automation",
       "automationPublishFailed": "Failed to publish automation"
+    },
+    "imagePreview": {
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "resetZoom": "Reset zoom"
     }
   },
   "dialogs": {
@@ -612,7 +618,8 @@
       "memberRemoveFailed": "Failed to remove member",
       "selectMember": "Select a member to add",
       "noMembersToAdd": "All organization members are already in this team",
-      "noTeamMembers": "No members in this team yet"
+      "noTeamMembers": "No members in this team yet",
+      "cannotRemoveLastMember": "Cannot remove the last member. Delete the team instead."
     },
     "customAgents": {
       "title": "Custom agents",
@@ -715,6 +722,8 @@
         "noWorkflowsAvailable": "No active workflows available.",
         "sectionKnowledge": "Knowledge",
         "sectionKnowledgeDescription": "Configure access to the knowledge base",
+        "knowledgeHint": "The knowledge base searches documents uploaded to your organization.",
+        "knowledgeHintLink": "Manage documents",
         "sectionAccess": "Access",
         "sectionAccessDescription": "Control which teams can use this agent",
         "name": "Name",
@@ -791,6 +800,8 @@
         "webModeToolDescription": "Agent searches the web on demand",
         "webModeContextDescription": "Automatically inject relevant web results into every response",
         "webModeBothDescription": "Auto-inject web results and allow on-demand search",
+        "webSearchHint": "Web search only searches content from websites added to your organization.",
+        "webSearchHintLink": "Manage websites",
         "toolsSaved": "Tools settings saved",
         "toolsSaveFailed": "Failed to save tools settings",
         "webModeSaved": "Web search settings saved",
@@ -2111,6 +2122,9 @@
   "chat": {
     "title": "Chat",
     "imagePreview": "Image preview",
+    "previousImage": "Previous image",
+    "nextImage": "Next image",
+    "imageCounter": "{current} of {total}",
     "newChat": "New chat",
     "deleteChat": "Delete chat",
     "deleteConfirmation": "Are you sure you want to delete {title}?",
@@ -2204,6 +2218,7 @@
     "uploadFailed": "Upload failed",
     "failedToUpload": "Failed to upload {filename}",
     "removeAttachment": "Remove attachment",
+    "viewImage": "View image",
     "dropFilesToAdd": "Drop files here to add to chat",
     "fileTypes": {
       "image": "IMG",
@@ -2222,11 +2237,6 @@
       "file": "File",
       "attachment": "Attachment",
       "imageAttachment": "Image attachment"
-    },
-    "imageViewer": {
-      "zoomIn": "Zoom in",
-      "zoomOut": "Zoom out",
-      "resetZoom": "Reset zoom"
     },
     "toolStatus": {
       "ragSearch": "Searching knowledge base"
@@ -2288,7 +2298,7 @@
     "deleteFolder": {
       "title": "Delete folder",
       "confirmation": "Are you sure you want to delete the folder {name}?",
-      "requirement": "The folder must be empty before it can be deleted. Remove all files and subfolders first.",
+      "requirement": "All files and subfolders inside this folder will also be permanently deleted.",
       "deleteButton": "Delete folder"
     },
     "deleteSyncFolder": {
@@ -2339,21 +2349,21 @@
       "createFailed": "Failed to create folder"
     },
     "teamTags": {
-      "title": "Assign document team",
-      "description": "Choose which team \"{name}\" belongs to",
-      "updated": "Document team updated",
-      "updateFailed": "Failed to update document team",
-      "noTeams": "No teams available. Create teams in Settings to enable team-based access control.",
-      "selectLabel": "Team",
-      "hint": "Organization-wide documents are accessible to all members.",
+      "title": "Manage teams",
+      "team": "Team",
+      "updated": "Teams updated",
+      "updateFailed": "Failed to update teams",
+      "noTeamsTitle": "No teams yet",
+      "noTeamsDescription": "Create teams in Settings to control which groups can access this item.",
+      "goToSettings": "Go to settings",
+      "hint": "Items without teams are accessible to all organization members.",
       "orgWide": "Organization-wide"
     },
     "deleteFile": {
-      "title": "Delete file",
-      "confirmation": "Are you sure you want to delete",
-      "thisFile": "this file",
-      "warning": "This action cannot be undone.",
-      "deleteButton": "Delete file"
+      "title": "Delete document",
+      "confirmation": "Are you sure you want to delete {name}? This action cannot be undone.",
+      "thisDocument": "this document",
+      "deleteButton": "Delete"
     },
     "breadcrumb": {
       "navigation": "Breadcrumb",
@@ -2372,7 +2382,21 @@
       "oneDrive": "OneDrive",
       "sharePointSynced": "SharePoint (synced)",
       "sharePoint": "SharePoint",
-      "uploaded": "Uploaded"
+      "uploaded": "Upload"
+    },
+    "filter": {
+      "ragStatus": {
+        "indexed": "Indexed",
+        "notIndexed": "Not indexed",
+        "indexing": "Indexing",
+        "failed": "Failed",
+        "needsReindex": "Needs reindex"
+      },
+      "source": {
+        "upload": "Upload",
+        "oneDrive": "OneDrive",
+        "sharePoint": "SharePoint"
+      }
     },
     "preview": {
       "loading": "Loading…",
@@ -2388,7 +2412,20 @@
       "downloading": "Downloading...",
       "download": "Download",
       "unknownError": "Unknown error",
-      "document": "Document"
+      "document": "Document",
+      "title": "Document preview",
+      "sidebar": {
+        "document": "Document",
+        "size": "Size",
+        "source": "Source",
+        "ragStatus": "RAG status",
+        "teams": "Teams",
+        "uploadedBy": "Uploaded by",
+        "modified": "Modified",
+        "sourceUpload": "Upload",
+        "sourceOnedrive": "OneDrive",
+        "sourceSharepoint": "SharePoint"
+      }
     },
     "upload": {
       "fromComputer": "From computer",

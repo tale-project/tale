@@ -6,5 +6,6 @@ export const foldersTable = defineTable({
   name: v.string(),
   parentId: v.optional(v.id('folders')),
   teamId: v.optional(v.string()),
+  teamTags: v.optional(v.array(v.string())),
   createdBy: v.optional(v.string()),
 }).index('by_org_parent_name', ['organizationId', 'parentId', 'name']);

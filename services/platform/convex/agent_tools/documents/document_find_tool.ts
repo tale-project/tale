@@ -1,25 +1,25 @@
 /**
- * Convex Tool: Document List
+ * Convex Tool: Document Find
  *
- * Browse and filter documents from the knowledge base.
- * Supports filtering by folder, extension, team, date range, and title search.
+ * Find and filter documents from the knowledge base.
+ * Supports filtering by folder, extension, team, date range, and file name search.
  */
 
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
-import type { AgentDocumentListResult as DocumentListResult } from '../../documents/list_documents_for_agent';
+import type { AgentDocumentFindResult as DocumentFindResult } from '../../documents/list_documents_for_agent';
 import type { ToolDefinition } from '../types';
 
 import { listDocuments } from './helpers/list_documents';
 
-export const documentListArgs = z.object({
+export const documentFindArgs = z.object({
   folderPath: z
     .string()
     .max(500)
     .optional()
     .describe(
-      'Filter by folder path (e.g., "contracts/2024", "marketing"). Case-sensitive exact match. Filters to documents directly in the specified folder, not recursively. Nested paths use "/" separator. Omit to search all folders.',
+      'Filter by folder path (e.g., "contracts/2024", "marketing"). Supports fuzzy matching — handles typos, case differences, singular/plural. Filters to documents directly in the specified folder, not recursively. Nested paths use "/" separator. Omit to search all folders.',
     ),
   extension: z
     .string()
@@ -51,12 +51,12 @@ export const documentListArgs = z.object({
     .describe(
       'Filter documents created on or before this date. UTC date in YYYY-MM-DD format (e.g., "2026-03-31").',
     ),
-  query: z
+  fileName: z
     .string()
     .max(200)
     .optional()
     .describe(
-      'Search by document title (case-insensitive substring match). For semantic/content search, use rag_search instead.',
+      'Search by file name (fuzzy match — handles typos, case differences, partial names). For semantic/content search, use rag_search instead.',
     ),
   sortBy: z
     .enum(['createdAt', 'name'])
@@ -83,25 +83,28 @@ export const documentListArgs = z.object({
     ),
 });
 
-export const documentListTool: ToolDefinition = {
-  name: 'document_list',
+export const documentFindTool: ToolDefinition = {
+  name: 'document_find',
   tool: createTool({
-    description: `Browse and filter documents in the knowledge base.
+    description: `Find and filter documents in the knowledge base.
 
 USE THIS TOOL TO:
-• List documents in a specific folder
+• Find documents in a specific folder
 • Filter by file type (extension), team, or date range
-• Search documents by title
+• Search documents by file name (fuzzy match)
 • Count documents matching criteria (check totalCount in response)
 • Paginate through large result sets
 
 DO NOT USE THIS TOOL FOR:
 • Semantic/content search — use rag_search instead
-• Reading indexed document content — use document_retrieve with the document ID instead
-• Extracting data from uploaded files — use pdf, docx, txt, excel, image, or pptx tools instead
+• Reading indexed document content — use document_retrieve with the document ID (id) instead
+• Extracting data from uploaded files — use pdf, docx, txt, excel, image, or pptx tools with the file ID (fileId) instead
 
 RESPONSE FIELDS:
-• documents: Array of {id, title, extension, folderPath, teamId, createdAt (Unix ms UTC), sizeBytes}
+• documents: Array of {id, fileId, title, extension, folderPath, teamId, createdAt (Unix ms UTC), sizeBytes}
+  - id: The document ID (Convex record ID). Use with document_retrieve to read indexed content.
+  - fileId: The storage file ID. Use with file extraction tools (pdf, docx, txt, excel, image, pptx) and any tool that operates on stored files.
+  - IMPORTANT: id and fileId are DIFFERENT identifiers for different purposes. File extraction tools (pdf, docx, excel, image, etc.) require fileId, NOT id. document_retrieve requires id, NOT fileId.
 • totalCount: Total matching documents (number), or null if the scan limit was reached and the true count is unknown — this does NOT mean zero results.
 • hasMore: Whether more results are available
 • cursor: Pass to next call to get the next page
@@ -118,8 +121,8 @@ TIPS:
 • If warning is present in the response, narrow your filters before continuing
 • Default sort is newest first (createdAt desc)
 • Dates are interpreted as UTC`,
-    args: documentListArgs,
-    handler: async (ctx, args): Promise<DocumentListResult> => {
+    args: documentFindArgs,
+    handler: async (ctx, args): Promise<DocumentFindResult> => {
       return listDocuments(ctx, args);
     },
   }),

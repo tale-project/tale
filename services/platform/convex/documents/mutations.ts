@@ -25,7 +25,7 @@ export const updateDocument = mutation({
     extension: v.optional(v.string()),
     sourceProvider: v.optional(sourceProviderValidator),
     externalItemId: v.optional(v.string()),
-    teamId: v.optional(v.union(v.string(), v.null())),
+    teamIds: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
@@ -46,7 +46,7 @@ export const updateDocument = mutation({
 
     await updateDocumentHelper(ctx, {
       ...args,
-      teamId: args.teamId,
+      teamIds: args.teamIds,
       userId: String(authUser._id),
     });
   },
@@ -114,6 +114,8 @@ export const createDocumentFromUpload = mutation({
       name: authUser.name,
     });
 
+    let effectiveTeamId = args.teamId;
+
     if (args.folderId) {
       const folder = await ctx.db.get(args.folderId);
       if (!folder || folder.organizationId !== args.organizationId) {
@@ -124,6 +126,7 @@ export const createDocumentFromUpload = mutation({
         if (!hasTeamAccess(folder, userTeamIds)) {
           throw new Error('Folder not accessible');
         }
+        effectiveTeamId = folder.teamId;
       }
     }
 
@@ -144,7 +147,7 @@ export const createDocumentFromUpload = mutation({
       mimeType: args.contentType,
       contentHash: args.contentHash,
       sourceProvider: 'upload',
-      teamId: args.teamId,
+      teamId: effectiveTeamId,
       metadata: args.metadata,
       createdBy: String(authUser._id),
       folderId: args.folderId,

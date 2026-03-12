@@ -44,7 +44,7 @@ export function OneDriveFileTable({
   handleFolderClick,
   buildItemPath,
 }: OneDriveFileTableProps) {
-  const { formatDate } = useFormatDate();
+  const { formatDate, timezoneShort } = useFormatDate();
   const { t } = useT('documents');
   const { t: tTables } = useT('tables');
 
@@ -113,7 +113,7 @@ export function OneDriveFileTable({
       {
         id: 'modified',
         header: () => (
-          <div className="text-right">{tTables('headers.modified')}</div>
+          <div className="text-right">{tTables('headers.updated')}</div>
         ),
         cell: ({ row }) => (
           <Text
@@ -122,7 +122,9 @@ export function OneDriveFileTable({
             className="text-right whitespace-nowrap"
           >
             {row.original.lastModified
-              ? formatDate(new Date(row.original.lastModified), 'short')
+              ? `${formatDate(new Date(row.original.lastModified), 'long', {
+                  customFormat: 'll LT',
+                })} ${timezoneShort}`
               : ''}
           </Text>
         ),
@@ -153,6 +155,7 @@ export function OneDriveFileTable({
       handleFolderClick,
       tTables,
       formatDate,
+      timezoneShort,
     ],
   );
 

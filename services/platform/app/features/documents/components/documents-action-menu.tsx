@@ -28,12 +28,14 @@ const DocumentUploadDialog = lazyComponent(() =>
 export interface DocumentsActionMenuProps {
   organizationId: string;
   currentFolderId?: string;
+  parentFolderTeamId?: string;
   hasMicrosoftAccount?: boolean;
 }
 
 export function DocumentsActionMenu({
   organizationId,
   currentFolderId,
+  parentFolderTeamId,
   hasMicrosoftAccount,
 }: DocumentsActionMenuProps) {
   const { t: tDocuments } = useT('documents');
@@ -117,6 +119,7 @@ export function DocumentsActionMenu({
           onOpenChange={setIsCreateFolderOpen}
           organizationId={organizationId}
           parentFolderId={currentFolderId}
+          parentFolderTeamId={parentFolderTeamId}
         />
       )}
     </>

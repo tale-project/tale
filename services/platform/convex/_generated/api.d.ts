@@ -24,7 +24,7 @@ import type * as agent_tools_database_helpers_schema_definitions from "../agent_
 import type * as agent_tools_database_helpers_types from "../agent_tools/database/helpers/types.js";
 import type * as agent_tools_delegation_create_delegation_tool from "../agent_tools/delegation/create_delegation_tool.js";
 import type * as agent_tools_delegation_load_delegation_agents from "../agent_tools/delegation/load_delegation_agents.js";
-import type * as agent_tools_documents_document_list_tool from "../agent_tools/documents/document_list_tool.js";
+import type * as agent_tools_documents_document_find_tool from "../agent_tools/documents/document_find_tool.js";
 import type * as agent_tools_documents_document_retrieve_tool from "../agent_tools/documents/document_retrieve_tool.js";
 import type * as agent_tools_documents_helpers_fetch_document_comparison from "../agent_tools/documents/helpers/fetch_document_comparison.js";
 import type * as agent_tools_documents_helpers_fetch_document_content from "../agent_tools/documents/helpers/fetch_document_content.js";
@@ -324,6 +324,7 @@ import type * as lib_crypto_hex_to_bytes from "../lib/crypto/hex_to_bytes.js";
 import type * as lib_crypto_internal_actions from "../lib/crypto/internal_actions.js";
 import type * as lib_debug_log from "../lib/debug_log.js";
 import type * as lib_error_classification from "../lib/error_classification.js";
+import type * as lib_fuzzy_match from "../lib/fuzzy_match.js";
 import type * as lib_get_or_throw from "../lib/get_or_throw.js";
 import type * as lib_get_user_teams from "../lib/get_user_teams.js";
 import type * as lib_helpers_build_audit_context from "../lib/helpers/build_audit_context.js";
@@ -861,7 +862,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/database/helpers/types": typeof agent_tools_database_helpers_types;
   "agent_tools/delegation/create_delegation_tool": typeof agent_tools_delegation_create_delegation_tool;
   "agent_tools/delegation/load_delegation_agents": typeof agent_tools_delegation_load_delegation_agents;
-  "agent_tools/documents/document_list_tool": typeof agent_tools_documents_document_list_tool;
+  "agent_tools/documents/document_find_tool": typeof agent_tools_documents_document_find_tool;
   "agent_tools/documents/document_retrieve_tool": typeof agent_tools_documents_document_retrieve_tool;
   "agent_tools/documents/helpers/fetch_document_comparison": typeof agent_tools_documents_helpers_fetch_document_comparison;
   "agent_tools/documents/helpers/fetch_document_content": typeof agent_tools_documents_helpers_fetch_document_content;
@@ -1161,6 +1162,7 @@ declare const fullApi: ApiFromModules<{
   "lib/crypto/internal_actions": typeof lib_crypto_internal_actions;
   "lib/debug_log": typeof lib_debug_log;
   "lib/error_classification": typeof lib_error_classification;
+  "lib/fuzzy_match": typeof lib_fuzzy_match;
   "lib/get_or_throw": typeof lib_get_or_throw;
   "lib/get_user_teams": typeof lib_get_user_teams;
   "lib/helpers/build_audit_context": typeof lib_helpers_build_audit_context;
