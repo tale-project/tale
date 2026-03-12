@@ -80,7 +80,7 @@
     "cron-parser": "5.5.0",
     "dagre": "0.8.5",
     "date-fns": "4.1.0",
-    "dayjs": "1.11.19",
+    "dayjs": "1.11.20",
     "dompurify": "3.3.3",
     "framer-motion": "12.35.2",
     "he": "1.2.0",
