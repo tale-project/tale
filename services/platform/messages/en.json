@@ -2171,6 +2171,7 @@
       "searchPlaceholder": "Search agents",
       "noResults": "No agents found",
       "addAgent": "Add agent",
+      "configureAgent": "Configure agent",
       "builtinAgents": {
         "chat": {
           "name": "Assistant",

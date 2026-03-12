@@ -69,6 +69,30 @@ describe('SearchableSelect', () => {
       expect(appleOption.getAttribute('aria-selected')).toBe('true');
     });
 
+    it('shows radio indicator when showRadio is enabled', async () => {
+      const { user } = renderSelect({ value: 'apple', showRadio: true });
+      await user.click(screen.getByText('Open select'));
+      const appleOption = screen.getByRole('option', { name: /Apple/i });
+      expect(appleOption.getAttribute('aria-selected')).toBe('true');
+      const radioIndicators = appleOption.querySelectorAll(
+        'span[aria-hidden="true"]',
+      );
+      expect(radioIndicators.length).toBeGreaterThan(0);
+    });
+
+    it('renders option action when provided', async () => {
+      const { user } = renderSelect({
+        optionAction: (option) => (
+          <button type="button" data-testid={`action-${option.value}`}>
+            Config
+          </button>
+        ),
+      });
+      await user.click(screen.getByText('Open select'));
+      expect(screen.getByTestId('action-apple')).toBeInTheDocument();
+      expect(screen.getByTestId('action-banana')).toBeInTheDocument();
+    });
+
     it('renders empty state when no matches', async () => {
       const { user } = renderSelect();
       await user.click(screen.getByText('Open select'));
