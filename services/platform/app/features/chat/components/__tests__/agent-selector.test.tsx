@@ -14,6 +14,7 @@ vi.mock('@/lib/i18n/client', () => ({
         'agentSelector.searchPlaceholder': 'Search agents...',
         'agentSelector.noResults': 'No agents found',
         'agentSelector.addAgent': 'Add agent',
+        'agentSelector.configureAgent': 'Configure agent',
       };
       return translations[key] ?? key;
     },
@@ -111,9 +112,10 @@ vi.mock(
   }),
 );
 
+const mockNavigate = vi.fn();
 vi.mock('@tanstack/react-router', () => ({
   useSearch: () => ({}),
-  useNavigate: () => vi.fn(),
+  useNavigate: () => mockNavigate,
   useLocation: () => ({ pathname: '/dashboard/org-1/chat' }),
 }));
 
@@ -221,6 +223,42 @@ describe('AgentSelector', () => {
     expect(mockSetSelectedAgent).toHaveBeenCalledWith({
       _id: 'agent-1',
       displayName: 'Default Chat',
+    });
+  });
+
+  it('shows configure button for all agents when user has write permission', async () => {
+    const { user } = render(<AgentSelector organizationId="org-1" />);
+
+    const trigger = screen.getByLabelText('Select agent');
+    await user.click(trigger);
+
+    const configButtons = screen.getAllByLabelText('Configure agent');
+    expect(configButtons).toHaveLength(2);
+  });
+
+  it('does not show configure button when user lacks write permission', async () => {
+    mockCanWrite = false;
+
+    const { user } = render(<AgentSelector organizationId="org-1" />);
+
+    const trigger = screen.getByLabelText('Select agent');
+    await user.click(trigger);
+
+    expect(screen.queryByLabelText('Configure agent')).not.toBeInTheDocument();
+  });
+
+  it('navigates to agent config when configure button is clicked', async () => {
+    const { user } = render(<AgentSelector organizationId="org-1" />);
+
+    const trigger = screen.getByLabelText('Select agent');
+    await user.click(trigger);
+
+    const configButton = screen.getByLabelText('Configure agent');
+    await user.click(configButton);
+
+    expect(mockNavigate).toHaveBeenCalledWith({
+      to: '/dashboard/$id/custom-agents/$agentId',
+      params: { id: 'org-1', agentId: 'root-2' },
     });
   });
 

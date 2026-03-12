@@ -1,10 +1,15 @@
 'use client';
 
-import { Bot, ChevronDown, Plus } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useNavigate } from '@tanstack/react-router';
+import { Bot, ChevronDown, Plus, Settings } from 'lucide-react';
+import { type MouseEvent, useCallback, useMemo, useState } from 'react';
 
-import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
+import {
+  SearchableSelect,
+  type SearchableSelectOption,
+} from '@/app/components/ui/forms/searchable-select';
 import { Button } from '@/app/components/ui/primitives/button';
+import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { CreateCustomAgentDialog } from '@/app/features/custom-agents/components/custom-agent-create-dialog';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useDialogSearchParam } from '@/app/hooks/use-dialog-search-param';
@@ -21,6 +26,7 @@ interface AgentSelectorProps {
 export function AgentSelector({ organizationId }: AgentSelectorProps) {
   const { t } = useT('chat');
   const ability = useAbility();
+  const navigate = useNavigate();
   const { setSelectedAgent } = useChatLayout();
   const effectiveAgent = useEffectiveAgent(organizationId);
   const { agents: allAgents } = useChatAgents(organizationId);
@@ -73,6 +79,35 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
     createAgentDialog.open();
   }, [createAgentDialog]);
 
+  const handleConfigClick = useCallback(
+    (option: SearchableSelectOption, e: MouseEvent) => {
+      e.stopPropagation();
+      setOpen(false);
+      void navigate({
+        to: '/dashboard/$id/custom-agents/$agentId',
+        params: { id: organizationId, agentId: option.value },
+      });
+    },
+    [navigate, organizationId],
+  );
+
+  const renderOptionAction = useCallback(
+    (option: SearchableSelectOption) => {
+      if (!canManageAgents) return null;
+      return (
+        <IconButton
+          icon={Settings}
+          aria-label={t('agentSelector.configureAgent')}
+          variant="ghost"
+          iconSize={4}
+          className="size-8 shrink-0 rounded-md"
+          onClick={(e) => handleConfigClick(option, e)}
+        />
+      );
+    },
+    [canManageAgents, t, handleConfigClick],
+  );
+
   return (
     <>
       <SearchableSelect
@@ -88,6 +123,8 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
         searchPlaceholder={t('agentSelector.searchPlaceholder')}
         emptyText={t('agentSelector.noResults')}
         aria-label={t('agentSelector.label')}
+        showRadio
+        optionAction={renderOptionAction}
         trigger={
           <button
             type="button"

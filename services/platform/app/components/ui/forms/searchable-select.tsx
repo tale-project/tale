@@ -1,7 +1,7 @@
 'use client';
 
 import * as PopoverPrimitive from '@radix-ui/react-popover';
-import { Check, Search } from 'lucide-react';
+import { Check, Circle, Search } from 'lucide-react';
 import {
   type KeyboardEvent,
   type ReactNode,
@@ -54,6 +54,10 @@ export interface SearchableSelectProps {
   'aria-label'?: string;
   /** Custom filter function; defaults to case-insensitive match on label + description */
   filterFn?: (option: SearchableSelectOption, query: string) => boolean;
+  /** Show a radio indicator instead of a check icon for the selected state */
+  showRadio?: boolean;
+  /** Optional action element rendered on the right side of each option */
+  optionAction?: (option: SearchableSelectOption) => ReactNode;
 }
 
 const CONTENT_CLASSES =
@@ -99,6 +103,8 @@ export function SearchableSelect({
   contentClassName,
   'aria-label': ariaLabel,
   filterFn,
+  showRadio,
+  optionAction,
 }: SearchableSelectProps) {
   const instanceId = useId();
   const listboxId = `${instanceId}-listbox`;
@@ -277,6 +283,8 @@ export function SearchableSelect({
                 isHighlighted={highlightedIndex === index}
                 onSelect={handleSelect}
                 onMouseEnter={setHighlightedIndex}
+                showRadio={showRadio}
+                action={optionAction?.(option)}
               />
             ))}
 
@@ -307,6 +315,8 @@ function SearchableSelectOptionItem({
   isHighlighted,
   onSelect,
   onMouseEnter,
+  showRadio,
+  action,
 }: {
   option: SearchableSelectOption;
   index: number;
@@ -315,6 +325,8 @@ function SearchableSelectOptionItem({
   isHighlighted: boolean;
   onSelect: (value: string) => void;
   onMouseEnter: (index: number) => void;
+  showRadio?: boolean;
+  action?: ReactNode;
 }) {
   return (
     <div
@@ -328,11 +340,27 @@ function SearchableSelectOptionItem({
       onClick={() => !option.disabled && onSelect(option.value)}
       onMouseEnter={() => onMouseEnter(index)}
       className={cn(
-        'flex w-full cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors',
+        'group/option flex w-full cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors',
         isHighlighted && 'bg-accent',
         option.disabled && 'pointer-events-none opacity-50',
       )}
     >
+      {showRadio && (
+        <span
+          aria-hidden="true"
+          className={cn(
+            'border-border bg-background pointer-events-none flex size-4 shrink-0 items-center justify-center rounded-full border transition-colors duration-150',
+            isSelected && 'border-blue-600',
+          )}
+        >
+          {isSelected && (
+            <Circle
+              className="size-2.5 fill-blue-600 text-blue-600"
+              aria-hidden="true"
+            />
+          )}
+        </span>
+      )}
       <div className="min-w-0 flex-1">
         <Text as="div" variant="label">
           {option.label}
@@ -343,9 +371,10 @@ function SearchableSelectOptionItem({
           </Text>
         )}
       </div>
-      {isSelected && (
+      {!showRadio && isSelected && (
         <Check className="text-primary size-4 shrink-0" aria-hidden="true" />
       )}
+      {action}
     </div>
   );
 }
