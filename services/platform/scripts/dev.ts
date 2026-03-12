@@ -267,11 +267,15 @@ async function main() {
     }
 
     function spawnConvex() {
-      convexProcess = spawn('bunx', ['convex', 'dev'], {
-        stdio: 'inherit',
-        cwd: platformRoot,
-        env: convexEnv,
-      });
+      convexProcess = spawn(
+        'bunx',
+        ['convex', 'dev', '--local', '--local-force-upgrade'],
+        {
+          stdio: 'inherit',
+          cwd: platformRoot,
+          env: convexEnv,
+        },
+      );
       convexProcess.on('exit', (code) => {
         if (shuttingDown || restarting) return;
         console.log(`[dev] Convex exited with code ${code}`);
