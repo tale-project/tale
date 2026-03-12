@@ -170,6 +170,7 @@ export function ChatInput({
                   >
                     <button
                       type="button"
+                      aria-label={tChat('viewImage')}
                       onClick={() =>
                         attachment.previewUrl &&
                         setPreviewImage({

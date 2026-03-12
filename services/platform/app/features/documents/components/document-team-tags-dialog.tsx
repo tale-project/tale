@@ -6,7 +6,7 @@ import { useCallback, useMemo, useState } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { EmptyState } from '@/app/components/ui/feedback/empty-state';
-import { Checkbox } from '@/app/components/ui/forms/checkbox';
+import { Select } from '@/app/components/ui/forms/select';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
@@ -14,14 +14,18 @@ import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { toast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
-import { useUpdateDocument } from '../hooks/mutations';
+import { useUpdateDocument, useUpdateFolderTeams } from '../hooks/mutations';
+
+const ORG_WIDE_VALUE = '__org_wide__';
+
+type EntityType = 'file' | 'folder';
 
 interface DocumentTeamDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  documentId: string;
+  entityId: string;
+  entityType?: EntityType;
   documentName?: string | null;
   currentTeamIds?: string[];
 }
@@ -35,7 +39,8 @@ interface DocumentTeamDialogProps {
 function DocumentTeamDialogContent({
   open,
   onOpenChange,
-  documentId,
+  entityId,
+  entityType = 'file',
   documentName,
   currentTeamIds,
 }: DocumentTeamDialogProps) {
@@ -44,12 +49,12 @@ function DocumentTeamDialogContent({
   const navigate = useNavigate();
   const organizationId = useOrganizationId();
 
-  const [selectedTeamIds, setSelectedTeamIds] = useState<Set<string>>(
-    () => new Set(currentTeamIds ?? []),
-  );
+  const currentTeamId = currentTeamIds?.[0] ?? ORG_WIDE_VALUE;
+  const [selectedTeamId, setSelectedTeamId] = useState(currentTeamId);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const updateDocument = useUpdateDocument();
+  const updateFolderTeams = useUpdateFolderTeams();
   const { teams, isLoading } = useTeams();
 
   const hasTeams = teams && teams.length > 0;
@@ -60,32 +65,26 @@ function DocumentTeamDialogContent({
     }
   }, [isSubmitting, onOpenChange]);
 
-  const isOrgWide = selectedTeamIds.size === 0;
-
-  const handleSelectOrgWide = useCallback(() => {
-    setSelectedTeamIds(new Set());
-  }, []);
-
-  const handleToggleTeam = useCallback((teamId: string) => {
-    setSelectedTeamIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(teamId)) {
-        next.delete(teamId);
-      } else {
-        next.add(teamId);
-      }
-      return next;
-    });
-  }, []);
-
   const handleSubmit = useCallback(async () => {
     setIsSubmitting(true);
 
     try {
-      await updateDocument.mutateAsync({
-        documentId: toId<'documents'>(documentId),
-        teamIds: [...selectedTeamIds],
-      });
+      const teamIds =
+        selectedTeamId && selectedTeamId !== ORG_WIDE_VALUE
+          ? [selectedTeamId]
+          : [];
+
+      if (entityType === 'folder') {
+        await updateFolderTeams.mutateAsync({
+          folderId: toId<'folders'>(entityId),
+          teamIds,
+        });
+      } else {
+        await updateDocument.mutateAsync({
+          documentId: toId<'documents'>(entityId),
+          teamIds,
+        });
+      }
 
       toast({
         title: tDocuments('teamTags.updated'),
@@ -102,16 +101,17 @@ function DocumentTeamDialogContent({
     } finally {
       setIsSubmitting(false);
     }
-  }, [documentId, selectedTeamIds, updateDocument, onOpenChange, tDocuments]);
+  }, [
+    entityId,
+    entityType,
+    selectedTeamId,
+    updateDocument,
+    updateFolderTeams,
+    onOpenChange,
+    tDocuments,
+  ]);
 
-  const hasChanges = useMemo(() => {
-    const currentSet = new Set(currentTeamIds ?? []);
-    if (currentSet.size !== selectedTeamIds.size) return true;
-    for (const id of currentSet) {
-      if (!selectedTeamIds.has(id)) return true;
-    }
-    return false;
-  }, [currentTeamIds, selectedTeamIds]);
+  const hasChanges = selectedTeamId !== currentTeamId;
 
   const displayName = useMemo(() => {
     if (!documentName) return '';
@@ -128,14 +128,20 @@ function DocumentTeamDialogContent({
     });
   }, [organizationId, onOpenChange, navigate]);
 
+  const teamOptions = useMemo(
+    () => [
+      { value: ORG_WIDE_VALUE, label: tDocuments('teamTags.orgWide') },
+      ...(teams ?? []).map((team) => ({ value: team.id, label: team.name })),
+    ],
+    [teams, tDocuments],
+  );
+
   return (
     <Dialog
       open={open}
       onOpenChange={handleClose}
       title={tDocuments('teamTags.title')}
       description={displayName || undefined}
-      className="gap-0 p-0!"
-      headerClassName="border-border border-b px-6 pt-5 pb-4"
       footerClassName="px-6 pt-4 pb-5"
       footer={
         <>
@@ -182,58 +188,16 @@ function DocumentTeamDialogContent({
           className="py-8"
         />
       ) : (
-        <div className="flex min-w-0 flex-col gap-1 px-2 pt-2 pb-4">
-          <fieldset className="m-0 border-none p-0">
-            <legend className="sr-only">{tDocuments('teamTags.title')}</legend>
-            <div className="flex flex-col gap-1">
-              <button
-                type="button"
-                onClick={handleSelectOrgWide}
-                disabled={isSubmitting}
-                className={cn(
-                  'flex w-full items-center gap-3 rounded-md px-4 py-2.5 text-left transition-colors',
-                  isOrgWide ? 'bg-muted' : 'hover:bg-muted/50',
-                  isSubmitting && 'cursor-not-allowed opacity-50',
-                )}
-              >
-                <Checkbox
-                  checked={isOrgWide}
-                  onCheckedChange={handleSelectOrgWide}
-                  aria-label={tDocuments('teamTags.orgWide')}
-                  tabIndex={-1}
-                />
-                <Text as="span" className="text-sm select-none">
-                  {tDocuments('teamTags.orgWide')}
-                </Text>
-              </button>
-              {teams.map((team) => {
-                const isChecked = selectedTeamIds.has(team.id);
-                return (
-                  <button
-                    key={team.id}
-                    type="button"
-                    onClick={() => handleToggleTeam(team.id)}
-                    disabled={isSubmitting}
-                    className={cn(
-                      'flex w-full items-center gap-3 rounded-md px-4 py-2.5 text-left transition-colors',
-                      isChecked ? 'bg-muted' : 'hover:bg-muted/50',
-                      isSubmitting && 'cursor-not-allowed opacity-50',
-                    )}
-                  >
-                    <Checkbox
-                      checked={isChecked}
-                      onCheckedChange={() => handleToggleTeam(team.id)}
-                      aria-label={team.name}
-                      tabIndex={-1}
-                    />
-                    <Text as="span" className="text-sm select-none">
-                      {team.name}
-                    </Text>
-                  </button>
-                );
-              })}
-            </div>
-          </fieldset>
+        <div className="px-6 pt-2 pb-4">
+          <Select
+            id="team-assignment"
+            label={tDocuments('teamTags.team')}
+            placeholder={tDocuments('teamTags.orgWide')}
+            value={selectedTeamId}
+            onValueChange={setSelectedTeamId}
+            options={teamOptions}
+            disabled={isSubmitting}
+          />
         </div>
       )}
     </Dialog>
@@ -241,7 +205,7 @@ function DocumentTeamDialogContent({
 }
 
 /**
- * Dialog for managing team assignment on a document.
+ * Dialog for managing team assignment on a document or folder.
  *
  * CRITICAL: This wrapper pattern prevents "Maximum update depth exceeded" errors.
  * Radix UI Dialog keeps components mounted during closing animations.

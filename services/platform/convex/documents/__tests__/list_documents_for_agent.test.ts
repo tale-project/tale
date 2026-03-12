@@ -30,6 +30,16 @@ vi.mock('../../folders/queries', () => ({
         { _id: 'f_b', name: 'team_b' },
         { _id: 'f_docs_b', name: 'docs' },
       ],
+      f_sales: [{ _id: 'f_sales', name: 'sales' }],
+      f_q1: [
+        { _id: 'f_sales', name: 'sales' },
+        { _id: 'f_q1', name: 'q1' },
+      ],
+      f_shared: [{ _id: 'f_shared', name: 'shared' }],
+      f_team_docs: [
+        { _id: 'f_root', name: 'projects' },
+        { _id: 'f_team_docs', name: 'team-docs' },
+      ],
     };
     return Promise.resolve(paths[folderId] ?? []);
   }),
@@ -51,6 +61,8 @@ interface MockFolder {
   name: string;
   organizationId: string;
   parentId?: string;
+  teamId?: string;
+  teamTags?: string[];
 }
 
 function createMockCtx(
@@ -1576,6 +1588,155 @@ describe('listDocumentsForAgent', () => {
 
       expect(result.documents).toHaveLength(1);
       expect(result.documents[0]?.id).toBe('doc1');
+    });
+  });
+
+  describe('folder team access filtering in resolveFolderPathFuzzy', () => {
+    it('returns not found for cross-team folder path', async () => {
+      const ctx = createMockCtx(
+        {
+          f_sales: {
+            name: 'sales',
+            organizationId: 'org1',
+            parentId: undefined,
+            teamId: 'team_b',
+            teamTags: ['team_b'],
+          },
+        },
+        [makeDoc({ _id: 'doc1', folderId: 'f_sales' })],
+      );
+
+      const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        userTeamIds: ['team_a'],
+        folderPath: 'sales',
+      });
+
+      expect(result.documents).toEqual([]);
+      expect(result.warning).toBe("Folder 'sales' not found.");
+    });
+
+    it('resolves same-team nested folder path', async () => {
+      const ctx = createMockCtx(
+        {
+          f_sales: {
+            name: 'sales',
+            organizationId: 'org1',
+            parentId: undefined,
+            teamId: 'team_a',
+            teamTags: ['team_a'],
+          },
+          f_q1: {
+            name: 'q1',
+            organizationId: 'org1',
+            parentId: 'f_sales',
+            teamId: 'team_a',
+            teamTags: ['team_a'],
+          },
+        },
+        [makeDoc({ _id: 'doc1', folderId: 'f_q1', teamId: 'team_a' })],
+      );
+
+      const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        userTeamIds: ['team_a'],
+        folderPath: 'sales/q1',
+      });
+
+      expect(result.documents).toHaveLength(1);
+      expect(result.documents[0]?.id).toBe('doc1');
+    });
+
+    it('allows org-wide folders (no teamId) for all users', async () => {
+      const ctx = createMockCtx(
+        {
+          f_shared: {
+            name: 'shared',
+            organizationId: 'org1',
+            parentId: undefined,
+          },
+        },
+        [makeDoc({ _id: 'doc1', folderId: 'f_shared' })],
+      );
+
+      const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        userTeamIds: ['team_x'],
+        folderPath: 'shared',
+      });
+
+      expect(result.documents).toHaveLength(1);
+      expect(result.documents[0]?.id).toBe('doc1');
+    });
+
+    it('resolves mixed org-wide parent + team-scoped child', async () => {
+      const ctx = createMockCtx(
+        {
+          f_root: {
+            name: 'projects',
+            organizationId: 'org1',
+            parentId: undefined,
+          },
+          f_team_docs: {
+            name: 'team-docs',
+            organizationId: 'org1',
+            parentId: 'f_root',
+            teamId: 'team_a',
+            teamTags: ['team_a'],
+          },
+        },
+        [
+          makeDoc({
+            _id: 'doc1',
+            folderId: 'f_team_docs',
+            teamId: 'team_a',
+          }),
+        ],
+      );
+
+      const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        userTeamIds: ['team_a'],
+        folderPath: 'projects/team-docs',
+      });
+
+      expect(result.documents).toHaveLength(1);
+      expect(result.documents[0]?.id).toBe('doc1');
+    });
+
+    it('blocks team-scoped child even when parent is org-wide', async () => {
+      const ctx = createMockCtx(
+        {
+          f_root: {
+            name: 'projects',
+            organizationId: 'org1',
+            parentId: undefined,
+          },
+          f_team_docs: {
+            name: 'team-docs',
+            organizationId: 'org1',
+            parentId: 'f_root',
+            teamId: 'team_b',
+            teamTags: ['team_b'],
+          },
+        },
+        [
+          makeDoc({
+            _id: 'doc1',
+            folderId: 'f_team_docs',
+            teamId: 'team_b',
+          }),
+        ],
+      );
+
+      const result = await listDocumentsForAgent(ctx as unknown as QueryCtx, {
+        ...baseArgs,
+        userTeamIds: ['team_a'],
+        folderPath: 'projects/team-docs',
+      });
+
+      expect(result.documents).toEqual([]);
+      expect(result.warning).toBe("Folder 'projects/team-docs' not found.");
     });
   });
 });

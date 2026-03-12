@@ -18,6 +18,7 @@ import { filterByTextSearch } from '@/lib/utils/filtering';
 
 import {
   useApproxDocumentCount,
+  useFolder,
   useFolders,
   useListDocumentsPaginated,
 } from '../hooks/queries';
@@ -70,6 +71,9 @@ export function DocumentsTable({
     initialNumItems: 20,
   });
 
+  const { data: currentFolder } = useFolder(currentFolderId);
+  const parentFolderTeamId = currentFolder?.teamId ?? undefined;
+
   const { data: folders } = useFolders(organizationId, currentFolderId);
 
   const folderRows = useMemo<DocumentItem[]>(() => {
@@ -80,6 +84,7 @@ export function DocumentsTable({
       type: 'folder' as const,
       folderId: folder._id,
       lastModified: folder._creationTime,
+      teamIds: folder.teamTags ?? (folder.teamId ? [folder.teamId] : []),
     }));
   }, [folders]);
 
@@ -302,6 +307,7 @@ export function DocumentsTable({
       onFolderDeleted: handleFolderDeleted,
       isLoadingTeams,
       teamMap,
+      parentFolderTeamId,
     });
 
   const list = useListPage({
@@ -355,6 +361,7 @@ export function DocumentsTable({
           <DocumentsActionMenu
             organizationId={organizationId}
             currentFolderId={currentFolderId}
+            parentFolderTeamId={parentFolderTeamId}
             hasMicrosoftAccount={hasMicrosoftAccount}
           />
         }

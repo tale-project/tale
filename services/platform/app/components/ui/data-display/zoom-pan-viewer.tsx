@@ -138,10 +138,12 @@ export const ZoomPanViewer = memo(function ZoomPanViewer({
 
       <div
         ref={containerRef}
+        tabIndex={isZoomed ? 0 : -1}
         className={cn(
-          'flex flex-1 items-center justify-center overflow-hidden',
+          'flex flex-1 items-center justify-center overflow-hidden outline-none',
           isZoomed ? 'cursor-grab' : 'cursor-default',
           isDragging && 'cursor-grabbing',
+          'focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2',
         )}
         {...pointerHandlers}
       >

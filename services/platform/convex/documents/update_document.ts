@@ -37,6 +37,14 @@ export async function updateDocument(
     if (!args.userId) {
       throw new Error('userId is required when updating teamIds');
     }
+
+    if (document.folderId) {
+      const folder = await ctx.db.get(document.folderId);
+      if (folder?.teamId) {
+        throw new Error('Cannot change team: inherited from parent folder');
+      }
+    }
+
     const userTeamIds = await getUserTeamIds(ctx, args.userId);
     const userTeamSet = new Set(userTeamIds);
     for (const id of args.teamIds) {

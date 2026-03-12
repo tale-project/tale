@@ -114,6 +114,8 @@ export const createDocumentFromUpload = mutation({
       name: authUser.name,
     });
 
+    let effectiveTeamId = args.teamId;
+
     if (args.folderId) {
       const folder = await ctx.db.get(args.folderId);
       if (!folder || folder.organizationId !== args.organizationId) {
@@ -124,6 +126,7 @@ export const createDocumentFromUpload = mutation({
         if (!hasTeamAccess(folder, userTeamIds)) {
           throw new Error('Folder not accessible');
         }
+        effectiveTeamId = folder.teamId;
       }
     }
 
@@ -144,7 +147,7 @@ export const createDocumentFromUpload = mutation({
       mimeType: args.contentType,
       contentHash: args.contentHash,
       sourceProvider: 'upload',
-      teamId: args.teamId,
+      teamId: effectiveTeamId,
       metadata: args.metadata,
       createdBy: String(authUser._id),
       folderId: args.folderId,

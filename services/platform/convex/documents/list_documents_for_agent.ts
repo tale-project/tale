@@ -90,6 +90,7 @@ export async function listDocumentsForAgent(
       ctx,
       args.organizationId,
       args.folderPath,
+      teamIdSet,
     );
     if (resolved === undefined) {
       // Empty segments (e.g., "/", "///") — treat as no folder filter
@@ -258,6 +259,7 @@ async function resolveFolderPathFuzzy(
   ctx: QueryCtx,
   organizationId: string,
   folderPath: string,
+  userTeamIds: Set<string>,
 ): Promise<FolderResolveResult> {
   const cleanPath = folderPath.startsWith('/')
     ? folderPath.slice(1)
@@ -277,6 +279,7 @@ async function resolveFolderPathFuzzy(
     );
 
   for await (const folder of folderQuery) {
+    if (!hasTeamAccess(folder, userTeamIds)) continue;
     const entry: FolderEntry = {
       id: folder._id,
       name: folder.name,
