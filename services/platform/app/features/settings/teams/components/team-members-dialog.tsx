@@ -9,6 +9,7 @@ import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Select } from '@/app/components/ui/forms/select';
 import { BorderedSection } from '@/app/components/ui/layout/bordered-section';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
+import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { toast } from '@/app/hooks/use-toast';
@@ -192,23 +193,29 @@ export function TeamMembersDialog({
                       </Text>
                     )}
                   </Stack>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleRemoveMember(member._id)}
-                    disabled={
-                      removingMemberId === member._id || teamMembers.length <= 1
-                    }
-                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                    aria-label={tSettings('teams.removeMember')}
-                    title={
+                  <Tooltip
+                    content={
                       teamMembers.length <= 1
                         ? tSettings('teams.cannotRemoveLastMember')
                         : undefined
                     }
                   >
-                    <Trash2 className="size-4" />
-                  </Button>
+                    <span className="inline-flex">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleRemoveMember(member._id)}
+                        disabled={
+                          removingMemberId === member._id ||
+                          teamMembers.length <= 1
+                        }
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        aria-label={tSettings('teams.removeMember')}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </span>
+                  </Tooltip>
                 </BorderedSection>
               );
             })

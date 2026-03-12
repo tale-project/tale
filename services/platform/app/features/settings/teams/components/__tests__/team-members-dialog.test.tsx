@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import type { ReactNode } from 'react';
+
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -28,6 +30,20 @@ vi.mock('@/app/hooks/use-toast', () => ({
 
 vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org_1',
+}));
+
+vi.mock('@/app/components/ui/overlays/tooltip', () => ({
+  Tooltip: ({
+    children,
+    content,
+  }: {
+    children: ReactNode;
+    content?: ReactNode;
+  }) => (
+    <span data-testid="tooltip" data-tooltip-content={content ?? ''}>
+      {children}
+    </span>
+  ),
 }));
 
 vi.mock('../../../organization/hooks/queries', () => ({
@@ -171,8 +187,9 @@ describe('TeamMembersDialog', () => {
       name: 'settings.teams.removeMember',
     });
     expect(removeButton).toBeDisabled();
-    expect(removeButton).toHaveAttribute(
-      'title',
+    const tooltip = removeButton.closest('[data-testid="tooltip"]');
+    expect(tooltip).toHaveAttribute(
+      'data-tooltip-content',
       'settings.teams.cannotRemoveLastMember',
     );
   });
