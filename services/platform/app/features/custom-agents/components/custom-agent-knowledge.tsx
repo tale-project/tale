@@ -1,5 +1,6 @@
 'use client';
 
+import { Link } from '@tanstack/react-router';
 import { FileText } from 'lucide-react';
 import { useState, useCallback, useEffect, useMemo } from 'react';
 
@@ -168,7 +169,20 @@ export function CustomAgentKnowledge({
     <ContentArea variant="narrow" gap={6}>
       <SectionHeader
         title={t('customAgents.form.sectionKnowledge')}
-        description={t('customAgents.form.sectionKnowledgeDescription')}
+        description={
+          <>
+            {t('customAgents.form.sectionKnowledgeDescription')}
+            {'. '}
+            {t('customAgents.form.knowledgeHint')}{' '}
+            <Link
+              to="/dashboard/$id/documents"
+              params={{ id: organizationId }}
+              className="text-primary hover:underline"
+            >
+              {t('customAgents.form.knowledgeHintLink')}
+            </Link>
+          </>
+        }
         action={<AutoSaveIndicator status={status} />}
       />
 

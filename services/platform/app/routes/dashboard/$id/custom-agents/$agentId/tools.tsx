@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { Link, createFileRoute } from '@tanstack/react-router';
 import { useState, useCallback, useMemo, useEffect } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
@@ -166,7 +166,20 @@ function ToolsTab() {
 
       <SectionHeader
         title={t('customAgents.tools.webSearchMode')}
-        description={t('customAgents.tools.webSearchModeDescription')}
+        description={
+          <>
+            {t('customAgents.tools.webSearchModeDescription')}
+            {'. '}
+            {t('customAgents.tools.webSearchHint')}{' '}
+            <Link
+              to="/dashboard/$id/websites"
+              params={{ id: organizationId }}
+              className="text-primary hover:underline"
+            >
+              {t('customAgents.tools.webSearchHintLink')}
+            </Link>
+          </>
+        }
       />
 
       <RadioGroup
