@@ -57,6 +57,7 @@ interface DocumentsTableConfigParams {
   onFolderDeleted: () => void;
   isLoadingTeams: boolean;
   teamMap: Map<string, string>;
+  parentFolderTeamId?: string;
 }
 
 interface DocumentsTableConfig {
@@ -71,6 +72,7 @@ export function useDocumentsTableConfig({
   onFolderDeleted,
   isLoadingTeams,
   teamMap,
+  parentFolderTeamId,
 }: DocumentsTableConfigParams): DocumentsTableConfig {
   const { t: tTables } = useT('tables');
   const { t: tDocuments } = useT('documents');
@@ -178,13 +180,6 @@ export function useDocumentsTableConfig({
         size: 160,
         meta: { skeleton: { type: 'badge' as const } },
         cell: ({ row }) => {
-          if (row.original.type === 'folder') {
-            return (
-              <Text as="span" variant="muted">
-                —
-              </Text>
-            );
-          }
           const teamIds = row.original.teamIds ?? [];
           if (teamIds.length === 0) {
             return (
@@ -269,6 +264,7 @@ export function useDocumentsTableConfig({
               sourceMode={row.original.sourceMode}
               teamIds={row.original.teamIds ?? []}
               onFolderDeleted={onFolderDeleted}
+              parentFolderTeamId={parentFolderTeamId}
             />
           </HStack>
         ),
@@ -279,6 +275,7 @@ export function useDocumentsTableConfig({
       onFolderDeleted,
       isLoadingTeams,
       teamMap,
+      parentFolderTeamId,
       tTables,
       tDocuments,
     ],

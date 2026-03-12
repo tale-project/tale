@@ -32,7 +32,7 @@ export const TOOL_NAMES = [
   'verify_approval',
   'database_schema',
   'request_human_input',
-  'document_list',
+  'document_find',
   'document_retrieve',
 ] as const;
 

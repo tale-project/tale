@@ -1,7 +1,12 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import {
+  cleanup,
+  render,
+  screen,
+  fireEvent,
+  act,
+} from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockMutateAsync = vi.fn();
@@ -34,8 +39,11 @@ vi.mock('@/app/hooks/use-toast', () => ({
   toast: (...args: unknown[]) => mockToast(...args),
 }));
 
+const mockFolderMutateAsync = vi.fn();
+
 vi.mock('../../hooks/mutations', () => ({
   useUpdateDocument: () => ({ mutateAsync: mockMutateAsync }),
+  useUpdateFolderTeams: () => ({ mutateAsync: mockFolderMutateAsync }),
 }));
 
 const mockTeams = [
@@ -55,13 +63,56 @@ vi.mock('@/convex/lib/type_cast_helpers', () => ({
   toId: (id: string) => id,
 }));
 
+vi.mock('@/app/components/ui/forms/select', () => ({
+  Select: ({
+    value,
+    onValueChange,
+    options,
+    label,
+    disabled,
+    id,
+  }: {
+    value: string;
+    onValueChange: (v: string) => void;
+    options: Array<{ value: string; label: string }>;
+    label?: string;
+    disabled?: boolean;
+    id?: string;
+    placeholder?: string;
+  }) => {
+    return (
+      <div data-testid="mock-select">
+        {label && <label htmlFor={id}>{label}</label>}
+        <select
+          id={id}
+          value={value}
+          disabled={disabled}
+          onChange={(e) => onValueChange(e.target.value)}
+          data-testid="team-select"
+        >
+          {options.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </div>
+    );
+  },
+}));
+
 import { DocumentTeamTagsDialog } from '../document-team-tags-dialog';
+
+function selectTeam(teamValue: string) {
+  const select = screen.getByTestId('team-select');
+  fireEvent.change(select, { target: { value: teamValue } });
+}
 
 describe('DocumentTeamTagsDialog', () => {
   const defaultProps = {
     open: true,
     onOpenChange: vi.fn(),
-    documentId: 'doc-1',
+    entityId: 'doc-1',
     documentName: 'Return policy v2.docx',
     currentTeamIds: [] as string[],
   };
@@ -69,6 +120,7 @@ describe('DocumentTeamTagsDialog', () => {
   beforeEach(() => {
     mockTeamsData = { teams: mockTeams, isLoading: false };
     mockMutateAsync.mockResolvedValue(undefined);
+    mockFolderMutateAsync.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -103,21 +155,23 @@ describe('DocumentTeamTagsDialog', () => {
     expect(screen.getByText('Report.pdf')).toBeInTheDocument();
   });
 
-  it('renders organization-wide option and all team checkboxes', () => {
+  it('renders the team select dropdown with all options', () => {
     render(<DocumentTeamTagsDialog {...defaultProps} />);
-    expect(screen.getByText('documents.teamTags.orgWide')).toBeInTheDocument();
-    expect(screen.getByText('Sales')).toBeInTheDocument();
-    expect(screen.getByText('Support')).toBeInTheDocument();
-    expect(screen.getByText('Operations')).toBeInTheDocument();
+    const select = screen.getByTestId('team-select');
+    expect(select).toBeInTheDocument();
+
+    const options = select.querySelectorAll('option');
+    expect(options).toHaveLength(4);
+    expect(options[0]).toHaveTextContent('documents.teamTags.orgWide');
+    expect(options[1]).toHaveTextContent('Sales');
+    expect(options[2]).toHaveTextContent('Support');
+    expect(options[3]).toHaveTextContent('Operations');
   });
 
-  it('shows org-wide checkbox as checked by default (no teams selected)', () => {
+  it('defaults to org-wide when no team is selected', () => {
     render(<DocumentTeamTagsDialog {...defaultProps} />);
-    const checkboxes = screen.getAllByRole('checkbox');
-    expect(checkboxes[0]).toBeChecked();
-    expect(checkboxes[1]).not.toBeChecked();
-    expect(checkboxes[2]).not.toBeChecked();
-    expect(checkboxes[3]).not.toBeChecked();
+    const select = screen.getByTestId('team-select');
+    expect(select).toHaveValue('__org_wide__');
   });
 
   it('shows loading state', () => {
@@ -147,15 +201,14 @@ describe('DocumentTeamTagsDialog', () => {
     expect(screen.getByText('common.actions.save')).toBeDisabled();
   });
 
-  it('navigates to settings on go to settings click', async () => {
+  it('navigates to settings on go to settings click', () => {
     mockTeamsData = { teams: [], isLoading: false };
-    const user = userEvent.setup();
     const onOpenChange = vi.fn();
     render(
       <DocumentTeamTagsDialog {...defaultProps} onOpenChange={onOpenChange} />,
     );
 
-    await user.click(screen.getByText('documents.teamTags.goToSettings'));
+    fireEvent.click(screen.getByText('documents.teamTags.goToSettings'));
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(mockNavigate).toHaveBeenCalledWith({
       to: '/dashboard/$id/settings/teams',
@@ -163,52 +216,12 @@ describe('DocumentTeamTagsDialog', () => {
     });
   });
 
-  it('pre-selects current teams and unchecks org-wide', () => {
-    render(
-      <DocumentTeamTagsDialog
-        {...defaultProps}
-        currentTeamIds={['team-1', 'team-2']}
-      />,
-    );
-    const checkboxes = screen.getAllByRole('checkbox');
-    expect(checkboxes[0]).not.toBeChecked();
-    expect(checkboxes[1]).toBeChecked();
-    expect(checkboxes[2]).toBeChecked();
-    expect(checkboxes[3]).not.toBeChecked();
-  });
-
-  it('toggles team selection on click', async () => {
-    const user = userEvent.setup();
-    render(<DocumentTeamTagsDialog {...defaultProps} />);
-
-    await user.click(screen.getByText('Sales'));
-    const checkboxes = screen.getAllByRole('checkbox');
-    expect(checkboxes[0]).not.toBeChecked();
-    expect(checkboxes[1]).toBeChecked();
-  });
-
-  it('deselects team when clicking an already-selected team', async () => {
-    const user = userEvent.setup();
+  it('pre-selects current team', () => {
     render(
       <DocumentTeamTagsDialog {...defaultProps} currentTeamIds={['team-1']} />,
     );
-
-    await user.click(screen.getByText('Sales'));
-    expect(screen.getAllByRole('checkbox')[1]).not.toBeChecked();
-  });
-
-  it('allows selecting multiple teams', async () => {
-    const user = userEvent.setup();
-    render(<DocumentTeamTagsDialog {...defaultProps} />);
-
-    await user.click(screen.getByText('Sales'));
-    await user.click(screen.getByText('Support'));
-
-    const checkboxes = screen.getAllByRole('checkbox');
-    expect(checkboxes[0]).not.toBeChecked();
-    expect(checkboxes[1]).toBeChecked();
-    expect(checkboxes[2]).toBeChecked();
-    expect(checkboxes[3]).not.toBeChecked();
+    const select = screen.getByTestId('team-select');
+    expect(select).toHaveValue('team-1');
   });
 
   it('disables save when no changes', () => {
@@ -217,60 +230,38 @@ describe('DocumentTeamTagsDialog', () => {
     expect(saveButton).toBeDisabled();
   });
 
-  it('enables save when team changes', async () => {
-    const user = userEvent.setup();
+  it('enables save when team changes', () => {
     render(<DocumentTeamTagsDialog {...defaultProps} />);
 
-    await user.click(screen.getByText('Sales'));
+    selectTeam('team-1');
+
     const saveButton = screen.getByText('common.actions.save');
     expect(saveButton).toBeEnabled();
   });
 
-  it('submits with the selected team ids', async () => {
-    const user = userEvent.setup();
+  it('submits with the selected team id', async () => {
     render(<DocumentTeamTagsDialog {...defaultProps} />);
 
-    await user.click(screen.getByText('Sales'));
-    await user.click(screen.getByText('Support'));
-    await user.click(screen.getByText('common.actions.save'));
+    selectTeam('team-1');
+    await act(async () => {
+      fireEvent.click(screen.getByText('common.actions.save'));
+    });
 
     expect(mockMutateAsync).toHaveBeenCalledWith({
       documentId: 'doc-1',
-      teamIds: expect.arrayContaining(['team-1', 'team-2']),
+      teamIds: ['team-1'],
     });
   });
 
-  it('clears all teams when clicking organization-wide', async () => {
-    const user = userEvent.setup();
-    render(
-      <DocumentTeamTagsDialog
-        {...defaultProps}
-        currentTeamIds={['team-1', 'team-2']}
-      />,
-    );
-
-    const checkboxes = screen.getAllByRole('checkbox');
-    expect(checkboxes[0]).not.toBeChecked();
-    expect(checkboxes[1]).toBeChecked();
-    expect(checkboxes[2]).toBeChecked();
-
-    await user.click(screen.getByText('documents.teamTags.orgWide'));
-
-    const updatedCheckboxes = screen.getAllByRole('checkbox');
-    expect(updatedCheckboxes[0]).toBeChecked();
-    expect(updatedCheckboxes[1]).not.toBeChecked();
-    expect(updatedCheckboxes[2]).not.toBeChecked();
-    expect(updatedCheckboxes[3]).not.toBeChecked();
-  });
-
   it('submits empty array when org-wide is selected', async () => {
-    const user = userEvent.setup();
     render(
       <DocumentTeamTagsDialog {...defaultProps} currentTeamIds={['team-1']} />,
     );
 
-    await user.click(screen.getByText('documents.teamTags.orgWide'));
-    await user.click(screen.getByText('common.actions.save'));
+    selectTeam('__org_wide__');
+    await act(async () => {
+      fireEvent.click(screen.getByText('common.actions.save'));
+    });
 
     expect(mockMutateAsync).toHaveBeenCalledWith({
       documentId: 'doc-1',
@@ -279,11 +270,12 @@ describe('DocumentTeamTagsDialog', () => {
   });
 
   it('shows success toast after save', async () => {
-    const user = userEvent.setup();
     render(<DocumentTeamTagsDialog {...defaultProps} />);
 
-    await user.click(screen.getByText('Sales'));
-    await user.click(screen.getByText('common.actions.save'));
+    selectTeam('team-1');
+    await act(async () => {
+      fireEvent.click(screen.getByText('common.actions.save'));
+    });
 
     expect(mockToast).toHaveBeenCalledWith({
       title: 'documents.teamTags.updated',
@@ -293,11 +285,12 @@ describe('DocumentTeamTagsDialog', () => {
 
   it('shows error toast on save failure', async () => {
     mockMutateAsync.mockRejectedValue(new Error('fail'));
-    const user = userEvent.setup();
     render(<DocumentTeamTagsDialog {...defaultProps} />);
 
-    await user.click(screen.getByText('Sales'));
-    await user.click(screen.getByText('common.actions.save'));
+    selectTeam('team-1');
+    await act(async () => {
+      fireEvent.click(screen.getByText('common.actions.save'));
+    });
 
     expect(mockToast).toHaveBeenCalledWith({
       title: 'documents.teamTags.updateFailed',
@@ -305,27 +298,105 @@ describe('DocumentTeamTagsDialog', () => {
     });
   });
 
-  it('closes dialog on cancel', async () => {
-    const user = userEvent.setup();
+  it('closes dialog on cancel', () => {
     const onOpenChange = vi.fn();
     render(
       <DocumentTeamTagsDialog {...defaultProps} onOpenChange={onOpenChange} />,
     );
 
-    await user.click(screen.getByText('common.actions.cancel'));
+    fireEvent.click(screen.getByText('common.actions.cancel'));
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it('closes dialog after successful save', async () => {
-    const user = userEvent.setup();
     const onOpenChange = vi.fn();
     render(
       <DocumentTeamTagsDialog {...defaultProps} onOpenChange={onOpenChange} />,
     );
 
-    await user.click(screen.getByText('Sales'));
-    await user.click(screen.getByText('common.actions.save'));
+    selectTeam('team-1');
+    await act(async () => {
+      fireEvent.click(screen.getByText('common.actions.save'));
+    });
 
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('only allows single team selection', () => {
+    render(<DocumentTeamTagsDialog {...defaultProps} />);
+
+    selectTeam('team-1');
+    const select = screen.getByTestId('team-select');
+    expect(select).toHaveValue('team-1');
+
+    selectTeam('team-2');
+    expect(select).toHaveValue('team-2');
+  });
+
+  describe('folder entity type', () => {
+    const folderProps = {
+      ...defaultProps,
+      entityId: 'folder-1',
+      entityType: 'folder' as const,
+      documentName: 'My Folder',
+    };
+
+    it('renders correctly with entityType folder', () => {
+      render(<DocumentTeamTagsDialog {...folderProps} />);
+
+      expect(
+        screen.getByRole('heading', { name: 'documents.teamTags.title' }),
+      ).toBeInTheDocument();
+      expect(screen.getByText('My Folder')).toBeInTheDocument();
+      expect(screen.getByTestId('team-select')).toBeInTheDocument();
+    });
+
+    it('calls folder mutation when submitting with entityType folder', async () => {
+      render(<DocumentTeamTagsDialog {...folderProps} />);
+
+      selectTeam('team-1');
+      await act(async () => {
+        fireEvent.click(screen.getByText('common.actions.save'));
+      });
+
+      expect(mockFolderMutateAsync).toHaveBeenCalledWith({
+        folderId: 'folder-1',
+        teamIds: ['team-1'],
+      });
+      expect(mockMutateAsync).not.toHaveBeenCalled();
+    });
+
+    it('calls document mutation when submitting with default entityType', async () => {
+      render(<DocumentTeamTagsDialog {...defaultProps} />);
+
+      selectTeam('team-1');
+      await act(async () => {
+        fireEvent.click(screen.getByText('common.actions.save'));
+      });
+
+      expect(mockMutateAsync).toHaveBeenCalledWith({
+        documentId: 'doc-1',
+        teamIds: ['team-1'],
+      });
+      expect(mockFolderMutateAsync).not.toHaveBeenCalled();
+    });
+
+    it('uses entityId prop correctly for folder submissions', async () => {
+      const customProps = {
+        ...folderProps,
+        entityId: 'folder-custom-99',
+      };
+      render(<DocumentTeamTagsDialog {...customProps} />);
+
+      selectTeam('team-3');
+      await act(async () => {
+        fireEvent.click(screen.getByText('common.actions.save'));
+      });
+
+      expect(mockFolderMutateAsync).toHaveBeenCalledWith({
+        folderId: 'folder-custom-99',
+        teamIds: ['team-3'],
+      });
+    });
   });
 });

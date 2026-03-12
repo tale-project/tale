@@ -71,7 +71,7 @@ export const documentItemValidator = v.object({
   createdByName: v.optional(v.string()),
 });
 
-export const documentListResponseValidator = v.object({
+export const documentFindResponseValidator = v.object({
   success: v.boolean(),
   items: v.array(documentItemValidator),
   totalItems: v.number(),

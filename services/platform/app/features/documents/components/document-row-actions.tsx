@@ -28,6 +28,7 @@ interface DocumentRowActionsProps {
   sourceMode?: StorageSourceMode;
   teamIds?: string[];
   onFolderDeleted?: () => void;
+  parentFolderTeamId?: string;
 }
 
 export function DocumentRowActions({
@@ -39,6 +40,7 @@ export function DocumentRowActions({
   sourceMode,
   teamIds,
   onFolderDeleted,
+  parentFolderTeamId,
 }: DocumentRowActionsProps) {
   const { t: tDocuments } = useT('documents');
   const { t: tCommon } = useT('common');
@@ -139,7 +141,7 @@ export function DocumentRowActions({
         label: tDocuments('actions.manageTeams'),
         icon: Users,
         onClick: dialogs.open.teamTags,
-        visible: itemType === 'file',
+        visible: !parentFolderTeamId,
       },
       {
         key: 'delete',
@@ -163,14 +165,9 @@ export function DocumentRowActions({
       syncConfigId,
       dialogs.open,
       isReindexing,
+      parentFolderTeamId,
     ],
   );
-
-  // Show actions if user can delete OR if it's a file (for team tags)
-  const hasVisibleActions = canDelete || itemType === 'file';
-  if (!hasVisibleActions) {
-    return null;
-  }
 
   return (
     <>
@@ -197,7 +194,8 @@ export function DocumentRowActions({
       <DocumentTeamTagsDialog
         open={dialogs.isOpen.teamTags}
         onOpenChange={dialogs.setOpen.teamTags}
-        documentId={documentId}
+        entityId={documentId}
+        entityType={itemType}
         documentName={name}
         currentTeamIds={teamIds}
       />

@@ -46,6 +46,38 @@ export const listFolders = query({
   },
 });
 
+export const getFolder = query({
+  args: {
+    folderId: v.id('folders'),
+  },
+  handler: async (ctx, args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) {
+      throw new Error('Unauthenticated');
+    }
+
+    const folder = await ctx.db.get(args.folderId);
+    if (!folder) return null;
+
+    await getOrganizationMember(ctx, folder.organizationId, {
+      userId: String(authUser._id),
+      email: authUser.email,
+      name: authUser.name,
+    });
+
+    const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
+    if (!hasTeamAccess(folder, userTeamIds)) return null;
+
+    return {
+      _id: folder._id,
+      name: folder.name,
+      teamId: folder.teamId,
+      parentId: folder.parentId,
+      organizationId: folder.organizationId,
+    };
+  },
+});
+
 export const getFolderBreadcrumb = query({
   args: {
     folderId: v.id('folders'),
@@ -92,6 +124,7 @@ interface BreadcrumbItem {
   _id: Id<'folders'>;
   name: string;
   teamId?: string | null;
+  teamTags?: string[];
 }
 
 export async function buildBreadcrumb(
@@ -108,7 +141,12 @@ export async function buildBreadcrumb(
 
     const folder: Doc<'folders'> | null = await ctx.db.get(currentId);
     if (!folder) break;
-    chain.push({ _id: folder._id, name: folder.name, teamId: folder.teamId });
+    chain.push({
+      _id: folder._id,
+      name: folder.name,
+      teamId: folder.teamId,
+      teamTags: folder.teamTags,
+    });
     currentId = folder.parentId;
   }
 

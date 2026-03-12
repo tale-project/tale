@@ -63,7 +63,7 @@ export const listForAgent = internalQuery({
     teamId: v.optional(v.string()),
     dateFrom: v.optional(v.number()),
     dateTo: v.optional(v.number()),
-    query: v.optional(v.string()),
+    fileName: v.optional(v.string()),
     sortBy: v.optional(v.union(v.literal('createdAt'), v.literal('name'))),
     sortOrder: v.optional(v.union(v.literal('asc'), v.literal('desc'))),
     limit: v.optional(v.number()),

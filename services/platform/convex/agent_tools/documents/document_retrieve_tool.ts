@@ -19,7 +19,7 @@ export const documentRetrieveArgs = z
       .string()
       .min(1)
       .describe(
-        'The Convex document ID (the "id" field from document_list, NOT "fileId"). Use fileId with file extraction tools instead.',
+        'The Convex document ID (the "id" field from document_find, NOT "fileId"). Use fileId with file extraction tools instead.',
       ),
     chunkStart: z
       .number()
@@ -63,11 +63,11 @@ export const documentRetrieveTool = {
 USE THIS TOOL TO:
 • Read the full or partial content of a specific document
 • Paginate through large documents using chunk ranges
-• Follow up after document_list to read a document's content
+• Follow up after document_find to read a document's content
 
 DO NOT USE THIS TOOL FOR:
 • Searching across documents — use rag_search instead
-• Listing or browsing documents — use document_list instead
+• Listing or browsing documents — use document_find instead
 • Extracting data from uploaded files — use pdf, docx, txt, excel, image, or pptx tools
 
 RESPONSE FIELDS:
@@ -86,7 +86,7 @@ PAGINATION (for large documents):
 4. Max 100 chunks per call
 
 TIPS:
-• Get document IDs from document_list first
+• Get document IDs from document_find first
 • For semantic search across documents, use rag_search instead
 • Documents must be indexed (ragInfo.status = "completed") to be retrievable`,
     args: documentRetrieveArgs,

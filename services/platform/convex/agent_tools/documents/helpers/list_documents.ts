@@ -1,17 +1,17 @@
 import type { ToolCtx } from '@convex-dev/agent';
 import type { z } from 'zod/v4';
 
-import type { AgentDocumentListResult as DocumentListResult } from '../../../documents/list_documents_for_agent';
-import type { documentListArgs } from '../document_list_tool';
+import type { AgentDocumentFindResult as DocumentFindResult } from '../../../documents/list_documents_for_agent';
+import type { documentFindArgs } from '../document_find_tool';
 
 import { internal } from '../../../_generated/api';
 
-export type ListDocumentsArgs = z.infer<typeof documentListArgs>;
+export type ListDocumentsArgs = z.infer<typeof documentFindArgs>;
 
 export async function listDocuments(
   ctx: ToolCtx,
   args: ListDocumentsArgs,
-): Promise<DocumentListResult> {
+): Promise<DocumentFindResult> {
   const { organizationId, userId } = ctx;
 
   if (!organizationId) {
@@ -47,7 +47,7 @@ export async function listDocuments(
     teamId: args.teamId,
     dateFrom,
     dateTo,
-    query: args.query,
+    fileName: args.fileName,
     sortBy: args.sortBy,
     sortOrder: args.sortOrder,
     limit: args.limit,

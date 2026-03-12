@@ -27,6 +27,13 @@ export function useDocuments(organizationId: string) {
   };
 }
 
+export function useFolder(folderId: string | undefined) {
+  return useConvexQuery(
+    api.folders.queries.getFolder,
+    folderId ? { folderId: toId<'folders'>(folderId) } : 'skip',
+  );
+}
+
 export function useFolders(organizationId: string, parentFolderId?: string) {
   return useConvexQuery(api.folders.queries.listFolders, {
     organizationId,

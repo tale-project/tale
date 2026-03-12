@@ -365,3 +365,7 @@ export function useDeleteDocument() {
 export function useUpdateDocument() {
   return useConvexMutation(api.documents.mutations.updateDocument);
 }
+
+export function useUpdateFolderTeams() {
+  return useConvexMutation(api.folders.mutations.updateFolderTeams);
+}
