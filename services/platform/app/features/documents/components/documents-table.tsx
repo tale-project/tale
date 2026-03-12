@@ -14,7 +14,6 @@ import { useDebounce } from '@/app/hooks/use-debounce';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { useT } from '@/lib/i18n/client';
-import { filterByTextSearch } from '@/lib/utils/filtering';
 
 import {
   useApproxDocumentCount,
@@ -23,6 +22,7 @@ import {
   useListDocumentsPaginated,
 } from '../hooks/queries';
 import { useDocumentsTableConfig } from '../hooks/use-documents-table-config';
+import { filterDocumentResults } from '../utils/filter-documents';
 import { BreadcrumbNavigation } from './breadcrumb-navigation';
 import { DocumentPreviewDialog } from './document-preview-dialog';
 import { DocumentsActionMenu } from './documents-action-menu';
@@ -171,53 +171,32 @@ export function DocumentsTable({
     setSelectedTeamIds([]);
   }, []);
 
-  const filteredResults = useMemo(() => {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex paginated query results match DocumentItem shape
-    let filtered = paginatedResult.results as DocumentItem[];
-    if (selectedTeamId) {
-      filtered = filtered.filter(
-        (doc) => !doc.teamIds?.length || doc.teamIds.includes(selectedTeamId),
-      );
-    }
-    if (selectedRagStatuses.length > 0) {
-      const allowedStatuses = new Set(
-        selectedRagStatuses.flatMap((key) => ragStatusFilterMap[key] ?? []),
-      );
-      filtered = filtered.filter((doc) => {
-        const status = doc.ragStatus ?? 'not_indexed';
-        return allowedStatuses.has(status);
-      });
-    }
-    if (selectedSources.length > 0) {
-      const sourceSet = new Set(selectedSources);
-      filtered = filtered.filter(
-        (doc) => doc.sourceProvider && sourceSet.has(doc.sourceProvider),
-      );
-    }
-    if (selectedTeamIds.length > 0) {
-      const teamIdSet = new Set(selectedTeamIds);
-      filtered = filtered.filter((doc) =>
-        doc.teamIds?.some((id) => teamIdSet.has(id)),
-      );
-    }
-    if (debouncedQuery) {
-      const filteredFolders = filterByTextSearch(folderRows, debouncedQuery, [
-        'name',
-      ]);
-      filtered = filterByTextSearch(filtered, debouncedQuery, ['name']);
-      return [...filteredFolders, ...filtered];
-    }
-    return [...folderRows, ...filtered];
-  }, [
-    paginatedResult.results,
-    selectedTeamId,
-    selectedRagStatuses,
-    selectedSources,
-    selectedTeamIds,
-    ragStatusFilterMap,
-    debouncedQuery,
-    folderRows,
-  ]);
+  const filteredResults = useMemo(
+    () =>
+      filterDocumentResults(
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex paginated query results match DocumentItem shape
+        paginatedResult.results as DocumentItem[],
+        folderRows,
+        {
+          selectedTeamId,
+          selectedTeamIds,
+          selectedRagStatuses,
+          selectedSources,
+          searchQuery: debouncedQuery,
+          ragStatusFilterMap,
+        },
+      ),
+    [
+      paginatedResult.results,
+      selectedTeamId,
+      selectedRagStatuses,
+      selectedSources,
+      selectedTeamIds,
+      ragStatusFilterMap,
+      debouncedQuery,
+      folderRows,
+    ],
+  );
 
   const previewDocument = useMemo(() => {
     if (!docId || !filteredResults.length) return null;
