@@ -1,5 +1,5 @@
 import { Outlet, createFileRoute } from '@tanstack/react-router';
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 
 import { BrandingProvider } from '@/app/components/branding/branding-provider';
 import { AccessDenied } from '@/app/components/layout/access-denied';
@@ -14,6 +14,7 @@ import { AbilityContext } from '@/app/context/ability-context';
 import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { TeamFilterProvider } from '@/app/hooks/use-team-filter';
+import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { defineAbilityFor, type AppAbility } from '@/lib/permissions/ability';
 
@@ -43,8 +44,18 @@ function DashboardLayout() {
   }
 
   const { role, ability } = abilityRef.current;
-  const hasRole = role !== null;
+  const isDisabled = role === 'disabled';
+  const hasRole = role !== null && !isDisabled;
   const isLoading = isAuthLoading || isQueryLoading || isError;
+
+  useEffect(() => {
+    if (isDisabled) {
+      toast({
+        title: t('disabled'),
+        variant: 'destructive',
+      });
+    }
+  }, [isDisabled, t]);
 
   return (
     <AbilityContext.Provider value={ability}>
@@ -69,7 +80,9 @@ function DashboardLayout() {
                     <Spinner size="md" />
                   </div>
                 ) : (
-                  <AccessDenied message={t('noMembership')} />
+                  <AccessDenied
+                    message={t(isDisabled ? 'disabled' : 'noMembership')}
+                  />
                 )}
               </div>
             </div>
