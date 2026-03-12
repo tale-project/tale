@@ -253,8 +253,10 @@ describe('AgentSelector', () => {
     const trigger = screen.getByLabelText('Select agent');
     await user.click(trigger);
 
-    const configButton = screen.getByLabelText('Configure agent');
-    await user.click(configButton);
+    const configButtons = screen.getAllByLabelText('Configure agent');
+    const customAgentConfig = configButtons[1];
+    expect(customAgentConfig).toBeDefined();
+    await user.click(customAgentConfig);
 
     expect(mockNavigate).toHaveBeenCalledWith({
       to: '/dashboard/$id/custom-agents/$agentId',
