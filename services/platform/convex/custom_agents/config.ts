@@ -61,7 +61,7 @@ export function toSerializableConfig(
   return {
     name: agent.isSystemDefault ? agent.name : `custom:${agent.name}`,
     instructions,
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- toolNames are validated via validateToolNames() on insert; always valid ToolName values
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- toolNames are filtered via filterValidToolNames() on insert; always valid ToolName values
     convexToolNames: agent.toolNames as ToolName[],
     integrationBindings: agent.integrationBindings,
     workflowBindings: agent.workflowBindings?.map(String),

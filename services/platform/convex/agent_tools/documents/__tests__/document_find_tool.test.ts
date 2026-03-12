@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { documentListArgs } from '../document_list_tool';
+import { documentFindArgs } from '../document_find_tool';
 import { listDocuments } from '../helpers/list_documents';
 
 vi.mock('../../../_generated/api', () => ({
@@ -201,97 +201,97 @@ describe('listDocuments helper', () => {
   });
 });
 
-describe('documentListArgs schema validation', () => {
+describe('documentFindArgs schema validation', () => {
   it('accepts valid args with no fields', () => {
-    expect(() => documentListArgs.parse({})).not.toThrow();
+    expect(() => documentFindArgs.parse({})).not.toThrow();
   });
 
   it('accepts valid date format', () => {
-    const result = documentListArgs.parse({ dateFrom: '2026-01-15' });
+    const result = documentFindArgs.parse({ dateFrom: '2026-01-15' });
     expect(result.dateFrom).toBe('2026-01-15');
   });
 
   it('rejects invalid date format', () => {
-    expect(() => documentListArgs.parse({ dateFrom: '01-15-2026' })).toThrow();
-    expect(() => documentListArgs.parse({ dateFrom: '2026/01/15' })).toThrow();
+    expect(() => documentFindArgs.parse({ dateFrom: '01-15-2026' })).toThrow();
+    expect(() => documentFindArgs.parse({ dateFrom: '2026/01/15' })).toThrow();
   });
 
   it('rejects invalid sortBy enum', () => {
-    expect(() => documentListArgs.parse({ sortBy: 'invalid' })).toThrow();
+    expect(() => documentFindArgs.parse({ sortBy: 'invalid' })).toThrow();
   });
 
   it('rejects limit below 1', () => {
-    expect(() => documentListArgs.parse({ limit: 0 })).toThrow();
+    expect(() => documentFindArgs.parse({ limit: 0 })).toThrow();
   });
 
   it('rejects limit above 50', () => {
-    expect(() => documentListArgs.parse({ limit: 51 })).toThrow();
+    expect(() => documentFindArgs.parse({ limit: 51 })).toThrow();
   });
 
   it('rejects float limit', () => {
-    expect(() => documentListArgs.parse({ limit: 1.5 })).toThrow();
+    expect(() => documentFindArgs.parse({ limit: 1.5 })).toThrow();
   });
 
   it('accepts limit of 1', () => {
-    const result = documentListArgs.parse({ limit: 1 });
+    const result = documentFindArgs.parse({ limit: 1 });
     expect(result.limit).toBe(1);
   });
 
   it('rejects negative cursor', () => {
-    expect(() => documentListArgs.parse({ cursor: -1 })).toThrow();
+    expect(() => documentFindArgs.parse({ cursor: -1 })).toThrow();
   });
 
   it('rejects float cursor', () => {
-    expect(() => documentListArgs.parse({ cursor: 1.5 })).toThrow();
+    expect(() => documentFindArgs.parse({ cursor: 1.5 })).toThrow();
   });
 
   it('accepts zero cursor', () => {
-    const result = documentListArgs.parse({ cursor: 0 });
+    const result = documentFindArgs.parse({ cursor: 0 });
     expect(result.cursor).toBe(0);
   });
 
   it('strips leading dot from extension', () => {
-    const result = documentListArgs.parse({ extension: '.pdf' });
+    const result = documentFindArgs.parse({ extension: '.pdf' });
     expect(result.extension).toBe('pdf');
   });
 
   it('accepts extension without dot', () => {
-    const result = documentListArgs.parse({ extension: 'pdf' });
+    const result = documentFindArgs.parse({ extension: 'pdf' });
     expect(result.extension).toBe('pdf');
   });
 
   it('rejects empty extension', () => {
-    expect(() => documentListArgs.parse({ extension: '' })).toThrow();
+    expect(() => documentFindArgs.parse({ extension: '' })).toThrow();
   });
 
   it('rejects empty teamId', () => {
-    expect(() => documentListArgs.parse({ teamId: '' })).toThrow();
+    expect(() => documentFindArgs.parse({ teamId: '' })).toThrow();
   });
 
   it('lowercases extension', () => {
-    const result = documentListArgs.parse({ extension: 'PDF' });
+    const result = documentFindArgs.parse({ extension: 'PDF' });
     expect(result.extension).toBe('pdf');
   });
 
   it('lowercases extension with dot', () => {
-    const result = documentListArgs.parse({ extension: '.DOCX' });
+    const result = documentFindArgs.parse({ extension: '.DOCX' });
     expect(result.extension).toBe('docx');
   });
 
   it('rejects folderPath exceeding 500 chars', () => {
     expect(() =>
-      documentListArgs.parse({ folderPath: 'a'.repeat(501) }),
+      documentFindArgs.parse({ folderPath: 'a'.repeat(501) }),
     ).toThrow();
   });
 
   it('rejects fileName exceeding 200 chars', () => {
     expect(() =>
-      documentListArgs.parse({ fileName: 'a'.repeat(201) }),
+      documentFindArgs.parse({ fileName: 'a'.repeat(201) }),
     ).toThrow();
   });
 
   it('accepts folderPath at 500 chars', () => {
-    const result = documentListArgs.parse({ folderPath: 'a'.repeat(500) });
+    const result = documentFindArgs.parse({ folderPath: 'a'.repeat(500) });
     expect(result.folderPath).toHaveLength(500);
   });
 });

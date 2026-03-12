@@ -8,7 +8,7 @@ import type { Id } from '../_generated/dataModel';
 
 import {
   documentItemValidator,
-  documentListResponseValidator,
+  documentFindResponseValidator,
   documentRecordValidator,
   ragInfoValidator,
   ragStatusValidator,
@@ -25,7 +25,7 @@ export type RagInfo = Infer<typeof ragInfoValidator>;
 export type SourceProvider = Infer<typeof sourceProviderValidator>;
 export type SourceMode = Infer<typeof sourceModeValidator>;
 export type DocumentItemResponse = Infer<typeof documentItemValidator>;
-export type DocumentListResponse = Infer<typeof documentListResponseValidator>;
+export type DocumentFindResponse = Infer<typeof documentFindResponseValidator>;
 export type DocumentRecord = Infer<typeof documentRecordValidator>;
 
 /**

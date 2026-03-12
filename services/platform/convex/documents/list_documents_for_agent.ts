@@ -1,7 +1,7 @@
 /**
  * List documents for agent tool
  *
- * Core query logic for the document_list agent tool.
+ * Core query logic for the document_find agent tool.
  * Supports filtering by folder path, extension, team, date range, and file name search.
  * Applies team-based access control and returns a lightweight response.
  */
@@ -33,7 +33,7 @@ export interface AgentDocumentItem {
   sizeBytes: number | null;
 }
 
-export interface AgentDocumentListResult {
+export interface AgentDocumentFindResult {
   documents: AgentDocumentItem[];
   totalCount: number | null;
   hasMore: boolean;
@@ -58,14 +58,14 @@ export async function listDocumentsForAgent(
     cursor?: number;
     _maxScan?: number;
   },
-): Promise<AgentDocumentListResult> {
+): Promise<AgentDocumentFindResult> {
   const maxScan = args._maxScan ?? MAX_SCAN;
   const limit = Math.min(Math.max(args.limit ?? DEFAULT_LIMIT, 1), MAX_LIMIT);
   const sortBy = args.sortBy ?? 'createdAt';
   const sortOrder = args.sortOrder ?? 'desc';
   const searchQuery = args.fileName?.trim();
   const teamIdSet = new Set(args.userTeamIds);
-  const emptyResult: AgentDocumentListResult = {
+  const emptyResult: AgentDocumentFindResult = {
     documents: [],
     totalCount: 0,
     hasMore: false,

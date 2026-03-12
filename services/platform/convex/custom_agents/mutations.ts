@@ -68,12 +68,9 @@ function validateModelId(modelId: string | undefined) {
   }
 }
 
-function validateToolNames(toolNames: string[]) {
+function filterValidToolNames(toolNames: string[]): string[] {
   const validNames = new Set<string>(TOOL_NAMES);
-  const invalid = toolNames.filter((name) => !validNames.has(name));
-  if (invalid.length > 0) {
-    throw new Error(`Invalid tool names: ${invalid.join(', ')}`);
-  }
+  return toolNames.filter((name) => validNames.has(name));
 }
 
 const PROTECTED_SYSTEM_SLUGS = new Set(['chat', 'workflow']);
@@ -242,7 +239,7 @@ export const createCustomAgent = mutation({
       );
     }
 
-    validateToolNames(args.toolNames);
+    args.toolNames = filterValidToolNames(args.toolNames);
     validateModelId(args.modelId);
     const validatedWorkflowBindings = await validateWorkflowBindings(
       ctx,
@@ -330,7 +327,7 @@ export const updateCustomAgent = mutation({
     const draft = await getDraftByRoot(ctx, args.customAgentId);
 
     if (args.toolNames) {
-      validateToolNames(args.toolNames);
+      args.toolNames = filterValidToolNames(args.toolNames);
     }
     validateModelId(args.modelId);
     const validatedWorkflowBindings = await validateWorkflowBindings(

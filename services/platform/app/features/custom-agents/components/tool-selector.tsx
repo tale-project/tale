@@ -34,7 +34,7 @@ const TOOL_CATEGORIES: Record<string, ToolName[]> = {
   CRM: ['customer_read', 'product_read'],
   Web: ['web'],
   Documents: ['pdf', 'image', 'pptx', 'docx', 'txt', 'excel'],
-  Knowledge: ['rag_search', 'document_retrieve', 'document_list'],
+  Knowledge: ['rag_search', 'document_retrieve', 'document_find'],
   Workflows: [
     'workflow_read',
     'workflow_examples',

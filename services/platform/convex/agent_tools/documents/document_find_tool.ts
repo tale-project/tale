@@ -1,19 +1,19 @@
 /**
- * Convex Tool: Document List
+ * Convex Tool: Document Find
  *
- * Browse and filter documents from the knowledge base.
+ * Find and filter documents from the knowledge base.
  * Supports filtering by folder, extension, team, date range, and file name search.
  */
 
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
-import type { AgentDocumentListResult as DocumentListResult } from '../../documents/list_documents_for_agent';
+import type { AgentDocumentFindResult as DocumentFindResult } from '../../documents/list_documents_for_agent';
 import type { ToolDefinition } from '../types';
 
 import { listDocuments } from './helpers/list_documents';
 
-export const documentListArgs = z.object({
+export const documentFindArgs = z.object({
   folderPath: z
     .string()
     .max(500)
@@ -83,13 +83,13 @@ export const documentListArgs = z.object({
     ),
 });
 
-export const documentListTool: ToolDefinition = {
-  name: 'document_list',
+export const documentFindTool: ToolDefinition = {
+  name: 'document_find',
   tool: createTool({
-    description: `Browse and filter documents in the knowledge base.
+    description: `Find and filter documents in the knowledge base.
 
 USE THIS TOOL TO:
-• List documents in a specific folder
+• Find documents in a specific folder
 • Filter by file type (extension), team, or date range
 • Search documents by file name (fuzzy match)
 • Count documents matching criteria (check totalCount in response)
@@ -121,8 +121,8 @@ TIPS:
 • If warning is present in the response, narrow your filters before continuing
 • Default sort is newest first (createdAt desc)
 • Dates are interpreted as UTC`,
-    args: documentListArgs,
-    handler: async (ctx, args): Promise<DocumentListResult> => {
+    args: documentFindArgs,
+    handler: async (ctx, args): Promise<DocumentFindResult> => {
       return listDocuments(ctx, args);
     },
   }),

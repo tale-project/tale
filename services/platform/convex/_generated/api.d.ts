@@ -24,7 +24,7 @@ import type * as agent_tools_database_helpers_schema_definitions from "../agent_
 import type * as agent_tools_database_helpers_types from "../agent_tools/database/helpers/types.js";
 import type * as agent_tools_delegation_create_delegation_tool from "../agent_tools/delegation/create_delegation_tool.js";
 import type * as agent_tools_delegation_load_delegation_agents from "../agent_tools/delegation/load_delegation_agents.js";
-import type * as agent_tools_documents_document_list_tool from "../agent_tools/documents/document_list_tool.js";
+import type * as agent_tools_documents_document_find_tool from "../agent_tools/documents/document_find_tool.js";
 import type * as agent_tools_documents_document_retrieve_tool from "../agent_tools/documents/document_retrieve_tool.js";
 import type * as agent_tools_documents_helpers_fetch_document_comparison from "../agent_tools/documents/helpers/fetch_document_comparison.js";
 import type * as agent_tools_documents_helpers_fetch_document_content from "../agent_tools/documents/helpers/fetch_document_content.js";
@@ -862,7 +862,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/database/helpers/types": typeof agent_tools_database_helpers_types;
   "agent_tools/delegation/create_delegation_tool": typeof agent_tools_delegation_create_delegation_tool;
   "agent_tools/delegation/load_delegation_agents": typeof agent_tools_delegation_load_delegation_agents;
-  "agent_tools/documents/document_list_tool": typeof agent_tools_documents_document_list_tool;
+  "agent_tools/documents/document_find_tool": typeof agent_tools_documents_document_find_tool;
   "agent_tools/documents/document_retrieve_tool": typeof agent_tools_documents_document_retrieve_tool;
   "agent_tools/documents/helpers/fetch_document_comparison": typeof agent_tools_documents_helpers_fetch_document_comparison;
   "agent_tools/documents/helpers/fetch_document_content": typeof agent_tools_documents_helpers_fetch_document_content;
