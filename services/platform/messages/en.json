@@ -2893,7 +2893,8 @@
     "customAgents": "You need Admin or Developer permissions to manage custom agents.",
     "branding": "You need Admin permissions to access branding settings.",
     "knowledge": "You need Editor, Developer, or Admin permissions to access knowledge.",
-    "noMembership": "You are not a member of this workspace. Please contact an administrator for access."
+    "noMembership": "You are not a member of this workspace. Please contact an administrator for access.",
+    "disabled": "Your account has been disabled. Contact support for assistance."
   },
   "metadata": {
     "suffix": "Tale",
