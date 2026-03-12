@@ -132,30 +132,27 @@ export const removeMember = mutation({
       throw new Error('Team not found in this organization');
     }
 
+    const memberCount = await ctx.runQuery(
+      components.betterAuth.adapter.findMany,
+      {
+        model: 'teamMember',
+        paginationOpts: { cursor: null, numItems: 2 },
+        where: [{ field: 'teamId', operator: 'eq', value: teamId }],
+      },
+    );
+
+    if (!memberCount || memberCount.page.length <= 1) {
+      throw new Error(
+        'Cannot remove the last team member. Delete the team instead.',
+      );
+    }
+
     await ctx.runMutation(components.betterAuth.adapter.deleteOne, {
       input: {
         model: 'teamMember',
         where: [{ field: '_id', value: args.teamMemberId, operator: 'eq' }],
       },
     });
-
-    const remainingMembers = await ctx.runQuery(
-      components.betterAuth.adapter.findMany,
-      {
-        model: 'teamMember',
-        paginationOpts: { cursor: null, numItems: 1 },
-        where: [{ field: 'teamId', operator: 'eq', value: teamId }],
-      },
-    );
-
-    if (!remainingMembers || remainingMembers.page.length === 0) {
-      await ctx.runMutation(components.betterAuth.adapter.deleteOne, {
-        input: {
-          model: 'team',
-          where: [{ field: '_id', value: teamId, operator: 'eq' }],
-        },
-      });
-    }
 
     return null;
   },

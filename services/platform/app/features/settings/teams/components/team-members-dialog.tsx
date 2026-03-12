@@ -196,9 +196,16 @@ export function TeamMembersDialog({
                     variant="ghost"
                     size="icon"
                     onClick={() => handleRemoveMember(member._id)}
-                    disabled={removingMemberId === member._id}
+                    disabled={
+                      removingMemberId === member._id || teamMembers.length <= 1
+                    }
                     className="text-destructive hover:text-destructive hover:bg-destructive/10"
                     aria-label={tSettings('teams.removeMember')}
+                    title={
+                      teamMembers.length <= 1
+                        ? tSettings('teams.cannotRemoveLastMember')
+                        : undefined
+                    }
                   >
                     <Trash2 className="size-4" />
                   </Button>
