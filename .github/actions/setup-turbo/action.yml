@@ -33,6 +33,6 @@ runs:
       uses: astral-sh/setup-uv@v7
 
     - name: Start Turbo cache server
-      uses: felixmosh/turborepo-gh-artifacts@v3
+      uses: felixmosh/turborepo-gh-artifacts@v4
       with:
         repo-token: ${{ inputs.github-token }}
