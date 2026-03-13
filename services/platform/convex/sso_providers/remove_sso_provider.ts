@@ -27,8 +27,8 @@ export async function removeSsoProvider(
     },
   );
 
-  if (callerRole !== 'admin') {
-    throw new Error('Only Admins can remove SSO providers');
+  if (callerRole !== 'admin' && callerRole !== 'owner') {
+    throw new Error('Only admins can remove SSO providers');
   }
 
   await ctx.runMutation(

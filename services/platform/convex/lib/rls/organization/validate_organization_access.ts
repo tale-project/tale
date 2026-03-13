@@ -12,13 +12,14 @@ import { UnauthorizedError } from '../errors';
 export type OrgRole = MemberRole;
 
 export const MEMBER_PLUS: readonly OrgRole[] = [
+  'owner',
   'member',
   'editor',
   'developer',
   'admin',
 ];
 
-export const ADMIN_ONLY: readonly OrgRole[] = ['admin'];
+export const ADMIN_ONLY: readonly OrgRole[] = ['owner', 'admin'];
 
 /**
  * Validate organization access for any resource.

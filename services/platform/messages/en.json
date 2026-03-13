@@ -582,6 +582,7 @@
       "userMustUpdatePassword": "User must update the password on login",
       "adminWarning": "Warning: Your organization should have at least 2 admins for security. This change will be blocked if it would leave fewer than 2 admins.",
       "adminSecurityWarning": "Warning: Your organization must have at least 2 Admins for security. You cannot remove the last admin.",
+      "ownerProtected": "The organization owner cannot be edited or removed",
       "leaveOrganization": "Leave organization",
       "leaveConfirmation": "Are you sure you want to leave this organization? You will lose access to all resources.",
       "leaving": "Leaving..."
@@ -1288,6 +1289,7 @@
       "passwordHint": "Password is required to create a new user account. If the user already has an account, they will be added without needing a password."
     },
     "roles": {
+      "owner": "Owner",
       "admin": "Admin",
       "developer": "Developer",
       "editor": "Editor",

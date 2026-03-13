@@ -154,7 +154,12 @@ export function authorizeRls(
   action: PlatformAction,
 ): boolean {
   const normalized = (role ?? 'member').toLowerCase();
-  const key: PlatformRoleName = isValidRole(normalized) ? normalized : 'member';
+  const key: PlatformRoleName =
+    normalized === 'owner'
+      ? 'admin'
+      : isValidRole(normalized)
+        ? normalized
+        : 'member';
   const perms = platformPermissions[key][table];
   return perms !== undefined && perms.includes(action);
 }

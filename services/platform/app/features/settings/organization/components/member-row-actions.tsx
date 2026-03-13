@@ -41,6 +41,7 @@ export function MemberRowActions({
 
   const isViewingSelf = memberContext?.member?._id === member._id;
   const canManageMembers = memberContext?.canManageMembers ?? false;
+  const isOwner = member.role?.toLowerCase() === 'owner';
 
   const actions = useMemo(
     () => [
@@ -49,7 +50,7 @@ export function MemberRowActions({
         label: tCommon('actions.edit'),
         icon: Pencil,
         onClick: dialogs.open.edit,
-        visible: canManageMembers,
+        visible: canManageMembers && !isOwner,
       },
       {
         key: 'delete',
@@ -57,10 +58,10 @@ export function MemberRowActions({
         icon: Trash2,
         onClick: dialogs.open.delete,
         destructive: true,
-        visible: canManageMembers && !isViewingSelf,
+        visible: canManageMembers && !isViewingSelf && !isOwner,
       },
     ],
-    [tCommon, dialogs.open, canManageMembers, isViewingSelf],
+    [tCommon, dialogs.open, canManageMembers, isViewingSelf, isOwner],
   );
 
   if (!canManageMembers) {

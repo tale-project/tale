@@ -11,6 +11,7 @@ import { components } from '../_generated/api';
 import { mutation } from '../_generated/server';
 import * as AuditLogHelpers from '../audit_logs/helpers';
 import { authComponent } from '../auth';
+import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import { memberRoleValidator } from './validators';
 
 function findOneMember(
@@ -58,8 +59,8 @@ export const addMember = mutation({
         ],
       }),
     );
-    if (callerMember?.role?.toLowerCase() !== 'admin') {
-      throw new Error('Only Admins can add members');
+    if (!isAdmin(callerMember?.role)) {
+      throw new Error('Only admins can add members');
     }
 
     const targetUser = findOneUser(
@@ -150,8 +151,12 @@ export const removeMember = mutation({
         ],
       }),
     );
-    if (callerMember?.role?.toLowerCase() !== 'admin') {
-      throw new Error('Only Admins can remove members');
+    if (!isAdmin(callerMember?.role)) {
+      throw new Error('Only admins can remove members');
+    }
+
+    if (member.role?.toLowerCase() === 'owner') {
+      throw new Error('The organization owner cannot be removed');
     }
 
     const targetUser = member.userId
@@ -232,8 +237,16 @@ export const updateMemberRole = mutation({
         ],
       }),
     );
-    if (callerMember?.role?.toLowerCase() !== 'admin') {
-      throw new Error('Only Admins can update member roles');
+    if (!isAdmin(callerMember?.role)) {
+      throw new Error('Only admins can update member roles');
+    }
+
+    if (member.role?.toLowerCase() === 'owner') {
+      throw new Error('The organization owner role cannot be changed');
+    }
+
+    if (args.role.toLowerCase() === 'owner') {
+      throw new Error('The owner role cannot be assigned manually');
     }
 
     const targetUser = member.userId
@@ -248,6 +261,31 @@ export const updateMemberRole = mutation({
 
     const previousRole = member.role;
     const newRole = args.role.toLowerCase();
+
+    if (isAdmin(previousRole) && !isAdmin(newRole)) {
+      const adminMembers = await ctx.runQuery(
+        components.betterAuth.adapter.findMany,
+        {
+          model: 'member',
+          paginationOpts: { cursor: null, numItems: 100 },
+          where: [
+            {
+              field: 'organizationId',
+              value: member.organizationId,
+              operator: 'eq',
+            },
+          ],
+        },
+      );
+      const adminCount = (adminMembers?.page ?? []).filter((m) =>
+        isAdmin(m.role),
+      ).length;
+      if (adminCount <= 1) {
+        throw new Error(
+          'Cannot demote the last admin. The organization must have at least one admin or owner.',
+        );
+      }
+    }
 
     await ctx.runMutation(components.betterAuth.adapter.updateMany, {
       input: {
@@ -332,8 +370,8 @@ export const updateMemberDisplayName = mutation({
         }),
       );
       callerRole = callerMember?.role;
-      if (callerMember?.role?.toLowerCase() !== 'admin') {
-        throw new Error('Only Admins can update other members names');
+      if (!isAdmin(callerMember?.role)) {
+        throw new Error('Only admins can update other members names');
       }
     }
 

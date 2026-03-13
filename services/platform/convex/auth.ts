@@ -151,7 +151,10 @@ const disabled = ac.newRole({
   auditLogs: [],
 });
 
+const owner = admin;
+
 export const platformRoles = {
+  owner,
   admin,
   developer,
   editor,
@@ -160,8 +163,8 @@ export const platformRoles = {
 } as const;
 export type PlatformRoleName = keyof typeof platformRoles;
 
-// Roles mapping for the organization plugin (owner is implicit in plugin)
 const orgRoles = {
+  owner,
   admin,
   developer,
   editor,
@@ -179,6 +182,7 @@ export function authorizeRls(
 ): boolean {
   const normalized = (role ?? 'member').toLowerCase();
   const key: PlatformRoleName =
+    normalized === 'owner' ||
     normalized === 'admin' ||
     normalized === 'developer' ||
     normalized === 'editor' ||
@@ -260,8 +264,7 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
       organization({
         ac,
         roles: orgRoles,
-        // Set the default role for organization creators to admin
-        creatorRole: 'admin',
+        creatorRole: 'owner',
         // Enable teams for multi-tenancy support (team-level data isolation)
         teams: {
           enabled: true,

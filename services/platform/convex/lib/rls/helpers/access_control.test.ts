@@ -30,6 +30,15 @@ const ALL_TABLES = [
 type Table = (typeof ALL_TABLES)[number];
 
 describe('authorizeRls', () => {
+  describe('owner role', () => {
+    it('has full read/write access to all tables (same as admin)', () => {
+      for (const table of ALL_TABLES) {
+        expect(authorizeRls('owner', table, 'read')).toBe(true);
+        expect(authorizeRls('owner', table, 'write')).toBe(true);
+      }
+    });
+  });
+
   describe('admin role', () => {
     it('has full read/write access to all tables', () => {
       for (const table of ALL_TABLES) {
@@ -113,6 +122,7 @@ describe('authorizeRls', () => {
     it('normalizes to lowercase', () => {
       expect(authorizeRls('Admin', 'documents', 'write')).toBe(true);
       expect(authorizeRls('DEVELOPER', 'documents', 'write')).toBe(true);
+      expect(authorizeRls('Owner', 'documents', 'write')).toBe(true);
     });
 
     it('falls back to member for unknown roles', () => {

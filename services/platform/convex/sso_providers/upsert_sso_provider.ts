@@ -43,8 +43,8 @@ export async function upsertSsoProvider(
     },
   );
 
-  if (callerRole !== 'admin') {
-    throw new Error('Only Admins can configure SSO providers');
+  if (callerRole !== 'admin' && callerRole !== 'owner') {
+    throw new Error('Only admins can configure SSO providers');
   }
 
   const existingProvider = await ctx.runQuery(

@@ -4,6 +4,7 @@ import { components } from '../_generated/api';
 import { mutation } from '../_generated/server';
 import { authComponent } from '../auth';
 import { getOrganizationMember } from '../lib/rls';
+import { isAdmin } from '../lib/rls/helpers/role_helpers';
 
 export const addMember = mutation({
   args: {
@@ -23,7 +24,7 @@ export const addMember = mutation({
       name: authUser.name,
     });
 
-    if (callerMember.role !== 'admin' && callerMember.role !== 'owner') {
+    if (!isAdmin(callerMember.role)) {
       throw new Error('Only admins can add team members');
     }
 
@@ -114,11 +115,7 @@ export const removeMember = mutation({
 
     const isSelfRemoval =
       String(memberToRemove.userId) === String(authUser._id);
-    if (
-      callerMember.role !== 'admin' &&
-      callerMember.role !== 'owner' &&
-      !isSelfRemoval
-    ) {
+    if (!isAdmin(callerMember.role) && !isSelfRemoval) {
       throw new Error('Only admins can remove other team members');
     }
 

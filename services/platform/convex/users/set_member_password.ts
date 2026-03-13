@@ -12,6 +12,7 @@ import { isRecord, getString } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import { MutationCtx } from '../_generated/server';
 import { authComponent } from '../auth';
+import { isAdmin } from '../lib/rls/helpers/role_helpers';
 
 export interface SetMemberPasswordArgs {
   memberId: string;
@@ -74,8 +75,8 @@ export async function setMemberPassword(
   const callerRole = callerMemberRec
     ? getString(callerMemberRec, 'role')?.toLowerCase()
     : undefined;
-  if (callerRole !== 'admin' && callerRole !== 'owner') {
-    throw new Error('Only admins and owners can set member passwords');
+  if (!isAdmin(callerRole)) {
+    throw new Error('Only admins can set member passwords');
   }
 
   // Check if the target user already has a credential account

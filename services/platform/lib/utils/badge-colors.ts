@@ -11,6 +11,8 @@ import { cva, type VariantProps } from 'class-variance-authority';
 const roleBadgeVariants = cva('', {
   variants: {
     role: {
+      owner:
+        'bg-purple-100 dark:bg-purple-950/20 text-purple-800 dark:text-purple-200',
       admin: 'bg-red-100 dark:bg-red-950/20 text-red-800 dark:text-red-200',
       developer:
         'bg-blue-100 dark:bg-blue-950/20 text-blue-800 dark:text-blue-200',
@@ -28,6 +30,7 @@ type RoleBadgeVariant = NonNullable<
 >;
 
 const roleMap: Record<string, RoleBadgeVariant> = {
+  owner: 'owner',
   admin: 'admin',
   developer: 'developer',
   member: 'member',

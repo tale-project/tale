@@ -11,6 +11,7 @@ import {
   getUserOrganizations,
 } from '../lib/rls';
 import { UnauthorizedError } from '../lib/rls/errors';
+import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import { memberRoleValidator } from './validators';
 
 interface BetterAuthTeam {
@@ -28,6 +29,7 @@ interface BetterAuthTeamMember {
 }
 
 const VALID_ROLES = new Set<string>([
+  'owner',
   'disabled',
   'member',
   'editor',
@@ -75,7 +77,7 @@ export const getCurrentMemberContext = query({
         role,
         createdAt: member.createdAt,
         displayName: authUser.name,
-        isAdmin: role === 'admin',
+        isAdmin: isAdmin(role),
       };
     } catch (error) {
       if (error instanceof UnauthorizedError) {

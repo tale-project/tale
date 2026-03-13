@@ -8,6 +8,7 @@ import { isRecord, getString } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import { MutationCtx } from '../_generated/server';
 import { createAuth, authComponent } from '../auth';
+import { isAdmin } from '../lib/rls/helpers/role_helpers';
 
 export interface CreateMemberArgs {
   organizationId: string;
@@ -63,8 +64,8 @@ export async function createMember(
   const callerRole = (
     currentMemberRec ? (getString(currentMemberRec, 'role') ?? '') : ''
   ).toLowerCase();
-  if (callerRole !== 'admin') {
-    throw new Error('Only Admins can create members');
+  if (!isAdmin(callerRole)) {
+    throw new Error('Only admins can create members');
   }
 
   const email = args.email.toLowerCase().trim();
