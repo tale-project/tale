@@ -1,8 +1,12 @@
 import { v } from 'convex/values';
 
-import { memberRoleValidator } from '../members/validators';
-
-export const platformRoleValidator = memberRoleValidator;
+export const platformRoleValidator = v.union(
+  v.literal('disabled'),
+  v.literal('member'),
+  v.literal('editor'),
+  v.literal('developer'),
+  v.literal('admin'),
+);
 
 export const roleMappingSourceValidator = v.union(
   v.literal('jobTitle'),

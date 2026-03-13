@@ -1,6 +1,7 @@
 import { z } from 'zod/v4';
 
 const memberRoleLiterals = [
+  'owner',
   'disabled',
   'member',
   'editor',

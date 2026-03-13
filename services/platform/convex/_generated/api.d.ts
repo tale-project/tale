@@ -351,6 +351,7 @@ import type * as lib_rls_helpers_access_control from "../lib/rls/helpers/access_
 import type * as lib_rls_helpers_mutation_with_rls from "../lib/rls/helpers/mutation_with_rls.js";
 import type * as lib_rls_helpers_query_with_rls from "../lib/rls/helpers/query_with_rls.js";
 import type * as lib_rls_helpers_rls_rules from "../lib/rls/helpers/rls_rules.js";
+import type * as lib_rls_helpers_role_helpers from "../lib/rls/helpers/role_helpers.js";
 import type * as lib_rls_helpers_z_mutation_with_rls from "../lib/rls/helpers/z_mutation_with_rls.js";
 import type * as lib_rls_helpers_z_query_with_rls from "../lib/rls/helpers/z_query_with_rls.js";
 import type * as lib_rls_index from "../lib/rls/index.js";
@@ -389,6 +390,7 @@ import type * as message_metadata_queries from "../message_metadata/queries.js";
 import type * as migrations_backfill_folders from "../migrations/backfill_folders.js";
 import type * as migrations_backfill_thread_metadata from "../migrations/backfill_thread_metadata.js";
 import type * as migrations_backfill_workflow_schedules from "../migrations/backfill_workflow_schedules.js";
+import type * as migrations_migrate_org_creators from "../migrations/migrate_org_creators.js";
 import type * as migrations_remove_deprecated_llm_fields from "../migrations/remove_deprecated_llm_fields.js";
 import type * as migrations_trigger_steps_to_start from "../migrations/trigger_steps_to_start.js";
 import type * as node_only_documents_internal_actions from "../node_only/documents/internal_actions.js";
@@ -1189,6 +1191,7 @@ declare const fullApi: ApiFromModules<{
   "lib/rls/helpers/mutation_with_rls": typeof lib_rls_helpers_mutation_with_rls;
   "lib/rls/helpers/query_with_rls": typeof lib_rls_helpers_query_with_rls;
   "lib/rls/helpers/rls_rules": typeof lib_rls_helpers_rls_rules;
+  "lib/rls/helpers/role_helpers": typeof lib_rls_helpers_role_helpers;
   "lib/rls/helpers/z_mutation_with_rls": typeof lib_rls_helpers_z_mutation_with_rls;
   "lib/rls/helpers/z_query_with_rls": typeof lib_rls_helpers_z_query_with_rls;
   "lib/rls/index": typeof lib_rls_index;
@@ -1227,6 +1230,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/backfill_folders": typeof migrations_backfill_folders;
   "migrations/backfill_thread_metadata": typeof migrations_backfill_thread_metadata;
   "migrations/backfill_workflow_schedules": typeof migrations_backfill_workflow_schedules;
+  "migrations/migrate_org_creators": typeof migrations_migrate_org_creators;
   "migrations/remove_deprecated_llm_fields": typeof migrations_remove_deprecated_llm_fields;
   "migrations/trigger_steps_to_start": typeof migrations_trigger_steps_to_start;
   "node_only/documents/internal_actions": typeof node_only_documents_internal_actions;

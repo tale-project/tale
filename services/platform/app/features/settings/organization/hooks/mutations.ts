@@ -20,3 +20,7 @@ export function useUpdateMemberRole() {
 export function useUpdateMemberDisplayName() {
   return useConvexMutation(api.members.mutations.updateMemberDisplayName);
 }
+
+export function useTransferOwnership() {
+  return useConvexMutation(api.members.mutations.transferOwnership);
+}

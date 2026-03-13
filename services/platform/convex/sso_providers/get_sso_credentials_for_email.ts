@@ -32,7 +32,11 @@ export async function getSsoCredentialsForEmail(
     },
   );
 
-  if (callerRole !== 'admin' && callerRole !== 'developer') {
+  if (
+    callerRole !== 'admin' &&
+    callerRole !== 'owner' &&
+    callerRole !== 'developer'
+  ) {
     return null;
   }
 

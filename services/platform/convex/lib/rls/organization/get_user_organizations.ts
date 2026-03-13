@@ -11,6 +11,7 @@ import { getTrustedAuthData } from '../auth/get_trusted_auth_data';
 import { requireAuthenticatedUser } from '../auth/require_authenticated_user';
 
 const VALID_ROLES: ReadonlySet<string> = new Set([
+  'owner',
   'disabled',
   'member',
   'editor',

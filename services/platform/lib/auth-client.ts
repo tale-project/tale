@@ -41,6 +41,7 @@ export const authClient = createAuthClient({
     organizationClient({
       ac,
       roles: {
+        owner: admin,
         admin,
         developer,
         editor,

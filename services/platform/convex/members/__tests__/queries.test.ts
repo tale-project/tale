@@ -161,6 +161,31 @@ describe('getCurrentMemberContext handler', () => {
     });
   });
 
+  it('returns isAdmin true for owner role', async () => {
+    mockedGetAuthUser.mockResolvedValue({ userId: 'user_1', name: 'Alice' });
+    mockedGetOrgMember.mockResolvedValue({
+      _id: 'om_1',
+      organizationId: 'org_1',
+      userId: 'user_1',
+      role: 'owner',
+      createdAt: 1000,
+    });
+    const ctx = createMockCtx();
+    const handler = await getHandler();
+
+    const result = await handler(ctx, { organizationId: 'org_1' });
+
+    expect(result).toEqual({
+      memberId: 'om_1',
+      organizationId: 'org_1',
+      userId: 'user_1',
+      role: 'owner',
+      createdAt: 1000,
+      displayName: 'Alice',
+      isAdmin: true,
+    });
+  });
+
   it('defaults to member role for invalid roles', async () => {
     mockedGetAuthUser.mockResolvedValue({ userId: 'user_1', name: 'Bob' });
     mockedGetOrgMember.mockResolvedValue({

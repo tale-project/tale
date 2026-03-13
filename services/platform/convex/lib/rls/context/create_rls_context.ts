@@ -6,6 +6,7 @@ import type { QueryCtx, MutationCtx } from '../../../_generated/server';
 import type { AuthenticatedUser, RLSContext } from '../types';
 
 import { requireAuthenticatedUser } from '../auth/require_authenticated_user';
+import { isAdmin } from '../helpers/role_helpers';
 import { getOrganizationMember } from '../organization/get_organization_member';
 
 /**
@@ -27,6 +28,6 @@ export async function createRLSContext(
     member,
     organizationId,
     role,
-    isAdmin: role.toLowerCase() === 'admin',
+    isAdmin: isAdmin(role),
   };
 }

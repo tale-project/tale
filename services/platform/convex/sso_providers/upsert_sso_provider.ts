@@ -8,6 +8,7 @@ import type {
 
 import { internal } from '../_generated/api';
 import { DataModel } from '../_generated/dataModel';
+import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import { validateSsoConfig } from './validate_sso_config';
 
 type UpsertSsoProviderArgs = {
@@ -43,8 +44,8 @@ export async function upsertSsoProvider(
     },
   );
 
-  if (callerRole !== 'admin') {
-    throw new Error('Only Admins can configure SSO providers');
+  if (!isAdmin(callerRole)) {
+    throw new Error('Only admins can configure SSO providers');
   }
 
   const existingProvider = await ctx.runQuery(
@@ -103,7 +104,7 @@ export async function upsertSsoProvider(
       providerFeatures: args.providerFeatures,
       actorId: authUser._id,
       actorEmail: authUser.email,
-      actorRole: callerRole,
+      actorRole: callerRole ?? 'member',
     },
   );
 
