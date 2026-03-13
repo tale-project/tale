@@ -7,6 +7,7 @@
 
 import { hashPassword } from 'better-auth/crypto';
 
+import { isPasswordValid } from '../../lib/shared/schemas/password';
 import { isRecord, getString } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import { MutationCtx } from '../_generated/server';
@@ -24,6 +25,12 @@ export async function setMemberPassword(
   const authUser = await authComponent.getAuthUser(ctx);
   if (!authUser) {
     throw new Error('Unauthenticated');
+  }
+
+  if (!isPasswordValid(args.newPassword)) {
+    throw new Error(
+      'Password must be at least 8 characters with lowercase, uppercase, number, and special character',
+    );
   }
 
   // Look up the target member

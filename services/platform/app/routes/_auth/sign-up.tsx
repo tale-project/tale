@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import { MicrosoftIcon } from '@/app/components/icons/microsoft-icon';
+import { ValidationCheckList } from '@/app/components/ui/feedback/validation-check-item';
 import { Form } from '@/app/components/ui/forms/form';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
@@ -13,9 +14,11 @@ import { Separator } from '@/app/components/ui/layout/separator';
 import { Button } from '@/app/components/ui/primitives/button';
 import { AuthFormLayout } from '@/app/features/auth/components/auth-form-layout';
 import { useIsSsoConfigured } from '@/app/features/auth/hooks/queries';
+import { usePasswordValidation } from '@/app/hooks/use-password-validation';
 import { toast } from '@/app/hooks/use-toast';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
+import { createPasswordSchema } from '@/lib/shared/schemas/password';
 import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/_auth/sign-up')({
@@ -44,13 +47,13 @@ function SignUpPage() {
           .string()
           .min(1, t('validation.emailRequired'))
           .email(tCommon('validation.email')),
-        password: z
-          .string()
-          .min(8, t('validation.passwordMinLength'))
-          .regex(/[a-z]/, t('validation.passwordLowercase'))
-          .regex(/[A-Z]/, t('validation.passwordUppercase'))
-          .regex(/\d/, t('validation.passwordNumber'))
-          .regex(/[!@#$%^&*(),.?":{}|<>]/, t('validation.passwordSpecial')),
+        password: createPasswordSchema({
+          minLength: t('validation.passwordMinLength'),
+          lowercase: t('validation.passwordLowercase'),
+          uppercase: t('validation.passwordUppercase'),
+          number: t('validation.passwordNumber'),
+          specialChar: t('validation.passwordSpecial'),
+        }),
       }),
     [t, tCommon],
   );
@@ -66,6 +69,7 @@ function SignUpPage() {
 
   const { isSubmitting, isValid, errors } = form.formState;
   const password = form.watch('password');
+  const passwordValidationItems = usePasswordValidation(password);
 
   const handleSubmit = async (data: SignUpFormData) => {
     form.setError('password', { message: '' });
@@ -145,23 +149,10 @@ function SignUpPage() {
                 {...form.register('password')}
               />
               {password && (
-                <ul className="text-muted-foreground flex list-none flex-col gap-1 text-xs">
-                  <li className="relative pl-4 before:absolute before:left-0 before:content-['-']">
-                    {t('requirements.length')}
-                  </li>
-                  <li className="relative pl-4 before:absolute before:left-0 before:content-['-']">
-                    {t('requirements.lowercase')}
-                  </li>
-                  <li className="relative pl-4 before:absolute before:left-0 before:content-['-']">
-                    {t('requirements.uppercase')}
-                  </li>
-                  <li className="relative pl-4 before:absolute before:left-0 before:content-['-']">
-                    {t('requirements.number')}
-                  </li>
-                  <li className="relative pl-4 before:absolute before:left-0 before:content-['-']">
-                    {t('requirements.specialChar')}
-                  </li>
-                </ul>
+                <ValidationCheckList
+                  items={passwordValidationItems}
+                  className="text-xs"
+                />
               )}
             </Stack>
 
