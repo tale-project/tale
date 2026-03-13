@@ -50,6 +50,13 @@ CREATE TABLE IF NOT EXISTS public_web.websites (
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Converge CHECK constraint on existing tables (CREATE TABLE IF NOT EXISTS skips this)
+DO $$ BEGIN
+    ALTER TABLE public_web.websites DROP CONSTRAINT IF EXISTS websites_status_check;
+    ALTER TABLE public_web.websites ADD CONSTRAINT websites_status_check
+        CHECK (status IN ('idle', 'active', 'scanning', 'deleting', 'error', 'completed'));
+END; $$;
+
 CREATE INDEX IF NOT EXISTS idx_pw_websites_status ON public_web.websites(status);
 CREATE INDEX IF NOT EXISTS idx_pw_websites_due ON public_web.websites(status, last_scanned_at);
 
