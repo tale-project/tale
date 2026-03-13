@@ -352,11 +352,15 @@ export async function listOrgTeamsHandler(
     return [];
   }
 
-  const member = await getOrganizationMember(
-    ctx,
-    args.organizationId,
-    authUser,
-  );
+  let member;
+  try {
+    member = await getOrganizationMember(ctx, args.organizationId, authUser);
+  } catch (error) {
+    if (error instanceof UnauthorizedError) {
+      return [];
+    }
+    throw error;
+  }
 
   if (!isAdmin(member.role)) {
     return getMyTeamsHandler(ctx, args);
