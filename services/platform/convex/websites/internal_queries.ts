@@ -55,7 +55,7 @@ export const listStaleWebsites = internalQuery({
   args: {},
   handler: async (ctx) => {
     const results = [];
-    for (const status of ['scanning', 'error'] as const) {
+    for (const status of ['scanning', 'error', 'active'] as const) {
       for await (const website of ctx.db
         .query('websites')
         .withIndex('by_status', (q) => q.eq('status', status))) {
