@@ -11,6 +11,7 @@ import {
   getUserOrganizations,
 } from '../lib/rls';
 import { UnauthorizedError } from '../lib/rls/errors';
+import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import { memberRoleValidator } from './validators';
 
 interface BetterAuthTeam {
@@ -28,6 +29,7 @@ interface BetterAuthTeamMember {
 }
 
 const VALID_ROLES = new Set<string>([
+  'owner',
   'disabled',
   'member',
   'editor',
@@ -75,7 +77,7 @@ export const getCurrentMemberContext = query({
         role,
         createdAt: member.createdAt,
         displayName: authUser.name,
-        isAdmin: role === 'admin',
+        isAdmin: isAdmin(role),
       };
     } catch (error) {
       if (error instanceof UnauthorizedError) {
@@ -339,4 +341,52 @@ export const getMyTeams = query({
   args: { organizationId: v.string() },
   returns: v.array(v.object({ id: v.string(), name: v.string() })),
   handler: getMyTeamsHandler,
+});
+
+export async function listOrgTeamsHandler(
+  ctx: QueryCtx,
+  args: { organizationId: string },
+) {
+  const authUser = await getAuthUserIdentity(ctx);
+  if (!authUser) {
+    return [];
+  }
+
+  const member = await getOrganizationMember(
+    ctx,
+    args.organizationId,
+    authUser,
+  );
+
+  if (!isAdmin(member.role)) {
+    return getMyTeamsHandler(ctx, args);
+  }
+
+  const teamsResult: BetterAuthFindManyResult<BetterAuthTeam> =
+    await ctx.runQuery(components.betterAuth.adapter.findMany, {
+      model: 'team',
+      paginationOpts: { cursor: null, numItems: 100 },
+      where: [
+        {
+          field: 'organizationId',
+          operator: 'eq',
+          value: args.organizationId,
+        },
+      ],
+    });
+
+  if (!teamsResult || teamsResult.page.length === 0) {
+    return [];
+  }
+
+  return teamsResult.page.map((team) => ({
+    id: team._id,
+    name: team.name,
+  }));
+}
+
+export const listOrgTeams = query({
+  args: { organizationId: v.string() },
+  returns: v.array(v.object({ id: v.string(), name: v.string() })),
+  handler: listOrgTeamsHandler,
 });

@@ -130,6 +130,7 @@ export function TeamMembersDialog({
           <HStack gap={2}>
             <div className="flex-1">
               <Select
+                className="h-8"
                 value={selectedMemberId}
                 onValueChange={setSelectedMemberId}
                 placeholder={tSettings('teams.selectMember')}
@@ -179,20 +180,20 @@ export function TeamMembersDialog({
               return (
                 <BorderedSection
                   key={member._id}
-                  className="flex-row items-center justify-between p-3"
+                  className="flex-row items-center justify-between gap-2 p-3"
                 >
-                  <Stack gap={1}>
-                    <Text as="span" variant="label">
+                  <div className="min-w-0 flex-1">
+                    <Text as="p" variant="label" className="truncate">
                       {hasDistinctName
                         ? details.displayName
                         : details?.email || 'Unknown'}
                     </Text>
                     {hasDistinctName && (
-                      <Text as="span" variant="caption">
+                      <Text as="p" variant="caption" className="truncate">
                         {details.email}
                       </Text>
                     )}
-                  </Stack>
+                  </div>
                   <Tooltip
                     content={
                       teamMembers.length <= 1

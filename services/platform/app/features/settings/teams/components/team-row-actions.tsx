@@ -71,6 +71,7 @@ export function TeamRowActions({ team, organizationId }: TeamRowActionsProps) {
         open={dialogs.isOpen.delete}
         onOpenChange={dialogs.setOpen.delete}
         team={team}
+        organizationId={organizationId}
       />
     </>
   );
