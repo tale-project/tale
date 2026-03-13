@@ -2,6 +2,7 @@ import { GenericActionCtx } from 'convex/server';
 
 import { internal } from '../_generated/api';
 import { DataModel } from '../_generated/dataModel';
+import { isAdmin } from '../lib/rls/helpers/role_helpers';
 
 type RemoveSsoProviderArgs = {
   organizationId: string;
@@ -27,7 +28,7 @@ export async function removeSsoProvider(
     },
   );
 
-  if (callerRole !== 'admin' && callerRole !== 'owner') {
+  if (!isAdmin(callerRole)) {
     throw new Error('Only admins can remove SSO providers');
   }
 
@@ -37,7 +38,7 @@ export async function removeSsoProvider(
       organizationId: args.organizationId,
       actorId: authUser._id,
       actorEmail: authUser.email,
-      actorRole: callerRole,
+      actorRole: callerRole ?? 'member',
     },
   );
 

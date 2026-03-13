@@ -5,7 +5,7 @@
  * Use `isAdmin` everywhere instead of raw string comparisons.
  */
 
-export function isAdmin(role: string | undefined): boolean {
+export function isAdmin(role: string | null | undefined): boolean {
   const normalized = (role ?? '').toLowerCase();
   return normalized === 'admin' || normalized === 'owner';
 }
