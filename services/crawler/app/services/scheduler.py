@@ -304,6 +304,11 @@ async def _scan_website(
             await site_store.update_content_hashes(updates)
             crawled_total += len(updates)
 
+            try:
+                await store_manager.update_scan_status(domain, "scanning")
+            except Exception:
+                logger.warning(f"Scan [{domain}]: heartbeat failed, continuing")
+
             if homepage_title is None:
                 for p in crawled_pages:
                     if _is_homepage(p["url"], domain):

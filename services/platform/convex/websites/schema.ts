@@ -25,4 +25,5 @@ export const websitesTable = defineTable({
 })
   .index('by_organizationId', ['organizationId'])
   .index('by_organizationId_and_status', ['organizationId', 'status'])
-  .index('by_organizationId_and_domain', ['organizationId', 'domain']);
+  .index('by_organizationId_and_domain', ['organizationId', 'domain'])
+  .index('by_status', ['status']);

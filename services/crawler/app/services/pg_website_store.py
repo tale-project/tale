@@ -312,26 +312,23 @@ class PgWebsiteStoreManager:
             rows = await conn.fetch("SELECT domain FROM websites WHERE status = 'deleting'")
         return [r["domain"] for r in rows]
 
-    async def recover_stuck_scans(self) -> list[str]:
-        """Find domains stuck in 'scanning' status for >30 min (e.g. after a crash).
-
-        Uses a 30-minute threshold to avoid resetting websites that are actively
-        being scanned by another container during blue-green deployments.
-        """
-        async with acquire_with_retry(self._pool) as conn:
-            rows = await conn.fetch(
-                "SELECT domain FROM websites WHERE status = 'scanning' AND updated_at < NOW() - INTERVAL '30 minutes'"
-            )
-        return [r["domain"] for r in rows]
-
     async def get_due_websites(self) -> list[dict]:
+        """Return websites due for scanning, including stuck scans.
+
+        A website is due when:
+        - Its scan interval has elapsed and it is not currently scanning/deleting, OR
+        - It has been stuck in 'scanning' for >2 hours (no heartbeat progress),
+          indicating the previous scanner crashed or was replaced.
+        """
         async with acquire_with_retry(self._pool) as conn:
             rows = await conn.fetch(
                 """SELECT domain, status, scan_interval, last_scanned_at, error
                    FROM websites
-                   WHERE status NOT IN ('scanning', 'deleting')
-                     AND (last_scanned_at IS NULL
-                          OR last_scanned_at + make_interval(secs => scan_interval) < NOW())"""
+                   WHERE (status NOT IN ('scanning', 'deleting')
+                          AND (last_scanned_at IS NULL
+                               OR last_scanned_at + make_interval(secs => scan_interval) < NOW()))
+                      OR (status = 'scanning'
+                          AND updated_at < NOW() - INTERVAL '2 hours')"""
             )
             return [dict(r) for r in rows]
 
