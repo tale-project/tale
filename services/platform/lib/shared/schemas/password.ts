@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const PASSWORD_MIN_LENGTH = 8;
 
-export const PASSWORD_RULES = {
+const PASSWORD_RULES = {
   minLength: PASSWORD_MIN_LENGTH,
   lowercase: /[a-z]/,
   uppercase: /[A-Z]/,
