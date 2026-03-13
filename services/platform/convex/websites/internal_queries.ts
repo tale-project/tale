@@ -51,6 +51,25 @@ export const listWebsitesForSync = internalQuery({
   },
 });
 
+export const listStaleWebsites = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const results = [];
+    for (const status of ['scanning', 'error'] as const) {
+      for await (const website of ctx.db
+        .query('websites')
+        .withIndex('by_status', (q) => q.eq('status', status))) {
+        results.push({
+          _id: website._id,
+          domain: website.domain,
+          metadata: website.metadata,
+        });
+      }
+    }
+    return results;
+  },
+});
+
 export const getWebsiteByDomain = internalQuery({
   args: {
     organizationId: v.string(),

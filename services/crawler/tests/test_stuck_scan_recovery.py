@@ -1,6 +1,5 @@
-"""Tests for recover_stuck_scans: resetting websites stuck in 'scanning' status."""
+"""Tests for stuck scan recovery via get_due_websites()."""
 
-from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -43,84 +42,99 @@ def manager(mock_pool):
     return PgWebsiteStoreManager(mock_pool)
 
 
-class TestRecoverStuckScans:
-    async def test_returns_stuck_scanning_domains(self, manager, mock_conn):
-        mock_conn.fetch = AsyncMock(return_value=[{"domain": "stuck.com"}])
+class TestGetDueWebsitesStuckRecovery:
+    """Test that get_due_websites() includes stuck-scanning websites."""
 
-        result = await manager.recover_stuck_scans()
+    async def test_returns_stuck_scanning_website(self, manager, mock_conn):
+        mock_conn.fetch = AsyncMock(
+            return_value=[
+                {
+                    "domain": "stuck.com",
+                    "status": "scanning",
+                    "scan_interval": 21600,
+                    "last_scanned_at": None,
+                    "error": None,
+                },
+            ]
+        )
 
-        assert result == ["stuck.com"]
+        result = await manager.get_due_websites()
 
-    async def test_returns_empty_list_when_no_stuck_websites(self, manager, mock_conn):
+        assert len(result) == 1
+        assert result[0]["domain"] == "stuck.com"
+        assert result[0]["status"] == "scanning"
+
+    async def test_returns_normally_due_websites(self, manager, mock_conn):
+        mock_conn.fetch = AsyncMock(
+            return_value=[
+                {
+                    "domain": "due.com",
+                    "status": "active",
+                    "scan_interval": 21600,
+                    "last_scanned_at": None,
+                    "error": None,
+                },
+            ]
+        )
+
+        result = await manager.get_due_websites()
+
+        assert len(result) == 1
+        assert result[0]["domain"] == "due.com"
+
+    async def test_returns_mix_of_due_and_stuck(self, manager, mock_conn):
+        mock_conn.fetch = AsyncMock(
+            return_value=[
+                {
+                    "domain": "due.com",
+                    "status": "active",
+                    "scan_interval": 21600,
+                    "last_scanned_at": None,
+                    "error": None,
+                },
+                {
+                    "domain": "stuck.com",
+                    "status": "scanning",
+                    "scan_interval": 21600,
+                    "last_scanned_at": None,
+                    "error": None,
+                },
+            ]
+        )
+
+        result = await manager.get_due_websites()
+
+        domains = {r["domain"] for r in result}
+        assert domains == {"due.com", "stuck.com"}
+
+    async def test_returns_empty_when_nothing_due(self, manager, mock_conn):
         mock_conn.fetch = AsyncMock(return_value=[])
 
-        result = await manager.recover_stuck_scans()
+        result = await manager.get_due_websites()
 
         assert result == []
 
-    async def test_returns_multiple_stuck_domains(self, manager, mock_conn):
-        mock_conn.fetch = AsyncMock(
-            return_value=[
-                {"domain": "stuck1.com"},
-                {"domain": "stuck2.com"},
-                {"domain": "stuck3.com"},
-            ]
-        )
-
-        result = await manager.recover_stuck_scans()
-
-        assert result == ["stuck1.com", "stuck2.com", "stuck3.com"]
-
-    async def test_query_filters_by_scanning_status(self, manager, mock_conn):
+    async def test_query_includes_2_hour_threshold(self, manager, mock_conn):
         mock_conn.fetch = AsyncMock(return_value=[])
 
-        await manager.recover_stuck_scans()
+        await manager.get_due_websites()
+
+        sql = str(mock_conn.fetch.call_args)
+        assert "2 hours" in sql
+
+    async def test_query_includes_scanning_recovery(self, manager, mock_conn):
+        mock_conn.fetch = AsyncMock(return_value=[])
+
+        await manager.get_due_websites()
 
         sql = str(mock_conn.fetch.call_args)
         assert "scanning" in sql
+        assert "updated_at" in sql
 
-    async def test_query_includes_time_threshold(self, manager, mock_conn):
+    async def test_query_excludes_deleting_status(self, manager, mock_conn):
         mock_conn.fetch = AsyncMock(return_value=[])
 
-        await manager.recover_stuck_scans()
+        await manager.get_due_websites()
 
         sql = str(mock_conn.fetch.call_args)
-        assert "30 minutes" in sql
-
-    async def test_idempotent_second_call_returns_empty(self, manager, mock_conn):
-        mock_conn.fetch = AsyncMock(
-            side_effect=[
-                [{"domain": "stuck.com"}],
-                [],
-            ]
-        )
-
-        first = await manager.recover_stuck_scans()
-        second = await manager.recover_stuck_scans()
-
-        assert first == ["stuck.com"]
-        assert second == []
-
-
-class TestRecoveryStartupFlow:
-    """Test the startup recovery flow: recover_stuck_scans → update_scan_status."""
-
-    async def test_recovered_domain_reset_to_idle(self, manager, mock_conn):
-        mock_conn.fetch = AsyncMock(return_value=[{"domain": "stuck.com"}])
-
-        stuck = await manager.recover_stuck_scans()
-        for domain in stuck:
-            await manager.update_scan_status(domain, "idle")
-
-        execute_calls = [str(c) for c in mock_conn.execute.call_args_list]
-        assert any("idle" in c and "stuck.com" in c for c in execute_calls)
-
-    async def test_error_field_is_none_after_recovery(self, manager, mock_conn):
-        mock_conn.fetch = AsyncMock(return_value=[{"domain": "stuck.com"}])
-
-        stuck = await manager.recover_stuck_scans()
-        for domain in stuck:
-            await manager.update_scan_status(domain, "idle")
-
-        call_args = mock_conn.execute.call_args
-        assert call_args[0][3] is None
+        assert "deleting" in sql

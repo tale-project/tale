@@ -27,6 +27,14 @@ crons.cron(
   {},
 );
 
+// Website status sync - sync stale scanning/error website statuses from crawler
+crons.cron(
+  'sync stale website statuses (every 10 min)',
+  '*/10 * * * *',
+  internal.websites.internal_actions.syncStaleWebsites,
+  {},
+);
+
 // Audit log retention - clean up logs older than 90 days, runs daily at 3 AM UTC
 crons.cron(
   'audit log retention cleanup (daily)',
