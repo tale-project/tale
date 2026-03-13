@@ -64,11 +64,24 @@ export function createOptionalPasswordSchema(
   return z
     .string()
     .optional()
-    .refine(
-      (val) => {
-        if (!val || val.length === 0) return true;
-        return isPasswordValid(val);
-      },
-      { message: messages.minLength },
-    );
+    .superRefine((val, ctx) => {
+      if (!val || val.length === 0) return;
+
+      const result = validatePassword(val);
+      if (!result.length) {
+        ctx.addIssue({ code: 'custom', message: messages.minLength });
+      }
+      if (!result.lowercase) {
+        ctx.addIssue({ code: 'custom', message: messages.lowercase });
+      }
+      if (!result.uppercase) {
+        ctx.addIssue({ code: 'custom', message: messages.uppercase });
+      }
+      if (!result.number) {
+        ctx.addIssue({ code: 'custom', message: messages.number });
+      }
+      if (!result.specialChar) {
+        ctx.addIssue({ code: 'custom', message: messages.specialChar });
+      }
+    });
 }

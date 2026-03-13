@@ -151,13 +151,19 @@ describe('createOptionalPasswordSchema', () => {
     expect(schema.safeParse(VALID_PASSWORD).success).toBe(true);
   });
 
-  it('rejects an invalid non-empty password', () => {
+  it('rejects an invalid non-empty password with correct message', () => {
     const result = schema.safeParse('weak');
     expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0].message).toBe('min length');
+    }
   });
 
-  it('rejects password missing only special char', () => {
+  it('rejects password missing only special char with correct message', () => {
     const result = schema.safeParse('Abcdefg1');
     expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0].message).toBe('special char');
+    }
   });
 });

@@ -21,13 +21,13 @@ export async function updateUserPassword(
   ctx: MutationCtx,
   args: UpdateUserPasswordArgs,
 ): Promise<void> {
+  const { auth, headers } = await authComponent.getAuth(createAuth, ctx);
+
   if (!isPasswordValid(args.newPassword)) {
     throw new Error(
       'Password must be at least 8 characters with lowercase, uppercase, number, and special character',
     );
   }
-
-  const { auth, headers } = await authComponent.getAuth(createAuth, ctx);
 
   const hasPassword = await hasCredentialAccount(ctx);
 

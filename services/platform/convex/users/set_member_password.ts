@@ -27,6 +27,12 @@ export async function setMemberPassword(
     throw new Error('Unauthenticated');
   }
 
+  if (!isPasswordValid(args.newPassword)) {
+    throw new Error(
+      'Password must be at least 8 characters with lowercase, uppercase, number, and special character',
+    );
+  }
+
   // Look up the target member
   const memberRes = await ctx.runQuery(components.betterAuth.adapter.findMany, {
     model: 'member',
@@ -88,12 +94,6 @@ export async function setMemberPassword(
   const existingCredential = isRecord(credentialRaw)
     ? credentialRaw
     : undefined;
-
-  if (!isPasswordValid(args.newPassword)) {
-    throw new Error(
-      'Password must be at least 8 characters with lowercase, uppercase, number, and special character',
-    );
-  }
 
   const passwordHash = await hashPassword(args.newPassword);
 

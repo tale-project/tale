@@ -244,7 +244,12 @@ export function EditMemberDialog({
             <Checkbox
               id="updatePassword"
               checked={field.value}
-              onCheckedChange={field.onChange}
+              onCheckedChange={(checked) => {
+                field.onChange(checked);
+                if (!checked) {
+                  form.resetField('password');
+                }
+              }}
               label={t('organization.updatePassword')}
             />
           )}
