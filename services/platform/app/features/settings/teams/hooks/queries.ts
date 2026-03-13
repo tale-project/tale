@@ -25,6 +25,19 @@ export function useTeams() {
   };
 }
 
+export function useOrgTeams() {
+  const organizationId = useOrganizationId();
+  const { data, isLoading } = useConvexQuery(
+    api.members.queries.listOrgTeams,
+    organizationId ? { organizationId } : 'skip',
+  );
+
+  return {
+    teams: data ?? undefined,
+    isLoading,
+  };
+}
+
 export type TeamMember = ConvexItemOf<
   typeof api.team_members.queries.listByTeam
 >;

@@ -3,7 +3,7 @@ import { createFileRoute } from '@tanstack/react-router';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { TeamsTable } from '@/app/features/settings/teams/components/teams-table';
-import { useTeams } from '@/app/features/settings/teams/hooks/queries';
+import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
@@ -15,7 +15,7 @@ export const Route = createFileRoute('/dashboard/$id/settings/teams')({
   }),
   loader: async ({ context, params }) => {
     void context.queryClient.prefetchQuery(
-      convexQuery(api.members.queries.getMyTeams, {
+      convexQuery(api.members.queries.listOrgTeams, {
         organizationId: params.id,
       }),
     );
@@ -29,7 +29,7 @@ function TeamsSettingsPage() {
 
   const ability = useAbility();
 
-  const { teams } = useTeams();
+  const { teams } = useOrgTeams();
 
   if (ability.cannot('read', 'orgSettings')) {
     return <AccessDenied message={t('teams')} />;

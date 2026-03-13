@@ -13,6 +13,7 @@ interface TeamDeleteDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   team: Team;
+  organizationId: string;
   onSuccess?: () => void;
 }
 
@@ -20,6 +21,7 @@ export function TeamDeleteDialog({
   open,
   onOpenChange,
   team,
+  organizationId,
   onSuccess,
 }: TeamDeleteDialogProps) {
   const { t: tSettings } = useT('settings');
@@ -31,6 +33,7 @@ export function TeamDeleteDialog({
     try {
       const result = await authClient.organization.removeTeam({
         teamId: team.id,
+        organizationId,
       });
 
       if (result.error) {

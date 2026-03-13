@@ -80,6 +80,7 @@ const {
   getMyTeamsHandler,
   approxCountMyTeamsHandler,
   listByOrganizationHandler,
+  listOrgTeamsHandler,
 } = await import('../queries');
 
 const mockedGetAuthUser = vi.mocked(getAuthUserIdentity);
@@ -530,5 +531,145 @@ describe('listByOrganizationHandler', () => {
         email: 'bob@example.com',
       },
     ]);
+  });
+});
+
+describe('listOrgTeamsHandler', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns empty array when not authenticated', async () => {
+    mockedGetAuthUser.mockResolvedValue(null);
+    const ctx = createMockCtx();
+
+    const result = await listOrgTeamsHandler(ctx as unknown as QueryCtx, {
+      organizationId: 'org_1',
+    });
+
+    expect(result).toEqual([]);
+  });
+
+  it('returns all org teams for admin role', async () => {
+    mockedGetAuthUser.mockResolvedValue({ userId: 'user_1' });
+    mockedGetOrgMember.mockResolvedValue({
+      _id: 'om_1',
+      organizationId: 'org_1',
+      userId: 'user_1',
+      role: 'admin',
+      createdAt: 1000,
+    });
+    const ctx = createMockCtx();
+
+    ctx.runQuery.mockResolvedValueOnce({
+      page: [
+        { _id: 'team_1', name: 'Alpha', organizationId: 'org_1' },
+        { _id: 'team_2', name: 'Beta', organizationId: 'org_1' },
+        { _id: 'team_3', name: 'Gamma', organizationId: 'org_1' },
+      ],
+    });
+
+    const result = await listOrgTeamsHandler(ctx as unknown as QueryCtx, {
+      organizationId: 'org_1',
+    });
+
+    expect(result).toEqual([
+      { id: 'team_1', name: 'Alpha' },
+      { id: 'team_2', name: 'Beta' },
+      { id: 'team_3', name: 'Gamma' },
+    ]);
+  });
+
+  it('returns all org teams for owner role', async () => {
+    mockedGetAuthUser.mockResolvedValue({ userId: 'user_1' });
+    mockedGetOrgMember.mockResolvedValue({
+      _id: 'om_1',
+      organizationId: 'org_1',
+      userId: 'user_1',
+      role: 'owner',
+      createdAt: 1000,
+    });
+    const ctx = createMockCtx();
+
+    ctx.runQuery.mockResolvedValueOnce({
+      page: [{ _id: 'team_1', name: 'Alpha', organizationId: 'org_1' }],
+    });
+
+    const result = await listOrgTeamsHandler(ctx as unknown as QueryCtx, {
+      organizationId: 'org_1',
+    });
+
+    expect(result).toEqual([{ id: 'team_1', name: 'Alpha' }]);
+  });
+
+  it('falls back to getMyTeamsHandler for non-admin roles', async () => {
+    mockedGetAuthUser.mockResolvedValue({ userId: 'user_1' });
+    mockedGetOrgMember.mockResolvedValue({
+      _id: 'om_1',
+      organizationId: 'org_1',
+      userId: 'user_1',
+      role: 'member',
+      createdAt: 1000,
+    });
+    const ctx = createMockCtx();
+
+    // getMyTeamsHandler: first call fetches teamMember records
+    ctx.runQuery.mockResolvedValueOnce({
+      page: [{ _id: 'tm_1', teamId: 'team_1', userId: 'user_1' }],
+    });
+    // getMyTeamsHandler: second call fetches team details
+    ctx.runQuery.mockResolvedValueOnce({
+      page: [{ _id: 'team_1', name: 'Alpha', organizationId: 'org_1' }],
+    });
+
+    const result = await listOrgTeamsHandler(ctx as unknown as QueryCtx, {
+      organizationId: 'org_1',
+    });
+
+    expect(result).toEqual([{ id: 'team_1', name: 'Alpha' }]);
+  });
+
+  it('returns empty array when unauthorized', async () => {
+    mockedGetAuthUser.mockResolvedValue({ userId: 'user_1' });
+    mockedGetOrgMember.mockRejectedValue(new UnauthorizedError());
+    const ctx = createMockCtx();
+
+    const result = await listOrgTeamsHandler(ctx as unknown as QueryCtx, {
+      organizationId: 'org_1',
+    });
+
+    expect(result).toEqual([]);
+  });
+
+  it('re-throws non-authorization errors', async () => {
+    mockedGetAuthUser.mockResolvedValue({ userId: 'user_1' });
+    mockedGetOrgMember.mockRejectedValue(new Error('DB failure'));
+    const ctx = createMockCtx();
+
+    await expect(
+      listOrgTeamsHandler(ctx as unknown as QueryCtx, {
+        organizationId: 'org_1',
+      }),
+    ).rejects.toThrow('DB failure');
+  });
+
+  it('returns empty array when no teams exist for admin', async () => {
+    mockedGetAuthUser.mockResolvedValue({ userId: 'user_1' });
+    mockedGetOrgMember.mockResolvedValue({
+      _id: 'om_1',
+      organizationId: 'org_1',
+      userId: 'user_1',
+      role: 'admin',
+      createdAt: 1000,
+    });
+    const ctx = createMockCtx();
+
+    ctx.runQuery.mockResolvedValueOnce({ page: [] });
+
+    const result = await listOrgTeamsHandler(ctx as unknown as QueryCtx, {
+      organizationId: 'org_1',
+    });
+
+    expect(result).toEqual([]);
   });
 });
