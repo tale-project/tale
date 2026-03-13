@@ -219,6 +219,7 @@ async def _scan_website(
     _clear_cancelled(domain)
     site_store = store_manager.get_site_store(domain)
     await store_manager.update_scan_status(domain, "scanning")
+    await store_manager.update_last_scanned(domain)
 
     try:
         if not crawler_service.initialized:
