@@ -49,7 +49,7 @@ export function CreateCustomAgentDialog({
             }),
           )
           .regex(
-            /^[a-z0-9][a-z0-9-]*$/,
+            /^[a-z0-9][a-z0-9_-]*$/,
             t('customAgents.form.namePatternError'),
           ),
         displayName: z.string().min(

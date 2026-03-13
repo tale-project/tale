@@ -15,6 +15,7 @@ import type { ToolDefinition } from '../types';
 import { internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
 import { analyzeTextContent } from './helpers/analyze_text';
+import { resolveFileName } from './helpers/resolve_file_name';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 
@@ -52,7 +53,12 @@ const txtArgs = z.discriminatedUnion('operation', [
       .describe(
         "**REQUIRED** - Convex storage ID of the text file (e.g., 'kg2bazp7fbgt9srq63knfagjrd7yfenj'). Get this from the file attachment context.",
       ),
-    filename: z.string().describe("Original filename (e.g., 'data.txt')"),
+    filename: z
+      .string()
+      .optional()
+      .describe(
+        "Original filename (e.g., 'data.txt'). Optional — auto-resolved from file metadata if omitted.",
+      ),
     user_input: z
       .string()
       .describe(
@@ -80,7 +86,7 @@ Use when a user uploads a .txt file and asks to analyze its content.
 Parameters:
 - operation: "parse"
 - fileId: **REQUIRED** - Convex storage ID (e.g., "kg2bazp7fbgt9srq63knfagjrd7yfenj")
-- filename: Original filename (e.g., "notes.txt")
+- filename: Optional — original filename (e.g., "notes.txt"). Auto-resolved from file metadata if omitted.
 - user_input: The user's question or instruction
 
 **GENERATE OPERATION**
@@ -185,9 +191,11 @@ Returns: { success, downloadUrl (for generate), result (for parse), char_count, 
         };
       }
 
+      const resolvedFilename = await resolveFileName(ctx, fileId, filename);
+
       debugLog('tool:txt parse start', {
         fileId,
-        filename,
+        filename: resolvedFilename,
         user_input:
           user_input.length > 100
             ? user_input.slice(0, 100) + '...'
@@ -197,12 +205,12 @@ Returns: { success, downloadUrl (for generate), result (for parse), char_count, 
       try {
         const result = await analyzeTextContent(ctx, {
           fileId,
-          filename,
+          filename: resolvedFilename,
           userInput: user_input,
         });
 
         debugLog('tool:txt parse success', {
-          filename,
+          filename: resolvedFilename,
           charCount: result.charCount,
           lineCount: result.lineCount,
           chunked: result.chunked,
@@ -212,7 +220,7 @@ Returns: { success, downloadUrl (for generate), result (for parse), char_count, 
           operation: 'parse',
           success: result.success,
           result: result.result,
-          filename,
+          filename: resolvedFilename,
           char_count: result.charCount,
           line_count: result.lineCount,
           encoding: result.encoding,
@@ -225,7 +233,7 @@ Returns: { success, downloadUrl (for generate), result (for parse), char_count, 
           error instanceof Error ? error.message : String(error);
         console.error('[tool:txt parse] error', {
           fileId,
-          filename,
+          filename: resolvedFilename,
           error: errorMessage,
         });
 
@@ -233,7 +241,7 @@ Returns: { success, downloadUrl (for generate), result (for parse), char_count, 
           operation: 'parse',
           success: false,
           result: '',
-          filename,
+          filename: resolvedFilename,
           char_count: 0,
           line_count: 0,
           encoding: 'unknown',

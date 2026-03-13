@@ -233,9 +233,9 @@ export const createCustomAgent = mutation({
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
-    if (!/^[a-z0-9][a-z0-9-]*$/.test(args.name)) {
+    if (!/^[a-z0-9][a-z0-9_-]*$/.test(args.name)) {
       throw new Error(
-        'Agent name must start with a letter or number and contain only lowercase letters, numbers, and hyphens',
+        'Agent name must start with a letter or number and contain only lowercase letters, numbers, hyphens, and underscores',
       );
     }
 

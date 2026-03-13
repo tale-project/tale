@@ -1,0 +1,170 @@
+{
+  "workflowConfig": {
+    "name": "Contract Generation",
+    "description": "Generate or rewrite contracts from template files. Use when the user asks to draft, generate, or rewrite a contract based on template documents.\n\nThe workflow extracts clauses from one or more contract templates (the ONLY source of clauses — no clauses are invented), merges them with the user's requirements (e.g., 'buyer-friendly', 'strengthen indemnification'), and writes each clause using RAG-retrieved template language to produce a DOCX contract.\n\nOptionally accepts a base contract to extract deal-specific information (parties, dates, amounts) for adaptation.\n\nExtract fileIds from pre-analyzed attachments in the conversation (look for '(fileId: ...)' annotations) or ask the user to provide them.",
+    "version": "1.0.0",
+    "workflowType": "predefined",
+    "config": {
+      "timeout": 14400000,
+      "retryPolicy": { "maxRetries": 2, "backoffMs": 5000 },
+      "variables": {}
+    }
+  },
+  "stepsConfig": [
+    {
+      "stepSlug": "start",
+      "name": "Start",
+      "stepType": "start",
+      "config": {
+        "inputSchema": {
+          "properties": {
+            "templateFileIds": { "type": "array", "description": "Convex storage IDs of contract template files (DOCX). These are the ONLY source of clauses — extract fileIds from pre-analyzed attachments (look for '(fileId: ...)' annotations)." },
+            "baseFileId": { "type": "string", "description": "Convex storage ID of an existing contract to adapt. Used to extract deal-specific info (parties, dates, amounts). Optional." },
+            "requirements": { "type": "string", "description": "The user's instructions in natural language. Preserve the user's full intent (e.g., 'Draft a buyer-friendly SPA', 'Strengthen indemnification, extend warranty survival to 24 months')." },
+            "outputFileName": { "type": "string", "description": "Base name for the output DOCX file (without extension). Choose a sensible name based on the request." }
+          },
+          "required": ["templateFileIds", "requirements", "outputFileName"]
+        }
+      },
+      "nextSteps": { "success": "init_variables" }
+    },
+    {
+      "stepSlug": "init_variables",
+      "name": "Initialize Variables",
+      "stepType": "action",
+      "config": {
+        "type": "set_variables",
+        "parameters": {
+          "variables": [
+            {
+              "name": "allClausesText",
+              "value": ""
+            }
+          ]
+        }
+      },
+      "nextSteps": { "success": "loop_templates" }
+    },
+    {
+      "stepSlug": "loop_templates",
+      "name": "Loop: Extract Clauses from Templates",
+      "stepType": "loop",
+      "config": {
+        "items": "{{templateFileIds}}",
+        "itemVariable": "item"
+      },
+      "nextSteps": {
+        "loop": "extract_clauses",
+        "done": "check_base_file"
+      }
+    },
+    {
+      "stepSlug": "extract_clauses",
+      "name": "Extract Clause Summaries from Template",
+      "stepType": "llm",
+      "config": {
+        "name": "Clause Extractor",
+        "tools": ["docx"],
+        "systemPrompt": "You are a legal document analyst. Extract a structured clause list from a contract template.\n\nParse the template file using the docx tool:\n- operation: \"parse\"\n- fileId: the file ID provided in the user prompt\n- filename: \"template.docx\"\n- user_input: \"Extract the complete contract text with all articles, sections, and clauses\"\n\nAfter parsing, produce a clause SUMMARY list (NOT full text — keep output concise):\n\n## Clause Summaries\n\n### Article I: [Title]\n**Section 1.1: [Title]**\nSummary: [1-2 sentence description of what this clause covers]\nKey terms: [Important defined terms used]\n\n### Article II: [Title]\n**Section 2.1: [Title]**\nSummary: ...\n\nList EVERY clause but only summaries. Do NOT include full clause text.\nThe full text will be retrieved later via RAG search when needed.",
+        "userPrompt": "Parse and extract clause summaries from the template file.\n\nFile ID: {{loop.item}}\n\nThis is template {{loop.index + 1}} of {{templateFileIds|length}}.",
+        "outputFormat": "text"
+      },
+      "nextSteps": { "success": "accumulate_clauses" }
+    },
+    {
+      "stepSlug": "accumulate_clauses",
+      "name": "Accumulate Clause Summaries",
+      "stepType": "action",
+      "config": {
+        "type": "set_variables",
+        "parameters": {
+          "variables": [
+            {
+              "name": "allClausesText",
+              "value": "{{allClausesText + '\\n\\n=== TEMPLATE ' + (loop.index + 1) + ' ===\\n\\n' + steps.extract_clauses.output.data}}"
+            }
+          ]
+        }
+      },
+      "nextSteps": { "success": "loop_templates" }
+    },
+    {
+      "stepSlug": "check_base_file",
+      "name": "Check if Base Contract Provided",
+      "stepType": "condition",
+      "config": {
+        "expression": "baseFileId != null && baseFileId != ''"
+      },
+      "nextSteps": {
+        "true": "extract_base_info",
+        "false": "merge_clauses"
+      }
+    },
+    {
+      "stepSlug": "extract_base_info",
+      "name": "Extract Key Info from Base Contract",
+      "stepType": "llm",
+      "config": {
+        "name": "Base Contract Analyzer",
+        "tools": ["docx"],
+        "systemPrompt": "You are a legal document analyst. Extract the key information from this contract.\n\nParse the contract using the docx tool:\n- operation: \"parse\"\n- fileId: the file ID provided in the user prompt\n- filename: \"contract.docx\"\n- user_input: \"Extract all key information: parties, dates, amounts, terms, and important provisions\"\n\nProduce a concise summary:\n\n# Key Contract Information\n**Contract Type:** [What kind of contract this is]\n**Parties:** [All parties and their roles]\n**Key Dates:** [Any significant dates, deadlines, or periods]\n**Key Amounts:** [Any monetary values, fees, or financial terms — if applicable]\n**Defined Terms:** [Important defined terms and their meanings]\n**Special Provisions:** [Any notable conditions, restrictions, or unique terms]\n**Governing Law:** [Jurisdiction, if specified]\n\nKeep this concise. Extract ONLY key information. Do NOT reproduce the full contract text.",
+        "userPrompt": "Parse and extract key information from the base contract.\n\nFile ID: {{baseFileId}}",
+        "outputFormat": "text"
+      },
+      "nextSteps": { "success": "merge_clauses" }
+    },
+    {
+      "stepSlug": "merge_clauses",
+      "name": "Merge Clauses with Requirements",
+      "stepType": "llm",
+      "config": {
+        "name": "Clause Merger",
+        "systemPrompt": "You are an expert contract attorney. Analyze clause lists from multiple contract templates and produce a unified clause list with modification instructions.\n\nCRITICAL RULE: Every clause MUST come from the extracted templates. Do NOT invent clauses. Note gaps where templates don't cover something.\n\nOUTPUT FORMAT:\n\n# Unified Clause List\n\n## Clause 1: [Article/Section title]\n**Source:** Template [number], Section [X.X]\n**Action:** [KEEP AS-IS / MODIFY / STRENGTHEN / WEAKEN / REMOVE]\n**Modification:** [Specific changes if any. Be precise: \"add X\", \"remove qualifier Y\", \"extend to 24 months\"]\n**RAG query:** [Search query to find best template language for this clause]\n\n## Clause 2: ...\n\n## Gaps\n[Areas not covered by any template]\n\n---\n\nPERSPECTIVE KNOWLEDGE:\n\nBUYER-FRIENDLY:\n- Reps & Warranties: Remove knowledge qualifiers, broaden scope, extend survival (18-24 months)\n- Indemnification: Raise/remove caps, lower baskets, uncap for fraud\n- Closing Conditions: Add MAC clause, regulatory approvals\n- Covenants: Tighten seller restrictions, add information access\n- Termination: Buyer walk-away rights, reverse break fees\n\nSELLER-FRIENDLY:\n- Reps & Warranties: Add knowledge qualifiers, narrow scope, short survival (12 months)\n- Indemnification: Cap at 10-15%, high baskets, exclude consequential damages\n- Closing Conditions: Minimize, narrow MAC\n- Covenants: Broad ordinary course exception\n- Termination: Seller-friendly break fees\n\nApply this knowledge when interpreting user requirements like \"buyer-friendly\" or \"seller-friendly\".",
+        "userPrompt": "Produce a unified clause list with modification instructions.\n\nEXTRACTED CLAUSES FROM ALL TEMPLATES:\n{{allClausesText}}\n\nUSER REQUIREMENTS:\n{{requirements}}\n\nDEAL INFORMATION FROM EXISTING CONTRACT (if provided):\n{{steps.extract_base_info.output.data}}",
+        "outputFormat": "text"
+      },
+      "nextSteps": { "success": "write_contract" }
+    },
+    {
+      "stepSlug": "write_contract",
+      "name": "Write Contract Clauses",
+      "stepType": "llm",
+      "config": {
+        "name": "Contract Drafter",
+        "tools": ["rag_search"],
+        "systemPrompt": "You are an expert contract drafter. Generate a complete contract in Markdown by writing each clause individually, using the unified clause list as your guide.\n\nPROCESS FOR EACH CLAUSE:\n1. Read the clause's instructions from the unified list.\n2. Use rag_search to search for the best template language for this clause. Use the \"RAG query\" from the clause list as your search query.\n3. Write the clause using RAG results as language foundation.\n4. Apply the specified modifications.\n5. Move to the next clause.\n\nDRAFTING RULES:\n- Start from template language found via RAG. Do NOT invent new legal text.\n- KEEP AS-IS: copy verbatim. MODIFY/STRENGTHEN/WEAKEN: use template as base, apply changes.\n- Use [PLACEHOLDER] for party names, dates, addresses, amounts that are not specified.\n- Consistent defined terms (capitalize). Proper numbering (Article I, Section 1.1, (a), (i)).\n- Accurate cross-references. Include ALL clauses from the unified list.\n- End with: \"---\\n*This document was AI-generated and requires professional legal review.*\"\n- Output ONLY the contract markdown. No commentary.",
+        "userPrompt": "Generate a complete contract based on the unified clause list.\n\nUNIFIED CLAUSE LIST:\n{{steps.merge_clauses.output.data}}\n\nUSER REQUIREMENTS:\n{{requirements}}\n\nKEY INFORMATION FROM EXISTING CONTRACT (if provided):\n{{steps.extract_base_info.output.data}}",
+        "outputFormat": "text"
+      },
+      "nextSteps": { "success": "create_docx" }
+    },
+    {
+      "stepSlug": "create_docx",
+      "name": "Generate DOCX Document",
+      "stepType": "action",
+      "config": {
+        "type": "document",
+        "parameters": {
+          "operation": "generate_docx",
+          "fileName": "{{outputFileName}}",
+          "sourceType": "markdown",
+          "content": "{{steps.write_contract.output.data}}"
+        }
+      },
+      "nextSteps": { "success": "output" }
+    },
+    {
+      "stepSlug": "output",
+      "name": "Output Results",
+      "stepType": "output",
+      "config": {
+        "outputMapping": {
+          "fileStorageId": "{{steps.create_docx.output.data.fileStorageId}}",
+          "downloadUrl": "{{steps.create_docx.output.data.downloadUrl}}",
+          "fileName": "{{steps.create_docx.output.data.fileName}}"
+        }
+      },
+      "nextSteps": {}
+    }
+  ]
+}

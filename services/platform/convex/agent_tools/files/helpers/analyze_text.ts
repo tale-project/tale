@@ -11,8 +11,8 @@ import type { ActionCtx } from '../../../_generated/server';
 
 import { components } from '../../../_generated/api';
 import { getFastModel } from '../../../lib/agent_runtime_config';
-import { createAgentConfig } from '../../../lib/create_agent_config';
 import { createDebugLog } from '../../../lib/debug_log';
+import { openai } from '../../../lib/openai_provider';
 import { toId } from '../../../lib/type_cast_helpers';
 
 const debugLog = createDebugLog('DEBUG_TEXT_ANALYSIS', '[TextAnalysis]');
@@ -148,13 +148,13 @@ Guidelines:
 - For large texts processed in chunks, focus on the most relevant parts`;
 
 function createTextAnalysisAgent(): Agent {
-  const config = createAgentConfig({
-    name: 'text-analyzer',
-    instructions: TEXT_ANALYSIS_INSTRUCTIONS,
-    model: getFastModel(),
-  });
+  const instructions = `${TEXT_ANALYSIS_INSTRUCTIONS}\n\nIf you use any tools, you must always conclude by producing a final assistant message with the answer.`;
 
-  return new Agent(components.agent, config);
+  return new Agent(components.agent, {
+    name: 'text-analyzer',
+    languageModel: openai.chat(getFastModel()),
+    instructions,
+  });
 }
 
 /**

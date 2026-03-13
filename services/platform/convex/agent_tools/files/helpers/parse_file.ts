@@ -11,6 +11,7 @@ import { fetchJson } from '../../../../lib/utils/type-cast-helpers';
 import { createDebugLog } from '../../../lib/debug_log';
 import { toId } from '../../../lib/type_cast_helpers';
 import { getCrawlerServiceUrl } from '../../web/helpers/get_crawler_service_url';
+import { resolveFileName } from './resolve_file_name';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 
@@ -34,7 +35,7 @@ export interface ParseFileResult {
  * Parse a file by getting it from Convex storage and sending it to the crawler service.
  * @param ctx - Action context for storage access
  * @param fileId - Convex storage ID of the file
- * @param filename - Original filename with extension
+ * @param filename - Original filename with extension (optional, resolved from fileMetadata if not provided)
  * @param toolName - Name of the calling tool (for logging)
  * @param userInput - Optional user question/instruction to guide parsing
  * @returns ParseFileResult with extracted text and metadata
@@ -42,13 +43,15 @@ export interface ParseFileResult {
 export async function parseFile(
   ctx: ActionCtx,
   fileId: string,
-  filename: string,
+  filename: string | undefined,
   toolName: string,
   userInput?: string,
 ): Promise<ParseFileResult> {
+  const resolvedFilename = await resolveFileName(ctx, fileId, filename);
+
   debugLog(`tool:${toolName} parse start`, {
     fileId,
-    filename,
+    filename: resolvedFilename,
   });
 
   try {
@@ -59,24 +62,24 @@ export async function parseFile(
     }
 
     debugLog(`tool:${toolName} parse got blob`, {
-      filename,
+      filename: resolvedFilename,
       size: fileBlob.size,
       type: fileBlob.type,
     });
 
     const crawlerUrl = getCrawlerServiceUrl();
-    const endpointPath = getParseEndpoint(filename);
+    const endpointPath = getParseEndpoint(resolvedFilename);
     const apiUrl = `${crawlerUrl}${endpointPath}`;
 
     // Create FormData and upload to crawler service
     const formData = new FormData();
-    formData.append('file', fileBlob, filename);
+    formData.append('file', fileBlob, resolvedFilename);
     if (userInput) {
       formData.append('user_input', userInput);
     }
 
     debugLog(`tool:${toolName} parse uploading to crawler`, {
-      filename,
+      filename: resolvedFilename,
       size: fileBlob.size,
       endpoint: endpointPath,
       hasUserInput: !!userInput,
@@ -110,12 +113,12 @@ export async function parseFile(
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error(`[tool:${toolName} parse] error`, {
-      filename,
+      filename: resolvedFilename,
       error: message,
     });
     return {
       success: false,
-      filename,
+      filename: resolvedFilename,
       error: message,
     };
   }
