@@ -2,7 +2,10 @@
  * Convex Tool: RAG Search
  *
  * Search the knowledge base and return relevant document chunks.
- * Resolves accessible document IDs from Convex and passes them to RAG at query time.
+ *
+ * File ID resolution priority:
+ * 1. Explicit fileIds arg → use directly (workflow / scoped searches)
+ * 2. userId + organizationId from ToolCtx → resolve via getAccessibleFileIds
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
@@ -25,6 +28,34 @@ const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 
 const DEFAULT_TOP_K = 10;
 const DEFAULT_SIMILARITY_THRESHOLD = 0.3;
+
+export async function resolveFileIds(
+  ctx: ToolCtx,
+  explicitFileIds?: string[],
+): Promise<string[]> {
+  if (explicitFileIds && explicitFileIds.length > 0) {
+    debugLog('tool:rag_search using explicit fileIds', {
+      count: explicitFileIds.length,
+    });
+    return explicitFileIds;
+  }
+
+  const { userId, organizationId } = ctx;
+
+  if (!userId || !organizationId) {
+    throw new Error(
+      'rag_search requires either explicit fileIds or userId + organizationId in ToolCtx.',
+    );
+  }
+
+  return ctx.runQuery(
+    internal.documents.internal_queries.getAccessibleFileIds,
+    {
+      organizationId,
+      userId,
+    },
+  );
+}
 
 export const ragSearchTool = {
   name: 'rag_search' as const,
@@ -49,23 +80,20 @@ WHEN NOT TO USE:
 Returns numbered document excerpts with relevance scores.`,
     args: z.object({
       query: z.string().describe('Query text to search the knowledge base for'),
+      fileIds: z
+        .array(z.string())
+        .optional()
+        .describe(
+          'Specific file IDs to search within. When provided, only these files are searched (skips automatic file resolution). Use this when you know exactly which files to search.',
+        ),
     }),
     handler: async (ctx: ToolCtx, args): Promise<string> => {
-      const { userId, organizationId } = ctx;
+      debugLog('tool:rag_search start', {
+        query: args.query,
+        explicitFileIds: args.fileIds?.length,
+      });
 
-      debugLog('tool:rag_search start', { query: args.query });
-
-      if (!userId || !organizationId) {
-        throw new Error(
-          'rag_search requires userId and organizationId in ToolCtx. ' +
-            'Ensure the thread was created with proper context.',
-        );
-      }
-
-      const fileIds: string[] = await ctx.runQuery(
-        internal.documents.internal_queries.getAccessibleFileIds,
-        { organizationId, userId },
-      );
+      const fileIds = await resolveFileIds(ctx, args.fileIds);
 
       if (fileIds.length === 0) {
         return 'No documents available in the knowledge base. Upload documents first.';
