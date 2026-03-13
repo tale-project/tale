@@ -7,6 +7,7 @@
 
 import { hashPassword } from 'better-auth/crypto';
 
+import { isPasswordValid } from '../../lib/shared/schemas/password';
 import { isRecord, getString } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import { MutationCtx } from '../_generated/server';
@@ -87,6 +88,12 @@ export async function setMemberPassword(
   const existingCredential = isRecord(credentialRaw)
     ? credentialRaw
     : undefined;
+
+  if (!isPasswordValid(args.newPassword)) {
+    throw new Error(
+      'Password must be at least 8 characters with lowercase, uppercase, number, and special character',
+    );
+  }
 
   const passwordHash = await hashPassword(args.newPassword);
 

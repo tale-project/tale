@@ -7,17 +7,20 @@ import * as z from 'zod';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Banner } from '@/app/components/ui/feedback/banner';
+import { ValidationCheckList } from '@/app/components/ui/feedback/validation-check-item';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Text } from '@/app/components/ui/typography/text';
+import { usePasswordValidation } from '@/app/hooks/use-password-validation';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import {
   memberRoleSchema,
   type MemberRole,
 } from '@/lib/shared/schemas/organizations';
+import { createOptionalPasswordSchema } from '@/lib/shared/schemas/password';
 
 import {
   useSetMemberPassword,
@@ -57,6 +60,7 @@ export function EditMemberDialog({
 }: EditMemberDialogProps) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
+  const { t: tAuth } = useT('auth');
 
   const editMemberSchema = useMemo(
     () =>
@@ -67,9 +71,15 @@ export function EditMemberDialog({
         role: memberRoleSchema,
         email: z.string().email(tCommon('validation.email')),
         updatePassword: z.boolean().optional(),
-        password: z.string().optional(),
+        password: createOptionalPasswordSchema({
+          minLength: tAuth('validation.passwordMinLength'),
+          lowercase: tAuth('validation.passwordLowercase'),
+          uppercase: tAuth('validation.passwordUppercase'),
+          number: tAuth('validation.passwordNumber'),
+          specialChar: tAuth('validation.passwordSpecial'),
+        }),
       }),
-    [t, tCommon],
+    [t, tCommon, tAuth],
   );
 
   const form = useForm<EditMemberFormData>({
@@ -133,6 +143,8 @@ export function EditMemberDialog({
 
   const { handleSubmit, register, reset, watch, formState } = form;
   const { isSubmitting, isDirty } = formState;
+  const password = watch('password') ?? '';
+  const passwordValidationItems = usePasswordValidation(password);
 
   const isEditingSelf = currentUserMemberId === member?._id;
 
@@ -248,6 +260,12 @@ export function EditMemberDialog({
               {...register('password')}
               className="w-full"
             />
+            {password && (
+              <ValidationCheckList
+                items={passwordValidationItems}
+                className="text-xs"
+              />
+            )}
             <Text variant="caption">
               {t('organization.userMustUpdatePassword')}
             </Text>

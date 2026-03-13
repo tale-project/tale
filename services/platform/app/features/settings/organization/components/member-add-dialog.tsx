@@ -14,8 +14,10 @@ import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
+import { usePasswordValidation } from '@/app/hooks/use-password-validation';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import { createOptionalPasswordSchema } from '@/lib/shared/schemas/password';
 import { narrowStringUnion } from '@/lib/utils/type-guards';
 
 import { useCreateMember } from '../hooks/mutations';
@@ -45,29 +47,17 @@ export function AddMemberDialog({
   const { t: tAuth } = useT('auth');
   const { t: tToast } = useT('toast');
 
-  // Create Zod schema with translated validation messages
   const addMemberSchema = useMemo(
     () =>
       z.object({
         email: z.string().email(tCommon('validation.email')),
-        password: z
-          .string()
-          .optional()
-          .refine(
-            (val) => {
-              // If password is provided, it must meet requirements
-              if (!val || val.length === 0) return true;
-              return (
-                val.length >= 8 &&
-                /[a-z]/.test(val) &&
-                /[A-Z]/.test(val) &&
-                /\d/.test(val)
-              );
-            },
-            {
-              message: tAuth('validation.passwordRequirements'),
-            },
-          ),
+        password: createOptionalPasswordSchema({
+          minLength: tAuth('validation.passwordMinLength'),
+          lowercase: tAuth('validation.passwordLowercase'),
+          uppercase: tAuth('validation.passwordUppercase'),
+          number: tAuth('validation.passwordNumber'),
+          specialChar: tAuth('validation.passwordSpecial'),
+        }),
         displayName: z.string().optional(),
         role: z.enum(['disabled', 'admin', 'developer', 'editor', 'member']),
       }),
@@ -98,28 +88,7 @@ export function AddMemberDialog({
   const selectedRole = watch('role');
   const password = watch('password') ?? '';
 
-  // Password validation checks for display
-  const passwordValidationItems = useMemo(
-    () => [
-      {
-        isValid: password.length >= 8,
-        message: tAuth('changePassword.requirements.length'),
-      },
-      {
-        isValid: /[a-z]/.test(password),
-        message: tAuth('changePassword.requirements.lowercase'),
-      },
-      {
-        isValid: /[A-Z]/.test(password),
-        message: tAuth('changePassword.requirements.uppercase'),
-      },
-      {
-        isValid: /\d/.test(password),
-        message: tAuth('changePassword.requirements.number'),
-      },
-    ],
-    [password, tAuth],
-  );
+  const passwordValidationItems = usePasswordValidation(password);
 
   const onSubmit = async (data: AddMemberFormData) => {
     try {

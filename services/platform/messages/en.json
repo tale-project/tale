@@ -528,7 +528,8 @@
         "length": "At least 8 characters",
         "lowercase": "One lowercase letter",
         "uppercase": "One uppercase letter",
-        "number": "One number"
+        "number": "One number",
+        "specialChar": "One special character"
       },
       "validation": {
         "currentRequired": "Current password is required",

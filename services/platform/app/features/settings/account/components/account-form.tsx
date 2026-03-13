@@ -1,15 +1,22 @@
 'use client';
 
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useMemo } from 'react';
 import { useForm } from 'react-hook-form';
+import { z } from 'zod';
 
+import { ValidationCheckList } from '@/app/components/ui/feedback/validation-check-item';
 import { Form } from '@/app/components/ui/forms/form';
+import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { NarrowContainer } from '@/app/components/ui/layout/layout';
 import { PageSection } from '@/app/components/ui/layout/page-section';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useHasCredentialAccount } from '@/app/features/auth/hooks/queries';
+import { usePasswordValidation } from '@/app/hooks/use-password-validation';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import { createPasswordSchema } from '@/lib/shared/schemas/password';
 
 import { useUpdatePassword } from '../hooks/mutations';
 
@@ -91,6 +98,31 @@ function ChangePasswordForm({
   tCommon: ReturnType<typeof useT>['t'];
   tToast: ReturnType<typeof useT>['t'];
 }) {
+  const changePasswordSchema = useMemo(
+    () =>
+      z
+        .object({
+          currentPassword: z
+            .string()
+            .min(1, tAuth('changePassword.validation.currentRequired')),
+          newPassword: createPasswordSchema({
+            minLength: tAuth('validation.passwordMinLength'),
+            lowercase: tAuth('validation.passwordLowercase'),
+            uppercase: tAuth('validation.passwordUppercase'),
+            number: tAuth('validation.passwordNumber'),
+            specialChar: tAuth('validation.passwordSpecial'),
+          }),
+          confirmPassword: z
+            .string()
+            .min(1, tAuth('changePassword.validation.confirmRequired')),
+        })
+        .refine((data) => data.newPassword === data.confirmPassword, {
+          message: tAuth('changePassword.validation.mismatch'),
+          path: ['confirmPassword'],
+        }),
+    [tAuth],
+  );
+
   const {
     register,
     handleSubmit,
@@ -98,6 +130,8 @@ function ChangePasswordForm({
     reset,
     watch,
   } = useForm<ChangePasswordFormData>({
+    resolver: zodResolver(changePasswordSchema),
+    mode: 'onChange',
     defaultValues: {
       currentPassword: '',
       newPassword: '',
@@ -106,6 +140,7 @@ function ChangePasswordForm({
   });
 
   const newPassword = watch('newPassword');
+  const passwordValidationItems = usePasswordValidation(newPassword);
 
   const onSubmit = async (data: ChangePasswordFormData) => {
     try {
@@ -137,26 +172,26 @@ function ChangePasswordForm({
         placeholder={tAuth('changePassword.placeholder.current')}
         disabled={isSubmitting}
         errorMessage={errors.currentPassword?.message}
-        {...register('currentPassword', {
-          required: tAuth('changePassword.validation.currentRequired'),
-        })}
+        {...register('currentPassword')}
       />
 
-      <Input
-        id="new-password"
-        type="password"
-        label={tAuth('changePassword.newPassword')}
-        placeholder={tAuth('changePassword.placeholder.new')}
-        disabled={isSubmitting}
-        errorMessage={errors.newPassword?.message}
-        {...register('newPassword', {
-          required: tAuth('changePassword.validation.newRequired'),
-          minLength: {
-            value: 8,
-            message: tAuth('changePassword.validation.minLength'),
-          },
-        })}
-      />
+      <FormSection>
+        <Input
+          id="new-password"
+          type="password"
+          label={tAuth('changePassword.newPassword')}
+          placeholder={tAuth('changePassword.placeholder.new')}
+          disabled={isSubmitting}
+          errorMessage={errors.newPassword?.message}
+          {...register('newPassword')}
+        />
+        {newPassword && (
+          <ValidationCheckList
+            items={passwordValidationItems}
+            className="text-xs"
+          />
+        )}
+      </FormSection>
 
       <Input
         id="confirm-password"
@@ -165,12 +200,7 @@ function ChangePasswordForm({
         placeholder={tAuth('changePassword.placeholder.confirm')}
         disabled={isSubmitting}
         errorMessage={errors.confirmPassword?.message}
-        {...register('confirmPassword', {
-          required: tAuth('changePassword.validation.confirmRequired'),
-          validate: (value) =>
-            value === newPassword ||
-            tAuth('changePassword.validation.mismatch'),
-        })}
+        {...register('confirmPassword')}
       />
 
       <Button type="submit" disabled={isSubmitting} fullWidth>
@@ -195,6 +225,28 @@ function SetPasswordForm({
   tCommon: ReturnType<typeof useT>['t'];
   tToast: ReturnType<typeof useT>['t'];
 }) {
+  const setPasswordSchema = useMemo(
+    () =>
+      z
+        .object({
+          newPassword: createPasswordSchema({
+            minLength: tAuth('validation.passwordMinLength'),
+            lowercase: tAuth('validation.passwordLowercase'),
+            uppercase: tAuth('validation.passwordUppercase'),
+            number: tAuth('validation.passwordNumber'),
+            specialChar: tAuth('validation.passwordSpecial'),
+          }),
+          confirmPassword: z
+            .string()
+            .min(1, tAuth('changePassword.validation.confirmRequired')),
+        })
+        .refine((data) => data.newPassword === data.confirmPassword, {
+          message: tAuth('changePassword.validation.mismatch'),
+          path: ['confirmPassword'],
+        }),
+    [tAuth],
+  );
+
   const {
     register,
     handleSubmit,
@@ -202,6 +254,8 @@ function SetPasswordForm({
     reset,
     watch,
   } = useForm<SetPasswordFormData>({
+    resolver: zodResolver(setPasswordSchema),
+    mode: 'onChange',
     defaultValues: {
       newPassword: '',
       confirmPassword: '',
@@ -209,6 +263,7 @@ function SetPasswordForm({
   });
 
   const newPassword = watch('newPassword');
+  const passwordValidationItems = usePasswordValidation(newPassword);
 
   const onSubmit = async (data: SetPasswordFormData) => {
     try {
@@ -232,21 +287,23 @@ function SetPasswordForm({
 
   return (
     <Form onSubmit={handleSubmit(onSubmit)}>
-      <Input
-        id="new-password"
-        type="password"
-        label={tAuth('setPassword.newPassword')}
-        placeholder={tAuth('changePassword.placeholder.new')}
-        disabled={isSubmitting}
-        errorMessage={errors.newPassword?.message}
-        {...register('newPassword', {
-          required: tAuth('changePassword.validation.newRequired'),
-          minLength: {
-            value: 8,
-            message: tAuth('changePassword.validation.minLength'),
-          },
-        })}
-      />
+      <FormSection>
+        <Input
+          id="new-password"
+          type="password"
+          label={tAuth('setPassword.newPassword')}
+          placeholder={tAuth('changePassword.placeholder.new')}
+          disabled={isSubmitting}
+          errorMessage={errors.newPassword?.message}
+          {...register('newPassword')}
+        />
+        {newPassword && (
+          <ValidationCheckList
+            items={passwordValidationItems}
+            className="text-xs"
+          />
+        )}
+      </FormSection>
 
       <Input
         id="confirm-password"
@@ -255,12 +312,7 @@ function SetPasswordForm({
         placeholder={tAuth('changePassword.placeholder.confirm')}
         disabled={isSubmitting}
         errorMessage={errors.confirmPassword?.message}
-        {...register('confirmPassword', {
-          required: tAuth('changePassword.validation.confirmRequired'),
-          validate: (value) =>
-            value === newPassword ||
-            tAuth('changePassword.validation.mismatch'),
-        })}
+        {...register('confirmPassword')}
       />
 
       <Button type="submit" disabled={isSubmitting} fullWidth>

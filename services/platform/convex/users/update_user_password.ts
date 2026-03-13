@@ -2,6 +2,7 @@
  * Update user password - Business logic
  */
 
+import { isPasswordValid } from '../../lib/shared/schemas/password';
 import { MutationCtx } from '../_generated/server';
 import { hasCredentialAccount } from '../accounts/helpers';
 import { createAuth, authComponent } from '../auth';
@@ -20,6 +21,12 @@ export async function updateUserPassword(
   ctx: MutationCtx,
   args: UpdateUserPasswordArgs,
 ): Promise<void> {
+  if (!isPasswordValid(args.newPassword)) {
+    throw new Error(
+      'Password must be at least 8 characters with lowercase, uppercase, number, and special character',
+    );
+  }
+
   const { auth, headers } = await authComponent.getAuth(createAuth, ctx);
 
   const hasPassword = await hasCredentialAccount(ctx);
