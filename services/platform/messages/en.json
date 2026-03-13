@@ -583,6 +583,10 @@
       "adminWarning": "Warning: Your organization should have at least 2 admins for security. This change will be blocked if it would leave fewer than 2 admins.",
       "adminSecurityWarning": "Warning: Your organization must have at least 2 Admins for security. You cannot remove the last admin.",
       "ownerProtected": "The organization owner cannot be edited or removed",
+      "transferOwnership": "Transfer ownership",
+      "transferOwnershipConfirmation": "Are you sure you want to transfer ownership to {name}? You will be demoted to admin.",
+      "ownershipTransferred": "Ownership transferred successfully",
+      "ownershipTransferFailed": "Failed to transfer ownership",
       "leaveOrganization": "Leave organization",
       "leaveConfirmation": "Are you sure you want to leave this organization? You will lose access to all resources.",
       "leaving": "Leaving..."

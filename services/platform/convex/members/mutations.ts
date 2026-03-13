@@ -320,6 +320,106 @@ export const updateMemberRole = mutation({
   },
 });
 
+export const transferOwnership = mutation({
+  args: {
+    targetMemberId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) {
+      throw new Error('Unauthenticated');
+    }
+
+    const targetMember = findOneMember(
+      await ctx.runQuery(components.betterAuth.adapter.findMany, {
+        model: 'member',
+        paginationOpts: { cursor: null, numItems: 1 },
+        where: [{ field: '_id', value: args.targetMemberId, operator: 'eq' }],
+      }),
+    );
+    if (!targetMember?.organizationId) {
+      throw new Error('Member not found');
+    }
+
+    const callerMember = findOneMember(
+      await ctx.runQuery(components.betterAuth.adapter.findMany, {
+        model: 'member',
+        paginationOpts: { cursor: null, numItems: 1 },
+        where: [
+          {
+            field: 'organizationId',
+            value: targetMember.organizationId,
+            operator: 'eq',
+          },
+          { field: 'userId', value: String(authUser._id), operator: 'eq' },
+        ],
+      }),
+    );
+    if (callerMember?.role?.toLowerCase() !== 'owner') {
+      throw new Error('Only the organization owner can transfer ownership');
+    }
+
+    if (targetMember.role?.toLowerCase() === 'owner') {
+      throw new Error('Target member is already the owner');
+    }
+
+    // Promote target to owner
+    await ctx.runMutation(components.betterAuth.adapter.updateMany, {
+      input: {
+        model: 'member',
+        where: [{ field: '_id', value: args.targetMemberId, operator: 'eq' }],
+        update: { role: 'owner' },
+      },
+      paginationOpts: { cursor: null, numItems: 1 },
+    });
+
+    // Demote caller to admin
+    await ctx.runMutation(components.betterAuth.adapter.updateMany, {
+      input: {
+        model: 'member',
+        where: [{ field: '_id', value: callerMember._id, operator: 'eq' }],
+        update: { role: 'admin' },
+      },
+      paginationOpts: { cursor: null, numItems: 1 },
+    });
+
+    const targetUser = targetMember.userId
+      ? findOneUser(
+          await ctx.runQuery(components.betterAuth.adapter.findMany, {
+            model: 'user',
+            paginationOpts: { cursor: null, numItems: 1 },
+            where: [
+              { field: '_id', value: targetMember.userId, operator: 'eq' },
+            ],
+          }),
+        )
+      : undefined;
+
+    await AuditLogHelpers.logSuccess(
+      ctx,
+      {
+        organizationId: targetMember.organizationId,
+        actor: {
+          id: String(authUser._id),
+          email: authUser.email,
+          role: 'owner',
+          type: 'user',
+        },
+      },
+      'transfer_ownership',
+      'member',
+      'member',
+      args.targetMemberId,
+      targetUser?.email ?? targetMember.userId,
+      { previousOwner: String(authUser._id) },
+      { newOwner: targetMember.userId },
+    );
+
+    return null;
+  },
+});
+
 export const updateMemberDisplayName = mutation({
   args: {
     memberId: v.string(),

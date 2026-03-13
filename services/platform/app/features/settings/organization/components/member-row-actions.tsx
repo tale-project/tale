@@ -1,6 +1,6 @@
 'use client';
 
-import { Pencil, Trash2 } from 'lucide-react';
+import { ArrowRightLeft, Pencil, Trash2 } from 'lucide-react';
 import { useMemo } from 'react';
 
 import {
@@ -11,6 +11,7 @@ import { useT } from '@/lib/i18n/client';
 
 import { DeleteMemberDialog } from './member-delete-dialog';
 import { EditMemberDialog } from './member-edit-dialog';
+import { TransferOwnershipDialog } from './transfer-ownership-dialog';
 
 type MemberItem = {
   _id: string;
@@ -37,11 +38,13 @@ export function MemberRowActions({
   memberContext,
 }: MemberRowActionsProps) {
   const { t: tCommon } = useT('common');
-  const dialogs = useEntityRowDialogs(['edit', 'delete']);
+  const { t: tSettings } = useT('settings');
+  const dialogs = useEntityRowDialogs(['edit', 'delete', 'transferOwnership']);
 
   const isViewingSelf = memberContext?.member?._id === member._id;
   const canManageMembers = memberContext?.canManageMembers ?? false;
   const isOwner = member.role?.toLowerCase() === 'owner';
+  const callerIsOwner = memberContext?.role?.toLowerCase() === 'owner';
 
   const actions = useMemo(
     () => [
@@ -53,6 +56,13 @@ export function MemberRowActions({
         visible: canManageMembers && !isOwner,
       },
       {
+        key: 'transferOwnership',
+        label: tSettings('organization.transferOwnership'),
+        icon: ArrowRightLeft,
+        onClick: dialogs.open.transferOwnership,
+        visible: callerIsOwner && !isViewingSelf && !isOwner,
+      },
+      {
         key: 'delete',
         label: tCommon('actions.delete'),
         icon: Trash2,
@@ -61,7 +71,15 @@ export function MemberRowActions({
         visible: canManageMembers && !isViewingSelf && !isOwner,
       },
     ],
-    [tCommon, dialogs.open, canManageMembers, isViewingSelf, isOwner],
+    [
+      tCommon,
+      tSettings,
+      dialogs.open,
+      canManageMembers,
+      isViewingSelf,
+      isOwner,
+      callerIsOwner,
+    ],
   );
 
   if (!canManageMembers) {
@@ -82,6 +100,12 @@ export function MemberRowActions({
       <DeleteMemberDialog
         open={dialogs.isOpen.delete}
         onOpenChange={dialogs.setOpen.delete}
+        member={member}
+      />
+
+      <TransferOwnershipDialog
+        open={dialogs.isOpen.transferOwnership}
+        onOpenChange={dialogs.setOpen.transferOwnership}
         member={member}
       />
     </>

@@ -11,9 +11,12 @@ describe('isMemberRole', () => {
     expect(isMemberRole('disabled')).toBe(true);
   });
 
+  it('returns true for owner role', () => {
+    expect(isMemberRole('owner')).toBe(true);
+  });
+
   it('returns false for invalid role strings', () => {
     expect(isMemberRole('superadmin')).toBe(false);
-    expect(isMemberRole('owner')).toBe(false);
     expect(isMemberRole('')).toBe(false);
     expect(isMemberRole('ADMIN')).toBe(false);
   });

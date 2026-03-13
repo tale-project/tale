@@ -481,3 +481,146 @@ describe('addMember handler', () => {
     expect(result).toBe('m_new');
   });
 });
+
+// ---------------------------------------------------------------------------
+// transferOwnership
+// ---------------------------------------------------------------------------
+
+describe('transferOwnership handler', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  async function getHandler() {
+    const { transferOwnership } = await import('../mutations');
+    return (transferOwnership as unknown as { handler: Function }).handler;
+  }
+
+  it('throws when unauthenticated', async () => {
+    mockGetAuthUser.mockResolvedValue(null);
+    const ctx = createMockCtx();
+    const handler = await getHandler();
+
+    await expect(handler(ctx, { targetMemberId: 'm_target' })).rejects.toThrow(
+      'Unauthenticated',
+    );
+  });
+
+  it('throws when target member not found', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    const ctx = createMockCtx();
+    ctx.runQuery.mockResolvedValueOnce({ page: [] });
+    const handler = await getHandler();
+
+    await expect(handler(ctx, { targetMemberId: 'm_target' })).rejects.toThrow(
+      'Member not found',
+    );
+  });
+
+  it('throws when caller is not the owner', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    const ctx = createMockCtx();
+    // target member
+    ctx.runQuery.mockResolvedValueOnce({
+      page: [
+        {
+          _id: 'm_target',
+          organizationId: 'org_1',
+          userId: 'user_target',
+          role: 'admin',
+        },
+      ],
+    });
+    // caller is admin, not owner
+    ctx.runQuery.mockResolvedValueOnce({
+      page: [{ _id: 'm_caller', role: 'admin' }],
+    });
+    const handler = await getHandler();
+
+    await expect(handler(ctx, { targetMemberId: 'm_target' })).rejects.toThrow(
+      'Only the organization owner can transfer ownership',
+    );
+  });
+
+  it('throws when target is already the owner', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    const ctx = createMockCtx();
+    // target member is already owner
+    ctx.runQuery.mockResolvedValueOnce({
+      page: [
+        {
+          _id: 'm_target',
+          organizationId: 'org_1',
+          userId: 'user_target',
+          role: 'owner',
+        },
+      ],
+    });
+    // caller is owner
+    ctx.runQuery.mockResolvedValueOnce({
+      page: [{ _id: 'm_caller', role: 'owner' }],
+    });
+    const handler = await getHandler();
+
+    await expect(handler(ctx, { targetMemberId: 'm_target' })).rejects.toThrow(
+      'Target member is already the owner',
+    );
+  });
+
+  it('transfers ownership: promotes target and demotes caller', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    const ctx = createMockCtx();
+    // target member
+    ctx.runQuery.mockResolvedValueOnce({
+      page: [
+        {
+          _id: 'm_target',
+          organizationId: 'org_1',
+          userId: 'user_target',
+          role: 'admin',
+        },
+      ],
+    });
+    // caller is owner
+    ctx.runQuery.mockResolvedValueOnce({
+      page: [{ _id: 'm_caller', role: 'owner' }],
+    });
+    // updateMany for promote
+    ctx.runMutation.mockResolvedValueOnce(undefined);
+    // updateMany for demote
+    ctx.runMutation.mockResolvedValueOnce(undefined);
+    // user lookup for audit
+    ctx.runQuery.mockResolvedValueOnce({
+      page: [{ _id: 'user_target', email: 'target@example.com' }],
+    });
+    const handler = await getHandler();
+
+    const result = await handler(ctx, { targetMemberId: 'm_target' });
+
+    expect(result).toBeNull();
+    // First mutation: promote target to owner
+    expect(ctx.runMutation).toHaveBeenNthCalledWith(
+      1,
+      'betterAuth:adapter:updateMany',
+      expect.objectContaining({
+        input: expect.objectContaining({
+          model: 'member',
+          where: [{ field: '_id', value: 'm_target', operator: 'eq' }],
+          update: { role: 'owner' },
+        }),
+      }),
+    );
+    // Second mutation: demote caller to admin
+    expect(ctx.runMutation).toHaveBeenNthCalledWith(
+      2,
+      'betterAuth:adapter:updateMany',
+      expect.objectContaining({
+        input: expect.objectContaining({
+          model: 'member',
+          where: [{ field: '_id', value: 'm_caller', operator: 'eq' }],
+          update: { role: 'admin' },
+        }),
+      }),
+    );
+  });
+});
