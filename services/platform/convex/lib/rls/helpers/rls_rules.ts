@@ -4,6 +4,7 @@
 
 import type { Rules } from 'convex-helpers/server/rowLevelSecurity';
 
+import type { MemberRole } from '../../../../lib/shared/schemas/organizations';
 import type { DataModel } from '../../../_generated/dataModel';
 import type { QueryCtx } from '../../../_generated/server';
 import type {
@@ -29,7 +30,7 @@ export async function rlsRules(
     user: AuthenticatedUser | null;
     userOrganizations: Array<{
       organizationId: string;
-      role: 'disabled' | 'member' | 'editor' | 'developer' | 'admin';
+      role: MemberRole;
       member: OrganizationMember;
     }>;
     userTeamIds: Set<string>;

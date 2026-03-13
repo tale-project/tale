@@ -64,15 +64,15 @@ export const migrateOrgCreators = internalMutation({
 
       const members: MemberRecord[] = [];
       for (const raw of membersResult.page) {
-        const rec = isRecord(raw) ? raw : undefined;
-        const id = rec ? getString(rec, '_id') : undefined;
-        const userId = rec ? getString(rec, 'userId') : undefined;
+        if (!isRecord(raw)) continue;
+        const id = getString(raw, '_id');
+        const userId = getString(raw, 'userId');
         if (!id || !userId) continue;
         members.push({
           _id: id,
           userId,
-          role: getString(rec, 'role') ?? 'member',
-          createdAt: getNumber(rec, 'createdAt') ?? Infinity,
+          role: getString(raw, 'role') ?? 'member',
+          createdAt: getNumber(raw, 'createdAt') ?? Infinity,
         });
       }
 

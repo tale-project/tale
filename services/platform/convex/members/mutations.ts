@@ -98,7 +98,7 @@ export const addMember = mutation({
         actor: {
           id: String(authUser._id),
           email: authUser.email,
-          role: callerMember.role,
+          role: callerMember?.role,
           type: 'user',
         },
       },
@@ -277,8 +277,8 @@ export const updateMemberRole = mutation({
           ],
         },
       );
-      const adminCount = (adminMembers?.page ?? []).filter((m) =>
-        isAdmin(m.role),
+      const adminCount = (adminMembers?.page ?? []).filter(
+        (m: { role?: string }) => isAdmin(m.role),
       ).length;
       if (adminCount <= 1) {
         throw new Error(

@@ -62,7 +62,7 @@ export function OrganizationForm() {
       const result = await authClient.organization.create({
         name: data.name.trim(),
         slug: slug,
-        metadata: { creatorId: user.id },
+        metadata: { creatorId: user.userId },
       });
 
       if (result?.data?.id) {
