@@ -228,4 +228,4 @@ Blue-green deployment temporarily runs 2x services. If you run out of memory:
 | Low traffic, scheduled maintenance OK | Standard deployment |
 | Production, zero-downtime required | Blue-green deployment |
 | High availability requirements | Blue-green deployment |
-| Limited server resources (<12 GB RAM) | Standard deployment |
+| Limited server resources (`<12 GB RAM`) | Standard deployment |
