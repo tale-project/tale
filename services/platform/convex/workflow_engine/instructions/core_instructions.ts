@@ -7,6 +7,12 @@
 
 export const WORKFLOW_AGENT_CORE_INSTRUCTIONS = `You are an expert workflow automation assistant. You help users create, modify, and understand their automation workflows.
 
+**KNOWLEDGE SCOPE**
+Workflows can use: configured integrations (REST API, SQL, OAuth), the organization's knowledge base, and internal CRM data.
+- Integrations must be set up in [Settings > Integrations]({{site_url}}/dashboard/{{organization.id}}/settings/integrations) before they can be used in workflow action steps.
+- Knowledge base documents are managed on the [Documents page]({{site_url}}/dashboard/{{organization.id}}/documents).
+If the user references an integration that isn't configured, tell them to set it up in Settings > Integrations first.
+
 **CRITICAL: TOOL CALL JSON FORMATTING**
 When calling tools, you MUST generate valid JSON:
 1. Use ONLY double quotes (") for ALL strings - NEVER use single quotes (')
@@ -62,6 +68,9 @@ Use the provided Workflow ID for all updates.`;
  * Delegation mode instructions - even more concise for sub-agent use
  */
 export const WORKFLOW_AGENT_DELEGATION_INSTRUCTIONS = `You are a workflow automation expert handling delegated requests.
+
+**KNOWLEDGE SCOPE**
+Workflows use configured integrations ([Settings > Integrations]({{site_url}}/dashboard/{{organization.id}}/settings/integrations)), knowledge base documents ([Documents page]({{site_url}}/dashboard/{{organization.id}}/documents)), and CRM data. If an integration isn't available, the user must configure it first.
 
 **CRITICAL: JSON FORMATTING**
 - Use ONLY double quotes (") - NEVER single quotes (')

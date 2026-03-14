@@ -139,23 +139,20 @@ class TestFrequencyDefaults:
     def test_rejects_zero_poll_interval(self):
         env = _base_env()
         env["CRAWLER_POLL_INTERVAL"] = "0"
-        with patch.dict(os.environ, env, clear=True):
-            with pytest.raises(ValidationError):
-                Settings()
+        with patch.dict(os.environ, env, clear=True), pytest.raises(ValidationError):
+            Settings()
 
     def test_rejects_zero_max_concurrent_scans(self):
         env = _base_env()
         env["CRAWLER_MAX_CONCURRENT_SCANS"] = "0"
-        with patch.dict(os.environ, env, clear=True):
-            with pytest.raises(ValidationError):
-                Settings()
+        with patch.dict(os.environ, env, clear=True), pytest.raises(ValidationError):
+            Settings()
 
     def test_rejects_pool_size_below_minimum(self):
         env = _base_env()
         env["CRAWLER_DB_POOL_MAX_SIZE"] = "1"
-        with patch.dict(os.environ, env, clear=True):
-            with pytest.raises(ValidationError):
-                Settings()
+        with patch.dict(os.environ, env, clear=True), pytest.raises(ValidationError):
+            Settings()
 
     def test_dead_settings_removed(self):
         env = _base_env()

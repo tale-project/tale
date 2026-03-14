@@ -17,10 +17,20 @@ import { fetchAndExtract } from './helpers/fetch_and_extract';
 import { searchPages } from './helpers/search_pages';
 
 const URL_REGEX = /https?:\/\/[^\s"'<>]+/i;
+const FILE_EXTENSIONS = /\.(pdf|docx|pptx|png|jpe?g|gif|webp|bmp|tiff?|svg)$/i;
 
 function extractUrl(text: string): string | null {
   const match = text.match(URL_REGEX);
   return match ? match[0] : null;
+}
+
+function isFileUrl(url: string): boolean {
+  try {
+    const path = new URL(url).pathname;
+    return FILE_EXTENSIONS.test(path);
+  } catch {
+    return false;
+  }
 }
 
 const webToolArgs = z.object({
@@ -34,6 +44,12 @@ const webToolArgs = z.object({
     .optional()
     .describe(
       'Explicit URL to fetch and extract content from. When provided, the tool fetches and extracts the URL content directly instead of searching.',
+    ),
+  domain: z
+    .string()
+    .optional()
+    .describe(
+      'Optional domain to restrict search to (e.g., "docs.convex.dev"). Only applies in search mode, ignored when fetching a URL.',
     ),
 });
 
@@ -53,13 +69,15 @@ EXAMPLES:
 - { url: "https://example.com/pricing", query: "Extract all pricing tiers" }
 - { query: "https://example.com/page" } — URL detected in query, fetches directly
 - { query: "shipping policy" } — no URL, searches crawled pages
-- { query: "product pricing details" }`,
+- { query: "product pricing details" }
+- { query: "workflow patterns", domain: "docs.convex.dev" } — searches only docs.convex.dev`,
     args: webToolArgs,
     handler: async (ctx: ToolCtx, args): Promise<string> => {
       const targetUrl = args.url || extractUrl(args.query);
 
       if (targetUrl) {
-        const instruction = args.url ? args.query : undefined;
+        const instruction =
+          args.url && isFileUrl(targetUrl) ? args.query : undefined;
 
         const result = await fetchAndExtract(ctx, {
           url: targetUrl,
@@ -84,7 +102,7 @@ EXAMPLES:
         return `${meta}\n\n${result.content}`;
       }
 
-      return searchPages(ctx, { query: args.query });
+      return searchPages(ctx, { query: args.query, domain: args.domain });
     },
   }),
 };

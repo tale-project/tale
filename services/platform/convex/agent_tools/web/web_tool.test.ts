@@ -1,12 +1,22 @@
 import { describe, expect, it } from 'vitest';
 
-// extractUrl is not exported, so we re-implement the same regex for unit testing.
-// This keeps the test coupled to the documented behavior, not the implementation.
+// extractUrl and isFileUrl are not exported, so we re-implement them for unit testing.
+// This keeps tests coupled to the documented behavior, not the implementation.
 const URL_REGEX = /https?:\/\/[^\s"'<>]+/i;
+const FILE_EXTENSIONS = /\.(pdf|docx|pptx|png|jpe?g|gif|webp|bmp|tiff?|svg)$/i;
 
 function extractUrl(text: string): string | null {
   const match = text.match(URL_REGEX);
   return match ? match[0] : null;
+}
+
+function isFileUrl(url: string): boolean {
+  try {
+    const path = new URL(url).pathname;
+    return FILE_EXTENSIONS.test(path);
+  } catch {
+    return false;
+  }
 }
 
 describe('extractUrl', () => {
@@ -87,5 +97,44 @@ describe('extractUrl', () => {
     expect(extractUrl('https://cdn.example.com/image.png')).toBe(
       'https://cdn.example.com/image.png',
     );
+  });
+});
+
+describe('isFileUrl', () => {
+  it('detects document URLs', () => {
+    expect(isFileUrl('https://example.com/report.pdf')).toBe(true);
+    expect(isFileUrl('https://example.com/doc.docx')).toBe(true);
+    expect(isFileUrl('https://example.com/slides.pptx')).toBe(true);
+  });
+
+  it('detects image URLs', () => {
+    expect(isFileUrl('https://cdn.example.com/photo.png')).toBe(true);
+    expect(isFileUrl('https://cdn.example.com/photo.jpg')).toBe(true);
+    expect(isFileUrl('https://cdn.example.com/photo.jpeg')).toBe(true);
+    expect(isFileUrl('https://cdn.example.com/photo.gif')).toBe(true);
+    expect(isFileUrl('https://cdn.example.com/photo.webp')).toBe(true);
+    expect(isFileUrl('https://cdn.example.com/photo.bmp')).toBe(true);
+    expect(isFileUrl('https://cdn.example.com/photo.tiff')).toBe(true);
+    expect(isFileUrl('https://cdn.example.com/photo.svg')).toBe(true);
+  });
+
+  it('returns false for web page URLs', () => {
+    expect(isFileUrl('https://example.com')).toBe(false);
+    expect(isFileUrl('https://example.com/page')).toBe(false);
+    expect(isFileUrl('https://example.com/page/about')).toBe(false);
+    expect(isFileUrl('https://www.deutsche-boerse.com')).toBe(false);
+  });
+
+  it('returns false for URLs with query params but no file extension', () => {
+    expect(isFileUrl('https://example.com/page?foo=bar')).toBe(false);
+  });
+
+  it('is case-insensitive', () => {
+    expect(isFileUrl('https://example.com/Report.PDF')).toBe(true);
+    expect(isFileUrl('https://example.com/Image.PNG')).toBe(true);
+  });
+
+  it('returns false for invalid URLs', () => {
+    expect(isFileUrl('not-a-url')).toBe(false);
   });
 });

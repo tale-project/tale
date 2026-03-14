@@ -3,7 +3,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from openai import APIConnectionError
-
 from tale_knowledge.embedding import EmbeddingService
 
 pytestmark = pytest.mark.asyncio

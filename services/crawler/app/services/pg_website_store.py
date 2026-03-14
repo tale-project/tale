@@ -5,7 +5,6 @@ PgWebsiteStore: per-domain URL operations (scoped by domain column).
 PgWebsiteStoreManager: website registry + factory for PgWebsiteStore instances.
 """
 
-import json
 import logging
 from datetime import UTC, datetime
 from urllib.parse import urlparse
@@ -13,6 +12,7 @@ from urllib.parse import urlparse
 import asyncpg
 
 from app.services.database import acquire_with_retry
+from app.services.index_health import reindex_chunks
 
 logger = logging.getLogger(__name__)
 
@@ -139,8 +139,8 @@ class PgWebsiteStore:
                         u.get("title"),
                         u.get("content"),
                         u.get("word_count"),
-                        json.dumps(u["metadata"]) if u.get("metadata") else None,
-                        json.dumps(u["structured_data"]) if u.get("structured_data") else None,
+                        u.get("metadata"),
+                        u.get("structured_data"),
                     )
                     for u in updates
                 ],
@@ -304,6 +304,7 @@ class PgWebsiteStoreManager:
         async with acquire_with_retry(self._pool) as conn, conn.transaction():
             await conn.execute("SET LOCAL statement_timeout = '120s'")
             await conn.execute("DELETE FROM websites WHERE domain = $1", domain)
+        await reindex_chunks(self._pool)
         logger.info(f"Deleted website: {domain}")
 
     async def recover_stuck_deletes(self) -> list[str]:

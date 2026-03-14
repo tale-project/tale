@@ -143,6 +143,39 @@ describe('resolveTemplateVariables', () => {
     expect(ctx.runQuery).not.toHaveBeenCalled();
   });
 
+  it('resolves {{site_url}} from env', async () => {
+    const original = process.env.SITE_URL;
+    process.env.SITE_URL = 'https://app.example.com';
+    try {
+      const ctx = createMockCtx();
+      const result = await resolveTemplateVariables(
+        ctx,
+        'Visit {{site_url}}/dashboard',
+        { organizationId: 'org_1' },
+      );
+
+      expect(result).toBe('Visit https://app.example.com/dashboard');
+    } finally {
+      process.env.SITE_URL = original;
+    }
+  });
+
+  it('throws when {{site_url}} used but SITE_URL env is missing', async () => {
+    const original = process.env.SITE_URL;
+    process.env.SITE_URL = '';
+    try {
+      const ctx = createMockCtx();
+
+      await expect(
+        resolveTemplateVariables(ctx, 'URL: {{site_url}}', {
+          organizationId: 'org_1',
+        }),
+      ).rejects.toThrow('Missing required environment variable: SITE_URL');
+    } finally {
+      process.env.SITE_URL = original;
+    }
+  });
+
   it('queries both org and user when both are needed', async () => {
     const ctx = createMockCtx('Acme', 'Alice');
     await resolveTemplateVariables(
@@ -163,5 +196,6 @@ describe('SUPPORTED_TEMPLATE_VARIABLES', () => {
     expect(vars).toContain('{{organization.id}}');
     expect(vars).toContain('{{organization.name}}');
     expect(vars).toContain('{{user.name}}');
+    expect(vars).toContain('{{site_url}}');
   });
 });

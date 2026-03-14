@@ -75,6 +75,12 @@ function resolveVariable(
       return data.organizationName ?? '';
     case 'user.name':
       return data.userName ?? '';
+    case 'site_url': {
+      const siteUrl = process.env.SITE_URL;
+      if (!siteUrl)
+        throw new Error('Missing required environment variable: SITE_URL');
+      return siteUrl;
+    }
     default:
       return `{{${variable}}}`;
   }
@@ -112,4 +118,5 @@ export const SUPPORTED_TEMPLATE_VARIABLES = [
   { variable: '{{organization.id}}', description: 'Organization ID' },
   { variable: '{{organization.name}}', description: 'Organization name' },
   { variable: '{{user.name}}', description: 'Current user name' },
+  { variable: '{{site_url}}', description: 'Platform base URL' },
 ];

@@ -34,10 +34,29 @@ def mock_conn():
     return conn
 
 
+class _PoolAcquireCtx:
+    """Mimics asyncpg PoolAcquireContext: awaitable + async context manager."""
+
+    def __init__(self, conn):
+        self._conn = conn
+
+    def __await__(self):
+        async def _resolve():
+            return self._conn
+
+        return _resolve().__await__()
+
+    async def __aenter__(self):
+        return self._conn
+
+    async def __aexit__(self, *args):
+        pass
+
+
 @pytest.fixture
 def mock_pool(mock_conn):
     pool = AsyncMock()
-    pool.acquire = AsyncMock(return_value=mock_conn)
+    pool.acquire = MagicMock(return_value=_PoolAcquireCtx(mock_conn))
     pool.release = AsyncMock()
     return pool
 

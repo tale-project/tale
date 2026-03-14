@@ -7,12 +7,15 @@
 
 import type { ToolCtx } from '@convex-dev/agent';
 
+import { internal } from '../../../_generated/api';
 import { createDebugLog } from '../../../lib/debug_log';
 import { getCrawlerServiceUrl } from './get_crawler_service_url';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 
 const DEFAULT_LIMIT = 10;
+
+const DOMAIN_PATTERN = /^[a-zA-Z0-9]([a-zA-Z0-9-]*\.)*[a-zA-Z0-9-]+(:\d+)?$/;
 
 interface SearchResult {
   url: string;
@@ -28,25 +31,75 @@ interface SearchApiResponse {
   total: number;
 }
 
-export async function searchPages(
-  ctx: ToolCtx,
-  args: { query: string },
-): Promise<string> {
-  debugLog('web:search_pages start', { query: args.query });
+export function isValidDomain(domain: string): boolean {
+  return DOMAIN_PATTERN.test(domain);
+}
 
-  const crawlerUrl = getCrawlerServiceUrl();
-  const response = await fetch(`${crawlerUrl}/api/v1/search`, {
+async function fetchSearch(
+  crawlerUrl: string,
+  query: string,
+  domain?: string,
+): Promise<SearchApiResponse> {
+  const endpoint = domain
+    ? `${crawlerUrl}/api/v1/search/${encodeURIComponent(domain)}`
+    : `${crawlerUrl}/api/v1/search`;
+
+  const response = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query: args.query, limit: DEFAULT_LIMIT }),
+    body: JSON.stringify({ query, limit: DEFAULT_LIMIT }),
   });
 
   if (!response.ok) {
     throw new Error(`Search API returned ${response.status}`);
   }
 
-  const data: SearchApiResponse = await response.json();
-  const results = data.results;
+  return response.json();
+}
+
+export async function searchPages(
+  ctx: ToolCtx,
+  args: { query: string; domain?: string },
+): Promise<string> {
+  let validDomain: string | undefined;
+
+  if (args.domain && isValidDomain(args.domain) && ctx.organizationId) {
+    const website = await ctx.runQuery(
+      internal.websites.internal_queries.getWebsiteByDomain,
+      { organizationId: ctx.organizationId, domain: args.domain },
+    );
+
+    if (!website) {
+      return `The website "${args.domain}" is not in your knowledge base. Ask the user to add it via the Websites settings page, or provide a specific URL to fetch content directly.`;
+    }
+
+    validDomain = args.domain;
+  }
+
+  debugLog('web:search_pages start', {
+    query: args.query,
+    domain: validDomain,
+  });
+
+  if (!args.query.trim() && validDomain) {
+    return 'Please provide a search query along with the domain filter.';
+  }
+
+  const crawlerUrl = getCrawlerServiceUrl();
+  let data = await fetchSearch(crawlerUrl, args.query, validDomain);
+  let results = data.results;
+
+  // Fallback to global search if domain-scoped search returns no results
+  let domainFallback = false;
+  if ((!results || results.length === 0) && validDomain) {
+    debugLog('web:search_pages domain fallback', {
+      query: args.query,
+      domain: validDomain,
+    });
+    data = await fetchSearch(crawlerUrl, args.query);
+    results = data.results;
+    domainFallback = true;
+  }
 
   if (!results || results.length === 0) {
     debugLog('web:search_pages no results', { query: args.query });
@@ -83,5 +136,11 @@ export async function searchPages(
     .sort((a, b) => b.score - a.score)
     .map((r) => r.text);
 
-  return formatted.join('\n\n---\n\n');
+  const output = formatted.join('\n\n---\n\n');
+
+  if (domainFallback) {
+    return `No results found on ${validDomain}. Showing results from all indexed websites:\n\n${output}`;
+  }
+
+  return output;
 }
