@@ -10,6 +10,18 @@ export const WORKFLOW_SYNTAX_COMPACT = `
 { workflowConfig: { name, description?, version?, workflowType: 'predefined', config?: { timeout?, retryPolicy?: { maxRetries, backoffMs }, variables?, secrets? } }, stepsConfig: [{ stepSlug, name, stepType, config, nextSteps, order? }] }
 \`\`\`
 
+## Hello World Example
+\`\`\`
+{
+  workflowConfig: { name: 'Hello World', description: 'Simple greeting workflow' },
+  stepsConfig: [
+    { stepSlug: 'start', name: 'Start', stepType: 'start', config: {}, nextSteps: { success: 'greet' } },
+    { stepSlug: 'greet', name: 'Greet', stepType: 'llm', config: { name: 'Greeter', systemPrompt: 'Say hello to the world in a friendly way.' }, nextSteps: { success: 'result' } },
+    { stepSlug: 'result', name: 'Result', stepType: 'output', config: { outputMapping: { greeting: '{{steps.greet.output}}' } }, nextSteps: {} }
+  ]
+}
+\`\`\`
+
 ## Step Types
 
 ### start (stepType: 'start')
@@ -36,6 +48,11 @@ NextSteps: { success: 'next_step', error?: 'error_handler' }
 Config: { items, itemVariable?: 'item', indexVariable?: 'index', maxIterations?: 1000, continueOnError? }
 NextSteps: { loop: 'loop_body_step', done: 'after_loop_step', error?: 'error_handler' }
 Note: 'loop' port goes to the step executed for each item; 'done' port goes to the step after loop completes
+
+### output (stepType: 'output')
+Config: { outputMapping?: Record<string, string> }
+NextSteps: { success: 'next_step' }
+Note: Maps workflow variables to final output. Values support {{variable}} template syntax. Result stored in __workflowOutput.
 
 ## Action Types & Output Structures
 All actions return unified structure: \`{ data: T | T[] | null, isDone?: boolean, continueCursor?: string | null }\`
@@ -146,76 +163,6 @@ Params (update): websiteId (required), domain?, title?, description?, scanInterv
 Params (get_by_domain): domain (required)
 Output: \`{ data: {...website} | null }\`
 
-## EMAIL SENDING PATTERN
-
-Workflows DO NOT have a direct "send_email" action. Use the conversation + approval pattern:
-
-### Step 1: Create Conversation with Email Metadata
-\`\`\`
-{
-  stepType: 'action',
-  config: {
-    type: 'conversation',
-    parameters: {
-      operation: 'create',
-      customerId: '{{customerId}}',
-      subject: '{{emailSubject}}',
-      channel: 'email',
-      direction: 'outbound',
-      metadata: {
-        emailSubject: '{{emailSubject}}',
-        emailBody: '{{emailBody}}',        // HTML or Markdown content
-        emailPreview: '{{emailPreview}}',  // Preview text for inbox
-        customerEmail: '{{customerEmail}}', // Recipient email address
-      },
-    },
-  },
-}
-\`\`\`
-
-### Step 2: Create Approval for Email Review
-\`\`\`
-{
-  stepType: 'action',
-  config: {
-    type: 'approval',
-    parameters: {
-      operation: 'create_approval',
-      resourceType: 'conversations',
-      resourceId: '{{steps.create_conversation.output.data._id}}',
-      priority: 'medium',
-      description: 'Review email before sending',
-      metadata: {
-        customerEmail: '{{customerEmail}}',
-        emailBody: '{{emailBody}}',
-      },
-    },
-  },
-}
-\`\`\`
-
-### How It Works
-- Approval appears in dashboard for human review
-- When user approves, system automatically sends the email
-- Email sent via organization's default email provider (OAuth2 or password auth)
-- Conversation tracks the email thread for replies
-
-### Required Metadata Fields
-- emailSubject: Email subject line
-- emailBody: HTML or Markdown email body content
-- customerEmail: Recipient email address
-
-### Optional Metadata Fields
-- emailPreview: Preview text shown in inbox
-- emailCc: CC recipients (comma-separated or array)
-- emailBcc: BCC recipients (comma-separated or array)
-
-### Example Workflow
-See the email sending pattern for complete implementation:
-\`\`\`
-workflow_examples(operation='get_syntax_reference', category='email')
-\`\`\`
-
 ## Variable Syntax
 - Simple: {{variableName}}
 - Nested: {{customer.email}}
@@ -228,44 +175,71 @@ workflow_examples(operation='get_syntax_reference', category='email')
 Action step outputs are wrapped: \`steps.{step_slug}.output.data\`
 - Single entity: \`{{steps.get_customer.output.data._id}}\`
 - Array item: \`{{steps.query_step.output.data[0]._id}}\`
-- Array length: \`{{steps.query_step.output.data.length}}\`
+- Array length: \`{{steps.query_step.output.data|length}}\`
 - Paginated: \`{{steps.query_step.output.data}}\` (array), \`{{steps.query_step.output.isDone}}\`
 - Exception: set_variables returns \`{{steps.set_step.output.variables.varName}}\`
 
 JEXL condition expressions (no curly braces):
-- Check array not empty: \`steps.query_step.output.data.length > 0\`
+- Check array not empty: \`steps.query_step.output.data|length > 0\`
 - Check entity exists (get_by_id): \`steps.get_customer.output.data != null\`
 - Check entity found (workflow_processing_records.find_*): \`steps.find_step.output.data != null\`
 - Check isDone: \`steps.query_step.output.isDone == false\`
 
-## Common Patterns
+## JEXL Expression Syntax
+Operators: ==, !=, <, >, <=, >=, &&, ||, !, +, -, *, /, %
+Ternary: condition ? trueVal : falseVal
+Access: field.nested, array[0], array[0].name
+Transforms: value|transform, value|transform(arg)
+Note: Use |length for array/string length. .length does NOT work in JEXL.
 
-### Pagination
-1. Fetch: action(query with paginationOpts)
-2. Loop: loop(items={{steps.step_slug.output.data}})
-3. Check: condition(expression='steps.step_slug.output.isDone == false')
-4. Continue: set_variables(cursor={{steps.step_slug.output.continueCursor}})
+## JEXL Transforms
+Pipe syntax: value|transform or value|transform(arg1, arg2). Chainable: value|sort('asc')|first
 
-### Entity Processing (One-at-a-time Pattern)
-workflow_processing_records returns ONE entity at a time (not an array):
-1. Find: action(workflow_processing_records.find_unprocessed)
-   - Returns: { data: {...document} | null } - single document or null
-2. Check: condition(expression='steps.find_step.output.data != null')
-3. Access entity directly: {{steps.find_step.output.data._id}}, {{steps.find_step.output.data.email}}
-4. Process: llm or action steps
-5. Mark: action(workflow_processing_records.record_processed) with recordId={{steps.find_step.output.data._id}}, recordCreationTime={{steps.find_step.output.data._creationTime}}
+### String
+- upper: \`name|upper\` → "JOHN"
+- lower: \`name|lower\` → "john"
+- trim: \`input|trim\` → removes whitespace
+- length: \`items|length\` → 3 (works on strings and arrays, returns 0 otherwise)
+- string: \`count|string\` → "42" (uses JSON.stringify for objects)
 
-### Integration Sync
-1. Fetch: action(integration with list operation)
-2. Access result: \`{{steps.fetch_step.output.data.result}}\`
-3. Loop if array: loop(items={{steps.fetch_step.output.data.result}})
-4. Upsert: action(customer/product create/update)
+### Array
+- first: \`items|first\` → first element
+- last: \`items|last\` → last element
+- join: \`tags|join(', ')\` → "a, b, c" (default separator: ',')
+- map: \`users|map('email')\` → ["a@x.com", "b@x.com"]
+- filter: \`scores|filter('value > 50')\` → items where value > 50 (numeric conditions only)
+- filterBy: \`users|filterBy('status', 'active')\` → users where status equals "active"
+- find: \`users|find('id', '123')\` → first user with id "123" (or null)
+- flatten: \`[[1,2],[3]]|flatten\` → [1,2,3] (one level)
+- unique: \`[1,1,2]|unique\` → ["1","2"] (string-based dedup)
+- concat: \`arr1|concat(arr2)\` → merged array
+- sort: \`items|sort('price', 'desc')\` → sorted by price descending (default: 'asc')
+- reverse: \`items|reverse\` → reversed order
+- slice: \`items|slice(0, 5)\` → first 5 elements
+- hasOverlap: \`tags1|hasOverlap(tags2)\` → true/false
+
+### Type Conversion
+- number: \`str|number\` → numeric value
+- boolean: \`val|boolean\` → true/false
+- parseJSON: \`jsonStr|parseJSON\` → parsed object (returns null on error)
+
+### Date/Time
+- daysAgo: \`createdAt|daysAgo\` → 7 (days since date, -1 if invalid)
+- hoursAgo: \`updatedAt|hoursAgo\` → 24
+- minutesAgo: \`timestamp|minutesAgo\` → 30
+- parseDate: \`dateStr|parseDate\` → timestamp in ms (null if invalid)
+- isoDate: \`timestamp|isoDate\` → "2024-01-15T10:30:00.000Z"
+- epochSeconds: \`timestamp|epochSeconds\` → 1705312200
+- isBefore: \`date1|isBefore(date2)\` → true/false
+- isAfter: \`date1|isAfter(date2)\` → true/false
+
+### Formatting
+- formatList: \`products|formatList('- {name}: \${price}', '\\n')\` → formatted string (default separator: '\\n')
 
 ## Best Practices
 - Use snake_case for stepSlug
 - Always define error ports for action/llm steps
 - Use set_variables to update state
 - Set maxIterations on loops
-- Use workflow_processing_records for entity-by-entity processing
 - Configure retryPolicy for unreliable services
 `;
