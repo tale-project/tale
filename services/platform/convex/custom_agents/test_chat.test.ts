@@ -55,6 +55,10 @@ describe('testCustomAgent', () => {
         structuredResponsesEnabled: true,
         timeoutMs: undefined,
         outputReserve: undefined,
+        agentTeamId: 'team_1',
+        includeTeamKnowledge: true,
+        includeOrgKnowledge: true,
+        knowledgeFileIds: [],
       });
     });
 

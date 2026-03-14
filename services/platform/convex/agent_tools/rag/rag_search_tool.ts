@@ -5,7 +5,10 @@
  *
  * File ID resolution priority:
  * 1. Explicit fileIds arg → use directly (workflow / scoped searches)
- * 2. userId + organizationId from ToolCtx → resolve via getAccessibleFileIds
+ * 2. Agent knowledge config on ToolCtx → resolve via getAgentScopedFileIds
+ *
+ * All agents are custom agents; the agent's knowledge config is the sole
+ * authorization boundary for RAG file access.
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
@@ -40,19 +43,32 @@ export async function resolveFileIds(
     return explicitFileIds;
   }
 
-  const { userId, organizationId } = ctx;
-
-  if (!userId || !organizationId) {
-    throw new Error(
-      'rag_search requires either explicit fileIds or userId + organizationId in ToolCtx.',
-    );
+  const { organizationId } = ctx;
+  if (!organizationId) {
+    throw new Error('rag_search requires organizationId in ToolCtx.');
   }
 
+  const extended = ctx as ToolCtx & {
+    agentTeamId?: string;
+    includeTeamKnowledge?: boolean;
+    includeOrgKnowledge?: boolean;
+    knowledgeFileIds?: string[];
+  };
+
+  debugLog('tool:rag_search using agent-scoped file resolution', {
+    agentTeamId: extended.agentTeamId,
+    includeOrgKnowledge: extended.includeOrgKnowledge,
+    knowledgeFileIds: extended.knowledgeFileIds?.length,
+  });
+
   return ctx.runQuery(
-    internal.documents.internal_queries.getAccessibleFileIds,
+    internal.documents.internal_queries.getAgentScopedFileIds,
     {
       organizationId,
-      userId,
+      agentTeamId: extended.agentTeamId,
+      includeTeamKnowledge: extended.includeTeamKnowledge,
+      includeOrgKnowledge: extended.includeOrgKnowledge,
+      knowledgeFileIds: extended.knowledgeFileIds,
     },
   );
 }
