@@ -51,6 +51,14 @@ export function useUpdateCustomAgentVisibility() {
   );
 }
 
+export function useAddKnowledgeFile() {
+  return useConvexMutation(api.custom_agents.mutations.addKnowledgeFile);
+}
+
+export function useRemoveKnowledgeFile() {
+  return useConvexMutation(api.custom_agents.mutations.removeKnowledgeFile);
+}
+
 export function useDeleteCustomAgent() {
   return useConvexMutation(api.custom_agents.mutations.deleteCustomAgent);
 }

@@ -2,10 +2,8 @@ import { v } from 'convex/values';
 
 import { internalQuery } from '../_generated/server';
 import { getUserTeamIds } from '../lib/get_user_teams';
-import {
-  getAccessibleDocumentIds as getAccessibleDocumentIdsHelper,
-  getAccessibleFileIds as getAccessibleFileIdsHelper,
-} from './get_accessible_document_ids';
+import { getAccessibleDocumentIds as getAccessibleDocumentIdsHelper } from './get_accessible_document_ids';
+import { getAgentScopedFileIds as getAgentScopedFileIdsHelper } from './get_agent_scoped_file_ids';
 import * as DocumentsHelpers from './helpers';
 import { listDocumentsForAgent as listDocumentsForAgentHelper } from './list_documents_for_agent';
 import { sourceProviderValidator } from './validators';
@@ -86,12 +84,15 @@ export const getAccessibleDocumentIds = internalQuery({
   },
 });
 
-export const getAccessibleFileIds = internalQuery({
+export const getAgentScopedFileIds = internalQuery({
   args: {
     organizationId: v.string(),
-    userId: v.string(),
+    agentTeamId: v.optional(v.string()),
+    includeTeamKnowledge: v.optional(v.boolean()),
+    includeOrgKnowledge: v.optional(v.boolean()),
+    knowledgeFileIds: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
-    return await getAccessibleFileIdsHelper(ctx, args);
+    return await getAgentScopedFileIdsHelper(ctx, args);
   },
 });

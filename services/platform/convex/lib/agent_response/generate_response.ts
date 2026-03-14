@@ -196,6 +196,10 @@ export async function generateAgentResponse(
     hooks,
     knowledgeMode: configKnowledgeMode,
     webSearchMode: configWebSearchMode,
+    includeTeamKnowledge,
+    includeOrgKnowledge,
+    agentTeamId,
+    knowledgeFileIds,
     structuredResponsesEnabled,
     instructions,
     toolsSummary,
@@ -314,10 +318,16 @@ export async function generateAgentResponse(
 
     // Start context injection queries (non-blocking) for context/both modes
     let knowledgeContextPromise: Promise<string | undefined> | undefined;
-    if (needsKnowledgeContext && userId && organizationId && promptMessage) {
+    if (needsKnowledgeContext && organizationId && promptMessage) {
       const accessibleFileIds: string[] = await ctx.runQuery(
-        internal.documents.internal_queries.getAccessibleFileIds,
-        { organizationId, userId },
+        internal.documents.internal_queries.getAgentScopedFileIds,
+        {
+          organizationId,
+          agentTeamId,
+          includeTeamKnowledge,
+          includeOrgKnowledge,
+          knowledgeFileIds,
+        },
       );
       if (accessibleFileIds.length === 0) {
         debugLog('No accessible RAG documents, skipping knowledge context');
@@ -441,6 +451,10 @@ export async function generateAgentResponse(
       organizationId,
       threadId,
       variables: { actionDeadlineMs: String(actionDeadline) },
+      agentTeamId,
+      includeTeamKnowledge,
+      includeOrgKnowledge,
+      knowledgeFileIds,
     };
 
     // Track time to first token for streaming
@@ -694,6 +708,10 @@ export async function generateAgentResponse(
           organizationId,
           threadId,
           variables: { actionDeadlineMs: String(actionDeadline) },
+          agentTeamId,
+          includeTeamKnowledge,
+          includeOrgKnowledge,
+          knowledgeFileIds,
           ...(parentThreadId ? { parentThreadId } : {}),
         };
 

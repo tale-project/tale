@@ -162,6 +162,7 @@ import type * as conversations_update_conversations from "../conversations/updat
 import type * as conversations_validators from "../conversations/validators.js";
 import type * as crons from "../crons.js";
 import type * as custom_agents_config from "../custom_agents/config.js";
+import type * as custom_agents_internal_actions from "../custom_agents/internal_actions.js";
 import type * as custom_agents_internal_mutations from "../custom_agents/internal_mutations.js";
 import type * as custom_agents_internal_queries from "../custom_agents/internal_queries.js";
 import type * as custom_agents_list_custom_agents_paginated from "../custom_agents/list_custom_agents_paginated.js";
@@ -214,6 +215,7 @@ import type * as documents_generate_docx_from_template from "../documents/genera
 import type * as documents_generate_pptx from "../documents/generate_pptx.js";
 import type * as documents_generate_signed_url from "../documents/generate_signed_url.js";
 import type * as documents_get_accessible_document_ids from "../documents/get_accessible_document_ids.js";
+import type * as documents_get_agent_scoped_file_ids from "../documents/get_agent_scoped_file_ids.js";
 import type * as documents_get_document_by_id from "../documents/get_document_by_id.js";
 import type * as documents_get_document_by_id_transformed from "../documents/get_document_by_id_transformed.js";
 import type * as documents_get_document_by_path from "../documents/get_document_by_path.js";
@@ -1004,6 +1006,7 @@ declare const fullApi: ApiFromModules<{
   "conversations/validators": typeof conversations_validators;
   crons: typeof crons;
   "custom_agents/config": typeof custom_agents_config;
+  "custom_agents/internal_actions": typeof custom_agents_internal_actions;
   "custom_agents/internal_mutations": typeof custom_agents_internal_mutations;
   "custom_agents/internal_queries": typeof custom_agents_internal_queries;
   "custom_agents/list_custom_agents_paginated": typeof custom_agents_list_custom_agents_paginated;
@@ -1056,6 +1059,7 @@ declare const fullApi: ApiFromModules<{
   "documents/generate_pptx": typeof documents_generate_pptx;
   "documents/generate_signed_url": typeof documents_generate_signed_url;
   "documents/get_accessible_document_ids": typeof documents_get_accessible_document_ids;
+  "documents/get_agent_scoped_file_ids": typeof documents_get_agent_scoped_file_ids;
   "documents/get_document_by_id": typeof documents_get_document_by_id;
   "documents/get_document_by_id_transformed": typeof documents_get_document_by_id_transformed;
   "documents/get_document_by_path": typeof documents_get_document_by_path;
