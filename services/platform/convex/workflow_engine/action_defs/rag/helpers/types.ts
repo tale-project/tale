@@ -19,6 +19,10 @@ export type RagActionParams =
       fileIds: string[];
       topK?: number;
       similarityThreshold?: number;
+    }
+  | {
+      operation: 'get_chunks';
+      fileId: string;
     };
 
 /**
@@ -40,6 +44,17 @@ export interface RagUploadResult {
   /** Client-side timestamp when the upload finished (request-level). */
   timestamp: number;
   /** Total execution time of the Convex action step wrapping the upload. */
+  executionTimeMs?: number;
+}
+
+/**
+ * RAG Chunk Result
+ */
+export interface RagChunkResult {
+  documentId: string;
+  title: string | null;
+  chunks: Array<{ index: number; content: string }>;
+  totalChunks: number;
   executionTimeMs?: number;
 }
 

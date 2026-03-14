@@ -1,7 +1,7 @@
 {
   "workflowConfig": {
     "name": "Contract Generation",
-    "description": "Generate or rewrite contracts from template files. Use when the user asks to draft, generate, or rewrite a contract based on template documents.\n\nThe workflow extracts clauses from one or more contract templates (the ONLY source of clauses — no clauses are invented), merges them with the user's requirements (e.g., 'buyer-friendly', 'strengthen indemnification'), and writes each clause using RAG-retrieved template language to produce a DOCX contract.\n\nOptionally accepts a base contract to extract deal-specific information (parties, dates, amounts) for adaptation.\n\nExtract fileIds from pre-analyzed attachments in the conversation (look for '(fileId: ...)' annotations) or ask the user to provide them.",
+    "description": "Generate or modify contracts from template files. Use when the user asks to draft, generate, rewrite, or modify a contract based on template documents.\n\nThe workflow extracts clauses from one or more contract templates (the ONLY source of clauses — no clauses are invented), merges them with the user's requirements (e.g., 'buyer-friendly', 'strengthen indemnification'), and writes each clause using RAG-retrieved template language to produce a DOCX contract.\n\nWhen a base contract is provided, the workflow modifies it chunk-by-chunk — preserving the original language, structure, and unchanged sections verbatim. Only sections that need changes (based on templates and user requirements) are modified.\n\nExtract fileIds from pre-analyzed attachments in the conversation (look for '(fileId: ...)' annotations) or ask the user to provide them.",
     "version": "1.0.0",
     "workflowType": "predefined",
     "config": {
@@ -19,7 +19,7 @@
         "inputSchema": {
           "properties": {
             "templateFileIds": { "type": "array", "description": "Convex storage IDs of contract template files (DOCX or PDF). These are the ONLY source of clauses — extract fileIds from pre-analyzed attachments (look for '(fileId: ...)' annotations)." },
-            "baseFileId": { "type": "string", "description": "Convex storage ID of an existing contract to adapt. Used to extract deal-specific info (parties, dates, amounts). Optional." },
+            "baseFileId": { "type": "string", "description": "Convex storage ID of an existing contract to modify. When provided, the workflow modifies this contract chunk-by-chunk based on templates and requirements, preserving its original language and structure. Optional." },
             "requirements": { "type": "string", "description": "The user's instructions in natural language. Preserve the user's full intent (e.g., 'Draft a buyer-friendly SPA', 'Strengthen indemnification, extend warranty survival to 24 months')." },
             "outputFileName": { "type": "string", "description": "Base name for the output DOCX file (without extension). Choose a sensible name based on the request." }
           },
@@ -110,23 +110,132 @@
         "expression": "baseFileId != null && baseFileId != ''"
       },
       "nextSteps": {
-        "true": "extract_base_info",
+        "true": "index_base_rag",
         "false": "merge_clauses"
       }
     },
+
     {
-      "stepSlug": "extract_base_info",
-      "name": "Extract Key Info from Base Contract",
+      "stepSlug": "index_base_rag",
+      "name": "Index Base Contract in RAG",
+      "stepType": "action",
+      "config": {
+        "type": "rag",
+        "parameters": {
+          "operation": "upload_document",
+          "fileId": "{{baseFileId}}",
+          "sync": true
+        }
+      },
+      "nextSteps": { "success": "get_base_chunks" }
+    },
+    {
+      "stepSlug": "get_base_chunks",
+      "name": "Retrieve Base Contract Chunks",
+      "stepType": "action",
+      "config": {
+        "type": "rag",
+        "parameters": {
+          "operation": "get_chunks",
+          "fileId": "{{baseFileId}}"
+        }
+      },
+      "nextSteps": { "success": "init_base_loop" }
+    },
+    {
+      "stepSlug": "init_base_loop",
+      "name": "Initialize Base Contract Loop",
+      "stepType": "action",
+      "config": {
+        "type": "set_variables",
+        "parameters": {
+          "variables": [
+            {
+              "name": "contractChunksText",
+              "value": ""
+            }
+          ]
+        }
+      },
+      "nextSteps": { "success": "loop_base_chunks" }
+    },
+    {
+      "stepSlug": "loop_base_chunks",
+      "name": "Loop: Process Base Contract Chunks",
+      "stepType": "loop",
+      "config": {
+        "items": "{{steps.get_base_chunks.output.data.chunks}}",
+        "itemVariable": "item"
+      },
+      "nextSteps": {
+        "loop": "process_chunk",
+        "done": "assemble_contract"
+      }
+    },
+    {
+      "stepSlug": "process_chunk",
+      "name": "Process Contract Chunk",
       "stepType": "llm",
       "config": {
-        "name": "Base Contract Analyzer",
-        "tools": ["docx", "pdf"],
-        "systemPrompt": "You are a legal document analyst. Extract the key information from this contract.\n\nThe contract file may be DOCX or PDF. Use the appropriate tool based on the file format. If the format is unknown, try docx first, then pdf.\n\nParse the contract using the docx or pdf tool:\n- operation: \"parse\"\n- fileId: the file ID provided in the user prompt\n- user_input: \"Extract all key information: parties, dates, amounts, terms, and important provisions\"\n\nProduce a concise summary:\n\n# Key Contract Information\n**Contract Type:** [What kind of contract this is]\n**Parties:** [All parties and their roles]\n**Key Dates:** [Any significant dates, deadlines, or periods]\n**Key Amounts:** [Any monetary values, fees, or financial terms — if applicable]\n**Defined Terms:** [Important defined terms and their meanings]\n**Special Provisions:** [Any notable conditions, restrictions, or unique terms]\n**Governing Law:** [Jurisdiction, if specified]\n\nKeep this concise. Extract ONLY key information. Do NOT reproduce the full contract text.",
-        "userPrompt": "Parse and extract key information from the base contract.\n\nFile ID: {{baseFileId}}",
+        "name": "Chunk Processor",
+        "tools": ["rag_search"],
+        "systemPrompt": "You are an expert contract attorney modifying an existing contract chunk-by-chunk.\n\nYou receive ONE chunk from a base contract. Your task is to decide whether this chunk needs modification based on the template clause summaries and user requirements provided.\n\nDECISION PROCESS:\n1. Read the chunk text carefully.\n2. Compare it against the template clause summaries and user requirements.\n3. If the chunk does NOT need changes (e.g., it is a table of contents, preamble, signature block, boilerplate, or a section not affected by the requirements): output the chunk text EXACTLY as-is, verbatim, character for character. Do not alter punctuation, spacing, numbering, or language.\n4. If the chunk DOES need changes: use rag_search with the provided template file IDs to retrieve relevant template language as reference. Then apply the modifications.\n\nCRITICAL RULES:\n- LANGUAGE PRESERVATION: The output MUST be in the SAME LANGUAGE as the input chunk. If the chunk is in German, output in German. If French, output in French. NEVER translate to English or any other language.\n- STYLE PRESERVATION: Match the base contract's writing style, formality level, legal conventions, and formatting.\n- MINIMAL CHANGES: Only modify what the user requirements and template guidance call for. Do not rewrite sections unnecessarily.\n- NUMBERING: Preserve the chunk's numbering conventions exactly.\n- DEFINED TERMS: Preserve defined terms in their original language. If introducing new terms from templates, translate them to the base contract's language.\n- NO PLACEHOLDERS: Do not use [X], [TBD], or similar placeholders.\n\nWhen using rag_search:\n- Use it to find relevant template language that informs HOW to modify the chunk.\n- The template language is REFERENCE MATERIAL for the substance of the change — express the modification in the base contract's language and style.\n- Pass the template file IDs as the fileIds parameter.\n\nOUTPUT RULES:\n- Output ONLY the chunk text (original or modified). No commentary, no explanation, no headers like \"Modified chunk:\" or \"Output:\".\n- Do not wrap the output in markdown code blocks.",
+        "userPrompt": "Process this contract chunk.\n\nCHUNK TEXT:\n{{loop.item.content}}\n\nTEMPLATE CLAUSE SUMMARIES:\n{{allClausesText}}\n\nTEMPLATE FILE IDS (pass these as fileIds to rag_search if you need template language):\n{{templateFileIds}}\n\nUSER REQUIREMENTS:\n{{requirements}}",
         "outputFormat": "text"
       },
-      "nextSteps": { "success": "merge_clauses" }
+      "nextSteps": { "success": "acc_chunk" }
     },
+    {
+      "stepSlug": "acc_chunk",
+      "name": "Accumulate Processed Chunk",
+      "stepType": "action",
+      "config": {
+        "type": "set_variables",
+        "parameters": {
+          "variables": [
+            {
+              "name": "contractChunksText",
+              "value": "{{contractChunksText + '\\n\\n' + steps.process_chunk.output.data}}"
+            }
+          ]
+        }
+      },
+      "nextSteps": { "success": "loop_base_chunks" }
+    },
+    {
+      "stepSlug": "assemble_contract",
+      "name": "Assemble Modified Contract",
+      "stepType": "llm",
+      "config": {
+        "name": "Contract Assembler",
+        "systemPrompt": "You are a legal document assembler. You receive the accumulated text of a contract that has been processed chunk-by-chunk.\n\nYour task is a LIGHT-TOUCH assembly:\n1. Ensure smooth transitions between chunks (fix any abrupt breaks at chunk boundaries).\n2. Fix any numbering gaps if sections were added or removed during chunk processing.\n3. Ensure the table of contents (if present) reflects the final section structure.\n\nCRITICAL RULES:\n- Do NOT rewrite or rephrase any content. Only fix structural issues at chunk boundaries.\n- LANGUAGE PRESERVATION: The output MUST remain in the same language as the input. NEVER translate.\n- Preserve all formatting conventions from the original contract.\n- End with: \"---\\n*This document was AI-generated and requires professional legal review.*\"\n- Output ONLY the assembled contract in Markdown. No commentary.",
+        "userPrompt": "Assemble the following processed chunks into a complete contract.\n\nPROCESSED CHUNKS:\n{{contractChunksText}}",
+        "outputFormat": "text"
+      },
+      "nextSteps": { "success": "set_draft_from_base" }
+    },
+    {
+      "stepSlug": "set_draft_from_base",
+      "name": "Set Draft from Base Contract Path",
+      "stepType": "action",
+      "config": {
+        "type": "set_variables",
+        "parameters": {
+          "variables": [
+            {
+              "name": "draftedContract",
+              "value": "{{steps.assemble_contract.output.data}}"
+            },
+            {
+              "name": "repairContext",
+              "value": ""
+            }
+          ]
+        }
+      },
+      "nextSteps": { "success": "repair_definitions" }
+    },
+
     {
       "stepSlug": "merge_clauses",
       "name": "Merge Clauses with Requirements",
@@ -134,7 +243,7 @@
       "config": {
         "name": "Clause Merger",
         "systemPrompt": "You are an expert contract attorney. Analyze clause lists from multiple contract templates and produce a unified clause list with modification instructions.\n\nCRITICAL RULES:\n1. Every clause MUST come from the extracted templates. Do NOT invent clauses.\n2. DEDUPLICATION: When multiple templates define the same concept (e.g., both have a MAC definition, both have indemnification), choose ONE authoritative version and note which template it comes from. Do NOT include duplicate clauses — merge overlapping provisions into a single entry.\n3. DEFINITION CONSOLIDATION: If a term is defined in multiple templates, pick the best definition and note it. If a term is defined both inline and in a definitions section, prefer the definitions section placement. Each defined term must appear in EXACTLY ONE place.\n4. DEAL-TYPE AWARENESS: Determine whether this is a STOCK DEAL, ASSET DEAL, or MERGER based on the requirements and template content. Then EXCLUDE clauses that are inappropriate for the deal type:\n   - STOCK DEAL: Exclude Excluded Assets, Excluded Liabilities, Assumed Liabilities, Asset Schedules, Bill of Sale provisions\n   - ASSET DEAL: Exclude Stock Certificate provisions, Stock Power provisions, Share Transfer provisions\n   - If deal type is ambiguous, default to the type most consistent with the templates and note the assumption.\n\nOUTPUT FORMAT:\n\n# Deal Type Classification\n**Deal Type:** [STOCK / ASSET / MERGER / UNKNOWN]\n**Rationale:** [1-2 sentences explaining why]\n**Excluded clauses due to deal type:** [List any template clauses excluded, or \"None\"]\n\n# Master Definition List\nList every defined term that will appear in the contract. For each:\n- **Term:** [Defined Term]\n- **Placement:** [Definitions Article / Inline in Section X.X]\n- **Source:** Template [N], Section [X.X]\n- **Notes:** [Any modifications needed]\n\nEach term must appear in EXACTLY ONE place. If a term is used across multiple clauses, it must be in the Definitions Article.\n\n# Unified Clause List\n\n## Clause 1: [Article/Section title]\n**Source:** Template [number], Section [X.X]\n**Action:** [KEEP AS-IS / MODIFY / STRENGTHEN / WEAKEN / REMOVE]\n**Modification:** [Specific changes if any. Be precise: \"add X\", \"remove qualifier Y\", \"extend to 24 months\"]\n**Defined terms used:** [List defined terms this clause references]\n**Defined terms introduced:** [List any terms this clause defines — must match Master Definition List]\n**RAG query:** [Search query to find best template language for this clause]\n**Deduplicated from:** [If this clause consolidates content from multiple templates, list them; otherwise \"N/A\"]\n\n## Clause 2: ...\n\n# Gaps\n[Areas not covered by any template]\n\n# Duplicate Resolution Log\n[For each duplicate found across templates, note: which templates had it, which version was chosen, and why]\n\n---\n\nPERSPECTIVE KNOWLEDGE:\n\nBUYER-FRIENDLY:\n- Reps & Warranties: Remove knowledge qualifiers, broaden scope, extend survival (18-24 months)\n- Indemnification: Raise/remove caps, lower baskets, uncap for fraud\n- Closing Conditions: Add MAC clause, regulatory approvals\n- Covenants: Tighten seller restrictions, add information access\n- Termination: Buyer walk-away rights, reverse break fees\n\nSELLER-FRIENDLY:\n- Reps & Warranties: Add knowledge qualifiers, narrow scope, short survival (12 months)\n- Indemnification: Cap at 10-15%, high baskets, exclude consequential damages\n- Closing Conditions: Minimize, narrow MAC\n- Covenants: Broad ordinary course exception\n- Termination: Seller-friendly break fees\n\nApply this knowledge when interpreting user requirements like \"buyer-friendly\" or \"seller-friendly\".",
-        "userPrompt": "Produce a unified clause list with modification instructions.\n\nEXTRACTED CLAUSES FROM ALL TEMPLATES:\n{{allClausesText}}\n\nUSER REQUIREMENTS:\n{{requirements}}\n\nDEAL INFORMATION FROM EXISTING CONTRACT (if provided):\n{{steps.extract_base_info.output.data}}",
+        "userPrompt": "Produce a unified clause list with modification instructions.\n\nEXTRACTED CLAUSES FROM ALL TEMPLATES:\n{{allClausesText}}\n\nUSER REQUIREMENTS:\n{{requirements}}",
         "outputFormat": "text"
       },
       "nextSteps": { "success": "build_definition_registry" }
@@ -159,19 +268,41 @@
         "name": "Contract Drafter",
         "tools": ["rag_search"],
         "systemPrompt": "You are an expert contract drafter. Generate a complete contract in Markdown.\n\nYou have three reference documents:\n1. UNIFIED CLAUSE LIST — what to write and how to modify each clause\n2. DEFINITION REGISTRY — every defined term and where it must be defined (and ONLY there)\n3. NUMBERING PLAN — the exact article/section numbers to use\n\nDRAFTING PROCESS:\n\nFor each section in the NUMBERING PLAN (in order):\n1. Find the corresponding clause in the UNIFIED CLAUSE LIST.\n2. Use rag_search with the clause's \"RAG query\" and the provided fileIds to retrieve template language.\n3. Draft the section using the retrieved template language as the foundation.\n4. Apply the specified modifications (KEEP AS-IS / MODIFY / STRENGTHEN / WEAKEN).\n5. Use EXACTLY the article and section numbers from the NUMBERING PLAN.\n6. For defined terms: define each term ONLY in the location specified by the DEFINITION REGISTRY. In all other locations, simply use the term (capitalized) without re-defining it.\n7. For cross-references: use the exact section numbers from the NUMBERING PLAN. NEVER use placeholders like [X], [Section X], or [Article X].\n\nBefore producing your final output, mentally verify:\n- Every defined term in the DEFINITION REGISTRY appears in the contract\n- No term is defined in more than one place\n- Every cross-reference uses a real section number from the NUMBERING PLAN\n- No [X], [TBD], or placeholder brackets remain (except [PLACEHOLDER] for party names/dates/amounts not yet specified)\n- The Definitions section contains ALL terms marked for that location in the registry\n- Style is consistent throughout\n\nSTYLE CONSISTENCY RULES:\n- Follow the STYLE GUIDE from the definition registry output.\n- Use the SAME sentence structure patterns throughout (e.g., if one clause uses \"The Seller shall...\", all obligation clauses should use \"The [Party] shall...\").\n- Use the SAME level of detail throughout. Do not have some clauses at 3 sentences and others at 30.\n- When RAG retrieves language from different templates with different styles, normalize to match the style guide.\n\nDRAFTING RULES:\n- Start from template language found via RAG. Do NOT invent new legal text.\n- KEEP AS-IS: copy verbatim. MODIFY/STRENGTHEN/WEAKEN: use template as base, apply changes.\n- Use [PLACEHOLDER] ONLY for party names, dates, addresses, amounts that are genuinely not specified.\n- Include ALL clauses from the unified list.\n- End with: \"---\\n*This document was AI-generated and requires professional legal review.*\"\n- Output ONLY the contract markdown. No commentary.",
-        "userPrompt": "Generate a complete contract based on the unified clause list, definition registry, and numbering plan.\n\nTEMPLATE FILE IDS (pass these as fileIds to rag_search):\n{{templateFileIds}}\n\nUNIFIED CLAUSE LIST:\n{{steps.merge_clauses.output.data}}\n\nDEFINITION REGISTRY AND NUMBERING PLAN:\n{{steps.build_definition_registry.output.data}}\n\nUSER REQUIREMENTS:\n{{requirements}}\n\nKEY INFORMATION FROM EXISTING CONTRACT (if provided):\n{{steps.extract_base_info.output.data}}",
+        "userPrompt": "Generate a complete contract based on the unified clause list, definition registry, and numbering plan.\n\nTEMPLATE FILE IDS (pass these as fileIds to rag_search):\n{{templateFileIds}}\n\nUNIFIED CLAUSE LIST:\n{{steps.merge_clauses.output.data}}\n\nDEFINITION REGISTRY AND NUMBERING PLAN:\n{{steps.build_definition_registry.output.data}}\n\nUSER REQUIREMENTS:\n{{requirements}}",
         "outputFormat": "text"
+      },
+      "nextSteps": { "success": "set_draft_from_generate" }
+    },
+    {
+      "stepSlug": "set_draft_from_generate",
+      "name": "Set Draft from Generate Path",
+      "stepType": "action",
+      "config": {
+        "type": "set_variables",
+        "parameters": {
+          "variables": [
+            {
+              "name": "draftedContract",
+              "value": "{{steps.write_contract.output.data}}"
+            },
+            {
+              "name": "repairContext",
+              "value": "{{steps.build_definition_registry.output.data}}"
+            }
+          ]
+        }
       },
       "nextSteps": { "success": "repair_definitions" }
     },
+
     {
       "stepSlug": "repair_definitions",
       "name": "Repair Definitions",
       "stepType": "llm",
       "config": {
         "name": "Definition Repair Specialist",
-        "systemPrompt": "You are a legal document quality specialist focused ONLY on defined terms.\n\nYou receive a drafted contract and a Definition Registry. Perform ONLY these checks:\n\n1. DUPLICATE DEFINITIONS: Find any term defined (with \"means\", \"shall mean\", or quoted definition) in more than one location. Fix: keep ONLY the definition in the location specified by the Definition Registry. Remove the duplicate.\n\n2. MISSING DEFINITIONS: Find capitalized terms used in the contract that are not defined anywhere. Fix: add a definition in Article I, Section 1.1 (Definitions) using appropriate legal language consistent with the context.\n\n3. UNUSED DEFINITIONS: Find terms defined in Section 1.1 but never used anywhere else in the contract. Fix: remove the unused definition.\n\n4. DEFINITION PLACEMENT: If a term is defined inline in a clause but is used in multiple clauses, move the definition to Article I, Section 1.1.\n\nOUTPUT RULES:\n- Output the COMPLETE contract in Markdown with all definition fixes applied.\n- If no issues found, output the contract exactly as provided.\n- Do NOT add commentary or annotations. Output ONLY the contract.\n- Do NOT change cross-references, section numbers, or any non-definition content.\n- End with: \"---\\n*This document was AI-generated and requires professional legal review.*\"",
-        "userPrompt": "Fix all definition issues in this contract.\n\nDRAFTED CONTRACT:\n{{steps.write_contract.output.data}}\n\nDEFINITION REGISTRY (use the '# Definition Registry' table as your reference for correct term placement):\n{{steps.build_definition_registry.output.data}}",
+        "systemPrompt": "You are a legal document quality specialist focused ONLY on defined terms.\n\nYou receive a drafted contract and optional repair context. Perform ONLY these checks:\n\n1. DUPLICATE DEFINITIONS: Find any term defined (with \"means\", \"shall mean\", or quoted definition) in more than one location. Fix: keep ONLY the first/primary definition. Remove the duplicate.\n\n2. MISSING DEFINITIONS: Find capitalized terms used in the contract that are not defined anywhere. Fix: add a definition in the appropriate definitions section using legal language consistent with the context.\n\n3. UNUSED DEFINITIONS: Find terms defined but never used anywhere else in the contract. Fix: remove the unused definition.\n\n4. DEFINITION PLACEMENT: If a term is defined inline in a clause but is used in multiple clauses, move the definition to the main definitions section.\n\nLANGUAGE RULE: The output MUST remain in the same language as the input contract. If the contract is in German, French, or any non-English language, ALL repairs must be in that same language. Do NOT translate any text.\n\nOUTPUT RULES:\n- Output the COMPLETE contract in Markdown with all definition fixes applied.\n- If no issues found, output the contract exactly as provided.\n- Do NOT add commentary or annotations. Output ONLY the contract.\n- Do NOT change cross-references, section numbers, or any non-definition content.\n- End with: \"---\\n*This document was AI-generated and requires professional legal review.*\"",
+        "userPrompt": "Fix all definition issues in this contract.\n\nDRAFTED CONTRACT:\n{{draftedContract}}\n\nREPAIR CONTEXT (definition registry or empty for base contract modifications):\n{{repairContext}}",
         "outputFormat": "text"
       },
       "nextSteps": { "success": "repair_references" }
@@ -182,8 +313,8 @@
       "stepType": "llm",
       "config": {
         "name": "Cross-Reference Repair Specialist",
-        "systemPrompt": "You are a legal document quality specialist focused ONLY on cross-references and section numbering.\n\nYou receive a contract (with definitions already fixed) and a Numbering Plan. Perform ONLY these checks:\n\n1. UNRESOLVED PLACEHOLDERS: Find any bracket placeholders: [X], [Section X], [Article X], [Schedule X], [Exhibit X], \"Section __\", or \"Article __\" with blanks. Fix: replace with the correct section number from the Numbering Plan by finding the referenced content.\n\n2. INCORRECT CROSS-REFERENCES: For each cross-reference like \"Section 9.3 (Data Breach Indemnity)\", verify:\n   a. The section number exists in the Numbering Plan\n   b. The parenthetical description matches the actual section title\n   Fix: correct the section number or parenthetical description to match the Numbering Plan.\n\n3. BROKEN REFERENCES: Find references to sections that do not exist in the contract. Fix: find the correct section that contains the referenced content and update the reference.\n\nOUTPUT RULES:\n- Output the COMPLETE contract in Markdown with all cross-reference fixes applied.\n- If no issues found, output the contract exactly as provided.\n- Do NOT add commentary or annotations. Output ONLY the contract.\n- Do NOT change definitions, clause content, or style. Only fix references.\n- End with: \"---\\n*This document was AI-generated and requires professional legal review.*\"",
-        "userPrompt": "Fix all cross-reference issues in this contract.\n\nCONTRACT (definitions already repaired):\n{{steps.repair_definitions.output.data}}\n\nNUMBERING PLAN (use the '# Article and Section Numbering Plan' table as your reference for correct section numbers):\n{{steps.build_definition_registry.output.data}}",
+        "systemPrompt": "You are a legal document quality specialist focused ONLY on cross-references and section numbering.\n\nYou receive a contract (with definitions already fixed) and optional repair context. Perform ONLY these checks:\n\n1. UNRESOLVED PLACEHOLDERS: Find any bracket placeholders: [X], [Section X], [Article X], [Schedule X], [Exhibit X], \"Section __\", or \"Article __\" with blanks. Fix: replace with the correct section number by finding the referenced content.\n\n2. INCORRECT CROSS-REFERENCES: For each cross-reference like \"Section 9.3 (Data Breach Indemnity)\", verify:\n   a. The section number exists in the contract\n   b. The parenthetical description matches the actual section title\n   Fix: correct the section number or parenthetical description.\n\n3. BROKEN REFERENCES: Find references to sections that do not exist in the contract. Fix: find the correct section that contains the referenced content and update the reference.\n\nLANGUAGE RULE: The output MUST remain in the same language as the input contract. If the contract is in German, French, or any non-English language, ALL repairs must be in that same language. Do NOT translate any text.\n\nOUTPUT RULES:\n- Output the COMPLETE contract in Markdown with all cross-reference fixes applied.\n- If no issues found, output the contract exactly as provided.\n- Do NOT add commentary or annotations. Output ONLY the contract.\n- Do NOT change definitions, clause content, or style. Only fix references.\n- End with: \"---\\n*This document was AI-generated and requires professional legal review.*\"",
+        "userPrompt": "Fix all cross-reference issues in this contract.\n\nCONTRACT (definitions already repaired):\n{{steps.repair_definitions.output.data}}\n\nREPAIR CONTEXT (numbering plan or empty for base contract modifications):\n{{repairContext}}",
         "outputFormat": "text"
       },
       "nextSteps": { "success": "repair_consistency" }
@@ -194,8 +325,8 @@
       "stepType": "llm",
       "config": {
         "name": "Style and Consistency Repair Specialist",
-        "systemPrompt": "You are a legal document quality specialist focused ONLY on deal-type consistency and style normalization.\n\nYou receive a contract (with definitions and cross-references already fixed), a Style Guide, and a Deal Type Classification. Perform ONLY these checks:\n\n1. DEAL-TYPE CONSISTENCY: Based on the Deal Type Classification, find and remove any provisions inappropriate for the deal type:\n   - STOCK DEAL: Remove Excluded Assets, Excluded Liabilities, Assumed Liabilities, Asset Schedules, Bill of Sale provisions\n   - ASSET DEAL: Remove Stock Certificate, Stock Power, Share Transfer provisions\n   - If a section is removed, renumber subsequent sections to maintain sequential numbering.\n\n2. STYLE CONSISTENCY:\n   - Obligation language: Ensure ONE consistent term is used throughout (shall/will/must) per the Style Guide\n   - Formatting: Normalize subsection numbering (all same-level lists use the same format)\n   - Inclusion language: Use ONE consistent phrase throughout (per Style Guide)\n   - Proviso language: Use ONE consistent phrase throughout (per Style Guide)\n   - Detail level: Balance sections with dramatically different lengths\n\nOUTPUT RULES:\n- Output the COMPLETE contract in Markdown with all consistency fixes applied.\n- If no issues found, output the contract exactly as provided.\n- Do NOT add commentary or annotations. Output ONLY the contract.\n- Do NOT change definitions or cross-references (those are already correct).\n- End with: \"---\\n*This document was AI-generated and requires professional legal review.*\"",
-        "userPrompt": "Fix all deal-type and style consistency issues in this contract.\n\nCONTRACT (definitions and cross-references already repaired):\n{{steps.repair_references.output.data}}\n\nSTYLE GUIDE (use the '# Style Guide' section as your reference):\n{{steps.build_definition_registry.output.data}}\n\nDEAL TYPE CLASSIFICATION (use the '# Deal Type Classification' section as your reference):\n{{steps.merge_clauses.output.data}}",
+        "systemPrompt": "You are a legal document quality specialist focused ONLY on style normalization and consistency.\n\nYou receive a contract (with definitions and cross-references already fixed) and optional repair context. Perform ONLY these checks:\n\n1. STYLE CONSISTENCY:\n   - Obligation language: Ensure ONE consistent term is used throughout (shall/will/must)\n   - Formatting: Normalize subsection numbering (all same-level lists use the same format)\n   - Inclusion language: Use ONE consistent phrase throughout\n   - Proviso language: Use ONE consistent phrase throughout\n   - Detail level: Balance sections with dramatically different lengths\n\n2. DEAL-TYPE CONSISTENCY (only if repair context contains deal type information):\n   Based on the Deal Type Classification, find and remove any provisions inappropriate for the deal type:\n   - STOCK DEAL: Remove Excluded Assets, Excluded Liabilities, Assumed Liabilities, Asset Schedules, Bill of Sale provisions\n   - ASSET DEAL: Remove Stock Certificate, Stock Power, Share Transfer provisions\n   - If a section is removed, renumber subsequent sections to maintain sequential numbering.\n\nLANGUAGE RULE: The output MUST remain in the same language as the input contract. If the contract is in German, French, or any non-English language, ALL repairs must be in that same language. Do NOT translate any text.\n\nOUTPUT RULES:\n- Output the COMPLETE contract in Markdown with all consistency fixes applied.\n- If no issues found, output the contract exactly as provided.\n- Do NOT add commentary or annotations. Output ONLY the contract.\n- Do NOT change definitions or cross-references (those are already correct).\n- End with: \"---\\n*This document was AI-generated and requires professional legal review.*\"",
+        "userPrompt": "Fix all style consistency issues in this contract.\n\nCONTRACT (definitions and cross-references already repaired):\n{{steps.repair_references.output.data}}\n\nREPAIR CONTEXT (style guide and deal type info, or empty for base contract modifications):\n{{repairContext}}",
         "outputFormat": "text"
       },
       "nextSteps": { "success": "create_docx" }
