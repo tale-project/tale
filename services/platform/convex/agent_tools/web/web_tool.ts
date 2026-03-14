@@ -17,10 +17,20 @@ import { fetchAndExtract } from './helpers/fetch_and_extract';
 import { searchPages } from './helpers/search_pages';
 
 const URL_REGEX = /https?:\/\/[^\s"'<>]+/i;
+const FILE_EXTENSIONS = /\.(pdf|docx|pptx|png|jpe?g|gif|webp|bmp|tiff?|svg)$/i;
 
 function extractUrl(text: string): string | null {
   const match = text.match(URL_REGEX);
   return match ? match[0] : null;
+}
+
+function isFileUrl(url: string): boolean {
+  try {
+    const path = new URL(url).pathname;
+    return FILE_EXTENSIONS.test(path);
+  } catch {
+    return false;
+  }
 }
 
 const webToolArgs = z.object({
@@ -66,7 +76,8 @@ EXAMPLES:
       const targetUrl = args.url || extractUrl(args.query);
 
       if (targetUrl) {
-        const instruction = args.url ? args.query : undefined;
+        const instruction =
+          args.url && isFileUrl(targetUrl) ? args.query : undefined;
 
         const result = await fetchAndExtract(ctx, {
           url: targetUrl,
