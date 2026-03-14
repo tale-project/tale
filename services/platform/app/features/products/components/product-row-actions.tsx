@@ -86,7 +86,7 @@ export function ProductRowActions({ product }: ProductRowActionsProps) {
     [tCommon, dialogs.open, handleOpenExternalLink, hasExternalLink, canWrite],
   );
 
-  if (!canWrite && !hasExternalLink) return null;
+  if (!canWrite) return null;
 
   return (
     <>
