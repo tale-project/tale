@@ -1,24 +1,32 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
+import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { ValidationCheckList } from '@/app/components/ui/feedback/validation-check-item';
+import { Field } from '@/app/components/ui/forms/field';
 import { Form } from '@/app/components/ui/forms/form';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
-import { NarrowContainer } from '@/app/components/ui/layout/layout';
+import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { PageSection } from '@/app/components/ui/layout/page-section';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Text } from '@/app/components/ui/typography/text';
 import { useHasCredentialAccount } from '@/app/features/auth/hooks/queries';
+import { useAuth } from '@/app/hooks/use-convex-auth';
 import { usePasswordValidation } from '@/app/hooks/use-password-validation';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { createPasswordSchema } from '@/lib/shared/schemas/password';
 
-import { useUpdatePassword } from '../hooks/mutations';
+import { useUpdatePassword, useUpdateUserName } from '../hooks/mutations';
+
+interface ProfileFormData {
+  name: string;
+}
 
 interface ChangePasswordFormData {
   currentPassword: string;
@@ -32,12 +40,6 @@ interface SetPasswordFormData {
 }
 
 export function AccountForm() {
-  const { t: tAuth } = useT('auth');
-  const { t: tCommon } = useT('common');
-  const { t: tToast } = useT('toast');
-  const { mutateAsync: updatePassword } = useUpdatePassword();
-  const { toast } = useToast();
-
   const { data: hasCredential, isLoading: isCredentialLoading } =
     useHasCredentialAccount();
 
@@ -45,59 +47,137 @@ export function AccountForm() {
     return null;
   }
 
-  if (hasCredential) {
-    return (
-      <NarrowContainer className="p-0!">
-        <PageSection
-          title={tAuth('changePassword.title')}
-          titleSize="lg"
-          gap={6}
-        >
-          <ChangePasswordForm
-            updatePassword={updatePassword}
-            toast={toast}
-            tAuth={tAuth}
-            tCommon={tCommon}
-            tToast={tToast}
-          />
-        </PageSection>
-      </NarrowContainer>
-    );
-  }
-
   return (
-    <NarrowContainer className="p-0!">
-      <PageSection
-        title={tAuth('setPassword.title')}
-        description={tAuth('setPassword.description')}
-        titleSize="lg"
-        gap={6}
-      >
-        <SetPasswordForm
-          updatePassword={updatePassword}
-          toast={toast}
-          tAuth={tAuth}
-          tCommon={tCommon}
-          tToast={tToast}
-        />
-      </PageSection>
-    </NarrowContainer>
+    <Stack>
+      <ProfileSection />
+      <PasswordSection hasCredential={hasCredential ?? false} />
+    </Stack>
   );
 }
 
-function ChangePasswordForm({
-  updatePassword,
-  toast,
-  tAuth,
-  tCommon,
-  tToast,
-}: {
-  updatePassword: ReturnType<typeof useUpdatePassword>['mutateAsync'];
-  toast: ReturnType<typeof useToast>['toast'];
-  tAuth: ReturnType<typeof useT>['t'];
-  tCommon: ReturnType<typeof useT>['t'];
-  tToast: ReturnType<typeof useT>['t'];
-}) {
+function ProfileSection() {
+  const { t: tSettings } = useT('settings');
+  const { t: tCommon } = useT('common');
+  const { t: tToast } = useT('toast');
+  const { user } = useAuth();
+  const { mutateAsync: updateUserName } = useUpdateUserName();
+  const { toast } = useToast();
+
+  const profileSchema = useMemo(
+    () =>
+      z.object({
+        name: z.string().min(1, tSettings('account.profile.nameRequired')),
+      }),
+    [tSettings],
+  );
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting, isDirty },
+    reset,
+  } = useForm<ProfileFormData>({
+    resolver: zodResolver(profileSchema),
+    defaultValues: {
+      name: user?.name ?? '',
+    },
+  });
+
+  useEffect(() => {
+    if (user?.name) {
+      reset({ name: user.name }, { keepDirty: false });
+    }
+  }, [user?.name, reset]);
+
+  const onSubmit = async (data: ProfileFormData) => {
+    try {
+      await updateUserName({ name: data.name });
+      toast({
+        title: tToast('success.profileUpdated'),
+        variant: 'success',
+      });
+      reset({ name: data.name });
+    } catch {
+      toast({
+        title: tToast('error.profileUpdateFailed'),
+        variant: 'destructive',
+      });
+    }
+  };
+
+  return (
+    <>
+      <Form onSubmit={handleSubmit(onSubmit)} className="space-y-0">
+        <HStack gap={3} align="end" justify="between">
+          <Input
+            id="display-name"
+            label={tSettings('account.profile.name')}
+            placeholder={tSettings('account.profile.namePlaceholder')}
+            disabled={isSubmitting}
+            errorMessage={errors.name?.message}
+            wrapperClassName="max-w-sm flex-1"
+            {...register('name')}
+          />
+          <Button type="submit" disabled={isSubmitting || !isDirty}>
+            {isSubmitting
+              ? tCommon('actions.saving')
+              : tCommon('actions.saveChanges')}
+          </Button>
+        </HStack>
+      </Form>
+
+      <Field label={tSettings('account.profile.email')}>
+        <Text variant="muted" as="span">
+          {user?.email ?? ''}
+        </Text>
+      </Field>
+    </>
+  );
+}
+
+interface PasswordSectionProps {
+  hasCredential: boolean;
+}
+
+function PasswordSection({ hasCredential }: PasswordSectionProps) {
+  const { t: tAuth } = useT('auth');
+  const { t: tSettings } = useT('settings');
+  const [open, setOpen] = useState(false);
+
+  return (
+    <PageSection
+      title={tSettings('account.security.title')}
+      titleSize="base"
+      className="pt-4"
+    >
+      <div>
+        <Button variant="secondary" onClick={() => setOpen(true)}>
+          {hasCredential
+            ? tAuth('changePassword.title')
+            : tAuth('setPassword.title')}
+        </Button>
+      </div>
+
+      {hasCredential ? (
+        <ChangePasswordDialog open={open} onOpenChange={setOpen} />
+      ) : (
+        <SetPasswordDialog open={open} onOpenChange={setOpen} />
+      )}
+    </PageSection>
+  );
+}
+
+interface PasswordDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+function ChangePasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
+  const { t: tAuth } = useT('auth');
+  const { t: tToast } = useT('toast');
+  const { mutateAsync: updatePassword } = useUpdatePassword();
+  const { toast } = useToast();
+
   const changePasswordSchema = useMemo(
     () =>
       z
@@ -126,7 +206,7 @@ function ChangePasswordForm({
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting, isDirty },
     reset,
     watch,
   } = useForm<ChangePasswordFormData>({
@@ -155,6 +235,7 @@ function ChangePasswordForm({
       });
 
       reset();
+      onOpenChange(false);
     } catch {
       toast({
         title: tToast('error.passwordChangeFailed'),
@@ -163,8 +244,23 @@ function ChangePasswordForm({
     }
   };
 
+  const handleOpenChange = (isOpen: boolean) => {
+    if (!isOpen) {
+      reset();
+    }
+    onOpenChange(isOpen);
+  };
+
   return (
-    <Form onSubmit={handleSubmit(onSubmit)}>
+    <FormDialog
+      open={open}
+      onOpenChange={handleOpenChange}
+      title={tAuth('changePassword.title')}
+      submitText={tAuth('changePassword.title')}
+      isSubmitting={isSubmitting}
+      isDirty={isDirty}
+      onSubmit={handleSubmit(onSubmit)}
+    >
       <Input
         id="current-password"
         type="password"
@@ -202,29 +298,16 @@ function ChangePasswordForm({
         errorMessage={errors.confirmPassword?.message}
         {...register('confirmPassword')}
       />
-
-      <Button type="submit" disabled={isSubmitting} fullWidth>
-        {isSubmitting
-          ? tCommon('actions.saving')
-          : tCommon('actions.saveChanges')}
-      </Button>
-    </Form>
+    </FormDialog>
   );
 }
 
-function SetPasswordForm({
-  updatePassword,
-  toast,
-  tAuth,
-  tCommon,
-  tToast,
-}: {
-  updatePassword: ReturnType<typeof useUpdatePassword>['mutateAsync'];
-  toast: ReturnType<typeof useToast>['toast'];
-  tAuth: ReturnType<typeof useT>['t'];
-  tCommon: ReturnType<typeof useT>['t'];
-  tToast: ReturnType<typeof useT>['t'];
-}) {
+function SetPasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
+  const { t: tAuth } = useT('auth');
+  const { t: tToast } = useT('toast');
+  const { mutateAsync: updatePassword } = useUpdatePassword();
+  const { toast } = useToast();
+
   const setPasswordSchema = useMemo(
     () =>
       z
@@ -250,7 +333,7 @@ function SetPasswordForm({
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting, isDirty },
     reset,
     watch,
   } = useForm<SetPasswordFormData>({
@@ -277,6 +360,7 @@ function SetPasswordForm({
       });
 
       reset();
+      onOpenChange(false);
     } catch {
       toast({
         title: tToast('error.passwordChangeFailed'),
@@ -285,8 +369,24 @@ function SetPasswordForm({
     }
   };
 
+  const handleOpenChange = (isOpen: boolean) => {
+    if (!isOpen) {
+      reset();
+    }
+    onOpenChange(isOpen);
+  };
+
   return (
-    <Form onSubmit={handleSubmit(onSubmit)}>
+    <FormDialog
+      open={open}
+      onOpenChange={handleOpenChange}
+      title={tAuth('setPassword.title')}
+      description={tAuth('setPassword.description')}
+      submitText={tAuth('setPassword.title')}
+      isSubmitting={isSubmitting}
+      isDirty={isDirty}
+      onSubmit={handleSubmit(onSubmit)}
+    >
       <FormSection>
         <Input
           id="new-password"
@@ -314,10 +414,6 @@ function SetPasswordForm({
         errorMessage={errors.confirmPassword?.message}
         {...register('confirmPassword')}
       />
-
-      <Button type="submit" disabled={isSubmitting} fullWidth>
-        {isSubmitting ? tCommon('actions.saving') : tAuth('setPassword.title')}
-      </Button>
-    </Form>
+    </FormDialog>
   );
 }

@@ -39,6 +39,7 @@ export async function updateUserPassword(
       body: {
         currentPassword: args.currentPassword,
         newPassword: args.newPassword,
+        revokeOtherSessions: true,
       },
       headers,
     });

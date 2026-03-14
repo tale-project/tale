@@ -354,6 +354,7 @@
       "deleted": "Successfully deleted",
       "created": "Successfully created",
       "duplicated": "Successfully duplicated",
+      "profileUpdated": "Profile updated successfully",
       "passwordChanged": "Password changed successfully",
       "passwordSet": "Password set successfully",
       "organizationUpdated": "Organization updated successfully",
@@ -377,6 +378,7 @@
       "deleteFailed": "Failed to delete",
       "createFailed": "Failed to create",
       "duplicateFailed": "Failed to duplicate",
+      "profileUpdateFailed": "Failed to update profile",
       "passwordChangeFailed": "Failed to change password. Please check your current password and try again.",
       "organizationUpdateFailed": "Failed to update organization",
       "brandingUpdateFailed": "Failed to update branding",
@@ -549,6 +551,18 @@
   },
   "settings": {
     "title": "Settings",
+    "account": {
+      "profile": {
+        "title": "Profile",
+        "name": "Display name",
+        "namePlaceholder": "Enter your name",
+        "email": "Email",
+        "nameRequired": "Name is required"
+      },
+      "security": {
+        "title": "Security"
+      }
+    },
     "organization": {
       "title": "Organization (optional)",
       "organizationId": "Organization ID",

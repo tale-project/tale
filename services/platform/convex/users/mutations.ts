@@ -10,8 +10,20 @@ import { mutation } from '../_generated/server';
 import { authComponent } from '../auth';
 import { createMember as createMemberHelper } from './create_member';
 import { setMemberPassword as setMemberPasswordHelper } from './set_member_password';
+import { updateUserName as updateUserNameHelper } from './update_user_name';
 import { updateUserPassword as updateUserPasswordHelper } from './update_user_password';
 import { roleValidator } from './validators';
+
+export const updateUserName = mutation({
+  args: {
+    name: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    await updateUserNameHelper(ctx, args);
+    return null;
+  },
+});
 
 export const updateUserPassword = mutation({
   args: {

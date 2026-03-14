@@ -129,4 +129,13 @@ export async function setMemberPassword(
       },
     });
   }
+
+  // Invalidate all sessions for the target user so they must re-authenticate
+  await ctx.runMutation(components.betterAuth.adapter.deleteMany, {
+    input: {
+      model: 'session',
+      where: [{ field: 'userId', value: memberUserId, operator: 'eq' }],
+    },
+    paginationOpts: { cursor: null, numItems: 100 },
+  });
 }
