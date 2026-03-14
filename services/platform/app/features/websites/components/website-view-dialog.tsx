@@ -226,6 +226,7 @@ export function ViewWebsiteDialog({
       },
       onError: () => {
         setIsFirstLoad(false);
+        toast({ title: t('toast.fetchPagesError'), variant: 'destructive' });
       },
     },
   );
@@ -467,7 +468,11 @@ export function ViewWebsiteDialog({
                   onClick={loadMore}
                   disabled={isPending}
                 >
-                  {isPending ? '...' : t('pagesDialog.loadMore')}
+                  {isPending ? (
+                    <Spinner size="xs" />
+                  ) : (
+                    t('pagesDialog.loadMore')
+                  )}
                 </Button>
               </div>
             )}
