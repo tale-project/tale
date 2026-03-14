@@ -58,7 +58,7 @@ export const SYSTEM_DEFAULT_AGENT_TEMPLATES: SystemDefaultAgentTemplate[] = [
   {
     systemAgentSlug: 'web',
     name: 'web-assistant',
-    displayName: 'Search',
+    displayName: 'Web Assistant',
     description: 'Searches the web for the latest information',
     systemInstructions: WEB_AGENT_INSTRUCTIONS,
     toolNames: ['web'],
@@ -71,7 +71,7 @@ export const SYSTEM_DEFAULT_AGENT_TEMPLATES: SystemDefaultAgentTemplate[] = [
   {
     systemAgentSlug: 'crm',
     name: 'crm-assistant',
-    displayName: 'Sales',
+    displayName: 'Sales Assistant',
     description: 'Looks up customer and product information',
     systemInstructions: CRM_AGENT_INSTRUCTIONS,
     toolNames: ['customer_read', 'product_read'],
@@ -84,7 +84,7 @@ export const SYSTEM_DEFAULT_AGENT_TEMPLATES: SystemDefaultAgentTemplate[] = [
   {
     systemAgentSlug: 'document',
     name: 'document-assistant',
-    displayName: 'Document assistant',
+    displayName: 'Document Assistant',
     description:
       'Reads and creates documents (PDF, Word, Excel, etc.). Can also create visual images by rendering HTML/CSS/SVG — use it for illustrations, charts, infographics, diagrams, and web page screenshots.',
     systemInstructions: DOCUMENT_AGENT_INSTRUCTIONS,
@@ -100,7 +100,7 @@ export const SYSTEM_DEFAULT_AGENT_TEMPLATES: SystemDefaultAgentTemplate[] = [
   {
     systemAgentSlug: 'integration',
     name: 'integration-assistant',
-    displayName: 'Connect',
+    displayName: 'Integration Assistant',
     description: 'Connects and operates with external systems',
     systemInstructions: INTEGRATION_AGENT_INSTRUCTIONS,
     toolNames: [
@@ -119,7 +119,7 @@ export const SYSTEM_DEFAULT_AGENT_TEMPLATES: SystemDefaultAgentTemplate[] = [
   {
     systemAgentSlug: 'workflow',
     name: 'workflow-assistant',
-    displayName: 'Automate',
+    displayName: 'Automation Assistant',
     description: 'Creates and manages automation workflows',
     systemInstructions: WORKFLOW_AGENT_CORE_INSTRUCTIONS,
     toolNames: [
