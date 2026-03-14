@@ -45,10 +45,7 @@ export const useWebsitesTableConfig = createTableConfigHook<'websites'>(
       size: 108,
       cell: ({ row }) => {
         const s = row.original.status;
-        const variant =
-          s && s in statusVariant
-            ? statusVariant[s as keyof typeof statusVariant]
-            : 'outline';
+        const variant = s && s in statusVariant ? statusVariant[s] : 'outline';
         const statusLabels: Record<string, string> = {
           idle: tEntity('filter.status.idle'),
           scanning: tEntity('filter.status.scanning'),

@@ -319,7 +319,7 @@ export function ViewWebsiteDialog({
           <Badge
             variant={
               website.status && website.status in statusVariant
-                ? statusVariant[website.status as keyof typeof statusVariant]
+                ? statusVariant[website.status]
                 : 'outline'
             }
             dot
