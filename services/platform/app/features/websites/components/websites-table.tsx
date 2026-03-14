@@ -1,8 +1,10 @@
 'use client';
 
+import type { Row } from '@tanstack/react-table';
+
 import { useNavigate } from '@tanstack/react-router';
 import { Globe } from 'lucide-react';
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import type { Doc } from '@/convex/_generated/dataModel';
 
@@ -16,6 +18,7 @@ import {
   useListWebsitesPaginated,
 } from '../hooks/queries';
 import { useWebsitesTableConfig } from '../hooks/use-websites-table-config';
+import { ViewWebsiteDialog } from './website-view-dialog';
 import { WebsitesActionMenu } from './websites-action-menu';
 
 type Website = Doc<'websites'>;
@@ -23,9 +26,14 @@ type Website = Doc<'websites'>;
 export interface WebsitesTableProps {
   organizationId: string;
   status?: string;
+  interval?: string;
 }
 
-export function WebsitesTable({ organizationId, status }: WebsitesTableProps) {
+export function WebsitesTable({
+  organizationId,
+  status,
+  interval,
+}: WebsitesTableProps) {
   const navigate = useNavigate();
   const { t: tTables } = useT('tables');
   const { t: tEmpty } = useT('emptyStates');
@@ -64,6 +72,20 @@ export function WebsitesTable({ organizationId, status }: WebsitesTableProps) {
     [navigate, organizationId],
   );
 
+  const handleIntervalChange = useCallback(
+    (values: string[]) => {
+      void navigate({
+        to: '/dashboard/$id/websites',
+        params: { id: organizationId },
+        search: (prev) => ({
+          ...prev,
+          interval: values[0] || undefined,
+        }),
+      });
+    },
+    [navigate, organizationId],
+  );
+
   const handleClearFilters = useCallback(() => {
     void navigate({
       to: '/dashboard/$id/websites',
@@ -86,9 +108,37 @@ export function WebsitesTable({ organizationId, status }: WebsitesTableProps) {
         selectedValues: status ? [status] : [],
         onChange: handleStatusChange,
       },
+      {
+        key: 'interval',
+        title: tTables('headers.interval'),
+        options: [
+          { value: '60m', label: tWebsites('filter.interval.60m') },
+          { value: '6h', label: tWebsites('filter.interval.6h') },
+          { value: '12h', label: tWebsites('filter.interval.12h') },
+          { value: '1d', label: tWebsites('filter.interval.1d') },
+          { value: '5d', label: tWebsites('filter.interval.5d') },
+          { value: '7d', label: tWebsites('filter.interval.7d') },
+          { value: '30d', label: tWebsites('filter.interval.30d') },
+        ],
+        selectedValues: interval ? [interval] : [],
+        onChange: handleIntervalChange,
+      },
     ],
-    [status, tTables, tWebsites, handleStatusChange],
+    [
+      status,
+      interval,
+      tTables,
+      tWebsites,
+      handleStatusChange,
+      handleIntervalChange,
+    ],
   );
+
+  const [viewingWebsite, setViewingWebsite] = useState<Website | null>(null);
+
+  const handleRowClick = useCallback((row: Row<Website>) => {
+    setViewingWebsite(row.original);
+  }, []);
 
   const list = useListPage<Website>({
     dataSource: {
@@ -111,16 +161,27 @@ export function WebsitesTable({ organizationId, status }: WebsitesTableProps) {
   });
 
   return (
-    <DataTable
-      columns={columns}
-      stickyLayout={stickyLayout}
-      actionMenu={<WebsitesActionMenu organizationId={organizationId} />}
-      emptyState={{
-        icon: Globe,
-        title: tEmpty('websites.title'),
-        description: tEmpty('websites.description'),
-      }}
-      {...list.tableProps}
-    />
+    <>
+      <DataTable
+        columns={columns}
+        stickyLayout={stickyLayout}
+        onRowClick={handleRowClick}
+        actionMenu={<WebsitesActionMenu organizationId={organizationId} />}
+        emptyState={{
+          icon: Globe,
+          title: tEmpty('websites.title'),
+          description: tEmpty('websites.description'),
+        }}
+        {...list.tableProps}
+      />
+
+      {viewingWebsite && (
+        <ViewWebsiteDialog
+          isOpen={!!viewingWebsite}
+          onClose={() => setViewingWebsite(null)}
+          website={viewingWebsite}
+        />
+      )}
+    </>
   );
 }
