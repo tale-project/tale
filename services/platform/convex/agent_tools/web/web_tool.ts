@@ -35,6 +35,12 @@ const webToolArgs = z.object({
     .describe(
       'Explicit URL to fetch and extract content from. When provided, the tool fetches and extracts the URL content directly instead of searching.',
     ),
+  domain: z
+    .string()
+    .optional()
+    .describe(
+      'Optional domain to restrict search to (e.g., "docs.convex.dev"). Only applies in search mode, ignored when fetching a URL.',
+    ),
 });
 
 export const webTool: ToolDefinition = {
@@ -53,7 +59,8 @@ EXAMPLES:
 - { url: "https://example.com/pricing", query: "Extract all pricing tiers" }
 - { query: "https://example.com/page" } — URL detected in query, fetches directly
 - { query: "shipping policy" } — no URL, searches crawled pages
-- { query: "product pricing details" }`,
+- { query: "product pricing details" }
+- { query: "workflow patterns", domain: "docs.convex.dev" } — searches only docs.convex.dev`,
     args: webToolArgs,
     handler: async (ctx: ToolCtx, args): Promise<string> => {
       const targetUrl = args.url || extractUrl(args.query);
@@ -84,7 +91,7 @@ EXAMPLES:
         return `${meta}\n\n${result.content}`;
       }
 
-      return searchPages(ctx, { query: args.query });
+      return searchPages(ctx, { query: args.query, domain: args.domain });
     },
   }),
 };
