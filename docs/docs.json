@@ -1,0 +1,23 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "name": "Tale",
+  "theme": "mint",
+  "colors": {
+    "primary": "#0F172A",
+    "light": "#38BDF8",
+    "dark": "#0F172A"
+  },
+  "navigation": {
+    "groups": [
+      {
+        "group": "Guides",
+        "pages": [
+          "chat-agent-guide",
+          "workflow-guide",
+          "permissions",
+          "zero-downtime-deployment"
+        ]
+      }
+    ]
+  }
+}
