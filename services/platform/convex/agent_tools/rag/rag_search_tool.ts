@@ -5,8 +5,10 @@
  *
  * File ID resolution priority:
  * 1. Explicit fileIds arg → use directly (workflow / scoped searches)
- * 2. Agent-scoped fields on ToolCtx → resolve via getAgentScopedFileIds
- * 3. userId + organizationId from ToolCtx → resolve via getAccessibleFileIds
+ * 2. Agent knowledge config on ToolCtx → resolve via getAgentScopedFileIds
+ *
+ * All agents are custom agents; the agent's knowledge config is the sole
+ * authorization boundary for RAG file access.
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
@@ -30,30 +32,6 @@ const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 const DEFAULT_TOP_K = 10;
 const DEFAULT_SIMILARITY_THRESHOLD = 0.3;
 
-interface AgentScopeCtx {
-  agentTeamId?: string;
-  includeTeamKnowledge?: boolean;
-  includeOrgKnowledge?: boolean;
-  knowledgeFileIds?: string[];
-}
-
-function getAgentScope(ctx: ToolCtx): AgentScopeCtx | null {
-  const extended = ctx as ToolCtx & Partial<AgentScopeCtx>;
-  if (
-    extended.agentTeamId !== undefined ||
-    extended.knowledgeFileIds !== undefined ||
-    extended.includeOrgKnowledge !== undefined
-  ) {
-    return {
-      agentTeamId: extended.agentTeamId,
-      includeTeamKnowledge: extended.includeTeamKnowledge,
-      includeOrgKnowledge: extended.includeOrgKnowledge,
-      knowledgeFileIds: extended.knowledgeFileIds,
-    };
-  }
-  return null;
-}
-
 export async function resolveFileIds(
   ctx: ToolCtx,
   explicitFileIds?: string[],
@@ -70,30 +48,27 @@ export async function resolveFileIds(
     throw new Error('rag_search requires organizationId in ToolCtx.');
   }
 
-  const agentScope = getAgentScope(ctx);
-  if (agentScope) {
-    debugLog('tool:rag_search using agent-scoped file resolution', agentScope);
-    return ctx.runQuery(
-      internal.documents.internal_queries.getAgentScopedFileIds,
-      {
-        organizationId,
-        ...agentScope,
-      },
-    );
-  }
+  const extended = ctx as ToolCtx & {
+    agentTeamId?: string;
+    includeTeamKnowledge?: boolean;
+    includeOrgKnowledge?: boolean;
+    knowledgeFileIds?: string[];
+  };
 
-  const { userId } = ctx;
-  if (!userId) {
-    throw new Error(
-      'rag_search requires either agent scope fields or userId in ToolCtx.',
-    );
-  }
+  debugLog('tool:rag_search using agent-scoped file resolution', {
+    agentTeamId: extended.agentTeamId,
+    includeOrgKnowledge: extended.includeOrgKnowledge,
+    knowledgeFileIds: extended.knowledgeFileIds?.length,
+  });
 
   return ctx.runQuery(
-    internal.documents.internal_queries.getAccessibleFileIds,
+    internal.documents.internal_queries.getAgentScopedFileIds,
     {
       organizationId,
-      userId,
+      agentTeamId: extended.agentTeamId,
+      includeTeamKnowledge: extended.includeTeamKnowledge,
+      includeOrgKnowledge: extended.includeOrgKnowledge,
+      knowledgeFileIds: extended.knowledgeFileIds,
     },
   );
 }

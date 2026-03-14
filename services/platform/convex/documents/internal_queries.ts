@@ -2,10 +2,7 @@ import { v } from 'convex/values';
 
 import { internalQuery } from '../_generated/server';
 import { getUserTeamIds } from '../lib/get_user_teams';
-import {
-  getAccessibleDocumentIds as getAccessibleDocumentIdsHelper,
-  getAccessibleFileIds as getAccessibleFileIdsHelper,
-} from './get_accessible_document_ids';
+import { getAccessibleDocumentIds as getAccessibleDocumentIdsHelper } from './get_accessible_document_ids';
 import { getAgentScopedFileIds as getAgentScopedFileIdsHelper } from './get_agent_scoped_file_ids';
 import * as DocumentsHelpers from './helpers';
 import { listDocumentsForAgent as listDocumentsForAgentHelper } from './list_documents_for_agent';
@@ -84,16 +81,6 @@ export const getAccessibleDocumentIds = internalQuery({
   },
   handler: async (ctx, args) => {
     return await getAccessibleDocumentIdsHelper(ctx, args);
-  },
-});
-
-export const getAccessibleFileIds = internalQuery({
-  args: {
-    organizationId: v.string(),
-    userId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    return await getAccessibleFileIdsHelper(ctx, args);
   },
 });
 

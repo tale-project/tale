@@ -319,28 +319,16 @@ export async function generateAgentResponse(
     // Start context injection queries (non-blocking) for context/both modes
     let knowledgeContextPromise: Promise<string | undefined> | undefined;
     if (needsKnowledgeContext && organizationId && promptMessage) {
-      const hasAgentScope =
-        agentTeamId !== undefined ||
-        knowledgeFileIds !== undefined ||
-        includeOrgKnowledge !== undefined;
-
-      const accessibleFileIds: string[] = hasAgentScope
-        ? await ctx.runQuery(
-            internal.documents.internal_queries.getAgentScopedFileIds,
-            {
-              organizationId,
-              agentTeamId,
-              includeTeamKnowledge,
-              includeOrgKnowledge,
-              knowledgeFileIds,
-            },
-          )
-        : userId
-          ? await ctx.runQuery(
-              internal.documents.internal_queries.getAccessibleFileIds,
-              { organizationId, userId },
-            )
-          : [];
+      const accessibleFileIds: string[] = await ctx.runQuery(
+        internal.documents.internal_queries.getAgentScopedFileIds,
+        {
+          organizationId,
+          agentTeamId,
+          includeTeamKnowledge,
+          includeOrgKnowledge,
+          knowledgeFileIds,
+        },
+      );
       if (accessibleFileIds.length === 0) {
         debugLog('No accessible RAG documents, skipping knowledge context');
       } else {

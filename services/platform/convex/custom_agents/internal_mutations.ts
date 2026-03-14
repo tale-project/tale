@@ -14,6 +14,9 @@ export const updateKnowledgeFileRagInfo = internalMutation({
   handler: async (ctx, args) => {
     const rootId = args.customAgentId;
 
+    // Prefer the draft if it exists; fall back to the root (published) version.
+    // RAG indexing is async — by the time status arrives, the draft may have
+    // been published, so we update whichever version currently holds the file.
     const draft = await ctx.db
       .query('customAgents')
       .withIndex('by_root_status', (q) =>

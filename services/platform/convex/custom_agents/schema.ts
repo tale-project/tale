@@ -1,3 +1,5 @@
+import type { Infer } from 'convex/values';
+
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
@@ -38,6 +40,8 @@ export const knowledgeFileValidator = v.object({
   ragIndexedAt: v.optional(v.number()),
   ragError: v.optional(v.string()),
 });
+
+export type KnowledgeFile = Infer<typeof knowledgeFileValidator>;
 
 export const customAgentsTable = defineTable({
   organizationId: v.string(),

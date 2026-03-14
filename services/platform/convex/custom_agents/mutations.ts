@@ -489,6 +489,11 @@ export const deleteCustomAgent = mutation({
           { fileId: file.fileId },
         );
         await ctx.storage.delete(file.fileId);
+        const metadata = await ctx.db
+          .query('fileMetadata')
+          .withIndex('by_storageId', (q) => q.eq('storageId', file.fileId))
+          .first();
+        if (metadata) await ctx.db.delete(metadata._id);
       }
       await ctx.db.delete(version._id);
     }
@@ -758,6 +763,8 @@ export const addKnowledgeFile = mutation({
 
     const extension = extractExtension(args.fileName);
     const existing = draft.knowledgeFiles ?? [];
+    if (existing.some((f) => f.fileId === args.fileId)) return null;
+
     await ctx.db.patch(draft._id, {
       knowledgeFiles: [
         ...existing,

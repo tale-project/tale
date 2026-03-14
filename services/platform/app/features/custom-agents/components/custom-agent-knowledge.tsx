@@ -4,6 +4,7 @@ import { Link } from '@tanstack/react-router';
 import { FileText, Trash2, Upload } from 'lucide-react';
 import { useState, useCallback, useEffect, useMemo } from 'react';
 
+import type { KnowledgeFile } from '@/convex/custom_agents/schema';
 import type { RagStatus } from '@/types/documents';
 
 import { ContentArea } from '@/app/components/layout/content-area';
@@ -19,6 +20,7 @@ import { Text } from '@/app/components/ui/typography/text';
 import { RagStatusBadge } from '@/app/features/documents/components/rag-status-badge';
 import { useDocuments } from '@/app/features/documents/hooks/queries';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
+import { toast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 
@@ -73,22 +75,12 @@ function DocumentRow({ doc }: { doc: DocumentEntry }) {
   );
 }
 
-interface KnowledgeFileEntry {
-  fileId: string;
-  fileName: string;
-  fileSize?: number;
-  extension?: string;
-  ragStatus?: RagStatus;
-  ragIndexedAt?: number;
-  ragError?: string;
-}
-
 function AgentFileRow({
   file,
   onRemove,
   isReadOnly,
 }: {
-  file: KnowledgeFileEntry;
+  file: KnowledgeFile;
   onRemove: (fileId: string) => void;
   isReadOnly: boolean;
 }) {
@@ -200,8 +192,7 @@ export function CustomAgentKnowledge({
   }, [documents, isEnabled, includeOrgKnowledge]);
 
   const knowledgeFiles = useMemo(
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex schema matches KnowledgeFileEntry shape
-    () => (agent?.knowledgeFiles ?? []) as KnowledgeFileEntry[],
+    () => agent?.knowledgeFiles ?? [],
     [agent?.knowledgeFiles],
   );
 
@@ -238,12 +229,19 @@ export function CustomAgentKnowledge({
 
   const handleRemoveFile = useCallback(
     (fileId: string) => {
-      void removeKnowledgeFile.mutateAsync({
-        customAgentId: toId<'customAgents'>(agentId),
-        fileId: toId<'_storage'>(fileId),
-      });
+      removeKnowledgeFile
+        .mutateAsync({
+          customAgentId: toId<'customAgents'>(agentId),
+          fileId: toId<'_storage'>(fileId),
+        })
+        .catch(() => {
+          toast({
+            title: t('customAgents.knowledge.removeFailed'),
+            variant: 'destructive',
+          });
+        });
     },
-    [agentId, removeKnowledgeFile],
+    [agentId, removeKnowledgeFile, t],
   );
 
   const modeOptions = useMemo(

@@ -818,7 +818,8 @@
         "removeFileConfirm": "This will remove the file from the agent's knowledge base.",
         "uploadFailed": "Failed to upload file",
         "uploadStarted": "Uploading file...",
-        "fileTooLarge": "File too large"
+        "fileTooLarge": "File too large",
+        "removeFailed": "Failed to remove file"
       },
       "tools": {
         "webSearchMode": "Web search",
