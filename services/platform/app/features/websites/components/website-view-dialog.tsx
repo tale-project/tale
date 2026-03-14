@@ -469,7 +469,7 @@ export function ViewWebsiteDialog({
                   disabled={isPending}
                 >
                   {isPending ? (
-                    <Spinner size="xs" />
+                    <Spinner size="sm" />
                   ) : (
                     t('pagesDialog.loadMore')
                   )}
