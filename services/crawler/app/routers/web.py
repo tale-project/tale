@@ -13,8 +13,11 @@ import httpx
 from fastapi import APIRouter, HTTPException, status
 from loguru import logger
 
+from tale_shared.db import acquire_with_retry
+
 from app.models import WebFetchExtractRequest, WebFetchExtractResponse
 from app.services.crawler_service import get_crawler_service
+from app.services.database import get_pool
 from app.services.file_parser_service import get_file_parser_service
 from app.services.web_image_extractor import extract_and_describe_images
 from app.utils.content_type import detect_type_from_content_type, detect_type_from_url
@@ -346,6 +349,29 @@ async def fetch_and_extract(request: WebFetchExtractRequest):
     url_str = str(request.url)
     hostname = validate_url_not_private(url_str)
     timeout_seconds = request.timeout / 1000
+
+    if not request.instruction:
+        pool = get_pool()
+        async with acquire_with_retry(pool) as conn:
+            row = await conn.fetchrow(
+                """SELECT title, content, word_count
+                   FROM website_urls
+                   WHERE url = $1 AND content IS NOT NULL
+                   LIMIT 1""",
+                url_str,
+            )
+        if row:
+            logger.info(f"Returning existing crawled content for {url_str} ({row['word_count']} words)")
+            return WebFetchExtractResponse(
+                success=True,
+                url=url_str,
+                title=row["title"],
+                content=row["content"],
+                content_type="text/html",
+                word_count=row["word_count"] or len(row["content"].split()),
+                page_count=0,
+                vision_used=False,
+            )
 
     try:
         # Detect content type — first by URL extension, then by HEAD probe

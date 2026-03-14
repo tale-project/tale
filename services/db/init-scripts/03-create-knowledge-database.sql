@@ -83,6 +83,7 @@ CREATE TABLE IF NOT EXISTS public_web.website_urls (
 CREATE INDEX IF NOT EXISTS idx_pw_urls_domain ON public_web.website_urls(domain);
 CREATE INDEX IF NOT EXISTS idx_pw_urls_domain_status ON public_web.website_urls(domain, status);
 CREATE INDEX IF NOT EXISTS idx_pw_urls_crawl_order ON public_web.website_urls(domain, last_crawled_at NULLS FIRST);
+CREATE INDEX IF NOT EXISTS idx_pw_urls_url ON public_web.website_urls(url);
 
 -- Paragraph hashes (cross-page boilerplate detection)
 CREATE TABLE IF NOT EXISTS public_web.page_paragraph_hashes (
