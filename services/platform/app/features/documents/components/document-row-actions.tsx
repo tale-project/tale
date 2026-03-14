@@ -7,6 +7,7 @@ import {
   EntityRowActions,
   useEntityRowDialogs,
 } from '@/app/components/ui/entity/entity-row-actions';
+import { useAbility } from '@/app/hooks/use-ability';
 import { toast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
@@ -44,6 +45,8 @@ export function DocumentRowActions({
 }: DocumentRowActionsProps) {
   const { t: tDocuments } = useT('documents');
   const { t: tCommon } = useT('common');
+  const ability = useAbility();
+  const canWrite = ability.can('write', 'knowledgeWrite');
   const dialogs = useEntityRowDialogs(['delete', 'deleteFolder', 'teamTags']);
   const { mutate: deleteDocument, isPending: isDeleting } = useDeleteDocument();
   const { mutate: deleteFolder, isPending: isDeletingFolder } =
@@ -133,7 +136,7 @@ export function DocumentRowActions({
         label: tDocuments('actions.reindex'),
         icon: RefreshCw,
         onClick: handleReindex,
-        visible: itemType === 'file',
+        visible: canWrite && itemType === 'file',
         disabled: isReindexing,
       },
       {
@@ -141,7 +144,7 @@ export function DocumentRowActions({
         label: tDocuments('actions.manageTeams'),
         icon: Users,
         onClick: dialogs.open.teamTags,
-        visible: !parentFolderTeamId,
+        visible: canWrite && !parentFolderTeamId,
       },
       {
         key: 'delete',
@@ -152,7 +155,7 @@ export function DocumentRowActions({
         icon: Trash2,
         onClick: handleDeleteClick,
         destructive: true,
-        visible: canDelete,
+        visible: canWrite && canDelete,
       },
     ],
     [
@@ -160,6 +163,7 @@ export function DocumentRowActions({
       tCommon,
       handleDeleteClick,
       handleReindex,
+      canWrite,
       canDelete,
       itemType,
       syncConfigId,

@@ -9,6 +9,7 @@ import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { Badge, type BadgeProps } from '@/app/components/ui/feedback/badge';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
+import { useAbility } from '@/app/hooks/use-ability';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
@@ -45,6 +46,8 @@ export function RagStatusBadge({
 }: RagStatusBadgeProps) {
   const { t } = useT('documents');
   const { formatDate } = useFormatDate();
+  const ability = useAbility();
+  const canWrite = ability.can('write', 'knowledgeWrite');
   const { mutateAsync: retryRagIndexing, isPending: isRetrying } =
     useRetryRagIndexing();
   const [isCompletedDialogOpen, setIsCompletedDialogOpen] = useState(false);
@@ -105,7 +108,7 @@ export function RagStatusBadge({
 
   const config = statusConfig[effectiveStatus];
 
-  const retryButton = (
+  const retryButton = canWrite ? (
     <Button
       size="icon"
       variant="ghost"
@@ -121,7 +124,7 @@ export function RagStatusBadge({
         <RotateCw className="size-3.5" />
       )}
     </Button>
-  );
+  ) : null;
 
   // Show clickable dialog with indexed date for completed status
   if (effectiveStatus === 'completed') {

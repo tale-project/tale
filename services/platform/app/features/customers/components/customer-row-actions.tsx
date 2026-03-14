@@ -1,18 +1,18 @@
 'use client';
 
-import { Eye, Pencil, Trash2 } from 'lucide-react';
+import { Pencil, Trash2 } from 'lucide-react';
 import { useMemo } from 'react';
 
 import {
   EntityRowActions,
   useEntityRowDialogs,
 } from '@/app/components/ui/entity/entity-row-actions';
+import { useAbility } from '@/app/hooks/use-ability';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { CustomerDeleteDialog } from './customer-delete-dialog';
 import { CustomerEditDialog } from './customer-edit-dialog';
-import { CustomerInfoDialog } from './customer-info-dialog';
 
 interface CustomerRowActionsProps {
   customer: Doc<'customers'>;
@@ -20,26 +20,21 @@ interface CustomerRowActionsProps {
 
 export function CustomerRowActions({ customer }: CustomerRowActionsProps) {
   const { t: tCommon } = useT('common');
-  const { t: tCustomers } = useT('customers');
-  const dialogs = useEntityRowDialogs(['view', 'edit', 'delete']);
+  const ability = useAbility();
+  const canWrite = ability.can('write', 'knowledgeWrite');
+  const dialogs = useEntityRowDialogs(['edit', 'delete']);
 
   const canEdit =
-    customer.source === 'manual_import' || customer.source === 'file_upload';
+    canWrite &&
+    (customer.source === 'manual_import' || customer.source === 'file_upload');
 
   const actions = useMemo(
     () => [
-      {
-        key: 'view',
-        label: tCustomers('viewDetails'),
-        icon: Eye,
-        onClick: dialogs.open.view,
-      },
       {
         key: 'edit',
         label: tCommon('actions.edit'),
         icon: Pencil,
         onClick: dialogs.open.edit,
-        separator: true,
         visible: canEdit,
       },
       {
@@ -51,18 +46,14 @@ export function CustomerRowActions({ customer }: CustomerRowActionsProps) {
         visible: canEdit,
       },
     ],
-    [tCustomers, tCommon, dialogs.open, canEdit],
+    [tCommon, dialogs.open, canEdit],
   );
+
+  if (!canEdit) return null;
 
   return (
     <>
       <EntityRowActions actions={actions} />
-
-      <CustomerInfoDialog
-        customer={customer}
-        open={dialogs.isOpen.view}
-        onOpenChange={dialogs.setOpen.view}
-      />
 
       <CustomerEditDialog
         customer={customer}

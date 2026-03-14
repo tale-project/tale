@@ -4,6 +4,7 @@ import { Plus, HardDrive, NotepadText } from 'lucide-react';
 import { useState, useCallback } from 'react';
 
 import { DataTableActionMenu } from '@/app/components/ui/data-table/data-table-action-menu';
+import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 
 import { ImportVendorsDialog } from './vendors-import-dialog';
@@ -16,6 +17,7 @@ interface VendorsActionMenuProps {
 
 export function VendorsActionMenu({ organizationId }: VendorsActionMenuProps) {
   const { t: tVendors } = useT('vendors');
+  const ability = useAbility();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [importMode, setImportMode] = useState<ImportMode>('manual');
 
@@ -28,6 +30,10 @@ export function VendorsActionMenu({ organizationId }: VendorsActionMenuProps) {
     setImportMode('manual');
     setIsDialogOpen(true);
   }, []);
+
+  if (ability.cannot('write', 'knowledgeWrite')) {
+    return null;
+  }
 
   return (
     <>

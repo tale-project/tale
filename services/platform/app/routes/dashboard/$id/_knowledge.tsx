@@ -26,7 +26,7 @@ function KnowledgeLayout() {
 
   const ability = useAbility();
 
-  if (ability.cannot('write', 'knowledgeWrite')) {
+  if (ability.cannot('read', 'knowledgeRead')) {
     return <AccessDenied message={tAccess('knowledge')} />;
   }
 

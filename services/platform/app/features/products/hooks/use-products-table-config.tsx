@@ -65,6 +65,6 @@ export const useProductsTableConfig = createTableConfigHook<'products'>(
     builders.createDateColumn('lastUpdated', 'headers.updated', tTables, {
       alignRight: true,
     }),
-    builders.createActionsColumn(ProductRowActions, 'product', { size: 80 }),
+    builders.createActionsColumn(ProductRowActions, 'product', { size: 56 }),
   ],
 );

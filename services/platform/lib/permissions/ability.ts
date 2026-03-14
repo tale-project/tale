@@ -35,6 +35,8 @@ export type UiSubject =
   | 'orgSettings'
   /** Admin + developer sections: integrations, API keys */
   | 'developerSettings'
+  /** All roles except disabled: can view knowledge resources (documents, products, etc.) */
+  | 'knowledgeRead'
   /** Editor + admin + developer: can write knowledge resources (documents, products, etc.) */
   | 'knowledgeWrite'
   /** Admin only: can manage (add/edit/delete) org members */
@@ -103,11 +105,13 @@ export function defineAbilityFor(role: string | null): AppAbility {
       for (const resource of readOnlyResources) {
         can('read', resource);
       }
+      can('read', 'knowledgeRead');
       can('write', 'knowledgeWrite');
       break;
     }
     case 'member': {
       can('read', 'all');
+      can('read', 'knowledgeRead');
       cannot('read', 'orgSettings');
       cannot('read', 'developerSettings');
       break;

@@ -251,7 +251,7 @@ export function useDocumentsTableConfig({
       },
       {
         id: 'actions',
-        size: 160,
+        size: 56,
         meta: { isAction: true },
         cell: ({ row }) => (
           <HStack justify="end">

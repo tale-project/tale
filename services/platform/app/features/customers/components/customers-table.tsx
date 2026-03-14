@@ -1,8 +1,10 @@
 'use client';
 
+import type { Row } from '@tanstack/react-table';
+
 import { useNavigate } from '@tanstack/react-router';
 import { Users } from 'lucide-react';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import type { Doc } from '@/convex/_generated/dataModel';
 
@@ -15,6 +17,7 @@ import {
   useListCustomersPaginated,
 } from '../hooks/queries';
 import { useCustomersTableConfig } from '../hooks/use-customers-table-config';
+import { CustomerInfoDialog } from './customer-info-dialog';
 import { CustomersActionMenu } from './customers-action-menu';
 
 type Customer = Doc<'customers'>;
@@ -155,6 +158,12 @@ export function CustomersTable({
     ],
   );
 
+  const [viewingCustomer, setViewingCustomer] = useState<Customer | null>(null);
+
+  const handleRowClick = useCallback((row: Row<Customer>) => {
+    setViewingCustomer(row.original);
+  }, []);
+
   const list = useListPage<Customer>({
     dataSource: {
       type: 'paginated',
@@ -176,16 +185,29 @@ export function CustomersTable({
   });
 
   return (
-    <DataTable
-      columns={columns}
-      stickyLayout={stickyLayout}
-      actionMenu={<CustomersActionMenu organizationId={organizationId} />}
-      emptyState={{
-        icon: Users,
-        title: tEmpty('customers.title'),
-        description: tEmpty('customers.description'),
-      }}
-      {...list.tableProps}
-    />
+    <>
+      <DataTable
+        columns={columns}
+        stickyLayout={stickyLayout}
+        onRowClick={handleRowClick}
+        actionMenu={<CustomersActionMenu organizationId={organizationId} />}
+        emptyState={{
+          icon: Users,
+          title: tEmpty('customers.title'),
+          description: tEmpty('customers.description'),
+        }}
+        {...list.tableProps}
+      />
+
+      {viewingCustomer && (
+        <CustomerInfoDialog
+          customer={viewingCustomer}
+          open={!!viewingCustomer}
+          onOpenChange={(open) => {
+            if (!open) setViewingCustomer(null);
+          }}
+        />
+      )}
+    </>
   );
 }
