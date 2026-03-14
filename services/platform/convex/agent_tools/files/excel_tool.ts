@@ -13,6 +13,7 @@ import type { ToolDefinition } from '../types';
 import { internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
 import { toId } from '../../lib/type_cast_helpers';
+import { resolveFileName } from './helpers/resolve_file_name';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 
@@ -90,7 +91,9 @@ const excelArgs = z.object({
   filename: z
     .string()
     .optional()
-    .describe("For 'parse': Original filename (e.g., 'report.xlsx')"),
+    .describe(
+      "For 'parse': Original filename (e.g., 'report.xlsx'). Optional — auto-resolved from file metadata if omitted.",
+    ),
 });
 
 export const excelTool = {
@@ -111,7 +114,7 @@ OPERATIONS:
    USE THIS when a user uploads an Excel file and you need to read its content.
    Parameters:
    - fileId: **REQUIRED** - Convex storage ID (e.g., "kg2bazp7fbgt9srq63knfagjrd7yfenj")
-   - filename: Original filename (e.g., "report.xlsx")
+   - filename: Optional — original filename (e.g., "report.xlsx"). Auto-resolved from file metadata if omitted.
    Returns: { success, sheets (with headers and rows), totalRows, sheetCount }
 
 EXAMPLES:
@@ -132,9 +135,15 @@ CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the 
           );
         }
 
+        const resolvedFilename = await resolveFileName(
+          ctx,
+          args.fileId,
+          args.filename,
+        );
+
         debugLog('tool:excel parse start', {
           fileId: args.fileId,
-          filename: args.filename,
+          filename: resolvedFilename,
         });
 
         try {
@@ -146,7 +155,7 @@ CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the 
           );
 
           debugLog('tool:excel parse success', {
-            filename: args.filename,
+            filename: resolvedFilename,
             sheetCount: result.sheetCount,
             totalRows: result.totalRows,
           });
@@ -154,7 +163,7 @@ CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the 
           return {
             operation: 'parse',
             success: true,
-            fileName: args.filename ?? 'unknown.xlsx',
+            fileName: resolvedFilename,
             sheets: result.sheets,
             totalRows: result.totalRows,
             sheetCount: result.sheetCount,
@@ -169,7 +178,7 @@ CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the 
           return {
             operation: 'parse',
             success: false,
-            fileName: args.filename ?? 'unknown.xlsx',
+            fileName: resolvedFilename,
             sheets: [],
             totalRows: 0,
             sheetCount: 0,

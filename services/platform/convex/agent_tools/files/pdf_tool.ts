@@ -54,7 +54,7 @@ OPERATIONS:
    USE THIS when a user uploads a PDF and you need to read its content.
    Parameters:
    - fileId: **REQUIRED** - Convex storage ID (e.g., "kg2bazp7fbgt9srq63knfagjrd7yfenj")
-   - filename: Original filename (e.g., "report.pdf")
+   - filename: Optional — original filename (e.g., "report.pdf"). Auto-resolved from file metadata if omitted.
    - user_input: **REQUIRED** - The user's question or instruction about the PDF
    Returns: { success, full_text, page_count, metadata }
 
@@ -124,7 +124,9 @@ CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the 
       filename: z
         .string()
         .optional()
-        .describe("For 'parse': Original filename (e.g., 'report.pdf')"),
+        .describe(
+          "For 'parse': Original filename (e.g., 'report.pdf'). Optional — auto-resolved from file metadata if omitted.",
+        ),
       user_input: z
         .string()
         .optional()
@@ -141,9 +143,6 @@ CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the 
           throw new Error(
             "Missing required 'fileId' for parse operation. Get the fileId from the file attachment context.",
           );
-        }
-        if (!args.filename) {
-          throw new Error("Missing required 'filename' for parse operation");
         }
         if (!args.user_input) {
           throw new Error(

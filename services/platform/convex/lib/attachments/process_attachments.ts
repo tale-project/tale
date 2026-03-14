@@ -19,6 +19,7 @@ import { registerFilesWithAgent } from './register_files';
  * Parsed document with extracted text content
  */
 export interface ParsedDocument {
+  fileId: string;
   fileName: string;
   content: string;
 }
@@ -138,6 +139,7 @@ export async function processAttachments(
   for (const result of parseResults) {
     if (result?.parseResult.success && result.parseResult.full_text) {
       parsedDocuments.push({
+        fileId: result.attachment.fileId,
         fileName: result.attachment.fileName,
         content: result.parseResult.full_text,
       });
@@ -262,7 +264,7 @@ export async function processAttachments(
 
       contentParts.push({
         type: 'text',
-        text: `\n\n---\n**Document: ${doc.fileName}**\n\n${truncatedContent}\n---\n`,
+        text: `\n\n---\n**Document: ${doc.fileName}** (fileId: ${doc.fileId})\n\n${truncatedContent}\n---\n`,
       });
     }
 

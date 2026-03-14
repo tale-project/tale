@@ -407,6 +407,22 @@ const ragSchemas: Record<string, OutputSchema> = {
       executionTimeMs: { type: 'number', optional: true },
     },
   },
+  get_chunks: {
+    description: 'RAG document chunks retrieval result',
+    fields: {
+      documentId: { type: 'string', description: 'RAG document ID' },
+      title: { type: 'string', optional: true, description: 'Document title' },
+      chunks: {
+        type: 'any',
+        description: 'Array of { index, content } chunk objects',
+      },
+      totalChunks: {
+        type: 'number',
+        description: 'Total number of chunks in the document',
+      },
+      executionTimeMs: { type: 'number', optional: true },
+    },
+  },
 };
 
 // =============================================================================

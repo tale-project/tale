@@ -45,7 +45,7 @@ const createCustomAgentSchema = z.object({
     .string()
     .min(1)
     .max(100)
-    .regex(/^[a-z0-9][a-z0-9-]*$/),
+    .regex(/^[a-z0-9][a-z0-9_-]*$/),
   displayName: z.string().min(1).max(200),
   description: z.string().max(1000).optional(),
   avatarUrl: z.string().url().optional(),
