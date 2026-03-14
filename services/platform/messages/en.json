@@ -2850,6 +2850,7 @@
     "validation": {
       "domainRequired": "Domain is required",
       "validUrl": "Must be a valid URL",
+      "validDomain": "Enter a valid domain (e.g. example.com)",
       "scanIntervalRequired": "Scan interval is required"
     },
     "toast": {
@@ -2900,7 +2901,17 @@
         "idle": "Idle",
         "scanning": "Scanning",
         "active": "Active",
-        "error": "Error"
+        "error": "Error",
+        "deleting": "Deleting"
+      },
+      "interval": {
+        "60m": "Every 1 hour",
+        "6h": "Every 6 hours",
+        "12h": "Every 12 hours",
+        "1d": "Every 1 day",
+        "5d": "Every 5 days",
+        "7d": "Every 7 days",
+        "30d": "Every 30 days"
       }
     }
   },
