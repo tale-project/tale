@@ -15,9 +15,11 @@ import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 
 import { parseModelList } from '../../lib/shared/utils/model-list';
+import { internal } from '../_generated/api';
 import { mutation } from '../_generated/server';
 import { TOOL_NAMES } from '../agent_tools/tool_names';
 import { authComponent } from '../auth';
+import { extractExtension } from '../documents/extract_extension';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { hasTeamAccess } from '../lib/team_access';
 import {
@@ -310,6 +312,7 @@ export const updateCustomAgent = mutation({
     webSearchMode: v.optional(retrievalModeValidator),
     knowledgeEnabled: v.optional(v.boolean()),
     includeOrgKnowledge: v.optional(v.boolean()),
+    includeTeamKnowledge: v.optional(v.boolean()),
     knowledgeTopK: v.optional(v.number()),
     filePreprocessingEnabled: v.optional(v.boolean()),
     structuredResponsesEnabled: v.optional(v.boolean()),
@@ -469,11 +472,24 @@ export const deleteCustomAgent = mutation({
       await ctx.db.delete(webhook._id);
     }
 
+    // Clean up knowledge files from all versions
+    const cleanedFileIds = new Set<string>();
     const allVersions = ctx.db
       .query('customAgents')
       .withIndex('by_root', (q) => q.eq('rootVersionId', rootId));
 
     for await (const version of allVersions) {
+      for (const file of version.knowledgeFiles ?? []) {
+        const key = String(file.fileId);
+        if (cleanedFileIds.has(key)) continue;
+        cleanedFileIds.add(key);
+        await ctx.scheduler.runAfter(
+          0,
+          internal.custom_agents.internal_actions.deleteKnowledgeFileFromRag,
+          { fileId: file.fileId },
+        );
+        await ctx.storage.delete(file.fileId);
+      }
       await ctx.db.delete(version._id);
     }
 
@@ -708,5 +724,94 @@ export const createDraftFromVersion = mutation({
     });
 
     return { draftId, isExisting: false };
+  },
+});
+
+export const addKnowledgeFile = mutation({
+  args: {
+    customAgentId: v.id('customAgents'),
+    fileId: v.id('_storage'),
+    fileName: v.string(),
+    contentType: v.string(),
+    fileSize: v.number(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) throw new Error('Unauthenticated');
+
+    const draft = await getDraftByRoot(ctx, args.customAgentId);
+
+    const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
+    if (!hasTeamAccess(draft, userTeamIds)) {
+      throw new Error('Agent not accessible');
+    }
+
+    // Save file metadata (same pattern as createDocumentFromUpload)
+    await ctx.db.insert('fileMetadata', {
+      organizationId: draft.organizationId,
+      storageId: args.fileId,
+      fileName: args.fileName,
+      contentType: args.contentType,
+      size: args.fileSize,
+    });
+
+    const extension = extractExtension(args.fileName);
+    const existing = draft.knowledgeFiles ?? [];
+    await ctx.db.patch(draft._id, {
+      knowledgeFiles: [
+        ...existing,
+        {
+          fileId: args.fileId,
+          fileName: args.fileName,
+          fileSize: args.fileSize,
+          extension,
+          ragStatus: 'queued' as const,
+        },
+      ],
+    });
+
+    await ctx.scheduler.runAfter(
+      0,
+      internal.custom_agents.internal_actions.indexKnowledgeFile,
+      {
+        customAgentId: args.customAgentId,
+        fileId: args.fileId,
+      },
+    );
+
+    return null;
+  },
+});
+
+export const removeKnowledgeFile = mutation({
+  args: {
+    customAgentId: v.id('customAgents'),
+    fileId: v.id('_storage'),
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) throw new Error('Unauthenticated');
+
+    const draft = await getDraftByRoot(ctx, args.customAgentId);
+
+    const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
+    if (!hasTeamAccess(draft, userTeamIds)) {
+      throw new Error('Agent not accessible');
+    }
+
+    const existing = draft.knowledgeFiles ?? [];
+    const filtered = existing.filter((f) => f.fileId !== args.fileId);
+    await ctx.db.patch(draft._id, { knowledgeFiles: filtered });
+
+    await ctx.scheduler.runAfter(
+      0,
+      internal.custom_agents.internal_actions.deleteKnowledgeFileFromRag,
+      { fileId: args.fileId },
+    );
+    await ctx.storage.delete(args.fileId);
+
+    return null;
   },
 });

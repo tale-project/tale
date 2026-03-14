@@ -196,6 +196,10 @@ export async function generateAgentResponse(
     hooks,
     knowledgeMode: configKnowledgeMode,
     webSearchMode: configWebSearchMode,
+    includeTeamKnowledge,
+    includeOrgKnowledge,
+    agentTeamId,
+    knowledgeFileIds,
     structuredResponsesEnabled,
     instructions,
     toolsSummary,
@@ -314,11 +318,29 @@ export async function generateAgentResponse(
 
     // Start context injection queries (non-blocking) for context/both modes
     let knowledgeContextPromise: Promise<string | undefined> | undefined;
-    if (needsKnowledgeContext && userId && organizationId && promptMessage) {
-      const accessibleFileIds: string[] = await ctx.runQuery(
-        internal.documents.internal_queries.getAccessibleFileIds,
-        { organizationId, userId },
-      );
+    if (needsKnowledgeContext && organizationId && promptMessage) {
+      const hasAgentScope =
+        agentTeamId !== undefined ||
+        knowledgeFileIds !== undefined ||
+        includeOrgKnowledge !== undefined;
+
+      const accessibleFileIds: string[] = hasAgentScope
+        ? await ctx.runQuery(
+            internal.documents.internal_queries.getAgentScopedFileIds,
+            {
+              organizationId,
+              agentTeamId,
+              includeTeamKnowledge,
+              includeOrgKnowledge,
+              knowledgeFileIds,
+            },
+          )
+        : userId
+          ? await ctx.runQuery(
+              internal.documents.internal_queries.getAccessibleFileIds,
+              { organizationId, userId },
+            )
+          : [];
       if (accessibleFileIds.length === 0) {
         debugLog('No accessible RAG documents, skipping knowledge context');
       } else {
@@ -441,6 +463,10 @@ export async function generateAgentResponse(
       organizationId,
       threadId,
       variables: { actionDeadlineMs: String(actionDeadline) },
+      agentTeamId,
+      includeTeamKnowledge,
+      includeOrgKnowledge,
+      knowledgeFileIds,
     };
 
     // Track time to first token for streaming
@@ -694,6 +720,10 @@ export async function generateAgentResponse(
           organizationId,
           threadId,
           variables: { actionDeadlineMs: String(actionDeadline) },
+          agentTeamId,
+          includeTeamKnowledge,
+          includeOrgKnowledge,
+          knowledgeFileIds,
           ...(parentThreadId ? { parentThreadId } : {}),
         };
 

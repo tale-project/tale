@@ -70,6 +70,12 @@ export function toSerializableConfig(
     enableVectorSearch: false,
     knowledgeMode,
     webSearchMode,
+    includeTeamKnowledge: agent.includeTeamKnowledge ?? true,
+    includeOrgKnowledge: agent.includeOrgKnowledge ?? false,
+    agentTeamId: agent.teamId,
+    knowledgeFileIds: (agent.knowledgeFiles ?? [])
+      .filter((f) => f.ragStatus === 'completed')
+      .map((f) => String(f.fileId)),
     delegateAgentIds: (agent.delegateAgentIds ?? agent.partnerAgentIds)?.map(
       String,
     ),

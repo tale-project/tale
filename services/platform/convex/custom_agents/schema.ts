@@ -22,6 +22,23 @@ export const versionStatusValidator = v.union(
 
 export const roleRestrictionValidator = v.literal('admin_developer');
 
+export const knowledgeFileRagStatusValidator = v.union(
+  v.literal('queued'),
+  v.literal('running'),
+  v.literal('completed'),
+  v.literal('failed'),
+);
+
+export const knowledgeFileValidator = v.object({
+  fileId: v.id('_storage'),
+  fileName: v.string(),
+  fileSize: v.optional(v.number()),
+  extension: v.optional(v.string()),
+  ragStatus: v.optional(knowledgeFileRagStatusValidator),
+  ragIndexedAt: v.optional(v.number()),
+  ragError: v.optional(v.string()),
+});
+
 export const customAgentsTable = defineTable({
   organizationId: v.string(),
 
@@ -44,6 +61,8 @@ export const customAgentsTable = defineTable({
   // @deprecated — kept for existing documents; derived from knowledgeMode at runtime
   knowledgeEnabled: v.optional(v.boolean()),
   includeOrgKnowledge: v.optional(v.boolean()),
+  includeTeamKnowledge: v.optional(v.boolean()),
+  knowledgeFiles: v.optional(v.array(knowledgeFileValidator)),
   knowledgeTopK: v.optional(v.number()),
   filePreprocessingEnabled: v.optional(v.boolean()),
   structuredResponsesEnabled: v.optional(v.boolean()),

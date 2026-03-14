@@ -27,6 +27,14 @@ export interface GenerateResponseConfig {
   knowledgeMode?: 'off' | 'tool' | 'context' | 'both';
   /** Web search retrieval mode */
   webSearchMode?: 'off' | 'tool' | 'context' | 'both';
+  /** Whether to include team documents in knowledge scope (default true) */
+  includeTeamKnowledge?: boolean;
+  /** Whether to include org-wide documents in knowledge scope (default false) */
+  includeOrgKnowledge?: boolean;
+  /** Team ID the agent is assigned to */
+  agentTeamId?: string;
+  /** Pre-resolved completed file IDs from agent-specific knowledge files */
+  knowledgeFileIds?: string[];
   /** Whether to inject structured response markers into the system prompt (default true) */
   structuredResponsesEnabled?: boolean;
   /** Agent instructions for context window display (not sent to LLM, already in agent config) */
