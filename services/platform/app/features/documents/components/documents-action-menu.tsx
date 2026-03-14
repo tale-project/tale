@@ -8,6 +8,7 @@ import {
   DataTableActionMenu,
   type DataTableActionMenuItem,
 } from '@/app/components/ui/data-table/data-table-action-menu';
+import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 
@@ -39,6 +40,8 @@ export function DocumentsActionMenu({
   hasMicrosoftAccount,
 }: DocumentsActionMenuProps) {
   const { t: tDocuments } = useT('documents');
+  const ability = useAbility();
+
   const [isOneDriveDialogOpen, setIsOneDriveDialogOpen] = useState(false);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
@@ -86,6 +89,10 @@ export function DocumentsActionMenu({
     handleCreateFolder,
     hasMicrosoftAccount,
   ]);
+
+  if (ability.cannot('write', 'knowledgeWrite')) {
+    return null;
+  }
 
   return (
     <>

@@ -38,6 +38,7 @@ export const useCustomersTableConfig = createTableConfigHook<'customers'>(
     builders.createLocaleColumn(),
     builders.createCreationTimeColumn(tTables),
     builders.createActionsColumn(CustomerRowActions, 'customer', {
+      size: 56,
       headerLabel: tTables('headers.actions'),
     }),
   ],

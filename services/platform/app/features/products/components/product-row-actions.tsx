@@ -1,12 +1,13 @@
 'use client';
 
-import { Eye, Pencil, Trash2, ExternalLink } from 'lucide-react';
+import { Pencil, Trash2, ExternalLink } from 'lucide-react';
 import { useMemo, useCallback, useState } from 'react';
 
 import {
   EntityRowActions,
   useEntityRowDialogs,
 } from '@/app/components/ui/entity/entity-row-actions';
+import { useAbility } from '@/app/hooks/use-ability';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
@@ -15,7 +16,6 @@ import type { Product } from '../hooks/use-products-table-config';
 import { useDeleteProduct } from '../hooks/mutations';
 import { ProductDeleteDialog } from './product-delete-dialog';
 import { ProductEditDialog } from './product-edit-dialog';
-import { ProductViewDialog } from './product-view-dialog';
 
 interface ProductRowActionsProps {
   product: Product;
@@ -24,7 +24,9 @@ interface ProductRowActionsProps {
 export function ProductRowActions({ product }: ProductRowActionsProps) {
   const { t: tProducts } = useT('products');
   const { t: tCommon } = useT('common');
-  const dialogs = useEntityRowDialogs(['view', 'edit', 'delete']);
+  const ability = useAbility();
+  const canWrite = ability.can('write', 'knowledgeWrite');
+  const dialogs = useEntityRowDialogs(['edit', 'delete']);
   const [isDeleting, setIsDeleting] = useState(false);
   const deleteProduct = useDeleteProduct();
 
@@ -57,16 +59,11 @@ export function ProductRowActions({ product }: ProductRowActionsProps) {
   const actions = useMemo(
     () => [
       {
-        key: 'view',
-        label: tCommon('actions.view'),
-        icon: Eye,
-        onClick: dialogs.open.view,
-      },
-      {
         key: 'edit',
         label: tCommon('actions.edit'),
         icon: Pencil,
         onClick: dialogs.open.edit,
+        visible: canWrite,
       },
       {
         key: 'external',
@@ -83,22 +80,17 @@ export function ProductRowActions({ product }: ProductRowActionsProps) {
         onClick: dialogs.open.delete,
         destructive: true,
         separator: !hasExternalLink,
+        visible: canWrite,
       },
     ],
-    [tCommon, dialogs.open, handleOpenExternalLink, hasExternalLink],
+    [tCommon, dialogs.open, handleOpenExternalLink, hasExternalLink, canWrite],
   );
+
+  if (!canWrite && !hasExternalLink) return null;
 
   return (
     <>
       <EntityRowActions actions={actions} />
-
-      {dialogs.isOpen.view && (
-        <ProductViewDialog
-          isOpen={dialogs.isOpen.view}
-          onClose={() => dialogs.setOpen.view(false)}
-          product={product}
-        />
-      )}
 
       {dialogs.isOpen.edit && (
         <ProductEditDialog

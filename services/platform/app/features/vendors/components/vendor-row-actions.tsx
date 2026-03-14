@@ -1,45 +1,40 @@
 'use client';
 
-import { Eye, Pencil, Trash2 } from 'lucide-react';
+import { Pencil, Trash2 } from 'lucide-react';
 import { useMemo } from 'react';
 
 import {
   EntityRowActions,
   useEntityRowDialogs,
 } from '@/app/components/ui/entity/entity-row-actions';
+import { useAbility } from '@/app/hooks/use-ability';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { VendorDeleteDialog } from './vendor-delete-dialog';
 import { VendorEditDialog } from './vendor-edit-dialog';
-import { VendorInfoDialog } from './vendor-info-dialog';
 
 interface VendorRowActionsProps {
   vendor: Doc<'vendors'>;
 }
 
 export function VendorRowActions({ vendor }: VendorRowActionsProps) {
-  const { t } = useT('vendors');
   const { t: tCommon } = useT('common');
-  const dialogs = useEntityRowDialogs(['view', 'edit', 'delete']);
+  const ability = useAbility();
+  const canWrite = ability.can('write', 'knowledgeWrite');
+  const dialogs = useEntityRowDialogs(['edit', 'delete']);
 
   const canEdit =
-    vendor.source === 'manual_import' || vendor.source === 'file_upload';
+    canWrite &&
+    (vendor.source === 'manual_import' || vendor.source === 'file_upload');
 
   const actions = useMemo(
     () => [
-      {
-        key: 'view',
-        label: t('viewDetails'),
-        icon: Eye,
-        onClick: dialogs.open.view,
-      },
       {
         key: 'edit',
         label: tCommon('actions.edit'),
         icon: Pencil,
         onClick: dialogs.open.edit,
-        separator: true,
         visible: canEdit,
       },
       {
@@ -51,18 +46,14 @@ export function VendorRowActions({ vendor }: VendorRowActionsProps) {
         visible: canEdit,
       },
     ],
-    [t, tCommon, dialogs.open, canEdit],
+    [tCommon, dialogs.open, canEdit],
   );
+
+  if (!canEdit) return null;
 
   return (
     <>
       <EntityRowActions actions={actions} />
-
-      <VendorInfoDialog
-        vendor={vendor}
-        open={dialogs.isOpen.view}
-        onOpenChange={dialogs.setOpen.view}
-      />
 
       <VendorEditDialog
         vendor={vendor}

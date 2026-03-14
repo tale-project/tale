@@ -31,6 +31,7 @@ export const useVendorsTableConfig = createTableConfigHook<'vendors'>(
     builders.createLocaleColumn(),
     builders.createCreationTimeColumn(tTables),
     builders.createActionsColumn(VendorRowActions, 'vendor', {
+      size: 56,
       headerLabel: tTables('headers.actions'),
     }),
   ],

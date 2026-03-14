@@ -1,8 +1,10 @@
 'use client';
 
+import type { Row } from '@tanstack/react-table';
+
 import { useNavigate } from '@tanstack/react-router';
 import { Package } from 'lucide-react';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import type { Doc } from '@/convex/_generated/dataModel';
 
@@ -15,6 +17,7 @@ import {
   useListProductsPaginated,
 } from '../hooks/queries';
 import { useProductsTableConfig } from '../hooks/use-products-table-config';
+import { ProductViewDialog } from './product-view-dialog';
 import { ProductsActionMenu } from './products-action-menu';
 
 type Product = Doc<'products'>;
@@ -85,6 +88,12 @@ export function ProductsTable({
     [status, tTables, tCommon, handleStatusChange],
   );
 
+  const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
+
+  const handleRowClick = useCallback((row: Row<Product>) => {
+    setViewingProduct(row.original);
+  }, []);
+
   const list = useListPage<Product>({
     dataSource: {
       type: 'paginated',
@@ -106,16 +115,27 @@ export function ProductsTable({
   });
 
   return (
-    <DataTable
-      columns={columns}
-      stickyLayout={stickyLayout}
-      actionMenu={<ProductsActionMenu organizationId={organizationId} />}
-      emptyState={{
-        icon: Package,
-        title: tEmpty('products.title'),
-        description: tEmpty('products.description'),
-      }}
-      {...list.tableProps}
-    />
+    <>
+      <DataTable
+        columns={columns}
+        stickyLayout={stickyLayout}
+        onRowClick={handleRowClick}
+        actionMenu={<ProductsActionMenu organizationId={organizationId} />}
+        emptyState={{
+          icon: Package,
+          title: tEmpty('products.title'),
+          description: tEmpty('products.description'),
+        }}
+        {...list.tableProps}
+      />
+
+      {viewingProduct && (
+        <ProductViewDialog
+          isOpen={!!viewingProduct}
+          onClose={() => setViewingProduct(null)}
+          product={viewingProduct}
+        />
+      )}
+    </>
   );
 }

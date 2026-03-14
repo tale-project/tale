@@ -1,8 +1,10 @@
 'use client';
 
+import type { Row } from '@tanstack/react-table';
+
 import { useNavigate } from '@tanstack/react-router';
 import { Store } from 'lucide-react';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import type { Doc } from '@/convex/_generated/dataModel';
 
@@ -15,6 +17,7 @@ import {
   useListVendorsPaginated,
 } from '../hooks/queries';
 import { useVendorsTableConfig } from '../hooks/use-vendors-table-config';
+import { VendorInfoDialog } from './vendor-info-dialog';
 import { VendorsActionMenu } from './vendors-action-menu';
 
 type Vendor = Doc<'vendors'>;
@@ -124,6 +127,12 @@ export function VendorsTable({
     ],
   );
 
+  const [viewingVendor, setViewingVendor] = useState<Vendor | null>(null);
+
+  const handleRowClick = useCallback((row: Row<Vendor>) => {
+    setViewingVendor(row.original);
+  }, []);
+
   const list = useListPage<Vendor>({
     dataSource: {
       type: 'paginated',
@@ -145,16 +154,29 @@ export function VendorsTable({
   });
 
   return (
-    <DataTable
-      columns={columns}
-      stickyLayout={stickyLayout}
-      actionMenu={<VendorsActionMenu organizationId={organizationId} />}
-      emptyState={{
-        icon: Store,
-        title: tEmpty('vendors.title'),
-        description: tEmpty('vendors.description'),
-      }}
-      {...list.tableProps}
-    />
+    <>
+      <DataTable
+        columns={columns}
+        stickyLayout={stickyLayout}
+        onRowClick={handleRowClick}
+        actionMenu={<VendorsActionMenu organizationId={organizationId} />}
+        emptyState={{
+          icon: Store,
+          title: tEmpty('vendors.title'),
+          description: tEmpty('vendors.description'),
+        }}
+        {...list.tableProps}
+      />
+
+      {viewingVendor && (
+        <VendorInfoDialog
+          vendor={viewingVendor}
+          open={!!viewingVendor}
+          onOpenChange={(open) => {
+            if (!open) setViewingVendor(null);
+          }}
+        />
+      )}
+    </>
   );
 }
