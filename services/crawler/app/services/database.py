@@ -6,6 +6,7 @@ Provides a singleton pool tied to FastAPI's lifespan for the tale_knowledge data
 """
 
 import asyncio
+import json
 import os
 
 import asyncpg
@@ -31,6 +32,11 @@ def _get_database_url() -> str:
     return f"postgresql://tale:{password}@db:5432/tale_knowledge"
 
 
+async def _init_connection(conn: asyncpg.Connection):
+    """Register JSONB codec so asyncpg returns dicts instead of raw strings."""
+    await conn.set_type_codec("jsonb", encoder=json.dumps, decoder=json.loads, schema="pg_catalog")
+
+
 async def init_pool(*, max_size: int = 10) -> asyncpg.Pool:
     global _pool
     if _pool is not None:
@@ -46,6 +52,7 @@ async def init_pool(*, max_size: int = 10) -> asyncpg.Pool:
             min_size=min(2, max_size),
             max_size=max_size,
             server_settings={"search_path": f"{SCHEMA},public"},
+            init=_init_connection,
         )
         logger.info(f"PostgreSQL connection pool initialized (min={min(2, max_size)}, max={max_size})")
 

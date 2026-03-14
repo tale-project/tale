@@ -7,7 +7,7 @@ hashing in parallel (bounded by Semaphore).
 
 import asyncio
 import hashlib
-import json
+
 import logging
 import time
 
@@ -17,6 +17,7 @@ from app.services.crawler_service import CrawlerService
 from app.services.indexing_service import IndexingService
 from app.services.pg_website_store import PgWebsiteStore, PgWebsiteStoreManager
 from app.utils.metadata import extract_meta_description
+from app.utils.structured_data import format_structured_data
 
 logger = logging.getLogger(__name__)
 
@@ -289,6 +290,12 @@ async def _scan_website(
             ]
             network_failed_urls = [u for u in batch if u not in all_returned_urls]
 
+            for p in crawled_pages:
+                sd_text = format_structured_data(p.get("structured_data"))
+                if sd_text:
+                    p["content"] = f"{p['content']}\n\n{sd_text}"
+                    p["word_count"] = len(p["content"].split())
+
             updates = [
                 {
                     "url": p["url"],
@@ -314,10 +321,7 @@ async def _scan_website(
                 for p in crawled_pages:
                     if _is_homepage(p["url"], domain):
                         homepage_title = p.get("title")
-                        sd = p.get("structured_data")
-                        if isinstance(sd, str):
-                            sd = json.loads(sd)
-                        homepage_description = extract_meta_description(sd)
+                        homepage_description = extract_meta_description(p.get("structured_data"))
                         break
 
             if indexing_service:

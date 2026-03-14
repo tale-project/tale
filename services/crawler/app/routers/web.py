@@ -297,10 +297,19 @@ async def _extract_from_webpage(
     markdown_content = crawl_result["content"]
     title = crawl_result.get("title")
     media_images = crawl_result.get("media_images", [])
+    structured_data = crawl_result.get("structured_data", {})
 
     image_descriptions, vision_used = await extract_and_describe_images(media_images, url_str)
 
     parts = [markdown_content]
+
+    if structured_data:
+        from app.utils.structured_data import format_structured_data
+
+        sd_text = format_structured_data(structured_data)
+        if sd_text:
+            parts.append(sd_text)
+
     if image_descriptions:
         parts.extend(image_descriptions)
 

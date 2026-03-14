@@ -4,7 +4,7 @@ Websites Router — Website registration and URL listing endpoints.
 
 import asyncio
 import hashlib
-import json
+
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -16,6 +16,7 @@ from app.services.crawler_service import get_crawler_service
 from app.services.pg_website_store import PgWebsiteStoreManager
 from app.services.scheduler import cancel_scan, trigger_scan
 from app.utils.metadata import extract_meta_description
+from app.utils.structured_data import format_structured_data
 
 router = APIRouter(prefix="/api/v1/websites", tags=["Websites"])
 
@@ -86,23 +87,26 @@ async def _initialize_website(domain: str, manager: PgWebsiteStoreManager):
             if page.get("content") is None:
                 return
             title = page.get("title")
-            sd = page.get("structured_data")
-            if isinstance(sd, str):
-                sd = json.loads(sd)
-            description = extract_meta_description(sd)
+            structured_data = page.get("structured_data")
+            description = extract_meta_description(structured_data)
+
+            content = page["content"]
+            sd_text = format_structured_data(structured_data)
+            if sd_text:
+                content = f"{content}\n\n{sd_text}"
 
             await site_store.save_discovered_urls([{"url": homepage_url}])
             await site_store.update_content_hashes(
                 [
                     {
                         "url": homepage_url,
-                        "content_hash": hashlib.sha256(page["content"].encode()).hexdigest(),
+                        "content_hash": hashlib.sha256(content.encode()).hexdigest(),
                         "status": "active",
                         "title": title,
-                        "content": page["content"],
-                        "word_count": page.get("word_count", 0),
+                        "content": content,
+                        "word_count": len(content.split()),
                         "metadata": page.get("metadata"),
-                        "structured_data": sd,
+                        "structured_data": structured_data,
                     }
                 ]
             )
