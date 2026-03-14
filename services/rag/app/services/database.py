@@ -38,7 +38,13 @@ async def init_pool() -> asyncpg.Pool:
             min_size=settings.database_pool_min,
             max_size=settings.database_pool_max,
             command_timeout=30,
-            server_settings={"search_path": f"{SCHEMA},public"},
+            max_inactive_connection_lifetime=120.0,
+            server_settings={
+                "search_path": f"{SCHEMA},public",
+                "tcp_keepalives_idle": "60",
+                "tcp_keepalives_interval": "10",
+                "tcp_keepalives_count": "3",
+            },
         )
         logger.info("Created connection pool for {} schema", SCHEMA)
         return _pool

@@ -74,6 +74,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     from app.services.search_service import SearchService
 
     pool = await init_pool(max_size=settings.db_pool_max_size)
+
+    from app.services.index_health import check_and_repair_chunks_index
+
+    await check_and_repair_chunks_index(pool)
+
     pg_store_manager = PgWebsiteStoreManager(pool)
     embedding_service = get_embedding_service()
     indexing_service = IndexingService(pool, embedding_service)

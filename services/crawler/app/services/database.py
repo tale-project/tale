@@ -51,7 +51,13 @@ async def init_pool(*, max_size: int = 10) -> asyncpg.Pool:
             dsn,
             min_size=min(2, max_size),
             max_size=max_size,
-            server_settings={"search_path": f"{SCHEMA},public"},
+            max_inactive_connection_lifetime=120.0,
+            server_settings={
+                "search_path": f"{SCHEMA},public",
+                "tcp_keepalives_idle": "60",
+                "tcp_keepalives_interval": "10",
+                "tcp_keepalives_count": "3",
+            },
             init=_init_connection,
         )
         logger.info(f"PostgreSQL connection pool initialized (min={min(2, max_size)}, max={max_size})")

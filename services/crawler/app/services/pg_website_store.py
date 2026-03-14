@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 import asyncpg
 
 from app.services.database import acquire_with_retry
+from app.services.index_health import reindex_chunks
 
 logger = logging.getLogger(__name__)
 
@@ -303,6 +304,7 @@ class PgWebsiteStoreManager:
         async with acquire_with_retry(self._pool) as conn, conn.transaction():
             await conn.execute("SET LOCAL statement_timeout = '120s'")
             await conn.execute("DELETE FROM websites WHERE domain = $1", domain)
+        await reindex_chunks(self._pool)
         logger.info(f"Deleted website: {domain}")
 
     async def recover_stuck_deletes(self) -> list[str]:

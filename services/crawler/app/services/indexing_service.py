@@ -13,8 +13,11 @@ import logging
 import asyncpg
 from tale_knowledge.embedding import EmbeddingService
 
+from tale_shared.db import transact_with_retry
+
 from app.services.chunking_service import chunk_content
 from app.services.database import acquire_with_retry
+from app.services.index_health import reindex_chunks
 from app.utils.paragraph_dedup import (
     BOILERPLATE_PAGE_THRESHOLD,
     MIN_DOMAIN_PAGES_FOR_DEDUP,
@@ -25,6 +28,7 @@ from app.utils.paragraph_dedup import (
 logger = logging.getLogger(__name__)
 
 INDEXING_CONCURRENCY = 5
+_EXECUTEMANY_BATCH_SIZE = 25
 
 _UPSERT_WEBSITE_URL = """\
 INSERT INTO website_urls (domain, url, title, content_hash, status, discovered_at, last_crawled_at, metadata)
@@ -50,12 +54,8 @@ class IndexingService:
         content_hash = _sha256(content)
         hashes = extract_paragraph_hashes(content)
 
-        # --- Single connection: hash update + page count query + skip check ---
-        page_counts: dict[str, int] = {}
-        existing: asyncpg.Record | None = None
-
-        async with acquire_with_retry(self._pool) as conn:
-            # Ensure website_url row exists (FK required by page_paragraph_hashes)
+        # --- Hash update + page count query + skip check (transactional + retried) ---
+        async def _hash_update(conn: asyncpg.Connection) -> tuple[dict[str, int], asyncpg.Record | None]:
             await conn.execute(
                 """INSERT INTO website_urls (domain, url, status, discovered_at)
                    VALUES ($1, $2, 'active', NOW())
@@ -69,15 +69,18 @@ class IndexingService:
                 url,
             )
             if hashes:
-                await conn.executemany(
-                    "INSERT INTO page_paragraph_hashes (domain, url, paragraph_hash) VALUES ($1, $2, $3)",
-                    [(domain, url, h) for h in hashes],
-                )
+                hash_rows = [(domain, url, h) for h in hashes]
+                for i in range(0, len(hash_rows), _EXECUTEMANY_BATCH_SIZE):
+                    await conn.executemany(
+                        "INSERT INTO page_paragraph_hashes (domain, url, paragraph_hash) VALUES ($1, $2, $3)",
+                        hash_rows[i : i + _EXECUTEMANY_BATCH_SIZE],
+                    )
 
             total_pages = await conn.fetchval(
                 "SELECT COUNT(DISTINCT url) FROM page_paragraph_hashes WHERE domain = $1",
                 domain,
             )
+            counts: dict[str, int] = {}
             if total_pages >= MIN_DOMAIN_PAGES_FOR_DEDUP and hashes:
                 rows = await conn.fetch(
                     """SELECT paragraph_hash, COUNT(DISTINCT url) as url_count
@@ -87,14 +90,17 @@ class IndexingService:
                     domain,
                     hashes,
                 )
-                page_counts = {row["paragraph_hash"]: row["url_count"] for row in rows}
+                counts = {row["paragraph_hash"]: row["url_count"] for row in rows}
 
-            existing = await conn.fetchrow(
+            existing_row = await conn.fetchrow(
                 """SELECT content_hash, metadata->>'filtering_hash' as filtering_hash
                    FROM website_urls WHERE domain = $1 AND url = $2""",
                 domain,
                 url,
             )
+            return counts, existing_row
+
+        page_counts, existing = await transact_with_retry(self._pool, _hash_update)
 
         # --- Pure computation (no DB) ---
         filtered = filter_boilerplate_paragraphs(content, page_counts) if page_counts else content
@@ -118,18 +124,36 @@ class IndexingService:
             logger.exception(f"Embedding failed for {url}")
             return {"url": url, "status": "error", "chunks_indexed": 0, "error": "embedding_failed"}
 
-        # Store in DB (single transaction)
-        async with acquire_with_retry(self._pool) as conn, conn.transaction():
+        # Store in DB (transactional + retried)
+        chunk_rows = [
+            (domain, url, title, content_hash, chunk.index, chunk.content, str(embeddings[i]))
+            for i, chunk in enumerate(chunks)
+        ]
+
+        _chunk_insert = """\
+INSERT INTO chunks (domain, url, title, content_hash, chunk_index, chunk_content, embedding)
+VALUES ($1, $2, $3, $4, $5, $6, $7::vector)"""
+
+        async def _store_chunks(conn: asyncpg.Connection) -> None:
             await conn.execute(_UPSERT_WEBSITE_URL, domain, url, title, content_hash, filtered_hash)
             await conn.execute("DELETE FROM chunks WHERE url = $1", url)
-            await conn.executemany(
-                """INSERT INTO chunks (domain, url, title, content_hash, chunk_index, chunk_content, embedding)
-                       VALUES ($1, $2, $3, $4, $5, $6, $7::vector)""",
-                [
-                    (domain, url, title, content_hash, chunk.index, chunk.content, str(embeddings[i]))
-                    for i, chunk in enumerate(chunks)
-                ],
+            for i in range(0, len(chunk_rows), _EXECUTEMANY_BATCH_SIZE):
+                await conn.executemany(_chunk_insert, chunk_rows[i : i + _EXECUTEMANY_BATCH_SIZE])
+
+        try:
+            await transact_with_retry(self._pool, _store_chunks)
+        except (
+            asyncpg.PostgresConnectionError,
+            asyncpg.InterfaceError,
+            ConnectionResetError,
+            OSError,
+        ) as exc:
+            logger.warning(
+                "Chunk storage failed (possible index corruption), attempting REINDEX and retry: %s",
+                exc,
             )
+            await reindex_chunks(self._pool)
+            await transact_with_retry(self._pool, _store_chunks)
 
         # Ensure HNSW index exists once embeddings are stored
         if not self._hnsw_ensured:
