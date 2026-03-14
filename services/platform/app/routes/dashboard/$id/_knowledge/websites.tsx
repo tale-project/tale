@@ -9,6 +9,7 @@ import { seo } from '@/lib/utils/seo';
 const searchSchema = z.object({
   query: z.string().optional(),
   status: z.string().optional(),
+  interval: z.string().optional(),
 });
 
 export const Route = createFileRoute('/dashboard/$id/_knowledge/websites')({
@@ -36,6 +37,10 @@ function WebsitesPage() {
   const search = Route.useSearch();
 
   return (
-    <WebsitesTable organizationId={organizationId} status={search.status} />
+    <WebsitesTable
+      organizationId={organizationId}
+      status={search.status}
+      interval={search.interval}
+    />
   );
 }

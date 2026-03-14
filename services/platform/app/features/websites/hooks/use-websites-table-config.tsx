@@ -1,15 +1,22 @@
 'use client';
 
-import { Loader } from 'lucide-react';
+import { Globe, Loader } from 'lucide-react';
 
-import { WebsiteIcon } from '@/app/components/icons/website-icon';
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
+import { Badge } from '@/app/components/ui/feedback/badge';
 import { HStack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
 import { createTableConfigHook } from '@/app/hooks/use-table-config-factory';
 
-import { WebsitePagesCell } from '../components/website-pages-cell';
 import { WebsiteRowActions } from '../components/website-row-actions';
+
+const statusVariant = {
+  active: 'green',
+  scanning: 'blue',
+  idle: 'outline',
+  error: 'destructive',
+  deleting: 'destructive',
+} as const;
 
 export const useWebsitesTableConfig = createTableConfigHook<'websites'>(
   {
@@ -24,13 +31,34 @@ export const useWebsitesTableConfig = createTableConfigHook<'websites'>(
       cell: ({ row }) => (
         <HStack gap={2}>
           <div className="bg-muted flex size-5 shrink-0 items-center justify-center rounded">
-            <WebsiteIcon className="text-muted-foreground size-3" />
+            <Globe className="text-muted-foreground size-3" />
           </div>
           <Text as="span" variant="label" truncate>
             {row.original.domain}
           </Text>
         </HStack>
       ),
+    },
+    {
+      accessorKey: 'status',
+      header: tTables('headers.status'),
+      size: 108,
+      cell: ({ row }) => {
+        const s = row.original.status;
+        const variant = s && s in statusVariant ? statusVariant[s] : 'outline';
+        const statusLabels: Record<string, string> = {
+          idle: tEntity('filter.status.idle'),
+          scanning: tEntity('filter.status.scanning'),
+          active: tEntity('filter.status.active'),
+          error: tEntity('filter.status.error'),
+          deleting: tEntity('filter.status.deleting'),
+        };
+        return (
+          <Badge variant={variant} dot>
+            {(s && statusLabels[s]) || s || '-'}
+          </Badge>
+        );
+      },
     },
     {
       accessorKey: 'title',
@@ -43,22 +71,17 @@ export const useWebsitesTableConfig = createTableConfigHook<'websites'>(
       ),
     },
     {
-      accessorKey: 'description',
-      header: tTables('headers.description'),
-      size: 256,
+      id: 'indexed',
+      header: () => (
+        <span className="block w-full text-right">{tEntity('indexed')}</span>
+      ),
+      size: 80,
+      meta: { headerLabel: tEntity('indexed') },
       cell: ({ row }) => (
-        <Text as="div" variant="caption" truncate className="max-w-sm">
-          {row.original.description
-            ? `"${row.original.description}"`
-            : tTables('cells.empty')}
+        <Text as="span" variant="caption" className="block w-full text-right">
+          {row.original.crawledPageCount ?? 0}
         </Text>
       ),
-    },
-    {
-      id: 'indexed',
-      header: tEntity('indexed'),
-      size: 108,
-      cell: ({ row }) => <WebsitePagesCell website={row.original} />,
     },
     {
       accessorKey: 'lastScannedAt',
@@ -91,14 +114,26 @@ export const useWebsitesTableConfig = createTableConfigHook<'websites'>(
       ),
       size: 96,
       meta: { headerLabel: tTables('headers.interval') },
-      cell: ({ row }) => (
-        <Text as="span" variant="caption" className="block w-full text-right">
-          {row.original.scanInterval}
-        </Text>
-      ),
+      cell: ({ row }) => {
+        const intervalLabels: Record<string, string> = {
+          '60m': tEntity('scanIntervals.1hour'),
+          '6h': tEntity('scanIntervals.6hours'),
+          '12h': tEntity('scanIntervals.12hours'),
+          '1d': tEntity('scanIntervals.1day'),
+          '5d': tEntity('scanIntervals.5days'),
+          '7d': tEntity('scanIntervals.7days'),
+          '30d': tEntity('scanIntervals.30days'),
+        };
+        const val = row.original.scanInterval;
+        return (
+          <Text as="span" variant="caption" className="block w-full text-right">
+            {intervalLabels[val] || val}
+          </Text>
+        );
+      },
     },
     builders.createActionsColumn(WebsiteRowActions, 'website', {
-      size: 128,
+      size: 56,
       headerLabel: tTables('headers.actions'),
     }),
   ],

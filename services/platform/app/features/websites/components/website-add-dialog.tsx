@@ -38,7 +38,21 @@ export function AddWebsiteDialog({
         domain: z
           .string()
           .min(1, tWebsites('validation.domainRequired'))
-          .url(tWebsites('validation.validUrl')),
+          .refine(
+            (val) => {
+              try {
+                const url =
+                  val.startsWith('http://') || val.startsWith('https://')
+                    ? val
+                    : `https://${val}`;
+                const parsed = new URL(url);
+                return !!parsed.hostname && parsed.hostname.includes('.');
+              } catch {
+                return false;
+              }
+            },
+            { message: tWebsites('validation.validDomain') },
+          ),
         scanInterval: z
           .string()
           .min(1, tWebsites('validation.scanIntervalRequired')),
@@ -116,7 +130,7 @@ export function AddWebsiteDialog({
     >
       <Input
         id="domain"
-        type="url"
+        type="text"
         label={tWebsites('domain')}
         placeholder={tWebsites('urlPlaceholder')}
         {...register('domain')}
