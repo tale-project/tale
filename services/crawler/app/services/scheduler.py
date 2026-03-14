@@ -7,7 +7,6 @@ hashing in parallel (bounded by Semaphore).
 
 import asyncio
 import hashlib
-
 import logging
 import time
 

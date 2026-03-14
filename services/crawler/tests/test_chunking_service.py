@@ -245,7 +245,10 @@ class TestMarkdownAwareChunking:
         assert "Section Two" in result[-1].content
 
     def test_header_content_preserved_in_chunks(self):
-        content = "# Main Title\n\nSome introduction text that is long enough.\n\n## Details\n\nMore details here that pass the filter."
+        content = (
+            "# Main Title\n\nSome introduction text that is long enough."
+            "\n\n## Details\n\nMore details here that pass the filter."
+        )
         result = chunk_content(content, chunk_size=2048)
         combined = "\n".join(c.content for c in result)
         assert "Main Title" in combined

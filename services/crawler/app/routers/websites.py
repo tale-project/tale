@@ -4,7 +4,6 @@ Websites Router — Website registration and URL listing endpoints.
 
 import asyncio
 import hashlib
-
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, Query, Request

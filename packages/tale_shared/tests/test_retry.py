@@ -1,6 +1,6 @@
 """Tests for asyncpg connection retry logic."""
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import asyncpg
 import pytest
@@ -30,7 +30,7 @@ class TestAcquireWithRetry:
         mock_pool.release = AsyncMock()
 
         with pytest.raises(RuntimeError, match="test error"):
-            async with acquire_with_retry(mock_pool) as conn:
+            async with acquire_with_retry(mock_pool) as _conn:
                 raise RuntimeError("test error")
 
         mock_pool.release.assert_awaited_once_with(mock_conn)
@@ -39,9 +39,7 @@ class TestAcquireWithRetry:
     async def test_retries_on_transient_error(self):
         mock_conn = AsyncMock()
         mock_pool = MagicMock(spec=asyncpg.Pool)
-        mock_pool.acquire = AsyncMock(
-            side_effect=[OSError("connection refused"), mock_conn]
-        )
+        mock_pool.acquire = AsyncMock(side_effect=[OSError("connection refused"), mock_conn])
         mock_pool.release = AsyncMock()
 
         async with acquire_with_retry(mock_pool, attempts=3, timeout=10) as conn:
@@ -103,9 +101,7 @@ class TestTransactWithRetry:
         conn = AsyncMock()
         pool = _make_pool_with_transaction(conn)
 
-        callback = AsyncMock(
-            side_effect=[asyncpg.InterfaceError("connection is closed"), "ok"]
-        )
+        callback = AsyncMock(side_effect=[asyncpg.InterfaceError("connection is closed"), "ok"])
         result = await transact_with_retry(pool, callback, attempts=3, timeout=10)
 
         assert result == "ok"
@@ -116,9 +112,7 @@ class TestTransactWithRetry:
         conn = AsyncMock()
         pool = _make_pool_with_transaction(conn)
 
-        callback = AsyncMock(
-            side_effect=[ConnectionResetError("Connection reset by peer"), "ok"]
-        )
+        callback = AsyncMock(side_effect=[ConnectionResetError("Connection reset by peer"), "ok"])
         result = await transact_with_retry(pool, callback, attempts=3, timeout=10)
 
         assert result == "ok"
@@ -141,9 +135,7 @@ class TestTransactWithRetry:
         conn = AsyncMock()
         pool = _make_pool_with_transaction(conn)
 
-        callback = AsyncMock(
-            side_effect=[asyncpg.ConnectionDoesNotExistError("closed"), "ok"]
-        )
+        callback = AsyncMock(side_effect=[asyncpg.ConnectionDoesNotExistError("closed"), "ok"])
         await transact_with_retry(pool, callback, attempts=3, timeout=10)
 
         assert pool.acquire.call_count == 2

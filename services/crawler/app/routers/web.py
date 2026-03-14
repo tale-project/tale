@@ -12,7 +12,6 @@ from urllib.parse import urlparse
 import httpx
 from fastapi import APIRouter, HTTPException, status
 from loguru import logger
-
 from tale_shared.db import acquire_with_retry
 
 from app.models import WebFetchExtractRequest, WebFetchExtractResponse

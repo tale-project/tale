@@ -12,7 +12,6 @@ import logging
 
 import asyncpg
 from tale_knowledge.embedding import EmbeddingService
-
 from tale_shared.db import transact_with_retry
 
 from app.services.chunking_service import chunk_content

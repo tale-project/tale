@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -12,8 +12,8 @@ pytestmark = pytest.mark.asyncio
 app = FastAPI()
 app.include_router(router)
 
-_DEFAULT_CRAWLED = datetime(2025, 6, 1, 12, 0, 0, tzinfo=timezone.utc)
-_DEFAULT_DISCOVERED = datetime(2025, 5, 15, 8, 0, 0, tzinfo=timezone.utc)
+_DEFAULT_CRAWLED = datetime(2025, 6, 1, 12, 0, 0, tzinfo=UTC)
+_DEFAULT_DISCOVERED = datetime(2025, 5, 15, 8, 0, 0, tzinfo=UTC)
 
 
 class FakeRecord(dict):

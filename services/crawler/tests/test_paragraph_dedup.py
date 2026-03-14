@@ -187,7 +187,7 @@ class TestFilterBoilerplateParagraphs:
         content = "First line content\nBoilerplate content\nSecond line content\nThird line content"
         page_counts = {paragraph_hash("Boilerplate content"): 100}
         result = filter_boilerplate_paragraphs(content, page_counts)
-        lines = [l for l in result.split("\n") if l.strip()]
+        lines = [line for line in result.split("\n") if line.strip()]
         assert lines == ["First line content", "Second line content", "Third line content"]
 
     def test_short_lines_always_kept(self):

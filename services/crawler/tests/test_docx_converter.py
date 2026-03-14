@@ -1,6 +1,5 @@
 """Tests for HTML to DOCX section converter."""
 
-import pytest
 
 from app.services.html_to_docx_converter import html_to_sections
 

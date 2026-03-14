@@ -116,10 +116,7 @@ def _format_product(item: dict) -> str:
         lines.append(f"## Product: {name}")
 
     brand = item.get("brand", {})
-    if isinstance(brand, dict):
-        brand_name = brand.get("name", "")
-    else:
-        brand_name = str(brand)
+    brand_name = brand.get("name", "") if isinstance(brand, dict) else str(brand)
     if brand_name:
         lines.append(f"- Brand: {brand_name}")
 
@@ -175,12 +172,11 @@ def _format_product(item: dict) -> str:
                 price_str = f"{currency} {price}".strip() if price else ""
                 lines.append(f"| {price_str} | {avail} |")
 
-    if rating := item.get("aggregateRating"):
-        if isinstance(rating, dict):
-            value = rating.get("ratingValue", "")
-            count = rating.get("reviewCount", rating.get("ratingCount", ""))
-            if value:
-                lines.append(f"- Rating: {value}/5 ({count} reviews)" if count else f"- Rating: {value}/5")
+    if (rating := item.get("aggregateRating")) and isinstance(rating, dict):
+        value = rating.get("ratingValue", "")
+        count = rating.get("reviewCount", rating.get("ratingCount", ""))
+        if value:
+            lines.append(f"- Rating: {value}/5 ({count} reviews)" if count else f"- Rating: {value}/5")
 
     return "\n".join(lines)
 
@@ -191,10 +187,7 @@ def _format_faq(item: dict) -> str:
     for entity in item.get("mainEntity", [])[:20]:
         question = entity.get("name", "")
         answer = entity.get("acceptedAnswer", {})
-        if isinstance(answer, dict):
-            answer_text = answer.get("text", "")
-        else:
-            answer_text = str(answer)
+        answer_text = answer.get("text", "") if isinstance(answer, dict) else str(answer)
         if question:
             lines.append(f"\n**Q: {question}**")
             if answer_text:
@@ -220,10 +213,7 @@ def _format_recipe(item: dict) -> str:
     if instructions := item.get("recipeInstructions"):
         lines.append("\n### Instructions")
         for i, step in enumerate(instructions[:30], 1):
-            if isinstance(step, dict):
-                text = step.get("text", "")
-            else:
-                text = str(step)
+            text = step.get("text", "") if isinstance(step, dict) else str(step)
             if text:
                 lines.append(f"{i}. {text[:300]}")
     return "\n".join(lines) if len(lines) > 1 else ""
