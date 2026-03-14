@@ -66,7 +66,10 @@ function ProfileSection() {
   const profileSchema = useMemo(
     () =>
       z.object({
-        name: z.string().min(1, tSettings('account.profile.nameRequired')),
+        name: z
+          .string()
+          .trim()
+          .min(1, tSettings('account.profile.nameRequired')),
       }),
     [tSettings],
   );
@@ -90,13 +93,14 @@ function ProfileSection() {
   }, [user?.name, reset]);
 
   const onSubmit = async (data: ProfileFormData) => {
+    const name = data.name.trim();
     try {
-      await updateUserName({ name: data.name });
+      await updateUserName({ name });
       toast({
         title: tToast('success.profileUpdated'),
         variant: 'success',
       });
-      reset({ name: data.name });
+      reset({ name });
     } catch {
       toast({
         title: tToast('error.profileUpdateFailed'),

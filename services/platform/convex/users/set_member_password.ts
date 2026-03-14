@@ -130,12 +130,26 @@ export async function setMemberPassword(
     });
   }
 
-  // Invalidate all sessions for the target user so they must re-authenticate
-  await ctx.runMutation(components.betterAuth.adapter.deleteMany, {
-    input: {
-      model: 'session',
-      where: [{ field: 'userId', value: memberUserId, operator: 'eq' }],
-    },
-    paginationOpts: { cursor: null, numItems: 100 },
-  });
+  // Invalidate all sessions for the target user so they must re-authenticate.
+  // Loop to handle the unlikely case where a user has more than 100 sessions.
+  const SESSION_BATCH_SIZE = 100;
+  let hasMoreSessions = true;
+  while (hasMoreSessions) {
+    await ctx.runMutation(components.betterAuth.adapter.deleteMany, {
+      input: {
+        model: 'session',
+        where: [{ field: 'userId', value: memberUserId, operator: 'eq' }],
+      },
+      paginationOpts: { cursor: null, numItems: SESSION_BATCH_SIZE },
+    });
+    const remaining = await ctx.runQuery(
+      components.betterAuth.adapter.findMany,
+      {
+        model: 'session',
+        paginationOpts: { cursor: null, numItems: 1 },
+        where: [{ field: 'userId', value: memberUserId, operator: 'eq' }],
+      },
+    );
+    hasMoreSessions = (remaining?.page?.length ?? 0) > 0;
+  }
 }

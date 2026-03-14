@@ -167,6 +167,8 @@ describe('setMemberPassword', () => {
     ctx.runMutation.mockResolvedValueOnce(undefined);
     // deleteMany for sessions
     ctx.runMutation.mockResolvedValueOnce(undefined);
+    // findMany to check remaining sessions - empty means done
+    ctx.runQuery.mockResolvedValueOnce({ page: [] });
     const handler = await getHandler();
 
     await handler(ctx, defaultArgs);
@@ -220,6 +222,8 @@ describe('setMemberPassword', () => {
     ctx.runMutation.mockResolvedValueOnce({ _id: 'new_account' });
     // deleteMany for sessions
     ctx.runMutation.mockResolvedValueOnce(undefined);
+    // findMany to check remaining sessions - empty means done
+    ctx.runQuery.mockResolvedValueOnce({ page: [] });
     const handler = await getHandler();
 
     await handler(ctx, defaultArgs);
