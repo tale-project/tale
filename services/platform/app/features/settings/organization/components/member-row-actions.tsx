@@ -53,7 +53,7 @@ export function MemberRowActions({
         label: tCommon('actions.edit'),
         icon: Pencil,
         onClick: dialogs.open.edit,
-        visible: canManageMembers && !isOwner,
+        visible: canManageMembers && !isOwner && !isViewingSelf,
       },
       {
         key: 'transferOwnership',
@@ -88,7 +88,7 @@ export function MemberRowActions({
 
   return (
     <>
-      <EntityRowActions actions={actions} />
+      <EntityRowActions actions={actions} contentWidth="w-[11.5rem]" />
 
       <EditMemberDialog
         open={dialogs.isOpen.edit}
