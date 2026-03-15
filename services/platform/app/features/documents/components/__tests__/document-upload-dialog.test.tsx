@@ -46,7 +46,24 @@ vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
   useTeams: () => ({ teams: mockTeams, isLoading: false }),
 }));
 
-let mockHookState = {
+interface MockTrackedFile {
+  id: string;
+  file: File;
+  status: string;
+  bytesLoaded: number;
+  bytesTotal: number;
+  error?: string;
+}
+
+let mockHookState: {
+  isUploading: boolean;
+  trackedFiles: MockTrackedFile[];
+  completedCount: number;
+  failedCount: number;
+  totalCount: number;
+  allCompleted: boolean;
+  hasFailures: boolean;
+} = {
   isUploading: false,
   trackedFiles: [],
   completedCount: 0,
