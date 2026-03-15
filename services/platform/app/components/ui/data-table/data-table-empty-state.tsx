@@ -23,7 +23,7 @@ export function DataTableEmptyState({
 }: DataTableEmptyStateProps) {
   return (
     <Center className="flex-[1_1_0] py-12">
-      <VStack align="center" className="max-w-[24rem] text-center gap-2">
+      <VStack align="center" className="max-w-[24rem] gap-2 text-center">
         {Icon && (
           <Icon
             className="text-muted-foreground/60 mb-3 size-6"
