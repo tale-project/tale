@@ -15,6 +15,7 @@ import type { WorkflowValidationResult } from './types';
 import { isRecord, getString } from '../../../../lib/utils/type-guards';
 import { validateCircularDependencies } from './circular_dependency_validator';
 import { isValidStepType } from './constants';
+import { validateNextStepsPorts } from './validate_next_steps_ports';
 import { validateStepConfig } from './validate_step_config';
 import { validateWorkflowSteps } from './validate_workflow_steps';
 import { validateWorkflowVariableReferences } from './variables';
@@ -76,6 +77,21 @@ export function validateWorkflowDefinition(
     if (stepValidation.warnings) {
       for (const message of stepValidation.warnings) {
         warnings.push(`${stepPrefix} ${message}`);
+      }
+    }
+
+    // Validate nextSteps port names match the step type
+    if (
+      isRecord(step.nextSteps) &&
+      typeof step.stepType === 'string' &&
+      isValidStepType(step.stepType)
+    ) {
+      const portValidation = validateNextStepsPorts(
+        step.stepType,
+        step.nextSteps,
+      );
+      for (const message of portValidation.errors) {
+        errors.push(`${stepPrefix} ${message}`);
       }
     }
 

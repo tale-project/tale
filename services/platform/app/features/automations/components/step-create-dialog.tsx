@@ -82,7 +82,7 @@ const getDefaultTemplates = (
 
     case 'output': {
       const cfg = {
-        outputMapping: {},
+        mapping: {},
       };
       return {
         config: JSON.stringify(cfg, null, 2),

@@ -2,6 +2,7 @@
  * Persist execution result to database
  */
 
+import { isRecord } from '../../../../lib/utils/type-guards';
 import { internal } from '../../../_generated/api';
 import { ActionCtx } from '../../../_generated/server';
 import { toId } from '../../../lib/type_cast_helpers';
@@ -21,8 +22,11 @@ export async function persistExecutionResult(
     ...baseVariables,
     lastOutput: result.output,
     steps: stepsMap,
-    // Merge any variables returned by the step (e.g., from set_variables action)
-    ...result.variables,
+    // Merge set_variables output under the 'variables' namespace
+    variables: {
+      ...(isRecord(baseVariables.variables) ? baseVariables.variables : {}),
+      ...result.variables,
+    },
     // Extract and override loop variable to prevent large payloads and ensure correct loop restoration
     ...(essentialLoop ? { loop: essentialLoop as unknown } : {}),
     organizationId: stepDef.organizationId ?? baseVariables['organizationId'],

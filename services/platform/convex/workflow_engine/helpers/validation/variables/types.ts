@@ -25,7 +25,15 @@ export interface ParsedVariableReference {
   fullExpression: string;
 
   /** The type of reference */
-  type: 'step' | 'variable' | 'system' | 'secret' | 'loop' | 'input';
+  type:
+    | 'step'
+    | 'variable'
+    | 'system'
+    | 'secret'
+    | 'loop'
+    | 'input'
+    | 'config'
+    | 'variables';
 
   /** For step references, the step slug being referenced */
   stepSlug?: string;
@@ -94,6 +102,8 @@ export interface OutputSchema {
   description?: string;
   /** Whether the output is an array at the top level */
   isArray?: boolean;
+  /** Whether the output data is a scalar (string/number) — sub-field access is invalid */
+  isScalar?: boolean;
   /** Whether the output can be null */
   nullable?: boolean;
   /** Field definitions for object outputs */

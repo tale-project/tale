@@ -89,37 +89,11 @@ export const createWorkflowTool = {
   name: 'create_workflow' as const,
   tool: createTool({
     description: `Create a new workflow definition with all steps.
+Requires user approval — an approval card will be shown below your message.
 
 **⭐ IF THE USER PROVIDED A WORKFLOW JSON CONFIG:**
 Use the provided configuration DIRECTLY — do NOT recreate or rewrite it.
-Map the JSON to this tool's schema: top-level fields → workflowConfig, steps array → stepsConfig.
-Skip calling workflow_examples; only use it when building a workflow from scratch.
-
-**⭐ IF BUILDING FROM SCRATCH:**
-1. Call workflow_examples(operation='get_syntax_reference', category='quick_start')
-2. Call workflow_examples(operation='get_syntax_reference', category='common_patterns')
-
-**CRITICAL JSON RULES:**
-• Use ONLY double quotes (") for ALL strings - NEVER single quotes (')
-• Escape quotes inside strings: \\"
-• Escape newlines: \\n
-• Do NOT include control characters or tabs in strings
-• Verify JSON structure before calling this tool
-
-**WORKFLOW CONFIG (workflowConfig.config):**
-• timeout: Workflow timeout in ms (e.g., 120000)
-• retryPolicy: { maxRetries, backoffMs } — default retry for action steps
-• variables: Initial variables available to all steps (organizationId auto-injected)
-
-**WORKFLOW CREATION:**
-• This requires user approval - an approval card will be shown below your message
-• nextSteps goes at step level, NOT inside config
-• LLM steps require: name + systemPrompt
-• Action steps require: config.type
-
-**ENTITY PROCESSING PATTERN:**
-Use workflow_processing_records (find_unprocessed → process → record_processed)
-Reference: generalCustomerStatusAssessment, productRecommendationEmail`,
+Map the JSON to this tool's schema: top-level fields → workflowConfig, steps array → stepsConfig.`,
     args: z.object({
       workflowConfig: workflowConfigSchema,
       stepsConfig: z

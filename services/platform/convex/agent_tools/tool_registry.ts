@@ -30,8 +30,8 @@ import { createWorkflowTool } from './workflows/create_workflow_tool';
 import { runWorkflowTool } from './workflows/run_workflow_tool';
 import { saveWorkflowDefinitionTool } from './workflows/save_workflow_definition_tool';
 import { updateWorkflowStepTool } from './workflows/update_workflow_step_tool';
-import { workflowExamplesTool } from './workflows/workflow_examples_tool';
 import { workflowReadTool } from './workflows/workflow_read_tool';
+import { workflowSyntaxTool } from './workflows/workflow_syntax_tool';
 
 // Re-export from leaf module so existing consumers don't need to change imports
 export { TOOL_NAMES, type ToolName } from './tool_names';
@@ -45,7 +45,7 @@ export const TOOL_REGISTRY = [
   ragSearchTool,
   webTool,
   workflowReadTool,
-  workflowExamplesTool,
+  workflowSyntaxTool,
   updateWorkflowStepTool,
   saveWorkflowDefinitionTool,
   createWorkflowTool,

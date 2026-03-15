@@ -48,3 +48,5 @@ export {
   type StepInfo,
   type ValidateVariableReferencesResult,
 } from './validate';
+
+export { validateVariableReferencesKnownSources } from './validate_variable_references_known_sources';

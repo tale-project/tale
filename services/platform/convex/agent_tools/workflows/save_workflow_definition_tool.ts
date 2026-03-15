@@ -112,27 +112,6 @@ Requires user approval — an approval card will be created for the user to revi
 **⭐ IF THE USER PROVIDED A WORKFLOW JSON CONFIG:**
 Use the provided configuration DIRECTLY — do NOT recreate or rewrite it.
 Map the JSON to this tool's schema: top-level fields → workflowConfig, steps array → stepsConfig.
-Skip calling workflow_examples; only use it when building a workflow from scratch.
-
-**IF BUILDING FROM SCRATCH:**
-1. Call workflow_examples(operation='get_syntax_reference') to get syntax documentation
-2. Build your workflow config and steps following the patterns
-3. Call this tool with complete workflow definition
-
-**STEP STRUCTURE:**
-Each step requires: stepSlug, name, stepType, config, nextSteps (order is auto-computed)
-- stepSlug: snake_case unique identifier (e.g., "find_customers")
-- stepType: start | llm | action | condition | loop | output
-- config: Configuration object (varies by stepType)
-- nextSteps: Route to next steps (e.g., {success: "next_step", failure: "error"})
-
-**KEY PATTERNS:**
-- Entity Processing: start -> find_unprocessed -> condition -> process -> record_processed
-- Email Sending: See workflow_examples(operation='get_syntax_reference', category='email')
-- Use 'noop' in nextSteps to gracefully end workflow
-
-**VALIDATION:**
-Built-in validation checks stepTypes, required fields, and nextSteps references.
 
 **APPROVAL:**
 When this tool returns { requiresApproval: true }, do NOT call this tool again.

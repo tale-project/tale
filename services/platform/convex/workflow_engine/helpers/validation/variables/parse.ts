@@ -118,6 +118,26 @@ function parseExpression(
     };
   }
 
+  if (firstPart === 'config') {
+    // Config reference: config.variableName (workflow config variables)
+    return {
+      fullExpression: trimmed,
+      type: 'config',
+      path: parts.slice(1),
+      originalTemplate,
+    };
+  }
+
+  if (firstPart === 'variables') {
+    // Variables reference: variables.variableName (set_variables action output)
+    return {
+      fullExpression: trimmed,
+      type: 'variables',
+      path: parts.slice(1),
+      originalTemplate,
+    };
+  }
+
   // System variables available at runtime
   // Note: Keep this list in sync with the actual system variables injected
   // by the workflow engine (see workflow execution context)

@@ -22,8 +22,14 @@ import { getActionOutputSchema } from './action_schemas';
 import {
   extractStepReferences,
   extractStepReferencesFromCondition,
+  parseVariableReferences,
 } from './parse';
-import { getStepTypeOutputSchema } from './step_schemas';
+import {
+  getStepTypeOutputSchema,
+  llmTextOutputSchema,
+  llmOutputSchema,
+} from './step_schemas';
+import { validateVariableReferencesKnownSources } from './validate_variable_references_known_sources';
 
 // =============================================================================
 // TYPES
@@ -94,6 +100,15 @@ function getOutputSchemaForStep(step: StepInfo): OutputSchema | null {
       return getActionOutputSchema(actionType, operation);
     }
     return null;
+  }
+
+  // LLM steps: config-aware schema based on outputFormat
+  if (step.stepType === 'llm') {
+    if (step.config?.outputFormat === 'json') {
+      return llmOutputSchema;
+    }
+    // Text output (default): data is a plain string
+    return llmTextOutputSchema;
   }
 
   return getStepTypeOutputSchema(step.stepType);
@@ -320,6 +335,15 @@ function validateStepReferencePath(
 
       // Accessing .output.data is the standard pattern
       if (fieldPath.length > 0) {
+        if (schema.isScalar) {
+          // Data is a scalar (e.g., LLM text output is a plain string)
+          errors.push(
+            `Reference "${ref.originalTemplate}" accesses sub-field ".${fieldPath.join('.')}" on "${referencedStep.stepSlug}" output, ` +
+              `but this step's output.data is a plain string (not an object). ` +
+              `Use "{{steps.${ref.stepSlug}.output.data}}" to get the full value.`,
+          );
+          return { valid: false, errors, warnings };
+        }
         if (schema.isArray) {
           // Check if trying to access a property on an array result
           const firstField = fieldPath[0];
@@ -552,6 +576,15 @@ function validateStepVariableReferences(
     errors.push(...refResult.errors);
     warnings.push(...refResult.warnings);
   }
+
+  // Validate that all variable references use recognized source prefixes
+  const allRefs = parseVariableReferences(step.config);
+  const sourceValidation = validateVariableReferencesKnownSources(
+    allRefs,
+    new Set(allSteps.keys()),
+    step.stepSlug,
+  );
+  errors.push(...sourceValidation.errors);
 
   return {
     valid: errors.length === 0,
