@@ -254,7 +254,7 @@
     },
     "documents": {
       "title": "No documents yet",
-      "description": "Import documents to make your AI smarter"
+      "description": "Upload documents to train your AI assistant"
     },
     "vendors": {
       "title": "No vendors yet",
@@ -2282,7 +2282,7 @@
     "searchFilesAndFolders": "Search files and folders",
     "emptyState": {
       "title": "No documents yet",
-      "description": "Import documents to make your AI smarter"
+      "description": "Upload documents to train your AI assistant"
     },
     "searchEmptyState": {
       "title": "No items found",
@@ -2390,7 +2390,7 @@
       "fromComputerDescription": "Upload directly from your device",
       "uploading": "Uploading files...",
       "cancelUpload": "Cancel upload",
-      "importDocuments": "Import documents",
+      "importDocuments": "Upload documents",
       "fromYourDevice": "From your device",
       "fromMicrosoft365": "From Microsoft 365",
       "uploadInProgress": "Upload in progress",
@@ -2404,11 +2404,19 @@
       "filesUploadedSuccessfully": "{count} {count, plural, one {file} other {files}} uploaded successfully",
       "uploadCancelled": "Upload cancelled",
       "uploadFailed": "Upload failed",
-      "filesCompletedSummary": "{completed} / {total} files completed",
-      "selectTeams": "Select team",
+      "uploadFailedRetry": "Upload failed. Please check your connection and try again.",
+      "filesCompletedSummary": "{completed} of {total} files completed",
+      "filesCompletedWithFailures": "{completed} of {total} files completed · {failed} failed",
+      "selectTeams": "Assign to teams",
+      "selectTeamsPlaceholder": "Select teams...",
       "selectTeamsDescription": "Choose which team the uploaded documents belong to",
       "noTeamsAvailable": "You are not a member of any teams",
-      "allMembersHint": "Organization-wide documents are accessible to everyone in the organization."
+      "allMembersHint": "Organization-wide documents are accessible to everyone in the organization.",
+      "dropZoneTitle": "Upload a file",
+      "dropZoneDescription": "PDF, DOCX, XLSX, CSV up to {maxSize} MB",
+      "retryUpload": "Retry upload",
+      "retry": "Retry",
+      "documentsUploadedSuccessfully": "{count} {count, plural, one {document} other {documents}} uploaded successfully"
     },
     "import": {
       "noResponseBody": "No response body received"

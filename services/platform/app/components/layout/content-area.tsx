@@ -5,7 +5,7 @@ import { forwardRef, type HTMLAttributes } from 'react';
 
 import { cn } from '@/lib/utils/cn';
 
-const contentAreaVariants = cva('flex w-full flex-col', {
+const contentAreaVariants = cva('flex min-w-0 w-full flex-col', {
   variants: {
     variant: {
       page: 'px-4 py-6',

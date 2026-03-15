@@ -721,7 +721,7 @@ export function DataTable<TData, TValue = unknown>({
         )}
         <div
           ref={scrollContainerRef}
-          className="border-border min-h-0 overflow-auto rounded-xl border"
+          className="border-border min-h-0 overflow-auto overscroll-contain rounded-xl border"
         >
           {tableContent}
           {infiniteScrollContent}

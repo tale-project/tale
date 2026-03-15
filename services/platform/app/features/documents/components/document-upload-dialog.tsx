@@ -1,19 +1,12 @@
 'use client';
 
-import { Users, Upload, X, FileText } from 'lucide-react';
-import { useState, useCallback } from 'react';
+import { CircleCheck, RotateCw, Upload } from 'lucide-react';
+import { useState, useCallback, useMemo } from 'react';
 
-import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
-import { EmptyPlaceholder } from '@/app/components/ui/feedback/empty-placeholder';
-import { ProgressBar } from '@/app/components/ui/feedback/progress-bar';
+import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Spinner } from '@/app/components/ui/feedback/spinner';
-import { Description } from '@/app/components/ui/forms/description';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
-import { FormSection } from '@/app/components/ui/forms/form-section';
-import { Select } from '@/app/components/ui/forms/select';
-import { Center, Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
-import { Text } from '@/app/components/ui/typography/text';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { toast } from '@/app/hooks/use-toast';
@@ -26,6 +19,12 @@ import { cn } from '@/lib/utils/cn';
 import { formatBytes } from '@/lib/utils/format/number';
 
 import { useDocumentUpload } from '../hooks/mutations';
+import { TeamMultiSelect } from './team-multi-select';
+import { UploadFileRow } from './upload-file-row';
+
+// ---------------------------------------------------------------------------
+// Props
+// ---------------------------------------------------------------------------
 
 interface DocumentUploadDialogProps {
   open: boolean;
@@ -34,6 +33,10 @@ interface DocumentUploadDialogProps {
   folderId?: string;
   onSuccess?: () => void;
 }
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 
 export function DocumentUploadDialog({
   open,
@@ -46,36 +49,53 @@ export function DocumentUploadDialog({
   const { t: tCommon } = useT('common');
   const { selectedTeamId } = useTeamFilter();
 
-  const [selectedTeamId_local, setSelectedTeamId_local] = useState<
-    string | undefined
-  >(() => selectedTeamId ?? undefined);
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>(() =>
+    selectedTeamId ? [selectedTeamId] : [],
+  );
 
   const { teams, isLoading: isLoadingTeams } = useTeams();
 
-  const { uploadFiles, isUploading, uploadProgress } = useDocumentUpload({
+  const {
+    uploadFiles,
+    retryFile,
+    retryAllFailed,
+    isUploading,
+    trackedFiles,
+    removeTrackedFile,
+    clearTrackedFiles,
+    cancelUpload,
+    completedCount,
+    failedCount,
+    totalCount,
+    allCompleted,
+    hasFailures,
+  } = useDocumentUpload({
     organizationId,
     onSuccess: () => {
       onSuccess?.();
-      onOpenChange(false);
     },
   });
 
-  // Reset state when dialog closes
+  // Derived state
+  const hasFiles = trackedFiles.length > 0;
+  const isActive = isUploading || hasFiles;
+  const totalSize = useMemo(
+    () => trackedFiles.reduce((sum, f) => sum + f.file.size, 0),
+    [trackedFiles],
+  );
+
+  // Handlers
   const handleOpenChange = useCallback(
     (newOpen: boolean) => {
+      if (!newOpen && isUploading) return; // Block close while uploading
       if (!newOpen) {
-        setSelectedTeamId_local(selectedTeamId ?? undefined);
-        setSelectedFiles([]);
+        clearTrackedFiles();
+        setSelectedTeamIds(selectedTeamId ? [selectedTeamId] : []);
       }
       onOpenChange(newOpen);
     },
-    [onOpenChange, selectedTeamId],
+    [onOpenChange, isUploading, clearTrackedFiles, selectedTeamId],
   );
-
-  const handleSelectTeam = useCallback((teamId: string | undefined) => {
-    setSelectedTeamId_local(teamId);
-  }, []);
 
   const processFiles = useCallback(
     (files: File[]) => {
@@ -83,18 +103,11 @@ export function DocumentUploadDialog({
 
       const maxSizeMB = DOCUMENT_MAX_FILE_SIZE / (1024 * 1024);
       const validFiles: File[] = [];
-      const rejectedFiles: File[] = [];
 
       for (const file of files) {
         if (file.size <= DOCUMENT_MAX_FILE_SIZE) {
           validFiles.push(file);
         } else {
-          rejectedFiles.push(file);
-        }
-      }
-
-      if (rejectedFiles.length > 0) {
-        for (const file of rejectedFiles) {
           const currentSizeMB = (file.size / (1024 * 1024)).toFixed(1);
           toast({
             title: tDocuments('upload.fileTooLarge'),
@@ -108,43 +121,57 @@ export function DocumentUploadDialog({
         }
       }
 
-      setSelectedFiles((prev) => [...prev, ...validFiles]);
+      if (validFiles.length > 0) {
+        void uploadFiles(validFiles, {
+          teamIds: selectedTeamIds.length > 0 ? selectedTeamIds : undefined,
+          folderId,
+        });
+      }
     },
-    [tDocuments],
+    [tDocuments, uploadFiles, selectedTeamIds, folderId],
   );
 
-  const handleRemoveFile = useCallback((index: number) => {
-    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
-  }, []);
+  const handleTeamSelectionChange = useCallback(
+    (teamIds: string[]) => {
+      setSelectedTeamIds(teamIds);
+      clearTrackedFiles();
+    },
+    [clearTrackedFiles],
+  );
 
-  const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault();
+  const handleCancel = useCallback(() => {
+    cancelUpload();
+    clearTrackedFiles();
+  }, [cancelUpload, clearTrackedFiles]);
 
-      if (selectedFiles.length === 0) return;
+  const handleRetryAll = useCallback(() => {
+    void retryAllFailed({
+      teamIds: selectedTeamIds.length > 0 ? selectedTeamIds : undefined,
+      folderId,
+    });
+  }, [retryAllFailed, selectedTeamIds, folderId]);
 
-      await uploadFiles(selectedFiles, {
-        teamId: selectedTeamId_local,
+  const handleRetryFile = useCallback(
+    (fileId: string) => {
+      void retryFile(fileId, {
+        teamIds: selectedTeamIds.length > 0 ? selectedTeamIds : undefined,
         folderId,
       });
     },
-    [selectedFiles, selectedTeamId_local, folderId, uploadFiles],
+    [retryFile, selectedTeamIds, folderId],
   );
 
+  const maxSizeMB = DOCUMENT_MAX_FILE_SIZE / (1024 * 1024);
+
   return (
-    <FormDialog
+    <Dialog
       open={open}
       onOpenChange={handleOpenChange}
       title={tDocuments('upload.importDocuments')}
-      submitText={tCommon('actions.upload')}
-      submittingText={tDocuments('upload.uploading')}
-      isSubmitting={isUploading}
-      isDirty={selectedFiles.length > 0}
-      onSubmit={handleSubmit}
-      large
+      size="md"
     >
-      <Stack gap={4}>
-        {/* File selection area */}
+      <div className="flex min-w-0 flex-col gap-4 pt-2">
+        {/* Drop zone */}
         <FileUpload.Root>
           <FileUpload.DropZone
             onFilesSelected={processFiles}
@@ -153,131 +180,136 @@ export function DocumentUploadDialog({
             disabled={isUploading}
             inputId="document-file-upload"
             className={cn(
-              'relative border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors',
-              'hover:border-primary hover:bg-accent/50',
+              'relative flex flex-col items-center justify-center gap-2 rounded-lg border bg-muted/30 py-8 px-4 text-center cursor-pointer transition-colors',
+              'hover:border-primary/40 hover:bg-muted/50',
               'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
               isUploading && 'opacity-50 cursor-not-allowed',
             )}
           >
             <FileUpload.Overlay className="rounded-lg" />
-            <Upload className="text-muted-foreground mx-auto mb-2 size-8" />
-            <Text variant="label">{tCommon('upload.clickToUpload')}</Text>
-            <Text variant="caption" className="mt-1">
-              {tDocuments('upload.fromComputerDescription')}
-            </Text>
+            <Upload className="text-muted-foreground size-6" />
+            <span className="text-foreground text-sm font-medium">
+              {tDocuments('upload.dropZoneTitle')}
+            </span>
+            <span className="text-muted-foreground text-xs">
+              {tDocuments('upload.dropZoneDescription', {
+                maxSize: maxSizeMB.toString(),
+              })}
+            </span>
           </FileUpload.DropZone>
         </FileUpload.Root>
 
-        {/* Selected files list */}
-        {selectedFiles.length > 0 && (
-          <Stack gap={2}>
-            <Text variant="label">
-              {tDocuments('upload.uploadingCount', {
-                count: selectedFiles.length,
-              })}
-            </Text>
-            <Stack gap={1} className="max-h-32 overflow-y-auto">
-              {selectedFiles.map((file, index) => (
-                <div
-                  key={`${file.name}-${index}`}
-                  className="bg-muted/50 flex items-start gap-2 rounded-md p-2"
-                >
-                  <FileText className="text-muted-foreground mt-0.5 size-4 shrink-0" />
-                  <Text
-                    as="span"
-                    variant="body"
-                    className="min-w-0 flex-1 wrap-anywhere"
-                  >
-                    {file.name}
-                  </Text>
-                  <Text
-                    as="span"
-                    variant="caption"
-                    className="shrink-0 leading-6 whitespace-nowrap"
-                  >
-                    {formatBytes(file.size)}
-                  </Text>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="size-6 shrink-0 p-0"
-                    onClick={() => handleRemoveFile(index)}
-                    disabled={isUploading}
-                  >
-                    <X className="size-3" />
-                    <span className="sr-only">{tCommon('actions.delete')}</span>
-                  </Button>
-                </div>
-              ))}
-            </Stack>
-          </Stack>
-        )}
-
-        {/* Upload progress */}
-        {isUploading && uploadProgress && (
-          <Stack gap={1}>
-            <ProgressBar
-              value={uploadProgress.bytesLoaded}
-              max={uploadProgress.bytesTotal}
-              label={tDocuments('upload.uploading')}
-              tooltipContent={tDocuments('upload.filesCompletedSummary', {
-                completed: uploadProgress.completedFiles,
-                total: uploadProgress.totalFiles,
-              })}
-            />
-            <Text
-              variant="caption"
-              className="text-muted-foreground"
-              aria-live="polite"
-            >
-              {formatBytes(uploadProgress.bytesLoaded)} /{' '}
-              {formatBytes(uploadProgress.bytesTotal)}
-              {uploadProgress.totalFiles > 1 &&
-                ` · ${tDocuments('upload.filesCompletedSummary', {
-                  completed: uploadProgress.completedFiles,
-                  total: uploadProgress.totalFiles,
-                })}`}
-            </Text>
-          </Stack>
-        )}
-
         {/* Team selection */}
-        <FormSection
-          label={tDocuments('upload.selectTeams')}
-          description={tDocuments('upload.selectTeamsDescription')}
-        >
+        <div className="flex flex-col gap-2">
+          <span className="text-muted-foreground text-sm font-medium">
+            {tDocuments('upload.selectTeams')}
+          </span>
           {isLoadingTeams ? (
-            <Center className="py-4">
+            <div className="flex items-center justify-center py-3">
               <Spinner size="sm" label={tCommon('actions.loading')} />
-            </Center>
-          ) : !teams || teams.length === 0 ? (
-            <EmptyPlaceholder icon={Users}>
-              {tDocuments('upload.noTeamsAvailable')}
-            </EmptyPlaceholder>
+            </div>
           ) : (
-            <Select
-              value={selectedTeamId_local ?? 'org-wide'}
-              onValueChange={(value) =>
-                handleSelectTeam(value === 'org-wide' ? undefined : value)
-              }
+            <TeamMultiSelect
+              teams={teams ?? []}
+              selectedTeamIds={selectedTeamIds}
+              onSelectionChange={handleTeamSelectionChange}
+              orgWideLabel={tDocuments('teamTags.orgWide')}
               disabled={isUploading}
-              options={[
-                {
-                  value: 'org-wide',
-                  label: tDocuments('teamTags.orgWide'),
-                },
-                ...teams.map((team: { id: string; name: string }) => ({
-                  value: team.id,
-                  label: team.name,
-                })),
-              ]}
             />
           )}
+        </div>
 
-          <Description>{tDocuments('upload.allMembersHint')}</Description>
-        </FormSection>
-      </Stack>
-    </FormDialog>
+        {/* Upload progress summary */}
+        {hasFiles && totalCount > 1 && (
+          <span className="text-muted-foreground text-[13px] font-medium">
+            {hasFailures
+              ? tDocuments('upload.filesCompletedWithFailures', {
+                  completed: completedCount,
+                  total: totalCount,
+                  failed: failedCount,
+                })
+              : tDocuments('upload.filesCompletedSummary', {
+                  completed: completedCount,
+                  total: totalCount,
+                })}
+          </span>
+        )}
+
+        {/* Success banner */}
+        {allCompleted && (
+          <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2">
+            <CircleCheck className="size-4 shrink-0 text-green-700" />
+            <span className="flex-1 text-[13px] font-medium text-green-700">
+              {tDocuments('upload.documentsUploadedSuccessfully', {
+                count: completedCount,
+              })}
+            </span>
+            <span className="shrink-0 text-xs text-green-600">
+              {formatBytes(totalSize)}
+            </span>
+          </div>
+        )}
+
+        {/* File list */}
+        {hasFiles && (
+          <div className="flex max-h-52 flex-col gap-1 overflow-y-auto">
+            {trackedFiles.map((tracked) => (
+              <UploadFileRow
+                key={tracked.id}
+                fileName={tracked.file.name}
+                fileSize={tracked.file.size}
+                status={tracked.status}
+                bytesLoaded={tracked.bytesLoaded}
+                bytesTotal={tracked.bytesTotal}
+                error={tracked.error}
+                onRetry={() => handleRetryFile(tracked.id)}
+                onRemove={
+                  tracked.status === 'pending' || tracked.status === 'completed'
+                    ? () => removeTrackedFile(tracked.id)
+                    : undefined
+                }
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Footer actions */}
+        {isActive && (
+          <div className="flex items-center justify-end gap-2">
+            {hasFailures && !isUploading && (
+              <>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => handleOpenChange(false)}
+                >
+                  {tCommon('actions.cancel')}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleRetryAll}
+                  className="gap-1.5"
+                >
+                  <RotateCw className="size-3.5" />
+                  {tDocuments('upload.retryUpload')}
+                </Button>
+              </>
+            )}
+            {isUploading && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={handleCancel}
+              >
+                {tDocuments('upload.cancelUpload')}
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+    </Dialog>
   );
 }
