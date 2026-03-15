@@ -45,6 +45,8 @@ interface EntityRowActionsProps {
   contentWidth?: string;
   /** Alignment of dropdown */
   align?: 'start' | 'center' | 'end';
+  /** Whether the entire menu trigger is disabled */
+  disabled?: boolean;
 }
 
 /**
@@ -68,6 +70,7 @@ export const EntityRowActions = React.memo(function EntityRowActions({
   triggerClassName,
   contentWidth = 'w-[10rem]',
   align = 'end',
+  disabled = false,
 }: EntityRowActionsProps) {
   const { t: tCommon } = useT('common');
   const [isOpen, setIsOpen] = useState(false);
@@ -115,13 +118,14 @@ export const EntityRowActions = React.memo(function EntityRowActions({
           icon={MoreVertical}
           aria-label={ariaLabel || tCommon('actions.openMenu')}
           className={triggerClassName}
+          disabled={disabled}
         />
       }
       items={menuItems}
       align={align}
       contentClassName={contentWidth}
-      open={isOpen}
-      onOpenChange={setIsOpen}
+      open={disabled ? false : isOpen}
+      onOpenChange={disabled ? undefined : setIsOpen}
     />
   );
 });

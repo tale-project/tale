@@ -16,6 +16,7 @@ import type {
   CrawlerSearchResult,
 } from '@/convex/websites/types';
 
+import { CopyableTimestamp } from '@/app/components/ui/data-display/copyable-timestamp';
 import {
   type StatGridItem,
   StatGrid,
@@ -143,7 +144,7 @@ function PageRow({
               <Text variant="caption" className="mb-1 block font-medium">
                 {t('pagesDialog.chunkIndex', { index: chunk.chunk_index + 1 })}
               </Text>
-              <Text className="text-sm break-words whitespace-pre-wrap">
+              <Text className="max-h-48 overflow-y-auto text-sm wrap-break-word whitespace-pre-wrap">
                 {chunk.chunk_content}
               </Text>
             </div>
@@ -184,7 +185,7 @@ function SearchResultItem({ result }: { result: CrawlerSearchResult }) {
           <Text variant="caption" className="mb-1 block font-medium">
             {t('pagesDialog.chunkIndex', { index: result.chunk_index + 1 })}
           </Text>
-          <Text className="text-sm break-words whitespace-pre-wrap">
+          <Text className="max-h-48 overflow-y-auto text-sm wrap-break-word whitespace-pre-wrap">
             {result.chunk_content}
           </Text>
         </div>
@@ -350,12 +351,10 @@ export function ViewWebsiteDialog({
       },
       {
         label: t('viewDialog.lastScanned'),
-        value: (
-          <Text>
-            {website.lastScannedAt
-              ? formatDate(new Date(website.lastScannedAt), 'long')
-              : t('viewDialog.notScannedYet')}
-          </Text>
+        value: website.lastScannedAt ? (
+          <CopyableTimestamp date={website.lastScannedAt} preset="long" />
+        ) : (
+          <Text>{t('viewDialog.notScannedYet')}</Text>
         ),
       },
       {
@@ -445,20 +444,22 @@ export function ViewWebsiteDialog({
         ) : (
           <>
             {isFirstLoad && isPending && (
-              <>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 <PageSkeleton />
                 <PageSkeleton />
                 <PageSkeleton />
-              </>
+              </div>
             )}
 
             {!isFirstLoad && pages.length === 0 && (
               <EmptyState icon={FileText} title={t('pagesDialog.noPages')} />
             )}
 
-            {pages.map((page) => (
-              <PageRow key={page.url} page={page} websiteId={website._id} />
-            ))}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {pages.map((page) => (
+                <PageRow key={page.url} page={page} websiteId={website._id} />
+              ))}
+            </div>
 
             {hasMore && (
               <div className="flex justify-center pt-2">

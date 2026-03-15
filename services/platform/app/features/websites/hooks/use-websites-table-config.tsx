@@ -2,7 +2,7 @@
 
 import { Globe, Loader } from 'lucide-react';
 
-import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
+import { CopyableTimestamp } from '@/app/components/ui/data-display/copyable-timestamp';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { HStack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
@@ -94,9 +94,9 @@ export const useWebsitesTableConfig = createTableConfigHook<'websites'>(
       meta: { headerLabel: tTables('headers.scanned') },
       cell: ({ row }) =>
         row.original.lastScannedAt ? (
-          <TableDateCell
+          <CopyableTimestamp
             date={row.original.lastScannedAt}
-            preset="short"
+            preset="long"
             alignRight
           />
         ) : (
