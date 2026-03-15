@@ -1,8 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
-
-import type { Id } from '@/convex/_generated/dataModel';
+import { useState, useRef, useCallback } from 'react';
 
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { toast } from '@/app/hooks/use-toast';
@@ -24,6 +22,21 @@ async function calculateFileHash(file: File): Promise<string> {
   return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export type FileUploadStatus = 'pending' | 'uploading' | 'completed' | 'failed';
+
+export interface TrackedFile {
+  id: string;
+  file: File;
+  status: FileUploadStatus;
+  bytesLoaded: number;
+  bytesTotal: number;
+  error?: string;
+}
+
 interface FileInfo {
   name: string;
   storagePath: string;
@@ -37,14 +50,9 @@ interface UploadResult {
   error?: string;
 }
 
-interface UploadFilesOptions {
-  teamId?: string;
+export interface UploadFilesOptions {
+  teamIds?: string[];
   folderId?: string;
-}
-
-interface CreateDocumentResult {
-  success: boolean;
-  documentId: Id<'documents'>;
 }
 
 interface UploadOptions {
@@ -53,19 +61,10 @@ interface UploadOptions {
   onError?: (error: string) => void;
 }
 
-export interface UploadProgress {
-  completedFiles: number;
-  totalFiles: number;
-  /** Aggregate bytes loaded across all files */
-  bytesLoaded: number;
-  /** Aggregate bytes total across all files */
-  bytesTotal: number;
-}
+// ---------------------------------------------------------------------------
+// Upload with XHR for byte-level progress
+// ---------------------------------------------------------------------------
 
-/**
- * Upload a file via XMLHttpRequest to get byte-level progress.
- * Returns a promise that resolves with the parsed JSON response.
- */
 function uploadWithProgress(
   url: string,
   file: File,
@@ -109,14 +108,25 @@ function uploadWithProgress(
   });
 }
 
+// ---------------------------------------------------------------------------
+// Unique ID generator for tracked files
+// ---------------------------------------------------------------------------
+
+let fileIdCounter = 0;
+function generateFileId(): string {
+  return `file-${Date.now()}-${++fileIdCounter}`;
+}
+
+// ---------------------------------------------------------------------------
+// Hook
+// ---------------------------------------------------------------------------
+
 export function useDocumentUpload(options: UploadOptions) {
   const { t } = useT('documents');
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(
-    null,
-  );
+  const [trackedFiles, setTrackedFiles] = useState<TrackedFile[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const perFileLoadedRef = useRef<number[]>([]);
+
   const { mutateAsync: generateUploadUrl } = useConvexMutation(
     api.files.mutations.generateUploadUrl,
   );
@@ -124,229 +134,295 @@ export function useDocumentUpload(options: UploadOptions) {
     api.documents.mutations.createDocumentFromUpload,
   );
 
-  const uploadFiles = async (
-    files: File[],
-    uploadOptions?: UploadFilesOptions,
-  ): Promise<UploadResult> => {
-    if (isUploading) {
-      toast({
-        title: t('upload.uploadInProgress'),
-        description: t('upload.pleaseWaitForUpload'),
-      });
-      return { success: false, error: 'Upload already in progress' };
-    }
+  const updateFileStatus = useCallback(
+    (fileId: string, updates: Partial<TrackedFile>) => {
+      setTrackedFiles((prev) =>
+        prev.map((f) => (f.id === fileId ? { ...f, ...updates } : f)),
+      );
+    },
+    [],
+  );
 
-    // Validate files
-    if (!files || files.length === 0) {
-      const error = t('upload.noFilesSelected');
-      toast({
-        title: t('upload.uploadFailed'),
-        description: error,
-        variant: 'destructive',
-      });
-      return { success: false, error };
-    }
+  const removeTrackedFile = useCallback((fileId: string) => {
+    setTrackedFiles((prev) => prev.filter((f) => f.id !== fileId));
+  }, []);
 
-    // Check file sizes
-    for (const file of files) {
-      if (file.size > DOCUMENT_MAX_FILE_SIZE) {
-        const maxSizeMB = DOCUMENT_MAX_FILE_SIZE / (1024 * 1024);
-        const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
-        const error = t('upload.fileSizeExceeded', {
-          name: file.name,
-          maxSize: maxSizeMB,
-          currentSize: fileSizeMB,
-        });
-        toast({
-          title: t('upload.fileTooLarge'),
-          description: error,
-          variant: 'destructive',
-        });
-        return { success: false, error };
-      }
-    }
+  const clearTrackedFiles = useCallback(() => {
+    setTrackedFiles([]);
+  }, []);
 
-    // Create abort controller for this upload
-    abortControllerRef.current = new AbortController();
+  const uploadSingleFile = useCallback(
+    async (
+      tracked: TrackedFile,
+      uploadOptions: UploadFilesOptions | undefined,
+    ): Promise<boolean> => {
+      const { file, id: fileId } = tracked;
 
-    try {
-      setIsUploading(true);
+      updateFileStatus(fileId, { status: 'uploading' });
 
-      const totalBytes = files.reduce((sum, f) => sum + f.size, 0);
-      perFileLoadedRef.current = new Array(files.length).fill(0);
-      setUploadProgress({
-        completedFiles: 0,
-        totalFiles: files.length,
-        bytesLoaded: 0,
-        bytesTotal: totalBytes,
-      });
-
-      // Show upload started toast
-      toast({
-        title: t('upload.uploadStarted'),
-        description: t('upload.uploadingCount', { count: files.length }),
-      });
-
-      let completedFiles = 0;
-
-      // Upload files using XHR for byte-level progress
-      const uploadPromises = files.map(async (file, fileIndex) => {
+      try {
         const resolvedType =
           resolveFileType(file.name, file.type) || 'application/octet-stream';
 
-        // Step 1: Calculate content hash for deduplication
         const contentHash = await calculateFileHash(file);
-
-        // Step 2: Get upload URL from Convex
         const uploadUrl = await generateUploadUrl({});
 
-        // Step 3: Upload file with progress tracking
         const { storageId } = await uploadWithProgress(
           uploadUrl,
           file,
           resolvedType,
           abortControllerRef.current?.signal,
-          (loaded) => {
-            perFileLoadedRef.current[fileIndex] = loaded;
-            const bytesLoaded = perFileLoadedRef.current.reduce(
-              (sum, v) => sum + v,
-              0,
-            );
-            setUploadProgress((prev) =>
-              prev ? { ...prev, bytesLoaded } : prev,
-            );
+          (loaded, total) => {
+            updateFileStatus(fileId, {
+              bytesLoaded: loaded,
+              bytesTotal: total,
+            });
           },
         );
 
-        // Step 4: Create document record in database
-        const result = await createDocumentFromUpload({
-          organizationId: options.organizationId,
-          fileId: toId<'_storage'>(storageId),
-          fileName: file.name,
-          contentType: resolvedType,
-          contentHash,
-          metadata: {
-            size: file.size,
-            sourceProvider: 'upload',
-            sourceMode: 'manual',
-          },
-          teamId: uploadOptions?.teamId,
-          folderId: uploadOptions?.folderId
-            ? toId<'folders'>(uploadOptions.folderId)
-            : undefined,
-          fileSize: file.size,
+        // Create document records — one per team, or one org-wide
+        const teamIds = uploadOptions?.teamIds;
+        if (teamIds && teamIds.length > 0) {
+          for (const teamId of teamIds) {
+            await createDocumentFromUpload({
+              organizationId: options.organizationId,
+              fileId: toId<'_storage'>(storageId),
+              fileName: file.name,
+              contentType: resolvedType,
+              contentHash,
+              metadata: {
+                size: file.size,
+                sourceProvider: 'upload',
+                sourceMode: 'manual',
+              },
+              teamId,
+              folderId: uploadOptions?.folderId
+                ? toId<'folders'>(uploadOptions.folderId)
+                : undefined,
+              fileSize: file.size,
+            });
+          }
+        } else {
+          await createDocumentFromUpload({
+            organizationId: options.organizationId,
+            fileId: toId<'_storage'>(storageId),
+            fileName: file.name,
+            contentType: resolvedType,
+            contentHash,
+            metadata: {
+              size: file.size,
+              sourceProvider: 'upload',
+              sourceMode: 'manual',
+            },
+            teamId: undefined,
+            folderId: uploadOptions?.folderId
+              ? toId<'folders'>(uploadOptions.folderId)
+              : undefined,
+            fileSize: file.size,
+          });
+        }
+
+        updateFileStatus(fileId, {
+          status: 'completed',
+          bytesLoaded: file.size,
+          bytesTotal: file.size,
+        });
+        return true;
+      } catch (error) {
+        const isCancellation =
+          (error instanceof Error && error.name === 'AbortError') ||
+          (error instanceof DOMException && error.name === 'AbortError');
+
+        if (isCancellation) {
+          updateFileStatus(fileId, { status: 'pending', bytesLoaded: 0 });
+          return false;
+        }
+
+        updateFileStatus(fileId, {
+          status: 'failed',
+          error: t('upload.uploadFailedRetry'),
+        });
+        return false;
+      }
+    },
+    [
+      generateUploadUrl,
+      createDocumentFromUpload,
+      options.organizationId,
+      updateFileStatus,
+      t,
+    ],
+  );
+
+  const uploadFiles = useCallback(
+    async (
+      files: File[],
+      uploadOptions?: UploadFilesOptions,
+    ): Promise<UploadResult> => {
+      if (isUploading) {
+        toast({
+          title: t('upload.uploadInProgress'),
+          description: t('upload.pleaseWaitForUpload'),
+        });
+        return { success: false, error: 'Upload already in progress' };
+      }
+
+      if (!files || files.length === 0) {
+        const error = t('upload.noFilesSelected');
+        toast({
+          title: t('upload.uploadFailed'),
+          description: error,
+          variant: 'destructive',
+        });
+        return { success: false, error };
+      }
+
+      // Validate file sizes
+      for (const file of files) {
+        if (file.size > DOCUMENT_MAX_FILE_SIZE) {
+          const maxSizeMB = DOCUMENT_MAX_FILE_SIZE / (1024 * 1024);
+          const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
+          toast({
+            title: t('upload.fileTooLarge'),
+            description: t('upload.fileSizeExceeded', {
+              name: file.name,
+              maxSize: maxSizeMB,
+              currentSize: fileSizeMB,
+            }),
+            variant: 'destructive',
+          });
+          return { success: false, error: t('upload.fileTooLarge') };
+        }
+      }
+
+      abortControllerRef.current = new AbortController();
+
+      // Create tracked files
+      const newTracked: TrackedFile[] = files.map((file) => ({
+        id: generateFileId(),
+        file,
+        status: 'pending' as const,
+        bytesLoaded: 0,
+        bytesTotal: file.size,
+      }));
+
+      setTrackedFiles(newTracked);
+      setIsUploading(true);
+
+      try {
+        let allSuccess = true;
+
+        // Upload sequentially so we can show individual progress
+        for (const tracked of newTracked) {
+          if (abortControllerRef.current?.signal.aborted) break;
+          const success = await uploadSingleFile(tracked, uploadOptions);
+          if (!success) allSuccess = false;
+        }
+
+        if (allSuccess) {
+          options.onSuccess?.({
+            name: files[0].name,
+            storagePath: '',
+            size: files[0].size,
+          });
+        }
+
+        return { success: allSuccess };
+      } catch (error) {
+        console.error('Failed to upload documents:', error);
+
+        const isCancellation =
+          (error instanceof Error && error.name === 'AbortError') ||
+          (error instanceof DOMException && error.name === 'AbortError');
+
+        if (isCancellation) {
+          return { success: false, error: t('upload.uploadCancelled') };
+        }
+
+        toast({
+          title: t('upload.uploadFailed'),
+          variant: 'destructive',
         });
 
-        completedFiles++;
-        setUploadProgress((prev) =>
-          prev ? { ...prev, completedFiles } : prev,
-        );
-
-        return result;
-      });
-
-      const results = await Promise.all(uploadPromises);
-
-      // Check if all uploads were successful
-      const failedUploads = results.filter(
-        (result: CreateDocumentResult) => !result.success,
-      );
-      if (failedUploads.length > 0) {
-        throw new Error(t('upload.uploadFailed'));
+        options.onError?.(t('upload.uploadFailed'));
+        return { success: false, error: t('upload.uploadFailed') };
+      } finally {
+        setIsUploading(false);
+        abortControllerRef.current = null;
       }
+    },
+    [isUploading, t, uploadSingleFile, options],
+  );
 
-      // Show success toast
-      toast({
-        title: t('upload.uploadSuccessful'),
-        description: t('upload.filesUploadedSuccessfully', {
-          count: files.length,
-        }),
-        variant: 'success',
-      });
+  const retryFile = useCallback(
+    async (fileId: string, uploadOptions?: UploadFilesOptions) => {
+      const tracked = trackedFiles.find((f) => f.id === fileId);
+      if (!tracked || tracked.status !== 'failed') return;
 
-      // Call success callback for the first file
-      const firstResult = results[0];
-      if (firstResult.success && firstResult.documentId) {
-        const fileInfo: FileInfo = {
-          name: files[0].name,
-          storagePath: `documents/${firstResult.documentId}`,
-          size: files[0].size,
-        };
-        options.onSuccess?.(fileInfo);
+      abortControllerRef.current = new AbortController();
+      setIsUploading(true);
+
+      try {
+        await uploadSingleFile(tracked, uploadOptions);
+      } finally {
+        setIsUploading(false);
+        abortControllerRef.current = null;
       }
+    },
+    [trackedFiles, uploadSingleFile],
+  );
 
-      return {
-        success: true,
-        fileInfo: {
-          name: files[0].name,
-          storagePath: `documents/${firstResult.documentId}`,
-          size: files[0].size,
-        },
-      };
-    } catch (error) {
-      console.error('Failed to upload document:', error);
+  const retryAllFailed = useCallback(
+    async (uploadOptions?: UploadFilesOptions) => {
+      const failedFiles = trackedFiles.filter((f) => f.status === 'failed');
+      if (failedFiles.length === 0) return;
 
-      // Check if the error is due to cancellation
-      const isCancellationError =
-        (error instanceof Error && error.name === 'AbortError') ||
-        (error instanceof DOMException && error.name === 'AbortError');
+      abortControllerRef.current = new AbortController();
+      setIsUploading(true);
 
-      if (isCancellationError) {
-        return {
-          success: false,
-          error: t('upload.uploadCancelled'),
-        };
+      try {
+        for (const tracked of failedFiles) {
+          if (abortControllerRef.current?.signal.aborted) break;
+          await uploadSingleFile(tracked, uploadOptions);
+        }
+      } finally {
+        setIsUploading(false);
+        abortControllerRef.current = null;
       }
+    },
+    [trackedFiles, uploadSingleFile],
+  );
 
-      const errorMessage = t('upload.uploadFailed');
-
-      toast({
-        title: errorMessage,
-        variant: 'destructive',
-      });
-
-      options.onError?.(errorMessage);
-
-      return {
-        success: false,
-        error: errorMessage,
-      };
-    } finally {
-      setIsUploading(false);
-      setUploadProgress(null);
-      perFileLoadedRef.current = [];
-      abortControllerRef.current = null;
-    }
-  };
-
-  const uploadFile = async (
-    file: File,
-    uploadOptions?: UploadFilesOptions,
-  ): Promise<UploadResult> => {
-    return uploadFiles([file], uploadOptions);
-  };
-
-  const uploadMultipleFiles = async (
-    files: File[],
-    uploadOptions?: UploadFilesOptions,
-  ): Promise<UploadResult> => {
-    return uploadFiles(files, uploadOptions);
-  };
-
-  const cancelUpload = () => {
+  const cancelUpload = useCallback(() => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
-  };
+  }, []);
+
+  // Computed stats
+  const completedCount = trackedFiles.filter(
+    (f) => f.status === 'completed',
+  ).length;
+  const failedCount = trackedFiles.filter((f) => f.status === 'failed').length;
+  const totalCount = trackedFiles.length;
+  const allCompleted = totalCount > 0 && completedCount === totalCount;
+  const hasFailures = failedCount > 0;
 
   return {
-    uploadFile,
-    uploadMultipleFiles,
     uploadFiles,
+    retryFile,
+    retryAllFailed,
     isUploading,
-    uploadProgress,
+    trackedFiles,
+    removeTrackedFile,
+    clearTrackedFiles,
     cancelUpload,
+    completedCount,
+    failedCount,
+    totalCount,
+    allCompleted,
+    hasFailures,
   };
 }
 
