@@ -95,8 +95,8 @@ export const useWebsitesTableConfig = createTableConfigHook<'websites'>(
       cell: ({ row }) =>
         row.original.lastScannedAt ? (
           <CopyableTimestamp
-          date={row.original.lastScannedAt}
-          preset="long"
+            date={row.original.lastScannedAt}
+            preset="long"
             alignRight
           />
         ) : (
