@@ -16,8 +16,10 @@ import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
-import { useExecuteApprovedIntegrationOperation } from '@/app/features/approvals/hooks/actions';
-import { useUpdateApprovalStatus } from '@/app/features/approvals/hooks/mutations';
+import {
+  useExecuteApprovedIntegrationOperation,
+  useUpdateApprovalStatus,
+} from '@/app/features/chat/hooks/mutations';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { Id } from '@/convex/_generated/dataModel';
 import { IntegrationOperationMetadata } from '@/convex/approvals/types';

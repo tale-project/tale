@@ -22,8 +22,10 @@ import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
-import { useExecuteApprovedWorkflowUpdate } from '@/app/features/approvals/hooks/actions';
-import { useUpdateApprovalStatus } from '@/app/features/approvals/hooks/mutations';
+import {
+  useExecuteApprovedWorkflowUpdate,
+  useUpdateApprovalStatus,
+} from '@/app/features/chat/hooks/mutations';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useCopyButton } from '@/app/hooks/use-copy';
 import { Id } from '@/convex/_generated/dataModel';
