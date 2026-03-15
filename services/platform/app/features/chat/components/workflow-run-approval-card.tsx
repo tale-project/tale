@@ -22,8 +22,10 @@ import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
-import { useExecuteApprovedWorkflowRun } from '@/app/features/approvals/hooks/actions';
-import { useUpdateApprovalStatus } from '@/app/features/approvals/hooks/mutations';
+import {
+  useExecuteApprovedWorkflowRun,
+  useUpdateApprovalStatus,
+} from '@/app/features/chat/hooks/mutations';
 import {
   useCancelExecution,
   useExecutionStatus,

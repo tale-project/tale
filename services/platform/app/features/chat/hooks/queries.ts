@@ -10,7 +10,6 @@ import type {
 import type { HumanInputRequestMetadata } from '@/lib/shared/schemas/approvals';
 import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 
-import { useApprovals } from '@/app/features/approvals/hooks/queries';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
@@ -110,6 +109,18 @@ export function useThreadMessages(threadId: string | null) {
   });
 
   return results;
+}
+
+function useApprovals(organizationId: string) {
+  const { data, isLoading } = useConvexQuery(
+    api.approvals.queries.listApprovalsByOrganization,
+    { organizationId },
+  );
+
+  return {
+    approvals: data ?? [],
+    isLoading,
+  };
 }
 
 export interface HumanInputRequest {
