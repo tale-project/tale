@@ -2,7 +2,7 @@
 
 import { useNavigate } from '@tanstack/react-router';
 import { type Row } from '@tanstack/react-table';
-import { ClipboardList } from 'lucide-react';
+import { FileText } from 'lucide-react';
 import { useMemo, useState, useCallback } from 'react';
 
 import type { FilterConfig } from '@/app/components/ui/data-table/data-table-filters';
@@ -345,7 +345,7 @@ export function DocumentsTable({
           />
         }
         emptyState={{
-          icon: ClipboardList,
+          icon: FileText,
           title: tDocuments('emptyState.title'),
           description: tDocuments('emptyState.description'),
         }}

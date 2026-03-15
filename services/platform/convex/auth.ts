@@ -268,6 +268,7 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
         // Enable teams for multi-tenancy support (team-level data isolation)
         teams: {
           enabled: true,
+          allowRemovingAllTeams: true,
           defaultTeam: {
             enabled: false,
           },
