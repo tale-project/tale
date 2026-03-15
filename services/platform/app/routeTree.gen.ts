@@ -25,7 +25,6 @@ import { Route as DashboardIdCustomAgentsRouteImport } from './routes/dashboard/
 import { Route as DashboardIdConversationsRouteImport } from './routes/dashboard/$id/conversations'
 import { Route as DashboardIdChatRouteImport } from './routes/dashboard/$id/chat'
 import { Route as DashboardIdAutomationsRouteImport } from './routes/dashboard/$id/automations'
-import { Route as DashboardIdApprovalsRouteImport } from './routes/dashboard/$id/approvals'
 import { Route as DashboardIdKnowledgeRouteImport } from './routes/dashboard/$id/_knowledge'
 import { Route as DashboardIdSettingsIndexRouteImport } from './routes/dashboard/$id/settings/index'
 import { Route as DashboardIdCustomAgentsIndexRouteImport } from './routes/dashboard/$id/custom-agents/index'
@@ -43,7 +42,6 @@ import { Route as DashboardIdCustomAgentsAgentIdRouteImport } from './routes/das
 import { Route as DashboardIdConversationsStatusRouteImport } from './routes/dashboard/$id/conversations/$status'
 import { Route as DashboardIdChatThreadIdRouteImport } from './routes/dashboard/$id/chat/$threadId'
 import { Route as DashboardIdAutomationsAmIdRouteImport } from './routes/dashboard/$id/automations/$amId'
-import { Route as DashboardIdApprovalsStatusRouteImport } from './routes/dashboard/$id/approvals/$status'
 import { Route as DashboardIdKnowledgeWebsitesRouteImport } from './routes/dashboard/$id/_knowledge/websites'
 import { Route as DashboardIdKnowledgeVendorsRouteImport } from './routes/dashboard/$id/_knowledge/vendors'
 import { Route as DashboardIdKnowledgeProductsRouteImport } from './routes/dashboard/$id/_knowledge/products'
@@ -138,11 +136,6 @@ const DashboardIdChatRoute = DashboardIdChatRouteImport.update({
 const DashboardIdAutomationsRoute = DashboardIdAutomationsRouteImport.update({
   id: '/automations',
   path: '/automations',
-  getParentRoute: () => DashboardIdRoute,
-} as any)
-const DashboardIdApprovalsRoute = DashboardIdApprovalsRouteImport.update({
-  id: '/approvals',
-  path: '/approvals',
   getParentRoute: () => DashboardIdRoute,
 } as any)
 const DashboardIdKnowledgeRoute = DashboardIdKnowledgeRouteImport.update({
@@ -242,12 +235,6 @@ const DashboardIdAutomationsAmIdRoute =
     path: '/$amId',
     getParentRoute: () => DashboardIdAutomationsRoute,
   } as any)
-const DashboardIdApprovalsStatusRoute =
-  DashboardIdApprovalsStatusRouteImport.update({
-    id: '/$status',
-    path: '/$status',
-    getParentRoute: () => DashboardIdApprovalsRoute,
-  } as any)
 const DashboardIdKnowledgeWebsitesRoute =
   DashboardIdKnowledgeWebsitesRouteImport.update({
     id: '/websites',
@@ -343,7 +330,6 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id': typeof DashboardIdKnowledgeRouteWithChildren
   '/dashboard/create-organization': typeof DashboardCreateOrganizationRoute
   '/dashboard/': typeof DashboardIndexRoute
-  '/dashboard/$id/approvals': typeof DashboardIdApprovalsRouteWithChildren
   '/dashboard/$id/automations': typeof DashboardIdAutomationsRouteWithChildren
   '/dashboard/$id/chat': typeof DashboardIdChatRouteWithChildren
   '/dashboard/$id/conversations': typeof DashboardIdConversationsRouteWithChildren
@@ -355,7 +341,6 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/products': typeof DashboardIdKnowledgeProductsRoute
   '/dashboard/$id/vendors': typeof DashboardIdKnowledgeVendorsRoute
   '/dashboard/$id/websites': typeof DashboardIdKnowledgeWebsitesRoute
-  '/dashboard/$id/approvals/$status': typeof DashboardIdApprovalsStatusRoute
   '/dashboard/$id/automations/$amId': typeof DashboardIdAutomationsAmIdRouteWithChildren
   '/dashboard/$id/chat/$threadId': typeof DashboardIdChatThreadIdRoute
   '/dashboard/$id/conversations/$status': typeof DashboardIdConversationsStatusRoute
@@ -391,14 +376,12 @@ export interface FileRoutesByTo {
   '/dashboard/create-organization': typeof DashboardCreateOrganizationRoute
   '/dashboard': typeof DashboardIndexRoute
   '/dashboard/$id': typeof DashboardIdIndexRoute
-  '/dashboard/$id/approvals': typeof DashboardIdApprovalsRouteWithChildren
   '/dashboard/$id/conversations': typeof DashboardIdConversationsRouteWithChildren
   '/dashboard/$id/customers': typeof DashboardIdKnowledgeCustomersRoute
   '/dashboard/$id/documents': typeof DashboardIdKnowledgeDocumentsRoute
   '/dashboard/$id/products': typeof DashboardIdKnowledgeProductsRoute
   '/dashboard/$id/vendors': typeof DashboardIdKnowledgeVendorsRoute
   '/dashboard/$id/websites': typeof DashboardIdKnowledgeWebsitesRoute
-  '/dashboard/$id/approvals/$status': typeof DashboardIdApprovalsStatusRoute
   '/dashboard/$id/automations/$amId': typeof DashboardIdAutomationsAmIdRouteWithChildren
   '/dashboard/$id/chat/$threadId': typeof DashboardIdChatThreadIdRoute
   '/dashboard/$id/conversations/$status': typeof DashboardIdConversationsStatusRoute
@@ -437,7 +420,6 @@ export interface FileRoutesById {
   '/dashboard/create-organization': typeof DashboardCreateOrganizationRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/dashboard/$id/_knowledge': typeof DashboardIdKnowledgeRouteWithChildren
-  '/dashboard/$id/approvals': typeof DashboardIdApprovalsRouteWithChildren
   '/dashboard/$id/automations': typeof DashboardIdAutomationsRouteWithChildren
   '/dashboard/$id/chat': typeof DashboardIdChatRouteWithChildren
   '/dashboard/$id/conversations': typeof DashboardIdConversationsRouteWithChildren
@@ -449,7 +431,6 @@ export interface FileRoutesById {
   '/dashboard/$id/_knowledge/products': typeof DashboardIdKnowledgeProductsRoute
   '/dashboard/$id/_knowledge/vendors': typeof DashboardIdKnowledgeVendorsRoute
   '/dashboard/$id/_knowledge/websites': typeof DashboardIdKnowledgeWebsitesRoute
-  '/dashboard/$id/approvals/$status': typeof DashboardIdApprovalsStatusRoute
   '/dashboard/$id/automations/$amId': typeof DashboardIdAutomationsAmIdRouteWithChildren
   '/dashboard/$id/chat/$threadId': typeof DashboardIdChatThreadIdRoute
   '/dashboard/$id/conversations/$status': typeof DashboardIdConversationsStatusRoute
@@ -488,7 +469,6 @@ export interface FileRouteTypes {
     | '/dashboard/$id'
     | '/dashboard/create-organization'
     | '/dashboard/'
-    | '/dashboard/$id/approvals'
     | '/dashboard/$id/automations'
     | '/dashboard/$id/chat'
     | '/dashboard/$id/conversations'
@@ -500,7 +480,6 @@ export interface FileRouteTypes {
     | '/dashboard/$id/products'
     | '/dashboard/$id/vendors'
     | '/dashboard/$id/websites'
-    | '/dashboard/$id/approvals/$status'
     | '/dashboard/$id/automations/$amId'
     | '/dashboard/$id/chat/$threadId'
     | '/dashboard/$id/conversations/$status'
@@ -536,14 +515,12 @@ export interface FileRouteTypes {
     | '/dashboard/create-organization'
     | '/dashboard'
     | '/dashboard/$id'
-    | '/dashboard/$id/approvals'
     | '/dashboard/$id/conversations'
     | '/dashboard/$id/customers'
     | '/dashboard/$id/documents'
     | '/dashboard/$id/products'
     | '/dashboard/$id/vendors'
     | '/dashboard/$id/websites'
-    | '/dashboard/$id/approvals/$status'
     | '/dashboard/$id/automations/$amId'
     | '/dashboard/$id/chat/$threadId'
     | '/dashboard/$id/conversations/$status'
@@ -581,7 +558,6 @@ export interface FileRouteTypes {
     | '/dashboard/create-organization'
     | '/dashboard/'
     | '/dashboard/$id/_knowledge'
-    | '/dashboard/$id/approvals'
     | '/dashboard/$id/automations'
     | '/dashboard/$id/chat'
     | '/dashboard/$id/conversations'
@@ -593,7 +569,6 @@ export interface FileRouteTypes {
     | '/dashboard/$id/_knowledge/products'
     | '/dashboard/$id/_knowledge/vendors'
     | '/dashboard/$id/_knowledge/websites'
-    | '/dashboard/$id/approvals/$status'
     | '/dashboard/$id/automations/$amId'
     | '/dashboard/$id/chat/$threadId'
     | '/dashboard/$id/conversations/$status'
@@ -743,13 +718,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdAutomationsRouteImport
       parentRoute: typeof DashboardIdRoute
     }
-    '/dashboard/$id/approvals': {
-      id: '/dashboard/$id/approvals'
-      path: '/approvals'
-      fullPath: '/dashboard/$id/approvals'
-      preLoaderRoute: typeof DashboardIdApprovalsRouteImport
-      parentRoute: typeof DashboardIdRoute
-    }
     '/dashboard/$id/_knowledge': {
       id: '/dashboard/$id/_knowledge'
       path: ''
@@ -868,13 +836,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard/$id/automations/$amId'
       preLoaderRoute: typeof DashboardIdAutomationsAmIdRouteImport
       parentRoute: typeof DashboardIdAutomationsRoute
-    }
-    '/dashboard/$id/approvals/$status': {
-      id: '/dashboard/$id/approvals/$status'
-      path: '/$status'
-      fullPath: '/dashboard/$id/approvals/$status'
-      preLoaderRoute: typeof DashboardIdApprovalsStatusRouteImport
-      parentRoute: typeof DashboardIdApprovalsRoute
     }
     '/dashboard/$id/_knowledge/websites': {
       id: '/dashboard/$id/_knowledge/websites'
@@ -1007,17 +968,6 @@ const DashboardIdKnowledgeRouteChildren: DashboardIdKnowledgeRouteChildren = {
 
 const DashboardIdKnowledgeRouteWithChildren =
   DashboardIdKnowledgeRoute._addFileChildren(DashboardIdKnowledgeRouteChildren)
-
-interface DashboardIdApprovalsRouteChildren {
-  DashboardIdApprovalsStatusRoute: typeof DashboardIdApprovalsStatusRoute
-}
-
-const DashboardIdApprovalsRouteChildren: DashboardIdApprovalsRouteChildren = {
-  DashboardIdApprovalsStatusRoute: DashboardIdApprovalsStatusRoute,
-}
-
-const DashboardIdApprovalsRouteWithChildren =
-  DashboardIdApprovalsRoute._addFileChildren(DashboardIdApprovalsRouteChildren)
 
 interface DashboardIdAutomationsAmIdRouteChildren {
   DashboardIdAutomationsAmIdConfigurationRoute: typeof DashboardIdAutomationsAmIdConfigurationRoute
@@ -1161,7 +1111,6 @@ const DashboardIdSettingsRouteWithChildren =
 
 interface DashboardIdRouteChildren {
   DashboardIdKnowledgeRoute: typeof DashboardIdKnowledgeRouteWithChildren
-  DashboardIdApprovalsRoute: typeof DashboardIdApprovalsRouteWithChildren
   DashboardIdAutomationsRoute: typeof DashboardIdAutomationsRouteWithChildren
   DashboardIdChatRoute: typeof DashboardIdChatRouteWithChildren
   DashboardIdConversationsRoute: typeof DashboardIdConversationsRouteWithChildren
@@ -1172,7 +1121,6 @@ interface DashboardIdRouteChildren {
 
 const DashboardIdRouteChildren: DashboardIdRouteChildren = {
   DashboardIdKnowledgeRoute: DashboardIdKnowledgeRouteWithChildren,
-  DashboardIdApprovalsRoute: DashboardIdApprovalsRouteWithChildren,
   DashboardIdAutomationsRoute: DashboardIdAutomationsRouteWithChildren,
   DashboardIdChatRoute: DashboardIdChatRouteWithChildren,
   DashboardIdConversationsRoute: DashboardIdConversationsRouteWithChildren,

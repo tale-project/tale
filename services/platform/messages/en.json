@@ -218,7 +218,6 @@
     "chatWithAI": "Chat with AI",
     "conversations": "Conversations",
     "knowledge": "Knowledge",
-    "approvals": "Approvals",
     "automations": "Automations",
     "settings": "Settings",
     "settingsAndMore": "Settings and more",
@@ -276,10 +275,6 @@
     "examples": {
       "title": "No examples yet",
       "description": "Add example messages to train the AI on your tone"
-    },
-    "approvals": {
-      "title": "No approvals found",
-      "description": "There are no approvals matching your criteria"
     },
     "conversations": {
       "title": "No conversations yet",
@@ -2044,77 +2039,6 @@
       "connectEmail": "Connect email"
     }
   },
-  "approvals": {
-    "title": "Approvals",
-    "noApprovalsFound": "No approvals found",
-    "columns": {
-      "approvalRecipient": "Approval / Recipient",
-      "event": "Event",
-      "action": "Action",
-      "reviewer": "Reviewer",
-      "reviewedAt": "Reviewed at",
-      "approved": "Approved",
-      "confidence": "Confidence",
-      "unknown": "Unknown",
-      "unknownCustomer": "Unknown customer"
-    },
-    "types": {
-      "reviewReply": "Review reply",
-      "recommendProduct": "Recommend product",
-      "review": "Review",
-      "runWorkflow": "Run workflow",
-      "updateWorkflow": "Update workflow"
-    },
-    "labels": {
-      "purchase": "Purchase",
-      "recommendation": "Recommendation",
-      "otherProducts": "{count, plural, one {# other product} other {# other products}}"
-    },
-    "actions": {
-      "approve": "Approve",
-      "reject": "Reject",
-      "removeProduct": "Remove {name} from recommendations"
-    },
-    "confidenceBadge": "{percent}% confidence",
-    "productStatus": {
-      "active": "Active",
-      "cancelled": "Cancelled"
-    },
-    "status": {
-      "pending": "Pending",
-      "resolved": "Resolved"
-    },
-    "emptyState": {
-      "pending": {
-        "title": "No pending approvals",
-        "description": "When human input is needed, your AI will request it here"
-      },
-      "resolved": {
-        "title": "No resolved approvals"
-      }
-    },
-    "toast": {
-      "loginRequired": "You must be logged in to perform this action.",
-      "approveFailed": "Failed to approve. Please try again.",
-      "rejectFailed": "Failed to reject. Please try again.",
-      "removeRecommendationFailed": "Failed to remove recommendation. Please try again."
-    },
-    "detail": {
-      "title": "Approval details",
-      "status": "Status",
-      "statusPending": "Pending",
-      "statusApproved": "Approved",
-      "statusRejected": "Rejected",
-      "type": "Type",
-      "typeProductRecommendation": "Product recommendation",
-      "createdAt": "Created at",
-      "confidence": "Confidence",
-      "recommendedProducts": "Recommended products",
-      "userPurchased": "User purchased",
-      "reject": "Reject",
-      "approve": "Approve"
-    }
-  },
   "workflowRunApproval": {
     "approve": "Run workflow",
     "reject": "Cancel",
@@ -2955,10 +2879,6 @@
     "conversations": {
       "title": "Conversations",
       "description": "View and manage customer conversations."
-    },
-    "approvals": {
-      "title": "Approvals",
-      "description": "Review and approve pending actions."
     },
     "automations": {
       "title": "Automations",

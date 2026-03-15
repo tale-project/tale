@@ -1,13 +1,6 @@
 'use client';
 
-import {
-  MessageCircle,
-  CircleCheck,
-  Inbox,
-  BrainIcon,
-  Network,
-  Bot,
-} from 'lucide-react';
+import { MessageCircle, Inbox, BrainIcon, Network, Bot } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
@@ -29,8 +22,6 @@ export function useNavigationItems(businessId: string): NavItem[] {
   const { t: tNav } = useT('navigation');
   const { t: tKnowledge } = useT('knowledge');
   const { t: tConversations } = useT('conversations');
-  const { t: tApprovals } = useT('approvals');
-
   return useMemo(
     (): NavItem[] => [
       {
@@ -113,27 +104,6 @@ export function useNavigationItems(businessId: string): NavItem[] {
         ],
       },
       {
-        label: tNav('approvals'),
-        to: '/dashboard/$id/approvals/$status',
-        params: { id: businessId, status: 'pending' },
-        href: `/dashboard/${businessId}/approvals/pending`,
-        icon: CircleCheck,
-        subItems: [
-          {
-            label: tApprovals('status.pending'),
-            to: '/dashboard/$id/approvals/$status',
-            params: { id: businessId, status: 'pending' },
-            href: `/dashboard/${businessId}/approvals/pending`,
-          },
-          {
-            label: tApprovals('status.resolved'),
-            to: '/dashboard/$id/approvals/$status',
-            params: { id: businessId, status: 'resolved' },
-            href: `/dashboard/${businessId}/approvals/resolved`,
-          },
-        ],
-      },
-      {
         label: tNav('customAgents'),
         to: '/dashboard/$id/custom-agents',
         params: { id: businessId },
@@ -150,6 +120,6 @@ export function useNavigationItems(businessId: string): NavItem[] {
         can: ['write', 'wfDefinitions'],
       },
     ],
-    [businessId, tNav, tKnowledge, tConversations, tApprovals],
+    [businessId, tNav, tKnowledge, tConversations],
   );
 }
