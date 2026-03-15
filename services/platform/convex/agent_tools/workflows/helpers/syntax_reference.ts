@@ -67,6 +67,13 @@ NextSteps: { success: 'next_step', error?: 'error_handler' }
 }
 \`\`\`
 
+**LLM Output:**
+- outputFormat: 'text' (default) → output.data is a plain string. Do NOT access sub-fields.
+  ✗ {{steps.greet.output.data.result}} — WRONG (string has no sub-fields)
+  ✓ {{steps.greet.output.data}} — CORRECT
+- outputFormat: 'json' → output.data is the parsed JSON object. Access fields directly.
+  ✓ {{steps.analyze.output.data.score}}
+
 **Available Tools for LLM Steps:**
 - customer_read: Fetch customer by ID, email, or list all (operation: get_by_id, get_by_email, list)
 - product_read: Fetch product by ID or list all (operation: get_by_id, list)
@@ -137,15 +144,15 @@ Operations: create, query_messages, update, create_from_email
   "type": "conversation",
   "parameters": {
     "operation": "create",
-    "customerId": "{{customerId}}",
-    "subject": "{{emailSubject}}",
+    "customerId": "{{variables.customerId}}",
+    "subject": "{{variables.emailSubject}}",
     "channel": "email",
     "direction": "outbound",
     "metadata": {
-      "emailSubject": "{{emailSubject}}",
-      "emailBody": "{{emailBody}}",
-      "emailPreview": "{{emailPreview}}",
-      "customerEmail": "{{customerEmail}}"
+      "emailSubject": "{{variables.emailSubject}}",
+      "emailBody": "{{variables.emailBody}}",
+      "emailPreview": "{{variables.emailPreview}}",
+      "customerEmail": "{{variables.customerEmail}}"
     }
   }
 }
@@ -248,11 +255,12 @@ Default retry policy applied to action steps.
 \`\`\`
 
 ### variables (object, optional)
-Initial workflow-level variables accessible to all steps via \`{{variableName}}\`.
+Initial workflow-level variables accessible to all steps via \`{{config.variableName}}\`.
 \`organizationId\` is automatically injected — no need to set it.
 \`\`\`json
 { "variables": { "backoffHours": 72, "defaultStatus": "active" } }
 \`\`\`
+Access: \`{{config.backoffHours}}\`, \`{{config.defaultStatus}}\`
 
 ### Full Example
 \`\`\`json
@@ -274,23 +282,46 @@ Initial workflow-level variables accessible to all steps via \`{{variableName}}\
 
   variables: `## VARIABLE SYNTAX
 
-### Simple Variables
-- {{variableName}}
-- {{customer.email}}
-- {{items|first}} (safe first element)
+**All references MUST use a known prefix.** Bare variable names like \`{{myVar}}\` are invalid.
+
+### Known Prefixes
+| Prefix | Source | Example |
+|--------|--------|---------|
+| steps | Step outputs | {{steps.get_customer.output.data._id}} |
+| config | Workflow config variables | {{config.backoffHours}} |
+| variables | set_variables action output | {{variables.counter}} |
+| input | Workflow input parameters | {{input.customerId}} |
+| secrets | Encrypted secrets | {{secrets.apiKey}} |
+| loop | Loop context | {{loop.item}}, {{loop.index}} |
 
 ### Step Output Access
-Action outputs are wrapped: steps.{step_slug}.output.data
+All step outputs are wrapped: steps.{step_slug}.output.data
 - Single entity: {{steps.get_customer.output.data._id}}
 - First array item: {{steps.query.output.data|first}} (use |first instead of [0] — [0] crashes if data is undefined)
 - Array length: {{steps.query.output.data|length}}
-- Paginated: {{steps.query.output.isDone}}, {{steps.query.output.continueCursor}}
 
-### Special Variables
+### Step Output Data by Type
+| Step Type | output.data | Example |
+|-----------|-------------|---------|
+| llm (text) | Plain string | {{steps.greet.output.data}} |
+| llm (json) | Parsed JSON object | {{steps.analyze.output.data.score}} |
+| action | Depends on type/operation | {{steps.query.output.data._id}} |
+| condition | { passed, description, expression, message } | {{steps.check.output.data.passed}} |
+| start | String | {{steps.start.output.data}} |
+
+### Config Variables (from workflowConfig.config.variables)
+- {{config.backoffHours}}
+- {{config.defaultStatus}}
+
+### User-Defined Variables (from set_variables action)
+- {{variables.counter}}
+- {{variables.customerId}}
+
+### System Variables (no prefix needed)
 - {{organizationId}} - Current organization
 - {{executionId}} - Current workflow execution
-- {{now}} - Current timestamp
-- {{secrets.secretName}} - Encrypted secrets
+- {{now}} - Current timestamp (ISO 8601)
+- {{nowMs}} - Current timestamp (milliseconds)
 
 ### JEXL Filters
 - Array: |length, |first, |last, |map("prop"), |filter(), |unique, |flatten, |slice(start, end), |sort("field", "asc"), |reverse
@@ -301,7 +332,12 @@ Action outputs are wrapped: steps.{step_slug}.output.data
 - Format: |formatList("template", "separator")
 - Lookup: |find("field", value), |filterBy("field", value)
 
-**IMPORTANT:** Use |first instead of [0] when the array might be undefined (e.g., branching paths where only one step runs). [0] will throw an error on undefined arrays, while |first safely returns undefined.`,
+**IMPORTANT:** Use |first instead of [0] when the array might be undefined (e.g., branching paths where only one step runs). [0] will throw an error on undefined arrays, while |first safely returns undefined.
+
+**COMMON MISTAKES:**
+- ✗ \`{{step_slug.result}}\` → ✓ \`{{steps.step_slug.output.data}}\`
+- ✗ \`{{myVar}}\` → ✓ \`{{config.myVar}}\` or \`{{variables.myVar}}\`
+- ✗ \`{{step.xxx}}\` → ✓ \`{{steps.xxx}}\` (plural "steps")`,
 
   output: `## Output Step (stepType: 'output')
 
@@ -322,7 +358,7 @@ Use mapping to select which variables or step outputs to include. Values support
   "config": {
     "mapping": {
       "analysis": "{{steps.analyze.output.data}}",
-      "customerId": "{{customerId}}",
+      "customerId": "{{variables.customerId}}",
       "processedAt": "{{now}}"
     }
   },
@@ -398,6 +434,8 @@ Use this as a starting template when building new workflows.
 
 **COMMON MISTAKES — DO NOT:**
 - ✗ \`{{step_slug.result}}\` → ✓ \`{{steps.step_slug.output.data}}\` (step output access)
+- ✗ \`{{myVar}}\` → ✓ \`{{config.myVar}}\` or \`{{variables.myVar}}\` (all refs need a prefix)
+- ✗ \`{{step.xxx}}\` → ✓ \`{{steps.xxx}}\` (plural "steps")
 - ✗ \`prompt\` → ✓ \`systemPrompt\` (LLM step config field)
 - ✗ \`nextSteps: { next: ... }\` or \`{ default: ... }\` → ✓ \`nextSteps: { success: ... }\` (start/llm/action port is always "success")
 

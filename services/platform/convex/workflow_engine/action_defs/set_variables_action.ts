@@ -101,7 +101,12 @@ export const setVariablesAction: ActionDefinition<{
         // Regular variable: sanitize undefined → null for Convex compatibility
         const sanitized = sanitizeConvexValue(processedValue);
         processedVariables[name] = sanitized;
-        workingContext[name] = sanitized;
+        // Store under 'variables' namespace so sequential refs use {{variables.name}}
+        const vars = isRecord(workingContext.variables)
+          ? workingContext.variables
+          : {};
+        vars[name] = sanitized;
+        workingContext.variables = vars;
       }
     }
     debugLog('set_variables Processed variables:', processedVariables);

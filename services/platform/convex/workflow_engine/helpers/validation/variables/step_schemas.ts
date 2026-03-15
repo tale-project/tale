@@ -82,16 +82,21 @@ export const startOutputSchema: OutputSchema = {
 // =============================================================================
 
 /**
- * LLM output schema - intentionally permissive because:
- * 1. When outputFormat: 'text', data = { text: string }
- * 2. When outputFormat: 'json', data = the parsed JSON object (any shape)
- *
- * Since we can't statically know the JSON schema, we mark this as 'dynamic'
- * to skip deep field validation for LLM outputs.
+ * LLM text output schema - data is a plain string.
+ * Sub-field access like .data.result is invalid.
+ */
+export const llmTextOutputSchema: OutputSchema = {
+  description:
+    'LLM text output - data is a plain string, sub-field access is invalid',
+  isScalar: true,
+};
+
+/**
+ * LLM JSON output schema - intentionally permissive because
+ * the parsed JSON object can be any shape defined by outputSchema.
  */
 export const llmOutputSchema: OutputSchema = {
-  description: 'LLM execution result - dynamic structure based on outputFormat',
-  // No fields defined = allow any field access (dynamic output)
+  description: 'LLM JSON output - dynamic structure based on outputSchema',
 };
 
 // =============================================================================

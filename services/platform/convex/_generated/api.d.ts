@@ -727,6 +727,7 @@ import type * as workflow_engine_helpers_validation_variables_parse from "../wor
 import type * as workflow_engine_helpers_validation_variables_step_schemas from "../workflow_engine/helpers/validation/variables/step_schemas.js";
 import type * as workflow_engine_helpers_validation_variables_types from "../workflow_engine/helpers/validation/variables/types.js";
 import type * as workflow_engine_helpers_validation_variables_validate from "../workflow_engine/helpers/validation/variables/validate.js";
+import type * as workflow_engine_helpers_validation_variables_validate_variable_references_known_sources from "../workflow_engine/helpers/validation/variables/validate_variable_references_known_sources.js";
 import type * as workflow_engine_helpers_variables_decrypt_inline_secrets from "../workflow_engine/helpers/variables/decrypt_inline_secrets.js";
 import type * as workflow_engine_instructions_core_instructions from "../workflow_engine/instructions/core_instructions.js";
 import type * as workflow_engine_internal_actions from "../workflow_engine/internal_actions.js";
@@ -1572,6 +1573,7 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/helpers/validation/variables/step_schemas": typeof workflow_engine_helpers_validation_variables_step_schemas;
   "workflow_engine/helpers/validation/variables/types": typeof workflow_engine_helpers_validation_variables_types;
   "workflow_engine/helpers/validation/variables/validate": typeof workflow_engine_helpers_validation_variables_validate;
+  "workflow_engine/helpers/validation/variables/validate_variable_references_known_sources": typeof workflow_engine_helpers_validation_variables_validate_variable_references_known_sources;
   "workflow_engine/helpers/variables/decrypt_inline_secrets": typeof workflow_engine_helpers_variables_decrypt_inline_secrets;
   "workflow_engine/instructions/core_instructions": typeof workflow_engine_instructions_core_instructions;
   "workflow_engine/internal_actions": typeof workflow_engine_internal_actions;
