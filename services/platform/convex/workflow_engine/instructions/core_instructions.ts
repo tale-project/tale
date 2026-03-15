@@ -32,6 +32,7 @@ Before creating a workflow, ALWAYS follow these steps:
 1. □ **Check for existing workflows** - workflow_read(operation='list_all') to check if similar workflow exists
 2. □ If similar workflow exists, ask user: modify existing (click 'Edit' in UI) or create new with different name?
 3. □ Fetch syntax for the step types you need: workflow_syntax(category='action|llm|condition|loop|...')
+3b. □ If workflow uses integrations: workflow_syntax(category='action') shows available integrations. Use integration_introspect for operation parameter details.
 4. □ Use snake_case for stepSlugs (e.g., find_customer, process_order)
 5. □ nextSteps is OUTSIDE config (same level as stepType, config)
 6. □ LLM steps require "name" + "systemPrompt" (NOT "prompt")

@@ -129,6 +129,8 @@ export const SYSTEM_DEFAULT_AGENT_TEMPLATES: SystemDefaultAgentTemplate[] = [
       'save_workflow_definition',
       'create_workflow',
       'database_schema',
+      'integration_introspect',
+      'run_workflow',
     ],
     delegateSlugs: [],
     maxSteps: 30,
