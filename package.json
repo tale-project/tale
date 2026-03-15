@@ -50,7 +50,7 @@
     "husky": "^9.1.7",
     "jsdom": "28.1.0",
     "knip": "^5.83.0",
-    "oxfmt": "^0.32.0",
+    "oxfmt": "^0.40.0",
     "oxlint": "^1.43.0",
     "oxlint-tsgolint": "^0.16.0",
     "postcss": "8.5.8",
