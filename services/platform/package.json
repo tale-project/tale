@@ -43,7 +43,7 @@
     "@convex-dev/persistent-text-streaming": "0.3.0",
     "@convex-dev/rate-limiter": "0.3.2",
     "@convex-dev/react-query": "0.1.0",
-    "@convex-dev/workflow": "0.3.2",
+    "@convex-dev/workflow": "0.3.6",
     "@convex-dev/workpool": "0.4.1",
     "@hookform/resolvers": "5.2.2",
     "@microlink/react-json-view": "1.31.8",
