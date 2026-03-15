@@ -22,6 +22,7 @@ const workflowSyntaxArgs = z.object({
       'output',
       'workflow_config',
       'variables',
+      'hello_world',
     ])
     .optional()
     .describe(
@@ -40,9 +41,10 @@ export const workflowSyntaxTool: ToolDefinition = {
 • 'action': Action types (workflow_processing_records, customer, conversation, approval, set_variables, integration)
 • 'condition': JEXL condition expressions
 • 'loop': Loop step for iteration
-• 'output': Output step config (workflow output via outputMapping)
+• 'output': Output step config (workflow output via mapping)
 • 'workflow_config': Workflow-level config (timeout, retryPolicy, variables)
-• 'variables': Variable syntax and JEXL filters`,
+• 'variables': Variable syntax and JEXL filters
+• 'hello_world': Complete hello world example (start → llm → output)`,
     args: workflowSyntaxArgs,
     handler: async (_ctx, args) => {
       if (!args.category) {

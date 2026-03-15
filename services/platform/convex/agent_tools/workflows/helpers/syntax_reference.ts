@@ -33,7 +33,19 @@ Trigger sources (schedules, webhooks, API keys, events) are configured separatel
 **Minimal Start (no input schema):**
 \`\`\`json
 {}
-\`\`\``,
+\`\`\`
+
+**Full Start Step (showing nextSteps):**
+\`\`\`json
+{
+  "stepSlug": "start",
+  "name": "Start",
+  "stepType": "start",
+  "config": {},
+  "nextSteps": { "success": "next_step_slug" }
+}
+\`\`\`
+Note: The port name MUST be "success" (not "next" or "default").`,
 
   llm: `## LLM Step (stepType: 'llm')
 
@@ -293,12 +305,12 @@ Action outputs are wrapped: steps.{step_slug}.output.data
 
   output: `## Output Step (stepType: 'output')
 
-Config: { outputMapping?: Record<string, string> }
+Config: { mapping?: Record<string, string> }
 NextSteps: {} (empty — output steps have no outgoing connections)
 
 The output step is optional. It defines what the workflow returns as its final output.
 If omitted, the workflow output falls back to sanitized variables (secrets and system fields stripped).
-Use outputMapping to select which variables or step outputs to include. Values support {{...}} template syntax with full type preservation.
+Use mapping to select which variables or step outputs to include. Values support {{...}} template syntax with full type preservation.
 
 **Output with Mapping:**
 \`\`\`json
@@ -308,7 +320,7 @@ Use outputMapping to select which variables or step outputs to include. Values s
   "stepType": "output",
 
   "config": {
-    "outputMapping": {
+    "mapping": {
       "analysis": "{{steps.analyze.output.data}}",
       "customerId": "{{customerId}}",
       "processedAt": "{{now}}"
@@ -331,14 +343,69 @@ Use outputMapping to select which variables or step outputs to include. Values s
 \`\`\`
 
 **IMPORTANT:**
-- outputMapping values are {{...}} templates — they preserve types (objects, arrays, numbers stay as-is)
-- Do NOT reference secrets in outputMapping (e.g., {{secrets.apiKey}}) — this leaks sensitive data
-- If outputMapping is empty or omitted, the workflow output is null
+- mapping values are {{...}} templates — they preserve types (objects, arrays, numbers stay as-is)
+- Do NOT reference secrets in mapping (e.g., {{secrets.apiKey}}) — this leaks sensitive data
+- If mapping is empty or omitted, the workflow output is null
 - nextSteps MUST be empty: {}`,
 
-  // NOTE: 'all' is intentionally not included to prevent prompt overflow
-  // The full WORKFLOW_SYNTAX_COMPACT is too long for agent context
-  // Instead, agent should query specific categories as needed
+  hello_world: `## Hello World Example
+
+A minimal 3-step workflow: start → llm → output.
+Use this as a starting template when building new workflows.
+
+**workflowConfig:**
+\`\`\`json
+{
+  "name": "Hello World",
+  "description": "A simple greeting workflow"
+}
+\`\`\`
+
+**stepsConfig:**
+\`\`\`json
+[
+  {
+    "stepSlug": "start",
+    "name": "Start",
+    "stepType": "start",
+    "config": {},
+    "nextSteps": { "success": "greet" }
+  },
+  {
+    "stepSlug": "greet",
+    "name": "Generate Greeting",
+    "stepType": "llm",
+    "config": {
+      "name": "Greeter",
+      "systemPrompt": "You are a friendly assistant. Greet the user warmly.",
+      "outputFormat": "text"
+    },
+    "nextSteps": { "success": "finish" }
+  },
+  {
+    "stepSlug": "finish",
+    "name": "Return Greeting",
+    "stepType": "output",
+    "config": {
+      "mapping": {
+        "greeting": "{{steps.greet.output.data}}"
+      }
+    },
+    "nextSteps": {}
+  }
+]
+\`\`\`
+
+**COMMON MISTAKES — DO NOT:**
+- ✗ \`{{step_slug.result}}\` → ✓ \`{{steps.step_slug.output.data}}\` (step output access)
+- ✗ \`prompt\` → ✓ \`systemPrompt\` (LLM step config field)
+- ✗ \`nextSteps: { next: ... }\` or \`{ default: ... }\` → ✓ \`nextSteps: { success: ... }\` (start/llm/action port is always "success")
+
+**VALID nextSteps PORTS BY STEP TYPE:**
+- start, llm, action: \`{ "success": "next_step_slug" }\`
+- condition: \`{ "true": "step_if_true", "false": "step_if_false" }\`
+- loop: \`{ "loop": "loop_body_step", "done": "after_loop_step" }\`
+- output: \`{}\` (no outgoing connections)`,
 };
 
 /**
@@ -394,6 +461,8 @@ const SYNTAX_CATEGORY_DESCRIPTIONS: Record<string, string> = {
   workflow_config:
     'Workflow-level config: timeout, retryPolicy, and initial variables',
   variables: 'Variable syntax and JEXL filters',
+  hello_world:
+    'Complete hello world example: minimal 3-step workflow (start → llm → output)',
 };
 
 /**

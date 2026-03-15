@@ -716,6 +716,7 @@ import type * as workflow_engine_helpers_validation_steps_output from "../workfl
 import type * as workflow_engine_helpers_validation_steps_start from "../workflow_engine/helpers/validation/steps/start.js";
 import type * as workflow_engine_helpers_validation_types from "../workflow_engine/helpers/validation/types.js";
 import type * as workflow_engine_helpers_validation_validate_action_parameters from "../workflow_engine/helpers/validation/validate_action_parameters.js";
+import type * as workflow_engine_helpers_validation_validate_next_steps_ports from "../workflow_engine/helpers/validation/validate_next_steps_ports.js";
 import type * as workflow_engine_helpers_validation_validate_step_config from "../workflow_engine/helpers/validation/validate_step_config.js";
 import type * as workflow_engine_helpers_validation_validate_workflow_definition from "../workflow_engine/helpers/validation/validate_workflow_definition.js";
 import type * as workflow_engine_helpers_validation_validate_workflow_input from "../workflow_engine/helpers/validation/validate_workflow_input.js";
@@ -1560,6 +1561,7 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/helpers/validation/steps/start": typeof workflow_engine_helpers_validation_steps_start;
   "workflow_engine/helpers/validation/types": typeof workflow_engine_helpers_validation_types;
   "workflow_engine/helpers/validation/validate_action_parameters": typeof workflow_engine_helpers_validation_validate_action_parameters;
+  "workflow_engine/helpers/validation/validate_next_steps_ports": typeof workflow_engine_helpers_validation_validate_next_steps_ports;
   "workflow_engine/helpers/validation/validate_step_config": typeof workflow_engine_helpers_validation_validate_step_config;
   "workflow_engine/helpers/validation/validate_workflow_definition": typeof workflow_engine_helpers_validation_validate_workflow_definition;
   "workflow_engine/helpers/validation/validate_workflow_input": typeof workflow_engine_helpers_validation_validate_workflow_input;

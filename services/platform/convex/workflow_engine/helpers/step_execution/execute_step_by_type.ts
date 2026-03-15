@@ -107,7 +107,9 @@ export async function executeStepByType(
 
     case 'output': {
       const mapping = isRecord(stepDef.config)
-        ? stepDef.config.outputMapping
+        ? isRecord(stepDef.config.mapping)
+          ? stepDef.config.mapping
+          : stepDef.config.outputMapping
         : undefined;
       let mappedOutput: unknown = null;
       if (isRecord(mapping) && Object.keys(mapping).length > 0) {

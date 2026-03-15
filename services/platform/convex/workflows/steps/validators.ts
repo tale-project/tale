@@ -33,6 +33,7 @@ export const stepDefValidator = v.object({
   order: v.number(),
   nextSteps: v.record(v.string(), v.string()),
   config: stepConfigValidator,
+  // @deprecated — unused legacy fields, kept for schema compatibility
   inputMapping: v.optional(v.record(v.string(), v.string())),
   outputMapping: v.optional(v.record(v.string(), v.string())),
   metadata: v.optional(jsonRecordValidator),

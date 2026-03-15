@@ -99,8 +99,7 @@ export const llmOutputSchema: OutputSchema = {
 // =============================================================================
 
 export const outputStepSchema: OutputSchema = {
-  description:
-    'Output step - dynamic structure based on outputMapping configuration',
+  description: 'Output step - dynamic structure based on mapping configuration',
 };
 
 // =============================================================================

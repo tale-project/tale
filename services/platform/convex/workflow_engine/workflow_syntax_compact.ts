@@ -17,7 +17,7 @@ export const WORKFLOW_SYNTAX_COMPACT = `
   stepsConfig: [
     { stepSlug: 'start', name: 'Start', stepType: 'start', config: {}, nextSteps: { success: 'greet' } },
     { stepSlug: 'greet', name: 'Greet', stepType: 'llm', config: { name: 'Greeter', systemPrompt: 'Say hello to the world in a friendly way.' }, nextSteps: { success: 'result' } },
-    { stepSlug: 'result', name: 'Result', stepType: 'output', config: { outputMapping: { greeting: '{{steps.greet.output}}' } }, nextSteps: {} }
+    { stepSlug: 'result', name: 'Result', stepType: 'output', config: { mapping: { greeting: '{{steps.greet.output}}' } }, nextSteps: {} }
   ]
 }
 \`\`\`
@@ -50,7 +50,7 @@ NextSteps: { loop: 'loop_body_step', done: 'after_loop_step', error?: 'error_han
 Note: 'loop' port goes to the step executed for each item; 'done' port goes to the step after loop completes
 
 ### output (stepType: 'output')
-Config: { outputMapping?: Record<string, string> }
+Config: { mapping?: Record<string, string> }
 NextSteps: { success: 'next_step' }
 Note: Maps workflow variables to final output. Values support {{variable}} template syntax. Result stored in __workflowOutput.
 

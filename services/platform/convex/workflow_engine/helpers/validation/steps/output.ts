@@ -17,20 +17,33 @@ export function validateOutputStep(
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  if (config.outputMapping !== undefined) {
-    if (!isRecord(config.outputMapping)) {
-      errors.push('Output step "outputMapping" must be an object if provided');
+  // Backward compat: accept both "mapping" (new) and "outputMapping" (legacy)
+  if ('outputMapping' in config && !('mapping' in config)) {
+    warnings.push(
+      'Output step field "outputMapping" is deprecated. Use "mapping" instead.',
+    );
+  }
+  const mapping =
+    'mapping' in config
+      ? config.mapping
+      : 'outputMapping' in config
+        ? config.outputMapping
+        : undefined;
+
+  if (mapping !== undefined) {
+    if (!isRecord(mapping)) {
+      errors.push('Output step "mapping" must be an object if provided');
       return { valid: false, errors, warnings };
     }
 
-    for (const [key, value] of Object.entries(config.outputMapping)) {
+    for (const [key, value] of Object.entries(mapping)) {
       if (typeof value !== 'string' || value.trim() === '') {
         errors.push(
-          `Output step outputMapping key "${key}" must be a non-empty string`,
+          `Output step mapping key "${key}" must be a non-empty string`,
         );
       } else if (SECRETS_PATTERN.test(value)) {
         warnings.push(
-          `Output step outputMapping key "${key}" references secrets — avoid exposing secrets in workflow output`,
+          `Output step mapping key "${key}" references secrets — avoid exposing secrets in workflow output`,
         );
       }
     }

@@ -148,8 +148,6 @@ export async function activateVersion(
         order: step.order,
         nextSteps: step.nextSteps,
         config: step.config,
-        inputMapping: step.inputMapping,
-        outputMapping: step.outputMapping,
         metadata: step.metadata,
       }),
     ),
