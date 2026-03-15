@@ -4,8 +4,8 @@ version = "0.1.0"
 description = "Prometheus telemetry for Tale Python services"
 requires-python = ">=3.11"
 dependencies = [
-    "fastapi>=0.100.0",
-    "prometheus-client>=0.21.0,<1.0.0",
+    "fastapi==0.135.1",
+    "prometheus-client==0.24.1",
 ]
 
 [build-system]
