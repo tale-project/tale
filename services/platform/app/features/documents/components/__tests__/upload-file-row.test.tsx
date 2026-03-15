@@ -73,7 +73,9 @@ describe('UploadFileRow', () => {
       />,
     );
 
-    expect(screen.getByText(/failed/i)).toBeInTheDocument();
+    expect(screen.getByText(/test-document\.pdf/i)).toHaveTextContent(
+      /— Failed/,
+    );
     expect(screen.getByText('Upload failed')).toBeInTheDocument();
 
     const retryButton = screen.getByRole('button', {
