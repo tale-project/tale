@@ -33,23 +33,12 @@ Requires user approval — an approval card will be created for the user to revi
 2. Modify config based on current values (keep ALL required fields)
 3. Call this tool with stepRecordId, updates, and updateSummary
 
-**CRITICAL RULES:**
-• nextSteps goes in updates.nextSteps, NOT inside updates.config
-• For action steps: config MUST include 'type' field
-• Include stepType in updates when updating config
-
 **STRUCTURE:**
 { stepRecordId: "...", updates: { stepType: "...", config: {...}, nextSteps: {...} }, updateSummary: "..." }
 
-**JSON RULES:**
-• Escape quotes: \\" | Escape backslashes: \\\\ | Newlines: \\n
-
 **APPROVAL:**
 When this tool returns { requiresApproval: true }, do NOT call this tool again.
-Inform the user the update is ready for review in the chat UI.
-
-**SYNTAX HELP:**
-workflow_examples(operation='get_syntax_reference', category='start|llm|action|condition|loop')`,
+Inform the user the update is ready for review in the chat UI.`,
     args: z.object({
       stepRecordId: z
         .string()
@@ -67,7 +56,7 @@ workflow_examples(operation='get_syntax_reference', category='start|llm|action|c
             .any()
             .optional()
             .describe(
-              'Updated config object. Must include ALL required fields for the step type. For LLM: name + systemPrompt. For action: type + parameters. Use workflow_examples(get_syntax_reference) for detailed syntax.',
+              'Updated config object. Must include ALL required fields for the step type.',
             ),
           nextSteps: z
             .any()

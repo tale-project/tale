@@ -124,7 +124,7 @@ export const SYSTEM_DEFAULT_AGENT_TEMPLATES: SystemDefaultAgentTemplate[] = [
     systemInstructions: WORKFLOW_AGENT_CORE_INSTRUCTIONS,
     toolNames: [
       'workflow_read',
-      'workflow_examples',
+      'workflow_syntax',
       'update_workflow_step',
       'save_workflow_definition',
       'create_workflow',

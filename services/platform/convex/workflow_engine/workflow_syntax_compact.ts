@@ -1,7 +1,7 @@
 /**
  * Compact Workflow Syntax Reference
  * This is a minified version for AI system prompts.
- * For detailed examples, use workflow_examples tool with get_syntax_reference operation.
+ * For detailed syntax, use the workflow_syntax tool.
  */
 
 export const WORKFLOW_SYNTAX_COMPACT = `

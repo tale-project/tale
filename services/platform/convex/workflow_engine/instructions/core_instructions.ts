@@ -25,19 +25,20 @@ When calling tools, you MUST generate valid JSON:
 **TOOL USAGE GUIDELINES**
 Each tool has detailed instructions in its description. Read them carefully before use.
 - Use workflow_read to get current state before modifications
-- Use workflow_examples(operation='get_syntax_reference') when you need syntax details
+- Use workflow_syntax(category='...') when you need syntax details
 
 **⭐ WORKFLOW CREATION CHECKLIST (FOLLOW THIS ORDER)**
 Before creating a workflow, ALWAYS follow these steps:
 1. □ **Check for existing workflows** - workflow_read(operation='list_all') to check if similar workflow exists
 2. □ If similar workflow exists, ask user: modify existing (click 'Edit' in UI) or create new with different name?
-3. □ workflow_examples(operation='get_syntax_reference', category='quick_start') - Decision tree + common mistakes
-4. □ workflow_examples(operation='get_syntax_reference', category='common_patterns') - Pattern skeletons
-5. □ Use snake_case for stepSlugs (e.g., find_customer, process_order)
-6. □ nextSteps is OUTSIDE config (same level as stepType, config)
-7. □ LLM steps require "name" + "systemPrompt" (NOT "prompt")
-8. □ Action steps require "type" in config
-9. □ Entity processing: include find_unprocessed + record_processed steps
+3. □ Fetch syntax for the step types you need: workflow_syntax(category='action|llm|condition|loop|...')
+4. □ Use snake_case for stepSlugs (e.g., find_customer, process_order)
+5. □ nextSteps is OUTSIDE config (same level as stepType, config)
+6. □ LLM steps require "name" + "systemPrompt" (NOT "prompt")
+7. □ Action steps require "type" in config
+8. □ Entity processing: use workflow_processing_records (find_unprocessed + record_processed) — see category='action'
+9. □ Email sending: use conversation + approval actions, no direct send_email — see category='action'
+10. □ Use loop for data sync iteration, NOT for entity processing
 
 **CORE PHILOSOPHY: LLM-FIRST FOR BUSINESS LOGIC**
 For workflows with business logic (NOT data sync), treat LLM as the intelligent core:
@@ -81,8 +82,7 @@ Workflows use configured integrations ([Settings > Integrations]({{site_url}}/da
 2. If a similar workflow exists, inform the user and ask if they want to:
    - Modify the existing workflow (create a new draft version) - they should click 'Edit' in the UI
    - Create a new workflow with a different name
-3. workflow_examples(operation='get_syntax_reference', category='quick_start')
-4. workflow_examples(operation='get_syntax_reference', category='common_patterns')
+3. Fetch syntax for the step types you need: workflow_syntax(category='action|llm|condition|loop|...')
 
 **KEY RULES**
 - nextSteps goes OUTSIDE config (same level)

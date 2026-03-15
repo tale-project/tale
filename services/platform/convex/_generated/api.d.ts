@@ -98,8 +98,8 @@ import type * as agent_tools_workflows_internal_mutations from "../agent_tools/w
 import type * as agent_tools_workflows_run_workflow_tool from "../agent_tools/workflows/run_workflow_tool.js";
 import type * as agent_tools_workflows_save_workflow_definition_tool from "../agent_tools/workflows/save_workflow_definition_tool.js";
 import type * as agent_tools_workflows_update_workflow_step_tool from "../agent_tools/workflows/update_workflow_step_tool.js";
-import type * as agent_tools_workflows_workflow_examples_tool from "../agent_tools/workflows/workflow_examples_tool.js";
 import type * as agent_tools_workflows_workflow_read_tool from "../agent_tools/workflows/workflow_read_tool.js";
+import type * as agent_tools_workflows_workflow_syntax_tool from "../agent_tools/workflows/workflow_syntax_tool.js";
 import type * as agents_chat_agent from "../agents/chat/agent.js";
 import type * as agents_crm_agent from "../agents/crm/agent.js";
 import type * as agents_document_agent from "../agents/document/agent.js";
@@ -942,8 +942,8 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/workflows/run_workflow_tool": typeof agent_tools_workflows_run_workflow_tool;
   "agent_tools/workflows/save_workflow_definition_tool": typeof agent_tools_workflows_save_workflow_definition_tool;
   "agent_tools/workflows/update_workflow_step_tool": typeof agent_tools_workflows_update_workflow_step_tool;
-  "agent_tools/workflows/workflow_examples_tool": typeof agent_tools_workflows_workflow_examples_tool;
   "agent_tools/workflows/workflow_read_tool": typeof agent_tools_workflows_workflow_read_tool;
+  "agent_tools/workflows/workflow_syntax_tool": typeof agent_tools_workflows_workflow_syntax_tool;
   "agents/chat/agent": typeof agents_chat_agent;
   "agents/crm/agent": typeof agents_crm_agent;
   "agents/document/agent": typeof agents_document_agent;
