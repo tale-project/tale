@@ -1,6 +1,7 @@
-/** Convex Tool: TXT
- *  Parse plain text files and analyze content using fast model.
+/** Convex Tool: Text
+ *  Parse text-based files and analyze content using fast model.
  *  Generate plain text files from content.
+ *  Supports all text formats: .txt, .md, .js, .ts, .json, .csv, .log, code files, and more.
  *  Handles various encodings and large files via chunked processing.
  *  Uses ctx.storage.get() for direct Convex storage access (like image_tool).
  */
@@ -19,7 +20,7 @@ import { resolveFileName } from './helpers/resolve_file_name';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 
-interface TxtParseResult {
+interface TextParseResult {
   operation: 'parse';
   success: boolean;
   result: string;
@@ -32,7 +33,7 @@ interface TxtParseResult {
   error?: string;
 }
 
-interface TxtGenerateResult {
+interface TextGenerateResult {
   operation: 'generate';
   success: boolean;
   fileStorageId: string;
@@ -43,71 +44,77 @@ interface TxtGenerateResult {
   error?: string;
 }
 
-type TxtResult = TxtParseResult | TxtGenerateResult;
+type TextResult = TextParseResult | TextGenerateResult;
 
-const txtArgs = z.discriminatedUnion('operation', [
+const textArgs = z.discriminatedUnion('operation', [
   z.object({
-    operation: z.literal('parse').describe('Parse and analyze a text file'),
+    operation: z
+      .literal('parse')
+      .describe('Parse and analyze a text-based file'),
     fileId: z
       .string()
       .describe(
-        "**REQUIRED** - Convex storage ID of the text file (e.g., 'kg2bazp7fbgt9srq63knfagjrd7yfenj'). Get this from the file attachment context.",
+        "**REQUIRED** - Convex storage ID of the file (e.g., 'kg2bazp7fbgt9srq63knfagjrd7yfenj'). Get this from the file attachment context.",
       ),
     filename: z
       .string()
       .optional()
       .describe(
-        "Original filename (e.g., 'data.txt'). Optional — auto-resolved from file metadata if omitted.",
+        "Original filename (e.g., 'data.txt', 'script.js', 'readme.md'). Optional — auto-resolved from file metadata if omitted.",
       ),
     user_input: z
       .string()
       .describe(
-        'The user question or instruction about what to analyze in the text file',
+        'The user question or instruction about what to analyze in the file',
       ),
   }),
   z.object({
     operation: z.literal('generate').describe('Generate a new text file'),
-    filename: z.string().describe("Output filename (e.g., 'output.txt')"),
+    filename: z
+      .string()
+      .describe("Output filename (e.g., 'output.txt', 'notes.md')"),
     content: z.string().describe('The text content to write to the file'),
   }),
 ]);
 
-export const txtTool = {
-  name: 'txt' as const,
+export const textTool = {
+  name: 'text' as const,
   tool: createTool({
-    description: `Text file (.txt) tool for parsing, analyzing, and generating plain text files.
+    description: `Text file tool for parsing, analyzing, and generating text-based files (.txt, .md, .js, .ts, .json, .csv, .log, and any other text format).
 
 OPERATIONS:
-1. **parse** - Parse and analyze an uploaded text file
+1. **parse** - Parse and analyze an uploaded text-based file
 2. **generate** - Create a new text file from content
 
 **PARSE OPERATION**
-Use when a user uploads a .txt file and asks to analyze its content.
+Use when a user uploads any text-based file and asks to analyze its content.
+Supports all text formats: plain text (.txt), markdown (.md), source code (.js, .ts, .py, etc.), config files (.json, .yaml, .toml), logs (.log), CSV, and more.
 Parameters:
 - operation: "parse"
 - fileId: **REQUIRED** - Convex storage ID (e.g., "kg2bazp7fbgt9srq63knfagjrd7yfenj")
-- filename: Optional — original filename (e.g., "notes.txt"). Auto-resolved from file metadata if omitted.
+- filename: Optional — original filename (e.g., "notes.txt", "app.js"). Auto-resolved from file metadata if omitted.
 - user_input: The user's question or instruction
 
 **GENERATE OPERATION**
 Use when a user wants to create/export a text file.
 Parameters:
 - operation: "generate"
-- filename: Output filename (e.g., "output.txt")
+- filename: Output filename (e.g., "output.txt", "report.md")
 - content: The text content to write
 
 EXAMPLES:
 • Parse: { "operation": "parse", "fileId": "kg2...", "filename": "error.log", "user_input": "Find all errors" }
-• Generate: { "operation": "generate", "filename": "report.txt", "content": "Your report content here..." }
+• Parse: { "operation": "parse", "fileId": "kg2...", "filename": "app.ts", "user_input": "Explain this code" }
+• Generate: { "operation": "generate", "filename": "report.md", "content": "# Report\\n\\nContent here..." }
 
 Returns: { success, downloadUrl (for generate), result (for parse), char_count, line_count }
 `,
-    args: txtArgs,
-    handler: async (ctx: ToolCtx, args): Promise<TxtResult> => {
+    args: textArgs,
+    handler: async (ctx: ToolCtx, args): Promise<TextResult> => {
       if (args.operation === 'generate') {
         const { filename, content } = args;
 
-        debugLog('tool:txt generate start', {
+        debugLog('tool:text generate start', {
           filename,
           contentLength: content.length,
         });
@@ -137,7 +144,7 @@ Returns: { success, downloadUrl (for generate), result (for parse), char_count, 
 
           const lineCount = content.split('\n').length;
 
-          debugLog('tool:txt generate success', {
+          debugLog('tool:text generate success', {
             filename,
             fileId,
             charCount: content.length,
@@ -156,7 +163,7 @@ Returns: { success, downloadUrl (for generate), result (for parse), char_count, 
         } catch (error) {
           const errorMessage =
             error instanceof Error ? error.message : String(error);
-          console.error('[tool:txt generate] error', {
+          console.error('[tool:text generate] error', {
             filename,
             error: errorMessage,
           });
@@ -187,13 +194,13 @@ Returns: { success, downloadUrl (for generate), result (for parse), char_count, 
           encoding: 'unknown',
           chunked: false,
           error:
-            "ERROR: Missing required 'fileId' parameter. For uploaded text files, you MUST provide the fileId from the file attachment context (it looks like 'kg2bazp7fbgt9srq63knfagjrd7yfenj'). Please check the attachment info and retry with fileId.",
+            "ERROR: Missing required 'fileId' parameter. For uploaded files, you MUST provide the fileId from the file attachment context (it looks like 'kg2bazp7fbgt9srq63knfagjrd7yfenj'). Please check the attachment info and retry with fileId.",
         };
       }
 
       const resolvedFilename = await resolveFileName(ctx, fileId, filename);
 
-      debugLog('tool:txt parse start', {
+      debugLog('tool:text parse start', {
         fileId,
         filename: resolvedFilename,
         user_input:
@@ -209,7 +216,7 @@ Returns: { success, downloadUrl (for generate), result (for parse), char_count, 
           userInput: user_input,
         });
 
-        debugLog('tool:txt parse success', {
+        debugLog('tool:text parse success', {
           filename: resolvedFilename,
           charCount: result.charCount,
           lineCount: result.lineCount,
@@ -231,7 +238,7 @@ Returns: { success, downloadUrl (for generate), result (for parse), char_count, 
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : String(error);
-        console.error('[tool:txt parse] error', {
+        console.error('[tool:text parse] error', {
           fileId,
           filename: resolvedFilename,
           error: errorMessage,

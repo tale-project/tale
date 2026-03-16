@@ -1,7 +1,7 @@
 /**
  * Shared file parsing helper for PDF, DOCX, and PPTX tools.
  * Gets file from Convex storage and sends it to the crawler service for text extraction.
- * Uses ctx.storage.get() for direct Convex storage access (like image_tool and txt_tool).
+ * Uses ctx.storage.get() for direct Convex storage access (like image_tool and text_tool).
  */
 
 import type { ActionCtx } from '../../../_generated/server';
@@ -55,7 +55,7 @@ export async function parseFile(
   });
 
   try {
-    // Get the file blob from Convex storage (like image_tool and txt_tool)
+    // Get the file blob from Convex storage (like image_tool and text_tool)
     const fileBlob = await ctx.storage.get(toId<'_storage'>(fileId));
     if (!fileBlob) {
       throw new Error(`File not found in storage: ${fileId}`);

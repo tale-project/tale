@@ -299,7 +299,7 @@ export async function analyzeTextContent(
         encoding,
         chunked: false,
         error:
-          'The file appears to be binary, not a text file. Please upload a valid text file (.txt).',
+          'The file appears to be binary, not a text-based file. Please upload a valid text file (.txt, .md, .js, .ts, .json, .csv, .log, etc.).',
       };
     }
 

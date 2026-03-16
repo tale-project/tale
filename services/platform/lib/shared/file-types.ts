@@ -283,9 +283,35 @@ const TOOL_FILE_MAP: Record<
     accept: ['.ppt', '.pptx', MIME_TYPES.PPT, MIME_TYPES.PPTX],
     mimeTypes: [MIME_TYPES.PPT, MIME_TYPES.PPTX],
   },
-  txt: {
-    accept: ['.txt', MIME_TYPES.PLAIN],
-    mimeTypes: [MIME_TYPES.PLAIN],
+  text: {
+    accept: [
+      'text/*',
+      '.json',
+      '.yaml',
+      '.yml',
+      '.toml',
+      '.xml',
+      '.sql',
+      '.graphql',
+      '.log',
+      'application/json',
+      'application/xml',
+      'application/javascript',
+      'application/typescript',
+      'application/x-yaml',
+    ],
+    mimeTypes: [
+      MIME_TYPES.PLAIN,
+      'text/markdown',
+      'text/html',
+      'text/css',
+      'text/csv',
+      'application/json',
+      'application/xml',
+      'application/javascript',
+      'application/typescript',
+      'application/x-yaml',
+    ],
   },
   excel: {
     accept: [

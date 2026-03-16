@@ -42,7 +42,7 @@ import type * as agent_tools_files_image_tool from "../agent_tools/files/image_t
 import type * as agent_tools_files_internal_actions from "../agent_tools/files/internal_actions.js";
 import type * as agent_tools_files_pdf_tool from "../agent_tools/files/pdf_tool.js";
 import type * as agent_tools_files_pptx_tool from "../agent_tools/files/pptx_tool.js";
-import type * as agent_tools_files_txt_tool from "../agent_tools/files/txt_tool.js";
+import type * as agent_tools_files_text_tool from "../agent_tools/files/text_tool.js";
 import type * as agent_tools_human_input_internal_mutations from "../agent_tools/human_input/internal_mutations.js";
 import type * as agent_tools_human_input_mutations from "../agent_tools/human_input/mutations.js";
 import type * as agent_tools_human_input_request_human_input_tool from "../agent_tools/human_input/request_human_input_tool.js";
@@ -102,7 +102,7 @@ import type * as agent_tools_workflows_workflow_read_tool from "../agent_tools/w
 import type * as agent_tools_workflows_workflow_syntax_tool from "../agent_tools/workflows/workflow_syntax_tool.js";
 import type * as agents_chat_agent from "../agents/chat/agent.js";
 import type * as agents_crm_agent from "../agents/crm/agent.js";
-import type * as agents_document_agent from "../agents/document/agent.js";
+import type * as agents_file_agent from "../agents/file/agent.js";
 import type * as agents_integration_agent from "../agents/integration/agent.js";
 import type * as agents_web_agent from "../agents/web/agent.js";
 import type * as api_gateway from "../api_gateway.js";
@@ -889,7 +889,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/files/internal_actions": typeof agent_tools_files_internal_actions;
   "agent_tools/files/pdf_tool": typeof agent_tools_files_pdf_tool;
   "agent_tools/files/pptx_tool": typeof agent_tools_files_pptx_tool;
-  "agent_tools/files/txt_tool": typeof agent_tools_files_txt_tool;
+  "agent_tools/files/text_tool": typeof agent_tools_files_text_tool;
   "agent_tools/human_input/internal_mutations": typeof agent_tools_human_input_internal_mutations;
   "agent_tools/human_input/mutations": typeof agent_tools_human_input_mutations;
   "agent_tools/human_input/request_human_input_tool": typeof agent_tools_human_input_request_human_input_tool;
@@ -949,7 +949,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/workflows/workflow_syntax_tool": typeof agent_tools_workflows_workflow_syntax_tool;
   "agents/chat/agent": typeof agents_chat_agent;
   "agents/crm/agent": typeof agents_crm_agent;
-  "agents/document/agent": typeof agents_document_agent;
+  "agents/file/agent": typeof agents_file_agent;
   "agents/integration/agent": typeof agents_integration_agent;
   "agents/web/agent": typeof agents_web_agent;
   api_gateway: typeof api_gateway;
