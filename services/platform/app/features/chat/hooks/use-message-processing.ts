@@ -247,6 +247,8 @@ export function useMessageProcessing(
           isStreaming,
           isAborted:
             m.role === 'assistant' && m.status === 'failed' && !m.text?.trim(),
+          isFailed:
+            m.role === 'assistant' && m.status === 'failed' && !!m.text?.trim(),
           isHumanInputResponse,
         };
       });

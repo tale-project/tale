@@ -18,7 +18,11 @@ import { cn } from '@/lib/utils/cn';
 
 import type { Message } from './message-bubble/types';
 
-import { useMessageMetadata, useFileUrls } from '../hooks/queries';
+import {
+  useMessageMetadata,
+  useMessageError,
+  useFileUrls,
+} from '../hooks/queries';
 import {
   FileAttachmentDisplay,
   FilePartDisplay,
@@ -105,6 +109,9 @@ function MessageBubbleComponent({
   const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const { metadata } = useMessageMetadata(message.id);
+  const errorDetails = useMessageError(
+    message.isFailed ? (message.threadId ?? null) : null,
+  );
   const galleryImages = useMessageGallery(message);
 
   // Map each filePart/attachment to its gallery index (-1 for non-images)
@@ -193,6 +200,15 @@ function MessageBubbleComponent({
               isStreaming={!!isAssistantStreaming}
               onSendFollowUp={!isUser ? onSendFollowUp : undefined}
             />
+            {message.isFailed && errorDetails && (
+              <p
+                className="text-destructive mt-2 text-xs break-all"
+                role="alert"
+                aria-live="polite"
+              >
+                {tChat('errorDetails')}: {errorDetails}
+              </p>
+            )}
           </div>
         ) : (
           message.isAborted && (
@@ -283,6 +299,7 @@ export const MessageBubble = memo(
       prevProps.message.content === nextProps.message.content &&
       prevProps.message.isStreaming === nextProps.message.isStreaming &&
       prevProps.message.isAborted === nextProps.message.isAborted &&
+      prevProps.message.isFailed === nextProps.message.isFailed &&
       prevProps.message.attachments === nextProps.message.attachments &&
       prevProps.message.fileParts === nextProps.message.fileParts &&
       prevProps.className === nextProps.className &&

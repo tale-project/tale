@@ -384,6 +384,15 @@ export interface MessageMetadata {
   contextStats?: ContextStats;
 }
 
+export function useMessageError(threadId: string | null) {
+  const { data } = useConvexQuery(
+    api.threads.get_message_error.getMessageError,
+    threadId ? { threadId } : 'skip',
+  );
+
+  return data ?? null;
+}
+
 export function useMessageMetadata(messageId: string | null) {
   const { data: metadata, isLoading } = useConvexQuery(
     api.message_metadata.queries.getMessageMetadata,
