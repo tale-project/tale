@@ -24,6 +24,14 @@ describe('calculateFileHash', () => {
     expect(hash1).not.toBe(hash2);
   });
 
+  it('handles empty files', async () => {
+    const file = new File([], 'empty.txt');
+    const hash = await calculateFileHash(file);
+    expect(hash).toBe(
+      'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+    );
+  });
+
   it('returns correct SHA-256 for known input', async () => {
     const file = new File(['hello world'], 'test.txt');
     const hash = await calculateFileHash(file);
