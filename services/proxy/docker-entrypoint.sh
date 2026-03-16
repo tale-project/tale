@@ -39,26 +39,32 @@ CADDYFILE="/config/Caddyfile"
 echo "TLS Configuration:"
 echo "  TLS_MODE: ${TLS_MODE:-selfsigned}"
 
-case "${TLS_MODE:-selfsigned}" in
-  letsencrypt)
-    echo "  Mode: Let's Encrypt (ACME - trusted certificates)"
-    if [ -n "${TLS_EMAIL:-}" ]; then
-      echo "  Email: ${TLS_EMAIL}"
-      # ACME with email for notifications
-      TLS_CONFIG="tls ${TLS_EMAIL}"
-    else
-      echo "  Warning: TLS_EMAIL not set, certificate expiry notifications disabled"
-      # ACME without email
-      TLS_CONFIG="tls"
-    fi
-    ;;
-  selfsigned|*)
-    echo "  Mode: Self-signed (internal CA - browser warning expected)"
-    echo "  To trust certs on host: docker exec tale-proxy caddy trust"
-    # Internal CA for self-signed certificates
-    TLS_CONFIG="tls internal"
-    ;;
-esac
+# When SITE_URL uses http://, disable TLS entirely (plain HTTP mode)
+if echo "${SITE_URL}" | grep -qi '^http://'; then
+  echo "  Mode: Plain HTTP (no TLS - SITE_URL uses http://)"
+  TLS_CONFIG="# TLS disabled (plain HTTP)"
+else
+  case "${TLS_MODE:-selfsigned}" in
+    letsencrypt)
+      echo "  Mode: Let's Encrypt (ACME - trusted certificates)"
+      if [ -n "${TLS_EMAIL:-}" ]; then
+        echo "  Email: ${TLS_EMAIL}"
+        # ACME with email for notifications
+        TLS_CONFIG="tls ${TLS_EMAIL}"
+      else
+        echo "  Warning: TLS_EMAIL not set, certificate expiry notifications disabled"
+        # ACME without email
+        TLS_CONFIG="tls"
+      fi
+      ;;
+    selfsigned|*)
+      echo "  Mode: Self-signed (internal CA - browser warning expected)"
+      echo "  To trust certs on host: docker exec tale-proxy caddy trust"
+      # Internal CA for self-signed certificates
+      TLS_CONFIG="tls internal"
+      ;;
+  esac
+fi
 
 # Copy Caddyfile to writable location and apply TLS config
 cp "$CADDYFILE_SRC" "$CADDYFILE"
