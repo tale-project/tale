@@ -12,5 +12,9 @@ export function getAgentModelId(ctx: ToolCtx): string {
   }
   const lm = ctx.agent.options.languageModel;
   if (typeof lm === 'string') return lm;
-  return lm.modelId;
+  if ('modelId' in lm && typeof lm.modelId === 'string') return lm.modelId;
+  if ('model' in lm && typeof lm.model === 'string') return lm.model;
+  throw new Error(
+    'getAgentModelId: languageModel object has neither modelId nor model property',
+  );
 }

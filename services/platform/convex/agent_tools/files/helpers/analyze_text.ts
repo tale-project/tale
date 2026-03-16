@@ -230,9 +230,9 @@ async function aggregateChunkResults(
   chunkResults: string[],
   userInput: string,
 ): Promise<ChunkResult> {
-  if (chunkResults.length === 1) {
+  if (chunkResults.length <= 1) {
     return {
-      text: chunkResults[0],
+      text: chunkResults[0] ?? '',
       usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
     };
   }

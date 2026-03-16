@@ -27,7 +27,7 @@ import { ToolDetailsDialog } from './tool-details-dialog';
 
 function formatAgentName(toolName: string): string {
   const nameMap: Record<string, string> = {
-    document_assistant: 'Document',
+    file_assistant: 'File',
     crm_assistant: 'CRM',
     integration_assistant: 'Integration',
     workflow_assistant: 'Workflow',
