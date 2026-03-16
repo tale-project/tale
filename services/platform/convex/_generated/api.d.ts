@@ -522,6 +522,7 @@ import type * as threads_create_chat_thread from "../threads/create_chat_thread.
 import type * as threads_delete_chat_thread from "../threads/delete_chat_thread.js";
 import type * as threads_get_latest_thread_with_message_count from "../threads/get_latest_thread_with_message_count.js";
 import type * as threads_get_latest_tool_message from "../threads/get_latest_tool_message.js";
+import type * as threads_get_message_error from "../threads/get_message_error.js";
 import type * as threads_get_or_create_sub_thread from "../threads/get_or_create_sub_thread.js";
 import type * as threads_get_parent_thread_id from "../threads/get_parent_thread_id.js";
 import type * as threads_get_thread_messages from "../threads/get_thread_messages.js";
@@ -1368,6 +1369,7 @@ declare const fullApi: ApiFromModules<{
   "threads/delete_chat_thread": typeof threads_delete_chat_thread;
   "threads/get_latest_thread_with_message_count": typeof threads_get_latest_thread_with_message_count;
   "threads/get_latest_tool_message": typeof threads_get_latest_tool_message;
+  "threads/get_message_error": typeof threads_get_message_error;
   "threads/get_or_create_sub_thread": typeof threads_get_or_create_sub_thread;
   "threads/get_parent_thread_id": typeof threads_get_parent_thread_id;
   "threads/get_thread_messages": typeof threads_get_thread_messages;

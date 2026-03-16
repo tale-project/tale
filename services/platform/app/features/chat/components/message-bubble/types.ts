@@ -22,6 +22,7 @@ export interface Message {
   timestamp: Date;
   isStreaming?: boolean;
   isAborted?: boolean;
+  isFailed?: boolean;
   attachments?: FileAttachment[];
   fileParts?: FilePart[];
   threadId?: string;
