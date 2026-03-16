@@ -94,6 +94,7 @@ export async function parseFile(
       size: fileBlob.size,
       endpoint: endpointPath,
       hasUserInput: !!userInput,
+      model: model ?? null,
     });
 
     const controller = new AbortController();
