@@ -4,7 +4,7 @@
  * Generic Agent Response Generator
  *
  * This module provides a unified implementation for generating agent responses.
- * All agents (chat, web, document, crm, integration, workflow) use this shared
+ * All agents (chat, web, file, crm, integration, workflow) use this shared
  * implementation with their specific configuration.
  *
  * Features:

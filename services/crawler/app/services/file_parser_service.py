@@ -81,7 +81,6 @@ class FileParserService:
                 filename,
                 process_images=process_images,
                 ocr_scanned_pages=ocr_scanned_pages,
-                model=model,
             )
 
             if user_input:
@@ -167,7 +166,6 @@ class FileParserService:
                 file_bytes,
                 filename,
                 process_images=process_images,
-                model=model,
             )
 
             if user_input:
@@ -263,7 +261,6 @@ class FileParserService:
                 file_bytes,
                 filename,
                 process_images=process_images,
-                model=model,
             )
 
             if user_input:

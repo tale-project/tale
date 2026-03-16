@@ -47,7 +47,6 @@ async def extract_text_from_docx_bytes(
     filename: str = "document.docx",
     *,
     process_images: bool = True,
-    model: str | None = None,
 ) -> tuple[list[str], bool]:
     """Extract text from DOCX bytes with Vision support.
 

@@ -144,7 +144,6 @@ async def extract_text_from_pdf_bytes(
     *,
     process_images: bool = True,
     ocr_scanned_pages: bool = True,
-    model: str | None = None,
 ) -> tuple[list[str], bool]:
     """Extract text from PDF bytes with Vision support.
 
