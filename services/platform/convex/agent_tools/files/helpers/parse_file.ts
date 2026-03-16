@@ -28,6 +28,13 @@ export interface ParseFileResult {
     author?: string;
     subject?: string;
   };
+  usage?: {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    durationMs?: number;
+    model?: string;
+  };
   error?: string;
 }
 
@@ -105,7 +112,29 @@ export async function parseFile(
       throw new Error(`Crawler service error: ${response.status} ${errorText}`);
     }
 
-    const result = await fetchJson<ParseFileResult>(response);
+    interface RawCrawlerUsage {
+      input_tokens?: number;
+      output_tokens?: number;
+      total_tokens?: number;
+      duration_ms?: number;
+      model?: string;
+    }
+
+    const raw = await fetchJson<ParseFileResult & { usage?: RawCrawlerUsage }>(
+      response,
+    );
+
+    // Remap snake_case usage from crawler to camelCase
+    const result: ParseFileResult = { ...raw };
+    if (raw.usage) {
+      result.usage = {
+        inputTokens: raw.usage.input_tokens ?? 0,
+        outputTokens: raw.usage.output_tokens ?? 0,
+        totalTokens: raw.usage.total_tokens ?? 0,
+        durationMs: raw.usage.duration_ms,
+        model: raw.usage.model,
+      };
+    }
 
     debugLog(`tool:${toolName} parse success`, {
       filename: result.filename,

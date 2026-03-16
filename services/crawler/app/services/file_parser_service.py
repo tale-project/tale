@@ -11,6 +11,8 @@ import logging
 from io import BytesIO
 from typing import Any
 
+from ..config import settings
+
 logger = logging.getLogger(__name__)
 
 
@@ -72,21 +74,32 @@ class FileParserService:
         Returns:
             Extraction result with full_text and metadata
         """
-        from .vision.openai_client import process_pages_with_llm
+        from .vision.openai_client import UsageAccumulator, process_pages_with_llm
         from .vision.pdf_extractor import extract_text_from_pdf_bytes
 
         try:
+            acc = UsageAccumulator()
+
             pages_content, vision_used = await extract_text_from_pdf_bytes(
                 file_bytes,
                 filename,
                 process_images=process_images,
                 ocr_scanned_pages=ocr_scanned_pages,
+                usage=acc,
             )
 
+            resolved_model = model
             if user_input:
-                pages_content = await process_pages_with_llm(pages_content, user_input, max_concurrent=3, model=model)
+                pages_content = await process_pages_with_llm(
+                    pages_content,
+                    user_input,
+                    max_concurrent=3,
+                    model=model,
+                    usage=acc,
+                )
+                resolved_model = model or settings.get_fast_model()
 
-            return {
+            result: dict[str, Any] = {
                 "success": True,
                 "filename": filename,
                 "file_type": "application/pdf",
@@ -94,6 +107,9 @@ class FileParserService:
                 "full_text": "\n\n".join(pages_content),
                 "vision_used": vision_used,
             }
+            if acc.total_tokens > 0:
+                result["usage"] = acc.to_dict(model=resolved_model)
+            return result
         except Exception as e:
             logger.error(f"Error parsing PDF with Vision: {e}")
             return {
@@ -159,19 +175,30 @@ class FileParserService:
             Extraction result with full_text and metadata
         """
         from .vision.docx_extractor import extract_text_from_docx_bytes
-        from .vision.openai_client import process_pages_with_llm
+        from .vision.openai_client import UsageAccumulator, process_pages_with_llm
 
         try:
+            acc = UsageAccumulator()
+
             content_list, vision_used = await extract_text_from_docx_bytes(
                 file_bytes,
                 filename,
                 process_images=process_images,
+                usage=acc,
             )
 
+            resolved_model = model
             if user_input:
-                content_list = await process_pages_with_llm(content_list, user_input, max_concurrent=3, model=model)
+                content_list = await process_pages_with_llm(
+                    content_list,
+                    user_input,
+                    max_concurrent=3,
+                    model=model,
+                    usage=acc,
+                )
+                resolved_model = model or settings.get_fast_model()
 
-            return {
+            result: dict[str, Any] = {
                 "success": True,
                 "filename": filename,
                 "file_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -179,6 +206,9 @@ class FileParserService:
                 "full_text": "\n\n".join(content_list),
                 "vision_used": vision_used,
             }
+            if acc.total_tokens > 0:
+                result["usage"] = acc.to_dict(model=resolved_model)
+            return result
         except Exception as e:
             logger.error(f"Error parsing DOCX with Vision: {e}")
             return {
@@ -253,20 +283,31 @@ class FileParserService:
         Returns:
             Extraction result with full_text and metadata
         """
-        from .vision.openai_client import process_pages_with_llm
+        from .vision.openai_client import UsageAccumulator, process_pages_with_llm
         from .vision.pptx_extractor import extract_text_from_pptx_bytes
 
         try:
+            acc = UsageAccumulator()
+
             slides_content, vision_used = await extract_text_from_pptx_bytes(
                 file_bytes,
                 filename,
                 process_images=process_images,
+                usage=acc,
             )
 
+            resolved_model = model
             if user_input:
-                slides_content = await process_pages_with_llm(slides_content, user_input, max_concurrent=3, model=model)
+                slides_content = await process_pages_with_llm(
+                    slides_content,
+                    user_input,
+                    max_concurrent=3,
+                    model=model,
+                    usage=acc,
+                )
+                resolved_model = model or settings.get_fast_model()
 
-            return {
+            result: dict[str, Any] = {
                 "success": True,
                 "filename": filename,
                 "file_type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
@@ -274,6 +315,9 @@ class FileParserService:
                 "full_text": "\n\n".join(slides_content),
                 "vision_used": vision_used,
             }
+            if acc.total_tokens > 0:
+                result["usage"] = acc.to_dict(model=resolved_model)
+            return result
         except Exception as e:
             logger.error(f"Error parsing PPTX with Vision: {e}")
             return {

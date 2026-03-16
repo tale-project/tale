@@ -43,6 +43,15 @@ export const parseFileUncached = internalAction({
         subject: v.optional(v.string()),
       }),
     ),
+    usage: v.optional(
+      v.object({
+        inputTokens: v.number(),
+        outputTokens: v.number(),
+        totalTokens: v.number(),
+        durationMs: v.optional(v.number()),
+        model: v.optional(v.string()),
+      }),
+    ),
     error: v.optional(v.string()),
   }),
   handler: async (ctx, args): Promise<ParseFileResult> => {

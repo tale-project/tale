@@ -12,7 +12,7 @@ from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from loguru import logger
 
 from ...config import settings
-from .openai_client import vision_client
+from .openai_client import UsageAccumulator, vision_client
 
 MIN_IMAGE_SIZE = 10000  # ~100x100 pixels
 
@@ -20,6 +20,7 @@ MIN_IMAGE_SIZE = 10000  # ~100x100 pixels
 async def _describe_image_bytes(
     image_bytes: bytes,
     semaphore: asyncio.Semaphore,
+    usage: UsageAccumulator | None = None,
 ) -> str:
     """Describe image bytes using Vision API."""
     async with semaphore:
@@ -27,7 +28,7 @@ async def _describe_image_bytes(
             if len(image_bytes) < MIN_IMAGE_SIZE:
                 logger.debug(f"Skipping small image ({len(image_bytes)} bytes)")
                 return ""
-            return await vision_client.describe_image(image_bytes)
+            return await vision_client.describe_image(image_bytes, usage=usage)
         except Exception as e:
             logger.warning(f"Failed to describe image: {e}")
             return ""
@@ -47,6 +48,7 @@ async def extract_text_from_docx_bytes(
     filename: str = "document.docx",
     *,
     process_images: bool = True,
+    usage: UsageAccumulator | None = None,
 ) -> tuple[list[str], bool]:
     """Extract text from DOCX bytes with Vision support.
 
@@ -108,7 +110,7 @@ async def extract_text_from_docx_bytes(
                         if embed_id and embed_id in image_rels and embed_id not in processed_image_rids:
                             processed_image_rids.add(embed_id)
                             image_bytes = image_rels[embed_id]
-                            description = await _describe_image_bytes(image_bytes, semaphore)
+                            description = await _describe_image_bytes(image_bytes, semaphore, usage=usage)
                             if description:
                                 elements.append((position, f"[Image: {description}]"))
                                 vision_used = True
@@ -128,7 +130,7 @@ async def extract_text_from_docx_bytes(
     if process_images:
         for rid, image_bytes in image_rels.items():
             if rid not in processed_image_rids:
-                description = await _describe_image_bytes(image_bytes, semaphore)
+                description = await _describe_image_bytes(image_bytes, semaphore, usage=usage)
                 if description:
                     elements.append((position, f"[Image: {description}]"))
                     vision_used = True
