@@ -61,6 +61,7 @@ export interface ProcessAttachmentsConfig {
   maxDocumentLength?: number;
   debugLog?: (message: string, data?: Record<string, unknown>) => void;
   toolName?: string;
+  model?: string;
 }
 
 const DEFAULT_MAX_DOCUMENT_LENGTH = 50000;
@@ -83,7 +84,7 @@ export async function processAttachments(
   ctx: ActionCtx,
   attachments: FileAttachment[],
   userText: string | undefined,
-  config?: ProcessAttachmentsConfig,
+  config: ProcessAttachmentsConfig & { model: string },
 ): Promise<ProcessedAttachments> {
   const maxDocLength = config?.maxDocumentLength ?? DEFAULT_MAX_DOCUMENT_LENGTH;
   const debugLog = config?.debugLog ?? (() => {});
@@ -199,6 +200,7 @@ export async function processAttachments(
           fileId: attachment.fileId,
           filename: attachment.fileName,
           userInput: userText || 'Analyze this file',
+          model: config.model,
         });
 
         if (result.success) {

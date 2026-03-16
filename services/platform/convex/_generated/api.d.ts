@@ -35,6 +35,7 @@ import type * as agent_tools_files_excel_tool from "../agent_tools/files/excel_t
 import type * as agent_tools_files_helpers_analyze_image from "../agent_tools/files/helpers/analyze_image.js";
 import type * as agent_tools_files_helpers_analyze_image_by_url from "../agent_tools/files/helpers/analyze_image_by_url.js";
 import type * as agent_tools_files_helpers_analyze_text from "../agent_tools/files/helpers/analyze_text.js";
+import type * as agent_tools_files_helpers_get_agent_model from "../agent_tools/files/helpers/get_agent_model.js";
 import type * as agent_tools_files_helpers_parse_file from "../agent_tools/files/helpers/parse_file.js";
 import type * as agent_tools_files_helpers_resolve_file_name from "../agent_tools/files/helpers/resolve_file_name.js";
 import type * as agent_tools_files_helpers_vision_agent from "../agent_tools/files/helpers/vision_agent.js";
@@ -882,6 +883,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/files/helpers/analyze_image": typeof agent_tools_files_helpers_analyze_image;
   "agent_tools/files/helpers/analyze_image_by_url": typeof agent_tools_files_helpers_analyze_image_by_url;
   "agent_tools/files/helpers/analyze_text": typeof agent_tools_files_helpers_analyze_text;
+  "agent_tools/files/helpers/get_agent_model": typeof agent_tools_files_helpers_get_agent_model;
   "agent_tools/files/helpers/parse_file": typeof agent_tools_files_helpers_parse_file;
   "agent_tools/files/helpers/resolve_file_name": typeof agent_tools_files_helpers_resolve_file_name;
   "agent_tools/files/helpers/vision_agent": typeof agent_tools_files_helpers_vision_agent;

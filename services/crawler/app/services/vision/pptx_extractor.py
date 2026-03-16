@@ -115,6 +115,7 @@ async def extract_text_from_pptx_bytes(
     filename: str = "presentation.pptx",
     *,
     process_images: bool = True,
+    model: str | None = None,
 ) -> tuple[list[str], bool]:
     """Extract text from PPTX bytes with Vision support.
 

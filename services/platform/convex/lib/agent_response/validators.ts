@@ -31,7 +31,7 @@ export const toolCallValidator = v.object({
   status: v.string(),
 });
 
-export const subAgentUsageValidator = v.object({
+export const toolUsageValidator = v.object({
   toolName: v.string(),
   model: v.optional(v.string()),
   provider: v.optional(v.string()),
@@ -39,6 +39,8 @@ export const subAgentUsageValidator = v.object({
   outputTokens: v.optional(v.number()),
   totalTokens: v.optional(v.number()),
   durationMs: v.optional(v.number()),
+  input: v.optional(v.string()),
+  output: v.optional(v.string()),
 });
 
 export const agentResponseReturnsValidator = v.object({
@@ -49,7 +51,7 @@ export const agentResponseReturnsValidator = v.object({
   durationMs: v.number(),
   timeToFirstTokenMs: v.optional(v.number()),
   toolCalls: v.optional(v.array(toolCallValidator)),
-  subAgentUsage: v.optional(v.array(subAgentUsageValidator)),
+  toolsUsage: v.optional(v.array(toolUsageValidator)),
   contextWindow: v.optional(v.string()),
   contextStats: v.optional(contextStatsValidator),
   model: v.optional(v.string()),

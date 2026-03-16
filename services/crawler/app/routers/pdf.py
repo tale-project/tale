@@ -154,6 +154,7 @@ async def parse_pdf_file(
     user_input: str | None = Form(None, description="User instruction for AI extraction per page"),
     process_images: bool = Form(True, description="Extract and describe embedded images"),
     ocr_scanned_pages: bool = Form(True, description="OCR pages with low text content"),
+    model: str | None = Form(None, description="LLM model for text processing"),
 ):
     """
     Parse a PDF file and extract its text content using Vision API.
@@ -190,6 +191,7 @@ async def parse_pdf_file(
             user_input=user_input,
             process_images=process_images,
             ocr_scanned_pages=ocr_scanned_pages,
+            model=model,
         )
 
         return ParseFileResponse(**result)

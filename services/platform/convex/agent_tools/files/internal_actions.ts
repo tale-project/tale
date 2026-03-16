@@ -26,6 +26,7 @@ export const parseFileUncached = internalAction({
     fileId: v.string(),
     filename: v.string(),
     toolName: v.string(),
+    model: v.optional(v.string()),
   },
   returns: v.object({
     success: v.boolean(),
@@ -50,6 +51,8 @@ export const parseFileUncached = internalAction({
       args.fileId,
       args.filename,
       args.toolName,
+      undefined,
+      args.model,
     );
   },
 });

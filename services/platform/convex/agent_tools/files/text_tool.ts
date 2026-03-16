@@ -16,6 +16,7 @@ import type { ToolDefinition } from '../types';
 import { internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
 import { analyzeTextContent } from './helpers/analyze_text';
+import { getAgentModelId } from './helpers/get_agent_model';
 import { resolveFileName } from './helpers/resolve_file_name';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
@@ -30,6 +31,8 @@ interface TextParseResult {
   encoding: string;
   chunked: boolean;
   chunk_count?: number;
+  model?: string;
+  usage?: { inputTokens: number; outputTokens: number; totalTokens: number };
   error?: string;
 }
 
@@ -198,11 +201,13 @@ Returns: { success, downloadUrl (for generate), result (for parse), char_count, 
         };
       }
 
+      const model = getAgentModelId(ctx);
       const resolvedFilename = await resolveFileName(ctx, fileId, filename);
 
       debugLog('tool:text parse start', {
         fileId,
         filename: resolvedFilename,
+        model,
         user_input:
           user_input.length > 100
             ? user_input.slice(0, 100) + '...'
@@ -214,6 +219,7 @@ Returns: { success, downloadUrl (for generate), result (for parse), char_count, 
           fileId,
           filename: resolvedFilename,
           userInput: user_input,
+          model,
         });
 
         debugLog('tool:text parse success', {
@@ -233,6 +239,8 @@ Returns: { success, downloadUrl (for generate), result (for parse), char_count, 
           encoding: result.encoding,
           chunked: result.chunked,
           chunk_count: result.chunkCount,
+          model: result.model,
+          usage: result.usage,
           error: result.error,
         };
       } catch (error) {

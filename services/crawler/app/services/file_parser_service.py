@@ -58,6 +58,7 @@ class FileParserService:
         user_input: str | None = None,
         process_images: bool = True,
         ocr_scanned_pages: bool = True,
+        model: str | None = None,
     ) -> dict[str, Any]:
         """Extract text content from a PDF file using Vision API.
 
@@ -80,10 +81,11 @@ class FileParserService:
                 filename,
                 process_images=process_images,
                 ocr_scanned_pages=ocr_scanned_pages,
+                model=model,
             )
 
             if user_input:
-                pages_content = await process_pages_with_llm(pages_content, user_input, max_concurrent=3)
+                pages_content = await process_pages_with_llm(pages_content, user_input, max_concurrent=3, model=model)
 
             return {
                 "success": True,
@@ -144,6 +146,7 @@ class FileParserService:
         filename: str = "document.docx",
         user_input: str | None = None,
         process_images: bool = True,
+        model: str | None = None,
     ) -> dict[str, Any]:
         """Extract text content from a DOCX file using Vision API.
 
@@ -164,10 +167,11 @@ class FileParserService:
                 file_bytes,
                 filename,
                 process_images=process_images,
+                model=model,
             )
 
             if user_input:
-                content_list = await process_pages_with_llm(content_list, user_input, max_concurrent=3)
+                content_list = await process_pages_with_llm(content_list, user_input, max_concurrent=3, model=model)
 
             return {
                 "success": True,
@@ -238,6 +242,7 @@ class FileParserService:
         filename: str = "presentation.pptx",
         user_input: str | None = None,
         process_images: bool = True,
+        model: str | None = None,
     ) -> dict[str, Any]:
         """Extract text content from a PPTX file using Vision API.
 
@@ -258,10 +263,11 @@ class FileParserService:
                 file_bytes,
                 filename,
                 process_images=process_images,
+                model=model,
             )
 
             if user_input:
-                slides_content = await process_pages_with_llm(slides_content, user_input, max_concurrent=3)
+                slides_content = await process_pages_with_llm(slides_content, user_input, max_concurrent=3, model=model)
 
             return {
                 "success": True,
@@ -305,6 +311,7 @@ class FileParserService:
         user_input: str | None = None,
         process_images: bool = True,
         ocr_scanned_pages: bool = True,
+        model: str | None = None,
     ) -> dict[str, Any]:
         """Parse a file with Vision API support.
 
@@ -323,11 +330,13 @@ class FileParserService:
         content_type_lower = content_type.lower() if content_type else ""
 
         if filename_lower.endswith(".pdf") or "pdf" in content_type_lower:
-            return await self.parse_pdf_with_vision(file_bytes, filename, user_input, process_images, ocr_scanned_pages)
+            return await self.parse_pdf_with_vision(
+                file_bytes, filename, user_input, process_images, ocr_scanned_pages, model=model
+            )
         elif filename_lower.endswith(".docx") or "wordprocessingml" in content_type_lower:
-            return await self.parse_docx_with_vision(file_bytes, filename, user_input, process_images)
+            return await self.parse_docx_with_vision(file_bytes, filename, user_input, process_images, model=model)
         elif filename_lower.endswith(".pptx") or "presentationml" in content_type_lower:
-            return await self.parse_pptx_with_vision(file_bytes, filename, user_input, process_images)
+            return await self.parse_pptx_with_vision(file_bytes, filename, user_input, process_images, model=model)
         else:
             return {
                 "success": False,

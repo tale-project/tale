@@ -46,6 +46,7 @@ export async function parseFile(
   filename: string | undefined,
   toolName: string,
   userInput?: string,
+  model?: string,
 ): Promise<ParseFileResult> {
   const resolvedFilename = await resolveFileName(ctx, fileId, filename);
 
@@ -76,6 +77,9 @@ export async function parseFile(
     formData.append('file', fileBlob, resolvedFilename);
     if (userInput) {
       formData.append('user_input', userInput);
+    }
+    if (model) {
+      formData.append('model', model);
     }
 
     debugLog(`tool:${toolName} parse uploading to crawler`, {

@@ -261,6 +261,7 @@ async def process_pages_with_llm(
     user_input: str,
     max_concurrent: int = 3,
     max_chars_per_chunk: int = 100_000,
+    model: str | None = None,
 ) -> list[str]:
     """Process document content with Fast LLM based on user instruction.
 
@@ -290,7 +291,7 @@ async def process_pages_with_llm(
         base_url=settings.get_openai_base_url(),
         timeout=180.0,
     )
-    fast_model = settings.get_fast_model()
+    resolved_model = model or settings.get_fast_model()
     semaphore = asyncio.Semaphore(max_concurrent)
 
     chunks = _chunk_by_chars(full_text, max_chars_per_chunk)
@@ -303,7 +304,7 @@ async def process_pages_with_llm(
             try:
                 logger.debug(f"Processing chunk {chunk_idx + 1}/{total_chunks} ({len(chunk_text)} chars)")
                 response = await client.chat.completions.create(
-                    model=fast_model,
+                    model=resolved_model,
                     messages=[
                         {
                             "role": "system",

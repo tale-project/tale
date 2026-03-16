@@ -39,7 +39,6 @@ import {
 import { extractInputSchema } from '../../agent_tools/workflows/helpers/extract_input_schema';
 import { toId } from '../../lib/type_cast_helpers';
 import { generateAgentResponse } from '../agent_response';
-import { processAttachments } from '../attachments';
 import {
   estimateTokens,
   DEFAULT_MODEL_CONTEXT_LIMIT,
@@ -572,8 +571,7 @@ export const beforeGenerateHook = internalAction({
     contextExceedsBudget: v.boolean(),
   }),
   handler: async (ctx, args) => {
-    const { threadId, promptMessage, attachments, contextMessagesTokens } =
-      args;
+    const { threadId, promptMessage, contextMessagesTokens } = args;
 
     // Token budget check for logging
     const currentPromptTokens = estimateTokens(promptMessage || '');
@@ -592,16 +590,8 @@ export const beforeGenerateHook = internalAction({
       });
     }
 
-    // Process attachments
-    const { promptContent: attachmentPrompt } = await processAttachments(
-      ctx,
-      attachments ?? [],
-      promptMessage,
-      { debugLog: beforeGenerateDebugLog, toolName: 'agent' },
-    );
-
     return {
-      promptContent: attachmentPrompt,
+      promptContent: undefined,
       contextExceedsBudget,
     };
   },
