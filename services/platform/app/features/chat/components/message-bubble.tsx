@@ -201,8 +201,12 @@ function MessageBubbleComponent({
               onSendFollowUp={!isUser ? onSendFollowUp : undefined}
             />
             {message.isFailed && errorDetails && (
-              <p className="text-destructive mt-2 text-xs break-all">
-                {errorDetails}
+              <p
+                className="text-destructive mt-2 text-xs break-all"
+                role="alert"
+                aria-live="polite"
+              >
+                {tChat('errorDetails')}: {errorDetails}
               </p>
             )}
           </div>

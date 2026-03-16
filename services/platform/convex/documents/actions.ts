@@ -85,13 +85,20 @@ export const retryRagIndexing = action({
       const message =
         error instanceof Error ? error.message : 'Failed to retry RAG indexing';
       console.error('[retryRagIndexing] Error:', error);
-      await ctx.runMutation(
-        internal.documents.internal_mutations.updateDocumentRagInfo,
-        {
-          documentId: args.documentId,
-          ragInfo: { status: 'failed', error: message },
-        },
-      );
+      try {
+        await ctx.runMutation(
+          internal.documents.internal_mutations.updateDocumentRagInfo,
+          {
+            documentId: args.documentId,
+            ragInfo: { status: 'failed', error: message },
+          },
+        );
+      } catch (updateError) {
+        console.error(
+          '[retryRagIndexing] Failed to update document status:',
+          updateError,
+        );
+      }
       return { success: false, error: message };
     }
   },
