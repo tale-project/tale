@@ -2215,7 +2215,7 @@
       "performance": "Performance",
       "duration": "Duration",
       "timeToFirstToken": "Time to first token",
-      "subAgentCalls": "Sub-agent calls",
+      "toolCalls": "Tool calls",
       "noMetadata": "Token usage and model information are not available for this message.",
       "contextWindow": "Context (est.)",
       "contextWindowDescription": "The full context sent to the AI model",
@@ -2224,8 +2224,8 @@
       "contextApprovals": "Approvals",
       "showContext": "Show context window"
     },
-    "subAgentDetails": {
-      "title": "{agent} agent details",
+    "toolDetails": {
+      "title": "{tool} details",
       "input": "Input",
       "output": "Output"
     },

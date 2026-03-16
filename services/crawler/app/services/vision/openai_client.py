@@ -11,12 +11,43 @@ Results are cached based on image content hash to avoid redundant API calls.
 import asyncio
 import base64
 import imghdr
+import time
+from dataclasses import dataclass
 
 from loguru import logger
 from openai import AsyncOpenAI
 
 from ...config import settings
 from .cache import vision_cache
+
+
+@dataclass
+class UsageAccumulator:
+    """Accumulates LLM token usage across multiple API calls."""
+
+    input_tokens: int = 0
+    output_tokens: int = 0
+    total_tokens: int = 0
+    duration_ms: int = 0
+
+    def add(self, usage: object | None, duration_ms: int = 0) -> None:
+        if usage is None:
+            return
+        self.input_tokens += getattr(usage, "prompt_tokens", 0) or 0
+        self.output_tokens += getattr(usage, "completion_tokens", 0) or 0
+        self.total_tokens += getattr(usage, "total_tokens", 0) or 0
+        self.duration_ms += duration_ms
+
+    def to_dict(self, model: str | None = None) -> dict:
+        d: dict = {
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
+            "total_tokens": self.total_tokens,
+            "duration_ms": self.duration_ms,
+        }
+        if model:
+            d["model"] = model
+        return d
 
 
 def _detect_mime_type(image_bytes: bytes) -> str:
@@ -64,6 +95,7 @@ class VisionClient:
         self,
         image_bytes: bytes,
         prompt: str | None = None,
+        usage: UsageAccumulator | None = None,
     ) -> str:
         """Extract text from a scanned document image using Vision API.
 
@@ -88,6 +120,7 @@ class VisionClient:
         logger.debug(f"Sending OCR request to {vision_model}")
 
         try:
+            t0 = time.monotonic()
             response = await asyncio.wait_for(
                 client.chat.completions.create(
                     model=vision_model,
@@ -109,6 +142,9 @@ class VisionClient:
                 ),
                 timeout=settings.vision_request_timeout,
             )
+            elapsed_ms = int((time.monotonic() - t0) * 1000)
+            if usage:
+                usage.add(response.usage, duration_ms=elapsed_ms)
 
             if not response.choices:
                 logger.warning("Vision API returned empty choices for OCR")
@@ -138,6 +174,7 @@ class VisionClient:
         self,
         image_bytes: bytes,
         prompt: str | None = None,
+        usage: UsageAccumulator | None = None,
     ) -> str:
         """Generate a description of an image for indexing.
 
@@ -162,6 +199,7 @@ class VisionClient:
         logger.debug(f"Sending image description request to {vision_model}")
 
         try:
+            t0 = time.monotonic()
             response = await asyncio.wait_for(
                 client.chat.completions.create(
                     model=vision_model,
@@ -183,6 +221,9 @@ class VisionClient:
                 ),
                 timeout=settings.vision_request_timeout,
             )
+            elapsed_ms = int((time.monotonic() - t0) * 1000)
+            if usage:
+                usage.add(response.usage, duration_ms=elapsed_ms)
 
             if not response.choices:
                 logger.warning("Vision API returned empty choices for description")
@@ -261,6 +302,8 @@ async def process_pages_with_llm(
     user_input: str,
     max_concurrent: int = 3,
     max_chars_per_chunk: int = 100_000,
+    model: str | None = None,
+    usage: UsageAccumulator | None = None,
 ) -> list[str]:
     """Process document content with Fast LLM based on user instruction.
 
@@ -272,6 +315,7 @@ async def process_pages_with_llm(
         user_input: User instruction for extraction
         max_concurrent: Maximum concurrent API calls
         max_chars_per_chunk: Maximum characters per chunk (default 100k)
+        usage: Optional accumulator for tracking LLM token usage
 
     Returns:
         List of processed chunk contents
@@ -290,7 +334,7 @@ async def process_pages_with_llm(
         base_url=settings.get_openai_base_url(),
         timeout=180.0,
     )
-    fast_model = settings.get_fast_model()
+    resolved_model = model or settings.get_fast_model()
     semaphore = asyncio.Semaphore(max_concurrent)
 
     chunks = _chunk_by_chars(full_text, max_chars_per_chunk)
@@ -302,8 +346,9 @@ async def process_pages_with_llm(
         async with semaphore:
             try:
                 logger.debug(f"Processing chunk {chunk_idx + 1}/{total_chunks} ({len(chunk_text)} chars)")
+                t0 = time.monotonic()
                 response = await client.chat.completions.create(
-                    model=fast_model,
+                    model=resolved_model,
                     messages=[
                         {
                             "role": "system",
@@ -319,6 +364,9 @@ async def process_pages_with_llm(
                         },
                     ],
                 )
+                elapsed_ms = int((time.monotonic() - t0) * 1000)
+                if usage:
+                    usage.add(response.usage, duration_ms=elapsed_ms)
                 result = response.choices[0].message.content or ""
                 logger.info(f"LLM chunk {chunk_idx + 1}/{total_chunks} done: {len(chunk_text)} -> {len(result)} chars")
                 return chunk_idx, result

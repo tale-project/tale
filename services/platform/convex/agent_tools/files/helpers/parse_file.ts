@@ -1,7 +1,7 @@
 /**
  * Shared file parsing helper for PDF, DOCX, and PPTX tools.
  * Gets file from Convex storage and sends it to the crawler service for text extraction.
- * Uses ctx.storage.get() for direct Convex storage access (like image_tool and txt_tool).
+ * Uses ctx.storage.get() for direct Convex storage access (like image_tool and text_tool).
  */
 
 import type { ActionCtx } from '../../../_generated/server';
@@ -28,6 +28,13 @@ export interface ParseFileResult {
     author?: string;
     subject?: string;
   };
+  usage?: {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    durationMs?: number;
+    model?: string;
+  };
   error?: string;
 }
 
@@ -46,6 +53,7 @@ export async function parseFile(
   filename: string | undefined,
   toolName: string,
   userInput?: string,
+  model?: string,
 ): Promise<ParseFileResult> {
   const resolvedFilename = await resolveFileName(ctx, fileId, filename);
 
@@ -55,7 +63,7 @@ export async function parseFile(
   });
 
   try {
-    // Get the file blob from Convex storage (like image_tool and txt_tool)
+    // Get the file blob from Convex storage (like image_tool and text_tool)
     const fileBlob = await ctx.storage.get(toId<'_storage'>(fileId));
     if (!fileBlob) {
       throw new Error(`File not found in storage: ${fileId}`);
@@ -77,12 +85,16 @@ export async function parseFile(
     if (userInput) {
       formData.append('user_input', userInput);
     }
+    if (model) {
+      formData.append('model', model);
+    }
 
     debugLog(`tool:${toolName} parse uploading to crawler`, {
       filename: resolvedFilename,
       size: fileBlob.size,
       endpoint: endpointPath,
       hasUserInput: !!userInput,
+      model: model ?? null,
     });
 
     const controller = new AbortController();
@@ -101,7 +113,29 @@ export async function parseFile(
       throw new Error(`Crawler service error: ${response.status} ${errorText}`);
     }
 
-    const result = await fetchJson<ParseFileResult>(response);
+    interface RawCrawlerUsage {
+      input_tokens?: number;
+      output_tokens?: number;
+      total_tokens?: number;
+      duration_ms?: number;
+      model?: string;
+    }
+
+    const raw = await fetchJson<ParseFileResult & { usage?: RawCrawlerUsage }>(
+      response,
+    );
+
+    // Remap snake_case usage from crawler to camelCase
+    const result: ParseFileResult = { ...raw };
+    if (raw.usage) {
+      result.usage = {
+        inputTokens: raw.usage.input_tokens ?? 0,
+        outputTokens: raw.usage.output_tokens ?? 0,
+        totalTokens: raw.usage.total_tokens ?? 0,
+        durationMs: raw.usage.duration_ms,
+        model: raw.usage.model,
+      };
+    }
 
     debugLog(`tool:${toolName} parse success`, {
       filename: result.filename,

@@ -4,13 +4,13 @@
  * Generic Agent Response Generator
  *
  * This module provides a unified implementation for generating agent responses.
- * All agents (chat, web, document, crm, integration, workflow) use this shared
+ * All agents (chat, web, file, crm, integration, workflow) use this shared
  * implementation with their specific configuration.
  *
  * Features:
  * - Supports both generateText (sub-agents) and streamText (chat agent)
  * - Hooks system for customizing the pipeline (beforeContext, beforeGenerate, afterGenerate)
- * - Automatic tool call extraction and sub-agent usage tracking
+ * - Automatic tool call extraction and tool usage tracking
  * - Context window building and token estimation
  */
 
@@ -1065,7 +1065,7 @@ export async function generateAgentResponse(
     });
 
     // Extract tool calls from steps
-    const { toolCalls, subAgentUsage } = extractToolCallsFromSteps(
+    const { toolCalls, toolsUsage } = extractToolCallsFromSteps(
       result.steps ?? [],
     );
 
@@ -1104,7 +1104,7 @@ export async function generateAgentResponse(
       durationMs,
       timeToFirstTokenMs,
       toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
-      subAgentUsage: subAgentUsage.length > 0 ? subAgentUsage : undefined,
+      toolsUsage: toolsUsage.length > 0 ? toolsUsage : undefined,
       contextWindow: completeContextWindow,
       contextStats,
       model: actualModel,
@@ -1141,7 +1141,7 @@ export async function generateAgentResponse(
         durationMs,
         timeToFirstTokenMs,
         toolCalls: responseResult.toolCalls,
-        subAgentUsage: responseResult.subAgentUsage,
+        toolsUsage: responseResult.toolsUsage,
         contextWindow: completeContextWindow,
         contextStats: responseResult.contextStats,
       },
@@ -1322,11 +1322,29 @@ export async function generateAgentResponse(
 }
 
 /**
- * Extract tool calls and sub-agent usage from AI SDK steps.
+ * Safely stringify a value with truncation.
+ * Returns `[unserializable]` if JSON.stringify throws.
+ */
+function safeStringify(value: unknown, maxLen = 10240): string {
+  if (value === undefined || value === null) return '';
+  try {
+    const json = JSON.stringify(value);
+    if (json.length > maxLen) {
+      return json.slice(0, maxLen) + '[truncated]';
+    }
+    return json;
+  } catch {
+    return '[unserializable]';
+  }
+}
+
+/**
+ * Extract tool calls and tool usage from AI SDK steps.
+ * Tracks ALL tool calls (not just delegation tools).
  */
 function extractToolCallsFromSteps(steps: unknown[]): {
   toolCalls: Array<{ toolName: string; status: string }>;
-  subAgentUsage: Array<{
+  toolsUsage: Array<{
     toolName: string;
     model?: string;
     provider?: string;
@@ -1339,17 +1357,23 @@ function extractToolCallsFromSteps(steps: unknown[]): {
   }>;
 } {
   type StepWithTools = {
-    toolCalls?: Array<{ toolName: string }>;
+    toolCalls?: Array<{
+      toolCallId: string;
+      toolName: string;
+      // AI SDK uses 'input'; @convex-dev/agent normalizes to 'args'
+      input?: unknown;
+      args?: unknown;
+    }>;
     toolResults?: Array<{
+      toolCallId: string;
       toolName: string;
       result?: unknown;
       output?: unknown;
     }>;
   };
 
-  const isDelegationTool = (name: string) => name.startsWith('delegate_');
   const toolCalls: Array<{ toolName: string; status: string }> = [];
-  const subAgentUsage: Array<{
+  const toolsUsage: Array<{
     toolName: string;
     model?: string;
     provider?: string;
@@ -1362,7 +1386,6 @@ function extractToolCallsFromSteps(steps: unknown[]): {
   }> = [];
 
   for (const rawStep of steps) {
-    // Steps from AI SDK are structurally StepWithTools but typed as unknown[]
     if (!isRecord(rawStep)) continue;
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- AI SDK step arrays are typed as unknown[]; structure is verified by isRecord guard above
     const stepToolCalls = (
@@ -1373,10 +1396,10 @@ function extractToolCallsFromSteps(steps: unknown[]): {
       Array.isArray(rawStep.toolResults) ? rawStep.toolResults : []
     ) as StepWithTools['toolResults'];
 
-    // Extract tool call statuses
+    // Extract tool call statuses and usage for ALL tools
     for (const toolCall of stepToolCalls ?? []) {
       const matchingResult = stepToolResults?.find(
-        (r) => r.toolName === toolCall.toolName,
+        (r) => r.toolCallId === toolCall.toolCallId,
       );
       const resultRecord = isRecord(matchingResult?.result)
         ? matchingResult.result
@@ -1397,12 +1420,20 @@ function extractToolCallsFromSteps(steps: unknown[]): {
         toolName: toolCall.toolName,
         status: isSuccess ? 'completed' : 'failed',
       });
-    }
 
-    // Extract sub-agent usage
-    for (const toolResult of stepToolResults ?? []) {
-      if (isDelegationTool(toolResult.toolName)) {
-        type SubAgentResultData = {
+      const inputStr = safeStringify(toolCall.input ?? toolCall.args);
+      const outputStr = safeStringify(
+        matchingResult?.output ?? matchingResult?.result,
+      );
+
+      const usageEntry: (typeof toolsUsage)[number] = {
+        toolName: toolCall.toolName,
+        input: inputStr,
+        output: outputStr,
+      };
+
+      if (matchingResult) {
+        type ToolResultData = {
           model?: string;
           provider?: string;
           usage?: {
@@ -1411,13 +1442,11 @@ function extractToolCallsFromSteps(steps: unknown[]): {
             totalTokens?: number;
             durationSeconds?: number;
           };
-          input?: string;
-          output?: string;
         };
 
-        const extractSubAgentData = (
+        const extractToolResultData = (
           val: unknown,
-        ): SubAgentResultData | undefined => {
+        ): ToolResultData | undefined => {
           if (!isRecord(val)) return undefined;
           return {
             model: typeof val.model === 'string' ? val.model : undefined,
@@ -1443,46 +1472,40 @@ function extractToolCallsFromSteps(steps: unknown[]): {
                       : undefined,
                 }
               : undefined,
-            input: typeof val.input === 'string' ? val.input : undefined,
-            output: typeof val.output === 'string' ? val.output : undefined,
           };
         };
 
-        const directResult = extractSubAgentData(toolResult.result);
-        const outputDirect = extractSubAgentData(toolResult.output);
-        const outputValueRaw = isRecord(toolResult.output)
-          ? toolResult.output.value
+        const directResult = extractToolResultData(matchingResult.result);
+        const outputDirect = extractToolResultData(matchingResult.output);
+        const outputValueRaw = isRecord(matchingResult.output)
+          ? matchingResult.output.value
           : undefined;
-        const outputValue = extractSubAgentData(outputValueRaw);
+        const outputValue = extractToolResultData(outputValueRaw);
 
-        const hasRelevantData = (d: SubAgentResultData | undefined) =>
+        const hasRelevantData = (d: ToolResultData | undefined) =>
           d?.model !== undefined || d?.usage !== undefined;
-        const subAgentData = hasRelevantData(directResult)
+        const toolData = hasRelevantData(directResult)
           ? directResult
           : hasRelevantData(outputDirect)
             ? outputDirect
             : outputValue;
-        const toolUsage = subAgentData?.usage;
-        if (toolUsage || subAgentData?.model) {
-          subAgentUsage.push({
-            toolName: toolResult.toolName,
-            model: subAgentData?.model,
-            provider: subAgentData?.provider,
-            inputTokens: toolUsage?.inputTokens,
-            outputTokens: toolUsage?.outputTokens,
-            totalTokens: toolUsage?.totalTokens,
-            durationMs: toolUsage?.durationSeconds
-              ? Math.round(toolUsage.durationSeconds * 1000)
-              : undefined,
-            input: subAgentData?.input,
-            output: subAgentData?.output,
-          });
-        }
+        const toolUsage = toolData?.usage;
+
+        usageEntry.model = toolData?.model;
+        usageEntry.provider = toolData?.provider;
+        usageEntry.inputTokens = toolUsage?.inputTokens;
+        usageEntry.outputTokens = toolUsage?.outputTokens;
+        usageEntry.totalTokens = toolUsage?.totalTokens;
+        usageEntry.durationMs = toolUsage?.durationSeconds
+          ? Math.round(toolUsage.durationSeconds * 1000)
+          : undefined;
       }
+
+      toolsUsage.push(usageEntry);
     }
   }
 
-  return { toolCalls, subAgentUsage };
+  return { toolCalls, toolsUsage };
 }
 
 /**

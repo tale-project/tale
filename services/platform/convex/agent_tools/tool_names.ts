@@ -18,7 +18,7 @@ export const TOOL_NAMES = [
   'image',
   'pptx',
   'docx',
-  'txt',
+  'text',
   'workflow_read',
   'workflow_syntax',
   'update_workflow_step',

@@ -21,13 +21,13 @@ import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 import { formatNumber } from '@/lib/utils/format/number';
 
-import type { MessageMetadata, SubAgentUsage } from '../hooks/queries';
+import type { MessageMetadata, ToolUsage } from '../hooks/queries';
 
-import { SubAgentDetailsDialog } from './sub-agent-details-dialog';
+import { ToolDetailsDialog } from './tool-details-dialog';
 
 function formatAgentName(toolName: string): string {
   const nameMap: Record<string, string> = {
-    document_assistant: 'Document',
+    file_assistant: 'File',
     crm_assistant: 'CRM',
     integration_assistant: 'Integration',
     workflow_assistant: 'Workflow',
@@ -124,8 +124,7 @@ export function MessageInfoDialog({
   const { formatDate, locale } = useFormatDate();
   const { t } = useT('chat');
   const { t: tCommon } = useT('common');
-  const [selectedSubAgent, setSelectedSubAgent] =
-    useState<SubAgentUsage | null>(null);
+  const [selectedTool, setSelectedTool] = useState<ToolUsage | null>(null);
 
   const tokenItems = useMemo<StatGridItem[]>(
     () => [
@@ -221,14 +220,14 @@ export function MessageInfoDialog({
               </Field>
             )}
 
-            {metadata.subAgentUsage && metadata.subAgentUsage.length > 0 && (
-              <Field label={t('messageInfo.subAgentCalls')}>
+            {metadata.toolsUsage && metadata.toolsUsage.length > 0 && (
+              <Field label={t('messageInfo.toolCalls')}>
                 <Stack gap={2}>
-                  {metadata.subAgentUsage.map((usage, index) => (
+                  {metadata.toolsUsage.map((usage, index) => (
                     <button
                       key={`${usage.toolName}-${index}`}
                       type="button"
-                      onClick={() => setSelectedSubAgent(usage)}
+                      onClick={() => setSelectedTool(usage)}
                       className="bg-muted hover:bg-muted/80 cursor-pointer rounded px-3 py-2 text-left text-sm transition-colors"
                     >
                       <Text as="div" variant="label" className="mb-1">
@@ -287,10 +286,10 @@ export function MessageInfoDialog({
         )}
       </FieldGroup>
 
-      <SubAgentDetailsDialog
-        isOpen={selectedSubAgent !== null}
-        onOpenChange={(open) => !open && setSelectedSubAgent(null)}
-        usage={selectedSubAgent}
+      <ToolDetailsDialog
+        isOpen={selectedTool !== null}
+        onOpenChange={(open) => !open && setSelectedTool(null)}
+        usage={selectedTool}
       />
     </ViewDialog>
   );

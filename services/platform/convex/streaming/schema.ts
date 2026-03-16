@@ -32,6 +32,21 @@ export const messageMetadataTable = defineTable({
       }),
     ),
   ),
+  toolsUsage: v.optional(
+    v.array(
+      v.object({
+        toolName: v.string(),
+        model: v.optional(v.string()),
+        provider: v.optional(v.string()),
+        inputTokens: v.optional(v.number()),
+        outputTokens: v.optional(v.number()),
+        totalTokens: v.optional(v.number()),
+        durationMs: v.optional(v.number()),
+        input: v.optional(v.string()),
+        output: v.optional(v.string()),
+      }),
+    ),
+  ),
   // Structured context window for debugging (XML-like formatted)
   contextWindow: v.optional(v.string()),
   contextStats: v.optional(
