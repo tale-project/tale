@@ -1326,6 +1326,7 @@ export async function generateAgentResponse(
  * Returns `[unserializable]` if JSON.stringify throws.
  */
 function safeStringify(value: unknown, maxLen = 10240): string {
+  if (value === undefined || value === null) return '';
   try {
     const json = JSON.stringify(value);
     if (json.length > maxLen) {
@@ -1356,7 +1357,13 @@ function extractToolCallsFromSteps(steps: unknown[]): {
   }>;
 } {
   type StepWithTools = {
-    toolCalls?: Array<{ toolCallId: string; toolName: string; args?: unknown }>;
+    toolCalls?: Array<{
+      toolCallId: string;
+      toolName: string;
+      // AI SDK uses 'input'; @convex-dev/agent normalizes to 'args'
+      input?: unknown;
+      args?: unknown;
+    }>;
     toolResults?: Array<{
       toolCallId: string;
       toolName: string;
@@ -1365,7 +1372,6 @@ function extractToolCallsFromSteps(steps: unknown[]): {
     }>;
   };
 
-  const isDelegationTool = (name: string) => name.startsWith('delegate_');
   const toolCalls: Array<{ toolName: string; status: string }> = [];
   const toolsUsage: Array<{
     toolName: string;
@@ -1415,7 +1421,7 @@ function extractToolCallsFromSteps(steps: unknown[]): {
         status: isSuccess ? 'completed' : 'failed',
       });
 
-      const inputStr = safeStringify(toolCall.args);
+      const inputStr = safeStringify(toolCall.input ?? toolCall.args);
       const outputStr = safeStringify(
         matchingResult?.output ?? matchingResult?.result,
       );
@@ -1426,8 +1432,8 @@ function extractToolCallsFromSteps(steps: unknown[]): {
         output: outputStr,
       };
 
-      if (isDelegationTool(toolCall.toolName) && matchingResult) {
-        type DelegationResultData = {
+      if (matchingResult) {
+        type ToolResultData = {
           model?: string;
           provider?: string;
           usage?: {
@@ -1438,9 +1444,9 @@ function extractToolCallsFromSteps(steps: unknown[]): {
           };
         };
 
-        const extractDelegationData = (
+        const extractToolResultData = (
           val: unknown,
-        ): DelegationResultData | undefined => {
+        ): ToolResultData | undefined => {
           if (!isRecord(val)) return undefined;
           return {
             model: typeof val.model === 'string' ? val.model : undefined,
@@ -1469,29 +1475,29 @@ function extractToolCallsFromSteps(steps: unknown[]): {
           };
         };
 
-        const directResult = extractDelegationData(matchingResult.result);
-        const outputDirect = extractDelegationData(matchingResult.output);
+        const directResult = extractToolResultData(matchingResult.result);
+        const outputDirect = extractToolResultData(matchingResult.output);
         const outputValueRaw = isRecord(matchingResult.output)
           ? matchingResult.output.value
           : undefined;
-        const outputValue = extractDelegationData(outputValueRaw);
+        const outputValue = extractToolResultData(outputValueRaw);
 
-        const hasRelevantData = (d: DelegationResultData | undefined) =>
+        const hasRelevantData = (d: ToolResultData | undefined) =>
           d?.model !== undefined || d?.usage !== undefined;
-        const delegationData = hasRelevantData(directResult)
+        const toolData = hasRelevantData(directResult)
           ? directResult
           : hasRelevantData(outputDirect)
             ? outputDirect
             : outputValue;
-        const delegationUsage = delegationData?.usage;
+        const toolUsage = toolData?.usage;
 
-        usageEntry.model = delegationData?.model;
-        usageEntry.provider = delegationData?.provider;
-        usageEntry.inputTokens = delegationUsage?.inputTokens;
-        usageEntry.outputTokens = delegationUsage?.outputTokens;
-        usageEntry.totalTokens = delegationUsage?.totalTokens;
-        usageEntry.durationMs = delegationUsage?.durationSeconds
-          ? Math.round(delegationUsage.durationSeconds * 1000)
+        usageEntry.model = toolData?.model;
+        usageEntry.provider = toolData?.provider;
+        usageEntry.inputTokens = toolUsage?.inputTokens;
+        usageEntry.outputTokens = toolUsage?.outputTokens;
+        usageEntry.totalTokens = toolUsage?.totalTokens;
+        usageEntry.durationMs = toolUsage?.durationSeconds
+          ? Math.round(toolUsage.durationSeconds * 1000)
           : undefined;
       }
 
