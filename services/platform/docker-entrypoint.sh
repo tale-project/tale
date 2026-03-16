@@ -589,7 +589,8 @@ deploy_convex_functions() {
   if bunx convex deploy --url "http://localhost:${CONVEX_BACKEND_PORT}" --admin-key "$ADMIN_KEY" --typecheck disable --yes 2>&1; then
     echo "✅ Convex functions deployed successfully"
   else
-    echo "⚠️  Convex function deployment failed (this may be normal on first run)"
+    echo "❌ Convex function deployment failed" >&2
+    exit 1
   fi
 }
 

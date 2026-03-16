@@ -41,14 +41,16 @@ CADDYFILE="/config/Caddyfile"
 echo "TLS Configuration:"
 echo "  TLS_MODE: ${TLS_MODE:-selfsigned}"
 
-# When SITE_URL uses http://, disable TLS entirely (plain HTTP mode)
+# HTTPS is required — OAuth providers reject http:// callbacks and crypto.subtle
+# is unavailable in insecure contexts. Use a reverse proxy for TLS termination
+# if needed, but always set SITE_URL to https://.
 if echo "${SITE_URL}" | grep -qi '^http://'; then
-  echo "  Mode: Plain HTTP (no TLS - SITE_URL uses http://)"
-  echo "  WARNING: TLS is DISABLED. All traffic is unencrypted." >&2
-  TLS_CONFIG="# TLS disabled (plain HTTP)"
-  PLAIN_HTTP=true
-else
-  case "${TLS_MODE:-selfsigned}" in
+  echo "Error: SITE_URL must use https://. Plain HTTP is not supported." >&2
+  echo "  If running behind a TLS-terminating reverse proxy, set SITE_URL=https://..." >&2
+  exit 1
+fi
+
+case "${TLS_MODE:-selfsigned}" in
     letsencrypt)
       echo "  Mode: Let's Encrypt (ACME - trusted certificates)"
       if [ -n "${TLS_EMAIL:-}" ]; then
@@ -68,7 +70,6 @@ else
       TLS_CONFIG="tls internal"
       ;;
   esac
-fi
 
 # Copy Caddyfile to writable location and apply TLS config
 cp "$CADDYFILE_SRC" "$CADDYFILE"
@@ -108,7 +109,7 @@ fix_cert_permissions() {
 # Caddy's built-in retry uses exponential backoff that gets very slow after failures.
 # This loop checks that DNS resolves to our public IP before reloading Caddy,
 # covering the common case where DNS is configured hours or days after deployment.
-if [ "${PLAIN_HTTP:-}" != "true" ] && [ "${TLS_MODE:-selfsigned}" = "letsencrypt" ]; then
+if [ "${TLS_MODE:-selfsigned}" = "letsencrypt" ]; then
   (
     sleep 60
     SERVER_IP=$(wget -qO- -T5 http://ipv4.icanhazip.com 2>/dev/null | tr -d '[:space:]')

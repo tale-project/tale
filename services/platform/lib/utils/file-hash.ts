@@ -1,7 +1,7 @@
-// js-sha256 is used instead of crypto.subtle because subtle is unavailable in insecure (non-HTTPS) contexts.
-import { sha256 } from 'js-sha256';
-
 export async function calculateFileHash(file: File): Promise<string> {
   const buffer = await file.arrayBuffer();
-  return sha256(buffer);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
 }
