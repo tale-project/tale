@@ -460,6 +460,10 @@ export async function generateAgentResponse(
     // Track time to first token for streaming
     let firstTokenTime: number | null = null;
 
+    // The first saved message ID for this generation, used for metadata and approval linking.
+    // Captured from the agent SDK's savedMessages before any retry logic can overwrite `result`.
+    let savedMessageId: string | undefined;
+
     // Generate response - streaming or non-streaming
     let result: {
       text?: string;
@@ -537,6 +541,8 @@ export async function generateAgentResponse(
             saveStreamDeltas: { chunking: 'line', throttleMs: 200 },
           },
         );
+
+        savedMessageId = streamResult.savedMessages?.[0]?._id;
 
         // Wait for stream to complete (with timeout)
         const [
@@ -735,6 +741,8 @@ export async function generateAgentResponse(
           effectiveTimeoutMs,
           abortController,
         );
+
+        savedMessageId = generateResult.savedMessages?.[0]?._id;
 
         debugLog('Generate completed', {
           threadId,
@@ -1134,6 +1142,7 @@ export async function generateAgentResponse(
       agentType,
       result: {
         threadId,
+        messageId: savedMessageId,
         text: responseResult.text,
         model: actualModel,
         provider,
@@ -1148,43 +1157,19 @@ export async function generateAgentResponse(
     });
 
     // Link approvals to message (only for main agent, not sub-agents)
-    if (!parentThreadId) {
+    if (!parentThreadId && savedMessageId) {
       try {
-        const messagesResult = await listMessages(ctx, components.agent, {
-          threadId,
-          paginationOpts: { cursor: null, numItems: 50 },
-          excludeToolMessages: false,
-        });
-
-        const latestAssistantMessage = messagesResult.page.find(
-          (m: MessageDoc) => m.message?.role === 'assistant',
+        const linkedCount = await ctx.runMutation(
+          internal.approvals.internal_mutations.linkApprovalsToMessage,
+          {
+            threadId,
+            messageId: savedMessageId,
+          },
         );
-
-        if (latestAssistantMessage) {
-          const currentOrder = latestAssistantMessage.order;
-          const messagesInSameOrder = messagesResult.page.filter(
-            (m: MessageDoc) =>
-              m.order === currentOrder && m.message?.role !== 'user',
+        if (linkedCount > 0) {
+          debugLog(
+            `Linked ${linkedCount} pending approvals to message ${savedMessageId}`,
           );
-
-          messagesInSameOrder.sort(
-            (a: MessageDoc, b: MessageDoc) => a.stepOrder - b.stepOrder,
-          );
-          const firstMessageInOrder =
-            messagesInSameOrder[0] || latestAssistantMessage;
-
-          const linkedCount = await ctx.runMutation(
-            internal.approvals.internal_mutations.linkApprovalsToMessage,
-            {
-              threadId,
-              messageId: firstMessageInOrder._id,
-            },
-          );
-          if (linkedCount > 0) {
-            debugLog(
-              `Linked ${linkedCount} pending approvals to message ${firstMessageInOrder._id}`,
-            );
-          }
         }
       } catch (error) {
         console.error(
