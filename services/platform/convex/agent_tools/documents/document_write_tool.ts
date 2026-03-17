@@ -17,7 +17,7 @@ import { validateFolderName } from '../../folders/mutations';
 import { toId } from '../../lib/type_cast_helpers';
 import { getApprovalThreadId } from '../../threads/get_parent_thread_id';
 
-const MAX_BATCH_SIZE = 20;
+const MAX_BATCH_SIZE = 50;
 
 const documentWriteFileEntry = z.object({
   fileId: z
