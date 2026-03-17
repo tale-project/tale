@@ -21,18 +21,23 @@ export async function fetchTemplateFiles(
   const connectorUrl = getTemplateFileUrl(template.name, 'connector.ts');
   const iconUrl = getTemplateFileUrl(template.name, 'icon.svg');
 
-  const [configResp, connectorResp, iconResp] = await Promise.all([
+  const [configResult, connectorResult, iconResult] = await Promise.allSettled([
     fetch(configUrl),
     template.type !== 'sql' ? fetch(connectorUrl) : Promise.resolve(null),
     fetch(iconUrl),
   ]);
 
-  if (!configResp.ok) {
+  if (configResult.status === 'rejected' || !configResult.value?.ok) {
     return {
       success: false,
       error: 'Failed to fetch template configuration from GitHub',
     };
   }
+
+  const configResp = configResult.value;
+  const connectorResp =
+    connectorResult.status === 'fulfilled' ? connectorResult.value : null;
+  const iconResp = iconResult.status === 'fulfilled' ? iconResult.value : null;
 
   const files: File[] = [];
 
@@ -48,14 +53,14 @@ export async function fetchTemplateFiles(
         type: 'text/plain',
       }),
     );
-  } else if (template.type !== 'sql' && connectorResp && !connectorResp.ok) {
+  } else if (template.type !== 'sql' && (!connectorResp || !connectorResp.ok)) {
     return {
       success: false,
       error: 'Failed to fetch template connector from GitHub',
     };
   }
 
-  if (iconResp.ok) {
+  if (iconResp?.ok) {
     const iconBlob = await iconResp.blob();
     files.push(new File([iconBlob], 'icon.svg', { type: 'image/svg+xml' }));
   }

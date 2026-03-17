@@ -200,8 +200,8 @@ describe('fetchTemplateFiles', () => {
   it('handles network errors gracefully', async () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Network error'));
 
-    await expect(fetchTemplateFiles(restTemplate)).rejects.toThrow(
-      'Network error',
-    );
+    const result = await fetchTemplateFiles(restTemplate);
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('configuration');
   });
 });

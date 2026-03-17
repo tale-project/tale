@@ -1,5 +1,7 @@
-const GITHUB_RAW_BASE =
-  'https://raw.githubusercontent.com/tale-project/tale/main/examples/integrations';
+// Points to `main` so templates stay current with the shipped app.
+// If templates require immutable pinning, replace 'main' with a release tag.
+const TEMPLATES_REF = 'main';
+const GITHUB_RAW_BASE = `https://raw.githubusercontent.com/tale-project/tale/${TEMPLATES_REF}/examples/integrations`;
 
 export interface IntegrationTemplate {
   name: string;

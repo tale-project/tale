@@ -88,7 +88,17 @@ export const integrationConfigSchema = z
         canSync: z.boolean().optional(),
         canPush: z.boolean().optional(),
         canWebhook: z.boolean().optional(),
-        syncFrequency: z.string().optional(),
+        syncFrequency: z
+          .string()
+          .regex(
+            /^\S+\s+\S+\s+\S+\s+\S+\s+\S+$/,
+            'syncFrequency must be a valid 5-field cron expression',
+          )
+          .optional(),
+      })
+      .refine((cap) => !cap.syncFrequency || cap.canSync, {
+        message: 'syncFrequency requires canSync to be true',
+        path: ['syncFrequency'],
       })
       .optional(),
   })
