@@ -68,7 +68,7 @@ function DashboardLayout() {
                 <AdaptiveHeaderSlot />
               </div>
 
-              <div className="hidden h-full px-2 md:flex md:flex-[0_0_var(--nav-size)] bg-sidebar">
+              <div className="bg-sidebar hidden h-full px-2 md:flex md:flex-[0_0_var(--nav-size)]">
                 <Navigation organizationId={organizationId} />
               </div>
 
