@@ -294,6 +294,9 @@ AFTER GENERATING: To save the file to a folder in the documents hub, call docume
       }
 
       // Default / generate operation
+      if (!organizationId) {
+        throw new Error('organizationId is required to generate a document');
+      }
       if (!args.fileName) {
         throw new Error("Missing required 'fileName' for generate operation");
       }
@@ -309,6 +312,7 @@ AFTER GENERATING: To save the file to a folder in the documents hub, call docume
           const result = await ctx.runAction(
             internal.documents.internal_actions.generateDocument,
             {
+              organizationId,
               fileName: args.fileName,
               sourceType: args.sourceType,
               outputFormat: 'docx',
@@ -384,6 +388,7 @@ AFTER GENERATING: To save the file to a folder in the documents hub, call docume
           const result = await ctx.runAction(
             internal.documents.internal_actions.generateDocxFromTemplate,
             {
+              organizationId,
               fileName: args.fileName,
               content: {
                 title: args.title,
@@ -410,6 +415,7 @@ AFTER GENERATING: To save the file to a folder in the documents hub, call docume
         const result = await ctx.runAction(
           internal.documents.internal_actions.generateDocx,
           {
+            organizationId,
             fileName: args.fileName,
             content: {
               title: args.title,

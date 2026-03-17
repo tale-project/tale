@@ -194,10 +194,21 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
 
       case 'generate_docx': {
         const content = normalizeEscapeSequences(params.content);
+        const organizationId =
+          typeof _variables.organizationId === 'string'
+            ? _variables.organizationId
+            : undefined;
+
+        if (!organizationId) {
+          throw new Error(
+            'organizationId is required in workflow variables to generate a document',
+          );
+        }
 
         return await ctx.runAction(
           internal.documents.internal_actions.generateDocument,
           {
+            organizationId,
             fileName: params.fileName,
             sourceType: params.sourceType,
             outputFormat: 'docx',

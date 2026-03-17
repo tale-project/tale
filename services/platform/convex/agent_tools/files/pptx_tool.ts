@@ -310,6 +310,12 @@ AFTER GENERATING: To save the file to a folder in the documents hub, call docume
         );
       }
 
+      if (!organizationId) {
+        throw new Error(
+          'organizationId is required to generate a presentation',
+        );
+      }
+
       debugLog('tool:pptx generate start', {
         fileName: args.fileName,
         slidesCount: args.slidesContent.length,
@@ -321,6 +327,7 @@ AFTER GENERATING: To save the file to a folder in the documents hub, call docume
         const result = await ctx.runAction(
           internal.documents.internal_actions.generatePptx,
           {
+            organizationId,
             fileName: args.fileName,
             slidesContent: args.slidesContent,
             branding: args.branding,

@@ -183,6 +183,11 @@ AFTER GENERATING: To save the file to a folder in the documents hub, call docume
         throw new Error("Missing required 'content' for generate operation");
       }
 
+      const { organizationId } = ctx;
+      if (!organizationId) {
+        throw new Error('organizationId is required to generate a PDF');
+      }
+
       debugLog('tool:pdf generate start', {
         fileName: args.fileName,
         sourceType: args.sourceType,
@@ -192,6 +197,7 @@ AFTER GENERATING: To save the file to a folder in the documents hub, call docume
         const result = await ctx.runAction(
           internal.documents.internal_actions.generateDocument,
           {
+            organizationId,
             fileName: args.fileName,
             sourceType: args.sourceType,
             outputFormat: 'pdf',
