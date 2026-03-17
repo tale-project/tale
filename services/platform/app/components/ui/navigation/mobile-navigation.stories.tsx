@@ -141,7 +141,7 @@ function MobileNavigationVisual({
         className="w-72 p-0"
         hideClose
       >
-        <NavigationMenu className="bg-background flex h-full w-full max-w-none flex-col">
+        <NavigationMenu className="bg-sidebar flex h-full w-full max-w-none flex-col">
           <div className="border-border flex h-14 shrink-0 items-center border-b px-4 py-2">
             <div className="bg-primary text-primary-foreground flex size-8 items-center justify-center rounded text-xs font-bold">
               T
