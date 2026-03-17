@@ -3,7 +3,7 @@
  *
  * Dynamically creates delegation tools for delegate agents at runtime.
  * This generalizes the old hardcoded sub-agent tools (crm_assistant,
- * document_assistant, etc.) into a single factory that works with any agent.
+ * file_assistant, etc.) into a single factory that works with any agent.
  *
  * Each generated tool:
  * 1. Validates context (orgId, threadId, userId)

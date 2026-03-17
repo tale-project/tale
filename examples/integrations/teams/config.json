@@ -4,9 +4,15 @@
   "description": "Microsoft Graph API integration for Teams channels, messages, and chats",
   "version": 1,
   "authMethod": "oauth2",
-  "supportedAuthMethods": ["oauth2"],
-  "secretBindings": ["accessToken"],
-  "allowedHosts": ["graph.microsoft.com"],
+  "supportedAuthMethods": [
+    "oauth2"
+  ],
+  "secretBindings": [
+    "accessToken"
+  ],
+  "allowedHosts": [
+    "graph.microsoft.com"
+  ],
   "oauth2Config": {
     "authorizationUrl": "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
     "tokenUrl": "https://login.microsoftonline.com/common/oauth2/v2.0/token",
@@ -37,7 +43,11 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "teamId": { "type": "string", "description": "Team ID", "required": true }
+          "teamId": {
+            "type": "string",
+            "description": "Team ID",
+            "required": true
+          }
         }
       }
     },
@@ -48,7 +58,11 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "teamId": { "type": "string", "description": "Team ID", "required": true }
+          "teamId": {
+            "type": "string",
+            "description": "Team ID",
+            "required": true
+          }
         }
       }
     },
@@ -59,8 +73,16 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "teamId": { "type": "string", "description": "Team ID", "required": true },
-          "channelId": { "type": "string", "description": "Channel ID", "required": true }
+          "teamId": {
+            "type": "string",
+            "description": "Team ID",
+            "required": true
+          },
+          "channelId": {
+            "type": "string",
+            "description": "Channel ID",
+            "required": true
+          }
         }
       }
     },
@@ -71,9 +93,21 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "teamId": { "type": "string", "description": "Team ID", "required": true },
-          "channelId": { "type": "string", "description": "Channel ID", "required": true },
-          "top": { "type": "number", "description": "Number of messages to return (max 50, default 20)", "required": false }
+          "teamId": {
+            "type": "string",
+            "description": "Team ID",
+            "required": true
+          },
+          "channelId": {
+            "type": "string",
+            "description": "Channel ID",
+            "required": true
+          },
+          "top": {
+            "type": "number",
+            "description": "Number of messages to return (max 50, default 20)",
+            "required": false
+          }
         }
       }
     },
@@ -86,10 +120,26 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "teamId": { "type": "string", "description": "Team ID", "required": true },
-          "channelId": { "type": "string", "description": "Channel ID", "required": true },
-          "content": { "type": "string", "description": "Message content", "required": true },
-          "contentType": { "type": "string", "description": "Content type: text or html (default text)", "required": false }
+          "teamId": {
+            "type": "string",
+            "description": "Team ID",
+            "required": true
+          },
+          "channelId": {
+            "type": "string",
+            "description": "Channel ID",
+            "required": true
+          },
+          "content": {
+            "type": "string",
+            "description": "Message content",
+            "required": true
+          },
+          "contentType": {
+            "type": "string",
+            "description": "Content type: text or html (default text)",
+            "required": false
+          }
         }
       }
     },
@@ -100,9 +150,21 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "teamId": { "type": "string", "description": "Team ID", "required": true },
-          "top": { "type": "number", "description": "Number of members to return (default 100)", "required": false },
-          "skip": { "type": "number", "description": "Number of members to skip for pagination", "required": false }
+          "teamId": {
+            "type": "string",
+            "description": "Team ID",
+            "required": true
+          },
+          "top": {
+            "type": "number",
+            "description": "Number of members to return (default 100)",
+            "required": false
+          },
+          "skip": {
+            "type": "number",
+            "description": "Number of members to skip for pagination",
+            "required": false
+          }
         }
       }
     },
@@ -113,7 +175,11 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "top": { "type": "number", "description": "Number of chats to return (max 50, default 20)", "required": false }
+          "top": {
+            "type": "number",
+            "description": "Number of chats to return (max 50, default 20)",
+            "required": false
+          }
         }
       }
     },
@@ -126,9 +192,21 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "chatId": { "type": "string", "description": "Chat ID", "required": true },
-          "content": { "type": "string", "description": "Message content", "required": true },
-          "contentType": { "type": "string", "description": "Content type: text or html (default text)", "required": false }
+          "chatId": {
+            "type": "string",
+            "description": "Chat ID",
+            "required": true
+          },
+          "content": {
+            "type": "string",
+            "description": "Message content",
+            "required": true
+          },
+          "contentType": {
+            "type": "string",
+            "description": "Content type: text or html (default text)",
+            "required": false
+          }
         }
       }
     }
@@ -136,5 +214,9 @@
   "connectionConfig": {
     "apiVersion": "v1.0",
     "timeout": 30000
+  },
+  "capabilities": {
+    "canSync": true,
+    "syncFrequency": "0 */6 * * *"
   }
 }

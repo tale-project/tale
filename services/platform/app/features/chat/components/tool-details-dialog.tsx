@@ -13,11 +13,11 @@ import { useLocale } from '@/app/hooks/use-locale';
 import { useT } from '@/lib/i18n/client';
 import { formatNumber } from '@/lib/utils/format/number';
 
-import type { SubAgentUsage } from '../hooks/queries';
+import type { ToolUsage } from '../hooks/queries';
 
-function formatAgentName(toolName: string): string {
+function formatToolName(toolName: string): string {
   const nameMap: Record<string, string> = {
-    document_assistant: 'Document',
+    file_assistant: 'File',
     crm_assistant: 'CRM',
     integration_assistant: 'Integration',
     workflow_assistant: 'Workflow',
@@ -25,17 +25,17 @@ function formatAgentName(toolName: string): string {
   return nameMap[toolName] ?? toolName;
 }
 
-interface SubAgentDetailsDialogProps {
+interface ToolDetailsDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  usage: SubAgentUsage | null;
+  usage: ToolUsage | null;
 }
 
-export function SubAgentDetailsDialog({
+export function ToolDetailsDialog({
   isOpen,
   onOpenChange,
   usage,
-}: SubAgentDetailsDialogProps) {
+}: ToolDetailsDialogProps) {
   const { locale } = useLocale();
   const { t } = useT('chat');
 
@@ -95,13 +95,13 @@ export function SubAgentDetailsDialog({
 
   if (!usage) return null;
 
-  const agentName = formatAgentName(usage.toolName);
+  const toolDisplayName = formatToolName(usage.toolName);
 
   return (
     <ViewDialog
       open={isOpen}
       onOpenChange={onOpenChange}
-      title={t('subAgentDetails.title', { agent: agentName })}
+      title={t('toolDetails.title', { tool: toolDisplayName })}
       className="overflow-x-hidden sm:max-w-[600px]"
     >
       <FieldGroup gap={4}>
@@ -121,7 +121,7 @@ export function SubAgentDetailsDialog({
         )}
 
         {usage.input && (
-          <Field label={t('subAgentDetails.input')}>
+          <Field label={t('toolDetails.input')}>
             <div className="bg-muted max-h-40 overflow-y-auto rounded px-3 py-2 text-sm break-all">
               {usage.input}
             </div>
@@ -129,7 +129,7 @@ export function SubAgentDetailsDialog({
         )}
 
         {usage.output && (
-          <Field label={t('subAgentDetails.output')}>
+          <Field label={t('toolDetails.output')}>
             <div className="bg-muted max-h-60 overflow-y-auto rounded px-3 py-2 text-sm break-all">
               {usage.output}
             </div>

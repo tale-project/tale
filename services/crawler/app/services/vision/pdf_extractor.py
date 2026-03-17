@@ -13,7 +13,7 @@ import fitz  # PyMuPDF
 from loguru import logger
 
 from ...config import settings
-from .openai_client import vision_client
+from .openai_client import UsageAccumulator, vision_client
 
 MIN_TEXT_THRESHOLD = 50
 MIN_IMAGE_SIZE = 10000  # ~100x100 pixels
@@ -23,6 +23,7 @@ async def _describe_image(
     doc: fitz.Document,
     xref: int,
     semaphore: asyncio.Semaphore,
+    usage: UsageAccumulator | None = None,
 ) -> str:
     """Extract and describe an image from a PDF document."""
     async with semaphore:
@@ -41,7 +42,7 @@ async def _describe_image(
                 logger.debug(f"Skipping small image ({width}x{height})")
                 return ""
 
-            return await vision_client.describe_image(image_bytes)
+            return await vision_client.describe_image(image_bytes, usage=usage)
         except Exception as e:
             logger.warning(f"Failed to describe image xref={xref}: {e}")
             return ""
@@ -50,6 +51,7 @@ async def _describe_image(
 async def _ocr_page(
     page: fitz.Page,
     semaphore: asyncio.Semaphore,
+    usage: UsageAccumulator | None = None,
 ) -> str:
     """Render a page as image and OCR it using Vision API."""
     async with semaphore:
@@ -58,7 +60,7 @@ async def _ocr_page(
             mat = fitz.Matrix(dpi / 72, dpi / 72)
             pixmap = page.get_pixmap(matrix=mat)
             image_bytes = pixmap.tobytes("png")
-            return await vision_client.ocr_image(image_bytes)
+            return await vision_client.ocr_image(image_bytes, usage=usage)
         except Exception as e:
             logger.warning(f"Failed to OCR page, returning empty text: {e}")
             return ""
@@ -70,6 +72,7 @@ async def _extract_page_with_layout(
     semaphore: asyncio.Semaphore,
     process_images: bool,
     ocr_scanned_pages: bool,
+    usage: UsageAccumulator | None = None,
 ) -> tuple[str, bool]:
     """Extract page content preserving text and image positions.
 
@@ -105,7 +108,7 @@ async def _extract_page_with_layout(
     # Check if this is a scanned page (low text content)
     if total_text_len < MIN_TEXT_THRESHOLD and ocr_scanned_pages:
         logger.debug(f"Page {page.number + 1}: Low text ({total_text_len} chars), sending to Vision API for OCR")
-        ocr_text = await _ocr_page(page, semaphore)
+        ocr_text = await _ocr_page(page, semaphore, usage=usage)
         if ocr_text:
             elements = [(0, ocr_text)]
             vision_used = True
@@ -123,7 +126,7 @@ async def _extract_page_with_layout(
                 else:
                     y0 = float("inf")
 
-                description = await _describe_image(doc, xref, semaphore)
+                description = await _describe_image(doc, xref, semaphore, usage=usage)
                 if description:
                     elements.append((y0, f"[Image: {description}]"))
                     vision_used = True
@@ -144,6 +147,7 @@ async def extract_text_from_pdf_bytes(
     *,
     process_images: bool = True,
     ocr_scanned_pages: bool = True,
+    usage: UsageAccumulator | None = None,
 ) -> tuple[list[str], bool]:
     """Extract text from PDF bytes with Vision support.
 
@@ -164,7 +168,9 @@ async def extract_text_from_pdf_bytes(
 
     async def process_page(page_num: int) -> tuple[int, str, bool]:
         page = doc[page_num]
-        content, vision_used = await _extract_page_with_layout(page, doc, semaphore, process_images, ocr_scanned_pages)
+        content, vision_used = await _extract_page_with_layout(
+            page, doc, semaphore, process_images, ocr_scanned_pages, usage=usage
+        )
         return page_num, f"--- Page {page_num + 1} ---\n{content}", vision_used
 
     tasks = [process_page(i) for i in range(total_pages)]

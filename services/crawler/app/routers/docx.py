@@ -285,6 +285,7 @@ async def parse_docx_file(
     file: UploadFile = _FILE_UPLOAD,
     user_input: str | None = Form(None, description="User instruction for AI extraction per section"),
     process_images: bool = Form(True, description="Extract and describe embedded images"),
+    model: str | None = Form(None, description="LLM model for text processing"),
 ):
     """
     Parse a DOCX file and extract its text content using Vision API.
@@ -318,6 +319,7 @@ async def parse_docx_file(
             filename,
             user_input=user_input,
             process_images=process_images,
+            model=model,
         )
 
         return ParseFileResponse(**result)

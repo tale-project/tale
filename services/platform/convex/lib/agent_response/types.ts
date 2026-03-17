@@ -137,7 +137,7 @@ export interface GenerateResponseResult {
   durationMs: number;
   timeToFirstTokenMs?: number;
   toolCalls?: Array<{ toolName: string; status: string }>;
-  subAgentUsage?: Array<{
+  toolsUsage?: Array<{
     toolName: string;
     model?: string;
     provider?: string;
@@ -145,6 +145,8 @@ export interface GenerateResponseResult {
     outputTokens?: number;
     totalTokens?: number;
     durationMs?: number;
+    input?: string;
+    output?: string;
   }>;
   contextWindow?: string;
   contextStats?: {

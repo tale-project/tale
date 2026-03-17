@@ -283,6 +283,9 @@ class ParseFileResponse(BaseModel):
     slide_count: int | None = Field(None, description="Number of slides (PPTX)")
     metadata: dict[str, Any] | None = Field(None, description="Document metadata")
     vision_used: bool | None = Field(None, description="Whether Vision API was used")
+    usage: dict[str, Any] | None = Field(
+        None, description="LLM token usage (input_tokens, output_tokens, total_tokens, duration_ms, model)"
+    )
     error: str | None = Field(None, description="Error message if parsing failed")
 
 

@@ -14585,6 +14585,45 @@
               },
               "subAgentUsage": {
                 "type": "array",
+                "deprecated": true,
+                "description": "Deprecated. Use toolsUsage instead.",
+                "items": {
+                  "type": "object",
+                  "required": ["toolName"],
+                  "properties": {
+                    "durationMs": {
+                      "type": "number"
+                    },
+                    "input": {
+                      "type": "string"
+                    },
+                    "inputTokens": {
+                      "type": "number"
+                    },
+                    "model": {
+                      "type": "string"
+                    },
+                    "output": {
+                      "type": "string"
+                    },
+                    "outputTokens": {
+                      "type": "number"
+                    },
+                    "provider": {
+                      "type": "string"
+                    },
+                    "toolName": {
+                      "type": "string"
+                    },
+                    "totalTokens": {
+                      "type": "number"
+                    }
+                  }
+                }
+              },
+              "toolsUsage": {
+                "type": "array",
+                "description": "Usage data for all tool calls made during message generation.",
                 "items": {
                   "type": "object",
                   "required": ["toolName"],

@@ -11,7 +11,7 @@
 
 import { CHAT_AGENT_INSTRUCTIONS } from '../agents/chat/agent';
 import { CRM_AGENT_INSTRUCTIONS } from '../agents/crm/agent';
-import { DOCUMENT_AGENT_INSTRUCTIONS } from '../agents/document/agent';
+import { FILE_AGENT_INSTRUCTIONS } from '../agents/file/agent';
 import { INTEGRATION_AGENT_INSTRUCTIONS } from '../agents/integration/agent';
 import { WEB_AGENT_INSTRUCTIONS } from '../agents/web/agent';
 import { WORKFLOW_AGENT_CORE_INSTRUCTIONS } from '../workflow_engine/instructions/core_instructions';
@@ -44,7 +44,7 @@ export const SYSTEM_DEFAULT_AGENT_TEMPLATES: SystemDefaultAgentTemplate[] = [
     description: 'General-purpose AI assistant',
     systemInstructions: CHAT_AGENT_INSTRUCTIONS,
     toolNames: ['rag_search', 'web'],
-    delegateSlugs: ['document'],
+    delegateSlugs: ['file'],
     knowledgeEnabled: true,
     includeOrgKnowledge: true,
     filePreprocessingEnabled: true,
@@ -82,13 +82,13 @@ export const SYSTEM_DEFAULT_AGENT_TEMPLATES: SystemDefaultAgentTemplate[] = [
     modelPreset: 'fast',
   },
   {
-    systemAgentSlug: 'document',
-    name: 'document-assistant',
-    displayName: 'Document Assistant',
+    systemAgentSlug: 'file',
+    name: 'file-assistant',
+    displayName: 'File Assistant',
     description:
-      'Reads and creates documents (PDF, Word, Excel, etc.). Can also create visual images by rendering HTML/CSS/SVG — use it for illustrations, charts, infographics, diagrams, and web page screenshots.',
-    systemInstructions: DOCUMENT_AGENT_INSTRUCTIONS,
-    toolNames: ['pdf', 'image', 'docx', 'pptx', 'txt', 'excel'],
+      'Reads and creates files (PDF, Word, Excel, etc.). Can also create visual images by rendering HTML/CSS/SVG — use it for illustrations, charts, infographics, diagrams, and web page screenshots.',
+    systemInstructions: FILE_AGENT_INSTRUCTIONS,
+    toolNames: ['pdf', 'image', 'docx', 'pptx', 'text', 'excel'],
     delegateSlugs: [],
     maxSteps: 15,
     timeoutMs: 180_000,

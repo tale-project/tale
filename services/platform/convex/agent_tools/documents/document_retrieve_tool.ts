@@ -68,7 +68,7 @@ USE THIS TOOL TO:
 DO NOT USE THIS TOOL FOR:
 • Searching across documents — use rag_search instead
 • Listing or browsing documents — use document_find instead
-• Extracting data from uploaded files — use pdf, docx, txt, excel, image, or pptx tools
+• Extracting data from uploaded files — use pdf, docx, text, excel, image, or pptx tools
 
 RESPONSE FIELDS:
 • documentId: The document ID

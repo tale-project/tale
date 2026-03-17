@@ -17,7 +17,7 @@ import { excelTool } from './files/excel_tool';
 import { imageTool } from './files/image_tool';
 import { pdfTool } from './files/pdf_tool';
 import { pptxTool } from './files/pptx_tool';
-import { txtTool } from './files/txt_tool';
+import { textTool } from './files/text_tool';
 import { requestHumanInputTool } from './human_input/request_human_input_tool';
 import { integrationBatchTool } from './integrations/integration_batch_tool';
 import { integrationIntrospectTool } from './integrations/integration_introspect_tool';
@@ -55,7 +55,7 @@ export const TOOL_REGISTRY = [
   imageTool,
   pptxTool,
   docxTool,
-  txtTool,
+  textTool,
   integrationTool,
   integrationBatchTool,
   integrationIntrospectTool,

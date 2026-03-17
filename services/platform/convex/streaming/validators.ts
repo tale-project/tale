@@ -2,7 +2,7 @@ import { v } from 'convex/values';
 
 import { jsonRecordValidator } from '../lib/validators/json';
 
-export const subAgentUsageItemValidator = v.object({
+export const toolUsageItemValidator = v.object({
   toolName: v.string(),
   model: v.optional(v.string()),
   provider: v.optional(v.string()),
@@ -13,6 +13,9 @@ export const subAgentUsageItemValidator = v.object({
   input: v.optional(v.string()),
   output: v.optional(v.string()),
 });
+
+/** @deprecated Use toolUsageItemValidator */
+export const subAgentUsageItemValidator = toolUsageItemValidator;
 
 export const contextStatsValidator = v.object({
   totalTokens: v.number(),
@@ -40,7 +43,8 @@ export const messageMetadataValidator = v.object({
   providerMetadata: v.optional(jsonRecordValidator),
   durationMs: v.optional(v.number()),
   timeToFirstTokenMs: v.optional(v.number()),
-  subAgentUsage: v.optional(v.array(subAgentUsageItemValidator)),
+  subAgentUsage: v.optional(v.array(toolUsageItemValidator)),
+  toolsUsage: v.optional(v.array(toolUsageItemValidator)),
   contextWindow: v.optional(v.string()),
   contextStats: v.optional(contextStatsValidator),
 });
