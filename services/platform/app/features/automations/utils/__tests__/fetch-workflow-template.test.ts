@@ -42,7 +42,7 @@ function mockResponse(body: string, ok = true) {
   return Promise.resolve({
     ok,
     status: ok ? 200 : 404,
-    json: () => Promise.resolve(JSON.parse(body)),
+    text: () => Promise.resolve(body),
   } as Response);
 }
 
@@ -110,7 +110,7 @@ describe('fetchWorkflowTemplate', () => {
       Promise.resolve({
         ok: true,
         status: 200,
-        json: () => Promise.reject(new SyntaxError('Unexpected token')),
+        text: () => Promise.resolve('not valid json'),
       } as Response),
     );
 
