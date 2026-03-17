@@ -115,5 +115,7 @@ export const handleOAuth2Callback = internalAction({
     debugLog(
       `OAuth2 token exchange successful for integration ${args.integrationId}`,
     );
+
+    return {};
   },
 });

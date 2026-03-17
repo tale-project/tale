@@ -162,7 +162,7 @@ const connector = {
       return listMessages(http, headers, params);
     }
     if (operation === 'get_message') {
-      return getMessage(http, headers, params, files);
+      return getMessage(http, headers, params, files, base64Decode);
     }
     if (operation === 'search_messages') {
       return searchMessages(http, headers, params);
@@ -469,18 +469,21 @@ function getMessage(
   headers: Record<string, string>,
   params: Record<string, unknown>,
   files: FilesApi | undefined,
+  base64Decode: (input: string) => string,
 ) {
   if (!params.messageId) {
     throw new Error('messageId is required.');
   }
 
-  const format = (params.format as string) || 'full';
+  // Always fetch full format from API to have payload available
+  const apiFormat =
+    params.format === 'email' ? 'full' : (params.format as string) || 'full';
   const url =
     API_BASE +
     '/messages/' +
     encodeURIComponent(params.messageId as string) +
     '?format=' +
-    encodeURIComponent(format);
+    encodeURIComponent(apiFormat);
   console.log('Fetching message: ' + url);
 
   const response = http.get(url, { headers: headers });
@@ -513,6 +516,22 @@ function getMessage(
       }
       message.attachmentFiles = attachmentFiles;
     }
+  }
+
+  if (params.format === 'email') {
+    const accountEmail = getGmailAccountEmail(http, headers);
+    const mapped = mapGmailToEmailType(
+      message as unknown as GmailMessage,
+      accountEmail,
+      base64Decode,
+    );
+    return {
+      success: true,
+      operation: 'get_message',
+      data: mapped,
+      count: 1,
+      timestamp: Date.now(),
+    };
   }
 
   return {

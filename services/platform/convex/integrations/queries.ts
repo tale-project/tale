@@ -5,6 +5,7 @@ import type { Doc } from '../_generated/dataModel';
 import { query, QueryCtx } from '../_generated/server';
 import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
 import { UnauthorizedError } from '../lib/rls/errors';
+import { findRelatedAutomations } from './find_related_automations';
 import { getIntegration } from './get_integration';
 import { getIntegrationByName } from './get_integration_by_name';
 import { listIntegrations } from './list_integrations';
@@ -115,5 +116,29 @@ export const list = query({
     return await Promise.all(
       integrations.map((integration) => withIconUrl(ctx, integration)),
     );
+  },
+});
+
+export const listRelatedAutomations = query({
+  args: {
+    organizationId: v.string(),
+    integrationName: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) {
+      return [];
+    }
+
+    try {
+      await getOrganizationMember(ctx, args.organizationId, authUser);
+    } catch (error) {
+      if (error instanceof UnauthorizedError) {
+        return [];
+      }
+      throw error;
+    }
+
+    return await findRelatedAutomations(ctx, args);
   },
 });

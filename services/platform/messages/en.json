@@ -1158,7 +1158,8 @@
         "newCodeLines": "{count} lines of code",
         "relatedAutomations": "Automations",
         "noRelatedAutomations": "No automations use this integration yet",
-        "createAutomation": "Create automation"
+        "createAutomation": "Create automation",
+        "loadingAutomations": "Loading automations"
       },
       "authMethods": {
         "api_key": "API key",
@@ -1694,7 +1695,15 @@
       "descriptionPlaceholder": "Describe what this automation does...",
       "creating": "Creating...",
       "continue": "Continue",
+      "tabBlank": "Blank",
+      "tabTemplate": "From template",
       "initialPrompt": "I just created a new automation called \"{name}\". Here is what it should do:\n\n{description}\n\nPlease help me build the workflow steps for this automation."
+    },
+    "templates": {
+      "description": "Choose a pre-built template to get started quickly.",
+      "noTemplates": "No templates available for this integration.",
+      "fetchError": "Failed to load template. Please try again.",
+      "fetching": "Loading template..."
     },
     "editDialog": {
       "title": "Edit automation",

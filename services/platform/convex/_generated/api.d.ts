@@ -262,6 +262,7 @@ import type * as integrations_create_integration_internal from "../integrations/
 import type * as integrations_decrypt_and_refresh_oauth2 from "../integrations/decrypt_and_refresh_oauth2.js";
 import type * as integrations_delete_integration from "../integrations/delete_integration.js";
 import type * as integrations_encrypt_credentials from "../integrations/encrypt_credentials.js";
+import type * as integrations_find_related_automations from "../integrations/find_related_automations.js";
 import type * as integrations_generate_oauth2_auth_url from "../integrations/generate_oauth2_auth_url.js";
 import type * as integrations_get_decrypted_credentials from "../integrations/get_decrypted_credentials.js";
 import type * as integrations_get_integration from "../integrations/get_integration.js";
@@ -602,6 +603,7 @@ import type * as workflow_engine_action_defs_conversation_helpers_create_convers
 import type * as workflow_engine_action_defs_conversation_helpers_create_conversation_from_sent_email from "../workflow_engine/action_defs/conversation/helpers/create_conversation_from_sent_email.js";
 import type * as workflow_engine_action_defs_conversation_helpers_find_or_create_customer_from_email from "../workflow_engine/action_defs/conversation/helpers/find_or_create_customer_from_email.js";
 import type * as workflow_engine_action_defs_conversation_helpers_find_related_conversation from "../workflow_engine/action_defs/conversation/helpers/find_related_conversation.js";
+import type * as workflow_engine_action_defs_conversation_helpers_normalize_email from "../workflow_engine/action_defs/conversation/helpers/normalize_email.js";
 import type * as workflow_engine_action_defs_conversation_helpers_query_conversation_messages from "../workflow_engine/action_defs/conversation/helpers/query_conversation_messages.js";
 import type * as workflow_engine_action_defs_conversation_helpers_query_latest_message_by_delivery_state from "../workflow_engine/action_defs/conversation/helpers/query_latest_message_by_delivery_state.js";
 import type * as workflow_engine_action_defs_conversation_helpers_types from "../workflow_engine/action_defs/conversation/helpers/types.js";
@@ -1110,6 +1112,7 @@ declare const fullApi: ApiFromModules<{
   "integrations/decrypt_and_refresh_oauth2": typeof integrations_decrypt_and_refresh_oauth2;
   "integrations/delete_integration": typeof integrations_delete_integration;
   "integrations/encrypt_credentials": typeof integrations_encrypt_credentials;
+  "integrations/find_related_automations": typeof integrations_find_related_automations;
   "integrations/generate_oauth2_auth_url": typeof integrations_generate_oauth2_auth_url;
   "integrations/get_decrypted_credentials": typeof integrations_get_decrypted_credentials;
   "integrations/get_integration": typeof integrations_get_integration;
@@ -1450,6 +1453,7 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/action_defs/conversation/helpers/create_conversation_from_sent_email": typeof workflow_engine_action_defs_conversation_helpers_create_conversation_from_sent_email;
   "workflow_engine/action_defs/conversation/helpers/find_or_create_customer_from_email": typeof workflow_engine_action_defs_conversation_helpers_find_or_create_customer_from_email;
   "workflow_engine/action_defs/conversation/helpers/find_related_conversation": typeof workflow_engine_action_defs_conversation_helpers_find_related_conversation;
+  "workflow_engine/action_defs/conversation/helpers/normalize_email": typeof workflow_engine_action_defs_conversation_helpers_normalize_email;
   "workflow_engine/action_defs/conversation/helpers/query_conversation_messages": typeof workflow_engine_action_defs_conversation_helpers_query_conversation_messages;
   "workflow_engine/action_defs/conversation/helpers/query_latest_message_by_delivery_state": typeof workflow_engine_action_defs_conversation_helpers_query_latest_message_by_delivery_state;
   "workflow_engine/action_defs/conversation/helpers/types": typeof workflow_engine_action_defs_conversation_helpers_types;
