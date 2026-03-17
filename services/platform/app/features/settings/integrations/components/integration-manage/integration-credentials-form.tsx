@@ -114,7 +114,7 @@ export function IntegrationCredentialsForm({
             hasOAuth2Config &&
             hasOAuth2Credentials &&
             !isEditingOAuth2 && (
-            <IconButton
+              <IconButton
                 variant="secondary"
                 icon={Pencil}
                 iconSize={3}

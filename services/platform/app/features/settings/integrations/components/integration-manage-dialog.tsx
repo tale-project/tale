@@ -140,7 +140,7 @@ export function IntegrationManageDialog({
           variant="secondary"
           onClick={() => manage.setConfirmDelete(true)}
           disabled={manage.busy}
-          className="w-full text-destructive hover:text-destructive"
+          className="text-destructive hover:text-destructive w-full"
         >
           <Trash2 className="mr-1.5 size-3.5" />
           {manage.t('integrations.manageDialog.deleteIntegration')}
