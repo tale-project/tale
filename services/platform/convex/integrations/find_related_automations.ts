@@ -1,11 +1,6 @@
 import type { Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
 
-interface ActionConfig {
-  type?: string;
-  parameters?: Record<string, unknown>;
-}
-
 export interface RelatedAutomation {
   _id: Id<'wfDefinitions'>;
   name: string;
@@ -25,21 +20,23 @@ export async function findRelatedAutomations(
   const { organizationId, integrationName } = args;
 
   // Collect distinct wfDefinitionIds that reference this integration
-  const definitionIds = new Set<string>();
+  const definitionIds = new Set<Id<'wfDefinitions'>>();
 
   for await (const step of ctx.db
     .query('wfStepDefs')
     .withIndex('by_organizationId_and_stepType_and_order', (q) =>
       q.eq('organizationId', organizationId).eq('stepType', 'action'),
     )) {
-    const config = step.config as ActionConfig;
-    if (!config?.type || !config.parameters) continue;
+    const { config } = step;
+    if (!('type' in config) || !('parameters' in config)) continue;
+    const { type, parameters } = config;
+    if (!type || !parameters) continue;
 
     const matches =
-      (config.type === 'integration' &&
-        config.parameters.name === integrationName) ||
-      (config.type === 'conversation' &&
-        config.parameters.integrationName === integrationName);
+      (type === 'integration' && parameters.name === integrationName) ||
+      (type === 'conversation' &&
+        'integrationName' in parameters &&
+        parameters.integrationName === integrationName);
 
     if (matches) {
       definitionIds.add(step.wfDefinitionId);
@@ -49,15 +46,15 @@ export async function findRelatedAutomations(
   if (definitionIds.size === 0) return [];
 
   // Resolve each definition to its root (versionNumber === 1)
-  const rootIds = new Set<string>();
+  const rootIds = new Set<Id<'wfDefinitions'>>();
   const rootDocs = new Map<
-    string,
+    Id<'wfDefinitions'>,
     { _id: Id<'wfDefinitions'>; name: string }
   >();
 
   await Promise.all(
     [...definitionIds].map(async (defId) => {
-      const def = await ctx.db.get(defId as Id<'wfDefinitions'>);
+      const def = await ctx.db.get(defId);
       if (!def) return;
 
       const rootId = def.rootVersionId ?? def._id;
@@ -106,7 +103,7 @@ export async function findRelatedAutomations(
       } else {
         // Check for archived
         let hasArchived = false;
-        for await (const v of ctx.db
+        for await (const _v of ctx.db
           .query('wfDefinitions')
           .withIndex('by_root_status', (q) =>
             q.eq('rootVersionId', root._id).eq('status', 'archived'),

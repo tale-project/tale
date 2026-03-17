@@ -31,17 +31,17 @@ interface RawGmailMessage {
   payload?: RawGmailPayloadPart & { headers?: RawGmailHeader[] };
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
 function isRawGmailMessage(data: unknown): data is RawGmailMessage {
-  if (!data || typeof data !== 'object') return false;
-  const obj = data as Record<string, unknown>;
-  // Gmail messages have `payload` with `headers` array; EmailType has `from` array
+  if (!isRecord(data)) return false;
+  if (!('payload' in data) || !isRecord(data.payload)) return false;
   return (
-    'payload' in obj &&
-    typeof obj.payload === 'object' &&
-    obj.payload !== null &&
-    'headers' in (obj.payload as Record<string, unknown>) &&
-    Array.isArray((obj.payload as Record<string, unknown>).headers) &&
-    !('from' in obj && Array.isArray(obj.from))
+    'headers' in data.payload &&
+    Array.isArray(data.payload.headers) &&
+    !('from' in data && Array.isArray(data.from))
   );
 }
 
@@ -188,6 +188,9 @@ export function normalizeEmail(data: unknown): EmailType {
   if (isRawGmailMessage(data)) {
     return gmailToEmailType(data);
   }
+  // Already-mapped EmailType from connector (has `from` array, no `payload`).
+  // We can't fully validate the shape at runtime, so we trust the connector contract.
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
   return data as EmailType;
 }
 

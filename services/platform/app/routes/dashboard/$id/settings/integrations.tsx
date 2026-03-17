@@ -113,6 +113,7 @@ function IntegrationsPage() {
     // Clean up OAuth query params from URL
     if (search.integration_oauth2 || search.integration_oauth2_error) {
       void navigate({
+        from: Route.fullPath,
         search: { tab: search.tab },
         replace: true,
       });

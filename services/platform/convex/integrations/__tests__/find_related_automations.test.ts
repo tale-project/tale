@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 
-import type { Id } from '../../_generated/dataModel';
 import type { QueryCtx } from '../../_generated/server';
 
 import { findRelatedAutomations } from '../find_related_automations';

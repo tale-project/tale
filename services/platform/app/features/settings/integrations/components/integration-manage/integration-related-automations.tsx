@@ -104,7 +104,7 @@ export function IntegrationRelatedAutomations({
 
         <div className="mt-3 ml-6">
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
             icon={Plus}
             onClick={() => setCreateDialogOpen(true)}

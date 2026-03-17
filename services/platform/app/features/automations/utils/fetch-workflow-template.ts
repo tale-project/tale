@@ -13,7 +13,14 @@ export interface WorkflowTemplateData {
   stepsConfig: Array<{
     stepSlug: string;
     name: string;
-    stepType: string;
+    stepType:
+      | 'start'
+      | 'trigger'
+      | 'llm'
+      | 'condition'
+      | 'action'
+      | 'loop'
+      | 'output';
     config: Record<string, unknown>;
     nextSteps: Record<string, string>;
   }>;

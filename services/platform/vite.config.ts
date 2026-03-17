@@ -46,12 +46,12 @@ export default defineConfig({
         target: 'http://127.0.0.1:3210',
         changeOrigin: true,
         ws: true,
-        rewrite: (path) => path.replace(/^\/ws_api/, ''),
+        rewrite: (p) => p.replace(/^\/ws_api/, ''),
       },
       '/http_api': {
         target: 'http://127.0.0.1:3211',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/http_api/, ''),
+        rewrite: (p) => p.replace(/^\/http_api/, ''),
       },
       // Proxy all /api/* requests to Convex HTTP endpoint (auth, SSO, documents, workflows, etc.)
       '/api': {
