@@ -4,9 +4,15 @@
   "description": "Microsoft Graph API integration for Outlook mail, calendar, and contacts",
   "version": 2,
   "authMethod": "oauth2",
-  "supportedAuthMethods": ["oauth2"],
-  "secretBindings": ["accessToken"],
-  "allowedHosts": ["graph.microsoft.com"],
+  "supportedAuthMethods": [
+    "oauth2"
+  ],
+  "secretBindings": [
+    "accessToken"
+  ],
+  "allowedHosts": [
+    "graph.microsoft.com"
+  ],
   "oauth2Config": {
     "authorizationUrl": "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
     "tokenUrl": "https://login.microsoftonline.com/common/oauth2/v2.0/token",
@@ -27,14 +33,46 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "top": { "type": "number", "description": "Number of messages to return (max 100)", "required": false },
-          "skip": { "type": "number", "description": "Number of messages to skip for pagination", "required": false },
-          "folder": { "type": "string", "description": "Folder ID to filter messages by", "required": false },
-          "filter": { "type": "string", "description": "OData $filter expression (takes precedence over folder)", "required": false },
-          "orderby": { "type": "string", "description": "OData $orderby expression (default: receivedDateTime desc)", "required": false },
-          "select": { "type": "string", "description": "Comma-separated list of fields to return", "required": false },
-          "expand": { "type": "string", "description": "OData $expand expression (e.g. 'attachments($select=id,name,contentType,size)' to include attachment metadata)", "required": false },
-          "format": { "type": "string", "description": "When set to 'email', transforms Graph API response to standard email format with messageId, from, to, cc, bcc, subject, date, text, html, flags, headers", "required": false }
+          "top": {
+            "type": "number",
+            "description": "Number of messages to return (max 100)",
+            "required": false
+          },
+          "skip": {
+            "type": "number",
+            "description": "Number of messages to skip for pagination",
+            "required": false
+          },
+          "folder": {
+            "type": "string",
+            "description": "Folder ID to filter messages by",
+            "required": false
+          },
+          "filter": {
+            "type": "string",
+            "description": "OData $filter expression (takes precedence over folder)",
+            "required": false
+          },
+          "orderby": {
+            "type": "string",
+            "description": "OData $orderby expression (default: receivedDateTime desc)",
+            "required": false
+          },
+          "select": {
+            "type": "string",
+            "description": "Comma-separated list of fields to return",
+            "required": false
+          },
+          "expand": {
+            "type": "string",
+            "description": "OData $expand expression (e.g. 'attachments($select=id,name,contentType,size)' to include attachment metadata)",
+            "required": false
+          },
+          "format": {
+            "type": "string",
+            "description": "When set to 'email', transforms Graph API response to standard email format with messageId, from, to, cc, bcc, subject, date, text, html, flags, headers",
+            "required": false
+          }
         }
       }
     },
@@ -45,8 +83,16 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "messageId": { "type": "string", "description": "Message ID", "required": true },
-          "includeAttachments": { "type": "boolean", "description": "When true, downloads and stores all file attachments. Each attachment is stored and returned with a fileId and URL.", "required": false }
+          "messageId": {
+            "type": "string",
+            "description": "Message ID",
+            "required": true
+          },
+          "includeAttachments": {
+            "type": "boolean",
+            "description": "When true, downloads and stores all file attachments. Each attachment is stored and returned with a fileId and URL.",
+            "required": false
+          }
         }
       }
     },
@@ -57,7 +103,11 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "messageId": { "type": "string", "description": "Message ID", "required": true }
+          "messageId": {
+            "type": "string",
+            "description": "Message ID",
+            "required": true
+          }
         }
       }
     },
@@ -68,8 +118,16 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "query": { "type": "string", "description": "Search keyword", "required": true },
-          "top": { "type": "number", "description": "Number of results to return (max 100)", "required": false }
+          "query": {
+            "type": "string",
+            "description": "Search keyword",
+            "required": true
+          },
+          "top": {
+            "type": "number",
+            "description": "Number of results to return (max 100)",
+            "required": false
+          }
         }
       }
     },
@@ -82,12 +140,36 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "to": { "type": "string", "description": "Recipient email address (or array of addresses)", "required": true },
-          "subject": { "type": "string", "description": "Email subject", "required": true },
-          "body": { "type": "string", "description": "Email body content", "required": false },
-          "contentType": { "type": "string", "description": "Body content type: Text or HTML", "required": false },
-          "cc": { "type": "string", "description": "CC recipient email address (or array of addresses)", "required": false },
-          "attachments": { "type": "array", "description": "Array of file attachments, each with name (string), contentType (string), and contentBytes (base64-encoded string)", "required": false }
+          "to": {
+            "type": "string",
+            "description": "Recipient email address (or array of addresses)",
+            "required": true
+          },
+          "subject": {
+            "type": "string",
+            "description": "Email subject",
+            "required": true
+          },
+          "body": {
+            "type": "string",
+            "description": "Email body content",
+            "required": false
+          },
+          "contentType": {
+            "type": "string",
+            "description": "Body content type: Text or HTML",
+            "required": false
+          },
+          "cc": {
+            "type": "string",
+            "description": "CC recipient email address (or array of addresses)",
+            "required": false
+          },
+          "attachments": {
+            "type": "array",
+            "description": "Array of file attachments, each with name (string), contentType (string), and contentBytes (base64-encoded string)",
+            "required": false
+          }
         }
       }
     },
@@ -98,9 +180,21 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "startDateTime": { "type": "string", "description": "Start of date range (ISO 8601, e.g. 2025-01-01T00:00:00)", "required": false },
-          "endDateTime": { "type": "string", "description": "End of date range (ISO 8601, e.g. 2025-12-31T23:59:59)", "required": false },
-          "top": { "type": "number", "description": "Number of events to return (max 100)", "required": false }
+          "startDateTime": {
+            "type": "string",
+            "description": "Start of date range (ISO 8601, e.g. 2025-01-01T00:00:00)",
+            "required": false
+          },
+          "endDateTime": {
+            "type": "string",
+            "description": "End of date range (ISO 8601, e.g. 2025-12-31T23:59:59)",
+            "required": false
+          },
+          "top": {
+            "type": "number",
+            "description": "Number of events to return (max 100)",
+            "required": false
+          }
         }
       }
     },
@@ -111,7 +205,11 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "eventId": { "type": "string", "description": "Calendar event ID", "required": true }
+          "eventId": {
+            "type": "string",
+            "description": "Calendar event ID",
+            "required": true
+          }
         }
       }
     },
@@ -124,15 +222,51 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "subject": { "type": "string", "description": "Event subject/title", "required": true },
-          "startDateTime": { "type": "string", "description": "Start time (ISO 8601, e.g. 2025-06-15T09:00:00)", "required": true },
-          "endDateTime": { "type": "string", "description": "End time (ISO 8601, e.g. 2025-06-15T10:00:00)", "required": true },
-          "timeZone": { "type": "string", "description": "Time zone (e.g. UTC, Europe/Berlin)", "required": false },
-          "body": { "type": "string", "description": "Event body/description", "required": false },
-          "contentType": { "type": "string", "description": "Body content type: Text or HTML", "required": false },
-          "location": { "type": "string", "description": "Event location", "required": false },
-          "attendees": { "type": "string", "description": "Attendee email address (or array of addresses)", "required": false },
-          "isAllDay": { "type": "boolean", "description": "Whether this is an all-day event", "required": false }
+          "subject": {
+            "type": "string",
+            "description": "Event subject/title",
+            "required": true
+          },
+          "startDateTime": {
+            "type": "string",
+            "description": "Start time (ISO 8601, e.g. 2025-06-15T09:00:00)",
+            "required": true
+          },
+          "endDateTime": {
+            "type": "string",
+            "description": "End time (ISO 8601, e.g. 2025-06-15T10:00:00)",
+            "required": true
+          },
+          "timeZone": {
+            "type": "string",
+            "description": "Time zone (e.g. UTC, Europe/Berlin)",
+            "required": false
+          },
+          "body": {
+            "type": "string",
+            "description": "Event body/description",
+            "required": false
+          },
+          "contentType": {
+            "type": "string",
+            "description": "Body content type: Text or HTML",
+            "required": false
+          },
+          "location": {
+            "type": "string",
+            "description": "Event location",
+            "required": false
+          },
+          "attendees": {
+            "type": "string",
+            "description": "Attendee email address (or array of addresses)",
+            "required": false
+          },
+          "isAllDay": {
+            "type": "boolean",
+            "description": "Whether this is an all-day event",
+            "required": false
+          }
         }
       }
     },
@@ -143,9 +277,21 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "top": { "type": "number", "description": "Number of contacts to return (max 100)", "required": false },
-          "skip": { "type": "number", "description": "Number of contacts to skip for pagination", "required": false },
-          "search": { "type": "string", "description": "Search by display name, first name, or last name", "required": false }
+          "top": {
+            "type": "number",
+            "description": "Number of contacts to return (max 100)",
+            "required": false
+          },
+          "skip": {
+            "type": "number",
+            "description": "Number of contacts to skip for pagination",
+            "required": false
+          },
+          "search": {
+            "type": "string",
+            "description": "Search by display name, first name, or last name",
+            "required": false
+          }
         }
       }
     },
@@ -156,7 +302,11 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "contactId": { "type": "string", "description": "Contact ID", "required": true }
+          "contactId": {
+            "type": "string",
+            "description": "Contact ID",
+            "required": true
+          }
         }
       }
     }
@@ -164,5 +314,9 @@
   "connectionConfig": {
     "apiVersion": "v1.0",
     "timeout": 30000
+  },
+  "capabilities": {
+    "canSync": true,
+    "syncFrequency": "0 */6 * * *"
   }
 }

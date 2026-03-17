@@ -4,9 +4,15 @@
   "description": "Slack API integration for channels, messages, and users",
   "version": 1,
   "authMethod": "oauth2",
-  "supportedAuthMethods": ["oauth2"],
-  "secretBindings": ["accessToken"],
-  "allowedHosts": ["slack.com"],
+  "supportedAuthMethods": [
+    "oauth2"
+  ],
+  "secretBindings": [
+    "accessToken"
+  ],
+  "allowedHosts": [
+    "slack.com"
+  ],
   "oauth2Config": {
     "authorizationUrl": "https://slack.com/oauth/v2/authorize",
     "tokenUrl": "https://slack.com/api/oauth.v2.access",
@@ -29,13 +35,30 @@
       "name": "list_channels",
       "title": "List Channels",
       "description": "List conversations (channels, DMs, group messages) the bot has access to",
-      "requiredScopes": ["channels:read", "groups:read", "im:read", "mpim:read"],
+      "requiredScopes": [
+        "channels:read",
+        "groups:read",
+        "im:read",
+        "mpim:read"
+      ],
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "limit": { "type": "number", "description": "Number of channels to return (max 200, default 100)", "required": false },
-          "cursor": { "type": "string", "description": "Pagination cursor from previous response", "required": false },
-          "types": { "type": "string", "description": "Comma-separated channel types: public_channel, private_channel, mpim, im", "required": false }
+          "limit": {
+            "type": "number",
+            "description": "Number of channels to return (max 200, default 100)",
+            "required": false
+          },
+          "cursor": {
+            "type": "string",
+            "description": "Pagination cursor from previous response",
+            "required": false
+          },
+          "types": {
+            "type": "string",
+            "description": "Comma-separated channel types: public_channel, private_channel, mpim, im",
+            "required": false
+          }
         }
       }
     },
@@ -43,11 +66,18 @@
       "name": "get_channel",
       "title": "Get Channel",
       "description": "Get detailed information about a specific channel",
-      "requiredScopes": ["channels:read", "groups:read"],
+      "requiredScopes": [
+        "channels:read",
+        "groups:read"
+      ],
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "channel": { "type": "string", "description": "Channel ID (e.g. C01234ABCDE)", "required": true }
+          "channel": {
+            "type": "string",
+            "description": "Channel ID (e.g. C01234ABCDE)",
+            "required": true
+          }
         }
       }
     },
@@ -55,15 +85,40 @@
       "name": "list_messages",
       "title": "List Messages",
       "description": "Fetch message history from a channel",
-      "requiredScopes": ["channels:history", "groups:history", "im:history", "mpim:history"],
+      "requiredScopes": [
+        "channels:history",
+        "groups:history",
+        "im:history",
+        "mpim:history"
+      ],
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "channel": { "type": "string", "description": "Channel ID to fetch messages from", "required": true },
-          "limit": { "type": "number", "description": "Number of messages to return (max 200, default 50)", "required": false },
-          "cursor": { "type": "string", "description": "Pagination cursor from previous response", "required": false },
-          "oldest": { "type": "string", "description": "Only messages after this Unix timestamp (inclusive)", "required": false },
-          "latest": { "type": "string", "description": "Only messages before this Unix timestamp (inclusive)", "required": false }
+          "channel": {
+            "type": "string",
+            "description": "Channel ID to fetch messages from",
+            "required": true
+          },
+          "limit": {
+            "type": "number",
+            "description": "Number of messages to return (max 200, default 50)",
+            "required": false
+          },
+          "cursor": {
+            "type": "string",
+            "description": "Pagination cursor from previous response",
+            "required": false
+          },
+          "oldest": {
+            "type": "string",
+            "description": "Only messages after this Unix timestamp (inclusive)",
+            "required": false
+          },
+          "latest": {
+            "type": "string",
+            "description": "Only messages before this Unix timestamp (inclusive)",
+            "required": false
+          }
         }
       }
     },
@@ -73,14 +128,32 @@
       "description": "Send a message to a Slack channel or thread",
       "operationType": "write",
       "requiresApproval": true,
-      "requiredScopes": ["chat:write"],
+      "requiredScopes": [
+        "chat:write"
+      ],
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "channel": { "type": "string", "description": "Channel ID to send the message to", "required": true },
-          "text": { "type": "string", "description": "Message text content", "required": true },
-          "blocks": { "type": "string", "description": "JSON string of Block Kit blocks for rich message formatting", "required": false },
-          "thread_ts": { "type": "string", "description": "Thread timestamp to reply to (makes message a threaded reply)", "required": false }
+          "channel": {
+            "type": "string",
+            "description": "Channel ID to send the message to",
+            "required": true
+          },
+          "text": {
+            "type": "string",
+            "description": "Message text content",
+            "required": true
+          },
+          "blocks": {
+            "type": "string",
+            "description": "JSON string of Block Kit blocks for rich message formatting",
+            "required": false
+          },
+          "thread_ts": {
+            "type": "string",
+            "description": "Thread timestamp to reply to (makes message a threaded reply)",
+            "required": false
+          }
         }
       }
     },
@@ -88,12 +161,22 @@
       "name": "list_users",
       "title": "List Users",
       "description": "List all users in the Slack workspace",
-      "requiredScopes": ["users:read"],
+      "requiredScopes": [
+        "users:read"
+      ],
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "limit": { "type": "number", "description": "Number of users to return (max 200, default 100)", "required": false },
-          "cursor": { "type": "string", "description": "Pagination cursor from previous response", "required": false }
+          "limit": {
+            "type": "number",
+            "description": "Number of users to return (max 200, default 100)",
+            "required": false
+          },
+          "cursor": {
+            "type": "string",
+            "description": "Pagination cursor from previous response",
+            "required": false
+          }
         }
       }
     },
@@ -101,11 +184,17 @@
       "name": "get_user",
       "title": "Get User",
       "description": "Get detailed profile information for a specific user",
-      "requiredScopes": ["users:read"],
+      "requiredScopes": [
+        "users:read"
+      ],
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "user": { "type": "string", "description": "User ID (e.g. U01234ABCDE)", "required": true }
+          "user": {
+            "type": "string",
+            "description": "User ID (e.g. U01234ABCDE)",
+            "required": true
+          }
         }
       }
     },
@@ -115,17 +204,43 @@
       "description": "Upload a file to one or more Slack channels",
       "operationType": "write",
       "requiresApproval": true,
-      "requiredScopes": ["files:write"],
+      "requiredScopes": [
+        "files:write"
+      ],
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "channels": { "type": "string", "description": "Comma-separated channel IDs to share the file to", "required": true },
-          "content": { "type": "string", "description": "File content as a string", "required": true },
-          "filename": { "type": "string", "description": "Filename (default: file.txt)", "required": false },
-          "title": { "type": "string", "description": "Title of the file", "required": false },
-          "initial_comment": { "type": "string", "description": "Initial comment to add to the file when shared", "required": false }
+          "channels": {
+            "type": "string",
+            "description": "Comma-separated channel IDs to share the file to",
+            "required": true
+          },
+          "content": {
+            "type": "string",
+            "description": "File content as a string",
+            "required": true
+          },
+          "filename": {
+            "type": "string",
+            "description": "Filename (default: file.txt)",
+            "required": false
+          },
+          "title": {
+            "type": "string",
+            "description": "Title of the file",
+            "required": false
+          },
+          "initial_comment": {
+            "type": "string",
+            "description": "Initial comment to add to the file when shared",
+            "required": false
+          }
         }
       }
     }
-  ]
+  ],
+  "capabilities": {
+    "canSync": true,
+    "syncFrequency": "0 */6 * * *"
+  }
 }

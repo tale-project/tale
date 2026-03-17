@@ -903,6 +903,10 @@
       "allTestsPassed": "All tests passed! SMTP: {smtp}ms, IMAP: {imap}ms",
       "connectionTestFailed": "Connection test failed",
       "failedToTestConnection": "Failed to test connection",
+      "oauthConnectedTitle": "Integration connected",
+      "oauthConnectedDescription": "OAuth authorization was successful. Your integration is now active.",
+      "oauthErrorTitle": "Connection failed",
+      "oauthErrorDescription": "OAuth authorization failed. Please try again.",
       "failedToDeleteProvider": "Failed to delete provider",
       "defaultProviderUpdated": "Default provider updated",
       "failedToSetDefault": "Failed to set default provider",
@@ -1037,11 +1041,14 @@
       },
       "upload": {
         "title": "Upload integration",
+        "addDialogTitle": "Add integration",
+        "tabUpload": "Upload",
+        "tabTemplate": "Template",
         "description": "Upload a .zip package or config.json and connector.js/.ts files to add a custom integration.",
         "addIntegration": "Add integration",
         "addDescription": "Upload a custom REST API or SQL integration package.",
         "uploadPackage": "Upload package",
-        "uploadDescription": "Upload a .zip package or select config.json and connector.js/.ts individually to create a custom integration.",
+        "uploadDescription": "Upload a single .zip package, or select config.json + connector.js/.ts + icon individually (max 1 MB total).",
         "dropZoneLabel": "Upload integration package",
         "dropOrClick": "Drop files here or click to browse",
         "dropHere": "Drop files here",
@@ -1049,7 +1056,9 @@
         "parsing": "Parsing package...",
         "parseError": "Failed to parse package",
         "unexpectedError": "An unexpected error occurred",
-        "packageStructure": "Expected package structure:",
+        "templateDescription": "Choose a pre-built integration template to get started quickly.",
+        "templateFetching": "Loading template...",
+        "templateFetchError": "Failed to load template from GitHub",
         "operations": "Operations",
         "write": "Write",
         "secretBindings": "Required credentials",
@@ -1079,10 +1088,7 @@
         "changeIcon": "Change icon",
         "removeIcon": "Remove icon",
         "iconTooLarge": "Icon must be under 256KB",
-        "invalidIconFormat": "Icon must be PNG, SVG, JPG, or WebP",
-        "examplesHintPrefix": "Browse",
-        "examplesHintLink": "example integrations",
-        "examplesHintSuffix": "for ready-to-use packages and templates."
+        "invalidIconFormat": "Icon must be PNG, SVG, JPG, or WebP"
       },
       "manageDialog": {
         "authentication": "Authentication",
@@ -1149,7 +1155,10 @@
         "updateTypeMismatch": "Package type does not match this integration. A REST API package cannot be applied to a SQL integration, and vice versa.",
         "updatePreview": "Changes preview",
         "newOperations": "{count} operations",
-        "newCodeLines": "{count} lines of code"
+        "newCodeLines": "{count} lines of code",
+        "relatedAutomations": "Automations",
+        "noRelatedAutomations": "No automations use this integration yet",
+        "createAutomation": "Create automation"
       },
       "authMethods": {
         "api_key": "API key",
@@ -1679,6 +1688,8 @@
     },
     "createDialog": {
       "title": "Create automation",
+      "tabBlank": "Blank",
+      "tabTemplate": "From template",
       "namePlaceholder": "e.g., Social media workflow",
       "descriptionPlaceholder": "Describe what this automation does...",
       "creating": "Creating...",
@@ -1822,6 +1833,10 @@
       "duplicateName": "An automation with this name already exists"
     },
     "templates": {
+      "description": "Choose a template to get started with pre-configured steps.",
+      "fetchError": "Failed to load template. Please try again.",
+      "fetching": "Loading template...",
+      "noTemplates": "No templates available for this integration.",
       "newAutomation": "New automation",
       "createNewTemplate": "Create a new automation template",
       "fillDetails": "Fill in the details for your new workflow.",

@@ -4,9 +4,15 @@
   "description": "Discord Bot API integration for guilds, channels, and messages",
   "version": 1,
   "authMethod": "bearer_token",
-  "supportedAuthMethods": ["bearer_token"],
-  "secretBindings": ["accessToken"],
-  "allowedHosts": ["discord.com"],
+  "supportedAuthMethods": [
+    "bearer_token"
+  ],
+  "secretBindings": [
+    "accessToken"
+  ],
+  "allowedHosts": [
+    "discord.com"
+  ],
   "operations": [
     {
       "name": "list_guilds",
@@ -15,9 +21,21 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "limit": { "type": "number", "description": "Number of guilds to return (max 200, default 50)", "required": false },
-          "before": { "type": "string", "description": "Get guilds before this guild ID", "required": false },
-          "after": { "type": "string", "description": "Get guilds after this guild ID", "required": false }
+          "limit": {
+            "type": "number",
+            "description": "Number of guilds to return (max 200, default 50)",
+            "required": false
+          },
+          "before": {
+            "type": "string",
+            "description": "Get guilds before this guild ID",
+            "required": false
+          },
+          "after": {
+            "type": "string",
+            "description": "Get guilds after this guild ID",
+            "required": false
+          }
         }
       }
     },
@@ -28,7 +46,11 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "guild_id": { "type": "string", "description": "Guild (server) ID", "required": true }
+          "guild_id": {
+            "type": "string",
+            "description": "Guild (server) ID",
+            "required": true
+          }
         }
       }
     },
@@ -39,7 +61,11 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "guild_id": { "type": "string", "description": "Guild (server) ID", "required": true }
+          "guild_id": {
+            "type": "string",
+            "description": "Guild (server) ID",
+            "required": true
+          }
         }
       }
     },
@@ -50,11 +76,31 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "channel_id": { "type": "string", "description": "Channel ID", "required": true },
-          "limit": { "type": "number", "description": "Number of messages to return (max 100, default 50)", "required": false },
-          "before": { "type": "string", "description": "Get messages before this message ID", "required": false },
-          "after": { "type": "string", "description": "Get messages after this message ID", "required": false },
-          "around": { "type": "string", "description": "Get messages around this message ID", "required": false }
+          "channel_id": {
+            "type": "string",
+            "description": "Channel ID",
+            "required": true
+          },
+          "limit": {
+            "type": "number",
+            "description": "Number of messages to return (max 100, default 50)",
+            "required": false
+          },
+          "before": {
+            "type": "string",
+            "description": "Get messages before this message ID",
+            "required": false
+          },
+          "after": {
+            "type": "string",
+            "description": "Get messages after this message ID",
+            "required": false
+          },
+          "around": {
+            "type": "string",
+            "description": "Get messages around this message ID",
+            "required": false
+          }
         }
       }
     },
@@ -67,9 +113,21 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "channel_id": { "type": "string", "description": "Channel ID", "required": true },
-          "content": { "type": "string", "description": "Message content text", "required": true },
-          "embeds": { "type": "array", "description": "Array of embed objects", "required": false }
+          "channel_id": {
+            "type": "string",
+            "description": "Channel ID",
+            "required": true
+          },
+          "content": {
+            "type": "string",
+            "description": "Message content text",
+            "required": true
+          },
+          "embeds": {
+            "type": "array",
+            "description": "Array of embed objects",
+            "required": false
+          }
         }
       }
     },
@@ -80,7 +138,11 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "user_id": { "type": "string", "description": "User ID", "required": true }
+          "user_id": {
+            "type": "string",
+            "description": "User ID",
+            "required": true
+          }
         }
       }
     },
@@ -91,9 +153,21 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "guild_id": { "type": "string", "description": "Guild (server) ID", "required": true },
-          "limit": { "type": "number", "description": "Number of members to return (max 1000, default 50)", "required": false },
-          "after": { "type": "string", "description": "Get members after this user ID", "required": false }
+          "guild_id": {
+            "type": "string",
+            "description": "Guild (server) ID",
+            "required": true
+          },
+          "limit": {
+            "type": "number",
+            "description": "Number of members to return (max 1000, default 50)",
+            "required": false
+          },
+          "after": {
+            "type": "string",
+            "description": "Get members after this user ID",
+            "required": false
+          }
         }
       }
     },
@@ -106,12 +180,32 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "guild_id": { "type": "string", "description": "Guild (server) ID", "required": true },
-          "name": { "type": "string", "description": "Channel name", "required": true },
-          "type": { "type": "integer", "description": "Channel type (0 = text, 2 = voice, 4 = category, default 0)", "required": false },
-          "topic": { "type": "string", "description": "Channel topic", "required": false }
+          "guild_id": {
+            "type": "string",
+            "description": "Guild (server) ID",
+            "required": true
+          },
+          "name": {
+            "type": "string",
+            "description": "Channel name",
+            "required": true
+          },
+          "type": {
+            "type": "integer",
+            "description": "Channel type (0 = text, 2 = voice, 4 = category, default 0)",
+            "required": false
+          },
+          "topic": {
+            "type": "string",
+            "description": "Channel topic",
+            "required": false
+          }
         }
       }
     }
-  ]
+  ],
+  "capabilities": {
+    "canSync": true,
+    "syncFrequency": "0 */6 * * *"
+  }
 }

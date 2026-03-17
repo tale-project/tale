@@ -1,6 +1,6 @@
 'use client';
 
-import { Upload, AlertCircle, ExternalLink } from 'lucide-react';
+import { Upload, AlertCircle } from 'lucide-react';
 import { useState, useCallback } from 'react';
 
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
@@ -89,29 +89,6 @@ export function UploadStep({ onPackageParsed }: UploadStepProps) {
           <pre className="font-sans whitespace-pre-wrap">{error}</pre>
         </div>
       )}
-
-      <div className="text-muted-foreground text-xs">
-        <Text variant="label-sm">
-          {t('integrations.upload.packageStructure')}
-        </Text>
-        <pre className="bg-muted mt-1 rounded p-2 text-xs">
-          {`Option A: my-integration.zip\n            ├── config.json\n            ├── connector.js or connector.ts\n            └── icon.svg (optional)\n\nOption B: Select files directly\n            ├── config.json\n            ├── connector.js or connector.ts\n            └── icon.svg (optional)`}
-        </pre>
-      </div>
-
-      <Text variant="caption">
-        {t('integrations.upload.examplesHintPrefix')}{' '}
-        <a
-          href="https://github.com/tale-project/tale/tree/main/examples/integrations"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-primary font-medium underline underline-offset-2"
-        >
-          {t('integrations.upload.examplesHintLink')}
-          <ExternalLink className="ml-0.5 inline size-3 align-text-bottom" />
-        </a>{' '}
-        {t('integrations.upload.examplesHintSuffix')}
-      </Text>
     </Stack>
   );
 }

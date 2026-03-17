@@ -11,6 +11,7 @@ import { Textarea } from '@/app/components/ui/forms/textarea';
 import { BorderedSection } from '@/app/components/ui/layout/bordered-section';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
+import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
@@ -100,14 +101,29 @@ export function IntegrationCredentialsForm({
       )}
 
       <BorderedSection>
-        <div>
-          <Text variant="label">
-            {t('integrations.manageDialog.authentication')}
-          </Text>
-          <Text variant="caption" className="mt-1">
-            {t('integrations.upload.updateCredentialsHint')}
-          </Text>
-        </div>
+        <HStack className="items-start justify-between">
+          <div>
+            <Text variant="label">
+              {t('integrations.manageDialog.authentication')}
+            </Text>
+            <Text variant="caption" className="mt-1">
+              {t('integrations.upload.updateCredentialsHint')}
+            </Text>
+          </div>
+          {selectedAuthMethod === 'oauth2' &&
+            hasOAuth2Config &&
+            hasOAuth2Credentials &&
+            !isEditingOAuth2 && (
+              <IconButton
+                variant="secondary"
+                icon={Pencil}
+                iconSize={3}
+                aria-label={t('integrations.manageDialog.updateCredentials')}
+                onClick={() => onEditOAuth2(true)}
+                disabled={busy}
+              />
+            )}
+        </HStack>
 
         {hasMultipleAuthMethods && (
           <Select
@@ -153,7 +169,6 @@ export function IntegrationCredentialsForm({
               busy={busy}
               isSavingOAuth2={isSavingOAuth2}
               onReauthorize={onReauthorize}
-              onEdit={() => onEditOAuth2(true)}
             />
           ) : (
             <OAuth2CredentialsEditor
@@ -299,13 +314,11 @@ function OAuth2CredentialsSummary({
   busy,
   isSavingOAuth2,
   onReauthorize,
-  onEdit,
 }: {
   integration: Doc<'integrations'> & { iconUrl?: string | null };
   busy: boolean;
   isSavingOAuth2: boolean;
   onReauthorize: () => void;
-  onEdit: () => void;
 }) {
   const { t } = useT('settings');
 
@@ -355,16 +368,6 @@ function OAuth2CredentialsSummary({
             {t('integrations.authorize')}
           </>
         )}
-      </Button>
-      <Button
-        variant="secondary"
-        size="sm"
-        onClick={onEdit}
-        disabled={busy}
-        className="w-full"
-      >
-        <Pencil className="mr-2 size-3.5" />
-        {t('integrations.manageDialog.updateCredentials')}
       </Button>
     </>
   );
