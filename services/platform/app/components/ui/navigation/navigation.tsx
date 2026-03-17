@@ -112,7 +112,7 @@ export function Navigation({ organizationId }: NavigationProps) {
   const navigationItems = useNavigationItems(organizationId);
 
   return (
-    <NavigationMenu className="bg-background border-border flex h-full flex-col">
+    <NavigationMenu className="border-border flex h-full flex-col">
       <div className="flex flex-shrink-0 items-center justify-center py-3">
         <Link
           to="/dashboard/$id/chat"
