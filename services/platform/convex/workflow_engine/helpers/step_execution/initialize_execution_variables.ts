@@ -44,8 +44,9 @@ export async function initializeExecutionVariables(
   } else {
     // Initialize execution variables for the first time
     const inputVars = args.resumeVariables ?? args.initialInput;
+    const inputRecord = isRecord(inputVars) ? inputVars : {};
     fullVariables = {
-      ...(isRecord(inputVars) ? inputVars : {}),
+      input: inputRecord,
       config: workflowConfig?.config?.variables ?? {},
       organizationId: args.organizationId,
       wfDefinitionId, // Auto-inject wfDefinitionId or workflowSlug

@@ -70,8 +70,7 @@
             "orderby": "receivedDateTime desc",
             "top": 1,
             "select": "id,subject,from,toRecipients,ccRecipients,bccRecipients,receivedDateTime,sentDateTime,body,internetMessageId,conversationId,isRead,hasAttachments,bodyPreview",
-            "expand": "attachments",
-            "format": "email"
+            "expand": "attachments"
           }
         }
       },
@@ -93,8 +92,7 @@
             "orderby": "receivedDateTime asc",
             "top": 1,
             "select": "id,subject,from,toRecipients,ccRecipients,bccRecipients,receivedDateTime,sentDateTime,body,internetMessageId,conversationId,isRead,hasAttachments,bodyPreview",
-            "expand": "attachments",
-            "format": "email"
+            "expand": "attachments"
           }
         }
       },
@@ -144,12 +142,11 @@
           "name": "outlook",
           "operation": "list_messages",
           "params": {
-            "filter": "conversationId eq '{{outlookConversationId}}'",
+            "filter": "conversationId eq '{{variables.outlookConversationId}}'",
             "orderby": "receivedDateTime asc",
             "top": 50,
             "select": "id,subject,from,toRecipients,ccRecipients,bccRecipients,receivedDateTime,sentDateTime,body,internetMessageId,conversationId,isRead,hasAttachments,bodyPreview",
-            "expand": "attachments",
-            "format": "email"
+            "expand": "attachments"
           }
         }
       },
@@ -166,7 +163,7 @@
         "parameters": {
           "operation": "create_from_email",
           "emails": "{{steps.fetch_thread_messages.output.data.result.data}}",
-          "status": "{{conversationStatus}}",
+          "status": "{{config.conversationStatus}}",
           "integrationName": "outlook"
         }
       },

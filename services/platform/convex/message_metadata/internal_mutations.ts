@@ -3,7 +3,7 @@ import { v } from 'convex/values';
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 import { internalMutation } from '../_generated/server';
 import {
-  subAgentUsageItemValidator,
+  toolUsageItemValidator,
   contextStatsValidator,
 } from '../streaming/validators';
 
@@ -24,7 +24,7 @@ export const saveMessageMetadata = internalMutation({
     providerMetadata: v.optional(jsonRecordValidator),
     durationMs: v.optional(v.number()),
     timeToFirstTokenMs: v.optional(v.number()),
-    subAgentUsage: v.optional(v.array(subAgentUsageItemValidator)),
+    toolsUsage: v.optional(v.array(toolUsageItemValidator)),
     contextWindow: v.optional(v.string()),
     contextStats: v.optional(contextStatsValidator),
   },
@@ -58,7 +58,7 @@ export const saveMessageMetadata = internalMutation({
         durationMs: args.durationMs ?? existing.durationMs,
         timeToFirstTokenMs:
           args.timeToFirstTokenMs ?? existing.timeToFirstTokenMs,
-        subAgentUsage: args.subAgentUsage ?? existing.subAgentUsage,
+        toolsUsage: args.toolsUsage ?? existing.toolsUsage,
         contextWindow: contextWindow ?? existing.contextWindow,
         contextStats: args.contextStats ?? existing.contextStats,
       });
@@ -79,7 +79,7 @@ export const saveMessageMetadata = internalMutation({
       providerMetadata: args.providerMetadata,
       durationMs: args.durationMs,
       timeToFirstTokenMs: args.timeToFirstTokenMs,
-      subAgentUsage: args.subAgentUsage,
+      toolsUsage: args.toolsUsage,
       contextWindow,
       contextStats: args.contextStats,
     });

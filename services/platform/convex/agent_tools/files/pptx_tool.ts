@@ -15,6 +15,7 @@ import type { ToolDefinition } from '../types';
 import { internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
 import { toId } from '../../lib/type_cast_helpers';
+import { getAgentModelId } from './helpers/get_agent_model';
 import { parseFile, type ParseFileResult } from './helpers/parse_file';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
@@ -272,12 +273,14 @@ CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the 
           );
         }
 
+        const model = getAgentModelId(ctx);
         const result = await parseFile(
           ctx,
           args.fileId,
           args.filename,
           'pptx',
           args.user_input,
+          model,
         );
         return { operation: 'parse', ...result };
       }

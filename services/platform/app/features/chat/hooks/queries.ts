@@ -349,7 +349,7 @@ export function useWorkflowUpdateApprovals(
   };
 }
 
-export interface SubAgentUsage {
+export interface ToolUsage {
   toolName: string;
   model?: string;
   provider?: string;
@@ -360,6 +360,9 @@ export interface SubAgentUsage {
   input?: string;
   output?: string;
 }
+
+/** @deprecated Use ToolUsage */
+export type SubAgentUsage = ToolUsage;
 
 export interface ContextStats {
   totalTokens: number;
@@ -379,7 +382,7 @@ export interface MessageMetadata {
   reasoning?: string;
   durationMs?: number;
   timeToFirstTokenMs?: number;
-  subAgentUsage?: SubAgentUsage[];
+  toolsUsage?: ToolUsage[];
   contextWindow?: string;
   contextStats?: ContextStats;
 }
@@ -412,7 +415,7 @@ export function useMessageMetadata(messageId: string | null) {
           reasoning: metadata.reasoning,
           durationMs: metadata.durationMs,
           timeToFirstTokenMs: metadata.timeToFirstTokenMs,
-          subAgentUsage: metadata.subAgentUsage,
+          toolsUsage: metadata.toolsUsage ?? metadata.subAgentUsage,
           contextWindow: metadata.contextWindow,
           contextStats: metadata.contextStats,
         }

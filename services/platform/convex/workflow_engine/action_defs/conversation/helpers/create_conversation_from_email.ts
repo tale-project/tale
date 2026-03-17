@@ -15,6 +15,7 @@ import { buildInitialMessage } from './build_initial_message';
 import { checkConversationExists } from './check_conversation_exists';
 import { checkMessageExists } from './check_message_exists';
 import { findOrCreateCustomerFromEmail } from './find_or_create_customer_from_email';
+import { normalizeEmails } from './normalize_email';
 import { updateMessage } from './update_message';
 
 const debugLog = createDebugLog('DEBUG_CONVERSATIONS', '[Conversations]');
@@ -66,12 +67,9 @@ export async function createConversationFromEmail(
     integrationName?: string;
   },
 ) {
-  // Handle both single email and array of emails
-  const emailsArray: EmailType[] = Array.isArray(params.emails)
-    ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- emails come from workflow action params; always EmailType or EmailType[]
-      (params.emails as EmailType[])
-    : // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- email type narrowing from external data
-      [params.emails as EmailType];
+  // Handle single email, array of emails, and raw provider API objects
+  // normalizeEmails detects raw Gmail API responses and maps them to EmailType
+  const emailsArray: EmailType[] = normalizeEmails(params.emails);
 
   // Sort emails by date (chronological order - oldest first)
   emailsArray.sort(

@@ -4,8 +4,13 @@
   "description": "Shopify Admin API integration for products, customers, and orders",
   "version": 1,
   "authMethod": "api_key",
-  "secretBindings": ["domain", "accessToken"],
-  "allowedHosts": ["myshopify.com"],
+  "secretBindings": [
+    "domain",
+    "accessToken"
+  ],
+  "allowedHosts": [
+    "myshopify.com"
+  ],
   "operations": [
     {
       "name": "list_products",
@@ -56,5 +61,9 @@
   "connectionConfig": {
     "apiVersion": "2026-01",
     "timeout": 30000
+  },
+  "capabilities": {
+    "canSync": true,
+    "syncFrequency": "0 */6 * * *"
   }
 }

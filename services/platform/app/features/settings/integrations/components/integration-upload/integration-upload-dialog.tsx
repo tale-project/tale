@@ -3,17 +3,18 @@
 import { useCallback, useMemo } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
+import { Tabs } from '@/app/components/ui/navigation/tabs';
 import { Button } from '@/app/components/ui/primitives/button';
 import { toast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 import { fetchJson } from '@/lib/utils/type-cast-helpers';
 
 import { useCreateIntegration } from '../../hooks/actions';
 import { useGenerateUploadUrl } from '../../hooks/mutations';
 import { useUploadIntegration } from './hooks/use-upload-integration';
 import { PreviewStep } from './steps/preview-step';
+import { TemplateStep } from './steps/template-step';
 import { UploadStep } from './steps/upload-step';
 
 interface IntegrationUploadDialogProps {
@@ -104,6 +105,7 @@ export function IntegrationUploadDialog({
         authMethod,
         supportedAuthMethods,
         connectionConfig: config.connectionConfig ?? undefined,
+        capabilities: config.capabilities ?? undefined,
         connector,
         type: isSql ? 'sql' : undefined,
         iconStorageId: iconStorageId
@@ -168,10 +170,16 @@ export function IntegrationUploadDialog({
     t,
   ]);
 
-  const stepTitles = useMemo(
+  const tabItems = useMemo(
     () => [
-      t('integrations.upload.stepUpload'),
-      t('integrations.upload.stepPreview'),
+      {
+        value: 'upload' as const,
+        label: t('integrations.upload.tabUpload'),
+      },
+      {
+        value: 'template' as const,
+        label: t('integrations.upload.tabTemplate'),
+      },
     ],
     [t],
   );
@@ -216,42 +224,45 @@ export function IntegrationUploadDialog({
     <Dialog
       open={open}
       onOpenChange={handleOpenChange}
-      title={t('integrations.upload.title')}
+      title={t('integrations.upload.addDialogTitle')}
       size="xl"
       footer={footer}
       className="max-h-[90vh] grid-rows-[auto_1fr_auto] overflow-hidden"
     >
       <div className="flex min-h-0 min-w-0 flex-col gap-4 overflow-hidden">
-        {/* Step indicator */}
-        <nav aria-label={t('integrations.upload.steps')}>
-          <ol className="flex items-center justify-center gap-1.5">
-            {stepTitles.map((title, i) => (
-              <li
-                key={title}
-                className={cn(
-                  'size-1.5 rounded-full transition-colors',
-                  i === state.stepIndex ? 'bg-foreground' : 'bg-foreground/20',
-                )}
-                aria-current={i === state.stepIndex ? 'step' : undefined}
-                aria-label={title}
-              />
-            ))}
-          </ol>
-        </nav>
+        {/* Step 1: Tab selection (Upload / Template) */}
+        {state.step === 'upload' && (
+          <>
+            <Tabs
+              items={tabItems}
+              value={state.activeTab}
+              onValueChange={(v) => {
+                if (v === 'upload' || v === 'template') {
+                  state.setActiveTab(v);
+                }
+              }}
+              listClassName="grid w-full grid-cols-2"
+            />
+            <div className="min-h-0 min-w-0 flex-1 overflow-y-auto pr-2">
+              {state.activeTab === 'upload' && (
+                <UploadStep onPackageParsed={state.setParsedPackage} />
+              )}
+              {state.activeTab === 'template' && (
+                <TemplateStep onPackageParsed={state.setParsedPackage} />
+              )}
+            </div>
+          </>
+        )}
 
-        {/* Scrollable content area */}
-        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto pr-2">
-          {state.step === 'upload' && (
-            <UploadStep onPackageParsed={state.setParsedPackage} />
-          )}
-
-          {state.step === 'preview' && state.parsedPackage && (
+        {/* Step 2: Preview */}
+        {state.step === 'preview' && state.parsedPackage && (
+          <div className="min-h-0 min-w-0 flex-1 overflow-y-auto pr-2">
             <PreviewStep
               parsedPackage={state.parsedPackage}
               onIconChange={state.setIconFile}
             />
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </Dialog>
   );

@@ -3,11 +3,13 @@ import { useState, useCallback } from 'react';
 import type { ParsedPackage } from '../utils/parse-integration-package';
 
 export type UploadStep = 'upload' | 'preview';
+export type AddIntegrationTab = 'upload' | 'template';
 
 const STEP_ORDER: UploadStep[] = ['upload', 'preview'];
 
 interface UploadIntegrationState {
   step: UploadStep;
+  activeTab: AddIntegrationTab;
   parsedPackage: ParsedPackage | null;
   isCreating: boolean;
 }
@@ -15,6 +17,7 @@ interface UploadIntegrationState {
 export function useUploadIntegration() {
   const [state, setState] = useState<UploadIntegrationState>({
     step: 'upload',
+    activeTab: 'upload',
     parsedPackage: null,
     isCreating: false,
   });
@@ -29,6 +32,10 @@ export function useUploadIntegration() {
 
   const setIsCreating = useCallback((creating: boolean) => {
     setState((prev) => ({ ...prev, isCreating: creating }));
+  }, []);
+
+  const setActiveTab = useCallback((tab: AddIntegrationTab) => {
+    setState((prev) => ({ ...prev, activeTab: tab }));
   }, []);
 
   const goBack = useCallback(() => {
@@ -54,6 +61,7 @@ export function useUploadIntegration() {
   const reset = useCallback(() => {
     setState({
       step: 'upload',
+      activeTab: 'upload',
       parsedPackage: null,
       isCreating: false,
     });
@@ -67,6 +75,7 @@ export function useUploadIntegration() {
     totalSteps: STEP_ORDER.length,
     setParsedPackage,
     setIsCreating,
+    setActiveTab,
     setIconFile,
     goBack,
     reset,

@@ -12,7 +12,7 @@ from pptx import Presentation
 from pptx.enum.shapes import MSO_SHAPE_TYPE
 
 from ...config import settings
-from .openai_client import vision_client
+from .openai_client import UsageAccumulator, vision_client
 
 MIN_IMAGE_SIZE = 10000  # ~100x100 pixels
 
@@ -20,6 +20,7 @@ MIN_IMAGE_SIZE = 10000  # ~100x100 pixels
 async def _describe_image_bytes(
     image_bytes: bytes,
     semaphore: asyncio.Semaphore,
+    usage: UsageAccumulator | None = None,
 ) -> str:
     """Describe image bytes using Vision API."""
     async with semaphore:
@@ -27,7 +28,7 @@ async def _describe_image_bytes(
             if len(image_bytes) < MIN_IMAGE_SIZE:
                 logger.debug(f"Skipping small image ({len(image_bytes)} bytes)")
                 return ""
-            return await vision_client.describe_image(image_bytes)
+            return await vision_client.describe_image(image_bytes, usage=usage)
         except Exception as e:
             logger.warning(f"Failed to describe image: {e}")
             return ""
@@ -47,6 +48,7 @@ async def _process_slide(
     slide,
     semaphore: asyncio.Semaphore,
     process_images: bool,
+    usage: UsageAccumulator | None = None,
 ) -> tuple[int, str, bool]:
     """Process a single slide and extract its content.
 
@@ -92,7 +94,7 @@ async def _process_slide(
     vision_used = False
     if image_tasks:
         results = await asyncio.gather(
-            *[_describe_image_bytes(img_bytes, semaphore) for _, img_bytes in image_tasks],
+            *[_describe_image_bytes(img_bytes, semaphore, usage=usage) for _, img_bytes in image_tasks],
             return_exceptions=True,
         )
         for (top, _), result in zip(image_tasks, results, strict=False):
@@ -115,6 +117,7 @@ async def extract_text_from_pptx_bytes(
     filename: str = "presentation.pptx",
     *,
     process_images: bool = True,
+    usage: UsageAccumulator | None = None,
 ) -> tuple[list[str], bool]:
     """Extract text from PPTX bytes with Vision support.
 
@@ -132,7 +135,7 @@ async def extract_text_from_pptx_bytes(
     semaphore = asyncio.Semaphore(settings.vision_max_concurrent_pages)
 
     # Process all slides concurrently
-    tasks = [_process_slide(i + 1, slide, semaphore, process_images) for i, slide in enumerate(prs.slides)]
+    tasks = [_process_slide(i + 1, slide, semaphore, process_images, usage=usage) for i, slide in enumerate(prs.slides)]
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
     slides_content: list[tuple[int, str]] = []

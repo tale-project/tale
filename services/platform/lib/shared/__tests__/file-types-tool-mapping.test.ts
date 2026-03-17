@@ -97,7 +97,7 @@ describe('tool → file type mapping', () => {
     it('returns true when document tools are present', () => {
       expect(hasFileTools(['pdf', 'web'])).toBe(true);
       expect(hasFileTools(['image'])).toBe(true);
-      expect(hasFileTools(['txt'])).toBe(true);
+      expect(hasFileTools(['text'])).toBe(true);
       expect(hasFileTools(['excel'])).toBe(true);
     });
 

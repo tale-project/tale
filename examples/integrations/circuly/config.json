@@ -4,8 +4,13 @@
   "description": "Circuly API integration for products, customers, and subscriptions",
   "version": 1,
   "authMethod": "basic_auth",
-  "secretBindings": ["username", "password"],
-  "allowedHosts": ["circuly.io"],
+  "secretBindings": [
+    "username",
+    "password"
+  ],
+  "allowedHosts": [
+    "circuly.io"
+  ],
   "operations": [
     {
       "name": "list_products",
@@ -26,5 +31,9 @@
   "connectionConfig": {
     "apiEndpoint": "https://api.circuly.io/api/2025-01",
     "timeout": 30000
+  },
+  "capabilities": {
+    "canSync": true,
+    "syncFrequency": "0 */6 * * *"
   }
 }

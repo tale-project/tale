@@ -95,8 +95,8 @@ export const AGENT_CONTEXT_CONFIGS = {
     enableSummarization: true,
     timeoutMs: 300_000,
   },
-  /** Document assistant - independent agent for document operations */
-  document: {
+  /** File assistant - independent agent for file operations */
+  file: {
     modelContextLimit: DEFAULT_MODEL_CONTEXT_LIMIT,
     maxHistoryTokens: DEFAULT_MAX_HISTORY_TOKENS,
     outputReserve: 4096,

@@ -4,9 +4,15 @@
   "description": "GitHub REST API integration for repositories, issues, pull requests, and code search",
   "version": 1,
   "authMethod": "bearer_token",
-  "supportedAuthMethods": ["bearer_token"],
-  "secretBindings": ["accessToken"],
-  "allowedHosts": ["api.github.com"],
+  "supportedAuthMethods": [
+    "bearer_token"
+  ],
+  "secretBindings": [
+    "accessToken"
+  ],
+  "allowedHosts": [
+    "api.github.com"
+  ],
   "operations": [
     {
       "name": "list_repos",
@@ -15,10 +21,26 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "per_page": { "type": "number", "description": "Number of results per page (max 100)", "required": false },
-          "page": { "type": "number", "description": "Page number for pagination", "required": false },
-          "sort": { "type": "string", "description": "Sort field: created, updated, pushed, or full_name", "required": false },
-          "visibility": { "type": "string", "description": "Filter by visibility: all, public, or private", "required": false }
+          "per_page": {
+            "type": "number",
+            "description": "Number of results per page (max 100)",
+            "required": false
+          },
+          "page": {
+            "type": "number",
+            "description": "Page number for pagination",
+            "required": false
+          },
+          "sort": {
+            "type": "string",
+            "description": "Sort field: created, updated, pushed, or full_name",
+            "required": false
+          },
+          "visibility": {
+            "type": "string",
+            "description": "Filter by visibility: all, public, or private",
+            "required": false
+          }
         }
       }
     },
@@ -29,8 +51,16 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "owner": { "type": "string", "description": "Repository owner (user or organization)", "required": true },
-          "repo": { "type": "string", "description": "Repository name", "required": true }
+          "owner": {
+            "type": "string",
+            "description": "Repository owner (user or organization)",
+            "required": true
+          },
+          "repo": {
+            "type": "string",
+            "description": "Repository name",
+            "required": true
+          }
         }
       }
     },
@@ -41,14 +71,46 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "owner": { "type": "string", "description": "Repository owner (user or organization)", "required": true },
-          "repo": { "type": "string", "description": "Repository name", "required": true },
-          "state": { "type": "string", "description": "Filter by state: open, closed, or all", "required": false },
-          "per_page": { "type": "number", "description": "Number of results per page (max 100)", "required": false },
-          "page": { "type": "number", "description": "Page number for pagination", "required": false },
-          "labels": { "type": "string", "description": "Comma-separated list of label names to filter by", "required": false },
-          "sort": { "type": "string", "description": "Sort field: created, updated, or comments", "required": false },
-          "direction": { "type": "string", "description": "Sort direction: asc or desc", "required": false }
+          "owner": {
+            "type": "string",
+            "description": "Repository owner (user or organization)",
+            "required": true
+          },
+          "repo": {
+            "type": "string",
+            "description": "Repository name",
+            "required": true
+          },
+          "state": {
+            "type": "string",
+            "description": "Filter by state: open, closed, or all",
+            "required": false
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Number of results per page (max 100)",
+            "required": false
+          },
+          "page": {
+            "type": "number",
+            "description": "Page number for pagination",
+            "required": false
+          },
+          "labels": {
+            "type": "string",
+            "description": "Comma-separated list of label names to filter by",
+            "required": false
+          },
+          "sort": {
+            "type": "string",
+            "description": "Sort field: created, updated, or comments",
+            "required": false
+          },
+          "direction": {
+            "type": "string",
+            "description": "Sort direction: asc or desc",
+            "required": false
+          }
         }
       }
     },
@@ -59,9 +121,21 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "owner": { "type": "string", "description": "Repository owner (user or organization)", "required": true },
-          "repo": { "type": "string", "description": "Repository name", "required": true },
-          "issue_number": { "type": "number", "description": "Issue number", "required": true }
+          "owner": {
+            "type": "string",
+            "description": "Repository owner (user or organization)",
+            "required": true
+          },
+          "repo": {
+            "type": "string",
+            "description": "Repository name",
+            "required": true
+          },
+          "issue_number": {
+            "type": "number",
+            "description": "Issue number",
+            "required": true
+          }
         }
       }
     },
@@ -74,12 +148,36 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "owner": { "type": "string", "description": "Repository owner (user or organization)", "required": true },
-          "repo": { "type": "string", "description": "Repository name", "required": true },
-          "title": { "type": "string", "description": "Issue title", "required": true },
-          "body": { "type": "string", "description": "Issue body content (Markdown supported)", "required": false },
-          "labels": { "type": "array", "description": "Array of label names to apply", "required": false },
-          "assignees": { "type": "array", "description": "Array of usernames to assign", "required": false }
+          "owner": {
+            "type": "string",
+            "description": "Repository owner (user or organization)",
+            "required": true
+          },
+          "repo": {
+            "type": "string",
+            "description": "Repository name",
+            "required": true
+          },
+          "title": {
+            "type": "string",
+            "description": "Issue title",
+            "required": true
+          },
+          "body": {
+            "type": "string",
+            "description": "Issue body content (Markdown supported)",
+            "required": false
+          },
+          "labels": {
+            "type": "array",
+            "description": "Array of label names to apply",
+            "required": false
+          },
+          "assignees": {
+            "type": "array",
+            "description": "Array of usernames to assign",
+            "required": false
+          }
         }
       }
     },
@@ -90,13 +188,41 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "owner": { "type": "string", "description": "Repository owner (user or organization)", "required": true },
-          "repo": { "type": "string", "description": "Repository name", "required": true },
-          "state": { "type": "string", "description": "Filter by state: open, closed, or all", "required": false },
-          "per_page": { "type": "number", "description": "Number of results per page (max 100)", "required": false },
-          "page": { "type": "number", "description": "Page number for pagination", "required": false },
-          "sort": { "type": "string", "description": "Sort field: created, updated, popularity, or long-running", "required": false },
-          "direction": { "type": "string", "description": "Sort direction: asc or desc", "required": false }
+          "owner": {
+            "type": "string",
+            "description": "Repository owner (user or organization)",
+            "required": true
+          },
+          "repo": {
+            "type": "string",
+            "description": "Repository name",
+            "required": true
+          },
+          "state": {
+            "type": "string",
+            "description": "Filter by state: open, closed, or all",
+            "required": false
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Number of results per page (max 100)",
+            "required": false
+          },
+          "page": {
+            "type": "number",
+            "description": "Page number for pagination",
+            "required": false
+          },
+          "sort": {
+            "type": "string",
+            "description": "Sort field: created, updated, popularity, or long-running",
+            "required": false
+          },
+          "direction": {
+            "type": "string",
+            "description": "Sort direction: asc or desc",
+            "required": false
+          }
         }
       }
     },
@@ -107,9 +233,21 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "owner": { "type": "string", "description": "Repository owner (user or organization)", "required": true },
-          "repo": { "type": "string", "description": "Repository name", "required": true },
-          "pull_number": { "type": "number", "description": "Pull request number", "required": true }
+          "owner": {
+            "type": "string",
+            "description": "Repository owner (user or organization)",
+            "required": true
+          },
+          "repo": {
+            "type": "string",
+            "description": "Repository name",
+            "required": true
+          },
+          "pull_number": {
+            "type": "number",
+            "description": "Pull request number",
+            "required": true
+          }
         }
       }
     },
@@ -122,12 +260,36 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "owner": { "type": "string", "description": "Repository owner (user or organization)", "required": true },
-          "repo": { "type": "string", "description": "Repository name", "required": true },
-          "title": { "type": "string", "description": "Pull request title", "required": true },
-          "head": { "type": "string", "description": "The branch (or user:branch) containing the changes", "required": true },
-          "base": { "type": "string", "description": "The branch to merge changes into", "required": true },
-          "body": { "type": "string", "description": "Pull request body content (Markdown supported)", "required": false }
+          "owner": {
+            "type": "string",
+            "description": "Repository owner (user or organization)",
+            "required": true
+          },
+          "repo": {
+            "type": "string",
+            "description": "Repository name",
+            "required": true
+          },
+          "title": {
+            "type": "string",
+            "description": "Pull request title",
+            "required": true
+          },
+          "head": {
+            "type": "string",
+            "description": "The branch (or user:branch) containing the changes",
+            "required": true
+          },
+          "base": {
+            "type": "string",
+            "description": "The branch to merge changes into",
+            "required": true
+          },
+          "body": {
+            "type": "string",
+            "description": "Pull request body content (Markdown supported)",
+            "required": false
+          }
         }
       }
     },
@@ -138,11 +300,31 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "owner": { "type": "string", "description": "Repository owner (user or organization)", "required": true },
-          "repo": { "type": "string", "description": "Repository name", "required": true },
-          "per_page": { "type": "number", "description": "Number of results per page (max 100)", "required": false },
-          "page": { "type": "number", "description": "Page number for pagination", "required": false },
-          "sha": { "type": "string", "description": "Branch name or commit SHA to list commits from", "required": false }
+          "owner": {
+            "type": "string",
+            "description": "Repository owner (user or organization)",
+            "required": true
+          },
+          "repo": {
+            "type": "string",
+            "description": "Repository name",
+            "required": true
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Number of results per page (max 100)",
+            "required": false
+          },
+          "page": {
+            "type": "number",
+            "description": "Page number for pagination",
+            "required": false
+          },
+          "sha": {
+            "type": "string",
+            "description": "Branch name or commit SHA to list commits from",
+            "required": false
+          }
         }
       }
     },
@@ -153,9 +335,21 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "q": { "type": "string", "description": "Search query (supports GitHub search qualifiers like repo:, language:, path:)", "required": true },
-          "per_page": { "type": "number", "description": "Number of results per page (max 100)", "required": false },
-          "page": { "type": "number", "description": "Page number for pagination", "required": false }
+          "q": {
+            "type": "string",
+            "description": "Search query (supports GitHub search qualifiers like repo:, language:, path:)",
+            "required": true
+          },
+          "per_page": {
+            "type": "number",
+            "description": "Number of results per page (max 100)",
+            "required": false
+          },
+          "page": {
+            "type": "number",
+            "description": "Page number for pagination",
+            "required": false
+          }
         }
       }
     }
@@ -163,5 +357,9 @@
   "connectionConfig": {
     "apiEndpoint": "https://api.github.com",
     "timeout": 30000
+  },
+  "capabilities": {
+    "canSync": true,
+    "syncFrequency": "0 */6 * * *"
   }
 }

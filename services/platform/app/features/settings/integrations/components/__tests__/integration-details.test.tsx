@@ -20,6 +20,11 @@ vi.mock('@/app/hooks/use-toast', () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));
 
+// Mock IntegrationRelatedAutomations — it uses Convex queries not available in this test
+vi.mock('../integration-manage/integration-related-automations', () => ({
+  IntegrationRelatedAutomations: () => null,
+}));
+
 afterEach(cleanup);
 
 // Minimal integration fixture matching Doc<'integrations'> shape

@@ -20,6 +20,8 @@ if [ -z "${SITE_URL:-}" ]; then
   echo "Error: SITE_URL is required. Set it in your .env file." >&2
   exit 1
 fi
+# Trim leading/trailing whitespace
+SITE_URL=$(echo "${SITE_URL}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
 export SITE_URL
 
 echo "Domain Configuration:"
@@ -39,26 +41,35 @@ CADDYFILE="/config/Caddyfile"
 echo "TLS Configuration:"
 echo "  TLS_MODE: ${TLS_MODE:-selfsigned}"
 
+# HTTPS is required — OAuth providers reject http:// callbacks and crypto.subtle
+# is unavailable in insecure contexts. Use a reverse proxy for TLS termination
+# if needed, but always set SITE_URL to https://.
+if echo "${SITE_URL}" | grep -qi '^http://'; then
+  echo "Error: SITE_URL must use https://. Plain HTTP is not supported." >&2
+  echo "  If running behind a TLS-terminating reverse proxy, set SITE_URL=https://..." >&2
+  exit 1
+fi
+
 case "${TLS_MODE:-selfsigned}" in
-  letsencrypt)
-    echo "  Mode: Let's Encrypt (ACME - trusted certificates)"
-    if [ -n "${TLS_EMAIL:-}" ]; then
-      echo "  Email: ${TLS_EMAIL}"
-      # ACME with email for notifications
-      TLS_CONFIG="tls ${TLS_EMAIL}"
-    else
-      echo "  Warning: TLS_EMAIL not set, certificate expiry notifications disabled"
-      # ACME without email
-      TLS_CONFIG="tls"
-    fi
-    ;;
-  selfsigned|*)
-    echo "  Mode: Self-signed (internal CA - browser warning expected)"
-    echo "  To trust certs on host: docker exec tale-proxy caddy trust"
-    # Internal CA for self-signed certificates
-    TLS_CONFIG="tls internal"
-    ;;
-esac
+    letsencrypt)
+      echo "  Mode: Let's Encrypt (ACME - trusted certificates)"
+      if [ -n "${TLS_EMAIL:-}" ]; then
+        echo "  Email: ${TLS_EMAIL}"
+        # ACME with email for notifications
+        TLS_CONFIG="tls ${TLS_EMAIL}"
+      else
+        echo "  Warning: TLS_EMAIL not set, certificate expiry notifications disabled"
+        # ACME without email
+        TLS_CONFIG="tls"
+      fi
+      ;;
+    selfsigned|*)
+      echo "  Mode: Self-signed (internal CA - browser warning expected)"
+      echo "  To trust certs on host: docker exec tale-proxy caddy trust"
+      # Internal CA for self-signed certificates
+      TLS_CONFIG="tls internal"
+      ;;
+  esac
 
 # Copy Caddyfile to writable location and apply TLS config
 cp "$CADDYFILE_SRC" "$CADDYFILE"

@@ -18,6 +18,8 @@ import { useCopyButton } from '@/app/hooks/use-copy';
 import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-guards';
 
+import { IntegrationRelatedAutomations } from './integration-manage/integration-related-automations';
+
 interface IntegrationDetailsProps {
   integration: Doc<'integrations'> & { iconUrl?: string | null };
   children?: React.ReactNode;
@@ -424,6 +426,11 @@ export function IntegrationDetails({
           </pre>
         </CollapsibleDetails>
       )}
+
+      <IntegrationRelatedAutomations
+        integrationName={integration.name}
+        organizationId={integration.organizationId}
+      />
 
       {children}
     </BorderedSection>

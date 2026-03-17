@@ -1,15 +1,18 @@
 'use client';
 
+import { Trash2 } from 'lucide-react';
+
 import type { Doc } from '@/convex/_generated/dataModel';
 
+import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Stack } from '@/app/components/ui/layout/layout';
+import { Button } from '@/app/components/ui/primitives/button';
 
 import { useIntegrationManage } from '../hooks/use-integration-manage';
 import { IntegrationDetails } from './integration-details';
 import { IntegrationActiveView } from './integration-manage/integration-active-view';
 import { IntegrationCredentialsForm } from './integration-manage/integration-credentials-form';
-import { IntegrationDeleteSection } from './integration-manage/integration-delete-section';
 import { IntegrationIconUpload } from './integration-manage/integration-icon-upload';
 import { IntegrationUpdateSection } from './integration-manage/integration-update-section';
 
@@ -125,12 +128,23 @@ export function IntegrationManageDialog({
           />
         )}
 
-        <IntegrationDeleteSection
-          confirmDelete={manage.confirmDelete}
-          busy={manage.busy}
+        <DeleteDialog
+          open={manage.confirmDelete}
+          onOpenChange={manage.setConfirmDelete}
+          title={manage.t('integrations.manageDialog.deleteIntegration')}
+          description={manage.t('integrations.manageDialog.deleteDescription')}
+          isDeleting={manage.busy}
           onDelete={manage.handleDelete}
-          onConfirmToggle={manage.setConfirmDelete}
         />
+        <Button
+          variant="secondary"
+          onClick={() => manage.setConfirmDelete(true)}
+          disabled={manage.busy}
+          className="text-destructive hover:text-destructive w-full"
+        >
+          <Trash2 className="mr-1.5 size-3.5" />
+          {manage.t('integrations.manageDialog.deleteIntegration')}
+        </Button>
       </Stack>
     </Dialog>
   );

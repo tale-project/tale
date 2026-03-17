@@ -35,6 +35,7 @@ import type * as agent_tools_files_excel_tool from "../agent_tools/files/excel_t
 import type * as agent_tools_files_helpers_analyze_image from "../agent_tools/files/helpers/analyze_image.js";
 import type * as agent_tools_files_helpers_analyze_image_by_url from "../agent_tools/files/helpers/analyze_image_by_url.js";
 import type * as agent_tools_files_helpers_analyze_text from "../agent_tools/files/helpers/analyze_text.js";
+import type * as agent_tools_files_helpers_get_agent_model from "../agent_tools/files/helpers/get_agent_model.js";
 import type * as agent_tools_files_helpers_parse_file from "../agent_tools/files/helpers/parse_file.js";
 import type * as agent_tools_files_helpers_resolve_file_name from "../agent_tools/files/helpers/resolve_file_name.js";
 import type * as agent_tools_files_helpers_vision_agent from "../agent_tools/files/helpers/vision_agent.js";
@@ -42,7 +43,7 @@ import type * as agent_tools_files_image_tool from "../agent_tools/files/image_t
 import type * as agent_tools_files_internal_actions from "../agent_tools/files/internal_actions.js";
 import type * as agent_tools_files_pdf_tool from "../agent_tools/files/pdf_tool.js";
 import type * as agent_tools_files_pptx_tool from "../agent_tools/files/pptx_tool.js";
-import type * as agent_tools_files_txt_tool from "../agent_tools/files/txt_tool.js";
+import type * as agent_tools_files_text_tool from "../agent_tools/files/text_tool.js";
 import type * as agent_tools_human_input_internal_mutations from "../agent_tools/human_input/internal_mutations.js";
 import type * as agent_tools_human_input_mutations from "../agent_tools/human_input/mutations.js";
 import type * as agent_tools_human_input_request_human_input_tool from "../agent_tools/human_input/request_human_input_tool.js";
@@ -102,7 +103,7 @@ import type * as agent_tools_workflows_workflow_read_tool from "../agent_tools/w
 import type * as agent_tools_workflows_workflow_syntax_tool from "../agent_tools/workflows/workflow_syntax_tool.js";
 import type * as agents_chat_agent from "../agents/chat/agent.js";
 import type * as agents_crm_agent from "../agents/crm/agent.js";
-import type * as agents_document_agent from "../agents/document/agent.js";
+import type * as agents_file_agent from "../agents/file/agent.js";
 import type * as agents_integration_agent from "../agents/integration/agent.js";
 import type * as agents_web_agent from "../agents/web/agent.js";
 import type * as api_gateway from "../api_gateway.js";
@@ -261,6 +262,7 @@ import type * as integrations_create_integration_internal from "../integrations/
 import type * as integrations_decrypt_and_refresh_oauth2 from "../integrations/decrypt_and_refresh_oauth2.js";
 import type * as integrations_delete_integration from "../integrations/delete_integration.js";
 import type * as integrations_encrypt_credentials from "../integrations/encrypt_credentials.js";
+import type * as integrations_find_related_automations from "../integrations/find_related_automations.js";
 import type * as integrations_generate_oauth2_auth_url from "../integrations/generate_oauth2_auth_url.js";
 import type * as integrations_get_decrypted_credentials from "../integrations/get_decrypted_credentials.js";
 import type * as integrations_get_integration from "../integrations/get_integration.js";
@@ -601,6 +603,7 @@ import type * as workflow_engine_action_defs_conversation_helpers_create_convers
 import type * as workflow_engine_action_defs_conversation_helpers_create_conversation_from_sent_email from "../workflow_engine/action_defs/conversation/helpers/create_conversation_from_sent_email.js";
 import type * as workflow_engine_action_defs_conversation_helpers_find_or_create_customer_from_email from "../workflow_engine/action_defs/conversation/helpers/find_or_create_customer_from_email.js";
 import type * as workflow_engine_action_defs_conversation_helpers_find_related_conversation from "../workflow_engine/action_defs/conversation/helpers/find_related_conversation.js";
+import type * as workflow_engine_action_defs_conversation_helpers_normalize_email from "../workflow_engine/action_defs/conversation/helpers/normalize_email.js";
 import type * as workflow_engine_action_defs_conversation_helpers_query_conversation_messages from "../workflow_engine/action_defs/conversation/helpers/query_conversation_messages.js";
 import type * as workflow_engine_action_defs_conversation_helpers_query_latest_message_by_delivery_state from "../workflow_engine/action_defs/conversation/helpers/query_latest_message_by_delivery_state.js";
 import type * as workflow_engine_action_defs_conversation_helpers_types from "../workflow_engine/action_defs/conversation/helpers/types.js";
@@ -882,6 +885,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/files/helpers/analyze_image": typeof agent_tools_files_helpers_analyze_image;
   "agent_tools/files/helpers/analyze_image_by_url": typeof agent_tools_files_helpers_analyze_image_by_url;
   "agent_tools/files/helpers/analyze_text": typeof agent_tools_files_helpers_analyze_text;
+  "agent_tools/files/helpers/get_agent_model": typeof agent_tools_files_helpers_get_agent_model;
   "agent_tools/files/helpers/parse_file": typeof agent_tools_files_helpers_parse_file;
   "agent_tools/files/helpers/resolve_file_name": typeof agent_tools_files_helpers_resolve_file_name;
   "agent_tools/files/helpers/vision_agent": typeof agent_tools_files_helpers_vision_agent;
@@ -889,7 +893,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/files/internal_actions": typeof agent_tools_files_internal_actions;
   "agent_tools/files/pdf_tool": typeof agent_tools_files_pdf_tool;
   "agent_tools/files/pptx_tool": typeof agent_tools_files_pptx_tool;
-  "agent_tools/files/txt_tool": typeof agent_tools_files_txt_tool;
+  "agent_tools/files/text_tool": typeof agent_tools_files_text_tool;
   "agent_tools/human_input/internal_mutations": typeof agent_tools_human_input_internal_mutations;
   "agent_tools/human_input/mutations": typeof agent_tools_human_input_mutations;
   "agent_tools/human_input/request_human_input_tool": typeof agent_tools_human_input_request_human_input_tool;
@@ -949,7 +953,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/workflows/workflow_syntax_tool": typeof agent_tools_workflows_workflow_syntax_tool;
   "agents/chat/agent": typeof agents_chat_agent;
   "agents/crm/agent": typeof agents_crm_agent;
-  "agents/document/agent": typeof agents_document_agent;
+  "agents/file/agent": typeof agents_file_agent;
   "agents/integration/agent": typeof agents_integration_agent;
   "agents/web/agent": typeof agents_web_agent;
   api_gateway: typeof api_gateway;
@@ -1108,6 +1112,7 @@ declare const fullApi: ApiFromModules<{
   "integrations/decrypt_and_refresh_oauth2": typeof integrations_decrypt_and_refresh_oauth2;
   "integrations/delete_integration": typeof integrations_delete_integration;
   "integrations/encrypt_credentials": typeof integrations_encrypt_credentials;
+  "integrations/find_related_automations": typeof integrations_find_related_automations;
   "integrations/generate_oauth2_auth_url": typeof integrations_generate_oauth2_auth_url;
   "integrations/get_decrypted_credentials": typeof integrations_get_decrypted_credentials;
   "integrations/get_integration": typeof integrations_get_integration;
@@ -1448,6 +1453,7 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/action_defs/conversation/helpers/create_conversation_from_sent_email": typeof workflow_engine_action_defs_conversation_helpers_create_conversation_from_sent_email;
   "workflow_engine/action_defs/conversation/helpers/find_or_create_customer_from_email": typeof workflow_engine_action_defs_conversation_helpers_find_or_create_customer_from_email;
   "workflow_engine/action_defs/conversation/helpers/find_related_conversation": typeof workflow_engine_action_defs_conversation_helpers_find_related_conversation;
+  "workflow_engine/action_defs/conversation/helpers/normalize_email": typeof workflow_engine_action_defs_conversation_helpers_normalize_email;
   "workflow_engine/action_defs/conversation/helpers/query_conversation_messages": typeof workflow_engine_action_defs_conversation_helpers_query_conversation_messages;
   "workflow_engine/action_defs/conversation/helpers/query_latest_message_by_delivery_state": typeof workflow_engine_action_defs_conversation_helpers_query_latest_message_by_delivery_state;
   "workflow_engine/action_defs/conversation/helpers/types": typeof workflow_engine_action_defs_conversation_helpers_types;
@@ -2678,6 +2684,7 @@ export declare const components: {
             maximumRowsRead?: number;
             numItems: number;
           };
+          select?: Array<string>;
           sortBy?: { direction: "asc" | "desc"; field: string };
           where?: Array<{
             connector?: "AND" | "OR";

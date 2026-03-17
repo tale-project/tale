@@ -10,7 +10,6 @@ import { Agent } from '@convex-dev/agent';
 import type { ActionCtx } from '../../../_generated/server';
 
 import { components } from '../../../_generated/api';
-import { getFastModel } from '../../../lib/agent_runtime_config';
 import { createDebugLog } from '../../../lib/debug_log';
 import { openai } from '../../../lib/openai_provider';
 import { toId } from '../../../lib/type_cast_helpers';
@@ -63,6 +62,13 @@ export interface AnalyzeTextParams {
   fileId: string;
   filename: string;
   userInput: string;
+  model: string;
+}
+
+export interface AnalyzeTextUsage {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
 }
 
 export interface AnalyzeTextResult {
@@ -73,6 +79,8 @@ export interface AnalyzeTextResult {
   encoding: string;
   chunked: boolean;
   chunkCount?: number;
+  model?: string;
+  usage?: AnalyzeTextUsage;
   error?: string;
 }
 
@@ -147,12 +155,12 @@ Guidelines:
 - If the text doesn't contain relevant information, say so clearly
 - For large texts processed in chunks, focus on the most relevant parts`;
 
-function createTextAnalysisAgent(): Agent {
+function createTextAnalysisAgent(model: string): Agent {
   const instructions = `${TEXT_ANALYSIS_INSTRUCTIONS}\n\nIf you use any tools, you must always conclude by producing a final assistant message with the answer.`;
 
   return new Agent(components.agent, {
     name: 'text-analyzer',
-    languageModel: openai.chat(getFastModel()),
+    languageModel: openai.chat(model),
     instructions,
   });
 }
@@ -164,6 +172,11 @@ function generateEphemeralUserId(): string {
   return `text-analyzer-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+interface ChunkResult {
+  text: string;
+  usage: AnalyzeTextUsage;
+}
+
 async function analyzeChunk(
   ctx: ActionCtx,
   agent: Agent,
@@ -172,7 +185,7 @@ async function analyzeChunk(
   chunkIndex?: number,
   totalChunks?: number,
   maxResponseChars?: number,
-): Promise<string> {
+): Promise<ChunkResult> {
   const chunkInfo =
     totalChunks && totalChunks > 1
       ? `\n\n[Processing chunk ${(chunkIndex ?? 0) + 1} of ${totalChunks}]`
@@ -198,7 +211,17 @@ IMPORTANT: Keep your response under ${charLimit} characters. Be concise and focu
     { storageOptions: { saveMessages: 'none' } },
   );
 
-  return result.text || '';
+  const inputTokens = result.usage?.inputTokens ?? 0;
+  const outputTokens = result.usage?.outputTokens ?? 0;
+
+  return {
+    text: result.text || '',
+    usage: {
+      inputTokens,
+      outputTokens,
+      totalTokens: inputTokens + outputTokens,
+    },
+  };
 }
 
 async function aggregateChunkResults(
@@ -206,9 +229,12 @@ async function aggregateChunkResults(
   agent: Agent,
   chunkResults: string[],
   userInput: string,
-): Promise<string> {
-  if (chunkResults.length === 1) {
-    return chunkResults[0];
+): Promise<ChunkResult> {
+  if (chunkResults.length <= 1) {
+    return {
+      text: chunkResults[0] ?? '',
+      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+    };
   }
 
   const combinedResults = chunkResults
@@ -233,7 +259,17 @@ IMPORTANT: Keep your final response under ${MAX_FINAL_RESPONSE_CHARS} characters
       { storageOptions: { saveMessages: 'none' } },
     );
 
-    return result.text || '';
+    const inputTokens = result.usage?.inputTokens ?? 0;
+    const outputTokens = result.usage?.outputTokens ?? 0;
+
+    return {
+      text: result.text || '',
+      usage: {
+        inputTokens,
+        outputTokens,
+        totalTokens: inputTokens + outputTokens,
+      },
+    };
   } catch (error) {
     debugLog('aggregateChunkResults error', {
       error: error instanceof Error ? error.message : String(error),
@@ -252,7 +288,7 @@ export async function analyzeTextContent(
   ctx: ActionCtx,
   params: AnalyzeTextParams,
 ): Promise<AnalyzeTextResult> {
-  const { fileId, filename, userInput } = params;
+  const { fileId, filename, userInput, model } = params;
 
   debugLog('analyzeTextContent starting', {
     fileId,
@@ -299,7 +335,7 @@ export async function analyzeTextContent(
         encoding,
         chunked: false,
         error:
-          'The file appears to be binary, not a text file. Please upload a valid text file (.txt).',
+          'The file appears to be binary, not a text-based file. Please upload a valid text file (.txt, .md, .js, .ts, .json, .csv, .log, etc.).',
       };
     }
 
@@ -308,19 +344,21 @@ export async function analyzeTextContent(
 
     debugLog('analyzeTextContent decoded', { charCount, lineCount, encoding });
 
-    const agent = createTextAnalysisAgent();
+    const agent = createTextAnalysisAgent(model);
 
     // For smaller content, process in one pass
     if (charCount <= LLM_CHUNK_SIZE) {
-      const result = await analyzeChunk(ctx, agent, text, userInput);
+      const chunkResult = await analyzeChunk(ctx, agent, text, userInput);
 
       return {
         success: true,
-        result,
+        result: chunkResult.text,
         charCount,
         lineCount,
         encoding,
         chunked: false,
+        model,
+        usage: chunkResult.usage,
       };
     }
 
@@ -359,7 +397,7 @@ export async function analyzeTextContent(
         );
         debugLog('analyzeTextContent chunk completed', {
           chunk: `${i + 1}/${chunks.length}`,
-          resultLength: result.length,
+          resultLength: result.text.length,
           elapsedMs: Date.now() - startTime,
         });
         return result;
@@ -371,27 +409,46 @@ export async function analyzeTextContent(
       totalElapsedMs: Date.now() - startTime,
     });
 
+    // Accumulate usage from all chunks
+    const totalUsage: AnalyzeTextUsage = {
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+    };
+    for (const cr of chunkResults) {
+      totalUsage.inputTokens += cr.usage.inputTokens;
+      totalUsage.outputTokens += cr.usage.outputTokens;
+      totalUsage.totalTokens += cr.usage.totalTokens;
+    }
+
     debugLog('analyzeTextContent aggregating results', {
       chunkCount: chunkResults.length,
     });
-    const aggregatedResult = await aggregateChunkResults(
+    const aggregationResult = await aggregateChunkResults(
       ctx,
       agent,
-      chunkResults,
+      chunkResults.map((cr) => cr.text),
       userInput,
     );
     debugLog('analyzeTextContent aggregation completed', {
-      resultLength: aggregatedResult.length,
+      resultLength: aggregationResult.text.length,
     });
+
+    // Add aggregation usage
+    totalUsage.inputTokens += aggregationResult.usage.inputTokens;
+    totalUsage.outputTokens += aggregationResult.usage.outputTokens;
+    totalUsage.totalTokens += aggregationResult.usage.totalTokens;
 
     return {
       success: true,
-      result: aggregatedResult,
+      result: aggregationResult.text,
       charCount,
       lineCount,
       encoding,
       chunked: true,
       chunkCount: chunks.length,
+      model,
+      usage: totalUsage,
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);

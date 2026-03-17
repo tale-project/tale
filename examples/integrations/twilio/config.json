@@ -4,9 +4,16 @@
   "description": "Twilio API integration for SMS messaging, voice calls, and phone number management",
   "version": 1,
   "authMethod": "basic_auth",
-  "supportedAuthMethods": ["basic_auth"],
-  "secretBindings": ["username", "password"],
-  "allowedHosts": ["api.twilio.com"],
+  "supportedAuthMethods": [
+    "basic_auth"
+  ],
+  "secretBindings": [
+    "username",
+    "password"
+  ],
+  "allowedHosts": [
+    "api.twilio.com"
+  ],
   "operations": [
     {
       "name": "send_sms",
@@ -17,9 +24,21 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "to": { "type": "string", "description": "Recipient phone number in E.164 format (e.g. +15551234567)", "required": true },
-          "from": { "type": "string", "description": "Twilio phone number to send from in E.164 format (e.g. +15559876543)", "required": true },
-          "body": { "type": "string", "description": "Text content of the SMS message", "required": true }
+          "to": {
+            "type": "string",
+            "description": "Recipient phone number in E.164 format (e.g. +15551234567)",
+            "required": true
+          },
+          "from": {
+            "type": "string",
+            "description": "Twilio phone number to send from in E.164 format (e.g. +15559876543)",
+            "required": true
+          },
+          "body": {
+            "type": "string",
+            "description": "Text content of the SMS message",
+            "required": true
+          }
         }
       }
     },
@@ -30,11 +49,32 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "to": { "type": "string", "description": "Filter by recipient phone number in E.164 format", "required": false },
-          "from": { "type": "string", "description": "Filter by sender phone number in E.164 format", "required": false },
-          "dateSent": { "type": "string", "description": "Filter by date sent (YYYY-MM-DD)", "format": "date", "required": false },
-          "pageSize": { "type": "number", "description": "Number of messages per page (max 1000, default 50)", "required": false },
-          "page": { "type": "number", "description": "Page number (0-based)", "required": false }
+          "to": {
+            "type": "string",
+            "description": "Filter by recipient phone number in E.164 format",
+            "required": false
+          },
+          "from": {
+            "type": "string",
+            "description": "Filter by sender phone number in E.164 format",
+            "required": false
+          },
+          "dateSent": {
+            "type": "string",
+            "description": "Filter by date sent (YYYY-MM-DD)",
+            "format": "date",
+            "required": false
+          },
+          "pageSize": {
+            "type": "number",
+            "description": "Number of messages per page (max 1000, default 50)",
+            "required": false
+          },
+          "page": {
+            "type": "number",
+            "description": "Page number (0-based)",
+            "required": false
+          }
         }
       }
     },
@@ -45,7 +85,11 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "messageSid": { "type": "string", "description": "Twilio message SID (e.g. SM1234567890abcdef1234567890abcdef)", "required": true }
+          "messageSid": {
+            "type": "string",
+            "description": "Twilio message SID (e.g. SM1234567890abcdef1234567890abcdef)",
+            "required": true
+          }
         }
       }
     },
@@ -56,11 +100,31 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "to": { "type": "string", "description": "Filter by recipient phone number in E.164 format", "required": false },
-          "from": { "type": "string", "description": "Filter by caller phone number in E.164 format", "required": false },
-          "status": { "type": "string", "description": "Filter by call status: queued, ringing, in-progress, completed, busy, failed, no-answer, canceled", "required": false },
-          "pageSize": { "type": "number", "description": "Number of calls per page (max 1000, default 50)", "required": false },
-          "page": { "type": "number", "description": "Page number (0-based)", "required": false }
+          "to": {
+            "type": "string",
+            "description": "Filter by recipient phone number in E.164 format",
+            "required": false
+          },
+          "from": {
+            "type": "string",
+            "description": "Filter by caller phone number in E.164 format",
+            "required": false
+          },
+          "status": {
+            "type": "string",
+            "description": "Filter by call status: queued, ringing, in-progress, completed, busy, failed, no-answer, canceled",
+            "required": false
+          },
+          "pageSize": {
+            "type": "number",
+            "description": "Number of calls per page (max 1000, default 50)",
+            "required": false
+          },
+          "page": {
+            "type": "number",
+            "description": "Page number (0-based)",
+            "required": false
+          }
         }
       }
     },
@@ -73,10 +137,26 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "to": { "type": "string", "description": "Recipient phone number in E.164 format (e.g. +15551234567)", "required": true },
-          "from": { "type": "string", "description": "Twilio phone number to call from in E.164 format", "required": true },
-          "url": { "type": "string", "description": "TwiML URL containing instructions for the call", "required": true },
-          "method": { "type": "string", "description": "HTTP method for the TwiML URL (GET or POST, default POST)", "required": false }
+          "to": {
+            "type": "string",
+            "description": "Recipient phone number in E.164 format (e.g. +15551234567)",
+            "required": true
+          },
+          "from": {
+            "type": "string",
+            "description": "Twilio phone number to call from in E.164 format",
+            "required": true
+          },
+          "url": {
+            "type": "string",
+            "description": "TwiML URL containing instructions for the call",
+            "required": true
+          },
+          "method": {
+            "type": "string",
+            "description": "HTTP method for the TwiML URL (GET or POST, default POST)",
+            "required": false
+          }
         }
       }
     },
@@ -96,10 +176,22 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "pageSize": { "type": "number", "description": "Number of phone numbers per page (max 1000, default 50)", "required": false },
-          "page": { "type": "number", "description": "Page number (0-based)", "required": false }
+          "pageSize": {
+            "type": "number",
+            "description": "Number of phone numbers per page (max 1000, default 50)",
+            "required": false
+          },
+          "page": {
+            "type": "number",
+            "description": "Page number (0-based)",
+            "required": false
+          }
         }
       }
     }
-  ]
+  ],
+  "capabilities": {
+    "canSync": true,
+    "syncFrequency": "0 */6 * * *"
+  }
 }

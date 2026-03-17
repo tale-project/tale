@@ -1,5 +1,6 @@
 import { convexQuery } from '@convex-dev/react-query';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { useEffect } from 'react';
 import { z } from 'zod';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
@@ -12,12 +13,16 @@ import {
   useSsoProvider,
 } from '@/app/features/settings/integrations/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
+import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
 const searchSchema = z.object({
   tab: z.string().optional(),
+  integration_oauth2: z.string().optional(),
+  integration_oauth2_error: z.string().optional(),
+  description: z.string().optional(),
 });
 
 export const Route = createFileRoute('/dashboard/$id/settings/integrations')({
@@ -77,13 +82,43 @@ function IntegrationsSkeleton() {
 
 function IntegrationsPage() {
   const { id: organizationId } = Route.useParams();
+  const search = Route.useSearch();
+  const navigate = useNavigate();
   const { t } = useT('accessDenied');
+  const { t: tSettings } = useT('settings');
 
   const ability = useAbility();
 
   const { integrations, isLoading: isIntegrationsLoading } =
     useIntegrations(organizationId);
   const { data: ssoProvider, isLoading: isSsoLoading } = useSsoProvider();
+
+  // Handle OAuth2 redirect query params
+  useEffect(() => {
+    if (search.integration_oauth2 === 'success') {
+      toast({
+        title: tSettings('integrations.oauthConnectedTitle'),
+        description: tSettings('integrations.oauthConnectedDescription'),
+        variant: 'success',
+      });
+    } else if (search.integration_oauth2_error) {
+      toast({
+        title: tSettings('integrations.oauthErrorTitle'),
+        description:
+          search.description || tSettings('integrations.oauthErrorDescription'),
+        variant: 'destructive',
+      });
+    }
+
+    // Clean up OAuth query params from URL
+    if (search.integration_oauth2 || search.integration_oauth2_error) {
+      void navigate({
+        from: Route.fullPath,
+        search: { tab: search.tab },
+        replace: true,
+      });
+    }
+  }, [search.integration_oauth2, search.integration_oauth2_error]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (ability.cannot('read', 'developerSettings')) {
     return <AccessDenied message={t('integrations')} />;

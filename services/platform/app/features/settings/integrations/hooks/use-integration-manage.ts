@@ -637,6 +637,7 @@ export function useIntegrationManage(
 
       toast({
         title: t('integrations.manageDialog.credentialsSaved'),
+        variant: 'success',
       });
     } catch (error) {
       toast({

@@ -1,11 +1,46 @@
+import type { Plugin } from 'vite';
+
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import viteReact from '@vitejs/plugin-react';
+import fs from 'node:fs';
+import path from 'node:path';
 import { defineConfig } from 'vite';
 import tsConfigPaths from 'vite-tsconfig-paths';
 
 import { injectAcceptLanguage } from './vite-plugins/inject-accept-language';
 import { injectEnv } from './vite-plugins/inject-env';
 import { stubSSRImports } from './vite-plugins/stub-ssr';
+
+const workflowTemplatesDir = path.resolve(
+  __dirname,
+  '../../examples/workflows',
+);
+
+/** Serves local workflow template JSON files under /workflow-templates/ in dev. */
+function serveWorkflowTemplates(): Plugin {
+  return {
+    name: 'serve-workflow-templates',
+    configureServer(server) {
+      server.middlewares.use('/workflow-templates', (req, res, next) => {
+        const resolved = path.resolve(
+          workflowTemplatesDir,
+          `.${req.url ?? ''}`,
+        );
+        if (!resolved.startsWith(workflowTemplatesDir)) {
+          res.statusCode = 403;
+          res.end('Forbidden');
+          return;
+        }
+        if (fs.existsSync(resolved) && fs.statSync(resolved).isFile()) {
+          res.setHeader('Content-Type', 'application/json');
+          fs.createReadStream(resolved).pipe(res);
+        } else {
+          next();
+        }
+      });
+    },
+  };
+}
 
 export default defineConfig({
   resolve: {
@@ -19,12 +54,12 @@ export default defineConfig({
         target: 'http://127.0.0.1:3210',
         changeOrigin: true,
         ws: true,
-        rewrite: (path) => path.replace(/^\/ws_api/, ''),
+        rewrite: (p) => p.replace(/^\/ws_api/, ''),
       },
       '/http_api': {
         target: 'http://127.0.0.1:3211',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/http_api/, ''),
+        rewrite: (p) => p.replace(/^\/http_api/, ''),
       },
       // Proxy all /api/* requests to Convex HTTP endpoint (auth, SSO, documents, workflows, etc.)
       '/api': {
@@ -107,6 +142,7 @@ export default defineConfig({
     },
   },
   plugins: [
+    serveWorkflowTemplates(),
     tanstackRouter(),
     injectEnv(),
     injectAcceptLanguage(),
