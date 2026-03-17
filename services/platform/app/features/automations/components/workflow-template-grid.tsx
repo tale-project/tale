@@ -17,7 +17,7 @@ import { fetchWorkflowTemplate } from '../utils/fetch-workflow-template';
 
 interface WorkflowTemplateGridProps {
   integrationName?: string;
-  onTemplateSelected: (data: WorkflowTemplateData) => void;
+  onTemplateSelected: (data: WorkflowTemplateData) => void | Promise<void>;
 }
 
 export function WorkflowTemplateGrid({
@@ -44,7 +44,7 @@ export function WorkflowTemplateGrid({
       try {
         const result = await fetchWorkflowTemplate(template);
         if (result.success && result.data) {
-          onTemplateSelected(result.data);
+          await onTemplateSelected(result.data);
         } else {
           setError(result.error ?? t('templates.fetchError'));
         }

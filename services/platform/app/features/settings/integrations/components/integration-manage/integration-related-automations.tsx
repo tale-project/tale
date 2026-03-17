@@ -41,7 +41,7 @@ export function IntegrationRelatedAutomations({
             {isLoading ? (
               <Skeleton
                 className="h-5 w-5 rounded-full"
-                label="Loading automations count"
+                label={t('integrations.manageDialog.loadingAutomations')}
               />
             ) : (
               <Badge variant="outline" className="text-xs">
@@ -55,15 +55,15 @@ export function IntegrationRelatedAutomations({
           <div
             className="mt-2 ml-6 space-y-2"
             role="status"
-            aria-label="Loading automations"
+            aria-label={t('integrations.manageDialog.loadingAutomations')}
           >
             <Skeleton
               className="h-8 w-full rounded-md"
-              label="Loading automation"
+              label={t('integrations.manageDialog.loadingAutomations')}
             />
             <Skeleton
               className="h-8 w-3/4 rounded-md"
-              label="Loading automation"
+              label={t('integrations.manageDialog.loadingAutomations')}
             />
           </div>
         ) : count > 0 ? (

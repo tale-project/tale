@@ -72,7 +72,9 @@ export async function findRelatedAutomations(
     }),
   );
 
-  // For each root, find the active version to determine effective status
+  // For each root, find the active version to determine effective status.
+  // Only report status='active' if the active version itself references
+  // this integration (not just a draft/archived sibling).
   const results: RelatedAutomation[] = [];
 
   await Promise.all(
@@ -96,9 +98,10 @@ export async function findRelatedAutomations(
         }
       }
 
-      // Determine effective status
+      // Determine effective status — only mark as 'active' if the active
+      // version itself references the integration (it's in definitionIds).
       let status: 'draft' | 'active' | 'archived' = 'draft';
-      if (activeVersion) {
+      if (activeVersion && definitionIds.has(activeVersion._id)) {
         status = 'active';
       } else {
         // Check for archived
@@ -122,7 +125,10 @@ export async function findRelatedAutomations(
         _id: root._id,
         name: root.name,
         status,
-        activeVersionId: activeVersion?._id ?? null,
+        activeVersionId:
+          activeVersion && definitionIds.has(activeVersion._id)
+            ? activeVersion._id
+            : null,
       });
     }),
   );

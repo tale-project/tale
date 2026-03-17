@@ -22,10 +22,18 @@ function serveWorkflowTemplates(): Plugin {
     name: 'serve-workflow-templates',
     configureServer(server) {
       server.middlewares.use('/workflow-templates', (req, res, next) => {
-        const filePath = path.join(workflowTemplatesDir, req.url ?? '');
-        if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+        const resolved = path.resolve(
+          workflowTemplatesDir,
+          `.${req.url ?? ''}`,
+        );
+        if (!resolved.startsWith(workflowTemplatesDir)) {
+          res.statusCode = 403;
+          res.end('Forbidden');
+          return;
+        }
+        if (fs.existsSync(resolved) && fs.statSync(resolved).isFile()) {
           res.setHeader('Content-Type', 'application/json');
-          fs.createReadStream(filePath).pipe(res);
+          fs.createReadStream(resolved).pipe(res);
         } else {
           next();
         }

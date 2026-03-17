@@ -349,7 +349,61 @@ describe('findRelatedAutomations', () => {
     expect(result).toEqual([]);
   });
 
-  it('resolves effective status to active when active version exists', async () => {
+  it('resolves effective status to active when active version also references integration', async () => {
+    const steps: StepDoc[] = [
+      {
+        _id: 'step_1',
+        organizationId: 'org_1',
+        wfDefinitionId: 'wfDef_1',
+        stepType: 'action',
+        config: {
+          type: 'integration',
+          parameters: { name: 'shopify', operation: 'list_products' },
+        },
+        order: 1,
+      },
+      {
+        _id: 'step_2',
+        organizationId: 'org_1',
+        wfDefinitionId: 'wfDef_2',
+        stepType: 'action',
+        config: {
+          type: 'integration',
+          parameters: { name: 'shopify', operation: 'list_products' },
+        },
+        order: 1,
+      },
+    ];
+
+    const definitions: WfDefDoc[] = [
+      {
+        _id: 'wfDef_1',
+        name: 'shopify-sync',
+        status: 'draft',
+        versionNumber: 1,
+      },
+      {
+        _id: 'wfDef_2',
+        name: 'shopify-sync',
+        status: 'active',
+        versionNumber: 2,
+        rootVersionId: 'wfDef_1',
+      },
+    ];
+
+    const ctx = createMockCtx(steps, definitions);
+    const result = await findRelatedAutomations(ctx, {
+      organizationId: 'org_1',
+      integrationName: 'shopify',
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.status).toBe('active');
+    expect(result[0]?.activeVersionId).toBe('wfDef_2');
+  });
+
+  it('does not promote to active when active version removed the integration', async () => {
+    // Only the draft (v1) references shopify; the active version (v2) does not
     const steps: StepDoc[] = [
       {
         _id: 'step_1',
@@ -387,8 +441,8 @@ describe('findRelatedAutomations', () => {
     });
 
     expect(result).toHaveLength(1);
-    expect(result[0]?.status).toBe('active');
-    expect(result[0]?.activeVersionId).toBe('wfDef_2');
+    expect(result[0]?.status).toBe('draft');
+    expect(result[0]?.activeVersionId).toBeNull();
   });
 
   it('returns results sorted by name', async () => {
