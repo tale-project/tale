@@ -6,7 +6,6 @@ import type { DocumentWriteMetadata } from '../../approvals/types';
 import { internalMutation } from '../../_generated/server';
 import { createApproval } from '../../approvals/helpers';
 import { normalizeDocumentWriteMetadata } from '../../approvals/types';
-import { checkOrganizationRateLimit } from '../../lib/rate_limiter/helpers';
 
 type ApprovalMetadata = Doc<'approvals'>['metadata'];
 
@@ -27,12 +26,6 @@ export const createDocumentWriteApproval = internalMutation({
     messageId: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<Id<'approvals'>> => {
-    await checkOrganizationRateLimit(
-      ctx,
-      'document:write',
-      args.organizationId,
-    );
-
     const metadata: DocumentWriteMetadata = {
       files: args.files.map((f) => ({
         fileId: f.fileId,
