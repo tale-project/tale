@@ -19,11 +19,10 @@ import { Text } from '@/app/components/ui/typography/text';
 import { useCopyButton } from '@/app/hooks/use-copy';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 import { formatNumber } from '@/lib/utils/format/number';
 
 import type { MessageMetadata, ToolUsage } from '../hooks/queries';
-
-import { ToolDetailsDialog } from './tool-details-dialog';
 
 function formatAgentName(toolName: string): string {
   const nameMap: Record<string, string> = {
@@ -106,6 +105,80 @@ function ContextWindowToken({
   );
 }
 
+interface ToolCallCardProps {
+  usage: ToolUsage;
+  locale: string;
+  t: (key: string) => string;
+}
+
+function ToolCallCard({ usage, locale, t }: ToolCallCardProps) {
+  const [outputExpanded, setOutputExpanded] = useState(false);
+
+  return (
+    <div className="bg-muted rounded px-3 py-2 text-sm">
+      <Text as="div" variant="label">
+        {formatAgentName(usage.toolName)}
+        {usage.model && (
+          <Text as="span" variant="muted" className="ml-2 font-normal">
+            {usage.model}
+            {usage.provider && ` (${usage.provider})`}
+          </Text>
+        )}
+      </Text>
+      {usage.totalTokens !== undefined && (
+        <Text as="div" variant="caption" className="mt-0.5">
+          {t('messageInfo.input')}:{' '}
+          {formatNumber(usage.inputTokens ?? 0, locale)}
+          {' · '}
+          {t('messageInfo.output')}:{' '}
+          {formatNumber(usage.outputTokens ?? 0, locale)}
+          {' · '}
+          {t('messageInfo.total')}: {formatNumber(usage.totalTokens, locale)}
+          {usage.durationMs !== undefined && (
+            <>
+              {' · '}
+              {t('messageInfo.duration')}:{' '}
+              {(usage.durationMs / 1000).toFixed(2)}s
+            </>
+          )}
+        </Text>
+      )}
+      {(usage.input || usage.output) && (
+        <div className="mt-2 space-y-1">
+          {usage.input && (
+            <Text
+              as="div"
+              variant="caption"
+              className="max-h-20 overflow-y-auto font-mono break-all"
+            >
+              <span className="font-sans font-medium">
+                {t('toolDetails.input')}:
+              </span>{' '}
+              {usage.input}
+            </Text>
+          )}
+          {usage.output && (
+            <Text
+              as="div"
+              variant="caption"
+              className={cn(
+                'cursor-pointer font-mono break-all',
+                outputExpanded ? 'max-h-60 overflow-y-auto' : 'line-clamp-2',
+              )}
+              onClick={() => setOutputExpanded(!outputExpanded)}
+            >
+              <span className="font-sans font-medium">
+                {t('toolDetails.output')}:
+              </span>{' '}
+              {usage.output}
+            </Text>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface MessageInfoDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
@@ -124,8 +197,6 @@ export function MessageInfoDialog({
   const { formatDate, locale } = useFormatDate();
   const { t } = useT('chat');
   const { t: tCommon } = useT('common');
-  const [selectedTool, setSelectedTool] = useState<ToolUsage | null>(null);
-
   const tokenItems = useMemo<StatGridItem[]>(
     () => [
       ...(metadata?.contextWindow
@@ -224,45 +295,12 @@ export function MessageInfoDialog({
               <Field label={t('messageInfo.toolCalls')}>
                 <Stack gap={2}>
                   {metadata.toolsUsage.map((usage, index) => (
-                    <button
+                    <ToolCallCard
                       key={`${usage.toolName}-${index}`}
-                      type="button"
-                      onClick={() => setSelectedTool(usage)}
-                      className="bg-muted hover:bg-muted/80 cursor-pointer rounded px-3 py-2 text-left text-sm transition-colors"
-                    >
-                      <Text as="div" variant="label" className="mb-1">
-                        {formatAgentName(usage.toolName)}
-                        {usage.model && (
-                          <Text
-                            as="span"
-                            variant="muted"
-                            className="ml-2 font-normal"
-                          >
-                            {usage.model}
-                            {usage.provider && ` (${usage.provider})`}
-                          </Text>
-                        )}
-                      </Text>
-                      {usage.totalTokens !== undefined && (
-                        <Text as="div" variant="caption">
-                          {t('messageInfo.input')}:{' '}
-                          {formatNumber(usage.inputTokens ?? 0, locale)}
-                          {' · '}
-                          {t('messageInfo.output')}:{' '}
-                          {formatNumber(usage.outputTokens ?? 0, locale)}
-                          {' · '}
-                          {t('messageInfo.total')}:{' '}
-                          {formatNumber(usage.totalTokens, locale)}
-                          {usage.durationMs !== undefined && (
-                            <>
-                              {' · '}
-                              {t('messageInfo.duration')}:{' '}
-                              {(usage.durationMs / 1000).toFixed(2)}s
-                            </>
-                          )}
-                        </Text>
-                      )}
-                    </button>
+                      usage={usage}
+                      locale={locale}
+                      t={t}
+                    />
                   ))}
                 </Stack>
               </Field>
@@ -285,12 +323,6 @@ export function MessageInfoDialog({
           </Text>
         )}
       </FieldGroup>
-
-      <ToolDetailsDialog
-        isOpen={selectedTool !== null}
-        onOpenChange={(open) => !open && setSelectedTool(null)}
-        usage={selectedTool}
-      />
     </ViewDialog>
   );
 }
