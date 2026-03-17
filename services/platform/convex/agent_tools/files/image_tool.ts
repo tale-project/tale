@@ -98,6 +98,8 @@ CRITICAL RULES:
 1. For generate operation, when presenting download links, copy the EXACT 'downloadUrl' from the result. Never fabricate or modify URLs.
 2. For analyze operation, ALWAYS use the fileId from the image attachment context. NEVER use imageUrl for uploaded images.
 3. The fileId looks like "kg2bazp7fbgt9srq63knfagjrd7yfenj" (alphanumeric string starting with "k").
+
+AFTER GENERATING: To save the file to a folder in the documents hub, call document_write with the returned fileStorageId and the desired folderPath.
 `,
     args: z.object({
       operation: z
@@ -256,6 +258,11 @@ CRITICAL RULES:
         throw new Error("Missing required 'content' for generate operation");
       }
 
+      const { organizationId } = ctx;
+      if (!organizationId) {
+        throw new Error('organizationId is required to generate an image');
+      }
+
       debugLog('tool:image generate start', {
         fileName: args.fileName,
         sourceType: args.sourceType,
@@ -273,6 +280,7 @@ CRITICAL RULES:
         const result = await ctx.runAction(
           internal.documents.internal_actions.generateDocument,
           {
+            organizationId,
             fileName: args.fileName,
             sourceType: args.sourceType,
             outputFormat: 'image',

@@ -14,6 +14,10 @@ import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query'
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { api } from '@/convex/_generated/api';
+import {
+  normalizeDocumentWriteMetadata,
+  type DocumentWriteMetadata,
+} from '@/convex/approvals/types';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { MAX_BATCH_FILE_IDS } from '@/lib/shared/file-types';
 
@@ -345,6 +349,51 @@ export function useWorkflowUpdateApprovals(
 
   return {
     approvals: workflowUpdateApprovals,
+    isLoading,
+  };
+}
+
+export interface DocumentWriteApproval {
+  _id: Id<'approvals'>;
+  status: 'pending' | 'approved' | 'rejected';
+  metadata: DocumentWriteMetadata;
+  executedAt?: number;
+  executionError?: string;
+  _creationTime: number;
+  messageId?: string;
+}
+
+export function useDocumentWriteApprovals(
+  organizationId: string,
+  threadId: string | undefined,
+) {
+  const { approvals, isLoading } = useApprovals(organizationId);
+
+  const documentWriteApprovals = useMemo((): DocumentWriteApproval[] => {
+    if (!approvals || !threadId) return [];
+    return approvals
+      .filter(
+        (a) =>
+          a.threadId === threadId &&
+          a.resourceType === 'document_write' &&
+          a.metadata !== undefined,
+      )
+      .map((a) => ({
+        _id: toId<'approvals'>(a._id),
+        status: a.status,
+        metadata: normalizeDocumentWriteMetadata(
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Metadata shape is guaranteed by resourceType filter above
+          a.metadata as unknown as DocumentWriteMetadata,
+        ),
+        executedAt: a.executedAt,
+        executionError: a.executionError,
+        _creationTime: a._creationTime,
+        messageId: a.messageId,
+      }));
+  }, [approvals, threadId]);
+
+  return {
+    approvals: documentWriteApprovals,
     isLoading,
   };
 }

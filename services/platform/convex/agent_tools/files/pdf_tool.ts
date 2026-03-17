@@ -35,21 +35,27 @@ type PdfResult = GeneratePdfResult | ParsePdfResult;
 export const pdfTool = {
   name: 'pdf' as const,
   tool: createTool({
-    description: `PDF tool for generating and parsing PDF documents.
+    description: `PDF tool for generating, downloading, and parsing PDF documents.
 
 OPERATIONS:
 
-1. generate - Generate a PDF from Markdown/HTML/URL
+1. generate - Generate a PDF from Markdown/HTML, or download/capture a PDF from a URL
    This is the PREFERRED way to generate downloadable PDF files.
    Parameters:
    - fileName: Base name for the PDF (without extension)
    - sourceType: "markdown", "html", or "url"
-   - content: The Markdown/HTML text or URL to capture
+   - content: The Markdown/HTML text or URL to capture/download
    - pdfOptions: Advanced options (format, landscape, margins, etc.)
    - urlOptions: Options for URL capture (waitUntil, etc.)
    - extraCss: Additional CSS to inject
    - wrapInTemplate: Whether to wrap in HTML template
-   Returns: { success, downloadUrl, fileName, contentType, size }
+   Returns: { success, fileStorageId, downloadUrl, fileName, contentType, size }
+
+   URL MODE (sourceType: "url"):
+   • For web pages: renders the page as a PDF
+   • For direct PDF links (e.g. https://example.com/report.pdf): downloads the original PDF file as-is
+   • Use this to download and store existing PDF files from external URLs
+   • The returned fileStorageId can be passed to document_write to save to a folder in the documents hub
 
 2. parse - Extract text content from an existing PDF file
    USE THIS when a user uploads a PDF and you need to read its content.
@@ -61,9 +67,12 @@ OPERATIONS:
 
 EXAMPLES:
 • Generate: { "operation": "generate", "fileName": "report", "sourceType": "markdown", "content": "# Report\\n..." }
+• Download existing PDF: { "operation": "generate", "fileName": "report", "sourceType": "url", "content": "https://example.com/report.pdf" }
 • Parse: { "operation": "parse", "fileId": "kg2bazp7...", "filename": "report.pdf", "user_input": "Summarize the key findings" }
 
 CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the result. Never fabricate URLs.
+
+AFTER GENERATING: To save the file to a folder in the documents hub, call document_write with the returned fileStorageId and the desired folderPath.
 `,
     args: z.object({
       operation: z
@@ -174,6 +183,11 @@ CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the 
         throw new Error("Missing required 'content' for generate operation");
       }
 
+      const { organizationId } = ctx;
+      if (!organizationId) {
+        throw new Error('organizationId is required to generate a PDF');
+      }
+
       debugLog('tool:pdf generate start', {
         fileName: args.fileName,
         sourceType: args.sourceType,
@@ -183,6 +197,7 @@ CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the 
         const result = await ctx.runAction(
           internal.documents.internal_actions.generateDocument,
           {
+            organizationId,
             fileName: args.fileName,
             sourceType: args.sourceType,
             outputFormat: 'pdf',

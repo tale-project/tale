@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 
 import type {
+  DocumentWriteApproval,
   HumanInputRequest,
   IntegrationApproval,
   WorkflowCreationApproval,
@@ -15,7 +16,8 @@ export type ChatItem =
   | { type: 'workflow_approval'; data: WorkflowCreationApproval }
   | { type: 'workflow_update_approval'; data: WorkflowUpdateApproval }
   | { type: 'workflow_run_approval'; data: WorkflowRunApproval }
-  | { type: 'human_input_request'; data: HumanInputRequest };
+  | { type: 'human_input_request'; data: HumanInputRequest }
+  | { type: 'document_write_approval'; data: DocumentWriteApproval };
 
 interface UseMergedChatItemsParams {
   messages: ChatMessage[];
@@ -24,6 +26,7 @@ interface UseMergedChatItemsParams {
   workflowUpdateApprovals: WorkflowUpdateApproval[] | undefined;
   workflowRunApprovals: WorkflowRunApproval[] | undefined;
   humanInputRequests: HumanInputRequest[] | undefined;
+  documentWriteApprovals: DocumentWriteApproval[] | undefined;
 }
 
 /**
@@ -37,6 +40,7 @@ export function useMergedChatItems({
   workflowUpdateApprovals,
   workflowRunApprovals,
   humanInputRequests,
+  documentWriteApprovals,
 }: UseMergedChatItemsParams): ChatItem[] {
   return useMemo((): ChatItem[] => {
     const items: ChatItem[] = [];
@@ -115,6 +119,18 @@ export function useMergedChatItems({
       items.push({ type: 'human_input_request', data: request });
     }
 
+    // Filter and add document write approvals
+    const filteredDocumentWriteApprovals = (
+      documentWriteApprovals || []
+    ).filter((approval) => {
+      if (!approval.messageId) return false;
+      return loadedMessageIds.has(approval.messageId);
+    });
+
+    for (const approval of filteredDocumentWriteApprovals) {
+      items.push({ type: 'document_write_approval', data: approval });
+    }
+
     // Sort items chronologically with approvals after their messages
     items.sort((a, b) => {
       const getItemSortKey = (item: ChatItem): number => {
@@ -132,6 +148,7 @@ export function useMergedChatItems({
           if (item.type === 'workflow_update_approval') offset = 0.112;
           if (item.type === 'workflow_run_approval') offset = 0.115;
           if (item.type === 'human_input_request') offset = 0.12;
+          if (item.type === 'document_write_approval') offset = 0.125;
           return messageTime + offset;
         }
         return approval._creationTime;
@@ -148,5 +165,6 @@ export function useMergedChatItems({
     workflowUpdateApprovals,
     workflowRunApprovals,
     humanInputRequests,
+    documentWriteApprovals,
   ]);
 }

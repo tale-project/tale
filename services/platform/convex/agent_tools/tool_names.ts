@@ -34,6 +34,7 @@ export const TOOL_NAMES = [
   'request_human_input',
   'document_find',
   'document_retrieve',
+  'document_write',
 ] as const;
 
 export type ToolName = (typeof TOOL_NAMES)[number];

@@ -136,7 +136,7 @@ export const triggerWorkflowCompletionResponse = internalMutation({
         promptMessageId,
         maxSteps: 20,
         userId: thread?.userId,
-        deadlineMs: Date.now() + 420_000,
+        deadlineMs: Date.now() + (agentConfig.timeoutMs ?? 420_000),
       },
     );
   },

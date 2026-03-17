@@ -15,6 +15,7 @@ export const documentsTable = defineTable({
       v.literal('onedrive'),
       v.literal('upload'),
       v.literal('sharepoint'),
+      v.literal('agent'),
     ),
   ),
   externalItemId: v.optional(v.string()),

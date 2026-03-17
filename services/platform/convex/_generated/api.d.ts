@@ -26,10 +26,13 @@ import type * as agent_tools_delegation_create_delegation_tool from "../agent_to
 import type * as agent_tools_delegation_load_delegation_agents from "../agent_tools/delegation/load_delegation_agents.js";
 import type * as agent_tools_documents_document_find_tool from "../agent_tools/documents/document_find_tool.js";
 import type * as agent_tools_documents_document_retrieve_tool from "../agent_tools/documents/document_retrieve_tool.js";
+import type * as agent_tools_documents_document_write_tool from "../agent_tools/documents/document_write_tool.js";
 import type * as agent_tools_documents_helpers_fetch_document_comparison from "../agent_tools/documents/helpers/fetch_document_comparison.js";
 import type * as agent_tools_documents_helpers_fetch_document_content from "../agent_tools/documents/helpers/fetch_document_content.js";
 import type * as agent_tools_documents_helpers_list_documents from "../agent_tools/documents/helpers/list_documents.js";
 import type * as agent_tools_documents_helpers_retrieve_document from "../agent_tools/documents/helpers/retrieve_document.js";
+import type * as agent_tools_documents_internal_actions from "../agent_tools/documents/internal_actions.js";
+import type * as agent_tools_documents_internal_mutations from "../agent_tools/documents/internal_mutations.js";
 import type * as agent_tools_files_docx_tool from "../agent_tools/files/docx_tool.js";
 import type * as agent_tools_files_excel_tool from "../agent_tools/files/excel_tool.js";
 import type * as agent_tools_files_helpers_analyze_image from "../agent_tools/files/helpers/analyze_image.js";
@@ -876,10 +879,13 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/delegation/load_delegation_agents": typeof agent_tools_delegation_load_delegation_agents;
   "agent_tools/documents/document_find_tool": typeof agent_tools_documents_document_find_tool;
   "agent_tools/documents/document_retrieve_tool": typeof agent_tools_documents_document_retrieve_tool;
+  "agent_tools/documents/document_write_tool": typeof agent_tools_documents_document_write_tool;
   "agent_tools/documents/helpers/fetch_document_comparison": typeof agent_tools_documents_helpers_fetch_document_comparison;
   "agent_tools/documents/helpers/fetch_document_content": typeof agent_tools_documents_helpers_fetch_document_content;
   "agent_tools/documents/helpers/list_documents": typeof agent_tools_documents_helpers_list_documents;
   "agent_tools/documents/helpers/retrieve_document": typeof agent_tools_documents_helpers_retrieve_document;
+  "agent_tools/documents/internal_actions": typeof agent_tools_documents_internal_actions;
+  "agent_tools/documents/internal_mutations": typeof agent_tools_documents_internal_mutations;
   "agent_tools/files/docx_tool": typeof agent_tools_files_docx_tool;
   "agent_tools/files/excel_tool": typeof agent_tools_files_excel_tool;
   "agent_tools/files/helpers/analyze_image": typeof agent_tools_files_helpers_analyze_image;

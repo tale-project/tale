@@ -9,6 +9,7 @@ import remarkGfm from 'remark-gfm';
 import type { ChatItem } from '@/app/features/chat/hooks/use-merged-chat-items';
 
 import { Text } from '@/app/components/ui/typography/text';
+import { DocumentWriteApprovalCard } from '@/app/features/chat/components/document-write-approval-card';
 import { HumanInputRequestCard } from '@/app/features/chat/components/human-input-request-card';
 import { IntegrationApprovalCard } from '@/app/features/chat/components/integration-approval-card';
 import {
@@ -139,6 +140,24 @@ export function TestMessageList({
                 approvalId={item.data._id}
                 status={item.data.status}
                 metadata={item.data.metadata}
+              />
+            </div>
+          );
+        }
+
+        if (item.type === 'document_write_approval') {
+          return (
+            <div
+              key={`document-write-${item.data._id}`}
+              className="flex justify-start"
+            >
+              <DocumentWriteApprovalCard
+                approvalId={item.data._id}
+                organizationId={organizationId}
+                status={item.data.status}
+                metadata={item.data.metadata}
+                executedAt={item.data.executedAt}
+                executionError={item.data.executionError}
               />
             </div>
           );

@@ -34,6 +34,10 @@ export function useExecuteApprovedWorkflowUpdate() {
   return useConvexAction(api.approvals.actions.executeApprovedWorkflowUpdate);
 }
 
+export function useExecuteApprovedDocumentWrite() {
+  return useConvexAction(api.approvals.actions.executeApprovedDocumentWrite);
+}
+
 export function useCreateThread() {
   return useConvexMutation(api.threads.mutations.createChatThread);
 }

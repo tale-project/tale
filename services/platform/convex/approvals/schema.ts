@@ -22,6 +22,7 @@ export const approvalsTable = defineTable({
     v.literal('workflow_run'),
     v.literal('workflow_update'),
     v.literal('human_input_request'),
+    v.literal('document_write'),
   ),
   resourceId: v.string(),
   threadId: v.optional(v.string()),

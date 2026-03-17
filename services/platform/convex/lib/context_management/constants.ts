@@ -85,7 +85,7 @@ export const AGENT_CONTEXT_CONFIGS = {
     maxHistoryTokens: DEFAULT_MAX_HISTORY_TOKENS,
     outputReserve: OUTPUT_RESERVE,
     enableSummarization: true,
-    timeoutMs: 420_000,
+    timeoutMs: 1_200_000,
   },
   /** Web assistant - independent agent for web operations */
   web: {

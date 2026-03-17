@@ -37,7 +37,6 @@ import { components, internal } from '../../_generated/api';
 import { queryRagContext } from '../../agent_tools/rag/query_rag_context';
 import { queryWebContext } from '../../agent_tools/web/helpers/query_web_context';
 import { onAgentComplete } from '../agent_completion';
-import { getFastModel } from '../agent_runtime_config';
 import {
   buildStructuredContext,
   AGENT_CONTEXT_CONFIGS,
@@ -51,10 +50,12 @@ import { STRUCTURED_RESPONSE_INSTRUCTIONS } from './structured_response_instruct
 import { AgentTimeoutError, withTimeout } from './with_timeout';
 
 /**
- * Convex platform hard-kills Node.js actions after 10 minutes.
- * We cap our own timeout at 9 minutes to leave room for cleanup
- * and to avoid the platform killing us mid-operation (which produces
- * an Error with an empty message that is hard to diagnose).
+ * Fallback timeout ceiling when no explicit deadline is provided.
+ * Only used as a cap for the no-deadline path (e.g. direct
+ * generateAgentResponse calls without a propagated deadlineMs).
+ * When deadlineMs IS provided (from startAgentChat or sub-agent
+ * delegation), it is trusted directly since it was already computed
+ * from the agent's configured timeoutMs.
  */
 const PLATFORM_HARD_LIMIT_MS = 540_000;
 
@@ -424,22 +425,20 @@ export async function generateAgentResponse(
       });
     }
 
-    // Compute effective timeout from deadline (if provided) or config default.
-    // The deadline is an absolute timestamp propagated from startAgentChat.
-    // Cap by platform hard limit to avoid Convex killing the action mid-operation.
-    const platformDeadline = startTime + PLATFORM_HARD_LIMIT_MS;
-    const remainingPlatformMs = Math.max(platformDeadline - Date.now(), 0);
-    const rawTimeoutMs = args.deadlineMs
-      ? Math.max(args.deadlineMs - Date.now(), 30_000)
-      : agentConfig.timeoutMs;
-    const effectiveTimeoutMs = Math.min(rawTimeoutMs, remainingPlatformMs);
+    // Compute effective deadline.
+    // When deadlineMs is provided (from startAgentChat or sub-agent delegation),
+    // trust it directly — it was already computed from agentConfig.timeoutMs.
+    // Only fall back to PLATFORM_HARD_LIMIT_MS when no deadline was propagated.
+    const actionDeadline = args.deadlineMs
+      ? Math.max(args.deadlineMs, Date.now() + 30_000)
+      : Math.min(
+          Date.now() + agentConfig.timeoutMs,
+          startTime + PLATFORM_HARD_LIMIT_MS,
+        );
+    const effectiveTimeoutMs = Math.max(actionDeadline - Date.now(), 0);
     if (effectiveTimeoutMs <= 0) {
       throw new AgentTimeoutError(0);
     }
-    const actionDeadline = Math.min(
-      args.deadlineMs ?? Date.now() + effectiveTimeoutMs,
-      platformDeadline,
-    );
 
     // Create agent instance
     const agent = createAgent(agentOptions);
@@ -463,6 +462,7 @@ export async function generateAgentResponse(
     // The first saved message ID for this generation, used for metadata and approval linking.
     // Captured from the agent SDK's savedMessages before any retry logic can overwrite `result`.
     let savedMessageId: string | undefined;
+    let didRetry = false;
 
     // Generate response - streaming or non-streaming
     let result: {
@@ -623,7 +623,6 @@ export async function generateAgentResponse(
           const retryAgent = createAgent({
             ...agentOptions,
             withTools: false,
-            model: getFastModel(),
           });
 
           const retrySystemPrompt = agentInstructions
@@ -640,7 +639,7 @@ export async function generateAgentResponse(
           debugLog('Stream tool-result retry starting', {
             timeoutMs: retryRemainingMs,
             contextTokens: retryContext.stats.totalTokens,
-            model: getFastModel(),
+            model,
             elapsedMs: streamRetryStartTime - startTime,
           });
 
@@ -681,6 +680,7 @@ export async function generateAgentResponse(
             retryAbortController,
           );
 
+          didRetry = true;
           result = {
             text: retryResult.text,
             steps: result.steps,
@@ -781,12 +781,9 @@ export async function generateAgentResponse(
             messageCount: retryContext.stats.messageCount,
           });
 
-          // Create agent without tools for the retry, using the fast model
-          // since this is just summarizing tool results
           const retryAgent = createAgent({
             ...agentOptions,
             withTools: false,
-            model: getFastModel(),
           });
 
           const retrySystemPrompt = agentInstructions
@@ -801,7 +798,7 @@ export async function generateAgentResponse(
           debugLog('Tool-result retry starting', {
             timeoutMs: nonStreamRetryRemainingMs,
             contextTokens: retryContext.stats.totalTokens,
-            model: getFastModel(),
+            model,
             elapsedMs: retryStartTime - startTime,
           });
 
@@ -829,6 +826,7 @@ export async function generateAgentResponse(
             nonStreamRetryAbort,
           );
 
+          didRetry = true;
           result = {
             text: retryResult.text,
             steps: [...(result.steps || []), ...retryResult.steps],
@@ -869,7 +867,6 @@ export async function generateAgentResponse(
           const retryAgent = createAgent({
             ...agentOptions,
             withTools: false,
-            model: getFastModel(),
           });
 
           const emptyRetrySystemPrompt = agentInstructions
@@ -884,7 +881,7 @@ export async function generateAgentResponse(
           debugLog('Empty text retry starting', {
             timeoutMs: emptyRetryRemainingMs,
             contextTokens: retryContext.stats.totalTokens,
-            model: getFastModel(),
+            model,
             elapsedMs: emptyRetryStartTime - startTime,
           });
 
@@ -912,6 +909,7 @@ export async function generateAgentResponse(
             emptyRetryAbort,
           );
 
+          didRetry = true;
           result = {
             text: retryResult.text,
             steps: result.steps,
@@ -947,6 +945,7 @@ export async function generateAgentResponse(
           toolNames,
           finishReason: result.finishReason,
         });
+        didRetry = true;
         result.text =
           toolNames.length > 0
             ? `I attempted to process your request using ${toolNames.join(', ')}, but was unable to generate a complete response. Please try again.`
@@ -975,16 +974,15 @@ export async function generateAgentResponse(
         const recoveryAgent = createAgent({
           ...agentOptions,
           withTools: false,
-          model: getFastModel(),
         });
 
         const recoverySystemPrompt = agentInstructions
           ? `${agentInstructions}\n\n${recoveryContext.threadContext}`
           : recoveryContext.threadContext;
 
-        // Cap recovery timeout by platform hard limit
+        // Cap recovery timeout by action deadline
         const recoveryPlatformRemainingMs = Math.max(
-          platformDeadline - Date.now(),
+          actionDeadline - Date.now(),
           0,
         );
         if (recoveryPlatformRemainingMs < 10_000) {
@@ -998,7 +996,7 @@ export async function generateAgentResponse(
         debugLog('Timeout recovery starting', {
           timeoutMs: recoveryRemainingMs,
           contextTokens: recoveryContext.stats.totalTokens,
-          model: getFastModel(),
+          model,
           elapsedMs: recoveryStartTime - startTime,
         });
 
@@ -1028,6 +1026,7 @@ export async function generateAgentResponse(
           recoveryAbortController,
         );
 
+        didRetry = true;
         result = {
           text: recoveryResult.text,
           steps: recoveryResult.steps,
@@ -1048,6 +1047,7 @@ export async function generateAgentResponse(
           recoveryError,
         );
 
+        didRetry = true;
         result = {
           text: 'I was unable to complete your request in time. Please try again.',
           finishReason: 'timeout-recovery-failed',
@@ -1057,6 +1057,18 @@ export async function generateAgentResponse(
           elapsedMs: Date.now() - startTime,
         });
       }
+    }
+
+    // Persist retry/fallback text to the saved message so it survives page reloads.
+    // Retries use saveMessages: 'none', so the SDK-saved message still has the
+    // original (empty/preamble) text. Update it with the final result.
+    if (didRetry && savedMessageId && result.text) {
+      await ctx.runMutation(components.agent.messages.updateMessage, {
+        messageId: savedMessageId,
+        patch: {
+          message: { role: 'assistant', content: result.text },
+        },
+      });
     }
 
     const durationMs = Date.now() - startTime;

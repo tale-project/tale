@@ -89,13 +89,19 @@ type DocumentActionParams =
       baseFileName?: string;
       comparisonFileName?: string;
       maxChanges?: number;
+    }
+  | {
+      operation: 'create';
+      fileId: string;
+      title?: string;
+      folderPath?: string;
     };
 
 export const documentAction: ActionDefinition<DocumentActionParams> = {
   type: 'document',
   title: 'Document Operation',
   description:
-    'Execute document-specific operations (update, retrieve, generate_docx). organizationId is automatically read from workflow context variables.',
+    'Execute document-specific operations (update, retrieve, generate_docx, create). organizationId is automatically read from workflow context variables.',
 
   parametersValidator: v.union(
     v.object({
@@ -126,6 +132,12 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
     v.object({
       operation: v.literal('get_metadata'),
       fileIds: v.array(v.string()),
+    }),
+    v.object({
+      operation: v.literal('create'),
+      fileId: v.string(),
+      title: v.optional(v.string()),
+      folderPath: v.optional(v.string()),
     }),
     v.object({
       operation: v.literal('compare'),
@@ -182,10 +194,21 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
 
       case 'generate_docx': {
         const content = normalizeEscapeSequences(params.content);
+        const organizationId =
+          typeof _variables.organizationId === 'string'
+            ? _variables.organizationId
+            : undefined;
+
+        if (!organizationId) {
+          throw new Error(
+            'organizationId is required in workflow variables to generate a document',
+          );
+        }
 
         return await ctx.runAction(
           internal.documents.internal_actions.generateDocument,
           {
+            organizationId,
             fileName: params.fileName,
             sourceType: params.sourceType,
             outputFormat: 'docx',
@@ -218,6 +241,67 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
           compFileName,
           params.maxChanges,
         );
+      }
+
+      case 'create': {
+        const storageId = toId<'_storage'>(params.fileId);
+
+        const fileMetadata = await ctx.runQuery(
+          internal.file_metadata.internal_queries.getByStorageId,
+          { storageId },
+        );
+
+        if (!fileMetadata) {
+          throw new Error(
+            `File metadata not found for storage ID "${params.fileId}". The file may not exist.`,
+          );
+        }
+
+        const docTitle = params.title ?? fileMetadata.fileName;
+        const organizationId =
+          typeof _variables.organizationId === 'string'
+            ? _variables.organizationId
+            : undefined;
+        const userId =
+          typeof _variables.userId === 'string' ? _variables.userId : undefined;
+
+        if (!organizationId) {
+          throw new Error(
+            'organizationId is required in workflow variables to create a document',
+          );
+        }
+
+        let folderId: string | null = null;
+        if (params.folderPath) {
+          folderId = await ctx.runMutation(
+            internal.folders.internal_mutations.getOrCreateFolderPath,
+            {
+              organizationId,
+              pathSegments: params.folderPath.split('/').filter(Boolean),
+              createdBy: userId,
+            },
+          );
+        }
+
+        const documentId = await ctx.runMutation(
+          internal.documents.internal_mutations.createDocument,
+          {
+            organizationId,
+            title: docTitle,
+            fileId: storageId,
+            mimeType: fileMetadata.contentType,
+            sourceProvider: 'agent',
+            createdBy: userId,
+            ...(folderId ? { folderId: toId<'folders'>(folderId) } : {}),
+          },
+        );
+
+        return {
+          success: true,
+          documentId: String(documentId),
+          title: docTitle,
+          folderPath: params.folderPath ?? null,
+        };
       }
 
       case 'get_metadata': {

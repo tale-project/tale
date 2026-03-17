@@ -7,6 +7,7 @@ import {
   useDeleteThread,
 } from '@/app/features/chat/hooks/mutations';
 import {
+  useDocumentWriteApprovals,
   useIntegrationApprovals,
   useWorkflowCreationApprovals,
   useWorkflowRunApprovals,
@@ -151,6 +152,10 @@ export function useTestChat({
     organizationId,
     threadId ?? undefined,
   );
+  const { approvals: documentWriteApprovals } = useDocumentWriteApprovals(
+    organizationId,
+    threadId ?? undefined,
+  );
 
   const {
     messages: rawMessages,
@@ -186,6 +191,7 @@ export function useTestChat({
     workflowUpdateApprovals,
     workflowRunApprovals,
     humanInputRequests,
+    documentWriteApprovals,
   });
 
   useEffect(() => {

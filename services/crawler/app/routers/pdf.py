@@ -6,6 +6,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import Response
 from loguru import logger
 
+from app.exceptions import DownloadDetectedException
 from app.models import (
     HtmlToPdfRequest,
     MarkdownToPdfRequest,
@@ -14,6 +15,7 @@ from app.models import (
 )
 from app.services.file_parser_service import get_file_parser_service
 from app.services.pdf_service import get_pdf_service
+from app.utils.http_download import download_file
 
 router = APIRouter(prefix="/api/v1/pdf", tags=["PDF"])
 
@@ -140,6 +142,31 @@ async def convert_url_to_pdf(request: UrlToPdfRequest):
             headers={"Content-Disposition": "attachment; filename=document.pdf"},
         )
 
+    except DownloadDetectedException:
+        logger.info(f"URL triggers download, falling back to HTTP: {request.url}")
+        try:
+            timeout_seconds = request.timeout / 1000
+            file_bytes, _content_type = await download_file(str(request.url), timeout_seconds)
+
+            if not file_bytes[:5] == b"%PDF-":
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="URL triggers a file download but the content is not a PDF",
+                )
+
+            return Response(
+                content=file_bytes,
+                media_type="application/pdf",
+                headers={"Content-Disposition": "attachment; filename=document.pdf"},
+            )
+        except HTTPException:
+            raise
+        except Exception:
+            logger.exception("HTTP fallback download failed")
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Failed to download file from URL",
+            ) from None
     except Exception:
         logger.exception("Error converting URL to PDF")
         raise HTTPException(

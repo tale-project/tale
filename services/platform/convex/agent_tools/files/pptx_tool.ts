@@ -191,7 +191,9 @@ SLIDE CONTENT EXAMPLES:
 - Content slide: { "title": "Agenda", "bulletPoints": ["Point 1", "Point 2"] }
 - With table: { "title": "Data", "tables": [{"headers": ["A", "B"], "rows": [["1", "2"]]}] }
 
-CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the result. Never fabricate URLs.`,
+CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the result. Never fabricate URLs.
+
+AFTER GENERATING: To save the file to a folder in the documents hub, call document_write with the returned fileStorageId and the desired folderPath.`,
     args: pptxArgs,
     handler: async (ctx: ToolCtx, args): Promise<PptxResult> => {
       const { organizationId } = ctx;
@@ -308,6 +310,12 @@ CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the 
         );
       }
 
+      if (!organizationId) {
+        throw new Error(
+          'organizationId is required to generate a presentation',
+        );
+      }
+
       debugLog('tool:pptx generate start', {
         fileName: args.fileName,
         slidesCount: args.slidesContent.length,
@@ -319,6 +327,7 @@ CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the 
         const result = await ctx.runAction(
           internal.documents.internal_actions.generatePptx,
           {
+            organizationId,
             fileName: args.fileName,
             slidesContent: args.slidesContent,
             branding: args.branding,

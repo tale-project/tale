@@ -199,6 +199,8 @@ EXAMPLES:
 • Parse: { "operation": "parse", "fileId": "kg2bazp7...", "filename": "document.docx", "user_input": "Extract the main points" }
 
 CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the result. Never fabricate URLs.
+
+AFTER GENERATING: To save the file to a folder in the documents hub, call document_write with the returned fileStorageId and the desired folderPath.
 `,
     args: docxArgs,
     handler: async (ctx: ToolCtx, args): Promise<DocxResult> => {
@@ -292,6 +294,9 @@ CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the 
       }
 
       // Default / generate operation
+      if (!organizationId) {
+        throw new Error('organizationId is required to generate a document');
+      }
       if (!args.fileName) {
         throw new Error("Missing required 'fileName' for generate operation");
       }
@@ -307,6 +312,7 @@ CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the 
           const result = await ctx.runAction(
             internal.documents.internal_actions.generateDocument,
             {
+              organizationId,
               fileName: args.fileName,
               sourceType: args.sourceType,
               outputFormat: 'docx',
@@ -382,6 +388,7 @@ CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the 
           const result = await ctx.runAction(
             internal.documents.internal_actions.generateDocxFromTemplate,
             {
+              organizationId,
               fileName: args.fileName,
               content: {
                 title: args.title,
@@ -408,6 +415,7 @@ CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the 
         const result = await ctx.runAction(
           internal.documents.internal_actions.generateDocx,
           {
+            organizationId,
             fileName: args.fileName,
             content: {
               title: args.title,
