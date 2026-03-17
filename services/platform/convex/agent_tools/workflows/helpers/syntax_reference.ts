@@ -199,7 +199,93 @@ For external APIs (Shopify, Circuly, etc.)
     "params": { "limit": 50 }
   }
 }
-\`\`\``,
+\`\`\`
+
+### document
+Operations: create, update, retrieve, generate_docx, get_metadata, compare
+
+**create** — Save a file to the documents hub:
+\`\`\`json
+{
+  "type": "document",
+  "parameters": {
+    "operation": "create",
+    "fileId": "{{steps.generate.output.data.fileId}}",
+    "title": "Monthly Report",
+    "folderPath": "reports/monthly"
+  }
+}
+\`\`\`
+- fileId: storage ID of the file to save (required)
+- title: document title (optional, defaults to original file name)
+- folderPath: slash-separated folder path, created automatically if missing (optional)
+- Requires organizationId in workflow variables (auto-injected)
+
+**update** — Update an existing document by ID:
+\`\`\`json
+{
+  "type": "document",
+  "parameters": {
+    "operation": "update",
+    "documentId": "{{steps.find_doc.output.data._id}}",
+    "title": "Updated Title",
+    "content": "New content"
+  }
+}
+\`\`\`
+- documentId: required
+- Optional: title, content, mimeType, extension, metadata, sourceProvider
+
+**retrieve** — Fetch document content by file ID:
+\`\`\`json
+{
+  "type": "document",
+  "parameters": {
+    "operation": "retrieve",
+    "fileId": "{{steps.find_doc.output.data.fileId}}"
+  }
+}
+\`\`\`
+- Optional: chunkStart, chunkEnd (for partial retrieval), returnChunks (boolean)
+
+**generate_docx** — Generate a DOCX file from markdown or HTML:
+\`\`\`json
+{
+  "type": "document",
+  "parameters": {
+    "operation": "generate_docx",
+    "fileName": "report.docx",
+    "sourceType": "markdown",
+    "content": "{{steps.draft.output.data}}"
+  }
+}
+\`\`\`
+- sourceType: "markdown" or "html"
+- Requires organizationId in workflow variables
+
+**get_metadata** — Fetch file metadata for one or more files:
+\`\`\`json
+{
+  "type": "document",
+  "parameters": {
+    "operation": "get_metadata",
+    "fileIds": ["{{steps.file1.output.data.fileId}}", "{{steps.file2.output.data.fileId}}"]
+  }
+}
+\`\`\`
+
+**compare** — Compare two documents and return differences:
+\`\`\`json
+{
+  "type": "document",
+  "parameters": {
+    "operation": "compare",
+    "baseFileId": "{{steps.original.output.data.fileId}}",
+    "comparisonFileId": "{{steps.revised.output.data.fileId}}"
+  }
+}
+\`\`\`
+- Optional: baseFileName, comparisonFileName, maxChanges`,
 
   condition: `## Condition Step (stepType: 'condition')
 
@@ -492,7 +578,7 @@ const SYNTAX_CATEGORY_DESCRIPTIONS: Record<string, string> = {
     'Start step configuration (workflow entry point with optional inputSchema)',
   llm: 'LLM step configuration (AI agent with tools)',
   action:
-    'Action step types and parameters (workflow_processing_records, customer, conversation, approval, set_variables, integration)',
+    'Action step types and parameters (workflow_processing_records, customer, conversation, approval, set_variables, integration, document)',
   condition: 'Condition step with JEXL expressions',
   loop: 'Loop step for iteration',
   output: 'Output step configuration (workflow output via outputMapping)',
