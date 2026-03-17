@@ -170,7 +170,14 @@ ENV NODE_ENV=production \
     # CA cert path for self-signed mode - entrypoint script checks if file exists
     # With Let's Encrypt, this file doesn't exist and is safely ignored
     CADDY_CA_CERT_PATH=/caddy-data/caddy/pki/authorities/local/root.crt \
-    DO_NOT_TRACK=1
+    DO_NOT_TRACK=1 \
+    # Increase action timeout from default 5min to 30min for both Node and V8 actions
+    ACTIONS_USER_TIMEOUT_SECS=1800 \
+    # Increase max concurrent queries/mutations/actions from defaults to 32 for higher throughput
+    APPLICATION_MAX_CONCURRENT_QUERIES=32 \
+    APPLICATION_MAX_CONCURRENT_MUTATIONS=32 \
+    APPLICATION_MAX_CONCURRENT_V8_ACTIONS=32 \
+    APPLICATION_MAX_CONCURRENT_NODE_ACTIONS=32
 
 COPY --from=convex-dashboard --chown=app:app /app /dashboard
 

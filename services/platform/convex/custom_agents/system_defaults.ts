@@ -49,7 +49,7 @@ export const SYSTEM_DEFAULT_AGENT_TEMPLATES: SystemDefaultAgentTemplate[] = [
     includeOrgKnowledge: true,
     filePreprocessingEnabled: true,
     maxSteps: 20,
-    timeoutMs: 420_000,
+    timeoutMs: 1_200_000,
     outputReserve: 4096,
     modelPreset: 'standard',
     visibleInChat: true,

@@ -50,10 +50,12 @@ import { STRUCTURED_RESPONSE_INSTRUCTIONS } from './structured_response_instruct
 import { AgentTimeoutError, withTimeout } from './with_timeout';
 
 /**
- * Convex platform hard-kills Node.js actions after 10 minutes.
- * We cap our own timeout at 9 minutes to leave room for cleanup
- * and to avoid the platform killing us mid-operation (which produces
- * an Error with an empty message that is hard to diagnose).
+ * Fallback timeout ceiling when no explicit deadline is provided.
+ * Only used as a cap for the no-deadline path (e.g. direct
+ * generateAgentResponse calls without a propagated deadlineMs).
+ * When deadlineMs IS provided (from startAgentChat or sub-agent
+ * delegation), it is trusted directly since it was already computed
+ * from the agent's configured timeoutMs.
  */
 const PLATFORM_HARD_LIMIT_MS = 540_000;
 
@@ -423,22 +425,20 @@ export async function generateAgentResponse(
       });
     }
 
-    // Compute effective timeout from deadline (if provided) or config default.
-    // The deadline is an absolute timestamp propagated from startAgentChat.
-    // Cap by platform hard limit to avoid Convex killing the action mid-operation.
-    const platformDeadline = startTime + PLATFORM_HARD_LIMIT_MS;
-    const remainingPlatformMs = Math.max(platformDeadline - Date.now(), 0);
-    const rawTimeoutMs = args.deadlineMs
-      ? Math.max(args.deadlineMs - Date.now(), 30_000)
-      : agentConfig.timeoutMs;
-    const effectiveTimeoutMs = Math.min(rawTimeoutMs, remainingPlatformMs);
+    // Compute effective deadline.
+    // When deadlineMs is provided (from startAgentChat or sub-agent delegation),
+    // trust it directly — it was already computed from agentConfig.timeoutMs.
+    // Only fall back to PLATFORM_HARD_LIMIT_MS when no deadline was propagated.
+    const actionDeadline = args.deadlineMs
+      ? Math.max(args.deadlineMs, Date.now() + 30_000)
+      : Math.min(
+          Date.now() + agentConfig.timeoutMs,
+          startTime + PLATFORM_HARD_LIMIT_MS,
+        );
+    const effectiveTimeoutMs = Math.max(actionDeadline - Date.now(), 0);
     if (effectiveTimeoutMs <= 0) {
       throw new AgentTimeoutError(0);
     }
-    const actionDeadline = Math.min(
-      args.deadlineMs ?? Date.now() + effectiveTimeoutMs,
-      platformDeadline,
-    );
 
     // Create agent instance
     const agent = createAgent(agentOptions);
@@ -980,9 +980,9 @@ export async function generateAgentResponse(
           ? `${agentInstructions}\n\n${recoveryContext.threadContext}`
           : recoveryContext.threadContext;
 
-        // Cap recovery timeout by platform hard limit
+        // Cap recovery timeout by action deadline
         const recoveryPlatformRemainingMs = Math.max(
-          platformDeadline - Date.now(),
+          actionDeadline - Date.now(),
           0,
         );
         if (recoveryPlatformRemainingMs < 10_000) {

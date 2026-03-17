@@ -80,6 +80,7 @@ export const customAgentsTable = defineTable({
   // @deprecated — kept for existing documents, no longer written or read
   partnerAgentIds: v.optional(v.array(v.id('customAgents'))),
   maxSteps: v.optional(v.number()),
+  /** Agent execution timeout in milliseconds. Configurable via agent settings UI. */
   timeoutMs: v.optional(v.number()),
   outputReserve: v.optional(v.number()),
   roleRestriction: v.optional(roleRestrictionValidator),
