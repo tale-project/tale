@@ -6,13 +6,13 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import Response
 from loguru import logger
 
+from app.exceptions import DownloadDetectedException
 from app.models import (
     HtmlToPdfRequest,
     MarkdownToPdfRequest,
     ParseFileResponse,
     UrlToPdfRequest,
 )
-from app.exceptions import DownloadDetectedException
 from app.services.file_parser_service import get_file_parser_service
 from app.services.pdf_service import get_pdf_service
 from app.utils.http_download import download_file
@@ -146,7 +146,7 @@ async def convert_url_to_pdf(request: UrlToPdfRequest):
         logger.info(f"URL triggers download, falling back to HTTP: {request.url}")
         try:
             timeout_seconds = request.timeout / 1000
-            file_bytes, content_type = await download_file(str(request.url), timeout_seconds)
+            file_bytes, _content_type = await download_file(str(request.url), timeout_seconds)
 
             if not file_bytes[:5] == b"%PDF-":
                 raise HTTPException(

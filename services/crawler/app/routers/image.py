@@ -6,12 +6,12 @@ from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import Response
 from loguru import logger
 
+from app.exceptions import DownloadDetectedException
 from app.models import (
     HtmlToImageRequest,
     MarkdownToImageRequest,
     UrlToImageRequest,
 )
-from app.exceptions import DownloadDetectedException
 from app.services.image_service import get_image_service
 from app.utils.http_download import download_file
 
