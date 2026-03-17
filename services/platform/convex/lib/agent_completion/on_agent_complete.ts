@@ -7,11 +7,9 @@
  * This function runs in action context and calls mutations as needed.
  */
 
-import { listMessages } from '@convex-dev/agent';
-
 import type { ActionCtx } from '../../_generated/server';
 
-import { components, internal } from '../../_generated/api';
+import { internal } from '../../_generated/api';
 import { createDebugLog } from '../debug_log';
 
 const debugLog = createDebugLog('DEBUG_AGENT_COMPLETION', '[AgentCompletion]');
@@ -26,6 +24,7 @@ type Usage = {
 
 export interface AgentResponseResult {
   threadId: string;
+  messageId?: string;
   text?: string;
   model?: string;
   provider?: string;
@@ -78,74 +77,48 @@ export async function onAgentComplete(
   });
 
   // Step 1: Save message metadata (unless skipped)
-  if (!options?.skipMetadata && result.usage) {
-    try {
-      // Find the first assistant message in the current response
-      // This matches the UIMessage.id logic used by @convex-dev/agent
-      const messages = await listMessages(ctx, components.agent, {
-        threadId,
-        paginationOpts: { cursor: null, numItems: 20 },
-        excludeToolMessages: false,
-      });
+  if (!options?.skipMetadata) {
+    const messageId = result.messageId;
 
-      const sortedMessages = messages.page.sort(
-        (a, b) => b._creationTime - a._creationTime,
-      );
-
-      const latestAssistantMessage = sortedMessages.find(
-        (msg) => msg.message?.role === 'assistant',
-      );
-
-      if (latestAssistantMessage) {
-        const currentOrder = latestAssistantMessage.order;
-
-        // Find the FIRST message (by stepOrder) in this response group
-        const messagesInCurrentResponse = sortedMessages
-          .filter(
-            (msg) =>
-              msg.order === currentOrder &&
-              (msg.message?.role === 'assistant' ||
-                msg.message?.role === 'tool'),
-          )
-          .sort((a, b) => a.stepOrder - b.stepOrder);
-
-        const firstMessageInResponse = messagesInCurrentResponse[0];
-
-        if (firstMessageInResponse) {
-          await ctx.runMutation(
-            internal.message_metadata.internal_mutations.saveMessageMetadata,
-            {
-              messageId: firstMessageInResponse._id,
-              threadId,
-              model: result.model,
-              provider: result.provider,
-              inputTokens: result.usage.inputTokens,
-              outputTokens: result.usage.outputTokens,
-              totalTokens: result.usage.totalTokens,
-              reasoningTokens: result.usage.reasoningTokens,
-              cachedInputTokens: result.usage.cachedInputTokens,
-              reasoning: result.reasoning,
-              durationMs: result.durationMs,
-              timeToFirstTokenMs: result.timeToFirstTokenMs,
-              toolsUsage: result.toolsUsage,
-              contextWindow: result.contextWindow,
-              contextStats: result.contextStats,
-            },
-          );
-
-          debugLog('Metadata saved', {
+    if (messageId) {
+      try {
+        await ctx.runMutation(
+          internal.message_metadata.internal_mutations.saveMessageMetadata,
+          {
+            messageId,
             threadId,
-            agentType,
-            messageId: firstMessageInResponse._id,
             model: result.model,
-          });
-        }
+            provider: result.provider,
+            inputTokens: result.usage?.inputTokens,
+            outputTokens: result.usage?.outputTokens,
+            totalTokens: result.usage?.totalTokens,
+            reasoningTokens: result.usage?.reasoningTokens,
+            cachedInputTokens: result.usage?.cachedInputTokens,
+            reasoning: result.reasoning,
+            durationMs: result.durationMs,
+            timeToFirstTokenMs: result.timeToFirstTokenMs,
+            toolsUsage: result.toolsUsage,
+            contextWindow: result.contextWindow,
+            contextStats: result.contextStats,
+          },
+        );
+
+        debugLog('Metadata saved', {
+          threadId,
+          agentType,
+          messageId,
+          model: result.model,
+        });
+      } catch (error) {
+        console.error(`[${agentType}] Failed to save message metadata:`, {
+          threadId,
+          error,
+        });
       }
-    } catch (error) {
-      // Non-fatal: log and continue
-      console.error(`[${agentType}] Failed to save message metadata:`, {
+    } else {
+      debugLog('No messageId provided, skipping metadata save', {
         threadId,
-        error,
+        agentType,
       });
     }
   }
