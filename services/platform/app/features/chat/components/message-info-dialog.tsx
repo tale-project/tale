@@ -19,7 +19,6 @@ import { Text } from '@/app/components/ui/typography/text';
 import { useCopyButton } from '@/app/hooks/use-copy';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 import { formatNumber } from '@/lib/utils/format/number';
 
 import type { MessageMetadata, ToolUsage } from '../hooks/queries';
@@ -112,8 +111,6 @@ interface ToolCallCardProps {
 }
 
 function ToolCallCard({ usage, locale, t }: ToolCallCardProps) {
-  const [outputExpanded, setOutputExpanded] = useState(false);
-
   return (
     <div className="bg-muted rounded px-3 py-2 text-sm">
       <Text as="div" variant="label">
@@ -144,34 +141,34 @@ function ToolCallCard({ usage, locale, t }: ToolCallCardProps) {
         </Text>
       )}
       {(usage.input || usage.output) && (
-        <div className="mt-2 space-y-1">
+        <div className="mt-2 space-y-2">
           {usage.input && (
-            <Text
-              as="div"
-              variant="caption"
-              className="max-h-20 overflow-y-auto font-mono break-all"
-            >
-              <span className="font-sans font-medium">
+            <div>
+              <Text as="div" variant="caption" className="font-semibold">
                 {t('toolDetails.input')}:
-              </span>{' '}
-              {usage.input}
-            </Text>
+              </Text>
+              <Text
+                as="div"
+                variant="caption"
+                className="max-h-20 overflow-y-auto font-mono break-all"
+              >
+                {usage.input}
+              </Text>
+            </div>
           )}
           {usage.output && (
-            <Text
-              as="div"
-              variant="caption"
-              className={cn(
-                'cursor-pointer font-mono break-all',
-                outputExpanded ? 'max-h-60 overflow-y-auto' : 'line-clamp-2',
-              )}
-              onClick={() => setOutputExpanded(!outputExpanded)}
-            >
-              <span className="font-sans font-medium">
+            <div>
+              <Text as="div" variant="caption" className="font-semibold">
                 {t('toolDetails.output')}:
-              </span>{' '}
-              {usage.output}
-            </Text>
+              </Text>
+              <Text
+                as="div"
+                variant="caption"
+                className="max-h-20 overflow-y-auto font-mono break-all"
+              >
+                {usage.output}
+              </Text>
+            </div>
           )}
         </div>
       )}
