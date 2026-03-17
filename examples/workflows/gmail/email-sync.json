@@ -136,7 +136,7 @@
           "name": "gmail",
           "operation": "get_thread",
           "params": {
-            "threadId": "{{gmailThreadId}}",
+            "threadId": "{{variables.gmailThreadId}}",
             "format": "email"
           }
         }
@@ -154,7 +154,7 @@
         "parameters": {
           "operation": "create_from_email",
           "emails": "{{steps.fetch_thread_messages.output.data.result.data}}",
-          "status": "{{conversationStatus}}",
+          "status": "{{config.conversationStatus}}",
           "integrationName": "gmail"
         }
       },
