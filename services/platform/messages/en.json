@@ -2079,7 +2079,11 @@
     "statusApprovedFailed": "This document was approved but failed to save.",
     "statusApprovedSuccess": "This document was saved to your documents.",
     "statusApprovedPartial": "Some documents failed to save.",
-    "statusRejected": "This document save was rejected."
+    "statusRejected": "This document save was rejected.",
+    "allFilesFailed": "All {count} files failed to save",
+    "errorNotAuthenticated": "User not authenticated",
+    "errorSaveFailed": "Failed to save document",
+    "errorRejectFailed": "Failed to reject"
   },
   "integrationApproval": {
     "approve": "Approve",

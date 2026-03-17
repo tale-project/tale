@@ -52,6 +52,15 @@ export const executeApprovedDocumentWrite = internalAction({
       throw new Error('This document write approval has already been executed');
     }
 
+    const claimed = await ctx.runMutation(
+      internal.agent_tools.documents.internal_mutations
+        .claimDocumentWriteForExecution,
+      { approvalId: args.approvalId },
+    );
+    if (!claimed) {
+      throw new Error('This document write approval has already been executed');
+    }
+
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- approval.metadata is v.any() but always matches DocumentWriteMetadata for document_write approvals
     const rawMetadata = approval.metadata as DocumentWriteMetadata;
     const metadata = normalizeDocumentWriteMetadata(rawMetadata);

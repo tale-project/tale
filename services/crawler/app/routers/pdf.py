@@ -12,6 +12,7 @@ from app.models import (
     ParseFileResponse,
     UrlToPdfRequest,
 )
+from app.exceptions import DownloadDetectedException
 from app.services.file_parser_service import get_file_parser_service
 from app.services.pdf_service import get_pdf_service
 from app.utils.http_download import download_file
@@ -141,7 +142,7 @@ async def convert_url_to_pdf(request: UrlToPdfRequest):
             headers={"Content-Disposition": "attachment; filename=document.pdf"},
         )
 
-    except ValueError:
+    except DownloadDetectedException:
         logger.info(f"URL triggers download, falling back to HTTP: {request.url}")
         try:
             timeout_seconds = request.timeout / 1000

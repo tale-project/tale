@@ -462,6 +462,7 @@ export async function generateAgentResponse(
     // The first saved message ID for this generation, used for metadata and approval linking.
     // Captured from the agent SDK's savedMessages before any retry logic can overwrite `result`.
     let savedMessageId: string | undefined;
+    let didRetry = false;
 
     // Generate response - streaming or non-streaming
     let result: {
@@ -679,6 +680,7 @@ export async function generateAgentResponse(
             retryAbortController,
           );
 
+          didRetry = true;
           result = {
             text: retryResult.text,
             steps: result.steps,
@@ -824,6 +826,7 @@ export async function generateAgentResponse(
             nonStreamRetryAbort,
           );
 
+          didRetry = true;
           result = {
             text: retryResult.text,
             steps: [...(result.steps || []), ...retryResult.steps],
@@ -906,6 +909,7 @@ export async function generateAgentResponse(
             emptyRetryAbort,
           );
 
+          didRetry = true;
           result = {
             text: retryResult.text,
             steps: result.steps,
@@ -941,6 +945,7 @@ export async function generateAgentResponse(
           toolNames,
           finishReason: result.finishReason,
         });
+        didRetry = true;
         result.text =
           toolNames.length > 0
             ? `I attempted to process your request using ${toolNames.join(', ')}, but was unable to generate a complete response. Please try again.`
@@ -1021,6 +1026,7 @@ export async function generateAgentResponse(
           recoveryAbortController,
         );
 
+        didRetry = true;
         result = {
           text: recoveryResult.text,
           steps: recoveryResult.steps,
@@ -1041,6 +1047,7 @@ export async function generateAgentResponse(
           recoveryError,
         );
 
+        didRetry = true;
         result = {
           text: 'I was unable to complete your request in time. Please try again.',
           finishReason: 'timeout-recovery-failed',
@@ -1055,7 +1062,7 @@ export async function generateAgentResponse(
     // Persist retry/fallback text to the saved message so it survives page reloads.
     // Retries use saveMessages: 'none', so the SDK-saved message still has the
     // original (empty/preamble) text. Update it with the final result.
-    if (savedMessageId && result.text) {
+    if (didRetry && savedMessageId && result.text) {
       await ctx.runMutation(components.agent.messages.updateMessage, {
         messageId: savedMessageId,
         patch: {

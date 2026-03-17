@@ -8,6 +8,7 @@ import contextlib
 import re
 from typing import Any
 
+from app.exceptions import DownloadDetectedException
 from app.models import WaitUntilType
 from app.services.base_converter import BaseConverterService
 
@@ -134,7 +135,9 @@ class PdfService(BaseConverterService):
                 await page.goto(url, wait_until="domcontentloaded", timeout=timeout)
             except PlaywrightError as e:
                 if "Download is starting" in str(e):
-                    raise ValueError(f"URL triggers a file download instead of rendering a page: {url}") from e
+                    raise DownloadDetectedException(
+                        f"URL triggers a file download instead of rendering a page: {url}"
+                    ) from e
                 raise
 
             # If 'load' was requested, try to wait for it but don't fail if it times out

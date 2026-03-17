@@ -68,7 +68,7 @@ function DocumentWriteApprovalCardComponent({
 
   const handleApprove = async () => {
     if (!user?.userId) {
-      setError('User not authenticated');
+      setError(t('errorNotAuthenticated'));
       return;
     }
     setIsApproving(true);
@@ -80,7 +80,7 @@ function DocumentWriteApprovalCardComponent({
       });
       await executeDocumentWrite({ approvalId });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save document');
+      setError(err instanceof Error ? err.message : t('errorSaveFailed'));
       console.error('Failed to approve document write:', err);
     } finally {
       setIsApproving(false);
@@ -89,7 +89,7 @@ function DocumentWriteApprovalCardComponent({
 
   const handleReject = async () => {
     if (!user?.userId) {
-      setError('User not authenticated');
+      setError(t('errorNotAuthenticated'));
       return;
     }
     setIsRejecting(true);
@@ -100,7 +100,7 @@ function DocumentWriteApprovalCardComponent({
         status: 'rejected',
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to reject');
+      setError(err instanceof Error ? err.message : t('errorRejectFailed'));
       console.error('Failed to reject document write:', err);
     } finally {
       setIsRejecting(false);
@@ -214,7 +214,7 @@ function DocumentWriteApprovalCardComponent({
           </HStack>
         )}
 
-      {/* All failed (batch) */}
+      {/* Execution error (single file) */}
       {status === 'approved' && executionError && !isBatch && (
         <HStack
           gap={1}
@@ -227,6 +227,23 @@ function DocumentWriteApprovalCardComponent({
           </Text>
         </HStack>
       )}
+
+      {/* All failed (batch) */}
+      {status === 'approved' &&
+        executedAt &&
+        isBatch &&
+        failedCount === files.length && (
+          <HStack
+            gap={1}
+            align="start"
+            className="text-destructive mb-3 text-xs wrap-break-word"
+          >
+            <XCircle className="size-3 shrink-0" />
+            <Text as="span" className="min-w-0">
+              {t('allFilesFailed', { count: files.length })}
+            </Text>
+          </HStack>
+        )}
 
       {/* Temporary UI error */}
       {error && (
@@ -309,7 +326,9 @@ export const DocumentWriteApprovalCard = memo(
       prevProps.status === nextProps.status &&
       prevProps.className === nextProps.className &&
       prevProps.executedAt === nextProps.executedAt &&
-      prevProps.executionError === nextProps.executionError
+      prevProps.executionError === nextProps.executionError &&
+      prevProps.organizationId === nextProps.organizationId &&
+      JSON.stringify(prevProps.metadata) === JSON.stringify(nextProps.metadata)
     );
   },
 );

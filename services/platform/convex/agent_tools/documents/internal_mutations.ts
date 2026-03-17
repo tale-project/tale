@@ -6,6 +6,7 @@ import type { DocumentWriteMetadata } from '../../approvals/types';
 import { internalMutation } from '../../_generated/server';
 import { createApproval } from '../../approvals/helpers';
 import { normalizeDocumentWriteMetadata } from '../../approvals/types';
+import { checkOrganizationRateLimit } from '../../lib/rate_limiter/helpers';
 
 type ApprovalMetadata = Doc<'approvals'>['metadata'];
 
@@ -26,6 +27,12 @@ export const createDocumentWriteApproval = internalMutation({
     messageId: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<Id<'approvals'>> => {
+    await checkOrganizationRateLimit(
+      ctx,
+      'document:write',
+      args.organizationId,
+    );
+
     const metadata: DocumentWriteMetadata = {
       files: args.files.map((f) => ({
         fileId: f.fileId,
@@ -48,13 +55,27 @@ export const createDocumentWriteApproval = internalMutation({
     return await createApproval(ctx, {
       organizationId: args.organizationId,
       resourceType: 'document_write',
-      resourceId: `document_write:batch:${Date.now()}`,
+      resourceId: `document_write:batch:${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       priority: 'medium',
       description,
       threadId: args.threadId,
       messageId: args.messageId,
       metadata,
     });
+  },
+});
+
+export const claimDocumentWriteForExecution = internalMutation({
+  args: {
+    approvalId: v.id('approvals'),
+  },
+  returns: v.boolean(),
+  handler: async (ctx, args): Promise<boolean> => {
+    const approval = await ctx.db.get(args.approvalId);
+    if (!approval) throw new Error('Approval not found');
+    if (approval.executedAt) return false;
+    await ctx.db.patch(args.approvalId, { executedAt: Date.now() });
+    return true;
   },
 });
 

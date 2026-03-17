@@ -13,6 +13,7 @@ import { z } from 'zod/v4';
 import type { ToolDefinition } from '../types';
 
 import { internal } from '../../_generated/api';
+import { validateFolderName } from '../../folders/mutations';
 import { toId } from '../../lib/type_cast_helpers';
 import { getApprovalThreadId } from '../../threads/get_parent_thread_id';
 
@@ -103,6 +104,21 @@ PARAMETERS:
         };
       }
 
+      if (args.folderPath) {
+        const segments = args.folderPath.split('/').filter(Boolean);
+        for (const segment of segments) {
+          try {
+            validateFolderName(segment);
+          } catch (err) {
+            return {
+              success: false,
+              message: `Invalid folder path segment "${segment}": ${err instanceof Error ? err.message : 'invalid name'}. Please use a valid folder path.`,
+              error: `Invalid folder path: ${args.folderPath}`,
+            };
+          }
+        }
+      }
+
       const filesMetadata: Array<{
         fileId: string;
         fileName: string;
@@ -122,6 +138,14 @@ PARAMETERS:
             success: false,
             message: `File metadata not found for storage ID "${file.fileId}". The file may not have been properly saved. Try generating the file again.`,
             error: `File metadata not found: ${file.fileId}`,
+          };
+        }
+
+        if (fileMetadata.organizationId !== organizationId) {
+          return {
+            success: false,
+            message: `File "${file.fileId}" does not belong to this organization.`,
+            error: `Organization mismatch for file: ${file.fileId}`,
           };
         }
 

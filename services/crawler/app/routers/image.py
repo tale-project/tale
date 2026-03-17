@@ -11,6 +11,7 @@ from app.models import (
     MarkdownToImageRequest,
     UrlToImageRequest,
 )
+from app.exceptions import DownloadDetectedException
 from app.services.image_service import get_image_service
 from app.utils.http_download import download_file
 
@@ -141,7 +142,7 @@ async def convert_url_to_image(request: UrlToImageRequest):
             headers={"Content-Disposition": f"attachment; filename=screenshot.{ext}"},
         )
 
-    except ValueError:
+    except DownloadDetectedException:
         logger.info(f"URL triggers download, falling back to HTTP: {request.url}")
         try:
             timeout_seconds = request.timeout / 1000
