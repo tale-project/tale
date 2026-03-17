@@ -1156,33 +1156,36 @@ export async function generateAgentResponse(
           excludeToolMessages: false,
         });
 
+        // Find the first assistant message in the current response order group.
+        // We must link to an assistant message (not tool messages) because the UI
+        // only loads user/assistant messages — tool message IDs are not in the
+        // rendered message set and approvals linked to them would be invisible.
         const latestAssistantMessage = messagesResult.page.find(
           (m: MessageDoc) => m.message?.role === 'assistant',
         );
 
         if (latestAssistantMessage) {
           const currentOrder = latestAssistantMessage.order;
-          const messagesInSameOrder = messagesResult.page.filter(
-            (m: MessageDoc) =>
-              m.order === currentOrder && m.message?.role !== 'user',
-          );
-
-          messagesInSameOrder.sort(
-            (a: MessageDoc, b: MessageDoc) => a.stepOrder - b.stepOrder,
-          );
-          const firstMessageInOrder =
-            messagesInSameOrder[0] || latestAssistantMessage;
+          const firstAssistantInOrder =
+            messagesResult.page
+              .filter(
+                (m: MessageDoc) =>
+                  m.order === currentOrder && m.message?.role === 'assistant',
+              )
+              .sort(
+                (a: MessageDoc, b: MessageDoc) => a.stepOrder - b.stepOrder,
+              )[0] ?? latestAssistantMessage;
 
           const linkedCount = await ctx.runMutation(
             internal.approvals.internal_mutations.linkApprovalsToMessage,
             {
               threadId,
-              messageId: firstMessageInOrder._id,
+              messageId: firstAssistantInOrder._id,
             },
           );
           if (linkedCount > 0) {
             debugLog(
-              `Linked ${linkedCount} pending approvals to message ${firstMessageInOrder._id}`,
+              `Linked ${linkedCount} pending approvals to message ${firstAssistantInOrder._id}`,
             );
           }
         }
