@@ -1159,17 +1159,44 @@ export async function generateAgentResponse(
     // Link approvals to message (only for main agent, not sub-agents)
     if (!parentThreadId && savedMessageId) {
       try {
-        const linkedCount = await ctx.runMutation(
-          internal.approvals.internal_mutations.linkApprovalsToMessage,
-          {
-            threadId,
-            messageId: savedMessageId,
-          },
+        const messagesResult = await listMessages(ctx, components.agent, {
+          threadId,
+          paginationOpts: { cursor: null, numItems: 50 },
+          excludeToolMessages: false,
+        });
+
+        // Find the first assistant message in the current response order group.
+        // We must link to an assistant message (not tool messages) because the UI
+        // only loads user/assistant messages — tool message IDs are not in the
+        // rendered message set and approvals linked to them would be invisible.
+        const latestAssistantMessage = messagesResult.page.find(
+          (m: MessageDoc) => m.message?.role === 'assistant',
         );
-        if (linkedCount > 0) {
-          debugLog(
-            `Linked ${linkedCount} pending approvals to message ${savedMessageId}`,
+
+        if (latestAssistantMessage) {
+          const currentOrder = latestAssistantMessage.order;
+          const firstAssistantInOrder =
+            messagesResult.page
+              .filter(
+                (m: MessageDoc) =>
+                  m.order === currentOrder && m.message?.role === 'assistant',
+              )
+              .sort(
+                (a: MessageDoc, b: MessageDoc) => a.stepOrder - b.stepOrder,
+              )[0] ?? latestAssistantMessage;
+
+          const linkedCount = await ctx.runMutation(
+            internal.approvals.internal_mutations.linkApprovalsToMessage,
+            {
+              threadId,
+              messageId: firstAssistantInOrder._id,
+            },
           );
+          if (linkedCount > 0) {
+            debugLog(
+              `Linked ${linkedCount} pending approvals to message ${firstAssistantInOrder._id}`,
+            );
+          }
         }
       } catch (error) {
         console.error(

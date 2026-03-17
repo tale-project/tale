@@ -1,13 +1,15 @@
 'use client';
 
+import type { Doc } from '@/convex/_generated/dataModel';
+import type { CustomerInfo } from '@/convex/conversations/types';
+
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
-import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { CustomerInformation } from './customer-information';
 
 interface CustomerInfoDialogProps {
-  customer: Doc<'customers'>;
+  customer: Doc<'customers'> | CustomerInfo;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   className?: string;

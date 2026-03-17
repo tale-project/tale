@@ -274,13 +274,11 @@ export function ConversationHeader({
       </HStack>
 
       {/* Customer Info Dialog */}
-      {customerDoc && (
-        <CustomerInfoDialog
-          customer={customerDoc}
-          open={isCustomerInfoOpen}
-          onOpenChange={setIsCustomerInfoOpen}
-        />
-      )}
+      <CustomerInfoDialog
+        customer={customerDoc ?? conversation.customer}
+        open={isCustomerInfoOpen}
+        onOpenChange={setIsCustomerInfoOpen}
+      />
     </>
   );
 }
