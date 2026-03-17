@@ -106,18 +106,18 @@ describe('documentWriteArgs schema validation', () => {
   });
 
   it('rejects array exceeding max size', () => {
-    const files = Array.from({ length: 21 }, (_, i) => ({
+    const files = Array.from({ length: 51 }, (_, i) => ({
       fileId: `storage-${i}`,
     }));
     expect(() => documentWriteArgs.parse({ files })).toThrow();
   });
 
   it('accepts max size array', () => {
-    const files = Array.from({ length: 20 }, (_, i) => ({
+    const files = Array.from({ length: 50 }, (_, i) => ({
       fileId: `storage-${i}`,
     }));
     const result = documentWriteArgs.parse({ files });
-    expect(result.files).toHaveLength(20);
+    expect(result.files).toHaveLength(50);
   });
 
   it('accepts folderPath without titles', () => {
