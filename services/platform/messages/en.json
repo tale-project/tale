@@ -2064,6 +2064,23 @@
     "statusApproved": "Approved",
     "statusRejected": "Rejected"
   },
+  "documentWriteApproval": {
+    "cardTitle": "Save to documents",
+    "cardTitleWithCount": "Save {count} files to documents",
+    "approve": "Approve",
+    "reject": "Reject",
+    "approveTooltip": "Approve and save this document",
+    "approveTooltipBatch": "Approve and save all documents",
+    "rejectTooltip": "Reject this document save",
+    "rejectTooltipBatch": "Reject all document saves",
+    "savedSuccessfully": "Saved to your documents",
+    "savedPartially": "{success} of {total} files saved successfully",
+    "fileFailed": "Failed to save",
+    "statusApprovedFailed": "This document was approved but failed to save.",
+    "statusApprovedSuccess": "This document was saved to your documents.",
+    "statusApprovedPartial": "Some documents failed to save.",
+    "statusRejected": "This document save was rejected."
+  },
   "integrationApproval": {
     "approve": "Approve",
     "reject": "Reject",

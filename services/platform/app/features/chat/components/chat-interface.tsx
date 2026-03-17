@@ -19,6 +19,7 @@ import type { FileAttachment } from '../types';
 import { useChatLayout } from '../context/chat-layout-context';
 import {
   useChatAgents,
+  useDocumentWriteApprovals,
   useHumanInputRequests,
   useIntegrationApprovals,
   useWorkflowCreationApprovals,
@@ -122,6 +123,10 @@ export function ChatInterface({
     organizationId,
     threadId,
   );
+  const { approvals: documentWriteApprovals } = useDocumentWriteApprovals(
+    organizationId,
+    threadId,
+  );
 
   // Merge messages with approvals and human input requests
   const mergedChatItems = useMergedChatItems({
@@ -131,6 +136,7 @@ export function ChatInterface({
     workflowUpdateApprovals,
     workflowRunApprovals,
     humanInputRequests,
+    documentWriteApprovals,
   });
 
   // Server-derived generation status (reactive Convex subscription)

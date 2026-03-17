@@ -122,6 +122,8 @@ EXAMPLES:
 • Parse: { "operation": "parse", "fileId": "kg2bazp7...", "filename": "report.xlsx" }
 
 CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the result. Never fabricate URLs.
+
+AFTER GENERATING: To save the file to a folder in the documents hub, call document_write with the returned fileStorageId and the desired folderPath.
 `,
     args: excelArgs,
     handler: async (ctx: ToolCtx, args): Promise<ExcelResult> => {

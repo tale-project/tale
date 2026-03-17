@@ -88,7 +88,15 @@ export const SYSTEM_DEFAULT_AGENT_TEMPLATES: SystemDefaultAgentTemplate[] = [
     description:
       'Reads and creates files (PDF, Word, Excel, etc.). Can also create visual images by rendering HTML/CSS/SVG — use it for illustrations, charts, infographics, diagrams, and web page screenshots.',
     systemInstructions: FILE_AGENT_INSTRUCTIONS,
-    toolNames: ['pdf', 'image', 'docx', 'pptx', 'text', 'excel'],
+    toolNames: [
+      'pdf',
+      'image',
+      'docx',
+      'pptx',
+      'text',
+      'excel',
+      'document_write',
+    ],
     delegateSlugs: [],
     maxSteps: 15,
     timeoutMs: 180_000,

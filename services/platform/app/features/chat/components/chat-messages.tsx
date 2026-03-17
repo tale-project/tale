@@ -10,6 +10,7 @@ import { useT } from '@/lib/i18n/client';
 
 import type { ChatItem } from '../hooks/use-merged-chat-items';
 
+import { DocumentWriteApprovalCard } from './document-write-approval-card';
 import { HumanInputRequestCard } from './human-input-request-card';
 import { IntegrationApprovalCard } from './integration-approval-card';
 import { MessageBubble } from './message-bubble';
@@ -199,6 +200,23 @@ export function ChatMessages({
                 status={request.status}
                 metadata={request.metadata}
                 onResponseSubmitted={onHumanInputResponseSubmitted}
+              />
+            </div>
+          );
+        } else if (item.type === 'document_write_approval') {
+          const approval = item.data;
+          return (
+            <div
+              key={`document-write-${approval._id}`}
+              className="flex justify-start"
+            >
+              <DocumentWriteApprovalCard
+                approvalId={approval._id}
+                organizationId={organizationId}
+                status={approval.status}
+                metadata={approval.metadata}
+                executedAt={approval.executedAt}
+                executionError={approval.executionError}
               />
             </div>
           );

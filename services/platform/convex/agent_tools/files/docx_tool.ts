@@ -199,6 +199,8 @@ EXAMPLES:
 • Parse: { "operation": "parse", "fileId": "kg2bazp7...", "filename": "document.docx", "user_input": "Extract the main points" }
 
 CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the result. Never fabricate URLs.
+
+AFTER GENERATING: To save the file to a folder in the documents hub, call document_write with the returned fileStorageId and the desired folderPath.
 `,
     args: docxArgs,
     handler: async (ctx: ToolCtx, args): Promise<DocxResult> => {

@@ -37,7 +37,6 @@ import { components, internal } from '../../_generated/api';
 import { queryRagContext } from '../../agent_tools/rag/query_rag_context';
 import { queryWebContext } from '../../agent_tools/web/helpers/query_web_context';
 import { onAgentComplete } from '../agent_completion';
-import { getFastModel } from '../agent_runtime_config';
 import {
   buildStructuredContext,
   AGENT_CONTEXT_CONFIGS,
@@ -623,7 +622,6 @@ export async function generateAgentResponse(
           const retryAgent = createAgent({
             ...agentOptions,
             withTools: false,
-            model: getFastModel(),
           });
 
           const retrySystemPrompt = agentInstructions
@@ -640,7 +638,7 @@ export async function generateAgentResponse(
           debugLog('Stream tool-result retry starting', {
             timeoutMs: retryRemainingMs,
             contextTokens: retryContext.stats.totalTokens,
-            model: getFastModel(),
+            model,
             elapsedMs: streamRetryStartTime - startTime,
           });
 
@@ -781,12 +779,9 @@ export async function generateAgentResponse(
             messageCount: retryContext.stats.messageCount,
           });
 
-          // Create agent without tools for the retry, using the fast model
-          // since this is just summarizing tool results
           const retryAgent = createAgent({
             ...agentOptions,
             withTools: false,
-            model: getFastModel(),
           });
 
           const retrySystemPrompt = agentInstructions
@@ -801,7 +796,7 @@ export async function generateAgentResponse(
           debugLog('Tool-result retry starting', {
             timeoutMs: nonStreamRetryRemainingMs,
             contextTokens: retryContext.stats.totalTokens,
-            model: getFastModel(),
+            model,
             elapsedMs: retryStartTime - startTime,
           });
 
@@ -869,7 +864,6 @@ export async function generateAgentResponse(
           const retryAgent = createAgent({
             ...agentOptions,
             withTools: false,
-            model: getFastModel(),
           });
 
           const emptyRetrySystemPrompt = agentInstructions
@@ -884,7 +878,7 @@ export async function generateAgentResponse(
           debugLog('Empty text retry starting', {
             timeoutMs: emptyRetryRemainingMs,
             contextTokens: retryContext.stats.totalTokens,
-            model: getFastModel(),
+            model,
             elapsedMs: emptyRetryStartTime - startTime,
           });
 
@@ -975,7 +969,6 @@ export async function generateAgentResponse(
         const recoveryAgent = createAgent({
           ...agentOptions,
           withTools: false,
-          model: getFastModel(),
         });
 
         const recoverySystemPrompt = agentInstructions
@@ -998,7 +991,7 @@ export async function generateAgentResponse(
         debugLog('Timeout recovery starting', {
           timeoutMs: recoveryRemainingMs,
           contextTokens: recoveryContext.stats.totalTokens,
-          model: getFastModel(),
+          model,
           elapsedMs: recoveryStartTime - startTime,
         });
 
@@ -1057,6 +1050,18 @@ export async function generateAgentResponse(
           elapsedMs: Date.now() - startTime,
         });
       }
+    }
+
+    // Persist retry/fallback text to the saved message so it survives page reloads.
+    // Retries use saveMessages: 'none', so the SDK-saved message still has the
+    // original (empty/preamble) text. Update it with the final result.
+    if (savedMessageId && result.text) {
+      await ctx.runMutation(components.agent.messages.updateMessage, {
+        messageId: savedMessageId,
+        patch: {
+          message: { role: 'assistant', content: result.text },
+        },
+      });
     }
 
     const durationMs = Date.now() - startTime;

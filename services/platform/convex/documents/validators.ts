@@ -10,6 +10,7 @@ export const sourceProviderValidator = v.union(
   v.literal('onedrive'),
   v.literal('upload'),
   v.literal('sharepoint'),
+  v.literal('agent'),
 );
 
 export const sourceModeValidator = v.union(

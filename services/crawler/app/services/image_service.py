@@ -159,6 +159,7 @@ class ImageService(BaseConverterService):
         Uses a fallback strategy: tries 'load' event first, falls back to 'domcontentloaded'
         if 'load' times out. This handles sites with slow/failing external resources.
         """
+        from playwright.async_api import Error as PlaywrightError
         from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
         logger.info(f"Capturing screenshot: {url} ({width}x{height})")
@@ -167,20 +168,23 @@ class ImageService(BaseConverterService):
         try:
             await page.set_viewport_size({"width": width, "height": height})
 
-            # Handle different wait_until strategies
-            if wait_until == "commit":
-                # For commit, use it directly and skip extra waits
-                await page.goto(url, wait_until="commit", timeout=timeout)
-            else:
-                # Navigate with domcontentloaded first (fast, reliable), then optionally wait for more
-                await page.goto(url, wait_until="domcontentloaded", timeout=timeout)
+            # Navigate to URL, detecting download-triggered responses
+            try:
+                if wait_until == "commit":
+                    await page.goto(url, wait_until="commit", timeout=timeout)
+                else:
+                    await page.goto(url, wait_until="domcontentloaded", timeout=timeout)
+            except PlaywrightError as e:
+                if "Download is starting" in str(e):
+                    raise ValueError(f"URL triggers a file download instead of rendering a page: {url}") from e
+                raise
 
-                # If 'load' or 'networkidle' was requested, try to wait for it but don't fail if it times out
-                if wait_until in ("load", "networkidle"):
-                    try:
-                        await page.wait_for_load_state(wait_until, timeout=timeout)
-                    except PlaywrightTimeoutError:
-                        logger.warning(f"'{wait_until}' timed out after {timeout}ms, using domcontentloaded")
+            # If 'load' or 'networkidle' was requested, try to wait for it but don't fail if it times out
+            if wait_until in ("load", "networkidle"):
+                try:
+                    await page.wait_for_load_state(wait_until, timeout=timeout)
+                except PlaywrightTimeoutError:
+                    logger.warning(f"'{wait_until}' timed out after {timeout}ms, using domcontentloaded")
 
             # Dismiss cookie consent dialogs before taking screenshot
             await self._dismiss_cookie_dialogs(page)

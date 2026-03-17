@@ -12,6 +12,7 @@ import { customerReadTool } from './customers/customer_read_tool';
 import { databaseSchemaTool } from './database/database_schema_tool';
 import { documentFindTool } from './documents/document_find_tool';
 import { documentRetrieveTool } from './documents/document_retrieve_tool';
+import { documentWriteTool } from './documents/document_write_tool';
 import { docxTool } from './files/docx_tool';
 import { excelTool } from './files/excel_tool';
 import { imageTool } from './files/image_tool';
@@ -64,6 +65,7 @@ export const TOOL_REGISTRY = [
   requestHumanInputTool,
   documentFindTool,
   documentRetrieveTool,
+  documentWriteTool,
 ] as const;
 
 /**

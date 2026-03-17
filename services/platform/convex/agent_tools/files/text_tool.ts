@@ -111,6 +111,8 @@ EXAMPLES:
 • Generate: { "operation": "generate", "filename": "report.md", "content": "# Report\\n\\nContent here..." }
 
 Returns: { success, downloadUrl (for generate), result (for parse), char_count, line_count }
+
+AFTER GENERATING: To save the file to a folder in the documents hub, call document_write with the returned fileStorageId and the desired folderPath.
 `,
     args: textArgs,
     handler: async (ctx: ToolCtx, args): Promise<TextResult> => {

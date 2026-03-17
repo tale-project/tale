@@ -124,12 +124,18 @@ class PdfService(BaseConverterService):
         Uses a fallback strategy: tries 'load' event first, falls back to 'domcontentloaded'
         if 'load' times out. This handles sites with slow/failing external resources.
         """
+        from playwright.async_api import Error as PlaywrightError
         from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
         page = await self._get_page()
         try:
-            # Navigate with domcontentloaded first (fast, reliable), then optionally wait for load
-            await page.goto(url, wait_until="domcontentloaded", timeout=timeout)
+            # Navigate with domcontentloaded first, detecting download-triggered responses
+            try:
+                await page.goto(url, wait_until="domcontentloaded", timeout=timeout)
+            except PlaywrightError as e:
+                if "Download is starting" in str(e):
+                    raise ValueError(f"URL triggers a file download instead of rendering a page: {url}") from e
+                raise
 
             # If 'load' was requested, try to wait for it but don't fail if it times out
             if wait_until == "load":

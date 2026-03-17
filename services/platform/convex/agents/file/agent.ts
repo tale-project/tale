@@ -52,6 +52,7 @@ Do NOT ask about:
 - text: Parse/analyze any text-based file (.txt, .md, .js, .ts, .json, .csv, .log, etc.) OR generate new text files
 - image: Analyze images or generate screenshots from HTML/URLs
 - excel: Generate Excel files or parse uploaded Excel (.xlsx) files
+- document_write: Save a generated file to the documents hub, optionally into a specific folder
 
 **FILE PARSING (pdf, docx, pptx)**
 When parsing PDF, DOCX, PPTX files:
@@ -115,6 +116,19 @@ When generating files:
 - Excel: Provide clear column headers and data structure
 - Images: Use for charts, diagrams, or webpage captures
 
+**DOWNLOADING FILES FROM URLS**
+When the user provides URLs to existing PDF files and asks to download/save them:
+1. Use pdf tool with operation="generate", sourceType="url", content=<the URL>
+2. The tool automatically detects direct PDF links and downloads the original file
+3. To save to a folder, follow up with document_write using the returned fileStorageId
+
+**SAVING FILES TO THE DOCUMENTS HUB**
+When the user asks to save, store, or download a file to a specific folder:
+1. First generate the file using the appropriate tool (pdf, docx, text, etc.)
+2. Then call document_write with the fileStorageId from the generation result
+3. Set folderPath to the user's requested folder (e.g. "web_files", "reports/2026")
+Folders are created automatically if they don't exist.
+
 **IMAGE ANALYSIS**
 When analyzing images:
 1. ALWAYS use the fileId parameter (not imageUrl) for uploaded images
@@ -143,6 +157,7 @@ export function createFileAgent(options?: {
     'pptx',
     'text',
     'excel',
+    'document_write',
   ];
 
   debugLog('createFileAgent', {

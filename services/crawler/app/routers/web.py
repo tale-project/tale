@@ -20,14 +20,9 @@ from app.services.database import get_pool
 from app.services.file_parser_service import get_file_parser_service
 from app.services.web_image_extractor import extract_and_describe_images
 from app.utils.content_type import detect_type_from_content_type, detect_type_from_url
+from app.utils.http_download import HTTP_HEADERS, download_file
 
 router = APIRouter(prefix="/api/v1/web", tags=["Web"])
-
-MAX_FILE_DOWNLOAD_BYTES = 100 * 1024 * 1024  # 100 MB
-_HTTP_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (compatible; TaleCrawler/1.0)",
-    "Accept": "*/*",
-}
 
 
 def validate_url_not_private(url_str: str) -> str:
@@ -86,7 +81,7 @@ async def _probe_url(url_str: str, timeout: float) -> tuple[str, str | None, str
         Tuple of (content_type_header, extension_or_None, category).
     """
     try:
-        async with httpx.AsyncClient(follow_redirects=True, timeout=timeout, headers=_HTTP_HEADERS) as client:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=timeout, headers=HTTP_HEADERS) as client:
             response = await client.head(url_str)
             content_type = response.headers.get("content-type", "")
             ext, category = detect_type_from_content_type(content_type)
@@ -94,44 +89,6 @@ async def _probe_url(url_str: str, timeout: float) -> tuple[str, str | None, str
     except httpx.HTTPError:
         logger.debug(f"HEAD request failed for {url_str}, will try URL extension detection")
         return "", None, "unknown"
-
-
-async def _download_file(url_str: str, timeout: float) -> tuple[bytes, str]:
-    """
-    Download file bytes from a URL using streaming.
-
-    Returns:
-        Tuple of (file_bytes, content_type).
-
-    Raises:
-        HTTPException: If file exceeds max size or download fails.
-    """
-    async with (
-        httpx.AsyncClient(follow_redirects=True, timeout=timeout, headers=_HTTP_HEADERS) as client,
-        client.stream("GET", url_str) as response,
-    ):
-        response.raise_for_status()
-        content_type = response.headers.get("content-type", "")
-        content_length = response.headers.get("content-length")
-
-        if content_length and int(content_length) > MAX_FILE_DOWNLOAD_BYTES:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"File too large ({int(content_length)} bytes). Maximum: {MAX_FILE_DOWNLOAD_BYTES} bytes.",
-            )
-
-        chunks = []
-        total = 0
-        async for chunk in response.aiter_bytes():
-            total += len(chunk)
-            if total > MAX_FILE_DOWNLOAD_BYTES:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"File too large (>{MAX_FILE_DOWNLOAD_BYTES} bytes). Download aborted.",
-                )
-            chunks.append(chunk)
-
-        return b"".join(chunks), content_type
 
 
 def _build_filename(hostname: str, ext: str) -> str:
@@ -149,7 +106,7 @@ async def _extract_from_file(
 ) -> WebFetchExtractResponse:
     """Download a file URL and extract content using the appropriate parser."""
     logger.info(f"Downloading file ({file_ext}): {url_str}")
-    file_bytes, actual_ct = await _download_file(url_str, timeout)
+    file_bytes, actual_ct = await download_file(url_str, timeout)
     logger.info(f"Downloaded {len(file_bytes)} bytes, parsing as {file_ext}")
 
     parser = get_file_parser_service()
@@ -204,7 +161,7 @@ async def _extract_from_image(
     from app.services.vision.openai_client import process_pages_with_llm, vision_client
 
     logger.info(f"Downloading image: {url_str}")
-    image_bytes, actual_ct = await _download_file(url_str, timeout)
+    image_bytes, actual_ct = await download_file(url_str, timeout)
     logger.info(f"Downloaded image ({len(image_bytes)} bytes), extracting with Vision API")
 
     detected_ct = actual_ct or content_type or ""
