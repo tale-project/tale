@@ -83,6 +83,14 @@ export const integrationConfigSchema = z
     connectionConfig: connectionConfigSchema,
     sqlConnectionConfig: sqlConnectionConfigSchema,
     oauth2Config: oauth2ConfigSchema,
+    capabilities: z
+      .object({
+        canSync: z.boolean().optional(),
+        canPush: z.boolean().optional(),
+        canWebhook: z.boolean().optional(),
+        syncFrequency: z.string().optional(),
+      })
+      .optional(),
   })
   .refine(
     (data) =>

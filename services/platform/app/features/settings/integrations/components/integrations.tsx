@@ -115,7 +115,7 @@ export function Integrations({
                 className="text-primary flex h-6 items-center gap-1"
               >
                 <Plus className="size-4" />
-                {t('integrations.upload.uploadPackage')}
+                {t('integrations.upload.addIntegration')}
               </Text>
             }
             footerClassName="border-border border-t px-5 py-4"

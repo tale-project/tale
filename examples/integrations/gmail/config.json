@@ -4,9 +4,16 @@
   "description": "Google Gmail API integration for email, labels, threads, and drafts",
   "version": 2,
   "authMethod": "oauth2",
-  "supportedAuthMethods": ["oauth2"],
-  "secretBindings": ["accessToken"],
-  "allowedHosts": ["gmail.googleapis.com", "www.googleapis.com"],
+  "supportedAuthMethods": [
+    "oauth2"
+  ],
+  "secretBindings": [
+    "accessToken"
+  ],
+  "allowedHosts": [
+    "gmail.googleapis.com",
+    "www.googleapis.com"
+  ],
   "oauth2Config": {
     "authorizationUrl": "https://accounts.google.com/o/oauth2/v2/auth",
     "tokenUrl": "https://oauth2.googleapis.com/token",
@@ -25,10 +32,26 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "q": { "type": "string", "description": "Gmail search query (same syntax as the Gmail search box, e.g. \"from:user@example.com is:unread\")", "required": false },
-          "maxResults": { "type": "number", "description": "Maximum number of messages to return (max 500, default 25)", "required": false },
-          "pageToken": { "type": "string", "description": "Page token from a previous list request for pagination", "required": false },
-          "labelIds": { "type": "string", "description": "Comma-separated label IDs to filter by (e.g. \"INBOX\", \"UNREAD\", \"STARRED\")", "required": false }
+          "q": {
+            "type": "string",
+            "description": "Gmail search query (same syntax as the Gmail search box, e.g. \"from:user@example.com is:unread\")",
+            "required": false
+          },
+          "maxResults": {
+            "type": "number",
+            "description": "Maximum number of messages to return (max 500, default 25)",
+            "required": false
+          },
+          "pageToken": {
+            "type": "string",
+            "description": "Page token from a previous list request for pagination",
+            "required": false
+          },
+          "labelIds": {
+            "type": "string",
+            "description": "Comma-separated label IDs to filter by (e.g. \"INBOX\", \"UNREAD\", \"STARRED\")",
+            "required": false
+          }
         }
       }
     },
@@ -39,9 +62,21 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "messageId": { "type": "string", "description": "The message ID returned from list_messages or search_messages", "required": true },
-          "format": { "type": "string", "description": "Response format: full (default, includes parsed body), metadata (headers only), minimal (IDs only), or raw (RFC 2822)", "required": false },
-          "includeAttachments": { "type": "boolean", "description": "When true, downloads and stores all file attachments. Each attachment is stored and returned with a fileId and URL.", "required": false }
+          "messageId": {
+            "type": "string",
+            "description": "The message ID returned from list_messages or search_messages",
+            "required": true
+          },
+          "format": {
+            "type": "string",
+            "description": "Response format: full (default, includes parsed body), metadata (headers only), minimal (IDs only), or raw (RFC 2822)",
+            "required": false
+          },
+          "includeAttachments": {
+            "type": "boolean",
+            "description": "When true, downloads and stores all file attachments. Each attachment is stored and returned with a fileId and URL.",
+            "required": false
+          }
         }
       }
     },
@@ -52,7 +87,11 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "messageId": { "type": "string", "description": "The message ID containing the attachments", "required": true }
+          "messageId": {
+            "type": "string",
+            "description": "The message ID containing the attachments",
+            "required": true
+          }
         }
       }
     },
@@ -63,9 +102,21 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "query": { "type": "string", "description": "Gmail search query (e.g. \"subject:invoice after:2025/01/01 has:attachment\")", "required": true },
-          "maxResults": { "type": "number", "description": "Maximum number of results to return (max 500, default 25)", "required": false },
-          "pageToken": { "type": "string", "description": "Page token from a previous search for pagination", "required": false }
+          "query": {
+            "type": "string",
+            "description": "Gmail search query (e.g. \"subject:invoice after:2025/01/01 has:attachment\")",
+            "required": true
+          },
+          "maxResults": {
+            "type": "number",
+            "description": "Maximum number of results to return (max 500, default 25)",
+            "required": false
+          },
+          "pageToken": {
+            "type": "string",
+            "description": "Page token from a previous search for pagination",
+            "required": false
+          }
         }
       }
     },
@@ -78,16 +129,56 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "to": { "type": "string", "description": "Recipient email address (e.g. \"user@example.com\")", "required": true },
-          "subject": { "type": "string", "description": "Email subject line", "required": true },
-          "body": { "type": "string", "description": "Email body content", "required": false },
-          "cc": { "type": "string", "description": "CC recipient email address", "required": false },
-          "bcc": { "type": "string", "description": "BCC recipient email address", "required": false },
-          "contentType": { "type": "string", "description": "Body content type: \"text/plain\" (default) or \"text/html\"", "required": false },
-          "threadId": { "type": "string", "description": "Thread ID to reply to (from a previous message's threadId). Gmail will group the message into the same conversation.", "required": false },
-          "inReplyTo": { "type": "string", "description": "RFC 2822 Message-ID of the message being replied to (e.g. \"<CABx...@mail.gmail.com>\"). Sets the In-Reply-To MIME header.", "required": false },
-          "references": { "type": "string", "description": "Space-separated list of Message-IDs for the References MIME header. If omitted, inReplyTo value is used.", "required": false },
-          "attachments": { "type": "array", "description": "Array of file attachments, each with name (string), contentType (string), and url (Convex file storage URL)", "required": false }
+          "to": {
+            "type": "string",
+            "description": "Recipient email address (e.g. \"user@example.com\")",
+            "required": true
+          },
+          "subject": {
+            "type": "string",
+            "description": "Email subject line",
+            "required": true
+          },
+          "body": {
+            "type": "string",
+            "description": "Email body content",
+            "required": false
+          },
+          "cc": {
+            "type": "string",
+            "description": "CC recipient email address",
+            "required": false
+          },
+          "bcc": {
+            "type": "string",
+            "description": "BCC recipient email address",
+            "required": false
+          },
+          "contentType": {
+            "type": "string",
+            "description": "Body content type: \"text/plain\" (default) or \"text/html\"",
+            "required": false
+          },
+          "threadId": {
+            "type": "string",
+            "description": "Thread ID to reply to (from a previous message's threadId). Gmail will group the message into the same conversation.",
+            "required": false
+          },
+          "inReplyTo": {
+            "type": "string",
+            "description": "RFC 2822 Message-ID of the message being replied to (e.g. \"<CABx...@mail.gmail.com>\"). Sets the In-Reply-To MIME header.",
+            "required": false
+          },
+          "references": {
+            "type": "string",
+            "description": "Space-separated list of Message-IDs for the References MIME header. If omitted, inReplyTo value is used.",
+            "required": false
+          },
+          "attachments": {
+            "type": "array",
+            "description": "Array of file attachments, each with name (string), contentType (string), and url (Convex file storage URL)",
+            "required": false
+          }
         }
       }
     },
@@ -107,8 +198,16 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "threadId": { "type": "string", "description": "The thread ID to retrieve", "required": true },
-          "format": { "type": "string", "description": "Response format: full (default), metadata, minimal, or email (maps to standard email type with from/to/subject/text/html/attachments/conversationId/direction)", "required": false }
+          "threadId": {
+            "type": "string",
+            "description": "The thread ID to retrieve",
+            "required": true
+          },
+          "format": {
+            "type": "string",
+            "description": "Response format: full (default), metadata, minimal, or email (maps to standard email type with from/to/subject/text/html/attachments/conversationId/direction)",
+            "required": false
+          }
         }
       }
     },
@@ -119,8 +218,16 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "maxResults": { "type": "number", "description": "Maximum number of drafts to return (max 500, default 25)", "required": false },
-          "pageToken": { "type": "string", "description": "Page token from a previous list request for pagination", "required": false }
+          "maxResults": {
+            "type": "number",
+            "description": "Maximum number of drafts to return (max 500, default 25)",
+            "required": false
+          },
+          "pageToken": {
+            "type": "string",
+            "description": "Page token from a previous list request for pagination",
+            "required": false
+          }
         }
       }
     },
@@ -131,10 +238,22 @@
       "parametersSchema": {
         "type": "object",
         "properties": {
-          "messageId": { "type": "string", "description": "The message ID containing the attachment", "required": true },
-          "attachmentId": { "type": "string", "description": "The attachment ID from the message payload", "required": true }
+          "messageId": {
+            "type": "string",
+            "description": "The message ID containing the attachment",
+            "required": true
+          },
+          "attachmentId": {
+            "type": "string",
+            "description": "The attachment ID from the message payload",
+            "required": true
+          }
         }
       }
     }
-  ]
+  ],
+  "capabilities": {
+    "canSync": true,
+    "syncFrequency": "0 */6 * * *"
+  }
 }
