@@ -1,14 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockListMessages = vi.fn();
-const mockListStreams = vi.fn();
 vi.mock('@convex-dev/agent', () => ({
   listMessages: mockListMessages,
-  listStreams: mockListStreams,
 }));
 
+const mockGetStreamStatus = vi.fn();
 vi.mock('../../_generated/api', () => ({
-  components: { agent: {} },
+  components: {
+    agent: {},
+    persistentTextStreaming: {
+      lib: { getStreamStatus: 'mock-getStreamStatus' },
+    },
+  },
 }));
 
 vi.mock('../../_generated/server', () => ({
@@ -20,7 +24,6 @@ vi.mock('../../lib/rls', () => ({
   getAuthUserIdentity: (...args: unknown[]) => mockGetAuthUserIdentity(...args),
 }));
 
-// The query() mock strips the wrapper and returns the raw handler function
 const { isThreadGenerating: isThreadGeneratingQuery } =
   await import('../queries');
 const isThreadGenerating = isThreadGeneratingQuery as unknown as (
@@ -28,145 +31,198 @@ const isThreadGenerating = isThreadGeneratingQuery as unknown as (
   args: { threadId: string },
 ) => Promise<boolean>;
 
-function createMockCtx() {
-  return {};
+function createMockCtx(threadMeta?: {
+  generationStatus?: string;
+  streamId?: string;
+}) {
+  return {
+    db: {
+      query: () => ({
+        withIndex: () => ({
+          first: vi.fn().mockResolvedValue(threadMeta ?? null),
+        }),
+      }),
+    },
+    runQuery: mockGetStreamStatus,
+  };
 }
 
-describe('isThreadGenerating — zombie stream detection', () => {
+describe('isThreadGenerating — threadMetadata-based detection', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetAuthUserIdentity.mockResolvedValue({ userId: 'user_1' });
-    mockListStreams.mockResolvedValue([]);
     mockListMessages.mockResolvedValue({ page: [] });
-  });
-
-  it('returns false when no active streams exist', async () => {
-    mockListStreams.mockResolvedValue([]);
-
-    const result = await isThreadGenerating(createMockCtx(), {
-      threadId: 'thread_1',
-    });
-
-    expect(result).toBe(false);
-    expect(mockListStreams).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.anything(),
-      { threadId: 'thread_1', includeStatuses: ['streaming'] },
-    );
-    expect(mockListMessages).not.toHaveBeenCalled();
-  });
-
-  it('returns true when active streams exist and latest assistant has no terminal status', async () => {
-    mockListStreams.mockResolvedValue([
-      { streamId: 'stream_1', status: 'streaming' },
-    ]);
-    mockListMessages.mockResolvedValue({
-      page: [
-        {
-          message: { role: 'assistant', content: 'thinking...' },
-          status: 'pending',
-        },
-      ],
-    });
-
-    const result = await isThreadGenerating(createMockCtx(), {
-      threadId: 'thread_1',
-    });
-
-    expect(result).toBe(true);
-  });
-
-  it('returns false when active streams exist but latest assistant is failed (zombie)', async () => {
-    mockListStreams.mockResolvedValue([
-      { streamId: 'stream_zombie', status: 'streaming' },
-    ]);
-    mockListMessages.mockResolvedValue({
-      page: [
-        {
-          message: { role: 'assistant', content: 'error' },
-          status: 'failed',
-        },
-      ],
-    });
-
-    const result = await isThreadGenerating(createMockCtx(), {
-      threadId: 'thread_1',
-    });
-
-    expect(result).toBe(false);
-  });
-
-  it('returns false when active streams exist but latest assistant is success (zombie)', async () => {
-    mockListStreams.mockResolvedValue([
-      { streamId: 'stream_zombie', status: 'streaming' },
-    ]);
-    mockListMessages.mockResolvedValue({
-      page: [
-        {
-          message: { role: 'assistant', content: 'done' },
-          status: 'success',
-        },
-      ],
-    });
-
-    const result = await isThreadGenerating(createMockCtx(), {
-      threadId: 'thread_1',
-    });
-
-    expect(result).toBe(false);
-  });
-
-  it('returns true when active streams exist and no assistant messages found', async () => {
-    mockListStreams.mockResolvedValue([
-      { streamId: 'stream_1', status: 'streaming' },
-    ]);
-    mockListMessages.mockResolvedValue({
-      page: [{ message: { role: 'user', content: 'hello' } }],
-    });
-
-    const result = await isThreadGenerating(createMockCtx(), {
-      threadId: 'thread_1',
-    });
-
-    expect(result).toBe(true);
-  });
-
-  it('uses find (newest first) not findLast — older failed + newer pending returns true', async () => {
-    mockListStreams.mockResolvedValue([
-      { streamId: 'stream_1', status: 'streaming' },
-    ]);
-    // desc order: newest first → pending assistant is page[0], older failed is page[1]
-    mockListMessages.mockResolvedValue({
-      page: [
-        {
-          message: { role: 'assistant', content: 'working...' },
-          status: 'pending',
-        },
-        {
-          message: { role: 'assistant', content: 'old error' },
-          status: 'failed',
-        },
-      ],
-    });
-
-    const result = await isThreadGenerating(createMockCtx(), {
-      threadId: 'thread_1',
-    });
-
-    expect(result).toBe(true);
+    mockGetStreamStatus.mockResolvedValue('streaming');
   });
 
   it('returns false when user is not authenticated', async () => {
     mockGetAuthUserIdentity.mockResolvedValue(null);
-    mockListStreams.mockResolvedValue([
-      { streamId: 'stream_1', status: 'streaming' },
-    ]);
+    const result = await isThreadGenerating(
+      createMockCtx({ generationStatus: 'generating', streamId: 'stream_1' }),
+      { threadId: 'thread_1' },
+    );
+    expect(result).toBe(false);
+  });
 
+  it('returns false when no threadMetadata record exists', async () => {
     const result = await isThreadGenerating(createMockCtx(), {
       threadId: 'thread_1',
     });
-
     expect(result).toBe(false);
-    expect(mockListStreams).not.toHaveBeenCalled();
+  });
+
+  it('returns false when generationStatus is idle', async () => {
+    const result = await isThreadGenerating(
+      createMockCtx({ generationStatus: 'idle', streamId: undefined }),
+      { threadId: 'thread_1' },
+    );
+    expect(result).toBe(false);
+  });
+
+  it('returns false when generationStatus is undefined', async () => {
+    const result = await isThreadGenerating(
+      createMockCtx({ generationStatus: undefined, streamId: undefined }),
+      { threadId: 'thread_1' },
+    );
+    expect(result).toBe(false);
+  });
+
+  it('returns false when generating but no streamId', async () => {
+    const result = await isThreadGenerating(
+      createMockCtx({ generationStatus: 'generating', streamId: undefined }),
+      { threadId: 'thread_1' },
+    );
+    expect(result).toBe(false);
+  });
+
+  it('returns true when generating with active persistent stream', async () => {
+    mockGetStreamStatus.mockResolvedValue('streaming');
+    const result = await isThreadGenerating(
+      createMockCtx({ generationStatus: 'generating', streamId: 'stream_1' }),
+      { threadId: 'thread_1' },
+    );
+    expect(result).toBe(true);
+  });
+
+  it('returns true when generating with pending persistent stream', async () => {
+    mockGetStreamStatus.mockResolvedValue('pending');
+    const result = await isThreadGenerating(
+      createMockCtx({ generationStatus: 'generating', streamId: 'stream_1' }),
+      { threadId: 'thread_1' },
+    );
+    expect(result).toBe(true);
+  });
+
+  it('returns false when generating but persistent stream is done (self-healing)', async () => {
+    mockGetStreamStatus.mockResolvedValue('done');
+    const result = await isThreadGenerating(
+      createMockCtx({ generationStatus: 'generating', streamId: 'stream_1' }),
+      { threadId: 'thread_1' },
+    );
+    expect(result).toBe(false);
+  });
+
+  it('returns false when generating but persistent stream is error (self-healing)', async () => {
+    mockGetStreamStatus.mockResolvedValue('error');
+    const result = await isThreadGenerating(
+      createMockCtx({ generationStatus: 'generating', streamId: 'stream_1' }),
+      { threadId: 'thread_1' },
+    );
+    expect(result).toBe(false);
+  });
+
+  it('returns false when generating but persistent stream timed out (self-healing)', async () => {
+    mockGetStreamStatus.mockResolvedValue('timeout');
+    const result = await isThreadGenerating(
+      createMockCtx({ generationStatus: 'generating', streamId: 'stream_1' }),
+      { threadId: 'thread_1' },
+    );
+    expect(result).toBe(false);
+  });
+
+  it('returns false when getStreamStatus throws (component unavailable)', async () => {
+    mockGetStreamStatus.mockRejectedValue(new Error('component down'));
+    const result = await isThreadGenerating(
+      createMockCtx({ generationStatus: 'generating', streamId: 'stream_1' }),
+      { threadId: 'thread_1' },
+    );
+    expect(result).toBe(false);
+  });
+
+  describe('zombie detection', () => {
+    it('returns false when stream is active but latest assistant is failed', async () => {
+      mockGetStreamStatus.mockResolvedValue('streaming');
+      mockListMessages.mockResolvedValue({
+        page: [
+          {
+            message: { role: 'assistant', content: 'error' },
+            status: 'failed',
+          },
+        ],
+      });
+      const result = await isThreadGenerating(
+        createMockCtx({
+          generationStatus: 'generating',
+          streamId: 'stream_1',
+        }),
+        { threadId: 'thread_1' },
+      );
+      expect(result).toBe(false);
+    });
+
+    it('returns false when stream is active but latest assistant is success', async () => {
+      mockGetStreamStatus.mockResolvedValue('streaming');
+      mockListMessages.mockResolvedValue({
+        page: [
+          {
+            message: { role: 'assistant', content: 'done' },
+            status: 'success',
+          },
+        ],
+      });
+      const result = await isThreadGenerating(
+        createMockCtx({
+          generationStatus: 'generating',
+          streamId: 'stream_1',
+        }),
+        { threadId: 'thread_1' },
+      );
+      expect(result).toBe(false);
+    });
+
+    it('returns true when stream is active and latest assistant is pending', async () => {
+      mockGetStreamStatus.mockResolvedValue('streaming');
+      mockListMessages.mockResolvedValue({
+        page: [
+          {
+            message: { role: 'assistant', content: 'working...' },
+            status: 'pending',
+          },
+        ],
+      });
+      const result = await isThreadGenerating(
+        createMockCtx({
+          generationStatus: 'generating',
+          streamId: 'stream_1',
+        }),
+        { threadId: 'thread_1' },
+      );
+      expect(result).toBe(true);
+    });
+
+    it('returns true when stream is active and no assistant messages', async () => {
+      mockGetStreamStatus.mockResolvedValue('streaming');
+      mockListMessages.mockResolvedValue({
+        page: [{ message: { role: 'user', content: 'hello' } }],
+      });
+      const result = await isThreadGenerating(
+        createMockCtx({
+          generationStatus: 'generating',
+          streamId: 'stream_1',
+        }),
+        { threadId: 'thread_1' },
+      );
+      expect(result).toBe(true);
+    });
   });
 });

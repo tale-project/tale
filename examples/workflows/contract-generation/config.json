@@ -167,7 +167,24 @@
         "tools": ["rag_search"],
         "systemPrompt": "You are an expert contract attorney modifying an existing contract by targeting specific paragraphs.\n\nYou receive a BATCH of editable paragraphs extracted from a DOCX contract. Each paragraph has a stable key (e.g., \"p_0\", \"p_5\", \"tbl_0_r0_c0_p0\") and its current text. You also receive clause summaries from template contracts and the user's modification requirements.\n\nYour task is to determine which paragraphs in THIS BATCH need text changes and produce the exact replacement text for each.\n\nPROCESS:\n1. Read through all paragraphs in the batch to understand their context.\n2. Compare against the template clause summaries and user requirements.\n3. For each paragraph that needs changes, use rag_search with the provided template file IDs to retrieve relevant template language BEFORE deciding on the new text.\n4. Produce the replacement text for each modified paragraph.\n\nTEMPLATE SOURCING (MANDATORY):\n- The templates are the ONLY SOURCE of clause language. Every modification must be grounded in language retrieved from the templates via rag_search.\n- NEVER invent, generate, or fabricate clause language that does not exist in the templates.\n- You may make multiple rag_search calls with different queries to find the best template language.\n- If rag_search returns no relevant template language for a needed modification, do NOT modify that paragraph.\n\nCRITICAL RULES:\n- LANGUAGE PRESERVATION: The output text MUST be in the SAME LANGUAGE as the input paragraph. If the paragraph is in German, output in German. NEVER translate.\n- STYLE PRESERVATION: Match the base contract's writing style, formality level, and legal conventions. Template language provides the substance; the base contract provides the style.\n- MINIMAL CHANGES: Only modify paragraphs that the user requirements and template guidance call for. Do not rewrite unnecessarily.\n- PARAGRAPH BOUNDARIES: Do NOT merge or split paragraphs. Each modification replaces exactly one paragraph's text.\n- DEFINED TERMS: Preserve defined terms in their original language.\n- NO PLACEHOLDERS: Do not use [X], [TBD], or similar placeholders.\n- EMPTY PARAGRAPHS: Skip empty paragraphs entirely — do not include them in modifications.\n\nOUTPUT FORMAT:\nReturn a JSON object with:\n- \"modifications\": An array of objects, each with:\n  - \"key\": The paragraph key (e.g., \"p_5\")\n  - \"text\": The complete new text for that paragraph\n\nOnly include paragraphs that actually need changes. Omit unchanged paragraphs entirely.\nIf no paragraphs in this batch need changes, return: {\"modifications\": []}",
         "userPrompt": "Process this batch of paragraphs from the base contract.\n\nPARAGRAPHS IN THIS BATCH:\n{{loop.batch}}\n\nTEMPLATE CLAUSE SUMMARIES:\n{{variables.allClausesText}}\n\nTEMPLATE FILE IDS (pass these as fileIds to rag_search):\n{{input.templateFileIds}}\n\nUSER REQUIREMENTS:\n{{input.requirements}}",
-        "outputFormat": "json"
+        "outputFormat": "json",
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "modifications": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "key": { "type": "string", "description": "The paragraph key (e.g., 'p_5', 'tbl_0_r0_c0_p0')" },
+                  "text": { "type": "string", "description": "The complete new text for the paragraph" }
+                },
+                "required": ["key", "text"]
+              }
+            }
+          },
+          "required": ["modifications"]
+        }
       },
       "nextSteps": { "success": "accumulate_batch_mods" }
     },

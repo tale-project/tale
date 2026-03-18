@@ -114,6 +114,16 @@ export async function startAgentChat(
   // Always create a persistent stream for async result delivery.
   // enableStreaming only controls the LLM call strategy (streamText vs generateText).
   const streamId = await persistentStreaming.createStream(ctx);
+  const threadMeta = await ctx.db
+    .query('threadMetadata')
+    .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
+    .first();
+  if (threadMeta) {
+    await ctx.db.patch(threadMeta._id, {
+      generationStatus: 'generating' as const,
+      streamId,
+    });
+  }
 
   const thread = await ctx.runQuery(components.agent.threads.getThread, {
     threadId,

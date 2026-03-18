@@ -10,6 +10,10 @@ export const threadMetadataTable = defineTable({
   status: threadStatusValidator,
   title: v.optional(v.string()),
   createdAt: v.number(),
+  generationStatus: v.optional(
+    v.union(v.literal('generating'), v.literal('idle')),
+  ),
+  streamId: v.optional(v.string()),
 })
   .index('by_threadId', ['threadId'])
   .index('by_userId_chatType_status', [
