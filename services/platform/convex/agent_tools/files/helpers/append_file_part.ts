@@ -24,10 +24,10 @@ export async function appendFilePart(
     mimeType: string;
     downloadUrl: string;
   },
-): Promise<void> {
+): Promise<boolean> {
   const { threadId } = ctx;
   const promptMessageId = (ctx as ToolCtxRuntime).promptMessageId;
-  if (!threadId || !promptMessageId) return;
+  if (!threadId || !promptMessageId) return false;
 
   await ctx.runAction(
     internal.agent_tools.files.internal_mutations.appendGeneratedFilePart,
@@ -39,4 +39,5 @@ export async function appendFilePart(
       downloadUrl: args.downloadUrl,
     },
   );
+  return true;
 }

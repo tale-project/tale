@@ -124,24 +124,39 @@ AFTER GENERATING: The file automatically appears as a download card in the chat.
       const operation = args.operation ?? 'parse';
 
       if (operation === 'generate') {
-        if (!args.filename) {
-          throw new Error("Missing required 'filename' for generate operation");
-        }
-        if (!args.content) {
-          throw new Error("Missing required 'content' for generate operation");
-        }
-
-        const { filename, content } = {
-          filename: args.filename,
-          content: args.content,
-        };
-
-        debugLog('tool:text generate start', {
-          filename,
-          contentLength: content.length,
-        });
+        const filename = args.filename ?? '';
+        const content = args.content ?? '';
 
         try {
+          if (!filename) {
+            return {
+              operation: 'generate',
+              success: false,
+              fileStorageId: '',
+              downloadUrl: '',
+              filename: 'unknown',
+              char_count: 0,
+              line_count: 0,
+              error: "Missing required 'filename' for generate operation",
+            };
+          }
+          if (!content) {
+            return {
+              operation: 'generate',
+              success: false,
+              fileStorageId: '',
+              downloadUrl: '',
+              filename,
+              char_count: 0,
+              line_count: 0,
+              error: "Missing required 'content' for generate operation",
+            };
+          }
+
+          debugLog('tool:text generate start', {
+            filename,
+            contentLength: content.length,
+          });
           const blob = new Blob([content], {
             type: 'text/plain; charset=utf-8',
           });
@@ -173,7 +188,7 @@ AFTER GENERATING: The file automatically appears as a download card in the chat.
             lineCount,
           });
 
-          await appendFilePart(ctx, {
+          const cardAppended = await appendFilePart(ctx, {
             fileName: filename,
             mimeType: 'text/plain; charset=utf-8',
             downloadUrl: url,
@@ -183,7 +198,7 @@ AFTER GENERATING: The file automatically appears as a download card in the chat.
             operation: 'generate',
             success: true,
             fileStorageId: fileId,
-            downloadUrl: '[file card shown in chat]',
+            downloadUrl: cardAppended ? '[file card shown in chat]' : url,
             filename,
             char_count: content.length,
             line_count: lineCount,

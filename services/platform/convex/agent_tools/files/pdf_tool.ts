@@ -214,7 +214,7 @@ AFTER GENERATING: The file automatically appears as a download card in the chat.
           size: result.size,
         });
 
-        await appendFilePart(ctx, {
+        const cardAppended = await appendFilePart(ctx, {
           fileName: result.fileName,
           mimeType: result.contentType,
           downloadUrl: result.downloadUrl,
@@ -223,7 +223,9 @@ AFTER GENERATING: The file automatically appears as a download card in the chat.
         return {
           operation: 'generate',
           ...result,
-          downloadUrl: '[file card shown in chat]',
+          downloadUrl: cardAppended
+            ? '[file card shown in chat]'
+            : result.downloadUrl,
         } as GeneratePdfResult;
       } catch (error) {
         console.error('[tool:pdf generate] error', {

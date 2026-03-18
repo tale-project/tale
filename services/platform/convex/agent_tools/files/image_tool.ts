@@ -304,7 +304,7 @@ AFTER GENERATING: To save the file to a folder in the documents hub, call docume
           size: result.size,
         });
 
-        await appendFilePart(ctx, {
+        const cardAppended = await appendFilePart(ctx, {
           fileName: result.fileName,
           mimeType: result.contentType,
           downloadUrl: result.downloadUrl,
@@ -313,7 +313,9 @@ AFTER GENERATING: To save the file to a folder in the documents hub, call docume
         return {
           operation: 'generate',
           ...result,
-          downloadUrl: '[file card shown in chat]',
+          downloadUrl: cardAppended
+            ? '[file card shown in chat]'
+            : result.downloadUrl,
         } as GenerateImageResult;
       } catch (error) {
         console.error('[tool:image generate] error', {

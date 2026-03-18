@@ -246,7 +246,7 @@ AFTER GENERATING: The file automatically appears as a download card in the chat.
           sheetCount: result.sheetCount,
         });
 
-        await appendFilePart(ctx, {
+        const cardAppended = await appendFilePart(ctx, {
           fileName: result.fileName,
           mimeType:
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -257,7 +257,7 @@ AFTER GENERATING: The file automatically appears as a download card in the chat.
           operation: 'generate',
           success: true,
           fileStorageId: fileId,
-          downloadUrl: '[file card shown in chat]',
+          downloadUrl: cardAppended ? '[file card shown in chat]' : url,
           fileName: result.fileName,
           rowCount: result.rowCount,
           sheetCount: result.sheetCount,
