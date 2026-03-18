@@ -133,13 +133,14 @@ export function ChatSearchDialog({
 
   return (
     <Dialog
+      size="lg"
       open={isOpen}
       onOpenChange={onOpenChange}
       title={t('searchChat.title')}
       hideClose
-      className="gap-0 overflow-hidden p-0 sm:p-0"
+      className="max-w-[30rem] gap-0 overflow-hidden p-0 sm:p-0"
       customHeader={
-        <div className="border-border relative flex items-center border-b px-3 py-4">
+        <div className="border-border relative flex items-center border-b px-5 py-4">
           <Input
             ref={inputRef}
             placeholder={t('searchChat.placeholder')}
@@ -147,7 +148,7 @@ export function ChatSearchDialog({
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             variant="unstyled"
-            className="h-6 p-0 pr-9"
+            className="h-5 p-0 pr-9 text-sm"
           />
           <button
             type="button"
@@ -160,7 +161,7 @@ export function ChatSearchDialog({
         </div>
       }
     >
-      <div className="h-[13.75rem] overflow-y-auto p-3">
+      <div className="h-[13.75rem] overflow-y-auto px-5">
         {threadsData !== null && chats.length === 0 ? (
           <Text
             as="div"
@@ -170,7 +171,7 @@ export function ChatSearchDialog({
             {t('searchChat.noResults')}
           </Text>
         ) : (
-          <ul className="py-1">
+          <ul>
             {(() => {
               let flatIdx = 0;
               return groupedChats.map((group) => (
@@ -179,7 +180,7 @@ export function ChatSearchDialog({
                     <Text
                       as="div"
                       variant="label-sm"
-                      className="text-muted-foreground px-2 pt-2 pb-1"
+                      className="text-muted-foreground px-0 pt-4 pb-1"
                     >
                       {group.label}
                     </Text>
@@ -192,7 +193,7 @@ export function ChatSearchDialog({
                           <button
                             type="button"
                             className={cn(
-                              'w-full text-left flex items-start gap-3 py-3 px-2 hover:bg-muted transition-colors rounded-lg cursor-pointer',
+                              'w-full text-left flex items-start gap-3 py-1.5 px-2 hover:bg-muted transition-colors rounded-lg cursor-pointer',
                               idx === selectedIndex && 'bg-muted',
                             )}
                             onMouseEnter={() => setSelectedIndex(idx)}

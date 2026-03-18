@@ -68,10 +68,11 @@ export async function cancelGeneration(
       messageId: latestAssistant._id,
       patch,
     });
-  } else if (!latestAssistant) {
-    // No assistant message yet (very early stop). Create one with empty
-    // content and failed status so the frontend exits loading and shows
-    // "Generation stopped" via the isAborted flag.
+  } else if (!latestAssistant || latestAssistant.status === 'success') {
+    // Either no assistant message exists yet, or the latest one is from a
+    // previous successful turn (early stop before the new generation's
+    // assistant message was created). Create a failed message so the
+    // abort watcher detects it and the frontend shows "Generation stopped".
     await saveMessage(ctx, components.agent, {
       threadId,
       message: {

@@ -489,7 +489,7 @@ describe('cancelGeneration — edge cases', () => {
     ).rejects.toThrow('Thread not found');
   });
 
-  it('does not overwrite a successful message when stop is clicked late', async () => {
+  it('creates a failed sentinel when latest assistant is successful (early stop before new turn assistant message exists)', async () => {
     const ctx = createMockCtx({ userId: 'user_1', status: 'active' });
     mockListMessages.mockResolvedValue({
       page: [
@@ -506,11 +506,48 @@ describe('cancelGeneration — edge cases', () => {
       ctx as unknown as MutationCtx,
       'user_1',
       'thread_1',
-      'Completed',
+      'Partial',
     );
 
-    // Should NOT update or save — message is already in terminal status
+    // Should NOT update the existing successful message
     expect(ctx.runMutation).not.toHaveBeenCalled();
-    expect(mockSaveMessage).not.toHaveBeenCalled();
+    // Should create a new failed sentinel so the abort watcher can detect cancellation
+    expect(mockSaveMessage).toHaveBeenCalledOnce();
+    expect(mockSaveMessage).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({
+        threadId: 'thread_1',
+        message: { role: 'assistant', content: 'Partial' },
+        metadata: { status: 'failed' },
+      }),
+    );
+  });
+
+  it('creates a failed sentinel with empty content when no displayedContent and latest is successful', async () => {
+    const ctx = createMockCtx({ userId: 'user_1', status: 'active' });
+    mockListMessages.mockResolvedValue({
+      page: [
+        {
+          _id: 'msg_1',
+          message: { role: 'assistant', content: 'Done' },
+          text: 'Done',
+          status: 'success',
+        },
+      ],
+    });
+
+    await cancelGeneration(ctx as unknown as MutationCtx, 'user_1', 'thread_1');
+
+    expect(ctx.runMutation).not.toHaveBeenCalled();
+    expect(mockSaveMessage).toHaveBeenCalledOnce();
+    expect(mockSaveMessage).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({
+        message: { role: 'assistant', content: '' },
+        metadata: { status: 'failed' },
+      }),
+    );
   });
 });
