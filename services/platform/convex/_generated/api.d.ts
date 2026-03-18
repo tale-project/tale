@@ -677,7 +677,6 @@ import type * as workflow_engine_helpers_nodes_llm_types from "../workflow_engin
 import type * as workflow_engine_helpers_nodes_llm_types_workflow_termination from "../workflow_engine/helpers/nodes/llm/types/workflow_termination.js";
 import type * as workflow_engine_helpers_nodes_llm_utils_build_agent_steps_summary from "../workflow_engine/helpers/nodes/llm/utils/build_agent_steps_summary.js";
 import type * as workflow_engine_helpers_nodes_llm_utils_create_llm_result from "../workflow_engine/helpers/nodes/llm/utils/create_llm_result.js";
-import type * as workflow_engine_helpers_nodes_llm_utils_extract_schema_fields from "../workflow_engine/helpers/nodes/llm/utils/extract_schema_fields.js";
 import type * as workflow_engine_helpers_nodes_llm_utils_extract_tool_diagnostics from "../workflow_engine/helpers/nodes/llm/utils/extract_tool_diagnostics.js";
 import type * as workflow_engine_helpers_nodes_llm_utils_process_agent_result from "../workflow_engine/helpers/nodes/llm/utils/process_agent_result.js";
 import type * as workflow_engine_helpers_nodes_llm_utils_process_prompts from "../workflow_engine/helpers/nodes/llm/utils/process_prompts.js";
@@ -1534,7 +1533,6 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/helpers/nodes/llm/types/workflow_termination": typeof workflow_engine_helpers_nodes_llm_types_workflow_termination;
   "workflow_engine/helpers/nodes/llm/utils/build_agent_steps_summary": typeof workflow_engine_helpers_nodes_llm_utils_build_agent_steps_summary;
   "workflow_engine/helpers/nodes/llm/utils/create_llm_result": typeof workflow_engine_helpers_nodes_llm_utils_create_llm_result;
-  "workflow_engine/helpers/nodes/llm/utils/extract_schema_fields": typeof workflow_engine_helpers_nodes_llm_utils_extract_schema_fields;
   "workflow_engine/helpers/nodes/llm/utils/extract_tool_diagnostics": typeof workflow_engine_helpers_nodes_llm_utils_extract_tool_diagnostics;
   "workflow_engine/helpers/nodes/llm/utils/process_agent_result": typeof workflow_engine_helpers_nodes_llm_utils_process_agent_result;
   "workflow_engine/helpers/nodes/llm/utils/process_prompts": typeof workflow_engine_helpers_nodes_llm_utils_process_prompts;

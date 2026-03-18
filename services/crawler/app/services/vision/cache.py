@@ -1,12 +1,13 @@
-"""Vision API result caching.
+"""LLM result caching.
 
-This module provides caching for Vision API results to avoid redundant API calls
-when processing the same images multiple times.
+This module provides caching for LLM API results (OCR, image description,
+text processing) to avoid redundant API calls when processing the same
+content multiple times.
 
 Cache strategy:
-- Uses SHA-256 hash of image bytes as cache key
+- Uses SHA-256 hash as cache key (image bytes for vision, text for LLM)
 - In-memory LRU cache for fast access (O(1) operations via OrderedDict)
-- Separate caches for OCR and image description results
+- Separate caches for OCR, image description, and LLM processing results
 """
 
 import hashlib
@@ -22,7 +23,12 @@ def compute_image_hash(image_bytes: bytes) -> str:
     return hashlib.sha256(image_bytes).hexdigest()
 
 
-class VisionCache:
+def compute_text_hash(text: str) -> str:
+    """Compute SHA-256 hash of text string for cache key."""
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
+class LlmCache:
     """Cache for Vision API results.
 
     Uses OrderedDict for O(1) LRU operations via move_to_end() and popitem().
@@ -31,6 +37,7 @@ class VisionCache:
     def __init__(self) -> None:
         self._ocr_cache: OrderedDict[str, str] = OrderedDict()
         self._description_cache: OrderedDict[str, str] = OrderedDict()
+        self._llm_cache: OrderedDict[str, str] = OrderedDict()
 
     def _evict_if_needed(self, cache: OrderedDict[str, str]) -> None:
         """Evict oldest entries if cache exceeds max size."""
@@ -67,18 +74,34 @@ class VisionCache:
         self._description_cache[image_hash] = result
         self._description_cache.move_to_end(image_hash)
 
+    def get_llm(self, cache_key: str) -> str | None:
+        """Get cached LLM processing result."""
+        if cache_key in self._llm_cache:
+            self._llm_cache.move_to_end(cache_key)
+            logger.debug(f"Cache HIT (LLM): {cache_key[:16]}...")
+            return self._llm_cache[cache_key]
+        return None
+
+    def set_llm(self, cache_key: str, result: str) -> None:
+        """Store LLM processing result in cache."""
+        self._evict_if_needed(self._llm_cache)
+        self._llm_cache[cache_key] = result
+        self._llm_cache.move_to_end(cache_key)
+
     def get_stats(self) -> dict[str, int]:
         """Get cache statistics."""
         return {
             "ocr_cache_size": len(self._ocr_cache),
             "description_cache_size": len(self._description_cache),
+            "llm_cache_size": len(self._llm_cache),
         }
 
     def clear(self) -> None:
         """Clear all caches."""
         self._ocr_cache.clear()
         self._description_cache.clear()
-        logger.info("Vision cache cleared")
+        self._llm_cache.clear()
+        logger.info("LLM cache cleared")
 
 
-vision_cache = VisionCache()
+llm_cache = LlmCache()
