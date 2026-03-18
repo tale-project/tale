@@ -717,10 +717,7 @@ export async function generateAgentResponse(
             ragContext: hookData?.ragContext,
           });
 
-          const continueAgent = createAgent({
-            ...agentOptions,
-            withTools: false,
-          });
+          const continueAgent = createAgent(agentOptions);
 
           const continueSystemPrompt = agentInstructions
             ? `${agentInstructions}\n\n${continueContext.threadContext}`
@@ -789,6 +786,24 @@ export async function generateAgentResponse(
             };
           }
 
+          // Save system message to record the continuation in thread history
+          await saveMessage(ctx, components.agent, {
+            threadId,
+            message: {
+              role: 'system',
+              content: 'Continue your previous response.',
+            },
+          });
+
+          // Prevent zombie detection during the gap before continuation saves its own message
+          const originalSavedMessageId = savedMessageId;
+          if (savedMessageId) {
+            await ctx.runMutation(components.agent.messages.updateMessage, {
+              messageId: savedMessageId,
+              patch: { status: 'pending' },
+            });
+          }
+
           retryInProgress = true;
           try {
             const continueResult = await withTimeout(
@@ -808,7 +823,6 @@ export async function generateAgentResponse(
                     recentMessages: 0,
                     excludeToolMessages: false,
                   },
-                  storageOptions: { saveMessages: 'none' },
                 },
               ),
               continueRemainingMs,
@@ -816,6 +830,10 @@ export async function generateAgentResponse(
             );
 
             didRetry = true;
+            // Capture continuation's saved message ID for downstream operations
+            const continueSavedId = continueResult.savedMessages?.[0]?._id;
+            if (continueSavedId) savedMessageId = continueSavedId;
+
             result = {
               text: continueResult.text,
               steps: [...(result.steps || []), ...continueResult.steps],
@@ -832,6 +850,20 @@ export async function generateAgentResponse(
             });
           } finally {
             retryInProgress = false;
+            // ALWAYS restore original message status (handles all error paths)
+            if (originalSavedMessageId) {
+              try {
+                await ctx.runMutation(components.agent.messages.updateMessage, {
+                  messageId: originalSavedMessageId,
+                  patch: { status: 'success' },
+                });
+              } catch (restoreError) {
+                console.error(
+                  '[generateAgentResponse] Failed to restore message status:',
+                  restoreError,
+                );
+              }
+            }
           }
         }
       }
@@ -895,10 +927,7 @@ export async function generateAgentResponse(
             ragContext: hookData?.ragContext,
           });
 
-          const recoveryAgent = createAgent({
-            ...agentOptions,
-            withTools: false,
-          });
+          const recoveryAgent = createAgent(agentOptions);
 
           const recoverySystemPrompt = agentInstructions
             ? `${agentInstructions}\n\n${recoveryContext.threadContext}`
@@ -924,46 +953,84 @@ export async function generateAgentResponse(
             elapsedMs: recoveryStartTime - startTime,
           });
 
+          // Save system message to record the recovery in thread history
+          await saveMessage(ctx, components.agent, {
+            threadId,
+            message: {
+              role: 'system',
+              content:
+                'Previous attempt timed out. Recovering with available context.',
+            },
+          });
+
+          // Prevent zombie detection during recovery
+          const recoveryOriginalMessageId = savedMessageId;
+          if (savedMessageId) {
+            await ctx.runMutation(components.agent.messages.updateMessage, {
+              messageId: savedMessageId,
+              patch: { status: 'pending' },
+            });
+          }
+
           const recoveryAbortController = new AbortController();
 
-          const recoveryResult = await withTimeout(
-            recoveryAgent.generateText(
-              contextWithOrg,
-              { threadId, userId },
-              {
-                system: recoverySystemPrompt,
-                prompt: promptMessage
-                  ? `The previous attempt to respond timed out. Based on any available context and tool results, provide a helpful response to: ${promptMessage}`
-                  : 'The previous attempt timed out. Based on the conversation and any available tool results, provide a summary response.',
-                abortSignal: recoveryAbortController.signal,
-              },
-              {
-                contextOptions: {
-                  recentMessages: 0,
-                  excludeToolMessages: false,
-                  searchOtherThreads: false,
+          try {
+            const recoveryResult = await withTimeout(
+              recoveryAgent.generateText(
+                contextWithOrg,
+                { threadId, userId },
+                {
+                  system: recoverySystemPrompt,
+                  prompt: promptMessage
+                    ? `The previous attempt to respond timed out. Based on any available context and tool results, provide a helpful response to: ${promptMessage}`
+                    : 'The previous attempt timed out. Based on the conversation and any available tool results, provide a summary response.',
+                  abortSignal: recoveryAbortController.signal,
                 },
-                storageOptions: { saveMessages: 'none' },
-              },
-            ),
-            recoveryRemainingMs,
-            recoveryAbortController,
-          );
+                {
+                  contextOptions: {
+                    recentMessages: 0,
+                    excludeToolMessages: false,
+                    searchOtherThreads: false,
+                  },
+                },
+              ),
+              recoveryRemainingMs,
+              recoveryAbortController,
+            );
 
-          didRetry = true;
-          result = {
-            text: recoveryResult.text,
-            steps: recoveryResult.steps,
-            usage: recoveryResult.usage,
-            finishReason: 'timeout-recovery',
-            response: recoveryResult.response,
-          };
+            didRetry = true;
+            const recoverySavedId = recoveryResult.savedMessages?.[0]?._id;
+            if (recoverySavedId) savedMessageId = recoverySavedId;
 
-          debugLog('Timeout recovery completed', {
-            textLength: result.text?.length ?? 0,
-            retryDurationMs: Date.now() - recoveryStartTime,
-            elapsedMs: Date.now() - startTime,
-          });
+            result = {
+              text: recoveryResult.text,
+              steps: recoveryResult.steps,
+              usage: recoveryResult.usage,
+              finishReason: 'timeout-recovery',
+              response: recoveryResult.response,
+            };
+
+            debugLog('Timeout recovery completed', {
+              textLength: result.text?.length ?? 0,
+              retryDurationMs: Date.now() - recoveryStartTime,
+              elapsedMs: Date.now() - startTime,
+            });
+          } finally {
+            // ALWAYS restore original message status
+            if (recoveryOriginalMessageId) {
+              try {
+                await ctx.runMutation(components.agent.messages.updateMessage, {
+                  messageId: recoveryOriginalMessageId,
+                  patch: { status: 'success' },
+                });
+              } catch (restoreError) {
+                console.error(
+                  '[generateAgentResponse] Failed to restore message status during recovery:',
+                  restoreError,
+                );
+              }
+            }
+          }
         } catch (recoveryError) {
           // Recovery itself failed — use static fallback
           console.error(
