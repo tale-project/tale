@@ -265,7 +265,46 @@ export function useMessageProcessing(
       }
     }
 
-    return result;
+    // Merge file-only assistant messages into the nearest following text-bearing
+    // assistant message. The file part message has an earlier _creationTime
+    // (saved during the tool call) so it sorts before the text message.
+    //
+    // Pass 1: build a map of key → extra fileParts to attach, O(n)
+    const extraFileParts = new Map<string, FilePart[]>();
+    const fileOnlyKeys = new Set<string>();
+    for (let i = 0; i < result.length; i++) {
+      const msg = result[i];
+      if (!msg) continue;
+      if (
+        msg.role !== 'assistant' ||
+        msg.content ||
+        msg.isAborted ||
+        !msg.fileParts?.length
+      )
+        continue;
+
+      // Find the next text-bearing assistant message
+      for (let j = i + 1; j < result.length; j++) {
+        const next = result[j];
+        if (next?.role === 'assistant' && next.content) {
+          extraFileParts.set(next.key, [
+            ...(extraFileParts.get(next.key) ?? []),
+            ...(msg.fileParts ?? []),
+          ]);
+          fileOnlyKeys.add(msg.key);
+          break;
+        }
+      }
+    }
+
+    // Pass 2: rebuild without file-only messages, merging extra parts immutably
+    return result
+      .filter((msg) => !fileOnlyKeys.has(msg.key))
+      .map((msg) => {
+        const extra = extraFileParts.get(msg.key);
+        if (!extra) return msg;
+        return { ...msg, fileParts: [...(msg.fileParts ?? []), ...extra] };
+      });
   }, [uiMessages]);
 
   // Find active assistant message (streaming or pending tool execution).

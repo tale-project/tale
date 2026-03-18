@@ -16,6 +16,7 @@ import type { ToolDefinition } from '../types';
 import { internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
 import { analyzeTextContent } from './helpers/analyze_text';
+import { appendFilePart } from './helpers/append_file_part';
 import { getAgentModelId } from './helpers/get_agent_model';
 import { resolveFileName } from './helpers/resolve_file_name';
 
@@ -49,36 +50,40 @@ interface TextGenerateResult {
 
 type TextResult = TextParseResult | TextGenerateResult;
 
-const textArgs = z.discriminatedUnion('operation', [
-  z.object({
-    operation: z
-      .literal('parse')
-      .describe('Parse and analyze a text-based file'),
-    fileId: z
-      .string()
-      .describe(
-        "**REQUIRED** - Convex storage ID of the file (e.g., 'kg2bazp7fbgt9srq63knfagjrd7yfenj'). Get this from the file attachment context.",
-      ),
-    filename: z
-      .string()
-      .optional()
-      .describe(
-        "Original filename (e.g., 'data.txt', 'script.js', 'readme.md'). Optional — auto-resolved from file metadata if omitted.",
-      ),
-    user_input: z
-      .string()
-      .describe(
-        'The user question or instruction about what to analyze in the file',
-      ),
-  }),
-  z.object({
-    operation: z.literal('generate').describe('Generate a new text file'),
-    filename: z
-      .string()
-      .describe("Output filename (e.g., 'output.txt', 'notes.md')"),
-    content: z.string().describe('The text content to write to the file'),
-  }),
-]);
+// Use a flat object schema instead of discriminatedUnion to ensure OpenAI-compatible JSON Schema
+// (discriminatedUnion produces anyOf/oneOf which some providers reject as "type: None")
+const textArgs = z.object({
+  operation: z
+    .enum(['parse', 'generate'])
+    .optional()
+    .describe("Operation: 'parse' (default) or 'generate'"),
+  // For parse operation
+  fileId: z
+    .string()
+    .optional()
+    .describe(
+      "For 'parse': **REQUIRED** - Convex storage ID of the file (e.g., 'kg2bazp7fbgt9srq63knfagjrd7yfenj'). Get this from the file attachment context.",
+    ),
+  filename: z
+    .string()
+    .optional()
+    .describe(
+      "For 'parse': Original filename (e.g., 'data.txt', 'script.js'). Optional — auto-resolved from file metadata if omitted. For 'generate': Output filename (e.g., 'output.txt', 'notes.md').",
+    ),
+  user_input: z
+    .string()
+    .optional()
+    .describe(
+      "For 'parse': **REQUIRED** - The user's question or instruction about the file",
+    ),
+  // For generate operation
+  content: z
+    .string()
+    .optional()
+    .describe(
+      "For 'generate': **REQUIRED** - The text content to write to the file",
+    ),
+});
 
 export const textTool = {
   name: 'text' as const,
@@ -112,19 +117,46 @@ EXAMPLES:
 
 Returns: { success, downloadUrl (for generate), result (for parse), char_count, line_count }
 
-AFTER GENERATING: To save the file to a folder in the documents hub, call document_write with the returned fileStorageId and the desired folderPath.
+AFTER GENERATING: The file automatically appears as a download card in the chat. Do NOT mention downloading, do NOT include a link, and do NOT say "you can download it" — the card handles this. To also save the file to a folder in the documents hub, call document_write with the returned fileStorageId and the desired folderPath.
 `,
     args: textArgs,
     handler: async (ctx: ToolCtx, args): Promise<TextResult> => {
-      if (args.operation === 'generate') {
-        const { filename, content } = args;
+      const operation = args.operation ?? 'parse';
 
-        debugLog('tool:text generate start', {
-          filename,
-          contentLength: content.length,
-        });
+      if (operation === 'generate') {
+        const filename = args.filename ?? '';
+        const content = args.content ?? '';
 
         try {
+          if (!filename) {
+            return {
+              operation: 'generate',
+              success: false,
+              fileStorageId: '',
+              downloadUrl: '',
+              filename: 'unknown',
+              char_count: 0,
+              line_count: 0,
+              error: "Missing required 'filename' for generate operation",
+            };
+          }
+          if (!content) {
+            return {
+              operation: 'generate',
+              success: false,
+              fileStorageId: '',
+              downloadUrl: '',
+              filename,
+              char_count: 0,
+              line_count: 0,
+              error: "Missing required 'content' for generate operation",
+            };
+          }
+
+          debugLog('tool:text generate start', {
+            filename,
+            contentLength: content.length,
+          });
           const blob = new Blob([content], {
             type: 'text/plain; charset=utf-8',
           });
@@ -156,11 +188,17 @@ AFTER GENERATING: To save the file to a folder in the documents hub, call docume
             lineCount,
           });
 
+          const cardAppended = await appendFilePart(ctx, {
+            fileName: filename,
+            mimeType: 'text/plain; charset=utf-8',
+            downloadUrl: url,
+          });
+
           return {
             operation: 'generate',
             success: true,
             fileStorageId: fileId,
-            downloadUrl: url,
+            downloadUrl: cardAppended ? '[file card shown in chat]' : url,
             filename,
             char_count: content.length,
             line_count: lineCount,
@@ -200,6 +238,21 @@ AFTER GENERATING: To save the file to a folder in the documents hub, call docume
           chunked: false,
           error:
             "ERROR: Missing required 'fileId' parameter. For uploaded files, you MUST provide the fileId from the file attachment context (it looks like 'kg2bazp7fbgt9srq63knfagjrd7yfenj'). Please check the attachment info and retry with fileId.",
+        };
+      }
+
+      if (!user_input) {
+        return {
+          operation: 'parse',
+          success: false,
+          result: '',
+          filename: filename || 'unknown',
+          char_count: 0,
+          line_count: 0,
+          encoding: 'unknown',
+          chunked: false,
+          error:
+            "ERROR: Missing required 'user_input' parameter. Please provide the user's question or instruction about the file.",
         };
       }
 

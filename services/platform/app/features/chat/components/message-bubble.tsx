@@ -1,6 +1,13 @@
 'use client';
 
-import { CopyIcon, CheckIcon, Info, Square } from 'lucide-react';
+import {
+  CopyIcon,
+  CheckIcon,
+  Info,
+  Square,
+  TriangleAlert,
+  RotateCcw,
+} from 'lucide-react';
 import {
   ComponentPropsWithoutRef,
   useRef,
@@ -18,11 +25,7 @@ import { cn } from '@/lib/utils/cn';
 
 import type { Message } from './message-bubble/types';
 
-import {
-  useMessageMetadata,
-  useMessageError,
-  useFileUrls,
-} from '../hooks/queries';
+import { useMessageMetadata, useFileUrls } from '../hooks/queries';
 import {
   FileAttachmentDisplay,
   FilePartDisplay,
@@ -39,6 +42,7 @@ export { ImagePreviewDialog } from './message-bubble/image-preview-dialog';
 interface MessageBubbleProps extends ComponentPropsWithoutRef<'div'> {
   message: Message;
   onSendFollowUp?: (message: string) => void;
+  onRetry?: () => void;
 }
 
 function useMessageGallery(message: Message) {
@@ -90,6 +94,7 @@ function MessageBubbleComponent({
   message,
   className,
   onSendFollowUp,
+  onRetry,
   ...restProps
 }: MessageBubbleProps) {
   const { t } = useT('common');
@@ -106,12 +111,12 @@ function MessageBubbleComponent({
   const [isInfoDialogOpen, setIsInfoDialogOpen] = useState(false);
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   const [galleryIndex, setGalleryIndex] = useState(0);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [isOverflowing, setIsOverflowing] = useState(false);
+  const contentRef = useRef<HTMLDivElement | null>(null);
   const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const { metadata } = useMessageMetadata(message.id);
-  const errorDetails = useMessageError(
-    message.isFailed ? (message.threadId ?? null) : null,
-  );
   const galleryImages = useMessageGallery(message);
 
   // Map each filePart/attachment to its gallery index (-1 for non-images)
@@ -135,6 +140,18 @@ function MessageBubbleComponent({
     setGalleryIndex(index);
     setIsGalleryOpen(true);
   }, []);
+
+  useEffect(() => {
+    if (!isUser || !contentRef.current) return;
+    const el = contentRef.current;
+    const observer = new ResizeObserver(() => {
+      if (!isExpanded) {
+        setIsOverflowing(el.scrollHeight > el.clientHeight);
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [isUser, isExpanded, sanitizedContent]);
 
   useEffect(() => {
     return () => {
@@ -176,8 +193,71 @@ function MessageBubbleComponent({
             : 'text-foreground bg-background'
         }`}
       >
+        {sanitizedContent ? (
+          <div className="text-sm leading-5">
+            <div
+              ref={isUser ? contentRef : undefined}
+              className={cn(
+                isUser && !isExpanded && 'max-h-96 overflow-hidden',
+              )}
+            >
+              <StructuredMessage
+                text={sanitizedContent}
+                isStreaming={!!isAssistantStreaming}
+                onSendFollowUp={!isUser ? onSendFollowUp : undefined}
+              />
+            </div>
+            {isUser && (isOverflowing || isExpanded) && (
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsExpanded((v) => !v)}
+                  className="text-muted-foreground hover:text-foreground mt-1 text-xs"
+                >
+                  {isExpanded ? tChat('showLess') : tChat('showMore')}
+                </button>
+              </div>
+            )}
+            {message.isFailed && (
+              <div
+                className="mt-3 flex flex-col gap-2"
+                role="alert"
+                aria-live="polite"
+              >
+                <div className="text-destructive flex items-center gap-2">
+                  <TriangleAlert className="size-4 shrink-0" />
+                  <span className="text-sm font-medium">
+                    {tChat('errorGenerating')}
+                  </span>
+                </div>
+                <p className="text-[13px] text-[#6B7280]">
+                  {tChat('errorGeneratingDescription')}
+                </p>
+                {onRetry && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="text-foreground w-fit gap-1.5 rounded-lg border-[#E5E7EB] bg-transparent px-3 py-1.5 text-[13px] font-medium"
+                    onClick={onRetry}
+                  >
+                    <RotateCcw className="size-3.5" />
+                    {tChat('retryGeneration')}
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
+          message.isAborted && (
+            <div className="text-muted-foreground flex items-center gap-1.5 text-sm italic">
+              <Square className="size-3" />
+              {tChat('generationStopped')}
+            </div>
+          )
+        )}
+
         {message.fileParts && message.fileParts.length > 0 && (
-          <div className="mb-2 flex flex-wrap gap-1">
+          <div className="mt-2 flex flex-col gap-2">
             {message.fileParts.map((part, i) => {
               const galleryIdx = filePartGalleryIndices[i];
               return (
@@ -191,32 +271,6 @@ function MessageBubbleComponent({
               );
             })}
           </div>
-        )}
-
-        {sanitizedContent ? (
-          <div className="text-sm leading-5">
-            <StructuredMessage
-              text={sanitizedContent}
-              isStreaming={!!isAssistantStreaming}
-              onSendFollowUp={!isUser ? onSendFollowUp : undefined}
-            />
-            {message.isFailed && errorDetails && (
-              <p
-                className="text-destructive mt-2 text-xs break-all"
-                role="alert"
-                aria-live="polite"
-              >
-                {tChat('errorDetails')}: {errorDetails}
-              </p>
-            )}
-          </div>
-        ) : (
-          message.isAborted && (
-            <div className="text-muted-foreground flex items-center gap-1.5 text-sm italic">
-              <Square className="size-3" />
-              {tChat('generationStopped')}
-            </div>
-          )
         )}
 
         {message.attachments && message.attachments.length > 0 && (
@@ -235,7 +289,7 @@ function MessageBubbleComponent({
             })}
           </div>
         )}
-        {!isUser && !isAssistantStreaming && (
+        {!isUser && !isAssistantStreaming && !!sanitizedContent && (
           <div className="flex items-center pt-2">
             <Tooltip
               content={isCopied ? t('actions.copied') : t('actions.copy')}
