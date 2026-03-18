@@ -27,6 +27,7 @@ router = APIRouter(prefix="/api/v1/docx", tags=["DOCX"])
 
 _FILE_TEMPLATE = File(None, description="Optional template DOCX file to use as base")
 _FILE_UPLOAD = File(..., description="DOCX file to parse")
+_FILE_STRUCTURED_TEMPLATE = File(..., description="Original DOCX template file")
 
 
 @router.post("", response_model=GenerateDocxResponse)
@@ -384,7 +385,7 @@ async def extract_docx_structured(
 
 @router.post("/apply-structured", response_model=ApplyStructuredResponse)
 async def apply_docx_structured(
-    template_file: UploadFile = File(..., description="Original DOCX template file"),
+    template_file: UploadFile = _FILE_STRUCTURED_TEMPLATE,
     params: str = Form(..., description="JSON parameters: {source_hash, modifications, track_changes?, author?}"),
 ):
     """

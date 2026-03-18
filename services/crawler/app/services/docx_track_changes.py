@@ -7,15 +7,16 @@ Uses lxml to manipulate the XML directly within python-docx Document objects.
 
 from __future__ import annotations
 
+import contextlib
 import difflib
 import os
 import re
 from copy import deepcopy
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from docx.oxml.ns import qn
-from lxml import etree
 from loguru import logger
+from lxml import etree
 
 _W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 
@@ -37,7 +38,7 @@ class TrackChangesWriter:
 
     def __init__(self, doc_element, author: str = "AI Assistant"):
         self.author = author
-        self.date = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        self.date = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
         self.next_id = self._scan_max_id(doc_element) + 1
         self.rsid = self._generate_rsid()
 
@@ -47,10 +48,8 @@ class TrackChangesWriter:
         for elem in root.iter():
             val = elem.get(qn("w:id"))
             if val is not None:
-                try:
+                with contextlib.suppress(ValueError):
                     max_id = max(max_id, int(val))
-                except ValueError:
-                    pass
         return max_id
 
     def _generate_rsid(self) -> str:
@@ -78,10 +77,7 @@ class TrackChangesWriter:
         if rpr is not None:
             r.append(deepcopy(rpr))
 
-        if is_del:
-            t = etree.SubElement(r, qn("w:delText"))
-        else:
-            t = etree.SubElement(r, qn("w:t"))
+        t = etree.SubElement(r, qn("w:delText")) if is_del else etree.SubElement(r, qn("w:t"))
 
         t.text = text
         if text and (text[0] == " " or text[-1] == " "):
@@ -254,11 +250,10 @@ class TrackChangesWriter:
                                     partial_run = self._make_run(partial_text, rpr)
                                     new_children.append(self._wrap_del(partial_run))
 
-            elif op == "insert":
-                if new_tokens[j1:j2]:
-                    ins_text = _join_tokens(new_tokens[j1:j2])
-                    ins_run = self._make_run(ins_text, default_rpr)
-                    new_children.append(self._wrap_ins(ins_run))
+            elif op == "insert" and new_tokens[j1:j2]:
+                ins_text = _join_tokens(new_tokens[j1:j2])
+                ins_run = self._make_run(ins_text, default_rpr)
+                new_children.append(self._wrap_ins(ins_run))
 
         # Replace paragraph content: keep pPr and non-run children, swap runs
         self._rebuild_paragraph(p_element, new_children, non_run_children)

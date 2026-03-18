@@ -8,7 +8,6 @@ to preserve bookmarks, comments, and all non-run XML children.
 from __future__ import annotations
 
 import hashlib
-import re
 from io import BytesIO
 from typing import Any
 
@@ -86,9 +85,7 @@ def _classify_paragraph(para_element) -> tuple[bool, list[str]]:
         if local in _RISKY_TAGS:
             detected.append(local)
             has_risky = True
-        elif local in _CAUTION_TAGS:
-            detected.append(local)
-        elif local in _SAFE_TAGS:
+        elif local in _CAUTION_TAGS or local in _SAFE_TAGS:
             detected.append(local)
 
     # Also check inside runs for non-text content
@@ -236,9 +233,7 @@ class DocxRoundtripService:
                 if level is not None:
                     heading_levels[key] = level
 
-                if tag == "sdt_p":
-                    lightweight.append({"key": key, "text": text, "editable": False, "style": style})
-                elif not text.strip():
+                if tag == "sdt_p" or not text.strip():
                     lightweight.append({"key": key, "text": text, "editable": False, "style": style})
                 else:
                     editable, _detected = _classify_paragraph(element)
