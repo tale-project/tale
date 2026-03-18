@@ -2138,7 +2138,33 @@
     "deleteConfirmation": "Are you sure you want to delete {title}?",
     "deleteArchiveMessage": "This chat will be archived and won't appear in your chat history.",
     "deleteFailed": "Failed to delete chat",
-    "welcome": "How can I assist you?",
+    "welcome": "What are you working on?",
+    "suggestions": {
+      "admin": [
+        "Draft a project proposal for Q4",
+        "Analyze last month's revenue trends",
+        "Write a follow-up email to the client",
+        "Summarize our latest product updates"
+      ],
+      "editor": [
+        "Write a blog post about our new feature",
+        "Review and improve this content draft",
+        "Create a product description for the catalog",
+        "Summarize the key points from this document"
+      ],
+      "developer": [
+        "Help me debug this issue",
+        "Review this code for best practices",
+        "Write unit tests for this function",
+        "Explain how this integration works"
+      ],
+      "member": [
+        "Draft an email to a customer",
+        "Summarize our latest product updates",
+        "Help me prepare for a meeting",
+        "Answer a question about our products"
+      ]
+    },
     "toast": {
       "generateFailed": "Failed to generate response",
       "sendFailed": "Failed to send message"
@@ -2219,6 +2245,11 @@
     "stopGenerating": "Stop generating",
     "generationStopped": "Generation stopped",
     "errorDetails": "Error details",
+    "errorGenerating": "Something went wrong",
+    "errorGeneratingDescription": "There was an error generating a response. Please try again.",
+    "retryGeneration": "Try again",
+    "showMore": "Show more",
+    "showLess": "Show less",
     "noAgentsAvailable": "No agents available. Please publish an agent first.",
     "searchConversations": "Search conversations",
     "invalidFiles": "Invalid files",
@@ -2248,6 +2279,7 @@
       "attachment": "Attachment",
       "imageAttachment": "Image attachment"
     },
+    "downloadFile": "Download file",
     "toolStatus": {
       "ragSearch": "Searching knowledge base"
     },

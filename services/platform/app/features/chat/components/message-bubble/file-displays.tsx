@@ -1,5 +1,15 @@
 'use client';
 
+import {
+  Code2,
+  Download,
+  FileSpreadsheet,
+  FileText,
+  Image,
+  Paperclip,
+  Presentation,
+  Settings2,
+} from 'lucide-react';
 import { memo } from 'react';
 
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
@@ -31,6 +41,84 @@ export function getFileTypeLabel(
   return t('fileTypes.file');
 }
 
+function getFileIconInfo(fileType: string, fileName: string) {
+  const lowerFileName = fileName.toLowerCase();
+  if (fileType.startsWith('image/'))
+    return { Icon: Image, bgColor: 'bg-blue-50', iconColor: 'text-blue-600' };
+  if (fileType === 'application/pdf')
+    return { Icon: FileText, bgColor: 'bg-red-50', iconColor: 'text-red-600' };
+  if (
+    fileType.includes('word') ||
+    lowerFileName.endsWith('.doc') ||
+    lowerFileName.endsWith('.docx')
+  )
+    return {
+      Icon: FileText,
+      bgColor: 'bg-blue-50',
+      iconColor: 'text-blue-600',
+    };
+  if (
+    fileType.includes('presentation') ||
+    fileType.includes('powerpoint') ||
+    lowerFileName.endsWith('.ppt') ||
+    lowerFileName.endsWith('.pptx')
+  )
+    return {
+      Icon: Presentation,
+      bgColor: 'bg-orange-50',
+      iconColor: 'text-orange-600',
+    };
+  if (
+    fileType.includes('spreadsheet') ||
+    fileType.includes('excel') ||
+    lowerFileName.endsWith('.xlsx') ||
+    lowerFileName.endsWith('.xls') ||
+    lowerFileName.endsWith('.csv')
+  )
+    return {
+      Icon: FileSpreadsheet,
+      bgColor: 'bg-green-50',
+      iconColor: 'text-green-600',
+    };
+  if (fileType === 'text/plain')
+    return {
+      Icon: FileText,
+      bgColor: 'bg-gray-50',
+      iconColor: 'text-gray-500',
+    };
+  if (isTextBasedFile(fileName, fileType)) {
+    const category = getTextFileCategory(fileName);
+    if (category === 'code')
+      return {
+        Icon: Code2,
+        bgColor: 'bg-purple-50',
+        iconColor: 'text-purple-600',
+      };
+    if (category === 'config')
+      return {
+        Icon: Settings2,
+        bgColor: 'bg-yellow-50',
+        iconColor: 'text-yellow-600',
+      };
+    if (category === 'data')
+      return {
+        Icon: FileSpreadsheet,
+        bgColor: 'bg-green-50',
+        iconColor: 'text-green-600',
+      };
+    return {
+      Icon: FileText,
+      bgColor: 'bg-gray-50',
+      iconColor: 'text-gray-500',
+    };
+  }
+  return {
+    Icon: Paperclip,
+    bgColor: 'bg-gray-50',
+    iconColor: 'text-gray-500',
+  };
+}
+
 export function FileTypeIcon({
   fileType,
   fileName,
@@ -38,84 +126,13 @@ export function FileTypeIcon({
   fileType: string;
   fileName: string;
 }) {
-  const { t } = useT('chat');
-
-  const getFileTypeInfo = () => {
-    if (fileType.startsWith('image/'))
-      return {
-        icon: '🖼️',
-        label: t('fileTypes.image'),
-        bgColor: 'bg-blue-100',
-      };
-    if (fileType === 'application/pdf')
-      return { icon: '📄', label: t('fileTypes.pdf'), bgColor: 'bg-red-100' };
-    if (
-      fileType.includes('word') ||
-      fileName.endsWith('.doc') ||
-      fileName.endsWith('.docx')
-    )
-      return { icon: '📝', label: t('fileTypes.doc'), bgColor: 'bg-blue-100' };
-    if (
-      fileType.includes('presentation') ||
-      fileType.includes('powerpoint') ||
-      fileName.endsWith('.ppt') ||
-      fileName.endsWith('.pptx')
-    )
-      return {
-        icon: '📊',
-        label: t('fileTypes.pptx'),
-        bgColor: 'bg-orange-100',
-      };
-    if (fileType === 'text/plain')
-      return { icon: '📄', label: t('fileTypes.txt'), bgColor: 'bg-gray-100' };
-    if (isTextBasedFile(fileName, fileType)) {
-      const category = getTextFileCategory(fileName);
-      const ext = getFileExtensionLower(fileName).toUpperCase();
-      if (category === 'code')
-        return {
-          icon: '💻',
-          label: ext || t('fileTypes.code'),
-          bgColor: 'bg-purple-100',
-        };
-      if (category === 'config')
-        return {
-          icon: '⚙️',
-          label: ext || t('fileTypes.config'),
-          bgColor: 'bg-yellow-100',
-        };
-      if (category === 'data')
-        return {
-          icon: '📊',
-          label: ext || t('fileTypes.data'),
-          bgColor: 'bg-green-100',
-        };
-      if (category === 'markup')
-        return {
-          icon: '📝',
-          label: ext || t('fileTypes.markup'),
-          bgColor: 'bg-teal-100',
-        };
-      return {
-        icon: '📄',
-        label: ext || t('fileTypes.txt'),
-        bgColor: 'bg-gray-100',
-      };
-    }
-    return { icon: '📎', label: t('fileTypes.file'), bgColor: 'bg-gray-100' };
-  };
-
-  const { icon, label, bgColor } = getFileTypeInfo();
+  const { Icon, bgColor, iconColor } = getFileIconInfo(fileType, fileName);
 
   return (
     <div
-      className={`${bgColor} flex size-8 shrink-0 items-center justify-center rounded-lg`}
+      className={`${bgColor} flex size-9 shrink-0 items-center justify-center rounded-lg`}
     >
-      <div className="flex flex-col items-center">
-        <span className="text-xs leading-none">{icon}</span>
-        <span className="text-foreground/80 mt-0.5 text-[8px] leading-none font-medium">
-          {label}
-        </span>
-      </div>
+      <Icon className={`${iconColor} size-[18px]`} strokeWidth={1.5} />
     </div>
   );
 }
@@ -225,25 +242,31 @@ export const FilePartDisplay = memo(function FilePartDisplay({
     );
   }
 
+  const fileName = filePart.filename || t('fallback.file');
+  const fileTypeLabel = getFileTypeLabel(fileName, filePart.mediaType, t);
+
   return (
-    <a
-      href={filePart.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="bg-muted hover:bg-muted/80 flex max-w-[13.5rem] items-center gap-2 rounded-lg px-2 py-1.5 transition-colors"
-    >
-      <FileTypeIcon
-        fileType={filePart.mediaType}
-        fileName={filePart.filename || t('fileTypes.file')}
-      />
-      <VStack className="min-w-0 flex-1">
-        <Text as="div" variant="label" truncate>
-          {filePart.filename || t('fileTypes.file')}
-        </Text>
-        <Text as="div" variant="caption">
-          {getFileTypeLabel(filePart.filename || '', filePart.mediaType, t)}
-        </Text>
+    <div className="bg-background border-border flex w-full items-center gap-3 rounded-xl border px-4 py-3 shadow-xs">
+      <FileTypeIcon fileType={filePart.mediaType} fileName={fileName} />
+      <VStack gap={1} className="min-w-0 flex-1">
+        <p className="text-foreground truncate text-[13px] leading-tight font-medium">
+          {fileName}
+        </p>
+        <p className="text-muted-foreground text-[11px] leading-tight">
+          {fileTypeLabel}
+        </p>
       </VStack>
-    </a>
+      <a
+        href={filePart.url}
+        download={fileName}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="border-border text-muted-foreground hover:bg-muted flex shrink-0 items-center justify-center rounded-lg border p-2 transition-colors"
+        aria-label={t('downloadFile')}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <Download className="size-4" strokeWidth={1.5} />
+      </a>
+    </div>
   );
 });
