@@ -33,6 +33,11 @@ _SAFE_TAGS = frozenset({"bookmarkStart", "bookmarkEnd"})
 _DRAWING_TAG = qn("w:drawing")
 _BR_TAG = qn("w:br")
 
+# Semantic grouping
+_MAX_GROUP_SIZE = 10
+_MIN_GROUP_SIZE = 5
+_MAX_OUTLINE_LEVEL = 2  # Split at Heading 1-3 (outlineLvl 0-2), not H4+
+
 
 def _tag_local(element) -> str:
     """Get the local tag name without namespace."""
@@ -127,6 +132,70 @@ def _iter_body_elements(doc: Document):
                         yield ("sdt_tbl", child)
 
 
+def _get_outline_level(para_element, para=None) -> int | None:
+    """Get the outline level of a paragraph (0=Heading 1, 1=Heading 2, etc.).
+
+    The w:outlineLvl element is the authoritative OOXML signal for heading
+    status. Checks both direct paragraph formatting and the style definition.
+    Returns None if no outline level is set.
+    """
+    # Check direct paragraph formatting
+    pPr = para_element.find(qn("w:pPr"))
+    if pPr is not None:
+        ol = pPr.find(qn("w:outlineLvl"))
+        if ol is not None:
+            return int(ol.get(qn("w:val")))
+    # Check style definition
+    if para is not None and para.style and para.style.element is not None:
+        style_pPr = para.style.element.find(qn("w:pPr"))
+        if style_pPr is not None:
+            ol = style_pPr.find(qn("w:outlineLvl"))
+            if ol is not None:
+                return int(ol.get(qn("w:val")))
+    return None
+
+
+def compute_semantic_groups(
+    lightweight: list[dict[str, Any]],
+    heading_levels: dict[str, int],
+    max_group_size: int = _MAX_GROUP_SIZE,
+    min_group_size: int = _MIN_GROUP_SIZE,
+    max_outline_level: int = _MAX_OUTLINE_LEVEL,
+) -> list[list[dict[str, Any]]]:
+    """Group editable paragraphs into semantic batches.
+
+    Single-pass algorithm:
+    - Split at heading paragraphs (level <= max_outline_level) only when
+      the current group has accumulated at least min_group_size paragraphs
+    - Split when group reaches max_group_size regardless
+    - Only include editable paragraphs in groups
+    """
+    groups: list[list[dict[str, Any]]] = []
+    current: list[dict[str, Any]] = []
+
+    for entry in lightweight:
+        if not entry.get("editable"):
+            continue
+
+        level = heading_levels.get(entry["key"])
+        is_split_heading = level is not None and level <= max_outline_level
+
+        if is_split_heading and len(current) >= min_group_size:
+            groups.append(current)
+            current = []
+
+        current.append(entry)
+
+        if len(current) >= max_group_size:
+            groups.append(current)
+            current = []
+
+    if current:
+        groups.append(current)
+
+    return groups
+
+
 class DocxRoundtripService:
     """Extract structured data from DOCX and apply text modifications back."""
 
@@ -136,8 +205,9 @@ class DocxRoundtripService:
         Returns:
             {
                 "source_hash": "sha256hex",
-                "metadata": {"paragraph_count": N, "table_count": N},
-                "lightweight": [{"key": "p_0", "text": "...", "editable": True}, ...]
+                "metadata": {"paragraph_count": N, "table_count": N, "group_count": N},
+                "lightweight": [{"key": "p_0", "text": "...", "editable": True, "style": "Normal"}, ...],
+                "groups": [[...], ...]
             }
         """
         _check_file_safety(file_bytes, filename)
@@ -149,6 +219,7 @@ class DocxRoundtripService:
         para_map = {p._element: p for p in doc.paragraphs}
 
         lightweight: list[dict[str, Any]] = []
+        heading_levels: dict[str, int] = {}
         p_counter = 0
         tbl_counter = 0
 
@@ -159,13 +230,19 @@ class DocxRoundtripService:
 
                 para = para_map.get(element)
                 text = para.text if para else _get_element_text(element)
+                style = para.style.name if para and para.style else None
+
+                level = _get_outline_level(element, para)
+                if level is not None:
+                    heading_levels[key] = level
 
                 if tag == "sdt_p":
-                    # SDT paragraphs are not editable
-                    lightweight.append({"key": key, "text": text, "editable": False})
+                    lightweight.append({"key": key, "text": text, "editable": False, "style": style})
+                elif not text.strip():
+                    lightweight.append({"key": key, "text": text, "editable": False, "style": style})
                 else:
                     editable, _detected = _classify_paragraph(element)
-                    lightweight.append({"key": key, "text": text, "editable": editable})
+                    lightweight.append({"key": key, "text": text, "editable": editable, "style": style})
 
             elif tag in ("tbl", "sdt_tbl"):
                 tbl_key = f"tbl_{tbl_counter}"
@@ -177,23 +254,39 @@ class DocxRoundtripService:
                             cell_key = f"{tbl_key}_r{row_idx}_c{col_idx}_p{p_idx}"
                             p_counter += 1
                             text = _get_element_text(p_el)
-                            editable, _detected = _classify_paragraph(p_el)
-                            lightweight.append({"key": cell_key, "text": text, "editable": editable})
+                            cell_para = para_map.get(p_el)
+                            cell_style = cell_para.style.name if cell_para and cell_para.style else None
+                            if not text.strip():
+                                lightweight.append(
+                                    {"key": cell_key, "text": text, "editable": False, "style": cell_style}
+                                )
+                            else:
+                                editable, _detected = _classify_paragraph(p_el)
+                                lightweight.append(
+                                    {"key": cell_key, "text": text, "editable": editable, "style": cell_style}
+                                )
 
         if p_counter > _MAX_PARAGRAPHS:
             raise ValueError(
                 f"Document has {p_counter} paragraphs (max {_MAX_PARAGRAPHS}). Consider splitting the document."
             )
 
-        logger.info(f"Extracted {p_counter} paragraphs, {tbl_counter} tables from DOCX (hash={source_hash[:12]}...)")
+        groups = compute_semantic_groups(lightweight, heading_levels)
+
+        logger.info(
+            f"Extracted {p_counter} paragraphs, {tbl_counter} tables, "
+            f"{len(groups)} groups from DOCX (hash={source_hash[:12]}...)"
+        )
 
         return {
             "source_hash": source_hash,
             "metadata": {
                 "paragraph_count": p_counter,
                 "table_count": tbl_counter,
+                "group_count": len(groups),
             },
             "lightweight": lightweight,
+            "groups": groups,
         }
 
     def apply_structured(
@@ -273,14 +366,18 @@ class DocxRoundtripService:
                     report["skipped_not_editable"].append(key)
                     continue
 
+                para = para_map.get(element) or Paragraph(element, None)
+
+                old_text = para.text
+                if not old_text.strip():
+                    report["skipped_not_editable"].append(key)
+                    continue
+
                 editable, _detected = _classify_paragraph(element)
                 if not editable:
                     report["skipped_not_editable"].append(key)
                     continue
 
-                para = para_map.get(element) or Paragraph(element, None)
-
-                old_text = para.text
                 if old_text == new_text:
                     report["skipped_no_change"].append(key)
                     continue
@@ -325,14 +422,18 @@ class DocxRoundtripService:
                             seen_keys.add(cell_key)
                             new_text = mod_lookup[cell_key]
 
+                            para = para_map.get(p_el) or Paragraph(p_el, None)
+
+                            old_text = para.text
+                            if not old_text.strip():
+                                report["skipped_not_editable"].append(cell_key)
+                                continue
+
                             editable, _detected = _classify_paragraph(p_el)
                             if not editable:
                                 report["skipped_not_editable"].append(cell_key)
                                 continue
 
-                            para = para_map.get(p_el) or Paragraph(p_el, None)
-
-                            old_text = para.text
                             if old_text == new_text:
                                 report["skipped_no_change"].append(cell_key)
                                 continue

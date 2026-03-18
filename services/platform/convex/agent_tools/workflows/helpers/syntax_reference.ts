@@ -298,9 +298,10 @@ Operations: create, update, retrieve, generate_docx, get_metadata, compare, extr
 }
 \`\`\`
 - fileId: Convex storage ID of the DOCX file (required)
-- Returns: { source_hash, metadata: { paragraph_count, table_count }, lightweight: [{ key, text, editable }] }
+- Returns: { source_hash, metadata: { paragraph_count, table_count, group_count }, lightweight: [{ key, text, editable, style }], groups: [[{ key, text, editable, style }]] }
 - Paragraph keys are stable (e.g., "p_0", "tbl_0_r0_c0_p0") and used in apply_docx_structured
 - editable: false for paragraphs with hyperlinks, images, tracked changes, SDT controls
+- groups: semantic batches of editable paragraphs, split at heading boundaries (uses outlineLvl). Use groups instead of chunk() for batch processing loops.
 
 **apply_docx_structured** — Apply text modifications to a DOCX file preserving all formatting:
 \`\`\`json

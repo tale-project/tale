@@ -276,6 +276,7 @@ class LightweightParagraph(BaseModel):
     key: str = Field(..., description="Stable paragraph key (e.g., 'p_0', 'tbl_0_r0_c0_p0')")
     text: str = Field(..., description="Full text content of the paragraph")
     editable: bool = Field(..., description="Whether this paragraph can be safely modified")
+    style: str | None = Field(None, description="Paragraph style name (e.g., 'Heading 1', 'Normal')")
 
 
 class ExtractStructuredMetadata(BaseModel):
@@ -283,6 +284,7 @@ class ExtractStructuredMetadata(BaseModel):
 
     paragraph_count: int = Field(..., description="Total number of paragraphs")
     table_count: int = Field(..., description="Total number of tables")
+    group_count: int = Field(0, description="Number of semantic paragraph groups")
 
 
 class ExtractStructuredResponse(BaseModel):
@@ -291,6 +293,9 @@ class ExtractStructuredResponse(BaseModel):
     source_hash: str = Field(..., description="SHA-256 hash of the source file")
     metadata: ExtractStructuredMetadata = Field(..., description="Document metadata")
     lightweight: list[LightweightParagraph] = Field(..., description="Paragraph key-text pairs")
+    groups: list[list[LightweightParagraph]] = Field(
+        default_factory=list, description="Semantic groups of editable paragraphs"
+    )
 
 
 class ApplyStructuredReport(BaseModel):

@@ -20,17 +20,20 @@ interface LightweightParagraph {
   key: string;
   text: string;
   editable: boolean;
+  style?: string | null;
 }
 
 interface ExtractStructuredMetadata {
   paragraph_count: number;
   table_count: number;
+  group_count: number;
 }
 
 export interface ExtractDocxStructuredResult {
   source_hash: string;
   metadata: ExtractStructuredMetadata;
   lightweight: LightweightParagraph[];
+  groups: LightweightParagraph[][];
 }
 
 export async function extractDocxStructured(

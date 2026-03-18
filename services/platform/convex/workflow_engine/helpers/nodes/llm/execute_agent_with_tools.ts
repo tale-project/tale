@@ -23,6 +23,11 @@ import type {
 
 import { isRecord } from '../../../../../lib/utils/type-guards';
 import { components } from '../../../../_generated/api';
+import {
+  estimateTokens,
+  AGENT_CONTEXT_CONFIGS,
+  CONTEXT_SAFETY_MARGIN,
+} from '../../../../lib/context_management';
 import { createAgentConfig } from '../../../../lib/create_agent_config';
 import { createDebugLog } from '../../../../lib/debug_log';
 import { processAgentResult } from './utils/process_agent_result';
@@ -38,6 +43,35 @@ const EMPTY_TOOL_DIAGNOSTICS: ToolDiagnostics = {
   lastToolInputText: null,
   lastToolResultText: null,
 };
+
+// =============================================================================
+// CONTEXT BUDGET CHECK
+// =============================================================================
+
+function checkPromptBudget(systemPrompt: string, userPrompt: string): void {
+  const sysTokens = estimateTokens(systemPrompt);
+  const userTokens = estimateTokens(userPrompt);
+  const total = sysTokens + userTokens;
+  const { modelContextLimit, outputReserve } = AGENT_CONTEXT_CONFIGS.workflow;
+  const budget = modelContextLimit * CONTEXT_SAFETY_MARGIN - outputReserve;
+
+  if (total > budget) {
+    throw new Error(
+      `LLM step prompt exceeds context budget: ~${total} tokens ` +
+        `(budget: ${Math.round(budget)}, system: ${sysTokens}, user: ${userTokens}). ` +
+        `Reduce prompt size or split the input into smaller batches.`,
+    );
+  }
+
+  if (total > budget * 0.85) {
+    debugLog('LLM step approaching context limit', {
+      estimatedTokens: total,
+      budget: Math.round(budget),
+      systemTokens: sysTokens,
+      userTokens,
+    });
+  }
+}
 
 // =============================================================================
 // AGENT EXECUTION
@@ -67,6 +101,8 @@ export async function executeAgentWithTools(
         'Provide a JSON schema to use structured output.',
     );
   }
+
+  checkPromptBudget(prompts.systemPrompt, prompts.userPrompt);
 
   const hasTools = config.tools && config.tools.length > 0;
   const needsJsonOutput = config.outputFormat === 'json' && config.outputSchema;
