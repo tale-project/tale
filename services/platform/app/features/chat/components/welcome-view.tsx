@@ -39,9 +39,10 @@ export function WelcomeView({
   }
 
   const suggestionKey = getSuggestionKey(role);
-  const suggestions = t(`suggestions.${suggestionKey}`, {
+  const suggestionsRaw = t(`suggestions.${suggestionKey}`, {
     returnObjects: true,
-  }) as string[];
+  });
+  const suggestions = Array.isArray(suggestionsRaw) ? suggestionsRaw : [];
 
   return (
     <div className="flex w-full max-w-(--chat-max-width) flex-col gap-6 self-center">

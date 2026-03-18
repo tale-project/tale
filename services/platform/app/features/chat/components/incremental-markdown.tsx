@@ -45,7 +45,6 @@
  */
 
 import type { Components } from 'react-markdown';
-import type { Plugin } from 'unified';
 
 import { memo, useMemo, useRef, type ReactNode } from 'react';
 import Markdown from 'react-markdown';
@@ -58,10 +57,10 @@ import type {
   MarkdownComponentType,
 } from '@/lib/utils/markdown-types';
 
-const remarkDisableIndentedCode: Plugin = function () {
-  const data = this.data() as {
-    micromarkExtensions?: { disable?: { null?: string[] } }[];
-  };
+const remarkDisableIndentedCode = function (this: {
+  data: () => { micromarkExtensions?: { disable?: { null?: string[] } }[] };
+}) {
+  const data = this.data();
   if (!data.micromarkExtensions) data.micromarkExtensions = [];
   data.micromarkExtensions.push({ disable: { null: ['codeIndented'] } });
 };
