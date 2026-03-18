@@ -83,7 +83,6 @@ function checkPromptBudget(systemPrompt: string, userPrompt: string): void {
  * Execution strategies:
  * - Text output: Uses generateText directly
  * - JSON output without tools: Uses generateObject directly
- * - JSON output with tools: Two-step approach (generateText then generateObject)
  */
 export async function executeAgentWithTools(
   ctx: ActionCtx,
@@ -112,9 +111,7 @@ export async function executeAgentWithTools(
       : null;
 
   const executionStrategy = needsJsonOutput
-    ? hasTools
-      ? 'json-with-tools (two-step)'
-      : 'json-without-tools (generateObject)'
+    ? 'json-without-tools (generateObject)'
     : 'text (generateText)';
 
   debugLog('executeAgentWithTools ENTRY', {

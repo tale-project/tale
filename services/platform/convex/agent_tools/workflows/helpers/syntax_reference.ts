@@ -52,6 +52,8 @@ Note: The port name MUST be "success" (not "next" or "default").`,
 Config: { name (REQUIRED), systemPrompt (REQUIRED), userPrompt?, tools?: string[], outputFormat?: 'text'|'json', outputSchema?, contextVariables? }
 NextSteps: { success: 'next_step', error?: 'error_handler' }
 
+**RESTRICTION:** tools and outputFormat: 'json' CANNOT be combined in a single step. If you need both, split into two steps: one text+tools step (to gather data), then a separate JSON step without tools (to format the result).
+
 **CRITICAL FIELDS:**
 - name: REQUIRED - human-readable name
 - systemPrompt: REQUIRED - role and instructions (NOT "prompt")
@@ -340,7 +342,7 @@ NextSteps: { true: 'if_true_step', false: 'if_false_step' }
 
 **Common Expressions:**
 - Check entity exists: \`steps.find_step.output.data != null\`
-- Check array not empty: \`steps.query.output.data.length > 0\`
+- Check array not empty: \`steps.query.output.data|length > 0\`
 - Compare values: \`steps.check.output.data.status == "active"\`
 - Boolean logic: \`status == "active" && count > 5\``,
 

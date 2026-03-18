@@ -18,7 +18,7 @@ from app.models import (
     MarkdownToDocxRequest,
     ParseFileResponse,
 )
-from app.services.docx_roundtrip_service import get_docx_roundtrip_service
+from app.services.docx_roundtrip_service import _MAX_PARAGRAPHS, get_docx_roundtrip_service
 from app.services.docx_service import get_docx_service
 from app.services.file_parser_service import get_file_parser_service
 from app.services.template_service import get_template_service
@@ -433,6 +433,11 @@ async def apply_docx_structured(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="'modifications' must be an array",
+            )
+        if len(modifications) > _MAX_PARAGRAPHS:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"modifications array exceeds maximum of {_MAX_PARAGRAPHS} entries",
             )
 
         track_changes = bool(params_dict.get("track_changes", False))

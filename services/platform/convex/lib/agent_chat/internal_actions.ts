@@ -53,7 +53,7 @@ import {
 } from '../context_management/constants';
 import { createAgentConfig } from '../create_agent_config';
 import { createDebugLog } from '../debug_log';
-import { classifyError, NonRetryableError } from '../error_classification';
+import { NonRetryableError } from '../error_classification';
 
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[runAgentGeneration]');
 
@@ -415,17 +415,15 @@ export const runAgentGeneration = internalAction({
         );
       }
 
-      // Classify and wrap error for retry decisions
-      const classification = classifyError(error);
       throw new NonRetryableError(
-        `${classification.description}: ${JSON.stringify({
+        `Agent generation failed: ${JSON.stringify({
           message: getString(err, 'message'),
           code: getString(err, 'code'),
           status: err['status'],
           cause: err['cause'],
         })}`,
         error,
-        classification.reason,
+        'generation_error',
       );
     }
   },

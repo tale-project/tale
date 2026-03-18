@@ -204,7 +204,6 @@ class TrackChangesWriter:
             elif op == "replace":
                 # Delete old tokens
                 if old_tokens[i1:i2]:
-                    del_text = _join_tokens(old_tokens[i1:i2])
                     start_char = old_token_char_starts[i1]
                     end_char = old_token_char_starts[i2 - 1] + len(old_tokens[i2 - 1])
 

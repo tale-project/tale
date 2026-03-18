@@ -37,6 +37,7 @@ interface ApplyReport {
   skipped_unknown_key: string[];
   skipped_no_change: string[];
   skipped_non_text_content: string[];
+  format_simplified: string[];
   errors: Array<{ key: string; error: string }>;
 }
 
@@ -200,6 +201,7 @@ export async function applyDocxStructured(
       skipped_unknown_key: [],
       skipped_no_change: [],
       skipped_non_text_content: [],
+      format_simplified: [],
       errors: [],
     },
   };

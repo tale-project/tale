@@ -23,6 +23,22 @@ def _make_docx(*paragraphs: str, bold_first_run: bool = False) -> bytes:
     return buf.getvalue()
 
 
+def _make_docx_multi_run(*paragraphs: list[tuple[str, bool]]) -> bytes:
+    """Create a DOCX where each paragraph has multiple runs with optional bold.
+
+    Each paragraph is a list of (text, bold) tuples.
+    """
+    doc = Document()
+    for runs_spec in paragraphs:
+        para = doc.add_paragraph()
+        for text, bold in runs_spec:
+            run = para.add_run(text)
+            run.bold = bold
+    buf = BytesIO()
+    doc.save(buf)
+    return buf.getvalue()
+
+
 def _make_docx_with_bookmark(text: str, bookmark_name: str = "BM1") -> bytes:
     """Create a DOCX with a paragraph containing a bookmark around the text."""
     doc = Document()
@@ -382,6 +398,36 @@ class TestApplyStructured:
         assert paragraphs[1] == "B"
         assert paragraphs[2] == "CC"
         assert paragraphs[3] == "D"
+
+    def test_format_simplified_single_run(self, service: DocxRoundtripService):
+        docx_bytes = _make_docx("Hello")
+        extracted = service.extract_structured(docx_bytes)
+
+        modifications = [{"key": "p_0", "text": "Goodbye"}]
+        _, report = service.apply_structured(docx_bytes, extracted["source_hash"], modifications)
+
+        assert report["applied"] == 1
+        assert report["format_simplified"] == []
+
+    def test_format_simplified_multi_run(self, service: DocxRoundtripService):
+        docx_bytes = _make_docx_multi_run([("Bold ", True), ("normal", False)])
+        extracted = service.extract_structured(docx_bytes)
+
+        modifications = [{"key": "p_0", "text": "Replaced text"}]
+        _, report = service.apply_structured(docx_bytes, extracted["source_hash"], modifications)
+
+        assert report["applied"] == 1
+        assert "p_0" in report["format_simplified"]
+
+    def test_format_simplified_not_tracked_for_track_changes(self, service: DocxRoundtripService):
+        docx_bytes = _make_docx_multi_run([("Bold ", True), ("normal", False)])
+        extracted = service.extract_structured(docx_bytes)
+
+        modifications = [{"key": "p_0", "text": "Replaced text"}]
+        _, report = service.apply_structured(docx_bytes, extracted["source_hash"], modifications, track_changes=True)
+
+        assert report["applied"] == 1
+        assert report["format_simplified"] == []
 
 
 class TestTrackChanges:

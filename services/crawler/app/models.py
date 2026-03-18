@@ -308,6 +308,9 @@ class ApplyStructuredReport(BaseModel):
     skipped_unknown_key: list[str] = Field(default_factory=list, description="Keys not found in document")
     skipped_no_change: list[str] = Field(default_factory=list, description="Keys where text was unchanged")
     skipped_non_text_content: list[str] = Field(default_factory=list, description="Keys with images/page breaks")
+    format_simplified: list[str] = Field(
+        default_factory=list, description="Keys where multi-run formatting was simplified"
+    )
     errors: list[dict[str, Any]] = Field(default_factory=list, description="Errors encountered")
 
 

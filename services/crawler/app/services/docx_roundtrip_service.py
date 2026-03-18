@@ -334,6 +334,7 @@ class DocxRoundtripService:
             "skipped_unknown_key": [],
             "skipped_no_change": [],
             "skipped_non_text_content": [],
+            "format_simplified": [],
             "errors": [],
         }
 
@@ -401,6 +402,8 @@ class DocxRoundtripService:
                     if tc_writer:
                         tc_writer.apply_paragraph_change(para, old_text, new_text)
                     else:
+                        if len(para.runs) > 1:
+                            report["format_simplified"].append(key)
                         _replace_paragraph_text(para, new_text)
                     report["applied"] += 1
                 except Exception as e:
@@ -456,6 +459,8 @@ class DocxRoundtripService:
                                 if tc_writer:
                                     tc_writer.apply_paragraph_change(para, old_text, new_text)
                                 else:
+                                    if len(para.runs) > 1:
+                                        report["format_simplified"].append(cell_key)
                                     _replace_paragraph_text(para, new_text)
                                 report["applied"] += 1
                             except Exception as e:

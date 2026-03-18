@@ -249,6 +249,8 @@ export function ChatInput({
               {uploadingFiles.map((fileId) => (
                 <div
                   key={fileId}
+                  role="status"
+                  aria-label={tChat('uploadingFile')}
                   className="bg-secondary/20 grid size-9 place-content-center rounded-lg p-2"
                 >
                   <LoaderCircleIcon className="size-4 animate-spin" />

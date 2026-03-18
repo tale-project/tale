@@ -607,17 +607,6 @@ export async function generateAgentResponse(
             finishReason: 'cancelled',
           };
         }
-
-        // Post-stream abort check
-        if (await checkFreshAbort()) {
-          abortWatcher?.stop();
-          return {
-            threadId,
-            text: '',
-            durationMs: Date.now() - startTime,
-            finishReason: 'cancelled',
-          };
-        }
       } else {
         // Non-streaming mode (sub-agents)
         // Extend context with all fields from contextWithOrg for consistency

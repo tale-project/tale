@@ -749,7 +749,6 @@ import type * as workflow_engine_types_index from "../workflow_engine/types/inde
 import type * as workflow_engine_types_nodes from "../workflow_engine/types/nodes.js";
 import type * as workflow_engine_types_workflow from "../workflow_engine/types/workflow.js";
 import type * as workflow_engine_types_workflow_types from "../workflow_engine/types/workflow_types.js";
-import type * as workflow_engine_workflow_syntax_compact from "../workflow_engine/workflow_syntax_compact.js";
 import type * as workflows_definitions_activate_version from "../workflows/definitions/activate_version.js";
 import type * as workflows_definitions_create_draft_from_active from "../workflows/definitions/create_draft_from_active.js";
 import type * as workflows_definitions_create_workflow from "../workflows/definitions/create_workflow.js";
@@ -1605,7 +1604,6 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/types/nodes": typeof workflow_engine_types_nodes;
   "workflow_engine/types/workflow": typeof workflow_engine_types_workflow;
   "workflow_engine/types/workflow_types": typeof workflow_engine_types_workflow_types;
-  "workflow_engine/workflow_syntax_compact": typeof workflow_engine_workflow_syntax_compact;
   "workflows/definitions/activate_version": typeof workflows_definitions_activate_version;
   "workflows/definitions/create_draft_from_active": typeof workflows_definitions_create_draft_from_active;
   "workflows/definitions/create_workflow": typeof workflows_definitions_create_workflow;
