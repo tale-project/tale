@@ -1,7 +1,7 @@
 {
   "workflowConfig": {
     "name": "Contract Generation",
-    "description": "Generate or modify contracts from template files. Use when the user asks to draft, generate, rewrite, or modify a contract based on template documents.\n\nThe workflow extracts clauses from one or more contract templates (the ONLY source of clauses — no clauses are invented), merges them with the user's requirements (e.g., 'buyer-friendly', 'strengthen indemnification'), and writes each clause using RAG-retrieved template language to produce a DOCX contract.\n\nWhen a base contract is provided, the workflow modifies it chunk-by-chunk — preserving the original language, structure, and unchanged sections verbatim. Only sections that need changes (based on templates and user requirements) are modified.\n\nExtract fileIds from pre-analyzed attachments in the conversation (look for '(fileId: ...)' annotations) or ask the user to provide them.",
+    "description": "Generate or modify contracts from template files. Use when the user asks to draft, generate, rewrite, or modify a contract based on template documents.\n\nThe workflow extracts clauses from one or more contract templates (the ONLY source of clauses — no clauses are invented), merges them with the user's requirements (e.g., 'buyer-friendly', 'strengthen indemnification'), and writes each clause using RAG-retrieved template language to produce a DOCX contract.\n\nWhen a base contract is provided, the workflow uses structured DOCX round-trip editing — extracting paragraphs with stable keys, applying targeted text modifications via LLM + RAG, and writing changes back to the original DOCX with Track Changes markup. This preserves all original formatting, styles, headers/footers, and document properties.\n\nExtract fileIds from pre-analyzed attachments in the conversation (look for '(fileId: ...)' annotations) or ask the user to provide them.",
     "version": "1.0.0",
     "workflowType": "predefined",
     "config": {
@@ -19,7 +19,7 @@
         "inputSchema": {
           "properties": {
             "templateFileIds": { "type": "array", "description": "Convex storage IDs of contract template files (DOCX or PDF). These are the ONLY source of clauses — extract fileIds from pre-analyzed attachments (look for '(fileId: ...)' annotations)." },
-            "baseFileId": { "type": "string", "description": "Convex storage ID of an existing contract to modify. When provided, the workflow modifies this contract chunk-by-chunk based on templates and requirements, preserving its original language and structure. Optional." },
+            "baseFileId": { "type": "string", "description": "Convex storage ID of an existing DOCX contract to modify. When provided, the workflow extracts structured paragraphs, applies targeted modifications with Track Changes markup, and preserves all original formatting. Optional." },
             "requirements": { "type": "string", "description": "The user's instructions in natural language. Preserve the user's full intent (e.g., 'Draft a buyer-friendly SPA', 'Strengthen indemnification, extend warranty survival to 24 months')." },
             "outputFileName": { "type": "string", "description": "Base name for the output DOCX file (without extension). Choose a sensible name based on the request." }
           },
@@ -110,130 +110,115 @@
         "expression": "input.baseFileId != null && input.baseFileId != ''"
       },
       "nextSteps": {
-        "true": "index_base_rag",
+        "true": "extract_base_structured",
         "false": "merge_clauses"
       }
     },
 
     {
-      "stepSlug": "index_base_rag",
-      "name": "Index Base Contract in RAG",
+      "stepSlug": "extract_base_structured",
+      "name": "Extract Base Contract Structure",
       "stepType": "action",
       "config": {
-        "type": "rag",
+        "type": "document",
         "parameters": {
-          "operation": "upload_document",
-          "fileId": "{{input.baseFileId}}",
-          "sync": true
-        }
-      },
-      "nextSteps": { "success": "get_base_chunks" }
-    },
-    {
-      "stepSlug": "get_base_chunks",
-      "name": "Retrieve Base Contract Chunks",
-      "stepType": "action",
-      "config": {
-        "type": "rag",
-        "parameters": {
-          "operation": "get_chunks",
+          "operation": "extract_docx_structured",
           "fileId": "{{input.baseFileId}}"
         }
       },
-      "nextSteps": { "success": "init_base_loop" }
+      "nextSteps": { "success": "init_mod_loop" }
     },
     {
-      "stepSlug": "init_base_loop",
-      "name": "Initialize Base Contract Loop",
+      "stepSlug": "init_mod_loop",
+      "name": "Initialize Modifications",
       "stepType": "action",
       "config": {
         "type": "set_variables",
         "parameters": {
           "variables": [
             {
-              "name": "contractChunksText",
-              "value": ""
+              "name": "allModifications",
+              "value": []
             }
           ]
         }
       },
-      "nextSteps": { "success": "loop_base_chunks" }
+      "nextSteps": { "success": "loop_batches" }
     },
     {
-      "stepSlug": "loop_base_chunks",
-      "name": "Loop: Process Base Contract Chunks",
+      "stepSlug": "loop_batches",
+      "name": "Loop: Process Paragraph Batches",
       "stepType": "loop",
       "config": {
-        "items": "{{steps.get_base_chunks.output.data.chunks}}",
-        "itemVariable": "item"
+        "items": "{{steps.extract_base_structured.output.data.lightweight | filterBy('editable', true) | chunk(50)}}",
+        "itemVariable": "batch"
       },
       "nextSteps": {
-        "loop": "process_chunk",
-        "done": "assemble_contract"
+        "loop": "process_batch",
+        "done": "apply_modifications"
       }
     },
     {
-      "stepSlug": "process_chunk",
-      "name": "Process Contract Chunk",
+      "stepSlug": "process_batch",
+      "name": "Process Paragraph Batch",
       "stepType": "llm",
       "config": {
-        "name": "Chunk Processor",
+        "name": "Batch Modification Planner",
         "tools": ["rag_search"],
-        "systemPrompt": "You are an expert contract attorney modifying an existing contract chunk-by-chunk.\n\nYou receive ONE chunk from a base contract. Your task is to decide whether this chunk needs modification based on the template clause summaries and user requirements provided.\n\nDECISION PROCESS:\n1. Read the chunk text carefully.\n2. Compare it against the template clause summaries and user requirements.\n3. If the chunk does NOT need changes (e.g., it is a table of contents, preamble, signature block, boilerplate, or a section not affected by the requirements): output the chunk text EXACTLY as-is, verbatim, character for character. Do not alter punctuation, spacing, numbering, or language.\n4. If the chunk DOES need changes: you MUST first use rag_search with the provided template file IDs to retrieve the relevant template language BEFORE making any modification. Do NOT modify the chunk without retrieving template language first.\n\nTEMPLATE SOURCING (MANDATORY):\n- The templates are the ONLY SOURCE of clause language. Every modification must be grounded in language retrieved from the templates via rag_search.\n- NEVER invent, generate, or fabricate clause language that does not exist in the templates.\n- Compose modifications from the retrieved template language, adapting ONLY the style, formality, and language to match the base contract.\n- If rag_search returns no relevant template language for a needed modification, keep the chunk AS-IS. Do not modify a chunk with invented language.\n- You may make multiple rag_search calls with different queries to find the best template language for different parts of a chunk.\n\nCRITICAL RULES:\n- LANGUAGE PRESERVATION: The output MUST be in the SAME LANGUAGE as the input chunk. If the chunk is in German, output in German. If French, output in French. NEVER translate to English or any other language.\n- STYLE PRESERVATION: Match the base contract's writing style, formality level, legal conventions, and formatting. Template language provides the substance; the base contract provides the style.\n- MINIMAL CHANGES: Only modify what the user requirements and template guidance call for. Do not rewrite sections unnecessarily.\n- NUMBERING: Preserve the chunk's numbering conventions exactly.\n- DEFINED TERMS: Preserve defined terms in their original language. If introducing new terms from templates, translate them to the base contract's language.\n- NO PLACEHOLDERS: Do not use [X], [TBD], or similar placeholders.\n\nWhen using rag_search:\n- Pass the template file IDs as the fileIds parameter.\n- Search for the specific clause or provision that matches the modification needed.\n- If results are too broad, refine with a more specific query.\n\nOUTPUT RULES:\n- Output ONLY the chunk text (original or modified). No commentary, no explanation, no headers like \"Modified chunk:\" or \"Output:\".\n- Do not wrap the output in markdown code blocks.",
-        "userPrompt": "Process this contract chunk.\n\nCHUNK TEXT:\n{{loop.item.content}}\n\nTEMPLATE CLAUSE SUMMARIES:\n{{variables.allClausesText}}\n\nTEMPLATE FILE IDS (pass these as fileIds to rag_search if you need template language):\n{{input.templateFileIds}}\n\nUSER REQUIREMENTS:\n{{input.requirements}}",
-        "outputFormat": "text"
+        "systemPrompt": "You are an expert contract attorney modifying an existing contract by targeting specific paragraphs.\n\nYou receive a BATCH of editable paragraphs extracted from a DOCX contract. Each paragraph has a stable key (e.g., \"p_0\", \"p_5\", \"tbl_0_r0_c0_p0\") and its current text. You also receive clause summaries from template contracts and the user's modification requirements.\n\nYour task is to determine which paragraphs in THIS BATCH need text changes and produce the exact replacement text for each.\n\nPROCESS:\n1. Read through all paragraphs in the batch to understand their context.\n2. Compare against the template clause summaries and user requirements.\n3. For each paragraph that needs changes, use rag_search with the provided template file IDs to retrieve relevant template language BEFORE deciding on the new text.\n4. Produce the replacement text for each modified paragraph.\n\nTEMPLATE SOURCING (MANDATORY):\n- The templates are the ONLY SOURCE of clause language. Every modification must be grounded in language retrieved from the templates via rag_search.\n- NEVER invent, generate, or fabricate clause language that does not exist in the templates.\n- You may make multiple rag_search calls with different queries to find the best template language.\n- If rag_search returns no relevant template language for a needed modification, do NOT modify that paragraph.\n\nCRITICAL RULES:\n- LANGUAGE PRESERVATION: The output text MUST be in the SAME LANGUAGE as the input paragraph. If the paragraph is in German, output in German. NEVER translate.\n- STYLE PRESERVATION: Match the base contract's writing style, formality level, and legal conventions. Template language provides the substance; the base contract provides the style.\n- MINIMAL CHANGES: Only modify paragraphs that the user requirements and template guidance call for. Do not rewrite unnecessarily.\n- PARAGRAPH BOUNDARIES: Do NOT merge or split paragraphs. Each modification replaces exactly one paragraph's text.\n- DEFINED TERMS: Preserve defined terms in their original language.\n- NO PLACEHOLDERS: Do not use [X], [TBD], or similar placeholders.\n- EMPTY PARAGRAPHS: Skip empty paragraphs entirely — do not include them in modifications.\n\nOUTPUT FORMAT:\nReturn a JSON object with:\n- \"modifications\": An array of objects, each with:\n  - \"key\": The paragraph key (e.g., \"p_5\")\n  - \"text\": The complete new text for that paragraph\n\nOnly include paragraphs that actually need changes. Omit unchanged paragraphs entirely.\nIf no paragraphs in this batch need changes, return: {\"modifications\": []}",
+        "userPrompt": "Process this batch of paragraphs from the base contract.\n\nPARAGRAPHS IN THIS BATCH:\n{{loop.batch}}\n\nTEMPLATE CLAUSE SUMMARIES:\n{{variables.allClausesText}}\n\nTEMPLATE FILE IDS (pass these as fileIds to rag_search):\n{{input.templateFileIds}}\n\nUSER REQUIREMENTS:\n{{input.requirements}}",
+        "outputFormat": "json"
       },
-      "nextSteps": { "success": "acc_chunk" }
+      "nextSteps": { "success": "accumulate_batch_mods" }
     },
     {
-      "stepSlug": "acc_chunk",
-      "name": "Accumulate Processed Chunk",
+      "stepSlug": "accumulate_batch_mods",
+      "name": "Accumulate Batch Modifications",
       "stepType": "action",
       "config": {
         "type": "set_variables",
         "parameters": {
           "variables": [
             {
-              "name": "contractChunksText",
-              "value": "{{variables.contractChunksText + '\\n\\n' + steps.process_chunk.output.data}}"
+              "name": "allModifications",
+              "value": "{{variables.allModifications | concat(steps.process_batch.output.data.modifications)}}"
             }
           ]
         }
       },
-      "nextSteps": { "success": "loop_base_chunks" }
+      "nextSteps": { "success": "loop_batches" }
     },
     {
-      "stepSlug": "assemble_contract",
-      "name": "Assemble Modified Contract",
-      "stepType": "llm",
-      "config": {
-        "name": "Contract Assembler",
-        "systemPrompt": "You are a legal document assembler. You receive the accumulated text of a contract that has been processed chunk-by-chunk.\n\nYour task is a LIGHT-TOUCH assembly:\n1. Ensure smooth transitions between chunks (fix any abrupt breaks at chunk boundaries).\n2. Fix any numbering gaps if sections were added or removed during chunk processing.\n3. Ensure the table of contents (if present) reflects the final section structure.\n\nCRITICAL RULES:\n- Do NOT rewrite or rephrase any content. Only fix structural issues at chunk boundaries.\n- LANGUAGE PRESERVATION: The output MUST remain in the same language as the input. NEVER translate.\n- Preserve all formatting conventions from the original contract.\n- End with: \"---\\n*This document was AI-generated and requires professional legal review.*\"\n- Output ONLY the assembled contract in Markdown. No commentary.",
-        "userPrompt": "Assemble the following processed chunks into a complete contract.\n\nPROCESSED CHUNKS:\n{{variables.contractChunksText}}",
-        "outputFormat": "text"
-      },
-      "nextSteps": { "success": "set_draft_from_base" }
-    },
-    {
-      "stepSlug": "set_draft_from_base",
-      "name": "Set Draft from Base Contract Path",
+      "stepSlug": "apply_modifications",
+      "name": "Apply Modifications to Base Contract",
       "stepType": "action",
       "config": {
-        "type": "set_variables",
+        "type": "document",
         "parameters": {
-          "variables": [
-            {
-              "name": "draftedContract",
-              "value": "{{steps.assemble_contract.output.data}}"
-            },
-            {
-              "name": "repairContext",
-              "value": ""
-            }
-          ]
+          "operation": "apply_docx_structured",
+          "templateFileId": "{{input.baseFileId}}",
+          "sourceHash": "{{steps.extract_base_structured.output.data.source_hash}}",
+          "modifications": "{{variables.allModifications}}",
+          "fileName": "{{input.outputFileName}}",
+          "trackChanges": true,
+          "author": "AI Assistant"
         }
       },
-      "nextSteps": { "success": "repair_definitions" }
+      "nextSteps": { "success": "output_modified" }
+    },
+    {
+      "stepSlug": "output_modified",
+      "name": "Output Modified Contract",
+      "stepType": "output",
+      "config": {
+        "mapping": {
+          "fileStorageId": "{{steps.apply_modifications.output.data.fileStorageId}}",
+          "downloadUrl": "{{steps.apply_modifications.output.data.downloadUrl}}",
+          "fileName": "{{steps.apply_modifications.output.data.fileName}}",
+          "report": "{{steps.apply_modifications.output.data.report}}"
+        }
+      },
+      "nextSteps": {}
     },
 
     {

@@ -618,6 +618,8 @@ import type * as workflow_engine_action_defs_crawler_crawler_action from "../wor
 import type * as workflow_engine_action_defs_crawler_helpers_types from "../workflow_engine/action_defs/crawler/helpers/types.js";
 import type * as workflow_engine_action_defs_customer_customer_action from "../workflow_engine/action_defs/customer/customer_action.js";
 import type * as workflow_engine_action_defs_document_document_action from "../workflow_engine/action_defs/document/document_action.js";
+import type * as workflow_engine_action_defs_document_helpers_apply_docx_structured from "../workflow_engine/action_defs/document/helpers/apply_docx_structured.js";
+import type * as workflow_engine_action_defs_document_helpers_extract_docx_structured from "../workflow_engine/action_defs/document/helpers/extract_docx_structured.js";
 import type * as workflow_engine_action_defs_integration_helpers_build_secrets_from_integration from "../workflow_engine/action_defs/integration/helpers/build_secrets_from_integration.js";
 import type * as workflow_engine_action_defs_integration_helpers_decrypt_sql_credentials from "../workflow_engine/action_defs/integration/helpers/decrypt_sql_credentials.js";
 import type * as workflow_engine_action_defs_integration_helpers_detect_write_operation from "../workflow_engine/action_defs/integration/helpers/detect_write_operation.js";
@@ -1473,6 +1475,8 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/action_defs/crawler/helpers/types": typeof workflow_engine_action_defs_crawler_helpers_types;
   "workflow_engine/action_defs/customer/customer_action": typeof workflow_engine_action_defs_customer_customer_action;
   "workflow_engine/action_defs/document/document_action": typeof workflow_engine_action_defs_document_document_action;
+  "workflow_engine/action_defs/document/helpers/apply_docx_structured": typeof workflow_engine_action_defs_document_helpers_apply_docx_structured;
+  "workflow_engine/action_defs/document/helpers/extract_docx_structured": typeof workflow_engine_action_defs_document_helpers_extract_docx_structured;
   "workflow_engine/action_defs/integration/helpers/build_secrets_from_integration": typeof workflow_engine_action_defs_integration_helpers_build_secrets_from_integration;
   "workflow_engine/action_defs/integration/helpers/decrypt_sql_credentials": typeof workflow_engine_action_defs_integration_helpers_decrypt_sql_credentials;
   "workflow_engine/action_defs/integration/helpers/detect_write_operation": typeof workflow_engine_action_defs_integration_helpers_detect_write_operation;
