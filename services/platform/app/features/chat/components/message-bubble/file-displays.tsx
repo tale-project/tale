@@ -42,14 +42,15 @@ export function getFileTypeLabel(
 }
 
 function getFileIconInfo(fileType: string, fileName: string) {
+  const lowerFileName = fileName.toLowerCase();
   if (fileType.startsWith('image/'))
     return { Icon: Image, bgColor: 'bg-blue-50', iconColor: 'text-blue-600' };
   if (fileType === 'application/pdf')
     return { Icon: FileText, bgColor: 'bg-red-50', iconColor: 'text-red-600' };
   if (
     fileType.includes('word') ||
-    fileName.endsWith('.doc') ||
-    fileName.endsWith('.docx')
+    lowerFileName.endsWith('.doc') ||
+    lowerFileName.endsWith('.docx')
   )
     return {
       Icon: FileText,
@@ -59,8 +60,8 @@ function getFileIconInfo(fileType: string, fileName: string) {
   if (
     fileType.includes('presentation') ||
     fileType.includes('powerpoint') ||
-    fileName.endsWith('.ppt') ||
-    fileName.endsWith('.pptx')
+    lowerFileName.endsWith('.ppt') ||
+    lowerFileName.endsWith('.pptx')
   )
     return {
       Icon: Presentation,
@@ -70,9 +71,9 @@ function getFileIconInfo(fileType: string, fileName: string) {
   if (
     fileType.includes('spreadsheet') ||
     fileType.includes('excel') ||
-    fileName.endsWith('.xlsx') ||
-    fileName.endsWith('.xls') ||
-    fileName.endsWith('.csv')
+    lowerFileName.endsWith('.xlsx') ||
+    lowerFileName.endsWith('.xls') ||
+    lowerFileName.endsWith('.csv')
   )
     return {
       Icon: FileSpreadsheet,
