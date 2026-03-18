@@ -27,50 +27,51 @@ import { readCustomerByEmail } from './helpers/read_customer_by_email';
 import { readCustomerById } from './helpers/read_customer_by_id';
 import { readCustomerList } from './helpers/read_customer_list';
 
-// Use a flat object schema instead of discriminatedUnion to ensure OpenAI-compatible JSON Schema
-// (discriminatedUnion produces anyOf/oneOf which some providers reject as "type: None")
-const customerReadArgs = z.object({
-  operation: z
-    .enum(['get_by_id', 'get_by_email', 'list', 'count'])
-    .describe(
-      "Operation to perform: 'get_by_id' (fetch by ID), 'get_by_email' (fetch by email), 'list' (paginate all), or 'count' (count total customers)",
-    ),
-  // For get_by_id operation
-  customerId: z
-    .string()
-    .optional()
-    .describe(
-      'Required for \'get_by_id\': Convex Id<"customers"> (string format) for the target customer',
-    ),
-  // For get_by_email operation
-  email: z
-    .string()
-    .optional()
-    .describe(
-      "Required for 'get_by_email': Customer email address to search for",
-    ),
-  // Common fields for all operations
-  fields: z
-    .array(z.string())
-    .optional()
-    .describe(
-      "Optional list of fields to return. Default: ['_id','name','email','status','source','locale']",
-    ),
-  // For list operation
-  cursor: z
-    .string()
-    .nullable()
-    .optional()
-    .describe(
-      "For 'list' operation: Pagination cursor from previous response, or null/omitted for first page",
-    ),
-  numItems: z
-    .number()
-    .optional()
-    .describe(
-      "For 'list' operation: Number of items per page (default: 200). Fewer fields = more items allowed.",
-    ),
-});
+const customerReadArgs = z.discriminatedUnion('operation', [
+  z.object({
+    operation: z.literal('get_by_id'),
+    customerId: z
+      .string()
+      .describe(
+        'Convex Id<"customers"> (string format) for the target customer',
+      ),
+    fields: z
+      .array(z.string())
+      .optional()
+      .describe(
+        "Fields to return. Default: ['_id','name','email','status','source','locale']",
+      ),
+  }),
+  z.object({
+    operation: z.literal('get_by_email'),
+    email: z.string().describe('Customer email address to search for'),
+    fields: z
+      .array(z.string())
+      .optional()
+      .describe(
+        "Fields to return. Default: ['_id','name','email','status','source','locale']",
+      ),
+  }),
+  z.object({
+    operation: z.literal('list'),
+    cursor: z
+      .string()
+      .nullable()
+      .optional()
+      .describe(
+        'Pagination cursor from previous response, or null/omitted for first page',
+      ),
+    numItems: z
+      .number()
+      .optional()
+      .describe(
+        'Number of items per page (default: 200). Fewer fields = more items allowed.',
+      ),
+  }),
+  z.object({
+    operation: z.literal('count'),
+  }),
+]);
 
 export const customerReadTool: ToolDefinition = {
   name: 'customer_read',
@@ -126,11 +127,6 @@ BEST PRACTICES:
       | CustomerReadCountResult
     > => {
       if (args.operation === 'get_by_id') {
-        if (!args.customerId) {
-          throw new Error(
-            "Missing required 'customerId' for get_by_id operation",
-          );
-        }
         return readCustomerById(ctx, {
           customerId: args.customerId,
           fields: args.fields,
@@ -138,11 +134,6 @@ BEST PRACTICES:
       }
 
       if (args.operation === 'get_by_email') {
-        if (!args.email) {
-          throw new Error(
-            "Missing required 'email' for get_by_email operation",
-          );
-        }
         return readCustomerByEmail(ctx, {
           email: args.email,
           fields: args.fields,

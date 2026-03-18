@@ -31,61 +31,48 @@ import { readAllWorkflows } from './helpers/read_all_workflows';
 import { readVersionHistory } from './helpers/read_version_history';
 import { readWorkflowStructure } from './helpers/read_workflow_structure';
 
-// Use a flat object schema instead of discriminatedUnion to ensure OpenAI-compatible JSON Schema
-// (discriminatedUnion produces anyOf/oneOf which some providers reject as "type: None")
-const workflowReadArgs = z.object({
-  operation: z
-    .enum([
-      'get_structure',
-      'get_step',
-      'list_all',
-      'get_active_version_steps',
-      'list_version_history',
-    ])
-    .describe(
-      "Operation to perform: 'get_structure', 'get_step', 'list_all', 'get_active_version_steps', or 'list_version_history'",
-    ),
-  // For get_structure operation
-  workflowId: z
-    .string()
-    .optional()
-    .describe(
-      'Required for \'get_structure\': The workflow ID (Convex Id<"wfDefinitions">)',
-    ),
-  // For get_step operation
-  stepId: z
-    .string()
-    .optional()
-    .describe(
-      'Required for \'get_step\': The step record ID (Convex Id<"wfStepDefs">)',
-    ),
-  // For list_all operation
-  status: workflowStatusSchema
-    .optional()
-    .describe(
-      "For 'list_all': Optional status filter ('draft', 'active', or 'archived'). If not provided, returns all workflows.",
-    ),
-  includeStepCount: z
-    .boolean()
-    .optional()
-    .describe(
-      "For 'list_all': Whether to include step count for each workflow (default: false). Setting to true may increase response time.",
-    ),
-  // For get_active_version_steps and list_version_history operations
-  workflowName: z
-    .string()
-    .optional()
-    .describe(
-      "Required for 'get_active_version_steps' and 'list_version_history': The workflow name to look up versions for.",
-    ),
-  // For list_version_history operation
-  includeSteps: z
-    .boolean()
-    .optional()
-    .describe(
-      "For 'list_version_history': Whether to include all steps for each version (default: false). Setting to true may increase response time significantly.",
-    ),
-});
+const workflowReadArgs = z.discriminatedUnion('operation', [
+  z.object({
+    operation: z.literal('get_structure'),
+    workflowId: z
+      .string()
+      .describe('The workflow ID (Convex Id<"wfDefinitions">)'),
+  }),
+  z.object({
+    operation: z.literal('get_step'),
+    stepId: z.string().describe('The step record ID (Convex Id<"wfStepDefs">)'),
+  }),
+  z.object({
+    operation: z.literal('list_all'),
+    status: workflowStatusSchema
+      .optional()
+      .describe(
+        "Optional status filter ('draft', 'active', or 'archived'). If not provided, returns all workflows.",
+      ),
+    includeStepCount: z
+      .boolean()
+      .optional()
+      .describe(
+        'Whether to include step count for each workflow (default: false). Setting to true may increase response time.',
+      ),
+  }),
+  z.object({
+    operation: z.literal('get_active_version_steps'),
+    workflowName: z
+      .string()
+      .describe('The workflow name to look up versions for'),
+  }),
+  z.object({
+    operation: z.literal('list_version_history'),
+    workflowName: z.string().describe('The workflow name'),
+    includeSteps: z
+      .boolean()
+      .optional()
+      .describe(
+        'Whether to include all steps for each version (default: false). Setting to true may increase response time significantly.',
+      ),
+  }),
+]);
 
 export const workflowReadTool: ToolDefinition = {
   name: 'workflow_read',
@@ -118,19 +105,10 @@ BEST PRACTICES:
       | { success: boolean; step: unknown }
     > => {
       if (args.operation === 'get_structure') {
-        if (!args.workflowId) {
-          throw new Error(
-            "Missing required 'workflowId' for get_structure operation",
-          );
-        }
         return readWorkflowStructure(ctx, { workflowId: args.workflowId });
       }
 
       if (args.operation === 'get_step') {
-        if (!args.stepId) {
-          throw new Error("Missing required 'stepId' for get_step operation");
-        }
-        // Get the step by ID using internal query
         const stepDoc = await ctx.runQuery(
           internal.wf_step_defs.internal_queries.getStepById,
           {
@@ -147,20 +125,10 @@ BEST PRACTICES:
       }
 
       if (args.operation === 'get_active_version_steps') {
-        if (!args.workflowName) {
-          throw new Error(
-            "Missing required 'workflowName' for get_active_version_steps operation",
-          );
-        }
         return readActiveVersionSteps(ctx, { workflowName: args.workflowName });
       }
 
       if (args.operation === 'list_version_history') {
-        if (!args.workflowName) {
-          throw new Error(
-            "Missing required 'workflowName' for list_version_history operation",
-          );
-        }
         return readVersionHistory(ctx, {
           workflowName: args.workflowName,
           includeSteps: args.includeSteps,

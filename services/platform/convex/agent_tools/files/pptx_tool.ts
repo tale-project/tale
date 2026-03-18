@@ -67,61 +67,52 @@ const brandingSchema = z.object({
   accentColor: z.string().optional().describe('Accent color as hex'),
 });
 
-// Use a flat object schema for OpenAI-compatible JSON Schema
-const pptxArgs = z.object({
-  operation: z
-    .enum(['list_templates', 'generate', 'parse'])
-    .describe(
-      "Operation to perform: 'list_templates', 'generate', or 'parse' (extract text from PPTX)",
-    ),
-  // For list_templates operation
-  limit: z
-    .number()
-    .optional()
-    .describe(
-      "For 'list_templates': Maximum number of templates to return (default: 50)",
-    ),
-  // Required for generate operation
-  templateStorageId: z
-    .string()
-    .optional()
-    .describe(
-      "Convex storage ID of the PPTX template. Required for 'generate'. The template is used as base, preserving all styling, backgrounds, and decorative elements.",
-    ),
-  // For generate operation
-  fileName: z
-    .string()
-    .optional()
-    .describe(
-      "Required for 'generate': Base name for the PPTX file (without extension)",
-    ),
-  slidesContent: z
-    .array(slideContentSchema)
-    .optional()
-    .describe("For 'generate': Content for each slide in the presentation"),
-  branding: brandingSchema
-    .optional()
-    .describe("For 'generate': Optional additional branding overrides"),
-  // For parse operation
-  fileId: z
-    .string()
-    .optional()
-    .describe(
-      "For 'parse': **REQUIRED** - Convex storage ID (e.g., 'kg2bazp7fbgt9srq63knfagjrd7yfenj'). Get this from the file attachment context.",
-    ),
-  filename: z
-    .string()
-    .optional()
-    .describe(
-      "For 'parse': Original filename (e.g., 'presentation.pptx'). Optional — auto-resolved from file metadata if omitted.",
-    ),
-  user_input: z
-    .string()
-    .optional()
-    .describe(
-      "For 'parse': **REQUIRED** - The user's question or instruction about the presentation content",
-    ),
-});
+const pptxArgs = z.discriminatedUnion('operation', [
+  z.object({
+    operation: z.literal('list_templates'),
+    limit: z
+      .number()
+      .optional()
+      .describe('Maximum number of templates to return (default: 50)'),
+  }),
+  z.object({
+    operation: z.literal('generate'),
+    templateStorageId: z
+      .string()
+      .optional()
+      .describe(
+        'Convex storage ID of the PPTX template. The template is used as base, preserving all styling, backgrounds, and decorative elements.',
+      ),
+    fileName: z
+      .string()
+      .describe('Base name for the PPTX file (without extension)'),
+    slidesContent: z
+      .array(slideContentSchema)
+      .describe('Content for each slide in the presentation'),
+    branding: brandingSchema
+      .optional()
+      .describe('Optional additional branding overrides'),
+  }),
+  z.object({
+    operation: z.literal('parse'),
+    fileId: z
+      .string()
+      .describe(
+        "Convex storage ID (e.g., 'kg2bazp7fbgt9srq63knfagjrd7yfenj'). Get this from the file attachment context.",
+      ),
+    filename: z
+      .string()
+      .optional()
+      .describe(
+        "Original filename (e.g., 'presentation.pptx'). Optional — auto-resolved from file metadata if omitted.",
+      ),
+    user_input: z
+      .string()
+      .describe(
+        "The user's question or instruction about the presentation content",
+      ),
+  }),
+]);
 
 // Result types
 interface ListTemplatesResult {
@@ -261,19 +252,7 @@ AFTER GENERATING: The file automatically appears as a download card in the chat.
         }
       }
 
-      // Handle parse operation
       if (args.operation === 'parse') {
-        if (!args.fileId) {
-          throw new Error(
-            "Missing required 'fileId' for parse operation. Get the fileId from the file attachment context.",
-          );
-        }
-        if (!args.user_input) {
-          throw new Error(
-            "Missing required 'user_input' for parse operation. Provide the user's question or instruction about the presentation.",
-          );
-        }
-
         const model = getAgentModelId(ctx);
         const result = await parseFile(
           ctx,
@@ -293,20 +272,12 @@ AFTER GENERATING: The file automatically appears as a download card in the chat.
           success: false,
           fileStorageId: '',
           downloadUrl: '',
-          fileName: args.fileName || '',
+          fileName: args.fileName,
           contentType: '',
           size: 0,
           error:
             'templateStorageId is required. Call list_templates first to get available templates. If no templates exist, the user must upload a .pptx template to the Knowledge Base (Documents page) — not in chat.',
         };
-      }
-      if (!args.fileName) {
-        throw new Error("Missing required 'fileName' for generate operation");
-      }
-      if (!args.slidesContent || args.slidesContent.length === 0) {
-        throw new Error(
-          "Missing required 'slidesContent' for generate operation",
-        );
       }
 
       if (!organizationId) {
