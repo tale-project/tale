@@ -24,52 +24,60 @@ import { countProducts } from './helpers/count_products';
 import { readProductsByIds } from './helpers/read_product_by_id';
 import { readProductList } from './helpers/read_product_list';
 
-// Use a flat object schema instead of discriminatedUnion to ensure OpenAI-compatible JSON Schema
-// (discriminatedUnion produces anyOf/oneOf which some providers reject as "type: None")
-const productReadArgs = z.object({
-  operation: z
-    .enum(['get_by_id', 'list', 'count'])
-    .describe(
-      "Operation to perform: 'get_by_id' (fetch by IDs), 'list' (browse catalog), or 'count' (count total products)",
-    ),
-  // For get_by_id operation
-  productIds: z
-    .array(z.string())
-    .optional()
-    .describe(
-      'Required for \'get_by_id\': Array of Convex Id<"products"> strings. Can be single item or multiple.',
-    ),
-  // For get_by_id operation only
-  fields: z
-    .array(z.string())
-    .optional()
-    .describe(
-      "For 'get_by_id' only: Fields to return. Default: ['_id','name','description','price','currency','status','category','imageUrl','stock']. Ignored for 'list'.",
-    ),
-  // For list and count operations - filters
-  status: z
-    .enum(['active', 'inactive', 'draft', 'archived'])
-    .optional()
-    .describe("For 'list' and 'count': Filter by product status"),
-  minStock: z
-    .number()
-    .optional()
-    .describe(
-      "For 'list' and 'count': Filter by minimum stock level. Only returns/counts products with stock >= minStock",
-    ),
-  // For list operation - pagination
-  cursor: z
-    .string()
-    .nullable()
-    .optional()
-    .describe(
-      "For 'list': Pagination cursor from previous response, or null/omitted for first page",
-    ),
-  numItems: z
-    .number()
-    .optional()
-    .describe("For 'list': Number of items per page (default: 50)"),
-});
+const productReadArgs = z.discriminatedUnion('operation', [
+  z.object({
+    operation: z.literal('get_by_id'),
+    productIds: z
+      .array(z.string())
+      .nonempty()
+      .describe(
+        'Array of Convex Id<"products"> strings. Can be single item or multiple.',
+      ),
+    fields: z
+      .array(z.string())
+      .optional()
+      .describe(
+        "Fields to return. Default: ['_id','name','description','price','currency','status','category','imageUrl','stock'].",
+      ),
+  }),
+  z.object({
+    operation: z.literal('list'),
+    status: z
+      .enum(['active', 'inactive', 'draft', 'archived'])
+      .optional()
+      .describe('Filter by product status'),
+    minStock: z
+      .number()
+      .optional()
+      .describe(
+        'Filter by minimum stock level. Only returns products with stock >= minStock',
+      ),
+    cursor: z
+      .string()
+      .nullable()
+      .optional()
+      .describe(
+        'Pagination cursor from previous response, or null/omitted for first page',
+      ),
+    numItems: z
+      .number()
+      .optional()
+      .describe('Number of items per page (default: 50)'),
+  }),
+  z.object({
+    operation: z.literal('count'),
+    status: z
+      .enum(['active', 'inactive', 'draft', 'archived'])
+      .optional()
+      .describe('Filter by product status'),
+    minStock: z
+      .number()
+      .optional()
+      .describe(
+        'Filter by minimum stock level. Only counts products with stock >= minStock',
+      ),
+  }),
+]);
 
 export const productReadTool: ToolDefinition = {
   name: 'product_read',
@@ -112,11 +120,6 @@ BEST PRACTICES:
       ProductReadGetByIdResult | ProductReadListResult | ProductReadCountResult
     > => {
       if (args.operation === 'get_by_id') {
-        if (!args.productIds || args.productIds.length === 0) {
-          throw new Error(
-            "Missing required 'productIds' for get_by_id operation",
-          );
-        }
         return readProductsByIds(ctx, {
           productIds: args.productIds,
           fields: args.fields,

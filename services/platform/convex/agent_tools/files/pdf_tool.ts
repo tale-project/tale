@@ -73,92 +73,64 @@ EXAMPLES:
 
 AFTER GENERATING: The file automatically appears as a download card in the chat. Do NOT mention downloading, do NOT include a link, and do NOT say "you can download it" — the card handles this. To also save the file to a folder in the documents hub, call document_write with the returned fileStorageId and the desired folderPath.
 `,
-    args: z.object({
-      operation: z
-        .enum(['generate', 'parse'])
-        .optional()
-        .describe("Operation: 'generate' (default) or 'parse'"),
-      // For generate operation
-      fileName: z
-        .string()
-        .optional()
-        .describe(
-          "For 'generate': Base name for the PDF file (without extension)",
-        ),
-      sourceType: z
-        .enum(['markdown', 'html', 'url'])
-        .optional()
-        .describe("For 'generate': Type of source content"),
-      content: z
-        .string()
-        .optional()
-        .describe(
-          "For 'generate': Markdown text, HTML content, or URL to capture",
-        ),
-      pdfOptions: z
-        .object({
-          format: z.string().optional(),
-          landscape: z.boolean().optional(),
-          marginTop: z.string().optional(),
-          marginBottom: z.string().optional(),
-          marginLeft: z.string().optional(),
-          marginRight: z.string().optional(),
-          printBackground: z.boolean().optional(),
-        })
-        .optional()
-        .describe("For 'generate': Advanced PDF options"),
-      urlOptions: z
-        .object({
-          waitUntil: z
-            .enum(['load', 'domcontentloaded', 'networkidle', 'commit'])
-            .optional(),
-        })
-        .optional()
-        .describe("For 'generate': Options for URL capture"),
-      extraCss: z
-        .string()
-        .optional()
-        .describe("For 'generate': Additional CSS to inject"),
-      wrapInTemplate: z
-        .boolean()
-        .optional()
-        .describe("For 'generate': Whether to wrap in HTML template"),
-      // For parse operation
-      fileId: z
-        .string()
-        .optional()
-        .describe(
-          "For 'parse': **REQUIRED** - Convex storage ID (e.g., 'kg2bazp7fbgt9srq63knfagjrd7yfenj'). Get this from the file attachment context.",
-        ),
-      filename: z
-        .string()
-        .optional()
-        .describe(
-          "For 'parse': Original filename (e.g., 'report.pdf'). Optional — auto-resolved from file metadata if omitted.",
-        ),
-      user_input: z
-        .string()
-        .optional()
-        .describe(
-          "For 'parse': **REQUIRED** - The user's question or instruction about the PDF content",
-        ),
-    }),
+    args: z.discriminatedUnion('operation', [
+      z.object({
+        operation: z.literal('generate'),
+        fileName: z
+          .string()
+          .describe('Base name for the PDF file (without extension)'),
+        sourceType: z
+          .enum(['markdown', 'html', 'url'])
+          .describe('Type of source content'),
+        content: z
+          .string()
+          .describe('Markdown text, HTML content, or URL to capture'),
+        pdfOptions: z
+          .object({
+            format: z.string().optional(),
+            landscape: z.boolean().optional(),
+            marginTop: z.string().optional(),
+            marginBottom: z.string().optional(),
+            marginLeft: z.string().optional(),
+            marginRight: z.string().optional(),
+            printBackground: z.boolean().optional(),
+          })
+          .optional()
+          .describe('Advanced PDF options'),
+        urlOptions: z
+          .object({
+            waitUntil: z
+              .enum(['load', 'domcontentloaded', 'networkidle', 'commit'])
+              .optional(),
+          })
+          .optional()
+          .describe('Options for URL capture'),
+        extraCss: z.string().optional().describe('Additional CSS to inject'),
+        wrapInTemplate: z
+          .boolean()
+          .optional()
+          .describe('Whether to wrap in HTML template'),
+      }),
+      z.object({
+        operation: z.literal('parse'),
+        fileId: z
+          .string()
+          .describe(
+            "Convex storage ID (e.g., 'kg2bazp7fbgt9srq63knfagjrd7yfenj'). Get this from the file attachment context.",
+          ),
+        filename: z
+          .string()
+          .optional()
+          .describe(
+            "Original filename (e.g., 'report.pdf'). Optional — auto-resolved from file metadata if omitted.",
+          ),
+        user_input: z
+          .string()
+          .describe("The user's question or instruction about the PDF content"),
+      }),
+    ]),
     handler: async (ctx: ToolCtx, args): Promise<PdfResult> => {
-      const operation = args.operation ?? 'generate';
-
-      // Handle parse operation
-      if (operation === 'parse') {
-        if (!args.fileId) {
-          throw new Error(
-            "Missing required 'fileId' for parse operation. Get the fileId from the file attachment context.",
-          );
-        }
-        if (!args.user_input) {
-          throw new Error(
-            "Missing required 'user_input' for parse operation. Provide the user's question or instruction about the PDF.",
-          );
-        }
-
+      if (args.operation === 'parse') {
         const model = getAgentModelId(ctx);
         const result = await parseFile(
           ctx,
@@ -171,17 +143,7 @@ AFTER GENERATING: The file automatically appears as a download card in the chat.
         return { operation: 'parse', ...result };
       }
 
-      // Default: generate operation
-      if (!args.fileName) {
-        throw new Error("Missing required 'fileName' for generate operation");
-      }
-      if (!args.sourceType) {
-        throw new Error("Missing required 'sourceType' for generate operation");
-      }
-      if (!args.content) {
-        throw new Error("Missing required 'content' for generate operation");
-      }
-
+      // operation === 'generate'
       const { organizationId } = ctx;
       if (!organizationId) {
         throw new Error('organizationId is required to generate a PDF');

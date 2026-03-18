@@ -82,74 +82,68 @@ const sectionSchema = z.object({
     .describe('Table rows (2D array)'),
 });
 
-const docxArgs = z.object({
-  operation: z
-    .enum(['list_templates', 'generate', 'parse'])
-    .optional()
-    .describe(
-      "Operation to perform: 'list_templates', 'generate' (default), or 'parse' (extract text from DOCX).",
-    ),
-  // For list_templates operation
-  limit: z
-    .number()
-    .optional()
-    .describe(
-      "For 'list_templates': Maximum number of DOCX documents/templates to return (default: 50)",
-    ),
-  // For generate operation (optional template support)
-  templateStorageId: z
-    .string()
-    .optional()
-    .describe(
-      'Convex storage ID of a DOCX template. When provided, the template is used as base, preserving headers, footers, fonts, and page setup.',
-    ),
-  fileName: z
-    .string()
-    .optional()
-    .describe(
-      "For 'generate': Base name for the DOCX file (without extension). Required for generate.",
-    ),
-  title: z.string().optional().describe('Document title'),
-  subtitle: z.string().optional().describe('Document subtitle'),
-  sections: z
-    .array(sectionSchema)
-    .optional()
-    .describe(
-      "For 'generate': Content sections. Each section can be a heading, paragraph, bullets, numbered list, table, quote, or code block.",
-    ),
-  // For generate from markdown/html (same content as PDF tool)
-  sourceType: z
-    .enum(['markdown', 'html'])
-    .optional()
-    .describe(
-      "For 'generate': Source type when generating from markdown or HTML content instead of sections. Use this to quickly convert existing markdown/HTML to DOCX.",
-    ),
-  content: z
-    .string()
-    .optional()
-    .describe(
-      "For 'generate': Markdown or HTML text content. Use with sourceType. This is the fastest way to generate DOCX from the same content used for PDF generation.",
-    ),
-  // For parse operation
-  fileId: z
-    .string()
-    .optional()
-    .describe(
-      "For 'parse': **REQUIRED** - Convex storage ID (e.g., 'kg2bazp7fbgt9srq63knfagjrd7yfenj'). Get this from the file attachment context.",
-    ),
-  filename: z
-    .string()
-    .optional()
-    .describe(
-      "For 'parse': Original filename (e.g., 'document.docx'). Optional — auto-resolved from file metadata if omitted.",
-    ),
-  user_input: z
-    .string()
-    .optional()
-    .describe(
-      "For 'parse': **REQUIRED** - The user's question or instruction about the document content",
-    ),
-});
+const docxArgs = z.discriminatedUnion('operation', [
+  z.object({
+    operation: z.literal('list_templates'),
+    limit: z
+      .number()
+      .optional()
+      .describe(
+        'Maximum number of DOCX documents/templates to return (default: 50)',
+      ),
+  }),
+  z.object({
+    operation: z.literal('generate'),
+    templateStorageId: z
+      .string()
+      .optional()
+      .describe(
+        'Convex storage ID of a DOCX template. When provided, the template is used as base, preserving headers, footers, fonts, and page setup.',
+      ),
+    fileName: z
+      .string()
+      .describe('Base name for the DOCX file (without extension)'),
+    title: z.string().optional().describe('Document title'),
+    subtitle: z.string().optional().describe('Document subtitle'),
+    sections: z
+      .array(sectionSchema)
+      .optional()
+      .describe(
+        'Content sections. Each section can be a heading, paragraph, bullets, numbered list, table, quote, or code block.',
+      ),
+    sourceType: z
+      .enum(['markdown', 'html'])
+      .optional()
+      .describe(
+        'Source type when generating from markdown or HTML content instead of sections. Use this to quickly convert existing markdown/HTML to DOCX.',
+      ),
+    content: z
+      .string()
+      .optional()
+      .describe(
+        'Markdown or HTML text content. Use with sourceType. This is the fastest way to generate DOCX from the same content used for PDF generation.',
+      ),
+  }),
+  z.object({
+    operation: z.literal('parse'),
+    fileId: z
+      .string()
+      .describe(
+        "Convex storage ID (e.g., 'kg2bazp7fbgt9srq63knfagjrd7yfenj'). Get this from the file attachment context.",
+      ),
+    filename: z
+      .string()
+      .optional()
+      .describe(
+        "Original filename (e.g., 'document.docx'). Optional — auto-resolved from file metadata if omitted.",
+      ),
+    user_input: z
+      .string()
+      .describe(
+        "The user's question or instruction about the document content",
+      ),
+  }),
+]);
 
 export const docxTool = {
   name: 'docx' as const,
@@ -204,10 +198,8 @@ AFTER GENERATING: The file automatically appears as a download card in the chat.
     args: docxArgs,
     handler: async (ctx: ToolCtx, args): Promise<DocxResult> => {
       const { organizationId } = ctx;
-      const operation = args.operation ?? 'generate';
 
-      // Handle list_templates operation
-      if (operation === 'list_templates') {
+      if (args.operation === 'list_templates') {
         if (!organizationId) {
           return {
             operation: 'list_templates',
@@ -267,19 +259,7 @@ AFTER GENERATING: The file automatically appears as a download card in the chat.
         }
       }
 
-      // Handle parse operation
-      if (operation === 'parse') {
-        if (!args.fileId) {
-          throw new Error(
-            "Missing required 'fileId' for parse operation. Get the fileId from the file attachment context.",
-          );
-        }
-        if (!args.user_input) {
-          throw new Error(
-            "Missing required 'user_input' for parse operation. Provide the user's question or instruction about the document.",
-          );
-        }
-
+      if (args.operation === 'parse') {
         const model = getAgentModelId(ctx);
         const result = await parseFile(
           ctx,
@@ -292,12 +272,9 @@ AFTER GENERATING: The file automatically appears as a download card in the chat.
         return { operation: 'parse', ...result };
       }
 
-      // Default / generate operation
+      // operation === 'generate'
       if (!organizationId) {
         throw new Error('organizationId is required to generate a document');
-      }
-      if (!args.fileName) {
-        throw new Error("Missing required 'fileName' for generate operation");
       }
 
       // Mode A: Generate from markdown/html content
