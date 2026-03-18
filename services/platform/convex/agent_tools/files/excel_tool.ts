@@ -13,6 +13,7 @@ import type { ToolDefinition } from '../types';
 import { internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
 import { toId } from '../../lib/type_cast_helpers';
+import { appendFilePart } from './helpers/append_file_part';
 import { resolveFileName } from './helpers/resolve_file_name';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
@@ -121,9 +122,7 @@ EXAMPLES:
 • Generate: { "operation": "generate", "fileName": "customers", "sheets": [{ "name": "Sheet1", "headers": ["Name", "Email"], "rows": [["Alice", "alice@example.com"]] }] }
 • Parse: { "operation": "parse", "fileId": "kg2bazp7...", "filename": "report.xlsx" }
 
-CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the result. Never fabricate URLs.
-
-AFTER GENERATING: To save the file to a folder in the documents hub, call document_write with the returned fileStorageId and the desired folderPath.
+AFTER GENERATING: The file automatically appears as a download card in the chat. Do NOT mention downloading, do NOT include a link, and do NOT say "you can download it" — the card handles this. To also save the file to a folder in the documents hub, call document_write with the returned fileStorageId and the desired folderPath.
 `,
     args: excelArgs,
     handler: async (ctx: ToolCtx, args): Promise<ExcelResult> => {
@@ -247,11 +246,18 @@ AFTER GENERATING: To save the file to a folder in the documents hub, call docume
           sheetCount: result.sheetCount,
         });
 
+        const cardAppended = await appendFilePart(ctx, {
+          fileName: result.fileName,
+          mimeType:
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          downloadUrl: url,
+        });
+
         return {
           operation: 'generate',
           success: true,
           fileStorageId: fileId,
-          downloadUrl: url,
+          downloadUrl: cardAppended ? '[file card shown in chat]' : url,
           fileName: result.fileName,
           rowCount: result.rowCount,
           sheetCount: result.sheetCount,
