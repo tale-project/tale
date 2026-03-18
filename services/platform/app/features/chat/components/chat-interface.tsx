@@ -66,7 +66,8 @@ export function ChatInterface({
 
   const effectiveAgent = useEffectiveAgent(organizationId);
 
-  const { data: memberContext } = useCurrentMemberContext(organizationId);
+  const { data: memberContext, isLoading: isMemberContextLoading } =
+    useCurrentMemberContext(organizationId);
 
   const [inputValue, setInputValue, clearInputValue] = usePersistedState(
     chatDraftKey(threadId),
@@ -291,7 +292,7 @@ export function ChatInterface({
       >
         {showWelcome && (
           <WelcomeView
-            isPending={isLoading}
+            isPending={isLoading || isMemberContextLoading}
             role={memberContext?.role}
             onSuggestionClick={setInputValue}
           />

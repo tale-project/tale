@@ -606,7 +606,7 @@ export const beforeGenerateHook = internalAction({
     // external vision APIs (OpenRouter, etc.), and Uint8Array can't cross the
     // Convex action serialization boundary. Data URLs embed directly.
     const resolvedImageParts = (
-      await Promise.all(
+      await Promise.allSettled(
         imageAttachments.map(async (a) => {
           const blob = await ctx.storage.get(a.fileId);
           if (!blob) return null;
@@ -620,7 +620,7 @@ export const beforeGenerateHook = internalAction({
           };
         }),
       )
-    ).filter((p): p is NonNullable<typeof p> => p !== null);
+    ).flatMap((r) => (r.status === 'fulfilled' && r.value ? [r.value] : []));
 
     if (resolvedImageParts.length === 0) {
       return { promptContent: undefined, contextExceedsBudget };

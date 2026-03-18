@@ -151,6 +151,7 @@ export function ChatInput({
               className="text-foreground placeholder:text-muted-foreground relative min-h-[100px] resize-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
               disabled={isLoading}
               placeholder=""
+              aria-label={t('assistant.messagePlaceholder')}
             />
             {inputValue.length === 0 && !isLoading && (
               <Text
@@ -183,7 +184,9 @@ export function ChatInput({
             <Button
               onClick={onSend}
               disabled={
-                (!inputValue.trim() && attachments.length === 0) || isLoading
+                (!inputValue.trim() && attachments.length === 0) ||
+                isLoading ||
+                uploadingFiles.length > 0
               }
               size="icon"
               aria-label={tChat('send')}

@@ -73,10 +73,16 @@ export function ChatInput({
 
   const defaultPlaceholder = placeholder || tChat('typeMessageHere');
 
+  const isUploading = uploadingFiles.length > 0;
   const inputDisabled = disabled || isLoading;
 
   const handleSendMessage = () => {
-    if ((!value.trim() && attachments.length === 0) || isLoading || disabled)
+    if (
+      (!value.trim() && attachments.length === 0) ||
+      isLoading ||
+      disabled ||
+      isUploading
+    )
       return;
 
     const attachmentsToSend =
@@ -197,7 +203,7 @@ export function ChatInput({
                     type="button"
                     aria-label={tChat('removeAttachment')}
                     onClick={() => removeAttachment(attachment.fileId)}
-                    className="bg-background absolute top-0.5 right-0.5 flex size-5 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100"
+                    className="bg-background absolute top-0.5 right-0.5 flex size-5 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
                   >
                     <X className="text-muted-foreground size-3" />
                   </button>
@@ -233,7 +239,7 @@ export function ChatInput({
                     type="button"
                     aria-label={tChat('removeAttachment')}
                     onClick={() => removeAttachment(attachment.fileId)}
-                    className="bg-background absolute top-0.5 right-0.5 flex size-5 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100"
+                    className="bg-background absolute top-0.5 right-0.5 flex size-5 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
                   >
                     <X className="text-muted-foreground size-3" />
                   </button>
@@ -261,6 +267,7 @@ export function ChatInput({
               className="text-foreground placeholder:text-muted-foreground relative min-h-[100px] resize-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
               disabled={inputDisabled}
               placeholder=""
+              aria-label={defaultPlaceholder}
             />
             {value.length === 0 && !inputDisabled && (
               <Text
@@ -307,7 +314,8 @@ export function ChatInput({
                   isLoading
                     ? !onStopGenerating
                     : (!value.trim() && attachments.length === 0) ||
-                      inputDisabled
+                      inputDisabled ||
+                      isUploading
                 }
                 size="icon"
                 className="rounded-full"

@@ -159,6 +159,7 @@ export function TestChatInput({
               className="text-foreground placeholder:text-muted-foreground relative min-h-[100px] resize-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
               disabled={isBusy}
               placeholder=""
+              aria-label={t('customAgents.testChat.messagePlaceholder')}
             />
             {inputValue.length === 0 && !isBusy && (
               <Text
