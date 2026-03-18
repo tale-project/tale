@@ -237,11 +237,11 @@ jexlInstance.addTransform(
 // Add chunk transform to split an array into groups of a given size
 jexlInstance.addTransform('chunk', (arr: unknown[], chunkSize: unknown) => {
   if (!isArray(arr)) return [];
-  const size =
+  const groupSize =
     typeof chunkSize === 'number' ? Math.max(1, Math.floor(chunkSize)) : 1;
   const result: unknown[][] = [];
-  for (let i = 0; i < arr.length; i += size) {
-    result.push(arr.slice(i, i + size));
+  for (let i = 0; i < arr.length; i += groupSize) {
+    result.push(arr.slice(i, i + groupSize));
   }
   return result;
 });

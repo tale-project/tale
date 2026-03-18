@@ -67,7 +67,7 @@ This tool creates an approval card below your message in the chat. The user must
 • parameters (optional): JSON string of input variables for the workflow
 
 **EXAMPLE:**
-{ "workflowId": "abc123", "parameters": "{\"targetFolder\": \"/invoices\", \"daysBack\": 30}" }`,
+{ "workflowId": "abc123", "parameters": "{\\"targetFolder\\": \\"/invoices\\", \\"daysBack\\": 30}" }`,
     args: runWorkflowArgs,
     handler: async (
       ctx: ToolCtx,
