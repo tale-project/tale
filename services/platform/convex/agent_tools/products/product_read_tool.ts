@@ -29,6 +29,7 @@ const productReadArgs = z.discriminatedUnion('operation', [
     operation: z.literal('get_by_id'),
     productIds: z
       .array(z.string())
+      .nonempty()
       .describe(
         'Array of Convex Id<"products"> strings. Can be single item or multiple.',
       ),

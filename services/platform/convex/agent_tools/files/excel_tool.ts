@@ -244,11 +244,11 @@ AFTER GENERATING: The file automatically appears as a download card in the chat.
           error: message,
         });
         return {
-          operation: 'generate' as const,
+          operation: 'generate',
           success: false,
           fileStorageId: '',
           downloadUrl: '',
-          fileName: args.fileName ?? 'unknown.xlsx',
+          fileName: args.fileName,
           rowCount: 0,
           sheetCount: 0,
           error: message,
