@@ -148,7 +148,7 @@ describe('run_workflow tool handler', () => {
     const params = { targetFolder: '/invoices', daysBack: 30 };
     await handler(ctx, {
       workflowId: 'wf-def-123',
-      parameters: params,
+      parameters: JSON.stringify(params),
     });
 
     expect(mockRunMutation).toHaveBeenCalledWith(
@@ -158,6 +158,22 @@ describe('run_workflow tool handler', () => {
         workflowName: 'Test Workflow',
       }),
     );
+  });
+
+  it('returns failure when parameters is invalid JSON', async () => {
+    const handler = await getHandler();
+    const workflow = createMockWorkflow();
+    const ctx = createMockCtx({
+      runQuery: vi.fn().mockResolvedValue(workflow),
+    });
+
+    const result = await handler(ctx, {
+      workflowId: 'wf-def-123',
+      parameters: 'not-valid-json',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.message).toContain('Invalid parameters');
   });
 
   it('returns failure when approval creation throws', async () => {
@@ -241,12 +257,12 @@ describe('runWorkflowArgs schema validation', () => {
     expect(result.parameters).toBeUndefined();
   });
 
-  it('accepts workflowId with parameters', () => {
+  it('accepts workflowId with parameters as JSON string', () => {
     const result = runWorkflowArgs.parse({
       workflowId: 'abc123',
-      parameters: { key: 'value', num: 42 },
+      parameters: '{"key":"value","num":42}',
     });
-    expect(result.parameters).toEqual({ key: 'value', num: 42 });
+    expect(result.parameters).toBe('{"key":"value","num":42}');
   });
 
   it('rejects empty workflowId', () => {
@@ -257,19 +273,19 @@ describe('runWorkflowArgs schema validation', () => {
     expect(() => runWorkflowArgs.parse({})).toThrow();
   });
 
-  it('accepts empty parameters object', () => {
+  it('accepts empty JSON object string as parameters', () => {
     const result = runWorkflowArgs.parse({
       workflowId: 'abc',
-      parameters: {},
+      parameters: '{}',
     });
-    expect(result.parameters).toEqual({});
+    expect(result.parameters).toBe('{}');
   });
 
-  it('accepts nested parameter values', () => {
+  it('accepts nested JSON string parameter values', () => {
     const result = runWorkflowArgs.parse({
       workflowId: 'abc',
-      parameters: { nested: { deep: true } },
+      parameters: '{"nested":{"deep":true}}',
     });
-    expect(result.parameters).toEqual({ nested: { deep: true } });
+    expect(result.parameters).toBe('{"nested":{"deep":true}}');
   });
 });

@@ -10,12 +10,15 @@ from fastapi.responses import Response
 from loguru import logger
 
 from app.models import (
+    ApplyStructuredResponse,
+    ExtractStructuredResponse,
     GenerateDocxRequest,
     GenerateDocxResponse,
     HtmlToDocxRequest,
     MarkdownToDocxRequest,
     ParseFileResponse,
 )
+from app.services.docx_roundtrip_service import _MAX_PARAGRAPHS, get_docx_roundtrip_service
 from app.services.docx_service import get_docx_service
 from app.services.file_parser_service import get_file_parser_service
 from app.services.template_service import get_template_service
@@ -24,6 +27,7 @@ router = APIRouter(prefix="/api/v1/docx", tags=["DOCX"])
 
 _FILE_TEMPLATE = File(None, description="Optional template DOCX file to use as base")
 _FILE_UPLOAD = File(..., description="DOCX file to parse")
+_FILE_STRUCTURED_TEMPLATE = File(..., description="Original DOCX template file")
 
 
 @router.post("", response_model=GenerateDocxResponse)
@@ -332,4 +336,142 @@ async def parse_docx_file(
             success=False,
             filename=file.filename or "unknown",
             error="Failed to parse DOCX file",
+        )
+
+
+@router.post("/extract-structured", response_model=ExtractStructuredResponse)
+async def extract_docx_structured(
+    file: UploadFile = _FILE_UPLOAD,
+):
+    """
+    Extract structured paragraph data from a DOCX file.
+
+    Returns stable paragraph keys with text and editability flags,
+    plus a source hash for validation during the apply step.
+
+    Args:
+        file: The DOCX file to extract structure from
+
+    Returns:
+        Structured extraction with source_hash, metadata, and lightweight paragraph list
+    """
+    try:
+        file_bytes = await file.read()
+
+        if not file_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Empty file uploaded",
+            )
+
+        service = get_docx_roundtrip_service()
+        result = service.extract_structured(file_bytes, filename=file.filename)
+        return ExtractStructuredResponse(**result)
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Error extracting structured DOCX")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to extract structured data from DOCX",
+        ) from None
+
+
+@router.post("/apply-structured", response_model=ApplyStructuredResponse)
+async def apply_docx_structured(
+    template_file: UploadFile = _FILE_STRUCTURED_TEMPLATE,
+    params: str = Form(..., description="JSON parameters: {source_hash, modifications, track_changes?, author?}"),
+):
+    """
+    Apply text modifications to a DOCX template, preserving all formatting.
+
+    Takes the original DOCX file and a JSON params blob containing:
+    - source_hash: SHA-256 hash from the extract step
+    - modifications: Array of {key, text} objects
+    - track_changes: Boolean (default false) — use Track Changes markup
+    - author: String (default "AI Assistant") — author for Track Changes
+
+    Returns the modified DOCX as base64 with a detailed report.
+    """
+    try:
+        template_bytes = await template_file.read()
+
+        if not template_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Empty template file uploaded",
+            )
+
+        try:
+            params_dict = json.loads(params)
+        except json.JSONDecodeError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid params JSON: {e!s}",
+            ) from e
+
+        if not isinstance(params_dict, dict):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"params must be a JSON object, got {type(params_dict).__name__}",
+            )
+
+        source_hash = params_dict.get("source_hash")
+        if not source_hash or not isinstance(source_hash, str):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Missing or invalid 'source_hash' in params",
+            )
+
+        modifications = params_dict.get("modifications", [])
+        if not isinstance(modifications, list):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="'modifications' must be an array",
+            )
+        if len(modifications) > _MAX_PARAGRAPHS:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"modifications array exceeds maximum of {_MAX_PARAGRAPHS} entries",
+            )
+
+        track_changes = bool(params_dict.get("track_changes", False))
+        author = params_dict.get("author", "AI Assistant")
+
+        service = get_docx_roundtrip_service()
+        docx_bytes, report = service.apply_structured(
+            template_bytes=template_bytes,
+            source_hash=source_hash,
+            modifications=modifications,
+            track_changes=track_changes,
+            author=author,
+        )
+
+        file_base64 = base64.b64encode(docx_bytes).decode("utf-8")
+
+        return ApplyStructuredResponse(
+            success=report.get("success", True),
+            file_base64=file_base64,
+            file_size=len(docx_bytes),
+            report=report,
+        )
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Error applying structured modifications to DOCX")
+        return ApplyStructuredResponse(
+            success=False,
+            error="Failed to apply structured modifications to DOCX",
         )

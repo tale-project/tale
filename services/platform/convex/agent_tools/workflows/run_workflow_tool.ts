@@ -25,11 +25,20 @@ const runWorkflowArgs = z.object({
     .describe(
       'The ID of the workflow definition to execute. Use workflow_read(operation="list_all") to find available workflows.',
     ),
+  // WORKAROUND: Use z.string() instead of z.record(z.string(), z.unknown()).
+  // The AI SDK's addAdditionalPropertiesToJsonSchema() post-processing
+  // unconditionally sets `additionalProperties: false` on all JSON Schema
+  // objects (for OpenAI strict mode compatibility). This converts z.record()
+  // into { type: "object", additionalProperties: false } — an empty object
+  // that accepts no properties — causing the LLM to silently ignore the field.
+  // Using z.string() produces { type: "string" } which survives post-processing.
+  // The handler JSON.parse()s the string back into a record.
+  // See: @ai-sdk/provider-utils/src/add-additional-properties-to-json-schema.ts
   parameters: z
-    .record(z.string(), z.unknown())
+    .string()
     .optional()
     .describe(
-      'Optional input parameters passed to the workflow as initial variables. Keys become variable names accessible to all steps via {{variableName}}.',
+      'Optional input parameters as a JSON string. Example: \'{"targetFolder": "/invoices", "daysBack": 30}\'. Keys become variable names accessible to all steps via {{variableName}}.',
     ),
 });
 
@@ -55,10 +64,10 @@ This tool creates an approval card below your message in the chat. The user must
 
 **PARAMETERS:**
 • workflowId (required): The workflow definition ID
-• parameters (optional): JSON object of input variables for the workflow
+• parameters (optional): JSON string of input variables for the workflow
 
 **EXAMPLE:**
-{ "workflowId": "abc123", "parameters": { "targetFolder": "/invoices", "daysBack": 30 } }`,
+{ "workflowId": "abc123", "parameters": "{\\"targetFolder\\": \\"/invoices\\", \\"daysBack\\": 30}" }`,
     args: runWorkflowArgs,
     handler: async (
       ctx: ToolCtx,
@@ -110,6 +119,20 @@ This tool creates an approval card below your message in the chat. The user must
         };
       }
 
+      // Parse the JSON string parameters back into a record
+      let parsedParameters: Record<string, unknown> | undefined;
+      if (args.parameters) {
+        try {
+          parsedParameters = JSON.parse(args.parameters);
+        } catch {
+          return {
+            success: false,
+            message:
+              'Invalid parameters: expected a valid JSON string. Example: \'{"key": "value"}\'',
+          };
+        }
+      }
+
       // Validate input parameters against the start step's inputSchema
       const startStepConfig = await ctx.runQuery(
         internal.wf_definitions.internal_queries.getStartStepConfig,
@@ -117,7 +140,7 @@ This tool creates an approval card below your message in the chat. The user must
       );
 
       const inputSchema = extractInputSchema(startStepConfig);
-      const validation = validateWorkflowInput(args.parameters, inputSchema);
+      const validation = validateWorkflowInput(parsedParameters, inputSchema);
 
       if (!validation.valid) {
         return {
@@ -138,7 +161,7 @@ This tool creates an approval card below your message in the chat. The user must
             workflowId: wfDefinition._id,
             workflowName: wfDefinition.name,
             workflowDescription: wfDefinition.description,
-            parameters: args.parameters,
+            parameters: parsedParameters,
             threadId,
             messageId,
           },

@@ -102,6 +102,15 @@ Returns numbered document excerpts with relevance scores.`,
         .describe(
           'Specific file IDs to search within. When provided, only these files are searched (skips automatic file resolution). Use this when you know exactly which files to search.',
         ),
+      topK: z
+        .number()
+        .int()
+        .min(1)
+        .max(50)
+        .optional()
+        .describe(
+          'Maximum number of results to return (1-50). Defaults to 10.',
+        ),
     }),
     handler: async (ctx: ToolCtx, args): Promise<string> => {
       debugLog('tool:rag_search start', {
@@ -121,7 +130,7 @@ Returns numbered document excerpts with relevance scores.`,
       const payload = {
         query: args.query,
         document_ids: fileIds,
-        top_k: DEFAULT_TOP_K,
+        top_k: args.topK ?? DEFAULT_TOP_K,
         similarity_threshold: DEFAULT_SIMILARITY_THRESHOLD,
         include_metadata: true,
       };

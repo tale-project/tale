@@ -412,6 +412,7 @@
     "searchChat": {
       "title": "Search chat",
       "placeholder": "Search chat",
+      "loading": "Loading chats...",
       "noResults": "No results",
       "untitledChat": "Untitled chat"
     },
@@ -2205,7 +2206,6 @@
       "searchPlaceholder": "Search agents",
       "noResults": "No agents found",
       "addAgent": "Add agent",
-      "configureAgent": "Configure agent",
       "builtinAgents": {
         "chat": {
           "name": "Assistant",
@@ -2259,6 +2259,7 @@
     "uploadFailed": "Upload failed",
     "failedToUpload": "Failed to upload {filename}",
     "removeAttachment": "Remove attachment",
+    "uploadingFile": "Uploading file",
     "viewImage": "View image",
     "dropFilesToAdd": "Drop files here to add to chat",
     "fileTypes": {

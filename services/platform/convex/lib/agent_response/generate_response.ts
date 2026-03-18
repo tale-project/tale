@@ -301,8 +301,27 @@ export async function generateAgentResponse(
           threadId,
           statuses: ['aborted'] as const,
         });
-        return streams.some(
-          (s: { streamId: string }) => !baselineAbortedIds.has(s.streamId),
+        if (
+          streams.some(
+            (s: { streamId: string }) => !baselineAbortedIds.has(s.streamId),
+          )
+        ) {
+          return true;
+        }
+        // Fallback: detect cancel via newly-failed assistant message.
+        // Only runs when no aborted streams found (keeps common-case cost zero).
+        // Covers the cancel-during-continue gap where no SDK streams exist to abort.
+        const msgs = await listMessages(ctx, components.agent, {
+          threadId,
+          paginationOpts: { numItems: 3, cursor: null },
+          excludeToolMessages: true,
+        });
+        const latestAssistant = msgs.page.find(
+          (m: MessageDoc) => m.message?.role === 'assistant',
+        );
+        return (
+          latestAssistant?.status === 'failed' &&
+          latestAssistant._id !== baselineNewestAssistantId
         );
       } catch {
         return false;
@@ -463,6 +482,7 @@ export async function generateAgentResponse(
     // Captured from the agent SDK's savedMessages before any retry logic can overwrite `result`.
     let savedMessageId: string | undefined;
     let didRetry = false;
+    let retryInProgress = false;
 
     // Generate response - streaming or non-streaming
     let result: {
@@ -587,125 +607,6 @@ export async function generateAgentResponse(
             finishReason: 'cancelled',
           };
         }
-
-        // If the LLM called tools but didn't generate a substantive follow-up response,
-        // retry without tools. This handles cases where the LLM outputs preamble text
-        // (e.g., "Let me check...") before tool calls but stops without summarizing results.
-        if (needsToolResultRetry(result.text, result.steps)) {
-          debugLog(
-            'Stream: empty text with tool results, retrying without tools',
-            {
-              stepsCount: result.steps?.length ?? 0,
-              finishReason: result.finishReason,
-            },
-          );
-
-          const retryContext = await buildStructuredContext({
-            ctx,
-            threadId,
-            additionalContext,
-            parentThreadId,
-            maxHistoryTokens: agentConfig.maxHistoryTokens,
-            ragContext: hookData?.ragContext,
-          });
-
-          // Find the original user message so we can link the retry response
-          // to it without creating a duplicate user message in the thread
-          const recentMessages = await listMessages(ctx, components.agent, {
-            threadId,
-            paginationOpts: { cursor: null, numItems: 10 },
-            excludeToolMessages: true,
-          });
-          const originalUserMessage = recentMessages.page.find(
-            (m: MessageDoc) => m.message?.role === 'user',
-          );
-
-          const retryAgent = createAgent({
-            ...agentOptions,
-            withTools: false,
-          });
-
-          const retrySystemPrompt = agentInstructions
-            ? `${agentInstructions}\n\n${retryContext.threadContext}`
-            : retryContext.threadContext;
-
-          // Save messages normally so the UI can display the retry response.
-          // Pass promptMessageId to avoid creating a duplicate user message.
-          const retryRemainingMs = Math.max(
-            actionDeadline - Date.now(),
-            10_000,
-          );
-          const streamRetryStartTime = Date.now();
-          debugLog('Stream tool-result retry starting', {
-            timeoutMs: retryRemainingMs,
-            contextTokens: retryContext.stats.totalTokens,
-            model,
-            elapsedMs: streamRetryStartTime - startTime,
-          });
-
-          const retryAbortController = new AbortController();
-          if (abortController.signal.aborted) {
-            retryAbortController.abort();
-          } else {
-            abortController.signal.addEventListener(
-              'abort',
-              () => retryAbortController.abort(),
-              { once: true },
-            );
-          }
-          const retryResult = await withTimeout(
-            retryAgent.generateText(
-              contextWithOrg,
-              { threadId, userId },
-              {
-                system: retrySystemPrompt,
-                prompt: promptMessage
-                  ? `Based on the tool results, complete this task: ${promptMessage}`
-                  : 'Based on the conversation and tool results above, provide a summary response.',
-                abortSignal: retryAbortController.signal,
-                ...(originalUserMessage
-                  ? { promptMessageId: originalUserMessage._id }
-                  : {}),
-              },
-              {
-                contextOptions: {
-                  recentMessages: 0,
-                  excludeToolMessages: false,
-                  searchOtherThreads: false,
-                },
-                storageOptions: { saveMessages: 'none' },
-              },
-            ),
-            retryRemainingMs,
-            retryAbortController,
-          );
-
-          didRetry = true;
-          result = {
-            text: retryResult.text,
-            steps: result.steps,
-            usage: mergeUsage(result.usage, retryResult.usage),
-            finishReason: retryResult.finishReason,
-            response: result.response,
-          };
-
-          debugLog('Stream tool-result retry completed', {
-            textLength: result.text?.length ?? 0,
-            finishReason: result.finishReason,
-            retryDurationMs: Date.now() - streamRetryStartTime,
-          });
-        }
-
-        // Post-retry abort check
-        if (await checkFreshAbort()) {
-          abortWatcher?.stop();
-          return {
-            threadId,
-            text: '',
-            durationMs: Date.now() - startTime,
-            finishReason: 'cancelled',
-          };
-        }
       } else {
         // Non-streaming mode (sub-agents)
         // Extend context with all fields from contextWithOrg for consistency
@@ -757,175 +658,7 @@ export async function generateAgentResponse(
           response: generateResult.response,
         };
 
-        // If the LLM called tools but didn't generate a substantive follow-up response,
-        // retry without tools. Handles both completely empty text (e.g., DeepSeek with
-        // finishReason: "stop") and preamble-only text before tool calls.
-        if (needsToolResultRetry(result.text, result.steps)) {
-          debugLog('Empty text with tool results, retrying without tools', {
-            stepsCount: result.steps?.length ?? 0,
-            finishReason: result.finishReason,
-          });
-
-          // Rebuild context to include the just-saved tool results
-          const retryContext = await buildStructuredContext({
-            ctx,
-            threadId,
-            additionalContext,
-            parentThreadId,
-            maxHistoryTokens: agentConfig.maxHistoryTokens,
-            ragContext: hookData?.ragContext,
-          });
-
-          debugLog('Rebuilt context for retry', {
-            estimatedTokens: retryContext.stats.totalTokens,
-            messageCount: retryContext.stats.messageCount,
-          });
-
-          const retryAgent = createAgent({
-            ...agentOptions,
-            withTools: false,
-          });
-
-          const retrySystemPrompt = agentInstructions
-            ? `${agentInstructions}\n\n${retryContext.threadContext}`
-            : retryContext.threadContext;
-
-          const nonStreamRetryRemainingMs = Math.max(
-            actionDeadline - Date.now(),
-            10_000,
-          );
-          const retryStartTime = Date.now();
-          debugLog('Tool-result retry starting', {
-            timeoutMs: nonStreamRetryRemainingMs,
-            contextTokens: retryContext.stats.totalTokens,
-            model,
-            elapsedMs: retryStartTime - startTime,
-          });
-
-          const nonStreamRetryAbort = new AbortController();
-          const retryResult = await withTimeout(
-            retryAgent.generateText(
-              subAgentContext,
-              { threadId, userId },
-              {
-                system: retrySystemPrompt,
-                prompt: promptMessage
-                  ? `Based on the tool results, complete this task: ${promptMessage}`
-                  : 'Based on the conversation and tool results above, provide a summary response.',
-                abortSignal: nonStreamRetryAbort.signal,
-              },
-              {
-                contextOptions: {
-                  recentMessages: 0,
-                  excludeToolMessages: false,
-                },
-                storageOptions: { saveMessages: 'none' },
-              },
-            ),
-            nonStreamRetryRemainingMs,
-            nonStreamRetryAbort,
-          );
-
-          didRetry = true;
-          result = {
-            text: retryResult.text,
-            steps: [...(result.steps || []), ...retryResult.steps],
-            usage: mergeUsage(result.usage, retryResult.usage),
-            finishReason: retryResult.finishReason,
-            response: result.response,
-          };
-
-          debugLog('Tool-result retry completed', {
-            textLength: result.text?.length ?? 0,
-            finishReason: result.finishReason,
-            retryDurationMs: Date.now() - retryStartTime,
-          });
-        }
-
-        // General empty text retry (handles cases like thinking models that consume all tokens for reasoning)
-        if (!result.text?.trim()) {
-          debugLog('Empty text response, retrying', {
-            finishReason: result.finishReason,
-            usage: result.usage,
-          });
-
-          // Rebuild context to include any messages saved during the original generation
-          const retryContext = await buildStructuredContext({
-            ctx,
-            threadId,
-            additionalContext,
-            parentThreadId,
-            maxHistoryTokens: agentConfig.maxHistoryTokens,
-            ragContext: hookData?.ragContext,
-          });
-
-          debugLog('Rebuilt context for empty text retry', {
-            estimatedTokens: retryContext.stats.totalTokens,
-            messageCount: retryContext.stats.messageCount,
-          });
-
-          const retryAgent = createAgent({
-            ...agentOptions,
-            withTools: false,
-          });
-
-          const emptyRetrySystemPrompt = agentInstructions
-            ? `${agentInstructions}\n\n${retryContext.threadContext}`
-            : retryContext.threadContext;
-
-          const emptyRetryRemainingMs = Math.max(
-            actionDeadline - Date.now(),
-            10_000,
-          );
-          const emptyRetryStartTime = Date.now();
-          debugLog('Empty text retry starting', {
-            timeoutMs: emptyRetryRemainingMs,
-            contextTokens: retryContext.stats.totalTokens,
-            model,
-            elapsedMs: emptyRetryStartTime - startTime,
-          });
-
-          const emptyRetryAbort = new AbortController();
-          const retryResult = await withTimeout(
-            retryAgent.generateText(
-              subAgentContext,
-              { threadId, userId },
-              {
-                system: emptyRetrySystemPrompt,
-                prompt: promptMessage
-                  ? `Please complete this task: ${promptMessage}`
-                  : 'Please provide a response based on the conversation above.',
-                abortSignal: emptyRetryAbort.signal,
-              },
-              {
-                contextOptions: {
-                  recentMessages: 0,
-                  excludeToolMessages: false,
-                },
-                storageOptions: { saveMessages: 'none' },
-              },
-            ),
-            emptyRetryRemainingMs,
-            emptyRetryAbort,
-          );
-
-          didRetry = true;
-          result = {
-            text: retryResult.text,
-            steps: result.steps,
-            usage: mergeUsage(result.usage, retryResult.usage),
-            finishReason: retryResult.finishReason,
-            response: result.response,
-          };
-
-          debugLog('Empty text retry completed', {
-            textLength: result.text?.length ?? 0,
-            finishReason: result.finishReason,
-            retryDurationMs: Date.now() - emptyRetryStartTime,
-          });
-        }
-
-        // Post-generation abort check (mirrors streaming path)
+        // Post-generation abort check
         if (await checkFreshAbort()) {
           abortWatcher?.stop();
           return {
@@ -937,9 +670,210 @@ export async function generateAgentResponse(
         }
       }
 
-      // Fallback: if text is still missing after all retries, provide a minimal response
+      // Unified continue: if finishReason is not "stop" (or other non-retryable),
+      // rebuild context and generate a complete replacement response.
+      const continueCheck = shouldRetryGeneration(
+        result.finishReason,
+        result.text,
+        result.steps,
+        didRetry,
+      );
+      if (continueCheck.retry) {
+        const continueRemainingMs = actionDeadline - Date.now();
+        if (continueRemainingMs < 30_000) {
+          debugLog('Skipping continue, insufficient time remaining', {
+            remainingMs: continueRemainingMs,
+          });
+        } else {
+          const hasToolResults = needsToolResultRetry(
+            result.text,
+            result.steps,
+          );
+          debugLog('Continuing generation', {
+            reason: continueCheck.reason,
+            hasToolResults,
+            finishReason: result.finishReason,
+            textLength: result.text?.length ?? 0,
+            stepsCount: result.steps?.length ?? 0,
+          });
+
+          const continueContext = await buildStructuredContext({
+            ctx,
+            threadId,
+            additionalContext,
+            parentThreadId,
+            maxHistoryTokens: agentConfig.maxHistoryTokens,
+            ragContext: hookData?.ragContext,
+          });
+
+          const continueAgent = createAgent(agentOptions);
+
+          const continueSystemPrompt = agentInstructions
+            ? `${agentInstructions}\n\n${continueContext.threadContext}`
+            : continueContext.threadContext;
+
+          const continuePrompt = hasToolResults
+            ? promptMessage
+              ? `Based on the tool results, complete this task: ${promptMessage}`
+              : 'Based on the conversation and tool results above, provide your complete response.'
+            : promptMessage
+              ? `Please complete this task: ${promptMessage}`
+              : 'Please provide a response based on the conversation above.';
+
+          const recentMsgs = await listMessages(ctx, components.agent, {
+            threadId,
+            paginationOpts: { cursor: null, numItems: 10 },
+            excludeToolMessages: true,
+          });
+          const originalUserMessage = recentMsgs.page.find(
+            (m: MessageDoc) => m.message?.role === 'user',
+          );
+
+          const continueStartTime = Date.now();
+          debugLog('Continue starting', {
+            reason: continueCheck.reason,
+            timeoutMs: continueRemainingMs,
+            contextTokens: continueContext.stats.totalTokens,
+            model,
+            elapsedMs: continueStartTime - startTime,
+          });
+
+          const continueAbortController = new AbortController();
+          if (abortController.signal.aborted) {
+            continueAbortController.abort();
+          } else {
+            abortController.signal.addEventListener(
+              'abort',
+              () => continueAbortController.abort(),
+              { once: true },
+            );
+          }
+
+          // Build the appropriate context object for the continue call
+          const continueCtx = enableStreaming
+            ? contextWithOrg
+            : {
+                ...ctx,
+                organizationId,
+                threadId,
+                variables: { actionDeadlineMs: String(actionDeadline) },
+                agentTeamId,
+                includeTeamKnowledge,
+                includeOrgKnowledge,
+                knowledgeFileIds,
+                ...(parentThreadId ? { parentThreadId } : {}),
+              };
+
+          // Check for cancellation before starting continue (catches cancels during context building)
+          if (await checkFreshAbort()) {
+            abortWatcher?.stop();
+            return {
+              threadId,
+              text: '',
+              durationMs: Date.now() - startTime,
+              finishReason: 'cancelled',
+            };
+          }
+
+          // Save system message to record the continuation in thread history
+          await saveMessage(ctx, components.agent, {
+            threadId,
+            message: {
+              role: 'system',
+              content: 'Continue your previous response.',
+            },
+          });
+
+          // Prevent zombie detection during the gap before continuation saves its own message
+          const originalSavedMessageId = savedMessageId;
+          if (savedMessageId) {
+            await ctx.runMutation(components.agent.messages.updateMessage, {
+              messageId: savedMessageId,
+              patch: { status: 'pending' },
+            });
+          }
+
+          retryInProgress = true;
+          try {
+            const continueResult = await withTimeout(
+              continueAgent.generateText(
+                continueCtx,
+                { threadId, userId },
+                {
+                  system: continueSystemPrompt,
+                  prompt: continuePrompt,
+                  abortSignal: continueAbortController.signal,
+                  ...(originalUserMessage
+                    ? { promptMessageId: originalUserMessage._id }
+                    : {}),
+                },
+                {
+                  contextOptions: {
+                    recentMessages: 0,
+                    excludeToolMessages: false,
+                  },
+                },
+              ),
+              continueRemainingMs,
+              continueAbortController,
+            );
+
+            didRetry = true;
+            // Capture continuation's saved message ID for downstream operations
+            const continueSavedId = continueResult.savedMessages?.[0]?._id;
+            if (continueSavedId) savedMessageId = continueSavedId;
+
+            result = {
+              text: continueResult.text,
+              steps: [...(result.steps || []), ...continueResult.steps],
+              usage: mergeUsage(result.usage, continueResult.usage),
+              finishReason: continueResult.finishReason,
+              response: result.response,
+            };
+
+            debugLog('Continue completed', {
+              reason: continueCheck.reason,
+              textLength: result.text?.length ?? 0,
+              finishReason: result.finishReason,
+              continueDurationMs: Date.now() - continueStartTime,
+            });
+          } finally {
+            retryInProgress = false;
+            // ALWAYS restore original message status (handles all error paths)
+            if (originalSavedMessageId) {
+              try {
+                await ctx.runMutation(components.agent.messages.updateMessage, {
+                  messageId: originalSavedMessageId,
+                  patch: { status: 'success' },
+                });
+              } catch (restoreError) {
+                console.error(
+                  '[generateAgentResponse] Failed to restore message status:',
+                  restoreError,
+                );
+              }
+            }
+          }
+        }
+      }
+
+      // Post-continue abort check
+      if (await checkFreshAbort()) {
+        abortWatcher?.stop();
+        return {
+          threadId,
+          text: '',
+          durationMs: Date.now() - startTime,
+          finishReason: 'cancelled',
+        };
+      }
+
+      // Fallback: if text is still missing after continue, provide a minimal response
       // so the user always sees something rather than an empty message
-      if (needsToolResultRetry(result.text, result.steps)) {
+      if (
+        !result.text?.trim() ||
+        needsToolResultRetry(result.text, result.steps)
+      ) {
         const toolNames = extractToolNamesFromSteps(result.steps ?? []);
         debugLog('All retries exhausted, using fallback message', {
           toolNames,
@@ -954,121 +888,184 @@ export async function generateAgentResponse(
     } catch (timeoutError) {
       if (!(timeoutError instanceof AgentTimeoutError)) throw timeoutError;
 
-      // Generation timed out — attempt recovery using available context + tool results
-      debugLog('Generation timed out, attempting recovery', {
-        timeoutMs: effectiveTimeoutMs,
-        elapsedMs: Date.now() - startTime,
-      });
-
-      try {
-        // Rebuild context — picks up any tool results saved before the timeout
-        const recoveryContext = await buildStructuredContext({
-          ctx,
-          threadId,
-          additionalContext,
-          parentThreadId,
-          maxHistoryTokens: agentConfig.maxHistoryTokens,
-          ragContext: hookData?.ragContext,
-        });
-
-        const recoveryAgent = createAgent({
-          ...agentOptions,
-          withTools: false,
-        });
-
-        const recoverySystemPrompt = agentInstructions
-          ? `${agentInstructions}\n\n${recoveryContext.threadContext}`
-          : recoveryContext.threadContext;
-
-        // Cap recovery timeout by action deadline
-        const recoveryPlatformRemainingMs = Math.max(
-          actionDeadline - Date.now(),
-          0,
-        );
-        if (recoveryPlatformRemainingMs < 10_000) {
-          throw new AgentTimeoutError(0);
-        }
-        const recoveryRemainingMs = Math.min(
-          RECOVERY_TIMEOUT_MS,
-          recoveryPlatformRemainingMs,
-        );
-        const recoveryStartTime = Date.now();
-        debugLog('Timeout recovery starting', {
-          timeoutMs: recoveryRemainingMs,
-          contextTokens: recoveryContext.stats.totalTokens,
-          model,
-          elapsedMs: recoveryStartTime - startTime,
-        });
-
-        const recoveryAbortController = new AbortController();
-
-        const recoveryResult = await withTimeout(
-          recoveryAgent.generateText(
-            contextWithOrg,
-            { threadId, userId },
-            {
-              system: recoverySystemPrompt,
-              prompt: promptMessage
-                ? `The previous attempt to respond timed out. Based on any available context and tool results, provide a helpful response to: ${promptMessage}`
-                : 'The previous attempt timed out. Based on the conversation and any available tool results, provide a summary response.',
-              abortSignal: recoveryAbortController.signal,
-            },
-            {
-              contextOptions: {
-                recentMessages: 0,
-                excludeToolMessages: false,
-                searchOtherThreads: false,
-              },
-              storageOptions: { saveMessages: 'none' },
-            },
-          ),
-          recoveryRemainingMs,
-          recoveryAbortController,
-        );
-
-        didRetry = true;
-        result = {
-          text: recoveryResult.text,
-          steps: recoveryResult.steps,
-          usage: recoveryResult.usage,
-          finishReason: 'timeout-recovery',
-          response: recoveryResult.response,
-        };
-
-        debugLog('Timeout recovery completed', {
-          textLength: result.text?.length ?? 0,
-          retryDurationMs: Date.now() - recoveryStartTime,
+      // If the continue itself timed out, skip recovery and use fallback directly
+      if (retryInProgress) {
+        debugLog('Continue timed out, using fallback', {
           elapsedMs: Date.now() - startTime,
         });
-      } catch (recoveryError) {
-        // Recovery itself failed — use static fallback
-        console.error(
-          '[generateAgentResponse] Timeout recovery failed:',
-          recoveryError,
-        );
-
-        didRetry = true;
         result = {
-          text: 'I was unable to complete your request in time. Please try again.',
+          text: '',
           finishReason: 'timeout-recovery-failed',
         };
-
-        debugLog('Timeout recovery failed, using static fallback', {
+        retryInProgress = false;
+      } else {
+        // Generation timed out — attempt recovery using available context + tool results
+        debugLog('Generation timed out, attempting recovery', {
+          timeoutMs: effectiveTimeoutMs,
           elapsedMs: Date.now() - startTime,
         });
-      }
+
+        try {
+          // Rebuild context — picks up any tool results saved before the timeout
+          const recoveryContext = await buildStructuredContext({
+            ctx,
+            threadId,
+            additionalContext,
+            parentThreadId,
+            maxHistoryTokens: agentConfig.maxHistoryTokens,
+            ragContext: hookData?.ragContext,
+          });
+
+          const recoveryAgent = createAgent(agentOptions);
+
+          const recoverySystemPrompt = agentInstructions
+            ? `${agentInstructions}\n\n${recoveryContext.threadContext}`
+            : recoveryContext.threadContext;
+
+          // Cap recovery timeout by action deadline
+          const recoveryPlatformRemainingMs = Math.max(
+            actionDeadline - Date.now(),
+            0,
+          );
+          if (recoveryPlatformRemainingMs < 10_000) {
+            throw new AgentTimeoutError(0);
+          }
+          const recoveryRemainingMs = Math.min(
+            RECOVERY_TIMEOUT_MS,
+            recoveryPlatformRemainingMs,
+          );
+          const recoveryStartTime = Date.now();
+          debugLog('Timeout recovery starting', {
+            timeoutMs: recoveryRemainingMs,
+            contextTokens: recoveryContext.stats.totalTokens,
+            model,
+            elapsedMs: recoveryStartTime - startTime,
+          });
+
+          // Save system message to record the recovery in thread history
+          await saveMessage(ctx, components.agent, {
+            threadId,
+            message: {
+              role: 'system',
+              content:
+                'Previous attempt timed out. Recovering with available context.',
+            },
+          });
+
+          // Prevent zombie detection during recovery
+          const recoveryOriginalMessageId = savedMessageId;
+          if (savedMessageId) {
+            await ctx.runMutation(components.agent.messages.updateMessage, {
+              messageId: savedMessageId,
+              patch: { status: 'pending' },
+            });
+          }
+
+          const recoveryAbortController = new AbortController();
+
+          try {
+            const recoveryResult = await withTimeout(
+              recoveryAgent.generateText(
+                contextWithOrg,
+                { threadId, userId },
+                {
+                  system: recoverySystemPrompt,
+                  prompt: promptMessage
+                    ? `The previous attempt to respond timed out. Based on any available context and tool results, provide a helpful response to: ${promptMessage}`
+                    : 'The previous attempt timed out. Based on the conversation and any available tool results, provide a summary response.',
+                  abortSignal: recoveryAbortController.signal,
+                },
+                {
+                  contextOptions: {
+                    recentMessages: 0,
+                    excludeToolMessages: false,
+                    searchOtherThreads: false,
+                  },
+                },
+              ),
+              recoveryRemainingMs,
+              recoveryAbortController,
+            );
+
+            didRetry = true;
+            const recoverySavedId = recoveryResult.savedMessages?.[0]?._id;
+            if (recoverySavedId) savedMessageId = recoverySavedId;
+
+            result = {
+              text: recoveryResult.text,
+              steps: recoveryResult.steps,
+              usage: recoveryResult.usage,
+              finishReason: 'timeout-recovery',
+              response: recoveryResult.response,
+            };
+
+            debugLog('Timeout recovery completed', {
+              textLength: result.text?.length ?? 0,
+              retryDurationMs: Date.now() - recoveryStartTime,
+              elapsedMs: Date.now() - startTime,
+            });
+          } finally {
+            // ALWAYS restore original message status
+            if (recoveryOriginalMessageId) {
+              try {
+                await ctx.runMutation(components.agent.messages.updateMessage, {
+                  messageId: recoveryOriginalMessageId,
+                  patch: { status: 'success' },
+                });
+              } catch (restoreError) {
+                console.error(
+                  '[generateAgentResponse] Failed to restore message status during recovery:',
+                  restoreError,
+                );
+              }
+            }
+          }
+        } catch (recoveryError) {
+          // Recovery itself failed — use static fallback
+          console.error(
+            '[generateAgentResponse] Timeout recovery failed:',
+            recoveryError,
+          );
+
+          didRetry = true;
+          result = {
+            text: 'I was unable to complete your request in time. Please try again.',
+            finishReason: 'timeout-recovery-failed',
+          };
+
+          debugLog('Timeout recovery failed, using static fallback', {
+            elapsedMs: Date.now() - startTime,
+          });
+        }
+      } // close else (retryInProgress)
     }
 
     // Persist retry/fallback text to the saved message so it survives page reloads.
     // Retries use saveMessages: 'none', so the SDK-saved message still has the
     // original (empty/preamble) text. Update it with the final result.
-    if (didRetry && savedMessageId && result.text) {
-      await ctx.runMutation(components.agent.messages.updateMessage, {
-        messageId: savedMessageId,
-        patch: {
+    if (
+      didRetry &&
+      savedMessageId &&
+      result.text &&
+      !(await checkFreshAbort())
+    ) {
+      try {
+        await ctx.runMutation(components.agent.messages.updateMessage, {
+          messageId: savedMessageId,
+          patch: {
+            message: { role: 'assistant', content: result.text },
+          },
+        });
+      } catch (updateError) {
+        console.error(
+          '[generateAgentResponse] updateMessage failed, saving new message:',
+          updateError,
+        );
+        await saveMessage(ctx, components.agent, {
+          threadId,
           message: { role: 'assistant', content: result.text },
-        },
-      });
+        });
+      }
     }
 
     const durationMs = Date.now() - startTime;
@@ -1235,6 +1232,12 @@ export async function generateAgentResponse(
         { streamId },
       );
     }
+    if (streamId) {
+      await ctx.runMutation(
+        internal.threads.internal_mutations.clearGenerationStatus,
+        { threadId, streamId },
+      );
+    }
 
     abortWatcher?.stop();
     return responseResult;
@@ -1289,6 +1292,21 @@ export async function generateAgentResponse(
         console.error(
           '[generateAgentResponse] Failed to mark stream as errored:',
           streamError,
+        );
+      }
+    }
+
+    // Clear generation status so isThreadGenerating returns false
+    if (streamId) {
+      try {
+        await ctx.runMutation(
+          internal.threads.internal_mutations.clearGenerationStatus,
+          { threadId, streamId },
+        );
+      } catch (clearError) {
+        console.error(
+          '[generateAgentResponse] Failed to clear generation status:',
+          clearError,
         );
       }
     }
@@ -1589,6 +1607,51 @@ function needsToolResultRetry(
 }
 
 /**
+ * Finish reasons that indicate a completed or non-retryable state.
+ * - "stop": normal LLM completion
+ * - "cancelled": user explicitly cancelled the generation
+ * - "timeout-recovery" / "timeout-recovery-failed": already a recovery attempt
+ */
+const NON_RETRYABLE_FINISH_REASONS = new Set([
+  'stop',
+  'cancelled',
+  'content-filter',
+  'timeout-recovery',
+  'timeout-recovery-failed',
+]);
+
+/**
+ * Determine whether the generation result should be retried based on
+ * `finishReason`. Only `"stop"` (and other non-retryable custom reasons)
+ * counts as a successful completion. All other finish reasons — `"length"`,
+ * `"tool-calls"`, `"content-filter"`, `"unknown"`, `undefined`, etc. —
+ * trigger a single retry without tools.
+ *
+ * Special case: `finishReason === "stop"` with empty text after tool calls
+ * (known DeepSeek edge case) still triggers a retry.
+ */
+function shouldRetryGeneration(
+  finishReason: string | undefined,
+  text: string | undefined,
+  steps: unknown[] | undefined,
+  alreadyRetried: boolean,
+): { retry: boolean; reason: string } {
+  if (alreadyRetried) return { retry: false, reason: 'already-retried' };
+
+  if (finishReason && NON_RETRYABLE_FINISH_REASONS.has(finishReason)) {
+    if (finishReason === 'stop' && needsToolResultRetry(text, steps)) {
+      return { retry: true, reason: 'stop-with-empty-tool-result' };
+    }
+    return { retry: false, reason: 'non-retryable-finish-reason' };
+  }
+
+  return {
+    retry: true,
+    reason: `finish-reason-${finishReason ?? 'undefined'}`,
+  };
+}
+
+/**
  * Extract unique tool names from AI SDK steps for fallback messages.
  */
 function extractToolNamesFromSteps(steps: unknown[]): string[] {
@@ -1606,3 +1669,5 @@ function extractToolNamesFromSteps(steps: unknown[]): string[] {
 function capitalize(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
+
+export { shouldRetryGeneration, needsToolResultRetry };

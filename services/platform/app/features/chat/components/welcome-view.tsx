@@ -1,10 +1,9 @@
 'use client';
 
-import { useTranslation } from 'react-i18next';
-
 import type { MemberRole } from '@/lib/shared/schemas/organizations';
 
 import { Heading } from '@/app/components/ui/typography/heading';
+import { useT } from '@/lib/i18n/client';
 
 import { LoadingDots } from './thinking-animation';
 
@@ -28,7 +27,7 @@ export function WelcomeView({
   role,
   onSuggestionClick,
 }: WelcomeViewProps) {
-  const { t } = useTranslation('chat');
+  const { t } = useT('chat');
 
   if (isPending) {
     return (
@@ -50,7 +49,7 @@ export function WelcomeView({
         {t('welcome')}
       </Heading>
 
-      <ul className="flex flex-col divide-y divide-gray-200" role="list">
+      <ul className="divide-border flex flex-col divide-y" role="list">
         {suggestions.map((suggestion, index) => (
           <li key={index} className="py-1">
             <button

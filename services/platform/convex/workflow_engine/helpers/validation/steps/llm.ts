@@ -233,5 +233,19 @@ export function validateLlmStep(
     }
   }
 
+  // Validate tools + json output combination
+  if (
+    isJsonFormat &&
+    'tools' in llmConfig &&
+    Array.isArray(llmConfig.tools) &&
+    llmConfig.tools.length > 0
+  ) {
+    errors.push(
+      'LLM step cannot use both "tools" and "outputFormat": "json". ' +
+        'FIX: Split into two LLM steps — first step uses tools with text output, ' +
+        'second step uses json output to structure the result.',
+    );
+  }
+
   return { valid: errors.length === 0, errors, warnings };
 }

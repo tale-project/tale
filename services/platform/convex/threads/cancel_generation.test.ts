@@ -30,10 +30,20 @@ function createMockCtx(
     userId: 'user_1',
     status: 'active',
   },
+  threadMeta: Record<string, unknown> | null = null,
 ) {
+  const mockQuery = {
+    withIndex: vi.fn().mockReturnValue({
+      first: vi.fn().mockResolvedValue(threadMeta),
+    }),
+  };
   const ctx = {
     runQuery: vi.fn().mockResolvedValue(thread),
     runMutation: vi.fn().mockResolvedValue(undefined),
+    db: {
+      query: vi.fn().mockReturnValue(mockQuery),
+      patch: vi.fn().mockResolvedValue(undefined),
+    },
   };
   return ctx;
 }
