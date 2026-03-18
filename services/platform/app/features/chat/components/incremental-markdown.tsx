@@ -57,6 +57,14 @@ import type {
   MarkdownComponentType,
 } from '@/lib/utils/markdown-types';
 
+const remarkDisableIndentedCode = function (this: {
+  data: () => { micromarkExtensions?: { disable?: { null?: string[] } }[] };
+}) {
+  const data = this.data();
+  if (!data.micromarkExtensions) data.micromarkExtensions = [];
+  data.micromarkExtensions.push({ disable: { null: ['codeIndented'] } });
+};
+
 // ============================================================================
 // CONSTANTS
 // ============================================================================
@@ -114,7 +122,7 @@ const StableMarkdown = memo(
 
     return (
       <Markdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={[remarkDisableIndentedCode, remarkGfm]}
         rehypePlugins={[rehypeRaw, rehypeSanitize]}
         components={components}
       >
@@ -274,7 +282,7 @@ const StreamingMarkdown = memo(
 
     return (
       <Markdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={[remarkDisableIndentedCode, remarkGfm]}
         rehypePlugins={[rehypeRaw, rehypeSanitize]}
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- cursor wrapper functions are structurally compatible with react-markdown Components; Index signature mismatch is a false positive
         components={componentsWithCursor as Components}

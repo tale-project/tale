@@ -13,12 +13,10 @@ export const Route = createFileRoute('/dashboard/$id/chat/$threadId')({
 function ChatInputSkeleton() {
   return (
     <PanelFooter className="mx-auto w-full max-w-(--chat-max-width)">
-      <div className="border-muted mx-2 rounded-t-3xl border-[0.5rem] border-b-0">
-        <div className="bg-background border-muted-foreground/50 relative flex flex-col gap-2 rounded-t-2xl border border-b-0 px-4 pt-3">
-          <Skeleton className="h-[100px] w-full bg-transparent" />
-          <div className="flex items-center pb-3">
-            <Skeleton className="h-5 w-5 rounded" />
-          </div>
+      <div className="bg-background border-muted-foreground/50 relative flex flex-col gap-2 rounded-t-2xl border border-b-0 px-4 pt-3">
+        <Skeleton className="h-[100px] w-full bg-transparent" />
+        <div className="flex items-center pb-3">
+          <Skeleton className="h-5 w-5 rounded" />
         </div>
       </div>
     </PanelFooter>

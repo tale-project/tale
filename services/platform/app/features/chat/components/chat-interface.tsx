@@ -9,6 +9,7 @@ import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useAutoScroll } from '@/app/hooks/use-auto-scroll';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
@@ -64,6 +65,9 @@ export function ChatInterface({
   } = useChatLayout();
 
   const effectiveAgent = useEffectiveAgent(organizationId);
+
+  const { data: memberContext, isLoading: isMemberContextLoading } =
+    useCurrentMemberContext(organizationId);
 
   const [inputValue, setInputValue, clearInputValue] = usePersistedState(
     chatDraftKey(threadId),
@@ -283,10 +287,16 @@ export function ChatInterface({
         ref={contentRef}
         className={cn(
           'flex-1 overflow-y-visible p-4 sm:p-8',
-          showWelcome && 'flex flex-col items-center justify-end',
+          showWelcome && 'flex flex-col items-center justify-center',
         )}
       >
-        {showWelcome && <WelcomeView isPending={isLoading} />}
+        {showWelcome && (
+          <WelcomeView
+            isPending={isLoading || isMemberContextLoading}
+            role={memberContext?.role}
+            onSuggestionClick={setInputValue}
+          />
+        )}
 
         {showMessages && (
           <ChatMessages

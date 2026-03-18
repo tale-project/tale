@@ -12,6 +12,7 @@ import {
 
 import { useTheme } from '@/app/components/theme/theme-provider';
 import { Button } from '@/app/components/ui/primitives/button';
+import { useT } from '@/lib/i18n/client';
 import { highlightCode } from '@/lib/utils/shiki';
 
 /**
@@ -59,26 +60,18 @@ export const HighlightedCode = memo(function HighlightedCode({
   }, [code, lang, shikiTheme]);
 
   if (!html || highlightedForRef.current !== code) {
-    const lines = code.split('\n');
-    return (
-      <code>
-        {lines.map((line, i) => (
-          <span key={i} className="line">
-            {line}
-            {i < lines.length - 1 ? '\n' : ''}
-          </span>
-        ))}
-      </code>
-    );
+    return <code>{code}</code>;
   }
 
   return <code dangerouslySetInnerHTML={{ __html: html }} />;
 });
 
 export function CodeBlock({
+  lang,
   children,
   ...props
-}: ComponentPropsWithoutRef<'pre'> & { children?: ReactNode }) {
+}: ComponentPropsWithoutRef<'pre'> & { lang?: string; children?: ReactNode }) {
+  const { t } = useT('common');
   const [isCopied, setIsCopied] = useState(false);
   const preRef = useRef<HTMLPreElement>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -107,26 +100,32 @@ export function CodeBlock({
   };
 
   return (
-    <div className="group code-line-numbers relative">
+    <div className="border-border bg-background my-4 overflow-hidden rounded-lg border">
+      <div className="border-border flex items-center justify-between border-b px-4 py-2.5">
+        <span className="text-muted-foreground font-sans text-xs">
+          {lang ?? 'code'}
+        </span>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-muted-foreground hover:text-foreground h-auto gap-1.5 rounded-md px-2 py-1 text-xs"
+          onClick={handleCopy}
+        >
+          {isCopied ? (
+            <CheckIcon className="text-success size-3.5" />
+          ) : (
+            <CopyIcon className="size-3.5" />
+          )}
+          {isCopied ? t('actions.copied') : t('actions.copy')}
+        </Button>
+      </div>
       <pre
         ref={preRef}
         {...props}
-        className="max-w-(--chat-max-width) overflow-x-auto"
+        className="bg-muted max-w-(--chat-max-width) overflow-x-auto p-4"
       >
         {children}
       </pre>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="bg-background/80 hover:bg-background absolute top-2 right-2 size-7 opacity-0 transition-opacity group-hover:opacity-100"
-        onClick={handleCopy}
-      >
-        {isCopied ? (
-          <CheckIcon className="text-success size-3.5" />
-        ) : (
-          <CopyIcon className="size-3.5" />
-        )}
-      </Button>
     </div>
   );
 }

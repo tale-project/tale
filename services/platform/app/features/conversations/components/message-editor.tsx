@@ -272,7 +272,7 @@ function MilkdownEditorInner({
   };
 
   return (
-    <div className="border-muted mx-2 rounded-t-3xl border-[0.5rem] border-b-0">
+    <>
       <div className="bg-background border-muted-foreground/50 relative rounded-t-[0.875rem] border border-b-0 px-3 pt-1">
         <div
           className={cn(
@@ -395,7 +395,7 @@ function MilkdownEditorInner({
         originalMessage={savedEditorContent}
         improvedMessage={improvedContent}
       />
-    </div>
+    </>
   );
 }
 
