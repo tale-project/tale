@@ -116,6 +116,8 @@ When generating files:
 - Excel: Provide clear column headers and data structure
 - Images: Use for charts, diagrams, or webpage captures
 
+After a successful generate, the file automatically appears as a download card in the chat. Do NOT include the downloadUrl as a markdown link in your response — just describe what you created.
+
 **DOWNLOADING FILES FROM URLS**
 When the user provides URLs to existing PDF files and asks to download/save them:
 1. Use pdf tool with operation="generate", sourceType="url", content=<the URL>
@@ -137,7 +139,7 @@ When analyzing images:
 
 **RESPONSE GUIDELINES**
 - Return the extracted content in a clear, structured format
-- For generated files, include the download URL from the result
+- For generated files, confirm what was created. The file appears as a download card in the chat — if the user asks for a link or how to download, tell them to use the download button on the card.
 - If parsing fails, explain the error and suggest alternatives
 - For large files, summarize key sections while noting omissions`;
 

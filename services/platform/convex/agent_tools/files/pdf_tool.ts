@@ -12,6 +12,7 @@ import type { ToolDefinition } from '../types';
 
 import { internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
+import { appendFilePart } from './helpers/append_file_part';
 import { getAgentModelId } from './helpers/get_agent_model';
 import { parseFile, type ParseFileResult } from './helpers/parse_file';
 
@@ -70,9 +71,7 @@ EXAMPLES:
 • Download existing PDF: { "operation": "generate", "fileName": "report", "sourceType": "url", "content": "https://example.com/report.pdf" }
 • Parse: { "operation": "parse", "fileId": "kg2bazp7...", "filename": "report.pdf", "user_input": "Summarize the key findings" }
 
-CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the result. Never fabricate URLs.
-
-AFTER GENERATING: To save the file to a folder in the documents hub, call document_write with the returned fileStorageId and the desired folderPath.
+AFTER GENERATING: The file automatically appears as a download card in the chat. Do NOT mention downloading, do NOT include a link, and do NOT say "you can download it" — the card handles this. To also save the file to a folder in the documents hub, call document_write with the returned fileStorageId and the desired folderPath.
 `,
     args: z.object({
       operation: z
@@ -215,9 +214,18 @@ AFTER GENERATING: To save the file to a folder in the documents hub, call docume
           size: result.size,
         });
 
+        const cardAppended = await appendFilePart(ctx, {
+          fileName: result.fileName,
+          mimeType: result.contentType,
+          downloadUrl: result.downloadUrl,
+        });
+
         return {
           operation: 'generate',
           ...result,
+          downloadUrl: cardAppended
+            ? '[file card shown in chat]'
+            : result.downloadUrl,
         } as GeneratePdfResult;
       } catch (error) {
         console.error('[tool:pdf generate] error', {

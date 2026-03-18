@@ -14,6 +14,7 @@ import { internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
 import { toId } from '../../lib/type_cast_helpers';
 import { analyzeImage } from './helpers/analyze_image';
+import { appendFilePart } from './helpers/append_file_part';
 import { getVisionModel } from './helpers/vision_agent';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
@@ -95,7 +96,7 @@ EXAMPLES:
 • Analyze: { "operation": "analyze", "fileId": "kg2bazp7fbgt9srq63knfagjrd7yfenj", "question": "What is in this image?" }
 
 CRITICAL RULES:
-1. For generate operation, when presenting download links, copy the EXACT 'downloadUrl' from the result. Never fabricate or modify URLs.
+1. For generate operation, the file automatically appears as a download card in the chat — do NOT include the downloadUrl as a markdown link.
 2. For analyze operation, ALWAYS use the fileId from the image attachment context. NEVER use imageUrl for uploaded images.
 3. The fileId looks like "kg2bazp7fbgt9srq63knfagjrd7yfenj" (alphanumeric string starting with "k").
 
@@ -303,9 +304,18 @@ AFTER GENERATING: To save the file to a folder in the documents hub, call docume
           size: result.size,
         });
 
+        const cardAppended = await appendFilePart(ctx, {
+          fileName: result.fileName,
+          mimeType: result.contentType,
+          downloadUrl: result.downloadUrl,
+        });
+
         return {
           operation: 'generate',
           ...result,
+          downloadUrl: cardAppended
+            ? '[file card shown in chat]'
+            : result.downloadUrl,
         } as GenerateImageResult;
       } catch (error) {
         console.error('[tool:image generate] error', {
