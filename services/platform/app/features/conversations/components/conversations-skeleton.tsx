@@ -1,7 +1,7 @@
 import { PanelFooter } from '@/app/components/layout/panel-footer';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { HStack, VStack } from '@/app/components/ui/layout/layout';
-import {cn} from '@/lib/utils/cn';
+import { cn } from '@/lib/utils/cn';
 
 interface ConversationsListSkeletonProps {
   rows?: number;
@@ -97,7 +97,7 @@ export function ConversationPanelSkeleton({
           </div>
         </PanelFooter>
       ) : (
-        <PanelFooter className={cn("py-3 px-4", isInactive && "px-0")}>
+        <PanelFooter className={cn('py-3 px-4', isInactive && 'px-0')}>
           <div className="mx-auto w-full max-w-3xl">
             <Skeleton className="h-32 w-full rounded-xl" />
           </div>

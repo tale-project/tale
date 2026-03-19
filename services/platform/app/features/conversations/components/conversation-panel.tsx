@@ -47,8 +47,8 @@ const MessageEditor = lazyComponent(
 );
 
 import { useFormatDate } from '@/app/hooks/use-format-date';
+import { cn } from '@/lib/utils/cn';
 import { groupMessagesByDate } from '@/lib/utils/conversation/date-utils';
-import {cn} from '@/lib/utils/cn';
 
 interface AttachedFile {
   id: string;
@@ -460,7 +460,12 @@ export function ConversationPanel({
           </>
         )}
       </div>
-      <PanelFooter className={cn("py-3 px-4", conversation.status !== 'open' && "px-0 pb-0")}>
+      <PanelFooter
+        className={cn(
+          'py-3 px-4',
+          conversation.status !== 'open' && 'px-0 pb-0',
+        )}
+      >
         {conversation.status === 'open' ? (
           <div ref={messageComposerRef} className="mx-auto w-full max-w-3xl">
             <MessageEditor
