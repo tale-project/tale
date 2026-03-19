@@ -7,12 +7,14 @@ import { LoadingDots } from './thinking-animation';
 
 interface WelcomeViewProps {
   isPending: boolean;
+  agentName: string | undefined;
   conversationStarters?: string[];
   onSuggestionClick: (suggestion: string) => void;
 }
 
 export function WelcomeView({
   isPending,
+  agentName,
   conversationStarters,
   onSuggestionClick,
 }: WelcomeViewProps) {
@@ -41,7 +43,7 @@ export function WelcomeView({
   return (
     <div className="flex w-full max-w-(--chat-max-width) flex-col gap-6 self-center">
       <Heading level={1} weight="semibold" className="text-[1.75rem]">
-        {t('welcome')}
+        {agentName && <em>{agentName}</em>} {t('welcomeSuffix')}
       </Heading>
 
       <ul className="divide-border flex flex-col divide-y" role="list">

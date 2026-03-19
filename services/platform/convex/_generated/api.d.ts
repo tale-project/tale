@@ -262,6 +262,7 @@ import type * as folders_internal_mutations from "../folders/internal_mutations.
 import type * as folders_mutations from "../folders/mutations.js";
 import type * as folders_queries from "../folders/queries.js";
 import type * as http from "../http.js";
+import type * as images_http_actions from "../images/http_actions.js";
 import type * as integrations_actions from "../integrations/actions.js";
 import type * as integrations_build_test_secrets from "../integrations/build_test_secrets.js";
 import type * as integrations_create_integration from "../integrations/create_integration.js";
@@ -1121,6 +1122,7 @@ declare const fullApi: ApiFromModules<{
   "folders/mutations": typeof folders_mutations;
   "folders/queries": typeof folders_queries;
   http: typeof http;
+  "images/http_actions": typeof images_http_actions;
   "integrations/actions": typeof integrations_actions;
   "integrations/build_test_secrets": typeof integrations_build_test_secrets;
   "integrations/create_integration": typeof integrations_create_integration;

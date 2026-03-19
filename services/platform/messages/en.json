@@ -2361,7 +2361,8 @@
     },
     "structured": {
       "nextSteps": "Suggested follow-ups"
-    }
+    },
+    "welcomeSuffix": "here, what are we working on?"
   },
   "documents": {
     "title": "Documents",

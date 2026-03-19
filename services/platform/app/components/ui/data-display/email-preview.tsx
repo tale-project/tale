@@ -218,6 +218,49 @@ function sanitizeCssStyle(styleString: string): string {
   return sanitizedParts.join('; ');
 }
 
+/**
+ * Rewrite external img src URLs to route through the image proxy.
+ * Skips same-origin, Convex storage, cid:, data:, and already-proxied URLs.
+ */
+export function rewriteExternalImageSrcs(
+  html: string,
+  proxyBase: string,
+): string {
+  let proxyOrigin: string;
+  try {
+    proxyOrigin = new URL(proxyBase).origin;
+  } catch {
+    return html;
+  }
+
+  return html.replace(
+    /src=(["'])(https?:\/\/[^"']+)\1/gi,
+    (_match, quote: string, srcUrl: string) => {
+      try {
+        const parsed = new URL(srcUrl);
+        if (parsed.origin === proxyOrigin) return _match;
+        if (
+          parsed.hostname.endsWith('.convex.cloud') ||
+          parsed.hostname.endsWith('.convex.site')
+        ) {
+          return _match;
+        }
+      } catch {
+        return _match;
+      }
+
+      // Decode HTML entities (e.g. &amp; → &) before encoding
+      const decodedUrl = srcUrl
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"');
+      const encoded = encodeURIComponent(btoa(decodedUrl));
+      return `src=${quote}${proxyBase}/api/image-proxy?url=${encoded}${quote}`;
+    },
+  );
+}
+
 export function replaceCidReferences(
   html: string,
   cidMap: Record<string, string>,
@@ -302,16 +345,18 @@ export function EmailPreview({
   const [showQuoted, setShowQuoted] = useState(false);
 
   const { sanitizedMain, sanitizedQuoted } = useMemo(() => {
+    const proxyBase =
+      typeof window !== 'undefined' ? window.location.origin : '';
     const { main, quoted } = splitQuotedContent(html);
     const resolvedMain = cidMap ? replaceCidReferences(main, cidMap) : main;
     const resolvedQuoted = cidMap
       ? replaceCidReferences(quoted, cidMap)
       : quoted;
+    const proxiedMain = rewriteExternalImageSrcs(resolvedMain, proxyBase);
+    const proxiedQuoted = rewriteExternalImageSrcs(resolvedQuoted, proxyBase);
     return {
-      sanitizedMain: sanitizePreviewHtml(resolvedMain),
-      sanitizedQuoted: resolvedQuoted
-        ? sanitizePreviewHtml(resolvedQuoted)
-        : '',
+      sanitizedMain: sanitizePreviewHtml(proxiedMain),
+      sanitizedQuoted: proxiedQuoted ? sanitizePreviewHtml(proxiedQuoted) : '',
     };
   }, [html, cidMap]);
 

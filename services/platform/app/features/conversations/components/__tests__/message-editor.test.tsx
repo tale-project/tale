@@ -43,6 +43,10 @@ vi.mock('react-markdown', () => ({
   default: ({ children }: { children: string }) => <>{children}</>,
 }));
 
+vi.mock('@/app/hooks/use-convex-auth', () => ({
+  useAuth: () => ({ user: { userId: 'test-user-id' } }),
+}));
+
 vi.mock('@/app/hooks/use-persisted-state', () => ({
   usePersistedState: (key: string, initial: string) => {
     const [value, setValue] = useState(initial || 'some content');
@@ -128,7 +132,7 @@ describe('MessageEditor', () => {
 
   it('clears localStorage after successful send', async () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
-    const storageKey = 'new-conversation';
+    const storageKey = 'conversation-test-user-id-new';
     window.localStorage.setItem(storageKey, JSON.stringify('draft content'));
 
     render(<MessageEditor onSave={onSave} />);

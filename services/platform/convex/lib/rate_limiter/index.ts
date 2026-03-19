@@ -131,6 +131,11 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 100,
     period: MINUTE,
   },
+  'security:image-proxy': {
+    kind: 'fixed window',
+    rate: 200,
+    period: MINUTE,
+  },
 
   // ============================================
   // TIER 5: Workflow Operations (Token Bucket)

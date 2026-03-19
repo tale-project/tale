@@ -64,7 +64,7 @@ export const EditorActionBar = memo(function EditorActionBar({
   };
 
   return (
-    <HStack justify="between" className="py-2">
+    <HStack justify="between" className="pt-1">
       {!isImproveMode && (
         <HStack gap={2}>
           <input

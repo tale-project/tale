@@ -8,6 +8,7 @@ import { PanelFooter } from '@/app/components/layout/panel-footer';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useAutoScroll } from '@/app/hooks/use-auto-scroll';
+import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { api } from '@/convex/_generated/api';
@@ -39,8 +40,15 @@ import { ChatInput } from './chat-input';
 import { ChatMessages } from './chat-messages';
 import { WelcomeView } from './welcome-view';
 
-function chatDraftKey(threadId?: string) {
-  return threadId ? `chat-draft-${threadId}` : 'chat-draft-new';
+function chatDraftKey(
+  userId: string | undefined,
+  organizationId: string,
+  threadId?: string,
+) {
+  const prefix = userId
+    ? `chat-draft-${userId}-${organizationId}`
+    : `chat-draft-${organizationId}`;
+  return threadId ? `${prefix}-${threadId}` : `${prefix}-new`;
 }
 
 interface ChatInterfaceProps {
@@ -53,6 +61,7 @@ export function ChatInterface({
   threadId,
 }: ChatInterfaceProps) {
   const { t } = useT('chat');
+  const { user } = useAuth();
   const {
     isPending,
     setIsPending,
@@ -66,7 +75,7 @@ export function ChatInterface({
   const effectiveAgent = useEffectiveAgent(organizationId);
 
   const [inputValue, setInputValue, clearInputValue] = usePersistedState(
-    chatDraftKey(threadId),
+    chatDraftKey(user?.userId, organizationId, threadId),
     '',
   );
   const [showScrollButton, setShowScrollButton] = useState(false);
@@ -80,7 +89,12 @@ export function ChatInterface({
     clearAttachments,
   } = useConvexFileUpload({ organizationId });
 
-  usePersistedAttachments({ threadId, attachments, setAttachments });
+  usePersistedAttachments({
+    userId: user?.userId,
+    threadId,
+    attachments,
+    setAttachments,
+  });
 
   // Message processing
   const {
@@ -289,6 +303,7 @@ export function ChatInterface({
         {showWelcome && (
           <WelcomeView
             isPending={isLoading}
+            agentName={effectiveAgent?.displayName}
             conversationStarters={effectiveAgent?.conversationStarters}
             onSuggestionClick={setInputValue}
           />
