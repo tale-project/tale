@@ -81,6 +81,29 @@ export const createIntegration = internalMutation({
   },
 });
 
+export const patchIntegrationMetadata = internalMutation({
+  args: {
+    integrationId: v.id('integrations'),
+    metadataPatch: jsonRecordValidator,
+  },
+  handler: async (ctx, args) => {
+    const integration = await ctx.db.get(args.integrationId);
+    if (!integration) {
+      throw new Error('Integration not found');
+    }
+
+    const currentMetadata =
+      integration.metadata &&
+      typeof integration.metadata === 'object' &&
+      !Array.isArray(integration.metadata)
+        ? integration.metadata
+        : {};
+    const merged = { ...currentMetadata, ...args.metadataPatch };
+
+    await ctx.db.patch(args.integrationId, { metadata: merged });
+  },
+});
+
 export const updateIntegration = internalMutation({
   args: {
     integrationId: v.id('integrations'),

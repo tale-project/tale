@@ -82,4 +82,16 @@ export async function cancelGeneration(
       metadata: { status: 'failed' },
     });
   }
+
+  // Clear generation status so isThreadGenerating returns false immediately
+  const threadMeta = await ctx.db
+    .query('threadMetadata')
+    .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
+    .first();
+  if (threadMeta?.generationStatus === 'generating') {
+    await ctx.db.patch(threadMeta._id, {
+      generationStatus: 'idle',
+      streamId: undefined,
+    });
+  }
 }

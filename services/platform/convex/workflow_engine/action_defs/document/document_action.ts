@@ -21,6 +21,8 @@ import { fetchDocumentContent } from '../../../agent_tools/documents/helpers/fet
 import { getRagConfig } from '../../../lib/helpers/rag_config';
 import { toConvexJsonRecord, toId } from '../../../lib/type_cast_helpers';
 import { jsonRecordValidator } from '../../../lib/validators/json';
+import { applyDocxStructured } from './helpers/apply_docx_structured';
+import { extractDocxStructured } from './helpers/extract_docx_structured';
 
 /**
  * Normalize unescaped literal \n and \t sequences to actual whitespace.
@@ -95,13 +97,26 @@ type DocumentActionParams =
       fileId: string;
       title?: string;
       folderPath?: string;
+    }
+  | {
+      operation: 'extract_docx_structured';
+      fileId: string;
+    }
+  | {
+      operation: 'apply_docx_structured';
+      templateFileId: string;
+      sourceHash: string;
+      modifications: Array<{ key: string; text: string }>;
+      fileName: string;
+      trackChanges?: boolean;
+      author?: string;
     };
 
 export const documentAction: ActionDefinition<DocumentActionParams> = {
   type: 'document',
   title: 'Document Operation',
   description:
-    'Execute document-specific operations (update, retrieve, generate_docx, create). organizationId is automatically read from workflow context variables.',
+    'Execute document-specific operations (update, retrieve, generate_docx, create, extract_docx_structured, apply_docx_structured). organizationId is automatically read from workflow context variables.',
 
   parametersValidator: v.union(
     v.object({
@@ -146,6 +161,19 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
       baseFileName: v.optional(v.string()),
       comparisonFileName: v.optional(v.string()),
       maxChanges: v.optional(v.number()),
+    }),
+    v.object({
+      operation: v.literal('extract_docx_structured'),
+      fileId: v.string(),
+    }),
+    v.object({
+      operation: v.literal('apply_docx_structured'),
+      templateFileId: v.string(),
+      sourceHash: v.string(),
+      modifications: v.array(v.object({ key: v.string(), text: v.string() })),
+      fileName: v.string(),
+      trackChanges: v.optional(v.boolean()),
+      author: v.optional(v.string()),
     }),
   ),
 
@@ -318,6 +346,27 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
           }),
         );
         return results;
+      }
+
+      case 'extract_docx_structured': {
+        return await extractDocxStructured(ctx, params.fileId);
+      }
+
+      case 'apply_docx_structured': {
+        const organizationId =
+          typeof _variables.organizationId === 'string'
+            ? _variables.organizationId
+            : undefined;
+
+        return await applyDocxStructured(ctx, {
+          templateFileId: params.templateFileId,
+          sourceHash: params.sourceHash,
+          modifications: params.modifications,
+          fileName: params.fileName,
+          trackChanges: params.trackChanges,
+          author: params.author,
+          organizationId,
+        });
       }
 
       default:

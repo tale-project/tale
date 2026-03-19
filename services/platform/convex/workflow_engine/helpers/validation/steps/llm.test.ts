@@ -278,6 +278,23 @@ describe('validateLlmStep', () => {
       );
     });
 
+    it('fails when both tools and json output format are configured', () => {
+      const result = validateLlmStep(
+        validLlmConfig({
+          outputFormat: 'json',
+          outputSchema: {
+            type: 'object',
+            properties: { name: { type: 'string' } },
+          },
+          tools: ['customer_read'],
+        }),
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.includes('cannot use both'))).toBe(
+        true,
+      );
+    });
+
     it('fails with invalid tool names', () => {
       const result = validateLlmStep(
         validLlmConfig({ tools: ['nonexistent_tool'] }),

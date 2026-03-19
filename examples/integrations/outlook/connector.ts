@@ -266,7 +266,11 @@ function mapGraphToEmailType(msg: GraphMessage, accountEmail: string) {
     text: contentType === 'text' ? bodyContent : '',
     html: contentType === 'html' ? bodyContent : '',
     flags: msg.isRead ? ['\\Seen'] : [],
-    headers: {},
+    headers: {
+      'message-id': msg.internetMessageId || '',
+      'in-reply-to': '',
+      references: '',
+    },
     attachments: (msg.attachments || [])
       .filter(function (att) {
         return att['@odata.type'] === '#microsoft.graph.fileAttachment';
@@ -308,7 +312,13 @@ function listMessages(
 ) {
   const top = Math.min((params.top as number) || 25, 100);
   const orderby = (params.orderby as string) || 'receivedDateTime desc';
-  const filter = (params.filter as string) || '';
+
+  // Build filter: prefer explicit cursor param, fall back to raw filter string
+  const cursor = params.cursor as { receivedDateTime?: string } | undefined;
+  let filter = (params.filter as string) || '';
+  if (cursor?.receivedDateTime && !filter) {
+    filter = 'receivedDateTime gt ' + cursor.receivedDateTime;
+  }
 
   // Graph API does not support $orderby combined with $filter on conversationId.
   // When this combination is detected, drop $orderby from the request and sort
@@ -341,7 +351,7 @@ function listMessages(
     queryParts.push('$select=' + params.select);
   } else {
     queryParts.push(
-      '$select=id,subject,from,toRecipients,receivedDateTime,isRead,hasAttachments,bodyPreview',
+      '$select=id,internetMessageId,subject,from,toRecipients,receivedDateTime,isRead,hasAttachments,bodyPreview',
     );
   }
   if (params.skip) {
@@ -377,11 +387,21 @@ function listMessages(
     });
   }
 
+  // Compute nextCursor from the last raw message for sync cursor advancement
+  const lastRaw = rawValues[rawValues.length - 1];
+  const nextCursor = lastRaw
+    ? {
+        receivedDateTime: lastRaw.receivedDateTime || '',
+        messageId: lastRaw.id || '',
+      }
+    : null;
+
   return {
     success: true,
     operation: 'list_messages',
     data: messages,
     count: messages.length,
+    nextCursor: nextCursor,
     pagination: {
       hasNextPage: !!(data as Record<string, unknown>)['@odata.nextLink'],
       nextLink: (data as Record<string, unknown>)['@odata.nextLink'] || null,
@@ -437,7 +457,7 @@ function searchMessages(
   const queryParts = [
     '$top=' + top,
     '$search="' + encodeURIComponent(params.query as string) + '"',
-    '$select=id,subject,from,toRecipients,receivedDateTime,isRead,hasAttachments,bodyPreview',
+    '$select=id,internetMessageId,subject,from,toRecipients,receivedDateTime,isRead,hasAttachments,bodyPreview',
   ];
 
   const url = GRAPH_BASE_URL + '/me/messages?' + queryParts.join('&');

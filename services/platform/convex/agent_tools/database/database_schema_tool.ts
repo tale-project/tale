@@ -24,19 +24,17 @@ import {
   type DatabaseSchemaGetTableResult,
 } from './helpers/types';
 
-const databaseSchemaArgs = z.object({
-  operation: z
-    .enum(['list_tables', 'get_table_schema'])
-    .describe(
-      "Operation: 'list_tables' to see all tables, 'get_table_schema' to get fields for a specific table",
-    ),
-  tableName: z
-    .string()
-    .optional()
-    .describe(
-      "Required for 'get_table_schema': table name (e.g., 'conversations', 'customers', 'approvals')",
-    ),
-});
+const databaseSchemaArgs = z.discriminatedUnion('operation', [
+  z.object({
+    operation: z.literal('list_tables'),
+  }),
+  z.object({
+    operation: z.literal('get_table_schema'),
+    tableName: z
+      .string()
+      .describe("Table name (e.g., 'conversations', 'customers', 'approvals')"),
+  }),
+]);
 
 export const databaseSchemaTool: ToolDefinition = {
   name: 'database_schema',
@@ -92,12 +90,6 @@ FILTER EXPRESSION EXAMPLES:
       }
 
       // operation === 'get_table_schema'
-      if (!args.tableName) {
-        throw new Error(
-          "Missing required 'tableName' for get_table_schema operation",
-        );
-      }
-
       const schema = getTableSchema(args.tableName);
       if (!schema) {
         const availableTables = getSupportedTables()

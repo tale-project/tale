@@ -106,6 +106,21 @@
       "stepType": "llm",
       "config": {
         "name": "Product Recommendation Generator",
+        "tools": ["product_read"],
+        "outputFormat": "text",
+        "systemPrompt": "{{llmSystemPrompt}}",
+        "userPrompt": "{{llmUserPrompt}}"
+      },
+      "nextSteps": { "success": "structure_recommendations" }
+    },
+    {
+      "stepSlug": "structure_recommendations",
+      "name": "Structure Recommendations as JSON",
+      "stepType": "llm",
+      "config": {
+        "name": "Recommendation Structurer",
+        "systemPrompt": "You are a data extraction assistant. Extract product recommendation data from the previous analysis into structured JSON. Extract ONLY products that were explicitly recommended. Do NOT invent or fabricate any data. Use exact values (IDs, names, prices, etc.) as they appear in the source.",
+        "userPrompt": "Extract the structured recommendation data from this analysis:\n\n{{steps.generate_recommendations.output.data}}",
         "outputFormat": "json",
         "outputSchema": {
           "type": "object",
@@ -151,10 +166,7 @@
             }
           },
           "required": ["recommendations", "summary"]
-        },
-        "tools": ["product_read"],
-        "systemPrompt": "{{llmSystemPrompt}}",
-        "userPrompt": "{{llmUserPrompt}}"
+        }
       },
       "nextSteps": { "success": "hydrate_recommendations" }
     },
@@ -166,7 +178,7 @@
         "type": "product",
         "parameters": {
           "operation": "hydrate_fields",
-          "items": "{{steps.generate_recommendations.output.data.recommendations}}",
+          "items": "{{steps.structure_recommendations.output.data.recommendations}}",
           "idField": "productId",
           "mappings": {
             "imageUrl": "imageUrl",
@@ -204,7 +216,7 @@
             "customerName": "{{currentCustomerName}}",
             "customerEmail": "{{currentCustomerEmail}}",
             "recommendedProducts": "{{steps.hydrate_recommendations.output.data}}",
-            "summary": "{{steps.generate_recommendations.output.data.summary}}",
+            "summary": "{{steps.structure_recommendations.output.data.summary}}",
             "generatedAt": "{{now}}",
             "workflowId": "{{rootWfDefinitionId}}"
           }

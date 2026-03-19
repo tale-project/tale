@@ -606,9 +606,11 @@ import type * as workflow_engine_action_defs_conversation_helpers_build_email_me
 import type * as workflow_engine_action_defs_conversation_helpers_build_initial_message from "../workflow_engine/action_defs/conversation/helpers/build_initial_message.js";
 import type * as workflow_engine_action_defs_conversation_helpers_check_conversation_exists from "../workflow_engine/action_defs/conversation/helpers/check_conversation_exists.js";
 import type * as workflow_engine_action_defs_conversation_helpers_check_message_exists from "../workflow_engine/action_defs/conversation/helpers/check_message_exists.js";
+import type * as workflow_engine_action_defs_conversation_helpers_constants from "../workflow_engine/action_defs/conversation/helpers/constants.js";
 import type * as workflow_engine_action_defs_conversation_helpers_create_conversation from "../workflow_engine/action_defs/conversation/helpers/create_conversation.js";
 import type * as workflow_engine_action_defs_conversation_helpers_create_conversation_from_email from "../workflow_engine/action_defs/conversation/helpers/create_conversation_from_email.js";
 import type * as workflow_engine_action_defs_conversation_helpers_create_conversation_from_sent_email from "../workflow_engine/action_defs/conversation/helpers/create_conversation_from_sent_email.js";
+import type * as workflow_engine_action_defs_conversation_helpers_email_sync_cursor from "../workflow_engine/action_defs/conversation/helpers/email_sync_cursor.js";
 import type * as workflow_engine_action_defs_conversation_helpers_find_or_create_customer_from_email from "../workflow_engine/action_defs/conversation/helpers/find_or_create_customer_from_email.js";
 import type * as workflow_engine_action_defs_conversation_helpers_find_related_conversation from "../workflow_engine/action_defs/conversation/helpers/find_related_conversation.js";
 import type * as workflow_engine_action_defs_conversation_helpers_normalize_email from "../workflow_engine/action_defs/conversation/helpers/normalize_email.js";
@@ -621,6 +623,8 @@ import type * as workflow_engine_action_defs_crawler_crawler_action from "../wor
 import type * as workflow_engine_action_defs_crawler_helpers_types from "../workflow_engine/action_defs/crawler/helpers/types.js";
 import type * as workflow_engine_action_defs_customer_customer_action from "../workflow_engine/action_defs/customer/customer_action.js";
 import type * as workflow_engine_action_defs_document_document_action from "../workflow_engine/action_defs/document/document_action.js";
+import type * as workflow_engine_action_defs_document_helpers_apply_docx_structured from "../workflow_engine/action_defs/document/helpers/apply_docx_structured.js";
+import type * as workflow_engine_action_defs_document_helpers_extract_docx_structured from "../workflow_engine/action_defs/document/helpers/extract_docx_structured.js";
 import type * as workflow_engine_action_defs_integration_helpers_build_secrets_from_integration from "../workflow_engine/action_defs/integration/helpers/build_secrets_from_integration.js";
 import type * as workflow_engine_action_defs_integration_helpers_decrypt_sql_credentials from "../workflow_engine/action_defs/integration/helpers/decrypt_sql_credentials.js";
 import type * as workflow_engine_action_defs_integration_helpers_detect_write_operation from "../workflow_engine/action_defs/integration/helpers/detect_write_operation.js";
@@ -678,7 +682,6 @@ import type * as workflow_engine_helpers_nodes_llm_types from "../workflow_engin
 import type * as workflow_engine_helpers_nodes_llm_types_workflow_termination from "../workflow_engine/helpers/nodes/llm/types/workflow_termination.js";
 import type * as workflow_engine_helpers_nodes_llm_utils_build_agent_steps_summary from "../workflow_engine/helpers/nodes/llm/utils/build_agent_steps_summary.js";
 import type * as workflow_engine_helpers_nodes_llm_utils_create_llm_result from "../workflow_engine/helpers/nodes/llm/utils/create_llm_result.js";
-import type * as workflow_engine_helpers_nodes_llm_utils_extract_schema_fields from "../workflow_engine/helpers/nodes/llm/utils/extract_schema_fields.js";
 import type * as workflow_engine_helpers_nodes_llm_utils_extract_tool_diagnostics from "../workflow_engine/helpers/nodes/llm/utils/extract_tool_diagnostics.js";
 import type * as workflow_engine_helpers_nodes_llm_utils_process_agent_result from "../workflow_engine/helpers/nodes/llm/utils/process_agent_result.js";
 import type * as workflow_engine_helpers_nodes_llm_utils_process_prompts from "../workflow_engine/helpers/nodes/llm/utils/process_prompts.js";
@@ -751,7 +754,6 @@ import type * as workflow_engine_types_index from "../workflow_engine/types/inde
 import type * as workflow_engine_types_nodes from "../workflow_engine/types/nodes.js";
 import type * as workflow_engine_types_workflow from "../workflow_engine/types/workflow.js";
 import type * as workflow_engine_types_workflow_types from "../workflow_engine/types/workflow_types.js";
-import type * as workflow_engine_workflow_syntax_compact from "../workflow_engine/workflow_syntax_compact.js";
 import type * as workflows_definitions_activate_version from "../workflows/definitions/activate_version.js";
 import type * as workflows_definitions_create_draft_from_active from "../workflows/definitions/create_draft_from_active.js";
 import type * as workflows_definitions_create_workflow from "../workflows/definitions/create_workflow.js";
@@ -1464,9 +1466,11 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/action_defs/conversation/helpers/build_initial_message": typeof workflow_engine_action_defs_conversation_helpers_build_initial_message;
   "workflow_engine/action_defs/conversation/helpers/check_conversation_exists": typeof workflow_engine_action_defs_conversation_helpers_check_conversation_exists;
   "workflow_engine/action_defs/conversation/helpers/check_message_exists": typeof workflow_engine_action_defs_conversation_helpers_check_message_exists;
+  "workflow_engine/action_defs/conversation/helpers/constants": typeof workflow_engine_action_defs_conversation_helpers_constants;
   "workflow_engine/action_defs/conversation/helpers/create_conversation": typeof workflow_engine_action_defs_conversation_helpers_create_conversation;
   "workflow_engine/action_defs/conversation/helpers/create_conversation_from_email": typeof workflow_engine_action_defs_conversation_helpers_create_conversation_from_email;
   "workflow_engine/action_defs/conversation/helpers/create_conversation_from_sent_email": typeof workflow_engine_action_defs_conversation_helpers_create_conversation_from_sent_email;
+  "workflow_engine/action_defs/conversation/helpers/email_sync_cursor": typeof workflow_engine_action_defs_conversation_helpers_email_sync_cursor;
   "workflow_engine/action_defs/conversation/helpers/find_or_create_customer_from_email": typeof workflow_engine_action_defs_conversation_helpers_find_or_create_customer_from_email;
   "workflow_engine/action_defs/conversation/helpers/find_related_conversation": typeof workflow_engine_action_defs_conversation_helpers_find_related_conversation;
   "workflow_engine/action_defs/conversation/helpers/normalize_email": typeof workflow_engine_action_defs_conversation_helpers_normalize_email;
@@ -1479,6 +1483,8 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/action_defs/crawler/helpers/types": typeof workflow_engine_action_defs_crawler_helpers_types;
   "workflow_engine/action_defs/customer/customer_action": typeof workflow_engine_action_defs_customer_customer_action;
   "workflow_engine/action_defs/document/document_action": typeof workflow_engine_action_defs_document_document_action;
+  "workflow_engine/action_defs/document/helpers/apply_docx_structured": typeof workflow_engine_action_defs_document_helpers_apply_docx_structured;
+  "workflow_engine/action_defs/document/helpers/extract_docx_structured": typeof workflow_engine_action_defs_document_helpers_extract_docx_structured;
   "workflow_engine/action_defs/integration/helpers/build_secrets_from_integration": typeof workflow_engine_action_defs_integration_helpers_build_secrets_from_integration;
   "workflow_engine/action_defs/integration/helpers/decrypt_sql_credentials": typeof workflow_engine_action_defs_integration_helpers_decrypt_sql_credentials;
   "workflow_engine/action_defs/integration/helpers/detect_write_operation": typeof workflow_engine_action_defs_integration_helpers_detect_write_operation;
@@ -1536,7 +1542,6 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/helpers/nodes/llm/types/workflow_termination": typeof workflow_engine_helpers_nodes_llm_types_workflow_termination;
   "workflow_engine/helpers/nodes/llm/utils/build_agent_steps_summary": typeof workflow_engine_helpers_nodes_llm_utils_build_agent_steps_summary;
   "workflow_engine/helpers/nodes/llm/utils/create_llm_result": typeof workflow_engine_helpers_nodes_llm_utils_create_llm_result;
-  "workflow_engine/helpers/nodes/llm/utils/extract_schema_fields": typeof workflow_engine_helpers_nodes_llm_utils_extract_schema_fields;
   "workflow_engine/helpers/nodes/llm/utils/extract_tool_diagnostics": typeof workflow_engine_helpers_nodes_llm_utils_extract_tool_diagnostics;
   "workflow_engine/helpers/nodes/llm/utils/process_agent_result": typeof workflow_engine_helpers_nodes_llm_utils_process_agent_result;
   "workflow_engine/helpers/nodes/llm/utils/process_prompts": typeof workflow_engine_helpers_nodes_llm_utils_process_prompts;
@@ -1609,7 +1614,6 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/types/nodes": typeof workflow_engine_types_nodes;
   "workflow_engine/types/workflow": typeof workflow_engine_types_workflow;
   "workflow_engine/types/workflow_types": typeof workflow_engine_types_workflow_types;
-  "workflow_engine/workflow_syntax_compact": typeof workflow_engine_workflow_syntax_compact;
   "workflows/definitions/activate_version": typeof workflows_definitions_activate_version;
   "workflows/definitions/create_draft_from_active": typeof workflows_definitions_create_draft_from_active;
   "workflows/definitions/create_workflow": typeof workflows_definitions_create_workflow;
@@ -2700,6 +2704,7 @@ export declare const components: {
             maximumRowsRead?: number;
             numItems: number;
           };
+          select?: Array<string>;
           sortBy?: { direction: "asc" | "desc"; field: string };
           where?: Array<{
             connector?: "AND" | "OR";

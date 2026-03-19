@@ -412,6 +412,7 @@
     "searchChat": {
       "title": "Search chat",
       "placeholder": "Search chat",
+      "loading": "Loading chats...",
       "noResults": "No results",
       "untitledChat": "Untitled chat"
     },
@@ -691,6 +692,7 @@
         "goToDraft": "Go to draft",
         "webhook": "Webhook",
         "delegation": "Delegation",
+        "conversationStarters": "Starters",
         "test": "Test"
       },
       "testChat": {
@@ -723,6 +725,16 @@
         "timeoutMinutesHelp": "Maximum time the agent can run per message. Increase for tasks that involve many file operations or sub-agent delegations.",
         "timeoutUpdated": "Timeout updated",
         "timeoutUpdateFailed": "Failed to update timeout"
+      },
+      "conversationStarters": {
+        "title": "Conversation starters",
+        "description": "Suggested prompts shown to users when they start a new conversation with this agent. Leave empty to show no suggestions.",
+        "placeholder": "e.g. Help me write a report",
+        "add": "Add starter",
+        "remove": "Remove conversation starter",
+        "dragHandle": "Drag to reorder",
+        "moveUp": "Move up",
+        "moveDown": "Move down"
       },
       "form": {
         "sectionGeneral": "General",
@@ -2155,6 +2167,8 @@
     "deleteConfirmation": "Are you sure you want to delete {title}?",
     "deleteArchiveMessage": "This chat will be archived and won't appear in your chat history.",
     "deleteFailed": "Failed to delete chat",
+    "welcome": "What are you working on?",
+    "welcomeEmpty": "How can I assist you?",
     "welcomeSuffix": "here, what are we working on?",
     "suggestions": {
       "admin": [
@@ -2222,7 +2236,6 @@
       "searchPlaceholder": "Search agents",
       "noResults": "No agents found",
       "addAgent": "Add agent",
-      "configureAgent": "Configure agent",
       "builtinAgents": {
         "chat": {
           "name": "Assistant",
@@ -2276,6 +2289,7 @@
     "uploadFailed": "Upload failed",
     "failedToUpload": "Failed to upload {filename}",
     "removeAttachment": "Remove attachment",
+    "uploadingFile": "Uploading file",
     "viewImage": "View image",
     "dropFilesToAdd": "Drop files here to add to chat",
     "fileTypes": {

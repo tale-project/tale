@@ -24,6 +24,24 @@ export const getOrCreateSubThreadAtomic = internalMutation({
   },
 });
 
+export const clearGenerationStatus = internalMutation({
+  args: { threadId: v.string(), streamId: v.string() },
+  handler: async (ctx, args) => {
+    const meta = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
+      .first();
+    // Only clear if the streamId matches — prevents a stale action from
+    // clearing a newer generation's 'generating' status.
+    if (meta && meta.streamId === args.streamId) {
+      await ctx.db.patch(meta._id, {
+        generationStatus: 'idle',
+        streamId: undefined,
+      });
+    }
+  },
+});
+
 export const cleanupOrphanedSubThreads = internalMutation({
   args: {
     parentThreadId: v.string(),

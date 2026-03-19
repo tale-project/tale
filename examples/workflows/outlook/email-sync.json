@@ -2,7 +2,7 @@
   "workflowConfig": {
     "name": "Email Sync (Outlook)",
     "description": "Sync emails from Outlook via Microsoft Graph API into conversations with automatic thread grouping",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "workflowType": "predefined",
     "config": {
       "timeout": 300000,
@@ -23,20 +23,17 @@
       "stepType": "start",
       "config": {},
       "nextSteps": {
-        "success": "query_latest_inbound_message"
+        "success": "read_sync_cursor"
       }
     },
     {
-      "stepSlug": "query_latest_inbound_message",
-      "name": "Query Latest Inbound Message",
+      "stepSlug": "read_sync_cursor",
+      "name": "Read Sync Cursor",
       "stepType": "action",
       "config": {
         "type": "conversation",
         "parameters": {
-          "operation": "query_latest_message_by_delivery_state",
-          "channel": "email",
-          "direction": "inbound",
-          "deliveryState": "delivered",
+          "operation": "get_email_sync_cursor",
           "integrationName": "outlook"
         }
       },
@@ -49,8 +46,8 @@
       "name": "Check Has Cursor",
       "stepType": "condition",
       "config": {
-        "expression": "steps.query_latest_inbound_message.output.data.message != null",
-        "description": "Check if we have a previously synced message to use as cursor"
+        "expression": "steps.read_sync_cursor.output.data.cursor != null",
+        "description": "Check if we have a previously stored sync cursor"
       },
       "nextSteps": {
         "true": "fetch_new_emails",
@@ -88,7 +85,7 @@
           "name": "outlook",
           "operation": "list_messages",
           "params": {
-            "filter": "receivedDateTime gt {{steps.query_latest_inbound_message.output.data.message.deliveredAt|isoDate}}",
+            "cursor": "{{steps.read_sync_cursor.output.data.cursor}}",
             "orderby": "receivedDateTime asc",
             "top": 1,
             "select": "id,subject,from,toRecipients,ccRecipients,bccRecipients,receivedDateTime,sentDateTime,body,internetMessageId,conversationId,isRead,hasAttachments,bodyPreview",
@@ -165,6 +162,22 @@
           "emails": "{{steps.fetch_thread_messages.output.data.result.data}}",
           "status": "{{config.conversationStatus}}",
           "integrationName": "outlook"
+        }
+      },
+      "nextSteps": {
+        "success": "update_sync_cursor"
+      }
+    },
+    {
+      "stepSlug": "update_sync_cursor",
+      "name": "Update Sync Cursor",
+      "stepType": "action",
+      "config": {
+        "type": "conversation",
+        "parameters": {
+          "operation": "update_email_sync_cursor",
+          "integrationName": "outlook",
+          "cursor": "{{steps.fetch_new_emails.output.data.result.nextCursor || steps.fetch_latest_email.output.data.result.nextCursor}}"
         }
       },
       "nextSteps": {

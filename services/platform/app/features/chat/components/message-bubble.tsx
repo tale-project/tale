@@ -230,7 +230,7 @@ function MessageBubbleComponent({
                     {tChat('errorGenerating')}
                   </span>
                 </div>
-                <p className="text-[13px] text-[#6B7280]">
+                <p className="text-muted-foreground text-[13px]">
                   {tChat('errorGeneratingDescription')}
                 </p>
                 {onRetry && (

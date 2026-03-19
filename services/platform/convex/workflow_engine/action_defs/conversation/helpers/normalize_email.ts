@@ -1,9 +1,9 @@
 /**
- * Normalize raw email provider API responses (e.g. Gmail) into EmailType.
+ * Normalize raw email provider API responses (e.g. Gmail, Outlook) into EmailType.
  *
  * Connectors may return either:
  * 1. Already-mapped EmailType objects (when format=email or connector does mapping)
- * 2. Raw API responses (e.g. Gmail API full-format messages)
+ * 2. Raw API responses (e.g. Gmail API full-format messages, Microsoft Graph messages)
  *
  * This helper detects the format and normalizes to EmailType so downstream
  * code works regardless of connector version.
@@ -180,13 +180,122 @@ function gmailToEmailType(msg: RawGmailMessage): EmailType {
   };
 }
 
+// --- Outlook / Microsoft Graph ---
+
+interface OutlookEmailAddress {
+  name?: string;
+  address?: string;
+}
+
+interface OutlookRecipient {
+  emailAddress?: OutlookEmailAddress;
+}
+
+interface OutlookAttachment {
+  '@odata.type'?: string;
+  id?: string;
+  name?: string;
+  contentType?: string;
+  size?: number;
+  contentId?: string;
+}
+
+interface RawOutlookMessage {
+  id?: string;
+  internetMessageId?: string;
+  conversationId?: string;
+  subject?: string;
+  receivedDateTime?: string;
+  sentDateTime?: string;
+  isRead?: boolean;
+  hasAttachments?: boolean;
+  from?: { emailAddress?: OutlookEmailAddress };
+  toRecipients?: OutlookRecipient[];
+  ccRecipients?: OutlookRecipient[];
+  bccRecipients?: OutlookRecipient[];
+  body?: { contentType?: string; content?: string };
+  attachments?: OutlookAttachment[];
+}
+
+function isRawOutlookMessage(data: unknown): data is RawOutlookMessage {
+  if (!isRecord(data)) return false;
+  // Outlook Graph messages have from.emailAddress (object), not from[] (array).
+  // Also distinguish from Gmail which has payload.headers.
+  if ('payload' in data) return false;
+  if ('from' in data && isRecord(data.from) && 'emailAddress' in data.from)
+    return true;
+  // Fallback: has toRecipients (Graph-specific field)
+  if ('toRecipients' in data && Array.isArray(data.toRecipients)) return true;
+  return false;
+}
+
+function mapOutlookRecipients(
+  list: OutlookRecipient[] | undefined,
+): Array<{ name: string; address: string }> {
+  if (!list) return [];
+  return list.map((r) => {
+    const addr = r.emailAddress ?? {};
+    return { name: addr.name ?? '', address: addr.address ?? '' };
+  });
+}
+
+function outlookToEmailType(msg: RawOutlookMessage): EmailType {
+  const fromAddr = msg.from?.emailAddress ?? {};
+  const contentType = msg.body?.contentType?.toLowerCase() ?? '';
+  const bodyContent = msg.body?.content ?? '';
+
+  return {
+    uid: 0,
+    messageId: msg.internetMessageId || msg.id || '',
+    from: [{ name: fromAddr.name ?? '', address: fromAddr.address ?? '' }],
+    to: mapOutlookRecipients(msg.toRecipients),
+    cc: mapOutlookRecipients(msg.ccRecipients),
+    bcc: mapOutlookRecipients(msg.bccRecipients),
+    subject: msg.subject ?? '',
+    date: msg.receivedDateTime || msg.sentDateTime || '',
+    text: contentType === 'text' ? bodyContent : '',
+    html: contentType === 'html' ? bodyContent : '',
+    flags: msg.isRead ? ['\\Seen'] : [],
+    headers: {
+      'message-id': msg.internetMessageId || '',
+      'in-reply-to': '',
+      references: '',
+    },
+    attachments: (msg.attachments ?? [])
+      .filter((att) => att['@odata.type'] === '#microsoft.graph.fileAttachment')
+      .map((att) => {
+        const mapped: {
+          id: string;
+          filename: string;
+          contentType: string;
+          size: number;
+          contentId?: string;
+        } = {
+          id: att.id ?? '',
+          filename: att.name ?? 'attachment',
+          contentType: att.contentType ?? 'application/octet-stream',
+          size: att.size ?? 0,
+        };
+        if (att.contentId) {
+          mapped.contentId = att.contentId.replace(/^<|>$/g, '');
+        }
+        return mapped;
+      }),
+    direction: undefined,
+  };
+}
+
 /**
- * Normalize a single email object. If it's a raw Gmail API message,
- * converts it to EmailType. Otherwise returns as-is.
+ * Normalize a single email object. Detects raw Gmail API and
+ * Microsoft Graph (Outlook) messages and converts to EmailType.
+ * Otherwise returns as-is.
  */
 export function normalizeEmail(data: unknown): EmailType {
   if (isRawGmailMessage(data)) {
     return gmailToEmailType(data);
+  }
+  if (isRawOutlookMessage(data)) {
+    return outlookToEmailType(data);
   }
   // Already-mapped EmailType from connector (has `from` array, no `payload`).
   // We can't fully validate the shape at runtime, so we trust the connector contract.

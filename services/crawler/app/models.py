@@ -267,6 +267,63 @@ class GenerateDocxResponse(BaseModel):
     error: str | None = Field(None, description="Error message if generation failed")
 
 
+# ==================== DOCX Round-Trip Models ====================
+
+
+class LightweightParagraph(BaseModel):
+    """A paragraph entry in the lightweight extraction output."""
+
+    key: str = Field(..., description="Stable paragraph key (e.g., 'p_0', 'tbl_0_r0_c0_p0')")
+    text: str = Field(..., description="Full text content of the paragraph")
+    editable: bool = Field(..., description="Whether this paragraph can be safely modified")
+    style: str | None = Field(None, description="Paragraph style name (e.g., 'Heading 1', 'Normal')")
+
+
+class ExtractStructuredMetadata(BaseModel):
+    """Metadata from structured DOCX extraction."""
+
+    paragraph_count: int = Field(..., description="Total number of paragraphs")
+    table_count: int = Field(..., description="Total number of tables")
+    group_count: int = Field(0, description="Number of semantic paragraph groups")
+
+
+class ExtractStructuredResponse(BaseModel):
+    """Response from DOCX structured extraction."""
+
+    source_hash: str = Field(..., description="SHA-256 hash of the source file")
+    metadata: ExtractStructuredMetadata = Field(..., description="Document metadata")
+    lightweight: list[LightweightParagraph] = Field(..., description="Paragraph key-text pairs")
+    groups: list[list[LightweightParagraph]] = Field(
+        default_factory=list, description="Semantic groups of editable paragraphs"
+    )
+
+
+class ApplyStructuredReport(BaseModel):
+    """Report from applying structured modifications."""
+
+    total_modifications_requested: int = Field(0, description="Total modifications requested")
+    applied: int = Field(0, description="Number of modifications successfully applied")
+    success: bool = Field(True, description="Whether the operation was successful overall")
+    skipped_not_editable: list[str] = Field(default_factory=list, description="Keys skipped (not editable)")
+    skipped_unknown_key: list[str] = Field(default_factory=list, description="Keys not found in document")
+    skipped_no_change: list[str] = Field(default_factory=list, description="Keys where text was unchanged")
+    skipped_non_text_content: list[str] = Field(default_factory=list, description="Keys with images/page breaks")
+    format_simplified: list[str] = Field(
+        default_factory=list, description="Keys where multi-run formatting was simplified"
+    )
+    errors: list[dict[str, Any]] = Field(default_factory=list, description="Errors encountered")
+
+
+class ApplyStructuredResponse(BaseModel):
+    """Response from applying structured modifications to DOCX."""
+
+    success: bool = Field(..., description="Whether the operation was successful")
+    file_base64: str | None = Field(None, description="Modified DOCX as base64")
+    file_size: int | None = Field(None, description="File size in bytes")
+    report: ApplyStructuredReport | None = Field(None, description="Detailed modification report")
+    error: str | None = Field(None, description="Error message if operation failed")
+
+
 # ==================== File Parsing Models ====================
 
 
