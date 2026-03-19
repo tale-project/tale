@@ -198,8 +198,24 @@ describe('normalizeEmail (Outlook)', () => {
     expect(result.html).toBe('<p>Hello from Outlook</p>');
     expect(result.text).toBe('');
     expect(result.flags).toEqual(['\\Seen']);
+    expect(result.headers).toEqual({
+      'message-id': '<outlook-msg-123@prod.outlook.com>',
+      'in-reply-to': '',
+      references: '',
+    });
     expect(result.uid).toBe(0);
     expect(result.direction).toBeUndefined();
+  });
+
+  it('populates headers with empty message-id when internetMessageId is missing', () => {
+    const { internetMessageId: _, ...msgWithoutInternetId } =
+      RAW_OUTLOOK_MESSAGE;
+    const result = normalizeEmail(msgWithoutInternetId);
+    expect(result.headers).toEqual({
+      'message-id': '',
+      'in-reply-to': '',
+      references: '',
+    });
   });
 
   it('falls back to Graph id when internetMessageId is missing', () => {
@@ -264,6 +280,74 @@ describe('normalizeEmail (Outlook)', () => {
     expect(result.messageId).toBe('');
     expect(result.to).toEqual([{ name: '', address: 'someone@example.com' }]);
   });
+
+  it('normalizes bcc recipients', () => {
+    const msg = {
+      ...RAW_OUTLOOK_MESSAGE,
+      bccRecipients: [
+        { emailAddress: { name: 'Eve', address: 'eve@example.com' } },
+      ],
+    };
+    const result = normalizeEmail(msg);
+    expect(result.bcc).toEqual([{ name: 'Eve', address: 'eve@example.com' }]);
+  });
+
+  it('handles missing from field gracefully', () => {
+    const { from: _, ...msgNoFrom } = RAW_OUTLOOK_MESSAGE;
+    const result = normalizeEmail(msgNoFrom);
+    expect(result.from).toEqual([{ name: '', address: '' }]);
+  });
+
+  it('handles missing body gracefully', () => {
+    const { body: _, ...msgNoBody } = RAW_OUTLOOK_MESSAGE;
+    const result = normalizeEmail(msgNoBody);
+    expect(result.text).toBe('');
+    expect(result.html).toBe('');
+  });
+
+  it('uses sentDateTime when receivedDateTime is absent', () => {
+    const { receivedDateTime: _, ...msg } = RAW_OUTLOOK_MESSAGE;
+    const result = normalizeEmail({
+      ...msg,
+      sentDateTime: '2025-03-10T11:00:00Z',
+    });
+    expect(result.date).toBe('2025-03-10T11:00:00Z');
+  });
+
+  it('handles file attachment without contentId', () => {
+    const msg = {
+      ...RAW_OUTLOOK_MESSAGE,
+      attachments: [
+        {
+          '@odata.type': '#microsoft.graph.fileAttachment',
+          id: 'att003',
+          name: 'doc.txt',
+          contentType: 'text/plain',
+          size: 128,
+        },
+      ],
+    };
+    const result = normalizeEmail(msg);
+    expect(result.attachments).toEqual([
+      {
+        id: 'att003',
+        filename: 'doc.txt',
+        contentType: 'text/plain',
+        size: 128,
+      },
+    ]);
+  });
+
+  it('does not detect an object with both payload and from.emailAddress as Outlook', () => {
+    const ambiguous = {
+      ...RAW_GMAIL_MESSAGE,
+      from: { emailAddress: { name: 'Trick', address: 'trick@example.com' } },
+    };
+    const result = normalizeEmail(ambiguous);
+    // Should be detected as Gmail (payload wins), not Outlook
+    expect(result.messageId).toBe('msg123');
+    expect(result.subject).toBe('Test subject');
+  });
 });
 
 describe('normalizeEmails', () => {
@@ -284,5 +368,20 @@ describe('normalizeEmails', () => {
     const results = normalizeEmails(RAW_GMAIL_MESSAGE);
     expect(results).toHaveLength(1);
     expect(results[0].messageId).toBe('msg123');
+  });
+
+  it('normalizes a mixed array of Gmail, Outlook, and pre-mapped emails', () => {
+    const results = normalizeEmails([
+      RAW_GMAIL_MESSAGE,
+      RAW_OUTLOOK_MESSAGE,
+      ALREADY_MAPPED_EMAIL,
+    ]);
+    expect(results).toHaveLength(3);
+    expect(results[0].messageId).toBe('msg123');
+    expect(results[1].messageId).toBe('<outlook-msg-123@prod.outlook.com>');
+    expect(results[1].headers?.['message-id']).toBe(
+      '<outlook-msg-123@prod.outlook.com>',
+    );
+    expect(results[2]).toBe(ALREADY_MAPPED_EMAIL);
   });
 });

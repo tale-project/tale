@@ -256,7 +256,11 @@ function outlookToEmailType(msg: RawOutlookMessage): EmailType {
     text: contentType === 'text' ? bodyContent : '',
     html: contentType === 'html' ? bodyContent : '',
     flags: msg.isRead ? ['\\Seen'] : [],
-    headers: {},
+    headers: {
+      'message-id': msg.internetMessageId || '',
+      'in-reply-to': '',
+      references: '',
+    },
     attachments: (msg.attachments ?? [])
       .filter((att) => att['@odata.type'] === '#microsoft.graph.fileAttachment')
       .map((att) => {
