@@ -14,7 +14,10 @@ import { useAutoSave } from '@/app/features/custom-agents/hooks/use-auto-save';
 import { useCustomAgentVersion } from '@/app/features/custom-agents/hooks/use-custom-agent-version-context';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
-import { MAX_CONVERSATION_STARTERS } from '@/lib/shared/constants/custom-agents';
+import {
+  MAX_CONVERSATION_STARTER_LENGTH,
+  MAX_CONVERSATION_STARTERS,
+} from '@/lib/shared/constants/custom-agents';
 import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute(
@@ -48,11 +51,13 @@ function ConversationStartersTab() {
   const [items, setItems] = useState<StarterItem[]>([]);
   const [initialized, setInitialized] = useState(false);
 
+  const startersKey = JSON.stringify(agent?.conversationStarters ?? []);
   useEffect(() => {
     if (!agent) return;
     setItems(toItems(agent.conversationStarters ?? []));
     setInitialized(true);
-  }, [agent, agentId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startersKey, agentId]);
 
   const saveData = useMemo(
     () => ({ conversationStarters: toStrings(items) }),
@@ -95,8 +100,11 @@ function ConversationStartersTab() {
 
   const handleRemove = useCallback(
     (id: string) => {
-      setItems((prev) => prev.filter((item) => item.id !== id));
-      void save();
+      setItems((prev) => {
+        const next = prev.filter((item) => item.id !== id);
+        void save({ conversationStarters: toStrings(next) });
+        return next;
+      });
     },
     [save],
   );
@@ -107,9 +115,9 @@ function ConversationStartersTab() {
       setItems((prev) => {
         const next = [...prev];
         [next[index - 1], next[index]] = [next[index], next[index - 1]];
+        void save({ conversationStarters: toStrings(next) });
         return next;
       });
-      void save();
     },
     [save],
   );
@@ -120,9 +128,9 @@ function ConversationStartersTab() {
         if (index >= prev.length - 1) return prev;
         const next = [...prev];
         [next[index], next[index + 1]] = [next[index + 1], next[index]];
+        void save({ conversationStarters: toStrings(next) });
         return next;
       });
-      void save();
     },
     [save],
   );
@@ -130,7 +138,7 @@ function ConversationStartersTab() {
   const handleReorder = useCallback(
     (newItems: StarterItem[]) => {
       setItems(newItems);
-      void save();
+      void save({ conversationStarters: toStrings(newItems) });
     },
     [save],
   );
@@ -177,7 +185,7 @@ function ConversationStartersTab() {
                 onChange={(e) => handleChange(item.id, e.target.value)}
                 onBlur={handleBlur}
                 placeholder={t('customAgents.conversationStarters.placeholder')}
-                maxLength={200}
+                maxLength={MAX_CONVERSATION_STARTER_LENGTH}
                 disabled={isReadOnly}
                 wrapperClassName="min-w-0 flex-1"
               />

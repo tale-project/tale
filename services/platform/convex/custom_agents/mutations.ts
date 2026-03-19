@@ -14,6 +14,10 @@ import { v } from 'convex/values';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 
+import {
+  MAX_CONVERSATION_STARTER_LENGTH,
+  MAX_CONVERSATION_STARTERS,
+} from '../../lib/shared/constants/custom-agents';
 import { parseModelList } from '../../lib/shared/utils/model-list';
 import { internal } from '../_generated/api';
 import { mutation } from '../_generated/server';
@@ -75,11 +79,6 @@ function filterValidToolNames(toolNames: string[]): string[] {
   const validNames = new Set<string>(TOOL_NAMES);
   return toolNames.filter((name) => validNames.has(name));
 }
-
-import {
-  MAX_CONVERSATION_STARTER_LENGTH,
-  MAX_CONVERSATION_STARTERS,
-} from '../../lib/shared/constants/custom-agents';
 
 function validateConversationStarters(
   starters: string[] | undefined,
