@@ -72,16 +72,16 @@ export const imageProxyHandler = httpAction(async (ctx, req) => {
   }
 
   const MAX_REDIRECTS = 5;
-  let upstreamResponse: Response;
   let currentUrl = targetUrl.toString();
+  let upstreamResponse: Response;
   try {
-    for (let i = 0; i <= MAX_REDIRECTS; i++) {
-      upstreamResponse = await fetch(currentUrl, {
-        redirect: 'manual',
-        headers: { Accept: 'image/*,*/*;q=0.8' },
-        signal: AbortSignal.timeout(10_000),
-      });
+    upstreamResponse = await fetch(currentUrl, {
+      redirect: 'manual',
+      headers: { Accept: 'image/*,*/*;q=0.8' },
+      signal: AbortSignal.timeout(10_000),
+    });
 
+    for (let i = 0; i < MAX_REDIRECTS; i++) {
       const status = upstreamResponse.status;
       if (status < 300 || status >= 400) break;
 
@@ -106,10 +106,11 @@ export const imageProxyHandler = httpAction(async (ctx, req) => {
       }
 
       currentUrl = redirectUrl.toString();
-
-      if (i === MAX_REDIRECTS) {
-        return new Response('Too many redirects', { status: 502 });
-      }
+      upstreamResponse = await fetch(currentUrl, {
+        redirect: 'manual',
+        headers: { Accept: 'image/*,*/*;q=0.8' },
+        signal: AbortSignal.timeout(10_000),
+      });
     }
   } catch (error) {
     console.error('[image-proxy] fetch failed:', error);

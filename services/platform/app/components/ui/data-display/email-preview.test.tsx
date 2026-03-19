@@ -149,7 +149,13 @@ describe('EmailPreview', () => {
     render(<EmailPreview html={html} cidMap={cidMap} />);
 
     const img = screen.getByAltText('Logo');
-    expect(img).toHaveAttribute('src', 'https://storage.example.com/logo.png');
+    const encoded = encodeURIComponent(
+      btoa('https://storage.example.com/logo.png'),
+    );
+    expect(img).toHaveAttribute(
+      'src',
+      `http://localhost:3000/api/image-proxy?url=${encoded}`,
+    );
   });
 
   it('renders without cidMap (backwards compatible)', () => {
