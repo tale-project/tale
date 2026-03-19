@@ -1229,7 +1229,6 @@
       "testAndCreate": "Test & create provider",
       "useApiSending": "Use API sending (recommended - no port blocking)",
       "useApiSendingShort": "Use API sending",
-      "setAsDefault": "Set as default",
       "apiSending": "API sending",
       "providerGmail": "Gmail",
       "providerOutlook": "Outlook",
@@ -1713,15 +1712,25 @@
       "descriptionPlaceholder": "Describe what this automation does...",
       "creating": "Creating...",
       "continue": "Continue",
-      "tabBlank": "Blank",
-      "tabTemplate": "From template",
       "initialPrompt": "I just created a new automation called \"{name}\". Here is what it should do:\n\n{description}\n\nPlease help me build the workflow steps for this automation."
     },
     "templates": {
-      "description": "Choose a pre-built template to get started quickly.",
-      "noTemplates": "No templates available for this integration.",
+      "description": "Choose a template to get started with pre-configured steps.",
       "fetchError": "Failed to load template. Please try again.",
-      "fetching": "Loading template..."
+      "fetching": "Loading template...",
+      "noTemplates": "No templates available for this integration.",
+      "newAutomation": "New automation",
+      "createNewTemplate": "Create a new automation template",
+      "fillDetails": "Fill in the details for your new workflow.",
+      "automationTemplates": "Automation templates",
+      "manageExisting": "Manage existing automation templates",
+      "loading": "Loading automations...",
+      "noAutomationsFound": "No automations found. Create your first automation above.",
+      "configJson": "Config (JSON)",
+      "configDescription": "Automation configuration settings",
+      "noDescription": "No description",
+      "deleteTitle": "Delete automation?",
+      "deleteDescription": "This action cannot be undone. This will permanently delete the automation template and its steps."
     },
     "editDialog": {
       "title": "Edit automation",
@@ -1859,24 +1868,6 @@
     "validation": {
       "duplicateName": "An automation with this name already exists"
     },
-    "templates": {
-      "description": "Choose a template to get started with pre-configured steps.",
-      "fetchError": "Failed to load template. Please try again.",
-      "fetching": "Loading template...",
-      "noTemplates": "No templates available for this integration.",
-      "newAutomation": "New automation",
-      "createNewTemplate": "Create a new automation template",
-      "fillDetails": "Fill in the details for your new workflow.",
-      "automationTemplates": "Automation templates",
-      "manageExisting": "Manage existing automation templates",
-      "loading": "Loading automations...",
-      "noAutomationsFound": "No automations found. Create your first automation above.",
-      "configJson": "Config (JSON)",
-      "configDescription": "Automation configuration settings",
-      "noDescription": "No description",
-      "deleteTitle": "Delete automation?",
-      "deleteDescription": "This action cannot be undone. This will permanently delete the automation template and its steps."
-    },
     "deleteAutomation": {
       "title": "Delete automation",
       "description": "Are you sure you want to delete \"{name}\"? This action cannot be undone."
@@ -2001,7 +1992,17 @@
       "resolveFailed": "Failed to resolve conversations",
       "reopened": "Conversations reopened",
       "reopenedDescription": "Successfully reopened {successCount} conversations{failedCount, plural, =0 {} other {, {failedCount} failed}}",
-      "reopenFailed": "Failed to reopen conversations"
+      "reopenFailed": "Failed to reopen conversations",
+      "selectedCount": "{count, plural, one {# selected} other {# selected}}",
+      "archive": "Archive",
+      "unarchive": "Unarchive",
+      "archived": "Conversations archived",
+      "archivedDescription": "Successfully archived {successCount} conversations{failedCount, plural, =0 {} other {, {failedCount} failed}}",
+      "archiveFailed": "Failed to archive conversations",
+      "unarchived": "Conversations unarchived",
+      "unarchivedDescription": "Successfully unarchived {successCount} conversations{failedCount, plural, =0 {} other {, {failedCount} failed}}",
+      "unarchiveFailed": "Failed to unarchive conversations",
+      "markSpam": "Mark as spam"
     },
     "header": {
       "moreActions": "More actions",
@@ -2028,7 +2029,8 @@
       "backToEditor": "Back to editor",
       "improving": "Improving...",
       "improveWithAi": "Improve with AI",
-      "generateImprovement": "Generate improvement"
+      "generateImprovement": "Generate improvement",
+      "replyImproved": "Reply improved"
     },
     "attachment": {
       "download": "Download",
@@ -2047,7 +2049,16 @@
       "invalidFileAttachment": "Invalid file attachment",
       "defaultSubject": "Re: Conversation",
       "customerEmailNotFound": "Cannot send email: customer email not found",
-      "replySubjectPrefix": "Re: {subject}"
+      "replySubjectPrefix": "Re: {subject}",
+      "loadFailed": "Failed to load conversation",
+      "loadFailedDescription": "Something went wrong while loading this conversation.",
+      "tryAgain": "Try again",
+      "closedBanner": "This conversation was closed.",
+      "archivedBanner": "This conversation was archived.",
+      "spamBanner": "This conversation was marked as spam.",
+      "unarchive": "Unarchive",
+      "notSpam": "Not spam",
+      "showEarlierMessages": "Show {count} earlier {count, plural, one {message} other {messages}}"
     },
     "filters": {
       "title": "Filters",
@@ -2080,6 +2091,12 @@
       "title": "Activate conversations",
       "description": "Connect your email to get started with conversations",
       "connectEmail": "Connect email"
+    },
+    "filter": {
+      "label": "Filter by read status",
+      "all": "All",
+      "read": "Read",
+      "unread": "Unread"
     }
   },
   "workflowRunApproval": {
@@ -2089,7 +2106,7 @@
     "rejectTooltip": "Cancel workflow execution",
     "statusApprovedSuccess": "Workflow execution started successfully.",
     "statusApprovedFailed": "Workflow execution was approved but failed to start.",
-    "statusRejected": "Workflow execution was cancelled.",
+    "statusRejected": "Rejected",
     "showParameters": "Show parameters",
     "hideParameters": "Hide parameters",
     "executionRunning": "Running...",
@@ -2104,8 +2121,7 @@
     "stopExecution": "Stop",
     "stopTooltip": "Stop workflow execution",
     "statusPending": "Pending",
-    "statusApproved": "Approved",
-    "statusRejected": "Rejected"
+    "statusApproved": "Approved"
   },
   "documentWriteApproval": {
     "cardTitle": "Save to documents",
@@ -2153,6 +2169,33 @@
     "deleteFailed": "Failed to delete chat",
     "welcome": "What are you working on?",
     "welcomeEmpty": "How can I assist you?",
+    "welcomeSuffix": "here, what are we working on?",
+    "suggestions": {
+      "admin": [
+        "Draft a project proposal for Q4",
+        "Analyze last month's revenue trends",
+        "Write a follow-up email to the client",
+        "Summarize our latest product updates"
+      ],
+      "editor": [
+        "Write a blog post about our new feature",
+        "Review and improve this content draft",
+        "Create a product description for the catalog",
+        "Summarize the key points from this document"
+      ],
+      "developer": [
+        "Help me debug this issue",
+        "Review this code for best practices",
+        "Write unit tests for this function",
+        "Explain how this integration works"
+      ],
+      "member": [
+        "Draft an email to a customer",
+        "Summarize our latest product updates",
+        "Help me prepare for a meeting",
+        "Answer a question about our products"
+      ]
+    },
     "toast": {
       "generateFailed": "Failed to generate response",
       "sendFailed": "Failed to send message"
@@ -2894,7 +2937,7 @@
     },
     "viewPages": "View pages",
     "indexed": "Indexed",
-    "indexedTooltip": "{percentage}\u202F% - {crawled} of {total} pages",
+    "indexedTooltip": "{percentage} % - {crawled} of {total} pages",
     "pageCount": "{count} pages",
     "pageCountOne": "{count} page",
     "pageCountProgress": "{crawled}/{total} pages",
@@ -3014,7 +3057,7 @@
     },
     "customAgents": {
       "title": "Custom agents",
-      "description": "Manage custom AI agents for your organization."
+      "description": "Create and manage AI agents for customer service."
     },
     "integrations": {
       "title": "Integrations",
@@ -3051,10 +3094,6 @@
     "knowledge": {
       "title": "Knowledge",
       "description": "Manage your knowledge base for AI agents."
-    },
-    "customAgents": {
-      "title": "Custom agents",
-      "description": "Create and manage AI agents for customer service."
     },
     "customAgent": {
       "title": "Custom agent",

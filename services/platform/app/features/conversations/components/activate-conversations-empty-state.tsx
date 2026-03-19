@@ -1,6 +1,6 @@
 'use client';
 
-import { MessageSquare, Plus } from 'lucide-react';
+import { MessageSquare } from 'lucide-react';
 
 import { LinkButton } from '@/app/components/ui/primitives/button';
 import { Heading } from '@/app/components/ui/typography/heading';
@@ -28,7 +28,6 @@ export function ActivateConversationsEmptyState({
         </Text>
         <LinkButton
           href={`/dashboard/${organizationId}/settings/integrations?tab=email`}
-          icon={Plus}
         >
           {t('activate.connectEmail')}
         </LinkButton>
