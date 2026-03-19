@@ -341,7 +341,7 @@ function listMessages(
     queryParts.push('$select=' + params.select);
   } else {
     queryParts.push(
-      '$select=id,subject,from,toRecipients,receivedDateTime,isRead,hasAttachments,bodyPreview',
+      '$select=id,internetMessageId,subject,from,toRecipients,receivedDateTime,isRead,hasAttachments,bodyPreview',
     );
   }
   if (params.skip) {

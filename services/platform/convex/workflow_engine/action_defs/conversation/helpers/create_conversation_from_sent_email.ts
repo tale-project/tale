@@ -42,6 +42,19 @@ export async function createConversationFromSentEmail(
     (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
   );
 
+  // Cap email count to stay within Convex action argument size limits (~8MB).
+  // Keeping oldest-first preserves the root email needed for threading.
+  const MAX_EMAILS_PER_BATCH = 20;
+  if (emailsArray.length > MAX_EMAILS_PER_BATCH) {
+    debugLog(
+      'create_from_sent_email Truncating emails from',
+      emailsArray.length,
+      'to',
+      MAX_EMAILS_PER_BATCH,
+    );
+    emailsArray.length = MAX_EMAILS_PER_BATCH;
+  }
+
   debugLog('create_from_sent_email Processing', emailsArray.length, 'emails');
 
   // Use the first (oldest) email as the root

@@ -76,6 +76,19 @@ export async function createConversationFromEmail(
     (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
   );
 
+  // Cap email count to stay within Convex action argument size limits (~8MB).
+  // Keeping oldest-first preserves the root email needed for threading.
+  const MAX_EMAILS_PER_BATCH = 20;
+  if (emailsArray.length > MAX_EMAILS_PER_BATCH) {
+    debugLog(
+      'create_from_email Truncating emails from',
+      emailsArray.length,
+      'to',
+      MAX_EMAILS_PER_BATCH,
+    );
+    emailsArray.length = MAX_EMAILS_PER_BATCH;
+  }
+
   debugLog('create_from_email Processing', emailsArray.length, 'emails');
 
   const accountEmailLower = params.accountEmail?.toLowerCase();
@@ -207,6 +220,10 @@ export async function createConversationFromEmail(
   }
 
   debugLog('create_from_email Using root message ID:', rootMessageId);
+
+  if (!rootMessageId) {
+    throw new Error('Cannot create conversation: root email has no messageId');
+  }
 
   // Check if conversation already exists for the root email
   const existingConversation = await checkConversationExists(
