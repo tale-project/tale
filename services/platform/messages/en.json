@@ -1217,7 +1217,6 @@
       "testAndCreate": "Test & create provider",
       "useApiSending": "Use API sending (recommended - no port blocking)",
       "useApiSendingShort": "Use API sending",
-      "setAsDefault": "Set as default",
       "apiSending": "API sending",
       "providerGmail": "Gmail",
       "providerOutlook": "Outlook",
@@ -1701,15 +1700,25 @@
       "descriptionPlaceholder": "Describe what this automation does...",
       "creating": "Creating...",
       "continue": "Continue",
-      "tabBlank": "Blank",
-      "tabTemplate": "From template",
       "initialPrompt": "I just created a new automation called \"{name}\". Here is what it should do:\n\n{description}\n\nPlease help me build the workflow steps for this automation."
     },
     "templates": {
-      "description": "Choose a pre-built template to get started quickly.",
-      "noTemplates": "No templates available for this integration.",
+      "description": "Choose a template to get started with pre-configured steps.",
       "fetchError": "Failed to load template. Please try again.",
-      "fetching": "Loading template..."
+      "fetching": "Loading template...",
+      "noTemplates": "No templates available for this integration.",
+      "newAutomation": "New automation",
+      "createNewTemplate": "Create a new automation template",
+      "fillDetails": "Fill in the details for your new workflow.",
+      "automationTemplates": "Automation templates",
+      "manageExisting": "Manage existing automation templates",
+      "loading": "Loading automations...",
+      "noAutomationsFound": "No automations found. Create your first automation above.",
+      "configJson": "Config (JSON)",
+      "configDescription": "Automation configuration settings",
+      "noDescription": "No description",
+      "deleteTitle": "Delete automation?",
+      "deleteDescription": "This action cannot be undone. This will permanently delete the automation template and its steps."
     },
     "editDialog": {
       "title": "Edit automation",
@@ -1846,24 +1855,6 @@
     },
     "validation": {
       "duplicateName": "An automation with this name already exists"
-    },
-    "templates": {
-      "description": "Choose a template to get started with pre-configured steps.",
-      "fetchError": "Failed to load template. Please try again.",
-      "fetching": "Loading template...",
-      "noTemplates": "No templates available for this integration.",
-      "newAutomation": "New automation",
-      "createNewTemplate": "Create a new automation template",
-      "fillDetails": "Fill in the details for your new workflow.",
-      "automationTemplates": "Automation templates",
-      "manageExisting": "Manage existing automation templates",
-      "loading": "Loading automations...",
-      "noAutomationsFound": "No automations found. Create your first automation above.",
-      "configJson": "Config (JSON)",
-      "configDescription": "Automation configuration settings",
-      "noDescription": "No description",
-      "deleteTitle": "Delete automation?",
-      "deleteDescription": "This action cannot be undone. This will permanently delete the automation template and its steps."
     },
     "deleteAutomation": {
       "title": "Delete automation",
@@ -2076,7 +2067,7 @@
     "rejectTooltip": "Cancel workflow execution",
     "statusApprovedSuccess": "Workflow execution started successfully.",
     "statusApprovedFailed": "Workflow execution was approved but failed to start.",
-    "statusRejected": "Workflow execution was cancelled.",
+    "statusRejected": "Rejected",
     "showParameters": "Show parameters",
     "hideParameters": "Hide parameters",
     "executionRunning": "Running...",
@@ -2091,8 +2082,7 @@
     "stopExecution": "Stop",
     "stopTooltip": "Stop workflow execution",
     "statusPending": "Pending",
-    "statusApproved": "Approved",
-    "statusRejected": "Rejected"
+    "statusApproved": "Approved"
   },
   "documentWriteApproval": {
     "cardTitle": "Save to documents",
@@ -2330,7 +2320,8 @@
     },
     "structured": {
       "nextSteps": "Suggested follow-ups"
-    }
+    },
+    "welcomeSuffix": "here, what are we working on?"
   },
   "documents": {
     "title": "Documents",
@@ -2906,7 +2897,7 @@
     },
     "viewPages": "View pages",
     "indexed": "Indexed",
-    "indexedTooltip": "{percentage}\u202F% - {crawled} of {total} pages",
+    "indexedTooltip": "{percentage} % - {crawled} of {total} pages",
     "pageCount": "{count} pages",
     "pageCountOne": "{count} page",
     "pageCountProgress": "{crawled}/{total} pages",
@@ -3026,7 +3017,7 @@
     },
     "customAgents": {
       "title": "Custom agents",
-      "description": "Manage custom AI agents for your organization."
+      "description": "Create and manage AI agents for customer service."
     },
     "integrations": {
       "title": "Integrations",
@@ -3063,10 +3054,6 @@
     "knowledge": {
       "title": "Knowledge",
       "description": "Manage your knowledge base for AI agents."
-    },
-    "customAgents": {
-      "title": "Custom agents",
-      "description": "Create and manage AI agents for customer service."
     },
     "customAgent": {
       "title": "Custom agent",

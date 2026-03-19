@@ -41,8 +41,14 @@ import { ChatInput } from './chat-input';
 import { ChatMessages } from './chat-messages';
 import { WelcomeView } from './welcome-view';
 
-function chatDraftKey(userId: string | undefined, threadId?: string) {
-  const prefix = userId ? `chat-draft-${userId}` : 'chat-draft';
+function chatDraftKey(
+  userId: string | undefined,
+  organizationId: string,
+  threadId?: string,
+) {
+  const prefix = userId
+    ? `chat-draft-${userId}-${organizationId}`
+    : `chat-draft-${organizationId}`;
   return threadId ? `${prefix}-${threadId}` : `${prefix}-new`;
 }
 
@@ -73,7 +79,7 @@ export function ChatInterface({
     useCurrentMemberContext(organizationId);
 
   const [inputValue, setInputValue, clearInputValue] = usePersistedState(
-    chatDraftKey(user?.userId, threadId),
+    chatDraftKey(user?.userId, organizationId, threadId),
     '',
   );
   const [showScrollButton, setShowScrollButton] = useState(false);
