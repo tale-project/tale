@@ -8,6 +8,7 @@ import { PanelFooter } from '@/app/components/layout/panel-footer';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useAutoScroll } from '@/app/hooks/use-auto-scroll';
+import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
@@ -40,8 +41,9 @@ import { ChatInput } from './chat-input';
 import { ChatMessages } from './chat-messages';
 import { WelcomeView } from './welcome-view';
 
-function chatDraftKey(threadId?: string) {
-  return threadId ? `chat-draft-${threadId}` : 'chat-draft-new';
+function chatDraftKey(userId: string | undefined, threadId?: string) {
+  const prefix = userId ? `chat-draft-${userId}` : 'chat-draft';
+  return threadId ? `${prefix}-${threadId}` : `${prefix}-new`;
 }
 
 interface ChatInterfaceProps {
@@ -54,6 +56,7 @@ export function ChatInterface({
   threadId,
 }: ChatInterfaceProps) {
   const { t } = useT('chat');
+  const { user } = useAuth();
   const {
     isPending,
     setIsPending,
@@ -70,7 +73,7 @@ export function ChatInterface({
     useCurrentMemberContext(organizationId);
 
   const [inputValue, setInputValue, clearInputValue] = usePersistedState(
-    chatDraftKey(threadId),
+    chatDraftKey(user?.userId, threadId),
     '',
   );
   const [showScrollButton, setShowScrollButton] = useState(false);
@@ -84,7 +87,12 @@ export function ChatInterface({
     clearAttachments,
   } = useConvexFileUpload({ organizationId });
 
-  usePersistedAttachments({ threadId, attachments, setAttachments });
+  usePersistedAttachments({
+    userId: user?.userId,
+    threadId,
+    attachments,
+    setAttachments,
+  });
 
   // Message processing
   const {
@@ -294,6 +302,7 @@ export function ChatInterface({
           <WelcomeView
             isPending={isLoading || isMemberContextLoading}
             role={memberContext?.role}
+            agentName={effectiveAgent?.displayName}
             onSuggestionClick={setInputValue}
           />
         )}

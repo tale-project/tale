@@ -30,6 +30,8 @@ beforeEach(() => {
   localStorage.clear();
 });
 
+const TEST_USER_ID = 'user-123';
+
 describe('usePersistedAttachments', () => {
   it('persists attachments to localStorage when they change', () => {
     const setAttachments = vi.fn();
@@ -38,6 +40,7 @@ describe('usePersistedAttachments', () => {
     const { rerender } = renderHook(
       ({ attachments }: { attachments: FileAttachment[] }) =>
         usePersistedAttachments({
+          userId: TEST_USER_ID,
           threadId: 'thread-1',
           attachments,
           setAttachments,
@@ -47,7 +50,9 @@ describe('usePersistedAttachments', () => {
 
     rerender({ attachments: [att] });
 
-    const stored = localStorage.getItem('chat-attachments-thread-1');
+    const stored = localStorage.getItem(
+      `chat-attachments-${TEST_USER_ID}-thread-1`,
+    );
     expect(stored).not.toBeNull();
 
     const parsed = JSON.parse(stored ?? '[]');
@@ -67,7 +72,7 @@ describe('usePersistedAttachments', () => {
       },
     ];
     localStorage.setItem(
-      'chat-attachments-thread-1',
+      `chat-attachments-${TEST_USER_ID}-thread-1`,
       JSON.stringify(persisted),
     );
 
@@ -75,6 +80,7 @@ describe('usePersistedAttachments', () => {
 
     renderHook(() =>
       usePersistedAttachments({
+        userId: TEST_USER_ID,
         threadId: 'thread-1',
         attachments: [],
         setAttachments,
@@ -98,7 +104,7 @@ describe('usePersistedAttachments', () => {
       fileName: 'a.png',
     });
     localStorage.setItem(
-      'chat-attachments-thread-2',
+      `chat-attachments-${TEST_USER_ID}-thread-2`,
       JSON.stringify([
         {
           fileId: 'id-b',
@@ -113,14 +119,21 @@ describe('usePersistedAttachments', () => {
 
     const { rerender } = renderHook(
       ({ threadId, attachments }) =>
-        usePersistedAttachments({ threadId, attachments, setAttachments }),
+        usePersistedAttachments({
+          userId: TEST_USER_ID,
+          threadId,
+          attachments,
+          setAttachments,
+        }),
       { initialProps: { threadId: 'thread-1', attachments: [att1] } },
     );
 
     rerender({ threadId: 'thread-2', attachments: [att1] });
 
     // Should have saved thread-1's attachments
-    const thread1Stored = localStorage.getItem('chat-attachments-thread-1');
+    const thread1Stored = localStorage.getItem(
+      `chat-attachments-${TEST_USER_ID}-thread-1`,
+    );
     expect(thread1Stored).not.toBeNull();
     expect(JSON.parse(thread1Stored ?? '[]')[0].fileId).toBe('id-a');
 
@@ -136,7 +149,12 @@ describe('usePersistedAttachments', () => {
 
     const { rerender } = renderHook(
       ({ threadId, attachments }) =>
-        usePersistedAttachments({ threadId, attachments, setAttachments }),
+        usePersistedAttachments({
+          userId: TEST_USER_ID,
+          threadId,
+          attachments,
+          setAttachments,
+        }),
       { initialProps: { threadId: 'thread-1', attachments: [att] } },
     );
 
@@ -152,6 +170,7 @@ describe('usePersistedAttachments', () => {
     const { rerender } = renderHook(
       ({ attachments }) =>
         usePersistedAttachments({
+          userId: TEST_USER_ID,
           threadId: 'thread-1',
           attachments,
           setAttachments,
@@ -161,7 +180,9 @@ describe('usePersistedAttachments', () => {
 
     rerender({ attachments: [] });
 
-    expect(localStorage.getItem('chat-attachments-thread-1')).toBeNull();
+    expect(
+      localStorage.getItem(`chat-attachments-${TEST_USER_ID}-thread-1`),
+    ).toBeNull();
   });
 
   it('does not persist previewUrl to localStorage', () => {
@@ -171,6 +192,7 @@ describe('usePersistedAttachments', () => {
     renderHook(
       ({ attachments }) =>
         usePersistedAttachments({
+          userId: TEST_USER_ID,
           threadId: 'thread-1',
           attachments,
           setAttachments,
@@ -178,7 +200,9 @@ describe('usePersistedAttachments', () => {
       { initialProps: { attachments: [att] } },
     );
 
-    const stored = localStorage.getItem('chat-attachments-thread-1');
+    const stored = localStorage.getItem(
+      `chat-attachments-${TEST_USER_ID}-thread-1`,
+    );
     expect(stored).not.toBeNull();
     const parsed = JSON.parse(stored ?? '[]');
     expect(parsed[0].previewUrl).toBeUndefined();
@@ -191,6 +215,7 @@ describe('usePersistedAttachments', () => {
     renderHook(
       ({ attachments }) =>
         usePersistedAttachments({
+          userId: TEST_USER_ID,
           threadId: undefined,
           attachments,
           setAttachments,
@@ -198,6 +223,29 @@ describe('usePersistedAttachments', () => {
       { initialProps: { attachments: [att] } },
     );
 
-    expect(localStorage.getItem('chat-attachments-new')).not.toBeNull();
+    expect(
+      localStorage.getItem(`chat-attachments-${TEST_USER_ID}-new`),
+    ).not.toBeNull();
+  });
+
+  it('isolates storage between different users', () => {
+    const att = createAttachment();
+    const setAttachments = vi.fn();
+
+    renderHook(
+      ({ attachments }) =>
+        usePersistedAttachments({
+          userId: 'user-a',
+          threadId: 'thread-1',
+          attachments,
+          setAttachments,
+        }),
+      { initialProps: { attachments: [att] } },
+    );
+
+    expect(
+      localStorage.getItem('chat-attachments-user-a-thread-1'),
+    ).not.toBeNull();
+    expect(localStorage.getItem('chat-attachments-user-b-thread-1')).toBeNull();
   });
 });

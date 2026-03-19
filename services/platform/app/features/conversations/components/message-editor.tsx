@@ -16,6 +16,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import ReactMarkdown from 'react-markdown';
 
 import { Text } from '@/app/components/ui/typography/text';
+import { useAuth } from '@/app/hooks/use-convex-auth';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -66,19 +67,23 @@ function MilkdownEditorInner({
   onMessageSent,
 }: MilkdownEditorInnerProps) {
   const { t: tConversations } = useT('conversations');
+  const { user } = useAuth();
 
   const { mutateAsync: improveMessage } = useImproveMessage();
 
   const editorPlaceholder = placeholder || tConversations('messagePlaceholder');
+  const draftPrefix = user?.userId
+    ? `conversation-${user.userId}`
+    : 'conversation';
   const [message, setMessage, clearMessage] = usePersistedState(
-    messageId ? `conversation-${messageId}` : 'new-conversation',
+    messageId ? `${draftPrefix}-${messageId}` : `${draftPrefix}-new`,
     pendingMessage?.content || '',
   );
   const [improveInstruction, setImproveInstruction, clearImproveInstruction] =
     usePersistedState(
       messageId
-        ? `conversation-${messageId}-improve-instruction`
-        : 'new-conversation-improve-instruction',
+        ? `${draftPrefix}-${messageId}-improve-instruction`
+        : `${draftPrefix}-new-improve-instruction`,
       '',
     );
 
@@ -207,7 +212,11 @@ function MilkdownEditorInner({
     }
     setShowPreviewDialog(false);
     setImproveInstruction('');
-  }, [improvedContent, setMessage, setImproveInstruction]);
+    toast({
+      title: tConversations('editor.replyImproved'),
+      variant: 'success',
+    });
+  }, [improvedContent, setMessage, setImproveInstruction, tConversations]);
 
   const handleRejectImprovement = useCallback(() => {
     setShowPreviewDialog(false);
@@ -268,12 +277,12 @@ function MilkdownEditorInner({
     if (hasContent) {
       return hasMessageHistory ? 'h-[7rem]' : 'h-[20rem]';
     }
-    return 'h-[3rem]';
+    return 'h-[5rem]';
   };
 
   return (
     <>
-      <div className="bg-background border-muted-foreground/50 relative rounded-t-[0.875rem] border border-b-0 px-3 pt-1">
+      <div className="bg-background relative rounded-xl border border-gray-300 px-3.5 pt-2.5 pb-1 shadow-sm">
         <div
           className={cn(
             'transition-all duration-300 ease-in-out overflow-y-auto',

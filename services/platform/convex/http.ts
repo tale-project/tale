@@ -7,6 +7,7 @@ import {
   agentWebhookHandler,
   agentWebhookOptionsHandler,
 } from './custom_agents/webhooks/http_actions';
+import { imageProxyHandler } from './images/http_actions';
 import { integrationOAuth2CallbackHandler } from './integrations/oauth2_callback';
 import {
   checkIpRateLimit,
@@ -94,6 +95,12 @@ http.route({
       return new Response('Internal server error', { status: 500 });
     }
   }),
+});
+
+http.route({
+  path: '/api/image-proxy',
+  method: 'GET',
+  handler: imageProxyHandler,
 });
 
 authComponent.registerRoutes(http, createAuth);

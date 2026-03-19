@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 
+import { useAuth } from '@/app/hooks/use-convex-auth';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 
 interface PendingMessageAttachment {
@@ -64,17 +65,18 @@ export function ChatLayoutProvider({
   organizationId,
   children,
 }: ChatLayoutProviderProps) {
+  const { user } = useAuth();
   const [isPending, setIsPending] = useState(false);
   const [pendingThreadId, setPendingThreadId] = useState<string | null>(null);
   const [pendingMessage, setPendingMessage] = useState<PendingMessage | null>(
     null,
   );
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const agentKey = user?.userId
+    ? `selected-agent-${user.userId}-${organizationId}`
+    : `selected-agent-${organizationId}`;
   const [selectedAgent, setSelectedAgent] =
-    usePersistedState<SelectedAgent | null>(
-      `selected-agent-${organizationId}`,
-      null,
-    );
+    usePersistedState<SelectedAgent | null>(agentKey, null);
 
   const clearChatState = useCallback(() => {
     setIsPending(false);
