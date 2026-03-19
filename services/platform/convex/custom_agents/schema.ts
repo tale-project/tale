@@ -84,6 +84,7 @@ export const customAgentsTable = defineTable({
   timeoutMs: v.optional(v.number()),
   outputReserve: v.optional(v.number()),
   roleRestriction: v.optional(roleRestrictionValidator),
+  conversationStarters: v.optional(v.array(v.string())),
   visibleInChat: v.optional(v.boolean()),
 
   isSystemDefault: v.optional(v.boolean()),

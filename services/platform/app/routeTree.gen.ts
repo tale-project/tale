@@ -53,6 +53,7 @@ import { Route as DashboardIdCustomAgentsAgentIdToolsRouteImport } from './route
 import { Route as DashboardIdCustomAgentsAgentIdKnowledgeRouteImport } from './routes/dashboard/$id/custom-agents/$agentId/knowledge'
 import { Route as DashboardIdCustomAgentsAgentIdInstructionsRouteImport } from './routes/dashboard/$id/custom-agents/$agentId/instructions'
 import { Route as DashboardIdCustomAgentsAgentIdDelegationRouteImport } from './routes/dashboard/$id/custom-agents/$agentId/delegation'
+import { Route as DashboardIdCustomAgentsAgentIdConversationStartersRouteImport } from './routes/dashboard/$id/custom-agents/$agentId/conversation-starters'
 import { Route as DashboardIdAutomationsAmIdTriggersRouteImport } from './routes/dashboard/$id/automations/$amId/triggers'
 import { Route as DashboardIdAutomationsAmIdExecutionsRouteImport } from './routes/dashboard/$id/automations/$amId/executions'
 import { Route as DashboardIdAutomationsAmIdConfigurationRouteImport } from './routes/dashboard/$id/automations/$amId/configuration'
@@ -301,6 +302,12 @@ const DashboardIdCustomAgentsAgentIdDelegationRoute =
     path: '/delegation',
     getParentRoute: () => DashboardIdCustomAgentsAgentIdRoute,
   } as any)
+const DashboardIdCustomAgentsAgentIdConversationStartersRoute =
+  DashboardIdCustomAgentsAgentIdConversationStartersRouteImport.update({
+    id: '/conversation-starters',
+    path: '/conversation-starters',
+    getParentRoute: () => DashboardIdCustomAgentsAgentIdRoute,
+  } as any)
 const DashboardIdAutomationsAmIdTriggersRoute =
   DashboardIdAutomationsAmIdTriggersRouteImport.update({
     id: '/triggers',
@@ -360,6 +367,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/automations/$amId/configuration': typeof DashboardIdAutomationsAmIdConfigurationRoute
   '/dashboard/$id/automations/$amId/executions': typeof DashboardIdAutomationsAmIdExecutionsRoute
   '/dashboard/$id/automations/$amId/triggers': typeof DashboardIdAutomationsAmIdTriggersRoute
+  '/dashboard/$id/custom-agents/$agentId/conversation-starters': typeof DashboardIdCustomAgentsAgentIdConversationStartersRoute
   '/dashboard/$id/custom-agents/$agentId/delegation': typeof DashboardIdCustomAgentsAgentIdDelegationRoute
   '/dashboard/$id/custom-agents/$agentId/instructions': typeof DashboardIdCustomAgentsAgentIdInstructionsRoute
   '/dashboard/$id/custom-agents/$agentId/knowledge': typeof DashboardIdCustomAgentsAgentIdKnowledgeRoute
@@ -400,6 +408,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id/automations/$amId/configuration': typeof DashboardIdAutomationsAmIdConfigurationRoute
   '/dashboard/$id/automations/$amId/executions': typeof DashboardIdAutomationsAmIdExecutionsRoute
   '/dashboard/$id/automations/$amId/triggers': typeof DashboardIdAutomationsAmIdTriggersRoute
+  '/dashboard/$id/custom-agents/$agentId/conversation-starters': typeof DashboardIdCustomAgentsAgentIdConversationStartersRoute
   '/dashboard/$id/custom-agents/$agentId/delegation': typeof DashboardIdCustomAgentsAgentIdDelegationRoute
   '/dashboard/$id/custom-agents/$agentId/instructions': typeof DashboardIdCustomAgentsAgentIdInstructionsRoute
   '/dashboard/$id/custom-agents/$agentId/knowledge': typeof DashboardIdCustomAgentsAgentIdKnowledgeRoute
@@ -450,6 +459,7 @@ export interface FileRoutesById {
   '/dashboard/$id/automations/$amId/configuration': typeof DashboardIdAutomationsAmIdConfigurationRoute
   '/dashboard/$id/automations/$amId/executions': typeof DashboardIdAutomationsAmIdExecutionsRoute
   '/dashboard/$id/automations/$amId/triggers': typeof DashboardIdAutomationsAmIdTriggersRoute
+  '/dashboard/$id/custom-agents/$agentId/conversation-starters': typeof DashboardIdCustomAgentsAgentIdConversationStartersRoute
   '/dashboard/$id/custom-agents/$agentId/delegation': typeof DashboardIdCustomAgentsAgentIdDelegationRoute
   '/dashboard/$id/custom-agents/$agentId/instructions': typeof DashboardIdCustomAgentsAgentIdInstructionsRoute
   '/dashboard/$id/custom-agents/$agentId/knowledge': typeof DashboardIdCustomAgentsAgentIdKnowledgeRoute
@@ -499,6 +509,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/automations/$amId/configuration'
     | '/dashboard/$id/automations/$amId/executions'
     | '/dashboard/$id/automations/$amId/triggers'
+    | '/dashboard/$id/custom-agents/$agentId/conversation-starters'
     | '/dashboard/$id/custom-agents/$agentId/delegation'
     | '/dashboard/$id/custom-agents/$agentId/instructions'
     | '/dashboard/$id/custom-agents/$agentId/knowledge'
@@ -539,6 +550,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/automations/$amId/configuration'
     | '/dashboard/$id/automations/$amId/executions'
     | '/dashboard/$id/automations/$amId/triggers'
+    | '/dashboard/$id/custom-agents/$agentId/conversation-starters'
     | '/dashboard/$id/custom-agents/$agentId/delegation'
     | '/dashboard/$id/custom-agents/$agentId/instructions'
     | '/dashboard/$id/custom-agents/$agentId/knowledge'
@@ -588,6 +600,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/automations/$amId/configuration'
     | '/dashboard/$id/automations/$amId/executions'
     | '/dashboard/$id/automations/$amId/triggers'
+    | '/dashboard/$id/custom-agents/$agentId/conversation-starters'
     | '/dashboard/$id/custom-agents/$agentId/delegation'
     | '/dashboard/$id/custom-agents/$agentId/instructions'
     | '/dashboard/$id/custom-agents/$agentId/knowledge'
@@ -914,6 +927,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdCustomAgentsAgentIdDelegationRouteImport
       parentRoute: typeof DashboardIdCustomAgentsAgentIdRoute
     }
+    '/dashboard/$id/custom-agents/$agentId/conversation-starters': {
+      id: '/dashboard/$id/custom-agents/$agentId/conversation-starters'
+      path: '/conversation-starters'
+      fullPath: '/dashboard/$id/custom-agents/$agentId/conversation-starters'
+      preLoaderRoute: typeof DashboardIdCustomAgentsAgentIdConversationStartersRouteImport
+      parentRoute: typeof DashboardIdCustomAgentsAgentIdRoute
+    }
     '/dashboard/$id/automations/$amId/triggers': {
       id: '/dashboard/$id/automations/$amId/triggers'
       path: '/triggers'
@@ -1036,6 +1056,7 @@ const DashboardIdConversationsRouteWithChildren =
   )
 
 interface DashboardIdCustomAgentsAgentIdRouteChildren {
+  DashboardIdCustomAgentsAgentIdConversationStartersRoute: typeof DashboardIdCustomAgentsAgentIdConversationStartersRoute
   DashboardIdCustomAgentsAgentIdDelegationRoute: typeof DashboardIdCustomAgentsAgentIdDelegationRoute
   DashboardIdCustomAgentsAgentIdInstructionsRoute: typeof DashboardIdCustomAgentsAgentIdInstructionsRoute
   DashboardIdCustomAgentsAgentIdKnowledgeRoute: typeof DashboardIdCustomAgentsAgentIdKnowledgeRoute
@@ -1046,6 +1067,8 @@ interface DashboardIdCustomAgentsAgentIdRouteChildren {
 
 const DashboardIdCustomAgentsAgentIdRouteChildren: DashboardIdCustomAgentsAgentIdRouteChildren =
   {
+    DashboardIdCustomAgentsAgentIdConversationStartersRoute:
+      DashboardIdCustomAgentsAgentIdConversationStartersRoute,
     DashboardIdCustomAgentsAgentIdDelegationRoute:
       DashboardIdCustomAgentsAgentIdDelegationRoute,
     DashboardIdCustomAgentsAgentIdInstructionsRoute:

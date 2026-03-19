@@ -5,6 +5,10 @@ import type { SelectedAgent } from '../context/chat-layout-context';
 import { useChatLayout } from '../context/chat-layout-context';
 import { useChatAgents } from './queries';
 
+export interface EffectiveAgent extends SelectedAgent {
+  conversationStarters?: string[];
+}
+
 /**
  * Resolves the currently effective agent for chat.
  *
@@ -13,7 +17,7 @@ import { useChatAgents } from './queries';
  */
 export function useEffectiveAgent(
   organizationId: string,
-): SelectedAgent | null {
+): EffectiveAgent | null {
   const { selectedAgent } = useChatLayout();
   const { agents } = useChatAgents(organizationId);
 
@@ -25,7 +29,11 @@ export function useEffectiveAgent(
       );
       if (match) {
         const rootId = match.rootVersionId ?? match._id;
-        return { _id: rootId, displayName: match.displayName };
+        return {
+          _id: rootId,
+          displayName: match.displayName,
+          conversationStarters: match.conversationStarters,
+        };
       }
     }
 
@@ -37,6 +45,10 @@ export function useEffectiveAgent(
     if (!defaultAgent) return null;
 
     const rootId = defaultAgent.rootVersionId ?? defaultAgent._id;
-    return { _id: rootId, displayName: defaultAgent.displayName };
+    return {
+      _id: rootId,
+      displayName: defaultAgent.displayName,
+      conversationStarters: defaultAgent.conversationStarters,
+    };
   }, [selectedAgent, agents]);
 }
