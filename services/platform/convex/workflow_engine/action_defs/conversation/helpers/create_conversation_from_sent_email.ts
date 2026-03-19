@@ -12,8 +12,10 @@ import { addMessageToConversation } from './add_message_to_conversation';
 import { buildConversationMetadata } from './build_conversation_metadata';
 import { buildInitialMessage } from './build_initial_message';
 import { checkMessageExists } from './check_message_exists';
+import { MAX_EMAILS_PER_BATCH } from './constants';
 import { findOrCreateCustomerFromEmail } from './find_or_create_customer_from_email';
 import { findRelatedConversation } from './find_related_conversation';
+import { normalizeEmails } from './normalize_email';
 import { updateMessage } from './update_message';
 
 const debugLog = createDebugLog('DEBUG_CONVERSATIONS', '[Conversations]');
@@ -30,22 +32,43 @@ export async function createConversationFromSentEmail(
     integrationName?: string;
   },
 ) {
-  // Handle both single email and array of emails
-  const emailsArray: EmailType[] = Array.isArray(params.emails)
-    ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-      (params.emails as EmailType[])
-    : // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-      [params.emails as EmailType];
+  // Handle single email, array of emails, and raw provider API objects
+  // normalizeEmails detects raw Gmail/Outlook API responses and maps them to EmailType
+  const emailsArray: EmailType[] = normalizeEmails(params.emails);
+
+  if (emailsArray.length === 0) {
+    return { conversationId: null, created: false, reason: 'no_emails' };
+  }
 
   // Sort emails by date (chronological order - oldest first)
   emailsArray.sort(
     (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
   );
 
+  // Cap email count to stay within Convex action argument size limits.
+  // Keeping oldest-first preserves the root email needed for threading.
+  if (emailsArray.length > MAX_EMAILS_PER_BATCH) {
+    debugLog(
+      'create_from_sent_email Truncating emails from',
+      emailsArray.length,
+      'to',
+      MAX_EMAILS_PER_BATCH,
+    );
+    emailsArray.length = MAX_EMAILS_PER_BATCH;
+  }
+
   debugLog('create_from_sent_email Processing', emailsArray.length, 'emails');
 
   // Use the first (oldest) email as the root
   const rootEmail = emailsArray[0];
+
+  if (!rootEmail.messageId) {
+    return {
+      conversationId: null,
+      created: false,
+      reason: 'no_message_id',
+    };
+  }
 
   // Check if conversation already exists for the root email
   const existing = await checkMessageExists(
