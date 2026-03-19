@@ -258,6 +258,7 @@ export function ConversationHeader({
           onOpenChange={setIsCustomerInfoOpen}
           trigger={
             <button
+              type="button"
               className="bg-muted flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full"
               aria-label={t('header.customerInfo')}
             >
@@ -269,6 +270,7 @@ export function ConversationHeader({
         />
         <div className="flex min-w-0 flex-col gap-px">
           <button
+            type="button"
             className="cursor-pointer text-left text-[13px] font-semibold tracking-tight hover:underline"
             onClick={() => setIsCustomerInfoOpen(true)}
           >
@@ -276,6 +278,7 @@ export function ConversationHeader({
           </button>
           <div className="text-muted-foreground flex items-center text-xs tracking-tight">
             <button
+              type="button"
               className="cursor-pointer hover:underline"
               onClick={() => setIsCustomerInfoOpen(true)}
             >
