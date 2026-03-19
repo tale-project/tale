@@ -189,11 +189,13 @@ export function Conversations({
           {/* Compound select-all + filter trigger — matches design `5txbz` */}
           <DropdownMenu
             trigger={
-              <div
+              <button
+                type="button"
                 className={cn(
                   'flex shrink-0 items-center gap-0.5 rounded pr-1 py-0.5',
                   readFilter !== 'all' && 'bg-blue-100',
                 )}
+                aria-label={tConversations('filter.label')}
               >
                 {/* Prevent checkbox clicks from opening the dropdown */}
                 {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
@@ -211,7 +213,7 @@ export function Conversations({
                   />
                 </div>
                 <ChevronDownIcon className="text-muted-foreground size-3.5" />
-              </div>
+              </button>
             }
             items={[
               [
@@ -279,7 +281,7 @@ export function Conversations({
                     <Button
                       size="icon"
                       variant="ghost"
-                      disabled={isBulkProcessing}
+                      disabled
                       aria-label={tConversations('bulk.markSpam')}
                     >
                       <ShieldXIcon className="size-4" />

@@ -263,7 +263,11 @@ const ConversationRow = memo(function ConversationRow({
                   'Unknown'}
               </Heading>
               {conversation.unread_count > 0 && (
-                <span className="size-1.5 shrink-0 rounded-full bg-blue-500" />
+                <span
+                  className="size-1.5 shrink-0 rounded-full bg-blue-500"
+                  aria-label="Unread"
+                  role="status"
+                />
               )}
             </div>
             <Text
