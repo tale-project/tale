@@ -692,6 +692,7 @@
         "goToDraft": "Go to draft",
         "webhook": "Webhook",
         "delegation": "Delegation",
+        "conversationStarters": "Starters",
         "test": "Test"
       },
       "testChat": {
@@ -724,6 +725,16 @@
         "timeoutMinutesHelp": "Maximum time the agent can run per message. Increase for tasks that involve many file operations or sub-agent delegations.",
         "timeoutUpdated": "Timeout updated",
         "timeoutUpdateFailed": "Failed to update timeout"
+      },
+      "conversationStarters": {
+        "title": "Conversation starters",
+        "description": "Suggested prompts shown to users when they start a new conversation with this agent. Leave empty to show no suggestions.",
+        "placeholder": "e.g. Help me write a report",
+        "add": "Add starter",
+        "remove": "Remove conversation starter",
+        "dragHandle": "Drag to reorder",
+        "moveUp": "Move up",
+        "moveDown": "Move down"
       },
       "form": {
         "sectionGeneral": "General",
@@ -2140,32 +2151,7 @@
     "deleteArchiveMessage": "This chat will be archived and won't appear in your chat history.",
     "deleteFailed": "Failed to delete chat",
     "welcome": "What are you working on?",
-    "suggestions": {
-      "admin": [
-        "Draft a project proposal for Q4",
-        "Analyze last month's revenue trends",
-        "Write a follow-up email to the client",
-        "Summarize our latest product updates"
-      ],
-      "editor": [
-        "Write a blog post about our new feature",
-        "Review and improve this content draft",
-        "Create a product description for the catalog",
-        "Summarize the key points from this document"
-      ],
-      "developer": [
-        "Help me debug this issue",
-        "Review this code for best practices",
-        "Write unit tests for this function",
-        "Explain how this integration works"
-      ],
-      "member": [
-        "Draft an email to a customer",
-        "Summarize our latest product updates",
-        "Help me prepare for a meeting",
-        "Answer a question about our products"
-      ]
-    },
+    "welcomeEmpty": "How can I assist you?",
     "toast": {
       "generateFailed": "Failed to generate response",
       "sendFailed": "Failed to send message"

@@ -1,6 +1,6 @@
 'use client';
 
-import { useNavigate } from '@tanstack/react-router';
+import { useLocation, useNavigate } from '@tanstack/react-router';
 import { ChevronDown, CircleStop, FlaskConical, Pencil } from 'lucide-react';
 import { useMemo, useCallback } from 'react';
 
@@ -42,6 +42,7 @@ export function CustomAgentNavigation({
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
   const navigate = useNavigate();
+  const location = useLocation();
   const { agent, versions, hasDraft, draftVersionNumber } =
     useCustomAgentVersion();
 
@@ -55,6 +56,9 @@ export function CustomAgentNavigation({
     useCreateDraftFromVersion();
 
   const basePath = `/dashboard/${organizationId}/custom-agents/${agentId}`;
+  const tabSuffix = location.pathname.startsWith(basePath)
+    ? location.pathname.slice(basePath.length)
+    : '';
   const versionSearch =
     agent.status !== 'draft' ? { v: agent.versionNumber } : undefined;
 
@@ -90,6 +94,12 @@ export function CustomAgentNavigation({
       search: versionSearch,
     },
     {
+      label: t('customAgents.navigation.conversationStarters'),
+      href: `${basePath}/conversation-starters`,
+      matchMode: 'exact',
+      search: versionSearch,
+    },
+    {
       label: t('customAgents.navigation.webhook'),
       href: `${basePath}/webhook`,
       matchMode: 'exact',
@@ -100,21 +110,19 @@ export function CustomAgentNavigation({
   const navigateToVersion = useCallback(
     (versionNum: number) => {
       void navigate({
-        to: '/dashboard/$id/custom-agents/$agentId',
-        params: { id: organizationId, agentId },
+        to: basePath + tabSuffix,
         search: { v: versionNum },
       });
     },
-    [navigate, organizationId, agentId],
+    [navigate, basePath, tabSuffix],
   );
 
   const navigateToDraft = useCallback(() => {
     void navigate({
-      to: '/dashboard/$id/custom-agents/$agentId',
-      params: { id: organizationId, agentId },
+      to: basePath + tabSuffix,
       search: {},
     });
-  }, [navigate, organizationId, agentId]);
+  }, [navigate, basePath, tabSuffix]);
 
   const handlePublish = () => {
     publishAgent(

@@ -122,6 +122,11 @@ function CustomAgentDetailLayout() {
                     matchMode: 'exact',
                   },
                   {
+                    label: t('customAgents.navigation.conversationStarters'),
+                    href: `/dashboard/${organizationId}/custom-agents/${agentId}/conversation-starters`,
+                    matchMode: 'exact',
+                  },
+                  {
                     label: t('customAgents.navigation.webhook'),
                     href: `/dashboard/${organizationId}/custom-agents/${agentId}/webhook`,
                     matchMode: 'exact',
