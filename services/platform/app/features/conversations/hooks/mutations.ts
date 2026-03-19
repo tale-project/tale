@@ -11,12 +11,24 @@ export function useAddMessage() {
   );
 }
 
+export function useBulkArchiveConversations() {
+  return useConvexMutation(
+    api.conversations.mutations.bulkArchiveConversations,
+  );
+}
+
 export function useBulkCloseConversations() {
   return useConvexMutation(api.conversations.mutations.bulkCloseConversations);
 }
 
 export function useBulkReopenConversations() {
   return useConvexMutation(api.conversations.mutations.bulkReopenConversations);
+}
+
+export function useBulkUnarchiveConversations() {
+  return useConvexMutation(
+    api.conversations.mutations.bulkUnarchiveConversations,
+  );
 }
 
 export function useSendMessageViaIntegration() {

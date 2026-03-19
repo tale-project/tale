@@ -119,6 +119,16 @@ export const markConversationAsRead = mutationWithRLS({
   },
 });
 
+export const bulkArchiveConversations = mutationWithRLS({
+  args: {
+    conversationIds: v.array(v.id('conversations')),
+  },
+  returns: bulkOperationResultValidator,
+  handler: async (ctx, args) => {
+    return await ConversationsHelpers.bulkArchiveConversations(ctx, args);
+  },
+});
+
 export const bulkCloseConversations = mutationWithRLS({
   args: {
     conversationIds: v.array(v.id('conversations')),
@@ -137,6 +147,16 @@ export const bulkReopenConversations = mutationWithRLS({
   returns: bulkOperationResultValidator,
   handler: async (ctx, args) => {
     return await ConversationsHelpers.bulkReopenConversations(ctx, args);
+  },
+});
+
+export const bulkUnarchiveConversations = mutationWithRLS({
+  args: {
+    conversationIds: v.array(v.id('conversations')),
+  },
+  returns: bulkOperationResultValidator,
+  handler: async (ctx, args) => {
+    return await ConversationsHelpers.bulkUnarchiveConversations(ctx, args);
   },
 });
 

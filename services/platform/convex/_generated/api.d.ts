@@ -134,8 +134,10 @@ import type * as constants from "../constants.js";
 import type * as conversations_actions from "../conversations/actions.js";
 import type * as conversations_add_message_to_conversation from "../conversations/add_message_to_conversation.js";
 import type * as conversations_build_threading_headers from "../conversations/build_threading_headers.js";
+import type * as conversations_bulk_archive_conversations from "../conversations/bulk_archive_conversations.js";
 import type * as conversations_bulk_close_conversations from "../conversations/bulk_close_conversations.js";
 import type * as conversations_bulk_reopen_conversations from "../conversations/bulk_reopen_conversations.js";
+import type * as conversations_bulk_unarchive_conversations from "../conversations/bulk_unarchive_conversations.js";
 import type * as conversations_close_conversation from "../conversations/close_conversation.js";
 import type * as conversations_create_conversation from "../conversations/create_conversation.js";
 import type * as conversations_create_conversation_public from "../conversations/create_conversation_public.js";
@@ -260,6 +262,7 @@ import type * as folders_internal_mutations from "../folders/internal_mutations.
 import type * as folders_mutations from "../folders/mutations.js";
 import type * as folders_queries from "../folders/queries.js";
 import type * as http from "../http.js";
+import type * as images_http_actions from "../images/http_actions.js";
 import type * as integrations_actions from "../integrations/actions.js";
 import type * as integrations_build_test_secrets from "../integrations/build_test_secrets.js";
 import type * as integrations_create_integration from "../integrations/create_integration.js";
@@ -989,8 +992,10 @@ declare const fullApi: ApiFromModules<{
   "conversations/actions": typeof conversations_actions;
   "conversations/add_message_to_conversation": typeof conversations_add_message_to_conversation;
   "conversations/build_threading_headers": typeof conversations_build_threading_headers;
+  "conversations/bulk_archive_conversations": typeof conversations_bulk_archive_conversations;
   "conversations/bulk_close_conversations": typeof conversations_bulk_close_conversations;
   "conversations/bulk_reopen_conversations": typeof conversations_bulk_reopen_conversations;
+  "conversations/bulk_unarchive_conversations": typeof conversations_bulk_unarchive_conversations;
   "conversations/close_conversation": typeof conversations_close_conversation;
   "conversations/create_conversation": typeof conversations_create_conversation;
   "conversations/create_conversation_public": typeof conversations_create_conversation_public;
@@ -1115,6 +1120,7 @@ declare const fullApi: ApiFromModules<{
   "folders/mutations": typeof folders_mutations;
   "folders/queries": typeof folders_queries;
   http: typeof http;
+  "images/http_actions": typeof images_http_actions;
   "integrations/actions": typeof integrations_actions;
   "integrations/build_test_secrets": typeof integrations_build_test_secrets;
   "integrations/create_integration": typeof integrations_create_integration;
