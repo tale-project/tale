@@ -19,7 +19,7 @@ import type { ConversationStatus, ConversationPriority } from './helpers/types';
 import {
   jsonRecordValidator,
   jsonValueValidator,
-} from '../../../lib/validators/json';
+} from '../../../lib/shared/schemas/utils/json_value';
 import { createConversation } from './helpers/create_conversation';
 import { createConversationFromEmail } from './helpers/create_conversation_from_email';
 import { createConversationFromSentEmail } from './helpers/create_conversation_from_sent_email';
