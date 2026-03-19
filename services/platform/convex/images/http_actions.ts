@@ -58,7 +58,7 @@ export const imageProxyHandler = httpAction(async (ctx, req) => {
 
   let targetUrl: URL;
   try {
-    targetUrl = new URL(atob(encodedUrl));
+    targetUrl = new URL(atob(decodeURIComponent(encodedUrl)));
   } catch {
     return new Response('Invalid url parameter', { status: 400 });
   }
@@ -71,13 +71,46 @@ export const imageProxyHandler = httpAction(async (ctx, req) => {
     return new Response('Private addresses not allowed', { status: 400 });
   }
 
+  const MAX_REDIRECTS = 5;
   let upstreamResponse: Response;
+  let currentUrl = targetUrl.toString();
   try {
-    upstreamResponse = await fetch(targetUrl.toString(), {
-      redirect: 'follow',
-      headers: { Accept: 'image/*,*/*;q=0.8' },
-      signal: AbortSignal.timeout(10_000),
-    });
+    for (let i = 0; i <= MAX_REDIRECTS; i++) {
+      upstreamResponse = await fetch(currentUrl, {
+        redirect: 'manual',
+        headers: { Accept: 'image/*,*/*;q=0.8' },
+        signal: AbortSignal.timeout(10_000),
+      });
+
+      const status = upstreamResponse.status;
+      if (status < 300 || status >= 400) break;
+
+      const location = upstreamResponse.headers.get('Location');
+      if (!location) break;
+
+      const redirectUrl = new URL(location, currentUrl);
+
+      if (
+        redirectUrl.protocol !== 'http:' &&
+        redirectUrl.protocol !== 'https:'
+      ) {
+        return new Response('Redirect to unsupported protocol', {
+          status: 400,
+        });
+      }
+
+      if (isPrivateIp(redirectUrl.hostname)) {
+        return new Response('Redirect to private address not allowed', {
+          status: 400,
+        });
+      }
+
+      currentUrl = redirectUrl.toString();
+
+      if (i === MAX_REDIRECTS) {
+        return new Response('Too many redirects', { status: 502 });
+      }
+    }
   } catch (error) {
     console.error('[image-proxy] fetch failed:', error);
     return new Response('Failed to fetch image', { status: 502 });

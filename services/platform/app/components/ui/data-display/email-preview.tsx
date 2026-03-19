@@ -255,7 +255,7 @@ export function rewriteExternalImageSrcs(
         .replace(/&lt;/g, '<')
         .replace(/&gt;/g, '>')
         .replace(/&quot;/g, '"');
-      const encoded = btoa(decodedUrl);
+      const encoded = encodeURIComponent(btoa(decodedUrl));
       return `src=${quote}${proxyBase}/api/image-proxy?url=${encoded}${quote}`;
     },
   );

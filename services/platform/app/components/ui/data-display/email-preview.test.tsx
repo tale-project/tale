@@ -56,7 +56,9 @@ describe('rewriteExternalImageSrcs', () => {
   it('rewrites external https image src to proxy URL', () => {
     const html = '<img src="https://claude.ai/images/logo.png">';
     const result = rewriteExternalImageSrcs(html, proxyBase);
-    const encoded = btoa('https://claude.ai/images/logo.png');
+    const encoded = encodeURIComponent(
+      btoa('https://claude.ai/images/logo.png'),
+    );
     expect(result).toBe(
       `<img src="http://localhost:3000/api/image-proxy?url=${encoded}">`,
     );
@@ -115,10 +117,10 @@ describe('rewriteExternalImageSrcs', () => {
       '<img src="https://a.com/1.png"><p>text</p><img src="https://b.com/2.png">';
     const result = rewriteExternalImageSrcs(html, proxyBase);
     expect(result).toContain(
-      `/api/image-proxy?url=${btoa('https://a.com/1.png')}`,
+      `/api/image-proxy?url=${encodeURIComponent(btoa('https://a.com/1.png'))}`,
     );
     expect(result).toContain(
-      `/api/image-proxy?url=${btoa('https://b.com/2.png')}`,
+      `/api/image-proxy?url=${encodeURIComponent(btoa('https://b.com/2.png'))}`,
     );
   });
 
@@ -126,7 +128,9 @@ describe('rewriteExternalImageSrcs', () => {
     const html =
       '<img src="https://media.licdn.com/image?e=123&amp;v=beta&amp;t=abc">';
     const result = rewriteExternalImageSrcs(html, proxyBase);
-    const encoded = btoa('https://media.licdn.com/image?e=123&v=beta&t=abc');
+    const encoded = encodeURIComponent(
+      btoa('https://media.licdn.com/image?e=123&v=beta&t=abc'),
+    );
     expect(result).toContain(`/api/image-proxy?url=${encoded}`);
   });
 
