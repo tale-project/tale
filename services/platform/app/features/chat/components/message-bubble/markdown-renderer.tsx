@@ -37,7 +37,7 @@ export const markdownWrapperStyles = cn(
   '[&_h4]:mb-2 [&_h4]:mt-4 [&_h4]:font-bold',
   '[&_h5]:mb-2 [&_h5]:mt-4 [&_h5]:font-bold',
   '[&_h6]:mb-2 [&_h6]:mt-4 [&_h6]:font-bold',
-  '[&_a]:text-[#0561e6] [&_a]:no-underline hover:[&_a]:underline',
+  '[&_a]:text-primary [&_a]:no-underline hover:[&_a]:underline',
   '[&_code:not(pre_code)]:bg-muted [&_code:not(pre_code)]:px-1 [&_code:not(pre_code)]:py-0.5 [&_code:not(pre_code)]:rounded [&_code:not(pre_code)]:text-[0.875em] [&_code:not(pre_code)]:font-mono',
   '[&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:rounded-none [&_pre_code]:text-xs [&_pre_code]:leading-relaxed [&_pre_code]:whitespace-pre [&_pre_code]:block [&_pre_code]:min-w-full',
   '[&_blockquote]:border-l-4 [&_blockquote]:border-border [&_blockquote]:pl-4 [&_blockquote]:my-2 [&_blockquote]:text-muted-foreground [&_blockquote]:italic',
@@ -223,6 +223,15 @@ export const markdownComponents = {
     );
   },
   img: markdownImageComponent,
+  a: ({
+    node: _node,
+    children,
+    ...props
+  }: { node?: unknown } & React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
+    <a {...props} target="_blank" rel="noopener noreferrer">
+      {children}
+    </a>
+  ),
 };
 
 export function TypewriterTextWrapper({

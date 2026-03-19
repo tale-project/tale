@@ -50,6 +50,18 @@ export function validateAndNormalizeConfig(
     }
   }
 
+  // Disallow tools + json output combination
+  if (
+    llmConfig.outputFormat === 'json' &&
+    llmConfig.tools &&
+    llmConfig.tools.length > 0
+  ) {
+    throw new Error(
+      'Invalid LLM node configuration: cannot use both tools and outputFormat "json". ' +
+        'Split into two LLM steps.',
+    );
+  }
+
   return {
     name: llmConfig.name || 'Workflow LLM',
     systemPrompt: llmConfig.systemPrompt,

@@ -98,7 +98,7 @@ export async function parseFile(
     });
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 120000);
+    const timeoutId = setTimeout(() => controller.abort(), 300_000);
 
     const response = await fetch(apiUrl, {
       method: 'POST',

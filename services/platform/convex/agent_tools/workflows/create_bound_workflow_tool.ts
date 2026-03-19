@@ -26,13 +26,22 @@ interface BoundWorkflowDefinition {
   description?: string;
 }
 
+// WORKAROUND: z.unknown() and z.record(z.string(), z.unknown()) produce
+// broken JSON Schema after AI SDK post-processing. z.unknown() → {} (empty
+// schema) and z.record() → { type: "object", additionalProperties: false }
+// because addAdditionalPropertiesToJsonSchema() unconditionally overrides
+// additionalProperties on all object types.
+// Use concrete unions for arrays and z.string() for objects instead.
+// See: @ai-sdk/provider-utils/src/add-additional-properties-to-json-schema.ts
+const JSON_VALUE = z.union([z.string(), z.number(), z.boolean(), z.null()]);
+
 const ZOD_TYPE_MAP: Record<string, () => z.ZodTypeAny> = {
   string: () => z.string(),
   number: () => z.number(),
   integer: () => z.number().int(),
   boolean: () => z.boolean(),
-  array: () => z.array(z.unknown()),
-  object: () => z.record(z.string(), z.unknown()),
+  array: () => z.array(JSON_VALUE),
+  object: () => z.string().describe('JSON object as string'),
 };
 
 function buildArgsSchema(inputSchema: WorkflowInputSchema | undefined) {

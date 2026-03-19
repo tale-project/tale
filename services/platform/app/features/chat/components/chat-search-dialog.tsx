@@ -1,7 +1,7 @@
 'use client';
 
 import { useNavigate } from '@tanstack/react-router';
-import { X } from 'lucide-react';
+import { LoaderCircleIcon, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
@@ -162,7 +162,14 @@ export function ChatSearchDialog({
       }
     >
       <div className="h-[13.75rem] overflow-y-auto px-5">
-        {threadsData !== null && chats.length === 0 ? (
+        {threadsData === null ? (
+          <div className="flex size-full items-center justify-center">
+            <LoaderCircleIcon
+              className="text-muted-foreground size-5 animate-spin"
+              aria-label={t('searchChat.loading')}
+            />
+          </div>
+        ) : chats.length === 0 ? (
           <Text
             as="div"
             variant="muted"

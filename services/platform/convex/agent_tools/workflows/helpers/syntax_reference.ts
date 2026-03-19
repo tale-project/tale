@@ -52,6 +52,8 @@ Note: The port name MUST be "success" (not "next" or "default").`,
 Config: { name (REQUIRED), systemPrompt (REQUIRED), userPrompt?, tools?: string[], outputFormat?: 'text'|'json', outputSchema?, contextVariables? }
 NextSteps: { success: 'next_step', error?: 'error_handler' }
 
+**RESTRICTION:** tools and outputFormat: 'json' CANNOT be combined in a single step. If you need both, split into two steps: one text+tools step (to gather data), then a separate JSON step without tools (to format the result).
+
 **CRITICAL FIELDS:**
 - name: REQUIRED - human-readable name
 - systemPrompt: REQUIRED - role and instructions (NOT "prompt")
@@ -199,7 +201,132 @@ For external APIs (Shopify, Circuly, etc.)
     "params": { "limit": 50 }
   }
 }
-\`\`\``,
+\`\`\`
+
+### document
+Operations: create, update, retrieve, generate_docx, get_metadata, compare, extract_docx_structured, apply_docx_structured
+
+**create** — Save a file to the documents hub:
+\`\`\`json
+{
+  "type": "document",
+  "parameters": {
+    "operation": "create",
+    "fileId": "{{steps.generate.output.data.fileId}}",
+    "title": "Monthly Report",
+    "folderPath": "reports/monthly"
+  }
+}
+\`\`\`
+- fileId: storage ID of the file to save (required)
+- title: document title (optional, defaults to original file name)
+- folderPath: slash-separated folder path, created automatically if missing (optional)
+- Requires organizationId in workflow variables (auto-injected)
+
+**update** — Update an existing document by ID:
+\`\`\`json
+{
+  "type": "document",
+  "parameters": {
+    "operation": "update",
+    "documentId": "{{steps.find_doc.output.data._id}}",
+    "title": "Updated Title",
+    "content": "New content"
+  }
+}
+\`\`\`
+- documentId: required
+- Optional: title, content, mimeType, extension, metadata, sourceProvider
+
+**retrieve** — Fetch document content by file ID:
+\`\`\`json
+{
+  "type": "document",
+  "parameters": {
+    "operation": "retrieve",
+    "fileId": "{{steps.find_doc.output.data.fileId}}"
+  }
+}
+\`\`\`
+- Optional: chunkStart, chunkEnd (for partial retrieval), returnChunks (boolean)
+
+**generate_docx** — Generate a DOCX file from markdown or HTML:
+\`\`\`json
+{
+  "type": "document",
+  "parameters": {
+    "operation": "generate_docx",
+    "fileName": "report.docx",
+    "sourceType": "markdown",
+    "content": "{{steps.draft.output.data}}"
+  }
+}
+\`\`\`
+- sourceType: "markdown" or "html"
+- Requires organizationId in workflow variables
+
+**get_metadata** — Fetch file metadata for one or more files:
+\`\`\`json
+{
+  "type": "document",
+  "parameters": {
+    "operation": "get_metadata",
+    "fileIds": ["{{steps.file1.output.data.fileId}}", "{{steps.file2.output.data.fileId}}"]
+  }
+}
+\`\`\`
+
+**compare** — Compare two documents and return differences:
+\`\`\`json
+{
+  "type": "document",
+  "parameters": {
+    "operation": "compare",
+    "baseFileId": "{{steps.original.output.data.fileId}}",
+    "comparisonFileId": "{{steps.revised.output.data.fileId}}"
+  }
+}
+\`\`\`
+- Optional: baseFileName, comparisonFileName, maxChanges
+
+**extract_docx_structured** — Extract structured paragraph data from a DOCX file:
+\`\`\`json
+{
+  "type": "document",
+  "parameters": {
+    "operation": "extract_docx_structured",
+    "fileId": "{{input.baseFileId}}"
+  }
+}
+\`\`\`
+- fileId: Convex storage ID of the DOCX file (required)
+- Returns: { source_hash, metadata: { paragraph_count, table_count, group_count }, lightweight: [{ key, text, editable, style }], groups: [[{ key, text, editable, style }]] }
+- Paragraph keys are stable (e.g., "p_0", "tbl_0_r0_c0_p0") and used in apply_docx_structured
+- editable: false for paragraphs with hyperlinks, images, tracked changes, SDT controls
+- groups: semantic batches of editable paragraphs, split at heading boundaries (uses outlineLvl). Use groups instead of chunk() for batch processing loops.
+
+**apply_docx_structured** — Apply text modifications to a DOCX file preserving all formatting:
+\`\`\`json
+{
+  "type": "document",
+  "parameters": {
+    "operation": "apply_docx_structured",
+    "templateFileId": "{{input.baseFileId}}",
+    "sourceHash": "{{steps.extract.output.data.source_hash}}",
+    "modifications": "{{variables.allModifications}}",
+    "fileName": "modified-contract",
+    "trackChanges": true,
+    "author": "AI Assistant"
+  }
+}
+\`\`\`
+- templateFileId: Convex storage ID of the original DOCX (required)
+- sourceHash: SHA-256 hash from extract step for validation (required)
+- modifications: Array of { key: string, text: string } (required)
+- fileName: Output file name without extension (required)
+- trackChanges: Use Word Track Changes markup (optional, default false)
+- author: Author name for Track Changes (optional, default "AI Assistant")
+- Returns: { success, fileStorageId, downloadUrl, fileName, size, report }`,
 
   condition: `## Condition Step (stepType: 'condition')
 
@@ -215,7 +342,7 @@ NextSteps: { true: 'if_true_step', false: 'if_false_step' }
 
 **Common Expressions:**
 - Check entity exists: \`steps.find_step.output.data != null\`
-- Check array not empty: \`steps.query.output.data.length > 0\`
+- Check array not empty: \`steps.query.output.data|length > 0\`
 - Compare values: \`steps.check.output.data.status == "active"\`
 - Boolean logic: \`status == "active" && count > 5\``,
 
@@ -324,7 +451,7 @@ All step outputs are wrapped: steps.{step_slug}.output.data
 - {{nowMs}} - Current timestamp (milliseconds)
 
 ### JEXL Filters
-- Array: |length, |first, |last, |map("prop"), |filter(), |unique, |flatten, |slice(start, end), |sort("field", "asc"), |reverse
+- Array: |length, |first, |last, |map("prop"), |filter(), |unique, |flatten, |slice(start, end), |sort("field", "asc"), |reverse, |chunk(size)
 - String: |join(", "), |upper, |lower, |trim
 - Boolean: |hasOverlap(otherArray)
 - Type: |string, |number, |boolean, |parseJSON
@@ -492,7 +619,7 @@ const SYNTAX_CATEGORY_DESCRIPTIONS: Record<string, string> = {
     'Start step configuration (workflow entry point with optional inputSchema)',
   llm: 'LLM step configuration (AI agent with tools)',
   action:
-    'Action step types and parameters (workflow_processing_records, customer, conversation, approval, set_variables, integration)',
+    'Action step types and parameters (workflow_processing_records, customer, conversation, approval, set_variables, integration, document)',
   condition: 'Condition step with JEXL expressions',
   loop: 'Loop step for iteration',
   output: 'Output step configuration (workflow output via outputMapping)',

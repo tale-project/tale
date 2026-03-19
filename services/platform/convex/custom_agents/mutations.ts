@@ -14,6 +14,10 @@ import { v } from 'convex/values';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 
+import {
+  MAX_CONVERSATION_STARTER_LENGTH,
+  MAX_CONVERSATION_STARTERS,
+} from '../../lib/shared/constants/custom-agents';
 import { parseModelList } from '../../lib/shared/utils/model-list';
 import { internal } from '../_generated/api';
 import { mutation } from '../_generated/server';
@@ -50,6 +54,7 @@ const agentFieldsValidator = {
   structuredResponsesEnabled: v.optional(v.boolean()),
   teamId: v.optional(v.string()),
   delegateAgentIds: v.optional(v.array(v.id('customAgents'))),
+  conversationStarters: v.optional(v.array(v.string())),
   maxSteps: v.optional(v.number()),
   timeoutMs: v.optional(v.number()),
   outputReserve: v.optional(v.number()),
@@ -73,6 +78,26 @@ function validateModelId(modelId: string | undefined) {
 function filterValidToolNames(toolNames: string[]): string[] {
   const validNames = new Set<string>(TOOL_NAMES);
   return toolNames.filter((name) => validNames.has(name));
+}
+
+function validateConversationStarters(
+  starters: string[] | undefined,
+): string[] | undefined {
+  if (!starters?.length) return undefined;
+  if (starters.length > MAX_CONVERSATION_STARTERS) {
+    throw new Error(
+      `Cannot have more than ${MAX_CONVERSATION_STARTERS} conversation starters`,
+    );
+  }
+  const trimmed = starters.map((s) => s.trim()).filter(Boolean);
+  for (const s of trimmed) {
+    if (s.length > MAX_CONVERSATION_STARTER_LENGTH) {
+      throw new Error(
+        `Conversation starter must be at most ${MAX_CONVERSATION_STARTER_LENGTH} characters`,
+      );
+    }
+  }
+  return trimmed.length ? trimmed : undefined;
 }
 
 const PROTECTED_SYSTEM_SLUGS = new Set(['chat', 'workflow']);
@@ -253,6 +278,10 @@ export const createCustomAgent = mutation({
       throw new Error('System instructions cannot be empty');
     }
 
+    args.conversationStarters = validateConversationStarters(
+      args.conversationStarters,
+    );
+
     const {
       organizationId,
       toolNames,
@@ -317,6 +346,7 @@ export const updateCustomAgent = mutation({
     filePreprocessingEnabled: v.optional(v.boolean()),
     structuredResponsesEnabled: v.optional(v.boolean()),
     teamId: v.optional(v.string()),
+    conversationStarters: v.optional(v.array(v.string())),
     delegateAgentIds: v.optional(v.array(v.id('customAgents'))),
     maxSteps: v.optional(v.number()),
     timeoutMs: v.optional(v.number()),
@@ -354,6 +384,7 @@ export const updateCustomAgent = mutation({
     const {
       customAgentId: _,
       teamId,
+      conversationStarters: rawConversationStarters,
       workflowBindings: __,
       ...otherFields
     } = args;
@@ -368,6 +399,12 @@ export const updateCustomAgent = mutation({
 
     if (teamId !== undefined) {
       cleanUpdate.teamId = teamId || undefined;
+    }
+
+    if (rawConversationStarters !== undefined) {
+      cleanUpdate.conversationStarters = validateConversationStarters(
+        rawConversationStarters,
+      );
     }
 
     // Synchronize tools with retrieval modes

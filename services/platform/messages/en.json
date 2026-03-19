@@ -412,6 +412,7 @@
     "searchChat": {
       "title": "Search chat",
       "placeholder": "Search chat",
+      "loading": "Loading chats...",
       "noResults": "No results",
       "untitledChat": "Untitled chat"
     },
@@ -691,6 +692,7 @@
         "goToDraft": "Go to draft",
         "webhook": "Webhook",
         "delegation": "Delegation",
+        "conversationStarters": "Starters",
         "test": "Test"
       },
       "testChat": {
@@ -723,6 +725,16 @@
         "timeoutMinutesHelp": "Maximum time the agent can run per message. Increase for tasks that involve many file operations or sub-agent delegations.",
         "timeoutUpdated": "Timeout updated",
         "timeoutUpdateFailed": "Failed to update timeout"
+      },
+      "conversationStarters": {
+        "title": "Conversation starters",
+        "description": "Suggested prompts shown to users when they start a new conversation with this agent. Leave empty to show no suggestions.",
+        "placeholder": "e.g. Help me write a report",
+        "add": "Add starter",
+        "remove": "Remove conversation starter",
+        "dragHandle": "Drag to reorder",
+        "moveUp": "Move up",
+        "moveDown": "Move down"
       },
       "form": {
         "sectionGeneral": "General",
@@ -1980,9 +1992,20 @@
       "resolveFailed": "Failed to resolve conversations",
       "reopened": "Conversations reopened",
       "reopenedDescription": "Successfully reopened {successCount} conversations{failedCount, plural, =0 {} other {, {failedCount} failed}}",
-      "reopenFailed": "Failed to reopen conversations"
+      "reopenFailed": "Failed to reopen conversations",
+      "selectedCount": "{count, plural, one {# selected} other {# selected}}",
+      "archive": "Archive",
+      "unarchive": "Unarchive",
+      "archived": "Conversations archived",
+      "archivedDescription": "Successfully archived {successCount} conversations{failedCount, plural, =0 {} other {, {failedCount} failed}}",
+      "archiveFailed": "Failed to archive conversations",
+      "unarchived": "Conversations unarchived",
+      "unarchivedDescription": "Successfully unarchived {successCount} conversations{failedCount, plural, =0 {} other {, {failedCount} failed}}",
+      "unarchiveFailed": "Failed to unarchive conversations",
+      "markSpam": "Mark as spam"
     },
     "header": {
+      "moreActions": "More actions",
       "customerInfo": "Customer info",
       "closeConversation": "Close conversation",
       "closing": "Closing...",
@@ -2006,7 +2029,8 @@
       "backToEditor": "Back to editor",
       "improving": "Improving...",
       "improveWithAi": "Improve with AI",
-      "generateImprovement": "Generate improvement"
+      "generateImprovement": "Generate improvement",
+      "replyImproved": "Reply improved"
     },
     "attachment": {
       "download": "Download",
@@ -2025,7 +2049,16 @@
       "invalidFileAttachment": "Invalid file attachment",
       "defaultSubject": "Re: Conversation",
       "customerEmailNotFound": "Cannot send email: customer email not found",
-      "replySubjectPrefix": "Re: {subject}"
+      "replySubjectPrefix": "Re: {subject}",
+      "loadFailed": "Failed to load conversation",
+      "loadFailedDescription": "Something went wrong while loading this conversation.",
+      "tryAgain": "Try again",
+      "closedBanner": "This conversation was closed.",
+      "archivedBanner": "This conversation was archived.",
+      "spamBanner": "This conversation was marked as spam.",
+      "unarchive": "Unarchive",
+      "notSpam": "Not spam",
+      "showEarlierMessages": "Show {count} earlier {count, plural, one {message} other {messages}}"
     },
     "filters": {
       "title": "Filters",
@@ -2058,6 +2091,12 @@
       "title": "Activate conversations",
       "description": "Connect your email to get started with conversations",
       "connectEmail": "Connect email"
+    },
+    "filter": {
+      "label": "Filter by read status",
+      "all": "All",
+      "read": "Read",
+      "unread": "Unread"
     }
   },
   "workflowRunApproval": {
@@ -2129,6 +2168,8 @@
     "deleteArchiveMessage": "This chat will be archived and won't appear in your chat history.",
     "deleteFailed": "Failed to delete chat",
     "welcome": "What are you working on?",
+    "welcomeEmpty": "How can I assist you?",
+    "welcomeSuffix": "here, what are we working on?",
     "suggestions": {
       "admin": [
         "Draft a project proposal for Q4",
@@ -2195,7 +2236,6 @@
       "searchPlaceholder": "Search agents",
       "noResults": "No agents found",
       "addAgent": "Add agent",
-      "configureAgent": "Configure agent",
       "builtinAgents": {
         "chat": {
           "name": "Assistant",
@@ -2249,6 +2289,7 @@
     "uploadFailed": "Upload failed",
     "failedToUpload": "Failed to upload {filename}",
     "removeAttachment": "Remove attachment",
+    "uploadingFile": "Uploading file",
     "viewImage": "View image",
     "dropFilesToAdd": "Drop files here to add to chat",
     "fileTypes": {

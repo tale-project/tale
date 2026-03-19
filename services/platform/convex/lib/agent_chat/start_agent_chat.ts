@@ -12,6 +12,7 @@
  */
 
 import { listMessages, saveMessage } from '@convex-dev/agent';
+import { ConvexError } from 'convex/values';
 
 import type { MutationCtx } from '../../_generated/server';
 import type { FileAttachment } from '../attachments';
@@ -114,6 +115,21 @@ export async function startAgentChat(
   // Always create a persistent stream for async result delivery.
   // enableStreaming only controls the LLM call strategy (streamText vs generateText).
   const streamId = await persistentStreaming.createStream(ctx);
+  const threadMeta = await ctx.db
+    .query('threadMetadata')
+    .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
+    .first();
+  if (threadMeta?.generationStatus === 'generating') {
+    throw new ConvexError(
+      'A response is already being generated for this thread. Please wait for it to finish.',
+    );
+  }
+  if (threadMeta) {
+    await ctx.db.patch(threadMeta._id, {
+      generationStatus: 'generating' as const,
+      streamId,
+    });
+  }
 
   const thread = await ctx.runQuery(components.agent.threads.getThread, {
     threadId,

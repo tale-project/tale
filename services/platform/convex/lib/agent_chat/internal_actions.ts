@@ -1,6 +1,5 @@
 'use node';
 
-import type { ModelMessage } from 'ai';
 import type { FunctionHandle } from 'convex/server';
 
 import {
@@ -53,7 +52,7 @@ import {
 } from '../context_management/constants';
 import { createAgentConfig } from '../create_agent_config';
 import { createDebugLog } from '../debug_log';
-import { classifyError, NonRetryableError } from '../error_classification';
+import { NonRetryableError } from '../error_classification';
 
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[runAgentGeneration]');
 
@@ -415,17 +414,15 @@ export const runAgentGeneration = internalAction({
         );
       }
 
-      // Classify and wrap error for retry decisions
-      const classification = classifyError(error);
       throw new NonRetryableError(
-        `${classification.description}: ${JSON.stringify({
+        `Agent generation failed: ${JSON.stringify({
           message: getString(err, 'message'),
           code: getString(err, 'code'),
           status: err['status'],
           cause: err['cause'],
         })}`,
         error,
-        classification.reason,
+        'generation_error',
       );
     }
   },
@@ -571,9 +568,8 @@ export const beforeGenerateHook = internalAction({
     promptContent: v.optional(v.any()),
     contextExceedsBudget: v.boolean(),
   }),
-  handler: async (ctx, args) => {
-    const { threadId, promptMessage, attachments, contextMessagesTokens } =
-      args;
+  handler: async (_ctx, args) => {
+    const { threadId, promptMessage, contextMessagesTokens } = args;
 
     // Token budget check for logging
     const currentPromptTokens = estimateTokens(promptMessage || '');
@@ -592,57 +588,6 @@ export const beforeGenerateHook = internalAction({
       });
     }
 
-    // Build multipart prompt when image attachments are present so the
-    // vision model receives actual image data rather than markdown text.
-    const imageAttachments = attachments?.filter((a) =>
-      a.fileType.startsWith('image/'),
-    );
-
-    if (!imageAttachments?.length) {
-      return { promptContent: undefined, contextExceedsBudget };
-    }
-
-    // Use base64 data URLs — storage URLs are internal and inaccessible to
-    // external vision APIs (OpenRouter, etc.), and Uint8Array can't cross the
-    // Convex action serialization boundary. Data URLs embed directly.
-    const resolvedImageParts = (
-      await Promise.allSettled(
-        imageAttachments.map(async (a) => {
-          const blob = await ctx.storage.get(a.fileId);
-          if (!blob) return null;
-          const mimeType = a.fileType || 'image/png';
-          const base64 = Buffer.from(await blob.arrayBuffer()).toString(
-            'base64',
-          );
-          return {
-            type: 'image' as const,
-            image: `data:${mimeType};base64,${base64}`,
-          };
-        }),
-      )
-    ).flatMap((r) => (r.status === 'fulfilled' && r.value ? [r.value] : []));
-
-    if (resolvedImageParts.length === 0) {
-      return { promptContent: undefined, contextExceedsBudget };
-    }
-
-    const promptContent: ModelMessage[] = [
-      {
-        role: 'user',
-        content: [
-          ...(promptMessage
-            ? [{ type: 'text' as const, text: promptMessage }]
-            : []),
-          ...resolvedImageParts,
-        ],
-      },
-    ];
-
-    beforeGenerateDebugLog('Built multipart prompt with images', {
-      threadId,
-      imageCount: resolvedImageParts.length,
-    });
-
-    return { promptContent, contextExceedsBudget };
+    return { promptContent: undefined, contextExceedsBudget };
   },
 });

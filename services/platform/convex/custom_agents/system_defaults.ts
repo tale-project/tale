@@ -28,6 +28,7 @@ export interface SystemDefaultAgentTemplate {
   timeoutMs: number;
   outputReserve: number;
   modelPreset: 'fast' | 'standard' | 'advanced';
+  conversationStarters?: string[];
   roleRestriction?: 'admin_developer';
   knowledgeEnabled?: boolean;
   includeOrgKnowledge?: boolean;
@@ -45,6 +46,12 @@ export const SYSTEM_DEFAULT_AGENT_TEMPLATES: SystemDefaultAgentTemplate[] = [
     systemInstructions: CHAT_AGENT_INSTRUCTIONS,
     toolNames: ['rag_search', 'web'],
     delegateSlugs: ['file'],
+    conversationStarters: [
+      'Draft a project proposal for Q4',
+      "Analyze last month's revenue trends",
+      'Write a follow-up email to the client',
+      'Summarize our latest product updates',
+    ],
     knowledgeEnabled: true,
     includeOrgKnowledge: true,
     filePreprocessingEnabled: true,

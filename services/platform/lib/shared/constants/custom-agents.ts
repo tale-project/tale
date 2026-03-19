@@ -1,3 +1,6 @@
+export const MAX_CONVERSATION_STARTERS = 4;
+export const MAX_CONVERSATION_STARTER_LENGTH = 200;
+
 /**
  * Prompt suffix injected into custom agent system instructions when
  * file preprocessing is enabled. Shared between backend (config.ts)

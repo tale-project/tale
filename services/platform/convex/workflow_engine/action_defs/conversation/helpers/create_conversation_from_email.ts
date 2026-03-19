@@ -14,6 +14,7 @@ import { buildConversationMetadata } from './build_conversation_metadata';
 import { buildInitialMessage } from './build_initial_message';
 import { checkConversationExists } from './check_conversation_exists';
 import { checkMessageExists } from './check_message_exists';
+import { MAX_EMAILS_PER_BATCH } from './constants';
 import { findOrCreateCustomerFromEmail } from './find_or_create_customer_from_email';
 import { normalizeEmails } from './normalize_email';
 import { updateMessage } from './update_message';
@@ -71,10 +72,26 @@ export async function createConversationFromEmail(
   // normalizeEmails detects raw Gmail API responses and maps them to EmailType
   const emailsArray: EmailType[] = normalizeEmails(params.emails);
 
+  if (emailsArray.length === 0) {
+    return { conversationId: null, created: false, reason: 'no_emails' };
+  }
+
   // Sort emails by date (chronological order - oldest first)
   emailsArray.sort(
     (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
   );
+
+  // Cap email count to stay within Convex action argument size limits.
+  // Keeping oldest-first preserves the root email needed for threading.
+  if (emailsArray.length > MAX_EMAILS_PER_BATCH) {
+    debugLog(
+      'create_from_email Truncating emails from',
+      emailsArray.length,
+      'to',
+      MAX_EMAILS_PER_BATCH,
+    );
+    emailsArray.length = MAX_EMAILS_PER_BATCH;
+  }
 
   debugLog('create_from_email Processing', emailsArray.length, 'emails');
 
@@ -207,6 +224,14 @@ export async function createConversationFromEmail(
   }
 
   debugLog('create_from_email Using root message ID:', rootMessageId);
+
+  if (!rootMessageId) {
+    return {
+      conversationId: null,
+      created: false,
+      reason: 'no_message_id',
+    };
+  }
 
   // Check if conversation already exists for the root email
   const existingConversation = await checkConversationExists(
