@@ -96,14 +96,14 @@ function RadioIndicator() {
             r="6"
             stroke="currentColor"
             strokeWidth="1.5"
-            className="text-primary"
+            className="text-blue-600"
           />
           <circle
             cx="7"
             cy="7"
             r="3.5"
             fill="currentColor"
-            className="text-primary"
+            className="text-blue-600"
           />
         </svg>
       </DropdownMenuPrimitive.ItemIndicator>

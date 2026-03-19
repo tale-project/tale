@@ -2004,6 +2004,7 @@
       "reopenFailed": "Failed to reopen conversations"
     },
     "header": {
+      "moreActions": "More actions",
       "customerInfo": "Customer info",
       "closeConversation": "Close conversation",
       "closing": "Closing...",
