@@ -89,6 +89,19 @@ function WorkflowUpdateApprovalCardComponent({
         2,
       );
     }
+    if (metadata.updateType === 'multi_step_patch') {
+      return JSON.stringify(
+        {
+          steps: metadata.steps?.map((s) => ({
+            stepRecordId: s.stepRecordId,
+            stepName: s.stepName,
+            updates: s.stepUpdates,
+          })),
+        },
+        null,
+        2,
+      );
+    }
     return JSON.stringify(
       {
         stepRecordId: metadata.stepRecordId,
@@ -169,7 +182,9 @@ function WorkflowUpdateApprovalCardComponent({
             <Badge variant="outline" className="mt-0.5 text-[10px]">
               {metadata.updateType === 'full_save'
                 ? 'Update workflow'
-                : 'Update step'}
+                : metadata.updateType === 'multi_step_patch'
+                  ? `Update ${metadata.steps?.length ?? 0} steps`
+                  : 'Update step'}
             </Badge>
           </div>
         </HStack>
@@ -211,7 +226,9 @@ function WorkflowUpdateApprovalCardComponent({
             )}
             {metadata.updateType === 'full_save'
               ? `${metadata.stepsConfig?.length ?? 0} steps`
-              : `Step: ${metadata.stepName ?? 'unknown'}`}
+              : metadata.updateType === 'multi_step_patch'
+                ? `${metadata.steps?.length ?? 0} steps`
+                : `Step: ${metadata.stepName ?? 'unknown'}`}
           </button>
           <Tooltip content={copied ? 'Copied!' : 'Copy configuration'}>
             <button
@@ -257,6 +274,23 @@ function WorkflowUpdateApprovalCardComponent({
                     {step.name}
                   </Text>
                 </HStack>
+              ))}
+            </div>
+          )}
+
+        {showDetails &&
+          metadata.updateType === 'multi_step_patch' &&
+          metadata.steps && (
+            <div className="bg-muted/50 space-y-1.5 rounded-md p-2">
+              {metadata.steps.map((step) => (
+                <div key={step.stepRecordId} className="space-y-0.5">
+                  <Text as="div" variant="label" className="text-[11px]">
+                    {step.stepName}
+                  </Text>
+                  <div className="text-muted-foreground pl-2 text-[10px]">
+                    {Object.keys(step.stepUpdates).join(', ')}
+                  </div>
+                </div>
               ))}
             </div>
           )}

@@ -35,8 +35,9 @@ export function replaceVariablesInString(
       const evalResult = jexlInstance.evalSync(expression, context);
 
       if (isNil(evalResult)) {
-        // Keep original if evaluation returns null/undefined
-        result += '';
+        // Preserve original template for unresolved variables — allows
+        // downstream processors to substitute them in a later pass.
+        result += `{{${expression}}}`;
       } else if (isString(evalResult)) {
         result += evalResult;
       } else if (isBoolean(evalResult) || isNumber(evalResult)) {

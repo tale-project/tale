@@ -681,6 +681,7 @@ import type * as workflow_engine_helpers_nodes_llm_extract_json_from_text from "
 import type * as workflow_engine_helpers_nodes_llm_types from "../workflow_engine/helpers/nodes/llm/types.js";
 import type * as workflow_engine_helpers_nodes_llm_types_workflow_termination from "../workflow_engine/helpers/nodes/llm/types/workflow_termination.js";
 import type * as workflow_engine_helpers_nodes_llm_utils_build_agent_steps_summary from "../workflow_engine/helpers/nodes/llm/utils/build_agent_steps_summary.js";
+import type * as workflow_engine_helpers_nodes_llm_utils_build_human_input_context from "../workflow_engine/helpers/nodes/llm/utils/build_human_input_context.js";
 import type * as workflow_engine_helpers_nodes_llm_utils_create_llm_result from "../workflow_engine/helpers/nodes/llm/utils/create_llm_result.js";
 import type * as workflow_engine_helpers_nodes_llm_utils_extract_tool_diagnostics from "../workflow_engine/helpers/nodes/llm/utils/extract_tool_diagnostics.js";
 import type * as workflow_engine_helpers_nodes_llm_utils_process_agent_result from "../workflow_engine/helpers/nodes/llm/utils/process_agent_result.js";
@@ -1540,6 +1541,7 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/helpers/nodes/llm/types": typeof workflow_engine_helpers_nodes_llm_types;
   "workflow_engine/helpers/nodes/llm/types/workflow_termination": typeof workflow_engine_helpers_nodes_llm_types_workflow_termination;
   "workflow_engine/helpers/nodes/llm/utils/build_agent_steps_summary": typeof workflow_engine_helpers_nodes_llm_utils_build_agent_steps_summary;
+  "workflow_engine/helpers/nodes/llm/utils/build_human_input_context": typeof workflow_engine_helpers_nodes_llm_utils_build_human_input_context;
   "workflow_engine/helpers/nodes/llm/utils/create_llm_result": typeof workflow_engine_helpers_nodes_llm_utils_create_llm_result;
   "workflow_engine/helpers/nodes/llm/utils/extract_tool_diagnostics": typeof workflow_engine_helpers_nodes_llm_utils_extract_tool_diagnostics;
   "workflow_engine/helpers/nodes/llm/utils/process_agent_result": typeof workflow_engine_helpers_nodes_llm_utils_process_agent_result;

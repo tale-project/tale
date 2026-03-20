@@ -136,6 +136,28 @@ export const listApprovalsByOrganization = query({
   },
 });
 
+export const listActiveApprovalsByOrganization = query({
+  args: {
+    organizationId: v.string(),
+    limit: v.optional(v.number()),
+  },
+  returns: v.array(approvalItemValidator),
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) {
+      return [];
+    }
+
+    try {
+      await getOrganizationMember(ctx, args.organizationId, authUser);
+    } catch {
+      return [];
+    }
+
+    return await ApprovalsHelpers.listActiveApprovalsByOrganization(ctx, args);
+  },
+});
+
 export const getPendingIntegrationApprovalsForThread = query({
   args: {
     threadId: v.string(),

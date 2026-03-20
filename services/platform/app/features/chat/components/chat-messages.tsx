@@ -10,14 +10,9 @@ import { useT } from '@/lib/i18n/client';
 
 import type { ChatItem } from '../hooks/use-merged-chat-items';
 
-import { DocumentWriteApprovalCard } from './document-write-approval-card';
-import { HumanInputRequestCard } from './human-input-request-card';
-import { IntegrationApprovalCard } from './integration-approval-card';
+import { ApprovalCardRenderer } from './approval-card-renderer';
 import { MessageBubble } from './message-bubble';
 import { ThinkingAnimation } from './thinking-animation';
-import { WorkflowCreationApprovalCard } from './workflow-creation-approval-card';
-import { WorkflowRunApprovalCard } from './workflow-run-approval-card';
-import { WorkflowUpdateApprovalCard } from './workflow-update-approval-card';
 
 interface ChatMessagesProps {
   items: ChatItem[];
@@ -29,12 +24,13 @@ interface ChatMessagesProps {
   activeMessage: UIMessage | undefined;
   isLoading: boolean;
   aiResponseAreaRef: RefObject<HTMLDivElement | null>;
+  activeApproval: ChatItem | null;
   onHumanInputResponseSubmitted?: () => void;
   onSendFollowUp?: (message: string) => void;
 }
 
 /**
- * Renders the chat message list with approvals and thinking animation.
+ * Renders the chat message list with a single active approval at the bottom.
  */
 export function ChatMessages({
   items,
@@ -46,6 +42,7 @@ export function ChatMessages({
   activeMessage,
   isLoading,
   aiResponseAreaRef,
+  activeApproval,
   onHumanInputResponseSubmitted,
   onSendFollowUp,
 }: ChatMessagesProps) {
@@ -80,153 +77,59 @@ export function ChatMessages({
         </div>
       )}
 
-      {/* Render merged messages and approvals */}
+      {/* Render messages only (approvals are rendered separately at bottom) */}
       {items.map((item) => {
-        if (item.type === 'message') {
-          const message = item.data;
+        if (item.type !== 'message') return null;
 
-          // Render human input response as a special system message
-          if (message.isHumanInputResponse && message.role === 'system') {
-            // Parse the response from the message content
-            // Format: "User responded to question \"<question>\": <response>"
-            const match = message.content.match(
-              /^User responded to question "(.*?)": ([\s\S]+)$/,
-            );
-            const response = match?.[2] ?? message.content;
+        const message = item.data;
 
-            return (
-              <div key={message.key} className="flex justify-end">
-                <div className="bg-primary/10 text-primary flex items-center gap-2 rounded-full px-4 py-2 text-sm">
-                  <CheckCircle2 className="size-4" />
-                  <span>{response}</span>
-                </div>
+        // Render human input response as a special system message
+        if (message.isHumanInputResponse && message.role === 'system') {
+          const match = message.content.match(
+            /^User responded to question "(.*?)": ([\s\S]+)$/,
+          );
+          const response = match?.[2] ?? message.content;
+
+          return (
+            <div key={message.key} className="flex justify-end">
+              <div className="bg-primary/10 text-primary flex items-center gap-2 rounded-full px-4 py-2 text-sm">
+                <CheckCircle2 className="size-4" />
+                <span>{response}</span>
               </div>
-            );
-          }
-
-          const shouldShow =
-            message.role === 'user' ||
-            message.content !== '' ||
-            message.isAborted;
-
-          return shouldShow ? (
-            <MessageBubble
-              key={message.key}
-              message={{
-                ...message,
-                role: message.role === 'user' ? 'user' : 'assistant',
-                threadId: threadId,
-              }}
-              onSendFollowUp={onSendFollowUp}
-            />
-          ) : null;
-        } else if (item.type === 'approval') {
-          const approval = item.data;
-          return (
-            <div
-              key={`approval-${approval._id}`}
-              className="flex justify-start"
-            >
-              <IntegrationApprovalCard
-                approvalId={approval._id}
-                organizationId={organizationId}
-                status={approval.status}
-                metadata={approval.metadata}
-                executedAt={approval.executedAt}
-                executionError={approval.executionError}
-              />
-            </div>
-          );
-        } else if (item.type === 'workflow_approval') {
-          const approval = item.data;
-          return (
-            <div
-              key={`workflow-approval-${approval._id}`}
-              className="flex justify-start"
-            >
-              <WorkflowCreationApprovalCard
-                approvalId={approval._id}
-                organizationId={organizationId}
-                status={approval.status}
-                metadata={approval.metadata}
-                executedAt={approval.executedAt}
-                executionError={approval.executionError}
-              />
-            </div>
-          );
-        } else if (item.type === 'workflow_run_approval') {
-          const approval = item.data;
-          return (
-            <div
-              key={`workflow-run-approval-${approval._id}`}
-              className="flex justify-start"
-            >
-              <WorkflowRunApprovalCard
-                approvalId={approval._id}
-                organizationId={organizationId}
-                status={approval.status}
-                metadata={approval.metadata}
-                executedAt={approval.executedAt}
-                executionError={approval.executionError}
-              />
-            </div>
-          );
-        } else if (item.type === 'workflow_update_approval') {
-          const approval = item.data;
-          return (
-            <div
-              key={`workflow-update-approval-${approval._id}`}
-              className="flex justify-start"
-            >
-              <WorkflowUpdateApprovalCard
-                approvalId={approval._id}
-                organizationId={organizationId}
-                status={approval.status}
-                metadata={approval.metadata}
-                executedAt={approval.executedAt}
-                executionError={approval.executionError}
-              />
-            </div>
-          );
-        } else if (item.type === 'human_input_request') {
-          const request = item.data;
-          return (
-            <div
-              key={`human-input-${request._id}`}
-              className="flex justify-start"
-            >
-              <HumanInputRequestCard
-                approvalId={request._id}
-                status={request.status}
-                metadata={request.metadata}
-                onResponseSubmitted={onHumanInputResponseSubmitted}
-              />
-            </div>
-          );
-        } else if (item.type === 'document_write_approval') {
-          const approval = item.data;
-          return (
-            <div
-              key={`document-write-${approval._id}`}
-              className="flex justify-start"
-            >
-              <DocumentWriteApprovalCard
-                approvalId={approval._id}
-                organizationId={organizationId}
-                status={approval.status}
-                metadata={approval.metadata}
-                executedAt={approval.executedAt}
-                executionError={approval.executionError}
-              />
             </div>
           );
         }
-        return null;
+
+        const shouldShow =
+          message.role === 'user' ||
+          message.content !== '' ||
+          message.isAborted;
+
+        return shouldShow ? (
+          <MessageBubble
+            key={message.key}
+            message={{
+              ...message,
+              role: message.role === 'user' ? 'user' : 'assistant',
+              threadId: threadId,
+            }}
+            onSendFollowUp={onSendFollowUp}
+          />
+        ) : null;
       })}
 
       <div ref={aiResponseAreaRef}>
         {isLoading && <ThinkingAnimation streamingMessage={activeMessage} />}
       </div>
+
+      {/* Single active approval always at the bottom */}
+      {activeApproval && (
+        <ApprovalCardRenderer
+          item={activeApproval}
+          organizationId={organizationId}
+          onHumanInputResponseSubmitted={onHumanInputResponseSubmitted}
+        />
+      )}
     </div>
   );
 }

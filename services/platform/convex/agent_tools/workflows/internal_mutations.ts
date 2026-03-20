@@ -412,6 +412,52 @@ export const createWorkflowStepUpdateApproval = internalMutation({
   },
 });
 
+export const createBatchWorkflowStepUpdateApproval = internalMutation({
+  args: {
+    organizationId: v.string(),
+    workflowId: v.id('wfDefinitions'),
+    workflowName: v.string(),
+    workflowVersionNumber: v.number(),
+    updateSummary: v.string(),
+    steps: v.array(
+      v.object({
+        stepRecordId: v.id('wfStepDefs'),
+        stepName: v.string(),
+        stepUpdates: jsonRecordValidator,
+      }),
+    ),
+    threadId: v.optional(v.string()),
+    messageId: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<Id<'approvals'>> => {
+    const metadata: WorkflowUpdateMetadata = {
+      updateType: 'multi_step_patch',
+      updateSummary: args.updateSummary,
+      workflowId: args.workflowId,
+      workflowName: args.workflowName,
+      workflowVersionNumber: args.workflowVersionNumber,
+      steps: args.steps.map((s) => ({
+        stepRecordId: s.stepRecordId,
+        stepName: s.stepName,
+        stepUpdates: Object.fromEntries(Object.entries(s.stepUpdates)),
+      })),
+      requestedAt: Date.now(),
+    };
+
+    const stepNames = args.steps.map((s) => `"${s.stepName}"`).join(', ');
+    return await createApproval(ctx, {
+      organizationId: args.organizationId,
+      resourceType: 'workflow_update',
+      resourceId: `workflow_update:${args.workflowId}:batch:${Date.now()}`,
+      priority: 'high',
+      description: `Update ${args.steps.length} steps (${stepNames}) in workflow "${args.workflowName}" — ${args.updateSummary}`,
+      threadId: args.threadId,
+      messageId: args.messageId,
+      metadata,
+    });
+  },
+});
+
 export const updateWorkflowUpdateApprovalWithResult = internalMutation({
   args: {
     approvalId: v.id('approvals'),

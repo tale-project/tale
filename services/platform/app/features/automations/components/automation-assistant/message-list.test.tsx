@@ -98,11 +98,12 @@ describe('MessageList', () => {
   afterEach(cleanup);
 
   describe('approval rendering', () => {
-    it('renders approval inline after its linked message', () => {
+    it('renders a pending approval at the bottom', () => {
       const message = createMessage({ id: 'msg-1', content: 'AI response' });
       const approval = createUpdateApproval({
         _id: 'approval-1' as Id<'approvals'>,
         messageId: 'msg-1',
+        status: 'pending',
       });
 
       render(
@@ -119,102 +120,109 @@ describe('MessageList', () => {
       ).toBeInTheDocument();
     });
 
-    it('does not render approval whose messageId does not match any loaded message', () => {
+    it('does not render completed approvals', () => {
       const message = createMessage({ id: 'msg-2', content: 'Recent message' });
-      const orphanedApproval = createUpdateApproval({
-        _id: 'orphaned-approval' as Id<'approvals'>,
-        messageId: 'msg-evicted',
+      const completedApproval = createUpdateApproval({
+        _id: 'completed-ap' as Id<'approvals'>,
+        messageId: 'msg-2',
+        status: 'completed',
       });
 
       render(
         <MessageList
           {...defaultProps}
           displayMessages={[message]}
-          workflowUpdateApprovals={[orphanedApproval]}
+          workflowUpdateApprovals={[completedApproval]}
           workflowCreationApprovals={[]}
         />,
       );
 
       expect(
-        screen.queryByTestId('update-approval-orphaned-approval'),
+        screen.queryByTestId('update-approval-completed-ap'),
       ).not.toBeInTheDocument();
     });
 
-    it('does not render approval without a messageId', () => {
+    it('does not render rejected approvals', () => {
       const message = createMessage({ id: 'msg-3' });
-      const noMessageIdApproval = createUpdateApproval({
-        _id: 'no-mid-approval' as Id<'approvals'>,
-        messageId: undefined,
-      });
-
-      render(
-        <MessageList
-          {...defaultProps}
-          displayMessages={[message]}
-          workflowUpdateApprovals={[noMessageIdApproval]}
-          workflowCreationApprovals={[]}
-        />,
-      );
-
-      expect(
-        screen.queryByTestId('update-approval-no-mid-approval'),
-      ).not.toBeInTheDocument();
-    });
-
-    it('renders multiple approvals on the same message', () => {
-      const message = createMessage({ id: 'msg-4' });
-      const approval1 = createUpdateApproval({
-        _id: 'ap-1' as Id<'approvals'>,
-        messageId: 'msg-4',
-      });
-      const approval2 = createCreationApproval({
-        _id: 'ap-2' as Id<'approvals'>,
-        messageId: 'msg-4',
-      });
-
-      render(
-        <MessageList
-          {...defaultProps}
-          displayMessages={[message]}
-          workflowUpdateApprovals={[approval1]}
-          workflowCreationApprovals={[approval2]}
-        />,
-      );
-
-      expect(screen.getByTestId('update-approval-ap-1')).toBeInTheDocument();
-      expect(screen.getByTestId('creation-approval-ap-2')).toBeInTheDocument();
-    });
-
-    it('does not render orphaned approvals at the bottom when messages are evicted from pagination', () => {
-      const loadedMessage = createMessage({
-        id: 'msg-recent',
-        content: 'Recent',
-      });
-      const evictedApproval = createUpdateApproval({
-        _id: 'evicted-ap' as Id<'approvals'>,
-        messageId: 'msg-old-evicted',
+      const rejectedApproval = createUpdateApproval({
+        _id: 'rejected-ap' as Id<'approvals'>,
+        messageId: 'msg-3',
         status: 'rejected',
       });
-      const linkedApproval = createUpdateApproval({
-        _id: 'linked-ap' as Id<'approvals'>,
-        messageId: 'msg-recent',
-        status: 'pending',
-      });
 
       render(
         <MessageList
           {...defaultProps}
-          displayMessages={[loadedMessage]}
-          workflowUpdateApprovals={[evictedApproval, linkedApproval]}
+          displayMessages={[message]}
+          workflowUpdateApprovals={[rejectedApproval]}
           workflowCreationApprovals={[]}
         />,
       );
 
       expect(
-        screen.getByTestId('update-approval-linked-ap'),
+        screen.queryByTestId('update-approval-rejected-ap'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('shows only the latest pending approval when multiple exist', () => {
+      const message = createMessage({ id: 'msg-4' });
+      const olderApproval = createUpdateApproval({
+        _id: 'ap-1' as Id<'approvals'>,
+        messageId: 'msg-4',
+        status: 'pending',
+        _creationTime: 1000,
+      });
+      const newerApproval = createCreationApproval({
+        _id: 'ap-2' as Id<'approvals'>,
+        messageId: 'msg-4',
+        status: 'pending',
+        _creationTime: 2000,
+      });
+
+      render(
+        <MessageList
+          {...defaultProps}
+          displayMessages={[message]}
+          workflowUpdateApprovals={[olderApproval]}
+          workflowCreationApprovals={[newerApproval]}
+        />,
+      );
+
+      // Only the latest (ap-2) should be shown
+      expect(screen.getByTestId('creation-approval-ap-2')).toBeInTheDocument();
+      expect(
+        screen.queryByTestId('update-approval-ap-1'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('shows only the latest active approval when multiple pending exist across types', () => {
+      const message = createMessage({ id: 'msg-5' });
+      const olderPending = createUpdateApproval({
+        _id: 'older-ap' as Id<'approvals'>,
+        status: 'pending',
+        _creationTime: 1000,
+      });
+      const newerPending = createUpdateApproval({
+        _id: 'newer-ap' as Id<'approvals'>,
+        status: 'pending',
+        _creationTime: 2000,
+      });
+
+      render(
+        <MessageList
+          {...defaultProps}
+          displayMessages={[message]}
+          workflowUpdateApprovals={[olderPending, newerPending]}
+          workflowCreationApprovals={[]}
+        />,
+      );
+
+      // Only the latest (newer-ap) should render
+      expect(
+        screen.getByTestId('update-approval-newer-ap'),
       ).toBeInTheDocument();
       expect(
-        screen.queryByTestId('update-approval-evicted-ap'),
+        screen.queryByTestId('update-approval-older-ap'),
       ).not.toBeInTheDocument();
     });
   });

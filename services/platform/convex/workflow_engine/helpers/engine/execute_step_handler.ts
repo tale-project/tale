@@ -12,6 +12,7 @@ import { internal } from '../../../_generated/api';
 import { createDebugLog } from '../../../lib/debug_log';
 import { toId } from '../../../lib/type_cast_helpers';
 import { replaceVariables } from '../../../lib/variables/replace_variables';
+import { buildHumanInputContext } from '../nodes/llm/utils/build_human_input_context';
 import { buildStepsMap } from '../step_execution/build_steps_map';
 import { executeStepByType } from '../step_execution/execute_step_by_type';
 import { extractEssentialLoopVariables } from '../step_execution/extract_essential_loop_variables';
@@ -137,9 +138,21 @@ export async function handleExecuteStep(
     });
   }
 
+  // Build humanInputContext for LLM steps so {{humanInputContext}} is available
+  // during config-level variable substitution. This is ephemeral — only used for
+  // replaceVariables, NOT persisted into execution state (see persistExecutionResult).
+  let configVariables = fullVariables;
+  if (args.stepType === 'llm' && args.executionId) {
+    const humanInputContext = await buildHumanInputContext(
+      ctx,
+      args.executionId,
+    );
+    configVariables = { ...fullVariables, humanInputContext };
+  }
+
   const processedConfig = isSetVariablesAction
     ? stepDef.config
-    : replaceVariables(stepDef.config, fullVariables);
+    : replaceVariables(stepDef.config, configVariables);
 
   // Debug: Log after variable replacement for LLM steps
   if (args.stepType === 'llm' && isRecord(processedConfig)) {

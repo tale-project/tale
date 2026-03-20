@@ -115,9 +115,9 @@ export function useThreadMessages(threadId: string | null) {
   return results;
 }
 
-function useApprovals(organizationId: string) {
+function useActiveApprovals(organizationId: string) {
   const { data, isLoading } = useConvexQuery(
-    api.approvals.queries.listApprovalsByOrganization,
+    api.approvals.queries.listActiveApprovalsByOrganization,
     { organizationId },
   );
 
@@ -139,7 +139,7 @@ export function useHumanInputRequests(
   organizationId: string,
   threadId: string | undefined,
 ) {
-  const { approvals, isLoading } = useApprovals(organizationId);
+  const { approvals, isLoading } = useActiveApprovals(organizationId);
 
   const humanInputRequests = useMemo((): HumanInputRequest[] => {
     if (!approvals || !threadId) return [];
@@ -195,7 +195,7 @@ export function useIntegrationApprovals(
   organizationId: string,
   threadId: string | undefined,
 ) {
-  const { approvals, isLoading } = useApprovals(organizationId);
+  const { approvals, isLoading } = useActiveApprovals(organizationId);
 
   const integrationApprovals = useMemo((): IntegrationApproval[] => {
     if (!approvals || !threadId) return [];
@@ -238,7 +238,7 @@ export function useWorkflowCreationApprovals(
   organizationId: string,
   threadId: string | undefined,
 ) {
-  const { approvals, isLoading } = useApprovals(organizationId);
+  const { approvals, isLoading } = useActiveApprovals(organizationId);
 
   const workflowCreationApprovals = useMemo((): WorkflowCreationApproval[] => {
     if (!approvals || !threadId) return [];
@@ -281,7 +281,7 @@ export function useWorkflowRunApprovals(
   organizationId: string,
   threadId: string | undefined,
 ) {
-  const { approvals, isLoading } = useApprovals(organizationId);
+  const { approvals, isLoading } = useActiveApprovals(organizationId);
 
   const workflowRunApprovals = useMemo((): WorkflowRunApproval[] => {
     if (!approvals || !threadId) return [];
@@ -324,7 +324,7 @@ export function useWorkflowUpdateApprovals(
   organizationId: string,
   threadId: string | undefined,
 ) {
-  const { approvals, isLoading } = useApprovals(organizationId);
+  const { approvals, isLoading } = useActiveApprovals(organizationId);
 
   const workflowUpdateApprovals = useMemo((): WorkflowUpdateApproval[] => {
     if (!approvals || !threadId) return [];
@@ -367,7 +367,7 @@ export function useDocumentWriteApprovals(
   organizationId: string,
   threadId: string | undefined,
 ) {
-  const { approvals, isLoading } = useApprovals(organizationId);
+  const { approvals, isLoading } = useActiveApprovals(organizationId);
 
   const documentWriteApprovals = useMemo((): DocumentWriteApproval[] => {
     if (!approvals || !threadId) return [];

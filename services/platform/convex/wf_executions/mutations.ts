@@ -109,7 +109,7 @@ export const cancelExecution = mutationWithRLS({
             threadId: approval.threadId,
             message: {
               role: 'system',
-              content: `[WORKFLOW_CANCELLED]\nThe user manually stopped the running workflow "${execution.workflowSlug ?? 'unknown'}".\n\nInstructions:\n- Acknowledge that the user cancelled the workflow execution\n- Do NOT speculate about technical errors\n- Ask if they would like to try again or take a different approach`,
+              content: `[WORKFLOW_CANCELLED]\nWorkflow "${execution.workflowSlug ?? 'unknown'}" was stopped.`,
             },
           });
         }

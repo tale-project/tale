@@ -96,7 +96,11 @@ export async function handleWorkflowComplete(
   if (!wasTerminal) {
     // Mark the triggering approval as completed/rejected now that the workflow is done
     await updateTriggeringApprovalStatus(ctx, exec, kind);
-    await postCompletionMessageToThread(ctx, exec, kind, result);
+    // Skip completion message for canceled workflows — cancelExecution
+    // already posts [WORKFLOW_CANCELLED] to the thread
+    if (kind !== 'canceled') {
+      await postCompletionMessageToThread(ctx, exec, kind, result);
+    }
   }
 }
 

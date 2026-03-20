@@ -2,7 +2,7 @@
 
 import { m, AnimatePresence } from 'framer-motion';
 import { ArrowDown } from 'lucide-react';
-import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 
 import { PanelFooter } from '@/app/components/layout/panel-footer';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
@@ -142,39 +142,8 @@ export function ChatInterface({
     threadId,
   );
 
-  // Block input when any pending or executing approval exists
-  const hasActiveApproval = useMemo(
-    () =>
-      (integrationApprovals ?? []).some(
-        (a) => a.status === 'pending' || a.status === 'executing',
-      ) ||
-      (workflowCreationApprovals ?? []).some(
-        (a) => a.status === 'pending' || a.status === 'executing',
-      ) ||
-      (workflowUpdateApprovals ?? []).some(
-        (a) => a.status === 'pending' || a.status === 'executing',
-      ) ||
-      (workflowRunApprovals ?? []).some(
-        (a) => a.status === 'pending' || a.status === 'executing',
-      ) ||
-      (humanInputRequests ?? []).some(
-        (a) => a.status === 'pending' || a.status === 'executing',
-      ) ||
-      (documentWriteApprovals ?? []).some(
-        (a) => a.status === 'pending' || a.status === 'executing',
-      ),
-    [
-      integrationApprovals,
-      workflowCreationApprovals,
-      workflowUpdateApprovals,
-      workflowRunApprovals,
-      humanInputRequests,
-      documentWriteApprovals,
-    ],
-  );
-
   // Merge messages with approvals and human input requests
-  const mergedChatItems = useMergedChatItems({
+  const { messages: mergedMessages, activeApproval } = useMergedChatItems({
     messages,
     integrationApprovals,
     workflowCreationApprovals,
@@ -183,6 +152,9 @@ export function ChatInterface({
     humanInputRequests,
     documentWriteApprovals,
   });
+
+  // Block input when any pending or executing approval exists
+  const hasActiveApproval = activeApproval !== null;
 
   // Server-derived generation status (reactive Convex subscription)
   const { data: isGenerating } = useConvexQuery(
@@ -342,7 +314,7 @@ export function ChatInterface({
 
         {showMessages && (
           <ChatMessages
-            items={mergedChatItems}
+            items={mergedMessages}
             threadId={threadId}
             organizationId={organizationId}
             canLoadMore={canLoadMore}
@@ -351,6 +323,7 @@ export function ChatInterface({
             activeMessage={activeMessage}
             isLoading={isLoading}
             aiResponseAreaRef={aiResponseAreaRef}
+            activeApproval={activeApproval}
             onHumanInputResponseSubmitted={handleHumanInputResponseSubmitted}
             onSendFollowUp={handleSendFollowUp}
           />

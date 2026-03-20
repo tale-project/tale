@@ -391,6 +391,32 @@ export const executeApprovedWorkflowUpdate = internalAction({
             `Step "${metadata.stepName ?? metadata.stepRecordId}" not found — it may have been deleted`,
           );
         }
+      } else if (metadata.updateType === 'multi_step_patch') {
+        if (!metadata.steps || metadata.steps.length === 0) {
+          throw new Error(
+            'Invalid approval metadata: missing steps array for multi-step patch',
+          );
+        }
+
+        const results = await ctx.runMutation(
+          internal.wf_step_defs.internal_mutations.batchPatchSteps,
+          {
+            stepPatches: metadata.steps.map((s) => ({
+              stepRecordId: toId<'wfStepDefs'>(s.stepRecordId),
+              updates: s.stepUpdates,
+            })),
+          },
+        );
+
+        if (results.some((r) => r === null)) {
+          const missing = metadata.steps
+            .filter((_, i) => results[i] === null)
+            .map((s) => `"${s.stepName}"`)
+            .join(', ');
+          throw new Error(
+            `Steps ${missing} not found — they may have been deleted`,
+          );
+        }
       } else {
         throw new Error(`Unknown update type: ${String(metadata.updateType)}`);
       }
@@ -411,7 +437,9 @@ export const executeApprovedWorkflowUpdate = internalAction({
           const updateDetail =
             metadata.updateType === 'full_save'
               ? `All steps replaced (${metadata.stepsConfig?.length ?? 0} steps)`
-              : `Step "${metadata.stepName ?? 'unknown'}" updated`;
+              : metadata.updateType === 'multi_step_patch'
+                ? `${metadata.steps?.length ?? 0} steps updated: ${metadata.steps?.map((s) => `"${s.stepName}"`).join(', ')}`
+                : `Step "${metadata.stepName ?? 'unknown'}" updated`;
 
           const messageContent = `[WORKFLOW_UPDATED]
 The user has approved the workflow update request.
