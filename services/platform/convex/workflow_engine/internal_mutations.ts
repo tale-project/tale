@@ -6,7 +6,6 @@ import { jsonValueValidator } from '../lib/validators/json';
 import { workflowManagers } from './engine';
 import * as EngineHelpers from './helpers/engine';
 import { safeShardIndex } from './helpers/engine/shard';
-import { handleStartWorkflow } from './helpers/engine/start_workflow_handler';
 import { recoverStuckExecutions } from './helpers/recovery';
 
 export const onWorkflowComplete = internalMutation({
@@ -32,20 +31,6 @@ export const cleanupComponentWorkflow = internalMutation({
     const manager = workflowManagers[safeShardIndex(args.shardIndex)];
     await EngineHelpers.cleanupComponentWorkflow(manager, ctx, args.workflowId);
     return null;
-  },
-});
-
-export const startWorkflow = internalMutation({
-  args: {
-    organizationId: v.string(),
-    wfDefinitionId: v.id('wfDefinitions'),
-    input: v.optional(jsonValueValidator),
-    triggeredBy: v.string(),
-    triggerData: v.optional(jsonValueValidator),
-  },
-  returns: v.id('wfExecutions'),
-  handler: async (ctx, args) => {
-    return await handleStartWorkflow(ctx, args, workflowManagers);
   },
 });
 

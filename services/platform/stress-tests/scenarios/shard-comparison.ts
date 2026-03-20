@@ -72,7 +72,7 @@ async function runPhase(
 
     try {
       const executionId = await client.mutation(
-        api.workflow_engine.mutations.startWorkflow,
+        api.wf_executions.mutations.startWorkflow,
         {
           organizationId,
           wfDefinitionId: defId as Id<'wfDefinitions'>,

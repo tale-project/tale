@@ -50,7 +50,7 @@ async function run() {
     metrics.track(id);
     try {
       const executionId = await client.mutation(
-        api.workflow_engine.mutations.startWorkflow,
+        api.wf_executions.mutations.startWorkflow,
         {
           organizationId,
           wfDefinitionId: wfDefinitionId as Id<'wfDefinitions'>,

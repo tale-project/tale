@@ -85,7 +85,7 @@ export async function processEventHandler(
 
     await ctx.scheduler.runAfter(
       0,
-      internal.workflow_engine.internal_mutations.startWorkflow,
+      internal.wf_executions.internal_mutations.startWorkflow,
       {
         organizationId: args.organizationId,
         wfDefinitionId: activeVersion._id,

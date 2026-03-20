@@ -191,7 +191,7 @@ export const executeApprovedWorkflowRun = internalAction({
 
     try {
       const executionId = await ctx.runMutation(
-        internal.workflow_engine.internal_mutations.startWorkflow,
+        internal.wf_executions.internal_mutations.startWorkflow,
         {
           organizationId: approval.organizationId,
           wfDefinitionId: toId<'wfDefinitions'>(metadata.workflowId),
