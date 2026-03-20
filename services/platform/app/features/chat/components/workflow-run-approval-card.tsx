@@ -548,7 +548,6 @@ function WorkflowHumanInputSection({
   onSubmit,
 }: WorkflowHumanInputSectionProps) {
   const { t } = useT('workflowRunApproval');
-  const { t: tCommon } = useT('approvalCommon');
   const meta = approval.metadata ?? {};
   const question =
     typeof meta.question === 'string'
@@ -668,8 +667,7 @@ function WorkflowHumanInputSection({
             <button
               key={val}
               type="button"
-              role="checkbox"
-              aria-checked={isChecked}
+              aria-pressed={isChecked}
               className={cn(
                 'flex items-start gap-3 rounded-lg border p-3 text-left transition-all',
                 isChecked

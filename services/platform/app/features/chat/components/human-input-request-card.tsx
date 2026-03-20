@@ -199,8 +199,7 @@ function HumanInputRequestCardComponent({
                 <button
                   type="button"
                   key={value}
-                  role="checkbox"
-                  aria-checked={isChecked}
+                  aria-pressed={isChecked}
                   className={cn(
                     'flex items-start space-x-3 p-3 rounded-lg border transition-all cursor-pointer',
                     isChecked
