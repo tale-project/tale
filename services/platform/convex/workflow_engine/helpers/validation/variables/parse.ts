@@ -148,6 +148,7 @@ function parseExpression(
     'executionId',
     'now',
     'nowMs',
+    'humanInputContext',
   ];
   if (systemVars.includes(firstPart)) {
     return {

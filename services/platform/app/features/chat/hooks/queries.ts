@@ -115,9 +115,9 @@ export function useThreadMessages(threadId: string | null) {
   return results;
 }
 
-function useApprovals(organizationId: string) {
+function useActiveApprovals(organizationId: string) {
   const { data, isLoading } = useConvexQuery(
-    api.approvals.queries.listApprovalsByOrganization,
+    api.approvals.queries.listActiveApprovalsByOrganization,
     { organizationId },
   );
 
@@ -129,7 +129,7 @@ function useApprovals(organizationId: string) {
 
 export interface HumanInputRequest {
   _id: Id<'approvals'>;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'executing' | 'completed' | 'rejected';
   metadata: HumanInputRequestMetadata;
   _creationTime: number;
   messageId?: string;
@@ -139,7 +139,7 @@ export function useHumanInputRequests(
   organizationId: string,
   threadId: string | undefined,
 ) {
-  const { approvals, isLoading } = useApprovals(organizationId);
+  const { approvals, isLoading } = useActiveApprovals(organizationId);
 
   const humanInputRequests = useMemo((): HumanInputRequest[] => {
     if (!approvals || !threadId) return [];
@@ -183,7 +183,7 @@ export interface IntegrationOperationMetadata {
 
 export interface IntegrationApproval {
   _id: Id<'approvals'>;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'executing' | 'completed' | 'rejected';
   metadata: IntegrationOperationMetadata;
   executedAt?: number;
   executionError?: string;
@@ -195,7 +195,7 @@ export function useIntegrationApprovals(
   organizationId: string,
   threadId: string | undefined,
 ) {
-  const { approvals, isLoading } = useApprovals(organizationId);
+  const { approvals, isLoading } = useActiveApprovals(organizationId);
 
   const integrationApprovals = useMemo((): IntegrationApproval[] => {
     if (!approvals || !threadId) return [];
@@ -226,7 +226,7 @@ export function useIntegrationApprovals(
 
 export interface WorkflowCreationApproval {
   _id: Id<'approvals'>;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'executing' | 'completed' | 'rejected';
   metadata: WorkflowCreationMetadata;
   executedAt?: number;
   executionError?: string;
@@ -238,7 +238,7 @@ export function useWorkflowCreationApprovals(
   organizationId: string,
   threadId: string | undefined,
 ) {
-  const { approvals, isLoading } = useApprovals(organizationId);
+  const { approvals, isLoading } = useActiveApprovals(organizationId);
 
   const workflowCreationApprovals = useMemo((): WorkflowCreationApproval[] => {
     if (!approvals || !threadId) return [];
@@ -269,7 +269,7 @@ export function useWorkflowCreationApprovals(
 
 export interface WorkflowRunApproval {
   _id: Id<'approvals'>;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'executing' | 'completed' | 'rejected';
   metadata: WorkflowRunMetadata;
   executedAt?: number;
   executionError?: string;
@@ -281,7 +281,7 @@ export function useWorkflowRunApprovals(
   organizationId: string,
   threadId: string | undefined,
 ) {
-  const { approvals, isLoading } = useApprovals(organizationId);
+  const { approvals, isLoading } = useActiveApprovals(organizationId);
 
   const workflowRunApprovals = useMemo((): WorkflowRunApproval[] => {
     if (!approvals || !threadId) return [];
@@ -312,7 +312,7 @@ export function useWorkflowRunApprovals(
 
 export interface WorkflowUpdateApproval {
   _id: Id<'approvals'>;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'executing' | 'completed' | 'rejected';
   metadata: WorkflowUpdateMetadata;
   executedAt?: number;
   executionError?: string;
@@ -324,7 +324,7 @@ export function useWorkflowUpdateApprovals(
   organizationId: string,
   threadId: string | undefined,
 ) {
-  const { approvals, isLoading } = useApprovals(organizationId);
+  const { approvals, isLoading } = useActiveApprovals(organizationId);
 
   const workflowUpdateApprovals = useMemo((): WorkflowUpdateApproval[] => {
     if (!approvals || !threadId) return [];
@@ -355,7 +355,7 @@ export function useWorkflowUpdateApprovals(
 
 export interface DocumentWriteApproval {
   _id: Id<'approvals'>;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'executing' | 'completed' | 'rejected';
   metadata: DocumentWriteMetadata;
   executedAt?: number;
   executionError?: string;
@@ -367,7 +367,7 @@ export function useDocumentWriteApprovals(
   organizationId: string,
   threadId: string | undefined,
 ) {
-  const { approvals, isLoading } = useApprovals(organizationId);
+  const { approvals, isLoading } = useActiveApprovals(organizationId);
 
   const documentWriteApprovals = useMemo((): DocumentWriteApproval[] => {
     if (!approvals || !threadId) return [];

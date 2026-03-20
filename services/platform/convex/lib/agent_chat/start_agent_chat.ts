@@ -12,7 +12,6 @@
  */
 
 import { listMessages, saveMessage } from '@convex-dev/agent';
-import { ConvexError } from 'convex/values';
 
 import type { MutationCtx } from '../../_generated/server';
 import type { FileAttachment } from '../attachments';
@@ -119,11 +118,10 @@ export async function startAgentChat(
     .query('threadMetadata')
     .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
     .first();
-  if (threadMeta?.generationStatus === 'generating') {
-    throw new ConvexError(
-      'A response is already being generated for this thread. Please wait for it to finish.',
-    );
-  }
+  // No server-side concurrent generation guard here. The frontend prevents
+  // duplicate submissions via the isThreadGenerating subscription + input disable.
+  // A server-side throw would risk permanently deadlocking a thread if the
+  // generation action crashes without resetting generationStatus.
   if (threadMeta) {
     await ctx.db.patch(threadMeta._id, {
       generationStatus: 'generating' as const,

@@ -28,13 +28,14 @@ import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useCopyButton } from '@/app/hooks/use-copy';
 import { Id } from '@/convex/_generated/dataModel';
 import { WorkflowCreationMetadata } from '@/convex/approvals/types';
+import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-guards';
 
 interface WorkflowCreationApprovalCardProps {
   approvalId: Id<'approvals'>;
   organizationId: string;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'executing' | 'completed' | 'rejected';
   metadata: WorkflowCreationMetadata;
   executedAt?: number;
   executionError?: string;
@@ -242,6 +243,8 @@ function WorkflowCreationApprovalCardComponent({
   className,
 }: WorkflowCreationApprovalCardProps) {
   const { user } = useAuth();
+  const { t } = useT('workflowCreationApproval');
+  const { t: tCommon } = useT('approvalCommon');
   const [isApproving, setIsApproving] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -273,7 +276,7 @@ function WorkflowCreationApprovalCardComponent({
 
   const handleApprove = async () => {
     if (!user?.userId) {
-      setError('User not authenticated');
+      setError(tCommon('errorNotAuthenticated'));
       return;
     }
     setIsApproving(true);
@@ -281,15 +284,13 @@ function WorkflowCreationApprovalCardComponent({
     try {
       await updateApprovalStatus({
         approvalId,
-        status: 'approved',
+        status: 'executing',
       });
       await executeApprovedWorkflow({
         approvalId,
       });
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Failed to create workflow',
-      );
+      setError(err instanceof Error ? err.message : t('errorCreateFailed'));
       console.error('Failed to approve:', err);
     } finally {
       setIsApproving(false);
@@ -298,7 +299,7 @@ function WorkflowCreationApprovalCardComponent({
 
   const handleReject = async () => {
     if (!user?.userId) {
-      setError('User not authenticated');
+      setError(tCommon('errorNotAuthenticated'));
       return;
     }
     setIsRejecting(true);
@@ -309,7 +310,9 @@ function WorkflowCreationApprovalCardComponent({
         status: 'rejected',
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to reject');
+      setError(
+        err instanceof Error ? err.message : tCommon('errorRejectFailed'),
+      );
       console.error('Failed to reject:', err);
     } finally {
       setIsRejecting(false);
@@ -353,14 +356,16 @@ function WorkflowCreationApprovalCardComponent({
             ) : (
               <ChevronRight className="size-3" />
             )}
-            {metadata.stepsConfig.length} steps
+            {t('stepsCount', { count: metadata.stepsConfig.length })}
           </button>
-          <Tooltip content={copied ? 'Copied!' : 'Copy configuration'}>
+          <Tooltip
+            content={copied ? tCommon('copied') : tCommon('copyConfiguration')}
+          >
             <button
               type="button"
               onClick={handleCopy}
               className="text-muted-foreground hover:text-foreground transition-colors"
-              aria-label="Copy workflow configuration"
+              aria-label={t('copyAriaLabel')}
             >
               {copied ? (
                 <Check className="size-3" />
@@ -460,27 +465,32 @@ function WorkflowCreationApprovalCardComponent({
       </Stack>
 
       {/* Execution Result (if approved and executed) */}
-      {status === 'approved' && executedAt && !executionError && (
-        <Stack gap={1} className="mb-3">
-          <HStack gap={1} className="text-xs text-green-600">
-            <CheckCircle className="size-3" />
-            Workflow created successfully
-          </HStack>
-          {metadata.createdWorkflowId && (
-            <Link
-              to="/dashboard/$id/automations/$amId"
-              params={{ id: organizationId, amId: metadata.createdWorkflowId }}
-              className="text-primary flex items-center gap-1 text-xs hover:underline"
-            >
-              View workflow
-              <ExternalLink className="size-3" />
-            </Link>
-          )}
-        </Stack>
-      )}
+      {(status === 'executing' || status === 'completed') &&
+        executedAt &&
+        !executionError && (
+          <Stack gap={1} className="mb-3">
+            <HStack gap={1} className="text-xs text-green-600">
+              <CheckCircle className="size-3" />
+              {t('createdSuccessfully')}
+            </HStack>
+            {metadata.createdWorkflowId && (
+              <Link
+                to="/dashboard/$id/automations/$amId"
+                params={{
+                  id: organizationId,
+                  amId: metadata.createdWorkflowId,
+                }}
+                className="text-primary flex items-center gap-1 text-xs hover:underline"
+              >
+                {tCommon('viewWorkflow')}
+                <ExternalLink className="size-3" />
+              </Link>
+            )}
+          </Stack>
+        )}
 
       {/* Execution Error (persisted from backend) */}
-      {status === 'approved' && executionError && (
+      {(status === 'executing' || status === 'completed') && executionError && (
         <HStack
           gap={1}
           align="start"
@@ -510,7 +520,7 @@ function WorkflowCreationApprovalCardComponent({
       {/* Action Buttons */}
       {isPending && (
         <ActionRow gap={2}>
-          <Tooltip content="Approve and create this workflow">
+          <Tooltip content={t('approveTooltip')}>
             <Button
               size="sm"
               variant="primary"
@@ -519,11 +529,11 @@ function WorkflowCreationApprovalCardComponent({
               className="flex-1"
             >
               {isApproving && <Loader2 className="mr-1 size-4 animate-spin" />}
-              Create Workflow
+              {t('approve')}
             </Button>
           </Tooltip>
 
-          <Tooltip content="Cancel workflow creation">
+          <Tooltip content={t('rejectTooltip')}>
             <Button
               size="sm"
               variant="secondary"
@@ -532,7 +542,7 @@ function WorkflowCreationApprovalCardComponent({
               className="flex-1"
             >
               {isRejecting && <Loader2 className="mr-1 size-4 animate-spin" />}
-              Cancel
+              {tCommon('reject')}
             </Button>
           </Tooltip>
         </ActionRow>
@@ -542,14 +552,22 @@ function WorkflowCreationApprovalCardComponent({
       {!isPending && (
         <HStack justify="between" align="center" className="mt-2">
           <Text as="div" variant="caption">
-            {status === 'approved' && executionError
-              ? 'Workflow creation was approved but failed.'
-              : status === 'approved'
-                ? 'Workflow was created successfully.'
-                : 'Workflow creation was cancelled.'}
+            {status === 'executing'
+              ? t('statusExecuting')
+              : status === 'completed' && executionError
+                ? t('statusCompletedFailed')
+                : status === 'completed'
+                  ? t('statusCompletedSuccess')
+                  : t('statusRejected')}
           </Text>
           <Badge
-            variant={status === 'approved' ? 'green' : 'destructive'}
+            variant={
+              status === 'completed'
+                ? 'green'
+                : status === 'executing'
+                  ? 'blue'
+                  : 'destructive'
+            }
             className="shrink-0 text-xs capitalize"
           >
             {status}

@@ -23,6 +23,8 @@ vi.mock('../../../_generated/api', () => ({
     agent_tools: {
       workflows: {
         internal_mutations: {
+          claimWorkflowApprovalForExecution:
+            'mock-claimWorkflowApprovalForExecution',
           updateWorkflowUpdateApprovalWithResult:
             'mock-updateWorkflowUpdateApprovalWithResult',
           saveSystemMessage: 'mock-saveSystemMessage',
@@ -39,7 +41,7 @@ vi.mock('../../../_generated/server', () => ({
 function createMockApproval(overrides?: Record<string, unknown>) {
   return {
     _id: 'approval-1',
-    status: 'approved',
+    status: 'executing',
     resourceType: 'workflow_update',
     organizationId: 'org-1',
     threadId: 'thread-1',
@@ -194,8 +196,12 @@ describe('executeApprovedWorkflowUpdate', () => {
 
   it('throws on double execution (idempotency guard)', async () => {
     const handler = await getHandler();
-    const approval = createMockApproval({ executedAt: Date.now() });
+    const approval = createMockApproval();
     const ctx = createMockCtx(approval);
+    ctx.runMutation = vi.fn().mockImplementation((ref: string) => {
+      if (ref === 'mock-claimWorkflowApprovalForExecution') return false;
+      return 'result-1';
+    });
 
     await expect(
       handler(ctx, { approvalId: 'approval-1', approvedBy: 'user-1' }),
@@ -258,6 +264,7 @@ describe('executeApprovedWorkflowUpdate', () => {
     const approval = createStepPatchApproval();
     const ctx = createMockCtx(approval);
     ctx.runMutation = vi.fn().mockImplementation((ref: string) => {
+      if (ref === 'mock-claimWorkflowApprovalForExecution') return true;
       if (ref === 'mock-patchStep') return null;
       return undefined;
     });
@@ -272,6 +279,7 @@ describe('executeApprovedWorkflowUpdate', () => {
     const approval = createMockApproval();
     const ctx = createMockCtx(approval);
     ctx.runMutation = vi.fn().mockImplementation((ref: string) => {
+      if (ref === 'mock-claimWorkflowApprovalForExecution') return true;
       if (ref === 'mock-saveWorkflowWithSteps') throw new Error('Save failed');
       return undefined;
     });
@@ -323,6 +331,7 @@ describe('executeApprovedWorkflowUpdate', () => {
     const ctx = createMockCtx(approval);
 
     ctx.runMutation = vi.fn().mockImplementation((ref: string) => {
+      if (ref === 'mock-claimWorkflowApprovalForExecution') return true;
       if (ref === 'mock-saveSystemMessage') {
         throw new Error('Message save failed');
       }

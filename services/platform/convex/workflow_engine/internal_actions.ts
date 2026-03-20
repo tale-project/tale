@@ -64,6 +64,7 @@ export const executeStep = internalAction({
   returns: v.object({
     port: v.string(),
     error: v.optional(v.string()),
+    approvalTaskId: v.optional(v.string()),
   }),
   handler: async (ctx, args) => {
     return await EngineHelpers.handleExecuteStep(ctx, args);
@@ -190,6 +191,7 @@ export const executeLLMNode = internalAction({
       args.executionId,
       args.stepDef.organizationId,
       args.threadId,
+      args.stepDef.stepSlug,
     );
     return result as Infer<typeof stepExecutionResultValidator>;
   },

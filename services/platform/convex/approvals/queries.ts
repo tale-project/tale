@@ -4,6 +4,7 @@ import { v } from 'convex/values';
 import { query } from '../_generated/server';
 import { DEFAULT_COUNT_CAP } from '../lib/helpers/count_items_in_org';
 import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
+import { UnauthorizedError } from '../lib/rls/errors';
 import * as ApprovalsHelpers from './helpers';
 import { listApprovalsPaginated as listApprovalsPaginatedHelper } from './list_approvals_paginated';
 import {
@@ -11,6 +12,29 @@ import {
   approvalStatusValidator,
   approvalResourceTypeValidator,
 } from './validators';
+
+export const getApproval = query({
+  args: {
+    approvalId: v.id('approvals'),
+  },
+  returns: v.union(approvalItemValidator, v.null()),
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) return null;
+
+    const approval = await ApprovalsHelpers.getApproval(ctx, args.approvalId);
+    if (!approval) return null;
+
+    try {
+      await getOrganizationMember(ctx, approval.organizationId, authUser);
+    } catch (error) {
+      if (error instanceof UnauthorizedError) return null;
+      throw error;
+    }
+
+    return approval;
+  },
+});
 
 export const approxCountApprovalsByStatus = query({
   args: {
@@ -26,8 +50,9 @@ export const approxCountApprovalsByStatus = query({
 
     try {
       await getOrganizationMember(ctx, args.organizationId, authUser);
-    } catch {
-      return 0;
+    } catch (error) {
+      if (error instanceof UnauthorizedError) return 0;
+      throw error;
     }
 
     if (args.status === 'pending') {
@@ -44,20 +69,15 @@ export const approxCountApprovalsByStatus = query({
     }
 
     let count = 0;
-    for await (const _ of ctx.db
-      .query('approvals')
-      .withIndex('by_org_status', (q) =>
-        q.eq('organizationId', args.organizationId).eq('status', 'approved'),
-      )) {
-      count++;
-      if (count >= DEFAULT_COUNT_CAP) break;
-    }
-    for await (const _ of ctx.db
-      .query('approvals')
-      .withIndex('by_org_status', (q) =>
-        q.eq('organizationId', args.organizationId).eq('status', 'rejected'),
-      )) {
-      count++;
+    for (const status of ['executing', 'completed', 'rejected'] as const) {
+      for await (const _ of ctx.db
+        .query('approvals')
+        .withIndex('by_org_status', (q) =>
+          q.eq('organizationId', args.organizationId).eq('status', status),
+        )) {
+        count++;
+        if (count >= DEFAULT_COUNT_CAP) break;
+      }
       if (count >= DEFAULT_COUNT_CAP) break;
     }
     return count;
@@ -81,8 +101,9 @@ export const listApprovalsPaginated = query({
 
     try {
       await getOrganizationMember(ctx, args.organizationId, authUser);
-    } catch {
-      return emptyResult;
+    } catch (error) {
+      if (error instanceof UnauthorizedError) return emptyResult;
+      throw error;
     }
 
     return await listApprovalsPaginatedHelper(ctx, args);
@@ -111,11 +132,35 @@ export const listApprovalsByOrganization = query({
 
     try {
       await getOrganizationMember(ctx, args.organizationId, authUser);
-    } catch {
-      return [];
+    } catch (error) {
+      if (error instanceof UnauthorizedError) return [];
+      throw error;
     }
 
     return await ApprovalsHelpers.listApprovalsByOrganization(ctx, args);
+  },
+});
+
+export const listActiveApprovalsByOrganization = query({
+  args: {
+    organizationId: v.string(),
+    limit: v.optional(v.number()),
+  },
+  returns: v.array(approvalItemValidator),
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) {
+      return [];
+    }
+
+    try {
+      await getOrganizationMember(ctx, args.organizationId, authUser);
+    } catch (error) {
+      if (error instanceof UnauthorizedError) return [];
+      throw error;
+    }
+
+    return await ApprovalsHelpers.listActiveApprovalsByOrganization(ctx, args);
   },
 });
 

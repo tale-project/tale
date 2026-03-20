@@ -9,7 +9,8 @@ import { v } from 'convex/values';
 
 export const approvalStatusValidator = v.union(
   v.literal('pending'),
-  v.literal('approved'),
+  v.literal('executing'),
+  v.literal('completed'),
   v.literal('rejected'),
 );
 

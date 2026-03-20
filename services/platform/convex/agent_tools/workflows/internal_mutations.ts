@@ -25,6 +25,20 @@ const beforeGenerateHookRef = makeFunctionReference<'action'>(
 
 type ApprovalMetadata = Doc<'approvals'>['metadata'];
 
+export const claimWorkflowApprovalForExecution = internalMutation({
+  args: {
+    approvalId: v.id('approvals'),
+  },
+  returns: v.boolean(),
+  handler: async (ctx, args): Promise<boolean> => {
+    const approval = await ctx.db.get(args.approvalId);
+    if (!approval) throw new Error('Approval not found');
+    if (approval.executedAt) return false;
+    await ctx.db.patch(args.approvalId, { executedAt: Date.now() });
+    return true;
+  },
+});
+
 export const updateWorkflowApprovalWithResult = internalMutation({
   args: {
     approvalId: v.id('approvals'),
@@ -34,13 +48,13 @@ export const updateWorkflowApprovalWithResult = internalMutation({
   handler: async (ctx, args): Promise<void> => {
     const approval = await ctx.db.get(args.approvalId);
     if (!approval) throw new Error('Approval not found');
-    if (approval.executedAt) return;
 
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- approval.metadata is v.any() but always matches WorkflowCreationMetadata for workflow_creation approvals
     const metadata = (approval.metadata || {}) as WorkflowCreationMetadata;
 
     const now = Date.now();
     await ctx.db.patch(args.approvalId, {
+      status: args.executionError ? 'rejected' : 'completed',
       executedAt: now,
       executionError: args.executionError ?? undefined,
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- constructing approval metadata from known WorkflowCreationMetadata fields
@@ -116,6 +130,19 @@ export const triggerWorkflowCompletionResponse = internalMutation({
     const agentConfig = toSerializableConfig(chatAgent);
     const { model, provider } = getDefaultAgentRuntimeConfig();
     const streamId = await persistentStreaming.createStream(ctx);
+
+    // Set generationStatus so the frontend shows loading indicator
+    const threadMeta = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
+      .first();
+    if (threadMeta) {
+      await ctx.db.patch(threadMeta._id, {
+        generationStatus: 'generating' as const,
+        streamId,
+      });
+    }
+
     const beforeGenerate = await createFunctionHandle(beforeGenerateHookRef);
 
     await ctx.scheduler.runAfter(
@@ -260,13 +287,15 @@ export const updateWorkflowRunApprovalWithResult = internalMutation({
   handler: async (ctx, args): Promise<void> => {
     const approval = await ctx.db.get(args.approvalId);
     if (!approval) throw new Error('Approval not found');
-    if (approval.executedAt) return;
 
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- approval.metadata is v.any() but always matches WorkflowRunMetadata for workflow_run approvals
     const metadata = (approval.metadata || {}) as WorkflowRunMetadata;
 
     const now = Date.now();
     await ctx.db.patch(args.approvalId, {
+      // On error: reject immediately. On success: keep 'executing' — the workflow
+      // runs asynchronously and onWorkflowComplete will set 'completed' when done.
+      ...(args.executionError ? { status: 'rejected' as const } : {}),
       executedAt: now,
       executionError: args.executionError ?? undefined,
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- constructing approval metadata from known WorkflowRunMetadata fields
@@ -395,6 +424,52 @@ export const createWorkflowStepUpdateApproval = internalMutation({
   },
 });
 
+export const createBatchWorkflowStepUpdateApproval = internalMutation({
+  args: {
+    organizationId: v.string(),
+    workflowId: v.id('wfDefinitions'),
+    workflowName: v.string(),
+    workflowVersionNumber: v.number(),
+    updateSummary: v.string(),
+    steps: v.array(
+      v.object({
+        stepRecordId: v.id('wfStepDefs'),
+        stepName: v.string(),
+        stepUpdates: jsonRecordValidator,
+      }),
+    ),
+    threadId: v.optional(v.string()),
+    messageId: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<Id<'approvals'>> => {
+    const metadata: WorkflowUpdateMetadata = {
+      updateType: 'multi_step_patch',
+      updateSummary: args.updateSummary,
+      workflowId: args.workflowId,
+      workflowName: args.workflowName,
+      workflowVersionNumber: args.workflowVersionNumber,
+      steps: args.steps.map((s) => ({
+        stepRecordId: s.stepRecordId,
+        stepName: s.stepName,
+        stepUpdates: Object.fromEntries(Object.entries(s.stepUpdates)),
+      })),
+      requestedAt: Date.now(),
+    };
+
+    const stepNames = args.steps.map((s) => `"${s.stepName}"`).join(', ');
+    return await createApproval(ctx, {
+      organizationId: args.organizationId,
+      resourceType: 'workflow_update',
+      resourceId: `workflow_update:${args.workflowId}:batch:${Date.now()}`,
+      priority: 'high',
+      description: `Update ${args.steps.length} steps (${stepNames}) in workflow "${args.workflowName}" — ${args.updateSummary}`,
+      threadId: args.threadId,
+      messageId: args.messageId,
+      metadata,
+    });
+  },
+});
+
 export const updateWorkflowUpdateApprovalWithResult = internalMutation({
   args: {
     approvalId: v.id('approvals'),
@@ -403,13 +478,13 @@ export const updateWorkflowUpdateApprovalWithResult = internalMutation({
   handler: async (ctx, args): Promise<void> => {
     const approval = await ctx.db.get(args.approvalId);
     if (!approval) throw new Error('Approval not found');
-    if (approval.executedAt) return;
 
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- approval.metadata is v.any() but always matches WorkflowUpdateMetadata for workflow_update approvals
     const metadata = (approval.metadata || {}) as WorkflowUpdateMetadata;
 
     const now = Date.now();
     await ctx.db.patch(args.approvalId, {
+      status: args.executionError ? 'rejected' : 'completed',
       executedAt: now,
       executionError: args.executionError ?? undefined,
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- constructing approval metadata from known WorkflowUpdateMetadata fields

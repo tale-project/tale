@@ -9,17 +9,12 @@ import remarkGfm from 'remark-gfm';
 import type { ChatItem } from '@/app/features/chat/hooks/use-merged-chat-items';
 
 import { Text } from '@/app/components/ui/typography/text';
-import { DocumentWriteApprovalCard } from '@/app/features/chat/components/document-write-approval-card';
-import { HumanInputRequestCard } from '@/app/features/chat/components/human-input-request-card';
-import { IntegrationApprovalCard } from '@/app/features/chat/components/integration-approval-card';
+import { ApprovalCardRenderer } from '@/app/features/chat/components/approval-card-renderer';
 import {
   FileAttachmentDisplay,
   FilePartDisplay,
 } from '@/app/features/chat/components/message-bubble/file-displays';
 import { ThinkingAnimation } from '@/app/features/chat/components/thinking-animation';
-import { WorkflowCreationApprovalCard } from '@/app/features/chat/components/workflow-creation-approval-card';
-import { WorkflowRunApprovalCard } from '@/app/features/chat/components/workflow-run-approval-card';
-import { WorkflowUpdateApprovalCard } from '@/app/features/chat/components/workflow-update-approval-card';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -27,6 +22,7 @@ import { AssistantMessageInfo } from './assistant-message-info';
 
 interface TestMessageListProps {
   displayItems: ChatItem[];
+  activeApproval: ChatItem | null;
   isLoading: boolean;
   activeMessage?: UIMessage;
   organizationId: string;
@@ -34,6 +30,7 @@ interface TestMessageListProps {
 
 export function TestMessageList({
   displayItems,
+  activeApproval,
   isLoading,
   activeMessage,
   organizationId,
@@ -56,112 +53,13 @@ export function TestMessageList({
   }
 
   return (
-    <>
+    <div
+      role="log"
+      aria-live="polite"
+      aria-label={t('customAgents.testChat.messageHistory')}
+    >
       {displayItems.map((item) => {
-        if (item.type === 'approval') {
-          return (
-            <div
-              key={`approval-${item.data._id}`}
-              className="flex justify-start"
-            >
-              <IntegrationApprovalCard
-                approvalId={item.data._id}
-                organizationId={organizationId}
-                status={item.data.status}
-                metadata={item.data.metadata}
-                executedAt={item.data.executedAt}
-                executionError={item.data.executionError}
-              />
-            </div>
-          );
-        }
-
-        if (item.type === 'workflow_approval') {
-          return (
-            <div
-              key={`workflow-approval-${item.data._id}`}
-              className="flex justify-start"
-            >
-              <WorkflowCreationApprovalCard
-                approvalId={item.data._id}
-                organizationId={organizationId}
-                status={item.data.status}
-                metadata={item.data.metadata}
-                executedAt={item.data.executedAt}
-                executionError={item.data.executionError}
-              />
-            </div>
-          );
-        }
-
-        if (item.type === 'workflow_run_approval') {
-          return (
-            <div
-              key={`workflow-run-approval-${item.data._id}`}
-              className="flex justify-start"
-            >
-              <WorkflowRunApprovalCard
-                approvalId={item.data._id}
-                organizationId={organizationId}
-                status={item.data.status}
-                metadata={item.data.metadata}
-                executedAt={item.data.executedAt}
-                executionError={item.data.executionError}
-              />
-            </div>
-          );
-        }
-
-        if (item.type === 'workflow_update_approval') {
-          return (
-            <div
-              key={`workflow-update-approval-${item.data._id}`}
-              className="flex justify-start"
-            >
-              <WorkflowUpdateApprovalCard
-                approvalId={item.data._id}
-                organizationId={organizationId}
-                status={item.data.status}
-                metadata={item.data.metadata}
-                executedAt={item.data.executedAt}
-                executionError={item.data.executionError}
-              />
-            </div>
-          );
-        }
-
-        if (item.type === 'human_input_request') {
-          return (
-            <div
-              key={`human-input-${item.data._id}`}
-              className="flex justify-start"
-            >
-              <HumanInputRequestCard
-                approvalId={item.data._id}
-                status={item.data.status}
-                metadata={item.data.metadata}
-              />
-            </div>
-          );
-        }
-
-        if (item.type === 'document_write_approval') {
-          return (
-            <div
-              key={`document-write-${item.data._id}`}
-              className="flex justify-start"
-            >
-              <DocumentWriteApprovalCard
-                approvalId={item.data._id}
-                organizationId={organizationId}
-                status={item.data.status}
-                metadata={item.data.metadata}
-                executedAt={item.data.executedAt}
-                executionError={item.data.executionError}
-              />
-            </div>
-          );
-        }
+        if (item.type !== 'message') return null;
 
         const message = item.data;
         return (
@@ -229,6 +127,14 @@ export function TestMessageList({
         );
       })}
       {isLoading && <ThinkingAnimation streamingMessage={activeMessage} />}
-    </>
+
+      {/* Single active approval always at the bottom */}
+      {activeApproval && (
+        <ApprovalCardRenderer
+          item={activeApproval}
+          organizationId={organizationId}
+        />
+      )}
+    </div>
   );
 }

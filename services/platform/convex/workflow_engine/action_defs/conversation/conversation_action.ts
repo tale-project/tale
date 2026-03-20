@@ -16,10 +16,13 @@ import type { Id } from '../../../_generated/dataModel';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import type { ConversationStatus, ConversationPriority } from './helpers/types';
 
+import { createDebugLog } from '../../../lib/debug_log';
 import {
   jsonRecordValidator,
   jsonValueValidator,
 } from '../../../lib/shared/schemas/utils/json_value';
+
+const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Conversations]');
 import { createConversation } from './helpers/create_conversation';
 import { createConversationFromEmail } from './helpers/create_conversation_from_email';
 import { createConversationFromSentEmail } from './helpers/create_conversation_from_sent_email';
@@ -313,6 +316,11 @@ See 'product_recommendation_email' predefined workflow for complete example.`,
       }
 
       case 'update_email_sync_cursor': {
+        debugLog('update_email_sync_cursor cursor:', {
+          cursor: params.cursor,
+          cursorType: typeof params.cursor,
+          integrationName: params.integrationName,
+        });
         await updateEmailSyncCursor(ctx, {
           organizationId,
           integrationName: params.integrationName,

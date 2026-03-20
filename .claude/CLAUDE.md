@@ -1,6 +1,7 @@
 ## Git
 
 - DO NOT include "Co-Authored-By" in commit messages.
+- DO NOT include "Generated with Claude Code" or any similar attribution in PR descriptions.
 
 ## Design Comments
 

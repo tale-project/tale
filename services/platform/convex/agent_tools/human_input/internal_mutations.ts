@@ -3,7 +3,11 @@ import { v } from 'convex/values';
 import type { HumanInputRequestMetadata } from '../../../lib/shared/schemas/approvals';
 
 import { internalMutation } from '../../_generated/server';
-import { createApproval } from '../../approvals/helpers';
+import {
+  createApproval,
+  listPendingApprovalsForExecution,
+} from '../../approvals/helpers';
+import { toId } from '../../lib/type_cast_helpers';
 
 export const createHumanInputRequest = internalMutation({
   args: {
@@ -28,8 +32,27 @@ export const createHumanInputRequest = internalMutation({
     ),
     placeholder: v.optional(v.string()),
     messageId: v.optional(v.string()),
+    wfExecutionId: v.optional(v.string()),
+    stepSlug: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    // Idempotency guard for workflow context: if a pending human_input_request
+    // already exists for this execution+step, return it instead of creating a duplicate
+    if (args.wfExecutionId && args.stepSlug) {
+      const existing = await listPendingApprovalsForExecution(
+        ctx,
+        toId<'wfExecutions'>(args.wfExecutionId),
+      );
+      const duplicate = existing.find(
+        (a) =>
+          a.resourceType === 'human_input_request' &&
+          a.stepSlug === args.stepSlug,
+      );
+      if (duplicate) {
+        return duplicate._id;
+      }
+    }
+
     const options =
       args.options ??
       (args.format === 'yes_no'
@@ -67,6 +90,10 @@ export const createHumanInputRequest = internalMutation({
       description: args.question,
       threadId: args.threadId,
       messageId: args.messageId,
+      wfExecutionId: args.wfExecutionId
+        ? toId<'wfExecutions'>(args.wfExecutionId)
+        : undefined,
+      stepSlug: args.stepSlug,
       metadata,
     });
 

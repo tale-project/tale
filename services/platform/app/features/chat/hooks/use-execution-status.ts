@@ -13,6 +13,16 @@ export function useExecutionStatus(
   );
 }
 
+export function useWorkflowHumanInputApproval(approvalId: string | undefined) {
+  return useConvexQuery(
+    api.approvals.queries.getApproval,
+    approvalId
+      ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- approval ID string from execution.waitingFor
+        { approvalId: approvalId as Id<'approvals'> }
+      : 'skip',
+  );
+}
+
 export function useCancelExecution() {
   return useConvexMutation(api.wf_executions.mutations.cancelExecution);
 }

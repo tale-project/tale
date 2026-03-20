@@ -5,7 +5,7 @@
 import type { WorkflowCtx } from '@convex-dev/workflow';
 import type { RetryBehavior } from '@convex-dev/workpool';
 
-import { Infer } from 'convex/values';
+import { Infer, v } from 'convex/values';
 
 import type { Doc, Id } from '../../../_generated/dataModel';
 
@@ -192,6 +192,58 @@ export async function handleDynamicWorkflow(
       );
 
       throw new Error(errorMsg);
+    }
+
+    // If the step created a human input approval, pause the workflow until the user responds
+    if (stepResult.approvalTaskId) {
+      debugLog('dynamicWorkflow Pausing for human input approval', {
+        stepSlug: stepDef.stepSlug,
+        approvalTaskId: stepResult.approvalTaskId,
+      });
+
+      // Set waitingFor on execution for UI visibility
+      await step.runMutation(
+        internal.wf_executions.internal_mutations.updateExecutionStatus,
+        {
+          executionId,
+          status: 'running',
+          waitingFor: stepResult.approvalTaskId,
+          currentStepSlug: stepDef.stepSlug,
+          currentStepName: stepDef.name,
+        },
+      );
+
+      // Block workflow until user responds via sendEvent
+      await step.awaitEvent({
+        name: `approval_response:${stepResult.approvalTaskId}`,
+        validator: v.object({
+          response: v.union(v.string(), v.array(v.string())),
+          respondedBy: v.string(),
+          question: v.string(),
+          timestamp: v.number(),
+          stepSlug: v.string(),
+        }),
+      });
+
+      // Clear waitingFor after resume (empty string signals "clear" since
+      // Convex strips undefined values from serialized args)
+      await step.runMutation(
+        internal.wf_executions.internal_mutations.updateExecutionStatus,
+        {
+          executionId,
+          status: 'running',
+          waitingFor: '',
+        },
+      );
+
+      debugLog('dynamicWorkflow Resumed after human input, re-executing step', {
+        stepSlug: stepDef.stepSlug,
+        approvalTaskId: stepResult.approvalTaskId,
+      });
+
+      // Re-execute the same step — the LLM now has the user's response
+      // available via <human_input_context> prompt injection
+      continue;
     }
 
     currentStepSlug = nextStepSlug;

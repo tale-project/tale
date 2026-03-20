@@ -30,13 +30,14 @@ import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useCopyButton } from '@/app/hooks/use-copy';
 import { Id } from '@/convex/_generated/dataModel';
 import { WorkflowUpdateMetadata } from '@/convex/approvals/types';
+import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-guards';
 
 interface WorkflowUpdateApprovalCardProps {
   approvalId: Id<'approvals'>;
   organizationId: string;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'executing' | 'completed' | 'rejected';
   metadata: WorkflowUpdateMetadata;
   executedAt?: number;
   executionError?: string;
@@ -72,6 +73,8 @@ function WorkflowUpdateApprovalCardComponent({
   executionError,
   className,
 }: WorkflowUpdateApprovalCardProps) {
+  const { t } = useT('workflowUpdateApproval');
+  const { t: tCommon } = useT('approvalCommon');
   const { user } = useAuth();
   const [isApproving, setIsApproving] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
@@ -84,6 +87,19 @@ function WorkflowUpdateApprovalCardComponent({
         {
           workflowConfig: metadata.workflowConfig,
           stepsConfig: metadata.stepsConfig,
+        },
+        null,
+        2,
+      );
+    }
+    if (metadata.updateType === 'multi_step_patch') {
+      return JSON.stringify(
+        {
+          steps: metadata.steps?.map((s) => ({
+            stepRecordId: s.stepRecordId,
+            stepName: s.stepName,
+            updates: s.stepUpdates,
+          })),
         },
         null,
         2,
@@ -110,7 +126,7 @@ function WorkflowUpdateApprovalCardComponent({
 
   const handleApprove = async () => {
     if (!user?.userId) {
-      setError('User not authenticated');
+      setError(tCommon('errorNotAuthenticated'));
       return;
     }
     setIsApproving(true);
@@ -118,13 +134,13 @@ function WorkflowUpdateApprovalCardComponent({
     try {
       await updateApprovalStatus({
         approvalId,
-        status: 'approved',
+        status: 'executing',
       });
       await executeApprovedUpdate({
         approvalId,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to apply update');
+      setError(err instanceof Error ? err.message : t('errorApplyFailed'));
       console.error('Failed to approve workflow update:', err);
     } finally {
       setIsApproving(false);
@@ -133,7 +149,7 @@ function WorkflowUpdateApprovalCardComponent({
 
   const handleReject = async () => {
     if (!user?.userId) {
-      setError('User not authenticated');
+      setError(tCommon('errorNotAuthenticated'));
       return;
     }
     setIsRejecting(true);
@@ -144,7 +160,9 @@ function WorkflowUpdateApprovalCardComponent({
         status: 'rejected',
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to reject');
+      setError(
+        err instanceof Error ? err.message : tCommon('errorRejectFailed'),
+      );
       console.error('Failed to reject workflow update:', err);
     } finally {
       setIsRejecting(false);
@@ -168,8 +186,10 @@ function WorkflowUpdateApprovalCardComponent({
             </Text>
             <Badge variant="outline" className="mt-0.5 text-[10px]">
               {metadata.updateType === 'full_save'
-                ? 'Update workflow'
-                : 'Update step'}
+                ? t('badgeFullSave')
+                : metadata.updateType === 'multi_step_patch'
+                  ? t('badgeMultiStep', { count: metadata.steps?.length ?? 0 })
+                  : t('badgeStepPatch')}
             </Badge>
           </div>
         </HStack>
@@ -178,11 +198,11 @@ function WorkflowUpdateApprovalCardComponent({
       {/* Details list */}
       <div className="text-muted-foreground mb-3 space-y-0.5 text-xs">
         <div className="flex gap-1.5">
-          <span className="shrink-0">Version:</span>
+          <span className="shrink-0">{t('versionLabel')}</span>
           <span className="font-mono">{metadata.workflowVersionNumber}</span>
         </div>
         <div className="flex gap-1.5">
-          <span className="shrink-0">ID:</span>
+          <span className="shrink-0">{t('idLabel')}</span>
           <span className="font-mono">{metadata.workflowId}</span>
         </div>
       </div>
@@ -211,14 +231,18 @@ function WorkflowUpdateApprovalCardComponent({
             )}
             {metadata.updateType === 'full_save'
               ? `${metadata.stepsConfig?.length ?? 0} steps`
-              : `Step: ${metadata.stepName ?? 'unknown'}`}
+              : metadata.updateType === 'multi_step_patch'
+                ? `${metadata.steps?.length ?? 0} steps`
+                : `Step: ${metadata.stepName ?? 'unknown'}`}
           </button>
-          <Tooltip content={copied ? 'Copied!' : 'Copy configuration'}>
+          <Tooltip
+            content={copied ? tCommon('copied') : tCommon('copyConfiguration')}
+          >
             <button
               type="button"
               onClick={handleCopy}
               className="text-muted-foreground hover:text-foreground transition-colors"
-              aria-label="Copy update configuration"
+              aria-label={t('copyAriaLabel')}
             >
               {copied ? (
                 <Check className="size-3" />
@@ -262,6 +286,23 @@ function WorkflowUpdateApprovalCardComponent({
           )}
 
         {showDetails &&
+          metadata.updateType === 'multi_step_patch' &&
+          metadata.steps && (
+            <div className="bg-muted/50 space-y-1.5 rounded-md p-2">
+              {metadata.steps.map((step) => (
+                <div key={step.stepRecordId} className="space-y-0.5">
+                  <Text as="div" variant="label" className="text-[11px]">
+                    {step.stepName}
+                  </Text>
+                  <div className="text-muted-foreground pl-2 text-[10px]">
+                    {Object.keys(step.stepUpdates).join(', ')}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+        {showDetails &&
           metadata.updateType === 'step_patch' &&
           metadata.stepUpdates && (
             <div className="bg-muted/50 space-y-1 rounded-md p-2">
@@ -283,25 +324,27 @@ function WorkflowUpdateApprovalCardComponent({
       </Stack>
 
       {/* Execution Result */}
-      {status === 'approved' && executedAt && !executionError && (
-        <Stack gap={1} className="mb-3">
-          <HStack gap={1} className="text-xs text-green-600">
-            <CheckCircle className="size-3" />
-            Workflow updated successfully
-          </HStack>
-          <Link
-            to="/dashboard/$id/automations/$amId"
-            params={{ id: organizationId, amId: metadata.workflowId }}
-            className="text-primary flex items-center gap-1 text-xs hover:underline"
-          >
-            View workflow
-            <ExternalLink className="size-3" />
-          </Link>
-        </Stack>
-      )}
+      {(status === 'executing' || status === 'completed') &&
+        executedAt &&
+        !executionError && (
+          <Stack gap={1} className="mb-3">
+            <HStack gap={1} className="text-xs text-green-600">
+              <CheckCircle className="size-3" />
+              {t('updatedSuccessfully')}
+            </HStack>
+            <Link
+              to="/dashboard/$id/automations/$amId"
+              params={{ id: organizationId, amId: metadata.workflowId }}
+              className="text-primary flex items-center gap-1 text-xs hover:underline"
+            >
+              {tCommon('viewWorkflow')}
+              <ExternalLink className="size-3" />
+            </Link>
+          </Stack>
+        )}
 
       {/* Execution Error */}
-      {status === 'approved' && executionError && (
+      {(status === 'executing' || status === 'completed') && executionError && (
         <HStack
           gap={1}
           align="start"
@@ -331,7 +374,7 @@ function WorkflowUpdateApprovalCardComponent({
       {/* Action Buttons */}
       {isPending && (
         <ActionRow gap={2}>
-          <Tooltip content="Approve and apply this update">
+          <Tooltip content={t('approveTooltip')}>
             <Button
               size="sm"
               variant="primary"
@@ -340,11 +383,11 @@ function WorkflowUpdateApprovalCardComponent({
               className="flex-1"
             >
               {isApproving && <Loader2 className="mr-1 size-4 animate-spin" />}
-              Apply Update
+              {t('approve')}
             </Button>
           </Tooltip>
 
-          <Tooltip content="Cancel workflow update">
+          <Tooltip content={t('rejectTooltip')}>
             <Button
               size="sm"
               variant="secondary"
@@ -353,7 +396,7 @@ function WorkflowUpdateApprovalCardComponent({
               className="flex-1"
             >
               {isRejecting && <Loader2 className="mr-1 size-4 animate-spin" />}
-              Cancel
+              {tCommon('reject')}
             </Button>
           </Tooltip>
         </ActionRow>
@@ -363,14 +406,22 @@ function WorkflowUpdateApprovalCardComponent({
       {!isPending && (
         <HStack justify="between" align="center" className="mt-2">
           <Text as="div" variant="caption">
-            {status === 'approved' && executionError
-              ? 'Update was approved but failed to apply.'
-              : status === 'approved'
-                ? 'Workflow was updated successfully.'
-                : 'Workflow update was cancelled.'}
+            {status === 'executing'
+              ? t('statusExecuting')
+              : status === 'completed' && executionError
+                ? t('statusCompletedFailed')
+                : status === 'completed'
+                  ? t('statusCompletedSuccess')
+                  : t('statusRejected')}
           </Text>
           <Badge
-            variant={status === 'approved' ? 'green' : 'destructive'}
+            variant={
+              status === 'completed'
+                ? 'green'
+                : status === 'executing'
+                  ? 'blue'
+                  : 'destructive'
+            }
             className="shrink-0 text-xs capitalize"
           >
             {status}

@@ -39,12 +39,13 @@ interface ExecutionsTableProps {
 
 const STATUS_BADGE_VARIANTS: Record<
   string,
-  'green' | 'destructive' | 'blue' | 'outline'
+  'green' | 'destructive' | 'blue' | 'outline' | 'yellow'
 > = {
   completed: 'green',
   failed: 'destructive',
   running: 'blue',
   pending: 'outline',
+  waiting_for_input: 'yellow',
 };
 
 type Execution = Doc<'wfExecutions'>;
@@ -166,16 +167,22 @@ export function ExecutionsTable({
   }, []);
 
   const getStatusBadge = useCallback(
-    (statusVal: string) => (
-      <Badge
-        dot
-        variant={STATUS_BADGE_VARIANTS[statusVal] || 'outline'}
-        className="text-xs capitalize"
-      >
-        {statusVal}
-      </Badge>
-    ),
-    [],
+    (statusVal: string, waitingFor?: string) => {
+      const displayStatus =
+        statusVal === 'running' && waitingFor ? 'waiting_for_input' : statusVal;
+      return (
+        <Badge
+          dot
+          variant={STATUS_BADGE_VARIANTS[displayStatus] || 'outline'}
+          className="text-xs capitalize"
+        >
+          {displayStatus === 'waiting_for_input'
+            ? tCommon('status.waitingForInput')
+            : statusVal}
+        </Badge>
+      );
+    },
+    [tCommon],
   );
 
   const formatTimestampWithMillis = useCallback((timestamp: number) => {
@@ -237,7 +244,8 @@ export function ExecutionsTable({
         accessorKey: 'status',
         header: tTables('headers.status'),
         size: 128,
-        cell: ({ row }) => getStatusBadge(row.original.status),
+        cell: ({ row }) =>
+          getStatusBadge(row.original.status, row.original.waitingFor),
       },
       {
         accessorKey: 'startedAt',

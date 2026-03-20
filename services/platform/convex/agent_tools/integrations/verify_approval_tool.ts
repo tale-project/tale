@@ -22,7 +22,7 @@ const verifyApprovalArgs = z.object({
 export interface VerifyApprovalResult {
   exists: boolean;
   approvalId: string;
-  status?: 'pending' | 'approved' | 'rejected';
+  status?: 'pending' | 'executing' | 'completed' | 'rejected';
   operationName?: string;
   operationTitle?: string;
   integrationName?: string;

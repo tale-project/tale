@@ -273,15 +273,7 @@ export function replaceCidReferences(
 }
 
 function sanitizePreviewHtml(html: string): string {
-  // First, remove plain text quote markers (> at start of lines)
-  const processed = html
-    // Remove &gt; entities at the start of lines (with optional spaces)
-    .replace(/^(&gt;\s*)+/gm, '')
-    // Remove > characters at the start of lines (with optional spaces)
-    .replace(/^(>\s*)+/gm, '')
-    // Remove quote markers after line breaks
-    .replace(/(<br\s*\/?>\s*)(&gt;\s*)+/gi, '$1')
-    .replace(/(<br\s*\/?>\s*)(>\s*)+/gi, '$1');
+  const processed = html;
 
   // Add hook to sanitize styles and modify links
   DOMPurify.addHook('afterSanitizeAttributes', (node) => {
@@ -317,10 +309,24 @@ function sanitizePreviewHtml(html: string): string {
   return sanitized;
 }
 
-function splitQuotedContent(html: string): { main: string; quoted: string } {
-  // Common patterns for forwarded/quoted content
+export function splitQuotedContent(html: string): {
+  main: string;
+  quoted: string;
+} {
+  // Common patterns for forwarded/quoted content.
+  // These must be precise to avoid false-positives on normal email body text
+  // (e.g. newsletter content like "Jon Kuperman wrote about...").
   const patterns = [
-    /(?:Begin forwarded message|On .* wrote|From:.*Subject:|-----Original Message-----)/i,
+    // "Begin forwarded message" — Apple Mail forwarding header
+    /Begin forwarded message:/i,
+    // "On <date/time>, <name> wrote:" — standard reply header.
+    // Requires a colon after "wrote" and a date-like token (digit) between On and wrote.
+    // Uses [^<]{0,500} to match text content only (not across HTML tags), keeping it bounded.
+    /On\s[^<]{0,500}\d[^<]{0,500}\swrote:/i,
+    // "From: ... Subject: ..." — Outlook-style forwarding header
+    /From:\s[\s\S]*?Subject:/i,
+    // "-----Original Message-----" — Outlook reply separator
+    /-----\s*Original Message\s*-----/i,
   ];
 
   for (const pattern of patterns) {

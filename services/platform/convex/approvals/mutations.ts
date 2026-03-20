@@ -1,5 +1,7 @@
+import { saveMessage } from '@convex-dev/agent';
 import { v } from 'convex/values';
 
+import { components } from '../_generated/api';
 import { mutation } from '../_generated/server';
 import * as AuditLogHelpers from '../audit_logs/helpers';
 import { authComponent } from '../auth';
@@ -37,7 +39,7 @@ export const updateApprovalStatus = mutation({
     });
 
     const action =
-      args.status === 'approved' ? 'approve_request' : 'reject_request';
+      args.status === 'executing' ? 'approve_request' : 'reject_request';
 
     await AuditLogHelpers.logSuccess(
       ctx,
@@ -57,6 +59,20 @@ export const updateApprovalStatus = mutation({
       { status: previousStatus },
       { status: args.status, comments: args.comments },
     );
+
+    // Write system message to thread on rejection so the AI knows it was user-initiated
+    if (args.status === 'rejected' && approval.threadId) {
+      const reason = args.comments
+        ? `Reason: ${args.comments}`
+        : 'No reason provided.';
+      await saveMessage(ctx, components.agent, {
+        threadId: approval.threadId,
+        message: {
+          role: 'system',
+          content: `[APPROVAL_REJECTED]\nThe user manually rejected the ${approval.resourceType.replace(/_/g, ' ')} request.\n${reason}\n\nInstructions:\n- Acknowledge that the user rejected this request\n- Do NOT speculate about technical errors or failures\n- Ask if they would like to try a different approach`,
+        },
+      });
+    }
 
     return null;
   },

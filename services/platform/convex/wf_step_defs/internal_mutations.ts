@@ -13,3 +13,20 @@ export const patchStep = internalMutation({
     return await updateStepHelper(ctx, args);
   },
 });
+
+export const batchPatchSteps = internalMutation({
+  args: {
+    stepPatches: v.array(
+      v.object({
+        stepRecordId: v.id('wfStepDefs'),
+        updates: jsonRecordValidator,
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const results = await Promise.all(
+      args.stepPatches.map((patch) => updateStepHelper(ctx, patch)),
+    );
+    return results;
+  },
+});

@@ -184,7 +184,7 @@ export function useTestChat({
 
   const isUploading = uploadingFiles.length > 0;
 
-  const mergedItems = useMergedChatItems({
+  const { messages: mergedMessages, activeApproval } = useMergedChatItems({
     messages,
     integrationApprovals,
     workflowCreationApprovals,
@@ -195,14 +195,14 @@ export function useTestChat({
   });
 
   useEffect(() => {
-    if (mergedItems.length === 0) return;
+    if (mergedMessages.length === 0) return;
     const rafId = requestAnimationFrame(() => {
       if (containerRef.current) {
         throttledScrollToBottom(containerRef.current, 'auto');
       }
     });
     return () => cancelAnimationFrame(rafId);
-  }, [mergedItems.length, isLoading, throttledScrollToBottom]);
+  }, [mergedMessages.length, isLoading, throttledScrollToBottom]);
 
   useEffect(() => {
     return cleanup;
@@ -363,7 +363,8 @@ export function useTestChat({
   }, [threadId, deleteChatThread, clearChatState, onReset]);
 
   return {
-    displayItems: mergedItems,
+    displayItems: mergedMessages,
+    activeApproval,
     isLoading,
     isUploading,
     threadId,
