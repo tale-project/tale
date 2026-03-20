@@ -34,6 +34,7 @@ interface ChatInputProps extends Omit<
   onStopGenerating?: () => void;
   isLoading?: boolean;
   disabled?: boolean;
+  disabledReason?: 'no-agents' | 'pending-approval';
   placeholder?: string;
   value?: string;
   onChange?: (value: string) => void;
@@ -52,6 +53,7 @@ export function ChatInput({
   onStopGenerating,
   isLoading = false,
   disabled = false,
+  disabledReason,
   placeholder,
   organizationId,
   attachments,
@@ -154,6 +156,7 @@ export function ChatInput({
         className="relative flex h-full min-h-0 flex-1 flex-col"
         onFilesSelected={uploadFiles}
         clickable={false}
+        disabled={inputDisabled}
       >
         <FileUpload.Overlay className="mx-2 rounded-t-3xl" />
         <input
@@ -290,7 +293,9 @@ export function ChatInput({
                 variant="muted"
                 className="pointer-events-none absolute top-0 left-0"
               >
-                {tChat('noAgentsAvailable')}
+                {disabledReason === 'pending-approval'
+                  ? tChat('pendingApprovalDisabled')
+                  : tChat('noAgentsAvailable')}
               </Text>
             )}
           </div>

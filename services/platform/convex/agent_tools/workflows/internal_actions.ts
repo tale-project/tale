@@ -39,9 +39,9 @@ export const executeApprovedWorkflowCreation = internalAction({
       throw new Error('Approval not found');
     }
 
-    if (approval.status !== 'approved') {
+    if (approval.status !== 'executing') {
       throw new Error(
-        `Cannot execute workflow creation: approval status is "${approval.status}", expected "approved"`,
+        `Cannot execute workflow creation: approval status is "${approval.status}", expected "executing"`,
       );
     }
 
@@ -165,9 +165,9 @@ export const executeApprovedWorkflowRun = internalAction({
       throw new Error('Approval not found');
     }
 
-    if (approval.status !== 'approved') {
+    if (approval.status !== 'executing') {
       throw new Error(
-        `Cannot execute workflow run: approval status is "${approval.status}", expected "approved"`,
+        `Cannot execute workflow run: approval status is "${approval.status}", expected "executing"`,
       );
     }
 
@@ -292,9 +292,9 @@ export const executeApprovedWorkflowUpdate = internalAction({
       throw new Error('Approval not found');
     }
 
-    if (approval.status !== 'approved') {
+    if (approval.status !== 'executing') {
       throw new Error(
-        `Cannot execute workflow update: approval status is "${approval.status}", expected "approved"`,
+        `Cannot execute workflow update: approval status is "${approval.status}", expected "executing"`,
       );
     }
 

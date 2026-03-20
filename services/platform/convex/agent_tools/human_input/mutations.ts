@@ -72,7 +72,7 @@ export const submitHumanInputResponse = mutation({
     };
 
     await ctx.db.patch(args.approvalId, {
-      status: 'approved',
+      status: 'completed',
       approvedBy: identity.subject,
       reviewedAt: Date.now(),
       metadata: updatedMetadata,

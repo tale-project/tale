@@ -225,20 +225,25 @@ export async function handleDynamicWorkflow(
         }),
       });
 
-      // Clear waitingFor after resume
+      // Clear waitingFor after resume (empty string signals "clear" since
+      // Convex strips undefined values from serialized args)
       await step.runMutation(
         internal.wf_executions.internal_mutations.updateExecutionStatus,
         {
           executionId,
           status: 'running',
-          waitingFor: undefined,
+          waitingFor: '',
         },
       );
 
-      debugLog('dynamicWorkflow Resumed after human input', {
+      debugLog('dynamicWorkflow Resumed after human input, re-executing step', {
         stepSlug: stepDef.stepSlug,
         approvalTaskId: stepResult.approvalTaskId,
       });
+
+      // Re-execute the same step — the LLM now has the user's response
+      // available via <human_input_context> prompt injection
+      continue;
     }
 
     currentStepSlug = nextStepSlug;

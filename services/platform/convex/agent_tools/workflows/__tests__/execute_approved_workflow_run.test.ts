@@ -31,7 +31,7 @@ vi.mock('../../../_generated/server', () => ({
 function createMockApproval(overrides?: Record<string, unknown>) {
   return {
     _id: 'approval-1',
-    status: 'approved',
+    status: 'executing',
     resourceType: 'workflow_run',
     organizationId: 'org-1',
     threadId: 'thread-1',

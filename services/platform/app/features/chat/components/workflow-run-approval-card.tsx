@@ -14,6 +14,8 @@ import {
   XCircle,
 } from 'lucide-react';
 import { memo, useCallback, useEffect, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 import type { Id } from '@/convex/_generated/dataModel';
 import type { WorkflowRunMetadata } from '@/convex/approvals/types';
@@ -42,7 +44,7 @@ import { cn } from '@/lib/utils/cn';
 interface WorkflowRunApprovalCardProps {
   approvalId: Id<'approvals'>;
   organizationId: string;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'executing' | 'completed' | 'rejected';
   metadata: WorkflowRunMetadata;
   executedAt?: number;
   executionError?: string;
@@ -95,7 +97,7 @@ function WorkflowRunApprovalCardComponent({
   const [isCancelling, setIsCancelling] = useState(false);
 
   const executionId =
-    status === 'approved' && metadata.executionId
+    (status === 'executing' || status === 'completed') && metadata.executionId
       ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- metadata.executionId is a string from Convex approval doc; cast to branded Id type required by the query
         (metadata.executionId as Id<'wfExecutions'>)
       : undefined;
@@ -148,7 +150,7 @@ function WorkflowRunApprovalCardComponent({
     try {
       await updateApprovalStatus({
         approvalId,
-        status: 'approved',
+        status: 'executing',
       });
       await executeApprovedRun({
         approvalId,
@@ -279,6 +281,15 @@ function WorkflowRunApprovalCardComponent({
                 response,
               },
               {
+                onSuccess: () => {
+                  // Defer clear so the Convex subscription hides the form first,
+                  // then clear state invisibly for the next human input request
+                  setTimeout(() => {
+                    setHumanInputValue('');
+                    setHumanInputSelected('');
+                    setHumanInputMulti([]);
+                  }, 500);
+                },
                 onError: (err) => {
                   setError(
                     err instanceof Error
@@ -293,126 +304,132 @@ function WorkflowRunApprovalCardComponent({
       )}
 
       {/* Live Execution Status */}
-      {status === 'approved' && executionId && !isWaitingForHumanInput && (
-        <Stack gap={1} className="mb-3" role="status" aria-live="polite">
-          {isRunning && (
-            <>
-              <HStack gap={1} justify="between" className="text-xs">
-                <HStack gap={1} className="text-primary">
-                  <Loader2 className="size-3 animate-spin" />
-                  {executionStatus?.currentStepName
-                    ? executionStatus.loopProgress
-                      ? t('executionRunningStepWithProgress', {
-                          step: executionStatus.currentStepName,
-                          current: executionStatus.loopProgress.current,
-                          total: executionStatus.loopProgress.total,
-                        })
-                      : t('executionRunningStep', {
-                          step: executionStatus.currentStepName,
-                        })
-                    : t('executionRunning')}
+      {(status === 'executing' || status === 'completed') &&
+        executionId &&
+        !isWaitingForHumanInput && (
+          <Stack gap={1} className="mb-3" role="status" aria-live="polite">
+            {isRunning && (
+              <>
+                <HStack gap={1} justify="between" className="text-xs">
+                  <HStack gap={1} className="text-primary">
+                    <Loader2 className="size-3 animate-spin" />
+                    {executionStatus?.currentStepName
+                      ? executionStatus.loopProgress
+                        ? t('executionRunningStepWithProgress', {
+                            step: executionStatus.currentStepName,
+                            current: executionStatus.loopProgress.current,
+                            total: executionStatus.loopProgress.total,
+                          })
+                        : t('executionRunningStep', {
+                            step: executionStatus.currentStepName,
+                          })
+                      : t('executionRunning')}
+                  </HStack>
+                  <Tooltip content={t('stopTooltip')}>
+                    <button
+                      type="button"
+                      onClick={handleCancel}
+                      disabled={isCancelling}
+                      aria-busy={isCancelling}
+                      aria-label={t('stopExecution')}
+                      className="text-muted-foreground hover:text-destructive flex cursor-pointer items-center gap-1 text-xs transition-colors disabled:opacity-50"
+                    >
+                      {isCancelling ? (
+                        <Loader2 className="size-3 animate-spin" />
+                      ) : (
+                        <Square className="size-3 fill-current" />
+                      )}
+                      {t('stopExecution')}
+                    </button>
+                  </Tooltip>
                 </HStack>
-                <Tooltip content={t('stopTooltip')}>
-                  <button
-                    type="button"
-                    onClick={handleCancel}
-                    disabled={isCancelling}
-                    aria-busy={isCancelling}
-                    aria-label={t('stopExecution')}
-                    className="text-muted-foreground hover:text-destructive flex cursor-pointer items-center gap-1 text-xs transition-colors disabled:opacity-50"
-                  >
-                    {isCancelling ? (
-                      <Loader2 className="size-3 animate-spin" />
-                    ) : (
-                      <Square className="size-3 fill-current" />
+                {elapsed && (
+                  <Text as="div" variant="caption">
+                    {t('executionElapsed', { duration: elapsed })}
+                  </Text>
+                )}
+              </>
+            )}
+
+            {executionStatus?.status === 'completed' && (
+              <>
+                <HStack gap={1} className="text-xs text-green-600">
+                  <CheckCircle className="size-3" />
+                  {t('executionCompleted')}
+                </HStack>
+                {executionStatus.output != null && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setShowOutput(!showOutput)}
+                      className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs transition-colors"
+                      aria-expanded={showOutput}
+                      aria-label={
+                        showOutput ? t('hideOutput') : t('showOutput')
+                      }
+                    >
+                      {showOutput ? (
+                        <ChevronDown className="size-3" />
+                      ) : (
+                        <ChevronRight className="size-3" />
+                      )}
+                      {showOutput ? t('hideOutput') : t('showOutput')}
+                    </button>
+                    {showOutput && (
+                      <pre className="bg-muted/50 max-h-40 overflow-auto rounded-md p-2 font-mono text-[10px] break-all whitespace-pre-wrap">
+                        {formatOutputPreview(executionStatus.output)}
+                      </pre>
                     )}
-                    {t('stopExecution')}
-                  </button>
-                </Tooltip>
-              </HStack>
-              {elapsed && (
-                <Text as="div" variant="caption">
-                  {t('executionElapsed', { duration: elapsed })}
+                  </>
+                )}
+              </>
+            )}
+
+            {executionStatus?.status === 'failed' && (
+              <HStack
+                gap={1}
+                align="start"
+                className="text-destructive text-xs wrap-break-word"
+              >
+                <XCircle className="size-3 shrink-0" />
+                <Text as="span" className="min-w-0">
+                  {executionStatus.error || t('executionFailed')}
                 </Text>
-              )}
-            </>
-          )}
-
-          {executionStatus?.status === 'completed' && (
-            <>
-              <HStack gap={1} className="text-xs text-green-600">
-                <CheckCircle className="size-3" />
-                {t('executionCompleted')}
               </HStack>
-              {executionStatus.output != null && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setShowOutput(!showOutput)}
-                    className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs transition-colors"
-                    aria-expanded={showOutput}
-                    aria-label={showOutput ? t('hideOutput') : t('showOutput')}
-                  >
-                    {showOutput ? (
-                      <ChevronDown className="size-3" />
-                    ) : (
-                      <ChevronRight className="size-3" />
-                    )}
-                    {showOutput ? t('hideOutput') : t('showOutput')}
-                  </button>
-                  {showOutput && (
-                    <pre className="bg-muted/50 max-h-40 overflow-auto rounded-md p-2 font-mono text-[10px] break-all whitespace-pre-wrap">
-                      {formatOutputPreview(executionStatus.output)}
-                    </pre>
-                  )}
-                </>
-              )}
-            </>
-          )}
+            )}
 
-          {executionStatus?.status === 'failed' && (
-            <HStack
-              gap={1}
-              align="start"
-              className="text-destructive text-xs wrap-break-word"
-            >
-              <XCircle className="size-3 shrink-0" />
-              <Text as="span" className="min-w-0">
-                {executionStatus.error || t('executionFailed')}
-              </Text>
-            </HStack>
-          )}
-
-          {(executionStatus?.status === 'completed' ||
-            executionStatus?.status === 'failed') && (
-            <Link
-              to="/dashboard/$id/automations/$amId/executions"
-              params={{
-                id: organizationId,
-                amId: metadata.workflowId,
-              }}
-              className="text-primary flex items-center gap-1 text-xs hover:underline"
-            >
-              {t('viewDetails')}
-              <ExternalLink className="size-3" />
-            </Link>
-          )}
-        </Stack>
-      )}
+            {(executionStatus?.status === 'completed' ||
+              executionStatus?.status === 'failed') && (
+              <Link
+                to="/dashboard/$id/automations/$amId/executions"
+                params={{
+                  id: organizationId,
+                  amId: metadata.workflowId,
+                }}
+                className="text-primary flex items-center gap-1 text-xs hover:underline"
+              >
+                {t('viewDetails')}
+                <ExternalLink className="size-3" />
+              </Link>
+            )}
+          </Stack>
+        )}
 
       {/* Execution startup error (no executionId — workflow failed to start) */}
-      {status === 'approved' && !executionId && executionError && (
-        <HStack
-          gap={1}
-          align="start"
-          className="text-destructive mb-3 text-xs wrap-break-word"
-        >
-          <XCircle className="size-3 shrink-0" />
-          <Text as="span" className="min-w-0">
-            {executionError}
-          </Text>
-        </HStack>
-      )}
+      {(status === 'executing' || status === 'completed') &&
+        !executionId &&
+        executionError && (
+          <HStack
+            gap={1}
+            align="start"
+            className="text-destructive mb-3 text-xs wrap-break-word"
+          >
+            <XCircle className="size-3 shrink-0" />
+            <Text as="span" className="min-w-0">
+              {executionError}
+            </Text>
+          </HStack>
+        )}
 
       {/* Error Message (temporary UI error) */}
       {error && (
@@ -477,10 +494,20 @@ function WorkflowRunApprovalCardComponent({
             </Text>
           )}
           <Badge
-            variant={status === 'approved' ? 'green' : 'destructive'}
+            variant={
+              status === 'completed'
+                ? 'green'
+                : status === 'executing'
+                  ? 'blue'
+                  : 'destructive'
+            }
             className="shrink-0 text-xs"
           >
-            {status === 'approved' ? t('statusApproved') : t('statusRejected')}
+            {status === 'executing'
+              ? t('statusExecuting')
+              : status === 'completed'
+                ? t('statusCompleted')
+                : t('statusRejected')}
           </Badge>
         </HStack>
       )}
@@ -547,16 +574,16 @@ function WorkflowHumanInputSection({
 
   return (
     <Stack gap={3} className="mb-3">
-      <HStack gap={2}>
-        <MessageCircleQuestion className="text-primary size-4 shrink-0" />
-        <Text as="div" variant="label">
-          {question}
-        </Text>
+      <HStack gap={2} align="start">
+        <MessageCircleQuestion className="text-primary mt-0.5 size-4 shrink-0" />
+        <div className="prose prose-sm dark:prose-invert prose-p:my-0.5 prose-ul:my-0.5 prose-ol:my-0.5 prose-li:my-0 max-w-none text-sm font-medium">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{question}</ReactMarkdown>
+        </div>
       </HStack>
       {context && (
-        <Text variant="caption" className="mt-1">
-          {context}
-        </Text>
+        <div className="prose prose-sm dark:prose-invert prose-p:my-0.5 prose-ul:my-0.5 prose-li:my-0 text-muted-foreground max-w-none text-xs">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{context}</ReactMarkdown>
+        </div>
       )}
 
       {format === 'text_input' && (

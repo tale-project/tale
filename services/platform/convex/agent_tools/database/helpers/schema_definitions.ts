@@ -131,7 +131,7 @@ export const TABLE_SCHEMAS: Record<string, TableSchemaDefinition> = {
       {
         field: 'status',
         type: 'enum',
-        values: ['pending', 'approved', 'rejected'],
+        values: ['pending', 'executing', 'completed', 'rejected'],
       },
       {
         field: 'resourceType',
@@ -151,8 +151,8 @@ export const TABLE_SCHEMAS: Record<string, TableSchemaDefinition> = {
     ],
     examples: [
       'status == "pending"',
-      'status == "approved"',
-      'status == "approved" && resourceType == "product_recommendation"',
+      'status == "completed"',
+      'status == "completed" && resourceType == "product_recommendation"',
       'status == "pending" && priority == "urgent"',
       'daysAgo(_creationTime) > 7 && status == "pending"',
     ],

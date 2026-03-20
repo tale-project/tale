@@ -199,7 +199,7 @@ export async function listApprovalsByOrganization(
 
   const statuses: ApprovalStatus[] = args.status
     ? [args.status]
-    : ['pending', 'approved', 'rejected'];
+    : ['pending', 'executing', 'completed', 'rejected'];
 
   for (const status of statuses) {
     const query = buildQuery(status);

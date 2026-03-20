@@ -66,20 +66,15 @@ export const approxCountApprovalsByStatus = query({
     }
 
     let count = 0;
-    for await (const _ of ctx.db
-      .query('approvals')
-      .withIndex('by_org_status', (q) =>
-        q.eq('organizationId', args.organizationId).eq('status', 'approved'),
-      )) {
-      count++;
-      if (count >= DEFAULT_COUNT_CAP) break;
-    }
-    for await (const _ of ctx.db
-      .query('approvals')
-      .withIndex('by_org_status', (q) =>
-        q.eq('organizationId', args.organizationId).eq('status', 'rejected'),
-      )) {
-      count++;
+    for (const status of ['executing', 'completed', 'rejected'] as const) {
+      for await (const _ of ctx.db
+        .query('approvals')
+        .withIndex('by_org_status', (q) =>
+          q.eq('organizationId', args.organizationId).eq('status', status),
+        )) {
+        count++;
+        if (count >= DEFAULT_COUNT_CAP) break;
+      }
       if (count >= DEFAULT_COUNT_CAP) break;
     }
     return count;

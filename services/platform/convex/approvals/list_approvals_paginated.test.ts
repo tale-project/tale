@@ -122,7 +122,7 @@ describe('listApprovalsPaginated', () => {
     await listApprovalsPaginated(ctx as unknown as QueryCtx, {
       paginationOpts: DEFAULT_PAGINATION_OPTS,
       organizationId: 'org_1',
-      status: 'approved',
+      status: 'completed',
       resourceType: 'product_recommendation',
       excludeStatus: 'pending',
     });
@@ -140,7 +140,7 @@ describe('listApprovalsPaginated', () => {
       { _id: 'a_1', status: 'pending', resourceType: 'product_recommendation' },
       {
         _id: 'a_2',
-        status: 'approved',
+        status: 'completed',
         resourceType: 'product_recommendation',
       },
     ];

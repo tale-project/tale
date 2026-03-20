@@ -34,7 +34,7 @@ import { isRecord } from '@/lib/utils/type-guards';
 interface WorkflowCreationApprovalCardProps {
   approvalId: Id<'approvals'>;
   organizationId: string;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'executing' | 'completed' | 'rejected';
   metadata: WorkflowCreationMetadata;
   executedAt?: number;
   executionError?: string;
@@ -281,7 +281,7 @@ function WorkflowCreationApprovalCardComponent({
     try {
       await updateApprovalStatus({
         approvalId,
-        status: 'approved',
+        status: 'executing',
       });
       await executeApprovedWorkflow({
         approvalId,
@@ -460,27 +460,32 @@ function WorkflowCreationApprovalCardComponent({
       </Stack>
 
       {/* Execution Result (if approved and executed) */}
-      {status === 'approved' && executedAt && !executionError && (
-        <Stack gap={1} className="mb-3">
-          <HStack gap={1} className="text-xs text-green-600">
-            <CheckCircle className="size-3" />
-            Workflow created successfully
-          </HStack>
-          {metadata.createdWorkflowId && (
-            <Link
-              to="/dashboard/$id/automations/$amId"
-              params={{ id: organizationId, amId: metadata.createdWorkflowId }}
-              className="text-primary flex items-center gap-1 text-xs hover:underline"
-            >
-              View workflow
-              <ExternalLink className="size-3" />
-            </Link>
-          )}
-        </Stack>
-      )}
+      {(status === 'executing' || status === 'completed') &&
+        executedAt &&
+        !executionError && (
+          <Stack gap={1} className="mb-3">
+            <HStack gap={1} className="text-xs text-green-600">
+              <CheckCircle className="size-3" />
+              Workflow created successfully
+            </HStack>
+            {metadata.createdWorkflowId && (
+              <Link
+                to="/dashboard/$id/automations/$amId"
+                params={{
+                  id: organizationId,
+                  amId: metadata.createdWorkflowId,
+                }}
+                className="text-primary flex items-center gap-1 text-xs hover:underline"
+              >
+                View workflow
+                <ExternalLink className="size-3" />
+              </Link>
+            )}
+          </Stack>
+        )}
 
       {/* Execution Error (persisted from backend) */}
-      {status === 'approved' && executionError && (
+      {(status === 'executing' || status === 'completed') && executionError && (
         <HStack
           gap={1}
           align="start"
@@ -542,14 +547,22 @@ function WorkflowCreationApprovalCardComponent({
       {!isPending && (
         <HStack justify="between" align="center" className="mt-2">
           <Text as="div" variant="caption">
-            {status === 'approved' && executionError
-              ? 'Workflow creation was approved but failed.'
-              : status === 'approved'
-                ? 'Workflow was created successfully.'
-                : 'Workflow creation was cancelled.'}
+            {status === 'executing'
+              ? 'Workflow creation in progress...'
+              : status === 'completed' && executionError
+                ? 'Workflow creation was approved but failed.'
+                : status === 'completed'
+                  ? 'Workflow was created successfully.'
+                  : 'Workflow creation was cancelled.'}
           </Text>
           <Badge
-            variant={status === 'approved' ? 'green' : 'destructive'}
+            variant={
+              status === 'completed'
+                ? 'green'
+                : status === 'executing'
+                  ? 'blue'
+                  : 'destructive'
+            }
             className="shrink-0 text-xs capitalize"
           >
             {status}

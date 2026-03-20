@@ -142,15 +142,27 @@ export function ChatInterface({
     threadId,
   );
 
-  // Block input when any pending approval exists
-  const hasPendingApproval = useMemo(
+  // Block input when any pending or executing approval exists
+  const hasActiveApproval = useMemo(
     () =>
-      (integrationApprovals ?? []).some((a) => a.status === 'pending') ||
-      (workflowCreationApprovals ?? []).some((a) => a.status === 'pending') ||
-      (workflowUpdateApprovals ?? []).some((a) => a.status === 'pending') ||
-      (workflowRunApprovals ?? []).some((a) => a.status === 'pending') ||
-      (humanInputRequests ?? []).some((a) => a.status === 'pending') ||
-      (documentWriteApprovals ?? []).some((a) => a.status === 'pending'),
+      (integrationApprovals ?? []).some(
+        (a) => a.status === 'pending' || a.status === 'executing',
+      ) ||
+      (workflowCreationApprovals ?? []).some(
+        (a) => a.status === 'pending' || a.status === 'executing',
+      ) ||
+      (workflowUpdateApprovals ?? []).some(
+        (a) => a.status === 'pending' || a.status === 'executing',
+      ) ||
+      (workflowRunApprovals ?? []).some(
+        (a) => a.status === 'pending' || a.status === 'executing',
+      ) ||
+      (humanInputRequests ?? []).some(
+        (a) => a.status === 'pending' || a.status === 'executing',
+      ) ||
+      (documentWriteApprovals ?? []).some(
+        (a) => a.status === 'pending' || a.status === 'executing',
+      ),
     [
       integrationApprovals,
       workflowCreationApprovals,
@@ -377,11 +389,11 @@ export function ChatInterface({
             onSendMessage={handleSendMessage}
             onStopGenerating={stopGenerating}
             isLoading={isLoading}
-            disabled={hasNoAgents || hasPendingApproval}
+            disabled={hasNoAgents || hasActiveApproval}
             disabledReason={
               hasNoAgents
                 ? 'no-agents'
-                : hasPendingApproval
+                : hasActiveApproval
                   ? 'pending-approval'
                   : undefined
             }

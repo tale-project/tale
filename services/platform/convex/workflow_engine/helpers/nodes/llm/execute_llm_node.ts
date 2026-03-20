@@ -41,34 +41,44 @@ export async function executeLLMNode(
   // 1. Validate and normalize configuration
   const normalizedConfig = validateAndNormalizeConfig(config);
 
-  // 2. Process prompts with variable substitution
-  const prompts = processPrompts(normalizedConfig, variables);
-
-  // 2.5. Inject prior human input responses into system prompt (for workflow context)
+  // 2. Build prompt-scoped variables with {{humanInputContext}} support.
+  // We create a shallow copy instead of mutating `variables` because:
+  // - The original `variables` object is persisted to execution state by
+  //   persistExecutionResult() in execute_step_handler.ts after this function returns.
+  // - humanInputContext is an ephemeral, prompt-only value that must be freshly
+  //   computed from the DB on each step execution, not stored in execution state.
+  // - Storing it would cause stale context after human input replay: the persisted
+  //   value from run N would shadow the fresh query result in run N+1.
+  let promptVariables = variables;
   if (executionId) {
-    try {
-      const respondedApprovals = await ctx.runQuery(
-        internal.approvals.internal_queries.listRespondedForExecution,
-        { executionId: toId<'wfExecutions'>(executionId) },
-      );
-      if (respondedApprovals.length > 0) {
-        const context = respondedApprovals
-          .map(
-            (a: { question: string; response: string | string[] }) =>
-              `- Q: "${a.question}" → A: "${Array.isArray(a.response) ? a.response.join(', ') : a.response}"`,
-          )
-          .join('\n');
-        prompts.systemPrompt += `\n\n<human_input_context>\nThe following information was provided by the user during this workflow:\n${context}\n</human_input_context>`;
-        debugLog('Injected human input context into system prompt', {
-          responseCount: respondedApprovals.length,
-        });
-      }
-    } catch {
-      // Non-critical: skip if query fails (e.g., executionId is not a valid wfExecutions ID)
+    const respondedApprovals = await ctx.runQuery(
+      internal.approvals.internal_queries.listRespondedForExecution,
+      { executionId: toId<'wfExecutions'>(executionId) },
+    );
+    const humanInputContext =
+      respondedApprovals.length > 0
+        ? [
+            '<human_input_context>',
+            'The following information was provided by the user during this workflow. Use these values directly — do not re-ask for information already provided.',
+            ...respondedApprovals.map(
+              (a: { question: string; response: string | string[] }) =>
+                `- Q: "${a.question}" → A: "${Array.isArray(a.response) ? a.response.join(', ') : a.response}"`,
+            ),
+            '</human_input_context>',
+          ].join('\n')
+        : '';
+    promptVariables = { ...variables, humanInputContext };
+    if (respondedApprovals.length > 0) {
+      debugLog('Built humanInputContext for prompt variables', {
+        responseCount: respondedApprovals.length,
+      });
     }
   }
 
-  // 3. Execute using Convex agent with tools
+  // 3. Process prompts with variable substitution
+  const prompts = processPrompts(normalizedConfig, promptVariables);
+
+  // 4. Execute using Convex agent with tools
   const llmResult = await executeAgentWithTools(
     ctx,
     normalizedConfig,
@@ -81,7 +91,7 @@ export async function executeLLMNode(
     },
   );
 
-  // 4. Create and return result
+  // 5. Create and return result
   return createLLMResult(llmResult, normalizedConfig, {
     threadId: llmResult.threadId, // Return the threadId used
   });

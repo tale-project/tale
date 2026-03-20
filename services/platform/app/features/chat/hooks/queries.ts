@@ -129,7 +129,7 @@ function useApprovals(organizationId: string) {
 
 export interface HumanInputRequest {
   _id: Id<'approvals'>;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'executing' | 'completed' | 'rejected';
   metadata: HumanInputRequestMetadata;
   _creationTime: number;
   messageId?: string;
@@ -183,7 +183,7 @@ export interface IntegrationOperationMetadata {
 
 export interface IntegrationApproval {
   _id: Id<'approvals'>;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'executing' | 'completed' | 'rejected';
   metadata: IntegrationOperationMetadata;
   executedAt?: number;
   executionError?: string;
@@ -226,7 +226,7 @@ export function useIntegrationApprovals(
 
 export interface WorkflowCreationApproval {
   _id: Id<'approvals'>;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'executing' | 'completed' | 'rejected';
   metadata: WorkflowCreationMetadata;
   executedAt?: number;
   executionError?: string;
@@ -269,7 +269,7 @@ export function useWorkflowCreationApprovals(
 
 export interface WorkflowRunApproval {
   _id: Id<'approvals'>;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'executing' | 'completed' | 'rejected';
   metadata: WorkflowRunMetadata;
   executedAt?: number;
   executionError?: string;
@@ -312,7 +312,7 @@ export function useWorkflowRunApprovals(
 
 export interface WorkflowUpdateApproval {
   _id: Id<'approvals'>;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'executing' | 'completed' | 'rejected';
   metadata: WorkflowUpdateMetadata;
   executedAt?: number;
   executionError?: string;
@@ -355,7 +355,7 @@ export function useWorkflowUpdateApprovals(
 
 export interface DocumentWriteApproval {
   _id: Id<'approvals'>;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'executing' | 'completed' | 'rejected';
   metadata: DocumentWriteMetadata;
   executedAt?: number;
   executionError?: string;

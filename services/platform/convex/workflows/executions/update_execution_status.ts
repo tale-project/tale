@@ -38,7 +38,8 @@ export async function updateExecutionStatus(
   }
 
   if (args.waitingFor !== undefined) {
-    updates.waitingFor = args.waitingFor;
+    // Empty string signals "clear the field"
+    updates.waitingFor = args.waitingFor || undefined;
   }
 
   if (args.error !== undefined) {

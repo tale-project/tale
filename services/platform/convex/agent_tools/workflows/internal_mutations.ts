@@ -41,6 +41,7 @@ export const updateWorkflowApprovalWithResult = internalMutation({
 
     const now = Date.now();
     await ctx.db.patch(args.approvalId, {
+      status: args.executionError ? 'rejected' : 'completed',
       executedAt: now,
       executionError: args.executionError ?? undefined,
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- constructing approval metadata from known WorkflowCreationMetadata fields
@@ -116,6 +117,19 @@ export const triggerWorkflowCompletionResponse = internalMutation({
     const agentConfig = toSerializableConfig(chatAgent);
     const { model, provider } = getDefaultAgentRuntimeConfig();
     const streamId = await persistentStreaming.createStream(ctx);
+
+    // Set generationStatus so the frontend shows loading indicator
+    const threadMeta = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
+      .first();
+    if (threadMeta) {
+      await ctx.db.patch(threadMeta._id, {
+        generationStatus: 'generating' as const,
+        streamId,
+      });
+    }
+
     const beforeGenerate = await createFunctionHandle(beforeGenerateHookRef);
 
     await ctx.scheduler.runAfter(
@@ -267,6 +281,9 @@ export const updateWorkflowRunApprovalWithResult = internalMutation({
 
     const now = Date.now();
     await ctx.db.patch(args.approvalId, {
+      // On error: reject immediately. On success: keep 'executing' — the workflow
+      // runs asynchronously and onWorkflowComplete will set 'completed' when done.
+      ...(args.executionError ? { status: 'rejected' as const } : {}),
       executedAt: now,
       executionError: args.executionError ?? undefined,
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- constructing approval metadata from known WorkflowRunMetadata fields
@@ -410,6 +427,7 @@ export const updateWorkflowUpdateApprovalWithResult = internalMutation({
 
     const now = Date.now();
     await ctx.db.patch(args.approvalId, {
+      status: args.executionError ? 'rejected' : 'completed',
       executedAt: now,
       executionError: args.executionError ?? undefined,
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- constructing approval metadata from known WorkflowUpdateMetadata fields

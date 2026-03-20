@@ -25,7 +25,7 @@ import { useSubmitHumanInputResponse } from '../hooks/mutations';
 
 interface HumanInputRequestCardProps {
   approvalId: Id<'approvals'>;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'executing' | 'completed' | 'rejected';
   metadata: HumanInputRequestMetadata;
   className?: string;
   onResponseSubmitted?: () => void;
@@ -312,10 +312,20 @@ function HumanInputRequestCardComponent({
       {!isPending && (
         <HStack justify="end" className="mt-2">
           <Badge
-            variant={status === 'approved' ? 'green' : 'destructive'}
+            variant={
+              status === 'completed'
+                ? 'green'
+                : status === 'executing'
+                  ? 'blue'
+                  : 'destructive'
+            }
             className="shrink-0 text-xs capitalize"
           >
-            {status === 'approved' ? 'Responded' : status}
+            {status === 'completed'
+              ? 'Responded'
+              : status === 'executing'
+                ? 'Processing'
+                : status}
           </Badge>
         </HStack>
       )}

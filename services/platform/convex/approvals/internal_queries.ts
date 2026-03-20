@@ -66,7 +66,7 @@ export const listRespondedForExecution = internalQuery({
       [];
     for (const approval of approvals) {
       if (
-        approval.status === 'approved' &&
+        approval.status === 'completed' &&
         approval.resourceType === 'human_input_request' &&
         approval.metadata
       ) {

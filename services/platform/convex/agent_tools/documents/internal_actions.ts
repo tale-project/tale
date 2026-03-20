@@ -36,9 +36,9 @@ export const executeApprovedDocumentWrite = internalAction({
       throw new Error('Approval not found');
     }
 
-    if (approval.status !== 'approved') {
+    if (approval.status !== 'executing') {
       throw new Error(
-        `Cannot execute document write: approval status is "${approval.status}", expected "approved"`,
+        `Cannot execute document write: approval status is "${approval.status}", expected "executing"`,
       );
     }
 
