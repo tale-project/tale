@@ -112,7 +112,7 @@ export const webhookHandler = httpAction(async (ctx, req) => {
   }
 
   const executionId = await ctx.runMutation(
-    internal.workflow_engine.internal_mutations.startWorkflow,
+    internal.wf_executions.internal_mutations.startWorkflow,
     {
       organizationId: webhook.organizationId,
       wfDefinitionId: activeVersionId,

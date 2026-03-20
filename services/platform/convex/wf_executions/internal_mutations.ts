@@ -2,6 +2,8 @@ import { v } from 'convex/values';
 
 import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
 import { internalMutation } from '../_generated/server';
+import { workflowManagers } from '../workflow_engine/engine';
+import { handleStartWorkflow } from '../workflow_engine/helpers/engine/start_workflow_handler';
 import { cleanupExecutionStorage as cleanupExecutionStorageHandler } from '../workflows/executions/cleanup_execution_storage';
 import { completeExecution as completeExecutionHandler } from '../workflows/executions/complete_execution';
 import { deleteStorageBlob as deleteStorageBlobHandler } from '../workflows/executions/delete_storage_blob';
@@ -97,5 +99,19 @@ export const persistExecutionOutput = internalMutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     return await persistExecutionOutputHandler(ctx, args);
+  },
+});
+
+export const startWorkflow = internalMutation({
+  args: {
+    organizationId: v.string(),
+    wfDefinitionId: v.id('wfDefinitions'),
+    input: v.optional(jsonValueValidator),
+    triggeredBy: v.string(),
+    triggerData: v.optional(jsonValueValidator),
+  },
+  returns: v.id('wfExecutions'),
+  handler: async (ctx, args) => {
+    return await handleStartWorkflow(ctx, args, workflowManagers);
   },
 });

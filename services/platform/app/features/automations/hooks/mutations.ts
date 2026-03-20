@@ -2,7 +2,7 @@ import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { api } from '@/convex/_generated/api';
 
 export function useStartWorkflow() {
-  return useConvexMutation(api.workflow_engine.mutations.startWorkflow);
+  return useConvexMutation(api.wf_executions.mutations.startWorkflow);
 }
 
 export function useCreateAutomation() {

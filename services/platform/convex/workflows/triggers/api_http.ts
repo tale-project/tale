@@ -145,7 +145,7 @@ export const apiTriggerHandler = httpAction(async (ctx, req) => {
 
   // Start workflow execution
   const executionId = await ctx.runMutation(
-    internal.workflow_engine.internal_mutations.startWorkflow,
+    internal.wf_executions.internal_mutations.startWorkflow,
     {
       organizationId: apiKeyRecord.organizationId,
       wfDefinitionId: activeVersionId,

@@ -7,7 +7,7 @@ vi.mock('../../../_generated/api', () => ({
         getApprovalById: 'mock-getApprovalById',
       },
     },
-    workflow_engine: {
+    wf_executions: {
       internal_mutations: {
         startWorkflow: 'mock-startWorkflow',
       },
