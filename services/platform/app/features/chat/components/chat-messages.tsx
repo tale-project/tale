@@ -25,7 +25,11 @@ const CollapsibleSystemMessage = memo(function CollapsibleSystemMessage({
   const [expanded, setExpanded] = useState(false);
   const toggle = useCallback(() => setExpanded((prev) => !prev), []);
 
-  const lines = content.split('\n');
+  const formatted = content.replace(
+    /\[([A-Z][A-Z_]+)\]/g,
+    (_, tag: string) => `[${tag.replaceAll('_', ' ')}]`,
+  );
+  const lines = formatted.split('\n');
   const nonEmptyLines = lines.filter((l) => l.trim() !== '');
   const previewLines = nonEmptyLines.slice(0, 2);
   const preview = previewLines.join(' ');

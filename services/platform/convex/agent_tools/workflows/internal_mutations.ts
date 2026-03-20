@@ -48,7 +48,6 @@ export const updateWorkflowApprovalWithResult = internalMutation({
   handler: async (ctx, args): Promise<void> => {
     const approval = await ctx.db.get(args.approvalId);
     if (!approval) throw new Error('Approval not found');
-    if (approval.executedAt) return;
 
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- approval.metadata is v.any() but always matches WorkflowCreationMetadata for workflow_creation approvals
     const metadata = (approval.metadata || {}) as WorkflowCreationMetadata;
@@ -288,7 +287,6 @@ export const updateWorkflowRunApprovalWithResult = internalMutation({
   handler: async (ctx, args): Promise<void> => {
     const approval = await ctx.db.get(args.approvalId);
     if (!approval) throw new Error('Approval not found');
-    if (approval.executedAt) return;
 
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- approval.metadata is v.any() but always matches WorkflowRunMetadata for workflow_run approvals
     const metadata = (approval.metadata || {}) as WorkflowRunMetadata;
@@ -480,7 +478,6 @@ export const updateWorkflowUpdateApprovalWithResult = internalMutation({
   handler: async (ctx, args): Promise<void> => {
     const approval = await ctx.db.get(args.approvalId);
     if (!approval) throw new Error('Approval not found');
-    if (approval.executedAt) return;
 
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- approval.metadata is v.any() but always matches WorkflowUpdateMetadata for workflow_update approvals
     const metadata = (approval.metadata || {}) as WorkflowUpdateMetadata;
