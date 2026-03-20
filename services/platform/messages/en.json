@@ -2005,7 +2005,10 @@
       "unarchived": "Conversations unarchived",
       "unarchivedDescription": "Successfully unarchived {successCount} conversations{failedCount, plural, =0 {} other {, {failedCount} failed}}",
       "unarchiveFailed": "Failed to unarchive conversations",
-      "markSpam": "Mark as spam"
+      "markSpam": "Mark as spam",
+      "markedAsSpam": "Conversations marked as spam",
+      "markedAsSpamDescription": "Successfully marked {successCount} conversations as spam{failedCount, plural, =0 {} other {, {failedCount} failed}}",
+      "spamFailed": "Failed to mark conversations as spam"
     },
     "header": {
       "moreActions": "More actions",
@@ -2056,11 +2059,16 @@
       "loadFailed": "Failed to load conversation",
       "loadFailedDescription": "Something went wrong while loading this conversation.",
       "tryAgain": "Try again",
-      "closedBanner": "This conversation was closed.",
-      "archivedBanner": "This conversation was archived.",
-      "spamBanner": "This conversation was marked as spam.",
+      "closedBanner": "This conversation was closed on {date}",
+      "closedBannerNoDate": "This conversation was closed",
+      "archivedBanner": "This conversation was archived",
+      "spamBanner": "This conversation was marked as spam",
       "unarchive": "Unarchive",
       "notSpam": "Not spam",
+      "delete": "Delete",
+      "deleting": "Deleting...",
+      "deleteSuccess": "Conversation deleted successfully.",
+      "deleteFailed": "Failed to delete conversation.",
       "showEarlierMessages": "Show {count} earlier {count, plural, one {message} other {messages}}"
     },
     "filters": {

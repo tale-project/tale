@@ -14,13 +14,16 @@ import { queryWithRLS } from '../lib/rls';
 import { getConversationWithMessages as getConversationWithMessagesHelper } from './get_conversation_with_messages';
 import { listConversationsPaginated as listConversationsPaginatedHelper } from './list_conversations_paginated';
 import { transformConversation } from './transform_conversation';
-import { conversationWithMessagesValidator } from './validators';
+import {
+  conversationStatusValidator,
+  conversationWithMessagesValidator,
+} from './validators';
 
 export const listConversationsPaginated = queryWithRLS({
   args: {
     paginationOpts: paginationOptsValidator,
     organizationId: v.string(),
-    status: v.optional(v.string()),
+    status: v.optional(conversationStatusValidator),
     priority: v.optional(v.string()),
     channel: v.optional(v.string()),
   },
@@ -37,7 +40,7 @@ export const listConversations = queryWithRLS({
     const conversations: Doc<'conversations'>[] = [];
     for await (const conversation of ctx.db
       .query('conversations')
-      .withIndex('by_organizationId', (q) =>
+      .withIndex('by_org_lastMessageAt', (q) =>
         q.eq('organizationId', args.organizationId),
       )
       .order('desc')) {

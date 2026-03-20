@@ -38,7 +38,7 @@ function createMockQueryBuilder(
 const DEFAULT_PAGINATION_OPTS = { numItems: 20, cursor: null, id: 0 };
 
 describe('listConversationsPaginated', () => {
-  it('uses by_organizationId index when no filters', async () => {
+  it('uses by_org_lastMessageAt index when no filters', async () => {
     const { ctx, builder } = createMockQueryBuilder();
 
     await listConversationsPaginated(ctx as unknown as QueryCtx, {
@@ -48,7 +48,7 @@ describe('listConversationsPaginated', () => {
 
     expect(ctx.db.query).toHaveBeenCalledWith('conversations');
     expect(builder.withIndex).toHaveBeenCalledWith(
-      'by_organizationId',
+      'by_org_lastMessageAt',
       expect.any(Function),
     );
     expect(builder.order).toHaveBeenCalledWith('desc');
@@ -56,7 +56,7 @@ describe('listConversationsPaginated', () => {
     expect(builder.paginate).toHaveBeenCalledWith(DEFAULT_PAGINATION_OPTS);
   });
 
-  it('dispatches to by_organizationId_and_status when status is provided', async () => {
+  it('uses by_org_status_lastMessageAt index when status is provided', async () => {
     const { ctx, builder } = createMockQueryBuilder();
 
     await listConversationsPaginated(ctx as unknown as QueryCtx, {
@@ -66,13 +66,14 @@ describe('listConversationsPaginated', () => {
     });
 
     expect(builder.withIndex).toHaveBeenCalledWith(
-      'by_organizationId_and_status',
+      'by_org_status_lastMessageAt',
       expect.any(Function),
     );
+    expect(builder.order).toHaveBeenCalledWith('desc');
     expect(builder.filter).not.toHaveBeenCalled();
   });
 
-  it('dispatches to by_organizationId_and_priority when priority is provided (no status)', async () => {
+  it('uses by_org_lastMessageAt and filters priority when only priority is provided', async () => {
     const { ctx, builder } = createMockQueryBuilder();
 
     await listConversationsPaginated(ctx as unknown as QueryCtx, {
@@ -82,13 +83,13 @@ describe('listConversationsPaginated', () => {
     });
 
     expect(builder.withIndex).toHaveBeenCalledWith(
-      'by_organizationId_and_priority',
+      'by_org_lastMessageAt',
       expect.any(Function),
     );
-    expect(builder.filter).not.toHaveBeenCalled();
+    expect(builder.filter).toHaveBeenCalledTimes(1);
   });
 
-  it('dispatches to by_organizationId_and_channel when channel is provided (no status or priority)', async () => {
+  it('uses by_org_lastMessageAt and filters channel when only channel is provided', async () => {
     const { ctx, builder } = createMockQueryBuilder();
 
     await listConversationsPaginated(ctx as unknown as QueryCtx, {
@@ -98,10 +99,10 @@ describe('listConversationsPaginated', () => {
     });
 
     expect(builder.withIndex).toHaveBeenCalledWith(
-      'by_organizationId_and_channel',
+      'by_org_lastMessageAt',
       expect.any(Function),
     );
-    expect(builder.filter).not.toHaveBeenCalled();
+    expect(builder.filter).toHaveBeenCalledTimes(1);
   });
 
   it('uses status index and filters priority when both are provided', async () => {
@@ -115,10 +116,28 @@ describe('listConversationsPaginated', () => {
     });
 
     expect(builder.withIndex).toHaveBeenCalledWith(
-      'by_organizationId_and_status',
+      'by_org_status_lastMessageAt',
       expect.any(Function),
     );
     expect(builder.filter).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses status index and filters both priority and channel when all provided', async () => {
+    const { ctx, builder } = createMockQueryBuilder();
+
+    await listConversationsPaginated(ctx as unknown as QueryCtx, {
+      paginationOpts: DEFAULT_PAGINATION_OPTS,
+      organizationId: 'org_1',
+      status: 'open',
+      priority: 'high',
+      channel: 'email',
+    });
+
+    expect(builder.withIndex).toHaveBeenCalledWith(
+      'by_org_status_lastMessageAt',
+      expect.any(Function),
+    );
+    expect(builder.filter).toHaveBeenCalledTimes(2);
   });
 
   it('transforms each document in the page', async () => {

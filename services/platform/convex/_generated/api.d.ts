@@ -137,6 +137,7 @@ import type * as conversations_build_threading_headers from "../conversations/bu
 import type * as conversations_bulk_archive_conversations from "../conversations/bulk_archive_conversations.js";
 import type * as conversations_bulk_close_conversations from "../conversations/bulk_close_conversations.js";
 import type * as conversations_bulk_reopen_conversations from "../conversations/bulk_reopen_conversations.js";
+import type * as conversations_bulk_spam_conversations from "../conversations/bulk_spam_conversations.js";
 import type * as conversations_bulk_unarchive_conversations from "../conversations/bulk_unarchive_conversations.js";
 import type * as conversations_close_conversation from "../conversations/close_conversation.js";
 import type * as conversations_create_conversation from "../conversations/create_conversation.js";
@@ -997,6 +998,7 @@ declare const fullApi: ApiFromModules<{
   "conversations/bulk_archive_conversations": typeof conversations_bulk_archive_conversations;
   "conversations/bulk_close_conversations": typeof conversations_bulk_close_conversations;
   "conversations/bulk_reopen_conversations": typeof conversations_bulk_reopen_conversations;
+  "conversations/bulk_spam_conversations": typeof conversations_bulk_spam_conversations;
   "conversations/bulk_unarchive_conversations": typeof conversations_bulk_unarchive_conversations;
   "conversations/close_conversation": typeof conversations_close_conversation;
   "conversations/create_conversation": typeof conversations_create_conversation;
@@ -2704,7 +2706,6 @@ export declare const components: {
             maximumRowsRead?: number;
             numItems: number;
           };
-          select?: Array<string>;
           sortBy?: { direction: "asc" | "desc"; field: string };
           where?: Array<{
             connector?: "AND" | "OR";

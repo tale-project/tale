@@ -19,99 +19,46 @@ import {
   type CursorPaginatedResult,
 } from '../lib/pagination';
 
-function buildQuery(ctx: QueryCtx, args: QueryConversationsArgs) {
+/**
+ * Build a query ordered by lastMessageAt descending.
+ *
+ * Uses `by_org_status_lastMessageAt` when status is provided (index-backed
+ * filter + sort), otherwise `by_org_lastMessageAt` (sort only, remaining
+ * filters applied via paginateWithFilter).
+ */
+function buildOrderedQuery(ctx: QueryCtx, args: QueryConversationsArgs) {
   const { organizationId } = args;
 
-  if (args.direction !== undefined) {
-    const { direction } = args;
-    return {
-      query: ctx.db
-        .query('conversations')
-        .withIndex('by_organizationId_and_direction', (q) =>
-          q.eq('organizationId', organizationId).eq('direction', direction),
-        ),
-      indexedFields: { direction: true } as const,
-    };
-  }
-
-  if (args.channel !== undefined) {
-    const { channel } = args;
-    return {
-      query: ctx.db
-        .query('conversations')
-        .withIndex('by_organizationId_and_channel', (q) =>
-          q.eq('organizationId', organizationId).eq('channel', channel),
-        ),
-      indexedFields: { channel: true } as const,
-    };
-  }
-
   if (args.status !== undefined) {
-    const { status } = args;
-    return {
-      query: ctx.db
-        .query('conversations')
-        .withIndex('by_organizationId_and_status', (q) =>
-          q.eq('organizationId', organizationId).eq('status', status),
-        ),
-      indexedFields: { status: true } as const,
-    };
-  }
-
-  if (args.priority !== undefined) {
-    const { priority } = args;
-    return {
-      query: ctx.db
-        .query('conversations')
-        .withIndex('by_organizationId_and_priority', (q) =>
-          q.eq('organizationId', organizationId).eq('priority', priority),
-        ),
-      indexedFields: { priority: true } as const,
-    };
-  }
-
-  if (args.customerId !== undefined) {
-    const { customerId } = args;
-    return {
-      query: ctx.db
-        .query('conversations')
-        .withIndex('by_organizationId_and_customerId', (q) =>
-          q.eq('organizationId', organizationId).eq('customerId', customerId),
-        ),
-      indexedFields: { customerId: true } as const,
-    };
-  }
-
-  return {
-    query: ctx.db
+    return ctx.db
       .query('conversations')
-      .withIndex('by_organizationId', (q) =>
-        q.eq('organizationId', organizationId),
-      ),
-    indexedFields: {} as const,
-  };
+      .withIndex('by_org_status_lastMessageAt', (q) =>
+        q.eq('organizationId', organizationId).eq('status', args.status),
+      )
+      .order('desc');
+  }
+
+  return ctx.db
+    .query('conversations')
+    .withIndex('by_org_lastMessageAt', (q) =>
+      q.eq('organizationId', organizationId),
+    )
+    .order('desc');
 }
 
 export async function queryConversations(
   ctx: QueryCtx,
   args: QueryConversationsArgs,
 ): Promise<CursorPaginatedResult<Doc<'conversations'>>> {
-  const { query, indexedFields } = buildQuery(ctx, args);
+  const query = buildOrderedQuery(ctx, args);
 
-  const needsDirectionFilter =
-    !('direction' in indexedFields) && args.direction !== undefined;
-  const needsChannelFilter =
-    !('channel' in indexedFields) && args.channel !== undefined;
-  const needsStatusFilter =
-    !('status' in indexedFields) && args.status !== undefined;
-  const needsPriorityFilter =
-    !('priority' in indexedFields) && args.priority !== undefined;
-  const needsCustomerIdFilter =
-    !('customerId' in indexedFields) && args.customerId !== undefined;
+  const needsDirectionFilter = args.direction !== undefined;
+  const needsChannelFilter = args.channel !== undefined;
+  const needsPriorityFilter = args.priority !== undefined;
+  const needsCustomerIdFilter = args.customerId !== undefined;
   const needsFilter =
     needsDirectionFilter ||
     needsChannelFilter ||
-    needsStatusFilter ||
     needsPriorityFilter ||
     needsCustomerIdFilter;
 
@@ -120,8 +67,6 @@ export async function queryConversations(
         if (needsDirectionFilter && conversation.direction !== args.direction)
           return false;
         if (needsChannelFilter && conversation.channel !== args.channel)
-          return false;
-        if (needsStatusFilter && conversation.status !== args.status)
           return false;
         if (needsPriorityFilter && conversation.priority !== args.priority)
           return false;
@@ -134,7 +79,7 @@ export async function queryConversations(
       }
     : undefined;
 
-  return paginateWithFilter(query.order('desc'), {
+  return paginateWithFilter(query, {
     numItems: args.paginationOpts.numItems,
     cursor: args.paginationOpts.cursor,
     filter,

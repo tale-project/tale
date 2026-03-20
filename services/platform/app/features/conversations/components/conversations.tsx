@@ -162,6 +162,7 @@ export function Conversations({
     handleSendMessages,
     handleBulkResolve,
     handleBulkReopen,
+    handleBulkSpam,
     handleBulkArchive,
     handleBulkUnarchive,
   } = useBulkActions({
@@ -184,7 +185,14 @@ export function Conversations({
 
   return (
     <>
-      <ConversationListPanel hidden={!!selectedConversationId}>
+      <ConversationListPanel
+        hidden={!!selectedConversationId}
+        overlay={
+          isBulkProcessing ? (
+            <LoadingOverlay message={tConversations('updating')} />
+          ) : undefined
+        }
+      >
         <ConversationListToolbar>
           {/* Compound select-all + filter trigger — matches design `5txbz` */}
           <DropdownMenu
@@ -281,31 +289,19 @@ export function Conversations({
                     <Button
                       size="icon"
                       variant="ghost"
-                      disabled
-                      aria-label={tConversations('bulk.markSpam')}
-                    >
-                      <ShieldXIcon className="size-4" />
-                    </Button>
-                  </Tooltip>
-                )}
-                {status === 'closed' && (
-                  <Tooltip content={tConversations('bulk.reopen')}>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={handleBulkReopen}
+                      onClick={handleBulkSpam}
                       disabled={isBulkProcessing}
-                      aria-label={tConversations('bulk.reopen')}
+                      aria-label={tConversations('bulk.markSpam')}
                     >
                       {isBulkProcessing ? (
                         <Loader2Icon className="size-4 animate-spin" />
                       ) : (
-                        <ArchiveIcon className="size-4" />
+                        <ShieldXIcon className="size-4" />
                       )}
                     </Button>
                   </Tooltip>
                 )}
-                {status === 'spam' && (
+                {(status === 'closed' || status === 'spam') && (
                   <Tooltip content={tConversations('bulk.reopen')}>
                     <Button
                       size="icon"
@@ -317,7 +313,7 @@ export function Conversations({
                       {isBulkProcessing ? (
                         <Loader2Icon className="size-4 animate-spin" />
                       ) : (
-                        <ArchiveIcon className="size-4" />
+                        <ArchiveRestoreIcon className="size-4" />
                       )}
                     </Button>
                   </Tooltip>
@@ -381,9 +377,6 @@ export function Conversations({
             paginationStatus={paginatedResult.status}
             loadMore={paginatedResult.loadMore}
           />
-        )}
-        {isBulkProcessing && (
-          <LoadingOverlay message={tConversations('updating')} />
         )}
       </ConversationListPanel>
 
