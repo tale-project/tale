@@ -12,6 +12,28 @@ import {
   approvalResourceTypeValidator,
 } from './validators';
 
+export const getApproval = query({
+  args: {
+    approvalId: v.id('approvals'),
+  },
+  returns: v.union(approvalItemValidator, v.null()),
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) return null;
+
+    const approval = await ApprovalsHelpers.getApproval(ctx, args.approvalId);
+    if (!approval) return null;
+
+    try {
+      await getOrganizationMember(ctx, approval.organizationId, authUser);
+    } catch {
+      return null;
+    }
+
+    return approval;
+  },
+});
+
 export const approxCountApprovalsByStatus = query({
   args: {
     organizationId: v.string(),

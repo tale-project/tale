@@ -7,16 +7,19 @@ import {
   ChevronRight,
   ExternalLink,
   Loader2,
+  MessageCircleQuestion,
   Play,
+  Send,
   Square,
   XCircle,
 } from 'lucide-react';
-import { memo, useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useState } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
 import type { WorkflowRunMetadata } from '@/convex/approvals/types';
 
 import { Badge } from '@/app/components/ui/feedback/badge';
+import { Textarea } from '@/app/components/ui/forms/textarea';
 import { ActionRow } from '@/app/components/ui/layout/action-row';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
@@ -26,9 +29,11 @@ import {
   useExecuteApprovedWorkflowRun,
   useUpdateApprovalStatus,
 } from '@/app/features/chat/hooks/mutations';
+import { useSubmitHumanInputResponse } from '@/app/features/chat/hooks/mutations';
 import {
   useCancelExecution,
   useExecutionStatus,
+  useWorkflowHumanInputApproval,
 } from '@/app/features/chat/hooks/use-execution-status';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useT } from '@/lib/i18n/client';
@@ -99,6 +104,21 @@ function WorkflowRunApprovalCardComponent({
   const isRunning =
     executionStatus?.status === 'pending' ||
     executionStatus?.status === 'running';
+
+  // Human input request for paused workflow
+  const waitingForApprovalId =
+    executionStatus?.status === 'running' && executionStatus?.waitingFor
+      ? executionStatus.waitingFor
+      : undefined;
+  const { data: humanInputApproval } =
+    useWorkflowHumanInputApproval(waitingForApprovalId);
+  const isWaitingForHumanInput = !!waitingForApprovalId && !!humanInputApproval;
+
+  const { mutate: submitHumanInput, isPending: isSubmittingHumanInput } =
+    useSubmitHumanInputResponse();
+  const [humanInputValue, setHumanInputValue] = useState('');
+  const [humanInputSelected, setHumanInputSelected] = useState<string>('');
+  const [humanInputMulti, setHumanInputMulti] = useState<string[]>([]);
 
   useEffect(() => {
     if (!isRunning || !executionStatus?.startedAt) return;
@@ -240,8 +260,40 @@ function WorkflowRunApprovalCardComponent({
         </Stack>
       )}
 
+      {/* Human Input Request (paused workflow waiting for user response) */}
+      {isWaitingForHumanInput && humanInputApproval && (
+        <WorkflowHumanInputSection
+          approval={humanInputApproval}
+          inputValue={humanInputValue}
+          onInputChange={setHumanInputValue}
+          selectedValue={humanInputSelected}
+          onSelectedChange={setHumanInputSelected}
+          multiValues={humanInputMulti}
+          onMultiChange={setHumanInputMulti}
+          isSubmitting={isSubmittingHumanInput}
+          onSubmit={(response) => {
+            submitHumanInput(
+              {
+                // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- _id from query result is a string at runtime but typed as Id<'approvals'> by Convex
+                approvalId: humanInputApproval._id as Id<'approvals'>,
+                response,
+              },
+              {
+                onError: (err) => {
+                  setError(
+                    err instanceof Error
+                      ? err.message
+                      : 'Failed to submit response',
+                  );
+                },
+              },
+            );
+          }}
+        />
+      )}
+
       {/* Live Execution Status */}
-      {status === 'approved' && executionId && (
+      {status === 'approved' && executionId && !isWaitingForHumanInput && (
         <Stack gap={1} className="mb-3" role="status" aria-live="polite">
           {isRunning && (
             <>
@@ -433,6 +485,189 @@ function WorkflowRunApprovalCardComponent({
         </HStack>
       )}
     </div>
+  );
+}
+
+interface WorkflowHumanInputSectionProps {
+  approval: {
+    _id: string;
+    metadata?: Record<string, unknown> | null;
+  };
+  inputValue: string;
+  onInputChange: (value: string) => void;
+  selectedValue: string;
+  onSelectedChange: (value: string) => void;
+  multiValues: string[];
+  onMultiChange: (values: string[]) => void;
+  isSubmitting: boolean;
+  onSubmit: (response: string | string[]) => void;
+}
+
+function WorkflowHumanInputSection({
+  approval,
+  inputValue,
+  onInputChange,
+  selectedValue,
+  onSelectedChange,
+  multiValues,
+  onMultiChange,
+  isSubmitting,
+  onSubmit,
+}: WorkflowHumanInputSectionProps) {
+  const meta = approval.metadata ?? {};
+  const question = typeof meta.question === 'string' ? meta.question : '';
+  const context = typeof meta.context === 'string' ? meta.context : undefined;
+  const format = typeof meta.format === 'string' ? meta.format : 'text_input';
+  const rawOptions = Array.isArray(meta.options) ? meta.options : [];
+  const options = rawOptions.filter(
+    (opt): opt is { label: string; value?: string; description?: string } =>
+      typeof opt === 'object' &&
+      opt !== null &&
+      'label' in opt &&
+      typeof opt.label === 'string',
+  );
+
+  const getOptionValue = (opt: { label: string; value?: string }) =>
+    opt.value ?? opt.label;
+
+  const handleSubmit = useCallback(() => {
+    switch (format) {
+      case 'text_input':
+        if (inputValue.trim()) onSubmit(inputValue.trim());
+        break;
+      case 'single_select':
+      case 'yes_no':
+        if (selectedValue) onSubmit(selectedValue);
+        break;
+      case 'multi_select':
+        if (multiValues.length > 0) onSubmit(multiValues);
+        break;
+    }
+  }, [format, inputValue, selectedValue, multiValues, onSubmit]);
+
+  return (
+    <Stack gap={3} className="mb-3">
+      <HStack gap={2}>
+        <MessageCircleQuestion className="text-primary size-4 shrink-0" />
+        <Text as="div" variant="label">
+          {question}
+        </Text>
+      </HStack>
+      {context && (
+        <Text variant="caption" className="mt-1">
+          {context}
+        </Text>
+      )}
+
+      {format === 'text_input' && (
+        <Textarea
+          value={inputValue}
+          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+            onInputChange(e.target.value)
+          }
+          placeholder="Type your response..."
+          className="min-h-[80px] text-sm"
+          disabled={isSubmitting}
+        />
+      )}
+
+      {(format === 'single_select' || format === 'yes_no') &&
+        options.map((opt) => {
+          const val = getOptionValue(opt);
+          return (
+            <button
+              key={val}
+              type="button"
+              className={cn(
+                'flex items-start gap-3 rounded-lg border p-3 text-left transition-all',
+                selectedValue === val
+                  ? 'border-primary bg-primary/5'
+                  : 'border-border hover:border-primary/50 hover:bg-muted/30',
+              )}
+              onClick={() => onSelectedChange(val)}
+              disabled={isSubmitting}
+            >
+              <div
+                className={cn(
+                  'mt-0.5 size-4 shrink-0 rounded-full border-2',
+                  selectedValue === val
+                    ? 'border-primary bg-primary'
+                    : 'border-muted-foreground',
+                )}
+              />
+              <div className="flex-1">
+                <Text as="span" variant="label" className="text-sm">
+                  {opt.label}
+                </Text>
+                {opt.description && (
+                  <Text as="div" variant="caption" className="mt-0.5 text-xs">
+                    {opt.description}
+                  </Text>
+                )}
+              </div>
+            </button>
+          );
+        })}
+
+      {format === 'multi_select' &&
+        options.map((opt) => {
+          const val = getOptionValue(opt);
+          const isChecked = multiValues.includes(val);
+          return (
+            <button
+              key={val}
+              type="button"
+              className={cn(
+                'flex items-start gap-3 rounded-lg border p-3 text-left transition-all',
+                isChecked
+                  ? 'border-primary bg-primary/5'
+                  : 'border-border hover:border-primary/50 hover:bg-muted/30',
+              )}
+              onClick={() =>
+                onMultiChange(
+                  isChecked
+                    ? multiValues.filter((v) => v !== val)
+                    : [...multiValues, val],
+                )
+              }
+              disabled={isSubmitting}
+            >
+              <div
+                className={cn(
+                  'mt-0.5 size-4 shrink-0 rounded border',
+                  isChecked
+                    ? 'border-primary bg-primary'
+                    : 'border-muted-foreground',
+                )}
+              />
+              <div className="flex-1">
+                <Text as="span" variant="label" className="text-sm">
+                  {opt.label}
+                </Text>
+                {opt.description && (
+                  <Text as="div" variant="caption" className="mt-0.5 text-xs">
+                    {opt.description}
+                  </Text>
+                )}
+              </div>
+            </button>
+          );
+        })}
+
+      <Button
+        onClick={handleSubmit}
+        disabled={isSubmitting}
+        size="sm"
+        className="w-full"
+      >
+        {isSubmitting ? (
+          <Loader2 className="mr-2 size-4 animate-spin" />
+        ) : (
+          <Send className="mr-2 size-4" />
+        )}
+        Submit response
+      </Button>
+    </Stack>
   );
 }
 

@@ -92,6 +92,7 @@ export async function executeAgentWithTools(
     executionId: string;
     organizationId?: string;
     threadId?: string;
+    stepSlug?: string;
   },
 ): Promise<LLMExecutionResult> {
   if (config.outputFormat === 'json' && !config.outputSchema) {
@@ -125,9 +126,12 @@ export async function executeAgentWithTools(
   });
 
   const threadId = await getOrCreateThread(ctx, config.name, _args.threadId);
-  const contextWithOrg = _args.organizationId
-    ? { ...ctx, organizationId: _args.organizationId }
-    : ctx;
+  const contextWithOrg = {
+    ...ctx,
+    ...(_args.organizationId ? { organizationId: _args.organizationId } : {}),
+    ...(_args.executionId ? { wfExecutionId: _args.executionId } : {}),
+    ...(_args.stepSlug ? { stepSlug: _args.stepSlug } : {}),
+  };
 
   // Case 1: JSON output WITHOUT tools -> use generateObject directly
   if (needsJsonOutput && !hasTools && zodSchema) {

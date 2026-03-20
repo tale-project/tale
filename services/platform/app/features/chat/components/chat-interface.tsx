@@ -2,7 +2,7 @@
 
 import { m, AnimatePresence } from 'framer-motion';
 import { ArrowDown } from 'lucide-react';
-import { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 
 import { PanelFooter } from '@/app/components/layout/panel-footer';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
@@ -140,6 +140,25 @@ export function ChatInterface({
   const { approvals: documentWriteApprovals } = useDocumentWriteApprovals(
     organizationId,
     threadId,
+  );
+
+  // Block input when any pending approval exists
+  const hasPendingApproval = useMemo(
+    () =>
+      (integrationApprovals ?? []).some((a) => a.status === 'pending') ||
+      (workflowCreationApprovals ?? []).some((a) => a.status === 'pending') ||
+      (workflowUpdateApprovals ?? []).some((a) => a.status === 'pending') ||
+      (workflowRunApprovals ?? []).some((a) => a.status === 'pending') ||
+      (humanInputRequests ?? []).some((a) => a.status === 'pending') ||
+      (documentWriteApprovals ?? []).some((a) => a.status === 'pending'),
+    [
+      integrationApprovals,
+      workflowCreationApprovals,
+      workflowUpdateApprovals,
+      workflowRunApprovals,
+      humanInputRequests,
+      documentWriteApprovals,
+    ],
   );
 
   // Merge messages with approvals and human input requests
@@ -358,7 +377,14 @@ export function ChatInterface({
             onSendMessage={handleSendMessage}
             onStopGenerating={stopGenerating}
             isLoading={isLoading}
-            disabled={hasNoAgents}
+            disabled={hasNoAgents || hasPendingApproval}
+            disabledReason={
+              hasNoAgents
+                ? 'no-agents'
+                : hasPendingApproval
+                  ? 'pending-approval'
+                  : undefined
+            }
             organizationId={organizationId}
             attachments={attachments}
             uploadingFiles={uploadingFiles}
