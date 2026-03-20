@@ -25,6 +25,20 @@ const beforeGenerateHookRef = makeFunctionReference<'action'>(
 
 type ApprovalMetadata = Doc<'approvals'>['metadata'];
 
+export const claimWorkflowApprovalForExecution = internalMutation({
+  args: {
+    approvalId: v.id('approvals'),
+  },
+  returns: v.boolean(),
+  handler: async (ctx, args): Promise<boolean> => {
+    const approval = await ctx.db.get(args.approvalId);
+    if (!approval) throw new Error('Approval not found');
+    if (approval.executedAt) return false;
+    await ctx.db.patch(args.approvalId, { executedAt: Date.now() });
+    return true;
+  },
+});
+
 export const updateWorkflowApprovalWithResult = internalMutation({
   args: {
     approvalId: v.id('approvals'),

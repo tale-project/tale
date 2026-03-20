@@ -30,6 +30,7 @@ import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useCopyButton } from '@/app/hooks/use-copy';
 import { Id } from '@/convex/_generated/dataModel';
 import { WorkflowUpdateMetadata } from '@/convex/approvals/types';
+import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-guards';
 
@@ -72,6 +73,8 @@ function WorkflowUpdateApprovalCardComponent({
   executionError,
   className,
 }: WorkflowUpdateApprovalCardProps) {
+  const { t } = useT('workflowUpdateApproval');
+  const { t: tCommon } = useT('approvalCommon');
   const { user } = useAuth();
   const [isApproving, setIsApproving] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
@@ -123,7 +126,7 @@ function WorkflowUpdateApprovalCardComponent({
 
   const handleApprove = async () => {
     if (!user?.userId) {
-      setError('User not authenticated');
+      setError(tCommon('errorNotAuthenticated'));
       return;
     }
     setIsApproving(true);
@@ -137,7 +140,7 @@ function WorkflowUpdateApprovalCardComponent({
         approvalId,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to apply update');
+      setError(err instanceof Error ? err.message : t('errorApplyFailed'));
       console.error('Failed to approve workflow update:', err);
     } finally {
       setIsApproving(false);
@@ -146,7 +149,7 @@ function WorkflowUpdateApprovalCardComponent({
 
   const handleReject = async () => {
     if (!user?.userId) {
-      setError('User not authenticated');
+      setError(tCommon('errorNotAuthenticated'));
       return;
     }
     setIsRejecting(true);
@@ -157,7 +160,9 @@ function WorkflowUpdateApprovalCardComponent({
         status: 'rejected',
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to reject');
+      setError(
+        err instanceof Error ? err.message : tCommon('errorRejectFailed'),
+      );
       console.error('Failed to reject workflow update:', err);
     } finally {
       setIsRejecting(false);
@@ -181,10 +186,10 @@ function WorkflowUpdateApprovalCardComponent({
             </Text>
             <Badge variant="outline" className="mt-0.5 text-[10px]">
               {metadata.updateType === 'full_save'
-                ? 'Update workflow'
+                ? t('badgeFullSave')
                 : metadata.updateType === 'multi_step_patch'
-                  ? `Update ${metadata.steps?.length ?? 0} steps`
-                  : 'Update step'}
+                  ? t('badgeMultiStep', { count: metadata.steps?.length ?? 0 })
+                  : t('badgeStepPatch')}
             </Badge>
           </div>
         </HStack>
@@ -193,11 +198,11 @@ function WorkflowUpdateApprovalCardComponent({
       {/* Details list */}
       <div className="text-muted-foreground mb-3 space-y-0.5 text-xs">
         <div className="flex gap-1.5">
-          <span className="shrink-0">Version:</span>
+          <span className="shrink-0">{t('versionLabel')}</span>
           <span className="font-mono">{metadata.workflowVersionNumber}</span>
         </div>
         <div className="flex gap-1.5">
-          <span className="shrink-0">ID:</span>
+          <span className="shrink-0">{t('idLabel')}</span>
           <span className="font-mono">{metadata.workflowId}</span>
         </div>
       </div>
@@ -230,12 +235,14 @@ function WorkflowUpdateApprovalCardComponent({
                 ? `${metadata.steps?.length ?? 0} steps`
                 : `Step: ${metadata.stepName ?? 'unknown'}`}
           </button>
-          <Tooltip content={copied ? 'Copied!' : 'Copy configuration'}>
+          <Tooltip
+            content={copied ? tCommon('copied') : tCommon('copyConfiguration')}
+          >
             <button
               type="button"
               onClick={handleCopy}
               className="text-muted-foreground hover:text-foreground transition-colors"
-              aria-label="Copy update configuration"
+              aria-label={t('copyAriaLabel')}
             >
               {copied ? (
                 <Check className="size-3" />
@@ -323,14 +330,14 @@ function WorkflowUpdateApprovalCardComponent({
           <Stack gap={1} className="mb-3">
             <HStack gap={1} className="text-xs text-green-600">
               <CheckCircle className="size-3" />
-              Workflow updated successfully
+              {t('updatedSuccessfully')}
             </HStack>
             <Link
               to="/dashboard/$id/automations/$amId"
               params={{ id: organizationId, amId: metadata.workflowId }}
               className="text-primary flex items-center gap-1 text-xs hover:underline"
             >
-              View workflow
+              {tCommon('viewWorkflow')}
               <ExternalLink className="size-3" />
             </Link>
           </Stack>
@@ -367,7 +374,7 @@ function WorkflowUpdateApprovalCardComponent({
       {/* Action Buttons */}
       {isPending && (
         <ActionRow gap={2}>
-          <Tooltip content="Approve and apply this update">
+          <Tooltip content={t('approveTooltip')}>
             <Button
               size="sm"
               variant="primary"
@@ -376,11 +383,11 @@ function WorkflowUpdateApprovalCardComponent({
               className="flex-1"
             >
               {isApproving && <Loader2 className="mr-1 size-4 animate-spin" />}
-              Apply Update
+              {t('approve')}
             </Button>
           </Tooltip>
 
-          <Tooltip content="Cancel workflow update">
+          <Tooltip content={t('rejectTooltip')}>
             <Button
               size="sm"
               variant="secondary"
@@ -389,7 +396,7 @@ function WorkflowUpdateApprovalCardComponent({
               className="flex-1"
             >
               {isRejecting && <Loader2 className="mr-1 size-4 animate-spin" />}
-              Cancel
+              {tCommon('reject')}
             </Button>
           </Tooltip>
         </ActionRow>
@@ -400,12 +407,12 @@ function WorkflowUpdateApprovalCardComponent({
         <HStack justify="between" align="center" className="mt-2">
           <Text as="div" variant="caption">
             {status === 'executing'
-              ? 'Applying update...'
+              ? t('statusExecuting')
               : status === 'completed' && executionError
-                ? 'Update was approved but failed to apply.'
+                ? t('statusCompletedFailed')
                 : status === 'completed'
-                  ? 'Workflow was updated successfully.'
-                  : 'Workflow update was cancelled.'}
+                  ? t('statusCompletedSuccess')
+                  : t('statusRejected')}
           </Text>
           <Badge
             variant={

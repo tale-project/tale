@@ -26,12 +26,20 @@ export async function buildHumanInputContext(
     responseCount: respondedApprovals.length,
   });
 
+  const escapeForContext = (value: string) =>
+    value.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  const formatResponse = (response: string | string[]) =>
+    Array.isArray(response)
+      ? response.map(escapeForContext).join(', ')
+      : escapeForContext(response);
+
   return [
     '<human_input_context>',
     'The following information was provided by the user during this workflow. Use these values for the EXACT questions listed below — do not re-ask these specific questions. If you need NEW or DIFFERENT information not covered here, you MUST call request_human_input again.',
     ...respondedApprovals.map(
       (a: { question: string; response: string | string[] }) =>
-        `- Q: "${a.question}" → A: "${Array.isArray(a.response) ? a.response.join(', ') : a.response}"`,
+        `- Q: "${escapeForContext(a.question)}" → A: "${formatResponse(a.response)}"`,
     ),
     '</human_input_context>',
   ].join('\n');

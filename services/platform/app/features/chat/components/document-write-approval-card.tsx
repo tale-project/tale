@@ -47,6 +47,7 @@ function DocumentWriteApprovalCardComponent({
   className,
 }: DocumentWriteApprovalCardProps) {
   const { t } = useT('documentWriteApproval');
+  const { t: tCommon } = useT('approvalCommon');
   const { user } = useAuth();
   const [isApproving, setIsApproving] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
@@ -68,7 +69,7 @@ function DocumentWriteApprovalCardComponent({
 
   const handleApprove = async () => {
     if (!user?.userId) {
-      setError(t('errorNotAuthenticated'));
+      setError(tCommon('errorNotAuthenticated'));
       return;
     }
     setIsApproving(true);
@@ -89,7 +90,7 @@ function DocumentWriteApprovalCardComponent({
 
   const handleReject = async () => {
     if (!user?.userId) {
-      setError(t('errorNotAuthenticated'));
+      setError(tCommon('errorNotAuthenticated'));
       return;
     }
     setIsRejecting(true);
@@ -100,7 +101,9 @@ function DocumentWriteApprovalCardComponent({
         status: 'rejected',
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('errorRejectFailed'));
+      setError(
+        err instanceof Error ? err.message : tCommon('errorRejectFailed'),
+      );
       console.error('Failed to reject document write:', err);
     } finally {
       setIsRejecting(false);

@@ -4,6 +4,7 @@ import { v } from 'convex/values';
 import { query } from '../_generated/server';
 import { DEFAULT_COUNT_CAP } from '../lib/helpers/count_items_in_org';
 import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
+import { UnauthorizedError } from '../lib/rls/errors';
 import * as ApprovalsHelpers from './helpers';
 import { listApprovalsPaginated as listApprovalsPaginatedHelper } from './list_approvals_paginated';
 import {
@@ -26,8 +27,9 @@ export const getApproval = query({
 
     try {
       await getOrganizationMember(ctx, approval.organizationId, authUser);
-    } catch {
-      return null;
+    } catch (error) {
+      if (error instanceof UnauthorizedError) return null;
+      throw error;
     }
 
     return approval;
@@ -48,8 +50,9 @@ export const approxCountApprovalsByStatus = query({
 
     try {
       await getOrganizationMember(ctx, args.organizationId, authUser);
-    } catch {
-      return 0;
+    } catch (error) {
+      if (error instanceof UnauthorizedError) return 0;
+      throw error;
     }
 
     if (args.status === 'pending') {
@@ -98,8 +101,9 @@ export const listApprovalsPaginated = query({
 
     try {
       await getOrganizationMember(ctx, args.organizationId, authUser);
-    } catch {
-      return emptyResult;
+    } catch (error) {
+      if (error instanceof UnauthorizedError) return emptyResult;
+      throw error;
     }
 
     return await listApprovalsPaginatedHelper(ctx, args);
@@ -128,8 +132,9 @@ export const listApprovalsByOrganization = query({
 
     try {
       await getOrganizationMember(ctx, args.organizationId, authUser);
-    } catch {
-      return [];
+    } catch (error) {
+      if (error instanceof UnauthorizedError) return [];
+      throw error;
     }
 
     return await ApprovalsHelpers.listApprovalsByOrganization(ctx, args);
@@ -150,8 +155,9 @@ export const listActiveApprovalsByOrganization = query({
 
     try {
       await getOrganizationMember(ctx, args.organizationId, authUser);
-    } catch {
-      return [];
+    } catch (error) {
+      if (error instanceof UnauthorizedError) return [];
+      throw error;
     }
 
     return await ApprovalsHelpers.listActiveApprovalsByOrganization(ctx, args);

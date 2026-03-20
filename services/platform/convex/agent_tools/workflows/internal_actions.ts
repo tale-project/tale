@@ -51,8 +51,13 @@ export const executeApprovedWorkflowCreation = internalAction({
       );
     }
 
-    // Idempotency guard: prevent double-execution from rapid clicks or retries
-    if (approval.executedAt) {
+    // Atomic claim: prevent double-execution from rapid clicks or retries
+    const claimed = await ctx.runMutation(
+      internal.agent_tools.workflows.internal_mutations
+        .claimWorkflowApprovalForExecution,
+      { approvalId: args.approvalId },
+    );
+    if (!claimed) {
       throw new Error(
         'This workflow creation approval has already been executed',
       );
@@ -177,8 +182,13 @@ export const executeApprovedWorkflowRun = internalAction({
       );
     }
 
-    // Idempotency guard: prevent double-execution from rapid clicks or retries
-    if (approval.executedAt) {
+    // Atomic claim: prevent double-execution from rapid clicks or retries
+    const claimed = await ctx.runMutation(
+      internal.agent_tools.workflows.internal_mutations
+        .claimWorkflowApprovalForExecution,
+      { approvalId: args.approvalId },
+    );
+    if (!claimed) {
       throw new Error('This workflow run approval has already been executed');
     }
 
@@ -304,7 +314,13 @@ export const executeApprovedWorkflowUpdate = internalAction({
       );
     }
 
-    if (approval.executedAt) {
+    // Atomic claim: prevent double-execution from rapid clicks or retries
+    const claimed = await ctx.runMutation(
+      internal.agent_tools.workflows.internal_mutations
+        .claimWorkflowApprovalForExecution,
+      { approvalId: args.approvalId },
+    );
+    if (!claimed) {
       throw new Error(
         'This workflow update approval has already been executed',
       );

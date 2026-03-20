@@ -53,7 +53,11 @@ export function TestMessageList({
   }
 
   return (
-    <>
+    <div
+      role="log"
+      aria-live="polite"
+      aria-label={t('customAgents.testChat.messageHistory')}
+    >
       {displayItems.map((item) => {
         if (item.type !== 'message') return null;
 
@@ -131,6 +135,6 @@ export function TestMessageList({
           organizationId={organizationId}
         />
       )}
-    </>
+    </div>
   );
 }

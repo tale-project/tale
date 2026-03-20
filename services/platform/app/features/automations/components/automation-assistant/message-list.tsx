@@ -102,7 +102,11 @@ export function MessageList({
   }
 
   return (
-    <>
+    <div
+      role="log"
+      aria-live="polite"
+      aria-label={t('assistant.messageHistory')}
+    >
       {displayMessages.map((message) => (
         <div
           key={message.id}
@@ -242,6 +246,6 @@ export function MessageList({
           )}
         </div>
       )}
-    </>
+    </div>
   );
 }

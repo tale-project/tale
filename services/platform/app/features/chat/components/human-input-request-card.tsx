@@ -19,6 +19,7 @@ import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
+import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import { useSubmitHumanInputResponse } from '../hooks/mutations';
@@ -38,6 +39,8 @@ function HumanInputRequestCardComponent({
   className,
   onResponseSubmitted,
 }: HumanInputRequestCardProps) {
+  const { t } = useT('humanInputRequest');
+  const { t: tCommon } = useT('approvalCommon');
   const { formatDate } = useFormatDate();
   const [error, setError] = useState<string | null>(null);
   const [textValue, setTextValue] = useState('');
@@ -55,7 +58,7 @@ function HumanInputRequestCardComponent({
     switch (metadata.format) {
       case 'text_input':
         if (!textValue.trim()) {
-          setError('Please enter a response');
+          setError(t('errorEnterResponse'));
           return;
         }
         response = textValue.trim();
@@ -63,14 +66,14 @@ function HumanInputRequestCardComponent({
       case 'single_select':
       case 'yes_no':
         if (!selectedValue) {
-          setError('Please select an option');
+          setError(t('errorSelectOption'));
           return;
         }
         response = selectedValue;
         break;
       case 'multi_select':
         if (selectedValues.length === 0) {
-          setError('Please select at least one option');
+          setError(t('errorSelectAtLeastOne'));
           return;
         }
         response = selectedValues;
@@ -89,13 +92,15 @@ function HumanInputRequestCardComponent({
         },
         onError: (err) => {
           setError(
-            err instanceof Error ? err.message : 'Failed to submit response',
+            err instanceof Error ? err.message : tCommon('errorSubmitFailed'),
           );
           console.error('Failed to submit response:', err);
         },
       },
     );
   }, [
+    t,
+    tCommon,
     metadata.format,
     textValue,
     selectedValue,
@@ -124,7 +129,7 @@ function HumanInputRequestCardComponent({
               onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
                 setTextValue(e.target.value)
               }
-              placeholder={metadata.placeholder ?? 'Type your response...'}
+              placeholder={metadata.placeholder ?? t('placeholder')}
               className="min-h-[80px] text-sm"
               disabled={isSubmitting}
             />
@@ -147,6 +152,8 @@ function HumanInputRequestCardComponent({
                 <button
                   type="button"
                   key={value}
+                  role="radio"
+                  aria-checked={isSelected}
                   className={cn(
                     'flex items-start space-x-3 p-3 rounded-lg border transition-all cursor-pointer',
                     isSelected
@@ -159,6 +166,8 @@ function HumanInputRequestCardComponent({
                     value={value}
                     id={`option-${value}`}
                     className="mt-0.5"
+                    tabIndex={-1}
+                    aria-hidden="true"
                   />
                   <div className="flex-1">
                     <Label
@@ -189,6 +198,8 @@ function HumanInputRequestCardComponent({
                 <button
                   type="button"
                   key={value}
+                  role="checkbox"
+                  aria-checked={isChecked}
                   className={cn(
                     'flex items-start space-x-3 p-3 rounded-lg border transition-all cursor-pointer',
                     isChecked
@@ -203,6 +214,8 @@ function HumanInputRequestCardComponent({
                     id={`option-${value}`}
                     disabled={isSubmitting}
                     className="mt-0.5"
+                    tabIndex={-1}
+                    aria-hidden="true"
                   />
                   <div className="flex-1">
                     <Label
@@ -240,8 +253,10 @@ function HumanInputRequestCardComponent({
           {displayValue}
         </Text>
         <Text as="div" variant="caption">
-          Responded by {respondedBy} at{' '}
-          {formatDate(new Date(timestamp), 'long')}
+          {t('respondedByAt', {
+            name: respondedBy,
+            date: formatDate(new Date(timestamp), 'long'),
+          })}
         </Text>
       </Stack>
     );
@@ -259,7 +274,7 @@ function HumanInputRequestCardComponent({
         <HStack gap={3}>
           <MessageCircleQuestion className="text-primary size-5 shrink-0" />
           <div>
-            <div className="text-base font-semibold">Question</div>
+            <div className="text-base font-semibold">{t('questionTitle')}</div>
             <Badge variant="outline" className="mt-1 text-xs capitalize">
               {metadata.format.replace('_', ' ')}
             </Badge>
@@ -301,7 +316,7 @@ function HumanInputRequestCardComponent({
             ) : (
               <Send className="mr-2 size-4" />
             )}
-            Submit Response
+            {t('submit')}
           </Button>
         </Stack>
       ) : (
@@ -322,9 +337,9 @@ function HumanInputRequestCardComponent({
             className="shrink-0 text-xs capitalize"
           >
             {status === 'completed'
-              ? 'Responded'
+              ? t('statusResponded')
               : status === 'executing'
-                ? 'Processing'
+                ? t('statusProcessing')
                 : status}
           </Badge>
         </HStack>

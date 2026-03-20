@@ -83,6 +83,7 @@ function WorkflowRunApprovalCardComponent({
   className,
 }: WorkflowRunApprovalCardProps) {
   const { t } = useT('workflowRunApproval');
+  const { t: tCommon } = useT('approvalCommon');
   const { user } = useAuth();
   const [isApproving, setIsApproving] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
@@ -142,7 +143,7 @@ function WorkflowRunApprovalCardComponent({
 
   const handleApprove = async () => {
     if (!user?.userId) {
-      setError('User not authenticated');
+      setError(tCommon('errorNotAuthenticated'));
       return;
     }
     setIsApproving(true);
@@ -156,7 +157,7 @@ function WorkflowRunApprovalCardComponent({
         approvalId,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to run workflow');
+      setError(err instanceof Error ? err.message : t('errorRunFailed'));
       console.error('Failed to approve workflow run:', err);
     } finally {
       setIsApproving(false);
@@ -165,7 +166,7 @@ function WorkflowRunApprovalCardComponent({
 
   const handleReject = async () => {
     if (!user?.userId) {
-      setError('User not authenticated');
+      setError(tCommon('errorNotAuthenticated'));
       return;
     }
     setIsRejecting(true);
@@ -176,7 +177,9 @@ function WorkflowRunApprovalCardComponent({
         status: 'rejected',
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to reject');
+      setError(
+        err instanceof Error ? err.message : tCommon('errorRejectFailed'),
+      );
       console.error('Failed to reject workflow run:', err);
     } finally {
       setIsRejecting(false);
@@ -190,7 +193,7 @@ function WorkflowRunApprovalCardComponent({
     try {
       await cancelExecution({ executionId });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to stop execution');
+      setError(err instanceof Error ? err.message : t('errorStopFailed'));
       console.error('Failed to cancel execution:', err);
     } finally {
       setIsCancelling(false);
@@ -294,7 +297,7 @@ function WorkflowRunApprovalCardComponent({
                   setError(
                     err instanceof Error
                       ? err.message
-                      : 'Failed to submit response',
+                      : tCommon('errorSubmitFailed'),
                   );
                 },
               },
@@ -471,11 +474,11 @@ function WorkflowRunApprovalCardComponent({
               onClick={handleReject}
               disabled={isProcessing}
               aria-busy={isRejecting}
-              aria-label={t('reject')}
+              aria-label={tCommon('reject')}
               className="flex-1"
             >
               {isRejecting && <Loader2 className="mr-1 size-4 animate-spin" />}
-              {t('reject')}
+              {tCommon('reject')}
             </Button>
           </Tooltip>
         </ActionRow>
@@ -541,6 +544,8 @@ function WorkflowHumanInputSection({
   isSubmitting,
   onSubmit,
 }: WorkflowHumanInputSectionProps) {
+  const { t } = useT('workflowRunApproval');
+  const { t: tCommon } = useT('approvalCommon');
   const meta = approval.metadata ?? {};
   const question = typeof meta.question === 'string' ? meta.question : '';
   const context = typeof meta.context === 'string' ? meta.context : undefined;
@@ -592,7 +597,7 @@ function WorkflowHumanInputSection({
           onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
             onInputChange(e.target.value)
           }
-          placeholder="Type your response..."
+          placeholder={t('humanInputPlaceholder')}
           className="min-h-[80px] text-sm"
           disabled={isSubmitting}
         />
@@ -605,6 +610,8 @@ function WorkflowHumanInputSection({
             <button
               key={val}
               type="button"
+              role="radio"
+              aria-checked={selectedValue === val}
               className={cn(
                 'flex items-start gap-3 rounded-lg border p-3 text-left transition-all',
                 selectedValue === val
@@ -615,6 +622,7 @@ function WorkflowHumanInputSection({
               disabled={isSubmitting}
             >
               <div
+                aria-hidden="true"
                 className={cn(
                   'mt-0.5 size-4 shrink-0 rounded-full border-2',
                   selectedValue === val
@@ -644,6 +652,8 @@ function WorkflowHumanInputSection({
             <button
               key={val}
               type="button"
+              role="checkbox"
+              aria-checked={isChecked}
               className={cn(
                 'flex items-start gap-3 rounded-lg border p-3 text-left transition-all',
                 isChecked
@@ -660,6 +670,7 @@ function WorkflowHumanInputSection({
               disabled={isSubmitting}
             >
               <div
+                aria-hidden="true"
                 className={cn(
                   'mt-0.5 size-4 shrink-0 rounded border',
                   isChecked
@@ -692,7 +703,7 @@ function WorkflowHumanInputSection({
         ) : (
           <Send className="mr-2 size-4" />
         )}
-        Submit response
+        {t('submitResponse')}
       </Button>
     </Stack>
   );
