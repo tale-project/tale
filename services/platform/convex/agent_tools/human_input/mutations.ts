@@ -1,3 +1,5 @@
+import type { WorkflowId } from '@convex-dev/workflow';
+
 import { saveMessage } from '@convex-dev/agent';
 import { createFunctionHandle, makeFunctionReference } from 'convex/server';
 import { v } from 'convex/values';
@@ -10,6 +12,8 @@ import { toSerializableConfig } from '../../custom_agents/config';
 import { getDefaultAgentRuntimeConfig } from '../../lib/agent_runtime_config';
 import { getOrganizationMember } from '../../lib/rls';
 import { persistentStreaming } from '../../streaming/helpers';
+import { workflowManagers } from '../../workflow_engine/engine';
+import { safeShardIndex } from '../../workflow_engine/helpers/engine/shard';
 
 const beforeGenerateHookRef = makeFunctionReference<'action'>(
   'lib/agent_chat/internal_actions:beforeGenerateHook',
@@ -68,7 +72,7 @@ export const submitHumanInputResponse = mutation({
     };
 
     await ctx.db.patch(args.approvalId, {
-      status: 'approved',
+      status: 'completed',
       approvedBy: identity.subject,
       reviewedAt: Date.now(),
       metadata: updatedMetadata,
@@ -91,6 +95,41 @@ export const submitHumanInputResponse = mutation({
       : mapValueToLabel(args.response);
     const responseMessage = `User responded to question "${existingMetadata.question}": ${responseDisplay}`;
 
+    // Workflow-context fork: resume the paused workflow via sendEvent instead of triggering chat agent
+    if (approval.wfExecutionId) {
+      const execution = await ctx.db.get(approval.wfExecutionId);
+      if (!execution?.componentWorkflowId) {
+        throw new Error(
+          'Workflow execution not found or missing component workflow ID',
+        );
+      }
+
+      const manager = workflowManagers[safeShardIndex(execution.shardIndex)];
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- branded type cast from string stored in DB, same pattern as cancelExecution
+      const workflowId = execution.componentWorkflowId as unknown as WorkflowId;
+
+      await manager.sendEvent(ctx, {
+        workflowId,
+        name: `approval_response:${approval._id}`,
+        value: {
+          response: args.response,
+          respondedBy,
+          question: existingMetadata.question ?? '',
+          timestamp: Date.now(),
+          stepSlug: approval.stepSlug ?? '',
+        },
+      });
+
+      // Post user message for AI context
+      await saveMessage(ctx, components.agent, {
+        threadId,
+        message: { role: 'user', content: responseMessage },
+      });
+
+      return { success: true, threadId };
+    }
+
+    // Chat-context flow: trigger agent generation
     const { messageId: promptMessageId } = await saveMessage(
       ctx,
       components.agent,

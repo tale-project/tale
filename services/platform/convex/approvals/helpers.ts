@@ -199,7 +199,7 @@ export async function listApprovalsByOrganization(
 
   const statuses: ApprovalStatus[] = args.status
     ? [args.status]
-    : ['pending', 'approved', 'rejected'];
+    : ['pending', 'executing', 'completed', 'rejected'];
 
   for (const status of statuses) {
     const query = buildQuery(status);
@@ -228,10 +228,47 @@ export async function listApprovalsByOrganization(
   return result;
 }
 
+export async function listActiveApprovalsByOrganization(
+  ctx: QueryCtx,
+  args: { organizationId: string; limit?: number },
+): Promise<Array<ApprovalItem>> {
+  const limit = args.limit ?? 1000;
+  const result: Array<ApprovalItem> = [];
+
+  for (const status of ['pending', 'executing'] as const) {
+    for await (const approval of ctx.db
+      .query('approvals')
+      .withIndex('by_org_status', (q) =>
+        q.eq('organizationId', args.organizationId).eq('status', status),
+      )
+      .order('desc')) {
+      result.push(approval);
+      if (result.length >= limit) break;
+    }
+    if (result.length >= limit) break;
+  }
+
+  result.sort((a, b) => b._creationTime - a._creationTime);
+  return result;
+}
+
 export async function createApproval(
   ctx: MutationCtx,
   args: CreateApprovalArgs,
 ): Promise<Id<'approvals'>> {
+  // Guard: only one active approval per thread
+  if (args.threadId) {
+    for await (const existing of ctx.db
+      .query('approvals')
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))) {
+      if (existing.status === 'pending' || existing.status === 'executing') {
+        throw new Error(
+          'Cannot create approval: another approval is already pending on this thread. Wait for the existing approval to be resolved before creating a new one.',
+        );
+      }
+    }
+  }
+
   const approvalId = await ctx.db.insert('approvals', {
     organizationId: args.organizationId,
     wfExecutionId: args.wfExecutionId,

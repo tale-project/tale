@@ -32,6 +32,7 @@ function TestChatPanelContent({
 
   const {
     displayItems,
+    activeApproval,
     isLoading,
     isUploading,
     threadId,
@@ -90,6 +91,7 @@ function TestChatPanelContent({
         <div className="flex flex-1 flex-col space-y-2.5 p-3">
           <TestMessageList
             displayItems={displayItems}
+            activeApproval={activeApproval}
             isLoading={isLoading}
             activeMessage={activeMessage}
             organizationId={organizationId}

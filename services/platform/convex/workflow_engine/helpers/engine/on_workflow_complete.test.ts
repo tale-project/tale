@@ -259,6 +259,40 @@ describe('handleWorkflowComplete', () => {
     expect(typedArgs.messageContent).toContain('step timed out');
   });
 
+  it('does not schedule completion message for canceled workflows', async () => {
+    const exec = {
+      _id: 'exec_1',
+      organizationId: 'org_1',
+      workflowSlug: 'cancelled-workflow',
+      triggerData: { approvalId: 'approval_1', approvedBy: 'user_1' },
+      status: 'running',
+    };
+    const approval = {
+      _id: 'approval_1',
+      threadId: 'thread_1',
+      status: 'executing',
+    };
+    const { ctx, schedulerRunAfterArgs } = createMockCtx({
+      exec,
+      approval,
+    });
+
+    await handleWorkflowComplete(ctx, {
+      workflowId: 'component_wf_1',
+      context: { executionId: 'exec_1' },
+      result: { kind: 'canceled' },
+    });
+
+    // cancelExecution already posts [WORKFLOW_CANCELLED], so no message here
+    const triggerCalls = schedulerRunAfterArgs.filter(
+      ([, , callArgs]) =>
+        callArgs &&
+        typeof callArgs === 'object' &&
+        'messageContent' in callArgs,
+    );
+    expect(triggerCalls.length).toBe(0);
+  });
+
   it('does not schedule response when no approvalId in triggerData', async () => {
     const exec = {
       _id: 'exec_1',

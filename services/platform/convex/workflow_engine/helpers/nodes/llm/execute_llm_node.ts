@@ -23,6 +23,10 @@ import { validateAndNormalizeConfig } from './utils/validate_and_normalize_confi
 
 /**
  * Execute LLM node logic (helper function)
+ *
+ * Note: humanInputContext is injected into variables by execute_step_handler.ts
+ * before config-level variable substitution. By the time this function receives
+ * the config, {{humanInputContext}} has already been resolved.
  */
 export async function executeLLMNode(
   ctx: ActionCtx,
@@ -31,6 +35,7 @@ export async function executeLLMNode(
   executionId: string | Id<'wfExecutions'>,
   organizationId: string,
   threadId?: string,
+  stepSlug?: string,
 ): Promise<StepExecutionResult> {
   // 1. Validate and normalize configuration
   const normalizedConfig = validateAndNormalizeConfig(config);
@@ -46,12 +51,13 @@ export async function executeLLMNode(
     {
       executionId,
       organizationId,
-      threadId, // Pass shared threadId when reusing conversation context across steps
+      threadId,
+      stepSlug,
     },
   );
 
   // 4. Create and return result
   return createLLMResult(llmResult, normalizedConfig, {
-    threadId: llmResult.threadId, // Return the threadId used
+    threadId: llmResult.threadId,
   });
 }

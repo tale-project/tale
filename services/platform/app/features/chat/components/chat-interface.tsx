@@ -143,7 +143,7 @@ export function ChatInterface({
   );
 
   // Merge messages with approvals and human input requests
-  const mergedChatItems = useMergedChatItems({
+  const { messages: mergedMessages, activeApproval } = useMergedChatItems({
     messages,
     integrationApprovals,
     workflowCreationApprovals,
@@ -152,6 +152,9 @@ export function ChatInterface({
     humanInputRequests,
     documentWriteApprovals,
   });
+
+  // Block input when any pending or executing approval exists
+  const hasActiveApproval = activeApproval !== null;
 
   // Server-derived generation status (reactive Convex subscription)
   const { data: isGenerating } = useConvexQuery(
@@ -311,7 +314,7 @@ export function ChatInterface({
 
         {showMessages && (
           <ChatMessages
-            items={mergedChatItems}
+            items={mergedMessages}
             threadId={threadId}
             organizationId={organizationId}
             canLoadMore={canLoadMore}
@@ -320,6 +323,7 @@ export function ChatInterface({
             activeMessage={activeMessage}
             isLoading={isLoading}
             aiResponseAreaRef={aiResponseAreaRef}
+            activeApproval={activeApproval}
             onHumanInputResponseSubmitted={handleHumanInputResponseSubmitted}
             onSendFollowUp={handleSendFollowUp}
           />
@@ -358,7 +362,14 @@ export function ChatInterface({
             onSendMessage={handleSendMessage}
             onStopGenerating={stopGenerating}
             isLoading={isLoading}
-            disabled={hasNoAgents}
+            disabled={hasNoAgents || hasActiveApproval}
+            disabledReason={
+              hasNoAgents
+                ? 'no-agents'
+                : hasActiveApproval
+                  ? 'pending-approval'
+                  : undefined
+            }
             organizationId={organizationId}
             attachments={attachments}
             uploadingFiles={uploadingFiles}

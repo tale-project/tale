@@ -102,6 +102,14 @@ Call this tool with:
       message: string;
     }> => {
       const { organizationId, threadId: currentThreadId } = ctx;
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- workflow context fields spread onto ctx at runtime via execute_agent_with_tools.ts
+      const ctxRecord = ctx as unknown as Record<string, unknown>;
+      const wfExecutionId =
+        typeof ctxRecord.wfExecutionId === 'string'
+          ? ctxRecord.wfExecutionId
+          : undefined;
+      const stepSlug =
+        typeof ctxRecord.stepSlug === 'string' ? ctxRecord.stepSlug : undefined;
 
       // Look up parent thread from thread summary (stable, database-backed)
       // This ensures approvals from sub-agents link to the main chat thread
@@ -166,6 +174,8 @@ Call this tool with:
               value: opt.value,
             })),
             placeholder: args.placeholder,
+            wfExecutionId,
+            stepSlug,
           },
         );
 

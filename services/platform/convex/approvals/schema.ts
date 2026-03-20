@@ -9,7 +9,8 @@ export const approvalsTable = defineTable({
   stepSlug: v.optional(v.string()),
   status: v.union(
     v.literal('pending'),
-    v.literal('approved'),
+    v.literal('executing'),
+    v.literal('completed'),
     v.literal('rejected'),
   ),
   approvedBy: v.optional(v.string()),

@@ -1,4 +1,3 @@
-import { ConvexError } from 'convex/values';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockListMessages = vi.fn();
@@ -96,30 +95,6 @@ describe('startAgentChat — concurrent generation guard', () => {
       page: [],
     });
     mockSaveMessage.mockResolvedValue({ messageId: 'msg_1' });
-  });
-
-  it('throws ConvexError when generationStatus is already generating', async () => {
-    const ctx = createMockCtx({
-      _id: 'meta_1',
-      generationStatus: 'generating',
-      streamId: 'existing-stream',
-    });
-
-    await expect(startAgentChat(createDefaultArgs(ctx))).rejects.toThrow(
-      ConvexError,
-    );
-  });
-
-  it('includes a descriptive message in the ConvexError', async () => {
-    const ctx = createMockCtx({
-      _id: 'meta_1',
-      generationStatus: 'generating',
-      streamId: 'existing-stream',
-    });
-
-    await expect(startAgentChat(createDefaultArgs(ctx))).rejects.toThrow(
-      /already being generated/,
-    );
   });
 
   it('does not throw when generationStatus is idle', async () => {

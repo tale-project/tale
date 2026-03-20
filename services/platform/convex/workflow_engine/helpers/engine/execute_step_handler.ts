@@ -12,6 +12,7 @@ import { internal } from '../../../_generated/api';
 import { createDebugLog } from '../../../lib/debug_log';
 import { toId } from '../../../lib/type_cast_helpers';
 import { replaceVariables } from '../../../lib/variables/replace_variables';
+import { buildHumanInputContext } from '../nodes/llm/utils/build_human_input_context';
 import { buildStepsMap } from '../step_execution/build_steps_map';
 import { executeStepByType } from '../step_execution/execute_step_by_type';
 import { extractEssentialLoopVariables } from '../step_execution/extract_essential_loop_variables';
@@ -36,6 +37,7 @@ export type ExecuteStepArgs = {
 export type ExecuteStepResult = {
   port: string;
   error?: string;
+  approvalTaskId?: string;
 };
 
 /**
@@ -136,9 +138,21 @@ export async function handleExecuteStep(
     });
   }
 
+  // Build humanInputContext for LLM steps so {{humanInputContext}} is available
+  // during config-level variable substitution. This is ephemeral — only used for
+  // replaceVariables, NOT persisted into execution state (see persistExecutionResult).
+  let configVariables = fullVariables;
+  if (args.stepType === 'llm' && args.executionId) {
+    const humanInputContext = await buildHumanInputContext(
+      ctx,
+      args.executionId,
+    );
+    configVariables = { ...fullVariables, humanInputContext };
+  }
+
   const processedConfig = isSetVariablesAction
     ? stepDef.config
-    : replaceVariables(stepDef.config, fullVariables);
+    : replaceVariables(stepDef.config, configVariables);
 
   // Debug: Log after variable replacement for LLM steps
   if (args.stepType === 'llm' && isRecord(processedConfig)) {
@@ -156,6 +170,20 @@ export async function handleExecuteStep(
         typeof processedConfig.systemPrompt === 'string'
           ? processedConfig.systemPrompt.length
           : 0,
+    });
+  }
+
+  // Debug: Log resolved cursor for sync cursor steps
+  if (
+    args.stepType === 'action' &&
+    isRecord(processedConfig) &&
+    isRecord(processedConfig.parameters) &&
+    processedConfig.parameters.operation === 'update_email_sync_cursor'
+  ) {
+    debugLog('update_sync_cursor resolved params:', {
+      stepSlug: args.stepSlug,
+      cursor: processedConfig.parameters.cursor,
+      cursorType: typeof processedConfig.parameters.cursor,
     });
   }
 
@@ -177,13 +205,31 @@ export async function handleExecuteStep(
     args.threadId,
   );
 
-  // 7. Build steps map
+  // 7. Post-LLM approval scan: check if a human_input_request was created
+  // Only scan when the step has the request_human_input tool configured
+  let approvalTaskId: string | undefined;
+  if (args.stepType === 'llm' && stepHasHumanInputTool(stepConfig)) {
+    const pendingApprovals = await ctx.runQuery(
+      internal.approvals.internal_queries.listPendingForExecution,
+      { executionId: toId<'wfExecutions'>(args.executionId) },
+    );
+    const humanInputApproval = pendingApprovals.find(
+      (a: { resourceType: string; stepSlug?: string }) =>
+        a.resourceType === 'human_input_request' &&
+        a.stepSlug === args.stepSlug,
+    );
+    if (humanInputApproval) {
+      approvalTaskId = humanInputApproval._id;
+    }
+  }
+
+  // 8. Build steps map
   const stepsMap = await buildStepsMap(ctx, args.executionId, stepDef, result);
 
-  // 8. Extract essential loop variables
+  // 9. Extract essential loop variables
   const essentialLoop = extractEssentialLoopVariables(result.variables);
 
-  // 9. Persist execution result
+  // 10. Persist execution result
   await persistExecutionResult(
     ctx,
     args.executionId,
@@ -194,9 +240,19 @@ export async function handleExecuteStep(
     essentialLoop,
   );
 
-  // 10. Return essential control information
+  // 11. Return essential control information
   return {
     port: result.port,
     error: result.error,
+    approvalTaskId,
   };
+}
+
+function stepHasHumanInputTool(
+  config: Record<string, unknown> | undefined,
+): boolean {
+  if (!config) return false;
+  const tools = config.tools;
+  if (!Array.isArray(tools)) return false;
+  return tools.includes('request_human_input');
 }

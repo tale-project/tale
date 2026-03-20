@@ -31,7 +31,7 @@ import { formatBytes } from '@/lib/utils/format/number';
 interface DocumentWriteApprovalCardProps {
   approvalId: Id<'approvals'>;
   organizationId: string;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'executing' | 'completed' | 'rejected';
   metadata: DocumentWriteMetadata;
   executedAt?: number;
   executionError?: string;
@@ -47,6 +47,7 @@ function DocumentWriteApprovalCardComponent({
   className,
 }: DocumentWriteApprovalCardProps) {
   const { t } = useT('documentWriteApproval');
+  const { t: tCommon } = useT('approvalCommon');
   const { user } = useAuth();
   const [isApproving, setIsApproving] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
@@ -68,7 +69,7 @@ function DocumentWriteApprovalCardComponent({
 
   const handleApprove = async () => {
     if (!user?.userId) {
-      setError(t('errorNotAuthenticated'));
+      setError(tCommon('errorNotAuthenticated'));
       return;
     }
     setIsApproving(true);
@@ -76,7 +77,7 @@ function DocumentWriteApprovalCardComponent({
     try {
       await updateApprovalStatus({
         approvalId,
-        status: 'approved',
+        status: 'executing',
       });
       await executeDocumentWrite({ approvalId });
     } catch (err) {
@@ -89,7 +90,7 @@ function DocumentWriteApprovalCardComponent({
 
   const handleReject = async () => {
     if (!user?.userId) {
-      setError(t('errorNotAuthenticated'));
+      setError(tCommon('errorNotAuthenticated'));
       return;
     }
     setIsRejecting(true);
@@ -100,7 +101,9 @@ function DocumentWriteApprovalCardComponent({
         status: 'rejected',
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('errorRejectFailed'));
+      setError(
+        err instanceof Error ? err.message : tCommon('errorRejectFailed'),
+      );
       console.error('Failed to reject document write:', err);
     } finally {
       setIsRejecting(false);
@@ -135,15 +138,16 @@ function DocumentWriteApprovalCardComponent({
         {files.map((file) => (
           <div key={file.fileId} className="flex min-w-0 items-start gap-2">
             {/* Per-file status icon (only after execution) */}
-            {status === 'approved' && executedAt && (
-              <span className="mt-0.5 shrink-0">
-                {file.createdDocumentId && !file.executionError ? (
-                  <CheckCircle className="size-3 text-green-600" />
-                ) : file.executionError ? (
-                  <XCircle className="text-destructive size-3" />
-                ) : null}
-              </span>
-            )}
+            {(status === 'executing' || status === 'completed') &&
+              executedAt && (
+                <span className="mt-0.5 shrink-0">
+                  {file.createdDocumentId && !file.executionError ? (
+                    <CheckCircle className="size-3 text-green-600" />
+                  ) : file.executionError ? (
+                    <XCircle className="text-destructive size-3" />
+                  ) : null}
+                </span>
+              )}
             <div className="min-w-0 flex-1">
               <Text as="div" variant="label" className="truncate">
                 {file.title}
@@ -184,23 +188,29 @@ function DocumentWriteApprovalCardComponent({
       )}
 
       {/* Batch success summary */}
-      {status === 'approved' && executedAt && isBatch && !executionError && (
-        <HStack gap={1} className="mb-3 text-xs text-green-600">
-          <CheckCircle className="size-3" />
-          {t('savedSuccessfully')}
-        </HStack>
-      )}
+      {(status === 'executing' || status === 'completed') &&
+        executedAt &&
+        isBatch &&
+        !executionError && (
+          <HStack gap={1} className="mb-3 text-xs text-green-600">
+            <CheckCircle className="size-3" />
+            {t('savedSuccessfully')}
+          </HStack>
+        )}
 
       {/* Single file success */}
-      {status === 'approved' && executedAt && !isBatch && !executionError && (
-        <HStack gap={1} className="mb-3 text-xs text-green-600">
-          <CheckCircle className="size-3" />
-          {t('savedSuccessfully')}
-        </HStack>
-      )}
+      {(status === 'executing' || status === 'completed') &&
+        executedAt &&
+        !isBatch &&
+        !executionError && (
+          <HStack gap={1} className="mb-3 text-xs text-green-600">
+            <CheckCircle className="size-3" />
+            {t('savedSuccessfully')}
+          </HStack>
+        )}
 
       {/* Partial success (batch) */}
-      {status === 'approved' &&
+      {(status === 'executing' || status === 'completed') &&
         executedAt &&
         isBatch &&
         failedCount > 0 &&
@@ -215,21 +225,23 @@ function DocumentWriteApprovalCardComponent({
         )}
 
       {/* Execution error (single file) */}
-      {status === 'approved' && executionError && !isBatch && (
-        <HStack
-          gap={1}
-          align="start"
-          className="text-destructive mb-3 text-xs wrap-break-word"
-        >
-          <XCircle className="size-3 shrink-0" />
-          <Text as="span" className="min-w-0">
-            {executionError}
-          </Text>
-        </HStack>
-      )}
+      {(status === 'executing' || status === 'completed') &&
+        executionError &&
+        !isBatch && (
+          <HStack
+            gap={1}
+            align="start"
+            className="text-destructive mb-3 text-xs wrap-break-word"
+          >
+            <XCircle className="size-3 shrink-0" />
+            <Text as="span" className="min-w-0">
+              {executionError}
+            </Text>
+          </HStack>
+        )}
 
       {/* All failed (batch) */}
-      {status === 'approved' &&
+      {(status === 'executing' || status === 'completed') &&
         executedAt &&
         isBatch &&
         failedCount === files.length && (
@@ -298,16 +310,24 @@ function DocumentWriteApprovalCardComponent({
       {!isPending && (
         <HStack justify="between" align="center" className="mt-2">
           <Text as="div" variant="caption">
-            {status === 'approved' && failedCount > 0 && successCount > 0
-              ? t('statusApprovedPartial')
-              : status === 'approved' && executionError
-                ? t('statusApprovedFailed')
-                : status === 'approved'
-                  ? t('statusApprovedSuccess')
-                  : t('statusRejected')}
+            {status === 'executing'
+              ? t('statusExecuting')
+              : status === 'completed' && failedCount > 0 && successCount > 0
+                ? t('statusCompletedPartial')
+                : status === 'completed' && executionError
+                  ? t('statusCompletedFailed')
+                  : status === 'completed'
+                    ? t('statusCompletedSuccess')
+                    : t('statusRejected')}
           </Text>
           <Badge
-            variant={status === 'approved' ? 'green' : 'destructive'}
+            variant={
+              status === 'completed'
+                ? 'green'
+                : status === 'executing'
+                  ? 'blue'
+                  : 'destructive'
+            }
             className="shrink-0 text-xs capitalize"
           >
             {status}

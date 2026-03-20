@@ -175,11 +175,7 @@ export function useMessageProcessing(
         if (m.role === 'assistant') {
           return m.order >= minUserOrder;
         }
-        // Keep system messages that are human input responses
-        if (
-          m.role === 'system' &&
-          m.text?.startsWith(HUMAN_INPUT_RESPONSE_PREFIX)
-        ) {
+        if (m.role === 'system') {
           return true;
         }
         return false;

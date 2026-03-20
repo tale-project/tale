@@ -29,7 +29,7 @@ import { cn } from '@/lib/utils/cn';
 interface IntegrationApprovalCardProps {
   approvalId: Id<'approvals'>;
   organizationId: string;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'executing' | 'completed' | 'rejected';
   metadata: IntegrationOperationMetadata;
   executedAt?: number;
   executionError?: string;
@@ -48,6 +48,7 @@ function IntegrationApprovalCardComponent({
   className,
 }: IntegrationApprovalCardProps) {
   const { t } = useT('integrationApproval');
+  const { t: tCommon } = useT('approvalCommon');
   const { user } = useAuth();
   const [isApproving, setIsApproving] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
@@ -62,7 +63,7 @@ function IntegrationApprovalCardComponent({
 
   const handleApprove = async () => {
     if (!user?.userId) {
-      setError('User not authenticated');
+      setError(tCommon('errorNotAuthenticated'));
       return;
     }
     setIsApproving(true);
@@ -70,15 +71,13 @@ function IntegrationApprovalCardComponent({
     try {
       await updateApprovalStatus({
         approvalId,
-        status: 'approved',
+        status: 'executing',
       });
       await executeApprovedOperation({
         approvalId,
       });
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Failed to approve operation',
-      );
+      setError(err instanceof Error ? err.message : t('errorApproveFailed'));
       console.error('Failed to approve:', err);
     } finally {
       setIsApproving(false);
@@ -87,7 +86,7 @@ function IntegrationApprovalCardComponent({
 
   const handleReject = async () => {
     if (!user?.userId) {
-      setError('User not authenticated');
+      setError(tCommon('errorNotAuthenticated'));
       return;
     }
     setIsRejecting(true);
@@ -99,7 +98,7 @@ function IntegrationApprovalCardComponent({
       });
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : 'Failed to reject operation',
+        err instanceof Error ? err.message : tCommon('errorRejectFailed'),
       );
       console.error('Failed to reject:', err);
     } finally {
@@ -199,15 +198,17 @@ function IntegrationApprovalCardComponent({
       </Stack>
 
       {/* Execution Result (if approved and executed) */}
-      {status === 'approved' && executedAt && !executionError && (
-        <HStack gap={1} className="mb-3 text-xs text-green-600">
-          <CheckCircle className="size-3" />
-          {t('executedSuccessfully')}
-        </HStack>
-      )}
+      {(status === 'executing' || status === 'completed') &&
+        executedAt &&
+        !executionError && (
+          <HStack gap={1} className="mb-3 text-xs text-green-600">
+            <CheckCircle className="size-3" />
+            {t('executedSuccessfully')}
+          </HStack>
+        )}
 
       {/* Execution Error (persisted from backend) */}
-      {status === 'approved' && executionError && (
+      {(status === 'executing' || status === 'completed') && executionError && (
         <HStack
           gap={1}
           align="start"
@@ -269,14 +270,22 @@ function IntegrationApprovalCardComponent({
       {!isPending && (
         <HStack justify="between" align="center" className="mt-2">
           <Text as="div" variant="caption">
-            {status === 'approved' && executionError
-              ? t('statusApprovedFailed')
-              : status === 'approved'
-                ? t('statusApprovedSuccess')
-                : t('statusRejected')}
+            {status === 'executing'
+              ? t('statusExecuting')
+              : status === 'completed' && executionError
+                ? t('statusCompletedFailed')
+                : status === 'completed'
+                  ? t('statusCompletedSuccess')
+                  : t('statusRejected')}
           </Text>
           <Badge
-            variant={status === 'approved' ? 'green' : 'destructive'}
+            variant={
+              status === 'completed'
+                ? 'green'
+                : status === 'executing'
+                  ? 'blue'
+                  : 'destructive'
+            }
             className="shrink-0 text-xs capitalize"
           >
             {status}

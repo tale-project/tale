@@ -94,7 +94,39 @@ export async function handleWorkflowComplete(
   }
 
   if (!wasTerminal) {
-    await postCompletionMessageToThread(ctx, exec, kind, result);
+    // Mark the triggering approval as completed/rejected now that the workflow is done
+    await updateTriggeringApprovalStatus(ctx, exec, kind);
+    // Skip completion message for canceled workflows — cancelExecution
+    // already posts [WORKFLOW_CANCELLED] to the thread
+    if (kind !== 'canceled') {
+      await postCompletionMessageToThread(ctx, exec, kind, result);
+    }
+  }
+}
+
+async function updateTriggeringApprovalStatus(
+  ctx: MutationCtx,
+  exec: Doc<'wfExecutions'>,
+  kind: string | undefined,
+): Promise<void> {
+  const triggerData = isRecord(exec.triggerData) ? exec.triggerData : null;
+  const approvalIdStr = triggerData
+    ? getString(triggerData, 'approvalId')
+    : undefined;
+  if (!approvalIdStr) return;
+
+  try {
+    const approval = await ctx.db.get(toId<'approvals'>(approvalIdStr));
+    if (!approval || approval.status !== 'executing') return;
+
+    await ctx.db.patch(approval._id, {
+      status: kind === 'success' ? 'completed' : 'rejected',
+      ...(kind !== 'success'
+        ? { executionError: exec.error ?? 'Workflow failed' }
+        : {}),
+    });
+  } catch {
+    // Non-critical: approval status update failure should not block completion
   }
 }
 

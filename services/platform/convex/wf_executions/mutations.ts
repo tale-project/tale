@@ -1,11 +1,14 @@
 import type { WorkflowId } from '@convex-dev/workflow';
 
+import { saveMessage } from '@convex-dev/agent';
 import { v } from 'convex/values';
 
-import { internal } from '../_generated/api';
+import { isRecord, getString } from '../../lib/utils/type-guards';
+import { components, internal } from '../_generated/api';
 import { mutation } from '../_generated/server';
 import { authComponent } from '../auth';
 import { getOrganizationMember, mutationWithRLS } from '../lib/rls';
+import { toId } from '../lib/type_cast_helpers';
 import { jsonValueValidator } from '../lib/validators/json';
 import { workflowManagers } from '../workflow_engine/engine';
 import { safeShardIndex } from '../workflow_engine/helpers/engine/shard';
@@ -89,6 +92,30 @@ export const cancelExecution = mutationWithRLS({
         internal.wf_executions.internal_mutations.cleanupExecutionStorage,
         { executionId: args.executionId, variablesStorageId, outputStorageId },
       );
+    }
+
+    // Write system message to thread so the AI knows this was user-initiated
+    const triggerData = isRecord(execution.triggerData)
+      ? execution.triggerData
+      : null;
+    const approvalIdStr = triggerData
+      ? getString(triggerData, 'approvalId')
+      : undefined;
+    if (approvalIdStr) {
+      try {
+        const approval = await ctx.db.get(toId<'approvals'>(approvalIdStr));
+        if (approval?.threadId) {
+          await saveMessage(ctx, components.agent, {
+            threadId: approval.threadId,
+            message: {
+              role: 'system',
+              content: `[WORKFLOW_CANCELLED]\nWorkflow "${execution.workflowSlug ?? 'unknown'}" was stopped.`,
+            },
+          });
+        }
+      } catch {
+        // Non-critical: system message failure should not block cancellation
+      }
     }
 
     return null;

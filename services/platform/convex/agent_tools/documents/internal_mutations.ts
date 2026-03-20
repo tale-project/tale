@@ -114,6 +114,7 @@ export const updateDocumentWriteApprovalWithResult = internalMutation({
     const now = Date.now();
 
     await ctx.db.patch(args.approvalId, {
+      status: hasErrors ? 'rejected' : 'completed',
       executedAt: now,
       executionError: hasErrors ? 'Some files failed to save' : undefined,
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- constructing approval metadata from known DocumentWriteMetadata fields

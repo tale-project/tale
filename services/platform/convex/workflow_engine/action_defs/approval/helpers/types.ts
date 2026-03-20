@@ -2,7 +2,7 @@ import type { Id } from '../../../../_generated/dataModel';
 import type { ApprovalResourceType } from '../../../../approvals/types';
 import type { ConvexJsonRecord } from '../../../../lib/validators/json';
 
-export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
+export type ApprovalStatus = 'pending' | 'executing' | 'completed' | 'rejected';
 export type ApprovalPriority = 'low' | 'medium' | 'high' | 'urgent';
 
 export type ApprovalData = {

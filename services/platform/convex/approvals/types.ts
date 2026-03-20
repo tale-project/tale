@@ -52,8 +52,19 @@ export interface WorkflowCreationMetadata {
   executionError?: string;
 }
 
+export interface StepPatchEntry {
+  stepRecordId: string;
+  stepName: string;
+  stepUpdates: {
+    name?: string;
+    stepType?: string;
+    config?: Record<string, unknown>;
+    nextSteps?: Record<string, string>;
+  };
+}
+
 export interface WorkflowUpdateMetadata {
-  updateType: 'full_save' | 'step_patch';
+  updateType: 'full_save' | 'step_patch' | 'multi_step_patch';
   updateSummary: string;
   workflowId: string;
   workflowName: string;
@@ -80,6 +91,7 @@ export interface WorkflowUpdateMetadata {
     config?: Record<string, unknown>;
     nextSteps?: Record<string, string>;
   };
+  steps?: StepPatchEntry[];
   requestedAt: number;
   executedAt?: number;
   executionError?: string;

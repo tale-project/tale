@@ -80,9 +80,16 @@ export function createAgentConfig(opts: {
     );
   }
 
-  // Add disambiguation rule for agents with request_human_input tool
+  // Add human input enforcement and disambiguation rules for agents with request_human_input tool
   if (opts.convexToolNames?.includes('request_human_input')) {
     suffixParts.push(`
+**HUMAN INPUT RULE**
+When you need ANY information, confirmation, or decision from the user:
+- You MUST use the request_human_input tool to create an interactive input card
+- NEVER ask questions as plain text in your response — the user cannot reply to text
+- The ONLY way to collect user input is through the request_human_input tool
+- This applies to: clarifications, missing values, confirmations, preferences, follow-up questions
+
 **DISAMBIGUATION RULE**
 When searching for a specific record and finding MULTIPLE matches:
 1. DO NOT proceed with all matches or pick one arbitrarily

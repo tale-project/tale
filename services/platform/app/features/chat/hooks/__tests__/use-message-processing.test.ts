@@ -680,6 +680,96 @@ describe('useMessageProcessing', () => {
     });
   });
 
+  describe('system messages', () => {
+    it('includes system messages in the output', () => {
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: 'msg-1',
+            order: 0,
+            role: 'user',
+            text: 'Hi',
+          }),
+          createUIMessage({
+            id: 'msg-2',
+            order: 1,
+            role: 'system',
+            text: '[APPROVAL_REJECTED]\nThe user rejected the request.',
+            status: 'success',
+          }),
+          createUIMessage({
+            id: 'msg-3',
+            order: 2,
+            role: 'assistant',
+            text: 'Understood.',
+            status: 'success',
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result } = renderHook(() => useMessageProcessing('thread-1'));
+      const systemMsg = result.current.messages.find((m) => m.key === 'msg-2');
+      expect(systemMsg).toBeDefined();
+      expect(systemMsg?.role).toBe('system');
+      expect(systemMsg?.content).toContain('[APPROVAL_REJECTED]');
+    });
+
+    it('marks human input response system messages', () => {
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: 'msg-1',
+            order: 0,
+            role: 'user',
+            text: 'Hi',
+          }),
+          createUIMessage({
+            id: 'msg-2',
+            order: 1,
+            role: 'system',
+            text: 'User responded to question "Confirm?": Yes',
+            status: 'success',
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result } = renderHook(() => useMessageProcessing('thread-1'));
+      const systemMsg = result.current.messages.find((m) => m.key === 'msg-2');
+      expect(systemMsg?.isHumanInputResponse).toBe(true);
+    });
+
+    it('includes workflow cancelled system messages', () => {
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: 'msg-1',
+            order: 0,
+            role: 'user',
+            text: 'Run workflow',
+          }),
+          createUIMessage({
+            id: 'msg-2',
+            order: 1,
+            role: 'system',
+            text: '[WORKFLOW_CANCELLED]\nWorkflow "test" was stopped.',
+            status: 'success',
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result } = renderHook(() => useMessageProcessing('thread-1'));
+      const systemMsg = result.current.messages.find((m) => m.key === 'msg-2');
+      expect(systemMsg).toBeDefined();
+      expect(systemMsg?.role).toBe('system');
+    });
+  });
+
   describe('stripInternalFileReferences', () => {
     it('removes the attached files marker', () => {
       const input =

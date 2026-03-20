@@ -15,6 +15,8 @@ vi.mock('../../../_generated/api', () => ({
     agent_tools: {
       workflows: {
         internal_mutations: {
+          claimWorkflowApprovalForExecution:
+            'mock-claimWorkflowApprovalForExecution',
           updateWorkflowRunApprovalWithResult:
             'mock-updateWorkflowRunApprovalWithResult',
           saveSystemMessage: 'mock-saveSystemMessage',
@@ -31,7 +33,7 @@ vi.mock('../../../_generated/server', () => ({
 function createMockApproval(overrides?: Record<string, unknown>) {
   return {
     _id: 'approval-1',
-    status: 'approved',
+    status: 'executing',
     resourceType: 'workflow_run',
     organizationId: 'org-1',
     threadId: 'thread-1',
@@ -48,7 +50,11 @@ function createMockApproval(overrides?: Record<string, unknown>) {
 function createMockCtx(approval: ReturnType<typeof createMockApproval> | null) {
   return {
     runQuery: vi.fn().mockResolvedValue(approval),
-    runMutation: vi.fn().mockResolvedValue('exec-1'),
+    runMutation: vi.fn().mockImplementation((ref: string) => {
+      if (ref === 'mock-claimWorkflowApprovalForExecution') return true;
+      if (ref === 'mock-startWorkflow') return 'exec-1';
+      return undefined;
+    }),
   };
 }
 
@@ -129,8 +135,12 @@ describe('executeApprovedWorkflowRun', () => {
 
   it('throws on double execution (idempotency guard)', async () => {
     const handler = await getHandler();
-    const approval = createMockApproval({ executedAt: Date.now() });
+    const approval = createMockApproval();
     const ctx = createMockCtx(approval);
+    ctx.runMutation = vi.fn().mockImplementation((ref: string) => {
+      if (ref === 'mock-claimWorkflowApprovalForExecution') return false;
+      return undefined;
+    });
 
     await expect(
       handler(ctx, { approvalId: 'approval-1', approvedBy: 'user-1' }),
@@ -153,15 +163,11 @@ describe('executeApprovedWorkflowRun', () => {
     const handler = await getHandler();
     const approval = createMockApproval();
     const ctx = createMockCtx(approval);
-    ctx.runMutation
-      .mockResolvedValueOnce(undefined) // startWorkflow throws
-      .mockRejectedValueOnce(new Error('Start failed'));
-
-    // Re-mock to make startWorkflow fail
-    ctx.runMutation = vi
-      .fn()
-      .mockRejectedValueOnce(new Error('Start failed'))
-      .mockResolvedValueOnce(undefined);
+    ctx.runMutation = vi.fn().mockImplementation((ref: string) => {
+      if (ref === 'mock-claimWorkflowApprovalForExecution') return true;
+      if (ref === 'mock-startWorkflow') throw new Error('Start failed');
+      return undefined;
+    });
 
     await expect(
       handler(ctx, { approvalId: 'approval-1', approvedBy: 'user-1' }),
@@ -210,14 +216,13 @@ describe('executeApprovedWorkflowRun', () => {
     const approval = createMockApproval();
     const ctx = createMockCtx(approval);
 
-    let callCount = 0;
-    ctx.runMutation = vi.fn().mockImplementation((ref) => {
+    ctx.runMutation = vi.fn().mockImplementation((ref: string) => {
+      if (ref === 'mock-claimWorkflowApprovalForExecution') return true;
+      if (ref === 'mock-startWorkflow') return 'exec-1';
       if (ref === 'mock-saveSystemMessage') {
         throw new Error('Message save failed');
       }
-      callCount++;
-      if (callCount === 1) return 'exec-1'; // startWorkflow
-      return undefined; // updateWorkflowRunApprovalWithResult
+      return undefined;
     });
 
     const result = await handler(ctx, {
