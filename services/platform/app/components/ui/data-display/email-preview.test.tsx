@@ -6,6 +6,7 @@ import {
   EmailPreview,
   replaceCidReferences,
   rewriteExternalImageSrcs,
+  splitQuotedContent,
 } from './email-preview';
 
 describe('replaceCidReferences', () => {
@@ -138,6 +139,84 @@ describe('rewriteExternalImageSrcs', () => {
     const html = '<img src="https://external.com/img.jpg">';
     const result = rewriteExternalImageSrcs(html, '');
     expect(result).toBe(html);
+  });
+});
+
+describe('splitQuotedContent', () => {
+  it('does not split newsletter content containing "wrote about"', () => {
+    const html =
+      '<ol><li><p>Jon Kuperman wrote about <a href="#">Source Maps</a>.</p></li><li><p>More content here.</p></li></ol>';
+    const { main, quoted } = splitQuotedContent(html);
+    expect(quoted).toBe('');
+    expect(main).toBe(html);
+  });
+
+  it('does not split on "wrote" without a colon', () => {
+    const html =
+      '<p>Kyle Galbraith wrote about how the bottleneck has shifted.</p>';
+    const { main, quoted } = splitQuotedContent(html);
+    expect(quoted).toBe('');
+    expect(main).toBe(html);
+  });
+
+  it('splits on standard reply header "On <date>, <name> wrote:"', () => {
+    const html =
+      '<p>Thanks!</p>\nOn Mon, Jan 1, 2024, John Smith wrote:\n<p>Original message</p>';
+    const { main, quoted } = splitQuotedContent(html);
+    expect(main).toBe('<p>Thanks!</p>');
+    expect(quoted).toContain('On Mon, Jan 1, 2024, John Smith wrote:');
+  });
+
+  it('splits on "Begin forwarded message:"', () => {
+    const html =
+      '<p>FYI</p>\nBegin forwarded message:\n<p>Forwarded content</p>';
+    const { main, quoted } = splitQuotedContent(html);
+    expect(main).toBe('<p>FYI</p>');
+    expect(quoted).toContain('Begin forwarded message:');
+  });
+
+  it('splits on "-----Original Message-----"', () => {
+    const html = '<p>Reply</p>\n-----Original Message-----\n<p>Original</p>';
+    const { main, quoted } = splitQuotedContent(html);
+    expect(main).toBe('<p>Reply</p>');
+    expect(quoted).toContain('-----Original Message-----');
+  });
+
+  it('splits on Outlook-style "From: ... Subject:" header', () => {
+    const html =
+      '<p>See below</p>\nFrom: john@example.com\nSubject: Hello\n<p>Body</p>';
+    const { main, quoted } = splitQuotedContent(html);
+    expect(main).toBe('<p>See below</p>');
+    expect(quoted).toContain('From: john@example.com');
+  });
+
+  it('returns all content as main when no quoted patterns found', () => {
+    const html = '<p>Just a regular email with no replies.</p>';
+    const { main, quoted } = splitQuotedContent(html);
+    expect(main).toBe(html);
+    expect(quoted).toBe('');
+  });
+
+  it('requires a digit in "On ... wrote:" to match date-like content', () => {
+    const html = '<p>On this topic, she wrote:</p><p>More text</p>';
+    const { main, quoted } = splitQuotedContent(html);
+    // "On this topic, she wrote:" has no digit, so should not split
+    expect(quoted).toBe('');
+    expect(main).toBe(html);
+  });
+
+  it('splits on HTML-wrapped reply header with <br> after wrote:', () => {
+    const html =
+      '<p>Thanks!</p><div>On Mon, Jan 1, 2024, John wrote:<br></div><p>Original</p>';
+    const { quoted } = splitQuotedContent(html);
+    expect(quoted).toContain('On Mon, Jan 1, 2024, John wrote:');
+  });
+
+  it('splits on reply header wrapped in </p> after wrote:', () => {
+    const html =
+      '<p>Thanks!</p><p>On 2024-01-01, John wrote:</p><p>Original</p>';
+    const { quoted } = splitQuotedContent(html);
+    expect(quoted).toContain('On 2024-01-01, John wrote:');
   });
 });
 
