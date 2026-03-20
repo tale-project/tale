@@ -15,8 +15,6 @@ import { ApprovalCardRenderer } from './approval-card-renderer';
 import { MessageBubble } from './message-bubble';
 import { ThinkingAnimation } from './thinking-animation';
 
-const PREVIEW_LENGTH = 80;
-
 const CollapsibleSystemMessage = memo(function CollapsibleSystemMessage({
   content,
 }: {
@@ -27,7 +25,7 @@ const CollapsibleSystemMessage = memo(function CollapsibleSystemMessage({
 
   const formatted = content.replace(
     /\[([A-Z][A-Z_]+)\]/g,
-    (_, tag: string) => `[${tag.replaceAll('_', ' ')}]`,
+    (_, tag: string) => `${tag.replaceAll('_', ' ')} -`,
   );
   const lines = formatted.split('\n');
   const nonEmptyLines = lines.filter((l) => l.trim() !== '');
@@ -35,7 +33,7 @@ const CollapsibleSystemMessage = memo(function CollapsibleSystemMessage({
   const preview = previewLines.join(' ');
   const lastPreviewIdx =
     previewLines.length > 0
-      ? lines.indexOf(previewLines[previewLines.length - 1]!)
+      ? lines.indexOf(previewLines[previewLines.length - 1])
       : 0;
   const rest = lines
     .slice(lastPreviewIdx + 1)

@@ -21,6 +21,7 @@ import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
+import { stripLeadingPunctuation } from '@/lib/utils/text';
 
 import { useSubmitHumanInputResponse } from '../hooks/mutations';
 
@@ -284,7 +285,9 @@ function HumanInputRequestCardComponent({
 
       {/* Question */}
       <div className="mb-4">
-        <Text className="leading-relaxed">{metadata.question}</Text>
+        <Text className="leading-relaxed">
+          {stripLeadingPunctuation(metadata.question)}
+        </Text>
         {metadata.context && (
           <Text variant="caption" className="mt-2">
             {metadata.context}

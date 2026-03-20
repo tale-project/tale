@@ -40,6 +40,9 @@ import {
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
+import { stripLeadingPunctuation } from '@/lib/utils/text';
+
+import { markdownWrapperStyles } from './message-bubble/markdown-renderer';
 
 interface WorkflowRunApprovalCardProps {
   approvalId: Id<'approvals'>;
@@ -547,7 +550,10 @@ function WorkflowHumanInputSection({
   const { t } = useT('workflowRunApproval');
   const { t: tCommon } = useT('approvalCommon');
   const meta = approval.metadata ?? {};
-  const question = typeof meta.question === 'string' ? meta.question : '';
+  const question =
+    typeof meta.question === 'string'
+      ? stripLeadingPunctuation(meta.question)
+      : '';
   const context = typeof meta.context === 'string' ? meta.context : undefined;
   const format = typeof meta.format === 'string' ? meta.format : 'text_input';
   const rawOptions = Array.isArray(meta.options) ? meta.options : [];
@@ -581,12 +587,22 @@ function WorkflowHumanInputSection({
     <Stack gap={3} className="mb-3">
       <HStack gap={2} align="start">
         <MessageCircleQuestion className="text-primary mt-0.5 size-4 shrink-0" />
-        <div className="prose prose-sm dark:prose-invert prose-p:my-0.5 prose-ul:my-0.5 prose-ol:my-0.5 prose-li:my-0 max-w-none text-sm font-medium">
+        <div
+          className={cn(
+            markdownWrapperStyles,
+            'max-w-none text-sm font-medium',
+          )}
+        >
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{question}</ReactMarkdown>
         </div>
       </HStack>
       {context && (
-        <div className="prose prose-sm dark:prose-invert prose-p:my-0.5 prose-ul:my-0.5 prose-li:my-0 text-muted-foreground max-w-none text-xs">
+        <div
+          className={cn(
+            markdownWrapperStyles,
+            'text-muted-foreground max-w-none text-xs',
+          )}
+        >
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{context}</ReactMarkdown>
         </div>
       )}
