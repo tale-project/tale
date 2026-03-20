@@ -321,7 +321,8 @@ export function splitQuotedContent(html: string): {
     /Begin forwarded message:/i,
     // "On <date/time>, <name> wrote:" — standard reply header.
     // Requires a colon after "wrote" and a date-like token (digit) between On and wrote.
-    /On\s+(?=.*\d).*\swrote:\s*$/im,
+    // Uses [^<]{0,500} to match text content only (not across HTML tags), keeping it bounded.
+    /On\s[^<]{0,500}\d[^<]{0,500}\swrote:/i,
     // "From: ... Subject: ..." — Outlook-style forwarding header
     /From:\s[\s\S]*?Subject:/i,
     // "-----Original Message-----" — Outlook reply separator

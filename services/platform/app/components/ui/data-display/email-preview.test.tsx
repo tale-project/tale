@@ -204,6 +204,20 @@ describe('splitQuotedContent', () => {
     expect(quoted).toBe('');
     expect(main).toBe(html);
   });
+
+  it('splits on HTML-wrapped reply header with <br> after wrote:', () => {
+    const html =
+      '<p>Thanks!</p><div>On Mon, Jan 1, 2024, John wrote:<br></div><p>Original</p>';
+    const { quoted } = splitQuotedContent(html);
+    expect(quoted).toContain('On Mon, Jan 1, 2024, John wrote:');
+  });
+
+  it('splits on reply header wrapped in </p> after wrote:', () => {
+    const html =
+      '<p>Thanks!</p><p>On 2024-01-01, John wrote:</p><p>Original</p>';
+    const { quoted } = splitQuotedContent(html);
+    expect(quoted).toContain('On 2024-01-01, John wrote:');
+  });
 });
 
 describe('EmailPreview', () => {
