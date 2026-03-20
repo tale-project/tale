@@ -748,7 +748,6 @@ import type * as workflow_engine_instructions_core_instructions from "../workflo
 import type * as workflow_engine_internal_actions from "../workflow_engine/internal_actions.js";
 import type * as workflow_engine_internal_mutations from "../workflow_engine/internal_mutations.js";
 import type * as workflow_engine_internal_queries from "../workflow_engine/internal_queries.js";
-import type * as workflow_engine_mutations from "../workflow_engine/mutations.js";
 import type * as workflow_engine_types_execution from "../workflow_engine/types/execution.js";
 import type * as workflow_engine_types_index from "../workflow_engine/types/index.js";
 import type * as workflow_engine_types_nodes from "../workflow_engine/types/nodes.js";
@@ -1608,7 +1607,6 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/internal_actions": typeof workflow_engine_internal_actions;
   "workflow_engine/internal_mutations": typeof workflow_engine_internal_mutations;
   "workflow_engine/internal_queries": typeof workflow_engine_internal_queries;
-  "workflow_engine/mutations": typeof workflow_engine_mutations;
   "workflow_engine/types/execution": typeof workflow_engine_types_execution;
   "workflow_engine/types/index": typeof workflow_engine_types_index;
   "workflow_engine/types/nodes": typeof workflow_engine_types_nodes;
@@ -2704,6 +2702,7 @@ export declare const components: {
             maximumRowsRead?: number;
             numItems: number;
           };
+          select?: Array<string>;
           sortBy?: { direction: "asc" | "desc"; field: string };
           where?: Array<{
             connector?: "AND" | "OR";
