@@ -14,6 +14,7 @@ import {
   useBulkArchiveConversations,
   useBulkCloseConversations,
   useBulkReopenConversations,
+  useBulkSpamConversations,
   useBulkUnarchiveConversations,
 } from './mutations';
 
@@ -44,6 +45,7 @@ export function useBulkActions({
   const { mutateAsync: bulkArchive } = useBulkArchiveConversations();
   const { mutateAsync: bulkResolve } = useBulkCloseConversations();
   const { mutateAsync: bulkReopen } = useBulkReopenConversations();
+  const { mutateAsync: bulkSpam } = useBulkSpamConversations();
   const { mutateAsync: bulkUnarchive } = useBulkUnarchiveConversations();
   const { mutateAsync: addMessage } = useAddMessage();
 
@@ -208,6 +210,49 @@ export function useBulkActions({
     onComplete,
   ]);
 
+  const handleBulkSpam = useCallback(async () => {
+    if (isBulkProcessing) return;
+
+    setIsBulkProcessing(true);
+
+    try {
+      const conversationIds = getSelectedConversationIds(
+        selectionState,
+        conversations,
+      );
+
+      const result = await bulkSpam({
+        conversationIds: toIds<'conversations'>(conversationIds),
+      });
+
+      toast({
+        title: tConversations('bulk.markedAsSpam'),
+        description: tConversations('bulk.markedAsSpamDescription', {
+          successCount: result.successCount,
+          failedCount: result.failedCount,
+        }),
+        variant: result.successCount > 0 ? 'default' : 'destructive',
+      });
+
+      onComplete();
+    } catch (error) {
+      console.error('Error marking conversations as spam:', error);
+      toast({
+        title: tConversations('bulk.spamFailed'),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsBulkProcessing(false);
+    }
+  }, [
+    isBulkProcessing,
+    selectionState,
+    conversations,
+    bulkSpam,
+    tConversations,
+    onComplete,
+  ]);
+
   const handleBulkArchive = useCallback(async () => {
     if (isBulkProcessing) return;
 
@@ -302,6 +347,7 @@ export function useBulkActions({
     handleSendMessages,
     handleBulkResolve,
     handleBulkReopen,
+    handleBulkSpam,
     handleBulkArchive,
     handleBulkUnarchive,
   };

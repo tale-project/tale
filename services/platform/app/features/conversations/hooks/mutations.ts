@@ -25,6 +25,10 @@ export function useBulkReopenConversations() {
   return useConvexMutation(api.conversations.mutations.bulkReopenConversations);
 }
 
+export function useBulkSpamConversations() {
+  return useConvexMutation(api.conversations.mutations.bulkSpamConversations);
+}
+
 export function useBulkUnarchiveConversations() {
   return useConvexMutation(
     api.conversations.mutations.bulkUnarchiveConversations,
@@ -51,6 +55,10 @@ export function useMarkAsRead() {
 
 export function useMarkAsSpam() {
   return useConvexMutation(api.conversations.mutations.markConversationAsSpam);
+}
+
+export function useDeleteConversation() {
+  return useConvexMutation(api.conversations.mutations.deleteConversation);
 }
 
 export function useDownloadAttachments() {

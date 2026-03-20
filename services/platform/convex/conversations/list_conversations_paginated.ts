@@ -9,30 +9,17 @@
 import type { PaginationOptions } from 'convex/server';
 
 import type { QueryCtx } from '../_generated/server';
-import type { ConversationItem } from './types';
+import type { ConversationItem, ConversationStatus } from './types';
 
 import { transformConversation } from './transform_conversation';
-
-interface FilterIndex {
-  field: string;
-  index: string;
-}
-
-const FILTER_INDEXES: FilterIndex[] = [
-  { field: 'status', index: 'by_organizationId_and_status' },
-  { field: 'priority', index: 'by_organizationId_and_priority' },
-  { field: 'channel', index: 'by_organizationId_and_channel' },
-];
 
 interface ListConversationsPaginatedArgs {
   paginationOpts: PaginationOptions;
   organizationId: string;
-  status?: string;
+  status?: ConversationStatus;
   priority?: string;
   channel?: string;
 }
-
-type FilterArgs = Record<string, string | undefined>;
 
 interface PaginatedConversationResult {
   page: ConversationItem[];
@@ -40,58 +27,47 @@ interface PaginatedConversationResult {
   continueCursor: string;
 }
 
-function buildBaseQuery(
+/**
+ * Build a query ordered by lastMessageAt descending.
+ *
+ * When filtering by status, uses `by_org_status_lastMessageAt` so both
+ * filter and sort are index-backed. Otherwise uses `by_org_lastMessageAt`.
+ */
+function buildOrderedQuery(
   ctx: QueryCtx,
   organizationId: string,
-  primary: FilterIndex | undefined,
-  filterArgs: FilterArgs,
+  status: ConversationStatus | undefined,
 ) {
-  if (primary) {
-    const tableQuery = ctx.db.query('conversations');
-    const indexFn = (q: {
-      eq: (
-        field: string,
-        value: string | undefined,
-      ) => { eq: (field: string, value: string | undefined) => unknown };
-    }) =>
-      q
-        .eq('organizationId', organizationId)
-        .eq(primary.field, filterArgs[primary.field]);
-    // @ts-expect-error -- dynamic index name; runtime correct, Convex types require literals
-    return tableQuery.withIndex(primary.index, indexFn);
+  if (status !== undefined) {
+    return ctx.db
+      .query('conversations')
+      .withIndex('by_org_status_lastMessageAt', (q) =>
+        q.eq('organizationId', organizationId).eq('status', status),
+      )
+      .order('desc');
   }
 
   return ctx.db
     .query('conversations')
-    .withIndex('by_organizationId', (q) =>
+    .withIndex('by_org_lastMessageAt', (q) =>
       q.eq('organizationId', organizationId),
-    );
+    )
+    .order('desc');
 }
 
 export async function listConversationsPaginated(
   ctx: QueryCtx,
   args: ListConversationsPaginatedArgs,
 ): Promise<PaginatedConversationResult> {
-  const filterArgs: FilterArgs = {
-    status: args.status,
-    priority: args.priority,
-    channel: args.channel,
-  };
+  let query = buildOrderedQuery(ctx, args.organizationId, args.status);
 
-  const primary = FILTER_INDEXES.find(({ field }) => filterArgs[field]);
-  let query = buildBaseQuery(
-    ctx,
-    args.organizationId,
-    primary,
-    filterArgs,
-  ).order('desc');
-
-  for (const { field } of FILTER_INDEXES) {
-    if (filterArgs[field] && field !== primary?.field) {
-      const value = filterArgs[field];
-      // @ts-expect-error -- dynamic field name; runtime is correct, Convex types require literal field paths
-      query = query.filter((q) => q.eq(q.field(field), value));
-    }
+  if (args.priority !== undefined) {
+    const priority = args.priority;
+    query = query.filter((q) => q.eq(q.field('priority'), priority));
+  }
+  if (args.channel !== undefined) {
+    const channel = args.channel;
+    query = query.filter((q) => q.eq(q.field('channel'), channel));
   }
 
   const result = await query.paginate(args.paginationOpts);

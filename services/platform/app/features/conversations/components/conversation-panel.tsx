@@ -2,9 +2,12 @@
 
 import {
   AlertTriangleIcon,
+  ArchiveIcon,
+  CircleCheckIcon,
   Loader2Icon,
   MessageSquareMoreIcon,
   RefreshCwIcon,
+  ShieldAlertIcon,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
@@ -23,6 +26,7 @@ import { useT } from '@/lib/i18n/client';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 
 import {
+  useDeleteConversation,
   useDownloadAttachments,
   useGenerateUploadUrl,
   useMarkAsRead,
@@ -85,6 +89,10 @@ export function ConversationPanel({
   const { mutate: downloadAttachments } = useDownloadAttachments();
   const { mutate: reopenConversation, isPending: isReopening } =
     useReopenConversation();
+  const { mutate: deleteConversation, isPending: isDeleting } =
+    useDeleteConversation();
+
+  const { formatDate } = useFormatDate();
 
   const [isThreadCollapsed, setIsThreadCollapsed] = useState(true);
 
@@ -483,14 +491,26 @@ export function ConversationPanel({
             />
           </div>
         ) : conversation.status === 'closed' ? (
-          <div className="border-border bg-muted/30 flex items-center justify-center gap-3 border-t px-8 py-3">
-            <Text variant="muted" className="text-sm">
-              {tConversations('panel.closedBanner')}
-            </Text>
+          <div
+            className="flex items-center justify-center gap-2 border-t border-gray-200 bg-gray-50 px-3 pt-3 pb-4 dark:border-gray-600 dark:bg-gray-900"
+            role="status"
+          >
+            <CircleCheckIcon
+              className="size-4 shrink-0 text-emerald-600"
+              aria-hidden="true"
+            />
+            <span className="text-[13px] text-gray-500 dark:text-gray-400">
+              {conversation.resolved_at
+                ? tConversations('panel.closedBanner', {
+                    date: formatDate(conversation.resolved_at, 'long'),
+                  })
+                : tConversations('panel.closedBannerNoDate')}
+            </span>
             <Button
               variant="secondary"
               size="sm"
               disabled={isReopening}
+              className="h-auto px-3 py-1 text-[13px]"
               onClick={() => {
                 reopenConversation(
                   {
@@ -521,14 +541,22 @@ export function ConversationPanel({
             </Button>
           </div>
         ) : conversation.status === 'archived' ? (
-          <div className="border-border bg-muted/30 flex items-center justify-center gap-3 border-t px-8 py-3">
-            <Text variant="muted" className="text-sm">
+          <div
+            className="flex items-center justify-center gap-2 border-t border-gray-200 bg-gray-50 px-3 pt-3 pb-4 dark:border-gray-600 dark:bg-gray-900"
+            role="status"
+          >
+            <ArchiveIcon
+              className="size-4 shrink-0 text-gray-500 dark:text-gray-500"
+              aria-hidden="true"
+            />
+            <span className="text-[13px] text-gray-500 dark:text-gray-400">
               {tConversations('panel.archivedBanner')}
-            </Text>
+            </span>
             <Button
               variant="secondary"
               size="sm"
               disabled={isReopening}
+              className="h-auto px-3 py-1 text-[13px]"
               onClick={() => {
                 reopenConversation(
                   {
@@ -559,40 +587,83 @@ export function ConversationPanel({
             </Button>
           </div>
         ) : conversation.status === 'spam' ? (
-          <div className="border-border bg-muted/30 flex items-center justify-center gap-3 border-t px-8 py-3">
-            <Text variant="muted" className="text-sm">
+          <div
+            className="flex items-center justify-center gap-2 border-t border-gray-200 bg-gray-50 px-3 pt-3 pb-4 dark:border-gray-600 dark:bg-gray-900"
+            role="status"
+          >
+            <ShieldAlertIcon
+              className="size-4 shrink-0 text-red-500 dark:text-red-400"
+              aria-hidden="true"
+            />
+            <span className="text-[13px] text-gray-500 dark:text-gray-400">
               {tConversations('panel.spamBanner')}
-            </Text>
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={isReopening}
-              onClick={() => {
-                reopenConversation(
-                  {
-                    conversationId: toId<'conversations'>(conversation.id),
-                  },
-                  {
-                    onSuccess: () => {
-                      toast({
-                        title: tConversations('header.toast.reopened'),
-                        variant: 'success',
-                      });
-                      onSelectedConversationChange(null);
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={isReopening || isDeleting}
+                className="h-auto px-3 py-1 text-[13px]"
+                onClick={() => {
+                  reopenConversation(
+                    {
+                      conversationId: toId<'conversations'>(conversation.id),
                     },
-                    onError: (error) => {
-                      console.error('Error reopening conversation:', error);
-                      toast({
-                        title: tConversations('header.toast.reopenFailed'),
-                        variant: 'destructive',
-                      });
+                    {
+                      onSuccess: () => {
+                        toast({
+                          title: tConversations('header.toast.reopened'),
+                          variant: 'success',
+                        });
+                        onSelectedConversationChange(null);
+                      },
+                      onError: (error) => {
+                        console.error('Error reopening conversation:', error);
+                        toast({
+                          title: tConversations('header.toast.reopenFailed'),
+                          variant: 'destructive',
+                        });
+                      },
                     },
-                  },
-                );
-              }}
-            >
-              {tConversations('panel.notSpam')}
-            </Button>
+                  );
+                }}
+              >
+                {tConversations('panel.notSpam')}
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={isDeleting || isReopening}
+                className="h-auto px-3 py-1 text-[13px]"
+                onClick={() => {
+                  deleteConversation(
+                    {
+                      conversationId: toId<'conversations'>(conversation.id),
+                    },
+                    {
+                      onSuccess: () => {
+                        toast({
+                          title: tConversations('panel.deleteSuccess'),
+                          variant: 'success',
+                        });
+                        onSelectedConversationChange(null);
+                      },
+                      onError: (error) => {
+                        console.error('Error deleting conversation:', error);
+                        toast({
+                          title: tConversations('panel.deleteFailed'),
+                          variant: 'destructive',
+                        });
+                      },
+                    },
+                  );
+                }}
+              >
+                {isDeleting
+                  ? tConversations('panel.deleting')
+                  : tConversations('panel.delete')}
+              </Button>
+            </div>
           </div>
         ) : null}
       </PanelFooter>

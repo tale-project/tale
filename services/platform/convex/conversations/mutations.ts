@@ -150,6 +150,16 @@ export const bulkReopenConversations = mutationWithRLS({
   },
 });
 
+export const bulkSpamConversations = mutationWithRLS({
+  args: {
+    conversationIds: v.array(v.id('conversations')),
+  },
+  returns: bulkOperationResultValidator,
+  handler: async (ctx, args) => {
+    return await ConversationsHelpers.bulkSpamConversations(ctx, args);
+  },
+});
+
 export const bulkUnarchiveConversations = mutationWithRLS({
   args: {
     conversationIds: v.array(v.id('conversations')),
@@ -157,6 +167,17 @@ export const bulkUnarchiveConversations = mutationWithRLS({
   returns: bulkOperationResultValidator,
   handler: async (ctx, args) => {
     return await ConversationsHelpers.bulkUnarchiveConversations(ctx, args);
+  },
+});
+
+export const deleteConversation = mutationWithRLS({
+  args: {
+    conversationId: v.id('conversations'),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await ConversationsHelpers.deleteConversation(ctx, args.conversationId);
+    return null;
   },
 });
 
