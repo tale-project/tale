@@ -1,6 +1,7 @@
 'use client';
 
 import { useParams, useNavigate } from '@tanstack/react-router';
+import { LoaderCircleIcon, CircleDotIcon } from 'lucide-react';
 import {
   type ComponentPropsWithoutRef,
   useEffect,
@@ -18,7 +19,7 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import { useUpdateThread } from '../hooks/mutations';
-import { useThreads } from '../hooks/queries';
+import { useActiveApprovals, useThreads } from '../hooks/queries';
 import { ChatActions } from './chat-actions';
 
 const emptySubscribe = () => () => {};
@@ -66,6 +67,22 @@ export function ChatHistorySidebar({
     loadMore,
   } = useThreads();
 
+  const { approvals } = useActiveApprovals(organizationId);
+
+  const { executingThreadIds, pendingThreadIds } = useMemo(() => {
+    const executing = new Set<string>();
+    const pending = new Set<string>();
+    for (const approval of approvals) {
+      if (!approval.threadId) continue;
+      if (approval.status === 'executing') {
+        executing.add(approval.threadId);
+      } else if (approval.status === 'pending') {
+        pending.add(approval.threadId);
+      }
+    }
+    return { executingThreadIds: executing, pendingThreadIds: pending };
+  }, [approvals]);
+
   const { mutateAsync: updateThread } = useUpdateThread();
 
   const chats = useMemo(
@@ -74,6 +91,7 @@ export function ChatHistorySidebar({
         _id: thread._id,
         title: thread.title ?? t('history.untitled'),
         createdAt: thread._creationTime,
+        generationStatus: thread.generationStatus,
       })),
     [threadsData, t],
   );
@@ -242,8 +260,20 @@ export function ChatHistorySidebar({
                         }}
                         className="absolute inset-0 cursor-pointer rounded-md"
                       />
-                      <span className="pointer-events-none relative z-10 min-h-[1.5rem] flex-1 truncate text-left text-sm leading-snug">
-                        {chat.title}
+                      <span className="pointer-events-none relative z-10 flex min-h-[1.5rem] flex-1 items-center gap-1.5 truncate text-left text-sm leading-snug">
+                        {chat.generationStatus === 'generating' ||
+                        executingThreadIds.has(chat._id) ? (
+                          <LoaderCircleIcon
+                            className="text-muted-foreground size-3.5 shrink-0 animate-spin"
+                            aria-label={t('history.generating')}
+                          />
+                        ) : pendingThreadIds.has(chat._id) ? (
+                          <CircleDotIcon
+                            className="text-warning size-3.5 shrink-0"
+                            aria-label={t('history.awaitingInput')}
+                          />
+                        ) : null}
+                        <span className="truncate">{chat.title}</span>
                       </span>
                       <div className="relative z-10 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
                         <ChatActions

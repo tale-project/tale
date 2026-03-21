@@ -49,6 +49,7 @@ export async function listThreads(
       title: row.title,
       status: row.status,
       userId: row.userId,
+      generationStatus: row.generationStatus,
     })),
     isDone: result.isDone,
     continueCursor: result.continueCursor,

@@ -27,6 +27,7 @@ export interface Thread {
   title?: string;
   status: 'active' | 'archived';
   userId?: string;
+  generationStatus?: 'generating' | 'idle';
 }
 
 const THREADS_PAGE_SIZE = 20;
@@ -115,7 +116,7 @@ export function useThreadMessages(threadId: string | null) {
   return results;
 }
 
-function useActiveApprovals(organizationId: string) {
+export function useActiveApprovals(organizationId: string) {
   const { data, isLoading } = useConvexQuery(
     api.approvals.queries.listActiveApprovalsByOrganization,
     { organizationId },

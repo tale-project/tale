@@ -8,6 +8,8 @@ import {
   Square,
 } from 'lucide-react';
 import { memo, useCallback, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 import type { Id } from '@/convex/_generated/dataModel';
 import type { HumanInputRequestMetadata } from '@/lib/shared/schemas/approvals';
@@ -32,6 +34,7 @@ import { stripLeadingPunctuation } from '@/lib/utils/text';
 
 import { useSubmitHumanInputResponse } from '../hooks/mutations';
 import { useCancelExecution } from '../hooks/use-execution-status';
+import { markdownWrapperStyles } from './message-bubble/markdown-renderer';
 
 const OTHER_VALUE = '__other__';
 
@@ -435,13 +438,27 @@ function HumanInputRequestCardComponent({
 
       {/* Question */}
       <div className="mb-4">
-        <Text className="leading-relaxed">
-          {stripLeadingPunctuation(metadata.question)}
-        </Text>
+        <div
+          className={cn(
+            markdownWrapperStyles,
+            'max-w-none text-sm leading-relaxed',
+          )}
+        >
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {stripLeadingPunctuation(metadata.question)}
+          </ReactMarkdown>
+        </div>
         {metadata.context && (
-          <Text variant="caption" className="mt-2">
-            {metadata.context}
-          </Text>
+          <div
+            className={cn(
+              markdownWrapperStyles,
+              'text-muted-foreground mt-2 max-w-none text-xs',
+            )}
+          >
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {metadata.context}
+            </ReactMarkdown>
+          </div>
         )}
       </div>
 

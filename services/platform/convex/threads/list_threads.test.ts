@@ -147,7 +147,7 @@ describe('listThreads', () => {
     expect(thread.userId).toBe('user1');
   });
 
-  it('should only include _id, _creationTime, title, status, userId in results', async () => {
+  it('should only include _id, _creationTime, title, status, userId, generationStatus in results', async () => {
     const ctx = makeMockCtx([
       makeRow({ threadId: 't1', title: 'Test Thread' }),
     ]);
@@ -161,6 +161,7 @@ describe('listThreads', () => {
     expect(Object.keys(thread).sort()).toEqual([
       '_creationTime',
       '_id',
+      'generationStatus',
       'status',
       'title',
       'userId',

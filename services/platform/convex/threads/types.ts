@@ -20,6 +20,7 @@ export interface Thread {
   title?: string;
   status: ThreadStatus;
   userId?: string;
+  generationStatus?: 'generating' | 'idle';
 }
 
 export interface ThreadMessage {
