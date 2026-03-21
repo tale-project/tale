@@ -77,6 +77,7 @@ export const testCustomAgent = mutation({
       debugTag: `[CustomAgent:${agent.name}:test]`,
       enableStreaming: true,
       hooks,
+      customAgentId: args.customAgentId,
     });
   },
 });

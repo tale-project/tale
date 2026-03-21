@@ -12,6 +12,7 @@
 import type { Id } from '../../../_generated/dataModel';
 import type { ActionCtx } from '../../../_generated/server';
 
+import { isRecord } from '../../../../lib/utils/type-guards';
 import { internal } from '../../../_generated/api';
 import { createDebugLog } from '../../../lib/debug_log';
 import { deserializeVariablesInAction } from '../serialization/deserialize_variables';
@@ -51,12 +52,12 @@ export async function handleSerializeExecutionOutput(
     }
   }
 
-  // Extract output: use output node's __workflowOutput if present, otherwise
-  // fall back to sanitized variables (strips secrets and system fields)
+  // Extract output: use output node's __workflowOutput if present.
+  // __workflowOutput is stored under the variables namespace by persistExecutionResult.
+  // When no output node exists, output is null — variables are stored separately.
+  const nestedVars = isRecord(vars.variables) ? vars.variables : vars;
   const output: unknown =
-    '__workflowOutput' in vars
-      ? vars.__workflowOutput
-      : sanitizeOutputVariables(vars);
+    '__workflowOutput' in nestedVars ? nestedVars.__workflowOutput : null;
 
   // Serialize output to storage if needed
   const { serialized: outputSerialized, storageId: outputStorageId } =
@@ -107,22 +108,17 @@ const SENSITIVE_KEYS = [
   'rootWfDefinitionId',
 ];
 
-function sanitizeOutputVariables(vars: unknown): unknown {
-  if (typeof vars !== 'object' || vars === null || Array.isArray(vars)) {
-    return vars;
-  }
-  const sanitized = { ...vars } as Record<string, unknown>;
-  for (const key of SENSITIVE_KEYS) {
-    delete sanitized[key];
-  }
-  return sanitized;
-}
-
 function sanitizeVariablesForStorage(
   vars: Record<string, unknown>,
 ): Record<string, unknown> {
   const cleaned = { ...vars };
   delete cleaned.__workflowOutput;
+  // Also clean __workflowOutput from nested variables namespace
+  if (isRecord(cleaned.variables)) {
+    const nestedCleaned = { ...cleaned.variables };
+    delete nestedCleaned.__workflowOutput;
+    cleaned.variables = nestedCleaned;
+  }
   for (const key of SENSITIVE_KEYS) {
     delete cleaned[key];
   }

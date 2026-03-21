@@ -14,6 +14,7 @@ export const threadMetadataTable = defineTable({
     v.union(v.literal('generating'), v.literal('idle')),
   ),
   streamId: v.optional(v.string()),
+  customAgentId: v.optional(v.id('customAgents')),
 })
   .index('by_threadId', ['threadId'])
   .index('by_userId_chatType_status', [
