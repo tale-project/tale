@@ -57,6 +57,8 @@ import type {
   MarkdownComponentType,
 } from '@/lib/utils/markdown-types';
 
+import { remendMarkdown } from '../utils/remend-markdown';
+
 const remarkDisableIndentedCode = function (this: {
   data: () => { micromarkExtensions?: { disable?: { null?: string[] } }[] };
 }) {
@@ -169,10 +171,11 @@ const StreamingMarkdown = memo(
     components?: MarkdownComponentMap;
     showCursor?: boolean;
   }) {
-    const revealedContent = content ? content.slice(0, revealedLength) : '';
+    const rawRevealed = content ? content.slice(0, revealedLength) : '';
+    const revealedContent = remendMarkdown(rawRevealed);
 
-    // Refs for cursor position detection — avoids recreating wrapper
-    // functions on every 50ms update. Wrappers read from refs instead.
+    // Refs must track the remended string because react-markdown's AST
+    // node.position offsets reference positions in the string it received.
     const revealedLenRef = useRef(revealedContent.length);
     revealedLenRef.current = revealedContent.length;
     const revealedTextRef = useRef(revealedContent);

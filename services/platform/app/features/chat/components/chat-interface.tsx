@@ -183,73 +183,70 @@ export function ChatInterface({
     }
   }, [isLoading, resetCancelled]);
 
-  // Auto-scroll
-  const { containerRef, contentRef, scrollToBottom, scrollTo, isAtBottom } =
-    useAutoScroll({
-      enabled: isLoading,
-      threshold: 100,
-    });
+  // Scroll utility (no auto-follow — ChatGPT-style)
+  const { containerRef, contentRef, scrollToBottom, isAtBottom } =
+    useAutoScroll({ threshold: 100 });
 
-  const aiResponseAreaRef = useRef<HTMLDivElement>(null);
-  const shouldScrollToAIRef = useRef(false);
+  const lastUserMessageRef = useRef<HTMLDivElement>(null);
 
-  // Scroll AI response to top of viewport
-  const scrollToAIResponse = useCallback(() => {
-    if (aiResponseAreaRef.current && containerRef.current) {
-      const container = containerRef.current;
-      const aiArea = aiResponseAreaRef.current;
-      const containerRect = container.getBoundingClientRect();
-      const aiAreaRect = aiArea.getBoundingClientRect();
-
-      const targetScrollTop =
-        container.scrollTop + (aiAreaRect.top - containerRect.top) - 80;
-
-      scrollTo(Math.max(0, targetScrollTop));
-    }
-  }, [containerRef, scrollTo]);
-
-  useEffect(() => {
-    if (isLoading && shouldScrollToAIRef.current) {
-      requestAnimationFrame(() => {
-        scrollToAIResponse();
-        shouldScrollToAIRef.current = false;
-      });
-    }
-  }, [isLoading, scrollToAIResponse]);
-
-  // Scroll button visibility
+  // Scroll button visibility — updated on both scroll events and content resize
   useEffect(() => {
     const container = containerRef.current;
-    if (!container) return;
+    const content = contentRef.current;
+    if (!container || !content) return;
 
-    const checkScroll = () => {
-      setShowScrollButton(!isAtBottom());
+    const check = () => setShowScrollButton(!isAtBottom());
+
+    const observer = new ResizeObserver(check);
+    observer.observe(content);
+    container.addEventListener('scroll', check, { passive: true });
+    check();
+
+    return () => {
+      observer.disconnect();
+      container.removeEventListener('scroll', check);
     };
+  }, [containerRef, contentRef, isAtBottom]);
 
-    container.addEventListener('scroll', checkScroll, { passive: true });
-    return () => container.removeEventListener('scroll', checkScroll);
-  }, [containerRef, isAtBottom]);
-
-  // Scroll to bottom on initial load
-  const hasScrolledOnLoadRef = useRef(false);
+  // Scroll to bottom on initial load (all threads).
+  // For new threads with a pending message, ChatMessages also scrolls
+  // to bottom on send — the response area's min-height ensures the
+  // user message ends up at the viewport top.
+  const scrolledForThreadRef = useRef<string | null>(null);
   useEffect(() => {
-    if (
-      threadId &&
-      messages.length > 0 &&
-      !hasScrolledOnLoadRef.current &&
-      containerRef.current
-    ) {
-      hasScrolledOnLoadRef.current = true;
-      containerRef.current.scrollTo({
-        top: containerRef.current.scrollHeight,
-        behavior: 'instant',
-      });
-    }
+    if (!threadId || messages.length === 0) return;
+    if (scrolledForThreadRef.current === threadId) return;
+
+    scrolledForThreadRef.current = threadId;
+
+    containerRef.current?.scrollTo({
+      top: containerRef.current.scrollHeight,
+      behavior: 'instant',
+    });
   }, [threadId, messages.length, containerRef]);
 
-  useEffect(() => {
-    hasScrolledOnLoadRef.current = false;
-  }, [threadId]);
+  // Load-more scroll preservation: keep viewport stable when older messages prepend
+  const handleLoadMore = useCallback(
+    (count: number) => {
+      const container = containerRef.current;
+      if (!container) {
+        loadMore(count);
+        return;
+      }
+
+      const prevScrollHeight = container.scrollHeight;
+      const observer = new MutationObserver(() => {
+        observer.disconnect();
+        container.scrollTop += container.scrollHeight - prevScrollHeight;
+      });
+      observer.observe(container, { childList: true, subtree: true });
+      loadMore(count);
+
+      // Safety timeout to disconnect if no mutation fires
+      setTimeout(() => observer.disconnect(), 2000);
+    },
+    [containerRef, loadMore],
+  );
 
   const { sendMessage } = useSendMessage({
     organizationId,
@@ -261,7 +258,6 @@ export function ChatInterface({
     clearChatState,
     onBeforeSend: () => {
       resetCancelled();
-      shouldScrollToAIRef.current = true;
     },
     selectedAgent: effectiveAgent,
   });
@@ -276,7 +272,6 @@ export function ChatInterface({
 
   const handleHumanInputResponseSubmitted = useCallback(() => {
     setIsPending(true);
-    shouldScrollToAIRef.current = true;
   }, [setIsPending]);
 
   const handleSendFollowUp = useCallback(
@@ -294,13 +289,13 @@ export function ChatInterface({
   return (
     <div
       ref={containerRef}
-      className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto [overflow-anchor:none]"
+      className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto"
     >
       <div
         ref={contentRef}
         className={cn(
-          'flex-1 overflow-y-visible p-4 sm:p-8',
-          showWelcome && 'flex flex-col items-center justify-center',
+          'flex flex-col overflow-y-visible p-4 sm:p-8',
+          showWelcome && 'flex-1 items-center justify-center',
         )}
       >
         {showWelcome && (
@@ -319,10 +314,11 @@ export function ChatInterface({
             organizationId={organizationId}
             canLoadMore={canLoadMore}
             isLoadingMore={isLoadingMore}
-            loadMore={loadMore}
+            loadMore={handleLoadMore}
             activeMessage={activeMessage}
             isLoading={isLoading}
-            aiResponseAreaRef={aiResponseAreaRef}
+            lastUserMessageRef={lastUserMessageRef}
+            containerRef={containerRef}
             activeApproval={activeApproval}
             onHumanInputResponseSubmitted={handleHumanInputResponseSubmitted}
             onSendFollowUp={handleSendFollowUp}
@@ -330,7 +326,7 @@ export function ChatInterface({
         )}
       </div>
 
-      <PanelFooter>
+      <PanelFooter className="mt-auto">
         <div className="relative mx-auto w-full max-w-(--chat-max-width)">
           <AnimatePresence>
             {showScrollButton && (
