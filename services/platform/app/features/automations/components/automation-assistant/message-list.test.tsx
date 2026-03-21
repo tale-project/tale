@@ -19,22 +19,23 @@ vi.mock('@/lib/i18n/client', () => ({
   useT: () => ({ t: (key: string) => key }),
 }));
 
-vi.mock('@/app/features/chat/components/workflow-update-approval-card', () => ({
-  WorkflowUpdateApprovalCard: ({ approvalId }: { approvalId: string }) => (
-    <div data-testid={`update-approval-${approvalId}`}>Update Approval</div>
+vi.mock('@/app/features/chat/components/approval-card-renderer', () => ({
+  ApprovalCardRenderer: ({
+    item,
+  }: {
+    item: { type: string; data: { _id: string } };
+  }) => (
+    <div data-testid={`${item.type}-approval-${item.data._id}`}>
+      {item.type} Approval
+    </div>
   ),
 }));
 
-vi.mock(
-  '@/app/features/chat/components/workflow-creation-approval-card',
-  () => ({
-    WorkflowCreationApprovalCard: ({ approvalId }: { approvalId: string }) => (
-      <div data-testid={`creation-approval-${approvalId}`}>
-        Creation Approval
-      </div>
-    ),
-  }),
-);
+vi.mock('@/app/features/chat/components/collapsible-system-message', () => ({
+  CollapsibleSystemMessage: ({ content }: { content: string }) => (
+    <div data-testid="system-message">{content}</div>
+  ),
+}));
 
 vi.mock('./thinking-animation', () => ({
   ThinkingAnimation: () => <div data-testid="thinking" />,
@@ -92,6 +93,10 @@ const defaultProps = {
   workflow: { status: 'active' },
   organizationId: 'org-1',
   onImagePreview: vi.fn(),
+  workflowRunApprovals: [],
+  humanInputRequests: [],
+  documentWriteApprovals: [],
+  integrationApprovals: [],
 };
 
 describe('MessageList', () => {
@@ -116,7 +121,7 @@ describe('MessageList', () => {
       );
 
       expect(
-        screen.getByTestId('update-approval-approval-1'),
+        screen.getByTestId('workflow_update_approval-approval-approval-1'),
       ).toBeInTheDocument();
     });
 
@@ -138,7 +143,7 @@ describe('MessageList', () => {
       );
 
       expect(
-        screen.queryByTestId('update-approval-completed-ap'),
+        screen.queryByTestId('workflow_update_approval-approval-completed-ap'),
       ).not.toBeInTheDocument();
     });
 
@@ -160,7 +165,7 @@ describe('MessageList', () => {
       );
 
       expect(
-        screen.queryByTestId('update-approval-rejected-ap'),
+        screen.queryByTestId('workflow_update_approval-approval-rejected-ap'),
       ).not.toBeInTheDocument();
     });
 
@@ -189,9 +194,11 @@ describe('MessageList', () => {
       );
 
       // Only the latest (ap-2) should be shown
-      expect(screen.getByTestId('creation-approval-ap-2')).toBeInTheDocument();
       expect(
-        screen.queryByTestId('update-approval-ap-1'),
+        screen.getByTestId('workflow_approval-approval-ap-2'),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByTestId('workflow_update_approval-approval-ap-1'),
       ).not.toBeInTheDocument();
     });
 
@@ -219,10 +226,10 @@ describe('MessageList', () => {
 
       // Only the latest (newer-ap) should render
       expect(
-        screen.getByTestId('update-approval-newer-ap'),
+        screen.getByTestId('workflow_update_approval-approval-newer-ap'),
       ).toBeInTheDocument();
       expect(
-        screen.queryByTestId('update-approval-older-ap'),
+        screen.queryByTestId('workflow_update_approval-approval-older-ap'),
       ).not.toBeInTheDocument();
     });
   });

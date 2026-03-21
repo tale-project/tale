@@ -17,11 +17,12 @@ export interface FilePart {
 
 export interface Message {
   id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: Date;
   automationContext?: string;
   fileParts?: FilePart[];
   attachments?: FileAttachment[];
   clientMessageId?: string;
+  isHumanInputResponse?: boolean;
 }

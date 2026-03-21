@@ -19,6 +19,89 @@ const VALID_SCHEMA_TYPES = new Set([
   'object',
 ]);
 
+function hasValidType(prop: Record<string, unknown>): boolean {
+  return (
+    !!prop.type &&
+    VALID_SCHEMA_TYPES.has(typeof prop.type === 'string' ? prop.type : '')
+  );
+}
+
+function validateNestedProperties(
+  properties: Record<string, unknown>,
+  path: string,
+  errors: string[],
+): void {
+  for (const [key, value] of Object.entries(properties)) {
+    if (!isRecord(value)) {
+      errors.push(`${path}.${key} must be an object`);
+      continue;
+    }
+    if (!hasValidType(value)) {
+      errors.push(
+        `${path}.${key} has invalid type. Must be one of: ${[...VALID_SCHEMA_TYPES].join(', ')}`,
+      );
+    }
+  }
+}
+
+function validatePropertySchema(
+  key: string,
+  prop: Record<string, unknown>,
+  errors: string[],
+): void {
+  if (!hasValidType(prop)) {
+    errors.push(
+      `Start step input property "${key}" has invalid type. Must be one of: ${[...VALID_SCHEMA_TYPES].join(', ')}`,
+    );
+  }
+
+  // Validate items (for array types)
+  if (prop.items !== undefined) {
+    if (prop.type !== 'array') {
+      errors.push(
+        `Start step input property "${key}" has "items" but type is not "array"`,
+      );
+    } else if (!isRecord(prop.items)) {
+      errors.push(`Start step input property "${key}.items" must be an object`);
+    } else {
+      const items = prop.items;
+      if (!hasValidType(items)) {
+        errors.push(
+          `Start step input property "${key}.items" has invalid type. Must be one of: ${[...VALID_SCHEMA_TYPES].join(', ')}`,
+        );
+      }
+      if (items.properties !== undefined) {
+        if (!isRecord(items.properties)) {
+          errors.push(
+            `Start step input property "${key}.items.properties" must be an object`,
+          );
+        } else {
+          validateNestedProperties(
+            items.properties,
+            `"${key}.items.properties"`,
+            errors,
+          );
+        }
+      }
+    }
+  }
+
+  // Validate properties (for object types)
+  if (prop.properties !== undefined) {
+    if (prop.type !== 'object') {
+      errors.push(
+        `Start step input property "${key}" has "properties" but type is not "object"`,
+      );
+    } else if (!isRecord(prop.properties)) {
+      errors.push(
+        `Start step input property "${key}.properties" must be an object`,
+      );
+    } else {
+      validateNestedProperties(prop.properties, `"${key}.properties"`, errors);
+    }
+  }
+}
+
 export function validateStartStep(
   config: Record<string, unknown>,
 ): ValidationResult {
@@ -39,23 +122,12 @@ export function validateStartStep(
           'Start step "inputSchema.properties" must be an object if provided',
         );
       } else {
-        const properties = schema.properties;
-        for (const [key, value] of Object.entries(properties)) {
+        for (const [key, value] of Object.entries(schema.properties)) {
           if (!isRecord(value)) {
             errors.push(`Start step input property "${key}" must be an object`);
             continue;
           }
-          const prop = value;
-          if (
-            !prop.type ||
-            !VALID_SCHEMA_TYPES.has(
-              typeof prop.type === 'string' ? prop.type : '',
-            )
-          ) {
-            errors.push(
-              `Start step input property "${key}" has invalid type. Must be one of: ${[...VALID_SCHEMA_TYPES].join(', ')}`,
-            );
-          }
+          validatePropertySchema(key, value, errors);
         }
       }
     }

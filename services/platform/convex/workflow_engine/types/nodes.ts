@@ -64,6 +64,11 @@ export interface LLMNodeConfig {
   // Tools the LLM can use
   tools?: string[]; // Array of Convex tool names
 
+  // Knowledge scoping for RAG search
+  // When set, rag_search automatically scopes to these files via ToolCtx.
+  // Accepts a literal array of file IDs or a template expression resolving to an array.
+  knowledgeFileIds?: string[] | string;
+
   // Advanced settings
   outputFormat?: 'text' | 'json';
 
@@ -152,6 +157,7 @@ export const llmNodeConfigValidator = v.object({
   systemPrompt: v.string(),
   userPrompt: v.optional(v.string()),
   tools: v.optional(v.array(v.string())),
+  knowledgeFileIds: v.optional(v.union(v.array(v.string()), v.string())),
   outputFormat: v.optional(v.union(v.literal('text'), v.literal('json'))),
   // Output schema for structured output validation (JSON Schema format)
   outputSchema: v.optional(jsonSchemaDefinitionValidator),
@@ -229,24 +235,43 @@ export const outputNodeConfigValidator = v.object({
  * Start node config defines the input schema for a workflow.
  * Trigger sources (schedule, webhook, API) are configured separately
  * in the wfSchedules, wfWebhooks, and wfApiKeys tables.
+ *
+ * The input schema follows JSON Schema conventions (type, description,
+ * properties, required, items) for describing workflow input parameters.
  */
+
+const schemaTypeUnion = v.union(
+  v.literal('string'),
+  v.literal('number'),
+  v.literal('integer'),
+  v.literal('boolean'),
+  v.literal('array'),
+  v.literal('object'),
+);
+
+const nestedPropertyValidator = v.object({
+  type: schemaTypeUnion,
+  description: v.optional(v.string()),
+});
+
+const inputSchemaPropertyValidator = v.object({
+  type: schemaTypeUnion,
+  description: v.optional(v.string()),
+  items: v.optional(
+    v.object({
+      type: schemaTypeUnion,
+      properties: v.optional(v.record(v.string(), nestedPropertyValidator)),
+      required: v.optional(v.array(v.string())),
+    }),
+  ),
+  properties: v.optional(v.record(v.string(), nestedPropertyValidator)),
+  required: v.optional(v.array(v.string())),
+});
+
 export const startNodeConfigValidator = v.object({
   inputSchema: v.optional(
     v.object({
-      properties: v.record(
-        v.string(),
-        v.object({
-          type: v.union(
-            v.literal('string'),
-            v.literal('number'),
-            v.literal('integer'),
-            v.literal('boolean'),
-            v.literal('array'),
-            v.literal('object'),
-          ),
-          description: v.optional(v.string()),
-        }),
-      ),
+      properties: v.record(v.string(), inputSchemaPropertyValidator),
       required: v.optional(v.array(v.string())),
     }),
   ),

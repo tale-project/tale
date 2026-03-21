@@ -93,6 +93,7 @@ export async function executeAgentWithTools(
     organizationId?: string;
     threadId?: string;
     stepSlug?: string;
+    knowledgeFileIds?: string[];
   },
 ): Promise<LLMExecutionResult> {
   if (config.outputFormat === 'json' && !config.outputSchema) {
@@ -131,6 +132,9 @@ export async function executeAgentWithTools(
     ...(_args.organizationId ? { organizationId: _args.organizationId } : {}),
     ...(_args.executionId ? { wfExecutionId: _args.executionId } : {}),
     ...(_args.stepSlug ? { stepSlug: _args.stepSlug } : {}),
+    ...(_args.knowledgeFileIds?.length
+      ? { knowledgeFileIds: _args.knowledgeFileIds }
+      : {}),
   };
 
   // Case 1: JSON output WITHOUT tools -> use generateObject directly

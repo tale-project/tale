@@ -147,4 +147,120 @@ describe('validateWorkflowInput', () => {
     expect(result.valid).toBe(false);
     expect(result.errors).toHaveLength(2);
   });
+
+  // ── Nested schema validation: array items ─────────────────────────
+
+  describe('array items validation', () => {
+    const fileSchema: WorkflowInputSchema = {
+      properties: {
+        files: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              fileId: { type: 'string' },
+              fileName: { type: 'string' },
+            },
+            required: ['fileId', 'fileName'],
+          },
+        },
+      },
+      required: ['files'],
+    };
+
+    it('validates valid array items', () => {
+      const result = validateWorkflowInput(
+        { files: [{ fileId: 'abc', fileName: 'doc.pdf' }] },
+        fileSchema,
+      );
+      expect(result.valid).toBe(true);
+    });
+
+    it('errors when array element has wrong type', () => {
+      const result = validateWorkflowInput(
+        { files: ['not-an-object'] },
+        fileSchema,
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toContain('files[0]');
+      expect(result.errors[0]).toContain('object');
+    });
+
+    it('errors when required field is missing in array element', () => {
+      const result = validateWorkflowInput(
+        { files: [{ fileId: 'abc' }] },
+        fileSchema,
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toContain('files[0].fileName');
+    });
+
+    it('errors when array element field has wrong type', () => {
+      const result = validateWorkflowInput(
+        { files: [{ fileId: 123, fileName: 'doc.pdf' }] },
+        fileSchema,
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toContain('files[0].fileId');
+      expect(result.errors[0]).toContain('string');
+    });
+
+    it('validates simple array items type', () => {
+      const stringArraySchema: WorkflowInputSchema = {
+        properties: {
+          ids: { type: 'array', items: { type: 'string' } },
+        },
+      };
+      const result = validateWorkflowInput(
+        { ids: ['a', 'b', 42] },
+        stringArraySchema,
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toContain('ids[2]');
+    });
+  });
+
+  // ── Nested schema validation: object properties ───────────────────
+
+  describe('object properties validation', () => {
+    const objSchema: WorkflowInputSchema = {
+      properties: {
+        baseFile: {
+          type: 'object',
+          properties: {
+            fileId: { type: 'string' },
+            fileName: { type: 'string' },
+          },
+          required: ['fileId'],
+        },
+      },
+    };
+
+    it('validates valid object properties', () => {
+      const result = validateWorkflowInput(
+        { baseFile: { fileId: 'abc', fileName: 'doc.pdf' } },
+        objSchema,
+      );
+      expect(result.valid).toBe(true);
+    });
+
+    it('errors when required object field is missing', () => {
+      const result = validateWorkflowInput(
+        { baseFile: { fileName: 'doc.pdf' } },
+        objSchema,
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toContain('baseFile.fileId');
+    });
+
+    it('errors when object field has wrong type', () => {
+      const result = validateWorkflowInput(
+        { baseFile: { fileId: 42 } },
+        objSchema,
+      );
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toContain('baseFile.fileId');
+      expect(result.errors[0]).toContain('string');
+    });
+  });
 });

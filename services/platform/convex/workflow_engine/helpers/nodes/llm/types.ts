@@ -32,6 +32,7 @@ export interface NormalizedConfig {
    */
   outputSchema?: JsonSchemaDefinition;
   tools?: string[];
+  knowledgeFileIds?: string[] | string;
   contextVariables?: Record<string, unknown>;
 }
 

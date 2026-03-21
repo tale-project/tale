@@ -18,7 +18,18 @@
       "config": {
         "inputSchema": {
           "properties": {
-            "files": { "type": "array", "description": "File objects with fileId and fileName, ordered chronologically (oldest first). Minimum 2 required." },
+            "files": {
+              "type": "array",
+              "description": "File objects ordered chronologically (oldest first). Minimum 2 required.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "fileId": { "type": "string", "description": "Convex storage ID" },
+                  "fileName": { "type": "string", "description": "Original file name" }
+                },
+                "required": ["fileId", "fileName"]
+              }
+            },
             "language": { "type": "string", "description": "Output language for the report (e.g., 'de', 'en', 'fr'). If omitted, auto-detected from documents." }
           },
           "required": ["files"]

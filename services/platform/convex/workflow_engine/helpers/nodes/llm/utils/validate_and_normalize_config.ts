@@ -77,6 +77,7 @@ export function validateAndNormalizeConfig(
     outputFormat: llmConfig.outputFormat,
     outputSchema: llmConfig.outputSchema,
     tools: llmConfig.tools,
+    knowledgeFileIds: llmConfig.knowledgeFileIds,
     contextVariables: llmConfig.contextVariables,
   };
 }
