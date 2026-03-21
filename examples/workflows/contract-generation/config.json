@@ -1,7 +1,7 @@
 {
   "workflowConfig": {
     "name": "Contract Generation",
-    "description": "Modify contracts from template files using a base contract. Use when the user asks to rewrite or modify a contract based on template documents.\n\nThe workflow indexes one or more contract templates into RAG (the ONLY source of clauses — no clauses are invented), then uses structured DOCX round-trip editing — extracting paragraphs with stable keys from the base contract, applying targeted text modifications via LLM + RAG, and writing changes back to the original DOCX with Track Changes markup. This preserves all original formatting, styles, headers/footers, and document properties.\n\nA base contract (DOCX) is required. Extract fileIds from pre-analyzed attachments in the conversation (look for '(fileId: ...)' annotations) or ask the user to provide them.",
+    "description": "Modify contracts from template files using a base contract. Use when the user asks to rewrite or modify a contract based on template documents.\n\nThe workflow indexes one or more contract templates into RAG (the ONLY source of clauses — no clauses are invented), then uses structured DOCX round-trip editing — extracting paragraphs with stable keys from the base contract, applying targeted text modifications via LLM + RAG, and writing changes back to the original DOCX with Track Changes markup. This preserves all original formatting, styles, headers/footers, and document properties.\n\nA base contract (DOCX) is required. Extract file objects (fileId + fileName) from pre-analyzed attachments in the conversation (look for '(fileId: ...)' annotations) or ask the user to provide them.",
     "version": "1.0.0",
     "workflowType": "predefined",
     "config": {
@@ -18,12 +18,31 @@
       "config": {
         "inputSchema": {
           "properties": {
-            "templateFileIds": { "type": "array", "description": "Convex storage IDs of contract template files (DOCX or PDF). These are the ONLY source of clauses — extract fileIds from pre-analyzed attachments (look for '(fileId: ...)' annotations)." },
-            "baseFileId": { "type": "string", "description": "Convex storage ID of an existing DOCX contract to modify. The workflow extracts structured paragraphs, applies targeted modifications with Track Changes markup, and preserves all original formatting." },
+            "knowledgeFiles": {
+              "type": "array",
+              "description": "Contract template files (DOCX or PDF). The ONLY source of clauses — extract from pre-analyzed attachments (look for '(fileId: ...)' annotations).",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "fileId": { "type": "string", "description": "Convex storage ID" },
+                  "fileName": { "type": "string", "description": "Original file name" }
+                },
+                "required": ["fileId", "fileName"]
+              }
+            },
+            "baseFile": {
+              "type": "object",
+              "description": "Existing DOCX contract to modify. The workflow preserves all original formatting.",
+              "properties": {
+                "fileId": { "type": "string", "description": "Convex storage ID" },
+                "fileName": { "type": "string", "description": "Original file name" }
+              },
+              "required": ["fileId", "fileName"]
+            },
             "requirements": { "type": "string", "description": "The user's instructions in natural language. Preserve the user's full intent (e.g., 'Draft a buyer-friendly SPA', 'Strengthen indemnification, extend warranty survival to 24 months')." },
             "outputFileName": { "type": "string", "description": "Base name for the output DOCX file (without extension). Choose a sensible name based on the request." }
           },
-          "required": ["templateFileIds", "baseFileId", "requirements", "outputFileName"]
+          "required": ["knowledgeFiles", "baseFile", "requirements", "outputFileName"]
         }
       },
       "nextSteps": { "success": "loop_templates" }
@@ -33,7 +52,7 @@
       "name": "Loop: Index Templates for RAG",
       "stepType": "loop",
       "config": {
-        "items": "{{input.templateFileIds}}"
+        "items": "{{input.knowledgeFiles | map('fileId')}}"
       },
       "nextSteps": {
         "loop": "index_template_rag",
@@ -62,7 +81,7 @@
         "type": "document",
         "parameters": {
           "operation": "extract_docx_structured",
-          "fileId": "{{input.baseFileId}}"
+          "fileId": "{{input.baseFile.fileId}}"
         }
       },
       "nextSteps": { "success": "init_mod_loop" }
@@ -107,8 +126,9 @@
       "config": {
         "name": "Batch Modification Planner",
         "tools": ["rag_search", "request_human_input"],
-        "systemPrompt": "You are a professional contract lawyer.\n\nYour task is to edit legal text conservatively.\n\nEditing principles:\n- Make minimal necessary changes\n- Preserve at least 85% of the original wording\n- Do NOT rewrite the entire clause\n- Do NOT restructure paragraphs or sections\n- Preserve numbering, references, and formatting\n\nEditing discipline:\n- Prefer small, precise modifications over broad rewrites\n- Only change text where clearly necessary\n- If no meaningful improvement is needed, return the original text unchanged\n\nCRITICAL EDITING RULE:\n- You must REPLACE existing text, not append to it\n- Do NOT keep both original and modified versions\n- The result must be a clean, single, final version of the clause\n\nSTRICTLY AVOID:\n- Duplicated sentences\n- Conflicting formulations\n- Partially merged text\n\nIf a sentence is modified, remove or fully integrate the original version.\n\nConsistency:\n- Ensure the revised text remains internally consistent\n- Avoid introducing new legal concepts unless required by the instruction\n\nCROSS-BATCH CONSISTENCY:\nYou may receive PREVIOUS BATCH MODIFICATIONS showing changes from the immediately preceding batch. Use this to maintain consistency — if a term, cap, threshold, or defined term was changed, align your modifications accordingly.\n\nLANGUAGE PRESERVATION: Output text MUST be in the SAME LANGUAGE as the input paragraph. NEVER translate.\n\nRAG DISCOVERY:\n- ONLY search for paragraphs you have already decided need modification based on the user requirements. Do NOT search for paragraphs that do not need changes.\n- Use rag_search with the provided template file IDs to find relevant template language\n- Run 2 or 3 diverse queries per paragraph you plan to modify (clause topic, key legal terms)\n- Templates are the ONLY source of clause language — NEVER invent clause text\n- If rag_search returns no relevant language, do NOT modify that paragraph\n- Always pass topK: 2 in every rag_search call\n\nPARAGRAPH BOUNDARIES: Do NOT merge or split paragraphs. Each modification replaces exactly one paragraph.\nDEFINED TERMS: Preserve defined terms in their original language.\nPLACEHOLDERS: When you encounter fill-in placeholders ([●], [TBD], [___], [Datum], etc.), use the request_human_input tool to ask the user for the actual values. Do not invent values or leave placeholders unfilled.\nEMPTY PARAGRAPHS: Skip entirely.\n\nUSER CONFIRMATION:\nWhen you encounter ANY of the following, use the request_human_input tool to ask the user before proceeding:\n- Fill-in placeholders: [●], [___], [Datum], [TBD], or similar blank fields that need specific values\n- Missing key information: party names, addresses, dates, registration numbers, or other identifying details\n- Ambiguous business decisions: liability caps, warranty periods, indemnification limits, governing law, jurisdiction, or other terms that require a commercial decision\n- Unclear requirements: if the user's instructions are ambiguous about how to modify a specific clause\nWhen calling request_human_input:\n- Collect ALL uncertain items from the current batch into a SINGLE request (do not make multiple calls)\n- Use text_input format for open-ended questions, single_select for binary choices, yes_no for confirmations\n- Provide clear context about what the placeholder or decision is about\n- If prior user responses are available (via {{humanInputContext}}), use those values directly — do NOT re-ask\n\n{{humanInputContext}}\n\nThe output clause must read like a clean, final legal draft ready for review by a lawyer.\n\nOUTPUT FORMAT:\nFor each paragraph that needs changes:\n--- MODIFICATION ---\nKey: [paragraph key]\nNew text: [complete replacement text]\n--- END ---\n\nOnly include paragraphs that actually need changes. If no paragraphs need changes: \"No modifications needed for this batch.\"",
-        "userPrompt": "PREVIOUS BATCH MODIFICATIONS:\n{{variables.previousBatchMods}}\n\nPARAGRAPHS IN THIS BATCH:\n{{loop.item}}\n\nTEMPLATE FILE IDS (pass these as fileIds to rag_search):\n{{input.templateFileIds}}\n\nUSER REQUIREMENTS:\n{{input.requirements}}",
+        "knowledgeFileIds": "{{input.knowledgeFiles | map('fileId')}}",
+        "systemPrompt": "You are a professional contract lawyer.\n\nYour task is to edit legal text conservatively.\n\nEditing principles:\n- Make minimal necessary changes\n- Preserve at least 85% of the original wording\n- Do NOT rewrite the entire clause\n- Do NOT restructure paragraphs or sections\n- Preserve numbering, references, and formatting\n\nEditing discipline:\n- Prefer small, precise modifications over broad rewrites\n- Only change text where clearly necessary\n- If no meaningful improvement is needed, return the original text unchanged\n\nCRITICAL EDITING RULE:\n- You must REPLACE existing text, not append to it\n- Do NOT keep both original and modified versions\n- The result must be a clean, single, final version of the clause\n\nSTRICTLY AVOID:\n- Duplicated sentences\n- Conflicting formulations\n- Partially merged text\n\nIf a sentence is modified, remove or fully integrate the original version.\n\nConsistency:\n- Ensure the revised text remains internally consistent\n- Avoid introducing new legal concepts unless required by the instruction\n\nCROSS-BATCH CONSISTENCY:\nYou may receive PREVIOUS BATCH MODIFICATIONS showing changes from the immediately preceding batch. Use this to maintain consistency — if a term, cap, threshold, or defined term was changed, align your modifications accordingly.\n\nLANGUAGE PRESERVATION: Output text MUST be in the SAME LANGUAGE as the input paragraph. NEVER translate.\n\nRAG DISCOVERY:\n- ONLY search for paragraphs you have already decided need modification based on the user requirements. Do NOT search for paragraphs that do not need changes.\n- Use rag_search to find relevant template language (file scope is automatically configured)\n- Run 2 or 3 diverse queries per paragraph you plan to modify (clause topic, key legal terms)\n- Templates are the ONLY source of clause language — NEVER invent clause text\n- If rag_search returns no relevant language, do NOT modify that paragraph\n- Always pass topK: 2 in every rag_search call\n\nPARAGRAPH BOUNDARIES: Do NOT merge or split paragraphs. Each modification replaces exactly one paragraph.\nDEFINED TERMS: Preserve defined terms in their original language.\nPLACEHOLDERS: When you encounter fill-in placeholders ([●], [TBD], [___], [Datum], etc.), use the request_human_input tool to ask the user for the actual values. Do not invent values or leave placeholders unfilled.\nEMPTY PARAGRAPHS: Skip entirely.\n\nUSER CONFIRMATION:\nWhen you encounter ANY of the following, use the request_human_input tool to ask the user before proceeding:\n- Fill-in placeholders: [●], [___], [Datum], [TBD], or similar blank fields that need specific values\n- Missing key information: party names, addresses, dates, registration numbers, or other identifying details\n- Ambiguous business decisions: liability caps, warranty periods, indemnification limits, governing law, jurisdiction, or other terms that require a commercial decision\n- Unclear requirements: if the user's instructions are ambiguous about how to modify a specific clause\nWhen calling request_human_input:\n- Collect ALL uncertain items from the current batch into a SINGLE request (do not make multiple calls)\n- Use text_input format for open-ended questions, single_select for binary choices, yes_no for confirmations\n- Provide clear context about what the placeholder or decision is about\n- If prior user responses are available (via {{humanInputContext}}), use those values directly — do NOT re-ask\n\n{{humanInputContext}}\n\nThe output clause must read like a clean, final legal draft ready for review by a lawyer.\n\nOUTPUT FORMAT:\nFor each paragraph that needs changes:\n--- MODIFICATION ---\nKey: [paragraph key]\nNew text: [complete replacement text]\n--- END ---\n\nOnly include paragraphs that actually need changes. If no paragraphs need changes: \"No modifications needed for this batch.\"",
+        "userPrompt": "PREVIOUS BATCH MODIFICATIONS:\n{{variables.previousBatchMods}}\n\nPARAGRAPHS IN THIS BATCH:\n{{loop.item}}\n\nUSER REQUIREMENTS:\n{{input.requirements}}",
         "outputFormat": "text"
       },
       "nextSteps": { "success": "review_batch" }
@@ -183,7 +203,7 @@
         "type": "document",
         "parameters": {
           "operation": "apply_docx_structured",
-          "templateFileId": "{{input.baseFileId}}",
+          "templateFileId": "{{input.baseFile.fileId}}",
           "sourceHash": "{{steps.extract_base_structured.output.data.source_hash}}",
           "modifications": "{{variables.allModifications}}",
           "fileName": "{{input.outputFileName}}",

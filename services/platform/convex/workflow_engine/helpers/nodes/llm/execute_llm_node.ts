@@ -9,12 +9,10 @@ import type { Id } from '../../../../_generated/dataModel';
 import type { ActionCtx } from '../../../../_generated/server';
 import type { StepExecutionResult, LLMNodeConfig } from '../../../types';
 
-// Agent execution
 import { executeAgentWithTools } from './execute_agent_with_tools';
-// Result creation
 import { createLLMResult } from './utils/create_llm_result';
 import { processPrompts } from './utils/process_prompts';
-// Validation
+import { resolveKnowledgeFileIds } from './utils/resolve_knowledge_file_ids';
 import { validateAndNormalizeConfig } from './utils/validate_and_normalize_config';
 
 // =============================================================================
@@ -43,7 +41,13 @@ export async function executeLLMNode(
   // 2. Process prompts with variable substitution
   const prompts = processPrompts(normalizedConfig, variables);
 
-  // 3. Execute using Convex agent with tools
+  // 3. Resolve knowledgeFileIds with variable substitution
+  const knowledgeFileIds = resolveKnowledgeFileIds(
+    normalizedConfig.knowledgeFileIds,
+    variables,
+  );
+
+  // 4. Execute using Convex agent with tools
   const llmResult = await executeAgentWithTools(
     ctx,
     normalizedConfig,
@@ -53,10 +57,11 @@ export async function executeLLMNode(
       organizationId,
       threadId,
       stepSlug,
+      knowledgeFileIds,
     },
   );
 
-  // 4. Create and return result
+  // 5. Create and return result
   return createLLMResult(llmResult, normalizedConfig, {
     threadId: llmResult.threadId,
   });

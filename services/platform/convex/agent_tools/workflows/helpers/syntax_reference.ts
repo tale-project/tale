@@ -11,13 +11,20 @@
 export const SYNTAX_MODULES: Record<string, string> = {
   start: `## Start Step (stepType: 'start')
 
-Config: { inputSchema?: { properties: { [name]: { type, description? } }, required?: string[] } }
+Config: { inputSchema?: { properties: { [name]: PropertySchema }, required?: string[] } }
 NextSteps: { success: 'next_step_slug' }
 
 The start step defines the workflow entry point and optionally declares an input schema.
+The input schema follows JSON Schema conventions (type, description, properties, required, items).
 Trigger sources (schedules, webhooks, API keys, events) are configured separately — not in step config.
 
-**Start with Input Schema:**
+**PropertySchema:** { type, description?, items?, properties?, required? }
+Supported types: string, number, integer, boolean, array, object
+
+For array types, use \`items\` to describe the element schema.
+For object types, use \`properties\` and \`required\` to describe fields.
+
+**Simple Input Schema:**
 \`\`\`json
 {
   "inputSchema": {
@@ -26,6 +33,37 @@ Trigger sources (schedules, webhooks, API keys, events) are configured separatel
       "priority": { "type": "number", "description": "Processing priority" }
     },
     "required": ["customerId"]
+  }
+}
+\`\`\`
+
+**Rich Input Schema (with nested types):**
+\`\`\`json
+{
+  "inputSchema": {
+    "properties": {
+      "files": {
+        "type": "array",
+        "description": "Input files to process",
+        "items": {
+          "type": "object",
+          "properties": {
+            "fileId": { "type": "string", "description": "Convex storage ID" },
+            "fileName": { "type": "string", "description": "Original file name" }
+          },
+          "required": ["fileId", "fileName"]
+        }
+      },
+      "options": {
+        "type": "object",
+        "description": "Processing options",
+        "properties": {
+          "language": { "type": "string", "description": "Output language" },
+          "verbose": { "type": "boolean", "description": "Enable verbose output" }
+        }
+      }
+    },
+    "required": ["files"]
   }
 }
 \`\`\`
@@ -49,7 +87,7 @@ Note: The port name MUST be "success" (not "next" or "default").`,
 
   llm: `## LLM Step (stepType: 'llm')
 
-Config: { name (REQUIRED), systemPrompt (REQUIRED), userPrompt?, tools?: string[], outputFormat?: 'text'|'json', outputSchema?, contextVariables? }
+Config: { name (REQUIRED), systemPrompt (REQUIRED), userPrompt?, tools?: string[], knowledgeFileIds?, outputFormat?: 'text'|'json', outputSchema?, contextVariables? }
 NextSteps: { success: 'next_step', error?: 'error_handler' }
 
 **RESTRICTION:** tools and outputFormat: 'json' CANNOT be combined in a single step. If you need both, split into two steps: one text+tools step (to gather data), then a separate JSON step without tools (to format the result).
@@ -57,6 +95,9 @@ NextSteps: { success: 'next_step', error?: 'error_handler' }
 **CRITICAL FIELDS:**
 - name: REQUIRED - human-readable name
 - systemPrompt: REQUIRED - role and instructions (NOT "prompt")
+- knowledgeFileIds: Optional array of file IDs (or template expression resolving to an array) to scope rag_search.
+  When set, rag_search automatically searches only these files without relying on the LLM to pass fileIds.
+  Example: "knowledgeFileIds": "{{input.knowledgeFiles | map('fileId')}}"
 
 **LLM Step Example:**
 \`\`\`json
@@ -66,6 +107,17 @@ NextSteps: { success: 'next_step', error?: 'error_handler' }
   "userPrompt": "Analyze this customer: {{steps.get_customer.output.data}}",
   "tools": ["customer_read", "product_read"],
   "outputFormat": "json"
+}
+\`\`\`
+
+**LLM Step with RAG Scoping:**
+\`\`\`json
+{
+  "name": "Search Templates",
+  "systemPrompt": "Search the knowledge base for relevant clauses.",
+  "tools": ["rag_search"],
+  "knowledgeFileIds": "{{input.knowledgeFiles | map('fileId')}}",
+  "outputFormat": "text"
 }
 \`\`\`
 
@@ -79,7 +131,7 @@ NextSteps: { success: 'next_step', error?: 'error_handler' }
 **Available Tools for LLM Steps:**
 - customer_read: Fetch customer by ID, email, or list all (operation: get_by_id, get_by_email, list)
 - product_read: Fetch product by ID or list all (operation: get_by_id, list)
-- rag_search: Search knowledge base`,
+- rag_search: Search knowledge base (automatically scoped when knowledgeFileIds is set)`,
 
   action: `## Action Step (stepType: 'action')
 

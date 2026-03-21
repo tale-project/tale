@@ -7,8 +7,12 @@ import {
   useUnifiedChatWithAgent,
 } from '@/app/features/chat/hooks/mutations';
 import {
+  useDocumentWriteApprovals,
+  useHumanInputRequests,
+  useIntegrationApprovals,
   useThreadMessages,
   useWorkflowCreationApprovals,
+  useWorkflowRunApprovals,
   useWorkflowUpdateApprovals,
 } from '@/app/features/chat/hooks/queries';
 import { useConvexFileUpload } from '@/app/features/chat/hooks/use-convex-file-upload';
@@ -114,6 +118,22 @@ export function useAssistantChat({
     organizationId,
     threadId ?? undefined,
   );
+  const { approvals: workflowRunApprovals } = useWorkflowRunApprovals(
+    organizationId,
+    threadId ?? undefined,
+  );
+  const { requests: humanInputRequests } = useHumanInputRequests(
+    organizationId,
+    threadId ?? undefined,
+  );
+  const { approvals: documentWriteApprovals } = useDocumentWriteApprovals(
+    organizationId,
+    threadId ?? undefined,
+  );
+  const { approvals: integrationApprovals } = useIntegrationApprovals(
+    organizationId,
+    threadId ?? undefined,
+  );
 
   // Server-side loading state: is the agent currently generating?
   const { data: isGenerating } = useConvexQuery(
@@ -150,7 +170,10 @@ export function useAssistantChat({
     if (!uiMessages || uiMessages.length === 0) return [];
 
     return uiMessages
-      .filter((m) => m.role === 'user' || m.role === 'assistant')
+      .filter(
+        (m) =>
+          m.role === 'user' || m.role === 'assistant' || m.role === 'system',
+      )
       .map((m) => {
         const parts: unknown[] = Array.isArray(m.parts) ? m.parts : [];
         const fileParts = parts
@@ -178,6 +201,10 @@ export function useAssistantChat({
             ? extractFileAttachments(rawText)
             : undefined;
 
+        const isHumanInputResponse =
+          m.role === 'system' &&
+          rawText?.startsWith('User responded to question') === true;
+
         return {
           id: m.id,
           role: m.role,
@@ -194,6 +221,7 @@ export function useAssistantChat({
               : undefined,
           automationContext: undefined,
           clientMessageId: undefined,
+          isHumanInputResponse: isHumanInputResponse || undefined,
         };
       });
   }, [uiMessages]);
@@ -452,5 +480,9 @@ export function useAssistantChat({
     handleKeyDown,
     workflowUpdateApprovals,
     workflowCreationApprovals,
+    workflowRunApprovals,
+    humanInputRequests,
+    documentWriteApprovals,
+    integrationApprovals,
   };
 }

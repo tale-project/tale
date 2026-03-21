@@ -687,6 +687,7 @@ import type * as workflow_engine_helpers_nodes_llm_utils_create_llm_result from 
 import type * as workflow_engine_helpers_nodes_llm_utils_extract_tool_diagnostics from "../workflow_engine/helpers/nodes/llm/utils/extract_tool_diagnostics.js";
 import type * as workflow_engine_helpers_nodes_llm_utils_process_agent_result from "../workflow_engine/helpers/nodes/llm/utils/process_agent_result.js";
 import type * as workflow_engine_helpers_nodes_llm_utils_process_prompts from "../workflow_engine/helpers/nodes/llm/utils/process_prompts.js";
+import type * as workflow_engine_helpers_nodes_llm_utils_resolve_knowledge_file_ids from "../workflow_engine/helpers/nodes/llm/utils/resolve_knowledge_file_ids.js";
 import type * as workflow_engine_helpers_nodes_llm_utils_validate_and_normalize_config from "../workflow_engine/helpers/nodes/llm/utils/validate_and_normalize_config.js";
 import type * as workflow_engine_helpers_nodes_loop_execute_loop_node from "../workflow_engine/helpers/nodes/loop/execute_loop_node.js";
 import type * as workflow_engine_helpers_nodes_loop_loop_node_executor from "../workflow_engine/helpers/nodes/loop/loop_node_executor.js";
@@ -1548,6 +1549,7 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/helpers/nodes/llm/utils/extract_tool_diagnostics": typeof workflow_engine_helpers_nodes_llm_utils_extract_tool_diagnostics;
   "workflow_engine/helpers/nodes/llm/utils/process_agent_result": typeof workflow_engine_helpers_nodes_llm_utils_process_agent_result;
   "workflow_engine/helpers/nodes/llm/utils/process_prompts": typeof workflow_engine_helpers_nodes_llm_utils_process_prompts;
+  "workflow_engine/helpers/nodes/llm/utils/resolve_knowledge_file_ids": typeof workflow_engine_helpers_nodes_llm_utils_resolve_knowledge_file_ids;
   "workflow_engine/helpers/nodes/llm/utils/validate_and_normalize_config": typeof workflow_engine_helpers_nodes_llm_utils_validate_and_normalize_config;
   "workflow_engine/helpers/nodes/loop/execute_loop_node": typeof workflow_engine_helpers_nodes_loop_execute_loop_node;
   "workflow_engine/helpers/nodes/loop/loop_node_executor": typeof workflow_engine_helpers_nodes_loop_loop_node_executor;
