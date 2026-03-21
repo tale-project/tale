@@ -75,10 +75,6 @@ const requestHumanInputArgs = z.discriminatedUnion('format', [
         'The full question with ALL details the user needs. This is displayed prominently on the card. List every field or piece of information you need. Use newlines to structure multi-field requests.',
       ),
     format: z.literal('text_input'),
-    placeholder: z
-      .string()
-      .optional()
-      .describe('Placeholder text for the text input field.'),
   }),
   z.object({
     ...contextField,
@@ -215,7 +211,6 @@ Call this tool with:
               description: opt.description,
               value: opt.value,
             })),
-            placeholder: 'placeholder' in args ? args.placeholder : undefined,
             wfExecutionId,
             stepSlug,
           },
