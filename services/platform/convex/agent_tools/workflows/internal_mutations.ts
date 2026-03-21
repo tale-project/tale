@@ -103,19 +103,13 @@ export const triggerWorkflowCompletionResponse = internalMutation({
       );
     }
 
-    const agentQuery = ctx.db
+    const chatAgent = await ctx.db
       .query('customAgents')
       .withIndex('by_root_status', (q) =>
         q.eq('rootVersionId', customAgentId).eq('status', 'active'),
-      );
-
-    let chatAgent: Doc<'customAgents'> | null = null;
-    for await (const agent of agentQuery) {
-      if (agent.organizationId === organizationId) {
-        chatAgent = agent;
-      }
-      break;
-    }
+      )
+      .filter((q) => q.eq(q.field('organizationId'), organizationId))
+      .first();
 
     if (!chatAgent) {
       throw new Error(
