@@ -41,7 +41,11 @@ export function DocumentDeleteDialog({
           <Fragment key={index}>
             {part}
             {index < parts.length - 1 && (
-              <strong title={displayName}>{truncatedName}</strong>
+              <strong
+                title={truncatedName !== displayName ? displayName : undefined}
+              >
+                {truncatedName}
+              </strong>
             )}
           </Fragment>
         ))}

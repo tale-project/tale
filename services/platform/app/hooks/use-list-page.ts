@@ -97,6 +97,7 @@ interface ListPageTableProps<TData> {
     isLoadingMore: boolean;
     isInitialLoading: boolean;
     entityLabel?: string;
+    /** Unfiltered total from rawData.length — differs from data.length when filters are active */
     totalCount?: number;
   };
   approxRowCount?: number;
