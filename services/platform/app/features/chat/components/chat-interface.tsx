@@ -208,26 +208,22 @@ export function ChatInterface({
     };
   }, [containerRef, contentRef, isAtBottom]);
 
-  // Scroll to bottom on initial load
-  const hasScrolledOnLoadRef = useRef(false);
+  // Scroll to bottom on initial load (all threads).
+  // For new threads with a pending message, ChatMessages also scrolls
+  // to bottom on send — the response area's min-height ensures the
+  // user message ends up at the viewport top.
+  const scrolledForThreadRef = useRef<string | null>(null);
   useEffect(() => {
-    if (
-      threadId &&
-      messages.length > 0 &&
-      !hasScrolledOnLoadRef.current &&
-      containerRef.current
-    ) {
-      hasScrolledOnLoadRef.current = true;
-      containerRef.current.scrollTo({
-        top: containerRef.current.scrollHeight,
-        behavior: 'instant',
-      });
-    }
-  }, [threadId, messages.length, containerRef]);
+    if (!threadId || messages.length === 0) return;
+    if (scrolledForThreadRef.current === threadId) return;
 
-  useEffect(() => {
-    hasScrolledOnLoadRef.current = false;
-  }, [threadId]);
+    scrolledForThreadRef.current = threadId;
+
+    containerRef.current?.scrollTo({
+      top: containerRef.current.scrollHeight,
+      behavior: 'instant',
+    });
+  }, [threadId, messages.length, containerRef]);
 
   // Load-more scroll preservation: keep viewport stable when older messages prepend
   const handleLoadMore = useCallback(
@@ -293,13 +289,13 @@ export function ChatInterface({
   return (
     <div
       ref={containerRef}
-      className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto [overflow-anchor:none]"
+      className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto"
     >
       <div
         ref={contentRef}
         className={cn(
-          'flex flex-1 flex-col overflow-y-visible p-4 sm:p-8',
-          showWelcome && 'flex flex-col items-center justify-center',
+          'flex flex-col overflow-y-visible p-4 sm:p-8',
+          showWelcome && 'flex-1 items-center justify-center',
         )}
       >
         {showWelcome && (
@@ -322,6 +318,7 @@ export function ChatInterface({
             activeMessage={activeMessage}
             isLoading={isLoading}
             lastUserMessageRef={lastUserMessageRef}
+            containerRef={containerRef}
             activeApproval={activeApproval}
             onHumanInputResponseSubmitted={handleHumanInputResponseSubmitted}
             onSendFollowUp={handleSendFollowUp}
@@ -329,7 +326,7 @@ export function ChatInterface({
         )}
       </div>
 
-      <PanelFooter>
+      <PanelFooter className="mt-auto">
         <div className="relative mx-auto w-full max-w-(--chat-max-width)">
           <AnimatePresence>
             {showScrollButton && (

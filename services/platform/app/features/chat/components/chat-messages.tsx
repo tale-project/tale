@@ -3,7 +3,13 @@
 import type { UIMessage } from '@convex-dev/agent/react';
 
 import { Loader2, CheckCircle2 } from 'lucide-react';
-import { useMemo, useRef, useLayoutEffect, type RefObject } from 'react';
+import {
+  useMemo,
+  useRef,
+  useLayoutEffect,
+  useEffect,
+  type RefObject,
+} from 'react';
 
 import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
@@ -15,6 +21,45 @@ import { CollapsibleSystemMessage } from './collapsible-system-message';
 import { MessageBubble } from './message-bubble';
 import { ThinkingAnimation } from './thinking-animation';
 
+/**
+ * Compute the response area min-height so that scrolling to bottom
+ * positions the last user message at the viewport top.
+ *
+ * Formula: viewport - footer - userMsg - gap - contentPadding - topInset
+ *
+ * This matches assistant-ui's ViewportSlack pattern.
+ * The topInset ensures the user message has breathing room from the
+ * viewport top edge (not flush against the toolbar).
+ */
+const TOP_INSET = 16;
+
+function computeResponseMinHeight(
+  container: HTMLElement,
+  responseArea: HTMLElement,
+  userMsg: HTMLElement | null,
+): number {
+  if (!userMsg) return 0;
+
+  const footer = container.querySelector('[class*="sticky"]');
+  const footerH =
+    footer instanceof HTMLElement ? footer.getBoundingClientRect().height : 0;
+  const userMsgH = userMsg.getBoundingClientRect().height;
+  const flexParent = responseArea.parentElement;
+  const gap = flexParent
+    ? parseFloat(getComputedStyle(flexParent).gap) || 0
+    : 0;
+  const contentWrapper = container.firstElementChild;
+  const padBottom =
+    contentWrapper instanceof HTMLElement
+      ? parseFloat(getComputedStyle(contentWrapper).paddingBottom) || 0
+      : 0;
+
+  return Math.max(
+    0,
+    container.clientHeight - footerH - userMsgH - gap - padBottom - TOP_INSET,
+  );
+}
+
 interface ChatMessagesProps {
   items: ChatItem[];
   threadId: string | undefined;
@@ -25,18 +70,25 @@ interface ChatMessagesProps {
   activeMessage: UIMessage | undefined;
   isLoading: boolean;
   lastUserMessageRef: RefObject<HTMLDivElement | null>;
+  containerRef: RefObject<HTMLDivElement | null>;
   activeApproval: ChatItem | null;
   onHumanInputResponseSubmitted?: () => void;
   onSendFollowUp?: (message: string) => void;
 }
 
 /**
- * Renders the chat message list with a single active approval at the bottom.
+ * Renders the chat message list using assistant-ui's scroll pattern:
  *
- * Uses ChatGPT-style CSS flex layout for scroll behavior:
- * - `min-h-full` ensures the container is at least viewport height
- * - `flex-1` on the inner wrapper stretches to fill, creating natural blank below messages
- * - When content exceeds viewport, min-h-full is irrelevant — no extra blank
+ * - Messages render in a flex column
+ * - The "response area" (everything after the last user message) gets a
+ *   dynamic min-height so that scrolling to bottom naturally positions
+ *   the user message at the viewport top.
+ * - As the AI response grows and exceeds viewport height, min-height
+ *   becomes irrelevant — no empty space at the bottom.
+ *
+ * Min-height is computed in two phases:
+ * 1. useLayoutEffect: approximate value before paint (prevents flash)
+ * 2. ResizeObserver: accurate correction after layout completes
  */
 export function ChatMessages({
   items,
@@ -48,11 +100,13 @@ export function ChatMessages({
   activeMessage,
   isLoading,
   lastUserMessageRef,
+  containerRef,
   activeApproval,
   onHumanInputResponseSubmitted,
   onSendFollowUp,
 }: ChatMessagesProps) {
   const { t } = useT('chat');
+  const responseAreaRef = useRef<HTMLDivElement>(null);
 
   const lastUserMessageKey = useMemo(() => {
     for (let i = items.length - 1; i >= 0; i--) {
@@ -64,85 +118,157 @@ export function ChatMessages({
     return null;
   }, [items]);
 
-  // ChatGPT-style scroll: when user sends a message, add a viewport-height
-  // spacer to ensure enough scroll room, then scroll the message to the top.
-  // The spacer never shrinks — it stays so the viewport doesn't jump.
-  const spacerRef = useRef<HTMLDivElement>(null);
   const prevLastUserKeyRef = useRef<string | null>(null);
-  const isUserScrollPinnedRef = useRef(false);
 
-  // When user sends: expand spacer + scroll to top + enable pinning
+  // Phase 1: Approximate min-height before paint + scroll on send.
+  // Footer may not have its final size during useLayoutEffect, so the
+  // value can be slightly off. Phase 2 (rAF) corrects it immediately.
   useLayoutEffect(() => {
-    if (
+    const container = containerRef.current;
+    const responseArea = responseAreaRef.current;
+    if (container && responseArea) {
+      responseArea.style.minHeight = `${computeResponseMinHeight(container, responseArea, lastUserMessageRef.current)}px`;
+    }
+
+    // Scroll to bottom on new pending message or pending→real key swap.
+    const prev = prevLastUserKeyRef.current;
+    const isNewPending =
+      lastUserMessageKey?.startsWith('pending-') && lastUserMessageKey !== prev;
+    const isPendingSwap =
+      prev?.startsWith('pending-') &&
       lastUserMessageKey &&
-      lastUserMessageKey !== prevLastUserKeyRef.current &&
-      lastUserMessageKey.startsWith('pending-')
-    ) {
-      if (spacerRef.current && lastUserMessageRef.current) {
-        // Calculate exact spacer needed: just enough to scroll user message to top
-        const container = lastUserMessageRef.current.closest(
-          '[class*="overflow-y-auto"]',
-        );
-        if (container) {
-          const msgEl = lastUserMessageRef.current;
-          const msgTop = msgEl.getBoundingClientRect().top;
-          const containerTop = container.getBoundingClientRect().top;
-          const offsetInContainer =
-            container.scrollTop + (msgTop - containerTop);
-          // Account for scroll-margin-top on the message element
-          const scrollMargin = parseFloat(
-            getComputedStyle(msgEl).scrollMarginTop || '0',
-          );
-          const needed = Math.max(
-            0,
-            offsetInContainer -
-              scrollMargin +
-              container.clientHeight -
-              container.scrollHeight,
-          );
-          spacerRef.current.style.minHeight = `${needed}px`;
-        }
-      }
-      lastUserMessageRef.current?.scrollIntoView({
-        block: 'start',
-        behavior: 'instant',
-      });
-      isUserScrollPinnedRef.current = true;
+      !lastUserMessageKey.startsWith('pending-');
+
+    if ((isNewPending || isPendingSwap) && container) {
+      container.scrollTo({ top: container.scrollHeight, behavior: 'instant' });
     }
     prevLastUserKeyRef.current = lastUserMessageKey;
-  }, [lastUserMessageKey, lastUserMessageRef]);
 
-  // Keep the user message pinned to the top while loading.
-  // Re-scrolls on every items/content change to compensate for:
-  // - optimistic → real message key swap
-  // - ThinkingAnimation appear/disappear
-  // - AI streaming content growth that shifts layout above
-  useLayoutEffect(() => {
-    if (isUserScrollPinnedRef.current && lastUserMessageRef.current) {
-      lastUserMessageRef.current.scrollIntoView({
-        block: 'start',
-        behavior: 'instant',
-      });
-    }
-  }, [items, lastUserMessageRef]);
+    // Phase 2: Accurate correction after layout completes (footer has
+    // final size). Runs on every lastUserMessageKey change, covering
+    // thread navigation and message sends.
+    const frame = requestAnimationFrame(() => {
+      if (!container || !responseArea) return;
+      const atBottom =
+        container.scrollHeight - container.scrollTop - container.clientHeight <=
+        2;
 
-  // Stop pinning when loading ends
-  useLayoutEffect(() => {
-    if (!isLoading) {
-      isUserScrollPinnedRef.current = false;
+      responseArea.style.minHeight = `${computeResponseMinHeight(container, responseArea, lastUserMessageRef.current)}px`;
+
+      if (atBottom) {
+        container.scrollTo({
+          top: container.scrollHeight,
+          behavior: 'instant',
+        });
+      }
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [lastUserMessageKey, containerRef, lastUserMessageRef]);
+
+  // Phase 3: Keep min-height updated on window/footer resize.
+  useEffect(() => {
+    const container = containerRef.current;
+    const responseArea = responseAreaRef.current;
+    if (!container || !responseArea) return;
+
+    const update = () => {
+      const atBottom =
+        container.scrollHeight - container.scrollTop - container.clientHeight <=
+        2;
+
+      responseArea.style.minHeight = `${computeResponseMinHeight(container, responseArea, lastUserMessageRef.current)}px`;
+
+      if (atBottom) {
+        container.scrollTo({
+          top: container.scrollHeight,
+          behavior: 'instant',
+        });
+      }
+    };
+
+    const ro = new ResizeObserver(update);
+    ro.observe(container);
+    const footer = container.querySelector('[class*="sticky"]');
+    if (footer instanceof HTMLElement) ro.observe(footer);
+
+    return () => ro.disconnect();
+  }, [containerRef, lastUserMessageRef]);
+
+  // Split items into: everything before & including the last user message,
+  // and everything after (the "response area").
+  const lastUserIdx = useMemo(() => {
+    for (let i = items.length - 1; i >= 0; i--) {
+      const item = items[i];
+      if (item.type === 'message' && item.data.role === 'user') return i;
     }
-  }, [isLoading]);
+    return -1;
+  }, [items]);
+
+  const renderMessage = (item: ChatItem) => {
+    if (item.type !== 'message') return null;
+
+    const message = item.data;
+
+    if (message.isHumanInputResponse && message.role === 'system') {
+      const match = message.content.match(
+        /^User responded to question "(.*?)": ([\s\S]+)$/,
+      );
+      const response = match?.[2] ?? message.content;
+
+      return (
+        <div key={message.key} className="flex justify-end">
+          <div className="bg-primary/10 text-primary flex items-center gap-2 rounded-full px-4 py-2 text-sm">
+            <CheckCircle2 className="size-4" />
+            <span>{response}</span>
+          </div>
+        </div>
+      );
+    }
+
+    if (message.role === 'system' && !message.isHumanInputResponse) {
+      return (
+        <CollapsibleSystemMessage key={message.key} content={message.content} />
+      );
+    }
+
+    const shouldShow =
+      message.role === 'user' || message.content !== '' || message.isAborted;
+
+    if (!shouldShow) return null;
+
+    const isLastUserMessage = message.key === lastUserMessageKey;
+
+    return (
+      <div
+        key={message.key}
+        ref={isLastUserMessage ? lastUserMessageRef : undefined}
+        className={isLastUserMessage ? 'scroll-mt-6' : undefined}
+      >
+        <MessageBubble
+          message={{
+            ...message,
+            role: message.role === 'user' ? 'user' : 'assistant',
+            threadId: threadId,
+          }}
+          onSendFollowUp={onSendFollowUp}
+        />
+      </div>
+    );
+  };
+
+  const beforeItems = lastUserIdx >= 0 ? items.slice(0, lastUserIdx) : items;
+  const lastUserItem = lastUserIdx >= 0 ? items[lastUserIdx] : null;
+  const afterItems = lastUserIdx >= 0 ? items.slice(lastUserIdx + 1) : [];
 
   return (
     <div
-      className="mx-auto flex min-h-full w-full max-w-(--chat-max-width) flex-col"
+      className="mx-auto flex w-full max-w-(--chat-max-width) flex-col"
       role="log"
       aria-live="polite"
       aria-label={t('aria.messageHistory')}
     >
-      {/* Inner wrapper: flex-1 stretches to fill, creating natural blank below messages */}
-      <div className="flex flex-1 flex-col gap-4 pt-10">
-        {/* Load More button for pagination */}
+      <div className="flex flex-col gap-4 pt-10">
         {(canLoadMore || isLoadingMore) && (
           <div className="flex justify-center py-2">
             <Button
@@ -164,81 +290,32 @@ export function ChatMessages({
           </div>
         )}
 
-        {/* Render messages only (approvals are rendered separately at bottom) */}
-        {items.map((item) => {
-          if (item.type !== 'message') return null;
+        {/* Messages before the last user message */}
+        {beforeItems.map(renderMessage)}
 
-          const message = item.data;
+        {/* Last user message */}
+        {lastUserItem && renderMessage(lastUserItem)}
 
-          // Render human input response as a special system message
-          if (message.isHumanInputResponse && message.role === 'system') {
-            const match = message.content.match(
-              /^User responded to question "(.*?)": ([\s\S]+)$/,
-            );
-            const response = match?.[2] ?? message.content;
+        {/* Response area: min-height fills viewport so scroll-to-bottom
+            positions the user message at the top. When AI response exceeds
+            viewport height, min-height becomes irrelevant. */}
+        <div ref={responseAreaRef} className="flex shrink-0 flex-col gap-4">
+          {afterItems.map(renderMessage)}
 
-            return (
-              <div key={message.key} className="flex justify-end">
-                <div className="bg-primary/10 text-primary flex items-center gap-2 rounded-full px-4 py-2 text-sm">
-                  <CheckCircle2 className="size-4" />
-                  <span>{response}</span>
-                </div>
-              </div>
-            );
-          }
+          <div>
+            {isLoading && (
+              <ThinkingAnimation streamingMessage={activeMessage} />
+            )}
+          </div>
 
-          if (message.role === 'system' && !message.isHumanInputResponse) {
-            return (
-              <CollapsibleSystemMessage
-                key={message.key}
-                content={message.content}
-              />
-            );
-          }
-
-          const shouldShow =
-            message.role === 'user' ||
-            message.content !== '' ||
-            message.isAborted;
-
-          if (!shouldShow) return null;
-
-          const isLastUserMessage = message.key === lastUserMessageKey;
-
-          return (
-            <div
-              key={message.key}
-              ref={isLastUserMessage ? lastUserMessageRef : undefined}
-              className={isLastUserMessage ? 'scroll-mt-6' : undefined}
-            >
-              <MessageBubble
-                message={{
-                  ...message,
-                  role: message.role === 'user' ? 'user' : 'assistant',
-                  threadId: threadId,
-                }}
-                onSendFollowUp={onSendFollowUp}
-              />
-            </div>
-          );
-        })}
-
-        <div>
-          {isLoading && <ThinkingAnimation streamingMessage={activeMessage} />}
+          {activeApproval && (
+            <ApprovalCardRenderer
+              item={activeApproval}
+              organizationId={organizationId}
+              onHumanInputResponseSubmitted={onHumanInputResponseSubmitted}
+            />
+          )}
         </div>
-
-        {/* Single active approval always at the bottom */}
-        {activeApproval && (
-          <ApprovalCardRenderer
-            item={activeApproval}
-            organizationId={organizationId}
-            onHumanInputResponseSubmitted={onHumanInputResponseSubmitted}
-          />
-        )}
-
-        {/* Spacer: provides scroll room for scrollIntoView on long conversations.
-            Sized by useLayoutEffect on user send, never shrinks. */}
-        <div ref={spacerRef} aria-hidden="true" />
       </div>
     </div>
   );
