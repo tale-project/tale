@@ -2119,7 +2119,12 @@
     "errorEnterResponse": "Please enter a response",
     "errorSelectOption": "Please select an option",
     "errorSelectAtLeastOne": "Please select at least one option",
-    "respondedByAt": "Responded by {name} at {date}"
+    "errorEnterOtherResponse": "Please describe what you'd like",
+    "otherOption": "Something else",
+    "otherOptionDescription": "Tell me what else you'd like",
+    "respondedByAt": "Responded by {name} at {date}",
+    "stopWorkflow": "Stop",
+    "stopWorkflowTooltip": "Stop the running workflow"
   },
   "approvalCommon": {
     "reject": "Cancel",

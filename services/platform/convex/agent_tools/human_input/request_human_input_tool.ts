@@ -31,6 +31,69 @@ const optionSchema = z.object({
     .describe('Optional value to return (defaults to label if not provided).'),
 });
 
+const contextField = {
+  context: z
+    .string()
+    .optional()
+    .describe(
+      'Optional context to help the user understand why you are asking.',
+    ),
+};
+
+const requestHumanInputArgs = z.discriminatedUnion('format', [
+  z.object({
+    ...contextField,
+    question: z
+      .string()
+      .describe(
+        'A short prompt asking the user to pick one option. Options carry the detail — keep the question concise (e.g., "Which meal would you like?").',
+      ),
+    format: z.literal('single_select'),
+    options: z
+      .array(optionSchema)
+      .min(2)
+      .describe('Options for the user to choose from. At least 2 required.'),
+  }),
+  z.object({
+    ...contextField,
+    question: z
+      .string()
+      .describe(
+        'A short prompt asking the user to select one or more. Options carry the detail — keep concise (e.g., "Which toppings do you want?").',
+      ),
+    format: z.literal('multi_select'),
+    options: z
+      .array(optionSchema)
+      .min(2)
+      .describe('Options for the user to choose from. At least 2 required.'),
+  }),
+  z.object({
+    ...contextField,
+    question: z
+      .string()
+      .describe(
+        'The full question with ALL details the user needs. This is displayed prominently on the card. List every field or piece of information you need. Use newlines to structure multi-field requests.',
+      ),
+    format: z.literal('text_input'),
+  }),
+  z.object({
+    ...contextField,
+    question: z
+      .string()
+      .describe(
+        'A clear yes-or-no question. Be specific about what is being confirmed (e.g., "Should I delete these 3 records?").',
+      ),
+    format: z.literal('yes_no'),
+    options: z
+      .array(optionSchema)
+      .length(2)
+      .optional()
+      .describe(
+        'Custom Yes/No options. Must be exactly 2 if provided. Defaults to [Yes, No] if omitted.',
+      ),
+  }),
+]);
+
 export const requestHumanInputTool = {
   name: 'request_human_input' as const,
   tool: createTool({
@@ -41,8 +104,12 @@ export const requestHumanInputTool = {
 • When you call this tool, an interactive input card will IMMEDIATELY appear in the chat UI
 • The user can respond by clicking options or typing text directly in the chat
 • Do NOT show JSON examples or code snippets - just call this tool directly
+• NEVER present options/choices as plain text — always use this tool so the user can interactively select
+• Do NOT include "Something else", "Other", or similar fallback options — the UI automatically adds a "Something else" option with a text input to all select-type cards
 
 **WHEN TO USE:**
+• When presenting multiple options, suggestions, or recommendations for the user to choose from (e.g., "3 meal options", "which plan?", "here are some alternatives")
+• ANY time your response would list numbered/bulleted choices — use this tool instead of plain text
 • When you encounter multiple valid options and need user to decide (e.g., "Found 3 matching contacts, which one?")
 • To clarify ambiguous requirements before proceeding
 • To get user confirmation for important or destructive actions (e.g., "Confirm deletion?")
@@ -51,14 +118,25 @@ export const requestHumanInputTool = {
 **INPUT FORMATS:**
 • single_select: User picks ONE option from a list (mutually exclusive choices)
 • multi_select: User picks ONE OR MORE options (non-exclusive selections)
-• text_input: User types free-form text (open-ended questions)
+• text_input: User types free-form text. Put ALL required fields/details in the question field.
 • yes_no: User confirms or denies (binary decisions, auto-generates Yes/No options)
+
+**EXAMPLE - When generating options/suggestions for the user:**
+Call this tool with:
+- question: "Here are 3 meal options for you. Which one would you like?"
+- format: "single_select"
+- options: [{ label: "Creamy Garlic Parmesan Pasta", description: "Italian comfort food with cream sauce" }, { label: "Mediterranean Grain Bowl", description: "Fresh quinoa bowl with veggies and tzatziki" }, { label: "Thai Coconut Curry", description: "Aromatic curry with rice" }]
 
 **EXAMPLE - When you find multiple matching records:**
 Call this tool with:
 - question: "Found 3 contacts matching 'John'. Which one should I use?"
 - format: "single_select"
 - options: [{ label: "John Smith (Sales)", value: "contact_123" }, { label: "John Doe (Support)", value: "contact_456" }]
+
+**EXAMPLE - Collecting structured text information:**
+Call this tool with:
+- question: "Please provide the following details for the purchase contract:\\n\\n• Contract date\\n• Seller: company name, address, registration number\\n• Buyer: company name, address, registration number\\n• Any special terms (payment, warranties, inspection rights)"
+- format: "text_input"
 
 **AFTER CALLING - CRITICAL:**
 • An input card appears in the user's chat interface
@@ -67,30 +145,7 @@ Call this tool with:
 • Do NOT assume or guess what the user will select
 • The user's response will appear in a FUTURE turn as <human_response>
 • Simply acknowledge you're waiting for their selection`,
-    args: z.object({
-      question: z
-        .string()
-        .describe('The question to ask the user. Be clear and specific.'),
-      format: z
-        .enum(['single_select', 'multi_select', 'text_input', 'yes_no'])
-        .describe('The input format for the response.'),
-      context: z
-        .string()
-        .optional()
-        .describe(
-          'Optional context to help the user understand why you are asking.',
-        ),
-      options: z
-        .array(optionSchema)
-        .optional()
-        .describe(
-          'Options for single_select or multi_select formats. Required for select formats.',
-        ),
-      placeholder: z
-        .string()
-        .optional()
-        .describe('Placeholder text for text_input format.'),
-    }),
+    args: requestHumanInputArgs,
     handler: async (
       ctx: ToolCtx,
       args,
@@ -130,33 +185,16 @@ Call this tool with:
         };
       }
 
-      // Validate options for select formats
-      if (
-        (args.format === 'single_select' || args.format === 'multi_select') &&
-        (!args.options || args.options.length < 2)
-      ) {
-        return {
-          success: false,
-          message: `${args.format} format requires at least 2 options.`,
-        };
-      }
-
-      // For yes_no format, ensure exactly two options
-      let options = args.options;
-      if (args.format === 'yes_no') {
-        if (options && options.length !== 2) {
-          return {
-            success: false,
-            message: 'yes_no format requires exactly 2 options.',
-          };
-        }
-        if (!options) {
-          options = [
-            { label: 'Yes', value: 'yes' },
-            { label: 'No', value: 'no' },
-          ];
-        }
-      }
+      // Resolve options: select formats carry them in args; yes_no defaults to Yes/No
+      const options =
+        'options' in args && args.options
+          ? args.options
+          : args.format === 'yes_no'
+            ? [
+                { label: 'Yes', value: 'yes' },
+                { label: 'No', value: 'no' },
+              ]
+            : undefined;
 
       try {
         const requestId = await ctx.runMutation(
@@ -173,7 +211,6 @@ Call this tool with:
               description: opt.description,
               value: opt.value,
             })),
-            placeholder: args.placeholder,
             wfExecutionId,
             stepSlug,
           },
