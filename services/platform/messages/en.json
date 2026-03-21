@@ -166,7 +166,9 @@
       "showing": "{start}-{end} of {total}",
       "loadMore": "Load more",
       "loading": "Loading more...",
-      "noMore": "No more items to load"
+      "noMore": "No more items to load",
+      "showingAll": "Showing all {count} {entity}",
+      "showingFiltered": "Showing {filtered} of {total} {entity}"
     },
     "search": {
       "noResults": "No results found",

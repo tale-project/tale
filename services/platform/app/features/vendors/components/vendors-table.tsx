@@ -151,6 +151,7 @@ export function VendorsTable({
       onClear: handleClearFilters,
     },
     approxRowCount: count,
+    entityLabel: tVendors('title').toLowerCase(),
   });
 
   return (

@@ -77,6 +77,8 @@ interface UseListPageOptions<TData> {
   getRowId?: (row: TData) => string;
   /** Approximate item count for skeleton row count during initial loading */
   approxRowCount?: number;
+  /** Lowercase plural entity label (e.g., "websites"). Enables "Showing all X {entity}" footer. */
+  entityLabel?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -94,6 +96,8 @@ interface ListPageTableProps<TData> {
     onLoadMore: () => void;
     isLoadingMore: boolean;
     isInitialLoading: boolean;
+    entityLabel?: string;
+    totalCount?: number;
   };
   approxRowCount?: number;
 }
@@ -129,8 +133,15 @@ function isControlledFilters(
 export function useListPage<TData>(
   options: UseListPageOptions<TData>,
 ): UseListPageReturn<TData> {
-  const { dataSource, pageSize, search, filters, getRowId, approxRowCount } =
-    options;
+  const {
+    dataSource,
+    pageSize,
+    search,
+    filters,
+    getRowId,
+    approxRowCount,
+    entityLabel,
+  } = options;
 
   // 1. Normalize data source
   const rawData = useMemo(
@@ -317,6 +328,8 @@ export function useListPage<TData>(
           dataSource.type === 'paginated'
             ? dataSource.status === 'LoadingFirstPage'
             : dataSource.data === undefined,
+        entityLabel,
+        totalCount: entityLabel ? rawData.length : undefined,
       },
       approxRowCount,
     },
