@@ -17,6 +17,7 @@ import { STORAGE_RETENTION_MS } from '../../../workflows/executions/cleanup_exec
 import { safeShardIndex } from '../engine/shard';
 
 const DEFAULT_TIMEOUT_MS = 6 * 60 * 60 * 1000; // 6 hours
+const APPROVAL_WAIT_EXTENSION_MS = 24 * 60 * 60 * 1000; // 24 hours
 const BATCH_SIZE = 50;
 const CLEANUP_DELAY_MS = 10_000;
 
@@ -46,6 +47,16 @@ function getTimeoutMs(execution: Doc<'wfExecutions'>): number {
   }
 
   return DEFAULT_TIMEOUT_MS;
+}
+
+function applyApprovalExtension(
+  execution: Doc<'wfExecutions'>,
+  timeoutMs: number,
+): number {
+  if (execution.waitingFor) {
+    return timeoutMs + APPROVAL_WAIT_EXTENSION_MS;
+  }
+  return timeoutMs;
 }
 
 /**
@@ -95,7 +106,10 @@ export async function recoverStuckExecutions(
     .withIndex('by_status', (q) => q.eq('status', 'running'))) {
     if (recovered >= BATCH_SIZE) break;
 
-    const timeoutMs = getTimeoutMs(execution);
+    const timeoutMs = applyApprovalExtension(
+      execution,
+      getTimeoutMs(execution),
+    );
     const cutoffMs = Date.now() - timeoutMs;
 
     if (execution.updatedAt < cutoffMs) {
@@ -119,7 +133,10 @@ export async function recoverStuckExecutions(
     .withIndex('by_status', (q) => q.eq('status', 'pending'))) {
     if (recovered >= BATCH_SIZE) break;
 
-    const timeoutMs = getTimeoutMs(execution);
+    const timeoutMs = applyApprovalExtension(
+      execution,
+      getTimeoutMs(execution),
+    );
     const cutoffMs = Date.now() - timeoutMs;
 
     if (execution.updatedAt < cutoffMs) {
