@@ -9,6 +9,8 @@ import {
   Loader2,
 } from 'lucide-react';
 import { memo, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { ActionRow } from '@/app/components/ui/layout/action-row';
@@ -25,6 +27,8 @@ import { Id } from '@/convex/_generated/dataModel';
 import { IntegrationOperationMetadata } from '@/convex/approvals/types';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
+
+import { markdownWrapperStyles } from './message-bubble/markdown-renderer';
 
 interface IntegrationApprovalCardProps {
   approvalId: Id<'approvals'>;
@@ -191,9 +195,16 @@ function IntegrationApprovalCardComponent({
 
         {/* Estimated Impact */}
         {metadata.estimatedImpact && (
-          <Text as="div" variant="caption" className="wrap-break-word italic">
-            {metadata.estimatedImpact}
-          </Text>
+          <div
+            className={cn(
+              markdownWrapperStyles,
+              'text-muted-foreground max-w-none text-xs italic',
+            )}
+          >
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {metadata.estimatedImpact}
+            </ReactMarkdown>
+          </div>
         )}
       </Stack>
 

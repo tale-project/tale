@@ -72,7 +72,7 @@ const requestHumanInputArgs = z.discriminatedUnion('format', [
     question: z
       .string()
       .describe(
-        'The full question with ALL details the user needs. This is displayed prominently on the card. List every field or piece of information you need. Use newlines to structure multi-field requests.',
+        'The full question with ALL details the user needs. This is displayed prominently on the card. List every field or piece of information you need. Use standard Markdown syntax: `- ` or `* ` for lists, `**text**` for bold, `#` for headings. Do NOT use Unicode bullets (•, ·, ‣). Use newlines to structure multi-field requests.',
       ),
     format: z.literal('text_input'),
   }),
@@ -118,7 +118,7 @@ export const requestHumanInputTool = {
 **INPUT FORMATS:**
 • single_select: User picks ONE option from a list (mutually exclusive choices)
 • multi_select: User picks ONE OR MORE options (non-exclusive selections)
-• text_input: User types free-form text. Put ALL required fields/details in the question field.
+• text_input: User types free-form text. Put ALL required fields/details in the question field. Use standard Markdown for formatting (- for lists, **bold**, # headings). Do NOT use Unicode bullets (•).
 • yes_no: User confirms or denies (binary decisions, auto-generates Yes/No options)
 
 **EXAMPLE - When generating options/suggestions for the user:**
@@ -135,7 +135,7 @@ Call this tool with:
 
 **EXAMPLE - Collecting structured text information:**
 Call this tool with:
-- question: "Please provide the following details for the purchase contract:\\n\\n• Contract date\\n• Seller: company name, address, registration number\\n• Buyer: company name, address, registration number\\n• Any special terms (payment, warranties, inspection rights)"
+- question: "Please provide the following details for the purchase contract:\\n\\n- Contract date\\n- Seller: company name, address, registration number\\n- Buyer: company name, address, registration number\\n- Any special terms (payment, warranties, inspection rights)"
 - format: "text_input"
 
 **AFTER CALLING - CRITICAL:**

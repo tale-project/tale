@@ -2425,6 +2425,8 @@
       "renameChat": "Rename chat",
       "loadMore": "Load more",
       "loadingMore": "Loading...",
+      "generating": "Generating response",
+      "awaitingInput": "Awaiting your input",
       "toast": {
         "renameFailed": "Failed to rename chat"
       }

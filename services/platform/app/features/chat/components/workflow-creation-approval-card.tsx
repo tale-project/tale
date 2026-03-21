@@ -13,6 +13,8 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { ActionRow } from '@/app/components/ui/layout/action-row';
@@ -31,6 +33,8 @@ import { WorkflowCreationMetadata } from '@/convex/approvals/types';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-guards';
+
+import { markdownWrapperStyles } from './message-bubble/markdown-renderer';
 
 interface WorkflowCreationApprovalCardProps {
   approvalId: Id<'approvals'>;
@@ -335,9 +339,16 @@ function WorkflowCreationApprovalCardComponent({
               {metadata.workflowName}
             </Text>
             {metadata.workflowDescription && (
-              <Text as="div" variant="caption" className="line-clamp-2">
-                {metadata.workflowDescription}
-              </Text>
+              <div
+                className={cn(
+                  markdownWrapperStyles,
+                  'text-muted-foreground max-w-none text-xs line-clamp-2',
+                )}
+              >
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {metadata.workflowDescription}
+                </ReactMarkdown>
+              </div>
             )}
           </div>
         </HStack>
