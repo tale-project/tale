@@ -101,7 +101,7 @@ describe('createBoundWorkflowTool', () => {
     expect(description).toContain('daysBack');
   });
 
-  it('omits description suffix when property has no description', () => {
+  it('includes raw JSON schema in description', () => {
     const tool = createBoundWorkflowTool(
       { _id: 'wf-123' as never, name: 'My Workflow' },
       {
@@ -114,8 +114,9 @@ describe('createBoundWorkflowTool', () => {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test-only
     const description = (tool as unknown as { _description: string })
       ._description;
-    expect(description).toContain('count (number)');
-    expect(description).not.toMatch(/count \(number\):/);
+    expect(description).toContain('Input schema:');
+    expect(description).toContain('"count"');
+    expect(description).toContain('"type": "number"');
   });
 
   it('creates approval on happy path', async () => {
@@ -257,6 +258,233 @@ describe('createBoundWorkflowTool', () => {
 
     expect(result.success).toBe(false);
     expect(result.message).toContain('DB error');
+  });
+
+  it('includes raw JSON schema with nested object properties in description', () => {
+    const tool = createBoundWorkflowTool(
+      { _id: 'wf-123' as never, name: 'My Workflow' },
+      {
+        properties: {
+          baseFile: {
+            type: 'object',
+            description: 'The base file',
+            properties: {
+              fileId: { type: 'string', description: 'Storage ID' },
+              fileName: { type: 'string', description: 'File name' },
+            },
+            required: ['fileId', 'fileName'],
+          },
+        },
+        required: ['baseFile'],
+      },
+    );
+
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test-only
+    const description = (tool as unknown as { _description: string })
+      ._description;
+    expect(description).toContain('Input schema:');
+    expect(description).toContain('"baseFile"');
+    expect(description).toContain('"fileId"');
+    expect(description).toContain('"Storage ID"');
+  });
+
+  it('normalizes stringified object args before validation', async () => {
+    const fileSchema = {
+      inputSchema: {
+        properties: {
+          baseFile: {
+            type: 'object' as const,
+            properties: {
+              fileId: { type: 'string' as const },
+              fileName: { type: 'string' as const },
+            },
+            required: ['fileId', 'fileName'],
+          },
+          requirements: { type: 'string' as const },
+        },
+        required: ['baseFile', 'requirements'],
+      },
+    };
+
+    const tool = createBoundWorkflowTool(
+      { _id: 'wf-def-123' as never, name: 'Contract Workflow' },
+      fileSchema.inputSchema,
+    );
+
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test-only
+    const handler = (tool as unknown as { _handler: Function })._handler;
+    const workflow = createMockWorkflow({ name: 'Contract Workflow' });
+    const mockRunMutation = vi.fn().mockResolvedValue('approval-id-5');
+
+    const ctx = createMockCtx({
+      runQuery: vi
+        .fn()
+        .mockResolvedValueOnce(workflow)
+        .mockResolvedValueOnce(fileSchema),
+      runMutation: mockRunMutation,
+    });
+
+    const result = await handler(ctx, {
+      baseFile: '{"fileId":"abc123","fileName":"contract.docx"}',
+      requirements: 'Make it simpler',
+    });
+
+    expect(result.success).toBe(true);
+    expect(mockRunMutation).toHaveBeenCalledWith(
+      'mock-createWorkflowRunApproval',
+      expect.objectContaining({
+        parameters: {
+          baseFile: { fileId: 'abc123', fileName: 'contract.docx' },
+          requirements: 'Make it simpler',
+        },
+      }),
+    );
+  });
+
+  it('normalizes stringified array items before validation', async () => {
+    const fileSchema = {
+      inputSchema: {
+        properties: {
+          knowledgeFiles: {
+            type: 'array' as const,
+            items: {
+              type: 'object' as const,
+              properties: {
+                fileId: { type: 'string' as const },
+                fileName: { type: 'string' as const },
+              },
+              required: ['fileId', 'fileName'],
+            },
+          },
+        },
+        required: ['knowledgeFiles'],
+      },
+    };
+
+    const tool = createBoundWorkflowTool(
+      { _id: 'wf-def-123' as never, name: 'Test Workflow' },
+      fileSchema.inputSchema,
+    );
+
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test-only
+    const handler = (tool as unknown as { _handler: Function })._handler;
+    const workflow = createMockWorkflow();
+    const mockRunMutation = vi.fn().mockResolvedValue('approval-id-6');
+
+    const ctx = createMockCtx({
+      runQuery: vi
+        .fn()
+        .mockResolvedValueOnce(workflow)
+        .mockResolvedValueOnce(fileSchema),
+      runMutation: mockRunMutation,
+    });
+
+    const result = await handler(ctx, {
+      knowledgeFiles: [
+        '{"fileId":"id1","fileName":"a.docx"}',
+        '{"fileId":"id2","fileName":"b.docx"}',
+      ],
+    });
+
+    expect(result.success).toBe(true);
+    expect(mockRunMutation).toHaveBeenCalledWith(
+      'mock-createWorkflowRunApproval',
+      expect.objectContaining({
+        parameters: {
+          knowledgeFiles: [
+            { fileId: 'id1', fileName: 'a.docx' },
+            { fileId: 'id2', fileName: 'b.docx' },
+          ],
+        },
+      }),
+    );
+  });
+
+  it('passes native object args without modification', async () => {
+    const fileSchema = {
+      inputSchema: {
+        properties: {
+          baseFile: {
+            type: 'object' as const,
+            properties: {
+              fileId: { type: 'string' as const },
+              fileName: { type: 'string' as const },
+            },
+            required: ['fileId', 'fileName'],
+          },
+        },
+        required: ['baseFile'],
+      },
+    };
+
+    const tool = createBoundWorkflowTool(
+      { _id: 'wf-def-123' as never, name: 'Test Workflow' },
+      fileSchema.inputSchema,
+    );
+
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test-only
+    const handler = (tool as unknown as { _handler: Function })._handler;
+    const workflow = createMockWorkflow();
+    const mockRunMutation = vi.fn().mockResolvedValue('approval-id-7');
+
+    const ctx = createMockCtx({
+      runQuery: vi
+        .fn()
+        .mockResolvedValueOnce(workflow)
+        .mockResolvedValueOnce(fileSchema),
+      runMutation: mockRunMutation,
+    });
+
+    const nativeObj = { fileId: 'abc123', fileName: 'contract.docx' };
+    const result = await handler(ctx, { baseFile: nativeObj });
+
+    expect(result.success).toBe(true);
+    expect(mockRunMutation).toHaveBeenCalledWith(
+      'mock-createWorkflowRunApproval',
+      expect.objectContaining({
+        parameters: { baseFile: nativeObj },
+      }),
+    );
+  });
+
+  it('does not parse string fields that are legitimately strings', async () => {
+    const schema = {
+      inputSchema: {
+        properties: {
+          requirements: { type: 'string' as const },
+        },
+        required: ['requirements'],
+      },
+    };
+
+    const tool = createBoundWorkflowTool(
+      { _id: 'wf-def-123' as never, name: 'Test Workflow' },
+      schema.inputSchema,
+    );
+
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test-only
+    const handler = (tool as unknown as { _handler: Function })._handler;
+    const workflow = createMockWorkflow();
+    const mockRunMutation = vi.fn().mockResolvedValue('approval-id-8');
+
+    const ctx = createMockCtx({
+      runQuery: vi
+        .fn()
+        .mockResolvedValueOnce(workflow)
+        .mockResolvedValueOnce(schema),
+      runMutation: mockRunMutation,
+    });
+
+    const jsonLikeString = '{"key": "value"}';
+    const result = await handler(ctx, { requirements: jsonLikeString });
+
+    expect(result.success).toBe(true);
+    expect(mockRunMutation).toHaveBeenCalledWith(
+      'mock-createWorkflowRunApproval',
+      expect.objectContaining({
+        parameters: { requirements: jsonLikeString },
+      }),
+    );
   });
 });
 

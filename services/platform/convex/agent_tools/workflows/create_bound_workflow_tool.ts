@@ -26,23 +26,83 @@ interface BoundWorkflowDefinition {
   description?: string;
 }
 
-// WORKAROUND: z.unknown() and z.record(z.string(), z.unknown()) produce
-// broken JSON Schema after AI SDK post-processing. z.unknown() → {} (empty
-// schema) and z.record() → { type: "object", additionalProperties: false }
-// because addAdditionalPropertiesToJsonSchema() unconditionally overrides
-// additionalProperties on all object types.
-// Use concrete unions for arrays and z.string() for objects instead.
+// WORKAROUND (partial): z.unknown() and z.record(z.string(), z.unknown())
+// produce broken JSON Schema after AI SDK post-processing because
+// addAdditionalPropertiesToJsonSchema() unconditionally sets
+// additionalProperties: false on all object types.
+// - z.record() → { type: "object", additionalProperties: false } (empty!)
+// - z.object({}) → same problem
+// However, z.object() WITH explicit properties is fine — the AI SDK adds
+// additionalProperties: false which is correct for fixed-shape objects.
+// So we only fall back to z.string() for opaque objects without properties.
 // See: @ai-sdk/provider-utils/src/add-additional-properties-to-json-schema.ts
 const JSON_VALUE = z.union([z.string(), z.number(), z.boolean(), z.null()]);
 
-const ZOD_TYPE_MAP: Record<string, () => z.ZodTypeAny> = {
+const PRIMITIVE_ZOD_MAP: Record<string, () => z.ZodTypeAny> = {
   string: () => z.string(),
   number: () => z.number(),
   integer: () => z.number().int(),
   boolean: () => z.boolean(),
-  array: () => z.array(JSON_VALUE),
-  object: () => z.string().describe('JSON object as string'),
 };
+
+interface NestedProperty {
+  type: string;
+  description?: string;
+}
+
+interface SchemaProperty {
+  type: string;
+  description?: string;
+  properties?: Record<string, NestedProperty>;
+  required?: string[];
+  items?: {
+    type: string;
+    properties?: Record<string, NestedProperty>;
+    required?: string[];
+  };
+}
+
+function buildNestedObjectSchema(
+  properties: Record<string, NestedProperty>,
+  required?: string[],
+): z.ZodTypeAny {
+  const shape: Record<string, z.ZodTypeAny> = {};
+  for (const [name, nested] of Object.entries(properties)) {
+    let field = (PRIMITIVE_ZOD_MAP[nested.type] ?? (() => z.string()))();
+    if (nested.description) field = field.describe(nested.description);
+    if (!required?.includes(name)) field = field.optional();
+    shape[name] = field;
+  }
+  return z.object(shape);
+}
+
+function buildZodType(prop: SchemaProperty): z.ZodTypeAny {
+  if (prop.type === 'object') {
+    if (prop.properties && Object.keys(prop.properties).length > 0) {
+      return buildNestedObjectSchema(prop.properties, prop.required);
+    }
+    return z.string().describe('JSON object as string');
+  }
+
+  if (prop.type === 'array') {
+    if (prop.items) {
+      if (
+        prop.items.type === 'object' &&
+        prop.items.properties &&
+        Object.keys(prop.items.properties).length > 0
+      ) {
+        return z.array(
+          buildNestedObjectSchema(prop.items.properties, prop.items.required),
+        );
+      }
+      const itemFactory = PRIMITIVE_ZOD_MAP[prop.items.type];
+      if (itemFactory) return z.array(itemFactory());
+    }
+    return z.array(JSON_VALUE);
+  }
+
+  return (PRIMITIVE_ZOD_MAP[prop.type] ?? (() => z.unknown()))();
+}
 
 function buildArgsSchema(inputSchema: WorkflowInputSchema | undefined) {
   if (!inputSchema || Object.keys(inputSchema.properties).length === 0) {
@@ -51,12 +111,54 @@ function buildArgsSchema(inputSchema: WorkflowInputSchema | undefined) {
 
   const shape: Record<string, z.ZodTypeAny> = {};
   for (const [name, prop] of Object.entries(inputSchema.properties)) {
-    let field = (ZOD_TYPE_MAP[prop.type] ?? (() => z.unknown()))();
+    let field = buildZodType(prop);
     if (prop.description) field = field.describe(prop.description);
     if (!inputSchema.required?.includes(name)) field = field.optional();
     shape[name] = field;
   }
   return z.object(shape);
+}
+
+function tryParseJson(value: string): unknown {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
+
+/**
+ * Normalize args for cross-model resilience.
+ *
+ * Some models stringify objects despite receiving a proper z.object() schema.
+ * This function JSON.parses string values where the runtime schema expects
+ * object or array types. Only targets fields where the schema declares
+ * object/array — never touches string fields.
+ */
+function normalizeArgs(
+  args: Record<string, unknown>,
+  inputSchema: WorkflowInputSchema,
+): Record<string, unknown> {
+  const result = { ...args };
+  for (const [field, schema] of Object.entries(inputSchema.properties)) {
+    const value = result[field];
+    if (typeof value === 'string') {
+      if (schema.type === 'object' || schema.type === 'array') {
+        result[field] = tryParseJson(value);
+      }
+      continue;
+    }
+    if (
+      schema.type === 'array' &&
+      Array.isArray(value) &&
+      schema.items?.type === 'object'
+    ) {
+      result[field] = (value as unknown[]).map((item) =>
+        typeof item === 'string' ? tryParseJson(item) : item,
+      );
+    }
+  }
+  return result;
 }
 
 /**
@@ -130,7 +232,13 @@ export function createBoundWorkflowTool(
       );
 
       const runtimeInputSchema = extractInputSchema(startStepConfig);
-      const validation = validateWorkflowInput(args, runtimeInputSchema);
+      const normalizedArgs = runtimeInputSchema
+        ? normalizeArgs(args, runtimeInputSchema)
+        : args;
+      const validation = validateWorkflowInput(
+        normalizedArgs,
+        runtimeInputSchema,
+      );
 
       if (!validation.valid) {
         return {
@@ -150,7 +258,7 @@ export function createBoundWorkflowTool(
             workflowId: resolvedWf._id,
             workflowName: resolvedWf.name,
             workflowDescription: resolvedWf.description,
-            parameters: args,
+            parameters: normalizedArgs,
             threadId,
             messageId,
           },
@@ -184,19 +292,6 @@ export function sanitizeWorkflowName(name: string): string {
     .replace(/^_|_$/g, '');
 }
 
-function formatInputSchema(inputSchema: WorkflowInputSchema): string {
-  const lines: string[] = [];
-  for (const [name, schema] of Object.entries(inputSchema.properties)) {
-    const required = inputSchema.required?.includes(name);
-    let line = `  - ${name} (${schema.type}${required ? ', required' : ''})`;
-    if (schema.description) {
-      line += `: ${schema.description}`;
-    }
-    lines.push(line);
-  }
-  return lines.join('\n');
-}
-
 function buildDescription(
   wfDefinition: BoundWorkflowDefinition,
   inputSchema: WorkflowInputSchema | undefined,
@@ -208,7 +303,7 @@ function buildDescription(
   }
 
   if (inputSchema && Object.keys(inputSchema.properties).length > 0) {
-    lines.push('', 'Input parameters:', formatInputSchema(inputSchema));
+    lines.push('', 'Input schema:', JSON.stringify(inputSchema, null, 2));
   }
 
   lines.push(
