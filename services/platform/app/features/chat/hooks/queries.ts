@@ -133,6 +133,7 @@ export interface HumanInputRequest {
   metadata: HumanInputRequestMetadata;
   _creationTime: number;
   messageId?: string;
+  wfExecutionId?: string;
 }
 
 export function useHumanInputRequests(
@@ -157,6 +158,7 @@ export function useHumanInputRequests(
         metadata: a.metadata as unknown as HumanInputRequestMetadata,
         _creationTime: a._creationTime,
         messageId: a.messageId,
+        wfExecutionId: a.wfExecutionId,
       }));
   }, [approvals, threadId]);
 

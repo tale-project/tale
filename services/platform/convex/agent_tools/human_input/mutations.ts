@@ -141,6 +141,18 @@ export const submitHumanInputResponse = mutation({
 
     const streamId = await persistentStreaming.createStream(ctx);
 
+    // Set generationStatus so the frontend shows loading indicator
+    const threadMeta = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
+      .first();
+    if (threadMeta) {
+      await ctx.db.patch(threadMeta._id, {
+        generationStatus: 'generating' as const,
+        streamId,
+      });
+    }
+
     const thread = await ctx.runQuery(components.agent.threads.getThread, {
       threadId,
     });
@@ -186,6 +198,7 @@ export const submitHumanInputResponse = mutation({
         promptMessageId,
         maxSteps: 500,
         userId: thread?.userId,
+        deadlineMs: Date.now() + (agentConfig.timeoutMs ?? 420_000),
       },
     );
 

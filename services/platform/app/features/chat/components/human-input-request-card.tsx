@@ -25,10 +25,13 @@ import { stripLeadingPunctuation } from '@/lib/utils/text';
 
 import { useSubmitHumanInputResponse } from '../hooks/mutations';
 
+const OTHER_VALUE = '__other__';
+
 interface HumanInputRequestCardProps {
   approvalId: Id<'approvals'>;
   status: 'pending' | 'executing' | 'completed' | 'rejected';
   metadata: HumanInputRequestMetadata;
+  isWorkflowContext?: boolean;
   className?: string;
   onResponseSubmitted?: () => void;
 }
@@ -37,6 +40,7 @@ function HumanInputRequestCardComponent({
   approvalId,
   status,
   metadata,
+  isWorkflowContext,
   className,
   onResponseSubmitted,
 }: HumanInputRequestCardProps) {
@@ -45,6 +49,7 @@ function HumanInputRequestCardComponent({
   const { formatDate } = useFormatDate();
   const [error, setError] = useState<string | null>(null);
   const [textValue, setTextValue] = useState('');
+  const [otherText, setOtherText] = useState('');
   const [selectedValue, setSelectedValue] = useState<string>('');
   const [selectedValues, setSelectedValues] = useState<string[]>([]);
 
@@ -70,14 +75,33 @@ function HumanInputRequestCardComponent({
           setError(t('errorSelectOption'));
           return;
         }
-        response = selectedValue;
+        if (selectedValue === OTHER_VALUE) {
+          if (!otherText.trim()) {
+            setError(t('errorEnterOtherResponse'));
+            return;
+          }
+          response = otherText.trim();
+        } else {
+          response = selectedValue;
+        }
         break;
       case 'multi_select':
         if (selectedValues.length === 0) {
           setError(t('errorSelectAtLeastOne'));
           return;
         }
-        response = selectedValues;
+        if (selectedValues.includes(OTHER_VALUE)) {
+          if (!otherText.trim()) {
+            setError(t('errorEnterOtherResponse'));
+            return;
+          }
+          response = [
+            ...selectedValues.filter((v) => v !== OTHER_VALUE),
+            otherText.trim(),
+          ];
+        } else {
+          response = selectedValues;
+        }
         break;
       default:
         return;
@@ -89,7 +113,9 @@ function HumanInputRequestCardComponent({
       { approvalId, response },
       {
         onSuccess: () => {
-          onResponseSubmitted?.();
+          if (!isWorkflowContext) {
+            onResponseSubmitted?.();
+          }
         },
         onError: (err) => {
           setError(
@@ -104,8 +130,10 @@ function HumanInputRequestCardComponent({
     tCommon,
     metadata.format,
     textValue,
+    otherText,
     selectedValue,
     selectedValues,
+    isWorkflowContext,
     approvalId,
     submitResponse,
     onResponseSubmitted,
@@ -138,58 +166,106 @@ function HumanInputRequestCardComponent({
         );
 
       case 'single_select':
-      case 'yes_no':
+      case 'yes_no': {
+        const isOtherSelected = selectedValue === OTHER_VALUE;
         return (
-          <RadioGroup
-            value={selectedValue}
-            onValueChange={setSelectedValue}
-            className="space-y-2"
-            disabled={isSubmitting}
-          >
-            {(metadata.options ?? []).map((option) => {
-              const value = getOptionValue(option);
-              const isSelected = selectedValue === value;
-              return (
-                <button
-                  type="button"
-                  key={value}
-                  role="radio"
-                  aria-checked={isSelected}
-                  className={cn(
-                    'flex items-start space-x-3 p-3 rounded-lg border transition-all cursor-pointer',
-                    isSelected
-                      ? 'border-primary bg-primary/5'
-                      : 'border-border hover:border-primary/50 hover:bg-muted/30',
-                  )}
-                  onClick={() => setSelectedValue(value)}
-                >
-                  <RadioGroupItem
-                    value={value}
-                    id={`option-${value}`}
-                    className="mt-0.5"
-                    tabIndex={-1}
-                    aria-hidden="true"
-                  />
-                  <div className="flex-1">
-                    <Label
-                      htmlFor={`option-${value}`}
-                      className="cursor-pointer text-sm font-medium"
-                    >
-                      {option.label}
-                    </Label>
-                    {option.description && (
-                      <Description className="mt-1 text-xs">
-                        {option.description}
-                      </Description>
+          <Stack gap={2}>
+            <RadioGroup
+              value={selectedValue}
+              onValueChange={setSelectedValue}
+              className="space-y-2"
+              disabled={isSubmitting}
+            >
+              {(metadata.options ?? []).map((option) => {
+                const value = getOptionValue(option);
+                const isSelected = selectedValue === value;
+                return (
+                  <button
+                    type="button"
+                    key={value}
+                    role="radio"
+                    aria-checked={isSelected}
+                    className={cn(
+                      'flex items-start space-x-3 p-3 rounded-lg border transition-all cursor-pointer',
+                      isSelected
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:border-primary/50 hover:bg-muted/30',
                     )}
-                  </div>
-                </button>
-              );
-            })}
-          </RadioGroup>
+                    onClick={() => setSelectedValue(value)}
+                  >
+                    <RadioGroupItem
+                      value={value}
+                      id={`option-${value}`}
+                      className="mt-0.5"
+                      tabIndex={-1}
+                      aria-hidden="true"
+                    />
+                    <div className="flex-1">
+                      <Label
+                        htmlFor={`option-${value}`}
+                        className="cursor-pointer text-sm font-medium"
+                      >
+                        {option.label}
+                      </Label>
+                      {option.description && (
+                        <Description className="mt-1 text-xs">
+                          {option.description}
+                        </Description>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                role="radio"
+                aria-checked={isOtherSelected}
+                className={cn(
+                  'flex items-start space-x-3 p-3 rounded-lg border transition-all cursor-pointer border-dashed',
+                  isOtherSelected
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border hover:border-primary/50 hover:bg-muted/30',
+                )}
+                onClick={() => setSelectedValue(OTHER_VALUE)}
+              >
+                <RadioGroupItem
+                  value={OTHER_VALUE}
+                  id="option-other"
+                  className="mt-0.5"
+                  tabIndex={-1}
+                  aria-hidden="true"
+                />
+                <div className="flex-1">
+                  <Label
+                    htmlFor="option-other"
+                    className="cursor-pointer text-sm font-medium"
+                  >
+                    {t('otherOption')}
+                  </Label>
+                  <Description className="mt-1 text-xs">
+                    {t('otherOptionDescription')}
+                  </Description>
+                </div>
+              </button>
+            </RadioGroup>
+            {isOtherSelected && (
+              <Textarea
+                value={otherText}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                  setOtherText(e.target.value)
+                }
+                placeholder={t('placeholder')}
+                className="min-h-[80px] text-sm"
+                disabled={isSubmitting}
+                autoFocus
+              />
+            )}
+          </Stack>
         );
+      }
 
-      case 'multi_select':
+      case 'multi_select': {
+        const isOtherChecked = selectedValues.includes(OTHER_VALUE);
         return (
           <Stack gap={2}>
             {(metadata.options ?? []).map((option) => {
@@ -233,8 +309,53 @@ function HumanInputRequestCardComponent({
                 </button>
               );
             })}
+            <button
+              type="button"
+              aria-pressed={isOtherChecked}
+              className={cn(
+                'flex items-start space-x-3 p-3 rounded-lg border transition-all cursor-pointer border-dashed',
+                isOtherChecked
+                  ? 'border-primary bg-primary/5'
+                  : 'border-border hover:border-primary/50 hover:bg-muted/30',
+              )}
+              onClick={() => handleMultiSelectToggle(OTHER_VALUE)}
+            >
+              <Checkbox
+                checked={isOtherChecked}
+                onCheckedChange={() => handleMultiSelectToggle(OTHER_VALUE)}
+                id="option-other"
+                disabled={isSubmitting}
+                className="mt-0.5"
+                tabIndex={-1}
+                aria-hidden="true"
+              />
+              <div className="flex-1">
+                <Label
+                  htmlFor="option-other"
+                  className="cursor-pointer text-sm font-medium"
+                >
+                  {t('otherOption')}
+                </Label>
+                <Description className="mt-1 text-xs">
+                  {t('otherOptionDescription')}
+                </Description>
+              </div>
+            </button>
+            {isOtherChecked && (
+              <Textarea
+                value={otherText}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                  setOtherText(e.target.value)
+                }
+                placeholder={t('placeholder')}
+                className="min-h-[80px] text-sm"
+                disabled={isSubmitting}
+                autoFocus
+              />
+            )}
           </Stack>
         );
+      }
 
       default:
         return null;
@@ -356,6 +477,7 @@ export const HumanInputRequestCard = memo(
     return (
       prevProps.approvalId === nextProps.approvalId &&
       prevProps.status === nextProps.status &&
+      prevProps.isWorkflowContext === nextProps.isWorkflowContext &&
       prevProps.className === nextProps.className &&
       prevProps.onResponseSubmitted === nextProps.onResponseSubmitted
     );
