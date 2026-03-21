@@ -70,6 +70,7 @@ export function ApprovalCardRenderer({
           status={item.data.status}
           metadata={item.data.metadata}
           isWorkflowContext={!!item.data.wfExecutionId}
+          wfExecutionId={item.data.wfExecutionId}
           onResponseSubmitted={onHumanInputResponseSubmitted}
         />
       )}

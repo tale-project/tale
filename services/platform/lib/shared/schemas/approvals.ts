@@ -28,7 +28,6 @@ export const humanInputRequestMetadataSchema = z.object({
   context: z.string().optional(),
   format: humanInputFormatSchema,
   options: z.array(humanInputOptionSchema).optional(),
-  placeholder: z.string().optional(),
   required: z.boolean().optional(),
   requestedAt: z.number(),
   response: humanInputResponseSchema.optional(),

@@ -2122,7 +2122,9 @@
     "errorEnterOtherResponse": "Please describe what you'd like",
     "otherOption": "Something else",
     "otherOptionDescription": "Tell me what else you'd like",
-    "respondedByAt": "Responded by {name} at {date}"
+    "respondedByAt": "Responded by {name} at {date}",
+    "stopWorkflow": "Stop",
+    "stopWorkflowTooltip": "Stop the running workflow"
   },
   "approvalCommon": {
     "reject": "Cancel",

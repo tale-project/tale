@@ -30,7 +30,6 @@ export const createHumanInputRequest = internalMutation({
         }),
       ),
     ),
-    placeholder: v.optional(v.string()),
     messageId: v.optional(v.string()),
     wfExecutionId: v.optional(v.string()),
     stepSlug: v.optional(v.string()),
@@ -76,7 +75,6 @@ export const createHumanInputRequest = internalMutation({
       format: args.format,
       context: args.context,
       options,
-      placeholder: args.placeholder,
       requestedAt: Date.now(),
     };
 

@@ -1,6 +1,12 @@
 'use client';
 
-import { XCircle, Loader2, MessageCircleQuestion, Send } from 'lucide-react';
+import {
+  XCircle,
+  Loader2,
+  MessageCircleQuestion,
+  Send,
+  Square,
+} from 'lucide-react';
 import { memo, useCallback, useState } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
@@ -16,6 +22,7 @@ import {
 } from '@/app/components/ui/forms/radio-group';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
+import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
@@ -24,6 +31,7 @@ import { cn } from '@/lib/utils/cn';
 import { stripLeadingPunctuation } from '@/lib/utils/text';
 
 import { useSubmitHumanInputResponse } from '../hooks/mutations';
+import { useCancelExecution } from '../hooks/use-execution-status';
 
 const OTHER_VALUE = '__other__';
 
@@ -32,6 +40,7 @@ interface HumanInputRequestCardProps {
   status: 'pending' | 'executing' | 'completed' | 'rejected';
   metadata: HumanInputRequestMetadata;
   isWorkflowContext?: boolean;
+  wfExecutionId?: Id<'wfExecutions'>;
   className?: string;
   onResponseSubmitted?: () => void;
 }
@@ -41,6 +50,7 @@ function HumanInputRequestCardComponent({
   status,
   metadata,
   isWorkflowContext,
+  wfExecutionId,
   className,
   onResponseSubmitted,
 }: HumanInputRequestCardProps) {
@@ -55,6 +65,26 @@ function HumanInputRequestCardComponent({
 
   const { mutate: submitResponse, isPending: isSubmitting } =
     useSubmitHumanInputResponse();
+  const { mutateAsync: cancelExecution } = useCancelExecution();
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  const handleCancel = useCallback(async () => {
+    if (!wfExecutionId) return;
+    setIsCancelling(true);
+    setError(null);
+    try {
+      await cancelExecution({
+        executionId: wfExecutionId,
+      });
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : tCommon('errorSubmitFailed'),
+      );
+      console.error('Failed to cancel execution:', err);
+    } finally {
+      setIsCancelling(false);
+    }
+  }, [wfExecutionId, cancelExecution, tCommon]);
 
   const isPending = status === 'pending';
 
@@ -158,7 +188,7 @@ function HumanInputRequestCardComponent({
               onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
                 setTextValue(e.target.value)
               }
-              placeholder={metadata.placeholder ?? t('placeholder')}
+              placeholder={t('placeholder')}
               className="min-h-[80px] text-sm"
               disabled={isSubmitting}
             />
@@ -431,7 +461,7 @@ function HumanInputRequestCardComponent({
           {/* Submit Button */}
           <Button
             onClick={handleSubmit}
-            disabled={isSubmitting}
+            disabled={isSubmitting || isCancelling}
             className="w-full"
           >
             {isSubmitting ? (
@@ -446,27 +476,48 @@ function HumanInputRequestCardComponent({
         renderResponse()
       )}
 
-      {/* Status badge */}
-      {!isPending && (
-        <HStack justify="end" className="mt-2">
-          <Badge
-            variant={
-              status === 'completed'
-                ? 'green'
+      {/* Footer: stop workflow link + status badge */}
+      {(wfExecutionId && isPending) || !isPending ? (
+        <HStack justify="end" align="center" gap={2} className="mt-2">
+          {wfExecutionId && isPending && (
+            <Tooltip content={t('stopWorkflowTooltip')}>
+              <button
+                type="button"
+                onClick={handleCancel}
+                disabled={isCancelling}
+                aria-busy={isCancelling}
+                aria-label={t('stopWorkflow')}
+                className="text-muted-foreground hover:text-destructive flex cursor-pointer items-center gap-1 text-xs transition-colors disabled:opacity-50"
+              >
+                {isCancelling ? (
+                  <Loader2 className="size-3 animate-spin" />
+                ) : (
+                  <Square className="size-3 fill-current" />
+                )}
+                {t('stopWorkflow')}
+              </button>
+            </Tooltip>
+          )}
+          {!isPending && (
+            <Badge
+              variant={
+                status === 'completed'
+                  ? 'green'
+                  : status === 'executing'
+                    ? 'blue'
+                    : 'destructive'
+              }
+              className="shrink-0 text-xs capitalize"
+            >
+              {status === 'completed'
+                ? t('statusResponded')
                 : status === 'executing'
-                  ? 'blue'
-                  : 'destructive'
-            }
-            className="shrink-0 text-xs capitalize"
-          >
-            {status === 'completed'
-              ? t('statusResponded')
-              : status === 'executing'
-                ? t('statusProcessing')
-                : status}
-          </Badge>
+                  ? t('statusProcessing')
+                  : status}
+            </Badge>
+          )}
         </HStack>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -478,6 +529,7 @@ export const HumanInputRequestCard = memo(
       prevProps.approvalId === nextProps.approvalId &&
       prevProps.status === nextProps.status &&
       prevProps.isWorkflowContext === nextProps.isWorkflowContext &&
+      prevProps.wfExecutionId === nextProps.wfExecutionId &&
       prevProps.className === nextProps.className &&
       prevProps.onResponseSubmitted === nextProps.onResponseSubmitted
     );

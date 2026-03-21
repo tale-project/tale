@@ -31,10 +31,7 @@ const optionSchema = z.object({
     .describe('Optional value to return (defaults to label if not provided).'),
 });
 
-const baseFields = {
-  question: z
-    .string()
-    .describe('The question to ask the user. Be clear and specific.'),
+const contextField = {
   context: z
     .string()
     .optional()
@@ -45,7 +42,12 @@ const baseFields = {
 
 const requestHumanInputArgs = z.discriminatedUnion('format', [
   z.object({
-    ...baseFields,
+    ...contextField,
+    question: z
+      .string()
+      .describe(
+        'A short prompt asking the user to pick one option. Options carry the detail — keep the question concise (e.g., "Which meal would you like?").',
+      ),
     format: z.literal('single_select'),
     options: z
       .array(optionSchema)
@@ -53,7 +55,12 @@ const requestHumanInputArgs = z.discriminatedUnion('format', [
       .describe('Options for the user to choose from. At least 2 required.'),
   }),
   z.object({
-    ...baseFields,
+    ...contextField,
+    question: z
+      .string()
+      .describe(
+        'A short prompt asking the user to select one or more. Options carry the detail — keep concise (e.g., "Which toppings do you want?").',
+      ),
     format: z.literal('multi_select'),
     options: z
       .array(optionSchema)
@@ -61,15 +68,21 @@ const requestHumanInputArgs = z.discriminatedUnion('format', [
       .describe('Options for the user to choose from. At least 2 required.'),
   }),
   z.object({
-    ...baseFields,
-    format: z.literal('text_input'),
-    placeholder: z
+    ...contextField,
+    question: z
       .string()
-      .optional()
-      .describe('Placeholder text for the text input field.'),
+      .describe(
+        'The full question with ALL details the user needs. This is displayed prominently on the card. List every field or piece of information you need. Use newlines to structure multi-field requests.',
+      ),
+    format: z.literal('text_input'),
   }),
   z.object({
-    ...baseFields,
+    ...contextField,
+    question: z
+      .string()
+      .describe(
+        'A clear yes-or-no question. Be specific about what is being confirmed (e.g., "Should I delete these 3 records?").',
+      ),
     format: z.literal('yes_no'),
     options: z
       .array(optionSchema)
@@ -105,7 +118,7 @@ export const requestHumanInputTool = {
 **INPUT FORMATS:**
 • single_select: User picks ONE option from a list (mutually exclusive choices)
 • multi_select: User picks ONE OR MORE options (non-exclusive selections)
-• text_input: User types free-form text (open-ended questions)
+• text_input: User types free-form text. Put ALL required fields/details in the question field.
 • yes_no: User confirms or denies (binary decisions, auto-generates Yes/No options)
 
 **EXAMPLE - When generating options/suggestions for the user:**
@@ -119,6 +132,11 @@ Call this tool with:
 - question: "Found 3 contacts matching 'John'. Which one should I use?"
 - format: "single_select"
 - options: [{ label: "John Smith (Sales)", value: "contact_123" }, { label: "John Doe (Support)", value: "contact_456" }]
+
+**EXAMPLE - Collecting structured text information:**
+Call this tool with:
+- question: "Please provide the following details for the purchase contract:\\n\\n• Contract date\\n• Seller: company name, address, registration number\\n• Buyer: company name, address, registration number\\n• Any special terms (payment, warranties, inspection rights)"
+- format: "text_input"
 
 **AFTER CALLING - CRITICAL:**
 • An input card appears in the user's chat interface
@@ -193,7 +211,6 @@ Call this tool with:
               description: opt.description,
               value: opt.value,
             })),
-            placeholder: 'placeholder' in args ? args.placeholder : undefined,
             wfExecutionId,
             stepSlug,
           },

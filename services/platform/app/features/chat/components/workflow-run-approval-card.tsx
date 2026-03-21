@@ -499,22 +499,43 @@ function WorkflowRunApprovalCardComponent({
               {t('statusRejected')}
             </Text>
           )}
-          <Badge
-            variant={
-              status === 'completed'
-                ? 'green'
-                : status === 'executing'
-                  ? 'blue'
-                  : 'destructive'
-            }
-            className="shrink-0 text-xs"
-          >
-            {status === 'executing'
-              ? t('statusExecuting')
-              : status === 'completed'
-                ? t('statusCompleted')
-                : t('statusRejected')}
-          </Badge>
+          <HStack gap={2} align="center">
+            {isWaitingForHumanInput && (
+              <Tooltip content={t('stopTooltip')}>
+                <button
+                  type="button"
+                  onClick={handleCancel}
+                  disabled={isCancelling}
+                  aria-busy={isCancelling}
+                  aria-label={t('stopExecution')}
+                  className="text-muted-foreground hover:text-destructive flex cursor-pointer items-center gap-1 text-xs transition-colors disabled:opacity-50"
+                >
+                  {isCancelling ? (
+                    <Loader2 className="size-3 animate-spin" />
+                  ) : (
+                    <Square className="size-3 fill-current" />
+                  )}
+                  {t('stopExecution')}
+                </button>
+              </Tooltip>
+            )}
+            <Badge
+              variant={
+                status === 'completed'
+                  ? 'green'
+                  : status === 'executing'
+                    ? 'blue'
+                    : 'destructive'
+              }
+              className="shrink-0 text-xs"
+            >
+              {status === 'executing'
+                ? t('statusExecuting')
+                : status === 'completed'
+                  ? t('statusCompleted')
+                  : t('statusRejected')}
+            </Badge>
+          </HStack>
         </HStack>
       )}
     </div>
