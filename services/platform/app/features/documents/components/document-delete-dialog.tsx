@@ -24,6 +24,13 @@ export function DocumentDeleteDialog({
 
   const displayName = fileName ?? tDocuments('deleteFile.thisDocument');
 
+  const truncatedName = useMemo(() => {
+    const maxLength = 38;
+    if (displayName.length <= maxLength) return displayName;
+    const keep = Math.floor((maxLength - 1) / 2);
+    return `${displayName.slice(0, keep)}…${displayName.slice(-keep)}`;
+  }, [displayName]);
+
   const description = useMemo(() => {
     const raw = tDocuments('deleteFile.confirmation', { name: '{name}' });
     const parts = raw.split('{name}');
@@ -33,12 +40,18 @@ export function DocumentDeleteDialog({
         {parts.map((part, index) => (
           <Fragment key={index}>
             {part}
-            {index < parts.length - 1 && <strong>{displayName}</strong>}
+            {index < parts.length - 1 && (
+              <strong
+                title={truncatedName !== displayName ? displayName : undefined}
+              >
+                {truncatedName}
+              </strong>
+            )}
           </Fragment>
         ))}
       </>
     );
-  }, [tDocuments, displayName]);
+  }, [tDocuments, displayName, truncatedName]);
 
   return (
     <DeleteDialog
