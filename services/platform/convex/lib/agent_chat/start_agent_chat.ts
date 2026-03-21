@@ -13,6 +13,7 @@
 
 import { listMessages, saveMessage } from '@convex-dev/agent';
 
+import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
 import type { FileAttachment } from '../attachments';
 import type { AgentType } from '../context_management/constants';
@@ -71,6 +72,8 @@ export interface StartAgentChatArgs {
   enableStreaming: boolean;
   /** Optional hooks configuration (FunctionHandles) */
   hooks?: AgentHooksConfig;
+  /** Root version ID of the custom agent, persisted on thread metadata */
+  customAgentId?: Id<'customAgents'>;
 }
 
 export interface StartAgentChatResult {
@@ -126,6 +129,7 @@ export async function startAgentChat(
     await ctx.db.patch(threadMeta._id, {
       generationStatus: 'generating' as const,
       streamId,
+      ...(args.customAgentId ? { customAgentId: args.customAgentId } : {}),
     });
   }
 

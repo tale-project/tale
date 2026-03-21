@@ -1,5 +1,4 @@
 import { saveMessage } from '@convex-dev/agent';
-import { createFunctionHandle, makeFunctionReference } from 'convex/server';
 import { v } from 'convex/values';
 
 import type { Doc, Id } from '../../_generated/dataModel';
@@ -13,15 +12,14 @@ import { jsonRecordValidator } from '../../../lib/shared/schemas/utils/json-valu
 import { components, internal } from '../../_generated/api';
 import { internalMutation } from '../../_generated/server';
 import { createApproval } from '../../approvals/helpers';
-import { toSerializableConfig } from '../../custom_agents/config';
+import {
+  createCustomAgentHookHandles,
+  toSerializableConfig,
+} from '../../custom_agents/config';
 import { getDefaultAgentRuntimeConfig } from '../../lib/agent_runtime_config';
 import { checkOrganizationRateLimit } from '../../lib/rate_limiter/helpers';
 import { persistentStreaming } from '../../streaming/helpers';
 import { stepConfigValidator } from '../../workflow_engine/types/nodes';
-
-const beforeGenerateHookRef = makeFunctionReference<'action'>(
-  'lib/agent_chat/internal_actions:beforeGenerateHook',
-);
 
 type ApprovalMetadata = Doc<'approvals'>['metadata'];
 
@@ -92,26 +90,31 @@ export const triggerWorkflowCompletionResponse = internalMutation({
   handler: async (ctx, args): Promise<void> => {
     const { threadId, organizationId, messageContent } = args;
 
-    const systemChatQuery = ctx.db
-      .query('customAgents')
-      .withIndex('by_org_system_slug', (q) =>
-        q.eq('organizationId', organizationId).eq('systemAgentSlug', 'chat'),
-      );
+    // Resolve the agent from thread metadata
+    const threadMeta = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
+      .first();
 
-    let chatAgent = null;
-    for await (const agent of systemChatQuery) {
-      if (agent.status === 'active') {
-        chatAgent = agent;
-        break;
-      }
+    const customAgentId = threadMeta?.customAgentId;
+    if (!customAgentId) {
+      throw new Error(
+        `[triggerWorkflowCompletionResponse] Thread ${threadId} has no customAgentId`,
+      );
     }
 
+    const chatAgent = await ctx.db
+      .query('customAgents')
+      .withIndex('by_root_status', (q) =>
+        q.eq('rootVersionId', customAgentId).eq('status', 'active'),
+      )
+      .filter((q) => q.eq(q.field('organizationId'), organizationId))
+      .first();
+
     if (!chatAgent) {
-      console.warn(
-        '[triggerWorkflowCompletionResponse] System default chat agent not found for org:',
-        organizationId,
+      throw new Error(
+        `[triggerWorkflowCompletionResponse] Active agent not found for rootVersionId: ${customAgentId}`,
       );
-      return;
     }
 
     const thread = await ctx.runQuery(components.agent.threads.getThread, {
@@ -131,11 +134,6 @@ export const triggerWorkflowCompletionResponse = internalMutation({
     const { model, provider } = getDefaultAgentRuntimeConfig();
     const streamId = await persistentStreaming.createStream(ctx);
 
-    // Set generationStatus so the frontend shows loading indicator
-    const threadMeta = await ctx.db
-      .query('threadMetadata')
-      .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
-      .first();
     if (threadMeta) {
       await ctx.db.patch(threadMeta._id, {
         generationStatus: 'generating' as const,
@@ -143,7 +141,10 @@ export const triggerWorkflowCompletionResponse = internalMutation({
       });
     }
 
-    const beforeGenerate = await createFunctionHandle(beforeGenerateHookRef);
+    const hooks = await createCustomAgentHookHandles(
+      ctx,
+      chatAgent.filePreprocessingEnabled,
+    );
 
     await ctx.scheduler.runAfter(
       0,
@@ -153,9 +154,9 @@ export const triggerWorkflowCompletionResponse = internalMutation({
         agentConfig,
         model: agentConfig.model ?? model,
         provider,
-        debugTag: '[ChatAgent:WorkflowComplete]',
+        debugTag: `[Agent:${chatAgent.name}:WorkflowComplete]`,
         enableStreaming: true,
-        hooks: { beforeGenerate },
+        hooks,
         threadId,
         organizationId,
         promptMessage: messageContent,

@@ -115,6 +115,7 @@ export const chatWithAgent = mutation({
       debugTag: `[Agent:${activeVersion.name}]`,
       enableStreaming: true,
       hooks,
+      customAgentId: rootVersionId,
     });
   },
 });

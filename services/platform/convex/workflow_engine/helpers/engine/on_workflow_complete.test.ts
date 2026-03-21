@@ -362,7 +362,7 @@ describe('handleWorkflowComplete', () => {
     expect(triggerCalls.length).toBe(0);
   });
 
-  it('falls back to result.returnValue when no persisted output exists', async () => {
+  it('uses null output when no persisted output exists', async () => {
     const exec = {
       _id: 'exec_1',
       organizationId: 'org_1',
@@ -378,7 +378,7 @@ describe('handleWorkflowComplete', () => {
     const execAfterCompletion = {
       ...exec,
       status: 'completed',
-      output: { simple: 'data' },
+      output: null,
     };
     const { ctx, runMutationArgs } = createMockCtx({
       exec,
@@ -398,7 +398,7 @@ describe('handleWorkflowComplete', () => {
     expect(completeCall).toBeDefined();
     // oxlint-disable-next-line typescript/no-non-null-assertion, typescript/no-unsafe-type-assertion -- test assertion: completeCall is verified above
     const completeArgs = completeCall![1] as Record<string, unknown>;
-    expect(completeArgs.output).toEqual({ simple: 'data' });
+    expect(completeArgs.output).toBeNull();
   });
 
   it('emits workflow.completed event even when completeExecution is skipped', async () => {
