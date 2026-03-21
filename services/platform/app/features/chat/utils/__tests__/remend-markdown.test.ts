@@ -203,6 +203,100 @@ describe('boundary conditions', () => {
 });
 
 // ============================================================================
+// LINK/IMAGE HANDLING
+// ============================================================================
+
+describe('link handling', () => {
+  it('preserves complete links', () => {
+    expect(remendMarkdown('[text](url)')).toBe('[text](url)');
+  });
+
+  it('preserves complete links with title', () => {
+    expect(remendMarkdown('[text](url "title")')).toBe('[text](url "title")');
+  });
+
+  it('strips incomplete link with just opening bracket', () => {
+    expect(remendMarkdown('[text')).toBe('text');
+  });
+
+  it('strips incomplete link with closing bracket', () => {
+    expect(remendMarkdown('[text]')).toBe('text');
+  });
+
+  it('strips incomplete link with opening paren', () => {
+    expect(remendMarkdown('[text](')).toBe('text');
+  });
+
+  it('strips incomplete link with partial URL', () => {
+    expect(remendMarkdown('[text](http://example.com')).toBe('text');
+  });
+
+  it('strips incomplete link with long partial URL', () => {
+    expect(
+      remendMarkdown(
+        '[contract-comparison-report.docx](http://localhost:3000/http_api/storage?id=kg2djxf4svmjqnjtejxges0xbs83azgy&',
+      ),
+    ).toBe('contract-comparison-report.docx');
+  });
+
+  it('preserves text before incomplete link', () => {
+    expect(remendMarkdown('Check this: [link')).toBe('Check this: link');
+  });
+
+  it('preserves complete link followed by incomplete link', () => {
+    expect(remendMarkdown('[a](b) [c')).toBe('[a](b) c');
+  });
+
+  it('preserves multiple complete links', () => {
+    expect(remendMarkdown('[a](b) and [c](d)')).toBe('[a](b) and [c](d)');
+  });
+
+  it('strips incomplete link after complete links', () => {
+    expect(remendMarkdown('[a](b) and [c](d) and [e')).toBe(
+      '[a](b) and [c](d) and e',
+    );
+  });
+
+  it('does not process links inside fenced code block', () => {
+    expect(remendMarkdown('```\n[text](url')).toBe('```\n[text](url\n```');
+  });
+
+  it('does not process links inside inline code', () => {
+    expect(remendMarkdown('`[text](url')).toBe('`[text](url`');
+  });
+
+  it('respects escaped bracket', () => {
+    expect(remendMarkdown('\\[not a link')).toBe('\\[not a link');
+  });
+});
+
+describe('image handling', () => {
+  it('preserves complete images', () => {
+    expect(remendMarkdown('![alt](url)')).toBe('![alt](url)');
+  });
+
+  it('removes incomplete image with just opening', () => {
+    expect(remendMarkdown('![alt')).toBe('');
+  });
+
+  it('removes incomplete image with bracket and paren', () => {
+    expect(remendMarkdown('![alt](')).toBe('');
+  });
+
+  it('removes incomplete image with partial URL', () => {
+    expect(remendMarkdown('![alt](http://example.com/img')).toBe('');
+  });
+
+  it('preserves text before incomplete image', () => {
+    expect(remendMarkdown('See: ![photo')).toBe('See: ');
+  });
+
+  it('preserves complete image followed by incomplete image', () => {
+    expect(remendMarkdown('![a](b) ![c')).toBe('![a](b) ');
+  });
+});
+
+// ============================================================================
 // COMPLEX / REAL-WORLD SCENARIOS
 // ============================================================================
 

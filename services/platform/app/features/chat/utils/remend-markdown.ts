@@ -3,23 +3,24 @@
  *
  * During LLM streaming, partially-revealed markdown (unclosed backticks, bold markers,
  * code fences) causes react-markdown to oscillate between different parse trees on
- * consecutive frames. This function appends minimal closing tokens so the parser
- * always produces a structurally stable result.
+ * consecutive frames. This function produces a structurally stable result so the parser
+ * always generates consistent DOM.
  *
  * Algorithm: single forward pass with a small state machine tracking:
  *   - Fenced code block context (``` ... ```)
  *   - Inline code context (` ... `)
  *   - Open formatting markers (*, **, ~~) in a LIFO stack
+ *   - Last unmatched [ position for link/image detection
  *
  * Guarantees:
  *   - Idempotent on well-formed markdown (no-op when all syntax is balanced)
- *   - Only appends at end of string, never modifies content
  *   - O(n) single pass, no regex backtracking
  *   - Escaped characters (\*, \`) are respected
  *   - Code block/span content is opaque (no formatting tracked inside)
+ *   - Incomplete links show display text only (no raw markdown syntax)
+ *   - Incomplete images are removed entirely (no broken image placeholders)
  *
  * Does NOT handle (by design):
- *   - Links/images — parser treats unclosed [ as plain text, which is correct
  *   - HTML tags — rehype-sanitize handles safety; string-level closing risks mXSS
  *   - Headings, blockquotes, lists, tables — don't need closing syntax
  */
@@ -37,6 +38,12 @@ export function remendMarkdown(text: string): string {
   let inlineCodeBacktickCount = 0;
   const formattingStack: FormattingMarker[] = [];
 
+  // Link tracking: position of last unmatched '[' in normal context.
+  // -1 means no open bracket. Resets when a complete link is found.
+  let lastOpenBracket = -1;
+  // Whether the '[' is preceded by '!' (image syntax)
+  let lastOpenBracketIsImage = false;
+
   // Track whether we're at the start of a line (for fenced code detection)
   let atLineStart = true;
 
@@ -47,26 +54,21 @@ export function remendMarkdown(text: string): string {
     if (context === 'fenced_code') {
       // Inside a fenced code block — only look for closing fence
       if (atLineStart && ch === '`') {
-        // Count consecutive backticks
         let count = 0;
         while (i < len && text[i] === '`') {
           count++;
           i++;
         }
         if (count >= fenceBacktickCount) {
-          // Closing fence found
           context = 'normal';
           atLineStart = false;
           continue;
         }
-        // Not enough backticks — stay in fenced code
-        // Check if we ended on a newline
         if (i < len && text[i] === '\n') {
           atLineStart = true;
           i++;
         } else {
           atLineStart = false;
-          // Skip to end of line
           while (i < len && text[i] !== '\n') i++;
           if (i < len) {
             atLineStart = true;
@@ -76,7 +78,6 @@ export function remendMarkdown(text: string): string {
         continue;
       }
 
-      // Track line starts
       if (ch === '\n') {
         atLineStart = true;
       } else {
@@ -87,7 +88,6 @@ export function remendMarkdown(text: string): string {
     }
 
     if (context === 'inline_code') {
-      // Inside inline code — only look for matching backtick sequence
       if (ch === '`') {
         let count = 0;
         while (i < len && text[i] === '`') {
@@ -97,7 +97,6 @@ export function remendMarkdown(text: string): string {
         if (count === inlineCodeBacktickCount) {
           context = 'normal';
         }
-        // Non-matching backtick sequence — literal content, continue
         continue;
       }
       i++;
@@ -121,11 +120,9 @@ export function remendMarkdown(text: string): string {
         i++;
       }
 
-      // Fenced code block: 3+ backticks at start of line
       if (count >= 3 && atLineStart) {
         context = 'fenced_code';
         fenceBacktickCount = count;
-        // Skip to end of line (language info)
         while (i < len && text[i] !== '\n') i++;
         if (i < len) {
           atLineStart = true;
@@ -134,9 +131,46 @@ export function remendMarkdown(text: string): string {
         continue;
       }
 
-      // Inline code: 1+ backticks not at line start (or < 3 at line start)
       context = 'inline_code';
       inlineCodeBacktickCount = count;
+      atLineStart = false;
+      continue;
+    }
+
+    // Open bracket — potential link/image start
+    if (ch === '[') {
+      lastOpenBracketIsImage = i > 0 && text[i - 1] === '!';
+      lastOpenBracket = lastOpenBracketIsImage ? i - 1 : i;
+      i++;
+      atLineStart = false;
+      continue;
+    }
+
+    // Close bracket + parenthesized URL — complete link
+    if (ch === ')' && lastOpenBracket !== -1) {
+      // Check if this closes a ](... pattern
+      // Find the ] before this )
+      const closeParenPos = i;
+      let j = closeParenPos - 1;
+      // Walk back to find matching '('
+      let parenDepth = 1;
+      while (j > lastOpenBracket && parenDepth > 0) {
+        if (text[j] === '(') parenDepth--;
+        else if (text[j] === ')') parenDepth++;
+        if (parenDepth > 0) j--;
+      }
+      // j is now at '(' — check if preceded by ']'
+      if (
+        j > lastOpenBracket &&
+        parenDepth === 0 &&
+        j > 0 &&
+        text[j - 1] === ']'
+      ) {
+        // Complete link found — reset tracking
+        lastOpenBracket = -1;
+        lastOpenBracketIsImage = false;
+      }
+      i++;
       atLineStart = false;
       continue;
     }
@@ -145,8 +179,6 @@ export function remendMarkdown(text: string): string {
     if (ch === '~' && i + 1 < len && text[i + 1] === '~') {
       i += 2;
       atLineStart = false;
-
-      // Pop if matching top of stack, otherwise push
       const topIdx = formattingStack.lastIndexOf('~~');
       if (topIdx !== -1) {
         formattingStack.splice(topIdx, 1);
@@ -165,11 +197,9 @@ export function remendMarkdown(text: string): string {
       }
       atLineStart = false;
 
-      // Process asterisk runs: handle ** and * markers
       let remaining = count;
       while (remaining > 0) {
         if (remaining >= 2) {
-          // Try to match ** with stack
           const boldIdx = formattingStack.lastIndexOf('**');
           if (boldIdx !== -1) {
             formattingStack.splice(boldIdx, 1);
@@ -178,7 +208,6 @@ export function remendMarkdown(text: string): string {
           }
           remaining -= 2;
         } else {
-          // Single *
           const italicIdx = formattingStack.lastIndexOf('*');
           if (italicIdx !== -1) {
             formattingStack.splice(italicIdx, 1);
@@ -191,7 +220,6 @@ export function remendMarkdown(text: string): string {
       continue;
     }
 
-    // Track line starts
     if (ch === '\n') {
       atLineStart = true;
     } else {
@@ -200,7 +228,17 @@ export function remendMarkdown(text: string): string {
     i++;
   }
 
-  // Build suffix from open state
+  // Phase 1: Handle trailing incomplete link/image (only in normal context)
+  let result = text;
+  if (context === 'normal' && lastOpenBracket !== -1) {
+    result = stripIncompleteLink(
+      result,
+      lastOpenBracket,
+      lastOpenBracketIsImage,
+    );
+  }
+
+  // Phase 2: Build suffix from open state
   let suffix = '';
 
   if (context === 'inline_code') {
@@ -208,7 +246,6 @@ export function remendMarkdown(text: string): string {
   }
 
   if (context === 'normal' || context === 'inline_code') {
-    // Close formatting in reverse order (LIFO)
     for (let j = formattingStack.length - 1; j >= 0; j--) {
       suffix += formattingStack[j];
     }
@@ -218,5 +255,38 @@ export function remendMarkdown(text: string): string {
     suffix += '\n' + '`'.repeat(fenceBacktickCount);
   }
 
-  return suffix ? text + suffix : text;
+  return suffix ? result + suffix : result;
+}
+
+/**
+ * Strip trailing incomplete link/image syntax and extract display text.
+ *
+ * For links: `[display text](partial-url` → `display text`
+ * For images: `![alt](partial-url` → `` (removed entirely)
+ */
+function stripIncompleteLink(
+  text: string,
+  openPos: number,
+  isImage: boolean,
+): string {
+  const before = text.slice(0, openPos);
+  const linkPart = text.slice(openPos);
+
+  if (isImage) {
+    // Incomplete image — remove entirely to avoid broken image placeholder
+    return before;
+  }
+
+  // Extract display text from [text]... or [text... patterns
+  const bracketClose = linkPart.indexOf(']');
+  if (bracketClose !== -1) {
+    // [text]( or [text](url — extract text between [ and ]
+    // +1 to skip the leading '[' (or '![')
+    const displayText = linkPart.slice(1, bracketClose);
+    return before + displayText;
+  }
+
+  // [text (no closing bracket yet) — extract everything after [
+  const displayText = linkPart.slice(1);
+  return before + displayText;
 }
