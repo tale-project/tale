@@ -27,8 +27,11 @@ export async function initializeExecutionVariables(
   // rootWfDefinitionId: root version of the workflow family (for tracking across versions)
   const rootWfDefinitionId = execution.rootWfDefinitionId;
 
+  const userId = execution.userId;
+
   let fullVariables: Record<string, unknown> = {
     organizationId: args.organizationId,
+    userId,
     wfDefinitionId, // Auto-inject wfDefinitionId or workflowSlug
     rootWfDefinitionId, // Auto-inject root workflow definition ID
   };
@@ -38,6 +41,7 @@ export async function initializeExecutionVariables(
     fullVariables = {
       ...execution.variables,
       organizationId: args.organizationId,
+      userId,
       wfDefinitionId, // Auto-inject wfDefinitionId or workflowSlug
       rootWfDefinitionId, // Auto-inject root workflow definition ID
     };
@@ -49,6 +53,7 @@ export async function initializeExecutionVariables(
       input: inputRecord,
       config: workflowConfig?.config?.variables ?? {},
       organizationId: args.organizationId,
+      userId,
       wfDefinitionId, // Auto-inject wfDefinitionId or workflowSlug
       rootWfDefinitionId, // Auto-inject root workflow definition ID
     };

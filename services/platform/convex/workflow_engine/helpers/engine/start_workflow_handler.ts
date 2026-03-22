@@ -17,6 +17,7 @@ export type StartWorkflowArgs = {
   input?: unknown;
   triggeredBy: string;
   triggerData?: unknown;
+  userId?: string;
 };
 
 export async function handleStartWorkflow(
@@ -69,6 +70,7 @@ export async function handleStartWorkflow(
     updatedAt: Date.now(),
     triggeredBy: args.triggeredBy,
     triggerData: args.triggerData,
+    userId: args.userId,
     metadata: '{}',
     workflowSlug,
   });

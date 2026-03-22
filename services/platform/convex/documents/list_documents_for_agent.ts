@@ -23,7 +23,6 @@ const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
 
 export interface AgentDocumentItem {
-  id: string;
   fileId: string;
   title: string;
   extension: string | null;
@@ -194,7 +193,6 @@ export async function listDocumentsForAgent(
   );
 
   const documents: AgentDocumentItem[] = docsWithFile.map((doc) => ({
-    id: doc._id,
     fileId: doc.fileId,
     title: getDocumentTitle(doc),
     extension: doc.extension ?? null,

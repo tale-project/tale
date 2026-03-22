@@ -83,7 +83,6 @@ describe('listDocuments helper', () => {
     const mockResult = {
       documents: [
         {
-          id: 'doc1',
           title: 'test.pdf',
           extension: 'pdf',
           folderPath: null,

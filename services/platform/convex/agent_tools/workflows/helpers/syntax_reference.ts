@@ -256,7 +256,7 @@ For external APIs (Shopify, Circuly, etc.)
 \`\`\`
 
 ### document
-Operations: create, update, retrieve, generate_docx, get_metadata, compare, extract_docx_structured, apply_docx_structured
+Operations: create, update, retrieve, list, generate_docx, get_metadata, compare, extract_docx_structured, apply_docx_structured
 
 **create** — Save a file to the documents hub:
 \`\`\`json
@@ -275,19 +275,19 @@ Operations: create, update, retrieve, generate_docx, get_metadata, compare, extr
 - folderPath: slash-separated folder path, created automatically if missing (optional)
 - Requires organizationId in workflow variables (auto-injected)
 
-**update** — Update an existing document by ID:
+**update** — Update an existing document by file ID:
 \`\`\`json
 {
   "type": "document",
   "parameters": {
     "operation": "update",
-    "documentId": "{{steps.find_doc.output.data._id}}",
+    "fileId": "{{steps.find_doc.output.data.fileId}}",
     "title": "Updated Title",
     "content": "New content"
   }
 }
 \`\`\`
-- documentId: required
+- fileId: required
 - Optional: title, content, mimeType, extension, metadata, sourceProvider
 
 **retrieve** — Fetch document content by file ID:
@@ -520,7 +520,7 @@ All step outputs are wrapped: steps.{step_slug}.output.data
 
   output: `## Output Step (stepType: 'output')
 
-Config: { mapping?: Record<string, string> }
+Config: { mapping?: Record<string, unknown> }
 NextSteps: {} (empty — output steps have no outgoing connections)
 
 The output step is optional. It defines what the workflow returns as its final output.
@@ -538,7 +538,8 @@ Use mapping to select which variables or step outputs to include. Values support
     "mapping": {
       "analysis": "{{steps.analyze.output.data}}",
       "customerId": "{{variables.customerId}}",
-      "processedAt": "{{now}}"
+      "processedAt": "{{now}}",
+      "version": 1
     }
   },
   "nextSteps": {}
@@ -558,7 +559,7 @@ Use mapping to select which variables or step outputs to include. Values support
 \`\`\`
 
 **IMPORTANT:**
-- mapping values are {{...}} templates — they preserve types (objects, arrays, numbers stay as-is)
+- mapping values can be {{...}} template strings (which preserve types) or literal JSON values (numbers, booleans, null, arrays, objects)
 - Do NOT reference secrets in mapping (e.g., {{secrets.apiKey}}) — this leaks sensitive data
 - If mapping is empty or omitted, the workflow output is null
 - nextSteps MUST be empty: {}`,

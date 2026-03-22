@@ -4,7 +4,10 @@
 
 import { v } from 'convex/values';
 
-import { jsonRecordValidator } from '../../lib/validators/json';
+import {
+  jsonRecordValidator,
+  jsonValueValidator,
+} from '../../lib/validators/json';
 import { stepConfigValidator } from '../../workflow_engine/types/nodes';
 
 export const stepTypeValidator = v.union(
@@ -34,7 +37,7 @@ export const stepDefValidator = v.object({
   nextSteps: v.record(v.string(), v.string()),
   config: stepConfigValidator,
   // @deprecated — unused legacy fields, kept for schema compatibility
-  inputMapping: v.optional(v.record(v.string(), v.string())),
-  outputMapping: v.optional(v.record(v.string(), v.string())),
+  inputMapping: v.optional(v.record(v.string(), jsonValueValidator)),
+  outputMapping: v.optional(v.record(v.string(), jsonValueValidator)),
   metadata: v.optional(jsonRecordValidator),
 });

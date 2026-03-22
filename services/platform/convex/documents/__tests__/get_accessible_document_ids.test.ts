@@ -79,7 +79,7 @@ describe('getAccessibleDocumentIds', () => {
     expect(ids).toEqual([]);
   });
 
-  it('excludes non-completed documents', async () => {
+  it('includes documents regardless of ragInfo status', async () => {
     mockGetUserTeamIds.mockResolvedValue([]);
     const ctx = createMockCtx([
       { _id: 'doc1', ragInfo: { status: 'queued' } },
@@ -93,7 +93,7 @@ describe('getAccessibleDocumentIds', () => {
       userId: 'user1',
     });
 
-    expect(ids).toEqual([]);
+    expect(ids).toEqual(['doc1', 'doc2', 'doc3', 'doc4']);
   });
 
   it('returns empty array for empty organization', async () => {
@@ -122,6 +122,6 @@ describe('getAccessibleDocumentIds', () => {
       userId: 'user1',
     });
 
-    expect(ids).toEqual(['doc1', 'doc2']);
+    expect(ids).toEqual(['doc1', 'doc2', 'doc4']);
   });
 });

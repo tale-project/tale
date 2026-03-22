@@ -15,11 +15,11 @@ import { retrieveDocument } from './helpers/retrieve_document';
 
 export const documentRetrieveArgs = z
   .object({
-    documentId: z
+    fileId: z
       .string()
       .min(1)
       .describe(
-        'The Convex document ID (the "id" field from document_find, NOT "fileId"). Use fileId with file extraction tools instead.',
+        'The file ID (the "fileId" field from document_find). This is the storage file identifier.',
       ),
     chunkStart: z
       .number()
@@ -58,7 +58,7 @@ export const documentRetrieveArgs = z
 export const documentRetrieveTool = {
   name: 'document_retrieve' as const,
   tool: createTool({
-    description: `Retrieve document content from the knowledge base by document ID.
+    description: `Retrieve document content from the knowledge base by file ID.
 
 USE THIS TOOL TO:
 • Read the full or partial content of a specific document
@@ -71,7 +71,7 @@ DO NOT USE THIS TOOL FOR:
 • Extracting data from uploaded files — use pdf, docx, text, excel, image, or pptx tools
 
 RESPONSE FIELDS:
-• documentId: The document ID
+• fileId: The file ID
 • name: Document title
 • content: The retrieved text content
 • chunkRange: { start, end } — actual chunk range returned (1-indexed)
@@ -86,7 +86,7 @@ PAGINATION (for large documents):
 4. Max 100 chunks per call
 
 TIPS:
-• Get document IDs from document_find first
+• Get file IDs from document_find first
 • For semantic search across documents, use rag_search instead
 • Documents must be indexed (ragInfo.status = "completed") to be retrievable`,
     args: documentRetrieveArgs,

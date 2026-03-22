@@ -38,7 +38,11 @@ export const startWorkflow = mutation({
       name: authUser.name,
     });
 
-    return await handleStartWorkflow(ctx, args, workflowManagers);
+    return await handleStartWorkflow(
+      ctx,
+      { ...args, userId: String(authUser._id) },
+      workflowManagers,
+    );
   },
 });
 

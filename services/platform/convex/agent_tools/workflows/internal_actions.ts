@@ -211,6 +211,7 @@ export const executeApprovedWorkflowRun = internalAction({
             approvalId: args.approvalId,
             approvedBy: args.approvedBy,
           },
+          userId: args.approvedBy,
         },
       );
 

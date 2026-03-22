@@ -216,6 +216,7 @@ import type * as documents_create_onedrive_sync_config from "../documents/create
 import type * as documents_delete_document from "../documents/delete_document.js";
 import type * as documents_extract_extension from "../documents/extract_extension.js";
 import type * as documents_find_document_by_external_id from "../documents/find_document_by_external_id.js";
+import type * as documents_find_document_by_file_id from "../documents/find_document_by_file_id.js";
 import type * as documents_find_document_by_title from "../documents/find_document_by_title.js";
 import type * as documents_generate_document from "../documents/generate_document.js";
 import type * as documents_generate_document_helpers from "../documents/generate_document_helpers.js";
@@ -704,7 +705,6 @@ import type * as workflow_engine_helpers_scheduler_has_running_execution from ".
 import type * as workflow_engine_helpers_scheduler_index from "../workflow_engine/helpers/scheduler/index.js";
 import type * as workflow_engine_helpers_scheduler_scan_and_trigger from "../workflow_engine/helpers/scheduler/scan_and_trigger.js";
 import type * as workflow_engine_helpers_scheduler_should_trigger_workflow from "../workflow_engine/helpers/scheduler/should_trigger_workflow.js";
-import type * as workflow_engine_helpers_scheduler_trigger_workflow_by_id from "../workflow_engine/helpers/scheduler/trigger_workflow_by_id.js";
 import type * as workflow_engine_helpers_serialization_deserialize_variables from "../workflow_engine/helpers/serialization/deserialize_variables.js";
 import type * as workflow_engine_helpers_serialization_sanitize_depth from "../workflow_engine/helpers/serialization/sanitize_depth.js";
 import type * as workflow_engine_helpers_serialization_serialize_output from "../workflow_engine/helpers/serialization/serialize_output.js";
@@ -1078,6 +1078,7 @@ declare const fullApi: ApiFromModules<{
   "documents/delete_document": typeof documents_delete_document;
   "documents/extract_extension": typeof documents_extract_extension;
   "documents/find_document_by_external_id": typeof documents_find_document_by_external_id;
+  "documents/find_document_by_file_id": typeof documents_find_document_by_file_id;
   "documents/find_document_by_title": typeof documents_find_document_by_title;
   "documents/generate_document": typeof documents_generate_document;
   "documents/generate_document_helpers": typeof documents_generate_document_helpers;
@@ -1566,7 +1567,6 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/helpers/scheduler/index": typeof workflow_engine_helpers_scheduler_index;
   "workflow_engine/helpers/scheduler/scan_and_trigger": typeof workflow_engine_helpers_scheduler_scan_and_trigger;
   "workflow_engine/helpers/scheduler/should_trigger_workflow": typeof workflow_engine_helpers_scheduler_should_trigger_workflow;
-  "workflow_engine/helpers/scheduler/trigger_workflow_by_id": typeof workflow_engine_helpers_scheduler_trigger_workflow_by_id;
   "workflow_engine/helpers/serialization/deserialize_variables": typeof workflow_engine_helpers_serialization_deserialize_variables;
   "workflow_engine/helpers/serialization/sanitize_depth": typeof workflow_engine_helpers_serialization_sanitize_depth;
   "workflow_engine/helpers/serialization/serialize_output": typeof workflow_engine_helpers_serialization_serialize_output;

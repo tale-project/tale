@@ -217,7 +217,6 @@ describe('listDocumentsForAgent', () => {
 
       expect(result.documents).toHaveLength(1);
       expect(result.documents[0]).toEqual({
-        id: 'doc1',
         fileId: 'file1',
         title: 'report.pdf',
         extension: 'pdf',
@@ -270,7 +269,7 @@ describe('listDocumentsForAgent', () => {
       );
 
       expect(result.documents).toHaveLength(1);
-      expect(result.documents[0]?.id).toBe('doc1');
+      expect(result.documents[0]?.fileId).toBe('file1');
     });
 
     it('returns null sizeBytes when metadata is missing', async () => {
@@ -325,7 +324,7 @@ describe('listDocumentsForAgent', () => {
       });
 
       expect(result.documents).toHaveLength(1);
-      expect(result.documents[0]?.id).toBe('doc1');
+      expect(result.documents[0]?.fileId).toBe('file_doc1');
       expect(result.documents[0]?.folderPath).toBe('contracts');
     });
 
@@ -355,7 +354,7 @@ describe('listDocumentsForAgent', () => {
       });
 
       expect(result.documents).toHaveLength(1);
-      expect(result.documents[0]?.id).toBe('doc2');
+      expect(result.documents[0]?.fileId).toBe('file_doc2');
     });
 
     it('filters by fileName (case-insensitive)', async () => {
@@ -371,9 +370,9 @@ describe('listDocumentsForAgent', () => {
       });
 
       expect(result.documents).toHaveLength(2);
-      const ids = result.documents.map((d) => d.id);
-      expect(ids).toContain('doc1');
-      expect(ids).toContain('doc3');
+      const ids = result.documents.map((d) => d.fileId);
+      expect(ids).toContain('file_doc1');
+      expect(ids).toContain('file_doc3');
     });
 
     it('applies combined filters', async () => {
@@ -412,7 +411,7 @@ describe('listDocumentsForAgent', () => {
       });
 
       expect(result.documents).toHaveLength(1);
-      expect(result.documents[0]?.id).toBe('doc1');
+      expect(result.documents[0]?.fileId).toBe('file_doc1');
     });
   });
 
@@ -443,9 +442,9 @@ describe('listDocumentsForAgent', () => {
       });
 
       expect(result.documents).toHaveLength(2);
-      const ids = result.documents.map((d) => d.id);
-      expect(ids).toContain('doc1');
-      expect(ids).toContain('doc3');
+      const ids = result.documents.map((d) => d.fileId);
+      expect(ids).toContain('file_doc1');
+      expect(ids).toContain('file_doc3');
     });
 
     it('filters by specific teamId', async () => {
@@ -461,7 +460,7 @@ describe('listDocumentsForAgent', () => {
       });
 
       expect(result.documents).toHaveLength(1);
-      expect(result.documents[0]?.id).toBe('doc1');
+      expect(result.documents[0]?.fileId).toBe('file_doc1');
     });
 
     it('returns empty when teamId filter is not in user teams', async () => {
@@ -492,10 +491,10 @@ describe('listDocumentsForAgent', () => {
         baseArgs,
       );
 
-      expect(result.documents.map((d) => d.id)).toEqual([
-        'doc2',
-        'doc3',
-        'doc1',
+      expect(result.documents.map((d) => d.fileId)).toEqual([
+        'file_doc2',
+        'file_doc3',
+        'file_doc1',
       ]);
     });
 
@@ -512,10 +511,10 @@ describe('listDocumentsForAgent', () => {
         sortOrder: 'asc',
       });
 
-      expect(result.documents.map((d) => d.id)).toEqual([
-        'doc2',
-        'doc3',
-        'doc1',
+      expect(result.documents.map((d) => d.fileId)).toEqual([
+        'file_doc2',
+        'file_doc3',
+        'file_doc1',
       ]);
     });
 
@@ -679,9 +678,9 @@ describe('listDocumentsForAgent', () => {
       expect(page2.hasMore).toBe(false);
 
       // No overlap between pages
-      const page1Ids = new Set(page1.documents.map((d) => d.id));
+      const page1Ids = new Set(page1.documents.map((d) => d.fileId));
       for (const doc of page2.documents) {
-        expect(page1Ids.has(doc.id)).toBe(false);
+        expect(page1Ids.has(doc.fileId)).toBe(false);
       }
     });
   });
@@ -767,7 +766,7 @@ describe('listDocumentsForAgent', () => {
         ...page1.documents,
         ...page2.documents,
         ...page3.documents,
-      ].map((d) => d.id);
+      ].map((d) => d.fileId);
       expect(new Set(allIds).size).toBe(5);
     });
 
@@ -857,10 +856,10 @@ describe('listDocumentsForAgent', () => {
       );
 
       // Same _creationTime, sorted by _id as tiebreaker
-      expect(result.documents.map((d) => d.id)).toEqual([
-        'doc_a',
-        'doc_b',
-        'doc_c',
+      expect(result.documents.map((d) => d.fileId)).toEqual([
+        'file_doc_a',
+        'file_doc_b',
+        'file_doc_c',
       ]);
     });
   });
@@ -963,7 +962,7 @@ describe('listDocumentsForAgent', () => {
           cursor,
         });
 
-        allIds.push(...result.documents.map((d) => d.id));
+        allIds.push(...result.documents.map((d) => d.fileId));
         pages++;
 
         if (!result.hasMore) break;
@@ -995,8 +994,8 @@ describe('listDocumentsForAgent', () => {
         baseArgs,
       );
 
-      expect(withNegative.documents.map((d) => d.id)).toEqual(
-        withZero.documents.map((d) => d.id),
+      expect(withNegative.documents.map((d) => d.fileId)).toEqual(
+        withZero.documents.map((d) => d.fileId),
       );
     });
 
@@ -1070,9 +1069,9 @@ describe('listDocumentsForAgent', () => {
       });
 
       expect(result.documents).toHaveLength(2);
-      const ids = result.documents.map((d) => d.id);
-      expect(ids).toContain('doc1');
-      expect(ids).toContain('doc2');
+      const ids = result.documents.map((d) => d.fileId);
+      expect(ids).toContain('file_doc1');
+      expect(ids).toContain('file_doc2');
     });
 
     it('filters by dateFrom and dateTo on the same day', async () => {
@@ -1094,10 +1093,10 @@ describe('listDocumentsForAgent', () => {
       });
 
       expect(result.documents).toHaveLength(3);
-      const ids = result.documents.map((d) => d.id);
-      expect(ids).toContain('doc2');
-      expect(ids).toContain('doc3');
-      expect(ids).toContain('doc4');
+      const ids = result.documents.map((d) => d.fileId);
+      expect(ids).toContain('file_doc2');
+      expect(ids).toContain('file_doc3');
+      expect(ids).toContain('file_doc4');
     });
   });
 
@@ -1168,7 +1167,7 @@ describe('listDocumentsForAgent', () => {
       });
 
       expect(result.documents).toHaveLength(1);
-      expect(result.documents[0]?.id).toBe('doc1');
+      expect(result.documents[0]?.fileId).toBe('file_doc1');
     });
   });
 
@@ -1185,7 +1184,7 @@ describe('listDocumentsForAgent', () => {
       });
 
       expect(result.documents).toHaveLength(1);
-      expect(result.documents[0]?.id).toBe('doc1');
+      expect(result.documents[0]?.fileId).toBe('file_doc1');
     });
   });
 
@@ -1210,8 +1209,8 @@ describe('listDocumentsForAgent', () => {
       });
 
       expect(result.documents).toHaveLength(2);
-      const broken = result.documents.find((d) => d.id === 'doc1');
-      const healthy = result.documents.find((d) => d.id === 'doc2');
+      const broken = result.documents.find((d) => d.fileId === 'file_doc1');
+      const healthy = result.documents.find((d) => d.fileId === 'file_doc2');
       expect(broken?.folderPath).toBeNull();
       expect(healthy?.folderPath).toBe('ok-folder');
     });
@@ -1301,7 +1300,7 @@ describe('listDocumentsForAgent', () => {
       });
 
       expect(result.documents).toHaveLength(1);
-      expect(result.documents[0]?.id).toBe('doc1');
+      expect(result.documents[0]?.fileId).toBe('file_doc1');
     });
   });
 
@@ -1447,7 +1446,7 @@ describe('listDocumentsForAgent', () => {
       });
 
       expect(result.documents).toHaveLength(1);
-      expect(result.documents[0]?.id).toBe('doc1');
+      expect(result.documents[0]?.fileId).toBe('file_doc1');
     });
 
     it('returns documents from all same-name folders with warning', async () => {
@@ -1514,7 +1513,7 @@ describe('listDocumentsForAgent', () => {
       });
 
       expect(result.documents).toHaveLength(1);
-      expect(result.documents[0]?.id).toBe('doc1');
+      expect(result.documents[0]?.fileId).toBe('file_doc1');
     });
 
     it('returns documents from ambiguous folders with warning', async () => {
@@ -1572,7 +1571,7 @@ describe('listDocumentsForAgent', () => {
       });
 
       expect(result.documents).toHaveLength(1);
-      expect(result.documents[0]?.id).toBe('doc1');
+      expect(result.documents[0]?.fileId).toBe('file_doc1');
     });
 
     it('matches with different separators', async () => {
@@ -1587,7 +1586,7 @@ describe('listDocumentsForAgent', () => {
       });
 
       expect(result.documents).toHaveLength(1);
-      expect(result.documents[0]?.id).toBe('doc1');
+      expect(result.documents[0]?.fileId).toBe('file_doc1');
     });
   });
 
@@ -1644,7 +1643,7 @@ describe('listDocumentsForAgent', () => {
       });
 
       expect(result.documents).toHaveLength(1);
-      expect(result.documents[0]?.id).toBe('doc1');
+      expect(result.documents[0]?.fileId).toBe('file_doc1');
     });
 
     it('allows org-wide folders (no teamId) for all users', async () => {
@@ -1666,7 +1665,7 @@ describe('listDocumentsForAgent', () => {
       });
 
       expect(result.documents).toHaveLength(1);
-      expect(result.documents[0]?.id).toBe('doc1');
+      expect(result.documents[0]?.fileId).toBe('file_doc1');
     });
 
     it('resolves mixed org-wide parent + team-scoped child', async () => {
@@ -1701,7 +1700,7 @@ describe('listDocumentsForAgent', () => {
       });
 
       expect(result.documents).toHaveLength(1);
-      expect(result.documents[0]?.id).toBe('doc1');
+      expect(result.documents[0]?.fileId).toBe('file_doc1');
     });
 
     it('blocks team-scoped child even when parent is org-wide', async () => {

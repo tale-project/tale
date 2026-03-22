@@ -91,6 +91,7 @@ export async function executeAgentWithTools(
   _args: {
     executionId: string;
     organizationId?: string;
+    userId?: string;
     threadId?: string;
     stepSlug?: string;
     knowledgeFileIds?: string[];
@@ -130,6 +131,7 @@ export async function executeAgentWithTools(
   const contextWithOrg = {
     ...ctx,
     ...(_args.organizationId ? { organizationId: _args.organizationId } : {}),
+    ...(_args.userId ? { userId: _args.userId } : {}),
     ...(_args.executionId ? { wfExecutionId: _args.executionId } : {}),
     ...(_args.stepSlug ? { stepSlug: _args.stepSlug } : {}),
     ...(_args.knowledgeFileIds?.length
@@ -145,6 +147,7 @@ export async function executeAgentWithTools(
       prompts,
       zodSchema,
       threadId,
+      _args.userId,
     );
   }
 
@@ -157,7 +160,13 @@ export async function executeAgentWithTools(
   }
 
   // Case 3: Text output -> use generateText directly
-  return executeTextOutput(contextWithOrg, config, prompts, threadId);
+  return executeTextOutput(
+    contextWithOrg,
+    config,
+    prompts,
+    threadId,
+    _args.userId,
+  );
 }
 
 // =============================================================================
@@ -190,6 +199,7 @@ async function executeJsonOutputWithoutTools(
   prompts: ProcessedPrompts,
   zodSchema: z.ZodType,
   threadId: string,
+  userId?: string,
 ): Promise<LLMExecutionResult> {
   debugLog('executeJsonOutputWithoutTools START', {
     configName: config.name,
@@ -215,7 +225,7 @@ async function executeJsonOutputWithoutTools(
 
   const result = await agent.generateObject(
     ctx,
-    { threadId },
+    { threadId, userId },
     { prompt: prompts.userPrompt, schema: zodSchema },
     { contextOptions: { excludeToolMessages: false } },
   );
@@ -240,6 +250,7 @@ async function executeTextOutput(
   config: NormalizedConfig,
   prompts: ProcessedPrompts,
   threadId: string,
+  userId?: string,
 ): Promise<LLMExecutionResult> {
   debugLog('executeTextOutput START', {
     configName: config.name,
@@ -267,7 +278,7 @@ async function executeTextOutput(
 
   const result = await agent.generateText(
     ctx,
-    { threadId },
+    { threadId, userId },
     { prompt: prompts.userPrompt },
     { contextOptions: { excludeToolMessages: false } },
   );

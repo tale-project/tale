@@ -6,7 +6,6 @@ import type { documentRetrieveArgs } from '../document_retrieve_tool';
 import { internal } from '../../../_generated/api';
 import { createDebugLog } from '../../../lib/debug_log';
 import { getRagConfig } from '../../../lib/helpers/rag_config';
-import { toId } from '../../../lib/type_cast_helpers';
 import {
   fetchDocumentContent,
   type DocumentContentResult,
@@ -34,43 +33,45 @@ export async function retrieveDocument(
   }
 
   debugLog('tool:document_retrieve start', {
-    documentId: args.documentId,
+    fileId: args.fileId,
     chunkStart: args.chunkStart,
     chunkEnd: args.chunkEnd,
   });
+
+  // Resolve fileId → document record for access control
+  const document = await ctx.runQuery(
+    internal.documents.internal_queries.findDocumentByFileId,
+    { organizationId, fileId: args.fileId },
+  );
+
+  if (!document) {
+    throw new Error(
+      `Document not found: "${args.fileId}". ` +
+        'No document exists with this file ID in the current organization.',
+    );
+  }
 
   const accessibleIds: string[] = await ctx.runQuery(
     internal.documents.internal_queries.getAccessibleDocumentIds,
     { organizationId, userId },
   );
 
-  if (!accessibleIds.includes(args.documentId)) {
+  if (!accessibleIds.includes(document._id)) {
     throw new Error(
-      `Document not found or access denied: "${args.documentId}". ` +
-        'The document may not exist, may not be indexed yet, or you may not have access.',
-    );
-  }
-
-  // Look up document to get its file storage ID for RAG content retrieval
-  const document = await ctx.runQuery(
-    internal.documents.internal_queries.getDocumentByIdRaw,
-    { documentId: toId<'documents'>(args.documentId) },
-  );
-  if (!document?.fileId) {
-    throw new Error(
-      `Document "${args.documentId}" has no file associated with it.`,
+      `Access denied for document "${args.fileId}". ` +
+        "You may not have access to this document's team.",
     );
   }
 
   const ragServiceUrl = getRagConfig().serviceUrl;
 
-  const result = await fetchDocumentContent(ragServiceUrl, document.fileId, {
+  const result = await fetchDocumentContent(ragServiceUrl, args.fileId, {
     chunkStart: args.chunkStart,
     chunkEnd: args.chunkEnd,
   });
 
   debugLog('tool:document_retrieve success', {
-    documentId: args.documentId,
+    fileId: args.fileId,
     totalChunks: result.totalChunks,
     totalChars: result.totalChars,
     truncated: result.truncated,

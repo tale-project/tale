@@ -52,6 +52,16 @@ export const findDocumentByExternalId = internalQuery({
   },
 });
 
+export const findDocumentByFileId = internalQuery({
+  args: {
+    organizationId: v.string(),
+    fileId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return await DocumentsHelpers.findDocumentByFileId(ctx, args);
+  },
+});
+
 export const listForAgent = internalQuery({
   args: {
     organizationId: v.string(),

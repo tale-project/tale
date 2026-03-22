@@ -11,7 +11,6 @@
 
 import { v } from 'convex/values';
 
-import type { Id } from '../../../_generated/dataModel';
 import type { ActionCtx } from '../../../_generated/server';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 
@@ -23,6 +22,8 @@ import { toConvexJsonRecord, toId } from '../../../lib/type_cast_helpers';
 import { jsonRecordValidator } from '../../../lib/validators/json';
 import { applyDocxStructured } from './helpers/apply_docx_structured';
 import { extractDocxStructured } from './helpers/extract_docx_structured';
+
+const MAX_LIMIT = 50;
 
 /**
  * Normalize unescaped literal \n and \t sequences to actual whitespace.
@@ -59,7 +60,7 @@ async function resolveFileName(
 type DocumentActionParams =
   | {
       operation: 'update';
-      documentId: Id<'documents'>;
+      fileId: string;
       title?: string;
       content?: string;
       mimeType?: string;
@@ -110,18 +111,23 @@ type DocumentActionParams =
       fileName: string;
       trackChanges?: boolean;
       author?: string;
+    }
+  | {
+      operation: 'list';
+      folderPath?: string;
+      extension?: string;
     };
 
 export const documentAction: ActionDefinition<DocumentActionParams> = {
   type: 'document',
   title: 'Document Operation',
   description:
-    'Execute document-specific operations (update, retrieve, generate_docx, create, extract_docx_structured, apply_docx_structured). organizationId is automatically read from workflow context variables.',
+    'Execute document-specific operations (list, update, retrieve, generate_docx, create, extract_docx_structured, apply_docx_structured). organizationId is automatically read from workflow context variables.',
 
   parametersValidator: v.union(
     v.object({
       operation: v.literal('update'),
-      documentId: v.id('documents'),
+      fileId: v.string(),
       title: v.optional(v.string()),
       content: v.optional(v.string()),
       mimeType: v.optional(v.string()),
@@ -175,12 +181,37 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
       trackChanges: v.optional(v.boolean()),
       author: v.optional(v.string()),
     }),
+    v.object({
+      operation: v.literal('list'),
+      folderPath: v.optional(v.string()),
+      extension: v.optional(v.string()),
+    }),
   ),
 
   async execute(ctx, params, _variables) {
     switch (params.operation) {
       case 'update': {
-        const documentId = params.documentId;
+        const organizationId =
+          typeof _variables.organizationId === 'string'
+            ? _variables.organizationId
+            : undefined;
+
+        if (!organizationId) {
+          throw new Error(
+            'organizationId is required in workflow variables to update a document',
+          );
+        }
+
+        const document = await ctx.runQuery(
+          internal.documents.internal_queries.findDocumentByFileId,
+          { organizationId, fileId: params.fileId },
+        );
+
+        if (!document) {
+          throw new Error(`Document not found for file ID "${params.fileId}"`);
+        }
+
+        const documentId = document._id;
 
         await ctx.runMutation(
           internal.documents.internal_mutations.updateDocument,
@@ -204,7 +235,7 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
 
         if (!updatedDocument) {
           throw new Error(
-            `Failed to fetch updated document with ID "${documentId}"`,
+            `Failed to fetch updated document with file ID "${params.fileId}"`,
           );
         }
 
@@ -311,7 +342,7 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
           );
         }
 
-        const documentId = await ctx.runMutation(
+        await ctx.runMutation(
           internal.documents.internal_mutations.createDocument,
           {
             organizationId,
@@ -326,7 +357,7 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
 
         return {
           success: true,
-          documentId: String(documentId),
+          fileId: params.fileId,
           title: docTitle,
           folderPath: params.folderPath ?? null,
         };
@@ -367,6 +398,65 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
           author: params.author,
           organizationId,
         });
+      }
+
+      case 'list': {
+        const organizationId =
+          typeof _variables.organizationId === 'string'
+            ? _variables.organizationId
+            : undefined;
+        const userId =
+          typeof _variables.userId === 'string' ? _variables.userId : undefined;
+
+        if (!organizationId) {
+          throw new Error(
+            'organizationId is required in workflow variables to list documents',
+          );
+        }
+        if (!userId) {
+          throw new Error(
+            'userId is required in workflow variables to list documents',
+          );
+        }
+
+        const allDocuments: Array<{
+          fileId: string;
+          title: string;
+          extension: string | null;
+          folderPath: string | null;
+          teamId: string | null;
+          createdAt: number;
+          sizeBytes: number | null;
+        }> = [];
+        const MAX_TOTAL = 500;
+        let cursor: number | undefined;
+
+        while (allDocuments.length < MAX_TOTAL) {
+          const batch = await ctx.runQuery(
+            internal.documents.internal_queries.listForAgent,
+            {
+              organizationId,
+              userId,
+              folderPath: params.folderPath,
+              extension: params.extension,
+              limit: MAX_LIMIT,
+              ...(cursor != null ? { cursor } : {}),
+            },
+          );
+
+          for (const doc of batch.documents) {
+            if (allDocuments.length >= MAX_TOTAL) break;
+            allDocuments.push(doc);
+          }
+
+          if (!batch.hasMore || batch.cursor == null) break;
+          cursor = batch.cursor;
+        }
+
+        return {
+          documents: allDocuments,
+          totalCount: allDocuments.length,
+        };
       }
 
       default:

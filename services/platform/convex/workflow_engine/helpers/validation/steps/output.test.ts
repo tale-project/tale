@@ -34,14 +34,39 @@ describe('validateOutputStep', () => {
     );
   });
 
-  it('fails when mapping value is not a string', () => {
+  it('passes with numeric values in mapping', () => {
     const result = validateOutputStep({
-      mapping: { key: 123 },
+      mapping: { count: 123 },
     });
-    expect(result.valid).toBe(false);
-    expect(
-      result.errors.some((e) => e.includes('must be a non-empty string')),
-    ).toBe(true);
+    expect(result.valid).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it('passes with boolean values in mapping', () => {
+    const result = validateOutputStep({
+      mapping: { active: true, deleted: false },
+    });
+    expect(result.valid).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it('passes with null values in mapping', () => {
+    const result = validateOutputStep({
+      mapping: { data: null },
+    });
+    expect(result.valid).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it('passes with array and object values in mapping', () => {
+    const result = validateOutputStep({
+      mapping: {
+        items: [1, 2, 3],
+        nested: { key: 'value' },
+      },
+    });
+    expect(result.valid).toBe(true);
+    expect(result.errors).toHaveLength(0);
   });
 
   it('fails when mapping value is empty string', () => {
