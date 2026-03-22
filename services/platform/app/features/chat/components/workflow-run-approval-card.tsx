@@ -17,7 +17,7 @@ import {
   Square,
   XCircle,
 } from 'lucide-react';
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -43,7 +43,9 @@ import {
   useWorkflowHumanInputApproval,
 } from '@/app/features/chat/hooks/use-execution-status';
 import { useAuth } from '@/app/hooks/use-convex-auth';
+import { useCopyButton } from '@/app/hooks/use-copy';
 import { useT } from '@/lib/i18n/client';
+import { FEEDBACK_KEY } from '@/lib/shared/schemas/approvals';
 import { cn } from '@/lib/utils/cn';
 import { stripLeadingPunctuation } from '@/lib/utils/text';
 
@@ -548,7 +550,7 @@ interface WorkflowHumanInputSectionProps {
   formValues: Record<string, string | string[]>;
   onFormValuesChange: (values: Record<string, string | string[]>) => void;
   isSubmitting: boolean;
-  onSubmit: (response: string | string[]) => void;
+  onSubmit: (response: string) => void;
 }
 
 function WorkflowHumanInputSection({
@@ -577,10 +579,7 @@ function WorkflowHumanInputSection({
       typeof f.type === 'string',
   );
 
-  const [isCopied, setIsCopied] = useState(false);
-  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
-
-  const handleCopyQuestions = useCallback(async () => {
+  const copyText = useMemo(() => {
     const lines = fields.map((field) => {
       const parts = [`- ${field.label}`];
       if (field.description) parts.push(`  ${field.description}`);
@@ -593,29 +592,50 @@ function WorkflowHumanInputSection({
       }
       return parts.join('\n');
     });
-    const text = `${question}\n\n${lines.join('\n')}`;
-
-    try {
-      await navigator.clipboard.writeText(text);
-      setIsCopied(true);
-      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
-      copyTimeoutRef.current = setTimeout(() => setIsCopied(false), 2000);
-    } catch {
-      // Clipboard API may fail in some environments
-    }
+    return `${question}\n\n${lines.join('\n')}`;
   }, [question, fields]);
+
+  const { copied: isCopied, onClick: handleCopyQuestions } =
+    useCopyButton(copyText);
 
   const [showFeedback, setShowFeedback] = useState(false);
   const [feedbackText, setFeedbackText] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = useCallback(() => {
+    for (const field of fields) {
+      if (!field.required) continue;
+      const value = formValues[field.label];
+
+      if (field.type === 'single_select' || field.type === 'yes_no') {
+        if (!value || (typeof value === 'string' && !value.trim())) {
+          setError(t('errorSelectRequired'));
+          return;
+        }
+      } else if (field.type === 'multi_select') {
+        if (!value || !Array.isArray(value) || value.length === 0) {
+          setError(t('errorSelectRequired'));
+          return;
+        }
+      } else {
+        if (!value || (typeof value === 'string' && !value.trim())) {
+          setError(t('errorFillRequiredFields'));
+          return;
+        }
+      }
+    }
+    setError(null);
     onSubmit(JSON.stringify(formValues));
-  }, [formValues, onSubmit]);
+  }, [t, fields, formValues, onSubmit]);
 
   const handleSubmitFeedback = useCallback(() => {
-    if (!feedbackText.trim()) return;
-    onSubmit(JSON.stringify({ __feedback__: feedbackText.trim() }));
-  }, [feedbackText, onSubmit]);
+    if (!feedbackText.trim()) {
+      setError(t('errorFeedbackRequired'));
+      return;
+    }
+    setError(null);
+    onSubmit(JSON.stringify({ [FEEDBACK_KEY]: feedbackText.trim() }));
+  }, [t, feedbackText, onSubmit]);
 
   return (
     <Stack gap={3} className="mb-3">
@@ -667,6 +687,7 @@ function WorkflowHumanInputSection({
               setFeedbackText(e.target.value)
             }
             placeholder={t('pushbackPlaceholder')}
+            aria-label={t('pushback')}
             className="min-h-[80px] text-sm"
             disabled={isSubmitting}
             autoFocus
@@ -728,6 +749,13 @@ function WorkflowHumanInputSection({
             {t('pushback')}
           </button>
         </>
+      )}
+
+      {error && (
+        <HStack role="alert" className="text-destructive gap-1.5 text-xs">
+          <XCircle className="size-3.5" aria-hidden="true" />
+          {error}
+        </HStack>
       )}
     </Stack>
   );

@@ -5,6 +5,8 @@
 import type { Id } from '../../../../../_generated/dataModel';
 import type { ActionCtx } from '../../../../../_generated/server';
 
+import { FEEDBACK_KEY } from '../../../../../../lib/shared/schemas/approvals';
+import { getString, isRecord } from '../../../../../../lib/utils/type-guards';
 import { internal } from '../../../../../_generated/api';
 import { createDebugLog } from '../../../../../lib/debug_log';
 import { toId } from '../../../../../lib/type_cast_helpers';
@@ -35,19 +37,9 @@ export async function buildHumanInputContext(
     }
     try {
       const parsed: unknown = JSON.parse(response);
-      if (
-        typeof parsed === 'object' &&
-        parsed !== null &&
-        !Array.isArray(parsed)
-      ) {
-        // Detect feedback response
-        const feedbackVal =
-          '__feedback__' in parsed
-            ? String(
-                (parsed as Record<string, unknown>)['__feedback__'], // oxlint-disable-line typescript/no-unsafe-type-assertion -- narrowed by 'in' check
-              )
-            : undefined;
-        if (feedbackVal) {
+      if (isRecord(parsed)) {
+        const feedbackVal = getString(parsed, FEEDBACK_KEY);
+        if (feedbackVal !== undefined) {
           return `[FEEDBACK] ${escapeForContext(feedbackVal)}`;
         }
         return Object.entries(parsed)
@@ -59,8 +51,8 @@ export async function buildHumanInputContext(
           })
           .join('; ');
       }
-    } catch {
-      // Not JSON, fall through to plain string
+    } catch (e) {
+      console.error('Failed to parse human input response JSON:', e);
     }
     return escapeForContext(response);
   };
@@ -68,6 +60,7 @@ export async function buildHumanInputContext(
   return [
     '<human_input_context>',
     'The following information was provided by the user during this workflow. Use these values for the EXACT questions listed below — do not re-ask these specific questions. If you need NEW or DIFFERENT information not covered here, you MUST call request_human_input again.',
+    'IMPORTANT: If an answer starts with [FEEDBACK], it means the user rejected the question framing or wants a different approach. Do NOT treat it as a real answer. Instead, reformulate your approach based on the feedback and call request_human_input again with revised questions.',
     ...respondedApprovals.map(
       (a: { question: string; response: string | string[] }) =>
         `- Q: "${escapeForContext(a.question)}" → A: "${formatResponse(a.response)}"`,

@@ -6,6 +6,8 @@ import { v } from 'convex/values';
 
 import type { HumanInputRequestMetadata } from '../../../lib/shared/schemas/approvals';
 
+import { FEEDBACK_KEY } from '../../../lib/shared/schemas/approvals';
+import { getString, isRecord } from '../../../lib/utils/type-guards';
 import { components, internal } from '../../_generated/api';
 import { mutation } from '../../_generated/server';
 import { toSerializableConfig } from '../../custom_agents/config';
@@ -95,19 +97,9 @@ export const submitHumanInputResponse = mutation({
     if (typeof args.response === 'string') {
       try {
         const parsed: unknown = JSON.parse(args.response);
-        if (
-          typeof parsed === 'object' &&
-          parsed !== null &&
-          !Array.isArray(parsed)
-        ) {
-          // Detect feedback response
-          const feedbackVal =
-            '__feedback__' in parsed
-              ? String(
-                  (parsed as Record<string, unknown>)['__feedback__'], // oxlint-disable-line typescript/no-unsafe-type-assertion -- narrowed by 'in' check
-                )
-              : undefined;
-          if (feedbackVal) {
+        if (isRecord(parsed)) {
+          const feedbackVal = getString(parsed, FEEDBACK_KEY);
+          if (feedbackVal !== undefined) {
             responseDisplay = `[Feedback] ${feedbackVal}`;
           } else {
             responseDisplay = Object.entries(parsed)
@@ -122,7 +114,8 @@ export const submitHumanInputResponse = mutation({
         } else {
           responseDisplay = args.response;
         }
-      } catch {
+      } catch (e) {
+        console.error('Failed to parse human input response JSON:', e);
         responseDisplay = args.response;
       }
     } else {

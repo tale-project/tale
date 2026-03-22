@@ -11,7 +11,7 @@ import {
   Send,
   Square,
 } from 'lucide-react';
-import { memo, useCallback, useRef, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -24,10 +24,13 @@ import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
+import { useCopyButton } from '@/app/hooks/use-copy';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
+import { FEEDBACK_KEY } from '@/lib/shared/schemas/approvals';
 import { cn } from '@/lib/utils/cn';
 import { stripLeadingPunctuation } from '@/lib/utils/text';
+import { getString, isRecord } from '@/lib/utils/type-guards';
 
 import { useSubmitHumanInputResponse } from '../hooks/mutations';
 import { useCancelExecution } from '../hooks/use-execution-status';
@@ -89,11 +92,11 @@ function HumanInputRequestCardComponent({
 
   const handleSubmitFeedback = useCallback(() => {
     if (!feedbackText.trim()) {
-      setError(t('errorFillRequiredFields'));
+      setError(t('errorFeedbackRequired'));
       return;
     }
     setError(null);
-    const response = JSON.stringify({ __feedback__: feedbackText.trim() });
+    const response = JSON.stringify({ [FEEDBACK_KEY]: feedbackText.trim() });
     submitResponse(
       { approvalId, response },
       {
@@ -120,10 +123,7 @@ function HumanInputRequestCardComponent({
     onResponseSubmitted,
   ]);
 
-  const [isCopied, setIsCopied] = useState(false);
-  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
-
-  const handleCopyQuestions = useCallback(async () => {
+  const copyText = useMemo(() => {
     const fields = metadata.fields ?? [];
     const lines = fields.map((field) => {
       const parts = [`- ${field.label}`];
@@ -137,17 +137,11 @@ function HumanInputRequestCardComponent({
       }
       return parts.join('\n');
     });
-    const text = `${metadata.question}\n\n${lines.join('\n')}`;
-
-    try {
-      await navigator.clipboard.writeText(text);
-      setIsCopied(true);
-      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
-      copyTimeoutRef.current = setTimeout(() => setIsCopied(false), 2000);
-    } catch {
-      // Clipboard API may fail in some environments
-    }
+    return `${metadata.question}\n\n${lines.join('\n')}`;
   }, [metadata.question, metadata.fields]);
+
+  const { copied: isCopied, onClick: handleCopyQuestions } =
+    useCopyButton(copyText);
 
   const isPending = status === 'pending';
 
@@ -217,17 +211,9 @@ function HumanInputRequestCardComponent({
     if (typeof value === 'string') {
       try {
         const parsed: unknown = JSON.parse(value);
-        if (
-          typeof parsed === 'object' &&
-          parsed !== null &&
-          !Array.isArray(parsed)
-        ) {
-          // Check for feedback response
-          const feedbackVal =
-            '__feedback__' in parsed
-              ? (parsed as Record<string, unknown>)['__feedback__'] // oxlint-disable-line typescript/no-unsafe-type-assertion -- narrowed by 'in' check above
-              : undefined;
-          if (typeof feedbackVal === 'string') {
+        if (isRecord(parsed)) {
+          const feedbackVal = getString(parsed, FEEDBACK_KEY);
+          if (feedbackVal !== undefined) {
             displayContent = (
               <Text as="div" variant="label" className="italic">
                 {feedbackVal}
@@ -256,7 +242,8 @@ function HumanInputRequestCardComponent({
             </Text>
           );
         }
-      } catch {
+      } catch (e) {
+        console.error('Failed to parse human input response JSON:', e);
         displayContent = (
           <Text as="div" variant="label">
             {value}
@@ -350,6 +337,7 @@ function HumanInputRequestCardComponent({
                   setFeedbackText(e.target.value)
                 }
                 placeholder={t('pushbackPlaceholder')}
+                aria-label={t('pushback')}
                 className="min-h-[80px] text-sm"
                 disabled={isSubmitting}
                 autoFocus
@@ -412,8 +400,8 @@ function HumanInputRequestCardComponent({
 
           {/* Error Message */}
           {error && (
-            <HStack className="text-destructive gap-1.5 text-xs">
-              <XCircle className="size-3.5" />
+            <HStack role="alert" className="text-destructive gap-1.5 text-xs">
+              <XCircle className="size-3.5" aria-hidden="true" />
               {error}
             </HStack>
           )}
@@ -474,6 +462,7 @@ export const HumanInputRequestCard = memo(
     return (
       prevProps.approvalId === nextProps.approvalId &&
       prevProps.status === nextProps.status &&
+      prevProps.metadata === nextProps.metadata &&
       prevProps.isWorkflowContext === nextProps.isWorkflowContext &&
       prevProps.wfExecutionId === nextProps.wfExecutionId &&
       prevProps.className === nextProps.className &&

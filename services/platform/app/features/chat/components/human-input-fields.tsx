@@ -14,7 +14,6 @@ import {
 } from '@/app/components/ui/forms/radio-group';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Stack } from '@/app/components/ui/layout/layout';
-import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 interface HumanInputFieldsProps {
@@ -39,8 +38,6 @@ function HumanInputFieldsComponent({
   formValues,
   onFormValuesChange,
 }: HumanInputFieldsProps) {
-  const { t } = useT('humanInputRequest');
-
   const updateField = useCallback(
     (label: string, value: string | string[]) => {
       onFormValuesChange({ ...formValues, [label]: value });
@@ -57,33 +54,6 @@ function HumanInputFieldsComponent({
       updateField(fieldLabel, updated);
     },
     [formValues, updateField],
-  );
-
-  return (
-    <Stack gap={4}>
-      {fields.map((field) => {
-        const fieldId = `form-field-${field.label.replace(/\s+/g, '-').toLowerCase()}`;
-        return (
-          <Stack key={field.label} gap={1}>
-            <Label htmlFor={fieldId} className="text-sm font-medium">
-              {field.label}
-              {field.required && (
-                <span
-                  className="text-destructive ml-1"
-                  aria-label={t('formFieldRequired')}
-                >
-                  *
-                </span>
-              )}
-            </Label>
-            {field.description && (
-              <Description className="text-xs">{field.description}</Description>
-            )}
-            {renderFieldInput(field, fieldId)}
-          </Stack>
-        );
-      })}
-    </Stack>
   );
 
   function renderFieldInput(field: HumanInputField, fieldId: string) {
@@ -128,45 +98,38 @@ function HumanInputFieldsComponent({
             onValueChange={(val: string) => updateField(field.label, val)}
             className="space-y-2"
             disabled={disabled}
+            aria-label={field.label}
           >
             {options.map((option) => {
               const value = getOptionValue(option);
               const isSelected = selectedValue === value;
               return (
-                <button
-                  type="button"
+                <label
                   key={value}
-                  role="radio"
-                  aria-checked={isSelected}
                   className={cn(
-                    'flex items-start space-x-3 p-3 rounded-lg border transition-all cursor-pointer',
+                    'flex items-start space-x-3 p-3 rounded-lg border transition-all',
+                    disabled
+                      ? 'cursor-not-allowed opacity-60'
+                      : 'cursor-pointer',
                     isSelected
                       ? 'border-primary bg-primary/5'
                       : 'border-border hover:border-primary/50 hover:bg-muted/30',
                   )}
-                  onClick={() => updateField(field.label, value)}
                 >
                   <RadioGroupItem
                     value={value}
                     id={`${fieldId}-${value}`}
                     className="mt-0.5"
-                    tabIndex={-1}
-                    aria-hidden="true"
                   />
                   <div className="flex-1">
-                    <Label
-                      htmlFor={`${fieldId}-${value}`}
-                      className="cursor-pointer text-sm font-medium"
-                    >
-                      {option.label}
-                    </Label>
+                    <span className="text-sm font-medium">{option.label}</span>
                     {option.description && (
                       <Description className="mt-1 text-xs">
                         {option.description}
                       </Description>
                     )}
                   </div>
-                </button>
+                </label>
               );
             })}
           </RadioGroup>
@@ -182,17 +145,17 @@ function HumanInputFieldsComponent({
               const value = getOptionValue(option);
               const isChecked = selectedValues.includes(value);
               return (
-                <button
-                  type="button"
+                <label
                   key={value}
-                  aria-pressed={isChecked}
                   className={cn(
-                    'flex items-start space-x-3 p-3 rounded-lg border transition-all cursor-pointer',
+                    'flex items-start space-x-3 p-3 rounded-lg border transition-all',
+                    disabled
+                      ? 'cursor-not-allowed opacity-60'
+                      : 'cursor-pointer',
                     isChecked
                       ? 'border-primary bg-primary/5'
                       : 'border-border hover:border-primary/50 hover:bg-muted/30',
                   )}
-                  onClick={() => toggleMultiSelect(field.label, value)}
                 >
                   <Checkbox
                     checked={isChecked}
@@ -202,23 +165,16 @@ function HumanInputFieldsComponent({
                     id={`${fieldId}-${value}`}
                     disabled={disabled}
                     className="mt-0.5"
-                    tabIndex={-1}
-                    aria-hidden="true"
                   />
                   <div className="flex-1">
-                    <Label
-                      htmlFor={`${fieldId}-${value}`}
-                      className="cursor-pointer text-sm font-medium"
-                    >
-                      {option.label}
-                    </Label>
+                    <span className="text-sm font-medium">{option.label}</span>
                     {option.description && (
                       <Description className="mt-1 text-xs">
                         {option.description}
                       </Description>
                     )}
                   </div>
-                </button>
+                </label>
               );
             })}
           </Stack>
@@ -229,6 +185,30 @@ function HumanInputFieldsComponent({
         return null;
     }
   }
+
+  return (
+    <Stack gap={4}>
+      {fields.map((field) => {
+        const fieldId = `form-field-${field.label.replace(/\s+/g, '-').toLowerCase()}`;
+        return (
+          <Stack key={field.label} gap={1}>
+            <Label htmlFor={fieldId} className="text-sm font-medium">
+              {field.label}
+              {field.required && (
+                <span className="text-destructive ml-1" aria-hidden="true">
+                  *
+                </span>
+              )}
+            </Label>
+            {field.description && (
+              <Description className="text-xs">{field.description}</Description>
+            )}
+            {renderFieldInput(field, fieldId)}
+          </Stack>
+        );
+      })}
+    </Stack>
+  );
 }
 
 export const HumanInputFields = memo(HumanInputFieldsComponent);
