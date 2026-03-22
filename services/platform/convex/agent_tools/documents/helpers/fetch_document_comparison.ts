@@ -71,7 +71,7 @@ export interface DiffStats {
 }
 
 export interface DocumentInfo {
-  documentId: string;
+  fileId: string;
   title: string | null;
 }
 
@@ -173,11 +173,11 @@ export async function fetchDocumentComparison(
 function mapRagResponse(result: RagCompareResponse): DocumentComparisonResult {
   return {
     baseDocument: {
-      documentId: result.base_document.document_id,
+      fileId: result.base_document.document_id,
       title: result.base_document.title,
     },
     comparisonDocument: {
-      documentId: result.comparison_document.document_id,
+      fileId: result.comparison_document.document_id,
       title: result.comparison_document.title,
     },
     changeBlocks: result.change_blocks.map(mapChangeBlock),

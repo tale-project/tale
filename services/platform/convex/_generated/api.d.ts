@@ -216,6 +216,7 @@ import type * as documents_create_onedrive_sync_config from "../documents/create
 import type * as documents_delete_document from "../documents/delete_document.js";
 import type * as documents_extract_extension from "../documents/extract_extension.js";
 import type * as documents_find_document_by_external_id from "../documents/find_document_by_external_id.js";
+import type * as documents_find_document_by_file_id from "../documents/find_document_by_file_id.js";
 import type * as documents_find_document_by_title from "../documents/find_document_by_title.js";
 import type * as documents_generate_document from "../documents/generate_document.js";
 import type * as documents_generate_document_helpers from "../documents/generate_document_helpers.js";
@@ -1077,6 +1078,7 @@ declare const fullApi: ApiFromModules<{
   "documents/delete_document": typeof documents_delete_document;
   "documents/extract_extension": typeof documents_extract_extension;
   "documents/find_document_by_external_id": typeof documents_find_document_by_external_id;
+  "documents/find_document_by_file_id": typeof documents_find_document_by_file_id;
   "documents/find_document_by_title": typeof documents_find_document_by_title;
   "documents/generate_document": typeof documents_generate_document;
   "documents/generate_document_helpers": typeof documents_generate_document_helpers;

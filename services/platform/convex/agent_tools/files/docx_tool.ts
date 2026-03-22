@@ -25,8 +25,7 @@ interface ListTemplatesResult {
   operation: 'list_templates';
   success: boolean;
   templates: Array<{
-    documentId: string;
-    storageId: string;
+    fileId: string;
     title: string;
     createdAt: number;
   }>;
@@ -231,8 +230,7 @@ AFTER GENERATING: The file automatically appears as a download card in the chat.
               (doc): doc is typeof doc & { fileId: string } => !!doc.fileId,
             )
             .map((doc) => ({
-              documentId: doc._id,
-              storageId: doc.fileId,
+              fileId: doc.fileId,
               title: doc.title ?? 'Untitled Document',
               createdAt: doc._creationTime,
             }));
@@ -248,7 +246,7 @@ AFTER GENERATING: The file automatically appears as a download card in the chat.
             totalCount: templates.length,
             message:
               templates.length > 0
-                ? `Found ${templates.length} DOCX template(s). Use the storageId when referencing these templates.`
+                ? `Found ${templates.length} DOCX template(s). Use the fileId when referencing these templates.`
                 : 'No DOCX templates found. Upload a DOCX file first to use it as a template.',
           };
         } catch (error) {

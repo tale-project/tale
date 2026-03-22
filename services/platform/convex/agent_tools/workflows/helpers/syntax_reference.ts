@@ -256,7 +256,7 @@ For external APIs (Shopify, Circuly, etc.)
 \`\`\`
 
 ### document
-Operations: create, update, retrieve, generate_docx, get_metadata, compare, extract_docx_structured, apply_docx_structured
+Operations: create, update, retrieve, list, generate_docx, get_metadata, compare, extract_docx_structured, apply_docx_structured
 
 **create** — Save a file to the documents hub:
 \`\`\`json
@@ -275,19 +275,19 @@ Operations: create, update, retrieve, generate_docx, get_metadata, compare, extr
 - folderPath: slash-separated folder path, created automatically if missing (optional)
 - Requires organizationId in workflow variables (auto-injected)
 
-**update** — Update an existing document by ID:
+**update** — Update an existing document by file ID:
 \`\`\`json
 {
   "type": "document",
   "parameters": {
     "operation": "update",
-    "documentId": "{{steps.find_doc.output.data._id}}",
+    "fileId": "{{steps.find_doc.output.data.fileId}}",
     "title": "Updated Title",
     "content": "New content"
   }
 }
 \`\`\`
-- documentId: required
+- fileId: required
 - Optional: title, content, mimeType, extension, metadata, sourceProvider
 
 **retrieve** — Fetch document content by file ID:

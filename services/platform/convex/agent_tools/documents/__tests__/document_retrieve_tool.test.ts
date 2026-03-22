@@ -8,7 +8,7 @@ vi.mock('../../../_generated/api', () => ({
     documents: {
       internal_queries: {
         getAccessibleDocumentIds: 'mock-get-accessible-document-ids',
-        getDocumentByIdRaw: 'mock-get-document-by-id-raw',
+        findDocumentByFileId: 'mock-find-document-by-file-id',
       },
     },
   },
@@ -23,8 +23,12 @@ const originalFetch = globalThis.fetch;
 function createMockCtx(overrides?: Record<string, unknown>) {
   const runQuery = vi
     .fn()
-    .mockResolvedValueOnce(['doc123', 'doc456']) // getAccessibleDocumentIds
-    .mockResolvedValueOnce({ fileId: 'file-storage-123', title: 'Test' }); // getDocumentByIdRaw
+    .mockResolvedValueOnce({
+      _id: 'doc123',
+      fileId: 'file-storage-123',
+      title: 'Test',
+    }) // findDocumentByFileId
+    .mockResolvedValueOnce(['doc123', 'doc456']); // getAccessibleDocumentIds
   return {
     organizationId: 'org1',
     userId: 'user1',
@@ -70,7 +74,7 @@ describe('retrieveDocument helper', () => {
     const ctx = createMockCtx();
 
     const result = await retrieveDocument(ctx as never, {
-      documentId: 'doc123',
+      fileId: 'file-storage-123',
     });
 
     expect(result).toEqual({
@@ -88,7 +92,7 @@ describe('retrieveDocument helper', () => {
     const ctx = createMockCtx();
 
     await retrieveDocument(ctx as never, {
-      documentId: 'doc123',
+      fileId: 'file-storage-123',
       chunkStart: 5,
       chunkEnd: 15,
     });
@@ -102,7 +106,7 @@ describe('retrieveDocument helper', () => {
   it('omits query params when chunkStart and chunkEnd not provided', async () => {
     const ctx = createMockCtx();
 
-    await retrieveDocument(ctx as never, { documentId: 'doc123' });
+    await retrieveDocument(ctx as never, { fileId: 'file-storage-123' });
 
     const fetchCall = vi.mocked(globalThis.fetch).mock.calls[0];
     const url = fetchCall?.[0] ?? '';
@@ -114,7 +118,7 @@ describe('retrieveDocument helper', () => {
   it('uses file storage ID in RAG URL, not document ID', async () => {
     const ctx = createMockCtx();
 
-    await retrieveDocument(ctx as never, { documentId: 'doc123' });
+    await retrieveDocument(ctx as never, { fileId: 'file-storage-123' });
 
     const fetchCall = vi.mocked(globalThis.fetch).mock.calls[0];
     const url = fetchCall?.[0] ?? '';
@@ -130,7 +134,7 @@ describe('retrieveDocument helper', () => {
     const ctx = createMockCtx();
 
     const result = await retrieveDocument(ctx as never, {
-      documentId: 'doc123',
+      fileId: 'file-storage-123',
     });
 
     expect(result.truncated).toBe(true);
@@ -145,7 +149,7 @@ describe('retrieveDocument helper', () => {
     const ctx = createMockCtx();
 
     const result = await retrieveDocument(ctx as never, {
-      documentId: 'doc123',
+      fileId: 'file-storage-123',
     });
 
     expect(result.truncated).toBe(false);
@@ -156,7 +160,7 @@ describe('retrieveDocument helper', () => {
     const ctx = createMockCtx({ organizationId: undefined });
 
     await expect(
-      retrieveDocument(ctx as never, { documentId: 'doc123' }),
+      retrieveDocument(ctx as never, { fileId: 'file-storage-123' }),
     ).rejects.toThrow('organizationId is required');
   });
 
@@ -164,30 +168,34 @@ describe('retrieveDocument helper', () => {
     const ctx = createMockCtx({ userId: undefined });
 
     await expect(
-      retrieveDocument(ctx as never, { documentId: 'doc123' }),
+      retrieveDocument(ctx as never, { fileId: 'file-storage-123' }),
     ).rejects.toThrow('userId is required');
   });
 
-  it('throws when document is not in accessible IDs', async () => {
+  it('throws when fileId is not found', async () => {
     const ctx = createMockCtx({
-      runQuery: vi.fn().mockResolvedValue(['other-doc']),
+      runQuery: vi.fn().mockResolvedValueOnce(null), // findDocumentByFileId returns null
     });
 
     await expect(
-      retrieveDocument(ctx as never, { documentId: 'doc123' }),
-    ).rejects.toThrow('Document not found or access denied');
+      retrieveDocument(ctx as never, { fileId: 'nonexistent-file' }),
+    ).rejects.toThrow('Document not found');
   });
 
-  it('throws when document has no fileId', async () => {
+  it('throws when document is not in accessible IDs', async () => {
     const runQuery = vi
       .fn()
-      .mockResolvedValueOnce(['doc123'])
-      .mockResolvedValueOnce({ fileId: undefined, title: 'Test' });
+      .mockResolvedValueOnce({
+        _id: 'doc123',
+        fileId: 'file-storage-123',
+        title: 'Test',
+      }) // findDocumentByFileId
+      .mockResolvedValueOnce(['other-doc']); // getAccessibleDocumentIds — doc123 not included
     const ctx = createMockCtx({ runQuery });
 
     await expect(
-      retrieveDocument(ctx as never, { documentId: 'doc123' }),
-    ).rejects.toThrow('has no file associated');
+      retrieveDocument(ctx as never, { fileId: 'file-storage-123' }),
+    ).rejects.toThrow('Access denied for document');
   });
 
   it('throws graceful message on RAG 404', async () => {
@@ -198,7 +206,7 @@ describe('retrieveDocument helper', () => {
     const ctx = createMockCtx();
 
     await expect(
-      retrieveDocument(ctx as never, { documentId: 'doc123' }),
+      retrieveDocument(ctx as never, { fileId: 'file-storage-123' }),
     ).rejects.toThrow('was not found in the knowledge base');
   });
 
@@ -214,7 +222,7 @@ describe('retrieveDocument helper', () => {
     const ctx = createMockCtx();
 
     await expect(
-      retrieveDocument(ctx as never, { documentId: 'doc123' }),
+      retrieveDocument(ctx as never, { fileId: 'file-storage-123' }),
     ).rejects.toThrow('RAG service error (500)');
   });
 
@@ -231,7 +239,7 @@ describe('retrieveDocument helper', () => {
     const ctx = createMockCtx();
 
     await expect(
-      retrieveDocument(ctx as never, { documentId: 'doc123' }),
+      retrieveDocument(ctx as never, { fileId: 'file-storage-123' }),
     ).rejects.toThrow('Failed to parse RAG response');
   });
 
@@ -240,7 +248,7 @@ describe('retrieveDocument helper', () => {
     const ctx = createMockCtx();
 
     const result = await retrieveDocument(ctx as never, {
-      documentId: 'doc123',
+      fileId: 'file-storage-123',
     });
 
     expect(result.content).toBe('');
@@ -250,12 +258,16 @@ describe('retrieveDocument helper', () => {
   it('uses encodeURIComponent for fileId in URL', async () => {
     const runQuery = vi
       .fn()
-      .mockResolvedValueOnce(['doc/with/slashes'])
-      .mockResolvedValueOnce({ fileId: 'file/with/slashes', title: 'Test' });
+      .mockResolvedValueOnce({
+        _id: 'doc-slashes',
+        fileId: 'file/with/slashes',
+        title: 'Test',
+      }) // findDocumentByFileId
+      .mockResolvedValueOnce(['doc-slashes']); // getAccessibleDocumentIds
     const ctx = createMockCtx({ runQuery });
 
     await retrieveDocument(ctx as never, {
-      documentId: 'doc/with/slashes',
+      fileId: 'file/with/slashes',
     });
 
     const fetchCall = vi.mocked(globalThis.fetch).mock.calls[0];
@@ -275,7 +287,7 @@ describe('retrieveDocument helper', () => {
     const ctx = createMockCtx();
 
     await expect(
-      retrieveDocument(ctx as never, { documentId: 'doc123' }),
+      retrieveDocument(ctx as never, { fileId: 'file-storage-123' }),
     ).rejects.toThrow('timed out after 60s');
   });
 
@@ -287,7 +299,7 @@ describe('retrieveDocument helper', () => {
     const ctx = createMockCtx();
 
     await expect(
-      retrieveDocument(ctx as never, { documentId: 'doc123' }),
+      retrieveDocument(ctx as never, { fileId: 'file-storage-123' }),
     ).rejects.toThrow('Failed to fetch');
   });
 
@@ -296,7 +308,7 @@ describe('retrieveDocument helper', () => {
     const ctx = createMockCtx();
 
     const result = await retrieveDocument(ctx as never, {
-      documentId: 'doc123',
+      fileId: 'file-storage-123',
     });
 
     expect(result.name).toBe('Untitled');
@@ -304,16 +316,16 @@ describe('retrieveDocument helper', () => {
 });
 
 describe('documentRetrieveArgs schema validation', () => {
-  it('accepts valid documentId only', () => {
-    const result = documentRetrieveArgs.parse({ documentId: 'abc123' });
-    expect(result.documentId).toBe('abc123');
+  it('accepts valid fileId only', () => {
+    const result = documentRetrieveArgs.parse({ fileId: 'abc123' });
+    expect(result.fileId).toBe('abc123');
     expect(result.chunkStart).toBeUndefined();
     expect(result.chunkEnd).toBeUndefined();
   });
 
-  it('accepts documentId with chunkStart and chunkEnd', () => {
+  it('accepts fileId with chunkStart and chunkEnd', () => {
     const result = documentRetrieveArgs.parse({
-      documentId: 'abc123',
+      fileId: 'abc123',
       chunkStart: 1,
       chunkEnd: 10,
     });
@@ -321,32 +333,32 @@ describe('documentRetrieveArgs schema validation', () => {
     expect(result.chunkEnd).toBe(10);
   });
 
-  it('rejects empty documentId', () => {
-    expect(() => documentRetrieveArgs.parse({ documentId: '' })).toThrow();
+  it('rejects empty fileId', () => {
+    expect(() => documentRetrieveArgs.parse({ fileId: '' })).toThrow();
   });
 
   it('rejects chunkStart below 1', () => {
     expect(() =>
-      documentRetrieveArgs.parse({ documentId: 'abc', chunkStart: 0 }),
+      documentRetrieveArgs.parse({ fileId: 'abc', chunkStart: 0 }),
     ).toThrow();
   });
 
   it('rejects chunkEnd below 1', () => {
     expect(() =>
-      documentRetrieveArgs.parse({ documentId: 'abc', chunkEnd: 0 }),
+      documentRetrieveArgs.parse({ fileId: 'abc', chunkEnd: 0 }),
     ).toThrow();
   });
 
   it('rejects non-integer chunkStart', () => {
     expect(() =>
-      documentRetrieveArgs.parse({ documentId: 'abc', chunkStart: 1.5 }),
+      documentRetrieveArgs.parse({ fileId: 'abc', chunkStart: 1.5 }),
     ).toThrow();
   });
 
   it('rejects chunkStart greater than chunkEnd', () => {
     expect(() =>
       documentRetrieveArgs.parse({
-        documentId: 'abc',
+        fileId: 'abc',
         chunkStart: 10,
         chunkEnd: 5,
       }),
@@ -356,7 +368,7 @@ describe('documentRetrieveArgs schema validation', () => {
   it('rejects chunk range exceeding 100', () => {
     expect(() =>
       documentRetrieveArgs.parse({
-        documentId: 'abc',
+        fileId: 'abc',
         chunkStart: 1,
         chunkEnd: 200,
       }),
@@ -365,7 +377,7 @@ describe('documentRetrieveArgs schema validation', () => {
 
   it('accepts chunkStart without chunkEnd', () => {
     const result = documentRetrieveArgs.parse({
-      documentId: 'abc',
+      fileId: 'abc',
       chunkStart: 5,
     });
     expect(result.chunkStart).toBe(5);
@@ -374,7 +386,7 @@ describe('documentRetrieveArgs schema validation', () => {
 
   it('accepts chunkEnd without chunkStart', () => {
     const result = documentRetrieveArgs.parse({
-      documentId: 'abc',
+      fileId: 'abc',
       chunkEnd: 10,
     });
     expect(result.chunkEnd).toBe(10);

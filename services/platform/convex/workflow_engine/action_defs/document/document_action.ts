@@ -11,7 +11,6 @@
 
 import { v } from 'convex/values';
 
-import type { Id } from '../../../_generated/dataModel';
 import type { ActionCtx } from '../../../_generated/server';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 
@@ -61,7 +60,7 @@ async function resolveFileName(
 type DocumentActionParams =
   | {
       operation: 'update';
-      documentId: Id<'documents'>;
+      fileId: string;
       title?: string;
       content?: string;
       mimeType?: string;
@@ -128,7 +127,7 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
   parametersValidator: v.union(
     v.object({
       operation: v.literal('update'),
-      documentId: v.id('documents'),
+      fileId: v.string(),
       title: v.optional(v.string()),
       content: v.optional(v.string()),
       mimeType: v.optional(v.string()),
@@ -192,7 +191,27 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
   async execute(ctx, params, _variables) {
     switch (params.operation) {
       case 'update': {
-        const documentId = params.documentId;
+        const organizationId =
+          typeof _variables.organizationId === 'string'
+            ? _variables.organizationId
+            : undefined;
+
+        if (!organizationId) {
+          throw new Error(
+            'organizationId is required in workflow variables to update a document',
+          );
+        }
+
+        const document = await ctx.runQuery(
+          internal.documents.internal_queries.findDocumentByFileId,
+          { organizationId, fileId: params.fileId },
+        );
+
+        if (!document) {
+          throw new Error(`Document not found for file ID "${params.fileId}"`);
+        }
+
+        const documentId = document._id;
 
         await ctx.runMutation(
           internal.documents.internal_mutations.updateDocument,
@@ -216,7 +235,7 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
 
         if (!updatedDocument) {
           throw new Error(
-            `Failed to fetch updated document with ID "${documentId}"`,
+            `Failed to fetch updated document with file ID "${params.fileId}"`,
           );
         }
 
@@ -323,7 +342,7 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
           );
         }
 
-        const documentId = await ctx.runMutation(
+        await ctx.runMutation(
           internal.documents.internal_mutations.createDocument,
           {
             organizationId,
@@ -338,7 +357,7 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
 
         return {
           success: true,
-          documentId: String(documentId),
+          fileId: params.fileId,
           title: docTitle,
           folderPath: params.folderPath ?? null,
         };
@@ -401,7 +420,6 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
         }
 
         const allDocuments: Array<{
-          id: string;
           fileId: string;
           title: string;
           extension: string | null;

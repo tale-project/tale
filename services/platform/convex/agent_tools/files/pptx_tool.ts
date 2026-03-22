@@ -119,8 +119,7 @@ interface ListTemplatesResult {
   operation: 'list_templates';
   success: boolean;
   templates: Array<{
-    documentId: string;
-    storageId: string;
+    fileId: string;
     title: string;
     createdAt: number;
   }>;
@@ -221,8 +220,7 @@ AFTER GENERATING: The file automatically appears as a download card in the chat.
               (doc): doc is typeof doc & { fileId: string } => !!doc.fileId,
             )
             .map((doc) => ({
-              documentId: doc._id,
-              storageId: doc.fileId,
+              fileId: doc.fileId,
               title: doc.title ?? 'Untitled Template',
               createdAt: doc._creationTime,
             }));
@@ -241,7 +239,7 @@ AFTER GENERATING: The file automatically appears as a download card in the chat.
             totalCount: templates.length,
             message:
               templates.length > 0
-                ? `Found ${templates.length} PPTX template(s). Use the storageId as templateStorageId for generate operations.`
+                ? `Found ${templates.length} PPTX template(s). Use the fileId as templateStorageId for generate operations.`
                 : `No PPTX templates found. The user must upload a .pptx template file to the Knowledge Base first — uploading in the chat will NOT work as a template. Direct the user to: ${knowledgeUrl} . Do NOT attempt to call generate without a template.`,
           };
         } catch (error) {

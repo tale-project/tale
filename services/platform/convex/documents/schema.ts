@@ -59,4 +59,5 @@ export const documentsTable = defineTable({
     'externalItemId',
   ])
   .index('by_organizationId_and_extension', ['organizationId', 'extension'])
-  .index('by_organizationId_and_title', ['organizationId', 'title']);
+  .index('by_organizationId_and_title', ['organizationId', 'title'])
+  .index('by_organizationId_and_fileId', ['organizationId', 'fileId']);
