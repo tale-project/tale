@@ -2,23 +2,28 @@
 
 import { Link } from '@tanstack/react-router';
 import {
+  ArrowLeft,
+  Check,
   CheckCircle,
   ChevronDown,
   ChevronRight,
+  Copy,
   ExternalLink,
   Loader2,
   MessageCircleQuestion,
+  MessageSquareText,
   Play,
   Send,
   Square,
   XCircle,
 } from 'lucide-react';
-import { memo, useCallback, useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 import type { Id } from '@/convex/_generated/dataModel';
 import type { WorkflowRunMetadata } from '@/convex/approvals/types';
+import type { HumanInputField } from '@/lib/shared/schemas/approvals';
 
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Textarea } from '@/app/components/ui/forms/textarea';
@@ -38,10 +43,13 @@ import {
   useWorkflowHumanInputApproval,
 } from '@/app/features/chat/hooks/use-execution-status';
 import { useAuth } from '@/app/hooks/use-convex-auth';
+import { useCopyButton } from '@/app/hooks/use-copy';
 import { useT } from '@/lib/i18n/client';
+import { FEEDBACK_KEY } from '@/lib/shared/schemas/approvals';
 import { cn } from '@/lib/utils/cn';
 import { stripLeadingPunctuation } from '@/lib/utils/text';
 
+import { HumanInputFields } from './human-input-fields';
 import { markdownWrapperStyles } from './message-bubble/markdown-renderer';
 
 interface WorkflowRunApprovalCardProps {
@@ -122,9 +130,9 @@ function WorkflowRunApprovalCardComponent({
 
   const { mutate: submitHumanInput, isPending: isSubmittingHumanInput } =
     useSubmitHumanInputResponse();
-  const [humanInputValue, setHumanInputValue] = useState('');
-  const [humanInputSelected, setHumanInputSelected] = useState<string>('');
-  const [humanInputMulti, setHumanInputMulti] = useState<string[]>([]);
+  const [humanInputFormValues, setHumanInputFormValues] = useState<
+    Record<string, string | string[]>
+  >({});
 
   useEffect(() => {
     if (!isRunning || !executionStatus?.startedAt) return;
@@ -272,12 +280,8 @@ function WorkflowRunApprovalCardComponent({
       {isWaitingForHumanInput && humanInputApproval && (
         <WorkflowHumanInputSection
           approval={humanInputApproval}
-          inputValue={humanInputValue}
-          onInputChange={setHumanInputValue}
-          selectedValue={humanInputSelected}
-          onSelectedChange={setHumanInputSelected}
-          multiValues={humanInputMulti}
-          onMultiChange={setHumanInputMulti}
+          formValues={humanInputFormValues}
+          onFormValuesChange={setHumanInputFormValues}
           isSubmitting={isSubmittingHumanInput}
           onSubmit={(response) => {
             submitHumanInput(
@@ -288,12 +292,8 @@ function WorkflowRunApprovalCardComponent({
               },
               {
                 onSuccess: () => {
-                  // Defer clear so the Convex subscription hides the form first,
-                  // then clear state invisibly for the next human input request
                   setTimeout(() => {
-                    setHumanInputValue('');
-                    setHumanInputSelected('');
-                    setHumanInputMulti([]);
+                    setHumanInputFormValues({});
                   }, 500);
                 },
                 onError: (err) => {
@@ -547,24 +547,16 @@ interface WorkflowHumanInputSectionProps {
     _id: string;
     metadata?: Record<string, unknown> | null;
   };
-  inputValue: string;
-  onInputChange: (value: string) => void;
-  selectedValue: string;
-  onSelectedChange: (value: string) => void;
-  multiValues: string[];
-  onMultiChange: (values: string[]) => void;
+  formValues: Record<string, string | string[]>;
+  onFormValuesChange: (values: Record<string, string | string[]>) => void;
   isSubmitting: boolean;
-  onSubmit: (response: string | string[]) => void;
+  onSubmit: (response: string) => void;
 }
 
 function WorkflowHumanInputSection({
   approval,
-  inputValue,
-  onInputChange,
-  selectedValue,
-  onSelectedChange,
-  multiValues,
-  onMultiChange,
+  formValues,
+  onFormValuesChange,
   isSubmitting,
   onSubmit,
 }: WorkflowHumanInputSectionProps) {
@@ -575,46 +567,106 @@ function WorkflowHumanInputSection({
       ? stripLeadingPunctuation(meta.question)
       : '';
   const context = typeof meta.context === 'string' ? meta.context : undefined;
-  const format = typeof meta.format === 'string' ? meta.format : 'text_input';
-  const rawOptions = Array.isArray(meta.options) ? meta.options : [];
-  const options = rawOptions.filter(
-    (opt): opt is { label: string; value?: string; description?: string } =>
-      typeof opt === 'object' &&
-      opt !== null &&
-      'label' in opt &&
-      typeof opt.label === 'string',
+
+  const rawFields = Array.isArray(meta.fields) ? meta.fields : [];
+  const fields = rawFields.filter(
+    (f): f is HumanInputField =>
+      typeof f === 'object' &&
+      f !== null &&
+      'label' in f &&
+      typeof f.label === 'string' &&
+      'type' in f &&
+      typeof f.type === 'string',
   );
 
-  const getOptionValue = (opt: { label: string; value?: string }) =>
-    opt.value ?? opt.label;
+  const copyText = useMemo(() => {
+    const lines = fields.map((field) => {
+      const parts = [`- ${field.label}`];
+      if (field.description) parts.push(`  ${field.description}`);
+      if ('options' in field && field.options) {
+        for (const opt of field.options) {
+          parts.push(
+            `  - ${opt.label}${opt.description ? ` (${opt.description})` : ''}`,
+          );
+        }
+      }
+      return parts.join('\n');
+    });
+    return `${question}\n\n${lines.join('\n')}`;
+  }, [question, fields]);
+
+  const { copied: isCopied, onClick: handleCopyQuestions } =
+    useCopyButton(copyText);
+
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [feedbackText, setFeedbackText] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = useCallback(() => {
-    switch (format) {
-      case 'text_input':
-        if (inputValue.trim()) onSubmit(inputValue.trim());
-        break;
-      case 'single_select':
-      case 'yes_no':
-        if (selectedValue) onSubmit(selectedValue);
-        break;
-      case 'multi_select':
-        if (multiValues.length > 0) onSubmit(multiValues);
-        break;
+    for (const field of fields) {
+      if (!field.required) continue;
+      const value = formValues[field.label];
+
+      if (field.type === 'single_select' || field.type === 'yes_no') {
+        if (!value || (typeof value === 'string' && !value.trim())) {
+          setError(t('errorSelectRequired'));
+          return;
+        }
+      } else if (field.type === 'multi_select') {
+        if (!value || !Array.isArray(value) || value.length === 0) {
+          setError(t('errorSelectRequired'));
+          return;
+        }
+      } else {
+        if (!value || (typeof value === 'string' && !value.trim())) {
+          setError(t('errorFillRequiredFields'));
+          return;
+        }
+      }
     }
-  }, [format, inputValue, selectedValue, multiValues, onSubmit]);
+    setError(null);
+    onSubmit(JSON.stringify(formValues));
+  }, [t, fields, formValues, onSubmit]);
+
+  const handleSubmitFeedback = useCallback(() => {
+    if (!feedbackText.trim()) {
+      setError(t('errorFeedbackRequired'));
+      return;
+    }
+    setError(null);
+    onSubmit(JSON.stringify({ [FEEDBACK_KEY]: feedbackText.trim() }));
+  }, [t, feedbackText, onSubmit]);
 
   return (
     <Stack gap={3} className="mb-3">
-      <HStack gap={2} align="start">
-        <MessageCircleQuestion className="text-primary mt-0.5 size-4 shrink-0" />
-        <div
-          className={cn(
-            markdownWrapperStyles,
-            'max-w-none text-sm font-medium',
-          )}
-        >
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{question}</ReactMarkdown>
-        </div>
+      <HStack gap={2} align="start" justify="between">
+        <HStack gap={2} align="start" className="min-w-0 flex-1">
+          <MessageCircleQuestion className="text-primary mt-0.5 size-4 shrink-0" />
+          <div
+            className={cn(
+              markdownWrapperStyles,
+              'max-w-none text-sm font-medium',
+            )}
+          >
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {question}
+            </ReactMarkdown>
+          </div>
+        </HStack>
+        <Tooltip content={t('copyQuestions')}>
+          <button
+            type="button"
+            onClick={handleCopyQuestions}
+            aria-label={t('copyQuestions')}
+            className="text-muted-foreground hover:text-foreground shrink-0 cursor-pointer p-1 transition-colors"
+          >
+            {isCopied ? (
+              <Check className="size-3.5 text-green-500" />
+            ) : (
+              <Copy className="size-3.5" />
+            )}
+          </button>
+        </Tooltip>
       </HStack>
       {context && (
         <div
@@ -627,119 +679,84 @@ function WorkflowHumanInputSection({
         </div>
       )}
 
-      {format === 'text_input' && (
-        <Textarea
-          value={inputValue}
-          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-            onInputChange(e.target.value)
-          }
-          placeholder={t('humanInputPlaceholder')}
-          className="min-h-[80px] text-sm"
-          disabled={isSubmitting}
-        />
+      {showFeedback ? (
+        <>
+          <Textarea
+            value={feedbackText}
+            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+              setFeedbackText(e.target.value)
+            }
+            placeholder={t('pushbackPlaceholder')}
+            aria-label={t('pushback')}
+            className="min-h-[80px] text-sm"
+            disabled={isSubmitting}
+            autoFocus
+          />
+          <HStack gap={2}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setShowFeedback(false)}
+              disabled={isSubmitting}
+              className="flex-1"
+            >
+              <ArrowLeft className="mr-2 size-4" />
+              {t('backToForm')}
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleSubmitFeedback}
+              disabled={isSubmitting}
+              className="flex-1"
+            >
+              {isSubmitting ? (
+                <Loader2 className="mr-2 size-4 animate-spin" />
+              ) : (
+                <Send className="mr-2 size-4" />
+              )}
+              {t('sendFeedback')}
+            </Button>
+          </HStack>
+        </>
+      ) : (
+        <>
+          <HumanInputFields
+            fields={fields}
+            disabled={isSubmitting}
+            formValues={formValues}
+            onFormValuesChange={onFormValuesChange}
+          />
+          <Button
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            size="sm"
+            className="w-full"
+          >
+            {isSubmitting ? (
+              <Loader2 className="mr-2 size-4 animate-spin" />
+            ) : (
+              <Send className="mr-2 size-4" />
+            )}
+            {t('submitResponse')}
+          </Button>
+          <button
+            type="button"
+            onClick={() => setShowFeedback(true)}
+            className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center justify-center gap-1.5 text-xs transition-colors"
+          >
+            <MessageSquareText className="size-3" />
+            {t('pushback')}
+          </button>
+        </>
       )}
 
-      {(format === 'single_select' || format === 'yes_no') &&
-        options.map((opt) => {
-          const val = getOptionValue(opt);
-          return (
-            <button
-              key={val}
-              type="button"
-              role="radio"
-              aria-checked={selectedValue === val}
-              className={cn(
-                'flex items-start gap-3 rounded-lg border p-3 text-left transition-all',
-                selectedValue === val
-                  ? 'border-primary bg-primary/5'
-                  : 'border-border hover:border-primary/50 hover:bg-muted/30',
-              )}
-              onClick={() => onSelectedChange(val)}
-              disabled={isSubmitting}
-            >
-              <div
-                aria-hidden="true"
-                className={cn(
-                  'mt-0.5 size-4 shrink-0 rounded-full border-2',
-                  selectedValue === val
-                    ? 'border-primary bg-primary'
-                    : 'border-muted-foreground',
-                )}
-              />
-              <div className="flex-1">
-                <Text as="span" variant="label" className="text-sm">
-                  {opt.label}
-                </Text>
-                {opt.description && (
-                  <Text as="div" variant="caption" className="mt-0.5 text-xs">
-                    {opt.description}
-                  </Text>
-                )}
-              </div>
-            </button>
-          );
-        })}
-
-      {format === 'multi_select' &&
-        options.map((opt) => {
-          const val = getOptionValue(opt);
-          const isChecked = multiValues.includes(val);
-          return (
-            <button
-              key={val}
-              type="button"
-              aria-pressed={isChecked}
-              className={cn(
-                'flex items-start gap-3 rounded-lg border p-3 text-left transition-all',
-                isChecked
-                  ? 'border-primary bg-primary/5'
-                  : 'border-border hover:border-primary/50 hover:bg-muted/30',
-              )}
-              onClick={() =>
-                onMultiChange(
-                  isChecked
-                    ? multiValues.filter((v) => v !== val)
-                    : [...multiValues, val],
-                )
-              }
-              disabled={isSubmitting}
-            >
-              <div
-                aria-hidden="true"
-                className={cn(
-                  'mt-0.5 size-4 shrink-0 rounded border',
-                  isChecked
-                    ? 'border-primary bg-primary'
-                    : 'border-muted-foreground',
-                )}
-              />
-              <div className="flex-1">
-                <Text as="span" variant="label" className="text-sm">
-                  {opt.label}
-                </Text>
-                {opt.description && (
-                  <Text as="div" variant="caption" className="mt-0.5 text-xs">
-                    {opt.description}
-                  </Text>
-                )}
-              </div>
-            </button>
-          );
-        })}
-
-      <Button
-        onClick={handleSubmit}
-        disabled={isSubmitting}
-        size="sm"
-        className="w-full"
-      >
-        {isSubmitting ? (
-          <Loader2 className="mr-2 size-4 animate-spin" />
-        ) : (
-          <Send className="mr-2 size-4" />
-        )}
-        {t('submitResponse')}
-      </Button>
+      {error && (
+        <HStack role="alert" className="text-destructive gap-1.5 text-xs">
+          <XCircle className="size-3.5" aria-hidden="true" />
+          {error}
+        </HStack>
+      )}
     </Stack>
   );
 }

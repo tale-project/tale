@@ -5,6 +5,9 @@
  * This format is understood by LLMs and renders natively in browsers.
  */
 
+import { FEEDBACK_KEY } from '../../../lib/shared/schemas/approvals';
+import { getString, isRecord } from '../../../lib/utils/type-guards';
+
 /**
  * Format compact timestamp (YYYY-MM-DD HH:MM:SS UTC)
  */
@@ -138,16 +141,24 @@ export function formatToolCallSummary(
 export function formatHumanInputRequest(
   id: string,
   question: string,
-  format: string,
+  fields: Array<{
+    label: string;
+    type: string;
+    options?: Array<{ label: string }>;
+  }>,
   context?: string,
-  options?: Array<{ label: string; description?: string; value?: string }>,
   timestamp?: number,
 ): string {
   const t = timestamp ? `[${shortTime(timestamp)}]` : '';
-  const opts = options?.length
-    ? ` Options: ${options.map((o) => o.label).join(', ')}`
-    : '';
-  return `HumanInput${t} (${format}): ${question}${opts}`;
+  const fieldSummaries = fields.map((f) => {
+    const opts = f.options?.length
+      ? ` [${f.options.map((o) => o.label).join(', ')}]`
+      : '';
+    return `${f.label} (${f.type})${opts}`;
+  });
+  const fieldsStr =
+    fieldSummaries.length > 0 ? ` Fields: ${fieldSummaries.join('; ')}` : '';
+  return `HumanInput${t}: ${question}${fieldsStr}`;
 }
 
 /**
@@ -159,7 +170,33 @@ export function formatHumanResponse(
   user: string,
   timestamp: number,
 ): string {
-  const r = typeof response === 'string' ? response : response.join(', ');
+  let r: string;
+  if (Array.isArray(response)) {
+    r = response.join(', ');
+  } else {
+    try {
+      const parsed: unknown = JSON.parse(response);
+      if (isRecord(parsed)) {
+        const feedbackVal = getString(parsed, FEEDBACK_KEY);
+        if (feedbackVal) {
+          r = `[FEEDBACK] ${feedbackVal}`;
+        } else {
+          r = Object.entries(parsed)
+            .map(([key, val]) =>
+              Array.isArray(val)
+                ? `${key}: ${val.join(', ')}`
+                : `${key}: ${String(val)}`,
+            )
+            .join('; ');
+        }
+      } else {
+        r = response;
+      }
+    } catch (e) {
+      console.error('Failed to parse human response JSON:', e);
+      r = response;
+    }
+  }
   return `HumanResponse[${shortTime(timestamp)}] by ${user}: ${r}`;
 }
 

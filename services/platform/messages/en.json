@@ -2114,19 +2114,21 @@
   },
   "humanInputRequest": {
     "questionTitle": "Question",
-    "placeholder": "Type your response...",
     "submit": "Submit response",
     "statusResponded": "Responded",
     "statusProcessing": "Processing",
-    "errorEnterResponse": "Please enter a response",
-    "errorSelectOption": "Please select an option",
-    "errorSelectAtLeastOne": "Please select at least one option",
-    "errorEnterOtherResponse": "Please describe what you'd like",
-    "otherOption": "Something else",
-    "otherOptionDescription": "Tell me what else you'd like",
     "respondedByAt": "Responded by {name} at {date}",
     "stopWorkflow": "Stop",
-    "stopWorkflowTooltip": "Stop the running workflow"
+    "stopWorkflowTooltip": "Stop the running workflow",
+    "formFieldRequired": "Required",
+    "errorFillRequiredFields": "Please fill in all required fields",
+    "errorSelectRequired": "Please make a selection",
+    "errorFeedbackRequired": "Please enter your feedback",
+    "copyQuestions": "Copy questions",
+    "pushback": "Reply differently",
+    "pushbackPlaceholder": "Tell the AI what you'd like instead...",
+    "sendFeedback": "Send feedback",
+    "backToForm": "Back to form"
   },
   "approvalCommon": {
     "reject": "Cancel",
@@ -2193,7 +2195,15 @@
     "errorRunFailed": "Failed to run workflow",
     "errorStopFailed": "Failed to stop execution",
     "humanInputPlaceholder": "Type your response...",
-    "submitResponse": "Submit response"
+    "submitResponse": "Submit response",
+    "copyQuestions": "Copy questions",
+    "pushback": "Reply differently",
+    "pushbackPlaceholder": "Tell the AI what you'd like instead...",
+    "sendFeedback": "Send feedback",
+    "backToForm": "Back to form",
+    "errorFillRequiredFields": "Please fill in all required fields",
+    "errorSelectRequired": "Please make a selection",
+    "errorFeedbackRequired": "Please enter your feedback"
   },
   "documentWriteApproval": {
     "cardTitle": "Save to documents",
