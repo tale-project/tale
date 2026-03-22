@@ -143,6 +143,7 @@ function parseExpression(
   // by the workflow engine (see workflow execution context)
   const systemVars = [
     'organizationId',
+    'userId',
     'wfDefinitionId',
     'rootWfDefinitionId',
     'executionId',

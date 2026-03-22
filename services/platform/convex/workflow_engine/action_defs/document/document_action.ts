@@ -24,6 +24,8 @@ import { jsonRecordValidator } from '../../../lib/validators/json';
 import { applyDocxStructured } from './helpers/apply_docx_structured';
 import { extractDocxStructured } from './helpers/extract_docx_structured';
 
+const MAX_LIMIT = 50;
+
 /**
  * Normalize unescaped literal \n and \t sequences to actual whitespace.
  * Uses negative lookbehind to avoid corrupting \\n (escaped backslash + n).
@@ -110,13 +112,18 @@ type DocumentActionParams =
       fileName: string;
       trackChanges?: boolean;
       author?: string;
+    }
+  | {
+      operation: 'list';
+      folderPath?: string;
+      extension?: string;
     };
 
 export const documentAction: ActionDefinition<DocumentActionParams> = {
   type: 'document',
   title: 'Document Operation',
   description:
-    'Execute document-specific operations (update, retrieve, generate_docx, create, extract_docx_structured, apply_docx_structured). organizationId is automatically read from workflow context variables.',
+    'Execute document-specific operations (list, update, retrieve, generate_docx, create, extract_docx_structured, apply_docx_structured). organizationId is automatically read from workflow context variables.',
 
   parametersValidator: v.union(
     v.object({
@@ -174,6 +181,11 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
       fileName: v.string(),
       trackChanges: v.optional(v.boolean()),
       author: v.optional(v.string()),
+    }),
+    v.object({
+      operation: v.literal('list'),
+      folderPath: v.optional(v.string()),
+      extension: v.optional(v.string()),
     }),
   ),
 
@@ -367,6 +379,66 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
           author: params.author,
           organizationId,
         });
+      }
+
+      case 'list': {
+        const organizationId =
+          typeof _variables.organizationId === 'string'
+            ? _variables.organizationId
+            : undefined;
+        const userId =
+          typeof _variables.userId === 'string' ? _variables.userId : undefined;
+
+        if (!organizationId) {
+          throw new Error(
+            'organizationId is required in workflow variables to list documents',
+          );
+        }
+        if (!userId) {
+          throw new Error(
+            'userId is required in workflow variables to list documents',
+          );
+        }
+
+        const allDocuments: Array<{
+          id: string;
+          fileId: string;
+          title: string;
+          extension: string | null;
+          folderPath: string | null;
+          teamId: string | null;
+          createdAt: number;
+          sizeBytes: number | null;
+        }> = [];
+        const MAX_TOTAL = 500;
+        let cursor: number | undefined;
+
+        while (allDocuments.length < MAX_TOTAL) {
+          const batch = await ctx.runQuery(
+            internal.documents.internal_queries.listForAgent,
+            {
+              organizationId,
+              userId,
+              folderPath: params.folderPath,
+              extension: params.extension,
+              limit: MAX_LIMIT,
+              ...(cursor != null ? { cursor } : {}),
+            },
+          );
+
+          for (const doc of batch.documents) {
+            if (allDocuments.length >= MAX_TOTAL) break;
+            allDocuments.push(doc);
+          }
+
+          if (!batch.hasMore || batch.cursor == null) break;
+          cursor = batch.cursor;
+        }
+
+        return {
+          documents: allDocuments,
+          totalCount: allDocuments.length,
+        };
       }
 
       default:

@@ -37,14 +37,16 @@ export function validateOutputStep(
     }
 
     for (const [key, value] of Object.entries(mapping)) {
-      if (typeof value !== 'string' || value.trim() === '') {
-        errors.push(
-          `Output step mapping key "${key}" must be a non-empty string`,
-        );
-      } else if (SECRETS_PATTERN.test(value)) {
-        warnings.push(
-          `Output step mapping key "${key}" references secrets — avoid exposing secrets in workflow output`,
-        );
+      if (typeof value === 'string') {
+        if (value.trim() === '') {
+          errors.push(
+            `Output step mapping key "${key}" must be a non-empty string`,
+          );
+        } else if (SECRETS_PATTERN.test(value)) {
+          warnings.push(
+            `Output step mapping key "${key}" references secrets — avoid exposing secrets in workflow output`,
+          );
+        }
       }
     }
   }

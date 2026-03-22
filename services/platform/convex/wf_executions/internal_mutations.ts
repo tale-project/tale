@@ -109,6 +109,7 @@ export const startWorkflow = internalMutation({
     input: v.optional(jsonValueValidator),
     triggeredBy: v.string(),
     triggerData: v.optional(jsonValueValidator),
+    userId: v.optional(v.string()),
   },
   returns: v.id('wfExecutions'),
   handler: async (ctx, args) => {

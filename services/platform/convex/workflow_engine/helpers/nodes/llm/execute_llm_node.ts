@@ -48,6 +48,9 @@ export async function executeLLMNode(
   );
 
   // 4. Execute using Convex agent with tools
+  const userId =
+    typeof variables.userId === 'string' ? variables.userId : undefined;
+
   const llmResult = await executeAgentWithTools(
     ctx,
     normalizedConfig,
@@ -58,6 +61,7 @@ export async function executeLLMNode(
       threadId,
       stepSlug,
       knowledgeFileIds,
+      userId,
     },
   );
 
