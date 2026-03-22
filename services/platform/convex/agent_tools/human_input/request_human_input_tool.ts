@@ -2,7 +2,7 @@
  * Convex Tool: Request Human Input
  *
  * Allows the AI to ask the user a question and receive a response.
- * Supports multiple input formats: single_select, multi_select, text_input, yes_no.
+ * Uses a unified form model where each question is a field with its own type.
  *
  * The request creates an approval record that displays as an input card in the chat UI.
  * When the user responds, the response is stored and injected into the AI's context
@@ -31,59 +31,46 @@ const optionSchema = z.object({
     .describe('Optional value to return (defaults to label if not provided).'),
 });
 
-const contextField = {
-  context: z
+const sharedFieldProps = {
+  label: z
+    .string()
+    .describe(
+      'Display label for the field. Must be unique across all fields — used as the key in the response.',
+    ),
+  description: z
     .string()
     .optional()
-    .describe(
-      'Optional context to help the user understand why you are asking.',
-    ),
+    .describe('Help text shown below the field label.'),
+  required: z
+    .boolean()
+    .optional()
+    .describe('Whether the field must be filled. Defaults to false.'),
 };
 
-const requestHumanInputArgs = z.discriminatedUnion('format', [
+const fieldSchema = z.discriminatedUnion('type', [
   z.object({
-    ...contextField,
-    question: z
-      .string()
+    ...sharedFieldProps,
+    type: z
+      .enum(['text', 'textarea', 'number', 'email', 'url', 'tel'])
       .describe(
-        'A short prompt asking the user to pick one option. Options carry the detail — keep the question concise (e.g., "Which meal would you like?").',
+        'Input type. Use "text" for short single-line input, "textarea" for longer multi-line input, or a specialized type for validation.',
       ),
-    format: z.literal('single_select'),
+  }),
+  z.object({
+    ...sharedFieldProps,
+    type: z
+      .enum(['single_select', 'multi_select'])
+      .describe(
+        'Use "single_select" when the user picks ONE option, "multi_select" when the user picks ONE OR MORE.',
+      ),
     options: z
       .array(optionSchema)
       .min(2)
       .describe('Options for the user to choose from. At least 2 required.'),
   }),
   z.object({
-    ...contextField,
-    question: z
-      .string()
-      .describe(
-        'A short prompt asking the user to select one or more. Options carry the detail — keep concise (e.g., "Which toppings do you want?").',
-      ),
-    format: z.literal('multi_select'),
-    options: z
-      .array(optionSchema)
-      .min(2)
-      .describe('Options for the user to choose from. At least 2 required.'),
-  }),
-  z.object({
-    ...contextField,
-    question: z
-      .string()
-      .describe(
-        'The full question with ALL details the user needs. This is displayed prominently on the card. List every field or piece of information you need. Use standard Markdown syntax: `- ` or `* ` for lists, `**text**` for bold, `#` for headings. Do NOT use Unicode bullets (•, ·, ‣). Use newlines to structure multi-field requests.',
-      ),
-    format: z.literal('text_input'),
-  }),
-  z.object({
-    ...contextField,
-    question: z
-      .string()
-      .describe(
-        'A clear yes-or-no question. Be specific about what is being confirmed (e.g., "Should I delete these 3 records?").',
-      ),
-    format: z.literal('yes_no'),
+    ...sharedFieldProps,
+    type: z.literal('yes_no').describe('Binary yes/no confirmation.'),
     options: z
       .array(optionSchema)
       .length(2)
@@ -93,6 +80,30 @@ const requestHumanInputArgs = z.discriminatedUnion('format', [
       ),
   }),
 ]);
+
+const contextField = {
+  context: z
+    .string()
+    .optional()
+    .describe(
+      'Optional context to help the user understand why you are asking.',
+    ),
+};
+
+const requestHumanInputArgs = z.object({
+  ...contextField,
+  question: z
+    .string()
+    .describe(
+      'A heading or instruction shown above the form fields (e.g., "Please provide the following details for the purchase contract").',
+    ),
+  fields: z
+    .array(fieldSchema)
+    .min(1)
+    .describe(
+      'Form fields to display. Each field gets its own labeled input. Use unique labels — they serve as keys in the response.',
+    ),
+});
 
 export const requestHumanInputTool = {
   name: 'request_human_input' as const,
@@ -105,38 +116,41 @@ export const requestHumanInputTool = {
 • The user can respond by clicking options or typing text directly in the chat
 • Do NOT show JSON examples or code snippets - just call this tool directly
 • NEVER present options/choices as plain text — always use this tool so the user can interactively select
-• Do NOT include "Something else", "Other", or similar fallback options — the UI automatically adds a "Something else" option with a text input to all select-type cards
 
 **WHEN TO USE:**
-• When presenting multiple options, suggestions, or recommendations for the user to choose from (e.g., "3 meal options", "which plan?", "here are some alternatives")
+• When presenting multiple options, suggestions, or recommendations for the user to choose from
 • ANY time your response would list numbered/bulleted choices — use this tool instead of plain text
-• When you encounter multiple valid options and need user to decide (e.g., "Found 3 matching contacts, which one?")
+• When you encounter multiple valid options and need user to decide
 • To clarify ambiguous requirements before proceeding
-• To get user confirmation for important or destructive actions (e.g., "Confirm deletion?")
-• To collect user preferences when the task cannot proceed without their input
+• To get user confirmation for important or destructive actions
+• To collect structured information (e.g., contract details, user profiles, configuration)
 
-**INPUT FORMATS:**
-• single_select: User picks ONE option from a list (mutually exclusive choices)
-• multi_select: User picks ONE OR MORE options (non-exclusive selections)
-• text_input: User types free-form text. Put ALL required fields/details in the question field. Use standard Markdown for formatting (- for lists, **bold**, # headings). Do NOT use Unicode bullets (•).
-• yes_no: User confirms or denies (binary decisions, auto-generates Yes/No options)
+**HOW IT WORKS:**
+Every request is a form with one or more fields. Each field has a type that determines how it renders:
 
-**EXAMPLE - When generating options/suggestions for the user:**
-Call this tool with:
-- question: "Here are 3 meal options for you. Which one would you like?"
-- format: "single_select"
-- options: [{ label: "Creamy Garlic Parmesan Pasta", description: "Italian comfort food with cream sauce" }, { label: "Mediterranean Grain Bowl", description: "Fresh quinoa bowl with veggies and tzatziki" }, { label: "Thai Coconut Curry", description: "Aromatic curry with rice" }]
+**FIELD TYPES:**
+• text: Short single-line text input
+• textarea: Multi-line text input for longer content
+• number / email / url / tel: Specialized text inputs
+• single_select: User picks ONE option from a list (radio buttons)
+• multi_select: User picks ONE OR MORE options (checkboxes)
+• yes_no: Binary yes/no confirmation (defaults to Yes/No buttons)
 
-**EXAMPLE - When you find multiple matching records:**
-Call this tool with:
-- question: "Found 3 contacts matching 'John'. Which one should I use?"
-- format: "single_select"
-- options: [{ label: "John Smith (Sales)", value: "contact_123" }, { label: "John Doe (Support)", value: "contact_456" }]
+**EXAMPLE - Single question (one select field):**
+- question: "Which meal would you like?"
+- fields: [{ label: "Meal choice", type: "single_select", options: [{ label: "Creamy Garlic Pasta", description: "Italian comfort food" }, { label: "Mediterranean Bowl", description: "Quinoa with veggies" }, { label: "Thai Coconut Curry", description: "Aromatic curry with rice" }] }]
 
-**EXAMPLE - Collecting structured text information:**
-Call this tool with:
-- question: "Please provide the following details for the purchase contract:\\n\\n- Contract date\\n- Seller: company name, address, registration number\\n- Buyer: company name, address, registration number\\n- Any special terms (payment, warranties, inspection rights)"
-- format: "text_input"
+**EXAMPLE - Confirmation (one yes_no field):**
+- question: "Please confirm"
+- fields: [{ label: "Delete these 3 records?", type: "yes_no", required: true }]
+
+**EXAMPLE - Collecting structured information (multiple fields):**
+- question: "Please provide the purchase contract details"
+- fields: [{ label: "Contract date", type: "text", required: true }, { label: "Seller company name", type: "text", required: true }, { label: "Seller address", type: "textarea" }, { label: "Buyer company name", type: "text", required: true }, { label: "Buyer address", type: "textarea" }, { label: "Payment terms", type: "single_select", options: [{ label: "Net 30" }, { label: "Net 60" }, { label: "Upon delivery" }] }]
+
+**EXAMPLE - Mixed field types:**
+- question: "Configure your notification preferences"
+- fields: [{ label: "Notification channels", type: "multi_select", required: true, options: [{ label: "Email" }, { label: "SMS" }, { label: "Slack" }] }, { label: "Custom webhook URL", type: "url" }, { label: "Enable daily digest?", type: "yes_no" }]
 
 **AFTER CALLING - CRITICAL:**
 • An input card appears in the user's chat interface
@@ -144,7 +158,7 @@ Call this tool with:
 • Do NOT call any more tools or continue with any operation
 • Do NOT assume or guess what the user will select
 • The user's response will appear in a FUTURE turn as <human_response>
-• Simply acknowledge you're waiting for their selection`,
+• Simply acknowledge you're waiting for their input`,
     args: requestHumanInputArgs,
     handler: async (
       ctx: ToolCtx,
@@ -166,8 +180,6 @@ Call this tool with:
       const stepSlug =
         typeof ctxRecord.stepSlug === 'string' ? ctxRecord.stepSlug : undefined;
 
-      // Look up parent thread from thread summary (stable, database-backed)
-      // This ensures approvals from sub-agents link to the main chat thread
       const threadId = await getApprovalThreadId(ctx, currentThreadId);
 
       if (!organizationId) {
@@ -185,16 +197,19 @@ Call this tool with:
         };
       }
 
-      // Resolve options: select formats carry them in args; yes_no defaults to Yes/No
-      const options =
-        'options' in args && args.options
-          ? args.options
-          : args.format === 'yes_no'
-            ? [
-                { label: 'Yes', value: 'yes' },
-                { label: 'No', value: 'no' },
-              ]
-            : undefined;
+      // Resolve yes_no defaults and map fields for the mutation
+      const fields = args.fields.map((f) => {
+        if (f.type === 'yes_no' && !('options' in f && f.options)) {
+          return {
+            ...f,
+            options: [
+              { label: 'Yes', value: 'yes' },
+              { label: 'No', value: 'no' },
+            ],
+          };
+        }
+        return f;
+      });
 
       try {
         const requestId = await ctx.runMutation(
@@ -204,12 +219,21 @@ Call this tool with:
             organizationId,
             threadId,
             question: args.question,
-            format: args.format,
             context: args.context,
-            options: options?.map((opt) => ({
-              label: opt.label,
-              description: opt.description,
-              value: opt.value,
+            fields: fields.map((f) => ({
+              label: f.label,
+              description: f.description,
+              required: f.required,
+              type: f.type,
+              ...('options' in f && f.options
+                ? {
+                    options: f.options.map((opt) => ({
+                      label: opt.label,
+                      description: opt.description,
+                      value: opt.value,
+                    })),
+                  }
+                : {}),
             })),
             wfExecutionId,
             stepSlug,

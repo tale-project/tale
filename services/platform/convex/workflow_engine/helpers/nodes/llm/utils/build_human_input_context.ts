@@ -29,10 +29,41 @@ export async function buildHumanInputContext(
   const escapeForContext = (value: string) =>
     value.replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-  const formatResponse = (response: string | string[]) =>
-    Array.isArray(response)
-      ? response.map(escapeForContext).join(', ')
-      : escapeForContext(response);
+  const formatResponse = (response: string | string[]) => {
+    if (Array.isArray(response)) {
+      return response.map(escapeForContext).join(', ');
+    }
+    try {
+      const parsed: unknown = JSON.parse(response);
+      if (
+        typeof parsed === 'object' &&
+        parsed !== null &&
+        !Array.isArray(parsed)
+      ) {
+        // Detect feedback response
+        const feedbackVal =
+          '__feedback__' in parsed
+            ? String(
+                (parsed as Record<string, unknown>)['__feedback__'], // oxlint-disable-line typescript/no-unsafe-type-assertion -- narrowed by 'in' check
+              )
+            : undefined;
+        if (feedbackVal) {
+          return `[FEEDBACK] ${escapeForContext(feedbackVal)}`;
+        }
+        return Object.entries(parsed)
+          .map(([key, val]) => {
+            const formatted = Array.isArray(val)
+              ? val.map((v) => escapeForContext(String(v))).join(', ')
+              : escapeForContext(String(val));
+            return `${escapeForContext(key)}: ${formatted}`;
+          })
+          .join('; ');
+      }
+    } catch {
+      // Not JSON, fall through to plain string
+    }
+    return escapeForContext(response);
+  };
 
   return [
     '<human_input_context>',

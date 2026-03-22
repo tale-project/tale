@@ -78,21 +78,56 @@ export const submitHumanInputResponse = mutation({
       metadata: updatedMetadata,
     });
 
-    const mapValueToLabel = (value: string): string => {
-      if (existingMetadata.options) {
-        const option = existingMetadata.options.find(
+    const mapValueToLabel = (fieldLabel: string, value: string): string => {
+      const field = existingMetadata.fields?.find(
+        (f) => f.label === fieldLabel,
+      );
+      if (field && 'options' in field && field.options) {
+        const option = field.options.find(
           (opt) => (opt.value ?? opt.label) === value,
         );
-        if (option) {
-          return option.label;
-        }
+        if (option) return option.label;
       }
       return value;
     };
 
-    const responseDisplay = Array.isArray(args.response)
-      ? args.response.map(mapValueToLabel).join(', ')
-      : mapValueToLabel(args.response);
+    let responseDisplay: string;
+    if (typeof args.response === 'string') {
+      try {
+        const parsed: unknown = JSON.parse(args.response);
+        if (
+          typeof parsed === 'object' &&
+          parsed !== null &&
+          !Array.isArray(parsed)
+        ) {
+          // Detect feedback response
+          const feedbackVal =
+            '__feedback__' in parsed
+              ? String(
+                  (parsed as Record<string, unknown>)['__feedback__'], // oxlint-disable-line typescript/no-unsafe-type-assertion -- narrowed by 'in' check
+                )
+              : undefined;
+          if (feedbackVal) {
+            responseDisplay = `[Feedback] ${feedbackVal}`;
+          } else {
+            responseDisplay = Object.entries(parsed)
+              .map(([key, val]) => {
+                if (Array.isArray(val)) {
+                  return `${key}: ${val.map((item) => mapValueToLabel(key, String(item))).join(', ')}`;
+                }
+                return `${key}: ${mapValueToLabel(key, String(val))}`;
+              })
+              .join(', ');
+          }
+        } else {
+          responseDisplay = args.response;
+        }
+      } catch {
+        responseDisplay = args.response;
+      }
+    } else {
+      responseDisplay = args.response.join(', ');
+    }
     const responseMessage = `User responded to question "${existingMetadata.question}": ${responseDisplay}`;
 
     // Workflow-context fork: resume the paused workflow via sendEvent instead of triggering chat agent

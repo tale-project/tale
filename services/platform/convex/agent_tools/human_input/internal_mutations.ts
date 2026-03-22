@@ -9,27 +9,39 @@ import {
 } from '../../approvals/helpers';
 import { toId } from '../../lib/type_cast_helpers';
 
+const fieldTypeValidator = v.union(
+  v.literal('text'),
+  v.literal('textarea'),
+  v.literal('number'),
+  v.literal('email'),
+  v.literal('url'),
+  v.literal('tel'),
+  v.literal('single_select'),
+  v.literal('multi_select'),
+  v.literal('yes_no'),
+);
+
+const optionValidator = v.object({
+  label: v.string(),
+  description: v.optional(v.string()),
+  value: v.optional(v.string()),
+});
+
+const fieldValidator = v.object({
+  label: v.string(),
+  description: v.optional(v.string()),
+  required: v.optional(v.boolean()),
+  type: fieldTypeValidator,
+  options: v.optional(v.array(optionValidator)),
+});
+
 export const createHumanInputRequest = internalMutation({
   args: {
     organizationId: v.string(),
     threadId: v.string(),
     question: v.string(),
-    format: v.union(
-      v.literal('single_select'),
-      v.literal('multi_select'),
-      v.literal('text_input'),
-      v.literal('yes_no'),
-    ),
     context: v.optional(v.string()),
-    options: v.optional(
-      v.array(
-        v.object({
-          label: v.string(),
-          description: v.optional(v.string()),
-          value: v.optional(v.string()),
-        }),
-      ),
-    ),
+    fields: v.array(fieldValidator),
     messageId: v.optional(v.string()),
     wfExecutionId: v.optional(v.string()),
     stepSlug: v.optional(v.string()),
@@ -52,29 +64,47 @@ export const createHumanInputRequest = internalMutation({
       }
     }
 
-    const options =
-      args.options ??
-      (args.format === 'yes_no'
-        ? [
-            { label: 'Yes', value: 'yes' },
-            { label: 'No', value: 'no' },
-          ]
-        : undefined);
-
-    if (
-      (args.format === 'single_select' ||
-        args.format === 'multi_select' ||
-        args.format === 'yes_no') &&
-      (!options || options.length === 0)
-    ) {
-      throw new Error(`options are required for ${args.format} format`);
+    // Validate: select/yes_no fields must have options
+    for (const field of args.fields) {
+      if (
+        (field.type === 'single_select' || field.type === 'multi_select') &&
+        (!field.options || field.options.length < 2)
+      ) {
+        throw new Error(
+          `Field "${field.label}" with type "${field.type}" requires at least 2 options`,
+        );
+      }
+      if (field.type === 'yes_no' && !field.options) {
+        throw new Error(
+          `Field "${field.label}" with type "yes_no" requires options`,
+        );
+      }
     }
+
+    // Map flat Convex validator fields to the Zod discriminated union shape
+    const typedFields: HumanInputRequestMetadata['fields'] = args.fields.map(
+      (field) => {
+        const base = {
+          label: field.label,
+          description: field.description,
+          required: field.required,
+        };
+        switch (field.type) {
+          case 'single_select':
+          case 'multi_select':
+            return { ...base, type: field.type, options: field.options ?? [] };
+          case 'yes_no':
+            return { ...base, type: field.type, options: field.options };
+          default:
+            return { ...base, type: field.type };
+        }
+      },
+    );
 
     const metadata: HumanInputRequestMetadata = {
       question: args.question,
-      format: args.format,
       context: args.context,
-      options,
+      fields: typedFields,
       requestedAt: Date.now(),
     };
 
