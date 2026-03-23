@@ -47,5 +47,11 @@ export function createUploadAndCreateDocDeps(
         { organizationId, storageId, fileName, contentType, size },
       );
     },
+    linkDocumentToFile: async (storageId, documentId) => {
+      await ctx.runMutation(
+        internal.file_metadata.internal_mutations.linkDocumentToFile,
+        { storageId, documentId },
+      );
+    },
   };
 }

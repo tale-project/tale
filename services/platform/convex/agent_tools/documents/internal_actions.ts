@@ -118,6 +118,14 @@ export const executeApprovedDocumentWrite = internalAction({
           },
         );
 
+        await ctx.runMutation(
+          internal.file_metadata.internal_mutations.linkDocumentToFile,
+          {
+            storageId: toId<'_storage'>(file.fileId),
+            documentId,
+          },
+        );
+
         fileResults.push({
           fileId: file.fileId,
           createdDocumentId: String(documentId),

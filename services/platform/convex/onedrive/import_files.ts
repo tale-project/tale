@@ -100,6 +100,10 @@ export interface ImportFilesDependencies {
     contentType: string,
     size: number,
   ) => Promise<void>;
+  linkDocumentToFile?: (
+    storageId: Id<'_storage'>,
+    documentId: Id<'documents'>,
+  ) => Promise<void>;
 }
 
 export async function importFiles(
@@ -245,6 +249,8 @@ export async function importFiles(
           folderId,
         });
       }
+
+      await deps.linkDocumentToFile?.(storageId, documentId);
 
       results.push({
         fileId: item.id,
