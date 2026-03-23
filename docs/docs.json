@@ -30,7 +30,6 @@
     "weight": 400
   },
   "background": {
-    "decoration": "windows",
     "color": {
       "light": "#FFFFFF",
       "dark": "#0C1017"
