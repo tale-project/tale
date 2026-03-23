@@ -46,7 +46,8 @@ export function formatSearchResults(
     .map((r, idx) => {
       const score = (r.score * 100).toFixed(1);
       const sourceAnnotation = r.filename ? ` [Source: ${r.filename}]` : '';
-      return `[${idx + 1}] (Relevance: ${score}%)${sourceAnnotation}\n${r.content}`;
+      const fileIdAnnotation = r.file_id ? ` [FileID: ${r.file_id}]` : '';
+      return `[${idx + 1}] (Relevance: ${score}%)${sourceAnnotation}${fileIdAnnotation}\n${r.content}`;
     })
     .join('\n\n---\n\n');
 }

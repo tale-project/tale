@@ -42,7 +42,7 @@ describe('formatSearchResults', () => {
     );
   });
 
-  it('ignores metadata and file_id in formatting', () => {
+  it('includes file_id annotation when file_id is provided', () => {
     const result = formatSearchResults([
       {
         content: 'Content',
@@ -51,7 +51,7 @@ describe('formatSearchResults', () => {
         metadata: { source: 'test' },
       },
     ]);
-    expect(result).toBe('[1] (Relevance: 80.0%)\nContent');
+    expect(result).toBe('[1] (Relevance: 80.0%) [FileID: doc-123]\nContent');
   });
 
   it('includes source annotation when filename is provided', () => {
@@ -61,7 +61,21 @@ describe('formatSearchResults', () => {
     expect(result).toBe('[1] (Relevance: 80.0%) [Source: report.pdf]\nContent');
   });
 
-  it('omits source annotation when filename is undefined', () => {
+  it('includes both source and file_id annotations', () => {
+    const result = formatSearchResults([
+      {
+        content: 'Content',
+        score: 0.8,
+        filename: 'report.pdf',
+        file_id: 'doc-123',
+      },
+    ]);
+    expect(result).toBe(
+      '[1] (Relevance: 80.0%) [Source: report.pdf] [FileID: doc-123]\nContent',
+    );
+  });
+
+  it('omits annotations when filename and file_id are undefined', () => {
     const result = formatSearchResults([
       { content: 'Content', score: 0.8, filename: undefined },
     ]);
