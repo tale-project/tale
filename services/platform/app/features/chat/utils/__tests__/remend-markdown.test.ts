@@ -423,3 +423,91 @@ describe('table completion', () => {
     );
   });
 });
+
+// ============================================================================
+// INCOMPLETE HTML TAG STRIPPING
+// ============================================================================
+
+describe('incomplete HTML tag stripping', () => {
+  it('strips trailing incomplete tag', () => {
+    expect(remendMarkdown('Hello <details')).toBe('Hello ');
+  });
+
+  it('strips trailing incomplete tag with attributes', () => {
+    expect(remendMarkdown('Text <summary class="foo"')).toBe('Text ');
+  });
+
+  it('strips trailing incomplete closing tag', () => {
+    expect(remendMarkdown('Content </details')).toBe('Content ');
+  });
+
+  it('preserves complete HTML tags', () => {
+    expect(remendMarkdown('<details>content</details>')).toBe(
+      '<details>content</details>',
+    );
+  });
+
+  it('preserves < followed by non-letter (math)', () => {
+    expect(remendMarkdown('x < 5')).toBe('x < 5');
+  });
+
+  it('strips trailing lone <', () => {
+    expect(remendMarkdown('Hello <')).toBe('Hello ');
+  });
+
+  it('strips trailing </', () => {
+    expect(remendMarkdown('Hello </')).toBe('Hello ');
+  });
+
+  it('does not strip inside fenced code blocks', () => {
+    expect(remendMarkdown('```\n<details\n```')).toBe('```\n<details\n```');
+  });
+
+  it('strips only the trailing incomplete tag, not earlier complete ones', () => {
+    expect(remendMarkdown('<details>text</details>\n\n<summary')).toBe(
+      '<details>text</details>\n\n',
+    );
+  });
+});
+
+// ============================================================================
+// UNCLOSED <details> ELEMENT AUTO-CLOSING
+// ============================================================================
+
+describe('unclosed details element auto-closing', () => {
+  it('strips unclosed details without summary', () => {
+    expect(remendMarkdown('Text\n\n<details>')).toBe('Text\n\n');
+  });
+
+  it('strips unclosed details with incomplete summary', () => {
+    expect(remendMarkdown('Text\n\n<details>\n<summary>Title')).toBe(
+      'Text\n\n',
+    );
+  });
+
+  it('auto-closes unclosed details with partial summary', () => {
+    expect(
+      remendMarkdown('Text\n\n<details>\n<summary>Title</summary>\nContent'),
+    ).toBe('Text\n\n<details>\n<summary>Title</summary>\nContent\n</details>');
+  });
+
+  it('preserves complete details element', () => {
+    const input = '<details>\n<summary>T</summary>\nBody\n</details>';
+    expect(remendMarkdown(input)).toBe(input);
+  });
+
+  it('auto-closes last unclosed details, keeps earlier closed ones', () => {
+    const input =
+      '<details><summary>A</summary>B</details>\n\n<details>\n<summary>C</summary>';
+    expect(remendMarkdown(input)).toBe(
+      '<details><summary>A</summary>B</details>\n\n<details>\n<summary>C</summary>\n</details>',
+    );
+  });
+
+  it('auto-closes details when inside a code block', () => {
+    const input = '<details>\n<summary>Code</summary>\n\n```python\ndef foo():';
+    expect(remendMarkdown(input)).toBe(
+      '<details>\n<summary>Code</summary>\n\n```python\ndef foo():\n```\n</details>',
+    );
+  });
+});

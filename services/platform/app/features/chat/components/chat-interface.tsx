@@ -316,7 +316,7 @@ export function ChatInterface({
     message: string,
     sentAttachments?: FileAttachment[],
   ) => {
-    scrollingToBottomBehaviorRef.current = 'auto';
+    scrollingToBottomBehaviorRef.current = 'smooth';
     clearInputValue();
     await sendMessage(message, sentAttachments);
   };

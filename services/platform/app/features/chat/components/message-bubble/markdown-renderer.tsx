@@ -47,11 +47,14 @@ export const markdownWrapperStyles = cn(
   '[&_strong]:font-semibold [&_em]:italic',
   '[&_table]:w-full [&_table]:border-collapse',
   '[&_thead]:bg-muted',
-  '[&_th]:p-3 [&_th]:text-left [&_th]:font-medium [&_th]:border-b [&_th]:border-border',
-  '[&_td]:p-3 [&_td]:border-b [&_td]:border-border',
+  '[&_th]:p-3 [&_th]:text-left [&_th]:font-medium [&_th]:border-b [&_th]:border-border [&_th]:text-wrap',
+  '[&_td]:p-3 [&_td]:border-b [&_td]:border-border [&_td]:break-words',
   '[&_tr:last-child_td]:border-b-0',
   "[&_input[type='checkbox']]:mr-2",
   '[&_del]:line-through [&_del]:text-muted-foreground',
+  '[&_details]:my-2 [&_details]:rounded-lg [&_details]:border [&_details]:border-border [&_details]:p-3',
+  '[&_summary]:cursor-pointer [&_summary]:font-medium [&_summary]:text-sm',
+  '[&_details[open]_summary]:mb-2',
 );
 
 interface MarkdownImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
@@ -222,6 +225,12 @@ export const markdownComponents = {
       </code>
     );
   },
+  details: ({
+    node: _node,
+    ...props
+  }: { node?: unknown } & React.DetailsHTMLAttributes<HTMLDetailsElement>) => (
+    <details open {...props} />
+  ),
   img: markdownImageComponent,
   a: ({
     node: _node,

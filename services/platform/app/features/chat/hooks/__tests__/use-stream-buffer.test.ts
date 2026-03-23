@@ -557,6 +557,60 @@ describe('findSafeAnchor', () => {
       expect(anchor1).toBe(14); // after "Hello world.\n\n"
     });
   });
+
+  describe('line-start fence detection', () => {
+    it('ignores inline triple backticks when counting fences', () => {
+      // Inline ``` in text should not affect fence parity
+      const text = 'Use ``` for fencing.\n\n```python\n# comment\n\nclass Foo:';
+      const anchor = findSafeAnchor(text, text.length);
+      // Should anchor before the real code block, not inside it
+      expect(text.slice(anchor, anchor + 9)).toBe('```python');
+    });
+
+    it('handles 4-backtick fences correctly', () => {
+      const text = 'Intro.\n\n````python\ncode\n\nmore code';
+      const anchor = findSafeAnchor(text, text.length);
+      expect(anchor).toBe(8); // after "Intro.\n\n"
+    });
+
+    it('handles nested fences (4-backtick wrapping 3-backtick)', () => {
+      // Inner ``` should not corrupt parity since it's inside a 4-backtick block
+      // Note: the naive /```/g would count the inner ``` and break parity
+      const text =
+        'Intro.\n\n````\nshow ```python\n\nstuff\n````\n\nAfter.\n\n```js\ncode\n\nmore';
+      const anchor = findSafeAnchor(text, text.length);
+      // Should anchor before the ```js block
+      const jsStart = text.indexOf('```js');
+      const breakBefore = text.lastIndexOf('\n\n', jsStart);
+      expect(anchor).toBe(breakBefore + 2);
+    });
+
+    it('handles bare + language-tagged fences mixed', () => {
+      const text = '```js\nfoo();\n```\n\nText.\n\n```\nbar\n\nmore';
+      const anchor = findSafeAnchor(text, text.length);
+      // Should anchor before the bare ``` block
+      expect(text.slice(0, anchor)).toContain('Text.');
+      expect(text.slice(anchor, anchor + 4)).toBe('```\n');
+    });
+  });
+
+  describe('unclosed <details> element', () => {
+    it('anchors before <details> when \\n\\n is inside it', () => {
+      const text =
+        'Intro.\n\n<details>\n<summary>Title</summary>\n\nContent inside';
+      const anchor = findSafeAnchor(text, text.length);
+      expect(anchor).toBe(8); // after "Intro.\n\n"
+      expect(text.slice(anchor, anchor + 9)).toBe('<details>');
+    });
+
+    it('advances past closed <details>...</details>', () => {
+      const text =
+        'Before.\n\n<details>\n<summary>T</summary>\nBody\n</details>\n\nAfter content here';
+      const anchor = findSafeAnchor(text, text.length);
+      // Should advance past the closed details
+      expect(anchor).toBeGreaterThan(text.indexOf('</details>'));
+    });
+  });
 });
 
 // ============================================================================
@@ -1408,11 +1462,9 @@ describe('useStreamBuffer — progress and isDraining', () => {
     // End stream while buffer still has content
     rerender({ text: longText, isStreaming: false });
 
-    expect(result.current.isDraining).toBe(true);
-
-    // After fully draining, isDraining should become false
-    act(() => advanceFrames(300));
+    // Content is revealed immediately when streaming ends
     expect(result.current.isDraining).toBe(false);
+    expect(result.current.displayLength).toBe(longText.length);
   });
 
   it('bufferSize decreases as text is revealed', () => {
