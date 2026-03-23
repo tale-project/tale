@@ -260,6 +260,33 @@ export function remendMarkdown(text: string): string {
     result = remendTable(result);
   }
 
+  // Phase 4: Strip trailing incomplete HTML tag (only outside code blocks)
+  // Prevents partial tags like `<details` from rendering as literal text.
+  // Does NOT close/complete tags — only strips the incomplete fragment.
+  if (context === 'normal') {
+    result = result.replace(/<\/?[a-zA-Z][^>\n]*$|<\/?$/, '');
+  }
+
+  // Phase 5: Auto-close unclosed <details> element
+  // Runs for ALL contexts — when inside a code block, the suffix already
+  // closes the fence first, so appending </details> after is correct.
+  // Uses \n to ensure </details> is on its own line (HTML block parsing).
+  {
+    const lastDetails = result.lastIndexOf('<details');
+    if (lastDetails !== -1 && !result.includes('</details>', lastDetails)) {
+      const textBefore = result.slice(0, lastDetails);
+      const fenceCount = (textBefore.match(/^`{3,}/gm) || []).length;
+      if (fenceCount % 2 === 0) {
+        const detailsContent = result.slice(lastDetails);
+        if (detailsContent.includes('</summary>')) {
+          suffix += '\n</details>';
+        } else {
+          result = result.slice(0, lastDetails);
+        }
+      }
+    }
+  }
+
   return suffix ? result + suffix : result;
 }
 

@@ -226,6 +226,43 @@ function findNextWordBoundary(text: string, startPos: number): number {
   return startPos;
 }
 
+/** Regex matching a fenced code block delimiter at line start (CommonMark). */
+const LINE_START_FENCE_RE = /^`{3,}/gm;
+
+/**
+ * Find the position of the last line-start fence in `text`.
+ * Returns -1 if none found.
+ */
+function lastLineStartFence(text: string): number {
+  let last = -1;
+  LINE_START_FENCE_RE.lastIndex = 0;
+  let m;
+  while ((m = LINE_START_FENCE_RE.exec(text)) !== null) {
+    last = m.index;
+  }
+  return last;
+}
+
+/**
+ * Find the last line-start fence followed by `\n` in `text`.
+ * This detects closing fences and bare opening fences (no language tag).
+ * Returns `{ pos, endPos }` where endPos is after the `\n`, or null if none.
+ */
+function lastLineStartFenceWithNewline(
+  text: string,
+): { pos: number; endPos: number } | null {
+  let result: { pos: number; endPos: number } | null = null;
+  LINE_START_FENCE_RE.lastIndex = 0;
+  let m;
+  while ((m = LINE_START_FENCE_RE.exec(text)) !== null) {
+    const afterMatch = m.index + m[0].length;
+    if (afterMatch < text.length && text[afterMatch] === '\n') {
+      result = { pos: m.index, endPos: afterMatch + 1 };
+    }
+  }
+  return result;
+}
+
 export function findSafeAnchor(text: string, currentPos: number): number {
   if (currentPos <= 0) return 0;
 
@@ -233,27 +270,44 @@ export function findSafeAnchor(text: string, currentPos: number): number {
   const searchText = text.slice(searchStart, currentPos);
 
   const lastParagraph = searchText.lastIndexOf('\n\n');
-  const lastCodeBlockEnd = searchText.lastIndexOf('```\n');
-  const bestBoundary = Math.max(lastParagraph, lastCodeBlockEnd);
+  const fenceMatch = lastLineStartFenceWithNewline(searchText);
+  const lastCodeBlockEndPos = fenceMatch ? fenceMatch.pos : -1;
+  const bestBoundary = Math.max(lastParagraph, lastCodeBlockEndPos);
 
   if (bestBoundary !== -1) {
     const absolutePos =
-      searchStart + bestBoundary + (lastCodeBlockEnd > lastParagraph ? 4 : 2);
+      lastCodeBlockEndPos > lastParagraph && fenceMatch
+        ? searchStart + fenceMatch.endPos
+        : searchStart + bestBoundary + 2;
 
     const textUpToAnchor = text.slice(0, absolutePos);
-    const codeBlockCount = (textUpToAnchor.match(/```/g) || []).length;
+    const codeBlockCount = (textUpToAnchor.match(LINE_START_FENCE_RE) || [])
+      .length;
 
     if (codeBlockCount % 2 !== 0) {
-      // Inside a code block. The last ``` is the opening fence (fences
+      // Inside a code block. The last fence is the opening fence (fences
       // alternate open/close; odd count means the last one opened).
       // Anchor at the paragraph break before it so everything above
       // the code block stays in the memoized StableMarkdown.
-      const lastFence = textUpToAnchor.lastIndexOf('```');
+      const lastFence = lastLineStartFence(textUpToAnchor);
       if (lastFence <= 0) return 0;
       const breakBefore = text.lastIndexOf('\n\n', lastFence);
       if (breakBefore === -1) return 0;
       return breakBefore + 2;
     }
+
+    // Inside an unclosed <details>? Don't split the element across
+    // StableMarkdown and StreamingMarkdown — fall back to before it.
+    const detailsOpens = (textUpToAnchor.match(/<details[\s>]/g) || []).length;
+    const detailsCloses = (textUpToAnchor.match(/<\/details>/g) || []).length;
+    if (detailsOpens > detailsCloses) {
+      const lastDetailsOpen = textUpToAnchor.lastIndexOf('<details');
+      if (lastDetailsOpen <= 0) return 0;
+      const breakBefore = text.lastIndexOf('\n\n', lastDetailsOpen);
+      if (breakBefore === -1) return 0;
+      return breakBefore + 2;
+    }
+
     return absolutePos;
   }
 
@@ -504,11 +558,13 @@ export function useStreamBuffer({
       !globalFrozen &&
       displayedLengthRef.current < text.length
     ) {
-      // Stream ended but buffer still has content — keep draining
-      if (!animationFrameRef.current) {
-        lastFrameTimeRef.current = 0;
-        animationFrameRef.current = requestAnimationFrame(animate);
-      }
+      // Stream ended — reveal all remaining content immediately
+      wasStreamingRef.current = false;
+      hasStartedRevealRef.current = false;
+      displayedLengthRef.current = text.length;
+      accumulatedCharsRef.current = 0;
+      setDisplayLength(text.length);
+      setIsTyping(false);
     } else if (!frozenRef.current && !globalFrozen) {
       // Never was streaming or fully caught up — show immediately
       wasStreamingRef.current = false;
