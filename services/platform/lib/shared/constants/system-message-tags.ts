@@ -11,7 +11,7 @@ export const SYSTEM_MSG_TAG = {
   TIMEOUT_RECOVERY: '[TIMEOUT_RECOVERY]',
 } as const;
 
-export type SystemMsgTag = (typeof SYSTEM_MSG_TAG)[keyof typeof SYSTEM_MSG_TAG];
+type SystemMsgTag = (typeof SYSTEM_MSG_TAG)[keyof typeof SYSTEM_MSG_TAG];
 
 const TAG_REGEX = /^\[([A-Z][A-Z_]+)\]/;
 const KNOWN_TAGS = new Set<string>(Object.values(SYSTEM_MSG_TAG));

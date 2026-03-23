@@ -833,7 +833,7 @@ describe('useStreamBuffer — freezeActiveStream (module-level)', () => {
 // Adaptive CPS (drain rate scaling)
 // ============================================================================
 
-describe('useStreamBuffer — adaptive CPS', () => {
+describe('useStreamBuffer — constant CPS', () => {
   beforeEach(() => {
     setupAnimationMocks();
     vi.mocked(usePrefersReducedMotion).mockReturnValue(false);
@@ -845,8 +845,7 @@ describe('useStreamBuffer — adaptive CPS', () => {
     vi.restoreAllMocks();
   });
 
-  it('uses base CPS for small buffers (near-empty buffer)', () => {
-    // With a short text, buffer is small so CPS should stay at base rate (~50)
+  it('reveals at constant rate for small buffers', () => {
     const text =
       'A relatively short streaming message that fits within a small buffer.';
 
@@ -859,18 +858,14 @@ describe('useStreamBuffer — adaptive CPS', () => {
       }),
     );
 
-    // Run 60 frames = 1 second at base 50 CPS → expect ~50 chars revealed
+    // Run 60 frames = 1 second at 50 CPS → expect ~50 chars revealed
     act(() => advanceFrames(60));
 
-    // At base 50 CPS over 1 second, should reveal roughly 50 chars
-    // (word boundary snapping adds tolerance)
     expect(result.current.displayLength).toBeGreaterThan(30);
     expect(result.current.displayLength).toBeLessThanOrEqual(text.length);
   });
 
-  it('accelerates CPS for large buffers', () => {
-    // Use a very long text to create a large buffer, which should trigger
-    // the adaptive CPS acceleration (buffer > 50 chars ahead)
+  it('reveals at same constant rate for large buffers', () => {
     const longText = 'word '.repeat(500); // 2500 chars
 
     const { result } = renderHook(() =>
@@ -882,36 +877,15 @@ describe('useStreamBuffer — adaptive CPS', () => {
       }),
     );
 
-    // Run 60 frames (1 second). With 2500 char buffer, effective CPS should
-    // be well above 50 (sqrt(2450) * 15 + 50 ≈ 792, capped at 600)
+    // Run 60 frames (1 second) at constant 50 CPS
     act(() => advanceFrames(60));
 
-    // Should reveal significantly more than 50 chars due to acceleration
-    expect(result.current.displayLength).toBeGreaterThan(100);
+    // Constant rate: ~50 chars/sec (word-snap can roughly double effective rate)
+    expect(result.current.displayLength).toBeGreaterThan(30);
+    expect(result.current.displayLength).toBeLessThan(200);
   });
 
-  it('CPS approaches cap for very large buffers', () => {
-    const hugeText = 'x'.repeat(5000);
-
-    const { result } = renderHook(() =>
-      useStreamBuffer({
-        text: hugeText,
-        isStreaming: true,
-        targetCPS: 50,
-        initialBufferChars: 3,
-      }),
-    );
-
-    // Run 60 frames (1 second). Buffer is huge, so CPS should be at/near cap (600)
-    act(() => advanceFrames(60));
-
-    // At 600 CPS for 1 second, expect ~600 chars (with tolerance for word snap)
-    expect(result.current.displayLength).toBeGreaterThan(400);
-    // Shouldn't exceed cap significantly
-    expect(result.current.displayLength).toBeLessThan(800);
-  });
-
-  it('CPS slows down as buffer drains', () => {
+  it('maintains constant rate regardless of buffer size', () => {
     const text = 'word '.repeat(200); // 1000 chars
 
     const { result } = renderHook(() =>
@@ -923,24 +897,23 @@ describe('useStreamBuffer — adaptive CPS', () => {
       }),
     );
 
-    // First second: large buffer → fast rate
+    // First second
     act(() => advanceFrames(60));
     const afterFirstSecond = result.current.displayLength;
 
-    // Advance another second. Buffer is smaller now, so rate should decrease.
-    // We measure the delta per second to compare.
+    // Second second
     act(() => advanceFrames(60));
     const afterSecondSecond = result.current.displayLength;
 
     const firstDelta = afterFirstSecond;
     const secondDelta = afterSecondSecond - afterFirstSecond;
 
-    // If buffer drained, second delta should be smaller (or equal if buffer
-    // is still large). At minimum, the first delta should be positive.
     expect(firstDelta).toBeGreaterThan(0);
-    // The key insight: with a shrinking buffer, the rate should decrease
-    // (or at least not increase beyond the first interval)
-    expect(secondDelta).toBeLessThanOrEqual(firstDelta + 50); // tolerance for word-snap
+    expect(secondDelta).toBeGreaterThan(0);
+    // Constant rate: second interval reveals a similar order of magnitude
+    // (word-snap variance and buffer-end effects cause some difference)
+    expect(secondDelta).toBeGreaterThan(firstDelta * 0.3);
+    expect(secondDelta).toBeLessThan(firstDelta * 2);
   });
 
   it('respects custom targetCPS parameter', () => {
@@ -1420,10 +1393,11 @@ describe('useStreamBuffer — progress and isDraining', () => {
       'A longer message that will not fully drain before the stream ends ' +
       'so we can verify the isDraining flag is set correctly during drain. ' +
       'Adding extra content to ensure the buffer has plenty of remaining ' +
-      'characters after thirty frames of animation at the adaptive rate.';
+      'characters after thirty frames of animation at the constant rate.';
 
     const { result, rerender } = renderHook(
-      (props) => useStreamBuffer({ ...props, initialBufferChars: 3 }),
+      (props) =>
+        useStreamBuffer({ ...props, targetCPS: 200, initialBufferChars: 3 }),
       { initialProps: { text: longText, isStreaming: true } },
     );
 
