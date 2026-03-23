@@ -39,7 +39,22 @@
     "drilldown": true
   },
   "logo": {
-    "light": "/images/black.png",
-    "dark": "/images/white.png"
+    "light": "/images/logo_black.png",
+    "dark": "/images/logo_white.png",
+    "href": "https://tale.dev/"
+  },
+  "navbar": {
+    "links": []
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/tale-project/tale"
+    }
+  },
+  "styling": {
+    "eyebrows": "breadcrumbs"
+  },
+  "icons": {
+    "library": "lucide"
   }
 }
