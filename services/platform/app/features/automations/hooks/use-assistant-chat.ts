@@ -25,6 +25,10 @@ import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useThrottledScroll } from '@/app/hooks/use-throttled-scroll';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
+import {
+  getSystemMessageDisplay,
+  parseSystemMessageTag,
+} from '@/lib/shared/constants/system-message-tags';
 import { stripWorkflowContext } from '@/lib/utils/message-helpers';
 
 import type {
@@ -201,9 +205,13 @@ export function useAssistantChat({
             ? extractFileAttachments(rawText)
             : undefined;
 
-        const isHumanInputResponse =
-          m.role === 'system' &&
-          rawText?.startsWith('User responded to question') === true;
+        let systemMessageDisplay;
+        let systemMessageBody;
+        if (m.role === 'system' && rawText) {
+          const parsed = parseSystemMessageTag(rawText);
+          systemMessageDisplay = getSystemMessageDisplay(parsed.tag);
+          systemMessageBody = parsed.body;
+        }
 
         return {
           id: m.id,
@@ -221,7 +229,8 @@ export function useAssistantChat({
               : undefined,
           automationContext: undefined,
           clientMessageId: undefined,
-          isHumanInputResponse: isHumanInputResponse || undefined,
+          systemMessageDisplay,
+          systemMessageBody,
         };
       });
   }, [uiMessages]);

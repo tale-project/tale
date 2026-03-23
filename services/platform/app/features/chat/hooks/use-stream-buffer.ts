@@ -11,10 +11,8 @@
  *
  * STRATEGY:
  * =========
- * 1. ADAPTIVE RATE: Base CPS (default 50) when buffer is small.
- *    As buffer grows past a threshold, CPS increases via sqrt curve
- *    up to a configurable cap (default 600). This keeps short responses
- *    feeling like smooth typing while long responses reveal quickly.
+ * 1. CONSTANT RATE: Fixed CPS (default 20) for a steady, readable
+ *    typing feel regardless of buffer depth.
  *
  * 2. INITIAL BUFFERING: Waits for enough characters before starting
  *    - Builds a small reservoir to smooth the first few seconds
@@ -24,8 +22,7 @@
  *    - Cursor stays visible while waiting for next chunk
  *    - Resumes at the same rate when text arrives
  *
- * 4. STREAM ENDS: Drains remaining buffer at adaptive rate
- *    - Large leftover buffer drains fast, short tail drains smoothly
+ * 4. STREAM ENDS: Drains remaining buffer at the same constant rate
  *
  * USAGE:
  * ------
@@ -44,20 +41,14 @@ import { usePrefersReducedMotion } from '@/app/hooks/use-prefers-reduced-motion'
 // ============================================================================
 
 const DEFAULT_CONFIG = {
-  /** Base characters per second (used when buffer is small) */
-  targetCPS: 50,
+  /** Characters per second for reveal animation */
+  targetCPS: 20,
   /** Characters to buffer before starting reveal */
   initialBufferChars: 30,
   /** Interval between React state updates (ms) */
   stateUpdateInterval: 50,
   /** Maximum delta time (ms) to prevent jumps after tab switching */
   maxDeltaTime: 100,
-  /** Buffer chars before adaptive acceleration kicks in */
-  accelerationThreshold: 50,
-  /** Sqrt scale factor — controls how aggressively CPS ramps with buffer depth */
-  accelerationScale: 15,
-  /** Hard ceiling on CPS regardless of buffer size */
-  maxCPS: 600,
 };
 
 // ============================================================================
@@ -215,35 +206,6 @@ export function consumeFrozenDisplayText(): string | null {
   const text = frozenDisplayText;
   frozenDisplayText = null;
   return text;
-}
-
-// ============================================================================
-// ADAPTIVE CPS
-// ============================================================================
-
-/**
- * Compute the effective CPS given the current buffer depth.
- *
- *   effectiveCPS = baseCPS + sqrt(max(0, buffer - threshold)) * scale
- *
- * sqrt gives a smooth, non-linear ramp: gentle acceleration for small
- * buffers, tapering off as the cap is approached. This avoids jarring
- * speed jumps while keeping long responses from falling behind.
- *
- *   Buffer   50 → 50 CPS  (base)
- *   Buffer  100 → 156 CPS
- *   Buffer  300 → 237 CPS
- *   Buffer  500 → 368 CPS
- *   Buffer 1000 → 512 CPS
- *   Buffer 2000 → 600 CPS  (cap)
- */
-function getEffectiveCPS(baseCPS: number, bufferSize: number): number {
-  if (bufferSize <= DEFAULT_CONFIG.accelerationThreshold) return baseCPS;
-  const excess = bufferSize - DEFAULT_CONFIG.accelerationThreshold;
-  return Math.min(
-    baseCPS + Math.sqrt(excess) * DEFAULT_CONFIG.accelerationScale,
-    DEFAULT_CONFIG.maxCPS,
-  );
 }
 
 // ============================================================================
@@ -407,9 +369,7 @@ export function useStreamBuffer({
       const normalizedDelta = Math.min(deltaTime, DEFAULT_CONFIG.maxDeltaTime);
       const frameRatio = normalizedDelta / 16.67;
 
-      // Adaptive CPS: ramps with buffer depth so long responses don't lag
-      const effectiveCPS = getEffectiveCPS(targetCPS, bufferSize);
-      const charsPerFrame = effectiveCPS / 60;
+      const charsPerFrame = targetCPS / 60;
 
       accumulatedCharsRef.current += charsPerFrame * frameRatio;
 

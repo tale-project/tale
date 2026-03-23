@@ -33,6 +33,14 @@ import { ThinkingAnimation } from './thinking-animation';
  */
 const TOP_INSET = 16;
 
+/**
+ * For short user messages (≤ CLAMP_THRESHOLD): compute min-height so
+ * the user message anchors at the viewport top.
+ * For tall user messages (> CLAMP_THRESHOLD): return 0 — content flows
+ * naturally, no artificial white gap below the message.
+ */
+const CLAMP_THRESHOLD = 160; // ~10em
+
 function computeResponseMinHeight(
   container: HTMLElement,
   responseArea: HTMLElement,
@@ -40,10 +48,14 @@ function computeResponseMinHeight(
 ): number {
   if (!userMsg) return 0;
 
+  const userMsgH = userMsg.getBoundingClientRect().height;
+
+  // Tall user messages: skip min-height — just scroll to bottom naturally.
+  if (userMsgH > CLAMP_THRESHOLD) return 0;
+
   const footer = container.querySelector('[class*="sticky"]');
   const footerH =
     footer instanceof HTMLElement ? footer.getBoundingClientRect().height : 0;
-  const userMsgH = userMsg.getBoundingClientRect().height;
   const flexParent = responseArea.parentElement;
   const gap = flexParent
     ? parseFloat(getComputedStyle(flexParent).gap) || 0
@@ -108,83 +120,64 @@ export function ChatMessages({
   const { t } = useT('chat');
   const responseAreaRef = useRef<HTMLDivElement>(null);
 
-  const lastUserMessageKey = useMemo(() => {
+  // Split items: find the last user message index for layout purposes.
+  const lastUserIdx = useMemo(() => {
     for (let i = items.length - 1; i >= 0; i--) {
       const item = items[i];
-      if (item.type === 'message' && item.data.role === 'user') {
-        return item.data.key;
-      }
+      if (item.type === 'message' && item.data.role === 'user') return i;
     }
-    return null;
+    return -1;
   }, [items]);
 
-  const prevLastUserKeyRef = useRef<string | null>(null);
+  const lastUserMessageKey = useMemo(() => {
+    if (lastUserIdx < 0) return null;
+    const item = items[lastUserIdx];
+    return item.type === 'message' ? item.data.key : null;
+  }, [items, lastUserIdx]);
 
-  // Phase 1: Approximate min-height before paint + scroll on send.
-  // Footer may not have its final size during useLayoutEffect, so the
-  // value can be slightly off. Phase 2 (rAF) corrects it immediately.
+  const prevMinHeightRef = useRef('');
+  // Tracks the pending key so the last user message keeps a stable React key
+  // across the pending→real swap (prevents DOM teardown/rebuild flicker).
+  const prevPendingKeyRef = useRef<string | null>(null);
+
+  // Min-height computation: set before paint so the response area fills the
+  // viewport below the user message. Scrolling is handled by ChatInterface's
+  // content ResizeObserver + scroll-intent ref (assistant-ui pattern).
   useLayoutEffect(() => {
     const container = containerRef.current;
     const responseArea = responseAreaRef.current;
-    if (container && responseArea) {
-      responseArea.style.minHeight = `${computeResponseMinHeight(container, responseArea, lastUserMessageRef.current)}px`;
-    }
+    if (!container || !responseArea) return;
 
-    // Scroll to bottom on new pending message or pending→real key swap.
-    const prev = prevLastUserKeyRef.current;
-    const isNewPending =
-      lastUserMessageKey?.startsWith('pending-') && lastUserMessageKey !== prev;
-    const isPendingSwap =
-      prev?.startsWith('pending-') &&
-      lastUserMessageKey &&
-      !lastUserMessageKey.startsWith('pending-');
+    const next = `${computeResponseMinHeight(container, responseArea, lastUserMessageRef.current)}px`;
+    prevMinHeightRef.current = next;
+    responseArea.style.minHeight = next;
 
-    if ((isNewPending || isPendingSwap) && container) {
-      container.scrollTo({ top: container.scrollHeight, behavior: 'instant' });
-    }
-    prevLastUserKeyRef.current = lastUserMessageKey;
-
-    // Phase 2: Accurate correction after layout completes (footer has
-    // final size). Runs on every lastUserMessageKey change, covering
-    // thread navigation and message sends.
+    // Accurate correction after layout completes (footer may not have its
+    // final size during useLayoutEffect).
     const frame = requestAnimationFrame(() => {
       if (!container || !responseArea) return;
-      const atBottom =
-        container.scrollHeight - container.scrollTop - container.clientHeight <=
-        2;
-
-      responseArea.style.minHeight = `${computeResponseMinHeight(container, responseArea, lastUserMessageRef.current)}px`;
-
-      if (atBottom) {
-        container.scrollTo({
-          top: container.scrollHeight,
-          behavior: 'instant',
-        });
+      const corrected = `${computeResponseMinHeight(container, responseArea, lastUserMessageRef.current)}px`;
+      if (prevMinHeightRef.current !== corrected) {
+        prevMinHeightRef.current = corrected;
+        responseArea.style.minHeight = corrected;
       }
     });
 
     return () => cancelAnimationFrame(frame);
   }, [lastUserMessageKey, containerRef, lastUserMessageRef]);
 
-  // Phase 3: Keep min-height updated on window/footer resize.
+  // Keep min-height updated on window/footer resize.
+  // Guards against feedback loops by skipping when the value is unchanged.
   useEffect(() => {
     const container = containerRef.current;
     const responseArea = responseAreaRef.current;
     if (!container || !responseArea) return;
 
     const update = () => {
-      const atBottom =
-        container.scrollHeight - container.scrollTop - container.clientHeight <=
-        2;
-
-      responseArea.style.minHeight = `${computeResponseMinHeight(container, responseArea, lastUserMessageRef.current)}px`;
-
-      if (atBottom) {
-        container.scrollTo({
-          top: container.scrollHeight,
-          behavior: 'instant',
-        });
-      }
+      const next = `${computeResponseMinHeight(container, responseArea, lastUserMessageRef.current)}px`;
+      if (prevMinHeightRef.current === next) return;
+      prevMinHeightRef.current = next;
+      responseArea.style.minHeight = next;
     };
 
     const ro = new ResizeObserver(update);
@@ -195,40 +188,29 @@ export function ChatMessages({
     return () => ro.disconnect();
   }, [containerRef, lastUserMessageRef]);
 
-  // Split items into: everything before & including the last user message,
-  // and everything after (the "response area").
-  const lastUserIdx = useMemo(() => {
-    for (let i = items.length - 1; i >= 0; i--) {
-      const item = items[i];
-      if (item.type === 'message' && item.data.role === 'user') return i;
-    }
-    return -1;
-  }, [items]);
-
   const renderMessage = (item: ChatItem) => {
     if (item.type !== 'message') return null;
 
     const message = item.data;
 
-    if (message.isHumanInputResponse && message.role === 'system') {
-      const match = message.content.match(
-        /^User responded to question "(.*?)": ([\s\S]+)$/,
-      );
-      const response = match?.[2] ?? message.content;
-
-      return (
-        <div key={message.key} className="flex justify-end">
-          <div className="bg-primary/10 text-primary flex items-center gap-2 rounded-full px-4 py-2 text-sm">
-            <CheckCircle2 className="size-4" />
-            <span>{response}</span>
+    if (message.role === 'system' && message.systemMessageDisplay) {
+      if (message.systemMessageDisplay === 'pill') {
+        return (
+          <div key={message.key} className="flex justify-end">
+            <div className="bg-primary/10 text-primary flex items-center gap-2 rounded-full px-4 py-2 text-sm">
+              <CheckCircle2 className="size-4" aria-hidden="true" />
+              <span>{message.systemMessageBody ?? message.content}</span>
+            </div>
           </div>
-        </div>
-      );
-    }
+        );
+      }
 
-    if (message.role === 'system' && !message.isHumanInputResponse) {
       return (
-        <CollapsibleSystemMessage key={message.key} content={message.content} />
+        <CollapsibleSystemMessage
+          key={message.key}
+          content={message.systemMessageBody ?? message.content}
+          variant={message.systemMessageDisplay}
+        />
       );
     }
 
@@ -239,9 +221,20 @@ export function ChatMessages({
 
     const isLastUserMessage = message.key === lastUserMessageKey;
 
+    // Stable key for the last user message: keep the pending key across
+    // the pending→real swap so React updates in place (no DOM teardown).
+    let reactKey = message.key;
+    if (isLastUserMessage) {
+      if (message.key.startsWith('pending-')) {
+        prevPendingKeyRef.current = message.key;
+      } else if (prevPendingKeyRef.current) {
+        reactKey = prevPendingKeyRef.current;
+      }
+    }
+
     return (
       <div
-        key={message.key}
+        key={reactKey}
         ref={isLastUserMessage ? lastUserMessageRef : undefined}
         className={isLastUserMessage ? 'scroll-mt-6' : undefined}
       >
@@ -299,7 +292,10 @@ export function ChatMessages({
         {/* Response area: min-height fills viewport so scroll-to-bottom
             positions the user message at the top. When AI response exceeds
             viewport height, min-height becomes irrelevant. */}
-        <div ref={responseAreaRef} className="flex shrink-0 flex-col gap-4">
+        <div
+          ref={responseAreaRef}
+          className="flex shrink-0 flex-col gap-4 [overflow-anchor:none]"
+        >
           {afterItems.map(renderMessage)}
 
           <div>

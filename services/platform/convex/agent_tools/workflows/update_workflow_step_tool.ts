@@ -423,7 +423,7 @@ Inform the user the update is ready for review in the chat UI.`,
             approvalId,
             approvalCreated: true,
             approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created for updating ${stepInfos.length} steps (${stepNames}) in workflow "${firstInfo.workflowName}".`,
-            message: `Batch step update for ${stepInfos.length} steps is ready for approval. An approval card has been created below.`,
+            message: `Batch step update for ${stepInfos.length} steps is ready for approval. An approval card has been created.`,
           };
         } else {
           // Single step mode: existing behavior
@@ -455,8 +455,8 @@ Inform the user the update is ready for review in the chat UI.`,
             requiresApproval: true,
             approvalId,
             approvalCreated: true,
-            approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created below your message for updating step "${firstInfo.step.name}" in workflow "${firstInfo.workflowName}". The user must approve this update before changes will be applied.`,
-            message: `Step update for "${firstInfo.step.name}" is ready for approval. An approval card has been created below. Changes will be applied once the user approves it.`,
+            approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created for updating step "${firstInfo.step.name}" in workflow "${firstInfo.workflowName}". The user must approve this update before changes will be applied.`,
+            message: `Step update for "${firstInfo.step.name}" is ready for approval. An approval card has been created. Changes will be applied once the user approves it.`,
           };
         }
       } catch (error) {

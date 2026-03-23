@@ -2,12 +2,15 @@ import { useUIMessages, type UIMessage } from '@convex-dev/agent/react';
 import { useEffect, useMemo, useRef } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
+import type { SystemMessageDisplay } from '@/lib/shared/constants/system-message-tags';
 
 import { api } from '@/convex/_generated/api';
+import {
+  getSystemMessageDisplay,
+  parseSystemMessageTag,
+} from '@/lib/shared/constants/system-message-tags';
 
 import type { FileAttachment } from '../types';
-
-const HUMAN_INPUT_RESPONSE_PREFIX = 'User responded to question';
 
 const INTERNAL_ATTACHMENT_MARKER =
   /\n?\n?\[ATTACHED FILES - Pre-analysis was not available\. Use your tools to process these files\.\]/;
@@ -64,7 +67,8 @@ export interface ChatMessage {
   _creationTime?: number;
   isStreaming?: boolean;
   isAborted?: boolean;
-  isHumanInputResponse?: boolean;
+  systemMessageDisplay?: SystemMessageDisplay;
+  systemMessageBody?: string;
 }
 
 interface UseMessageProcessingResult {
@@ -142,6 +146,12 @@ export function useMessageProcessing(
     }
   }, [paginationStatus, isLoadingMore, visibleUserMessageCount, loadMore]);
 
+  // Reset auto-load counter on thread switch so new threads can auto-load
+  // even if the previous thread exhausted the cap.
+  useEffect(() => {
+    autoLoadCountRef.current = 0;
+  }, [threadId]);
+
   // Track which messages have been seen as streaming. Once streaming,
   // stay streaming until a terminal status (success/failed) is observed.
   // This prevents transient reconnection states (status briefly "pending")
@@ -197,9 +207,13 @@ export function useMessageProcessing(
             url: p.url,
           }));
 
-        const isHumanInputResponse =
-          m.role === 'system' &&
-          m.text?.startsWith(HUMAN_INPUT_RESPONSE_PREFIX);
+        let systemMessageDisplay: SystemMessageDisplay | undefined;
+        let systemMessageBody: string | undefined;
+        if (m.role === 'system' && m.text) {
+          const parsed = parseSystemMessageTag(m.text);
+          systemMessageDisplay = getSystemMessageDisplay(parsed.tag);
+          systemMessageBody = parsed.body;
+        }
 
         currentKeys.add(m.key);
 
@@ -245,7 +259,8 @@ export function useMessageProcessing(
             m.role === 'assistant' && m.status === 'failed' && !m.text?.trim(),
           isFailed:
             m.role === 'assistant' && m.status === 'failed' && !!m.text?.trim(),
-          isHumanInputResponse,
+          systemMessageDisplay,
+          systemMessageBody,
         };
       });
 

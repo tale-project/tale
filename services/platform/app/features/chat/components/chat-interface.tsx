@@ -190,36 +190,82 @@ export function ChatInterface({
 
   const lastUserMessageRef = useRef<HTMLDivElement>(null);
 
-  // Scroll button visibility — updated on both scroll events and content resize
+  // --- Scroll intent pattern (mirrors assistant-ui) ---
+  // Stores the active scroll behavior ('auto' for smooth on send, 'instant'
+  // for thread init), or null when not scrolling to bottom.
+  // Content ResizeObserver reuses the behavior until scroll completes.
+  const scrollingToBottomBehaviorRef = useRef<ScrollBehavior | null>(null);
+
+  // Unified scroll + resize handler — single place for all scroll decisions.
+  // Scrolls synchronously in observer callbacks so the correction happens
+  // before the next paint (no 1-frame flicker). Safe because scrollTo only
+  // changes container.scrollTop, not the observed content element.
   useEffect(() => {
     const container = containerRef.current;
     const content = contentRef.current;
     if (!container || !content) return;
 
-    const check = () => setShowScrollButton(!isAtBottom());
+    const onContentChange = () => {
+      const scrollBehavior = scrollingToBottomBehaviorRef.current;
+      if (scrollBehavior) {
+        container.scrollTo({
+          top: container.scrollHeight,
+          behavior: scrollBehavior,
+        });
+      } else if (isAtBottom()) {
+        container.scrollTo({
+          top: container.scrollHeight,
+          behavior: 'instant',
+        });
+      }
+      setShowScrollButton(!isAtBottom());
+    };
 
-    const observer = new ResizeObserver(check);
-    observer.observe(content);
-    container.addEventListener('scroll', check, { passive: true });
-    check();
+    const onScroll = () => {
+      if (scrollingToBottomBehaviorRef.current && isAtBottom()) {
+        scrollingToBottomBehaviorRef.current = null;
+      }
+      setShowScrollButton(!isAtBottom());
+    };
+
+    const resizeObserver = new ResizeObserver(onContentChange);
+    resizeObserver.observe(content);
+
+    // MutationObserver catches DOM changes (new messages appearing) that
+    // may not trigger a resize. Filters out style-only mutations to
+    // prevent feedback loops with min-height updates (assistant-ui pattern).
+    const mutationObserver = new MutationObserver((mutations) => {
+      const hasRelevant = mutations.some(
+        (mut) => mut.type !== 'attributes' || mut.attributeName !== 'style',
+      );
+      if (hasRelevant) onContentChange();
+    });
+    mutationObserver.observe(content, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+    });
+
+    container.addEventListener('scroll', onScroll, { passive: true });
+    onContentChange();
 
     return () => {
-      observer.disconnect();
-      container.removeEventListener('scroll', check);
+      resizeObserver.disconnect();
+      mutationObserver.disconnect();
+      container.removeEventListener('scroll', onScroll);
     };
   }, [containerRef, contentRef, isAtBottom]);
 
-  // Scroll to bottom on initial load (all threads).
-  // For new threads with a pending message, ChatMessages also scrolls
-  // to bottom on send — the response area's min-height ensures the
-  // user message ends up at the viewport top.
+  // Scroll to bottom on thread initial load.
   const scrolledForThreadRef = useRef<string | null>(null);
   useEffect(() => {
     if (!threadId || messages.length === 0) return;
     if (scrolledForThreadRef.current === threadId) return;
 
     scrolledForThreadRef.current = threadId;
+    scrollingToBottomBehaviorRef.current = 'instant';
 
+    // Kick off scroll — ResizeObserver will keep it pinned as layout settles.
     containerRef.current?.scrollTo({
       top: containerRef.current.scrollHeight,
       behavior: 'instant',
@@ -270,6 +316,7 @@ export function ChatInterface({
     message: string,
     sentAttachments?: FileAttachment[],
   ) => {
+    scrollingToBottomBehaviorRef.current = 'auto';
     clearInputValue();
     await sendMessage(message, sentAttachments);
   };
@@ -293,7 +340,7 @@ export function ChatInterface({
   return (
     <div
       ref={containerRef}
-      className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto"
+      className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto scroll-smooth"
     >
       <div
         ref={contentRef}

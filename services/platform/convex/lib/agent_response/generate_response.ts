@@ -785,7 +785,8 @@ export async function generateAgentResponse(
             threadId,
             message: {
               role: 'system',
-              content: 'Continue your previous response.',
+              content:
+                '[RESPONSE_INTERRUPTED] Response was interrupted, continuing automatically.',
             },
           });
 
@@ -953,7 +954,7 @@ export async function generateAgentResponse(
             message: {
               role: 'system',
               content:
-                'Previous attempt timed out. Recovering with available context.',
+                '[TIMEOUT_RECOVERY] Previous attempt timed out. Recovering with available context.',
             },
           });
 

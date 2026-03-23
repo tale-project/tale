@@ -109,6 +109,25 @@ Example: User asks for "John's email" and you find 3 Johns:
 → Then STOP and say "I found 3 customers named John. Please select which one you mean from the options above."`);
   }
 
+  // Add approval card placement rule for agents with tools that create approval cards
+  if (
+    opts.convexToolNames?.some((name) =>
+      [
+        'run_workflow',
+        'create_workflow',
+        'save_workflow_definition',
+        'update_workflow_step',
+        'integration',
+        'document_write',
+      ].includes(name),
+    ) ||
+    opts.extraTools
+  ) {
+    suffixParts.push(
+      'When a tool creates an approval card, do NOT mention its position in the chat. Never say the card is "above" or "below" — just inform the user that the card has been created.',
+    );
+  }
+
   const finalInstructions = [opts.instructions, suffixParts.join('\n\n')]
     .filter(Boolean)
     .join('\n\n');
