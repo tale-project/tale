@@ -45,6 +45,10 @@ export interface UploadAndCreateDocDependencies {
     contentType: string,
     size: number,
   ) => Promise<void>;
+  linkDocumentToFile?: (
+    storageId: Id<'_storage'>,
+    documentId: Id<'documents'>,
+  ) => Promise<void>;
 }
 
 /**
@@ -96,6 +100,8 @@ export async function uploadAndCreateDocument(
         externalItemId,
       });
 
+      await deps.linkDocumentToFile?.(storageId, args.documentIdToUpdate);
+
       return {
         success: true,
         fileId: storageId,
@@ -114,6 +120,10 @@ export async function uploadAndCreateDocument(
       externalItemId,
       createdBy: args.createdBy,
     });
+
+    if (documentId) {
+      await deps.linkDocumentToFile?.(storageId, documentId);
+    }
 
     return { success: true, fileId: storageId, documentId };
   } catch (error) {

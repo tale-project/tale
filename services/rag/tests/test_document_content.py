@@ -51,7 +51,7 @@ def _async_ctx(mock_conn):
 
 DOC_ROW = {
     "id": "uuid-abc",
-    "document_id": "doc-1",
+    "file_id": "doc-1",
     "filename": "report.pdf",
     "chunks_count": 5,
 }
@@ -76,7 +76,7 @@ class TestGetDocumentContent:
             result = await service.get_document_content("doc-1")
 
         assert result is not None
-        assert result["document_id"] == "doc-1"
+        assert result["file_id"] == "doc-1"
         assert result["title"] == "report.pdf"
         assert result["total_chunks"] == 5
         assert result["chunk_range"] == {"start": 1, "end": 5}

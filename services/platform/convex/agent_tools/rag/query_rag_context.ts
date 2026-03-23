@@ -176,7 +176,7 @@ export async function queryRagContext(
         debugLog('No file IDs provided, skipping RAG query');
         return undefined;
       }
-      requestPayload.document_ids = options.fileIds;
+      requestPayload.file_ids = options.fileIds;
 
       const response = await fetch(url, {
         method: 'POST',

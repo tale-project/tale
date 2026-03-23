@@ -2,7 +2,7 @@
 
 Covers:
 - Hybrid search (FTS + vector) with RRF fusion
-- Scope filtering (document_ids, none)
+- Scope filtering (file_ids, none)
 - Graceful fallback when BM25 index not ready
 - UndefinedTableError / UndefinedColumnError handling
 - Empty results from both search channels
@@ -20,13 +20,13 @@ pytestmark = pytest.mark.asyncio
 
 
 def _make_row(
-    row_id: int, chunk_content: str, document_id: str, score: float = 1.0, chunk_index: int = 0
+    row_id: int, chunk_content: str, file_id: str, score: float = 1.0, chunk_index: int = 0
 ) -> dict[str, Any]:
     return {
         "id": row_id,
         "chunk_content": chunk_content,
         "chunk_index": chunk_index,
-        "document_id": document_id,
+        "file_id": file_id,
         "score": score,
     }
 
@@ -107,13 +107,13 @@ class TestHybridSearch:
             service._fts_search = AsyncMock(return_value=fts_rows)
             service._vector_search = AsyncMock(return_value=vector_rows)
 
-            results = await service.search("test query", document_ids=["doc-1"])
+            results = await service.search("test query", file_ids=["doc-1"])
 
         assert len(results) > 0
         for r in results:
             assert "content" in r
             assert "score" in r
-            assert "document_id" in r
+            assert "file_id" in r
 
     async def test_returns_empty_when_both_channels_empty(self):
         service, *_ = _build_service(fts_rows=[], vector_rows=[])
@@ -177,7 +177,7 @@ class TestHybridSearch:
 class TestScopeFiltering:
     """Scope clause construction and parameter passing."""
 
-    def test_build_scope_clause_with_document_ids(self):
+    def test_build_scope_clause_with_file_ids(self):
         from app.services.search_service import RagSearchService
 
         pool = MagicMock()
@@ -186,11 +186,11 @@ class TestScopeFiltering:
 
         clause, params = service._build_scope_clause(["doc-a", "doc-b"], 1)
 
-        assert "document_id" in clause
+        assert "file_id" in clause
         assert "ANY($2)" in clause
         assert params == [["doc-a", "doc-b"]]
 
-    def test_build_scope_clause_without_document_ids(self):
+    def test_build_scope_clause_without_file_ids(self):
         from app.services.search_service import RagSearchService
 
         pool = MagicMock()
@@ -213,12 +213,12 @@ class TestScopeFiltering:
 
         assert "$4" in clause
 
-    async def test_search_passes_document_ids_to_fts_and_vector(self):
+    async def test_search_passes_file_ids_to_fts_and_vector(self):
         service, *_ = _build_service()
         service._fts_search = AsyncMock(return_value=[])
         service._vector_search = AsyncMock(return_value=[])
 
-        await service.search("query", document_ids=["doc-1", "doc-2"])
+        await service.search("query", file_ids=["doc-1", "doc-2"])
 
         service._fts_search.assert_awaited_once()
         fts_args = service._fts_search.call_args

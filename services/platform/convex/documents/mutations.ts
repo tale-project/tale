@@ -130,8 +130,9 @@ export const createDocumentFromUpload = mutation({
       }
     }
 
+    let fileMetadataId;
     if (args.fileSize != null) {
-      await ctx.db.insert('fileMetadata', {
+      fileMetadataId = await ctx.db.insert('fileMetadata', {
         organizationId: args.organizationId,
         storageId: args.fileId,
         fileName: args.fileName,
@@ -152,6 +153,12 @@ export const createDocumentFromUpload = mutation({
       createdBy: String(authUser._id),
       folderId: args.folderId,
     });
+
+    if (fileMetadataId) {
+      await ctx.db.patch(fileMetadataId, {
+        documentId: result.documentId,
+      });
+    }
 
     return {
       success: true,

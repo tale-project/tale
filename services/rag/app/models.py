@@ -46,7 +46,7 @@ class DocumentAddResponse(BaseModel):
     """
 
     success: bool = Field(..., description="Whether the operation (or enqueue) succeeded")
-    document_id: str = Field(..., description="ID of the added document")
+    file_id: str = Field(..., description="ID of the added document")
     chunks_created: int = Field(..., description="Number of chunks created (0 when queued)")
     message: str = Field(..., description="Status message")
     queued: bool = Field(
@@ -80,7 +80,7 @@ class DocumentChunk(BaseModel):
 class DocumentContentResponse(BaseModel):
     """Response containing reassembled document content."""
 
-    document_id: str = Field(..., description="Document identifier")
+    file_id: str = Field(..., description="File identifier")
     title: str | None = Field(default=None, description="Original filename")
     content: str = Field(..., description="Reassembled text content")
     chunk_range: ChunkRange = Field(..., description="Range of chunks returned (1-indexed, inclusive)")
@@ -95,7 +95,7 @@ class DocumentContentResponse(BaseModel):
 class DocumentDeleteRequest(BaseModel):
     """Request to delete a document by ID."""
 
-    document_id: str = Field(..., description="ID of the document to delete")
+    file_id: str = Field(..., description="ID of the file to delete")
 
 
 class DocumentDeleteResponse(BaseModel):
@@ -132,11 +132,11 @@ class DocumentStatusInfo(BaseModel):
 class DocumentStatusRequest(BaseModel):
     """Request to check statuses of multiple documents."""
 
-    document_ids: list[str] = Field(
+    file_ids: list[str] = Field(
         ...,
         min_length=1,
         max_length=200,
-        description="List of document IDs to check (max 200)",
+        description="List of file IDs to check (max 200)",
     )
 
 
@@ -145,7 +145,7 @@ class DocumentStatusResponse(BaseModel):
 
     statuses: dict[str, DocumentStatusInfo | None] = Field(
         ...,
-        description="Map of document_id to status info (null if not found)",
+        description="Map of file_id to status info (null if not found)",
     )
 
 
@@ -165,11 +165,11 @@ class QueryRequest(BaseModel):
         default=None, ge=0.0, le=1.0, description="Minimum similarity score (overrides default)"
     )
     include_metadata: bool = Field(default=True, description="Whether to include metadata in results")
-    document_ids: list[str] = Field(
+    file_ids: list[str] = Field(
         ...,
         min_length=1,
         max_length=500,
-        description="Document IDs to restrict search to.",
+        description="File IDs to restrict search to.",
     )
 
 
@@ -178,7 +178,7 @@ class SearchResult(BaseModel):
 
     content: str = Field(..., description="Content of the result")
     score: float = Field(..., description="Similarity score")
-    document_id: str | None = Field(default=None, description="Source document ID")
+    file_id: str | None = Field(default=None, description="Source file ID")
     filename: str | None = Field(default=None, description="Source document filename")
     metadata: dict[str, Any] | None = Field(default=None, description="Result metadata")
 
@@ -210,11 +210,11 @@ class GenerateRequest(BaseModel):
     """
 
     query: str = Field(..., max_length=10_000, description="User query")
-    document_ids: list[str] = Field(
+    file_ids: list[str] = Field(
         ...,
         min_length=1,
         max_length=500,
-        description="Document IDs to retrieve context from.",
+        description="File IDs to retrieve context from.",
     )
 
 
@@ -236,8 +236,8 @@ class GenerateResponse(BaseModel):
 class DocumentCompareRequest(BaseModel):
     """Request to compare two documents."""
 
-    base_document_id: str = Field(..., description="Document ID of the base document")
-    comparison_document_id: str = Field(..., description="Document ID of the comparison document")
+    base_file_id: str = Field(..., description="File ID of the base document")
+    comparison_file_id: str = Field(..., description="File ID of the comparison document")
     max_changes: int = Field(default=500, ge=1, le=2000, description="Maximum number of change items to return")
 
 
@@ -282,7 +282,7 @@ class ComparisonDiffStats(BaseModel):
 class ComparisonDocumentInfo(BaseModel):
     """Minimal document info in comparison response."""
 
-    document_id: str = Field(..., description="Document identifier")
+    file_id: str | None = Field(default=None, description="File identifier")
     title: str | None = Field(default=None, description="Document filename")
 
 

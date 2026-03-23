@@ -121,7 +121,7 @@ SUPPORTED_EXTENSIONS = {
 
 
 async def _insert_processing_row(
-    document_id: str,
+    file_id: str,
     filename: str,
     user_id: str | None = None,
 ) -> None:
@@ -130,19 +130,19 @@ async def _insert_processing_row(
     async with acquire_with_retry(pool) as conn:
         await conn.execute(
             f"""
-            INSERT INTO {SCHEMA}.documents (document_id, filename, user_id, status)
+            INSERT INTO {SCHEMA}.documents (file_id, filename, user_id, status)
             VALUES ($1, $2, $3, 'processing')
-            ON CONFLICT (document_id, COALESCE(team_id, ''), COALESCE(user_id, ''))
+            ON CONFLICT (file_id, COALESCE(team_id, ''), COALESCE(user_id, ''))
             DO UPDATE SET status = 'processing', error = NULL, chunks_count = 0, updated_at = NOW()
             """,
-            document_id,
+            file_id,
             filename,
             user_id,
         )
 
 
 async def _record_failure(
-    document_id: str,
+    file_id: str,
     filename: str,
     error: str,
     user_id: str | None = None,
@@ -152,12 +152,12 @@ async def _record_failure(
     async with acquire_with_retry(pool) as conn:
         await conn.execute(
             f"""
-            INSERT INTO {SCHEMA}.documents (document_id, filename, user_id, status, error)
+            INSERT INTO {SCHEMA}.documents (file_id, filename, user_id, status, error)
             VALUES ($1, $2, $3, 'failed', $4)
-            ON CONFLICT (document_id, COALESCE(team_id, ''), COALESCE(user_id, ''))
+            ON CONFLICT (file_id, COALESCE(team_id, ''), COALESCE(user_id, ''))
             DO UPDATE SET status = 'failed', error = EXCLUDED.error, chunks_count = 0, updated_at = NOW()
             """,
-            document_id,
+            file_id,
             filename,
             user_id,
             error,
@@ -165,7 +165,7 @@ async def _record_failure(
 
 
 async def _mark_completed(
-    document_id: str,
+    file_id: str,
     user_id: str | None = None,
 ) -> None:
     """Mark document status as completed (used when content is unchanged on re-upload)."""
@@ -175,10 +175,10 @@ async def _mark_completed(
             f"""
             UPDATE {SCHEMA}.documents
             SET status = 'completed', error = NULL, updated_at = NOW()
-            WHERE document_id = $1
+            WHERE file_id = $1
               AND COALESCE(user_id, '') = COALESCE($2, '')
             """,
-            document_id,
+            file_id,
             user_id,
         )
 
@@ -193,7 +193,7 @@ def _sanitize_error(exc: Exception, max_length: int = 500) -> str:
 
 async def _background_ingest(
     content: bytes,
-    document_id: str,
+    file_id: str,
     filename: str,
     user_id: str | None = None,
 ) -> None:
@@ -201,16 +201,16 @@ async def _background_ingest(
     try:
         result = await rag_service.add_document(
             content=content,
-            document_id=document_id,
+            file_id=file_id,
             filename=filename,
             user_id=user_id,
         )
         if result.get("skipped"):
-            await _mark_completed(document_id, user_id)
+            await _mark_completed(file_id, user_id)
         logger.info(
             "Background ingestion completed",
             extra={
-                "document_id": document_id,
+                "file_id": file_id,
                 "filename": filename,
                 "chunks_created": result.get("chunks_created", 0),
                 "skipped": result.get("skipped", False),
@@ -219,14 +219,14 @@ async def _background_ingest(
     except Exception as exc:
         logger.opt(exception=True).error(
             "Background ingestion failed for {}",
-            document_id,
+            file_id,
         )
         try:
-            await _record_failure(document_id, filename, _sanitize_error(exc), user_id)
+            await _record_failure(file_id, filename, _sanitize_error(exc), user_id)
         except Exception as record_exc:
-            logger.critical("Could not record failure for {}: {}", document_id, record_exc)
+            logger.critical("Could not record failure for {}: {}", file_id, record_exc)
     finally:
-        cleanup_memory(context=f"after background ingestion for {document_id}")
+        cleanup_memory(context=f"after background ingestion for {file_id}")
 
 
 def _validate_file_extension(filename: str) -> str:
@@ -291,7 +291,7 @@ async def upload_document(
     background_tasks: BackgroundTasks,
     file: UploadFile = _FILE_UPLOAD,
     metadata: str | None = Form(None, description="Optional metadata as JSON string"),
-    document_id: str | None = Form(None, description="Optional custom document ID"),
+    file_id: str | None = Form(None, description="Optional custom file ID"),
     user_id: str | None = Form(None, description="User ID for multi-tenant isolation"),
     sync: bool = Query(False, description="If true, wait for ingestion to complete before responding"),
 ):
@@ -321,14 +321,14 @@ async def upload_document(
 
         _parse_metadata(metadata)
 
-        doc_id = document_id or f"file-{uuid4().hex}"
+        doc_id = file_id or f"file-{uuid4().hex}"
 
         await _insert_processing_row(doc_id, file.filename, user_id)
 
         if sync:
             result = await rag_service.add_document(
                 content=file_bytes,
-                document_id=doc_id,
+                file_id=doc_id,
                 filename=file.filename,
                 user_id=user_id,
             )
@@ -339,7 +339,7 @@ async def upload_document(
             skip_reason = result.get("skip_reason")
             return DocumentAddResponse(
                 success=True,
-                document_id=doc_id,
+                file_id=doc_id,
                 chunks_created=result.get("chunks_created", 0),
                 message=f"File '{file.filename}' ingested synchronously",
                 queued=False,
@@ -357,7 +357,7 @@ async def upload_document(
 
         return DocumentAddResponse(
             success=True,
-            document_id=doc_id,
+            file_id=doc_id,
             chunks_created=0,
             message=f"File '{file.filename}' upload queued for ingestion",
             queued=True,
@@ -373,11 +373,11 @@ async def upload_document(
         ) from e
 
 
-@router.delete("/documents/{document_id}", response_model=DocumentDeleteResponse)
-async def delete_document(document_id: str):
+@router.delete("/documents/{file_id}", response_model=DocumentDeleteResponse)
+async def delete_document(file_id: str):
     """Delete a document from the knowledge base by ID."""
     try:
-        result = await rag_service.delete_document(document_id)
+        result = await rag_service.delete_document(file_id)
 
         return DocumentDeleteResponse(
             success=result["success"],
@@ -388,16 +388,16 @@ async def delete_document(document_id: str):
         )
 
     except Exception as e:
-        logger.error("Failed to delete document {}: {}", document_id, e)
+        logger.error("Failed to delete document {}: {}", file_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete document. Please try again.",
         ) from e
 
 
-@router.get("/documents/{document_id}/content", response_model=DocumentContentResponse)
+@router.get("/documents/{file_id}/content", response_model=DocumentContentResponse)
 async def get_document_content(
-    document_id: str,
+    file_id: str,
     chunk_start: int = Query(default=1, ge=1, description="Start chunk (1-indexed)"),
     chunk_end: int | None = Query(default=None, ge=1, description="End chunk (1-indexed, inclusive)"),
     return_chunks: bool = Query(default=False, description="If true, include individual chunks as a list"),
@@ -415,13 +415,13 @@ async def get_document_content(
 
     try:
         result = await rag_service.get_document_content(
-            document_id,
+            file_id,
             chunk_start=chunk_start,
             chunk_end=chunk_end,
             return_chunks=return_chunks,
         )
     except Exception as e:
-        logger.error("Failed to retrieve document content for {}: {}", document_id, e)
+        logger.error("Failed to retrieve document content for {}: {}", file_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve document content.",
@@ -443,7 +443,7 @@ async def compare_documents(request: DocumentCompareRequest):
     Returns structured change blocks with context, statistics, and
     divergence detection.
     """
-    if request.base_document_id == request.comparison_document_id:
+    if request.base_file_id == request.comparison_file_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Base and comparison documents must be different",
@@ -451,8 +451,8 @@ async def compare_documents(request: DocumentCompareRequest):
 
     try:
         result = await rag_service.compare_documents(
-            request.base_document_id,
-            request.comparison_document_id,
+            request.base_file_id,
+            request.comparison_file_id,
             max_changes=request.max_changes,
         )
     except Exception as e:
@@ -470,7 +470,7 @@ async def compare_documents(request: DocumentCompareRequest):
 
     if result.get("error") == "not_found":
         role = result.get("role", "")
-        doc_id = result.get("document_id", "")
+        doc_id = result.get("file_id", "")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"{role.capitalize()} document not found: {doc_id}",
@@ -527,10 +527,10 @@ async def compare_files(
 async def get_document_statuses(request: DocumentStatusRequest):
     """Get statuses for multiple documents by ID.
 
-    Returns status info for each document_id, or null if not found.
+    Returns status info for each file_id, or null if not found.
     """
     try:
-        statuses_raw = await rag_service.get_document_statuses(request.document_ids)
+        statuses_raw = await rag_service.get_document_statuses(request.file_ids)
         statuses = {
             did: DocumentStatusInfo(status=info["status"], error=info.get("error")) if info else None
             for did, info in statuses_raw.items()

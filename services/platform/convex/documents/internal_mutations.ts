@@ -45,6 +45,16 @@ export const deleteDocumentById = internalMutation({
   handler: async (ctx, args) => {
     const document = await ctx.db.get(args.documentId);
     if (document) {
+      const { fileId } = document;
+      if (fileId) {
+        const metadata = await ctx.db
+          .query('fileMetadata')
+          .withIndex('by_storageId', (q) => q.eq('storageId', fileId))
+          .first();
+        if (metadata?.documentId === args.documentId) {
+          await ctx.db.patch(metadata._id, { documentId: undefined });
+        }
+      }
       await ctx.db.delete(args.documentId);
     }
     return null;

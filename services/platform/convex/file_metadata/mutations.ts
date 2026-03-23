@@ -10,6 +10,7 @@ export const saveFileMetadata = mutation({
     fileName: v.string(),
     contentType: v.string(),
     size: v.number(),
+    documentId: v.optional(v.id('documents')),
   },
   async handler(ctx, args) {
     const authUser = await authComponent.getAuthUser(ctx);
@@ -23,11 +24,15 @@ export const saveFileMetadata = mutation({
       .first();
 
     if (existing) {
-      await ctx.db.patch(existing._id, {
+      const patchData: Record<string, unknown> = {
         fileName: args.fileName,
         contentType: args.contentType,
         size: args.size,
-      });
+      };
+      if (args.documentId !== undefined) {
+        patchData.documentId = args.documentId;
+      }
+      await ctx.db.patch(existing._id, patchData);
       return existing._id;
     }
 
@@ -37,6 +42,7 @@ export const saveFileMetadata = mutation({
       fileName: args.fileName,
       contentType: args.contentType,
       size: args.size,
+      ...(args.documentId !== undefined && { documentId: args.documentId }),
     });
   },
 });

@@ -130,7 +130,7 @@ class TestSuccessfulIndexing:
             )
 
         assert result["success"] is True
-        assert result["document_id"] == SAMPLE_DOC_ID
+        assert result["file_id"] == SAMPLE_DOC_ID
         assert result["chunks_created"] == 2
         assert result["skipped"] is False
         assert result["skip_reason"] is None
@@ -791,7 +791,7 @@ class TestCrossHashClone:
                 new_callable=AsyncMock,
                 return_value={
                     "success": True,
-                    "document_id": SAMPLE_DOC_ID,
+                    "file_id": SAMPLE_DOC_ID,
                     "chunks_created": 3,
                     "skipped": False,
                     "skip_reason": None,
