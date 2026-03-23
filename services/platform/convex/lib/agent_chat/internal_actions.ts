@@ -112,6 +112,14 @@ export const runAgentGeneration = internalAction({
     userId: v.optional(v.string()),
     promptMessage: v.string(),
     additionalContext: v.optional(v.record(v.string(), v.string())),
+    userContext: v.optional(
+      v.object({
+        timezone: v.string(),
+        language: v.string(),
+        coordinates: v.optional(v.string()),
+        location: v.optional(v.string()),
+      }),
+    ),
     parentThreadId: v.optional(v.string()),
     agentOptions: v.optional(v.any()),
     attachments: v.optional(
@@ -149,6 +157,7 @@ export const runAgentGeneration = internalAction({
       userId,
       promptMessage,
       additionalContext,
+      userContext,
       parentThreadId,
       agentOptions,
       attachments,
@@ -323,6 +332,7 @@ export const runAgentGeneration = internalAction({
           userId,
           promptMessage,
           additionalContext,
+          userContext,
           parentThreadId,
           agentOptions,
           attachments,

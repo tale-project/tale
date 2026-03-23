@@ -12,6 +12,7 @@ import type {
 } from '../context/chat-layout-context';
 import type { FileAttachment } from '../types';
 import type { ChatMessage } from './use-message-processing';
+import type { UserContext } from './use-user-context';
 
 import {
   useUnifiedChatWithAgent,
@@ -29,6 +30,7 @@ interface UseSendMessageParams {
   clearChatState: () => void;
   onBeforeSend?: () => void;
   selectedAgent: SelectedAgent | null;
+  userContext?: UserContext;
 }
 
 /**
@@ -45,6 +47,7 @@ export function useSendMessage({
   clearChatState,
   onBeforeSend,
   selectedAgent,
+  userContext,
 }: UseSendMessageParams) {
   const { t } = useT('chat');
   const navigate = useNavigate();
@@ -152,6 +155,14 @@ export function useSendMessage({
           organizationId,
           message: sanitizedContent,
           attachments: mutationAttachments,
+          userContext: userContext
+            ? {
+                timezone: userContext.timezone,
+                language: userContext.language,
+                coordinates: userContext.coordinates,
+                location: userContext.location,
+              }
+            : undefined,
         });
       } catch (error) {
         console.error('Failed to send message:', error);
@@ -175,6 +186,7 @@ export function useSendMessage({
       updateThread,
       chatWithAgent,
       selectedAgent,
+      userContext,
       navigate,
       t,
     ],

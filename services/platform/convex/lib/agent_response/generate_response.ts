@@ -212,6 +212,7 @@ export async function generateAgentResponse(
     organizationId,
     promptMessage,
     additionalContext,
+    userContext,
     parentThreadId,
     agentOptions,
     streamId,
@@ -500,6 +501,10 @@ export async function generateAgentResponse(
       ? await resolveTemplateVariables(ctx, instructions, {
           organizationId,
           userId,
+          timezone: userContext?.timezone,
+          language: userContext?.language,
+          coordinates: userContext?.coordinates,
+          location: userContext?.location,
         })
       : undefined;
 

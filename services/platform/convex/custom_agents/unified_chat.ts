@@ -36,6 +36,14 @@ export const chatWithAgent = mutation({
       ),
     ),
     additionalContext: v.optional(v.record(v.string(), v.string())),
+    userContext: v.optional(
+      v.object({
+        timezone: v.string(),
+        language: v.string(),
+        coordinates: v.optional(v.string()),
+        location: v.optional(v.string()),
+      }),
+    ),
   },
   returns: v.object({
     messageAlreadyExists: v.boolean(),
@@ -109,6 +117,7 @@ export const chatWithAgent = mutation({
       maxSteps: args.maxSteps,
       attachments: args.attachments,
       additionalContext: args.additionalContext,
+      userContext: args.userContext,
       agentConfig,
       model: agentConfig.model ?? model,
       provider,
