@@ -42,14 +42,28 @@ describe('formatSearchResults', () => {
     );
   });
 
-  it('ignores metadata and document_id in formatting', () => {
+  it('ignores metadata and file_id in formatting', () => {
     const result = formatSearchResults([
       {
         content: 'Content',
         score: 0.8,
-        document_id: 'doc-123',
+        file_id: 'doc-123',
         metadata: { source: 'test' },
       },
+    ]);
+    expect(result).toBe('[1] (Relevance: 80.0%)\nContent');
+  });
+
+  it('includes source annotation when filename is provided', () => {
+    const result = formatSearchResults([
+      { content: 'Content', score: 0.8, filename: 'report.pdf' },
+    ]);
+    expect(result).toBe('[1] (Relevance: 80.0%) [Source: report.pdf]\nContent');
+  });
+
+  it('omits source annotation when filename is undefined', () => {
+    const result = formatSearchResults([
+      { content: 'Content', score: 0.8, filename: undefined },
     ]);
     expect(result).toBe('[1] (Relevance: 80.0%)\nContent');
   });

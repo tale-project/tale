@@ -8,7 +8,7 @@
 export interface SearchResult {
   content: string;
   score: number;
-  document_id?: string;
+  file_id?: string;
   filename?: string;
   metadata?: Record<string, unknown>;
 }
@@ -45,7 +45,8 @@ export function formatSearchResults(
   return results
     .map((r, idx) => {
       const score = (r.score * 100).toFixed(1);
-      return `[${idx + 1}] (Relevance: ${score}%)\n${r.content}`;
+      const sourceAnnotation = r.filename ? ` [Source: ${r.filename}]` : '';
+      return `[${idx + 1}] (Relevance: ${score}%)${sourceAnnotation}\n${r.content}`;
     })
     .join('\n\n---\n\n');
 }

@@ -239,7 +239,7 @@ export const checkRagDocumentStatus = internalAction({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          document_ids: [document.ragInfo.indexedFileId ?? args.documentId],
+          file_ids: [document.ragInfo.indexedFileId ?? args.documentId],
         }),
         signal: AbortSignal.timeout(10000),
       });

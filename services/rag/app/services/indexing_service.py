@@ -103,7 +103,7 @@ async def find_existing_by_hash(
 async def clone_from_existing(
     pool: asyncpg.Pool,
     source_doc_id: int,
-    document_id: str,
+    file_id: str,
     filename: str,
     content_hash: str,
     *,
@@ -118,18 +118,18 @@ async def clone_from_existing(
         existing = await conn.fetchrow(
             f"""
             SELECT id, content_hash FROM {SCHEMA}.documents
-            WHERE document_id = $1
+            WHERE file_id = $1
               AND COALESCE(user_id, '') = COALESCE($2, '')
             """,
-            document_id,
+            file_id,
             user_id,
         )
 
     if existing and existing["content_hash"] == content_hash:
-        logger.info("Document {} content unchanged for user={}, skipping (clone path)", document_id, user_id)
+        logger.info("Document {} content unchanged for user={}, skipping (clone path)", file_id, user_id)
         return {
             "success": True,
-            "document_id": document_id,
+            "file_id": file_id,
             "chunks_created": 0,
             "skipped": True,
             "skip_reason": "content_unchanged",
@@ -142,7 +142,7 @@ async def clone_from_existing(
             result = await _do_clone(
                 pool,
                 source_doc_id,
-                document_id,
+                file_id,
                 filename,
                 content_hash,
                 existing_id,
@@ -152,7 +152,7 @@ async def clone_from_existing(
                 return None  # type: ignore[return-value]
             logger.info(
                 "Cloned document {}: {} chunks for user={} (from source {})",
-                document_id,
+                file_id,
                 result["chunks_created"],
                 user_id,
                 source_doc_id,
@@ -168,7 +168,7 @@ async def clone_from_existing(
 async def _do_clone(
     pool: asyncpg.Pool,
     source_doc_id: int,
-    document_id: str,
+    file_id: str,
     filename: str,
     content_hash: str,
     existing_id: int | None,
@@ -194,11 +194,11 @@ async def _do_clone(
         doc_row = await conn.fetchrow(
             f"""
             INSERT INTO {SCHEMA}.documents
-                (document_id, filename, content_hash, user_id, status, chunks_count)
+                (file_id, filename, content_hash, user_id, status, chunks_count)
             VALUES ($1, $2, $3, $4, 'completed', $5)
             RETURNING id
             """,
-            document_id,
+            file_id,
             filename,
             content_hash,
             user_id,
@@ -225,7 +225,7 @@ async def _do_clone(
 
     return {
         "success": True,
-        "document_id": document_id,
+        "file_id": file_id,
         "chunks_created": chunks_created,
         "skipped": False,
         "skip_reason": None,
@@ -242,7 +242,7 @@ async def _reindex_chunks_hnsw(pool: asyncpg.Pool) -> None:
 
 async def _do_store(
     pool: asyncpg.Pool,
-    document_id: str,
+    file_id: str,
     filename: str,
     prepared: PreparedDocument,
     existing_id: int | None,
@@ -258,11 +258,11 @@ async def _do_store(
         doc_row = await conn.fetchrow(
             f"""
                 INSERT INTO {SCHEMA}.documents
-                    (document_id, filename, content_hash, user_id, status, chunks_count)
+                    (file_id, filename, content_hash, user_id, status, chunks_count)
                 VALUES ($1, $2, $3, $4, 'completed', $5)
                 RETURNING id
                 """,
-            document_id,
+            file_id,
             filename,
             prepared.content_hash,
             user_id,
@@ -293,7 +293,7 @@ async def _do_store(
 
     return {
         "success": True,
-        "document_id": document_id,
+        "file_id": file_id,
         "chunks_created": len(prepared.chunks),
         "skipped": False,
         "skip_reason": None,
@@ -302,7 +302,7 @@ async def _do_store(
 
 async def store_prepared_document(
     pool: asyncpg.Pool,
-    document_id: str,
+    file_id: str,
     filename: str,
     prepared: PreparedDocument,
     *,
@@ -316,25 +316,25 @@ async def store_prepared_document(
         existing = await conn.fetchrow(
             f"""
             SELECT id, content_hash FROM {SCHEMA}.documents
-            WHERE document_id = $1
+            WHERE file_id = $1
               AND COALESCE(user_id, '') = COALESCE($2, '')
             """,
-            document_id,
+            file_id,
             user_id,
         )
 
     if existing and existing["content_hash"] == prepared.content_hash:
-        logger.info("Document {} content unchanged for user={}, skipping", document_id, user_id)
+        logger.info("Document {} content unchanged for user={}, skipping", file_id, user_id)
         return {
             "success": True,
-            "document_id": document_id,
+            "file_id": file_id,
             "chunks_created": 0,
             "skipped": True,
             "skip_reason": "content_unchanged",
         }
 
     if existing:
-        logger.info("Document {} content changed, replacing for user={}", document_id, user_id)
+        logger.info("Document {} content changed, replacing for user={}", file_id, user_id)
 
     existing_id = existing["id"] if existing else None
 
@@ -342,7 +342,7 @@ async def store_prepared_document(
         try:
             result = await _do_store(
                 pool,
-                document_id,
+                file_id,
                 filename,
                 prepared,
                 existing_id,
@@ -350,7 +350,7 @@ async def store_prepared_document(
             )
             logger.info(
                 "Indexed document {}: {} chunks for user={}",
-                document_id,
+                file_id,
                 result["chunks_created"],
                 user_id,
             )
@@ -364,7 +364,7 @@ async def store_prepared_document(
 
 async def index_document(
     pool: asyncpg.Pool,
-    document_id: str,
+    file_id: str,
     content_bytes: bytes,
     filename: str,
     *,
@@ -386,7 +386,7 @@ async def index_document(
         result = await clone_from_existing(
             pool,
             source_id,
-            document_id,
+            file_id,
             filename,
             content_hash,
             user_id=user_id,
@@ -407,7 +407,7 @@ async def index_document(
     if prepared is None:
         return {
             "success": True,
-            "document_id": document_id,
+            "file_id": file_id,
             "chunks_created": 0,
             "skipped": True,
             "skip_reason": "no_text_extracted",
@@ -415,7 +415,7 @@ async def index_document(
 
     return await store_prepared_document(
         pool,
-        document_id,
+        file_id,
         filename,
         prepared,
         user_id=user_id,

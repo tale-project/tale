@@ -4,7 +4,7 @@ const MAX_CONTENT_CHARS = 50_000;
 const FETCH_TIMEOUT_MS = 60_000;
 
 interface RagContentResponse {
-  document_id: string;
+  file_id: string;
   title: string | null;
   content: string;
   chunk_range: { start: number; end: number };
@@ -90,7 +90,7 @@ export async function fetchDocumentContent(
       : rawContent;
 
     return {
-      fileId: result.document_id,
+      fileId: result.file_id,
       name: result.title ?? 'Untitled',
       content,
       chunkRange: result.chunk_range,

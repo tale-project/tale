@@ -66,8 +66,8 @@ class TestGetDocumentStatuses:
 
         mock_conn = _mock_conn(
             fetch_return=[
-                {"document_id": "doc-1", "status": "completed", "error": None},
-                {"document_id": "doc-2", "status": "processing", "error": None},
+                {"file_id": "doc-1", "status": "completed", "error": None},
+                {"file_id": "doc-2", "status": "processing", "error": None},
             ]
         )
 
@@ -87,7 +87,7 @@ class TestGetDocumentStatuses:
 
         mock_conn = _mock_conn(
             fetch_return=[
-                {"document_id": "doc-1", "status": "failed", "error": "Embedding failed"},
+                {"file_id": "doc-1", "status": "failed", "error": "Embedding failed"},
             ]
         )
 
@@ -160,7 +160,7 @@ class TestBackgroundIngest:
 
         add_result: dict[str, Any] = {
             "success": True,
-            "document_id": "doc-1",
+            "file_id": "doc-1",
             "chunks_created": 5,
             "skipped": False,
         }
@@ -179,7 +179,7 @@ class TestBackgroundIngest:
 
         add_result: dict[str, Any] = {
             "success": True,
-            "document_id": "doc-1",
+            "file_id": "doc-1",
             "chunks_created": 0,
             "skipped": True,
             "skip_reason": "content_unchanged",
@@ -200,7 +200,7 @@ class TestBackgroundIngest:
 
         add_result: dict[str, Any] = {
             "success": True,
-            "document_id": "doc-1",
+            "file_id": "doc-1",
             "chunks_created": 5,
             "skipped": False,
         }

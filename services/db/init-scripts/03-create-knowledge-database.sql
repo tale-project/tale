@@ -164,7 +164,7 @@ CREATE SCHEMA IF NOT EXISTS private_knowledge;
 -- Documents
 CREATE TABLE IF NOT EXISTS private_knowledge.documents (
     id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    document_id   TEXT NOT NULL,
+    file_id       TEXT NOT NULL,
     filename      TEXT,
     content_hash  TEXT,
     team_id       TEXT,
@@ -177,8 +177,8 @@ CREATE TABLE IF NOT EXISTS private_knowledge.documents (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_pk_docs_unique_scope
-    ON private_knowledge.documents(document_id, COALESCE(team_id, ''), COALESCE(user_id, ''));
-CREATE INDEX IF NOT EXISTS idx_pk_docs_docid ON private_knowledge.documents(document_id);
+    ON private_knowledge.documents(file_id, COALESCE(team_id, ''), COALESCE(user_id, ''));
+CREATE INDEX IF NOT EXISTS idx_pk_docs_fileid ON private_knowledge.documents(file_id);
 CREATE INDEX IF NOT EXISTS idx_pk_docs_team ON private_knowledge.documents(team_id) WHERE team_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_pk_docs_user ON private_knowledge.documents(user_id) WHERE user_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_pk_docs_content_hash ON private_knowledge.documents(content_hash) WHERE content_hash IS NOT NULL;

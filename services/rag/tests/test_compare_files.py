@@ -124,8 +124,8 @@ class TestCompareFilesEndpoint:
     async def test_happy_path(self):
         mock_result = {
             "success": True,
-            "base_document": {"document_id": "base.txt", "title": "base.txt"},
-            "comparison_document": {"document_id": "comp.txt", "title": "comp.txt"},
+            "base_document": {"file_id": "base.txt", "title": "base.txt"},
+            "comparison_document": {"file_id": "comp.txt", "title": "comp.txt"},
             "change_blocks": [],
             "stats": {
                 "total_paragraphs_base": 2,

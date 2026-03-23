@@ -129,7 +129,7 @@ Returns numbered document excerpts with relevance scores.`,
 
       const payload = {
         query: args.query,
-        document_ids: fileIds,
+        file_ids: fileIds,
         top_k: args.topK ?? DEFAULT_TOP_K,
         similarity_threshold: DEFAULT_SIMILARITY_THRESHOLD,
         include_metadata: true,

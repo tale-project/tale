@@ -34,7 +34,7 @@ describe('uploadFile', () => {
       json: () =>
         Promise.resolve({
           success: true,
-          document_id: 'rag-doc-1',
+          file_id: 'rag-doc-1',
           chunks_created: 5,
           ...body,
         }),
@@ -65,13 +65,13 @@ describe('uploadFile', () => {
     expect((file as File).name).toBe('test.txt');
   });
 
-  it('includes document_id in form data', async () => {
+  it('includes file_id in form data', async () => {
     mockFetchOk();
 
     await uploadFile(defaultArgs());
 
     const formData = getCalledFormData();
-    expect(formData.get('document_id')).toBe(FILE_ID);
+    expect(formData.get('file_id')).toBe(FILE_ID);
   });
 
   it('includes metadata with content_type in form data', async () => {
@@ -145,7 +145,7 @@ describe('uploadFile', () => {
   it('returns correct RagUploadResult shape on success', async () => {
     mockFetchOk({
       success: true,
-      document_id: 'rag-doc-42',
+      file_id: 'rag-doc-42',
       chunks_created: 7,
     });
 
@@ -163,8 +163,8 @@ describe('uploadFile', () => {
     expect(result.timestamp).toBeTypeOf('number');
   });
 
-  it('uses id field as fallback when document_id is absent', async () => {
-    mockFetchOk({ document_id: undefined, id: 'fallback-id' });
+  it('uses id field as fallback when file_id is absent', async () => {
+    mockFetchOk({ file_id: undefined, id: 'fallback-id' });
 
     const result = await uploadFile(defaultArgs());
 

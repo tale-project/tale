@@ -68,6 +68,7 @@ import type * as agent_tools_products_helpers_read_product_list from "../agent_t
 import type * as agent_tools_products_helpers_types from "../agent_tools/products/helpers/types.js";
 import type * as agent_tools_products_product_read_tool from "../agent_tools/products/product_read_tool.js";
 import type * as agent_tools_rag_format_search_results from "../agent_tools/rag/format_search_results.js";
+import type * as agent_tools_rag_parse_search_results from "../agent_tools/rag/parse_search_results.js";
 import type * as agent_tools_rag_query_rag_context from "../agent_tools/rag/query_rag_context.js";
 import type * as agent_tools_rag_rag_search_tool from "../agent_tools/rag/rag_search_tool.js";
 import type * as agent_tools_sub_agents_helpers_build_additional_context from "../agent_tools/sub_agents/helpers/build_additional_context.js";
@@ -930,6 +931,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/products/helpers/types": typeof agent_tools_products_helpers_types;
   "agent_tools/products/product_read_tool": typeof agent_tools_products_product_read_tool;
   "agent_tools/rag/format_search_results": typeof agent_tools_rag_format_search_results;
+  "agent_tools/rag/parse_search_results": typeof agent_tools_rag_parse_search_results;
   "agent_tools/rag/query_rag_context": typeof agent_tools_rag_query_rag_context;
   "agent_tools/rag/rag_search_tool": typeof agent_tools_rag_rag_search_tool;
   "agent_tools/sub_agents/helpers/build_additional_context": typeof agent_tools_sub_agents_helpers_build_additional_context;

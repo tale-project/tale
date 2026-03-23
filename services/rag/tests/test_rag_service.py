@@ -63,7 +63,7 @@ class TestAddDocument:
         service = _make_service()
         index_result = {
             "success": True,
-            "document_id": "doc-1",
+            "file_id": "doc-1",
             "chunks_created": 5,
             "skipped": False,
             "skip_reason": None,
@@ -80,7 +80,7 @@ class TestAddDocument:
             )
 
         assert result["success"] is True
-        assert result["document_id"] == "doc-1"
+        assert result["file_id"] == "doc-1"
         assert result["chunks_created"] == 5
         mock_idx.assert_awaited_once()
         call_kwargs = mock_idx.call_args
@@ -90,7 +90,7 @@ class TestAddDocument:
         service = _make_service()
         index_result = {
             "success": True,
-            "document_id": "doc-skip",
+            "file_id": "doc-skip",
             "chunks_created": 0,
             "skipped": True,
             "skip_reason": "content_unchanged",
@@ -123,7 +123,7 @@ class TestAddDocument:
                 new_callable=AsyncMock,
                 return_value={
                     "success": True,
-                    "document_id": "d",
+                    "file_id": "d",
                     "chunks_created": 0,
                     "skipped": True,
                     "skip_reason": "x",
@@ -141,20 +141,20 @@ class TestSearch:
         service = _make_service()
         service._search_service.search = AsyncMock(
             return_value=[
-                {"content": "hit 1", "score": 0.9, "document_id": "doc-1"},
-                {"content": "hit 2", "score": 0.8, "document_id": "doc-2"},
+                {"content": "hit 1", "score": 0.9, "file_id": "doc-1"},
+                {"content": "hit 2", "score": 0.8, "file_id": "doc-2"},
             ]
         )
 
         with patch("app.services.rag_service.settings") as mock_settings:
             mock_settings.top_k = 10
             mock_settings.similarity_threshold = 0.0
-            results = await service.search("test query", document_ids=["doc-1"])
+            results = await service.search("test query", file_ids=["doc-1"])
 
         assert len(results) == 2
         service._search_service.search.assert_awaited_once_with(
             "test query",
-            document_ids=["doc-1"],
+            file_ids=["doc-1"],
             top_k=10,
         )
 
@@ -162,9 +162,9 @@ class TestSearch:
         service = _make_service()
         service._search_service.search = AsyncMock(
             return_value=[
-                {"content": "good", "score": 0.9, "document_id": "d1"},
-                {"content": "marginal", "score": 0.5, "document_id": "d2"},
-                {"content": "bad", "score": 0.1, "document_id": "d3"},
+                {"content": "good", "score": 0.9, "file_id": "d1"},
+                {"content": "marginal", "score": 0.5, "file_id": "d2"},
+                {"content": "bad", "score": 0.1, "file_id": "d3"},
             ]
         )
 
@@ -187,7 +187,7 @@ class TestSearch:
 
         service._search_service.search.assert_awaited_once_with(
             "query",
-            document_ids=None,
+            file_ids=None,
             top_k=20,
         )
 
@@ -195,7 +195,7 @@ class TestSearch:
         service = _make_service()
         service._search_service.search = AsyncMock(
             return_value=[
-                {"content": "mid", "score": 0.5, "document_id": "d1"},
+                {"content": "mid", "score": 0.5, "file_id": "d1"},
             ]
         )
 
@@ -210,7 +210,7 @@ class TestSearch:
         service = _make_service()
         service._search_service.search = AsyncMock(
             return_value=[
-                {"content": "a", "score": 0.01, "document_id": "d1"},
+                {"content": "a", "score": 0.01, "file_id": "d1"},
             ]
         )
 
@@ -221,18 +221,18 @@ class TestSearch:
 
         assert len(results) == 1
 
-    async def test_passes_document_ids(self):
+    async def test_passes_file_ids(self):
         service = _make_service()
         service._search_service.search = AsyncMock(return_value=[])
 
         with patch("app.services.rag_service.settings") as mock_settings:
             mock_settings.top_k = 10
             mock_settings.similarity_threshold = 0.0
-            await service.search("q", document_ids=["doc-1", "doc-2"])
+            await service.search("q", file_ids=["doc-1", "doc-2"])
 
         service._search_service.search.assert_awaited_once_with(
             "q",
-            document_ids=["doc-1", "doc-2"],
+            file_ids=["doc-1", "doc-2"],
             top_k=10,
         )
 
@@ -255,14 +255,14 @@ class TestGenerate:
                 "search",
                 new_callable=AsyncMock,
                 return_value=[
-                    {"content": "Context chunk 1", "score": 0.9, "document_id": "d1"},
-                    {"content": "Context chunk 2", "score": 0.8, "document_id": "d2"},
+                    {"content": "Context chunk 1", "score": 0.9, "file_id": "d1"},
+                    {"content": "Context chunk 2", "score": 0.8, "file_id": "d2"},
                 ],
             ),
             patch("app.services.rag_service.settings") as mock_settings,
         ):
             mock_settings.get_llm_config.return_value = {"model": "gpt-4o-mini"}
-            result = await service.generate("What is X?", document_ids=["doc-1"])
+            result = await service.generate("What is X?", file_ids=["doc-1"])
 
         assert result["success"] is True
         assert result["response"] == "Generated answer based on context."
@@ -301,7 +301,7 @@ class TestGenerate:
                 service,
                 "search",
                 new_callable=AsyncMock,
-                return_value=[{"content": "relevant info", "score": 0.9, "document_id": "d1"}],
+                return_value=[{"content": "relevant info", "score": 0.9, "file_id": "d1"}],
             ),
             patch("app.services.rag_service.settings") as mock_settings,
         ):
@@ -328,7 +328,7 @@ class TestGenerate:
                 service,
                 "search",
                 new_callable=AsyncMock,
-                return_value=[{"content": "info", "score": 0.9, "document_id": "d1"}],
+                return_value=[{"content": "info", "score": 0.9, "file_id": "d1"}],
             ),
             patch("app.services.rag_service.settings") as mock_settings,
         ):
@@ -347,7 +347,7 @@ class TestGenerate:
         mock_completion.choices = [mock_choice]
         service._openai_client.chat.completions.create = AsyncMock(return_value=mock_completion)
 
-        large_chunks = [{"content": "x" * 100_000, "score": 0.9 - i * 0.01, "document_id": f"d{i}"} for i in range(5)]
+        large_chunks = [{"content": "x" * 100_000, "score": 0.9 - i * 0.01, "file_id": f"d{i}"} for i in range(5)]
 
         with (
             patch.object(service, "search", new_callable=AsyncMock, return_value=large_chunks),
@@ -360,15 +360,15 @@ class TestGenerate:
         user_msg = create_call.call_args[1]["messages"][1]["content"]
         assert len(user_msg) < RAG_MAX_CONTEXT_CHARS + 1000
 
-    async def test_passes_document_ids_to_search(self):
+    async def test_passes_file_ids_to_search(self):
         service = _make_service()
 
         with patch.object(service, "search", new_callable=AsyncMock, return_value=[]) as mock_search:
-            await service.generate("q", document_ids=["doc-1"])
+            await service.generate("q", file_ids=["doc-1"])
 
         mock_search.assert_awaited_once()
         call_kwargs = mock_search.call_args[1]
-        assert call_kwargs["document_ids"] == ["doc-1"]
+        assert call_kwargs["file_ids"] == ["doc-1"]
 
     async def test_none_content_from_llm_returns_empty_string(self):
         service = _make_service()
@@ -384,7 +384,7 @@ class TestGenerate:
                 service,
                 "search",
                 new_callable=AsyncMock,
-                return_value=[{"content": "info", "score": 0.9, "document_id": "d1"}],
+                return_value=[{"content": "info", "score": 0.9, "file_id": "d1"}],
             ),
             patch("app.services.rag_service.settings") as mock_settings,
         ):
@@ -396,7 +396,7 @@ class TestGenerate:
 
 
 class TestDeleteDocument:
-    """delete_document() deletes all matching documents by document_id."""
+    """delete_document() deletes all matching documents by file_id."""
 
     async def test_deletes_document(self):
         service = _make_service()

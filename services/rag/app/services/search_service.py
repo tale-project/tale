@@ -1,7 +1,7 @@
 """Hybrid search service for the RAG pipeline.
 
 BM25 full-text (pg_search) + pgvector similarity with RRF fusion.
-Scoping via document_ids.
+Scoping via file_ids.
 """
 
 from __future__ import annotations
@@ -30,26 +30,26 @@ class RagSearchService:
         self,
         query: str,
         *,
-        document_ids: list[str] | None = None,
+        file_ids: list[str] | None = None,
         top_k: int = 10,
     ) -> list[dict[str, Any]]:
         """Hybrid BM25 + vector search with document scoping.
 
         Args:
             query: Search query text.
-            document_ids: Optional document IDs to restrict search to.
+            file_ids: Optional file IDs to restrict search to.
             top_k: Maximum number of results to return.
 
         Returns:
-            List of result dicts with content, score, document_id.
+            List of result dicts with content, score, file_id.
         """
         query_embedding: list[float] | None = None
         try:
             embedding_task = asyncio.create_task(self._embedding.embed_query(query))
-            fts_task = asyncio.create_task(self._fts_search(query, document_ids, top_k * 3))
+            fts_task = asyncio.create_task(self._fts_search(query, file_ids, top_k * 3))
 
             query_embedding, fts_results = await asyncio.gather(embedding_task, fts_task)
-            vector_results = await self._vector_search(query_embedding, document_ids, top_k * 3)
+            vector_results = await self._vector_search(query_embedding, file_ids, top_k * 3)
 
             if not fts_results and not vector_results:
                 return []
@@ -60,7 +60,7 @@ class RagSearchService:
                 {
                     "content": item["chunk_content"],
                     "score": item["rrf_score"],
-                    "document_id": str(item["document_id"]) if item.get("document_id") else None,
+                    "file_id": str(item["file_id"]) if item.get("file_id") else None,
                     "filename": item.get("filename"),
                 }
                 for item in merged
@@ -86,26 +86,26 @@ class RagSearchService:
 
                 if query_embedding is None:
                     query_embedding = await self._embedding.embed_query(query)
-                vector_results = await self._vector_search(query_embedding, document_ids, top_k)
+                vector_results = await self._vector_search(query_embedding, file_ids, top_k)
                 return [
                     {
                         "content": item["chunk_content"],
                         "score": 1.0 / (i + 1),
-                        "document_id": str(item["document_id"]) if item.get("document_id") else None,
+                        "file_id": str(item["file_id"]) if item.get("file_id") else None,
                         "filename": item.get("filename"),
                     }
                     for i, item in enumerate(vector_results)
                 ]
             raise
 
-    def _build_scope_clause(self, document_ids: list[str] | None, param_offset: int) -> tuple[str, list[Any]]:
+    def _build_scope_clause(self, file_ids: list[str] | None, param_offset: int) -> tuple[str, list[Any]]:
         """Build WHERE clause for document scoping."""
-        if not document_ids:
+        if not file_ids:
             return "", []
 
         idx = param_offset + 1
-        clause = f" AND c.document_id IN (SELECT id FROM {SCHEMA}.documents WHERE document_id = ANY(${idx}))"
-        return clause, [document_ids]
+        clause = f" AND c.document_id IN (SELECT id FROM {SCHEMA}.documents WHERE file_id = ANY(${idx}))"
+        return clause, [file_ids]
 
     async def _rebuild_bm25_index(self) -> None:
         """Rebuild the BM25 index after corruption. Runs as a background task."""
@@ -120,14 +120,14 @@ class RagSearchService:
     async def _fts_search(
         self,
         query: str,
-        document_ids: list[str] | None,
+        file_ids: list[str] | None,
         limit: int,
     ) -> list[dict[str, Any]]:
-        tenant_clause, tenant_params = self._build_scope_clause(document_ids, 1)
+        tenant_clause, tenant_params = self._build_scope_clause(file_ids, 1)
 
         sql = f"""
             SELECT c.id, c.chunk_content, c.chunk_index, c.document_id,
-                   d.filename,
+                   d.file_id, d.filename,
                    paradedb.score(c.id) AS score
             FROM {SCHEMA}.chunks c
             LEFT JOIN {SCHEMA}.documents d ON c.document_id = d.id
@@ -152,15 +152,15 @@ class RagSearchService:
     async def _vector_search(
         self,
         embedding: list[float],
-        document_ids: list[str] | None,
+        file_ids: list[str] | None,
         limit: int,
     ) -> list[dict[str, Any]]:
         vec_str = json.dumps(embedding)
-        tenant_clause, tenant_params = self._build_scope_clause(document_ids, 1)
+        tenant_clause, tenant_params = self._build_scope_clause(file_ids, 1)
 
         sql = f"""
             SELECT c.id, c.chunk_content, c.chunk_index, c.document_id,
-                   d.filename,
+                   d.file_id, d.filename,
                    1 - (c.embedding <=> $1::vector) AS score
             FROM {SCHEMA}.chunks c
             LEFT JOIN {SCHEMA}.documents d ON c.document_id = d.id

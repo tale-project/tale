@@ -39,7 +39,7 @@ function createMockCtx(overrides?: Record<string, unknown>) {
 
 function createRagResponse(overrides?: Record<string, unknown>) {
   return {
-    document_id: 'file-storage-123',
+    file_id: 'file-storage-123',
     title: 'Test Document',
     content: 'Hello world',
     chunk_range: { start: 1, end: 5 },

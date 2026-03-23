@@ -6,6 +6,7 @@
  * and sub-agents to build their system context.
  */
 
+import { parseRagResults } from '../../agent_tools/rag/parse_search_results';
 import { createDebugLog } from '../debug_log';
 import {
   AGENT_CONTEXT_CONFIGS,
@@ -116,21 +117,15 @@ export class ContextBuilder {
   addRagResults(ragContext: string, highRelevanceThreshold = 0.7): this {
     if (!ragContext) return this;
 
-    // Parse RAG results (format: [1] (Relevance: 85.0%)\ncontent\n\n---\n\n[2] ...)
-    const resultPattern =
-      /\[(\d+)\]\s*\(Relevance:\s*([\d.]+)%\)\n([\s\S]*?)(?=\n\n---\n\n|\n*$)/g;
+    const entries = parseRagResults(ragContext);
     const highResults: string[] = [];
     const lowResults: string[] = [];
 
-    let match;
-    while ((match = resultPattern.exec(ragContext)) !== null) {
-      const [fullMatch, , relevanceStr] = match;
-      const relevance = parseFloat(relevanceStr) / 100;
-
-      if (relevance >= highRelevanceThreshold) {
-        highResults.push(fullMatch);
+    for (const entry of entries) {
+      if (entry.relevance >= highRelevanceThreshold) {
+        highResults.push(entry.fullMatch);
       } else {
-        lowResults.push(fullMatch);
+        lowResults.push(entry.fullMatch);
       }
     }
 

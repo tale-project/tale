@@ -30,7 +30,7 @@ interface RagDiffStats {
 }
 
 interface RagDocumentInfo {
-  document_id: string;
+  file_id: string | null;
   title: string | null;
 }
 
@@ -71,7 +71,7 @@ export interface DiffStats {
 }
 
 export interface DocumentInfo {
-  fileId: string;
+  fileId: string | null;
   title: string | null;
 }
 
@@ -116,8 +116,8 @@ export async function fetchDocumentComparison(
   const url = `${ragServiceUrl}/api/v1/documents/compare`;
 
   const body: Record<string, unknown> = {
-    base_document_id: baseFileId,
-    comparison_document_id: comparisonFileId,
+    base_file_id: baseFileId,
+    comparison_file_id: comparisonFileId,
   };
   if (maxChanges != null) {
     body.max_changes = maxChanges;
@@ -173,11 +173,11 @@ export async function fetchDocumentComparison(
 function mapRagResponse(result: RagCompareResponse): DocumentComparisonResult {
   return {
     baseDocument: {
-      fileId: result.base_document.document_id,
+      fileId: result.base_document.file_id,
       title: result.base_document.title,
     },
     comparisonDocument: {
-      fileId: result.comparison_document.document_id,
+      fileId: result.comparison_document.file_id,
       title: result.comparison_document.title,
     },
     changeBlocks: result.change_blocks.map(mapChangeBlock),

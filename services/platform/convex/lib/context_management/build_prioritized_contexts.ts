@@ -5,6 +5,7 @@
  * Uses the shared context management module under the hood.
  */
 
+import { parseRagResults } from '../../agent_tools/rag/parse_search_results';
 import {
   ContextPriority,
   createPrioritizedContext,
@@ -63,21 +64,15 @@ function splitRagByRelevance(
   ragContext: string,
   highRelevanceThreshold = 0.7,
 ): { highRelevance: string | undefined; lowRelevance: string | undefined } {
-  // Parse RAG results (format: [1] (Relevance: 85.0%)\ncontent\n\n---\n\n[2] ...)
-  const resultPattern =
-    /\[(\d+)\]\s*\(Relevance:\s*([\d.]+)%\)\n([\s\S]*?)(?=\n\n---\n\n|\n*$)/g;
+  const entries = parseRagResults(ragContext);
   const highResults: string[] = [];
   const lowResults: string[] = [];
 
-  let match;
-  while ((match = resultPattern.exec(ragContext)) !== null) {
-    const [fullMatch, , relevanceStr] = match;
-    const relevance = parseFloat(relevanceStr) / 100;
-
-    if (relevance >= highRelevanceThreshold) {
-      highResults.push(fullMatch);
+  for (const entry of entries) {
+    if (entry.relevance >= highRelevanceThreshold) {
+      highResults.push(entry.fullMatch);
     } else {
-      lowResults.push(fullMatch);
+      lowResults.push(entry.fullMatch);
     }
   }
 
