@@ -36,6 +36,7 @@ import { usePendingMessages } from '../hooks/use-pending-messages';
 import { usePersistedAttachments } from '../hooks/use-persisted-attachments';
 import { useSendMessage } from '../hooks/use-send-message';
 import { useStopGenerating } from '../hooks/use-stop-generating';
+import { useUserContext } from '../hooks/use-user-context';
 import { ChatInput } from './chat-input';
 import { ChatMessages } from './chat-messages';
 import { WelcomeView } from './welcome-view';
@@ -248,6 +249,8 @@ export function ChatInterface({
     [containerRef, loadMore],
   );
 
+  const userContext = useUserContext();
+
   const { sendMessage } = useSendMessage({
     organizationId,
     threadId,
@@ -260,6 +263,7 @@ export function ChatInterface({
       resetCancelled();
     },
     selectedAgent: effectiveAgent,
+    userContext,
   });
 
   const handleSendMessage = async (

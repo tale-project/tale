@@ -1,5 +1,5 @@
 /**
- * Build humanInputContext string from responded approvals for prompt injection.
+ * Build userAnswers string from responded approvals for prompt injection.
  */
 
 import type { Id } from '../../../../../_generated/dataModel';
@@ -13,7 +13,7 @@ import { toId } from '../../../../../lib/type_cast_helpers';
 
 const debugLog = createDebugLog('DEBUG_WORKFLOW', '[LLMNode]');
 
-export async function buildHumanInputContext(
+export async function buildUserAnswers(
   ctx: ActionCtx,
   executionId: string | Id<'wfExecutions'>,
 ): Promise<string> {
@@ -24,7 +24,7 @@ export async function buildHumanInputContext(
 
   if (respondedApprovals.length === 0) return '';
 
-  debugLog('Built humanInputContext for prompt variables', {
+  debugLog('Built userAnswers for prompt variables', {
     responseCount: respondedApprovals.length,
   });
 

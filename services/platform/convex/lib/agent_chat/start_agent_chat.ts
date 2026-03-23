@@ -60,6 +60,13 @@ export interface StartAgentChatArgs {
   attachments?: FileAttachment[];
   /** Additional context to pass to the agent (key-value pairs) */
   additionalContext?: Record<string, string>;
+  /** User environment context (timezone, language, location) for template variables */
+  userContext?: {
+    timezone: string;
+    language: string;
+    coordinates?: string;
+    location?: string;
+  };
   /** Agent configuration (serializable) */
   agentConfig: SerializableAgentConfig;
   /** Model to use for generation */
@@ -103,6 +110,7 @@ export async function startAgentChat(
     message,
     attachments,
     additionalContext,
+    userContext,
     agentConfig,
     model,
     provider,
@@ -220,6 +228,7 @@ export async function startAgentChat(
       promptMessageId,
       maxSteps,
       additionalContext,
+      userContext,
       deadlineMs,
     },
   );

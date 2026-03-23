@@ -12,7 +12,7 @@ import { internal } from '../../../_generated/api';
 import { createDebugLog } from '../../../lib/debug_log';
 import { toId } from '../../../lib/type_cast_helpers';
 import { replaceVariables } from '../../../lib/variables/replace_variables';
-import { buildHumanInputContext } from '../nodes/llm/utils/build_human_input_context';
+import { buildUserAnswers } from '../nodes/llm/utils/build_human_input_context';
 import { buildStepsMap } from '../step_execution/build_steps_map';
 import { executeStepByType } from '../step_execution/execute_step_by_type';
 import { extractEssentialLoopVariables } from '../step_execution/extract_essential_loop_variables';
@@ -20,6 +20,7 @@ import { getActiveLoopProgress } from '../step_execution/get_active_loop_progres
 import { initializeExecutionVariables } from '../step_execution/initialize_execution_variables';
 import { loadAndValidateExecution } from '../step_execution/load_and_validate_execution';
 import { persistExecutionResult } from '../step_execution/persist_execution_result';
+import { buildWorkflowUserProfile } from './build_workflow_user_profile';
 
 const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
 
@@ -138,16 +139,17 @@ export async function handleExecuteStep(
     });
   }
 
-  // Build humanInputContext for LLM steps so {{humanInputContext}} is available
-  // during config-level variable substitution. This is ephemeral — only used for
-  // replaceVariables, NOT persisted into execution state (see persistExecutionResult).
+  // Build userAnswers and userProfile for LLM steps so {{userAnswers}} and
+  // {{userProfile}} are available during config-level variable substitution.
+  // These are ephemeral — only used for replaceVariables, NOT persisted into
+  // execution state (see persistExecutionResult).
   let configVariables = fullVariables;
   if (args.stepType === 'llm' && args.executionId) {
-    const humanInputContext = await buildHumanInputContext(
-      ctx,
-      args.executionId,
-    );
-    configVariables = { ...fullVariables, humanInputContext };
+    const [userAnswers, userProfile] = await Promise.all([
+      buildUserAnswers(ctx, args.executionId),
+      buildWorkflowUserProfile(ctx, args.organizationId, fullVariables.userId),
+    ]);
+    configVariables = { ...fullVariables, userAnswers, userProfile };
   }
 
   const processedConfig = isSetVariablesAction

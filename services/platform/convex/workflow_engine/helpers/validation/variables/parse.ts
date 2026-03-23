@@ -149,7 +149,8 @@ function parseExpression(
     'executionId',
     'now',
     'nowMs',
-    'humanInputContext',
+    'userAnswers',
+    'userProfile',
   ];
   if (systemVars.includes(firstPart)) {
     return {
