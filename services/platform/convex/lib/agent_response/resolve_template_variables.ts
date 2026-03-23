@@ -30,7 +30,7 @@ interface ResolvedData {
   userRole?: string;
 }
 
-async function fetchOrganization(
+export async function fetchOrganization(
   ctx: ActionCtx,
   organizationId: string,
 ): Promise<{ name?: string }> {
@@ -42,7 +42,7 @@ async function fetchOrganization(
   return { name: getString(org, 'name') };
 }
 
-async function fetchUser(
+export async function fetchUser(
   ctx: ActionCtx,
   userId: string,
 ): Promise<{ name?: string; email?: string }> {
@@ -54,7 +54,7 @@ async function fetchUser(
   return { name: getString(user, 'name'), email: getString(user, 'email') };
 }
 
-async function fetchMemberRole(
+export async function fetchMemberRole(
   ctx: ActionCtx,
   organizationId: string,
   userId: string,
@@ -78,17 +78,16 @@ interface NeededData {
 }
 
 function detectNeededData(instructions: string): NeededData {
-  const needsInstruction = instructions.includes('{{user_instruction}}');
+  const needsProfile = instructions.includes('{{user_profile}}');
   return {
-    needsOrg:
-      instructions.includes('{{organization.name}}') || needsInstruction,
-    needsUser: instructions.includes('{{user.name}}') || needsInstruction,
-    needsUserEmail: needsInstruction,
-    needsUserRole: needsInstruction,
+    needsOrg: instructions.includes('{{organization.name}}') || needsProfile,
+    needsUser: instructions.includes('{{user.name}}') || needsProfile,
+    needsUserEmail: needsProfile,
+    needsUserRole: needsProfile,
   };
 }
 
-function buildUserInstruction(
+export function buildUserProfile(
   context: TemplateContext,
   data: ResolvedData,
 ): string {
@@ -112,7 +111,7 @@ function buildUserInstruction(
     lines.push(`- Timezone: ${context.timezone}`);
   }
   if (context.language) {
-    lines.push(`- Language: ${context.language}`);
+    lines.push(`- Language: ${context.language} (browser)`);
   }
   if (context.location || context.coordinates) {
     const loc = context.location
@@ -152,8 +151,8 @@ function resolveVariable(
       return context.coordinates ?? '';
     case 'user.location':
       return context.location ?? '';
-    case 'user_instruction':
-      return buildUserInstruction(context, data);
+    case 'user_profile':
+      return buildUserProfile(context, data);
     case 'site_url': {
       const siteUrl = process.env.SITE_URL;
       if (!siteUrl)
@@ -220,7 +219,7 @@ export const SUPPORTED_TEMPLATE_VARIABLES = [
     description: 'User location address (e.g. Hangzhou, China)',
   },
   {
-    variable: '{{user_instruction}}',
+    variable: '{{user_profile}}',
     description: 'Complete user context as a prompt-ready text',
   },
   { variable: '{{site_url}}', description: 'Platform base URL' },

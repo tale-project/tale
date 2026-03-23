@@ -660,6 +660,7 @@ import type * as workflow_engine_execution_dry_run_executor from "../workflow_en
 import type * as workflow_engine_helpers_data_source_database_workflow_data_source from "../workflow_engine/helpers/data_source/database_workflow_data_source.js";
 import type * as workflow_engine_helpers_data_source_types from "../workflow_engine/helpers/data_source/types.js";
 import type * as workflow_engine_helpers_engine_build_steps_config_map from "../workflow_engine/helpers/engine/build_steps_config_map.js";
+import type * as workflow_engine_helpers_engine_build_workflow_user_profile from "../workflow_engine/helpers/engine/build_workflow_user_profile.js";
 import type * as workflow_engine_helpers_engine_cleanup_component_workflow from "../workflow_engine/helpers/engine/cleanup_component_workflow.js";
 import type * as workflow_engine_helpers_engine_dynamic_workflow_handler from "../workflow_engine/helpers/engine/dynamic_workflow_handler.js";
 import type * as workflow_engine_helpers_engine_execute_step_handler from "../workflow_engine/helpers/engine/execute_step_handler.js";
@@ -1524,6 +1525,7 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/helpers/data_source/database_workflow_data_source": typeof workflow_engine_helpers_data_source_database_workflow_data_source;
   "workflow_engine/helpers/data_source/types": typeof workflow_engine_helpers_data_source_types;
   "workflow_engine/helpers/engine/build_steps_config_map": typeof workflow_engine_helpers_engine_build_steps_config_map;
+  "workflow_engine/helpers/engine/build_workflow_user_profile": typeof workflow_engine_helpers_engine_build_workflow_user_profile;
   "workflow_engine/helpers/engine/cleanup_component_workflow": typeof workflow_engine_helpers_engine_cleanup_component_workflow;
   "workflow_engine/helpers/engine/dynamic_workflow_handler": typeof workflow_engine_helpers_engine_dynamic_workflow_handler;
   "workflow_engine/helpers/engine/execute_step_handler": typeof workflow_engine_helpers_engine_execute_step_handler;

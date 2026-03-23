@@ -22,9 +22,10 @@ import { validateAndNormalizeConfig } from './utils/validate_and_normalize_confi
 /**
  * Execute LLM node logic (helper function)
  *
- * Note: humanInputContext is injected into variables by execute_step_handler.ts
- * before config-level variable substitution. By the time this function receives
- * the config, {{humanInputContext}} has already been resolved.
+ * Note: userAnswers and userProfile are injected into variables by
+ * execute_step_handler.ts before config-level variable substitution. By the time
+ * this function receives the config, {{userAnswers}} and {{userProfile}} have
+ * already been resolved.
  */
 export async function executeLLMNode(
   ctx: ActionCtx,
