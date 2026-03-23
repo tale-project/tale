@@ -1,11 +1,11 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "name": "Tale",
-  "theme": "sequoia",
+  "theme": "maple",
   "colors": {
-    "primary": "#0F172A",
-    "light": "#38BDF8",
-    "dark": "#0F172A"
+    "primary": "#030712",
+    "light": "#FFFFFF",
+    "dark": "#030712"
   },
   "navigation": {
     "groups": [
@@ -30,6 +30,17 @@
     "weight": 400
   },
   "background": {
-    "decoration": "grid"
+    "decoration": "windows",
+    "color": {
+      "light": "#FFFFFF",
+      "dark": "#0C1017"
+    }
+  },
+  "interaction": {
+    "drilldown": true
+  },
+  "logo": {
+    "light": "/images/black.png",
+    "dark": "/images/white.png"
   }
 }
