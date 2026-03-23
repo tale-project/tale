@@ -21,7 +21,7 @@ interface ChatHeaderProps {
 
 export function ChatHeader({ organizationId }: ChatHeaderProps) {
   const navigate = useNavigate();
-  const { isHistoryOpen, setIsHistoryOpen } = useChatLayout();
+  const { isHistoryOpen, setIsHistoryOpen, clearChatState } = useChatLayout();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isMobileHistoryOpen, setIsMobileHistoryOpen] = useState(false);
   const [isMac, setIsMac] = useState(false);
@@ -57,11 +57,12 @@ export function ChatHeader({ organizationId }: ChatHeaderProps) {
   }, [isHistoryOpen, setIsHistoryOpen]);
 
   const handleNewChat = useCallback(() => {
+    clearChatState();
     void navigate({
       to: '/dashboard/$id/chat',
       params: { id: organizationId },
     });
-  }, [navigate, organizationId]);
+  }, [navigate, organizationId, clearChatState]);
 
   const handleChatSelect = useCallback(() => {
     setIsMobileHistoryOpen(false);

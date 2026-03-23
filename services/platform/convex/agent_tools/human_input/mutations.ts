@@ -121,7 +121,7 @@ export const submitHumanInputResponse = mutation({
     } else {
       responseDisplay = args.response.join(', ');
     }
-    const responseMessage = `User responded to question "${existingMetadata.question}": ${responseDisplay}`;
+    const responseMessage = `[HUMAN_INPUT_RESPONSE] ${responseDisplay}`;
 
     // Workflow-context fork: resume the paused workflow via sendEvent instead of triggering chat agent
     if (approval.wfExecutionId) {
@@ -148,10 +148,10 @@ export const submitHumanInputResponse = mutation({
         },
       });
 
-      // Post user message for AI context
+      // Post system message for AI context
       await saveMessage(ctx, components.agent, {
         threadId,
-        message: { role: 'user', content: responseMessage },
+        message: { role: 'system', content: responseMessage },
       });
 
       return { success: true, threadId };
@@ -163,7 +163,7 @@ export const submitHumanInputResponse = mutation({
       components.agent,
       {
         threadId,
-        message: { role: 'user', content: responseMessage },
+        message: { role: 'system', content: responseMessage },
       },
     );
 

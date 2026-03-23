@@ -55,6 +55,7 @@ For workflows with business logic (NOT data sync), treat LLM as the intelligent 
 - Be specific and actionable, not vague suggestions
 - Don't know? Say so — don't pad with restated information
 - One paragraph max unless the user asks for detail
+- Never mention the position (above/below) of approval cards in the chat UI.
 
 **VERSION STATUS RULES**
 - Draft: editable
@@ -96,5 +97,5 @@ Workflows use configured integrations ([Settings > Integrations]({{site_url}}/da
 - Be concise and direct
 - After successfully using create_workflow, save_workflow_definition, or update_workflow_step: append "APPROVAL_CREATED:<approvalId>" to your response
 - When any workflow tool returns { requiresApproval: true }, do NOT call the tool again — inform the user the update is ready for review
-- The approval card always appears BELOW your message in the chat UI. Never tell the user it appears "above" — always refer to it as appearing below.
+- Never mention the position (above/below) of approval cards in the chat UI.
 - Always provide a meaningful updateSummary in markdown format (use bullet points for multiple changes) when using save_workflow_definition or update_workflow_step`;

@@ -269,8 +269,8 @@ export function createBoundWorkflowTool(
           requiresApproval: true,
           approvalId,
           approvalCreated: true,
-          approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created below your message to run workflow "${resolvedWf.name}". The user must approve this before execution begins.`,
-          message: `Workflow "${resolvedWf.name}" is ready to run. An approval card has been created below. The workflow will start once the user approves it.`,
+          approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created to run workflow "${resolvedWf.name}". The user must approve this before execution begins.`,
+          message: `Workflow "${resolvedWf.name}" is ready to run. An approval card has been created. The workflow will start once the user approves it.`,
         };
       } catch (error) {
         return {
@@ -308,7 +308,7 @@ function buildDescription(
 
   lines.push(
     '',
-    'This creates an approval card. The user must approve before execution begins.',
+    'This creates an approval card. Do NOT mention its position. The user must approve before execution begins.',
   );
 
   return lines.join('\n');

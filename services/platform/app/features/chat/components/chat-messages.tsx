@@ -193,25 +193,24 @@ export function ChatMessages({
 
     const message = item.data;
 
-    if (message.isHumanInputResponse && message.role === 'system') {
-      const match = message.content.match(
-        /^User responded to question "(.*?)": ([\s\S]+)$/,
-      );
-      const response = match?.[2] ?? message.content;
-
-      return (
-        <div key={message.key} className="flex justify-end">
-          <div className="bg-primary/10 text-primary flex items-center gap-2 rounded-full px-4 py-2 text-sm">
-            <CheckCircle2 className="size-4" />
-            <span>{response}</span>
+    if (message.role === 'system' && message.systemMessageDisplay) {
+      if (message.systemMessageDisplay === 'pill') {
+        return (
+          <div key={message.key} className="flex justify-end">
+            <div className="bg-primary/10 text-primary flex items-center gap-2 rounded-full px-4 py-2 text-sm">
+              <CheckCircle2 className="size-4" aria-hidden="true" />
+              <span>{message.systemMessageBody ?? message.content}</span>
+            </div>
           </div>
-        </div>
-      );
-    }
+        );
+      }
 
-    if (message.role === 'system' && !message.isHumanInputResponse) {
       return (
-        <CollapsibleSystemMessage key={message.key} content={message.content} />
+        <CollapsibleSystemMessage
+          key={message.key}
+          content={message.systemMessageBody ?? message.content}
+          variant={message.systemMessageDisplay}
+        />
       );
     }
 

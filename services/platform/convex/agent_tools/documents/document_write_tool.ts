@@ -53,7 +53,7 @@ export const documentWriteArgs = z.object({
 export const documentWriteTool = {
   name: 'document_write' as const,
   tool: createTool({
-    description: `Save one or more files to the documents hub. Requires user approval — an approval card will be shown below your message.
+    description: `Save one or more files to the documents hub. Requires user approval — an approval card will be created.
 
 USE THIS TOOL TO:
 • Save generated files (text, docx, pdf, excel, pptx) to the documents hub
@@ -179,8 +179,8 @@ PARAMETERS:
           requiresApproval: true,
           approvalId: String(approvalId),
           approvalCreated: true,
-          approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created below your message for saving ${filesMetadata.length} file(s) to the documents hub. The user must approve before the documents will be saved.`,
-          message: `${fileListStr} ${filesMetadata.length === 1 ? 'is' : 'are'} ready to be saved to the documents hub${args.folderPath ? ` in folder "${args.folderPath}"` : ''}. An approval card has been created below. The documents will be saved once the user approves.`,
+          approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created for saving ${filesMetadata.length} file(s) to the documents hub. The user must approve before the documents will be saved.`,
+          message: `${fileListStr} ${filesMetadata.length === 1 ? 'is' : 'are'} ready to be saved to the documents hub${args.folderPath ? ` in folder "${args.folderPath}"` : ''}. An approval card has been created. The documents will be saved once the user approves.`,
         };
       } catch (error) {
         return {

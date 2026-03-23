@@ -9,11 +9,13 @@ const mockPendingMessage = {
     | null,
 };
 const mockSetPendingMessage = vi.fn();
+const mockPendingThreadId = { current: null as string | null };
 
 vi.mock('../../context/chat-layout-context', () => ({
   useChatLayout: () => ({
     pendingMessage: mockPendingMessage.current,
     setPendingMessage: mockSetPendingMessage,
+    pendingThreadId: mockPendingThreadId.current,
   }),
 }));
 
@@ -22,6 +24,7 @@ const { usePendingMessages } = await import('../use-pending-messages');
 beforeEach(() => {
   vi.clearAllMocks();
   mockPendingMessage.current = null;
+  mockPendingThreadId.current = null;
 });
 
 describe('usePendingMessages', () => {
@@ -535,6 +538,39 @@ describe('usePendingMessages', () => {
       });
 
       expect(mockSetPendingMessage).toHaveBeenCalledWith(null);
+    });
+
+    it('does not match stale pending message when navigating to new chat', () => {
+      mockPendingMessage.current = {
+        content: 'Message from old thread',
+        threadId: 'old-thread',
+        timestamp: new Date('2024-01-01T00:01:00Z'),
+        lastMessageKey: 'msg-5',
+      };
+      mockPendingThreadId.current = null;
+
+      const { result } = renderHook(() =>
+        usePendingMessages({ threadId: undefined, realMessages: [] }),
+      );
+
+      expect(result.current).toHaveLength(0);
+    });
+
+    it('matches pending during active thread creation (pendingThreadId set)', () => {
+      const ts = new Date('2024-01-01T00:01:00Z');
+      mockPendingMessage.current = {
+        content: 'Creating new thread',
+        threadId: 'new-thread-id',
+        timestamp: ts,
+      };
+      mockPendingThreadId.current = 'new-thread-id';
+
+      const { result } = renderHook(() =>
+        usePendingMessages({ threadId: undefined, realMessages: [] }),
+      );
+
+      expect(result.current).toHaveLength(1);
+      expect(result.current[0].content).toBe('Creating new thread');
     });
 
     it('clears pending message via setPendingMessage(null) when real arrives', () => {

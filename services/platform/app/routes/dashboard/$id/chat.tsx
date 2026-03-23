@@ -1,7 +1,7 @@
 import { createFileRoute, useMatch } from '@tanstack/react-router';
 import { m, AnimatePresence } from 'framer-motion';
 import { PanelLeftClose } from 'lucide-react';
-import { Suspense } from 'react';
+import { Suspense, useState, useEffect, useRef } from 'react';
 
 import { LayoutErrorBoundary } from '@/app/components/error-boundaries/boundaries/layout-error-boundary';
 import { PageLayout } from '@/app/components/layout/page-layout';
@@ -51,7 +51,7 @@ function ChatSkeleton() {
 }
 
 function ChatLayoutContent({ organizationId }: { organizationId: string }) {
-  const { isHistoryOpen, setIsHistoryOpen } = useChatLayout();
+  const { isHistoryOpen, setIsHistoryOpen, clearChatState } = useChatLayout();
   const { t: tChat } = useT('chat');
 
   // Read threadId from URL — ChatInterface stays mounted across route changes.
@@ -60,6 +60,21 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
     shouldThrow: false,
   });
   const threadId = threadMatch?.params?.threadId;
+
+  // Directional key: only remount ChatInterface when entering new-chat from a
+  // thread (thread→new). All other transitions (new→thread, thread→thread) keep
+  // the same key so the component stays mounted for smooth transitions.
+  const [newChatCount, setNewChatCount] = useState(0);
+  const prevHadThreadRef = useRef(!!threadId);
+
+  useEffect(() => {
+    const hadThread = prevHadThreadRef.current;
+    prevHadThreadRef.current = !!threadId;
+    if (hadThread && !threadId) {
+      clearChatState();
+      setNewChatCount((c) => c + 1);
+    }
+  }, [threadId, clearChatState]);
 
   return (
     <PageLayout className="bg-background h-full overflow-hidden">
@@ -98,6 +113,7 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
           <LayoutErrorBoundary organizationId={organizationId}>
             <Suspense fallback={<ChatSkeleton />}>
               <ChatInterface
+                key={`chat-${newChatCount}`}
                 organizationId={organizationId}
                 threadId={threadId}
               />

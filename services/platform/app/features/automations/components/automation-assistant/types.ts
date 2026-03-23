@@ -24,5 +24,6 @@ export interface Message {
   fileParts?: FilePart[];
   attachments?: FileAttachment[];
   clientMessageId?: string;
-  isHumanInputResponse?: boolean;
+  systemMessageDisplay?: import('@/lib/shared/constants/system-message-tags').SystemMessageDisplay;
+  systemMessageBody?: string;
 }
