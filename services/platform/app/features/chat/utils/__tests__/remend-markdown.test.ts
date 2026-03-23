@@ -25,6 +25,7 @@ describe('idempotency', () => {
     ['multiple paragraphs', 'Para one.\n\nPara two.\n\nPara three.'],
     ['escaped asterisks', 'Price is 5\\*3 = 15'],
     ['escaped backtick', 'Use \\` for code'],
+    ['complete table', '| A | B |\n|---|---|\n| 1 | 2 |'],
   ])('preserves %s', (_label, input) => {
     expect(remendMarkdown(input)).toBe(input);
   });
@@ -364,5 +365,61 @@ describe('performance', () => {
     const perCall = elapsed / (iterations * chunks.length);
 
     expect(perCall).toBeLessThan(0.1);
+  });
+});
+
+// ============================================================================
+// TABLE COMPLETION — incomplete GFM tables are auto-completed
+// ============================================================================
+
+describe('table completion', () => {
+  it('appends separator when only header row exists', () => {
+    expect(remendMarkdown('| A | B |')).toBe('| A | B |\n| - | - |');
+  });
+
+  it('appends separator for 3-column header', () => {
+    expect(remendMarkdown('| A | B | C |')).toBe(
+      '| A | B | C |\n| - | - | - |',
+    );
+  });
+
+  it('replaces partial separator with complete one', () => {
+    expect(remendMarkdown('| A | B |\n|--')).toBe('| A | B |\n| - | - |');
+  });
+
+  it('replaces partial separator with dashes and colons', () => {
+    expect(remendMarkdown('| A | B |\n|:---')).toBe('| A | B |\n| - | - |');
+  });
+
+  it('closes incomplete data row', () => {
+    expect(remendMarkdown('| A | B |\n|---|---|\n| 1')).toBe(
+      '| A | B |\n|---|---|\n| 1 |',
+    );
+  });
+
+  it('preserves complete table unchanged', () => {
+    const table = '| A | B |\n|---|---|\n| 1 | 2 |';
+    expect(remendMarkdown(table)).toBe(table);
+  });
+
+  it('handles table after preceding content', () => {
+    const input = 'Some text\n\n| A | B |';
+    expect(remendMarkdown(input)).toBe('Some text\n\n| A | B |\n| - | - |');
+  });
+
+  it('does not treat single pipe as table', () => {
+    expect(remendMarkdown('a | b')).toBe('a | b');
+  });
+
+  it('does not modify pipes inside code blocks', () => {
+    const input = '```\n| A | B |\n```';
+    expect(remendMarkdown(input)).toBe(input);
+  });
+
+  it('handles table with incomplete separator after paragraph', () => {
+    const input = 'Hello world\n\n| X | Y | Z |\n|---';
+    expect(remendMarkdown(input)).toBe(
+      'Hello world\n\n| X | Y | Z |\n| - | - | - |',
+    );
   });
 });

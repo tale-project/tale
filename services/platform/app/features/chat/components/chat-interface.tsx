@@ -191,9 +191,10 @@ export function ChatInterface({
   const lastUserMessageRef = useRef<HTMLDivElement>(null);
 
   // --- Scroll intent pattern (mirrors assistant-ui) ---
-  // A ref tracks whether we intend to keep scrolling to bottom.
-  // Content ResizeObserver re-scrolls until the intent is cleared.
-  const scrollingToBottomRef = useRef(false);
+  // Stores the active scroll behavior ('auto' for smooth on send, 'instant'
+  // for thread init), or null when not scrolling to bottom.
+  // Content ResizeObserver reuses the behavior until scroll completes.
+  const scrollingToBottomBehaviorRef = useRef<ScrollBehavior | null>(null);
 
   // Unified scroll + resize handler — single place for all scroll decisions.
   // Scrolls synchronously in observer callbacks so the correction happens
@@ -205,7 +206,13 @@ export function ChatInterface({
     if (!container || !content) return;
 
     const onContentChange = () => {
-      if (scrollingToBottomRef.current || isAtBottom()) {
+      const scrollBehavior = scrollingToBottomBehaviorRef.current;
+      if (scrollBehavior) {
+        container.scrollTo({
+          top: container.scrollHeight,
+          behavior: scrollBehavior,
+        });
+      } else if (isAtBottom()) {
         container.scrollTo({
           top: container.scrollHeight,
           behavior: 'instant',
@@ -215,8 +222,8 @@ export function ChatInterface({
     };
 
     const onScroll = () => {
-      if (scrollingToBottomRef.current && isAtBottom()) {
-        scrollingToBottomRef.current = false;
+      if (scrollingToBottomBehaviorRef.current && isAtBottom()) {
+        scrollingToBottomBehaviorRef.current = null;
       }
       setShowScrollButton(!isAtBottom());
     };
@@ -256,7 +263,7 @@ export function ChatInterface({
     if (scrolledForThreadRef.current === threadId) return;
 
     scrolledForThreadRef.current = threadId;
-    scrollingToBottomRef.current = true;
+    scrollingToBottomBehaviorRef.current = 'instant';
 
     // Kick off scroll — ResizeObserver will keep it pinned as layout settles.
     containerRef.current?.scrollTo({
@@ -309,7 +316,7 @@ export function ChatInterface({
     message: string,
     sentAttachments?: FileAttachment[],
   ) => {
-    scrollingToBottomRef.current = true;
+    scrollingToBottomBehaviorRef.current = 'auto';
     clearInputValue();
     await sendMessage(message, sentAttachments);
   };
@@ -333,7 +340,7 @@ export function ChatInterface({
   return (
     <div
       ref={containerRef}
-      className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto"
+      className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto scroll-smooth"
     >
       <div
         ref={contentRef}

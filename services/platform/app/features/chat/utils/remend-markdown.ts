@@ -22,7 +22,7 @@
  *
  * Does NOT handle (by design):
  *   - HTML tags — rehype-sanitize handles safety; string-level closing risks mXSS
- *   - Headings, blockquotes, lists, tables — don't need closing syntax
+ *   - Headings, blockquotes, lists — don't need closing syntax
  */
 
 type FormattingMarker = '*' | '**' | '~~';
@@ -255,7 +255,108 @@ export function remendMarkdown(text: string): string {
     suffix += '\n' + '`'.repeat(fenceBacktickCount);
   }
 
+  // Phase 3: Auto-complete incomplete GFM tables (only outside code blocks)
+  if (context === 'normal') {
+    result = remendTable(result);
+  }
+
   return suffix ? result + suffix : result;
+}
+
+/**
+ * Count columns in a GFM table row by counting pipe-delimited cells.
+ * `| A | B |` → 2 columns.
+ */
+function countTableColumns(row: string): number {
+  const trimmed = row.trim();
+  // Split by | and filter: leading/trailing empty segments from outer pipes
+  const cells = trimmed.split('|').filter((_, i, arr) => {
+    if (i === 0 && arr[i].trim() === '') return false;
+    if (i === arr.length - 1 && arr[i].trim() === '') return false;
+    return true;
+  });
+  return cells.length;
+}
+
+/**
+ * Check whether a line looks like a GFM separator row (e.g. `|---|---|`).
+ * A complete separator has at least one `---` cell per column.
+ */
+const SEPARATOR_RE = /^\|[\s:]*-{3,}[\s:]*\|/;
+
+function isCompleteSeparator(line: string, expectedCols: number): boolean {
+  if (!SEPARATOR_RE.test(line)) return false;
+  return countTableColumns(line) >= expectedCols;
+}
+
+/**
+ * Generate a GFM separator row for a given column count.
+ * e.g. cols=3 → `| - | - | - |`
+ */
+function makeSeparator(cols: number): string {
+  return '| ' + Array.from({ length: cols }, () => '-').join(' | ') + ' |';
+}
+
+/**
+ * Auto-complete an incomplete GFM table at the end of the text.
+ *
+ * GFM requires header + separator to parse as a table. During streaming
+ * the separator may be missing or partial, causing raw `| A | B |` text.
+ *
+ * Cases handled:
+ *   1. Header only (no separator)  → append separator
+ *   2. Header + partial separator  → replace partial with complete separator
+ *   3. Header + separator + incomplete data row → close the row with `|`
+ */
+function remendTable(text: string): string {
+  // Find the last block boundary (double newline or start of text)
+  const blockStart = text.lastIndexOf('\n\n');
+  const block = blockStart === -1 ? text : text.slice(blockStart + 2);
+
+  // Quick check: does this block look like a table at all?
+  if (!block.startsWith('|')) return text;
+
+  const lines = block.split('\n');
+  if (lines.length === 0) return text;
+
+  const headerLine = lines[0];
+  // Must have at least `| x |` pattern (2+ pipes)
+  if ((headerLine.match(/\|/g) || []).length < 2) return text;
+
+  const cols = countTableColumns(headerLine);
+  if (cols === 0) return text;
+
+  const prefix = blockStart === -1 ? '' : text.slice(0, blockStart + 2);
+
+  if (lines.length === 1) {
+    // Case 1: Header only — append separator
+    return prefix + headerLine + '\n' + makeSeparator(cols);
+  }
+
+  const secondLine = lines[1];
+
+  if (!isCompleteSeparator(secondLine, cols)) {
+    // Case 2: Partial or missing separator — replace second line
+    const rest = lines.slice(2);
+    return (
+      prefix +
+      headerLine +
+      '\n' +
+      makeSeparator(cols) +
+      (rest.length > 0 ? '\n' + rest.join('\n') : '')
+    );
+  }
+
+  // Separator is complete. Check if the last data row is incomplete.
+  if (lines.length >= 3) {
+    const lastLine = lines[lines.length - 1];
+    if (lastLine.startsWith('|') && !lastLine.trimEnd().endsWith('|')) {
+      // Case 3: Incomplete data row — close it
+      return text + ' |';
+    }
+  }
+
+  return text;
 }
 
 /**
