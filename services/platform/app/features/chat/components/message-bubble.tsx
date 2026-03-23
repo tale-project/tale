@@ -13,6 +13,7 @@ import {
   useRef,
   useState,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useCallback,
   memo,
@@ -141,16 +142,31 @@ function MessageBubbleComponent({
     setIsGalleryOpen(true);
   }, []);
 
+  // Synchronous initial overflow check — runs before paint so the "Show More"
+  // button is included in the first layout commit (no two-frame cascade).
+  useLayoutEffect(() => {
+    if (!isUser || !contentRef.current || isExpanded) return;
+    setIsOverflowing(
+      contentRef.current.scrollHeight > contentRef.current.clientHeight,
+    );
+  }, [isUser, isExpanded, sanitizedContent]);
+
+  // Debounced ResizeObserver for subsequent resize events (e.g. window resize).
   useEffect(() => {
-    if (!isUser || !contentRef.current) return;
+    if (!isUser || !contentRef.current || isExpanded) return;
     const el = contentRef.current;
+    let frameId: number;
     const observer = new ResizeObserver(() => {
-      if (!isExpanded) {
+      cancelAnimationFrame(frameId);
+      frameId = requestAnimationFrame(() => {
         setIsOverflowing(el.scrollHeight > el.clientHeight);
-      }
+      });
     });
     observer.observe(el);
-    return () => observer.disconnect();
+    return () => {
+      cancelAnimationFrame(frameId);
+      observer.disconnect();
+    };
   }, [isUser, isExpanded, sanitizedContent]);
 
   useEffect(() => {
