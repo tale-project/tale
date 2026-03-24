@@ -212,6 +212,11 @@ export function ChatInterface({
           top: container.scrollHeight,
           behavior: scrollBehavior,
         });
+      } else if (isAtBottom()) {
+        container.scrollTo({
+          top: container.scrollHeight,
+          behavior: 'instant',
+        });
       }
       setShowScrollButton(!isAtBottom());
     };
