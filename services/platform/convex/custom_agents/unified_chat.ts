@@ -114,7 +114,7 @@ export const chatWithAgent = mutation({
       agentConfig,
       model: agentConfig.model ?? model,
       provider,
-      debugTag: `[Agent:${activeVersion.name}]`,
+      debugTag: `[${activeVersion.name}:v${activeVersion.versionNumber}]`,
       enableStreaming: true,
       customAgentId: rootVersionId,
     });

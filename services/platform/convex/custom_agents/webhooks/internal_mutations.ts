@@ -79,7 +79,7 @@ export const chatViaWebhook = internalMutation({
       agentConfig,
       model: agentConfig.model ?? model,
       provider,
-      debugTag: `[CustomAgent:webhook:${activeVersion.name}]`,
+      debugTag: `[${activeVersion.name}:v${activeVersion.versionNumber}:webhook]`,
       enableStreaming: args.enableStreaming ?? true,
       customAgentId: args.customAgentId,
     });

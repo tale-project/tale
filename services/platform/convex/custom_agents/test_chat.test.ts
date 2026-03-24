@@ -41,7 +41,7 @@ describe('testCustomAgent', () => {
       const config = toSerializableConfig(draft);
 
       expect(config).toEqual({
-        name: 'custom:test-agent',
+        name: 'test-agent:v1',
         instructions: 'You are a helpful test agent.',
         convexToolNames: ['web_search', 'document_search'],
         integrationBindings: ['integration_1'],

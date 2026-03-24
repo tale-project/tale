@@ -69,7 +69,7 @@ export const testCustomAgent = mutation({
       agentConfig,
       model: agentConfig.model ?? model,
       provider,
-      debugTag: `[CustomAgent:${agent.name}:test]`,
+      debugTag: `[${agent.name}:v${agent.versionNumber}:test]`,
       enableStreaming: true,
       customAgentId: args.customAgentId,
     });

@@ -42,7 +42,7 @@ export function toSerializableConfig(
     agent.webSearchMode ?? (agent.toolNames.includes('web') ? 'tool' : 'off');
 
   return {
-    name: agent.isSystemDefault ? agent.name : `custom:${agent.name}`,
+    name: `${agent.name}:v${agent.versionNumber}`,
     instructions: agent.systemInstructions,
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- toolNames are filtered via filterValidToolNames() on insert; always valid ToolName values
     convexToolNames: agent.toolNames as ToolName[],
