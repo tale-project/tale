@@ -148,7 +148,7 @@
     "@vitest/browser": "^4.0.18",
     "@vitest/browser-playwright": "^4.0.18",
     "bcryptjs": "3.0.3",
-    "convex-test": "0.0.41",
+    "convex-test": "0.0.44",
     "jsdom": "28.1.0",
     "postcss-load-config": "6.0.1",
     "storybook": "10.2.17",
