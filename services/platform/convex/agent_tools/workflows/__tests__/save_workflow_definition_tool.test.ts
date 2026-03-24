@@ -31,7 +31,7 @@ vi.mock(
 );
 
 vi.mock('@convex-dev/agent', () => ({
-  createTool: vi.fn((def) => ({ _handler: def.handler })),
+  createTool: vi.fn((def) => ({ _handler: def.execute })),
 }));
 
 function createMockCtx(overrides?: Record<string, unknown>) {

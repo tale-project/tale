@@ -78,7 +78,7 @@ function createSummarizerAgent(incremental: boolean = false): Agent {
 
   return new Agent(components.agent, {
     name: 'summarizer',
-    languageModel: openai.chat(envModel),
+    languageModel: openai.chatModel(envModel),
     instructions: incremental
       ? INCREMENTAL_SUMMARIZATION_INSTRUCTIONS
       : SUMMARIZATION_INSTRUCTIONS,

@@ -39,9 +39,9 @@ export const integrationIntrospectTool: ToolDefinition = {
     description: `Get available operations for an integration.
 Returns operation names and types. Use 'operation' param to get parameter details for a specific operation.`,
 
-    args: integrationIntrospectArgs,
+    inputSchema: integrationIntrospectArgs,
 
-    handler: async (
+    execute: async (
       ctx: ToolCtx,
       args,
     ): Promise<IntrospectionSummaryResult | OperationDetailResult> => {

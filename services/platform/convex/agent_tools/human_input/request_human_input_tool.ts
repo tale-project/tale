@@ -159,8 +159,8 @@ Every request is a form with one or more fields. Each field has a type that dete
 • Do NOT assume or guess what the user will select
 • The user's response will appear in a FUTURE turn as <human_response>
 • Simply acknowledge you're waiting for their input`,
-    args: requestHumanInputArgs,
-    handler: async (
+    inputSchema: requestHumanInputArgs,
+    execute: async (
       ctx: ToolCtx,
       args,
     ): Promise<{

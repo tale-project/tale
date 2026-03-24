@@ -93,8 +93,8 @@ BEST PRACTICES:
 • Use 'get_active_version_steps' when you need the currently active/deployed version by workflow name.
 • Use 'list_version_history' to see all versions of a workflow and their changes over time.
 • Pass 'status' parameter with 'list_all' to filter by workflow status.`,
-    args: workflowReadArgs,
-    handler: async (
+    inputSchema: workflowReadArgs,
+    execute: async (
       ctx: ToolCtx,
       args,
     ): Promise<

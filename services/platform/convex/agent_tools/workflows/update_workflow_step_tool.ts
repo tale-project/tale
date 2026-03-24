@@ -208,7 +208,7 @@ export const updateWorkflowStepTool = {
 **APPROVAL:**
 When this tool returns { requiresApproval: true }, do NOT call this tool again.
 Inform the user the update is ready for review in the chat UI.`,
-    args: z.object({
+    inputSchema: z.object({
       stepRecordId: z
         .string()
         .optional()
@@ -237,7 +237,7 @@ Inform the user the update is ready for review in the chat UI.`,
           'Markdown-formatted summary of changes. Use bullet points for multiple changes.',
         ),
     }),
-    handler: async (
+    execute: async (
       ctx,
       args,
     ): Promise<{

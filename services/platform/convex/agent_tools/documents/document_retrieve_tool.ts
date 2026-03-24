@@ -89,8 +89,8 @@ TIPS:
 • Get file IDs from document_find first
 • For semantic search across documents, use rag_search instead
 • Documents must be indexed (ragInfo.status = "completed") to be retrievable`,
-    args: documentRetrieveArgs,
-    handler: async (ctx, args): Promise<DocumentRetrieveResult> => {
+    inputSchema: documentRetrieveArgs,
+    execute: async (ctx, args): Promise<DocumentRetrieveResult> => {
       return retrieveDocument(ctx, args);
     },
   }),

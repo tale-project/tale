@@ -34,11 +34,11 @@
     "stress-test:shard-compare": "bun stress-tests/scenarios/shard-comparison.ts"
   },
   "dependencies": {
-    "@ai-sdk/openai": "2.0.99",
-    "@ai-sdk/provider-utils": "4.0.19",
+    "@ai-sdk/openai-compatible": "^2.0.37",
+    "@ai-sdk/provider-utils": "^4.0.6",
     "@casl/ability": "^6.8.0",
     "@convex-dev/action-cache": "0.3.0",
-    "@convex-dev/agent": "^0.3.2",
+    "@convex-dev/agent": "^0.6.0",
     "@convex-dev/better-auth": "0.11.1",
     "@convex-dev/persistent-text-streaming": "0.3.0",
     "@convex-dev/rate-limiter": "0.3.2",
@@ -70,7 +70,7 @@
     "@tanstack/react-router": "1.166.7",
     "@tanstack/react-table": "8.21.3",
     "@xyflow/react": "12.10.1",
-    "ai": "5.0.153",
+    "ai": "^6.0.35",
     "base64-arraybuffer": "1.0.2",
     "better-auth": "1.4.9",
     "class-variance-authority": "0.7.1",

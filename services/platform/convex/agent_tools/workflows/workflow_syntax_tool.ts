@@ -69,8 +69,8 @@ export const workflowSyntaxTool: ToolDefinition = {
 • 'workflow_config': Workflow-level config (timeout, retryPolicy, variables)
 • 'variables': Variable syntax and JEXL filters
 • 'hello_world': Complete hello world example (start → llm → output)`,
-    args: workflowSyntaxArgs,
-    handler: async (ctx: ToolCtx, args) => {
+    inputSchema: workflowSyntaxArgs,
+    execute: async (ctx: ToolCtx, args) => {
       if (!args.category) {
         const result = getAllSyntax();
         const integrationsContext = await fetchIntegrationsContext(ctx);

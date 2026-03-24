@@ -46,8 +46,8 @@ export const requestUserLocationTool = {
 • Do NOT assume or guess the user's location
 • The user's response will appear in a FUTURE turn as <location_response>
 • Simply acknowledge you're waiting for their location`,
-    args: requestUserLocationArgs,
-    handler: async (
+    inputSchema: requestUserLocationArgs,
+    execute: async (
       ctx: ToolCtx,
       args,
     ): Promise<{
