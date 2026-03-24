@@ -69,15 +69,15 @@ describe('getSystemMessageDisplay', () => {
     );
   });
 
-  it('returns success for workflow completion tags', () => {
+  it('returns info for workflow completion tags', () => {
     expect(getSystemMessageDisplay(SYSTEM_MSG_TAG.WORKFLOW_COMPLETED)).toBe(
-      'success',
+      'info',
     );
     expect(getSystemMessageDisplay(SYSTEM_MSG_TAG.WORKFLOW_CREATED)).toBe(
-      'success',
+      'info',
     );
     expect(getSystemMessageDisplay(SYSTEM_MSG_TAG.WORKFLOW_UPDATED)).toBe(
-      'success',
+      'info',
     );
   });
 
