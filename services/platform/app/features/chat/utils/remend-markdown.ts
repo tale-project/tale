@@ -238,26 +238,46 @@ export function remendMarkdown(text: string): string {
     );
   }
 
-  // Phase 2: Build suffix from open state
-  let suffix = '';
-
-  if (context === 'inline_code') {
-    suffix += '`'.repeat(inlineCodeBacktickCount);
-  }
-
-  if (context === 'normal' || context === 'inline_code') {
-    for (let j = formattingStack.length - 1; j >= 0; j--) {
-      suffix += formattingStack[j];
+  // Phase 1b: Strip trailing formatting markers with no content after them.
+  // CommonMark requires non-whitespace content between emphasis delimiters;
+  // empty markers (e.g. `the **`) would render as literal asterisks.
+  if (context === 'normal') {
+    while (formattingStack.length > 0) {
+      const last = formattingStack[formattingStack.length - 1];
+      const trimmed = result.trimEnd();
+      if (trimmed.endsWith(last)) {
+        result = result.slice(0, trimmed.lastIndexOf(last));
+        formattingStack.pop();
+      } else {
+        break;
+      }
     }
   }
 
-  if (context === 'fenced_code') {
-    suffix += '\n' + '`'.repeat(fenceBacktickCount);
+  // Phase 2: Build formatting suffix from open markers
+  let formattingSuffix = '';
+  if (context === 'normal' || context === 'inline_code') {
+    for (let j = formattingStack.length - 1; j >= 0; j--) {
+      formattingSuffix += formattingStack[j];
+    }
   }
 
   // Phase 3: Auto-complete incomplete GFM tables (only outside code blocks)
+  // Pass formatting suffix so it lands inside cells, not after the row closer.
   if (context === 'normal') {
-    result = remendTable(result);
+    const tableResult = remendTable(result, formattingSuffix);
+    result = tableResult.text;
+    if (tableResult.consumed) formattingSuffix = '';
+  }
+
+  // Phase 3b: Build final suffix from remaining parts
+  let suffix = '';
+  if (context === 'inline_code') {
+    suffix += '`'.repeat(inlineCodeBacktickCount);
+  }
+  suffix += formattingSuffix;
+  if (context === 'fenced_code') {
+    suffix += '\n' + '`'.repeat(fenceBacktickCount);
   }
 
   // Phase 4: Strip trailing incomplete HTML tag (only outside code blocks)
@@ -335,29 +355,43 @@ function makeSeparator(cols: number): string {
  *   2. Header + partial separator  → replace partial with complete separator
  *   3. Header + separator + incomplete data row → close the row with `|`
  */
-function remendTable(text: string): string {
+function remendTable(
+  text: string,
+  formattingSuffix = '',
+): { text: string; consumed: boolean } {
   // Find the last block boundary (double newline or start of text)
   const blockStart = text.lastIndexOf('\n\n');
   const block = blockStart === -1 ? text : text.slice(blockStart + 2);
 
   // Quick check: does this block look like a table at all?
-  if (!block.startsWith('|')) return text;
+  if (!block.startsWith('|')) return { text, consumed: false };
 
   const lines = block.split('\n');
-  if (lines.length === 0) return text;
+  if (lines.length === 0) return { text, consumed: false };
 
   const headerLine = lines[0];
   // Must have at least `| x |` pattern (2+ pipes)
-  if ((headerLine.match(/\|/g) || []).length < 2) return text;
+  if ((headerLine.match(/\|/g) || []).length < 2)
+    return { text, consumed: false };
 
   const cols = countTableColumns(headerLine);
-  if (cols === 0) return text;
+  if (cols === 0) return { text, consumed: false };
 
   const prefix = blockStart === -1 ? '' : text.slice(0, blockStart + 2);
 
   if (lines.length === 1) {
-    // Case 1: Header only — append separator
-    return prefix + headerLine + '\n' + makeSeparator(cols);
+    // Case 1: Header only — close formatting in last cell if needed, then append separator
+    let closedHeader = headerLine;
+    let consumed = false;
+    if (!headerLine.trimEnd().endsWith('|')) {
+      closedHeader = headerLine + formattingSuffix + ' |';
+      consumed = true;
+    }
+    const finalCols = countTableColumns(closedHeader);
+    return {
+      text: prefix + closedHeader + '\n' + makeSeparator(finalCols),
+      consumed,
+    };
   }
 
   const secondLine = lines[1];
@@ -365,25 +399,27 @@ function remendTable(text: string): string {
   if (!isCompleteSeparator(secondLine, cols)) {
     // Case 2: Partial or missing separator — replace second line
     const rest = lines.slice(2);
-    return (
-      prefix +
-      headerLine +
-      '\n' +
-      makeSeparator(cols) +
-      (rest.length > 0 ? '\n' + rest.join('\n') : '')
-    );
+    return {
+      text:
+        prefix +
+        headerLine +
+        '\n' +
+        makeSeparator(cols) +
+        (rest.length > 0 ? '\n' + rest.join('\n') : ''),
+      consumed: false,
+    };
   }
 
   // Separator is complete. Check if the last data row is incomplete.
   if (lines.length >= 3) {
     const lastLine = lines[lines.length - 1];
     if (lastLine.startsWith('|') && !lastLine.trimEnd().endsWith('|')) {
-      // Case 3: Incomplete data row — close it
-      return text + ' |';
+      // Case 3: Incomplete data row — close formatting inside the cell, then close the row
+      return { text: text + formattingSuffix + ' |', consumed: true };
     }
   }
 
-  return text;
+  return { text, consumed: false };
 }
 
 /**

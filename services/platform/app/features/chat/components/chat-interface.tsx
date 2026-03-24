@@ -196,16 +196,10 @@ export function ChatInterface({
 
   const lastUserMessageRef = useRef<HTMLDivElement>(null);
 
-  // --- Scroll intent pattern (mirrors assistant-ui) ---
-  // Stores the active scroll behavior ('auto' for smooth on send, 'instant'
-  // for thread init), or null when not scrolling to bottom.
-  // Content ResizeObserver reuses the behavior until scroll completes.
+  // Scroll intent ref: 'smooth' on send, 'instant' on thread init, null when idle.
   const scrollingToBottomBehaviorRef = useRef<ScrollBehavior | null>(null);
 
-  // Unified scroll + resize handler — single place for all scroll decisions.
-  // Scrolls synchronously in observer callbacks so the correction happens
-  // before the next paint (no 1-frame flicker). Safe because scrollTo only
-  // changes container.scrollTop, not the observed content element.
+  // Scroll + resize handler — handles intentional scrolls and scroll button visibility.
   useEffect(() => {
     const container = containerRef.current;
     const content = contentRef.current;
@@ -237,9 +231,6 @@ export function ChatInterface({
     const resizeObserver = new ResizeObserver(onContentChange);
     resizeObserver.observe(content);
 
-    // MutationObserver catches DOM changes (new messages appearing) that
-    // may not trigger a resize. Filters out style-only mutations to
-    // prevent feedback loops with min-height updates (assistant-ui pattern).
     const mutationObserver = new MutationObserver((mutations) => {
       const hasRelevant = mutations.some(
         (mut) => mut.type !== 'attributes' || mut.attributeName !== 'style',
@@ -271,7 +262,6 @@ export function ChatInterface({
     scrolledForThreadRef.current = threadId;
     scrollingToBottomBehaviorRef.current = 'instant';
 
-    // Kick off scroll — ResizeObserver will keep it pinned as layout settles.
     containerRef.current?.scrollTo({
       top: containerRef.current.scrollHeight,
       behavior: 'instant',
