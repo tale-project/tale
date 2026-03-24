@@ -135,6 +135,9 @@ export async function startAgentChat(
     await ctx.db.patch(threadMeta._id, {
       generationStatus: 'generating' as const,
       streamId,
+      generationStartTime: Date.now(),
+      cancelledAt: undefined,
+      cancelledMessageId: undefined,
       ...(args.customAgentId ? { customAgentId: args.customAgentId } : {}),
     });
   }

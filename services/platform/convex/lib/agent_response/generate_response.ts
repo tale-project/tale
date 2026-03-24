@@ -70,35 +70,27 @@ interface AbortWatcher {
 }
 
 /**
- * Polls the stream status for cancellation and aborts the controller when
- * detected. This bridges the gap between the `cancelGeneration` mutation
- * (which sets the DB flag) and the running action (which needs an
- * AbortSignal to stop the AI SDK / DeltaStreamer).
+ * Polls for cancellation and aborts the controller when detected.
+ * Bridges the gap between the `cancelGeneration` mutation (which sets DB
+ * flags) and the running action (which needs an AbortSignal).
  *
- * `baselineAbortedIds` contains stream IDs that were already aborted before
- * this generation started. The watcher ignores these so that stale aborted
- * streams from previous cancellations don't immediately kill a new generation.
+ * Two detection methods:
+ * - Check 1: new aborted SDK streams (mid-stream cancellation)
+ * - Check 2: `cancelledAt` on threadMetadata (early cancellation, before
+ *   any SDK stream exists)
  *
- * `baselineNewestAssistantId` is the ID of the newest *failed* assistant
- * message in the thread when this generation started. If `cancelGeneration`
- * runs before any stream exists, it creates a failed assistant message. The
- * watcher detects this by checking whether a NEW failed assistant message
- * (different from the baseline) appeared. Only `status === 'failed'` messages
- * are considered, so the SDK's own assistant messages (created during normal
- * generation) are never confused with cancellation signals.
+ * `baselineAbortedIds` filters out streams aborted before this generation.
+ * `generationStartTime` distinguishes stale `cancelledAt` from current.
  */
 function startAbortWatcher(
   ctx: GenerateResponseArgs['ctx'],
   threadId: string,
   abortController: AbortController,
   baselineAbortedIds: Set<string>,
-  baselineNewestAssistantId: string | undefined,
+  generationStartTime: number,
 ): AbortWatcher {
   let stopped = false;
   let cancelledByWatcher = false;
-  let earlyCheckDone = false;
-  let earlyCheckCount = 0;
-  const MAX_EARLY_CHECK_POLLS = 50; // ~10s at 200ms interval
 
   const check = async () => {
     if (stopped || abortController.signal.aborted) return;
@@ -117,40 +109,18 @@ function startAbortWatcher(
         return;
       }
 
-      // Check 2: early cancellation — cancelGeneration creates a failed
-      // assistant message when no streams exist yet. Only need to check
-      // until the SDK creates its own stream (first few polls).
-      if (!earlyCheckDone) {
-        earlyCheckCount++;
-        const msgs = await listMessages(ctx, components.agent, {
-          threadId,
-          paginationOpts: { numItems: 5, cursor: null },
-          excludeToolMessages: true,
-        });
-        const newestFailedAssistant = msgs.page.find(
-          (m: MessageDoc) =>
-            m.message?.role === 'assistant' && m.status === 'failed',
-        );
-        if (
-          newestFailedAssistant &&
-          newestFailedAssistant._id !== baselineNewestAssistantId
-        ) {
-          cancelledByWatcher = true;
-          abortController.abort();
-          return;
-        }
-        // Once the SDK starts streaming it creates its own message,
-        // making this check unreliable. Switch to stream-only checks.
-        // Also stop after MAX_EARLY_CHECK_POLLS to bound polling.
-        if (
-          streams.length > baselineAbortedIds.size ||
-          earlyCheckCount >= MAX_EARLY_CHECK_POLLS
-        ) {
-          earlyCheckDone = true;
-        }
+      // Check 2: cancelledAt on threadMetadata (early + universal)
+      const meta = await ctx.runQuery(
+        internal.threads.internal_queries.getThreadMetadata,
+        { threadId },
+      );
+      if (meta?.cancelledAt && meta.cancelledAt >= generationStartTime) {
+        cancelledByWatcher = true;
+        abortController.abort();
+        return;
       }
-    } catch {
-      // Query failure is non-fatal; will retry on next poll
+    } catch (pollError) {
+      console.error('[abortWatcher] Poll failed:', pollError);
     }
     if (!stopped && !abortController.signal.aborted) {
       setTimeout(check, ABORT_POLL_INTERVAL_MS);
@@ -275,9 +245,8 @@ export async function generateAgentResponse(
       });
     }
 
-    // Snapshot existing aborted streams and the newest assistant message
-    // so the watcher can distinguish stale state from new cancellations.
-    let baselineNewestAssistantId: string | undefined;
+    // Snapshot existing aborted streams so the watcher can distinguish
+    // stale state from new cancellations.
     if (enableStreaming) {
       try {
         const existing = await ctx.runQuery(components.agent.streams.list, {
@@ -287,42 +256,43 @@ export async function generateAgentResponse(
         baselineAbortedIds = new Set(
           existing.map((s: { streamId: string }) => s.streamId),
         );
-      } catch {
-        // Non-fatal — watcher will still work, just without baseline filter
-      }
-      try {
-        const msgs = await listMessages(ctx, components.agent, {
-          threadId,
-          paginationOpts: { numItems: 5, cursor: null },
-          excludeToolMessages: true,
-        });
-        const newestFailedAssistant = msgs.page.find(
-          (m: MessageDoc) =>
-            m.message?.role === 'assistant' && m.status === 'failed',
+      } catch (baselineError) {
+        console.error(
+          '[generateAgentResponse] Baseline snapshot failed:',
+          baselineError,
         );
-        baselineNewestAssistantId = newestFailedAssistant?._id;
-      } catch {
-        // Non-fatal
       }
     }
 
-    // Start abort watcher for streaming mode — polls the stream status
-    // and triggers abortController when the user cancels via cancelGeneration.
+    // Start abort watcher for streaming mode — polls stream status and
+    // threadMetadata.cancelledAt, triggers abortController on cancellation.
     abortWatcher = enableStreaming
       ? startAbortWatcher(
           ctx,
           threadId,
           abortController,
           baselineAbortedIds,
-          baselineNewestAssistantId,
+          startTime,
         )
       : undefined;
 
     // Direct DB check for cancellation — closes the 200ms polling gap
-    // that abortWatcher?.cancelled can miss.
-    const checkFreshAbort = async (): Promise<boolean> => {
-      if (abortWatcher?.cancelled) return true;
+    // that abortWatcher?.cancelled can miss. Returns the cancelledMessageId
+    // when cancelled (avoids a redundant query in cancelledReturn).
+    const checkCancelled = async (): Promise<
+      false | { cancelledMessageId?: string }
+    > => {
+      if (abortWatcher?.cancelled) return {};
       try {
+        // Check cancelledAt on threadMetadata
+        const meta = await ctx.runQuery(
+          internal.threads.internal_queries.getThreadMetadata,
+          { threadId },
+        );
+        if (meta?.cancelledAt && meta.cancelledAt >= startTime) {
+          return { cancelledMessageId: meta.cancelledMessageId };
+        }
+        // Check aborted SDK streams
         const streams = await ctx.runQuery(components.agent.streams.list, {
           threadId,
           statuses: ['aborted'] as const,
@@ -332,26 +302,80 @@ export async function generateAgentResponse(
             (s: { streamId: string }) => !baselineAbortedIds.has(s.streamId),
           )
         ) {
-          return true;
+          return { cancelledMessageId: meta?.cancelledMessageId };
         }
-        // Fallback: detect cancel via newly-failed assistant message.
-        // Only runs when no aborted streams found (keeps common-case cost zero).
-        // Covers the cancel-during-continue gap where no SDK streams exist to abort.
-        const msgs = await listMessages(ctx, components.agent, {
-          threadId,
-          paginationOpts: { numItems: 3, cursor: null },
-          excludeToolMessages: true,
-        });
-        const latestAssistant = msgs.page.find(
-          (m: MessageDoc) => m.message?.role === 'assistant',
+        return false;
+      } catch (checkError) {
+        console.error(
+          '[generateAgentResponse] checkCancelled failed:',
+          checkError,
         );
-        return (
-          latestAssistant?.status === 'failed' &&
-          latestAssistant._id !== baselineNewestAssistantId
-        );
-      } catch {
         return false;
       }
+    };
+
+    // Helper: complete persistent stream, save partial metadata, return cancelled result.
+    // Accepts cancelledMessageId from checkCancelled to avoid a redundant DB query.
+    const cancelledReturn = async (
+      cancelledMessageId?: string,
+    ): Promise<GenerateResponseResult> => {
+      abortWatcher?.stop();
+      if (streamId) {
+        try {
+          await ctx.runMutation(
+            internal.streaming.internal_mutations.completeStream,
+            { streamId },
+          );
+        } catch (streamError) {
+          console.error(
+            '[generateAgentResponse] cancelledReturn stream cleanup failed:',
+            streamError,
+          );
+        }
+      }
+      // Resolve savedMessageId from cancelGeneration if we didn't capture it
+      if (!savedMessageId && cancelledMessageId) {
+        savedMessageId = cancelledMessageId;
+      }
+
+      const durationMs = Date.now() - startTime;
+      const actualModel = result.response?.modelId ?? model;
+
+      // Save partial metadata (model, duration) even on cancel — usage may be
+      // undefined if the stream was aborted before the SDK could report it
+      if (savedMessageId) {
+        try {
+          await onAgentComplete(ctx, {
+            threadId,
+            agentType,
+            result: {
+              threadId,
+              messageId: savedMessageId,
+              text: result.text || '',
+              model: actualModel,
+              provider,
+              usage: result.usage,
+              durationMs,
+            },
+          });
+        } catch (metaError) {
+          console.error(
+            '[generateAgentResponse] Failed to save cancel metadata:',
+            metaError,
+          );
+        }
+      }
+
+      return {
+        threadId,
+        text: result.text || '',
+        savedMessageId,
+        durationMs,
+        finishReason: 'cancelled',
+        usage: result.usage,
+        model: actualModel,
+        provider,
+      };
     };
 
     // Determine retrieval modes
@@ -611,14 +635,9 @@ export async function generateAgentResponse(
 
         // Post-success abort check: direct DB query closes the 200ms
         // polling gap that the watcher flag alone can miss.
-        if (await checkFreshAbort()) {
-          abortWatcher?.stop();
-          return {
-            threadId,
-            text: '',
-            durationMs: Date.now() - startTime,
-            finishReason: 'cancelled',
-          };
+        const cancelCheck = await checkCancelled();
+        if (cancelCheck) {
+          return cancelledReturn(cancelCheck.cancelledMessageId);
         }
       } else {
         // Non-streaming mode (sub-agents)
@@ -672,14 +691,9 @@ export async function generateAgentResponse(
         };
 
         // Post-generation abort check
-        if (await checkFreshAbort()) {
-          abortWatcher?.stop();
-          return {
-            threadId,
-            text: '',
-            durationMs: Date.now() - startTime,
-            finishReason: 'cancelled',
-          };
+        const cancelCheck = await checkCancelled();
+        if (cancelCheck) {
+          return cancelledReturn(cancelCheck.cancelledMessageId);
         }
       }
 
@@ -778,14 +792,11 @@ export async function generateAgentResponse(
               };
 
           // Check for cancellation before starting continue (catches cancels during context building)
-          if (await checkFreshAbort()) {
-            abortWatcher?.stop();
-            return {
-              threadId,
-              text: '',
-              durationMs: Date.now() - startTime,
-              finishReason: 'cancelled',
-            };
+          {
+            const cancelCheck = await checkCancelled();
+            if (cancelCheck) {
+              return cancelledReturn(cancelCheck.cancelledMessageId);
+            }
           }
 
           // Save system message to record the continuation in thread history
@@ -893,14 +904,11 @@ export async function generateAgentResponse(
       }
 
       // Post-continue abort check
-      if (await checkFreshAbort()) {
-        abortWatcher?.stop();
-        return {
-          threadId,
-          text: '',
-          durationMs: Date.now() - startTime,
-          finishReason: 'cancelled',
-        };
+      {
+        const cancelCheck = await checkCancelled();
+        if (cancelCheck) {
+          return cancelledReturn(cancelCheck.cancelledMessageId);
+        }
       }
 
       // Fallback: if text is still missing after continue, provide a minimal response
@@ -1082,7 +1090,7 @@ export async function generateAgentResponse(
       didRetry &&
       savedMessageId &&
       result.text &&
-      !(await checkFreshAbort())
+      !(await checkCancelled())
     ) {
       try {
         await ctx.runMutation(components.agent.messages.updateMessage, {
@@ -1165,14 +1173,11 @@ export async function generateAgentResponse(
 
     // Final abort check before post-processing — direct DB query
     // closes the polling gap the watcher alone can miss.
-    if (await checkFreshAbort()) {
-      abortWatcher?.stop();
-      return {
-        threadId,
-        text: '',
-        durationMs,
-        finishReason: 'cancelled',
-      };
+    {
+      const cancelCheck = await checkCancelled();
+      if (cancelCheck) {
+        return cancelledReturn(cancelCheck.cancelledMessageId);
+      }
     }
 
     // Call afterGenerate hook if provided
@@ -1250,9 +1255,9 @@ export async function generateAgentResponse(
       }
     }
 
-    // Complete stream if streamId provided (skip if user cancelled —
-    // appending would concatenate fallback text onto already-streamed content)
-    if (streamId && !(await checkFreshAbort())) {
+    // Complete stream if streamId provided
+    const cancelled = await checkCancelled();
+    if (streamId && !cancelled) {
       if (responseResult.text) {
         await ctx.runMutation(
           internal.streaming.internal_mutations.appendToStream,
@@ -1266,6 +1271,19 @@ export async function generateAgentResponse(
         internal.streaming.internal_mutations.completeStream,
         { streamId },
       );
+    } else if (streamId && cancelled) {
+      // User cancelled — complete the stream cleanly (content already streamed)
+      try {
+        await ctx.runMutation(
+          internal.streaming.internal_mutations.completeStream,
+          { streamId },
+        );
+      } catch (streamError) {
+        console.error(
+          '[generateAgentResponse] Cancelled stream completion failed:',
+          streamError,
+        );
+      }
     }
     if (streamId) {
       await ctx.runMutation(
@@ -1316,16 +1334,53 @@ export async function generateAgentResponse(
       );
     }
 
-    // Mark persistent text stream as errored (skip if user cancelled)
-    if (streamId && !userCancelled) {
+    // Check cancelledAt on threadMetadata and resolve cancelledMessageId
+    let cancelMeta: {
+      cancelledAt?: number;
+      cancelledMessageId?: string;
+    } | null = null;
+    try {
+      cancelMeta = await ctx.runQuery(
+        internal.threads.internal_queries.getThreadMetadata,
+        { threadId },
+      );
+      if (
+        !userCancelled &&
+        cancelMeta?.cancelledAt &&
+        cancelMeta.cancelledAt >= startTime
+      ) {
+        userCancelled = true;
+      }
+    } catch (metaError) {
+      console.error(
+        '[generateAgentResponse] Failed to check cancelledAt:',
+        metaError,
+      );
+    }
+
+    // Resolve savedMessageId from cancelGeneration if we didn't capture it
+    if (userCancelled && !savedMessageId && cancelMeta?.cancelledMessageId) {
+      savedMessageId = cancelMeta.cancelledMessageId;
+    }
+
+    // Handle persistent text stream cleanup
+    if (streamId) {
       try {
-        await ctx.runMutation(
-          internal.streaming.internal_mutations.errorStream,
-          { streamId },
-        );
+        if (userCancelled) {
+          // Complete the stream cleanly — content was already streamed
+          await ctx.runMutation(
+            internal.streaming.internal_mutations.completeStream,
+            { streamId },
+          );
+        } else {
+          await ctx.runMutation(
+            internal.streaming.internal_mutations.errorStream,
+            { streamId },
+          );
+        }
       } catch (streamError) {
         console.error(
-          '[generateAgentResponse] Failed to mark stream as errored:',
+          '[generateAgentResponse] Failed to finalize stream:',
           streamError,
         );
       }
@@ -1383,44 +1438,46 @@ export async function generateAgentResponse(
       }
     }
 
-    // Save failed message — skip if cancelGeneration already created one
+    // Save failed message — skip if user cancelled (cancelGeneration handles it)
     let failedMessageId: string | undefined;
-    try {
-      const msgs = await listMessages(ctx, components.agent, {
-        threadId,
-        paginationOpts: { cursor: null, numItems: 5 },
-        excludeToolMessages: true,
-      });
-      const newestAssistant = msgs.page.find(
-        (m: MessageDoc) => m.message?.role === 'assistant',
-      );
-      const hasFailedAssistant = newestAssistant?.status === 'failed';
-      if (!hasFailedAssistant) {
-        const { messageId: failedMsgId } = await saveMessage(
-          ctx,
-          components.agent,
-          {
-            threadId,
-            message: {
-              role: 'assistant',
-              content:
-                'I was unable to complete your request. Please try again.',
-            },
-            metadata: {
-              status: 'failed',
-              error: errorMessage || 'Unknown error',
-            },
-          },
+    if (!userCancelled) {
+      try {
+        const msgs = await listMessages(ctx, components.agent, {
+          threadId,
+          paginationOpts: { cursor: null, numItems: 5 },
+          excludeToolMessages: true,
+        });
+        const newestAssistant = msgs.page.find(
+          (m: MessageDoc) => m.message?.role === 'assistant',
         );
-        failedMessageId = failedMsgId;
-      } else {
-        failedMessageId = newestAssistant._id;
+        const hasFailedAssistant = newestAssistant?.status === 'failed';
+        if (!hasFailedAssistant) {
+          const { messageId: failedMsgId } = await saveMessage(
+            ctx,
+            components.agent,
+            {
+              threadId,
+              message: {
+                role: 'assistant',
+                content:
+                  'I was unable to complete your request. Please try again.',
+              },
+              metadata: {
+                status: 'failed',
+                error: errorMessage || 'Unknown error',
+              },
+            },
+          );
+          failedMessageId = failedMsgId;
+        } else {
+          failedMessageId = newestAssistant._id;
+        }
+      } catch (saveError) {
+        console.error(
+          '[generateAgentResponse] Failed to save failed message:',
+          saveError,
+        );
       }
-    } catch (saveError) {
-      console.error(
-        '[generateAgentResponse] Failed to save failed message:',
-        saveError,
-      );
     }
 
     // Record partial metadata for debugging even on failure
@@ -1476,6 +1533,21 @@ export async function generateAgentResponse(
       }
     }
 
+    // If user cancelled, return cleanly instead of re-throwing — cancelGeneration
+    // already handled the message and stream state.
+    if (userCancelled) {
+      return {
+        threadId,
+        text: result.text || '',
+        savedMessageId,
+        durationMs: Date.now() - startTime,
+        finishReason: 'cancelled',
+        usage: result.usage,
+        model: result.response?.modelId ?? model,
+        provider,
+      };
+    }
+
     throw error;
   }
 }
@@ -1492,7 +1564,8 @@ function safeStringify(value: unknown, maxLen = 10240): string {
       return json.slice(0, maxLen) + '[truncated]';
     }
     return json;
-  } catch {
+  } catch (serializeError) {
+    console.error('[safeStringify] Serialization failed:', serializeError);
     return '[unserializable]';
   }
 }

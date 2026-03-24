@@ -14,6 +14,9 @@ export const threadMetadataTable = defineTable({
     v.union(v.literal('generating'), v.literal('idle')),
   ),
   streamId: v.optional(v.string()),
+  cancelledAt: v.optional(v.number()),
+  cancelledMessageId: v.optional(v.string()),
+  generationStartTime: v.optional(v.number()),
   customAgentId: v.optional(v.id('customAgents')),
 })
   .index('by_threadId', ['threadId'])
