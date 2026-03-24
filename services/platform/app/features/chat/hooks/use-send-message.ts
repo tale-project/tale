@@ -159,8 +159,6 @@ export function useSendMessage({
             ? {
                 timezone: userContext.timezone,
                 language: userContext.language,
-                coordinates: userContext.coordinates,
-                location: userContext.location,
               }
             : undefined,
         });

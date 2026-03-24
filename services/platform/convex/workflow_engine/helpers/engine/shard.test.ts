@@ -34,8 +34,8 @@ describe('getShardIndex', () => {
       'document_rag_sync',
       'onedrive_sync',
       'customer_status_assessment',
-      'product_recommendation',
-      'product_recommendation_email',
+      'integration_operation',
+      'workflow_creation',
       'conversation_auto_archive',
     ];
     const shards = new Set(testIds.map(getShardIndex));

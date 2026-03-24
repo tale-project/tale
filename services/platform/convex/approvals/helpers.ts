@@ -377,6 +377,7 @@ export async function linkApprovalsToMessage(
     'workflow_update',
     'human_input_request',
     'document_write',
+    'location_request',
   ] as const;
 
   const approvalIds: Array<Id<'approvals'>> = [];

@@ -23,6 +23,7 @@ import {
   useDocumentWriteApprovals,
   useHumanInputRequests,
   useIntegrationApprovals,
+  useLocationRequests,
   useWorkflowCreationApprovals,
   useWorkflowRunApprovals,
   useWorkflowUpdateApprovals,
@@ -138,6 +139,10 @@ export function ChatInterface({
     organizationId,
     threadId,
   );
+  const { requests: locationRequests } = useLocationRequests(
+    organizationId,
+    threadId,
+  );
   const { approvals: documentWriteApprovals } = useDocumentWriteApprovals(
     organizationId,
     threadId,
@@ -151,6 +156,7 @@ export function ChatInterface({
     workflowUpdateApprovals,
     workflowRunApprovals,
     humanInputRequests,
+    locationRequests,
     documentWriteApprovals,
   });
 

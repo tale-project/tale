@@ -50,7 +50,7 @@ type WorkflowProcessingRecordsActionParams =
        * @example 'status == "closed"'
        * @example 'status == "open" && priority == "high"'
        * @example 'status == "closed" && daysAgo(metadata.resolved_at) > 30'
-       * @example 'status == "completed" && resourceType == "product_recommendation"'
+       * @example 'status == "completed" && resourceType == "integration_operation"'
        */
       filterExpression?: string;
     }
@@ -80,7 +80,7 @@ Examples:
 - Find any conversation: { operation: 'find_unprocessed', tableName: 'conversations' }
 - Find open conversations: { filterExpression: 'status == "open"' }
 - Find stale closed conversations: { filterExpression: 'status == "closed" && daysAgo(metadata.resolved_at) > 30' }
-- Find approved product recommendations: { tableName: 'approvals', filterExpression: 'status == "completed" && resourceType == "product_recommendation"' }
+- Find approved integration operations: { tableName: 'approvals', filterExpression: 'status == "completed" && resourceType == "integration_operation"' }
 
 organizationId and rootWfDefinitionId are automatically read from workflow context variables.`,
     parametersValidator: v.union(

@@ -1,0 +1,61 @@
+import { v } from 'convex/values';
+
+import type { LocationRequestMetadata } from '../../../lib/shared/schemas/approvals';
+
+import { internalMutation } from '../../_generated/server';
+import {
+  createApproval,
+  listPendingApprovalsForExecution,
+} from '../../approvals/helpers';
+import { toId } from '../../lib/type_cast_helpers';
+
+export const createLocationRequest = internalMutation({
+  args: {
+    organizationId: v.string(),
+    threadId: v.string(),
+    reason: v.string(),
+    messageId: v.optional(v.string()),
+    wfExecutionId: v.optional(v.string()),
+    stepSlug: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Idempotency guard for workflow context
+    if (args.wfExecutionId && args.stepSlug) {
+      const existing = await listPendingApprovalsForExecution(
+        ctx,
+        toId<'wfExecutions'>(args.wfExecutionId),
+      );
+      const duplicate = existing.find(
+        (a) =>
+          a.resourceType === 'location_request' && a.stepSlug === args.stepSlug,
+      );
+      if (duplicate) {
+        return duplicate._id;
+      }
+    }
+
+    const metadata: LocationRequestMetadata = {
+      reason: args.reason,
+      requestedAt: Date.now(),
+    };
+
+    const resourceId = `location:${args.threadId}:${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+    const approvalId = await createApproval(ctx, {
+      organizationId: args.organizationId,
+      resourceType: 'location_request',
+      resourceId,
+      priority: 'medium',
+      description: args.reason,
+      threadId: args.threadId,
+      messageId: args.messageId,
+      wfExecutionId: args.wfExecutionId
+        ? toId<'wfExecutions'>(args.wfExecutionId)
+        : undefined,
+      stepSlug: args.stepSlug,
+      metadata,
+    });
+
+    return approvalId;
+  },
+});

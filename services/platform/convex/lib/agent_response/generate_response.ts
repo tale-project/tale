@@ -503,8 +503,6 @@ export async function generateAgentResponse(
           userId,
           timezone: userContext?.timezone,
           language: userContext?.language,
-          coordinates: userContext?.coordinates,
-          location: userContext?.location,
         })
       : undefined;
 

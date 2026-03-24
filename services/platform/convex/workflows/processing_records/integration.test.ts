@@ -177,7 +177,7 @@ describe('Integration: parseFilterExpression + selectOptimalIndex', () => {
       expect(selected.requiresPostFilter).toBe(true);
     });
 
-    it('should handle product recommendation workflow', () => {
+    it('should handle multi-condition filter expressions', () => {
       const parsed = parseFilterExpression(
         'status == "active" && category == "electronics"',
       );

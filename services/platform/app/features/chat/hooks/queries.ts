@@ -7,7 +7,10 @@ import type {
   WorkflowRunMetadata,
   WorkflowUpdateMetadata,
 } from '@/convex/approvals/types';
-import type { HumanInputRequestMetadata } from '@/lib/shared/schemas/approvals';
+import type {
+  HumanInputRequestMetadata,
+  LocationRequestMetadata,
+} from '@/lib/shared/schemas/approvals';
 import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
@@ -167,6 +170,49 @@ export function useHumanInputRequests(
 
   return {
     requests: humanInputRequests,
+    isLoading,
+  };
+}
+
+export interface LocationRequest {
+  _id: Id<'approvals'>;
+  status: 'pending' | 'executing' | 'completed' | 'rejected';
+  metadata: LocationRequestMetadata;
+  _creationTime: number;
+  messageId?: string;
+  wfExecutionId?: Id<'wfExecutions'>;
+}
+
+export function useLocationRequests(
+  organizationId: string,
+  threadId: string | undefined,
+) {
+  const { approvals, isLoading } = useActiveApprovals(organizationId);
+
+  const locationRequests = useMemo((): LocationRequest[] => {
+    if (!approvals || !threadId) return [];
+    return approvals
+      .filter(
+        (a) =>
+          a.threadId === threadId &&
+          a.resourceType === 'location_request' &&
+          a.metadata !== undefined,
+      )
+      .map((a) => ({
+        _id: toId<'approvals'>(a._id),
+        status: a.status,
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Metadata shape is guaranteed by resourceType filter above
+        metadata: a.metadata as unknown as LocationRequestMetadata,
+        _creationTime: a._creationTime,
+        messageId: a.messageId,
+        wfExecutionId: a.wfExecutionId
+          ? toId<'wfExecutions'>(a.wfExecutionId)
+          : undefined,
+      }));
+  }, [approvals, threadId]);
+
+  return {
+    requests: locationRequests,
     isLoading,
   };
 }

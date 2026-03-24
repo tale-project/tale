@@ -62,6 +62,9 @@ import type * as agent_tools_integrations_internal_mutations from "../agent_tool
 import type * as agent_tools_integrations_types from "../agent_tools/integrations/types.js";
 import type * as agent_tools_integrations_verify_approval_tool from "../agent_tools/integrations/verify_approval_tool.js";
 import type * as agent_tools_load_convex_tools_as_object from "../agent_tools/load_convex_tools_as_object.js";
+import type * as agent_tools_location_internal_mutations from "../agent_tools/location/internal_mutations.js";
+import type * as agent_tools_location_mutations from "../agent_tools/location/mutations.js";
+import type * as agent_tools_location_request_user_location_tool from "../agent_tools/location/request_user_location_tool.js";
 import type * as agent_tools_products_helpers_count_products from "../agent_tools/products/helpers/count_products.js";
 import type * as agent_tools_products_helpers_read_product_by_id from "../agent_tools/products/helpers/read_product_by_id.js";
 import type * as agent_tools_products_helpers_read_product_list from "../agent_tools/products/helpers/read_product_list.js";
@@ -927,6 +930,9 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/integrations/types": typeof agent_tools_integrations_types;
   "agent_tools/integrations/verify_approval_tool": typeof agent_tools_integrations_verify_approval_tool;
   "agent_tools/load_convex_tools_as_object": typeof agent_tools_load_convex_tools_as_object;
+  "agent_tools/location/internal_mutations": typeof agent_tools_location_internal_mutations;
+  "agent_tools/location/mutations": typeof agent_tools_location_mutations;
+  "agent_tools/location/request_user_location_tool": typeof agent_tools_location_request_user_location_tool;
   "agent_tools/products/helpers/count_products": typeof agent_tools_products_helpers_count_products;
   "agent_tools/products/helpers/read_product_by_id": typeof agent_tools_products_helpers_read_product_by_id;
   "agent_tools/products/helpers/read_product_list": typeof agent_tools_products_helpers_read_product_list;

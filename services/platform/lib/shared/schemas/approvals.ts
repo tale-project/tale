@@ -49,3 +49,20 @@ export type HumanInputField = z.infer<typeof humanInputFieldSchema>;
 export type HumanInputRequestMetadata = z.infer<
   typeof humanInputRequestMetadataSchema
 >;
+
+const locationResponseSchema = z.object({
+  location: z.string(),
+  respondedBy: z.string(),
+  timestamp: z.number(),
+});
+
+export const locationRequestMetadataSchema = z.object({
+  reason: z.string(),
+  requestedAt: z.number(),
+  response: locationResponseSchema.optional(),
+  denied: z.boolean().optional(),
+});
+
+export type LocationRequestMetadata = z.infer<
+  typeof locationRequestMetadataSchema
+>;

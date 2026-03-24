@@ -5,6 +5,7 @@ import type { ChatItem } from '../hooks/use-merged-chat-items';
 import { DocumentWriteApprovalCard } from './document-write-approval-card';
 import { HumanInputRequestCard } from './human-input-request-card';
 import { IntegrationApprovalCard } from './integration-approval-card';
+import { LocationRequestCard } from './location-request-card';
 import { WorkflowCreationApprovalCard } from './workflow-creation-approval-card';
 import { WorkflowRunApprovalCard } from './workflow-run-approval-card';
 import { WorkflowUpdateApprovalCard } from './workflow-update-approval-card';
@@ -71,6 +72,15 @@ export function ApprovalCardRenderer({
           metadata={item.data.metadata}
           isWorkflowContext={!!item.data.wfExecutionId}
           wfExecutionId={item.data.wfExecutionId}
+          onResponseSubmitted={onHumanInputResponseSubmitted}
+        />
+      )}
+      {item.type === 'location_request' && (
+        <LocationRequestCard
+          approvalId={item.data._id}
+          status={item.data.status}
+          metadata={item.data.metadata}
+          isWorkflowContext={!!item.data.wfExecutionId}
           onResponseSubmitted={onHumanInputResponseSubmitted}
         />
       )}

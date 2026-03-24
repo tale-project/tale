@@ -53,6 +53,7 @@ const emptyParams = {
   workflowUpdateApprovals: undefined,
   workflowRunApprovals: undefined,
   humanInputRequests: undefined,
+  locationRequests: undefined,
   documentWriteApprovals: undefined,
 };
 
