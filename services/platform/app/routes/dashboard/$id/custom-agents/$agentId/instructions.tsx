@@ -22,7 +22,6 @@ import { SUPPORTED_TEMPLATE_VARIABLES } from '@/convex/lib/agent_response/resolv
 import { STRUCTURED_RESPONSE_INSTRUCTIONS } from '@/convex/lib/agent_response/structured_response_instructions';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
-import { FILE_PREPROCESSING_INSTRUCTIONS } from '@/lib/shared/constants/custom-agents';
 import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute(
@@ -42,7 +41,6 @@ export const Route = createFileRoute(
 interface InstructionsFormData {
   systemInstructions: string;
   modelId: string;
-  filePreprocessingEnabled: boolean;
   structuredResponsesEnabled: boolean;
 }
 
@@ -98,7 +96,6 @@ function InstructionsTab() {
       ? {
           systemInstructions: agent.systemInstructions,
           modelId: initialModelId,
-          filePreprocessingEnabled: agent.filePreprocessingEnabled ?? false,
           structuredResponsesEnabled: agent.structuredResponsesEnabled ?? true,
         }
       : undefined,
@@ -117,7 +114,6 @@ function InstructionsTab() {
         systemInstructions: data.systemInstructions,
         modelPreset,
         modelId: data.modelId,
-        filePreprocessingEnabled: data.filePreprocessingEnabled,
         structuredResponsesEnabled: data.structuredResponsesEnabled,
       });
     },
@@ -194,34 +190,6 @@ function InstructionsTab() {
           required
           disabled={isReadOnly}
         />
-      </PageSection>
-
-      <PageSection
-        title={t('customAgents.form.sectionFilePreprocessing')}
-        description={t('customAgents.form.sectionFilePreprocessingDescription')}
-      >
-        <Switch
-          checked={formValues.filePreprocessingEnabled}
-          onCheckedChange={(checked) => {
-            form.setValue('filePreprocessingEnabled', checked);
-            void save({
-              ...form.getValues(),
-              filePreprocessingEnabled: checked,
-            });
-          }}
-          label={t('customAgents.form.filePreprocessingEnabled')}
-          description={t('customAgents.form.filePreprocessingEnabledHelp')}
-          disabled={isReadOnly}
-        />
-        {formValues.filePreprocessingEnabled && (
-          <CodeBlock
-            label={t('customAgents.form.filePreprocessingInjectedPrompt')}
-            copyValue={FILE_PREPROCESSING_INSTRUCTIONS}
-            copyLabel={t('customAgents.form.copyPrompt')}
-          >
-            {FILE_PREPROCESSING_INSTRUCTIONS}
-          </CodeBlock>
-        )}
       </PageSection>
 
       <PageSection

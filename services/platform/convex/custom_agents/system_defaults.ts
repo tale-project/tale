@@ -32,7 +32,6 @@ export interface SystemDefaultAgentTemplate {
   roleRestriction?: 'admin_developer';
   knowledgeEnabled?: boolean;
   includeOrgKnowledge?: boolean;
-  filePreprocessingEnabled?: boolean;
   visibleInChat?: boolean;
   publishOnSeed?: boolean;
 }
@@ -54,7 +53,6 @@ export const SYSTEM_DEFAULT_AGENT_TEMPLATES: SystemDefaultAgentTemplate[] = [
     ],
     knowledgeEnabled: true,
     includeOrgKnowledge: true,
-    filePreprocessingEnabled: true,
     maxSteps: 20,
     timeoutMs: 1_200_000,
     outputReserve: 4096,
@@ -118,12 +116,7 @@ export const SYSTEM_DEFAULT_AGENT_TEMPLATES: SystemDefaultAgentTemplate[] = [
     displayName: 'Integration Assistant',
     description: 'Connects and operates with external systems',
     systemInstructions: INTEGRATION_AGENT_INSTRUCTIONS,
-    toolNames: [
-      'integration',
-      'integration_batch',
-      'integration_introspect',
-      'verify_approval',
-    ],
+    toolNames: ['integration', 'integration_batch', 'integration_introspect'],
     delegateSlugs: [],
     maxSteps: 20,
     timeoutMs: 180_000,
@@ -153,7 +146,6 @@ export const SYSTEM_DEFAULT_AGENT_TEMPLATES: SystemDefaultAgentTemplate[] = [
     outputReserve: 2048,
     modelPreset: 'advanced',
     roleRestriction: 'admin_developer',
-    filePreprocessingEnabled: true,
     publishOnSeed: true,
   },
 ];

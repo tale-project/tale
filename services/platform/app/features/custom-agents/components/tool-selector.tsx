@@ -50,7 +50,7 @@ const TOOL_CATEGORIES: Record<string, ToolName[]> = {
   ],
   Integrations: ['integration', 'integration_batch', 'integration_introspect'],
   Data: ['database_schema'],
-  Other: ['verify_approval', 'request_human_input'],
+  Other: ['request_human_input'],
 };
 
 function categorizeTools(toolNames: string[]) {

@@ -54,11 +54,9 @@ function ToolsTab() {
   const hiddenTools = useMemo(() => {
     const hidden = new Set<string>();
     hidden.add('rag_search');
-    if (webSearchMode !== 'off') {
-      hidden.add('web');
-    }
+    hidden.add('web');
     return hidden;
-  }, [webSearchMode]);
+  }, []);
 
   // Auto-save web search mode
   const webModeData = useMemo(() => ({ webSearchMode }), [webSearchMode]);

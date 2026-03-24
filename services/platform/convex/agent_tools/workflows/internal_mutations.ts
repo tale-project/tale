@@ -12,10 +12,7 @@ import { jsonRecordValidator } from '../../../lib/shared/schemas/utils/json-valu
 import { components, internal } from '../../_generated/api';
 import { internalMutation } from '../../_generated/server';
 import { createApproval } from '../../approvals/helpers';
-import {
-  createCustomAgentHookHandles,
-  toSerializableConfig,
-} from '../../custom_agents/config';
+import { toSerializableConfig } from '../../custom_agents/config';
 import { getDefaultAgentRuntimeConfig } from '../../lib/agent_runtime_config';
 import { checkOrganizationRateLimit } from '../../lib/rate_limiter/helpers';
 import { persistentStreaming } from '../../streaming/helpers';
@@ -141,11 +138,6 @@ export const triggerWorkflowCompletionResponse = internalMutation({
       });
     }
 
-    const hooks = await createCustomAgentHookHandles(
-      ctx,
-      chatAgent.filePreprocessingEnabled,
-    );
-
     await ctx.scheduler.runAfter(
       0,
       internal.lib.agent_chat.internal_actions.runAgentGeneration,
@@ -156,7 +148,6 @@ export const triggerWorkflowCompletionResponse = internalMutation({
         provider,
         debugTag: `[Agent:${chatAgent.name}:WorkflowComplete]`,
         enableStreaming: true,
-        hooks,
         threadId,
         organizationId,
         promptMessage: messageContent,

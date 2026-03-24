@@ -4,7 +4,7 @@ import { internalMutation } from '../../_generated/server';
 import { startAgentChat } from '../../lib/agent_chat';
 import { getDefaultAgentRuntimeConfig } from '../../lib/agent_runtime_config';
 import { createChatThread } from '../../threads/create_chat_thread';
-import { createCustomAgentHookHandles, toSerializableConfig } from '../config';
+import { toSerializableConfig } from '../config';
 
 export const updateWebhookLastTriggered = internalMutation({
   args: {
@@ -69,11 +69,6 @@ export const chatViaWebhook = internalMutation({
     const agentConfig = toSerializableConfig(activeVersion);
     const { model, provider } = getDefaultAgentRuntimeConfig();
 
-    const hooks = await createCustomAgentHookHandles(
-      ctx,
-      activeVersion.filePreprocessingEnabled,
-    );
-
     const result = await startAgentChat({
       ctx,
       agentType: 'custom',
@@ -84,9 +79,8 @@ export const chatViaWebhook = internalMutation({
       agentConfig,
       model: agentConfig.model ?? model,
       provider,
-      debugTag: `[CustomAgent:webhook:${activeVersion.name}]`,
+      debugTag: `[${activeVersion.name}:v${activeVersion.versionNumber}:webhook]`,
       enableStreaming: args.enableStreaming ?? true,
-      hooks,
       customAgentId: args.customAgentId,
     });
 

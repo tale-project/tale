@@ -227,9 +227,34 @@ export async function generateAgentResponse(
   const startTime = Date.now();
   const abortController = new AbortController();
 
-  // Declared outside try so the catch block can access them for cleanup
+  // Declared outside try so the catch block can access them for cleanup/metadata
   let abortWatcher: AbortWatcher | undefined;
   let baselineAbortedIds = new Set<string>();
+
+  // Hoisted so partial data is available in the catch block for error metadata
+  let structuredThreadContext:
+    | {
+        threadContext: string;
+        stats: {
+          totalTokens: number;
+          messageCount: number;
+          approvalCount: number;
+          hasRag: boolean;
+          hasWebContext: boolean;
+        };
+      }
+    | undefined;
+  let agentInstructions: string | undefined;
+  let retrySystemMessageId: string | undefined;
+  let firstTokenTime: number | null = null;
+  let savedMessageId: string | undefined;
+  let result: {
+    text?: string;
+    steps?: unknown[];
+    usage?: GenerateResponseResult['usage'];
+    finishReason?: string;
+    response?: { modelId?: string };
+  } = {};
 
   try {
     debugLog(`generate${capitalize(agentType)}Response called`, {
@@ -409,7 +434,7 @@ export async function generateAgentResponse(
     // Build structured context (history, RAG, web)
     // Note: promptMessage is NOT included - it's passed via `prompt` parameter
     const agentConfig = AGENT_CONTEXT_CONFIGS[agentType];
-    const structuredThreadContext = await buildStructuredContext({
+    structuredThreadContext = await buildStructuredContext({
       ctx,
       threadId,
       additionalContext,
@@ -476,23 +501,8 @@ export async function generateAgentResponse(
       knowledgeFileIds,
     };
 
-    // Track time to first token for streaming
-    let firstTokenTime: number | null = null;
-
-    // The first saved message ID for this generation, used for metadata and approval linking.
-    // Captured from the agent SDK's savedMessages before any retry logic can overwrite `result`.
-    let savedMessageId: string | undefined;
     let didRetry = false;
     let retryInProgress = false;
-
-    // Generate response - streaming or non-streaming
-    let result: {
-      text?: string;
-      steps?: unknown[];
-      usage?: GenerateResponseResult['usage'];
-      finishReason?: string;
-      response?: { modelId?: string };
-    };
 
     const promptToSend = hookPromptContent ?? promptMessage;
 
@@ -513,7 +523,7 @@ export async function generateAgentResponse(
     // and the structured thread context (history, RAG, web search).
     // For streaming agents, append structured response instructions so the LLM
     // can optionally emit section markers (parsed by the frontend).
-    const agentInstructions =
+    agentInstructions =
       enableStreaming &&
       resolvedInstructions &&
       structuredResponsesEnabled !== false
@@ -779,13 +789,14 @@ export async function generateAgentResponse(
           }
 
           // Save system message to record the continuation in thread history
-          await saveMessage(ctx, components.agent, {
+          const retryMsg = await saveMessage(ctx, components.agent, {
             threadId,
             message: {
               role: 'system',
               content: '[RESPONSE_INTERRUPTED] Retrying…',
             },
           });
+          retrySystemMessageId = retryMsg.messageId;
 
           // Prevent zombie detection during the gap before continuation saves its own message
           const originalSavedMessageId = savedMessageId;
@@ -833,6 +844,27 @@ export async function generateAgentResponse(
               finishReason: continueResult.finishReason,
               response: result.response,
             };
+
+            // Update the "Retrying…" system message now that retry succeeded
+            if (retrySystemMessageId) {
+              try {
+                await ctx.runMutation(components.agent.messages.updateMessage, {
+                  messageId: retrySystemMessageId,
+                  patch: {
+                    message: {
+                      role: 'system',
+                      content: '[RESPONSE_INTERRUPTED] Retry succeeded',
+                    },
+                  },
+                });
+              } catch (updateError) {
+                console.error(
+                  '[generateAgentResponse] Failed to update retry system message on success:',
+                  updateError,
+                );
+              }
+              retrySystemMessageId = undefined;
+            }
 
             debugLog('Continue completed', {
               reason: continueCheck.reason,
@@ -1331,7 +1363,28 @@ export async function generateAgentResponse(
       }
     }
 
+    // Update "Retrying…" system message to indicate retry failed
+    if (retrySystemMessageId) {
+      try {
+        await ctx.runMutation(components.agent.messages.updateMessage, {
+          messageId: retrySystemMessageId,
+          patch: {
+            message: {
+              role: 'system',
+              content: '[RESPONSE_INTERRUPTED] Retry failed',
+            },
+          },
+        });
+      } catch (retryMsgError) {
+        console.error(
+          '[generateAgentResponse] Failed to update retry system message:',
+          retryMsgError,
+        );
+      }
+    }
+
     // Save failed message — skip if cancelGeneration already created one
+    let failedMessageId: string | undefined;
     try {
       const msgs = await listMessages(ctx, components.agent, {
         threadId,
@@ -1343,23 +1396,84 @@ export async function generateAgentResponse(
       );
       const hasFailedAssistant = newestAssistant?.status === 'failed';
       if (!hasFailedAssistant) {
-        await saveMessage(ctx, components.agent, {
-          threadId,
-          message: {
-            role: 'assistant',
-            content: 'I was unable to complete your request. Please try again.',
+        const { messageId: failedMsgId } = await saveMessage(
+          ctx,
+          components.agent,
+          {
+            threadId,
+            message: {
+              role: 'assistant',
+              content:
+                'I was unable to complete your request. Please try again.',
+            },
+            metadata: {
+              status: 'failed',
+              error: errorMessage || 'Unknown error',
+            },
           },
-          metadata: {
-            status: 'failed',
-            error: errorMessage || 'Unknown error',
-          },
-        });
+        );
+        failedMessageId = failedMsgId;
+      } else {
+        failedMessageId = newestAssistant._id;
       }
     } catch (saveError) {
       console.error(
         '[generateAgentResponse] Failed to save failed message:',
         saveError,
       );
+    }
+
+    // Record partial metadata for debugging even on failure
+    const metadataMessageId = savedMessageId ?? failedMessageId;
+    if (metadataMessageId) {
+      try {
+        const durationMs = Date.now() - startTime;
+        const { toolCalls, toolsUsage } = extractToolCallsFromSteps(
+          result.steps ?? [],
+        );
+        const contextWindowParts: string[] = [];
+        if (agentInstructions) {
+          contextWindowParts.push(
+            wrapInDetails('📋 System Prompt', agentInstructions),
+          );
+        }
+        if (toolsSummary) {
+          contextWindowParts.push(wrapInDetails('🔧 Tools', toolsSummary));
+        }
+        if (structuredThreadContext) {
+          contextWindowParts.push(structuredThreadContext.threadContext);
+        }
+
+        await onAgentComplete(ctx, {
+          threadId,
+          agentType,
+          result: {
+            threadId,
+            messageId: metadataMessageId,
+            text: '',
+            model: result.response?.modelId ?? model,
+            provider,
+            usage: result.usage,
+            durationMs,
+            timeToFirstTokenMs: firstTokenTime
+              ? firstTokenTime - startTime
+              : undefined,
+            toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+            toolsUsage: toolsUsage.length > 0 ? toolsUsage : undefined,
+            contextWindow:
+              contextWindowParts.length > 0
+                ? contextWindowParts.join('\n\n')
+                : undefined,
+            contextStats: structuredThreadContext?.stats,
+            error: errorMessage || 'Unknown error',
+          },
+        });
+      } catch (metadataError) {
+        console.error(
+          '[generateAgentResponse] Failed to save error metadata:',
+          metadataError,
+        );
+      }
     }
 
     throw error;

@@ -27,6 +27,7 @@ export const saveMessageMetadata = internalMutation({
     toolsUsage: v.optional(v.array(toolUsageItemValidator)),
     contextWindow: v.optional(v.string()),
     contextStats: v.optional(contextStatsValidator),
+    error: v.optional(v.string()),
   },
   returns: v.id('messageMetadata'),
   handler: async (ctx, args) => {
@@ -61,6 +62,7 @@ export const saveMessageMetadata = internalMutation({
         toolsUsage: args.toolsUsage ?? existing.toolsUsage,
         contextWindow: contextWindow ?? existing.contextWindow,
         contextStats: args.contextStats ?? existing.contextStats,
+        error: args.error ?? existing.error,
       });
       return existing._id;
     }
@@ -82,6 +84,7 @@ export const saveMessageMetadata = internalMutation({
       toolsUsage: args.toolsUsage,
       contextWindow,
       contextStats: args.contextStats,
+      error: args.error,
     });
   },
 });
