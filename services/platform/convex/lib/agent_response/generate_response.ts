@@ -277,9 +277,12 @@ export async function generateAgentResponse(
       : undefined;
 
     // Direct DB check for cancellation — closes the 200ms polling gap
-    // that abortWatcher?.cancelled can miss.
-    const checkCancelled = async (): Promise<boolean> => {
-      if (abortWatcher?.cancelled) return true;
+    // that abortWatcher?.cancelled can miss. Returns the cancelledMessageId
+    // when cancelled (avoids a redundant query in cancelledReturn).
+    const checkCancelled = async (): Promise<
+      false | { cancelledMessageId?: string }
+    > => {
+      if (abortWatcher?.cancelled) return {};
       try {
         // Check cancelledAt on threadMetadata
         const meta = await ctx.runQuery(
@@ -287,16 +290,21 @@ export async function generateAgentResponse(
           { threadId },
         );
         if (meta?.cancelledAt && meta.cancelledAt >= startTime) {
-          return true;
+          return { cancelledMessageId: meta.cancelledMessageId };
         }
         // Check aborted SDK streams
         const streams = await ctx.runQuery(components.agent.streams.list, {
           threadId,
           statuses: ['aborted'] as const,
         });
-        return streams.some(
-          (s: { streamId: string }) => !baselineAbortedIds.has(s.streamId),
-        );
+        if (
+          streams.some(
+            (s: { streamId: string }) => !baselineAbortedIds.has(s.streamId),
+          )
+        ) {
+          return { cancelledMessageId: meta?.cancelledMessageId };
+        }
+        return false;
       } catch (checkError) {
         console.error(
           '[generateAgentResponse] checkCancelled failed:',
@@ -306,8 +314,11 @@ export async function generateAgentResponse(
       }
     };
 
-    // Helper: complete persistent stream, save partial metadata, return cancelled result
-    const cancelledReturn = async (): Promise<GenerateResponseResult> => {
+    // Helper: complete persistent stream, save partial metadata, return cancelled result.
+    // Accepts cancelledMessageId from checkCancelled to avoid a redundant DB query.
+    const cancelledReturn = async (
+      cancelledMessageId?: string,
+    ): Promise<GenerateResponseResult> => {
       abortWatcher?.stop();
       if (streamId) {
         try {
@@ -323,21 +334,8 @@ export async function generateAgentResponse(
         }
       }
       // Resolve savedMessageId from cancelGeneration if we didn't capture it
-      if (!savedMessageId) {
-        try {
-          const meta = await ctx.runQuery(
-            internal.threads.internal_queries.getThreadMetadata,
-            { threadId },
-          );
-          if (meta?.cancelledMessageId) {
-            savedMessageId = meta.cancelledMessageId;
-          }
-        } catch (metaError) {
-          console.error(
-            '[generateAgentResponse] Failed to resolve cancelledMessageId:',
-            metaError,
-          );
-        }
+      if (!savedMessageId && cancelledMessageId) {
+        savedMessageId = cancelledMessageId;
       }
 
       const durationMs = Date.now() - startTime;
@@ -637,8 +635,9 @@ export async function generateAgentResponse(
 
         // Post-success abort check: direct DB query closes the 200ms
         // polling gap that the watcher flag alone can miss.
-        if (await checkCancelled()) {
-          return cancelledReturn();
+        const cancelCheck = await checkCancelled();
+        if (cancelCheck) {
+          return cancelledReturn(cancelCheck.cancelledMessageId);
         }
       } else {
         // Non-streaming mode (sub-agents)
@@ -692,8 +691,9 @@ export async function generateAgentResponse(
         };
 
         // Post-generation abort check
-        if (await checkCancelled()) {
-          return cancelledReturn();
+        const cancelCheck = await checkCancelled();
+        if (cancelCheck) {
+          return cancelledReturn(cancelCheck.cancelledMessageId);
         }
       }
 
@@ -792,8 +792,11 @@ export async function generateAgentResponse(
               };
 
           // Check for cancellation before starting continue (catches cancels during context building)
-          if (await checkCancelled()) {
-            return cancelledReturn();
+          {
+            const cancelCheck = await checkCancelled();
+            if (cancelCheck) {
+              return cancelledReturn(cancelCheck.cancelledMessageId);
+            }
           }
 
           // Save system message to record the continuation in thread history
@@ -901,8 +904,11 @@ export async function generateAgentResponse(
       }
 
       // Post-continue abort check
-      if (await checkCancelled()) {
-        return cancelledReturn();
+      {
+        const cancelCheck = await checkCancelled();
+        if (cancelCheck) {
+          return cancelledReturn(cancelCheck.cancelledMessageId);
+        }
       }
 
       // Fallback: if text is still missing after continue, provide a minimal response
@@ -1167,8 +1173,11 @@ export async function generateAgentResponse(
 
     // Final abort check before post-processing — direct DB query
     // closes the polling gap the watcher alone can miss.
-    if (await checkCancelled()) {
-      return cancelledReturn();
+    {
+      const cancelCheck = await checkCancelled();
+      if (cancelCheck) {
+        return cancelledReturn(cancelCheck.cancelledMessageId);
+      }
     }
 
     // Call afterGenerate hook if provided

@@ -813,6 +813,89 @@ describe('generateAgentResponse — abort watcher', () => {
     // save an error message (since this is a real error, not user cancel).
     expect(mockSaveMessage).toHaveBeenCalled();
   });
+
+  it('detects cancellation when cancelledAt equals generationStartTime (same millisecond)', async () => {
+    const ctx = createMockCtx();
+    const frozenTime = 1700000000000;
+    vi.setSystemTime(frozenTime);
+
+    // cancelledAt === startTime (exact boundary, >= should match)
+    ctx.runQuery.mockImplementation((query: string) => {
+      if (query === 'mock-streams-list') {
+        return Promise.resolve([]);
+      }
+      if (query === 'mock-getThreadMetadata') {
+        return Promise.resolve({ cancelledAt: frozenTime });
+      }
+      return Promise.resolve([]);
+    });
+    ctx.runQuery.mockResolvedValueOnce([]);
+
+    mockListStreams.mockResolvedValue([]);
+    mockBuildStructuredContext.mockImplementation(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      throw new Error('aborted');
+    });
+
+    const promise = generateAgentResponse(
+      createMockConfig({ enableStreaming: true }),
+      createMockArgs(ctx, {
+        streamId: 'stream_boundary',
+        promptMessageId: 'msg_user_prompt',
+      }),
+    );
+    await vi.advanceTimersByTimeAsync(600);
+    const result = await promise;
+
+    expect(result.finishReason).toBe('cancelled');
+    expect(mockSaveMessage).not.toHaveBeenCalled();
+  });
+
+  it('returns cancelled result even when completeStream fails during cleanup', async () => {
+    const ctx = createMockCtx();
+
+    // cancelledAt set → user cancelled
+    ctx.runQuery.mockImplementation((query: string) => {
+      if (query === 'mock-streams-list') {
+        return Promise.resolve([]);
+      }
+      if (query === 'mock-getThreadMetadata') {
+        return Promise.resolve({
+          cancelledAt: Date.now(),
+          cancelledMessageId: 'msg_cancel_1',
+        });
+      }
+      return Promise.resolve([]);
+    });
+    ctx.runQuery.mockResolvedValueOnce([]);
+
+    // completeStream will fail, other mutations succeed
+    ctx.runMutation.mockImplementation((mutation: string) => {
+      if (mutation === 'mock-completeStream') {
+        return Promise.reject(new Error('Stream already finalized'));
+      }
+      return Promise.resolve(undefined);
+    });
+
+    mockListStreams.mockResolvedValue([]);
+    mockBuildStructuredContext.mockImplementation(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      throw new Error('aborted');
+    });
+
+    const promise = generateAgentResponse(
+      createMockConfig({ enableStreaming: true }),
+      createMockArgs(ctx, {
+        streamId: 'stream_fail_cleanup',
+        promptMessageId: 'msg_user_prompt',
+      }),
+    );
+    await vi.advanceTimersByTimeAsync(600);
+    const result = await promise;
+
+    expect(result.finishReason).toBe('cancelled');
+    expect(mockSaveMessage).not.toHaveBeenCalled();
+  });
 });
 
 // ============================================================================
