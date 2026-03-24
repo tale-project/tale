@@ -36,6 +36,7 @@ function getProvider() {
       name: 'openai',
       baseURL,
       apiKey,
+      supportsStructuredOutputs: true,
     });
   }
   return _instance;
