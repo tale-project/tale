@@ -32,6 +32,36 @@ describe('idempotency', () => {
 });
 
 // ============================================================================
+// EMPTY FORMATTING MARKER STRIPPING
+// ============================================================================
+
+describe('empty formatting marker stripping', () => {
+  it('strips trailing empty bold marker', () => {
+    expect(remendMarkdown('the **')).toBe('the ');
+  });
+
+  it('strips trailing empty italic marker', () => {
+    expect(remendMarkdown('the *')).toBe('the ');
+  });
+
+  it('strips trailing empty strikethrough marker', () => {
+    expect(remendMarkdown('the ~~')).toBe('the ');
+  });
+
+  it('strips trailing empty bold with space after', () => {
+    expect(remendMarkdown('the ** ')).toBe('the ');
+  });
+
+  it('does not strip marker with content after it', () => {
+    expect(remendMarkdown('the **e')).toBe('the **e**');
+  });
+
+  it('strips inner marker but keeps outer with content', () => {
+    expect(remendMarkdown('the **bold *')).toBe('the **bold **');
+  });
+});
+
+// ============================================================================
 // INCOMPLETE SYNTAX — auto-complete unclosed markers
 // ============================================================================
 
@@ -420,6 +450,42 @@ describe('table completion', () => {
     const input = 'Hello world\n\n| X | Y | Z |\n|---';
     expect(remendMarkdown(input)).toBe(
       'Hello world\n\n| X | Y | Z |\n| - | - | - |',
+    );
+  });
+});
+
+// ============================================================================
+// FORMATTING INSIDE TABLES
+// ============================================================================
+
+describe('formatting inside tables', () => {
+  it('preserves complete table with formatting', () => {
+    expect(remendMarkdown('| **A** | *B* |\n|---|---|\n| ~~1~~ | 2 |')).toBe(
+      '| **A** | *B* |\n|---|---|\n| ~~1~~ | 2 |',
+    );
+  });
+
+  it('closes bold inside incomplete table row', () => {
+    expect(remendMarkdown('| A | B |\n|---|---|\n| **bold')).toBe(
+      '| A | B |\n|---|---|\n| **bold** |',
+    );
+  });
+
+  it('closes italic inside incomplete table row', () => {
+    expect(remendMarkdown('| A | B |\n|---|---|\n| *italic')).toBe(
+      '| A | B |\n|---|---|\n| *italic* |',
+    );
+  });
+
+  it('closes strikethrough inside incomplete table row', () => {
+    expect(remendMarkdown('| A | B |\n|---|---|\n| ~~strike')).toBe(
+      '| A | B |\n|---|---|\n| ~~strike~~ |',
+    );
+  });
+
+  it('closes bold in incomplete table header', () => {
+    expect(remendMarkdown('| **A** | **B')).toBe(
+      '| **A** | **B** |\n| - | - |',
     );
   });
 });
