@@ -136,6 +136,9 @@ describe('startAgentChat — concurrent generation guard', () => {
     await startAgentChat(createDefaultArgs(ctx));
 
     expect(ctx.db.patch).toHaveBeenCalledWith('meta_1', {
+      cancelledAt: undefined,
+      cancelledMessageId: undefined,
+      generationStartTime: expect.any(Number),
       generationStatus: 'generating',
       streamId: 'new-stream-id',
     });

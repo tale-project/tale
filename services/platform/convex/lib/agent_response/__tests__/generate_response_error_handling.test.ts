@@ -258,12 +258,6 @@ describe('generateAgentResponse error handling', () => {
 // ============================================================================
 
 describe('generateAgentResponse — user cancellation (state-driven)', () => {
-  const cancelledAssistant = {
-    _id: 'msg_cancelled',
-    message: { role: 'assistant', content: '' },
-    status: 'failed',
-  };
-
   beforeEach(() => {
     vi.clearAllMocks();
     mockListMessages.mockResolvedValue({ page: [] });
