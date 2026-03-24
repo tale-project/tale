@@ -845,6 +845,27 @@ export async function generateAgentResponse(
               response: result.response,
             };
 
+            // Update the "Retrying…" system message now that retry succeeded
+            if (retrySystemMessageId) {
+              try {
+                await ctx.runMutation(components.agent.messages.updateMessage, {
+                  messageId: retrySystemMessageId,
+                  patch: {
+                    message: {
+                      role: 'system',
+                      content: '[RESPONSE_INTERRUPTED] Retry succeeded',
+                    },
+                  },
+                });
+              } catch (updateError) {
+                console.error(
+                  '[generateAgentResponse] Failed to update retry system message on success:',
+                  updateError,
+                );
+              }
+              retrySystemMessageId = undefined;
+            }
+
             debugLog('Continue completed', {
               reason: continueCheck.reason,
               textLength: result.text?.length ?? 0,
