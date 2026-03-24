@@ -2,7 +2,7 @@
 
 import type { UIMessage } from '@convex-dev/agent/react';
 
-import { Loader2, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, Loader2, CheckCircle2 } from 'lucide-react';
 import {
   useMemo,
   useRef,
@@ -205,10 +205,30 @@ export function ChatMessages({
         );
       }
 
+      const content = message.systemMessageBody ?? message.content;
+      const lines = content.split('\n').filter((l) => l.trim() !== '');
+      const isShort = lines.length <= 2;
+
+      if (
+        isShort &&
+        (message.systemMessageDisplay === 'warning' ||
+          message.systemMessageDisplay === 'error')
+      ) {
+        return (
+          <div
+            key={message.key}
+            className={`flex items-center gap-1.5 py-1 text-xs ${message.systemMessageDisplay === 'error' ? 'text-destructive' : 'text-warning'}`}
+          >
+            <AlertTriangle className="size-3.5 shrink-0" aria-hidden="true" />
+            <span>{content}</span>
+          </div>
+        );
+      }
+
       return (
         <CollapsibleSystemMessage
           key={message.key}
-          content={message.systemMessageBody ?? message.content}
+          content={content}
           variant={message.systemMessageDisplay}
         />
       );

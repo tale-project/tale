@@ -783,8 +783,7 @@ export async function generateAgentResponse(
             threadId,
             message: {
               role: 'system',
-              content:
-                '[RESPONSE_INTERRUPTED] Response was interrupted, continuing automatically.',
+              content: '[RESPONSE_INTERRUPTED] Retrying…',
             },
           });
 
