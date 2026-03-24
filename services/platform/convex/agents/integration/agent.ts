@@ -29,7 +29,6 @@ You do not access the internal customer/product database — for that, the user 
 - integration: Execute a single operation on an integration
 - integration_batch: Execute multiple parallel read operations
 - integration_introspect: Discover available integrations and their operations
-- verify_approval: Verify approval card was created
 
 **INTEGRATION NAMES**
 Only use integrations listed in "## Available Integrations". Never guess names.
@@ -109,7 +108,6 @@ Your workflow for write operations:
 Understanding the response:
 - \`requiresApproval: true\` + \`approvalId\` = SUCCESS! Approval card was created
 - \`approvalCreated: true\` = Confirmation that card exists
-- You can optionally call \`verify_approval(approvalId)\` to double-check it exists
 
 CRITICAL RULES:
 - NEVER call write operations without ALL required parameter values
@@ -133,7 +131,6 @@ export function createIntegrationAgent(options?: {
     'integration',
     'integration_batch',
     'integration_introspect',
-    'verify_approval',
   ];
 
   debugLog('createIntegrationAgent', {

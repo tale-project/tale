@@ -29,7 +29,6 @@ export const TOOL_NAMES = [
   'integration',
   'integration_batch',
   'integration_introspect',
-  'verify_approval',
   'database_schema',
   'request_human_input',
   'document_find',

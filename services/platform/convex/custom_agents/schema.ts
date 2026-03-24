@@ -68,6 +68,7 @@ export const customAgentsTable = defineTable({
   includeTeamKnowledge: v.optional(v.boolean()),
   knowledgeFiles: v.optional(v.array(knowledgeFileValidator)),
   knowledgeTopK: v.optional(v.number()),
+  // @deprecated — kept for existing documents; no longer written or read
   filePreprocessingEnabled: v.optional(v.boolean()),
   structuredResponsesEnabled: v.optional(v.boolean()),
 

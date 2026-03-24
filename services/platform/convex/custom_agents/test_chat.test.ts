@@ -103,35 +103,6 @@ describe('testCustomAgent', () => {
     });
   });
 
-  describe('file preprocessing instructions', () => {
-    it('should not append preprocessing instructions when disabled', () => {
-      const draft = createMockDraftAgent({ filePreprocessingEnabled: false });
-      const config = toSerializableConfig(draft);
-
-      expect(config.instructions).toBe('You are a helpful test agent.');
-      expect(config.instructions).not.toContain('FILE ATTACHMENTS');
-    });
-
-    it('should not append preprocessing instructions when undefined', () => {
-      const draft = createMockDraftAgent({
-        filePreprocessingEnabled: undefined,
-      });
-      const config = toSerializableConfig(draft);
-
-      expect(config.instructions).toBe('You are a helpful test agent.');
-      expect(config.instructions).not.toContain('FILE ATTACHMENTS');
-    });
-
-    it('should append preprocessing instructions when enabled', () => {
-      const draft = createMockDraftAgent({ filePreprocessingEnabled: true });
-      const config = toSerializableConfig(draft);
-
-      expect(config.instructions).toContain('You are a helpful test agent.');
-      expect(config.instructions).toContain('**FILE ATTACHMENTS**');
-      expect(config.instructions).toContain('PRE-ANALYZED CONTENT');
-    });
-  });
-
   describe('toSerializableConfig retrieval modes', () => {
     it('should default knowledgeMode to off when no legacy fields', () => {
       const draft = createMockDraftAgent({

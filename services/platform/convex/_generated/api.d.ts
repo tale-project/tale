@@ -60,7 +60,6 @@ import type * as agent_tools_integrations_integration_tool from "../agent_tools/
 import type * as agent_tools_integrations_internal_actions from "../agent_tools/integrations/internal_actions.js";
 import type * as agent_tools_integrations_internal_mutations from "../agent_tools/integrations/internal_mutations.js";
 import type * as agent_tools_integrations_types from "../agent_tools/integrations/types.js";
-import type * as agent_tools_integrations_verify_approval_tool from "../agent_tools/integrations/verify_approval_tool.js";
 import type * as agent_tools_load_convex_tools_as_object from "../agent_tools/load_convex_tools_as_object.js";
 import type * as agent_tools_location_internal_mutations from "../agent_tools/location/internal_mutations.js";
 import type * as agent_tools_location_mutations from "../agent_tools/location/mutations.js";
@@ -928,7 +927,6 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/integrations/internal_actions": typeof agent_tools_integrations_internal_actions;
   "agent_tools/integrations/internal_mutations": typeof agent_tools_integrations_internal_mutations;
   "agent_tools/integrations/types": typeof agent_tools_integrations_types;
-  "agent_tools/integrations/verify_approval_tool": typeof agent_tools_integrations_verify_approval_tool;
   "agent_tools/load_convex_tools_as_object": typeof agent_tools_load_convex_tools_as_object;
   "agent_tools/location/internal_mutations": typeof agent_tools_location_internal_mutations;
   "agent_tools/location/mutations": typeof agent_tools_location_mutations;

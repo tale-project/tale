@@ -54,7 +54,6 @@ async function insertSystemAgent(
     roleRestriction: template.roleRestriction,
     knowledgeEnabled: template.knowledgeEnabled,
     includeOrgKnowledge: template.includeOrgKnowledge,
-    filePreprocessingEnabled: template.filePreprocessingEnabled,
     conversationStarters: template.conversationStarters,
     visibleInChat: template.visibleInChat,
     isSystemDefault: true,

@@ -52,6 +52,7 @@ export interface AgentResponseResult {
     hasRag: boolean;
     hasWebContext: boolean;
   };
+  error?: string;
 }
 
 export interface OnAgentCompleteArgs {
@@ -100,6 +101,7 @@ export async function onAgentComplete(
             toolsUsage: result.toolsUsage,
             contextWindow: result.contextWindow,
             contextStats: result.contextStats,
+            error: result.error,
           },
         );
 

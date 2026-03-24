@@ -73,7 +73,14 @@ async function cancelComponentWorkflow(
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- componentWorkflowId is stored as string but the component API requires WorkflowId branded type
   const workflowId = execution.componentWorkflowId as unknown as WorkflowId;
 
-  await manager.cancel(ctx, workflowId);
+  try {
+    await manager.cancel(ctx, workflowId);
+  } catch (error) {
+    console.warn(
+      `[StuckRecovery] Failed to cancel workflow ${execution.componentWorkflowId}, it may have already been cleaned up:`,
+      error,
+    );
+  }
   await ctx.scheduler.runAfter(
     CLEANUP_DELAY_MS,
     internal.workflow_engine.internal_mutations.cleanupComponentWorkflow,
