@@ -19,8 +19,6 @@ export interface TemplateContext {
   userId?: string;
   timezone?: string;
   language?: string;
-  coordinates?: string;
-  location?: string;
 }
 
 interface ResolvedData {
@@ -113,14 +111,6 @@ export function buildUserProfile(
   if (context.language) {
     lines.push(`- Language: ${context.language} (browser)`);
   }
-  if (context.location || context.coordinates) {
-    const loc = context.location
-      ? context.coordinates
-        ? `${context.location} (${context.coordinates})`
-        : context.location
-      : context.coordinates;
-    lines.push(`- Location: ${loc}`);
-  }
   lines.push(`- Current Time: ${new Date().toISOString()}`);
 
   return lines.join('\n');
@@ -147,10 +137,6 @@ function resolveVariable(
       return context.timezone ?? '';
     case 'user.language':
       return context.language ?? '';
-    case 'user.coordinates':
-      return context.coordinates ?? '';
-    case 'user.location':
-      return context.location ?? '';
     case 'user_profile':
       return buildUserProfile(context, data);
     case 'site_url': {
@@ -209,14 +195,6 @@ export const SUPPORTED_TEMPLATE_VARIABLES = [
   {
     variable: '{{user.language}}',
     description: 'User browser language (e.g. zh-CN)',
-  },
-  {
-    variable: '{{user.coordinates}}',
-    description: 'User GPS coordinates (e.g. 30.27, 120.15)',
-  },
-  {
-    variable: '{{user.location}}',
-    description: 'User location address (e.g. Hangzhou, China)',
   },
   {
     variable: '{{user_profile}}',

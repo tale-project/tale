@@ -146,7 +146,7 @@ When creating outbound email conversations, include these fields in the metadata
 - emailBcc: BCC recipients (optional)
 
 Then create an approval with resourceType: 'conversations' to trigger sending when approved.
-See 'product_recommendation_email' predefined workflow for complete example.`,
+`,
   parametersValidator: v.union(
     // create: Create a new conversation
     v.object({

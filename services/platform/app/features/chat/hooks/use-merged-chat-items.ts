@@ -4,6 +4,7 @@ import type {
   DocumentWriteApproval,
   HumanInputRequest,
   IntegrationApproval,
+  LocationRequest,
   WorkflowCreationApproval,
   WorkflowRunApproval,
   WorkflowUpdateApproval,
@@ -17,7 +18,8 @@ export type ChatItem =
   | { type: 'workflow_update_approval'; data: WorkflowUpdateApproval }
   | { type: 'workflow_run_approval'; data: WorkflowRunApproval }
   | { type: 'human_input_request'; data: HumanInputRequest }
-  | { type: 'document_write_approval'; data: DocumentWriteApproval };
+  | { type: 'document_write_approval'; data: DocumentWriteApproval }
+  | { type: 'location_request'; data: LocationRequest };
 
 type ApprovalChatItem = Exclude<ChatItem, { type: 'message' }>;
 
@@ -28,6 +30,7 @@ interface UseMergedChatItemsParams {
   workflowUpdateApprovals: WorkflowUpdateApproval[] | undefined;
   workflowRunApprovals: WorkflowRunApproval[] | undefined;
   humanInputRequests: HumanInputRequest[] | undefined;
+  locationRequests: LocationRequest[] | undefined;
   documentWriteApprovals: DocumentWriteApproval[] | undefined;
 }
 
@@ -52,6 +55,7 @@ export function useMergedChatItems({
   workflowUpdateApprovals,
   workflowRunApprovals,
   humanInputRequests,
+  locationRequests,
   documentWriteApprovals,
 }: UseMergedChatItemsParams): MergedChatItemsResult {
   return useMemo((): MergedChatItemsResult => {
@@ -122,6 +126,15 @@ export function useMergedChatItems({
         activeApprovals.push({ type: 'human_input_request', data: a });
       }
     }
+    for (const a of locationRequests ?? []) {
+      if (
+        a.messageId &&
+        loadedMessageIds.has(a.messageId) &&
+        isActiveStatus(a.status)
+      ) {
+        activeApprovals.push({ type: 'location_request', data: a });
+      }
+    }
     for (const a of documentWriteApprovals ?? []) {
       if (
         a.messageId &&
@@ -149,6 +162,7 @@ export function useMergedChatItems({
     workflowUpdateApprovals,
     workflowRunApprovals,
     humanInputRequests,
+    locationRequests,
     documentWriteApprovals,
   ]);
 }

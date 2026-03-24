@@ -503,8 +503,6 @@ export async function generateAgentResponse(
           userId,
           timezone: userContext?.timezone,
           language: userContext?.language,
-          coordinates: userContext?.coordinates,
-          location: userContext?.location,
         })
       : undefined;
 
@@ -785,8 +783,7 @@ export async function generateAgentResponse(
             threadId,
             message: {
               role: 'system',
-              content:
-                '[RESPONSE_INTERRUPTED] Response was interrupted, continuing automatically.',
+              content: '[RESPONSE_INTERRUPTED] Retrying…',
             },
           });
 

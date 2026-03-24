@@ -2130,6 +2130,19 @@
     "sendFeedback": "Send feedback",
     "backToForm": "Back to form"
   },
+  "locationRequest": {
+    "title": "Location request",
+    "shareLocation": "Share location",
+    "deny": "Deny",
+    "acquiring": "Getting location…",
+    "denied": "Location access was denied.",
+    "statusShared": "Shared",
+    "statusDenied": "Denied",
+    "sharedBy": "Shared by {name} at {date}",
+    "errorNotSupported": "Geolocation is not supported by your browser.",
+    "errorAcquireFailed": "Failed to acquire location. Please try again.",
+    "defaultReason": "The assistant needs your location to help with your request."
+  },
   "approvalCommon": {
     "reject": "Cancel",
     "errorNotAuthenticated": "User not authenticated",

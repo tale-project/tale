@@ -12,6 +12,12 @@ export function useSubmitHumanInputResponse() {
   );
 }
 
+export function useSubmitLocationResponse() {
+  return useConvexMutation(
+    api.agent_tools.location.mutations.submitLocationResponse,
+  );
+}
+
 export function useUpdateApprovalStatus() {
   return useConvexMutation(api.approvals.mutations.updateApprovalStatus);
 }

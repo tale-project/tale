@@ -839,7 +839,7 @@ describe('useMessageProcessing', () => {
             id: 'msg-2',
             order: 1,
             role: 'system',
-            text: '[RESPONSE_INTERRUPTED] Response was interrupted.',
+            text: '[RESPONSE_INTERRUPTED] Retrying…',
             status: 'success',
           }),
         ],

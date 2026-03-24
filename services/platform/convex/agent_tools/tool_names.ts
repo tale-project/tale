@@ -35,6 +35,7 @@ export const TOOL_NAMES = [
   'document_find',
   'document_retrieve',
   'document_write',
+  'request_user_location',
 ] as const;
 
 export type ToolName = (typeof TOOL_NAMES)[number];

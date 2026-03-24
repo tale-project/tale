@@ -13,6 +13,7 @@ import {
   useWorkflowRunApprovals,
   useWorkflowUpdateApprovals,
   useHumanInputRequests,
+  useLocationRequests,
 } from '@/app/features/chat/hooks/queries';
 import { useChatLoadingState } from '@/app/features/chat/hooks/use-chat-loading-state';
 import { useConvexFileUpload } from '@/app/features/chat/hooks/use-convex-file-upload';
@@ -152,6 +153,10 @@ export function useTestChat({
     organizationId,
     threadId ?? undefined,
   );
+  const { requests: locationRequests } = useLocationRequests(
+    organizationId,
+    threadId ?? undefined,
+  );
   const { approvals: documentWriteApprovals } = useDocumentWriteApprovals(
     organizationId,
     threadId ?? undefined,
@@ -191,6 +196,7 @@ export function useTestChat({
     workflowUpdateApprovals,
     workflowRunApprovals,
     humanInputRequests,
+    locationRequests,
     documentWriteApprovals,
   });
 

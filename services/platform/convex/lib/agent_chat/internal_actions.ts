@@ -116,8 +116,6 @@ export const runAgentGeneration = internalAction({
       v.object({
         timezone: v.string(),
         language: v.string(),
-        coordinates: v.optional(v.string()),
-        location: v.optional(v.string()),
       }),
     ),
     parentThreadId: v.optional(v.string()),
