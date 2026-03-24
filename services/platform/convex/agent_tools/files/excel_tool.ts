@@ -115,8 +115,8 @@ EXAMPLES:
 
 AFTER GENERATING: The file automatically appears as a download card in the chat. Do NOT mention downloading, do NOT include a link, and do NOT say "you can download it" — the card handles this. To also save the file to a folder in the documents hub, call document_write with the returned fileStorageId and the desired folderPath.
 `,
-    args: excelArgs,
-    handler: async (ctx: ToolCtx, args): Promise<ExcelResult> => {
+    inputSchema: excelArgs,
+    execute: async (ctx: ToolCtx, args): Promise<ExcelResult> => {
       if (args.operation === 'parse') {
         const resolvedFilename = await resolveFileName(
           ctx,

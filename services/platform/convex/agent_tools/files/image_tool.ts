@@ -102,7 +102,7 @@ CRITICAL RULES:
 
 AFTER GENERATING: To save the file to a folder in the documents hub, call document_write with the returned fileStorageId and the desired folderPath.
 `,
-    args: z.discriminatedUnion('operation', [
+    inputSchema: z.discriminatedUnion('operation', [
       z.object({
         operation: z.literal('generate'),
         fileName: z
@@ -159,7 +159,7 @@ AFTER GENERATING: To save the file to a folder in the documents hub, call docume
           .describe("The user's question or instruction about the image"),
       }),
     ]),
-    handler: async (ctx: ToolCtx, args): Promise<ImageResult> => {
+    execute: async (ctx: ToolCtx, args): Promise<ImageResult> => {
       if (args.operation === 'analyze') {
         const { fileId, question } = args;
 

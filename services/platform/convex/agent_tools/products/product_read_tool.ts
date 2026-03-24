@@ -112,8 +112,8 @@ BEST PRACTICES:
 • Batch multiple product IDs in a single 'get_by_id' call instead of multiple calls
 • Specify 'fields' in get_by_id to minimize response size
 • Use 'count' with filters to get counts for specific subsets of products`,
-    args: productReadArgs,
-    handler: async (
+    inputSchema: productReadArgs,
+    execute: async (
       ctx: ToolCtx,
       args,
     ): Promise<

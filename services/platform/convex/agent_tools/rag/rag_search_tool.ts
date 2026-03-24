@@ -94,7 +94,7 @@ WHEN NOT TO USE:
 • For counting/listing/filtering, use database tools instead
 
 Returns numbered document excerpts with relevance scores.`,
-    args: z.object({
+    inputSchema: z.object({
       query: z.string().describe('Query text to search the knowledge base for'),
       fileIds: z
         .array(z.string())
@@ -112,7 +112,7 @@ Returns numbered document excerpts with relevance scores.`,
           'Maximum number of results to return (1-50). Defaults to 10.',
         ),
     }),
-    handler: async (ctx: ToolCtx, args): Promise<string> => {
+    execute: async (ctx: ToolCtx, args): Promise<string> => {
       debugLog('tool:rag_search start', {
         query: args.query,
         explicitFileIds: args.fileIds?.length,

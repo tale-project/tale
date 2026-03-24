@@ -183,8 +183,8 @@ SLIDE CONTENT EXAMPLES:
 - With table: { "title": "Data", "tables": [{"headers": ["A", "B"], "rows": [["1", "2"]]}] }
 
 AFTER GENERATING: The file automatically appears as a download card in the chat. Do NOT mention downloading, do NOT include a link, and do NOT say "you can download it" — the card handles this. To also save the file to a folder in the documents hub, call document_write with the returned fileStorageId and the desired folderPath.`,
-    args: pptxArgs,
-    handler: async (ctx: ToolCtx, args): Promise<PptxResult> => {
+    inputSchema: pptxArgs,
+    execute: async (ctx: ToolCtx, args): Promise<PptxResult> => {
       const { organizationId } = ctx;
 
       // Handle list_templates operation

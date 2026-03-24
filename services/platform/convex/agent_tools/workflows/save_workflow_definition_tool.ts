@@ -116,7 +116,7 @@ Map the JSON to this tool's schema: top-level fields → workflowConfig, steps a
 **APPROVAL:**
 When this tool returns { requiresApproval: true }, do NOT call this tool again.
 Inform the user the update is ready for review in the chat UI.`,
-    args: z.object({
+    inputSchema: z.object({
       workflowConfig: workflowConfigSchema,
       stepsConfig: z
         .array(stepConfigSchema)
@@ -135,7 +135,7 @@ Inform the user the update is ready for review in the chat UI.`,
           'Markdown-formatted summary of changes. Use bullet points for multiple changes. Example:\n- Added error handling step after API call\n- Updated email template with dynamic subject line',
         ),
     }),
-    handler: async (
+    execute: async (
       ctx: ToolCtx,
       args,
     ): Promise<{

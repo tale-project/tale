@@ -94,13 +94,13 @@ Requires user approval — an approval card will be created.
 **⭐ IF THE USER PROVIDED A WORKFLOW JSON CONFIG:**
 Use the provided configuration DIRECTLY — do NOT recreate or rewrite it.
 Map the JSON to this tool's schema: top-level fields → workflowConfig, steps array → stepsConfig.`,
-    args: z.object({
+    inputSchema: z.object({
       workflowConfig: workflowConfigSchema,
       stepsConfig: z
         .array(stepConfigSchema)
         .describe('Complete list of steps for this workflow.'),
     }),
-    handler: async (
+    execute: async (
       ctx: ToolCtx,
       args,
     ): Promise<{

@@ -24,7 +24,7 @@ vi.mock('../../../threads/get_parent_thread_id', () => ({
 
 vi.mock('@convex-dev/agent', () => ({
   createTool: vi.fn((def) => ({
-    _handler: def.handler,
+    _handler: def.execute,
     _description: def.description,
   })),
 }));

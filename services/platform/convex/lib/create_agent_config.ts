@@ -175,7 +175,7 @@ Example: User asks for "John's email" and you find 3 Johns:
   return {
     name: opts.name,
     instructions: finalInstructions,
-    languageModel: openai.chat(model),
+    languageModel: openai.chatModel(model),
     callSettings,
     ...(typeof opts.maxTokens === 'number'
       ? { providerOptions: { openai: { maxOutputTokens: opts.maxTokens } } }
@@ -185,7 +185,7 @@ Example: User asks for "John's email" and you find 3 Johns:
       ? { maxSteps: effectiveMaxSteps }
       : {}),
     ...(embeddingModel
-      ? { textEmbeddingModel: openai.embedding(embeddingModel) }
+      ? { embeddingModel: openai.textEmbeddingModel(embeddingModel) }
       : {}),
   } as ConstructorParameters<typeof Agent>[1];
 }

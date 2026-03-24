@@ -119,8 +119,8 @@ TIPS:
 • If warning is present in the response, narrow your filters before continuing
 • Default sort is newest first (createdAt desc)
 • Dates are interpreted as UTC`,
-    args: documentFindArgs,
-    handler: async (ctx, args): Promise<DocumentFindResult> => {
+    inputSchema: documentFindArgs,
+    execute: async (ctx, args): Promise<DocumentFindResult> => {
       return listDocuments(ctx, args);
     },
   }),

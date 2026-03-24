@@ -177,9 +177,9 @@ export function createBoundWorkflowTool(
 
   return createTool({
     description,
-    args: argsSchema,
+    inputSchema: argsSchema,
 
-    handler: async (
+    execute: async (
       ctx: ToolCtx,
       args,
     ): Promise<{

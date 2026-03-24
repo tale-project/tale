@@ -71,8 +71,8 @@ EXAMPLES:
 - { query: "shipping policy" } — no URL, searches crawled pages
 - { query: "product pricing details" }
 - { query: "workflow patterns", domain: "docs.convex.dev" } — searches only docs.convex.dev`,
-    args: webToolArgs,
-    handler: async (ctx: ToolCtx, args): Promise<string> => {
+    inputSchema: webToolArgs,
+    execute: async (ctx: ToolCtx, args): Promise<string> => {
       const targetUrl = args.url || extractUrl(args.query);
 
       if (targetUrl) {

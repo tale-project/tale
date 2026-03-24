@@ -68,8 +68,8 @@ This tool creates an approval card. The user must click "Run Workflow" to confir
 
 **EXAMPLE:**
 { "workflowId": "abc123", "parameters": "{\\"targetFolder\\": \\"/invoices\\", \\"daysBack\\": 30}" }`,
-    args: runWorkflowArgs,
-    handler: async (
+    inputSchema: runWorkflowArgs,
+    execute: async (
       ctx: ToolCtx,
       args,
     ): Promise<{

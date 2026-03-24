@@ -51,9 +51,9 @@ Steps:
 
 Write operations create approval cards. Use integration_batch for multiple parallel reads.`,
 
-    args: integrationArgs,
+    inputSchema: integrationArgs,
 
-    handler: async (
+    execute: async (
       ctx: ToolCtx,
       args,
     ): Promise<IntegrationExecutionResult> => {

@@ -116,8 +116,8 @@ BEST PRACTICES:
 • If hasMore is true, continue calling with the returned cursor to fetch all customers.
 • Use 'count' to get total customer count. If data is too large, the response will indicate this.
 • If you need customer information not found in standard fields, check the 'metadata' field - it may contain additional custom attributes imported from external systems.`,
-    args: customerReadArgs,
-    handler: async (
+    inputSchema: customerReadArgs,
+    execute: async (
       ctx: ToolCtx,
       args,
     ): Promise<

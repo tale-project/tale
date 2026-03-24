@@ -70,9 +70,9 @@ FILTER EXPRESSION EXAMPLES:
 - With time transform: status == "closed" && daysAgo(metadata.resolved_at) > 30
 - Check field exists: metadata.resolved_at && daysAgo(metadata.resolved_at) > 30`,
 
-    args: databaseSchemaArgs,
+    inputSchema: databaseSchemaArgs,
 
-    handler: async (
+    execute: async (
       _ctx,
       args,
     ): Promise<

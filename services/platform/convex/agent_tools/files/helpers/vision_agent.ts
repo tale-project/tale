@@ -38,7 +38,7 @@ export function createVisionAgent(): Agent {
   });
   return new Agent(components.agent, {
     name: 'vision-analyzer',
-    languageModel: openai.chat(visionModelId),
+    languageModel: openai.chatModel(visionModelId),
     instructions: `You are a vision AI that analyzes images and extracts information from them.
 
 Extract and transcribe visible text content accurately. Be specific - provide actual information visible, not just general descriptions.

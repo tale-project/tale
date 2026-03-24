@@ -60,9 +60,9 @@ Example call:
 
 Max 10 operations. Use 'id' field to identify results.`,
 
-    args: integrationBatchArgs,
+    inputSchema: integrationBatchArgs,
 
-    handler: async (ctx: ToolCtx, args): Promise<BatchOperationResult> => {
+    execute: async (ctx: ToolCtx, args): Promise<BatchOperationResult> => {
       const { organizationId, threadId: currentThreadId, messageId } = ctx;
 
       // Look up parent thread from thread summary (stable, database-backed)

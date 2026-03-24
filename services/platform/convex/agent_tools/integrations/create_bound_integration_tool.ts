@@ -59,9 +59,9 @@ export function createBoundIntegrationTool(
 
   return createTool({
     description,
-    args: boundIntegrationArgs,
+    inputSchema: boundIntegrationArgs,
 
-    handler: async (
+    execute: async (
       ctx: ToolCtx,
       args,
     ): Promise<IntegrationExecutionResult> => {

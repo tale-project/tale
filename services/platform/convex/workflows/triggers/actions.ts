@@ -35,7 +35,7 @@ export const generateCronExpression = action({
     const model = getFastModel();
 
     const result = await generateObject({
-      model: openai(model),
+      model: openai.chatModel(model),
       temperature: 0.1,
       schema: z.object({
         cronExpression: z

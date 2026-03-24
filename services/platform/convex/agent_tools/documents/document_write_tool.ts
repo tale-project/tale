@@ -79,8 +79,8 @@ WORKFLOW:
 PARAMETERS:
 • files: REQUIRED — array of { fileId, title? } objects. fileId is the fileStorageId from a file generation tool. title optionally overrides the document title.
 • folderPath: Optional — target folder path (e.g. "reports/2026"). Created automatically if it doesn't exist. Applied to all files.`,
-    args: documentWriteArgs,
-    handler: async (
+    inputSchema: documentWriteArgs,
+    execute: async (
       ctx: ToolCtx,
       args,
     ): Promise<{
