@@ -217,7 +217,7 @@ export function ChatMessages({
         return (
           <div
             key={message.key}
-            className={`flex items-center gap-1.5 py-1 text-xs ${message.systemMessageDisplay === 'error' ? 'text-destructive' : 'text-warning'}`}
+            className={`flex items-center gap-1.5 px-4 py-1 text-xs ${message.systemMessageDisplay === 'error' ? 'text-destructive' : 'text-warning'}`}
           >
             <AlertTriangle className="size-3.5 shrink-0" aria-hidden="true" />
             <span>{content}</span>
