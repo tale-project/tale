@@ -545,6 +545,7 @@ import type * as threads_get_thread_messages from "../threads/get_thread_message
 import type * as threads_get_thread_messages_streaming from "../threads/get_thread_messages_streaming.js";
 import type * as threads_helpers from "../threads/helpers.js";
 import type * as threads_internal_mutations from "../threads/internal_mutations.js";
+import type * as threads_internal_queries from "../threads/internal_queries.js";
 import type * as threads_list_threads from "../threads/list_threads.js";
 import type * as threads_mutations from "../threads/mutations.js";
 import type * as threads_queries from "../threads/queries.js";
@@ -1412,6 +1413,7 @@ declare const fullApi: ApiFromModules<{
   "threads/get_thread_messages_streaming": typeof threads_get_thread_messages_streaming;
   "threads/helpers": typeof threads_helpers;
   "threads/internal_mutations": typeof threads_internal_mutations;
+  "threads/internal_queries": typeof threads_internal_queries;
   "threads/list_threads": typeof threads_list_threads;
   "threads/mutations": typeof threads_mutations;
   "threads/queries": typeof threads_queries;

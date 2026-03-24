@@ -5,13 +5,11 @@ import type { MutationCtx } from '../_generated/server';
 const mockAbortStream = vi.fn();
 const mockListStreams = vi.fn();
 const mockListMessages = vi.fn();
-const mockSaveMessage = vi.fn();
 
 vi.mock('@convex-dev/agent', () => ({
   abortStream: (...args: unknown[]) => mockAbortStream(...args),
   listStreams: (...args: unknown[]) => mockListStreams(...args),
   listMessages: (...args: unknown[]) => mockListMessages(...args),
-  saveMessage: (...args: unknown[]) => mockSaveMessage(...args),
 }));
 
 vi.mock('../_generated/api', () => ({
@@ -104,7 +102,7 @@ describe('cancelGeneration — happy path', () => {
     );
   });
 
-  it('truncates assistant message when displayedContent is provided', async () => {
+  it('marks assistant message as success with displayedContent (ChatGPT-style)', async () => {
     const ctx = createMockCtx({ userId: 'user_1', status: 'active' });
     mockListMessages.mockResolvedValue({
       page: [
@@ -130,12 +128,12 @@ describe('cancelGeneration — happy path', () => {
           role: 'assistant',
           content: 'Full long',
         },
-        status: 'failed',
+        status: 'success',
       },
     });
   });
 
-  it('sets status to failed without truncating content when displayedContent is null', async () => {
+  it('sets status to failed when displayedContent is null (no content shown)', async () => {
     const ctx = createMockCtx({ userId: 'user_1', status: 'active' });
     mockListMessages.mockResolvedValue({
       page: [
@@ -161,7 +159,7 @@ describe('cancelGeneration — happy path', () => {
     });
   });
 
-  it('sets status to failed without truncating content when displayedContent is undefined', async () => {
+  it('sets status to failed when displayedContent is undefined', async () => {
     const ctx = createMockCtx({ userId: 'user_1', status: 'active' });
     mockListMessages.mockResolvedValue({
       page: [
@@ -233,6 +231,23 @@ describe('cancelGeneration — happy path', () => {
       expect.objectContaining({ messageId: 'msg_3' }),
     );
   });
+
+  it('sets cancelledAt on threadMetadata', async () => {
+    const meta = {
+      _id: 'meta_1',
+      generationStatus: 'generating',
+      streamId: 'stream_1',
+    };
+    const ctx = createMockCtx({ userId: 'user_1', status: 'active' }, meta);
+
+    await cancelGeneration(ctx as unknown as MutationCtx, 'user_1', 'thread_1');
+
+    expect(ctx.db.patch).toHaveBeenCalledWith('meta_1', {
+      cancelledAt: expect.any(Number),
+      generationStatus: 'idle',
+      streamId: undefined,
+    });
+  });
 });
 
 // ============================================================================
@@ -245,7 +260,6 @@ describe('cancelGeneration — edge cases', () => {
     mockListStreams.mockResolvedValue([]);
     mockAbortStream.mockResolvedValue(undefined);
     mockListMessages.mockResolvedValue({ page: [] });
-    mockSaveMessage.mockResolvedValue(undefined);
   });
 
   it('throws when thread is not found', async () => {
@@ -268,7 +282,7 @@ describe('cancelGeneration — edge cases', () => {
     ).rejects.toThrow('Thread not found');
   });
 
-  it('truncates with empty string displayedContent (not treated as null)', async () => {
+  it('marks as failed with empty string displayedContent (no visible text)', async () => {
     const ctx = createMockCtx({ userId: 'user_1', status: 'active' });
     mockListMessages.mockResolvedValue({
       page: [
@@ -280,7 +294,7 @@ describe('cancelGeneration — edge cases', () => {
       ],
     });
 
-    // Empty string is a valid displayedContent (user stopped before any text appeared)
+    // Empty string has no trim content — treated as no displayed content
     await cancelGeneration(
       ctx as unknown as MutationCtx,
       'user_1',
@@ -288,20 +302,13 @@ describe('cancelGeneration — edge cases', () => {
       '',
     );
 
-    // Should still update the message with empty string
     expect(ctx.runMutation).toHaveBeenCalledWith('mock-updateMessage', {
       messageId: 'msg_1',
-      patch: {
-        message: {
-          role: 'assistant',
-          content: '',
-        },
-        status: 'failed',
-      },
+      patch: { status: 'failed' },
     });
   });
 
-  it('creates failed message via saveMessage when no assistant message is found', async () => {
+  it('does not create sentinel message when no assistant message exists (early cancel)', async () => {
     const ctx = createMockCtx({ userId: 'user_1', status: 'active' });
     mockListMessages.mockResolvedValue({
       page: [
@@ -320,17 +327,12 @@ describe('cancelGeneration — edge cases', () => {
       'some content',
     );
 
-    expect(mockListMessages).toHaveBeenCalled();
-    // No updateMessage — instead saveMessage creates a new failed message
+    // No updateMessage — no assistant message to update
     expect(ctx.runMutation).not.toHaveBeenCalled();
-    expect(mockSaveMessage).toHaveBeenCalledWith(ctx, expect.anything(), {
-      threadId: 'thread_1',
-      message: { role: 'assistant', content: 'some content' },
-      metadata: { status: 'failed' },
-    });
+    // No saveMessage — cancelledAt signal replaces sentinel messages
   });
 
-  it('creates failed message with empty content when no messages exist and displayedContent is undefined', async () => {
+  it('does not create message when no messages exist at all', async () => {
     const ctx = createMockCtx({ userId: 'user_1', status: 'active' });
     mockListMessages.mockResolvedValue({ page: [] });
 
@@ -338,14 +340,9 @@ describe('cancelGeneration — edge cases', () => {
 
     expect(mockListMessages).toHaveBeenCalled();
     expect(ctx.runMutation).not.toHaveBeenCalled();
-    expect(mockSaveMessage).toHaveBeenCalledWith(ctx, expect.anything(), {
-      threadId: 'thread_1',
-      message: { role: 'assistant', content: '' },
-      metadata: { status: 'failed' },
-    });
   });
 
-  it('creates failed message with empty content when no messages exist and displayedContent is null', async () => {
+  it('does not create message when no messages exist and displayedContent is null', async () => {
     const ctx = createMockCtx({ userId: 'user_1', status: 'active' });
     mockListMessages.mockResolvedValue({ page: [] });
 
@@ -356,11 +353,7 @@ describe('cancelGeneration — edge cases', () => {
       null,
     );
 
-    expect(mockSaveMessage).toHaveBeenCalledWith(ctx, expect.anything(), {
-      threadId: 'thread_1',
-      message: { role: 'assistant', content: '' },
-      metadata: { status: 'failed' },
-    });
+    expect(ctx.runMutation).not.toHaveBeenCalled();
   });
 
   it('finds the first assistant message even without text property', async () => {
@@ -435,13 +428,11 @@ describe('cancelGeneration — edge cases', () => {
       messageId: 'msg_1',
       patch: {
         message: { role: 'assistant', content: longContent },
-        status: 'failed',
+        status: 'success',
       },
     });
   });
 
-  // Issue #5: Mid-codepoint truncation — displayedContent with multi-byte
-  // characters (emoji, CJK) must be stored as-is without corruption.
   it('preserves multi-byte characters in displayedContent without corruption', async () => {
     const ctx = createMockCtx({ userId: 'user_1', status: 'active' });
     const unicodeContent = 'Hello 🌍 世界! Here is some text with emoji 🎉🚀';
@@ -469,17 +460,14 @@ describe('cancelGeneration — edge cases', () => {
       messageId: 'msg_1',
       patch: {
         message: { role: 'assistant', content: unicodeContent },
-        status: 'failed',
+        status: 'success',
       },
     });
   });
 
   it('correctly compares string userId with thread userId', async () => {
-    // Thread userId is stored as a string; authUser._id may be an Id type
-    // that gets String()-ified. This test verifies the comparison works.
     const ctx = createMockCtx({ userId: 'user_abc123', status: 'active' });
 
-    // Should NOT throw when userId matches
     await expect(
       cancelGeneration(
         ctx as unknown as MutationCtx,
@@ -488,7 +476,6 @@ describe('cancelGeneration — edge cases', () => {
       ),
     ).resolves.toBeUndefined();
 
-    // Should throw when userId doesn't match
     const ctx2 = createMockCtx({ userId: 'user_abc123', status: 'active' });
     await expect(
       cancelGeneration(
@@ -499,7 +486,7 @@ describe('cancelGeneration — edge cases', () => {
     ).rejects.toThrow('Thread not found');
   });
 
-  it('creates a failed sentinel when latest assistant is successful (early stop before new turn assistant message exists)', async () => {
+  it('skips message update when latest assistant is already successful (early stop)', async () => {
     const ctx = createMockCtx({ userId: 'user_1', status: 'active' });
     mockListMessages.mockResolvedValue({
       page: [
@@ -521,20 +508,9 @@ describe('cancelGeneration — edge cases', () => {
 
     // Should NOT update the existing successful message
     expect(ctx.runMutation).not.toHaveBeenCalled();
-    // Should create a new failed sentinel so the abort watcher can detect cancellation
-    expect(mockSaveMessage).toHaveBeenCalledOnce();
-    expect(mockSaveMessage).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.anything(),
-      expect.objectContaining({
-        threadId: 'thread_1',
-        message: { role: 'assistant', content: 'Partial' },
-        metadata: { status: 'failed' },
-      }),
-    );
   });
 
-  it('creates a failed sentinel with empty content when no displayedContent and latest is successful', async () => {
+  it('skips message creation when latest is successful and no displayedContent', async () => {
     const ctx = createMockCtx({ userId: 'user_1', status: 'active' });
     mockListMessages.mockResolvedValue({
       page: [
@@ -550,14 +526,5 @@ describe('cancelGeneration — edge cases', () => {
     await cancelGeneration(ctx as unknown as MutationCtx, 'user_1', 'thread_1');
 
     expect(ctx.runMutation).not.toHaveBeenCalled();
-    expect(mockSaveMessage).toHaveBeenCalledOnce();
-    expect(mockSaveMessage).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.anything(),
-      expect.objectContaining({
-        message: { role: 'assistant', content: '' },
-        metadata: { status: 'failed' },
-      }),
-    );
   });
 });

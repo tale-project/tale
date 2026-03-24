@@ -21,6 +21,8 @@ export interface Thread {
   status: ThreadStatus;
   userId?: string;
   generationStatus?: 'generating' | 'idle';
+  cancelledAt?: number;
+  generationStartTime?: number;
 }
 
 export interface ThreadMessage {

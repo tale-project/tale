@@ -133,6 +133,7 @@ export interface GenerateResponseArgs {
 export interface GenerateResponseResult {
   threadId: string;
   text: string;
+  savedMessageId?: string;
   usage?: {
     inputTokens?: number;
     outputTokens?: number;
