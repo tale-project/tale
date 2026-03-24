@@ -1,5 +1,6 @@
 # Crawler Service Dockerfile
 # Independent service for web crawling using Crawl4AI
+#
 
 # Version argument - injected by CI from git tag, defaults to 'dev' for local builds
 ARG VERSION=dev
