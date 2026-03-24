@@ -774,7 +774,7 @@ describe('useMessageProcessing', () => {
       expect(systemMsg?.systemMessageDisplay).toBe('info');
     });
 
-    it('detects workflow completed as success display', () => {
+    it('detects workflow completed as info display', () => {
       mockUseUIMessages.mockReturnValue({
         results: [
           createUIMessage({
@@ -797,7 +797,7 @@ describe('useMessageProcessing', () => {
 
       const { result } = renderHook(() => useMessageProcessing('thread-1'));
       const systemMsg = result.current.messages.find((m) => m.key === 'msg-2');
-      expect(systemMsg?.systemMessageDisplay).toBe('success');
+      expect(systemMsg?.systemMessageDisplay).toBe('info');
     });
 
     it('detects workflow failed as error display', () => {
