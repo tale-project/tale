@@ -72,7 +72,7 @@ def _parse_pdf_date(date_str: str | None) -> int | None:
         elif tz_sign == "+":
             tz_offset = dt.timezone(dt.timedelta(hours=tz_hours, minutes=tz_minutes))
         else:
-            tz_offset = dt.timezone.utc
+            tz_offset = dt.UTC
 
         d = dt.datetime(year, month, day, hour, minute, second, tzinfo=tz_offset)
         return int(d.timestamp() * 1000)
@@ -93,7 +93,7 @@ def _to_unix_ms(d: dt.datetime | None) -> int | None:
         return None
     try:
         if d.tzinfo is None:
-            d = d.replace(tzinfo=dt.timezone.utc)
+            d = d.replace(tzinfo=dt.UTC)
         year = d.year
         if year < _MIN_YEAR or year > _MAX_YEAR:
             logger.warning("Datetime year out of range (%d)", year)
