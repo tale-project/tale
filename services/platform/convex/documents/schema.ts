@@ -43,6 +43,8 @@ export const documentsTable = defineTable({
       jobId: v.optional(v.string()),
     }),
   ),
+  sourceCreatedAt: v.optional(v.number()),
+  sourceModifiedAt: v.optional(v.number()),
   createdBy: v.optional(v.string()),
   folderId: v.optional(v.id('folders')),
   metadata: v.optional(jsonRecordValidator),

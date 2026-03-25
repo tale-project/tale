@@ -113,6 +113,19 @@ async def ensure_file_id_column(pool: asyncpg.Pool) -> None:
             logger.warning("{}.documents table does not exist yet, skipping file_id rename", SCHEMA)
 
 
+async def ensure_document_date_columns(pool: asyncpg.Pool) -> None:
+    """Add source date columns to documents table if they don't exist."""
+    async with acquire_with_retry(pool) as conn:
+        try:
+            await conn.execute(f"ALTER TABLE {SCHEMA}.documents ADD COLUMN IF NOT EXISTS source_created_at TIMESTAMPTZ")
+            await conn.execute(
+                f"ALTER TABLE {SCHEMA}.documents ADD COLUMN IF NOT EXISTS source_modified_at TIMESTAMPTZ"
+            )
+            logger.debug("Ensured source date columns exist on {}.documents", SCHEMA)
+        except asyncpg.exceptions.UndefinedTableError:
+            logger.warning("{}.documents table does not exist yet, skipping date column check", SCHEMA)
+
+
 async def ensure_embedding_dimensions(pool: asyncpg.Pool, dimensions: int) -> None:
     """Pin the embedding column to explicit dimensions and create HNSW index."""
     async with acquire_with_retry(pool) as conn:

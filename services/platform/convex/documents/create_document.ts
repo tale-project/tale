@@ -37,6 +37,8 @@ export async function createDocument(
     externalItemId: args.externalItemId,
     contentHash: args.contentHash,
     ...teamFields,
+    sourceCreatedAt: args.sourceCreatedAt,
+    sourceModifiedAt: args.sourceModifiedAt,
     createdBy: args.createdBy,
     folderId: args.folderId,
   });

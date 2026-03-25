@@ -12,6 +12,7 @@
 import { v } from 'convex/values';
 
 import type { ActionCtx } from '../../../_generated/server';
+import type { DocumentMetadata } from '../../../documents/types';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 
 import { internal } from '../../../_generated/api';
@@ -364,15 +365,43 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
       }
 
       case 'get_metadata': {
+        const organizationId =
+          typeof _variables.organizationId === 'string'
+            ? _variables.organizationId
+            : undefined;
+
         const results = await Promise.all(
           params.fileIds.map(async (fileId) => {
-            const metadata = await ctx.runQuery(
-              internal.file_metadata.internal_queries.getByStorageId,
-              { storageId: toId<'_storage'>(fileId) },
-            );
+            const [fileMetadata, document] = await Promise.all([
+              ctx.runQuery(
+                internal.file_metadata.internal_queries.getByStorageId,
+                { storageId: toId<'_storage'>(fileId) },
+              ),
+              organizationId
+                ? ctx.runQuery(
+                    internal.documents.internal_queries.findDocumentByFileId,
+                    { organizationId, fileId },
+                  )
+                : Promise.resolve(undefined),
+            ]);
+
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- metadata is ConvexJsonRecord; shape is DocumentMetadata written by our code
+            const docMetadata = document?.metadata as
+              | DocumentMetadata
+              | undefined;
+
+            const lastModified =
+              document?.sourceModifiedAt ??
+              docMetadata?.sourceModifiedAt ??
+              docMetadata?.lastModified ??
+              document?._creationTime;
+
             return {
               fileId,
-              fileName: metadata?.fileName ?? 'Unknown',
+              fileName: fileMetadata?.fileName ?? 'Unknown',
+              sourceCreatedAt: document?.sourceCreatedAt,
+              sourceModifiedAt: document?.sourceModifiedAt,
+              lastModified,
             };
           }),
         );

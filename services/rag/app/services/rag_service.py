@@ -7,6 +7,7 @@ All operations use the private_knowledge schema in tale_knowledge database.
 from __future__ import annotations
 
 import asyncio
+import datetime as dt
 import time
 from typing import Any
 
@@ -22,6 +23,7 @@ from .database import (
     SCHEMA,
     close_pool,
     ensure_content_hash_index,
+    ensure_document_date_columns,
     ensure_embedding_dimensions,
     ensure_error_column,
     ensure_file_id_column,
@@ -89,6 +91,7 @@ class RagService:
         await ensure_error_column(self._pool)
         await ensure_content_hash_index(self._pool)
         await ensure_file_id_column(self._pool)
+        await ensure_document_date_columns(self._pool)
 
         # Vision client (optional — only if model is configured)
         try:
@@ -127,6 +130,8 @@ class RagService:
         filename: str,
         *,
         user_id: str | None = None,
+        source_created_at: dt.datetime | None = None,
+        source_modified_at: dt.datetime | None = None,
     ) -> dict[str, Any]:
         """Add a document to the knowledge base."""
         if not self.initialized:
@@ -147,6 +152,8 @@ class RagService:
             vision_client=self._vision_client,
             chunk_size=settings.chunk_size,
             chunk_overlap=settings.chunk_overlap,
+            source_created_at=source_created_at,
+            source_modified_at=source_modified_at,
         )
 
     async def search(

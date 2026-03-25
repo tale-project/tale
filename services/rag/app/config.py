@@ -45,6 +45,11 @@ class Settings(BaseServiceSettings):
     vision_extraction_prompt: str | None = None
     vision_preprocessing_timeout: int = 0
 
+    # Recency boost
+    recency_boost_enabled: bool = False
+    recency_decay_base: float = 0.85
+    recency_max_age_days: int = 730
+
     # Feature Flags
     enable_metrics: bool = True
     enable_query_logging: bool = False

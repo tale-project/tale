@@ -10,6 +10,25 @@ import { extractExtension } from './extract_extension';
 import { getUserNamesBatch } from './get_user_names_batch';
 
 /**
+ * Resolve the best available date for a document using a fallback chain:
+ * 1. Top-level sourceModifiedAt (from file sync)
+ * 2. Metadata sourceModifiedAt (legacy location)
+ * 3. Metadata lastModified (generic provider timestamp)
+ * 4. Convex creation time (ultimate fallback)
+ */
+function getDocumentEffectiveDate(
+  document: Doc<'documents'>,
+  metadata: DocumentMetadata | undefined,
+): number {
+  return (
+    document.sourceModifiedAt ??
+    metadata?.sourceModifiedAt ??
+    metadata?.lastModified ??
+    document._creationTime
+  );
+}
+
+/**
  * Transform options for batch processing
  */
 export interface TransformOptions {
@@ -75,7 +94,9 @@ export function transformToDocumentItem(
     sourceProvider:
       document.sourceProvider ?? metadata?.sourceProvider ?? 'upload',
     sourceMode: normalizeSourceMode(metadata?.sourceMode),
-    lastModified: metadata?.lastModified ?? document._creationTime,
+    sourceCreatedAt: document.sourceCreatedAt,
+    sourceModifiedAt: document.sourceModifiedAt,
+    lastModified: getDocumentEffectiveDate(document, metadata),
     syncConfigId: metadata?.syncConfigId,
     isDirectlySelected: metadata?.isDirectlySelected,
     url,

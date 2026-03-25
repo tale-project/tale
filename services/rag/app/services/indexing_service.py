@@ -6,7 +6,10 @@ Content hash dedup: skip if document content hasn't changed.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import datetime as dt
+import re
+from dataclasses import dataclass, replace
+from io import BytesIO
 from typing import Any
 
 import asyncpg
@@ -22,6 +25,22 @@ SCHEMA = "private_knowledge"
 _HNSW_INDEX = f"{SCHEMA}.idx_pk_chunks_embedding_hnsw"
 _HNSW_CORRUPTION_MARKER = "should be empty but is not"
 
+_PDF_DATE_RE = re.compile(
+    r"^(?:D:)?"
+    r"(\d{4})"
+    r"(\d{2})?"
+    r"(\d{2})?"
+    r"(\d{2})?"
+    r"(\d{2})?"
+    r"(\d{2})?"
+    r"([Z+\-])?"
+    r"(\d{2})?'?"
+    r"(\d{2})?'?"
+)
+
+_MIN_YEAR = 1970
+_MAX_YEAR = 2100
+
 
 @dataclass(frozen=True, slots=True)
 class PreparedDocument:
@@ -31,6 +50,105 @@ class PreparedDocument:
     chunks: list[ContentChunk]
     embeddings: list[list[float]]
     vision_used: bool
+    source_created_at: dt.datetime | None = None
+    source_modified_at: dt.datetime | None = None
+
+
+def _parse_pdf_date(date_str: str | None) -> dt.datetime | None:
+    """Parse PDF date format ``D:YYYYMMDDHHmmSSOHH'mm'`` to a datetime.
+
+    Returns ``None`` for missing, malformed, or out-of-range dates.
+    """
+    if not date_str or not isinstance(date_str, str):
+        return None
+
+    match = _PDF_DATE_RE.match(date_str.strip())
+    if not match:
+        return None
+
+    try:
+        year = int(match.group(1))
+        if year < _MIN_YEAR or year > _MAX_YEAR:
+            return None
+
+        month = int(match.group(2) or "01")
+        day = int(match.group(3) or "01")
+        hour = int(match.group(4) or "00")
+        minute = int(match.group(5) or "00")
+        second = int(match.group(6) or "00")
+
+        tz_sign = match.group(7)
+        tz_hours = int(match.group(8) or "0")
+        tz_minutes = int(match.group(9) or "0")
+
+        if tz_sign == "-":
+            tz_offset = dt.timezone(dt.timedelta(hours=-tz_hours, minutes=-tz_minutes))
+        elif tz_sign == "+":
+            tz_offset = dt.timezone(dt.timedelta(hours=tz_hours, minutes=tz_minutes))
+        else:
+            tz_offset = dt.timezone.utc
+
+        return dt.datetime(year, month, day, hour, minute, second, tzinfo=tz_offset)
+    except (ValueError, OverflowError):
+        return None
+
+
+def _ensure_aware(d: dt.datetime | None) -> dt.datetime | None:
+    """Ensure a datetime is timezone-aware (assume UTC if naive)."""
+    if d is None:
+        return None
+    if not isinstance(d, dt.datetime):
+        return None
+    if d.tzinfo is None:
+        return d.replace(tzinfo=dt.timezone.utc)
+    return d
+
+
+def _extract_file_dates(
+    content_bytes: bytes,
+    filename: str,
+) -> tuple[dt.datetime | None, dt.datetime | None]:
+    """Extract created/modified dates from PDF, DOCX, or PPTX file bytes.
+
+    Returns (created, modified). Both may be None on failure or unsupported format.
+    """
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+
+    try:
+        if ext == "pdf":
+            import fitz
+
+            doc = fitz.open(stream=content_bytes, filetype="pdf")
+            metadata = doc.metadata or {}
+            doc.close()
+            return (
+                _parse_pdf_date(metadata.get("creationDate")),
+                _parse_pdf_date(metadata.get("modDate")),
+            )
+
+        if ext == "docx":
+            from docx import Document
+
+            doc = Document(BytesIO(content_bytes))
+            props = doc.core_properties
+            return (
+                _ensure_aware(props.created),
+                _ensure_aware(props.modified),
+            )
+
+        if ext == "pptx":
+            from pptx import Presentation
+
+            prs = Presentation(BytesIO(content_bytes))
+            props = prs.core_properties
+            return (
+                _ensure_aware(props.created),
+                _ensure_aware(props.modified),
+            )
+    except Exception:
+        logger.debug("Could not extract dates from {}", filename)
+
+    return (None, None)
 
 
 async def prepare_document(
@@ -60,6 +178,8 @@ async def prepare_document(
             "PDF, DOCX, PPTX, XLSX, TXT, MD, CSV, PNG, JPG, GIF, WebP"
         ) from None
 
+    source_created_at, source_modified_at = _extract_file_dates(content_bytes, filename)
+
     if not extracted_text or not extracted_text.strip():
         logger.warning("No text extracted from {}", filename)
         return None
@@ -81,6 +201,8 @@ async def prepare_document(
         chunks=chunks,
         embeddings=embeddings,
         vision_used=vision_used,
+        source_created_at=source_created_at,
+        source_modified_at=source_modified_at,
     )
 
 
@@ -181,7 +303,8 @@ async def _do_clone(
     """
     async with acquire_with_retry(pool) as conn, conn.transaction():
         source = await conn.fetchrow(
-            f"SELECT chunks_count FROM {SCHEMA}.documents WHERE id = $1 AND status = 'completed'",
+            f"""SELECT chunks_count, source_created_at, source_modified_at
+                FROM {SCHEMA}.documents WHERE id = $1 AND status = 'completed'""",
             source_doc_id,
         )
         if not source:
@@ -194,8 +317,9 @@ async def _do_clone(
         doc_row = await conn.fetchrow(
             f"""
             INSERT INTO {SCHEMA}.documents
-                (file_id, filename, content_hash, user_id, status, chunks_count)
-            VALUES ($1, $2, $3, $4, 'completed', $5)
+                (file_id, filename, content_hash, user_id, status, chunks_count,
+                 source_created_at, source_modified_at)
+            VALUES ($1, $2, $3, $4, 'completed', $5, $6, $7)
             RETURNING id
             """,
             file_id,
@@ -203,6 +327,8 @@ async def _do_clone(
             content_hash,
             user_id,
             source["chunks_count"],
+            source["source_created_at"],
+            source["source_modified_at"],
         )
         new_doc_uuid = doc_row["id"]
 
@@ -258,8 +384,9 @@ async def _do_store(
         doc_row = await conn.fetchrow(
             f"""
                 INSERT INTO {SCHEMA}.documents
-                    (file_id, filename, content_hash, user_id, status, chunks_count)
-                VALUES ($1, $2, $3, $4, 'completed', $5)
+                    (file_id, filename, content_hash, user_id, status, chunks_count,
+                     source_created_at, source_modified_at)
+                VALUES ($1, $2, $3, $4, 'completed', $5, $6, $7)
                 RETURNING id
                 """,
             file_id,
@@ -267,6 +394,8 @@ async def _do_store(
             prepared.content_hash,
             user_id,
             len(prepared.chunks),
+            prepared.source_created_at,
+            prepared.source_modified_at,
         )
         doc_uuid = doc_row["id"]
 
@@ -373,6 +502,8 @@ async def index_document(
     vision_client: VisionClient | None = None,
     chunk_size: int = 2048,
     chunk_overlap: int = 200,
+    source_created_at: dt.datetime | None = None,
+    source_modified_at: dt.datetime | None = None,
 ) -> dict[str, Any]:
     """Index a document: extract, chunk, embed, and store.
 
@@ -412,6 +543,13 @@ async def index_document(
             "skipped": True,
             "skip_reason": "no_text_extracted",
         }
+
+    if source_created_at is not None or source_modified_at is not None:
+        prepared = replace(
+            prepared,
+            source_created_at=source_created_at or prepared.source_created_at,
+            source_modified_at=source_modified_at or prepared.source_modified_at,
+        )
 
     return await store_prepared_document(
         pool,

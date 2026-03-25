@@ -346,6 +346,21 @@ class ParseFileResponse(BaseModel):
     error: str | None = Field(None, description="Error message if parsing failed")
 
 
+class FileMetadataResponse(BaseModel):
+    """Response from lightweight metadata-only extraction."""
+
+    success: bool = Field(..., description="Whether extraction was successful")
+    filename: str = Field(..., description="Original filename")
+    file_type: str | None = Field(None, description="Detected file MIME type")
+    title: str | None = Field(None, description="Document title")
+    author: str | None = Field(None, description="Document author")
+    page_count: int | None = Field(None, description="Number of pages (PDF)")
+    slide_count: int | None = Field(None, description="Number of slides (PPTX)")
+    created_at: int | None = Field(None, description="Document creation date (Unix ms)")
+    modified_at: int | None = Field(None, description="Document modification date (Unix ms)")
+    error: str | None = Field(None, description="Error message if extraction failed")
+
+
 # ==================== Web Fetch & Extract Models ====================
 
 

@@ -733,7 +733,7 @@ class TestCrossHashClone:
         mock_conn.fetchrow = AsyncMock(
             side_effect=[
                 None,
-                {"chunks_count": 5},
+                {"chunks_count": 5, "source_created_at": None, "source_modified_at": None},
                 {"id": "new-uuid"},
             ]
         )
