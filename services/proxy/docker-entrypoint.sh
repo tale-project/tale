@@ -82,7 +82,7 @@ sed -i "s|.*TLS_PLACEHOLDER.*|\\t${TLS_CONFIG}|" "$CADDYFILE"
 # SITE_URL stays as-is for the platform (public URL), but Caddy must not auto-enable TLS.
 if [ "${TLS_MODE:-selfsigned}" = "external" ]; then
   CADDY_ADDR=$(echo "${SITE_URL}" | sed 's|^https://|http://|')
-  sed -i "s|{\\$SITE_URL:[^}]*}|${CADDY_ADDR}|" "$CADDYFILE"
+  sed -i "s|{[\$]SITE_URL:[^}]*}|${CADDY_ADDR}|" "$CADDYFILE"
   echo "  Caddy listen address: ${CADDY_ADDR}"
 fi
 
