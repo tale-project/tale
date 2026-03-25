@@ -93,6 +93,8 @@ export const excelTool = {
   tool: createTool({
     description: `Excel (.xlsx) tool for generating and parsing spreadsheet files.
 
+IMPORTANT: Only call the "generate" operation when the user explicitly requests creating or exporting an Excel/spreadsheet file. Do NOT proactively generate Excel files unless the user specifically asks for this format.
+
 OPERATIONS:
 
 1. generate - Generate an Excel file from structured tabular data

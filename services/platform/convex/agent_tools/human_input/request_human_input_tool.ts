@@ -28,8 +28,15 @@ const optionSchema = z.object({
   value: z
     .string()
     .optional()
-    .describe('Optional value to return (defaults to label if not provided).'),
+    .describe(
+      'Optional value to return (defaults to label if not provided). When multiple options share similar labels, provide explicit distinct values to avoid ambiguity.',
+    ),
 });
+
+const uniqueOptionValues = (options: z.output<typeof optionSchema>[]) => {
+  const values = options.map((opt) => opt.value ?? opt.label);
+  return new Set(values).size === values.length;
+};
 
 const sharedFieldProps = {
   label: z
@@ -66,6 +73,10 @@ const fieldSchema = z.discriminatedUnion('type', [
     options: z
       .array(optionSchema)
       .min(2)
+      .refine(uniqueOptionValues, {
+        message:
+          'Each option must have a unique resolved value (value ?? label). Use explicit "value" fields to distinguish options with similar labels.',
+      })
       .describe('Options for the user to choose from. At least 2 required.'),
   }),
   z.object({
@@ -74,6 +85,10 @@ const fieldSchema = z.discriminatedUnion('type', [
     options: z
       .array(optionSchema)
       .length(2)
+      .refine(uniqueOptionValues, {
+        message:
+          'Each option must have a unique resolved value (value ?? label).',
+      })
       .optional()
       .describe(
         'Custom Yes/No options. Must be exactly 2 if provided. Defaults to [Yes, No] if omitted.',
@@ -132,8 +147,8 @@ Every request is a form with one or more fields. Each field has a type that dete
 • text: Short single-line text input
 • textarea: Multi-line text input for longer content
 • number / email / url / tel: Specialized text inputs
-• single_select: User picks ONE option from a list (radio buttons)
-• multi_select: User picks ONE OR MORE options (checkboxes)
+• single_select: User picks ONE option from a list (radio buttons). Each option must resolve to a unique value — if labels are similar, provide explicit distinct "value" fields.
+• multi_select: User picks ONE OR MORE options (checkboxes). Same uniqueness rule as single_select.
 • yes_no: Binary yes/no confirmation (defaults to Yes/No buttons)
 
 **EXAMPLE - Single question (one select field):**

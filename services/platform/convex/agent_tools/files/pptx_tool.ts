@@ -147,6 +147,8 @@ export const pptxTool: ToolDefinition = {
   tool: createTool({
     description: `PowerPoint (PPTX) tool for listing templates, generating, and parsing presentations.
 
+IMPORTANT: Only call the "generate" operation when the user explicitly requests creating or exporting a PowerPoint/PPTX file. Do NOT proactively generate presentations unless the user specifically asks for this format.
+
 IMPORTANT WORKFLOW FOR GENERATING PPTX:
 1. FIRST call list_templates to check if templates are available
 2. If no templates found, tell the user to upload a .pptx template to the Knowledge Base (Documents page) — NOT in the chat. Include the link from the list_templates result.

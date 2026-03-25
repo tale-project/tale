@@ -149,6 +149,8 @@ export const docxTool = {
   tool: createTool({
     description: `Word document (DOCX) tool for listing templates, generating, and parsing documents.
 
+IMPORTANT: Only call the "generate" operation when the user explicitly requests creating or exporting a Word/DOCX file. Do NOT proactively generate Word documents unless the user specifically asks for this format.
+
 OPERATIONS:
 
 1. list_templates - List all available DOCX templates
