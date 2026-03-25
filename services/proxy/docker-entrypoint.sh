@@ -41,16 +41,11 @@ CADDYFILE="/config/Caddyfile"
 echo "TLS Configuration:"
 echo "  TLS_MODE: ${TLS_MODE:-selfsigned}"
 
-# HTTPS is required — OAuth providers reject http:// callbacks and crypto.subtle
-# is unavailable in insecure contexts. Use a reverse proxy for TLS termination
-# if needed, but always set SITE_URL to https://.
-if echo "${SITE_URL}" | grep -qi '^http://'; then
-  echo "Error: SITE_URL must use https://. Plain HTTP is not supported." >&2
-  echo "  If running behind a TLS-terminating reverse proxy, set SITE_URL=https://..." >&2
-  exit 1
-fi
-
 case "${TLS_MODE:-selfsigned}" in
+    external)
+      echo "  Mode: External (TLS handled by reverse proxy, Caddy serves HTTP only)"
+      TLS_CONFIG=""
+      ;;
     letsencrypt)
       echo "  Mode: Let's Encrypt (ACME - trusted certificates)"
       if [ -n "${TLS_EMAIL:-}" ]; then
@@ -71,10 +66,27 @@ case "${TLS_MODE:-selfsigned}" in
       ;;
   esac
 
+# HTTPS is required for non-external modes — OAuth providers reject http://
+# callbacks and crypto.subtle is unavailable in insecure contexts.
+if [ "${TLS_MODE:-selfsigned}" != "external" ] && echo "${SITE_URL}" | grep -qi '^http://'; then
+  echo "Error: SITE_URL must use https://. Plain HTTP is not supported." >&2
+  echo "  If running behind a TLS-terminating reverse proxy, set TLS_MODE=external." >&2
+  exit 1
+fi
+
 # Copy Caddyfile to writable location and apply TLS config
 cp "$CADDYFILE_SRC" "$CADDYFILE"
 sed -i "s|.*TLS_PLACEHOLDER.*|\\t${TLS_CONFIG}|" "$CADDYFILE"
-echo "  Caddyfile configured: ${TLS_CONFIG}"
+
+# For external mode, force Caddy to listen on HTTP by rewriting the scheme.
+# SITE_URL stays as-is for the platform (public URL), but Caddy must not auto-enable TLS.
+if [ "${TLS_MODE:-selfsigned}" = "external" ]; then
+  CADDY_ADDR=$(echo "${SITE_URL}" | sed 's|^https://|http://|')
+  sed -i "s|{[\$]SITE_URL:[^}]*}|${CADDY_ADDR}|" "$CADDYFILE"
+  echo "  Caddy listen address: ${CADDY_ADDR}"
+fi
+
+echo "  Caddyfile configured: ${TLS_CONFIG:-none}"
 
 # Function to fix certificate permissions after Caddy generates them
 fix_cert_permissions() {
@@ -94,16 +106,19 @@ fix_cert_permissions() {
 }
 
 # Start a background process to fix permissions after Caddy generates certs
-(
-  # Wait for Caddy to generate certificates (check every 5 seconds for up to 60 seconds)
-  for _ in $(seq 1 12); do
-    sleep 5
-    if [ -f "/data/caddy/pki/authorities/local/root.crt" ]; then
-      fix_cert_permissions
-      break
-    fi
-  done
-) &
+# (not needed for external mode — no certificates are generated)
+if [ "${TLS_MODE:-selfsigned}" != "external" ]; then
+  (
+    # Wait for Caddy to generate certificates (check every 5 seconds for up to 60 seconds)
+    for _ in $(seq 1 12); do
+      sleep 5
+      if [ -f "/data/caddy/pki/authorities/local/root.crt" ]; then
+        fix_cert_permissions
+        break
+      fi
+    done
+  ) &
+fi
 
 # For Let's Encrypt mode: retry certificate obtention if DNS wasn't ready at startup.
 # Caddy's built-in retry uses exponential backoff that gets very slow after failures.
