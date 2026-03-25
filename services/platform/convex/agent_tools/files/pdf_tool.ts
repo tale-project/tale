@@ -38,6 +38,8 @@ export const pdfTool = {
   tool: createTool({
     description: `PDF tool for generating, downloading, and parsing PDF documents.
 
+IMPORTANT: Only call the "generate" operation when the user explicitly requests creating or exporting a PDF file. Do NOT proactively generate PDFs unless the user specifically asks for this format.
+
 OPERATIONS:
 
 1. generate - Generate a PDF from Markdown/HTML, or download/capture a PDF from a URL

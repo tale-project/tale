@@ -82,6 +82,8 @@ export const textTool = {
   tool: createTool({
     description: `Text file tool for parsing, analyzing, and generating text-based files (.txt, .md, .js, .ts, .json, .csv, .log, and any other text format).
 
+IMPORTANT: Only call the "generate" operation when the user explicitly requests creating or exporting a text file. Do NOT proactively generate text files unless the user specifically asks for this format.
+
 OPERATIONS:
 1. **parse** - Parse and analyze an uploaded text-based file
 2. **generate** - Create a new text file from content
