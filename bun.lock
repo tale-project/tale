@@ -51,7 +51,7 @@
         "@convex-dev/rate-limiter": "0.3.2",
         "@convex-dev/react-query": "0.1.0",
         "@convex-dev/workflow": "0.3.7",
-        "@convex-dev/workpool": "0.4.1",
+        "@convex-dev/workpool": "0.4.3",
         "@hookform/resolvers": "5.2.2",
         "@microlink/react-json-view": "1.31.14",
         "@milkdown/crepe": "7.18.0",
@@ -428,7 +428,7 @@
 
     "@convex-dev/workflow": ["@convex-dev/workflow@0.3.7", "", { "dependencies": { "async-channel": "^0.2.0" }, "peerDependencies": { "@convex-dev/workpool": "^0.3.0 || ^0.4.0", "convex": "^1.31.7", "convex-helpers": "^0.1.99" } }, "sha512-c1WKHKFnhMWNyiwXzPUfSUjbFrinRITsQ76yZ4KHUG7uxSZQ/0fW1Cp/A45fI8KkmYLq+EAwv6WjsX0g01xSpQ=="],
 
-    "@convex-dev/workpool": ["@convex-dev/workpool@0.4.1", "", { "peerDependencies": { "convex": "^1.31.7", "convex-helpers": "^0.1.94" } }, "sha512-d24JyX9uHPxO4+ocWeVuuKFevjrQUUF98vIJQjcDC4jTKt/ZsNgd50AWXaD4drnx2fH0ugLH4Lp40ObRaycErQ=="],
+    "@convex-dev/workpool": ["@convex-dev/workpool@0.4.3", "", { "peerDependencies": { "convex": "^1.31.7", "convex-helpers": "^0.1.94" } }, "sha512-ewwgv7J72d7BfBu/njS78Z7s+JjBbNgwOc416pPbVQ884j7qnkTnS+eE5g5T2hBz2yLOy0WLu5mL6q+EU/QvEg=="],
 
     "@csstools/color-helpers": ["@csstools/color-helpers@6.0.2", "", {}, "sha512-LMGQLS9EuADloEFkcTBR3BwV/CGHV7zyDxVRtVDTwdI2Ca4it0CCVTT9wCkxSgokjE5Ho41hEPgb8OEUwoXr6Q=="],
 
