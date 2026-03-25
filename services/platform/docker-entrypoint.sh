@@ -451,13 +451,6 @@ wait_for_database
 # Build Convex site arguments
 SITE_ARGS="--site-proxy-port ${CONVEX_SITE_PROXY_PORT} --port ${CONVEX_BACKEND_PORT} --interface 0.0.0.0 --do-not-require-ssl"
 
-# Derive Convex origin and site URL from SITE_URL
-CONVEX_CLOUD_ORIGIN="${SITE_URL}/ws_api"
-CONVEX_SITE_URL="${SITE_URL}/http_api"
-
-SITE_ARGS="$SITE_ARGS --convex-origin $CONVEX_CLOUD_ORIGIN"
-SITE_ARGS="$SITE_ARGS --convex-site $CONVEX_SITE_URL"
-
 # Ensure instance secret is present (allows local dev fallback)
 ensure_instance_secret
 

@@ -111,8 +111,7 @@ TLS_MODE=external
 ```
 
 Caddy will listen on HTTP only (port 80). Your reverse proxy must:
-- Terminate TLS and forward traffic to Tale on port 80
-- Forward WebSocket connections (`/ws_api/*` and `/api/*/sync` paths)
+- Terminate TLS and forward all traffic (including WebSocket) to Tale on port 80
 - Set `X-Forwarded-Proto` header
 
 ## Authentication Options
