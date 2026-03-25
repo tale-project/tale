@@ -90,6 +90,51 @@ export const updateDocumentDates = internalMutation({
   },
 });
 
+export const backfillIndexedField = internalMutation({
+  args: {
+    cursor: v.optional(v.string()),
+    batchSize: v.optional(v.number()),
+  },
+  returns: v.object({
+    processed: v.number(),
+    updated: v.number(),
+    cursor: v.union(v.string(), v.null()),
+    done: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const batchSize = args.batchSize ?? 500;
+    let processed = 0;
+    let updated = 0;
+    let lastId: string | null = null;
+
+    const query = args.cursor
+      ? ctx.db.query('documents').order('asc')
+      : ctx.db.query('documents').order('asc');
+
+    for await (const doc of query) {
+      if (args.cursor && doc._id <= args.cursor) continue;
+
+      processed++;
+      lastId = doc._id;
+
+      const shouldBeIndexed = doc.ragInfo?.status === 'completed';
+      if (doc.indexed !== shouldBeIndexed) {
+        await ctx.db.patch(doc._id, { indexed: shouldBeIndexed ?? false });
+        updated++;
+      }
+
+      if (processed >= batchSize) break;
+    }
+
+    return {
+      processed,
+      updated,
+      cursor: lastId,
+      done: processed < batchSize,
+    };
+  },
+});
+
 export const createDocument = internalMutation({
   args: {
     organizationId: v.string(),

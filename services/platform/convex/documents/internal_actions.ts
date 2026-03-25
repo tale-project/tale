@@ -327,6 +327,25 @@ export const checkRagDocumentStatus = internalAction({
             },
           },
         );
+
+        const sourceCreatedAt = isRecord(docStatus)
+          ? getNumber(docStatus, 'source_created_at')
+          : undefined;
+        const sourceModifiedAt = isRecord(docStatus)
+          ? getNumber(docStatus, 'source_modified_at')
+          : undefined;
+
+        if (sourceCreatedAt != null || sourceModifiedAt != null) {
+          await ctx.runMutation(
+            internal.documents.internal_mutations.updateDocumentDates,
+            {
+              documentId: args.documentId,
+              ...(sourceCreatedAt != null && { sourceCreatedAt }),
+              ...(sourceModifiedAt != null && { sourceModifiedAt }),
+            },
+          );
+        }
+
         return null;
       }
 
@@ -678,7 +697,7 @@ export const extractDocumentDates = internalAction({
         return null;
       }
 
-      const ext = extractExtension(document.extension ?? document.title);
+      const ext = document.extension ?? extractExtension(document.title);
       if (!ext || !EXTRACT_DATES_SUPPORTED_EXTENSIONS.has(ext)) {
         console.warn(
           `[extractDocumentDates] Unsupported extension "${ext}" for document ${args.documentId}`,

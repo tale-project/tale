@@ -43,6 +43,7 @@ export const documentsTable = defineTable({
       jobId: v.optional(v.string()),
     }),
   ),
+  indexed: v.optional(v.boolean()),
   sourceCreatedAt: v.optional(v.number()),
   sourceModifiedAt: v.optional(v.number()),
   createdBy: v.optional(v.string()),
@@ -62,4 +63,5 @@ export const documentsTable = defineTable({
   ])
   .index('by_organizationId_and_extension', ['organizationId', 'extension'])
   .index('by_organizationId_and_title', ['organizationId', 'title'])
-  .index('by_organizationId_and_fileId', ['organizationId', 'fileId']);
+  .index('by_organizationId_and_fileId', ['organizationId', 'fileId'])
+  .index('by_organizationId_and_indexed', ['organizationId', 'indexed']);

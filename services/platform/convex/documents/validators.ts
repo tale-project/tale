@@ -60,6 +60,7 @@ export const documentItemValidator = v.object({
   sourceProvider: v.optional(sourceProviderValidator),
   sourceMode: v.optional(sourceModeValidator),
   lastModified: v.optional(v.number()),
+  uploadedAt: v.optional(v.number()),
   sourceCreatedAt: v.optional(v.number()),
   sourceModifiedAt: v.optional(v.number()),
   syncConfigId: v.optional(v.string()),

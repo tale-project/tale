@@ -72,16 +72,16 @@ describe('transformToDocumentItem', () => {
       expect(result.lastModified).toBe(2000);
     });
 
-    it('falls back to _creationTime when no dates available', () => {
+    it('returns undefined when no source dates available', () => {
       const doc = createMockDocument();
       const result = transformToDocumentItem(doc);
-      expect(result.lastModified).toBe(1000);
+      expect(result.lastModified).toBeUndefined();
     });
 
-    it('falls back to _creationTime when metadata is undefined', () => {
+    it('returns undefined when metadata is undefined', () => {
       const doc = createMockDocument({ metadata: undefined });
       const result = transformToDocumentItem(doc);
-      expect(result.lastModified).toBe(1000);
+      expect(result.lastModified).toBeUndefined();
     });
   });
 
