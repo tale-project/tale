@@ -79,6 +79,14 @@ export const createHumanInputRequest = internalMutation({
           `Field "${field.label}" with type "yes_no" requires options`,
         );
       }
+      if (field.options && field.options.length > 0) {
+        const values = field.options.map((opt) => opt.value ?? opt.label);
+        if (new Set(values).size !== values.length) {
+          throw new Error(
+            `Field "${field.label}" has duplicate option values. Each option must resolve to a unique value.`,
+          );
+        }
+      }
     }
 
     // Map flat Convex validator fields to the Zod discriminated union shape
