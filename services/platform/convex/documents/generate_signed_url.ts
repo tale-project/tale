@@ -5,11 +5,12 @@
 import type { Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
 
+import { buildDownloadUrl } from '../lib/helpers/public_storage_url';
+
 export async function generateSignedUrl(
   ctx: QueryCtx,
   documentId: Id<'documents'>,
 ): Promise<{ success: true; url: string } | { success: false; error: string }> {
-  // Get the document
   const document = await ctx.db.get(documentId);
   if (!document) {
     return {
@@ -18,7 +19,6 @@ export async function generateSignedUrl(
     };
   }
 
-  // Check if document has a fileId
   if (!document.fileId) {
     return {
       success: false,
@@ -26,17 +26,8 @@ export async function generateSignedUrl(
     };
   }
 
-  // Generate signed URL
-  const url = await ctx.storage.getUrl(document.fileId);
-  if (!url) {
-    return {
-      success: false,
-      error: 'Failed to generate signed URL',
-    };
-  }
-
   return {
     success: true,
-    url,
+    url: buildDownloadUrl(document.fileId, document.title ?? 'download'),
   };
 }

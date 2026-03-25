@@ -4,6 +4,7 @@ import { RefreshCw } from 'lucide-react';
 import { useState, useCallback } from 'react';
 
 import { Button } from '@/app/components/ui/primitives/button';
+import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
 
 interface MicrosoftReauthButtonProps {
@@ -24,9 +25,10 @@ export function MicrosoftReauthButton({
 
   const handleReauth = useCallback(() => {
     setIsLoading(true);
-    const callbackUri = `${window.location.origin}/http_api/api/sso/callback`;
-    const authorizeUrl = `/http_api/api/sso/authorize?redirect_uri=${encodeURIComponent(callbackUri)}`;
-    window.location.href = authorizeUrl;
+    const siteUrl = getEnv('SITE_URL');
+    const basePath = getEnv('BASE_PATH');
+    const callbackUri = `${siteUrl}${basePath}/http_api/api/sso/callback`;
+    window.location.href = `${siteUrl}${basePath}/http_api/api/sso/authorize?redirect_uri=${encodeURIComponent(callbackUri)}`;
   }, []);
 
   const getButtonText = () => {

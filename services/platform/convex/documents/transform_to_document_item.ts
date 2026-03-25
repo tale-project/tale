@@ -6,6 +6,7 @@ import type { Doc } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
 import type { DocumentItemResponse, DocumentMetadata } from './types';
 
+import { toPublicUrl } from '../lib/helpers/public_storage_url';
 import { extractExtension } from './extract_extension';
 import { getUserNamesBatch } from './get_user_names_batch';
 
@@ -179,10 +180,10 @@ async function batchGetStorageUrls(
     }
   }
 
-  // Fetch all URLs in parallel
+  // Fetch all URLs in parallel and rewrite to public-facing URLs
   const urlPromises = uniqueIds.map(async (fileId) => {
     const url = await ctx.storage.getUrl(fileId);
-    return { fileId: String(fileId), url };
+    return { fileId: String(fileId), url: url ? toPublicUrl(url) : url };
   });
 
   const urls = await Promise.all(urlPromises);

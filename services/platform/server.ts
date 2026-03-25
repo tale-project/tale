@@ -5,6 +5,7 @@ import { initTelemetry, metricsResponse } from './telemetry';
 
 interface EnvConfig {
   SITE_URL: string | undefined;
+  BASE_PATH: string;
   MICROSOFT_AUTH_ENABLED: boolean;
   SENTRY_DSN: string | undefined;
   SENTRY_TRACES_SAMPLE_RATE: number;
@@ -14,11 +15,17 @@ interface EnvConfig {
 const port = process.env.PORT || 3000;
 const distDir = join(import.meta.dir, 'dist');
 
+function getBasePath(): string {
+  const basePath = process.env.BASE_PATH ?? '';
+  return basePath.replace(/\/$/, '');
+}
+
 let indexHtmlTemplate: string | null = null;
 
 function getEnvConfig(): EnvConfig {
   return {
     SITE_URL: process.env.SITE_URL,
+    BASE_PATH: getBasePath(),
     MICROSOFT_AUTH_ENABLED: !!process.env.AUTH_MICROSOFT_ENTRA_ID_ID,
     SENTRY_DSN: process.env.SENTRY_DSN,
     SENTRY_TRACES_SAMPLE_RATE: parseFloat(
@@ -70,8 +77,9 @@ Bun.serve({
 
     const envConfig = getEnvConfig();
     const acceptLanguage = request.headers.get('accept-language') ?? '';
+    const basePath = getBasePath();
 
-    const html = indexHtmlTemplate
+    let html = indexHtmlTemplate
       .replace(
         /window\.__ENV__\s*=\s*['"]__ENV_PLACEHOLDER__['"];/,
         `window.__ENV__ = ${JSON.stringify(envConfig)};`,
@@ -80,6 +88,10 @@ Bun.serve({
         /window\.__ACCEPT_LANGUAGE__\s*=\s*['"]__ACCEPT_LANGUAGE_PLACEHOLDER__['"];/,
         `window.__ACCEPT_LANGUAGE__ = ${JSON.stringify(acceptLanguage)};`,
       );
+
+    if (basePath) {
+      html = html.replace('<head>', `<head>\n    <base href="${basePath}/">`);
+    }
 
     return new Response(html, {
       headers: { 'Content-Type': 'text/html' },

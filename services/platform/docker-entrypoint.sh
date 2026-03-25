@@ -495,6 +495,7 @@ deploy_convex_functions() {
   # These are the variables that Convex functions need access to
   ENV_VARS_TO_SYNC=(
     "SITE_URL"
+    "BASE_PATH"
     "ENCRYPTION_SECRET_HEX"
     "OPENAI_API_KEY"
     "OPENAI_BASE_URL"
@@ -631,7 +632,7 @@ wait_for_http "http://localhost:${CONVEX_DASHBOARD_PORT}" 30 "Convex Dashboard" 
 # Display URLs use SITE_URL (which includes protocol and domain)
 # For localhost development, SITE_URL will be like "http://localhost:3000"
 # For production, SITE_URL will be like "https://demo.tale.dev"
-DISPLAY_BASE_URL="${SITE_URL:-http://localhost:${PORT}}"
+DISPLAY_BASE_URL="${SITE_URL:-http://localhost:${PORT}}${BASE_PATH:-}"
 
 echo ""
 echo "🎉 Tale Platform is running!"

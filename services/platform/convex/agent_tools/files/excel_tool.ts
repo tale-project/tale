@@ -12,6 +12,7 @@ import type { ToolDefinition } from '../types';
 
 import { internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
+import { buildDownloadUrl } from '../../lib/helpers/public_storage_url';
 import { toId } from '../../lib/type_cast_helpers';
 import { appendFilePart } from './helpers/append_file_part';
 import { resolveFileName } from './helpers/resolve_file_name';
@@ -210,11 +211,7 @@ AFTER GENERATING: The file automatically appears as a download card in the chat.
           },
         );
 
-        const url = await ctx.storage.getUrl(fileId);
-
-        if (!url) {
-          throw new Error('Storage URL unavailable for generated Excel file.');
-        }
+        const url = buildDownloadUrl(fileId, result.fileName);
 
         debugLog('tool:excel generate success', {
           fileName: result.fileName,

@@ -17,6 +17,7 @@ import { useIsSsoConfigured } from '@/app/features/auth/hooks/queries';
 import { usePasswordValidation } from '@/app/hooks/use-password-validation';
 import { toast } from '@/app/hooks/use-toast';
 import { authClient } from '@/lib/auth-client';
+import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
 import { createPasswordSchema } from '@/lib/shared/schemas/password';
 import { seo } from '@/lib/utils/seo';
@@ -110,9 +111,10 @@ function SignUpPage() {
   };
 
   const handleSsoLogin = useCallback(() => {
-    const callbackUri = `${window.location.origin}/http_api/api/sso/callback`;
-    const authorizeUrl = `/http_api/api/sso/authorize?redirect_uri=${encodeURIComponent(callbackUri)}`;
-    window.location.href = authorizeUrl;
+    const siteUrl = getEnv('SITE_URL');
+    const basePath = getEnv('BASE_PATH');
+    const callbackUri = `${siteUrl}${basePath}/http_api/api/sso/callback`;
+    window.location.href = `${siteUrl}${basePath}/http_api/api/sso/authorize?redirect_uri=${encodeURIComponent(callbackUri)}`;
   }, []);
 
   const showSsoButton = ssoConfig?.enabled;
