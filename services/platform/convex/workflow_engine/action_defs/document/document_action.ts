@@ -12,11 +12,13 @@
 import { v } from 'convex/values';
 
 import type { ActionCtx } from '../../../_generated/server';
+import type { DocumentMetadata } from '../../../documents/types';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 
 import { internal } from '../../../_generated/api';
 import { fetchDocumentComparisonByUrls } from '../../../agent_tools/documents/helpers/fetch_document_comparison';
 import { fetchDocumentContent } from '../../../agent_tools/documents/helpers/fetch_document_content';
+import { getDocumentEffectiveDate } from '../../../documents/transform_to_document_item';
 import { getRagConfig } from '../../../lib/helpers/rag_config';
 import { toConvexJsonRecord, toId } from '../../../lib/type_cast_helpers';
 import { jsonRecordValidator } from '../../../lib/validators/json';
@@ -364,15 +366,48 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
       }
 
       case 'get_metadata': {
+        const organizationId =
+          typeof _variables.organizationId === 'string'
+            ? _variables.organizationId
+            : undefined;
+
         const results = await Promise.all(
           params.fileIds.map(async (fileId) => {
-            const metadata = await ctx.runQuery(
-              internal.file_metadata.internal_queries.getByStorageId,
-              { storageId: toId<'_storage'>(fileId) },
-            );
+            const [fileMetadata, document] = await Promise.all([
+              ctx.runQuery(
+                internal.file_metadata.internal_queries.getByStorageId,
+                { storageId: toId<'_storage'>(fileId) },
+              ),
+              organizationId
+                ? ctx.runQuery(
+                    internal.documents.internal_queries.findDocumentByFileId,
+                    { organizationId, fileId },
+                  )
+                : Promise.resolve(undefined),
+            ]);
+
+            /* oxlint-disable typescript/no-unsafe-type-assertion -- metadata is a generic JSON record from Convex schema; runtime guard ensures it's an object before narrowing */
+            const docMetadata =
+              document?.metadata != null &&
+              typeof document.metadata === 'object'
+                ? (document.metadata as DocumentMetadata)
+                : undefined;
+            /* oxlint-enable typescript/no-unsafe-type-assertion */
+
+            const lastModified = document
+              ? getDocumentEffectiveDate(
+                  document,
+                  docMetadata,
+                  document._creationTime,
+                )
+              : undefined;
+
             return {
               fileId,
-              fileName: metadata?.fileName ?? 'Unknown',
+              fileName: fileMetadata?.fileName ?? 'Unknown',
+              sourceCreatedAt: document?.sourceCreatedAt,
+              sourceModifiedAt: document?.sourceModifiedAt,
+              lastModified,
             };
           }),
         );

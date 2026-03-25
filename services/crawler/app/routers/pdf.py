@@ -8,6 +8,7 @@ from loguru import logger
 
 from app.exceptions import DownloadDetectedException
 from app.models import (
+    FileMetadataResponse,
     HtmlToPdfRequest,
     MarkdownToPdfRequest,
     ParseFileResponse,
@@ -231,4 +232,43 @@ async def parse_pdf_file(
             success=False,
             filename=file.filename or "unknown",
             error="Failed to parse PDF file",
+        )
+
+
+@router.post("/extract-metadata", response_model=FileMetadataResponse)
+async def extract_pdf_metadata(file: UploadFile = _FILE_UPLOAD):
+    """Extract metadata from a PDF file without full text extraction."""
+    import fitz
+
+    from app.services.file_parser_service import _parse_pdf_date
+
+    try:
+        file_bytes = await file.read()
+        if not file_bytes:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty file uploaded")
+
+        filename = file.filename or "unknown.pdf"
+        doc = fitz.open(stream=file_bytes, filetype="pdf")
+        raw = doc.metadata or {}
+        page_count = len(doc)
+        doc.close()
+
+        return FileMetadataResponse(
+            success=True,
+            filename=filename,
+            file_type="application/pdf",
+            title=raw.get("title") or None,
+            author=raw.get("author") or None,
+            page_count=page_count,
+            created_at=_parse_pdf_date(raw.get("creationDate")),
+            modified_at=_parse_pdf_date(raw.get("modDate")),
+        )
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Error extracting PDF metadata")
+        return FileMetadataResponse(
+            success=False,
+            filename=file.filename or "unknown",
+            error="Failed to extract PDF metadata",
         )

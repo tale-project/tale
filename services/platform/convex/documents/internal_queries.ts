@@ -6,6 +6,7 @@ import { getAccessibleDocumentIds as getAccessibleDocumentIdsHelper } from './ge
 import { getAgentScopedFileIds as getAgentScopedFileIdsHelper } from './get_agent_scoped_file_ids';
 import * as DocumentsHelpers from './helpers';
 import { listDocumentsForAgent as listDocumentsForAgentHelper } from './list_documents_for_agent';
+import { listIndexedDocumentsForAgent as listIndexedDocumentsForAgentHelper } from './list_indexed_documents_for_agent';
 import { sourceProviderValidator } from './validators';
 
 export const getDocumentByIdRaw = internalQuery({
@@ -91,6 +92,21 @@ export const getAccessibleDocumentIds = internalQuery({
   },
   handler: async (ctx, args) => {
     return await getAccessibleDocumentIdsHelper(ctx, args);
+  },
+});
+
+export const listIndexedForAgent = internalQuery({
+  args: {
+    organizationId: v.string(),
+    agentTeamId: v.optional(v.string()),
+    includeTeamKnowledge: v.optional(v.boolean()),
+    includeOrgKnowledge: v.optional(v.boolean()),
+    knowledgeFileIds: v.optional(v.array(v.string())),
+    limit: v.optional(v.number()),
+    cursor: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    return listIndexedDocumentsForAgentHelper(ctx, args);
   },
 });
 

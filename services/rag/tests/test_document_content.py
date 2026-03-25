@@ -54,6 +54,8 @@ DOC_ROW = {
     "file_id": "doc-1",
     "filename": "report.pdf",
     "chunks_count": 5,
+    "source_created_at": None,
+    "source_modified_at": None,
 }
 
 CHUNK_ROWS = [

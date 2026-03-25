@@ -168,19 +168,19 @@ CREATE TABLE IF NOT EXISTS private_knowledge.documents (
     filename      TEXT,
     content_hash  TEXT,
     team_id       TEXT,
-    user_id       TEXT,
     status        TEXT NOT NULL DEFAULT 'processing' CHECK (status IN ('processing', 'completed', 'failed')),
     error         TEXT,
     chunks_count  INTEGER NOT NULL DEFAULT 0,
+    source_created_at  TIMESTAMPTZ,
+    source_modified_at TIMESTAMPTZ,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_pk_docs_unique_scope
-    ON private_knowledge.documents(file_id, COALESCE(team_id, ''), COALESCE(user_id, ''));
+    ON private_knowledge.documents(file_id, COALESCE(team_id, ''));
 CREATE INDEX IF NOT EXISTS idx_pk_docs_fileid ON private_knowledge.documents(file_id);
 CREATE INDEX IF NOT EXISTS idx_pk_docs_team ON private_knowledge.documents(team_id) WHERE team_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_pk_docs_user ON private_knowledge.documents(user_id) WHERE user_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_pk_docs_content_hash ON private_knowledge.documents(content_hash) WHERE content_hash IS NOT NULL;
 
 -- Chunks
@@ -188,7 +188,6 @@ CREATE TABLE IF NOT EXISTS private_knowledge.chunks (
     id             BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     document_id    UUID NOT NULL REFERENCES private_knowledge.documents(id) ON DELETE CASCADE,
     team_id        TEXT,
-    user_id        TEXT,
     chunk_index    INTEGER NOT NULL,
     chunk_content  TEXT NOT NULL,
     content_hash   TEXT NOT NULL,
@@ -198,7 +197,6 @@ CREATE TABLE IF NOT EXISTS private_knowledge.chunks (
 );
 
 CREATE INDEX IF NOT EXISTS idx_pk_chunks_team ON private_knowledge.chunks(team_id) WHERE team_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_pk_chunks_user ON private_knowledge.chunks(user_id) WHERE user_id IS NOT NULL;
 
 -- BM25 full-text index on private_knowledge.chunks
 DO $$

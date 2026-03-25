@@ -12,7 +12,7 @@ export interface ParsedRagEntry {
 }
 
 const RAG_RESULT_PATTERN =
-  /\[(\d+)\]\s*\(Relevance:\s*([\d.]+)%\)(?:\s*\[Source:.*?\])?(?:\s*\[FileID:.*?\])?\n([\s\S]*?)(?=\n\n---\n\n|\n*$)/g;
+  /\[(\d+)\]\s*\(Relevance:\s*([\d.]+)%\)(?:\s*\[Source:.*?\])?(?:\s*\[(?:Modified|Created):.*?\])?(?:\s*\[FileID:.*?\])?\n([\s\S]*?)(?=\n\n---\n\n|\n*$)/g;
 
 export function parseRagResults(ragContext: string): ParsedRagEntry[] {
   const entries: ParsedRagEntry[] = [];

@@ -27,7 +27,13 @@ vi.mock('../../_generated/server', async (importOriginal) => {
 });
 
 vi.mock('../../_generated/api', () => ({
-  internal: {},
+  internal: {
+    documents: {
+      internal_actions: {
+        extractDocumentDates: 'extractDocumentDates',
+      },
+    },
+  },
 }));
 
 const mockGetAuthUser = vi.fn();
@@ -87,6 +93,9 @@ function createMockCtx() {
       get: vi.fn().mockResolvedValue(null),
       insert: vi.fn().mockResolvedValue('fm_new'),
       patch: vi.fn().mockResolvedValue(undefined),
+    },
+    scheduler: {
+      runAfter: vi.fn().mockResolvedValue(undefined),
     },
   };
 }

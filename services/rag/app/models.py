@@ -1,5 +1,6 @@
 """Pydantic models for Tale RAG API."""
 
+import datetime as dt
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -86,6 +87,12 @@ class DocumentContentResponse(BaseModel):
     chunk_range: ChunkRange = Field(..., description="Range of chunks returned (1-indexed, inclusive)")
     total_chunks: int = Field(..., description="Total number of chunks in the document")
     total_chars: int = Field(..., description="Total character count of returned content")
+    source_created_at: dt.datetime | None = Field(
+        default=None, description="Original file creation date (from file metadata)"
+    )
+    source_modified_at: dt.datetime | None = Field(
+        default=None, description="Original file modification date (from file metadata)"
+    )
     chunks: list[DocumentChunk] | None = Field(
         default=None,
         description="Individual chunks (only when return_chunks=true)",
@@ -127,6 +134,12 @@ class DocumentStatusInfo(BaseModel):
 
     status: str = Field(..., description="Document status: processing, completed, or failed")
     error: str | None = Field(default=None, description="Error message when status is failed")
+    source_created_at: dt.datetime | None = Field(
+        default=None, description="Original file creation date (from file metadata)"
+    )
+    source_modified_at: dt.datetime | None = Field(
+        default=None, description="Original file modification date (from file metadata)"
+    )
 
 
 class DocumentStatusRequest(BaseModel):
@@ -180,6 +193,12 @@ class SearchResult(BaseModel):
     score: float = Field(..., description="Similarity score")
     file_id: str | None = Field(default=None, description="Source file ID")
     filename: str | None = Field(default=None, description="Source document filename")
+    source_created_at: dt.datetime | None = Field(
+        default=None, description="Original file creation date (from file metadata)"
+    )
+    source_modified_at: dt.datetime | None = Field(
+        default=None, description="Original file modification date (from file metadata)"
+    )
     metadata: dict[str, Any] | None = Field(default=None, description="Result metadata")
 
 

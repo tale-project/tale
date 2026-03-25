@@ -10,6 +10,27 @@ import { extractExtension } from './extract_extension';
 import { getUserNamesBatch } from './get_user_names_batch';
 
 /**
+ * Resolve the best available source modification date:
+ * 1. Top-level sourceModifiedAt (from file sync / RAG extraction)
+ * 2. Metadata sourceModifiedAt (legacy location)
+ * 3. Metadata lastModified (generic provider timestamp)
+ *
+ * Returns undefined when no source date is available — the UI shows "—".
+ */
+export function getDocumentEffectiveDate(
+  document: { sourceModifiedAt?: number },
+  metadata: DocumentMetadata | undefined,
+  fallback?: number,
+): number | undefined {
+  return (
+    document.sourceModifiedAt ??
+    metadata?.sourceModifiedAt ??
+    metadata?.lastModified ??
+    fallback
+  );
+}
+
+/**
  * Transform options for batch processing
  */
 export interface TransformOptions {
@@ -75,7 +96,10 @@ export function transformToDocumentItem(
     sourceProvider:
       document.sourceProvider ?? metadata?.sourceProvider ?? 'upload',
     sourceMode: normalizeSourceMode(metadata?.sourceMode),
-    lastModified: metadata?.lastModified ?? document._creationTime,
+    sourceCreatedAt: document.sourceCreatedAt,
+    sourceModifiedAt: document.sourceModifiedAt,
+    lastModified: getDocumentEffectiveDate(document, metadata),
+    uploadedAt: document._creationTime,
     syncConfigId: metadata?.syncConfigId,
     isDirectlySelected: metadata?.isDirectlySelected,
     url,

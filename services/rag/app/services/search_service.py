@@ -16,6 +16,8 @@ from tale_knowledge.embedding import EmbeddingService
 from tale_knowledge.retrieval import merge_rrf
 from tale_shared.db import acquire_with_retry
 
+from ..config import settings
+
 SCHEMA = "private_knowledge"
 
 
@@ -56,12 +58,21 @@ class RagSearchService:
 
             merged = merge_rrf([fts_results, vector_results], top_k)
 
+            if settings.recency_boost_enabled:
+                _apply_recency_boost(
+                    merged,
+                    decay_base=settings.recency_decay_base,
+                    max_age_days=settings.recency_max_age_days,
+                )
+
             return [
                 {
                     "content": item["chunk_content"],
                     "score": item["rrf_score"],
                     "file_id": str(item["file_id"]) if item.get("file_id") else None,
                     "filename": item.get("filename"),
+                    "source_created_at": item.get("source_created_at"),
+                    "source_modified_at": item.get("source_modified_at"),
                 }
                 for item in merged
             ]
@@ -93,6 +104,8 @@ class RagSearchService:
                         "score": 1.0 / (i + 1),
                         "file_id": str(item["file_id"]) if item.get("file_id") else None,
                         "filename": item.get("filename"),
+                        "source_created_at": item.get("source_created_at"),
+                        "source_modified_at": item.get("source_modified_at"),
                     }
                     for i, item in enumerate(vector_results)
                 ]
@@ -128,6 +141,7 @@ class RagSearchService:
         sql = f"""
             SELECT c.id, c.chunk_content, c.chunk_index, c.document_id,
                    d.file_id, d.filename,
+                   d.source_created_at, d.source_modified_at, d.created_at,
                    paradedb.score(c.id) AS score
             FROM {SCHEMA}.chunks c
             LEFT JOIN {SCHEMA}.documents d ON c.document_id = d.id
@@ -161,6 +175,7 @@ class RagSearchService:
         sql = f"""
             SELECT c.id, c.chunk_content, c.chunk_index, c.document_id,
                    d.file_id, d.filename,
+                   d.source_created_at, d.source_modified_at, d.created_at,
                    1 - (c.embedding <=> $1::vector) AS score
             FROM {SCHEMA}.chunks c
             LEFT JOIN {SCHEMA}.documents d ON c.document_id = d.id
@@ -174,3 +189,34 @@ class RagSearchService:
         async with acquire_with_retry(self._pool) as conn:
             rows = await conn.fetch(sql, *params)
             return [dict(r) for r in rows]
+
+
+def _apply_recency_boost(
+    results: list[dict[str, Any]],
+    decay_base: float,
+    max_age_days: int,
+) -> None:
+    """Scale RRF scores by document age so newer documents rank higher.
+
+    Modifies *results* in place: adjusts ``rrf_score``, re-normalises so the
+    top result equals 1.0, and re-sorts descending.
+    """
+    from datetime import UTC, datetime
+
+    now = datetime.now(UTC)
+    for item in results:
+        doc_ts = item.get("source_modified_at") or item.get("created_at")
+        if doc_ts is None:
+            item["rrf_score"] *= decay_base
+            continue
+        age_days = (now - doc_ts).total_seconds() / 86400
+        recency_factor = max(0.0, 1.0 - age_days / max_age_days)
+        boost = decay_base + (1.0 - decay_base) * recency_factor
+        item["rrf_score"] *= boost
+
+    max_score = max((r["rrf_score"] for r in results), default=1.0)
+    if max_score > 0:
+        for r in results:
+            r["rrf_score"] /= max_score
+
+    results.sort(key=lambda x: x.get("rrf_score", 0), reverse=True)

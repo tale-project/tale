@@ -6,10 +6,12 @@ Covers:
 - Graceful fallback when BM25 index not ready
 - UndefinedTableError / UndefinedColumnError handling
 - Empty results from both search channels
+- Recency boost scoring
 """
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -436,3 +438,155 @@ class TestFtsSearch:
 
             with pytest.raises(RuntimeError, match="connection refused"):
                 await service._fts_search("query", None, 10)
+
+
+class TestApplyRecencyBoost:
+    """Unit tests for _apply_recency_boost."""
+
+    def test_recent_document_scores_higher_than_old(self):
+        from app.services.search_service import _apply_recency_boost
+
+        now = datetime.now(timezone.utc)
+        results = [
+            {"rrf_score": 1.0, "source_modified_at": now - timedelta(days=700), "created_at": None},
+            {"rrf_score": 1.0, "source_modified_at": now - timedelta(days=1), "created_at": None},
+        ]
+
+        _apply_recency_boost(results, decay_base=0.85, max_age_days=730)
+
+        assert results[0]["source_modified_at"] > results[1]["source_modified_at"]
+        assert results[0]["rrf_score"] > results[1]["rrf_score"]
+
+    def test_none_timestamps_get_conservative_boost(self):
+        from app.services.search_service import _apply_recency_boost
+
+        now = datetime.now(timezone.utc)
+        results = [
+            {"rrf_score": 1.0, "source_modified_at": None, "created_at": None},
+            {"rrf_score": 1.0, "source_modified_at": now - timedelta(days=1), "created_at": None},
+        ]
+
+        _apply_recency_boost(results, decay_base=0.85, max_age_days=730)
+
+        assert results[0]["rrf_score"] == pytest.approx(1.0)
+        assert results[1]["rrf_score"] < 1.0
+
+    def test_falls_back_to_created_at(self):
+        from app.services.search_service import _apply_recency_boost
+
+        now = datetime.now(timezone.utc)
+        results = [
+            {"rrf_score": 1.0, "source_modified_at": None, "created_at": now - timedelta(days=1)},
+            {"rrf_score": 1.0, "source_modified_at": None, "created_at": None},
+        ]
+
+        _apply_recency_boost(results, decay_base=0.85, max_age_days=730)
+
+        # Doc with created_at fallback should score higher than one with no date
+        assert results[0]["rrf_score"] > results[1]["rrf_score"]
+
+    def test_very_old_document_gets_decay_base(self):
+        from app.services.search_service import _apply_recency_boost
+
+        now = datetime.now(timezone.utc)
+        results = [
+            {"rrf_score": 1.0, "source_modified_at": now - timedelta(days=2000), "created_at": None},
+            {"rrf_score": 1.0, "source_modified_at": now - timedelta(days=1), "created_at": None},
+        ]
+
+        _apply_recency_boost(results, decay_base=0.85, max_age_days=730)
+
+        # Recent doc normalizes to 1.0; very old doc should get approximately decay_base
+        assert results[0]["rrf_score"] == pytest.approx(1.0)
+        assert results[1]["rrf_score"] == pytest.approx(0.85, abs=0.01)
+
+    def test_top_score_normalized_to_one(self):
+        from app.services.search_service import _apply_recency_boost
+
+        now = datetime.now(timezone.utc)
+        results = [
+            {"rrf_score": 0.5, "source_modified_at": now - timedelta(days=10), "created_at": None},
+            {"rrf_score": 0.3, "source_modified_at": now - timedelta(days=100), "created_at": None},
+        ]
+
+        _apply_recency_boost(results, decay_base=0.85, max_age_days=730)
+
+        assert results[0]["rrf_score"] == pytest.approx(1.0)
+
+    def test_empty_results_no_error(self):
+        from app.services.search_service import _apply_recency_boost
+
+        results: list[dict[str, Any]] = []
+        _apply_recency_boost(results, decay_base=0.85, max_age_days=730)
+
+        assert results == []
+
+    def test_results_sorted_descending(self):
+        from app.services.search_service import _apply_recency_boost
+
+        now = datetime.now(timezone.utc)
+        results = [
+            {"rrf_score": 0.8, "source_modified_at": now - timedelta(days=600), "created_at": None},
+            {"rrf_score": 0.5, "source_modified_at": now - timedelta(days=1), "created_at": None},
+            {"rrf_score": 0.9, "source_modified_at": now - timedelta(days=300), "created_at": None},
+        ]
+
+        _apply_recency_boost(results, decay_base=0.85, max_age_days=730)
+
+        scores = [r["rrf_score"] for r in results]
+        assert scores == sorted(scores, reverse=True)
+
+
+class TestRecencyBoostIntegration:
+    """Recency boost applied during search() when enabled."""
+
+    async def test_recency_boost_applied_when_enabled(self):
+        now = datetime.now(timezone.utc)
+        fts_rows = [
+            {
+                **_make_row(1, "Old doc", "doc-1", 5.0),
+                "source_modified_at": now - timedelta(days=700),
+                "created_at": now - timedelta(days=700),
+            },
+        ]
+        vector_rows = [
+            {
+                **_make_row(2, "New doc", "doc-2", 0.9),
+                "source_modified_at": now - timedelta(days=1),
+                "created_at": now - timedelta(days=1),
+            },
+        ]
+
+        service, *_ = _build_service()
+        service._fts_search = AsyncMock(return_value=fts_rows)
+        service._vector_search = AsyncMock(return_value=vector_rows)
+
+        with patch("app.services.search_service.settings") as mock_settings:
+            mock_settings.recency_boost_enabled = True
+            mock_settings.recency_decay_base = 0.85
+            mock_settings.recency_max_age_days = 730
+
+            results = await service.search("query")
+
+        assert len(results) == 2
+        new_doc = next(r for r in results if r["file_id"] == "doc-2")
+        old_doc = next(r for r in results if r["file_id"] == "doc-1")
+        assert new_doc["score"] >= old_doc["score"]
+
+    async def test_recency_boost_skipped_when_disabled(self):
+        fts_rows = [_make_row(1, "Result A", "doc-1", 5.0)]
+        vector_rows = [_make_row(2, "Result B", "doc-2", 0.9)]
+
+        service, *_ = _build_service()
+        service._fts_search = AsyncMock(return_value=fts_rows)
+        service._vector_search = AsyncMock(return_value=vector_rows)
+
+        with patch("app.services.search_service.settings") as mock_settings:
+            mock_settings.recency_boost_enabled = False
+
+            with patch("app.services.search_service._apply_recency_boost") as mock_boost:
+                results = await service.search("query")
+
+                mock_boost.assert_not_called()
+
+        assert len(results) == 2

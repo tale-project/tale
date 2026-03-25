@@ -9,6 +9,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from loguru import logger
 
 from app.models import (
+    FileMetadataResponse,
     GeneratePptxResponse,
     ParseFileResponse,
 )
@@ -184,4 +185,44 @@ async def parse_pptx_file(
             success=False,
             filename=file.filename or "unknown",
             error=f"Failed to parse PPTX file: {e!s}",
+        )
+
+
+@router.post("/extract-metadata", response_model=FileMetadataResponse)
+async def extract_pptx_metadata(file: UploadFile = _FILE_UPLOAD):
+    """Extract metadata from a PPTX file without full text extraction."""
+    from app.services.file_parser_service import _extract_ooxml_metadata
+
+    try:
+        file_bytes = await file.read()
+        if not file_bytes:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty file uploaded")
+
+        filename = file.filename or "unknown.pptx"
+        meta = _extract_ooxml_metadata(file_bytes, "pptx")
+
+        from io import BytesIO
+
+        from pptx import Presentation
+
+        prs = Presentation(BytesIO(file_bytes))
+
+        return FileMetadataResponse(
+            success=True,
+            filename=filename,
+            file_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            title=meta["title"] or None,
+            author=meta["author"] or None,
+            slide_count=len(prs.slides),
+            created_at=meta["created_at"],
+            modified_at=meta["modified_at"],
+        )
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Error extracting PPTX metadata")
+        return FileMetadataResponse(
+            success=False,
+            filename=file.filename or "unknown",
+            error="Failed to extract PPTX metadata",
         )

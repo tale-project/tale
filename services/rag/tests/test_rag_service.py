@@ -76,15 +76,12 @@ class TestAddDocument:
                 b"content bytes",
                 "doc-1",
                 "report.pdf",
-                user_id="user-1",
             )
 
         assert result["success"] is True
         assert result["file_id"] == "doc-1"
         assert result["chunks_created"] == 5
         mock_idx.assert_awaited_once()
-        call_kwargs = mock_idx.call_args
-        assert call_kwargs[1]["user_id"] == "user-1"
 
     async def test_skipped_returns_skipped(self):
         service = _make_service()
@@ -101,7 +98,6 @@ class TestAddDocument:
                 b"content",
                 "doc-skip",
                 "file.txt",
-                user_id="user-1",
             )
 
         assert result["skipped"] is True
@@ -129,7 +125,7 @@ class TestAddDocument:
                     "skip_reason": "x",
                 },
             ):
-                await service.add_document(b"x", "d", "f.txt", user_id="u1")
+                await service.add_document(b"x", "d", "f.txt")
 
         mock_init.assert_awaited_once()
 

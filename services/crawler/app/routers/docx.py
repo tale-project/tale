@@ -12,6 +12,7 @@ from loguru import logger
 from app.models import (
     ApplyStructuredResponse,
     ExtractStructuredResponse,
+    FileMetadataResponse,
     GenerateDocxRequest,
     GenerateDocxResponse,
     HtmlToDocxRequest,
@@ -474,4 +475,37 @@ async def apply_docx_structured(
         return ApplyStructuredResponse(
             success=False,
             error="Failed to apply structured modifications to DOCX",
+        )
+
+
+@router.post("/extract-metadata", response_model=FileMetadataResponse)
+async def extract_docx_metadata(file: UploadFile = _FILE_UPLOAD):
+    """Extract metadata from a DOCX file without full text extraction."""
+    from app.services.file_parser_service import _extract_ooxml_metadata
+
+    try:
+        file_bytes = await file.read()
+        if not file_bytes:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty file uploaded")
+
+        filename = file.filename or "unknown.docx"
+        meta = _extract_ooxml_metadata(file_bytes, "docx")
+
+        return FileMetadataResponse(
+            success=True,
+            filename=filename,
+            file_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            title=meta["title"] or None,
+            author=meta["author"] or None,
+            created_at=meta["created_at"],
+            modified_at=meta["modified_at"],
+        )
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Error extracting DOCX metadata")
+        return FileMetadataResponse(
+            success=False,
+            filename=file.filename or "unknown",
+            error="Failed to extract DOCX metadata",
         )

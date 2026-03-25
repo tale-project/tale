@@ -60,6 +60,9 @@ export const documentItemValidator = v.object({
   sourceProvider: v.optional(sourceProviderValidator),
   sourceMode: v.optional(sourceModeValidator),
   lastModified: v.optional(v.number()),
+  uploadedAt: v.optional(v.number()),
+  sourceCreatedAt: v.optional(v.number()),
+  sourceModifiedAt: v.optional(v.number()),
   syncConfigId: v.optional(v.string()),
   isDirectlySelected: v.optional(v.boolean()),
   url: v.optional(v.string()),
@@ -129,4 +132,6 @@ export const documentRecordValidator = v.object({
   sourceProvider: v.optional(sourceProviderValidator),
   externalItemId: v.optional(v.string()),
   ragInfo: v.optional(ragInfoValidator),
+  sourceCreatedAt: v.optional(v.number()),
+  sourceModifiedAt: v.optional(v.number()),
 });

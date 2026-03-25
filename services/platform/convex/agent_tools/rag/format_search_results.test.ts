@@ -75,6 +75,63 @@ describe('formatSearchResults', () => {
     );
   });
 
+  it('includes modified date annotation when source_modified_at is provided', () => {
+    const result = formatSearchResults([
+      {
+        content: 'Content',
+        score: 0.8,
+        filename: 'report.pdf',
+        source_modified_at: '2023-06-15T14:30:52Z',
+        file_id: 'doc-123',
+      },
+    ]);
+    expect(result).toBe(
+      '[1] (Relevance: 80.0%) [Source: report.pdf] [Modified: 2023-06-15] [FileID: doc-123]\nContent',
+    );
+  });
+
+  it('omits modified date annotation when source_modified_at is null', () => {
+    const result = formatSearchResults([
+      {
+        content: 'Content',
+        score: 0.8,
+        filename: 'report.pdf',
+        source_modified_at: null,
+      },
+    ]);
+    expect(result).toBe('[1] (Relevance: 80.0%) [Source: report.pdf]\nContent');
+  });
+
+  it('includes created date annotation when only source_created_at is provided', () => {
+    const result = formatSearchResults([
+      {
+        content: 'Content',
+        score: 0.8,
+        filename: 'report.pdf',
+        source_created_at: '2023-01-10T09:00:00Z',
+        source_modified_at: null,
+        file_id: 'doc-123',
+      },
+    ]);
+    expect(result).toBe(
+      '[1] (Relevance: 80.0%) [Source: report.pdf] [Created: 2023-01-10] [FileID: doc-123]\nContent',
+    );
+  });
+
+  it('prefers modified date over created date when both are provided', () => {
+    const result = formatSearchResults([
+      {
+        content: 'Content',
+        score: 0.8,
+        source_created_at: '2023-01-10T09:00:00Z',
+        source_modified_at: '2023-06-15T14:30:52Z',
+      },
+    ]);
+    expect(result).toBe(
+      '[1] (Relevance: 80.0%) [Modified: 2023-06-15]\nContent',
+    );
+  });
+
   it('omits annotations when filename and file_id are undefined', () => {
     const result = formatSearchResults([
       { content: 'Content', score: 0.8, filename: undefined },

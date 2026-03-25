@@ -37,12 +37,16 @@ export const documentsTable = defineTable({
         v.literal('failed'),
       ),
       indexedAt: v.optional(v.number()),
+      /** @deprecated No longer written; use document.fileId directly. Kept for backward compatibility. */
       indexedFileId: v.optional(v.id('_storage')),
       error: v.optional(v.string()),
       /** @deprecated No longer written, kept for backward compatibility with existing data. */
       jobId: v.optional(v.string()),
     }),
   ),
+  indexed: v.optional(v.boolean()),
+  sourceCreatedAt: v.optional(v.number()),
+  sourceModifiedAt: v.optional(v.number()),
   createdBy: v.optional(v.string()),
   folderId: v.optional(v.id('folders')),
   metadata: v.optional(jsonRecordValidator),
@@ -60,4 +64,5 @@ export const documentsTable = defineTable({
   ])
   .index('by_organizationId_and_extension', ['organizationId', 'extension'])
   .index('by_organizationId_and_title', ['organizationId', 'title'])
-  .index('by_organizationId_and_fileId', ['organizationId', 'fileId']);
+  .index('by_organizationId_and_fileId', ['organizationId', 'fileId'])
+  .index('by_organizationId_and_indexed', ['organizationId', 'indexed']);
