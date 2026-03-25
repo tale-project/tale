@@ -100,6 +100,21 @@ tale deploy
 
 On first run, the CLI interactively configures your domain, TLS, API keys, and security secrets. See [Tale CLI documentation](tools/cli/README.md) for the full command reference.
 
+### Behind a Reverse Proxy
+
+If Tale runs behind a TLS-terminating reverse proxy (e.g., nginx, Traefik, Cloudflare Tunnel):
+
+```bash
+HOST=yourdomain.com
+SITE_URL=https://yourdomain.com
+TLS_MODE=external
+```
+
+Caddy will listen on HTTP only (port 80). Your reverse proxy must:
+- Terminate TLS and forward traffic to Tale on port 80
+- Forward WebSocket connections (`/ws_api/*` and `/api/*/sync` paths)
+- Set `X-Forwarded-Proto` header
+
 ## Authentication Options
 
 Tale supports multiple authentication methods. By default, users sign up with email/password.

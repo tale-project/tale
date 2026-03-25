@@ -138,7 +138,7 @@ CA_CERT_PATH="${CADDY_CA_CERT_PATH:-${CADDY_ROOT_CA:-}}"
 
 # For self-signed mode, trigger and wait for Caddy to generate CA certificate
 # Caddy generates certificates on-demand (lazy), so we need to trigger it
-if [ "${TLS_MODE:-selfsigned}" != "letsencrypt" ] && [ -n "${CA_CERT_PATH}" ]; then
+if [ "${TLS_MODE:-selfsigned}" != "letsencrypt" ] && [ "${TLS_MODE:-selfsigned}" != "external" ] && [ -n "${CA_CERT_PATH}" ]; then
   CA_WAIT_TIMEOUT="${CA_WAIT_TIMEOUT:-60}"
   CA_WAIT_INTERVAL=2
   waited=0
