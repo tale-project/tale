@@ -6,6 +6,8 @@ Covers:
 - _extract_file_dates: dispatching by file extension
 - _ms_timestamp_to_datetime: Unix ms timestamp conversion
 - PreparedDocument date fields in index_document pipeline
+- Clone path date override
+- Response models include date fields
 """
 
 from __future__ import annotations
@@ -16,6 +18,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.models import DocumentContentResponse, DocumentStatusInfo, SearchResult
 from app.services.indexing_service import (
     _ensure_aware,
     _extract_file_dates,
@@ -314,11 +317,171 @@ class TestIndexDocumentDatesThreaded:
 
         assert result["success"] is True
 
-        # The INSERT query has 7 positional args:
-        # $1=file_id, $2=filename, $3=content_hash, $4=user_id, $5=chunks_count,
-        # $6=source_created_at, $7=source_modified_at
+        # The INSERT query has 6 positional args:
+        # $1=file_id, $2=filename, $3=content_hash, $4=chunks_count,
+        # $5=source_created_at, $6=source_modified_at
         insert_call = mock_conn.fetchrow.call_args_list[1]
         args = insert_call[0]
         # args[0] is the SQL string, positional params start at args[1]
-        source_created_arg = args[6]  # $6
+        source_created_arg = args[5]  # $5
         assert source_created_arg == caller_created
+
+
+class TestCloneDateOverride:
+    """Verify clone path respects caller-provided date overrides."""
+
+    async def test_clone_uses_caller_dates_over_source(self):
+        from app.services.indexing_service import _do_clone
+
+        source_created = dt.datetime(2023, 1, 1, tzinfo=dt.timezone.utc)
+        source_modified = dt.datetime(2023, 6, 1, tzinfo=dt.timezone.utc)
+        caller_created = dt.datetime(2022, 3, 15, tzinfo=dt.timezone.utc)
+        caller_modified = dt.datetime(2022, 9, 20, tzinfo=dt.timezone.utc)
+
+        mock_conn = AsyncMock()
+        mock_conn.fetchrow = AsyncMock(
+            side_effect=[
+                {
+                    "chunks_count": 5,
+                    "source_created_at": source_created,
+                    "source_modified_at": source_modified,
+                },
+                {"id": "new-uuid"},
+            ]
+        )
+        mock_conn.fetchval = AsyncMock(return_value=5)
+        mock_conn.execute = AsyncMock()
+
+        mock_tx = AsyncMock()
+        mock_tx.__aenter__ = AsyncMock(return_value=mock_tx)
+        mock_tx.__aexit__ = AsyncMock(return_value=False)
+        mock_conn.transaction = MagicMock(return_value=mock_tx)
+
+        ctx = AsyncMock()
+        ctx.__aenter__ = AsyncMock(return_value=mock_conn)
+        ctx.__aexit__ = AsyncMock(return_value=False)
+
+        pool = MagicMock()
+
+        with patch("app.services.indexing_service.acquire_with_retry", return_value=ctx):
+            result = await _do_clone(
+                pool,
+                source_doc_id=42,
+                file_id="clone-test",
+                filename="test.pdf",
+                content_hash="hash456",
+                existing_id=None,
+                source_created_at=caller_created,
+                source_modified_at=caller_modified,
+            )
+
+        assert result is not None
+
+        # INSERT has 6 positional args:
+        # $1=file_id, $2=filename, $3=content_hash, $4=chunks_count,
+        # $5=source_created_at, $6=source_modified_at
+        insert_call = mock_conn.fetchrow.call_args_list[1]
+        args = insert_call[0]
+        assert args[5] == caller_created
+        assert args[6] == caller_modified
+
+    async def test_clone_falls_back_to_source_dates_when_no_override(self):
+        from app.services.indexing_service import _do_clone
+
+        source_created = dt.datetime(2023, 1, 1, tzinfo=dt.timezone.utc)
+        source_modified = dt.datetime(2023, 6, 1, tzinfo=dt.timezone.utc)
+
+        mock_conn = AsyncMock()
+        mock_conn.fetchrow = AsyncMock(
+            side_effect=[
+                {
+                    "chunks_count": 5,
+                    "source_created_at": source_created,
+                    "source_modified_at": source_modified,
+                },
+                {"id": "new-uuid"},
+            ]
+        )
+        mock_conn.fetchval = AsyncMock(return_value=5)
+        mock_conn.execute = AsyncMock()
+
+        mock_tx = AsyncMock()
+        mock_tx.__aenter__ = AsyncMock(return_value=mock_tx)
+        mock_tx.__aexit__ = AsyncMock(return_value=False)
+        mock_conn.transaction = MagicMock(return_value=mock_tx)
+
+        ctx = AsyncMock()
+        ctx.__aenter__ = AsyncMock(return_value=mock_conn)
+        ctx.__aexit__ = AsyncMock(return_value=False)
+
+        pool = MagicMock()
+
+        with patch("app.services.indexing_service.acquire_with_retry", return_value=ctx):
+            result = await _do_clone(
+                pool,
+                source_doc_id=42,
+                file_id="clone-test",
+                filename="test.pdf",
+                content_hash="hash456",
+                existing_id=None,
+            )
+
+        assert result is not None
+
+        insert_call = mock_conn.fetchrow.call_args_list[1]
+        args = insert_call[0]
+        assert args[5] == source_created
+        assert args[6] == source_modified
+
+
+class TestResponseModelDateFields:
+    """Verify response models accept and serialize date fields."""
+
+    def test_search_result_includes_source_modified_at(self):
+        ts = dt.datetime(2023, 6, 15, 14, 30, tzinfo=dt.timezone.utc)
+        result = SearchResult(
+            content="text",
+            score=0.9,
+            file_id="f1",
+            filename="test.pdf",
+            source_modified_at=ts,
+        )
+        assert result.source_modified_at == ts
+        data = result.model_dump()
+        assert "source_modified_at" in data
+
+    def test_search_result_source_modified_at_defaults_to_none(self):
+        result = SearchResult(content="text", score=0.9)
+        assert result.source_modified_at is None
+
+    def test_document_content_response_includes_dates(self):
+        created = dt.datetime(2023, 1, 1, tzinfo=dt.timezone.utc)
+        modified = dt.datetime(2023, 6, 1, tzinfo=dt.timezone.utc)
+        resp = DocumentContentResponse(
+            file_id="f1",
+            title="test.pdf",
+            content="text",
+            chunk_range={"start": 1, "end": 1},
+            total_chunks=1,
+            total_chars=4,
+            source_created_at=created,
+            source_modified_at=modified,
+        )
+        assert resp.source_created_at == created
+        assert resp.source_modified_at == modified
+
+    def test_document_status_info_includes_dates(self):
+        created = dt.datetime(2023, 1, 1, tzinfo=dt.timezone.utc)
+        modified = dt.datetime(2023, 6, 1, tzinfo=dt.timezone.utc)
+        info = DocumentStatusInfo(
+            status="completed",
+            source_created_at=created,
+            source_modified_at=modified,
+        )
+        assert info.source_created_at == created
+        assert info.source_modified_at == modified
+
+    def test_document_status_info_dates_default_to_none(self):
+        info = DocumentStatusInfo(status="processing")
+        assert info.source_created_at is None
+        assert info.source_modified_at is None

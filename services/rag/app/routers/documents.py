@@ -124,21 +124,19 @@ SUPPORTED_EXTENSIONS = {
 async def _insert_processing_row(
     file_id: str,
     filename: str,
-    user_id: str | None = None,
 ) -> None:
     """Insert a processing status row at ingestion start."""
     pool = await get_pool()
     async with acquire_with_retry(pool) as conn:
         await conn.execute(
             f"""
-            INSERT INTO {SCHEMA}.documents (file_id, filename, user_id, status)
-            VALUES ($1, $2, $3, 'processing')
-            ON CONFLICT (file_id, COALESCE(team_id, ''), COALESCE(user_id, ''))
+            INSERT INTO {SCHEMA}.documents (file_id, filename, status)
+            VALUES ($1, $2, 'processing')
+            ON CONFLICT (file_id, COALESCE(team_id, ''))
             DO UPDATE SET status = 'processing', error = NULL, chunks_count = 0, updated_at = NOW()
             """,
             file_id,
             filename,
-            user_id,
         )
 
 
@@ -146,28 +144,25 @@ async def _record_failure(
     file_id: str,
     filename: str,
     error: str,
-    user_id: str | None = None,
 ) -> None:
     """Record failure status in documents table."""
     pool = await get_pool()
     async with acquire_with_retry(pool) as conn:
         await conn.execute(
             f"""
-            INSERT INTO {SCHEMA}.documents (file_id, filename, user_id, status, error)
-            VALUES ($1, $2, $3, 'failed', $4)
-            ON CONFLICT (file_id, COALESCE(team_id, ''), COALESCE(user_id, ''))
+            INSERT INTO {SCHEMA}.documents (file_id, filename, status, error)
+            VALUES ($1, $2, 'failed', $3)
+            ON CONFLICT (file_id, COALESCE(team_id, ''))
             DO UPDATE SET status = 'failed', error = EXCLUDED.error, chunks_count = 0, updated_at = NOW()
             """,
             file_id,
             filename,
-            user_id,
             error,
         )
 
 
 async def _mark_completed(
     file_id: str,
-    user_id: str | None = None,
 ) -> None:
     """Mark document status as completed (used when content is unchanged on re-upload)."""
     pool = await get_pool()
@@ -177,10 +172,8 @@ async def _mark_completed(
             UPDATE {SCHEMA}.documents
             SET status = 'completed', error = NULL, updated_at = NOW()
             WHERE file_id = $1
-              AND COALESCE(user_id, '') = COALESCE($2, '')
             """,
             file_id,
-            user_id,
         )
 
 
@@ -196,7 +189,6 @@ async def _background_ingest(
     content: bytes,
     file_id: str,
     filename: str,
-    user_id: str | None = None,
     source_created_at: dt.datetime | None = None,
     source_modified_at: dt.datetime | None = None,
 ) -> None:
@@ -206,12 +198,11 @@ async def _background_ingest(
             content=content,
             file_id=file_id,
             filename=filename,
-            user_id=user_id,
             source_created_at=source_created_at,
             source_modified_at=source_modified_at,
         )
         if result.get("skipped"):
-            await _mark_completed(file_id, user_id)
+            await _mark_completed(file_id)
         logger.info(
             "Background ingestion completed",
             extra={
@@ -227,7 +218,7 @@ async def _background_ingest(
             file_id,
         )
         try:
-            await _record_failure(file_id, filename, _sanitize_error(exc), user_id)
+            await _record_failure(file_id, filename, _sanitize_error(exc))
         except Exception as record_exc:
             logger.critical("Could not record failure for {}: {}", file_id, record_exc)
     finally:
@@ -308,7 +299,6 @@ async def upload_document(
     file: UploadFile = _FILE_UPLOAD,
     metadata: str | None = Form(None, description="Optional metadata as JSON string"),
     file_id: str | None = Form(None, description="Optional custom file ID"),
-    user_id: str | None = Form(None, description="User ID for multi-tenant isolation"),
     sync: bool = Query(False, description="If true, wait for ingestion to complete before responding"),
 ):
     """Upload a file to the knowledge base.
@@ -341,19 +331,18 @@ async def upload_document(
 
         doc_id = file_id or f"file-{uuid4().hex}"
 
-        await _insert_processing_row(doc_id, file.filename, user_id)
+        await _insert_processing_row(doc_id, file.filename)
 
         if sync:
             result = await rag_service.add_document(
                 content=file_bytes,
                 file_id=doc_id,
                 filename=file.filename,
-                user_id=user_id,
                 source_created_at=source_created_at,
                 source_modified_at=source_modified_at,
             )
             if result.get("skipped"):
-                await _mark_completed(doc_id, user_id)
+                await _mark_completed(doc_id)
 
             skipped = result.get("skipped", False)
             skip_reason = result.get("skip_reason")
@@ -372,7 +361,6 @@ async def upload_document(
             file_bytes,
             doc_id,
             file.filename,
-            user_id,
             source_created_at,
             source_modified_at,
         )
@@ -554,7 +542,14 @@ async def get_document_statuses(request: DocumentStatusRequest):
     try:
         statuses_raw = await rag_service.get_document_statuses(request.file_ids)
         statuses = {
-            did: DocumentStatusInfo(status=info["status"], error=info.get("error")) if info else None
+            did: DocumentStatusInfo(
+                status=info["status"],
+                error=info.get("error"),
+                source_created_at=info.get("source_created_at"),
+                source_modified_at=info.get("source_modified_at"),
+            )
+            if info
+            else None
             for did, info in statuses_raw.items()
         }
         return DocumentStatusResponse(statuses=statuses)

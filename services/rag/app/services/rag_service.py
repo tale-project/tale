@@ -121,7 +121,6 @@ class RagService:
         file_id: str,
         filename: str,
         *,
-        user_id: str | None = None,
         source_created_at: dt.datetime | None = None,
         source_modified_at: dt.datetime | None = None,
     ) -> dict[str, Any]:
@@ -139,7 +138,6 @@ class RagService:
             file_id,
             content,
             filename,
-            user_id=user_id,
             embedding_service=self._embedding_service,
             vision_client=self._vision_client,
             chunk_size=settings.chunk_size,
@@ -291,7 +289,7 @@ class RagService:
 
         async with acquire_with_retry(self._pool) as conn:
             doc = await conn.fetchrow(
-                f"SELECT id, file_id, filename, chunks_count FROM {SCHEMA}.documents WHERE {where} LIMIT 1",
+                f"SELECT id, file_id, filename, chunks_count, source_created_at, source_modified_at FROM {SCHEMA}.documents WHERE {where} LIMIT 1",
                 *params,
             )
 
@@ -319,6 +317,8 @@ class RagService:
                 "chunk_range": {"start": 0, "end": 0},
                 "total_chunks": total_chunks,
                 "total_chars": 0,
+                "source_created_at": doc["source_created_at"],
+                "source_modified_at": doc["source_modified_at"],
             }
 
         combined = "\n\n".join(row["chunk_content"] for row in rows)
@@ -333,6 +333,8 @@ class RagService:
             "chunk_range": {"start": actual_start, "end": actual_end},
             "total_chunks": total_chunks,
             "total_chars": len(combined),
+            "source_created_at": doc["source_created_at"],
+            "source_modified_at": doc["source_modified_at"],
         }
 
         if return_chunks:
@@ -363,7 +365,7 @@ class RagService:
             rows = await conn.fetch(
                 f"""
                 SELECT DISTINCT ON (file_id)
-                    file_id, status, error
+                    file_id, status, error, source_created_at, source_modified_at
                 FROM {SCHEMA}.documents
                 WHERE file_id = ANY($1)
                 ORDER BY file_id,
@@ -378,7 +380,15 @@ class RagService:
                 file_ids,
             )
 
-        found = {row["file_id"]: {"status": row["status"], "error": row["error"]} for row in rows}
+        found = {
+            row["file_id"]: {
+                "status": row["status"],
+                "error": row["error"],
+                "source_created_at": row["source_created_at"],
+                "source_modified_at": row["source_modified_at"],
+            }
+            for row in rows
+        }
         return {fid: found.get(fid) for fid in file_ids}
 
     async def delete_document(

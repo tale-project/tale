@@ -229,7 +229,8 @@ async def clone_from_existing(
     filename: str,
     content_hash: str,
     *,
-    user_id: str | None = None,
+    source_created_at: dt.datetime | None = None,
+    source_modified_at: dt.datetime | None = None,
 ) -> dict[str, Any]:
     """Clone chunks from an existing document into a new scope.
 
@@ -238,17 +239,12 @@ async def clone_from_existing(
     """
     async with acquire_with_retry(pool) as conn:
         existing = await conn.fetchrow(
-            f"""
-            SELECT id, content_hash FROM {SCHEMA}.documents
-            WHERE file_id = $1
-              AND COALESCE(user_id, '') = COALESCE($2, '')
-            """,
+            f"SELECT id, content_hash FROM {SCHEMA}.documents WHERE file_id = $1",
             file_id,
-            user_id,
         )
 
     if existing and existing["content_hash"] == content_hash:
-        logger.info("Document {} content unchanged for user={}, skipping (clone path)", file_id, user_id)
+        logger.info("Document {} content unchanged, skipping (clone path)", file_id)
         return {
             "success": True,
             "file_id": file_id,
@@ -268,15 +264,15 @@ async def clone_from_existing(
                 filename,
                 content_hash,
                 existing_id,
-                user_id=user_id,
+                source_created_at=source_created_at,
+                source_modified_at=source_modified_at,
             )
             if result is None:
                 return None  # type: ignore[return-value]
             logger.info(
-                "Cloned document {}: {} chunks for user={} (from source {})",
+                "Cloned document {}: {} chunks (from source {})",
                 file_id,
                 result["chunks_created"],
-                user_id,
                 source_doc_id,
             )
             return result
@@ -295,7 +291,8 @@ async def _do_clone(
     content_hash: str,
     existing_id: int | None,
     *,
-    user_id: str | None = None,
+    source_created_at: dt.datetime | None = None,
+    source_modified_at: dt.datetime | None = None,
 ) -> dict[str, Any] | None:
     """Clone chunks from source document in a single transaction.
 
@@ -317,18 +314,17 @@ async def _do_clone(
         doc_row = await conn.fetchrow(
             f"""
             INSERT INTO {SCHEMA}.documents
-                (file_id, filename, content_hash, user_id, status, chunks_count,
+                (file_id, filename, content_hash, status, chunks_count,
                  source_created_at, source_modified_at)
-            VALUES ($1, $2, $3, $4, 'completed', $5, $6, $7)
+            VALUES ($1, $2, $3, 'completed', $4, $5, $6)
             RETURNING id
             """,
             file_id,
             filename,
             content_hash,
-            user_id,
             source["chunks_count"],
-            source["source_created_at"],
-            source["source_modified_at"],
+            source_created_at or source["source_created_at"],
+            source_modified_at or source["source_modified_at"],
         )
         new_doc_uuid = doc_row["id"]
 
@@ -336,16 +332,15 @@ async def _do_clone(
             f"""
             WITH inserted AS (
                 INSERT INTO {SCHEMA}.chunks
-                    (document_id, user_id, chunk_index, chunk_content, content_hash, embedding)
-                SELECT $1, $2, chunk_index, chunk_content, content_hash, embedding
+                    (document_id, chunk_index, chunk_content, content_hash, embedding)
+                SELECT $1, chunk_index, chunk_content, content_hash, embedding
                 FROM {SCHEMA}.chunks
-                WHERE document_id = $3
+                WHERE document_id = $2
                 RETURNING 1
             )
             SELECT count(*) FROM inserted
             """,
             new_doc_uuid,
-            user_id,
             source_doc_id,
         )
 
@@ -372,8 +367,6 @@ async def _do_store(
     filename: str,
     prepared: PreparedDocument,
     existing_id: int | None,
-    *,
-    user_id: str | None = None,
 ) -> dict[str, Any]:
     """Execute the delete-old + insert-new DB operations in a single transaction."""
     async with acquire_with_retry(pool) as conn, conn.transaction():
@@ -384,15 +377,14 @@ async def _do_store(
         doc_row = await conn.fetchrow(
             f"""
                 INSERT INTO {SCHEMA}.documents
-                    (file_id, filename, content_hash, user_id, status, chunks_count,
+                    (file_id, filename, content_hash, status, chunks_count,
                      source_created_at, source_modified_at)
-                VALUES ($1, $2, $3, $4, 'completed', $5, $6, $7)
+                VALUES ($1, $2, $3, 'completed', $4, $5, $6)
                 RETURNING id
                 """,
             file_id,
             filename,
             prepared.content_hash,
-            user_id,
             len(prepared.chunks),
             prepared.source_created_at,
             prepared.source_modified_at,
@@ -402,7 +394,6 @@ async def _do_store(
         chunk_rows = [
             (
                 doc_uuid,
-                user_id,
                 chunk.index,
                 chunk.content,
                 compute_content_hash(chunk.content.encode("utf-8")),
@@ -413,9 +404,9 @@ async def _do_store(
         await conn.executemany(
             f"""
                 INSERT INTO {SCHEMA}.chunks
-                    (document_id, user_id, chunk_index, chunk_content,
+                    (document_id, chunk_index, chunk_content,
                      content_hash, embedding)
-                VALUES ($1, $2, $3, $4, $5, $6::vector)
+                VALUES ($1, $2, $3, $4, $5::vector)
                 """,
             chunk_rows,
         )
@@ -434,8 +425,6 @@ async def store_prepared_document(
     file_id: str,
     filename: str,
     prepared: PreparedDocument,
-    *,
-    user_id: str | None = None,
 ) -> dict[str, Any]:
     """Store a pre-processed document.
 
@@ -443,17 +432,12 @@ async def store_prepared_document(
     """
     async with acquire_with_retry(pool) as conn:
         existing = await conn.fetchrow(
-            f"""
-            SELECT id, content_hash FROM {SCHEMA}.documents
-            WHERE file_id = $1
-              AND COALESCE(user_id, '') = COALESCE($2, '')
-            """,
+            f"SELECT id, content_hash FROM {SCHEMA}.documents WHERE file_id = $1",
             file_id,
-            user_id,
         )
 
     if existing and existing["content_hash"] == prepared.content_hash:
-        logger.info("Document {} content unchanged for user={}, skipping", file_id, user_id)
+        logger.info("Document {} content unchanged, skipping", file_id)
         return {
             "success": True,
             "file_id": file_id,
@@ -463,7 +447,7 @@ async def store_prepared_document(
         }
 
     if existing:
-        logger.info("Document {} content changed, replacing for user={}", file_id, user_id)
+        logger.info("Document {} content changed, replacing", file_id)
 
     existing_id = existing["id"] if existing else None
 
@@ -475,13 +459,11 @@ async def store_prepared_document(
                 filename,
                 prepared,
                 existing_id,
-                user_id=user_id,
             )
             logger.info(
-                "Indexed document {}: {} chunks for user={}",
+                "Indexed document {}: {} chunks",
                 file_id,
                 result["chunks_created"],
-                user_id,
             )
             return result
         except asyncpg.exceptions.InternalServerError as exc:
@@ -497,7 +479,6 @@ async def index_document(
     content_bytes: bytes,
     filename: str,
     *,
-    user_id: str | None = None,
     embedding_service: EmbeddingService,
     vision_client: VisionClient | None = None,
     chunk_size: int = 2048,
@@ -520,7 +501,8 @@ async def index_document(
             file_id,
             filename,
             content_hash,
-            user_id=user_id,
+            source_created_at=source_created_at,
+            source_modified_at=source_modified_at,
         )
         if result is not None:
             return result
@@ -556,5 +538,4 @@ async def index_document(
         file_id,
         filename,
         prepared,
-        user_id=user_id,
     )

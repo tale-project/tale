@@ -71,6 +71,7 @@ class RagSearchService:
                     "score": item["rrf_score"],
                     "file_id": str(item["file_id"]) if item.get("file_id") else None,
                     "filename": item.get("filename"),
+                    "source_modified_at": item.get("source_modified_at"),
                 }
                 for item in merged
             ]
@@ -102,6 +103,7 @@ class RagSearchService:
                         "score": 1.0 / (i + 1),
                         "file_id": str(item["file_id"]) if item.get("file_id") else None,
                         "filename": item.get("filename"),
+                        "source_modified_at": item.get("source_modified_at"),
                     }
                     for i, item in enumerate(vector_results)
                 ]
