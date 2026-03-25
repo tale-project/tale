@@ -27,11 +27,17 @@ RUN apt-get update \
                 /etc/postgresql/conf.d \
                 /var/lib/postgresql/backup
 
+# Install dbmate for database migrations
+COPY --from=ghcr.io/amacneil/dbmate:2 /usr/local/bin/dbmate /usr/local/bin/dbmate
+
 # Copy initialization scripts
 # - /docker-entrypoint-initdb.d/ : PostgreSQL runs these on first init only
 # - /etc/postgresql/init-scripts/ : Entrypoint wrapper runs these on every startup
 COPY services/db/init-scripts/ /docker-entrypoint-initdb.d/
 COPY services/db/init-scripts/ /etc/postgresql/init-scripts/
+
+# Copy database migrations (tale_knowledge)
+COPY services/db/migrations/ /etc/postgresql/migrations/
 
 # Copy custom PostgreSQL configuration to the expected location
 COPY services/db/postgresql.conf /etc/postgresql/postgresql.conf
@@ -70,9 +76,9 @@ ENV TALE_VERSION=${VERSION} \
 # Expose PostgreSQL port
 EXPOSE 5432
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} || exit 1
+# Health check — waits for both PostgreSQL readiness and migration completion
+HEALTHCHECK --interval=10s --timeout=5s --start-period=90s --retries=10 \
+    CMD pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} && test -f /tmp/.db_ready || exit 1
 
 # Use custom entrypoint wrapper that handles DB_ env vars
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint-wrapper.sh"]

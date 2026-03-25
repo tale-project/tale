@@ -8,6 +8,8 @@
     "build": "echo 'No build step'",
     "docker:build": "docker compose build db",
     "logs": "docker compose logs -f db",
-    "shell": "docker exec -it tale-db psql -U tale -d tale"
+    "shell": "docker exec -it tale-db psql -U tale -d tale",
+    "migration:new": "dbmate --migrations-dir migrations/db/migrations new",
+    "migration:status": "docker exec tale-db dbmate --url postgresql://tale:${DB_PASSWORD:-tale_password_change_me}@localhost:5432/tale_knowledge?sslmode=disable --migrations-dir /etc/postgresql/migrations/db/migrations --no-dump-schema status"
   }
 }

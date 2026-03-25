@@ -22,12 +22,8 @@ from ..config import settings
 from .database import (
     SCHEMA,
     close_pool,
-    ensure_content_hash_index,
-    ensure_document_date_columns,
-    ensure_embedding_dimensions,
-    ensure_error_column,
-    ensure_file_id_column,
     init_pool,
+    pin_embedding_dimensions,
 )
 from .indexing_service import index_document
 from .search_service import RagSearchService
@@ -86,12 +82,8 @@ class RagService:
             dimensions=dimensions,
         )
 
-        # Ensure embedding dimensions and HNSW index
-        await ensure_embedding_dimensions(self._pool, dimensions)
-        await ensure_error_column(self._pool)
-        await ensure_content_hash_index(self._pool)
-        await ensure_file_id_column(self._pool)
-        await ensure_document_date_columns(self._pool)
+        # Pin embedding dimensions and create HNSW index (runtime config, not a migration)
+        await pin_embedding_dimensions(self._pool, dimensions)
 
         # Vision client (optional — only if model is configured)
         try:

@@ -77,6 +77,7 @@ echo "=================================================="
 # converge to the desired state on every container start — not just first init.
 
 INIT_SCRIPTS_DIR="/etc/postgresql/init-scripts"
+MIGRATIONS_DIR="/etc/postgresql/migrations/db/migrations"
 
 run_init_scripts() {
     echo "Running init scripts..."
@@ -88,13 +89,30 @@ run_init_scripts() {
     echo "Init scripts complete."
 }
 
-# Run init scripts in the background after PostgreSQL starts
+run_migrations() {
+    if [ ! -d "$MIGRATIONS_DIR" ] || [ -z "$(ls -A "$MIGRATIONS_DIR" 2>/dev/null)" ]; then
+        echo "No migrations found, skipping."
+        return
+    fi
+
+    echo "Running tale_knowledge migrations..."
+    dbmate --url "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5432/tale_knowledge?sslmode=disable" \
+           --migrations-dir "$MIGRATIONS_DIR" \
+           --no-dump-schema \
+           migrate
+    echo "Migrations complete."
+}
+
+# Run init scripts and migrations in the background after PostgreSQL starts
 (
     trap 'exit 0' SIGTERM SIGINT
     until pg_isready -U "$POSTGRES_USER" -q 2>/dev/null; do
         sleep 1
     done
     run_init_scripts
+    run_migrations
+    touch /tmp/.db_ready
+    echo "Database ready."
 ) &
 
 # ============================================================================
