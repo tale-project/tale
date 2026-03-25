@@ -221,4 +221,94 @@ describe('listIndexedDocumentsForAgent', () => {
     });
     expect('_id' in doc).toBe(false);
   });
+
+  it('supports cursor continuation across pages', async () => {
+    const docs = Array.from({ length: 10 }, (_, i) => ({
+      _id: `doc${i}`,
+      fileId: `file${i}`,
+      title: `Doc ${i}`,
+    }));
+
+    const ctx = createMockCtx(docs);
+
+    // First page
+    const page1 = await listIndexedDocumentsForAgent(ctx, {
+      organizationId: 'org1',
+      includeOrgKnowledge: true,
+      limit: 4,
+    });
+
+    expect(page1.documents).toHaveLength(4);
+    expect(page1.hasMore).toBe(true);
+    expect(page1.cursor).not.toBeNull();
+
+    // Second page using cursor
+    const cursor1 = page1.cursor ?? undefined;
+    const page2 = await listIndexedDocumentsForAgent(ctx, {
+      organizationId: 'org1',
+      includeOrgKnowledge: true,
+      limit: 4,
+      cursor: cursor1,
+    });
+
+    expect(page2.documents).toHaveLength(4);
+    expect(page2.hasMore).toBe(true);
+
+    // Third page - should get remaining 2
+    const cursor2 = page2.cursor ?? undefined;
+    const page3 = await listIndexedDocumentsForAgent(ctx, {
+      organizationId: 'org1',
+      includeOrgKnowledge: true,
+      limit: 4,
+      cursor: cursor2,
+    });
+
+    expect(page3.documents).toHaveLength(2);
+    expect(page3.hasMore).toBe(false);
+
+    // Verify no documents lost across pages
+    const allFileIds = [
+      ...page1.documents,
+      ...page2.documents,
+      ...page3.documents,
+    ].map((d) => d.fileId);
+    const uniqueFileIds = new Set(allFileIds);
+    expect(uniqueFileIds.size).toBe(10);
+  });
+
+  it('does not lose documents when filtering reduces page results', async () => {
+    // Mix of team-a and team-b docs — only team-a matches
+    const docs = Array.from({ length: 20 }, (_, i) => ({
+      _id: `doc${i}`,
+      fileId: `file${i}`,
+      title: `Doc ${i}`,
+      teamId: i % 2 === 0 ? 'team-a' : 'team-b',
+    }));
+
+    const ctx = createMockCtx(docs);
+
+    const allDocs: Array<{ fileId: string }> = [];
+    let cursor: string | null = null;
+    let iterations = 0;
+
+    do {
+      const result = await listIndexedDocumentsForAgent(ctx, {
+        organizationId: 'org1',
+        agentTeamId: 'team-a',
+        includeTeamKnowledge: true,
+        includeOrgKnowledge: false,
+        limit: 3,
+        cursor: cursor ?? undefined,
+      });
+      allDocs.push(...result.documents);
+      cursor = result.cursor;
+      iterations++;
+      if (iterations > 20) break; // safety valve
+    } while (cursor);
+
+    // All 10 team-a docs should be returned (indices 0,2,4,6,8,10,12,14,16,18)
+    expect(allDocs).toHaveLength(10);
+    const uniqueFileIds = new Set(allDocs.map((d) => d.fileId));
+    expect(uniqueFileIds.size).toBe(10);
+  });
 });

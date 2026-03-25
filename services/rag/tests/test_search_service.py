@@ -477,11 +477,13 @@ class TestApplyRecencyBoost:
         now = datetime.now(timezone.utc)
         results = [
             {"rrf_score": 1.0, "source_modified_at": None, "created_at": now - timedelta(days=1)},
+            {"rrf_score": 1.0, "source_modified_at": None, "created_at": None},
         ]
 
         _apply_recency_boost(results, decay_base=0.85, max_age_days=730)
 
-        assert results[0]["rrf_score"] == pytest.approx(1.0)
+        # Doc with created_at fallback should score higher than one with no date
+        assert results[0]["rrf_score"] > results[1]["rrf_score"]
 
     def test_very_old_document_gets_decay_base(self):
         from app.services.search_service import _apply_recency_boost
@@ -489,11 +491,14 @@ class TestApplyRecencyBoost:
         now = datetime.now(timezone.utc)
         results = [
             {"rrf_score": 1.0, "source_modified_at": now - timedelta(days=2000), "created_at": None},
+            {"rrf_score": 1.0, "source_modified_at": now - timedelta(days=1), "created_at": None},
         ]
 
         _apply_recency_boost(results, decay_base=0.85, max_age_days=730)
 
+        # Recent doc normalizes to 1.0; very old doc should get approximately decay_base
         assert results[0]["rrf_score"] == pytest.approx(1.0)
+        assert results[1]["rrf_score"] == pytest.approx(0.85, abs=0.01)
 
     def test_top_score_normalized_to_one(self):
         from app.services.search_service import _apply_recency_boost

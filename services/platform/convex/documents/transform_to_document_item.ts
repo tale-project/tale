@@ -17,15 +17,16 @@ import { getUserNamesBatch } from './get_user_names_batch';
  *
  * Returns undefined when no source date is available — the UI shows "—".
  */
-function getDocumentEffectiveDate(
-  document: Doc<'documents'>,
+export function getDocumentEffectiveDate(
+  document: { sourceModifiedAt?: number },
   metadata: DocumentMetadata | undefined,
+  fallback?: number,
 ): number | undefined {
   return (
     document.sourceModifiedAt ??
     metadata?.sourceModifiedAt ??
     metadata?.lastModified ??
-    undefined
+    fallback
   );
 }
 

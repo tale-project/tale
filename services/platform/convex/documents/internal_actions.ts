@@ -22,6 +22,13 @@ import * as DocumentsHelpers from './helpers';
 
 const INITIAL_POLLING_DELAY_MS = 10_000;
 
+/** Parse an ISO 8601 string to Unix milliseconds. Returns `undefined` for invalid/missing input. */
+function parseIsoTimestampMs(iso: string | undefined): number | undefined {
+  if (!iso) return undefined;
+  const ms = new Date(iso).getTime();
+  return Number.isFinite(ms) ? ms : undefined;
+}
+
 const documentSourceTypeValidator = v.union(
   v.literal('markdown'),
   v.literal('html'),
@@ -317,24 +324,19 @@ export const checkRagDocumentStatus = internalAction({
         : undefined;
 
       if (status === 'completed') {
-        await ctx.runMutation(
-          internal.documents.internal_mutations.updateDocumentRagInfo,
-          {
-            documentId: args.documentId,
-            ragInfo: {
-              status: 'completed',
-              indexedAt: Math.floor(Date.now() / 1000),
-            },
-          },
+        const sourceCreatedAt = parseIsoTimestampMs(
+          isRecord(docStatus)
+            ? getString(docStatus, 'source_created_at')
+            : undefined,
+        );
+        const sourceModifiedAt = parseIsoTimestampMs(
+          isRecord(docStatus)
+            ? getString(docStatus, 'source_modified_at')
+            : undefined,
         );
 
-        const sourceCreatedAt = isRecord(docStatus)
-          ? getNumber(docStatus, 'source_created_at')
-          : undefined;
-        const sourceModifiedAt = isRecord(docStatus)
-          ? getNumber(docStatus, 'source_modified_at')
-          : undefined;
-
+        // Write dates BEFORE marking completed — if we crash after marking
+        // completed but before writing dates, the polling loop won't retry.
         if (sourceCreatedAt != null || sourceModifiedAt != null) {
           await ctx.runMutation(
             internal.documents.internal_mutations.updateDocumentDates,
@@ -345,6 +347,17 @@ export const checkRagDocumentStatus = internalAction({
             },
           );
         }
+
+        await ctx.runMutation(
+          internal.documents.internal_mutations.updateDocumentRagInfo,
+          {
+            documentId: args.documentId,
+            ragInfo: {
+              status: 'completed',
+              indexedAt: Math.floor(Date.now() / 1000),
+            },
+          },
+        );
 
         return null;
       }

@@ -193,6 +193,9 @@ class SearchResult(BaseModel):
     score: float = Field(..., description="Similarity score")
     file_id: str | None = Field(default=None, description="Source file ID")
     filename: str | None = Field(default=None, description="Source document filename")
+    source_created_at: dt.datetime | None = Field(
+        default=None, description="Original file creation date (from file metadata)"
+    )
     source_modified_at: dt.datetime | None = Field(
         default=None, description="Original file modification date (from file metadata)"
     )

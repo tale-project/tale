@@ -7,6 +7,11 @@
  *
  * Uses Convex native .paginate() for cursor-based pagination, with
  * in-memory agent scoping applied after each page fetch.
+ *
+ * Pagination: uses a composite cursor that encodes both the Convex DB cursor
+ * and a skip count. When a single DB page yields more matches than `limit`,
+ * the surplus is served on the next call by re-fetching the same DB page
+ * and skipping already-returned matches.
  */
 
 import type { Doc, Id } from '../_generated/dataModel';
@@ -29,6 +34,35 @@ export interface AgentIndexedDocumentListResult {
   cursor: string | null;
 }
 
+function hasFileId(
+  doc: Doc<'documents'>,
+): doc is Doc<'documents'> & { fileId: Id<'_storage'> } {
+  return !!doc.fileId;
+}
+
+interface CompositeState {
+  dbCursor: string | null;
+  skip: number;
+}
+
+function decodeCursor(raw: string | undefined): CompositeState {
+  if (!raw) return { dbCursor: null, skip: 0 };
+  if (raw.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(raw);
+      return { dbCursor: parsed.c ?? null, skip: parsed.s ?? 0 };
+    } catch {
+      /* fall through */
+    }
+  }
+  return { dbCursor: raw, skip: 0 };
+}
+
+function encodeCursor(dbCursor: string | null, skip: number): string {
+  if (skip === 0 && dbCursor) return dbCursor;
+  return JSON.stringify({ c: dbCursor, s: skip });
+}
+
 export async function listIndexedDocumentsForAgent(
   ctx: QueryCtx,
   args: {
@@ -47,16 +81,25 @@ export async function listIndexedDocumentsForAgent(
     args.includeTeamKnowledge !== false && !!args.agentTeamId;
   const needsOrgDocs = args.includeOrgKnowledge === true;
 
+  const { dbCursor: startDbCursor, skip: initialSkip } = decodeCursor(
+    args.cursor,
+  );
+
   const matches: Array<Doc<'documents'> & { fileId: Id<'_storage'> }> = [];
-  let cursor: string | null = args.cursor ?? null;
+  let dbCursor: string | null = startDbCursor;
   let isDone = false;
   let pages = 0;
+  let skipRemaining = initialSkip;
 
-  // Fetch pages until we have enough matches or exhaust the index.
-  // Each .paginate() call returns a database-level page; we filter in memory
-  // for agent scoping, so we may need multiple pages to fill `limit`.
-  while (matches.length < limit + 1 && !isDone && pages < MAX_PAGES) {
+  // Track how many matches we've seen on the current page (pre-skip).
+  // This lets us compute the correct skip count for the cursor.
+  let prevDbCursor: string | null = startDbCursor;
+  let matchesSeenOnLastPage = 0;
+
+  while (matches.length <= limit && !isDone && pages < MAX_PAGES) {
     pages++;
+    prevDbCursor = dbCursor;
+    matchesSeenOnLastPage = 0;
 
     const result = await ctx.db
       .query('documents')
@@ -64,30 +107,31 @@ export async function listIndexedDocumentsForAgent(
         q.eq('organizationId', args.organizationId).eq('indexed', true),
       )
       .order('desc')
-      .paginate({ cursor: cursor ?? null, numItems: limit * 2 });
+      .paginate({ cursor: dbCursor ?? null, numItems: limit * 2 });
 
     for (const doc of result.page) {
-      if (!doc.fileId) continue;
+      if (!hasFileId(doc)) continue;
 
       const fileId = String(doc.fileId);
+      const isMatch =
+        knowledgeFileIdSet.has(fileId) ||
+        (needsTeamDocs && doc.teamId === args.agentTeamId) ||
+        (needsOrgDocs && !doc.teamId);
 
-      if (knowledgeFileIdSet.has(fileId)) {
-        matches.push(doc as Doc<'documents'> & { fileId: Id<'_storage'> });
+      if (!isMatch) continue;
+
+      matchesSeenOnLastPage++;
+
+      if (skipRemaining > 0) {
+        skipRemaining--;
         continue;
       }
 
-      if (needsTeamDocs && doc.teamId === args.agentTeamId) {
-        matches.push(doc as Doc<'documents'> & { fileId: Id<'_storage'> });
-        continue;
-      }
-
-      if (needsOrgDocs && !doc.teamId) {
-        matches.push(doc as Doc<'documents'> & { fileId: Id<'_storage'> });
-      }
+      matches.push(doc);
     }
 
     isDone = result.isDone;
-    cursor = result.continueCursor;
+    dbCursor = result.continueCursor;
   }
 
   const hasMore = matches.length > limit || !isDone;
@@ -99,11 +143,23 @@ export async function listIndexedDocumentsForAgent(
     sourceModifiedAt: doc.sourceModifiedAt ?? null,
   }));
 
-  // Return the Convex cursor for the next page, or null if exhausted.
-  // When matches > limit, we still have unprocessed matches from the current
-  // database page — return the current cursor so the next call re-fetches
-  // from the same position.
-  const nextCursor = hasMore ? cursor : null;
+  let nextCursor: string | null = null;
+  if (hasMore) {
+    const overflow = matches.length - limit;
+    if (overflow > 0) {
+      // We collected more matches than limit from the last DB page.
+      // Re-fetch the same page on the next call, skipping the matches
+      // we already returned. skip = (matches returned from this page).
+      const returnedFromLastPage = matchesSeenOnLastPage - overflow;
+      const skipForNextCall =
+        (prevDbCursor === startDbCursor ? initialSkip : 0) +
+        returnedFromLastPage;
+      nextCursor = encodeCursor(prevDbCursor, skipForNextCall);
+    } else {
+      // We consumed complete pages — advance to the next DB page.
+      nextCursor = dbCursor;
+    }
+  }
 
   return {
     documents,

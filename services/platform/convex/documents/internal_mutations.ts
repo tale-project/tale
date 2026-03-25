@@ -103,34 +103,26 @@ export const backfillIndexedField = internalMutation({
   }),
   handler: async (ctx, args) => {
     const batchSize = args.batchSize ?? 500;
-    let processed = 0;
     let updated = 0;
-    let lastId: string | null = null;
 
-    const query = args.cursor
-      ? ctx.db.query('documents').order('asc')
-      : ctx.db.query('documents').order('asc');
+    const result = await ctx.db
+      .query('documents')
+      .order('asc')
+      .paginate({ cursor: args.cursor ?? null, numItems: batchSize });
 
-    for await (const doc of query) {
-      if (args.cursor && doc._id <= args.cursor) continue;
-
-      processed++;
-      lastId = doc._id;
-
+    for (const doc of result.page) {
       const shouldBeIndexed = doc.ragInfo?.status === 'completed';
       if (doc.indexed !== shouldBeIndexed) {
-        await ctx.db.patch(doc._id, { indexed: shouldBeIndexed ?? false });
+        await ctx.db.patch(doc._id, { indexed: shouldBeIndexed });
         updated++;
       }
-
-      if (processed >= batchSize) break;
     }
 
     return {
-      processed,
+      processed: result.page.length,
       updated,
-      cursor: lastId,
-      done: processed < batchSize,
+      cursor: result.continueCursor,
+      done: result.isDone,
     };
   },
 });

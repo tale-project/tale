@@ -205,6 +205,7 @@ export function useDocumentUpload(options: UploadOptions) {
               size: file.size,
               sourceProvider: 'upload',
               sourceMode: 'manual',
+              lastModified: file.lastModified,
             },
             teamId: undefined,
             folderId: uploadOptions?.folderId

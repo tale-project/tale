@@ -104,10 +104,14 @@ def _to_unix_ms(d: dt.datetime | None) -> int | None:
         return None
 
 
-def _extract_ooxml_dates(file_bytes: bytes, fmt: str) -> dict[str, int | None]:
-    """Extract created/modified dates from OOXML (DOCX/PPTX) core properties."""
-    created_at: int | None = None
-    modified_at: int | None = None
+def _extract_ooxml_metadata(file_bytes: bytes, fmt: str) -> dict[str, Any]:
+    """Extract dates + title/author from OOXML (DOCX/PPTX) core properties."""
+    result: dict[str, Any] = {
+        "created_at": None,
+        "modified_at": None,
+        "title": "",
+        "author": "",
+    }
 
     try:
         if fmt == "docx":
@@ -121,22 +125,17 @@ def _extract_ooxml_dates(file_bytes: bytes, fmt: str) -> dict[str, int | None]:
             prs = Presentation(BytesIO(file_bytes))
             props = prs.core_properties
         else:
-            return {"created_at": None, "modified_at": None}
+            return result
 
-        try:
-            created_at = _to_unix_ms(props.created)
-        except Exception:
-            pass
-
-        try:
-            modified_at = _to_unix_ms(props.modified)
-        except Exception:
-            pass
+        result["title"] = props.title or ""
+        result["author"] = getattr(props, "author", "") or ""
+        result["created_at"] = _to_unix_ms(props.created)
+        result["modified_at"] = _to_unix_ms(props.modified)
 
     except Exception as e:
-        logger.warning("Failed to extract OOXML dates from %s: %s", fmt, e)
+        logger.warning("Failed to extract OOXML metadata from %s: %s", fmt, e)
 
-    return {"created_at": created_at, "modified_at": modified_at}
+    return result
 
 
 class FileParserService:
@@ -228,15 +227,16 @@ class FileParserService:
 
             pdf_metadata: dict[str, Any] = {}
             try:
-                _doc = _fitz.open(stream=file_bytes, filetype="pdf")
-                _raw = _doc.metadata or {}
-                _doc.close()
-                pdf_metadata = {
-                    "created_at": _parse_pdf_date(_raw.get("creationDate")),
-                    "modified_at": _parse_pdf_date(_raw.get("modDate")),
-                }
-            except Exception:
-                pass
+                with _fitz.open(stream=file_bytes, filetype="pdf") as _doc:
+                    _raw = _doc.metadata or {}
+                    pdf_metadata = {
+                        "title": _raw.get("title", ""),
+                        "author": _raw.get("author", ""),
+                        "created_at": _parse_pdf_date(_raw.get("creationDate")),
+                        "modified_at": _parse_pdf_date(_raw.get("modDate")),
+                    }
+            except Exception as e:
+                logger.warning("Failed to extract PDF vision metadata: %s", e)
 
             result: dict[str, Any] = {
                 "success": True,
@@ -343,7 +343,7 @@ class FileParserService:
                 )
                 resolved_model = model or settings.get_fast_model()
 
-            docx_dates = _extract_ooxml_dates(file_bytes, "docx")
+            docx_dates = _extract_ooxml_metadata(file_bytes, "docx")
 
             result: dict[str, Any] = {
                 "success": True,
@@ -460,7 +460,7 @@ class FileParserService:
                 )
                 resolved_model = model or settings.get_fast_model()
 
-            pptx_dates = _extract_ooxml_dates(file_bytes, "pptx")
+            pptx_dates = _extract_ooxml_metadata(file_bytes, "pptx")
 
             result: dict[str, Any] = {
                 "success": True,

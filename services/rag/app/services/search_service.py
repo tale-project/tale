@@ -71,6 +71,7 @@ class RagSearchService:
                     "score": item["rrf_score"],
                     "file_id": str(item["file_id"]) if item.get("file_id") else None,
                     "filename": item.get("filename"),
+                    "source_created_at": item.get("source_created_at"),
                     "source_modified_at": item.get("source_modified_at"),
                 }
                 for item in merged
@@ -103,6 +104,7 @@ class RagSearchService:
                         "score": 1.0 / (i + 1),
                         "file_id": str(item["file_id"]) if item.get("file_id") else None,
                         "filename": item.get("filename"),
+                        "source_created_at": item.get("source_created_at"),
                         "source_modified_at": item.get("source_modified_at"),
                     }
                     for i, item in enumerate(vector_results)
@@ -139,7 +141,7 @@ class RagSearchService:
         sql = f"""
             SELECT c.id, c.chunk_content, c.chunk_index, c.document_id,
                    d.file_id, d.filename,
-                   d.source_modified_at, d.created_at,
+                   d.source_created_at, d.source_modified_at, d.created_at,
                    paradedb.score(c.id) AS score
             FROM {SCHEMA}.chunks c
             LEFT JOIN {SCHEMA}.documents d ON c.document_id = d.id
@@ -173,7 +175,7 @@ class RagSearchService:
         sql = f"""
             SELECT c.id, c.chunk_content, c.chunk_index, c.document_id,
                    d.file_id, d.filename,
-                   d.source_modified_at, d.created_at,
+                   d.source_created_at, d.source_modified_at, d.created_at,
                    1 - (c.embedding <=> $1::vector) AS score
             FROM {SCHEMA}.chunks c
             LEFT JOIN {SCHEMA}.documents d ON c.document_id = d.id

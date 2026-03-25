@@ -481,7 +481,7 @@ async def apply_docx_structured(
 @router.post("/extract-metadata", response_model=FileMetadataResponse)
 async def extract_docx_metadata(file: UploadFile = _FILE_UPLOAD):
     """Extract metadata from a DOCX file without full text extraction."""
-    from app.services.file_parser_service import _extract_ooxml_dates
+    from app.services.file_parser_service import _extract_ooxml_metadata
 
     try:
         file_bytes = await file.read()
@@ -489,22 +489,16 @@ async def extract_docx_metadata(file: UploadFile = _FILE_UPLOAD):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty file uploaded")
 
         filename = file.filename or "unknown.docx"
-        dates = _extract_ooxml_dates(file_bytes, "docx")
-
-        from docx import Document
-        from io import BytesIO
-
-        doc = Document(BytesIO(file_bytes))
-        props = doc.core_properties
+        meta = _extract_ooxml_metadata(file_bytes, "docx")
 
         return FileMetadataResponse(
             success=True,
             filename=filename,
             file_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            title=props.title or None,
-            author=props.author or None,
-            created_at=dates["created_at"],
-            modified_at=dates["modified_at"],
+            title=meta["title"] or None,
+            author=meta["author"] or None,
+            created_at=meta["created_at"],
+            modified_at=meta["modified_at"],
         )
     except HTTPException:
         raise

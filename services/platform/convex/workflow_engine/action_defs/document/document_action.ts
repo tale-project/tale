@@ -18,6 +18,7 @@ import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import { internal } from '../../../_generated/api';
 import { fetchDocumentComparisonByUrls } from '../../../agent_tools/documents/helpers/fetch_document_comparison';
 import { fetchDocumentContent } from '../../../agent_tools/documents/helpers/fetch_document_content';
+import { getDocumentEffectiveDate } from '../../../documents/transform_to_document_item';
 import { getRagConfig } from '../../../lib/helpers/rag_config';
 import { toConvexJsonRecord, toId } from '../../../lib/type_cast_helpers';
 import { jsonRecordValidator } from '../../../lib/validators/json';
@@ -385,16 +386,21 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
                 : Promise.resolve(undefined),
             ]);
 
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- metadata is ConvexJsonRecord; shape is DocumentMetadata written by our code
-            const docMetadata = document?.metadata as
-              | DocumentMetadata
-              | undefined;
+            /* oxlint-disable typescript/no-unsafe-type-assertion -- metadata is a generic JSON record from Convex schema; runtime guard ensures it's an object before narrowing */
+            const docMetadata =
+              document?.metadata != null &&
+              typeof document.metadata === 'object'
+                ? (document.metadata as DocumentMetadata)
+                : undefined;
+            /* oxlint-enable typescript/no-unsafe-type-assertion */
 
-            const lastModified =
-              document?.sourceModifiedAt ??
-              docMetadata?.sourceModifiedAt ??
-              docMetadata?.lastModified ??
-              document?._creationTime;
+            const lastModified = document
+              ? getDocumentEffectiveDate(
+                  document,
+                  docMetadata,
+                  document._creationTime,
+                )
+              : undefined;
 
             return {
               fileId,

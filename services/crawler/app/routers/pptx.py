@@ -191,7 +191,7 @@ async def parse_pptx_file(
 @router.post("/extract-metadata", response_model=FileMetadataResponse)
 async def extract_pptx_metadata(file: UploadFile = _FILE_UPLOAD):
     """Extract metadata from a PPTX file without full text extraction."""
-    from app.services.file_parser_service import _extract_ooxml_dates
+    from app.services.file_parser_service import _extract_ooxml_metadata
 
     try:
         file_bytes = await file.read()
@@ -199,24 +199,23 @@ async def extract_pptx_metadata(file: UploadFile = _FILE_UPLOAD):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty file uploaded")
 
         filename = file.filename or "unknown.pptx"
-        dates = _extract_ooxml_dates(file_bytes, "pptx")
+        meta = _extract_ooxml_metadata(file_bytes, "pptx")
 
         from io import BytesIO
 
         from pptx import Presentation
 
         prs = Presentation(BytesIO(file_bytes))
-        props = prs.core_properties
 
         return FileMetadataResponse(
             success=True,
             filename=filename,
             file_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-            title=props.title or None,
-            author=props.author or None,
+            title=meta["title"] or None,
+            author=meta["author"] or None,
             slide_count=len(prs.slides),
-            created_at=dates["created_at"],
-            modified_at=dates["modified_at"],
+            created_at=meta["created_at"],
+            modified_at=meta["modified_at"],
         )
     except HTTPException:
         raise

@@ -31,6 +31,15 @@ import {
 } from './format_search_results';
 import { listIndexedDocuments } from './helpers/list_indexed_documents';
 
+// ToolCtx from @convex-dev/agent does not include our custom agent knowledge
+// properties — these are set by our agent configuration and injected at runtime.
+export interface AgentKnowledgeCtx extends ToolCtx {
+  agentTeamId?: string;
+  includeTeamKnowledge?: boolean;
+  includeOrgKnowledge?: boolean;
+  knowledgeFileIds?: string[];
+}
+
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 
 const DEFAULT_TOP_K = 10;
@@ -52,12 +61,8 @@ export async function resolveFileIds(
     throw new Error('rag_search requires organizationId in ToolCtx.');
   }
 
-  const extended = ctx as ToolCtx & {
-    agentTeamId?: string;
-    includeTeamKnowledge?: boolean;
-    includeOrgKnowledge?: boolean;
-    knowledgeFileIds?: string[];
-  };
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ToolCtx from @convex-dev/agent lacks our custom agent knowledge properties injected at runtime
+  const extended = ctx as AgentKnowledgeCtx;
 
   debugLog('tool:rag_search using agent-scoped file resolution', {
     agentTeamId: extended.agentTeamId,

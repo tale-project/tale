@@ -10,6 +10,7 @@ export interface SearchResult {
   score: number;
   file_id?: string;
   filename?: string;
+  source_created_at?: string | null;
   source_modified_at?: string | null;
   metadata?: Record<string, unknown>;
 }
@@ -32,7 +33,7 @@ export interface SearchResponse {
  *
  * ---
  *
- * [2] (Relevance: 72.1%) [Source: memo.docx] [Modified: 2024-01-01] [FileID: doc-456]
+ * [2] (Relevance: 72.1%) [Source: memo.docx] [Created: 2024-01-01] [FileID: doc-456]
  * <chunk content>
  * ```
  *
@@ -50,7 +51,9 @@ export function formatSearchResults(
       const fileIdAnnotation = r.file_id ? ` [FileID: ${r.file_id}]` : '';
       const dateAnnotation = r.source_modified_at
         ? ` [Modified: ${r.source_modified_at.slice(0, 10)}]`
-        : '';
+        : r.source_created_at
+          ? ` [Created: ${r.source_created_at.slice(0, 10)}]`
+          : '';
       return `[${idx + 1}] (Relevance: ${score}%)${sourceAnnotation}${dateAnnotation}${fileIdAnnotation}\n${r.content}`;
     })
     .join('\n\n---\n\n');
