@@ -58,7 +58,6 @@ export const retryRagIndexing = action({
             documentId: args.documentId,
             ragInfo: {
               status: 'queued',
-              indexedFileId: document.fileId,
             },
           },
         );

@@ -216,6 +216,12 @@ export const checkRagDocumentStatus = internalAction({
       return null;
     }
 
+    if (!document.fileId) {
+      throw new Error(
+        `[checkRagDocumentStatus] Document ${args.documentId} has no fileId`,
+      );
+    }
+
     if (!document.ragInfo) {
       return null;
     }
@@ -252,7 +258,7 @@ export const checkRagDocumentStatus = internalAction({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          file_ids: [document.ragInfo.indexedFileId ?? args.documentId],
+          file_ids: [document.fileId],
         }),
         signal: AbortSignal.timeout(10000),
       });
@@ -314,7 +320,7 @@ export const checkRagDocumentStatus = internalAction({
         throw new Error('Invalid statuses field in RAG response');
       }
 
-      const ragKey = document.ragInfo.indexedFileId ?? args.documentId;
+      const ragKey = document.fileId;
       const docStatus = statuses[ragKey];
       const status = isRecord(docStatus)
         ? getString(docStatus, 'status')
@@ -448,8 +454,14 @@ export const deleteDocumentFromRag = internalAction({
       { documentId: args.documentId },
     );
 
-    const ragKey =
-      document?.ragInfo?.indexedFileId ?? document?.fileId ?? args.documentId;
+    if (!document?.fileId) {
+      console.warn(
+        `[deleteDocumentFromRag] Document ${args.documentId} has no fileId, skipping RAG delete`,
+      );
+      return null;
+    }
+
+    const ragKey = document.fileId;
 
     let ragSuccess = false;
     try {
@@ -528,7 +540,6 @@ export const uploadDocumentToRag = internalAction({
             documentId: args.documentId,
             ragInfo: {
               status: 'queued',
-              indexedFileId: document.fileId,
             },
           },
         );
@@ -633,7 +644,6 @@ export const reindexDocumentInRag = internalAction({
             documentId: args.documentId,
             ragInfo: {
               status: 'queued',
-              indexedFileId: document.fileId,
             },
           },
         );

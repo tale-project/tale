@@ -164,14 +164,19 @@ async def _record_failure(
 async def _mark_completed(
     file_id: str,
 ) -> None:
-    """Mark document status as completed (used when content is unchanged on re-upload)."""
+    """Mark document status as completed and restore chunks_count from actual chunk rows."""
     pool = await get_pool()
     async with acquire_with_retry(pool) as conn:
         await conn.execute(
             f"""
-            UPDATE {SCHEMA}.documents
-            SET status = 'completed', error = NULL, updated_at = NOW()
-            WHERE file_id = $1
+            UPDATE {SCHEMA}.documents d
+            SET status = 'completed',
+                error = NULL,
+                chunks_count = (
+                    SELECT COUNT(*) FROM {SCHEMA}.chunks c WHERE c.document_id = d.id
+                ),
+                updated_at = NOW()
+            WHERE d.file_id = $1
             """,
             file_id,
         )

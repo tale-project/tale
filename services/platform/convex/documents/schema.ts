@@ -37,6 +37,7 @@ export const documentsTable = defineTable({
         v.literal('failed'),
       ),
       indexedAt: v.optional(v.number()),
+      /** @deprecated No longer written; use document.fileId directly. Kept for backward compatibility. */
       indexedFileId: v.optional(v.id('_storage')),
       error: v.optional(v.string()),
       /** @deprecated No longer written, kept for backward compatibility with existing data. */
