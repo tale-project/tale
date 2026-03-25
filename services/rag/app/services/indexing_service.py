@@ -86,7 +86,7 @@ def _parse_pdf_date(date_str: str | None) -> dt.datetime | None:
         elif tz_sign == "+":
             tz_offset = dt.timezone(dt.timedelta(hours=tz_hours, minutes=tz_minutes))
         else:
-            tz_offset = dt.timezone.utc
+            tz_offset = dt.UTC
 
         return dt.datetime(year, month, day, hour, minute, second, tzinfo=tz_offset)
     except (ValueError, OverflowError):
@@ -100,7 +100,7 @@ def _ensure_aware(d: dt.datetime | None) -> dt.datetime | None:
     if not isinstance(d, dt.datetime):
         return None
     if d.tzinfo is None:
-        return d.replace(tzinfo=dt.timezone.utc)
+        return d.replace(tzinfo=dt.UTC)
     return d
 
 

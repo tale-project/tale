@@ -293,7 +293,7 @@ def _ms_timestamp_to_datetime(value: Any) -> dt.datetime | None:
         return None
     try:
         ts = int(value) / 1000.0
-        return dt.datetime.fromtimestamp(ts, tz=dt.timezone.utc)
+        return dt.datetime.fromtimestamp(ts, tz=dt.UTC)
     except (TypeError, ValueError, OverflowError):
         return None
 

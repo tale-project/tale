@@ -46,7 +46,7 @@ class TestParsePdfDate:
         result = _parse_pdf_date("20230101120000Z")
         assert result is not None
         assert result.year == 2023
-        assert result.tzinfo == dt.timezone.utc
+        assert result.tzinfo == dt.UTC
 
     def test_date_only_year(self):
         result = _parse_pdf_date("D:2023")
@@ -95,7 +95,7 @@ class TestEnsureAware:
         naive = dt.datetime(2023, 1, 1, 12, 0, 0)
         result = _ensure_aware(naive)
         assert result is not None
-        assert result.tzinfo == dt.timezone.utc
+        assert result.tzinfo == dt.UTC
 
     def test_aware_preserved(self):
         tz = dt.timezone(dt.timedelta(hours=5))
@@ -153,7 +153,7 @@ class TestExtractFileDates:
     def test_docx_extraction(self):
         mock_props = MagicMock()
         mock_props.created = dt.datetime(2023, 6, 15, 14, 30, 52)
-        mock_props.modified = dt.datetime(2024, 1, 1, 0, 0, 0, tzinfo=dt.timezone.utc)
+        mock_props.modified = dt.datetime(2024, 1, 1, 0, 0, 0, tzinfo=dt.UTC)
 
         mock_doc_instance = MagicMock()
         mock_doc_instance.core_properties = mock_props
@@ -165,7 +165,7 @@ class TestExtractFileDates:
             created, modified = _extract_file_dates(b"docx-bytes", "report.docx")
 
         assert created is not None
-        assert created.tzinfo == dt.timezone.utc
+        assert created.tzinfo == dt.UTC
         assert modified is not None
 
     def test_pptx_extraction(self):
@@ -198,7 +198,7 @@ class TestMsTimestampToDatetime:
         fn = self._import()
         result = fn(1687000000000)
         assert result is not None
-        assert result.tzinfo == dt.timezone.utc
+        assert result.tzinfo == dt.UTC
         assert result.year == 2023
 
     def test_none_returns_none(self):
@@ -238,8 +238,8 @@ class TestIndexDocumentDatesThreaded:
         mock_embed = AsyncMock()
         mock_embed.embed_texts = AsyncMock(return_value=[[0.1, 0.2]])
 
-        created = dt.datetime(2023, 6, 15, tzinfo=dt.timezone.utc)
-        modified = dt.datetime(2024, 1, 1, tzinfo=dt.timezone.utc)
+        created = dt.datetime(2023, 6, 15, tzinfo=dt.UTC)
+        modified = dt.datetime(2024, 1, 1, tzinfo=dt.UTC)
 
         with (
             patch(
@@ -272,8 +272,8 @@ class TestIndexDocumentDatesThreaded:
         mock_embed = AsyncMock()
         mock_embed.embed_texts = AsyncMock(return_value=[[0.1, 0.2]])
 
-        file_created = dt.datetime(2023, 1, 1, tzinfo=dt.timezone.utc)
-        caller_created = dt.datetime(2022, 6, 1, tzinfo=dt.timezone.utc)
+        file_created = dt.datetime(2023, 1, 1, tzinfo=dt.UTC)
+        caller_created = dt.datetime(2022, 6, 1, tzinfo=dt.UTC)
 
         mock_conn = AsyncMock()
         mock_conn.fetchrow = AsyncMock(side_effect=[None, {"id": "uuid-1"}])
@@ -333,10 +333,10 @@ class TestCloneDateOverride:
     async def test_clone_uses_caller_dates_over_source(self):
         from app.services.indexing_service import _do_clone
 
-        source_created = dt.datetime(2023, 1, 1, tzinfo=dt.timezone.utc)
-        source_modified = dt.datetime(2023, 6, 1, tzinfo=dt.timezone.utc)
-        caller_created = dt.datetime(2022, 3, 15, tzinfo=dt.timezone.utc)
-        caller_modified = dt.datetime(2022, 9, 20, tzinfo=dt.timezone.utc)
+        source_created = dt.datetime(2023, 1, 1, tzinfo=dt.UTC)
+        source_modified = dt.datetime(2023, 6, 1, tzinfo=dt.UTC)
+        caller_created = dt.datetime(2022, 3, 15, tzinfo=dt.UTC)
+        caller_modified = dt.datetime(2022, 9, 20, tzinfo=dt.UTC)
 
         mock_conn = AsyncMock()
         mock_conn.fetchrow = AsyncMock(
@@ -388,8 +388,8 @@ class TestCloneDateOverride:
     async def test_clone_falls_back_to_source_dates_when_no_override(self):
         from app.services.indexing_service import _do_clone
 
-        source_created = dt.datetime(2023, 1, 1, tzinfo=dt.timezone.utc)
-        source_modified = dt.datetime(2023, 6, 1, tzinfo=dt.timezone.utc)
+        source_created = dt.datetime(2023, 1, 1, tzinfo=dt.UTC)
+        source_modified = dt.datetime(2023, 6, 1, tzinfo=dt.UTC)
 
         mock_conn = AsyncMock()
         mock_conn.fetchrow = AsyncMock(
@@ -438,7 +438,7 @@ class TestResponseModelDateFields:
     """Verify response models accept and serialize date fields."""
 
     def test_search_result_includes_source_modified_at(self):
-        ts = dt.datetime(2023, 6, 15, 14, 30, tzinfo=dt.timezone.utc)
+        ts = dt.datetime(2023, 6, 15, 14, 30, tzinfo=dt.UTC)
         result = SearchResult(
             content="text",
             score=0.9,
@@ -455,8 +455,8 @@ class TestResponseModelDateFields:
         assert result.source_modified_at is None
 
     def test_document_content_response_includes_dates(self):
-        created = dt.datetime(2023, 1, 1, tzinfo=dt.timezone.utc)
-        modified = dt.datetime(2023, 6, 1, tzinfo=dt.timezone.utc)
+        created = dt.datetime(2023, 1, 1, tzinfo=dt.UTC)
+        modified = dt.datetime(2023, 6, 1, tzinfo=dt.UTC)
         resp = DocumentContentResponse(
             file_id="f1",
             title="test.pdf",
@@ -471,8 +471,8 @@ class TestResponseModelDateFields:
         assert resp.source_modified_at == modified
 
     def test_document_status_info_includes_dates(self):
-        created = dt.datetime(2023, 1, 1, tzinfo=dt.timezone.utc)
-        modified = dt.datetime(2023, 6, 1, tzinfo=dt.timezone.utc)
+        created = dt.datetime(2023, 1, 1, tzinfo=dt.UTC)
+        modified = dt.datetime(2023, 6, 1, tzinfo=dt.UTC)
         info = DocumentStatusInfo(
             status="completed",
             source_created_at=created,

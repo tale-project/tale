@@ -201,9 +201,9 @@ def _apply_recency_boost(
     Modifies *results* in place: adjusts ``rrf_score``, re-normalises so the
     top result equals 1.0, and re-sorts descending.
     """
-    from datetime import datetime, timezone
+    from datetime import UTC, datetime
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     for item in results:
         doc_ts = item.get("source_modified_at") or item.get("created_at")
         if doc_ts is None:

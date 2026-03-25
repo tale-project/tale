@@ -289,7 +289,8 @@ class RagService:
 
         async with acquire_with_retry(self._pool) as conn:
             doc = await conn.fetchrow(
-                f"SELECT id, file_id, filename, chunks_count, source_created_at, source_modified_at FROM {SCHEMA}.documents WHERE {where} LIMIT 1",
+                f"SELECT id, file_id, filename, chunks_count, source_created_at, source_modified_at"
+                f" FROM {SCHEMA}.documents WHERE {where} LIMIT 1",
                 *params,
             )
 
