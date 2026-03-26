@@ -1,30 +1,37 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "name": "Tale",
+  "description": "The Sovereign AI Platform — Local AI models, agents, skills, and automations — on your own infrastructure, connected to your data. ISO 27001 & SOC 2 certified. Swiss-based.",
   "theme": "maple",
   "colors": {
-    "primary": "#030712",
-    "light": "#FFFFFF",
-    "dark": "#030712"
+    "primary": "#056CFF",
+    "light": "#056CFF",
+    "dark": "#5098FF"
   },
-  "navigation": {
-    "groups": [
-      {
-        "group": "Guides",
-        "pages": [
-          "platform-documentation"
-        ]
-      }
-    ]
+  "logo": {
+    "light": "/images/logo_black.png",
+    "dark": "/images/logo_white.png",
+    "href": "https://tale.dev/"
   },
-  "description": "The Sovereign AI Platform​ — Local AI models, agents, skills, and automations — on your own infrastructure, connected to your data. ISO 27001 & SOC 2 certified. Swiss-based.",
   "favicon": {
     "light": "/images/black.png",
     "dark": "/images/white.png"
   },
+  "appearance": {
+    "default": "system"
+  },
   "fonts": {
-    "family": "Inter",
-    "weight": 400
+    "heading": {
+      "family": "Inter",
+      "weight": 600
+    },
+    "body": {
+      "family": "Inter",
+      "weight": 400
+    }
+  },
+  "icons": {
+    "library": "lucide"
   },
   "background": {
     "color": {
@@ -32,26 +39,104 @@
       "dark": "#0C1017"
     }
   },
-  "interaction": {
-    "drilldown": true
+  "styling": {
+    "eyebrows": "breadcrumbs",
+    "codeblocks": "system"
   },
-  "logo": {
-    "light": "/images/logo_black.png",
-    "dark": "/images/logo_white.png",
-    "href": "https://tale.dev/"
+  "navigation": {
+    "global": {
+      "anchors": [
+        {
+          "anchor": "GitHub",
+          "icon": "github",
+          "href": "https://github.com/tale-project/tale"
+        },
+        {
+          "anchor": "API Reference",
+          "icon": "code",
+          "href": "/api-reference"
+        }
+      ]
+    },
+    "groups": [
+      {
+        "group": "Getting started",
+        "pages": ["overview", "quickstart", "production-deployment"]
+      },
+      {
+        "group": "Features",
+        "pages": [
+          "ai-chat",
+          "knowledge-base",
+          "conversations",
+          "approvals",
+          "automations",
+          "custom-agents",
+          "settings"
+        ]
+      },
+      {
+        "group": "Administration",
+        "pages": ["roles-and-permissions", "authentication"]
+      },
+      {
+        "group": "Operations",
+        "pages": [
+          "api-reference",
+          "environment-reference",
+          "operations",
+          "troubleshooting"
+        ]
+      }
+    ]
   },
   "navbar": {
-    "links": []
+    "links": [
+      {
+        "label": "GitHub",
+        "href": "https://github.com/tale-project/tale",
+        "type": "github"
+      }
+    ]
   },
   "footer": {
     "socials": {
-      "github": "https://github.com/tale-project/tale"
-    }
+      "github": "https://github.com/tale-project/tale",
+      "website": "https://tale.dev/"
+    },
+    "links": [
+      {
+        "header": "Product",
+        "items": [
+          { "label": "Overview", "href": "/overview" },
+          { "label": "Features", "href": "/ai-chat" },
+          { "label": "API Reference", "href": "/api-reference" }
+        ]
+      },
+      {
+        "header": "Resources",
+        "items": [
+          { "label": "Quick start", "href": "/quickstart" },
+          { "label": "Environment reference", "href": "/environment-reference" },
+          { "label": "Troubleshooting", "href": "/troubleshooting" }
+        ]
+      }
+    ]
   },
-  "styling": {
-    "eyebrows": "breadcrumbs"
+  "interaction": {
+    "drilldown": true
   },
-  "icons": {
-    "library": "lucide"
+  "contextual": {
+    "options": ["copy", "view", "claude", "chatgpt", "cursor"],
+    "display": "header"
+  },
+  "search": {
+    "prompt": "Search documentation..."
+  },
+  "seo": {
+    "indexing": "navigable"
+  },
+  "metadata": {
+    "timestamp": true
   }
 }
