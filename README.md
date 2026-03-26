@@ -110,9 +110,47 @@ SITE_URL=https://yourdomain.com
 TLS_MODE=external
 ```
 
+`SITE_URL` must match the URL users access in their browser. If your reverse proxy uses a non-standard port, include it (e.g., `SITE_URL=https://yourdomain.com:8443`).
+
 Caddy will listen on HTTP only (port 80). Your reverse proxy must:
 - Terminate TLS and forward all traffic (including WebSocket) to Tale on port 80
-- Set `X-Forwarded-Proto` header
+- Set `X-Forwarded-Proto` and `X-Forwarded-For` headers
+
+Example nginx configuration:
+
+```nginx
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+server {
+    listen 443 ssl;
+    server_name yourdomain.com;
+
+    # ... your TLS certificate config ...
+
+    location / {
+        proxy_pass http://tale-server:80;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # WebSocket support
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+
+        # Long timeout for Convex WebSocket sync connections
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
+
+        proxy_buffering off;
+    }
+}
+```
 
 ### Subpath Deployment
 
@@ -125,16 +163,12 @@ TLS_MODE=external
 BASE_PATH=/tale
 ```
 
-Your reverse proxy must strip the subpath prefix before forwarding. For example, in nginx:
+Caddy handles stripping the subpath prefix internally — your reverse proxy does **not** need to strip it. Simply forward all traffic under the subpath as-is (note: no trailing slash on `proxy_pass`):
 
 ```nginx
 location /tale/ {
-    proxy_pass http://tale-server:80/;
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_pass http://tale-server:80;
+    # ... same headers and WebSocket config as above ...
 }
 ```
 
