@@ -51,8 +51,11 @@ function decodeCursor(raw: string | undefined): CompositeState {
     try {
       const parsed = JSON.parse(raw);
       return { dbCursor: parsed.c ?? null, skip: parsed.s ?? 0 };
-    } catch {
-      /* fall through */
+    } catch (e) {
+      console.warn(
+        '[decodeCursor] Failed to parse cursor as JSON, treating as raw DB cursor:',
+        e,
+      );
     }
   }
   return { dbCursor: raw, skip: 0 };

@@ -146,7 +146,7 @@ def _extract_file_dates(
                 _ensure_aware(props.modified),
             )
     except Exception:
-        logger.debug("Could not extract dates from {}", filename)
+        logger.warning("Could not extract dates from {}", filename)
 
     return (None, None)
 

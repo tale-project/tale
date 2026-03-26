@@ -15,6 +15,7 @@ import { internal } from '../../../_generated/api';
 // on the ctx object (see @convex-dev/agent/dist/client/start.js). We cast to access it.
 interface ToolCtxRuntime extends ToolCtx {
   promptMessageId?: string;
+  parentThreadId?: string;
 }
 
 export async function appendFilePart(
@@ -26,8 +27,13 @@ export async function appendFilePart(
   },
 ): Promise<boolean> {
   const { threadId } = ctx;
-  const promptMessageId = (ctx as ToolCtxRuntime).promptMessageId;
-  if (!threadId || !promptMessageId) return false;
+  const runtime = ctx as ToolCtxRuntime;
+  const promptMessageId = runtime.promptMessageId;
+
+  // Skip if sub-agent — the card would land on the sub-thread which the user
+  // never sees. Returning false lets the real downloadUrl propagate back to
+  // the parent agent instead.
+  if (!threadId || !promptMessageId || runtime.parentThreadId) return false;
 
   await ctx.runAction(
     internal.agent_tools.files.internal_mutations.appendGeneratedFilePart,

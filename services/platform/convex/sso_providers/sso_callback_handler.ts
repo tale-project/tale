@@ -9,7 +9,8 @@ const SESSION_COOKIE_NAME = 'better-auth.session_token';
 const SESSION_MAX_AGE = 60 * 60 * 24 * 7;
 
 function redirectWithError(origin: string, message: string): Response {
-  const errorUrl = new URL('/log-in', origin);
+  const basePath = process.env.BASE_PATH || '';
+  const errorUrl = new URL(`${basePath}/log-in`, origin);
   errorUrl.searchParams.set('error', message);
   return new Response(null, {
     status: 302,

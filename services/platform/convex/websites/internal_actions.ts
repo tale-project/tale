@@ -10,13 +10,10 @@ import type {
 
 import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
+import { getCrawlerUrl } from '../documents/generate_document_helpers';
 
 const CRAWLER_TIMEOUT_MS = 15_000;
 const SYNC_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
-
-function getCrawlerUrl() {
-  return process.env.CRAWLER_URL || 'http://localhost:8002';
-}
 
 function fetchWithTimeout(
   url: string,

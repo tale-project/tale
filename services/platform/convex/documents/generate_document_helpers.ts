@@ -159,7 +159,4 @@ export function getOutputInfo(
   };
 }
 
-export {
-  buildDownloadUrl,
-  getPublicHttpApiUrl as getPublicSiteUrl,
-} from '../lib/helpers/public_storage_url';
+export { buildDownloadUrl } from '../lib/helpers/public_storage_url';

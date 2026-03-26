@@ -14,6 +14,7 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useToast } from '@/app/hooks/use-toast';
+import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
 import { useSiteUrl } from '@/lib/site-url-context';
 
@@ -54,10 +55,11 @@ export function WebhooksSection({
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
 
   const siteUrl = useSiteUrl();
+  const basePath = getEnv('BASE_PATH');
 
   const getWebhookUrl = useCallback(
-    (token: string) => `${siteUrl}/api/workflows/wh/${token}`,
-    [siteUrl],
+    (token: string) => `${siteUrl}${basePath}/api/workflows/wh/${token}`,
+    [siteUrl, basePath],
   );
 
   const handleCreate = useCallback(async () => {
