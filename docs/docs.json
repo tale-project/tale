@@ -9,13 +9,13 @@
     "dark": "#5098FF"
   },
   "logo": {
-    "light": "/images/logo_black.png",
-    "dark": "/images/logo_white.png",
+    "light": "/images/logo-text-black.svg",
+    "dark": "/images/logo-text-white.svg",
     "href": "https://tale.dev/"
   },
   "favicon": {
-    "light": "/images/black.png",
-    "dark": "/images/white.png"
+    "light": "/images/favicon-black.png",
+    "dark": "/images/favicon-white.png"
   },
   "appearance": {
     "default": "system"
