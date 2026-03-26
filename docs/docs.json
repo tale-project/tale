@@ -12,10 +12,7 @@
       {
         "group": "Guides",
         "pages": [
-          "chat-agent-guide",
-          "workflow-guide",
-          "permissions",
-          "zero-downtime-deployment"
+          "platform-documentation"
         ]
       }
     ]
