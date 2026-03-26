@@ -139,7 +139,7 @@
     "@types/lodash": "4.17.24",
     "@types/mssql": "9.1.10",
     "@types/mustache": "4.2.6",
-    "@types/pg": "8.18.0",
+    "@types/pg": "8.20.0",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@types/react-file-icon": "1.0.4",
