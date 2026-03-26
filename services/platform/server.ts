@@ -89,9 +89,7 @@ Bun.serve({
         `window.__ACCEPT_LANGUAGE__ = ${JSON.stringify(acceptLanguage)};`,
       );
 
-    if (basePath) {
-      html = html.replace('<head>', `<head>\n    <base href="${basePath}/">`);
-    }
+    html = html.replace('<head>', `<head>\n    <base href="${basePath}/">`);
 
     return new Response(html, {
       headers: { 'Content-Type': 'text/html' },
