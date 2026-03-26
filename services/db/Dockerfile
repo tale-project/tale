@@ -55,22 +55,28 @@ RUN chmod +x /usr/local/bin/docker-entrypoint-wrapper.sh \
 
 # Set environment variables with DB_ prefix defaults
 # These can be overridden at runtime
-ENV TALE_VERSION=${VERSION} \
-    DB_NAME=tale \
+# Application version
+ENV TALE_VERSION=${VERSION}
+
+# Database credentials
+ENV DB_NAME=tale \
     DB_USER=tale \
-    DB_PASSWORD=tale_password_change_me \
-    # PostgreSQL configuration (required by base image)
-    POSTGRES_DB=tale \
+    DB_PASSWORD=tale_password_change_me
+
+# PostgreSQL configuration (required by base image)
+ENV POSTGRES_DB=tale \
     POSTGRES_USER=tale \
-    POSTGRES_PASSWORD=tale_password_change_me \
-    # Performance tuning (conservative defaults)
-    DB_MAX_CONNECTIONS=100 \
+    POSTGRES_PASSWORD=tale_password_change_me
+
+# Performance tuning (conservative defaults)
+ENV DB_MAX_CONNECTIONS=100 \
     DB_SHARED_BUFFERS=256MB \
     DB_EFFECTIVE_CACHE_SIZE=1GB \
     DB_MAINTENANCE_WORK_MEM=128MB \
-    DB_WORK_MEM=32MB \
-    # Logging
-    DB_LOG_STATEMENT=none \
+    DB_WORK_MEM=32MB
+
+# Logging
+ENV DB_LOG_STATEMENT=none \
     DB_LOG_MIN_DURATION_STATEMENT=-1
 
 # Expose PostgreSQL port

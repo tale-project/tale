@@ -276,6 +276,71 @@ describe('listIndexedDocumentsForAgent', () => {
     expect(uniqueFileIds.size).toBe(10);
   });
 
+  it('encodes composite cursor with skip count when a DB page overflows limit', async () => {
+    // 5 matching docs all returned in a single DB page (isDone=true).
+    // With limit=3, the first call collects all 5, returns the first 3,
+    // and the cursor must encode a skip count (JSON { c, s }) so the
+    // next call re-fetches the same DB page and skips already-returned
+    // matches.
+    const docs = Array.from({ length: 5 }, (_, i) => ({
+      _id: `doc${i}`,
+      fileId: `file${i}`,
+      title: `Doc ${i}`,
+    }));
+
+    const queryFn = () => ({
+      withIndex: () => ({
+        order: () => ({
+          paginate: async () => ({
+            page: docs,
+            isDone: true,
+            continueCursor: 'end',
+          }),
+        }),
+      }),
+    });
+    const ctx = { db: { query: queryFn } } as unknown as Parameters<
+      typeof listIndexedDocumentsForAgent
+    >[0];
+
+    // First page: returns 3 docs, cursor encodes skip
+    const page1 = await listIndexedDocumentsForAgent(ctx, {
+      organizationId: 'org1',
+      includeOrgKnowledge: true,
+      limit: 3,
+    });
+
+    expect(page1.documents).toHaveLength(3);
+    expect(page1.hasMore).toBe(true);
+    expect(page1.cursor).not.toBeNull();
+
+    // The cursor must be a JSON-encoded composite with `c` and `s` fields
+    const cursor = page1.cursor ?? '';
+    const parsed = JSON.parse(cursor);
+    expect(parsed).toHaveProperty('c');
+    expect(parsed).toHaveProperty('s');
+    expect(parsed.s).toBe(3);
+
+    // Second page: pass the composite cursor back; skip=3 means docs 3 & 4
+    const page2 = await listIndexedDocumentsForAgent(ctx, {
+      organizationId: 'org1',
+      includeOrgKnowledge: true,
+      limit: 3,
+      cursor,
+    });
+
+    expect(page2.documents).toHaveLength(2);
+    expect(page2.hasMore).toBe(false);
+    expect(page2.cursor).toBeNull();
+
+    // All 5 docs returned with no duplicates
+    const allFileIds = [...page1.documents, ...page2.documents].map(
+      (d) => d.fileId,
+    );
+    expect(new Set(allFileIds).size).toBe(5);
+    expect(allFileIds).toEqual(['file0', 'file1', 'file2', 'file3', 'file4']);
+  });
+
   it('does not lose documents when filtering reduces page results', async () => {
     // Mix of team-a and team-b docs — only team-a matches
     const docs = Array.from({ length: 20 }, (_, i) => ({

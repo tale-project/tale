@@ -181,7 +181,8 @@ export async function ssoCallbackHandler(
     });
 
     const headers = new Headers();
-    headers.set('Location', `${frontendOrigin}/dashboard`);
+    const basePath = process.env.BASE_PATH || '';
+    headers.set('Location', `${frontendOrigin}${basePath}/dashboard`);
     for (const cookie of cookies) {
       headers.append('Set-Cookie', cookie);
     }

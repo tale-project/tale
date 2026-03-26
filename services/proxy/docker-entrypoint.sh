@@ -25,8 +25,14 @@ SITE_URL=$(echo "${SITE_URL}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
 export SITE_URL
 
 # Base path for subpath deployments (from .env, e.g., /test or /app)
-BASE_PATH=$(echo "${BASE_PATH:-}" | sed 's|/$||')
+# Strip trailing slashes, ensure leading slash if non-empty, strip SITE_URL trailing slash
+BASE_PATH=$(echo "${BASE_PATH:-}" | sed 's|/\+$||')
+if [ -n "$BASE_PATH" ] && [ "${BASE_PATH#/}" = "$BASE_PATH" ]; then
+  BASE_PATH="/${BASE_PATH}"
+fi
+SITE_URL=$(echo "${SITE_URL}" | sed 's|/\+$||')
 export BASE_PATH
+export SITE_URL
 
 echo "Domain Configuration:"
 echo "  HOST: ${HOST}"

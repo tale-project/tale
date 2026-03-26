@@ -79,6 +79,7 @@ async def generate(request: GenerateRequest):
                 content=s.get("content", ""),
                 score=s.get("score", 0.0),
                 file_id=s.get("file_id"),
+                filename=s.get("filename"),
                 source_created_at=s.get("source_created_at"),
                 source_modified_at=s.get("source_modified_at"),
                 metadata=s.get("metadata"),

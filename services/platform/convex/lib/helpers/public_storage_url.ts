@@ -18,7 +18,7 @@ export function getPublicHttpApiUrl(): string {
     throw new Error('Missing required environment variable: SITE_URL');
   }
   const basePath = process.env.BASE_PATH ?? '';
-  return `${siteUrl}${basePath}/http_api`;
+  return `${siteUrl.replace(/\/$/, '')}${basePath}/http_api`;
 }
 
 /**

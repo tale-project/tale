@@ -99,8 +99,11 @@ export async function fetchWebsiteInfo(
     if (res.ok) {
       return await res.json();
     }
-  } catch {
-    // Non-fatal: website info will be synced on next operation
+  } catch (error) {
+    console.warn(
+      `[fetchWebsiteInfo] Failed to fetch info for ${domain}:`,
+      error,
+    );
   }
   return null;
 }
@@ -182,7 +185,11 @@ export const registerAndSync = internalAction({
   handler: async (ctx, args): Promise<void> => {
     try {
       await registerDomainWithCrawler(args.domain, args.scanInterval);
-    } catch {
+    } catch (error) {
+      console.error(
+        `[registerAndSync] Failed to register domain ${args.domain}:`,
+        error,
+      );
       await ctx.runMutation(internal.websites.internal_mutations.patchWebsite, {
         websiteId: args.websiteId,
         status: 'error',

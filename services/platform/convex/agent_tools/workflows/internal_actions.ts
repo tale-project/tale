@@ -94,7 +94,8 @@ export const executeApprovedWorkflowCreation = internalAction({
 
       if (approval.threadId) {
         const siteUrl = process.env.SITE_URL || '';
-        const workflowUrl = `${siteUrl}/automations/${result.workflowId}`;
+        const basePath = process.env.BASE_PATH || '';
+        const workflowUrl = `${siteUrl}${basePath}/automations/${result.workflowId}`;
         const messageContent = `[WORKFLOW_CREATED]
 The user has approved the workflow creation request.
 
@@ -450,7 +451,8 @@ export const executeApprovedWorkflowUpdate = internalAction({
       if (approval.threadId) {
         try {
           const siteUrl = process.env.SITE_URL || '';
-          const workflowUrl = `${siteUrl}/automations/${metadata.workflowId}`;
+          const basePath = process.env.BASE_PATH || '';
+          const workflowUrl = `${siteUrl}${basePath}/automations/${metadata.workflowId}`;
           const updateDetail =
             metadata.updateType === 'full_save'
               ? `All steps replaced (${metadata.stepsConfig?.length ?? 0} steps)`

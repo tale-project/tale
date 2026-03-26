@@ -32,7 +32,8 @@ function buildRedirectUrl(
   },
 ): string {
   const siteUrl = process.env.SITE_URL || 'http://localhost:3000';
-  const basePath = organizationId
+  const deployBasePath = process.env.BASE_PATH || '';
+  const routePath = organizationId
     ? `/dashboard/${organizationId}/settings/integrations`
     : '/settings/integrations';
 
@@ -47,7 +48,7 @@ function buildRedirectUrl(
   if (params.description) searchParams.set('description', params.description);
 
   const queryString = searchParams.toString();
-  return `${siteUrl}${basePath}${queryString ? `?${queryString}` : ''}`;
+  return `${siteUrl}${deployBasePath}${routePath}${queryString ? `?${queryString}` : ''}`;
 }
 
 function parseState(state: string): ParsedState | null {

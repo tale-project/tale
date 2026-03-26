@@ -235,7 +235,8 @@ To also save the file to a folder in the documents hub, call document_write with
           });
 
           const siteUrl = process.env.SITE_URL || '';
-          const knowledgeUrl = `${siteUrl}/dashboard/${organizationId}/documents`;
+          const basePath = process.env.BASE_PATH || '';
+          const knowledgeUrl = `${siteUrl}${basePath}/dashboard/${organizationId}/documents`;
 
           return {
             operation: 'list_templates',

@@ -29,7 +29,11 @@ function DashboardRedirect() {
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       const basePath = getEnv('BASE_PATH');
-      const returnTo = window.location.pathname + window.location.search;
+      const pathname = window.location.pathname;
+      const routePath = basePath
+        ? pathname.replace(new RegExp(`^${basePath}`), '')
+        : pathname;
+      const returnTo = routePath + window.location.search;
       window.location.href = `${basePath}/log-in?redirectTo=${encodeURIComponent(returnTo)}`;
     }
   }, [isLoading, isAuthenticated]);

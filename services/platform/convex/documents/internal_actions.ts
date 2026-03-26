@@ -426,12 +426,16 @@ export const checkRagDocumentStatus = internalAction({
   },
 });
 
+const DELETE_RETRY_DELAYS = [5_000, 30_000, 120_000];
+
 export const deleteDocumentFromRag = internalAction({
   args: {
     documentId: v.id('documents'),
+    attempt: v.optional(v.number()),
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
+    const attempt = args.attempt ?? 0;
     const ragUrl = getRagConfig().serviceUrl;
 
     const document = await ctx.runQuery(
@@ -477,6 +481,19 @@ export const deleteDocumentFromRag = internalAction({
       await ctx.runMutation(
         internal.documents.internal_mutations.deleteDocumentById,
         { documentId: args.documentId },
+      );
+    } else if (attempt < DELETE_RETRY_DELAYS.length) {
+      console.warn(
+        `[deleteDocumentFromRag] Scheduling retry ${attempt + 1}/${DELETE_RETRY_DELAYS.length} for ${args.documentId}`,
+      );
+      await ctx.scheduler.runAfter(
+        DELETE_RETRY_DELAYS[attempt],
+        internal.documents.internal_actions.deleteDocumentFromRag,
+        { documentId: args.documentId, attempt: attempt + 1 },
+      );
+    } else {
+      console.error(
+        `[deleteDocumentFromRag] All retries exhausted for ${args.documentId}. Document remains in database.`,
       );
     }
 
