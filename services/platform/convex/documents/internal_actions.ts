@@ -18,6 +18,7 @@ import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
 import { getRagConfig } from '../lib/helpers/rag_config';
 import { ragAction } from '../workflow_engine/action_defs/rag/rag_action';
+import { getCrawlerUrl } from './generate_document_helpers';
 import * as DocumentsHelpers from './helpers';
 
 const INITIAL_POLLING_DELAY_MS = 10_000;
@@ -425,28 +426,16 @@ export const checkRagDocumentStatus = internalAction({
   },
 });
 
-/** Backward-compat alias for already-scheduled calls. Remove after 2026-03-08. */
-export const checkRagJobStatus = internalAction({
-  args: {
-    documentId: v.id('documents'),
-    attempt: v.number(),
-  },
-  returns: v.null(),
-  handler: async (ctx, args): Promise<null> => {
-    await ctx.runAction(
-      internal.documents.internal_actions.checkRagDocumentStatus,
-      args,
-    );
-    return null;
-  },
-});
+const DELETE_RETRY_DELAYS = [5_000, 30_000, 120_000];
 
 export const deleteDocumentFromRag = internalAction({
   args: {
     documentId: v.id('documents'),
+    attempt: v.optional(v.number()),
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
+    const attempt = args.attempt ?? 0;
     const ragUrl = getRagConfig().serviceUrl;
 
     const document = await ctx.runQuery(
@@ -492,6 +481,19 @@ export const deleteDocumentFromRag = internalAction({
       await ctx.runMutation(
         internal.documents.internal_mutations.deleteDocumentById,
         { documentId: args.documentId },
+      );
+    } else if (attempt < DELETE_RETRY_DELAYS.length) {
+      console.warn(
+        `[deleteDocumentFromRag] Scheduling retry ${attempt + 1}/${DELETE_RETRY_DELAYS.length} for ${args.documentId}`,
+      );
+      await ctx.scheduler.runAfter(
+        DELETE_RETRY_DELAYS[attempt],
+        internal.documents.internal_actions.deleteDocumentFromRag,
+        { documentId: args.documentId, attempt: attempt + 1 },
+      );
+    } else {
+      console.error(
+        `[deleteDocumentFromRag] All retries exhausted for ${args.documentId}. Document remains in database.`,
       );
     }
 
@@ -686,10 +688,6 @@ export const reindexDocumentInRag = internalAction({
 const EXTRACT_DATES_SUPPORTED_EXTENSIONS = new Set(['pdf', 'docx', 'pptx']);
 const EXTRACT_DATES_RETRY_DELAYS = [30_000, 60_000, 120_000];
 
-function getCrawlerUrl(): string {
-  return process.env.CRAWLER_URL || 'http://localhost:8002';
-}
-
 export const extractDocumentDates = internalAction({
   args: {
     documentId: v.id('documents'),
@@ -797,7 +795,7 @@ export const extractDocumentDates = internalAction({
         `[extractDocumentDates] Error for document ${args.documentId} (attempt ${attempt}): ${message}`,
       );
 
-      if (attempt < 3) {
+      if (attempt < EXTRACT_DATES_RETRY_DELAYS.length) {
         const retryDelay = EXTRACT_DATES_RETRY_DELAYS[attempt];
         await ctx.scheduler.runAfter(
           retryDelay,
@@ -807,6 +805,10 @@ export const extractDocumentDates = internalAction({
             fileId: args.fileId,
             attempt: attempt + 1,
           },
+        );
+      } else {
+        console.warn(
+          `[extractDocumentDates] All retries exhausted for document ${args.documentId}: ${message}`,
         );
       }
     }

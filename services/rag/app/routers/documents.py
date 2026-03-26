@@ -339,13 +339,18 @@ async def upload_document(
         await _insert_processing_row(doc_id, file.filename)
 
         if sync:
-            result = await rag_service.add_document(
-                content=file_bytes,
-                file_id=doc_id,
-                filename=file.filename,
-                source_created_at=source_created_at,
-                source_modified_at=source_modified_at,
-            )
+            try:
+                result = await rag_service.add_document(
+                    content=file_bytes,
+                    file_id=doc_id,
+                    filename=file.filename,
+                    source_created_at=source_created_at,
+                    source_modified_at=source_modified_at,
+                )
+            except Exception as sync_exc:
+                await _record_failure(doc_id, file.filename, _sanitize_error(sync_exc))
+                raise
+
             if result.get("skipped"):
                 await _mark_completed(doc_id)
 

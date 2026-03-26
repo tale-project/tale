@@ -31,7 +31,7 @@
 	respond /health "OK" 200
 }
 
-{$SITE_URL:https://tale.local} {
+{$SITE_ORIGIN:https://tale.local} {
 	# TLS Configuration - This line is replaced by entrypoint based on TLS_MODE
 	# DO NOT MODIFY - entrypoint will replace this placeholder
 	# TLS_PLACEHOLDER
@@ -41,6 +41,9 @@
 		format console
 		level INFO
 	}
+
+	# Strip base path prefix for subpath deployments (no-op when empty)
+	# BASE_PATH_PLACEHOLDER
 
 	# Remove WebSocket compression extension header before proxying
 	# This prevents "Invalid frame header" errors caused by permessage-deflate
@@ -89,7 +92,7 @@
 		path /data /data/* /functions /functions/* /logs /logs/* /history /history/* /settings /settings/* /files /files/* /schedules /schedules/*
 		query component=*
 	}
-	redir @convexDashboardRedirect /convex-dashboard{uri} temporary
+	redir @convexDashboardRedirect {$BASE_PATH:}/convex-dashboard{uri} temporary
 
 	# HTTP: Convex Dashboard UI (/convex-dashboard* -> platform:6791)
 	handle /convex-dashboard* {
@@ -98,6 +101,11 @@
 
 	# HTTP: Convex internal action callbacks (/api/actions/* -> platform:3210)
 	handle /api/actions/* {
+		reverse_proxy platform:3210
+	}
+
+	# HTTP: Convex storage upload/download (/api/storage/* -> platform:3210)
+	handle /api/storage/* {
 		reverse_proxy platform:3210
 	}
 

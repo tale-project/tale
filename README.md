@@ -114,6 +114,33 @@ Caddy will listen on HTTP only (port 80). Your reverse proxy must:
 - Terminate TLS and forward all traffic (including WebSocket) to Tale on port 80
 - Set `X-Forwarded-Proto` header
 
+### Subpath Deployment
+
+If your reverse proxy serves Tale under a subpath (e.g., `https://yourdomain.com/tale/`), set the `BASE_PATH` environment variable:
+
+```bash
+HOST=yourdomain.com
+SITE_URL=https://yourdomain.com
+TLS_MODE=external
+BASE_PATH=/tale
+```
+
+Your reverse proxy must strip the subpath prefix before forwarding. For example, in nginx:
+
+```nginx
+location /tale/ {
+    proxy_pass http://tale-server:80/;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+**Known limitations:**
+- Convex Dashboard (`/convex-dashboard`) is not accessible under subpath deployments
+
 ## Authentication Options
 
 Tale supports multiple authentication methods. By default, users sign up with email/password.

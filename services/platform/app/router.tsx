@@ -15,7 +15,10 @@ export interface RouterContext {
 
 export function createRouter() {
   const siteUrl = getEnv('SITE_URL');
-  const convexQueryClient = new ConvexQueryClient(`${siteUrl}/ws_api`);
+  const basePath = getEnv('BASE_PATH');
+  const convexQueryClient = new ConvexQueryClient(
+    `${siteUrl}${basePath}/ws_api`,
+  );
 
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -31,6 +34,7 @@ export function createRouter() {
 
   const router = createTanStackRouter({
     routeTree,
+    basepath: basePath || '/',
     context: {
       queryClient,
       convexQueryClient,

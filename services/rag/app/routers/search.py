@@ -38,6 +38,7 @@ async def search(request: QueryRequest):
                 score=r.get("score", 0.0),
                 file_id=r.get("file_id"),
                 filename=r.get("filename"),
+                source_created_at=r.get("source_created_at"),
                 source_modified_at=r.get("source_modified_at"),
                 metadata=r.get("metadata") if request.include_metadata else None,
             )
@@ -78,6 +79,8 @@ async def generate(request: GenerateRequest):
                 content=s.get("content", ""),
                 score=s.get("score", 0.0),
                 file_id=s.get("file_id"),
+                filename=s.get("filename"),
+                source_created_at=s.get("source_created_at"),
                 source_modified_at=s.get("source_modified_at"),
                 metadata=s.get("metadata"),
             )

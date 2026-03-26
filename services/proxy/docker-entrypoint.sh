@@ -24,9 +24,22 @@ fi
 SITE_URL=$(echo "${SITE_URL}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
 export SITE_URL
 
+# Base path for subpath deployments (from .env, e.g., /test or /app)
+# Strip trailing slashes, ensure leading slash if non-empty, strip SITE_URL trailing slash
+BASE_PATH=$(echo "${BASE_PATH:-}" | sed 's|/\+$||')
+if [ -n "$BASE_PATH" ] && [ "${BASE_PATH#/}" = "$BASE_PATH" ]; then
+  BASE_PATH="/${BASE_PATH}"
+fi
+SITE_URL=$(echo "${SITE_URL}" | sed 's|/\+$||')
+export BASE_PATH
+export SITE_URL
+
 echo "Domain Configuration:"
 echo "  HOST: ${HOST}"
 echo "  SITE_URL: ${SITE_URL}"
+if [ -n "$BASE_PATH" ]; then
+  echo "  BASE_PATH: ${BASE_PATH}"
+fi
 
 # Source and destination for Caddyfile
 # We copy to /config (writable volume) because /etc/caddy is read-only in the image
@@ -78,11 +91,21 @@ fi
 cp "$CADDYFILE_SRC" "$CADDYFILE"
 sed -i "s|.*TLS_PLACEHOLDER.*|\\t${TLS_CONFIG}|" "$CADDYFILE"
 
+# Replace SITE_ORIGIN in Caddyfile with SITE_URL (no subpath in SITE_URL)
+sed -i "s|{[\$]SITE_ORIGIN:[^}]*}|${SITE_URL}|" "$CADDYFILE"
+
+# Inject base path stripping for subpath deployments
+if [ -n "$BASE_PATH" ]; then
+  sed -i "s|# BASE_PATH_PLACEHOLDER|uri strip_prefix ${BASE_PATH}|" "$CADDYFILE"
+else
+  sed -i "/# BASE_PATH_PLACEHOLDER/d" "$CADDYFILE"
+fi
+
 # For external mode, force Caddy to listen on HTTP by rewriting the scheme.
 # SITE_URL stays as-is for the platform (public URL), but Caddy must not auto-enable TLS.
 if [ "${TLS_MODE:-selfsigned}" = "external" ]; then
-  CADDY_ADDR=$(echo "${SITE_URL}" | sed 's|^https://|http://|')
-  sed -i "s|{[\$]SITE_URL:[^}]*}|${CADDY_ADDR}|" "$CADDYFILE"
+  CADDY_ADDR=$(echo "${SITE_URL}" | sed -E 's|^https://|http://|; s|:[0-9]+$||')
+  sed -i "s|${SITE_URL}|${CADDY_ADDR}|" "$CADDYFILE"
   echo "  Caddy listen address: ${CADDY_ADDR}"
 fi
 

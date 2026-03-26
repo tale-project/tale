@@ -10,13 +10,10 @@ import type {
 
 import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
+import { getCrawlerUrl } from '../documents/generate_document_helpers';
 
 const CRAWLER_TIMEOUT_MS = 15_000;
 const SYNC_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
-
-function getCrawlerUrl() {
-  return process.env.CRAWLER_URL || 'http://localhost:8002';
-}
 
 function fetchWithTimeout(
   url: string,
@@ -102,8 +99,11 @@ export async function fetchWebsiteInfo(
     if (res.ok) {
       return await res.json();
     }
-  } catch {
-    // Non-fatal: website info will be synced on next operation
+  } catch (error) {
+    console.warn(
+      `[fetchWebsiteInfo] Failed to fetch info for ${domain}:`,
+      error,
+    );
   }
   return null;
 }
@@ -185,7 +185,11 @@ export const registerAndSync = internalAction({
   handler: async (ctx, args): Promise<void> => {
     try {
       await registerDomainWithCrawler(args.domain, args.scanInterval);
-    } catch {
+    } catch (error) {
+      console.error(
+        `[registerAndSync] Failed to register domain ${args.domain}:`,
+        error,
+      );
       await ctx.runMutation(internal.websites.internal_mutations.patchWebsite, {
         websiteId: args.websiteId,
         status: 'error',

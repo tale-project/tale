@@ -283,6 +283,42 @@ class TestBackgroundIngest:
                 "test.txt",
             )
 
+    async def test_forwards_source_timestamps_to_add_document(self):
+        import datetime as dt
+
+        from app.routers.documents import _background_ingest
+
+        created = dt.datetime(2025, 6, 15, 10, 30, 0, tzinfo=dt.UTC)
+        modified = dt.datetime(2025, 7, 20, 14, 45, 0, tzinfo=dt.UTC)
+
+        add_result: dict[str, Any] = {
+            "success": True,
+            "file_id": "doc-1",
+            "chunks_created": 3,
+            "skipped": False,
+        }
+
+        with (
+            patch("app.routers.documents.rag_service") as mock_rag,
+            patch("app.routers.documents.cleanup_memory"),
+        ):
+            mock_rag.add_document = AsyncMock(return_value=add_result)
+            await _background_ingest(
+                b"content",
+                "doc-1",
+                "test.txt",
+                source_created_at=created,
+                source_modified_at=modified,
+            )
+
+        mock_rag.add_document.assert_awaited_once_with(
+            content=b"content",
+            file_id="doc-1",
+            filename="test.txt",
+            source_created_at=created,
+            source_modified_at=modified,
+        )
+
     async def test_cleanup_memory_always_called(self):
         from app.routers.documents import _background_ingest
 

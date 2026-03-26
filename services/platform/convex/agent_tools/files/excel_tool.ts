@@ -12,6 +12,7 @@ import type { ToolDefinition } from '../types';
 
 import { internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
+import { buildDownloadUrl } from '../../lib/helpers/public_storage_url';
 import { toId } from '../../lib/type_cast_helpers';
 import { appendFilePart } from './helpers/append_file_part';
 import { resolveFileName } from './helpers/resolve_file_name';
@@ -115,7 +116,10 @@ EXAMPLES:
 • Generate: { "operation": "generate", "fileName": "customers", "sheets": [{ "name": "Sheet1", "headers": ["Name", "Email"], "rows": [["Alice", "alice@example.com"]] }] }
 • Parse: { "operation": "parse", "fileId": "kg2bazp7...", "filename": "report.xlsx" }
 
-AFTER GENERATING: The file automatically appears as a download card in the chat. Do NOT mention downloading, do NOT include a link, and do NOT say "you can download it" — the card handles this. To also save the file to a folder in the documents hub, call document_write with the returned fileStorageId and the desired folderPath.
+AFTER GENERATING: Check the downloadUrl in the result:
+- If it says "[file card shown in chat]": the file is already visible as a download card. Do NOT mention downloading, do NOT include a link, and do NOT say "you can download it" — the card handles this.
+- If it contains an actual URL: no download card was shown. You MUST include the URL as a clickable markdown link so the user can download the file.
+To also save the file to a folder in the documents hub, call document_write with the returned fileStorageId and the desired folderPath.
 `,
     inputSchema: excelArgs,
     execute: async (ctx: ToolCtx, args): Promise<ExcelResult> => {
@@ -210,11 +214,7 @@ AFTER GENERATING: The file automatically appears as a download card in the chat.
           },
         );
 
-        const url = await ctx.storage.getUrl(fileId);
-
-        if (!url) {
-          throw new Error('Storage URL unavailable for generated Excel file.');
-        }
+        const url = buildDownloadUrl(fileId, result.fileName);
 
         debugLog('tool:excel generate success', {
           fileName: result.fileName,

@@ -82,16 +82,17 @@ export async function ssoSetSessionHandler(
     });
 
     // Return an HTML page that sets cookies and redirects
+    const basePath = process.env.BASE_PATH || '';
     const html = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="refresh" content="0;url=/dashboard">
+  <meta http-equiv="refresh" content="0;url=${basePath}/dashboard">
   <title>Completing login...</title>
 </head>
 <body>
   <p>Completing login, please wait...</p>
-  <script>window.location.href = '/dashboard';</script>
+  <script>window.location.href = '${basePath}/dashboard';</script>
 </body>
 </html>`;
 

@@ -96,11 +96,13 @@ EXAMPLES:
 • Analyze: { "operation": "analyze", "fileId": "kg2bazp7fbgt9srq63knfagjrd7yfenj", "question": "What is in this image?" }
 
 CRITICAL RULES:
-1. For generate operation, the file automatically appears as a download card in the chat — do NOT include the downloadUrl as a markdown link.
-2. For analyze operation, ALWAYS use the fileId from the image attachment context.
-3. The fileId looks like "kg2bazp7fbgt9srq63knfagjrd7yfenj" (alphanumeric string starting with "k").
+1. For analyze operation, ALWAYS use the fileId from the image attachment context.
+2. The fileId looks like "kg2bazp7fbgt9srq63knfagjrd7yfenj" (alphanumeric string starting with "k").
 
-AFTER GENERATING: To save the file to a folder in the documents hub, call document_write with the returned fileStorageId and the desired folderPath.
+AFTER GENERATING: Check the downloadUrl in the result:
+- If it says "[file card shown in chat]": the file is already visible as a download card. Do NOT mention downloading, do NOT include a link, and do NOT say "you can download it" — the card handles this.
+- If it contains an actual URL: no download card was shown. You MUST include the URL as a clickable markdown link so the user can download the file.
+To also save the file to a folder in the documents hub, call document_write with the returned fileStorageId and the desired folderPath.
 `,
     inputSchema: z.discriminatedUnion('operation', [
       z.object({

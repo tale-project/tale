@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import datetime as dt
 import re
+import uuid
 from dataclasses import dataclass, replace
 from io import BytesIO
 from typing import Any
@@ -146,7 +147,7 @@ def _extract_file_dates(
                 _ensure_aware(props.modified),
             )
     except Exception:
-        logger.debug("Could not extract dates from {}", filename)
+        logger.warning("Could not extract dates from {}", filename)
 
     return (None, None)
 
@@ -209,7 +210,7 @@ async def prepare_document(
 async def find_existing_by_hash(
     pool: asyncpg.Pool,
     content_hash: str,
-) -> int | None:
+) -> uuid.UUID | None:
     """Find a completed document with the given content hash (any scope).
 
     Returns the internal UUID (documents.id) if found, else None.
@@ -224,14 +225,14 @@ async def find_existing_by_hash(
 
 async def clone_from_existing(
     pool: asyncpg.Pool,
-    source_doc_id: int,
+    source_doc_id: uuid.UUID,
     file_id: str,
     filename: str,
     content_hash: str,
     *,
     source_created_at: dt.datetime | None = None,
     source_modified_at: dt.datetime | None = None,
-) -> dict[str, Any]:
+) -> dict[str, Any] | None:
     """Clone chunks from an existing document into a new scope.
 
     Skips if the target scope already has the same content hash.
@@ -268,7 +269,7 @@ async def clone_from_existing(
                 source_modified_at=source_modified_at,
             )
             if result is None:
-                return None  # type: ignore[return-value]
+                return None
             logger.info(
                 "Cloned document {}: {} chunks (from source {})",
                 file_id,
@@ -285,11 +286,11 @@ async def clone_from_existing(
 
 async def _do_clone(
     pool: asyncpg.Pool,
-    source_doc_id: int,
+    source_doc_id: uuid.UUID,
     file_id: str,
     filename: str,
     content_hash: str,
-    existing_id: int | None,
+    existing_id: uuid.UUID | None,
     *,
     source_created_at: dt.datetime | None = None,
     source_modified_at: dt.datetime | None = None,
@@ -366,7 +367,7 @@ async def _do_store(
     file_id: str,
     filename: str,
     prepared: PreparedDocument,
-    existing_id: int | None,
+    existing_id: uuid.UUID | None,
 ) -> dict[str, Any]:
     """Execute the delete-old + insert-new DB operations in a single transaction."""
     async with acquire_with_retry(pool) as conn, conn.transaction():

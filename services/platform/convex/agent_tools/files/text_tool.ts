@@ -15,6 +15,7 @@ import type { ToolDefinition } from '../types';
 
 import { internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
+import { buildDownloadUrl } from '../../lib/helpers/public_storage_url';
 import { analyzeTextContent } from './helpers/analyze_text';
 import { appendFilePart } from './helpers/append_file_part';
 import { getAgentModelId } from './helpers/get_agent_model';
@@ -111,7 +112,10 @@ EXAMPLES:
 
 Returns: { success, downloadUrl (for generate), result (for parse), char_count, line_count }
 
-AFTER GENERATING: The file automatically appears as a download card in the chat. Do NOT mention downloading, do NOT include a link, and do NOT say "you can download it" — the card handles this. To also save the file to a folder in the documents hub, call document_write with the returned fileStorageId and the desired folderPath.
+AFTER GENERATING: Check the downloadUrl in the result:
+- If it says "[file card shown in chat]": the file is already visible as a download card. Do NOT mention downloading, do NOT include a link, and do NOT say "you can download it" — the card handles this.
+- If it contains an actual URL: no download card was shown. You MUST include the URL as a clickable markdown link so the user can download the file.
+To also save the file to a folder in the documents hub, call document_write with the returned fileStorageId and the desired folderPath.
 `,
     inputSchema: textArgs,
     execute: async (ctx: ToolCtx, args): Promise<TextResult> => {
@@ -139,12 +143,7 @@ AFTER GENERATING: The file automatically appears as a download card in the chat.
             },
           );
 
-          const url = await ctx.storage.getUrl(fileId);
-
-          if (!url) {
-            throw new Error('Storage URL unavailable for generated text file.');
-          }
-
+          const url = buildDownloadUrl(fileId, filename);
           const lineCount = content.split('\n').length;
 
           debugLog('tool:text generate success', {

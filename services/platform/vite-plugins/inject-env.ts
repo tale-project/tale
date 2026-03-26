@@ -2,6 +2,7 @@ import { type Plugin } from 'vite';
 
 interface EnvConfig {
   SITE_URL: string;
+  BASE_PATH: string;
   MICROSOFT_AUTH_ENABLED: boolean;
   SENTRY_DSN?: string;
   SENTRY_TRACES_SAMPLE_RATE: number;
@@ -13,6 +14,7 @@ function getEnvConfig(): EnvConfig {
   }
   return {
     SITE_URL: process.env.SITE_URL,
+    BASE_PATH: (process.env.BASE_PATH ?? '').replace(/\/$/, ''),
     MICROSOFT_AUTH_ENABLED: process.env.MICROSOFT_AUTH_ENABLED === 'true',
     SENTRY_DSN: process.env.SENTRY_DSN,
     SENTRY_TRACES_SAMPLE_RATE: parseFloat(

@@ -132,6 +132,7 @@ export const documentRecordValidator = v.object({
   sourceProvider: v.optional(sourceProviderValidator),
   externalItemId: v.optional(v.string()),
   ragInfo: v.optional(ragInfoValidator),
+  indexed: v.optional(v.boolean()),
   sourceCreatedAt: v.optional(v.number()),
   sourceModifiedAt: v.optional(v.number()),
 });

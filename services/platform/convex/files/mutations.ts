@@ -2,6 +2,7 @@ import { v } from 'convex/values';
 
 import { mutation } from '../_generated/server';
 import { authComponent } from '../auth';
+import { toPublicUrl } from '../lib/helpers/public_storage_url';
 
 export const generateUploadUrl = mutation({
   args: {},
@@ -12,6 +13,7 @@ export const generateUploadUrl = mutation({
       throw new Error('Unauthenticated');
     }
 
-    return await ctx.storage.generateUploadUrl();
+    const url = await ctx.storage.generateUploadUrl();
+    return toPublicUrl(url);
   },
 });

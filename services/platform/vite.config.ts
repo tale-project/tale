@@ -43,6 +43,7 @@ function serveWorkflowTemplates(): Plugin {
 }
 
 export default defineConfig({
+  base: './',
   resolve: {
     dedupe: ['convex', 'convex/react', 'react', 'react-dom'],
   },

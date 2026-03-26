@@ -20,6 +20,7 @@ import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useToast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
+import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
 import { useSiteUrl } from '@/lib/site-url-context';
 
@@ -64,11 +65,12 @@ export function CustomAgentWebhookSection({
   const [usageTarget, setUsageTarget] = useState<WebhookRow | null>(null);
 
   const siteUrl = useSiteUrl();
+  const basePath = getEnv('BASE_PATH');
   const isPublished = versions?.some((v) => v.status === 'active') ?? false;
 
   const getWebhookUrl = useCallback(
-    (token: string) => `${siteUrl}/api/agents/wh/${token}`,
-    [siteUrl],
+    (token: string) => `${siteUrl}${basePath}/api/agents/wh/${token}`,
+    [siteUrl, basePath],
   );
 
   const handleCreate = useCallback(async () => {

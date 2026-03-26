@@ -228,7 +228,7 @@ class GenerateRequest(BaseModel):
     These parameters are hardcoded for consistency and simplicity.
     """
 
-    query: str = Field(..., max_length=10_000, description="User query")
+    query: str = Field(..., min_length=1, max_length=10_000, description="User query")
     file_ids: list[str] = Field(
         ...,
         min_length=1,

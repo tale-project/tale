@@ -34,6 +34,17 @@ export const retryRagIndexing = action({
         return { success: false, error: 'Document not found' };
       }
 
+      const isMember = await ctx.runQuery(
+        internal.documents.internal_queries.verifyOrganizationMembership,
+        {
+          organizationId: document.organizationId,
+          userId: String(authUser._id),
+        },
+      );
+      if (!isMember) {
+        return { success: false, error: 'Unauthorized' };
+      }
+
       if (!document.fileId) {
         return { success: false, error: 'Document has no file' };
       }

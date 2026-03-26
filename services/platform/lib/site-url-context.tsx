@@ -18,9 +18,10 @@ interface SiteUrlProviderProps {
 export function SiteUrlProvider({ children }: SiteUrlProviderProps) {
   const value = useMemo(() => {
     const siteUrl = getEnv('SITE_URL');
+    const basePath = getEnv('BASE_PATH');
     return {
       siteUrl,
-      convexUrl: `${siteUrl}/ws_api`,
+      convexUrl: `${siteUrl}${basePath}/ws_api`,
     };
   }, []);
 
