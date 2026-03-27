@@ -9,12 +9,10 @@ import type { Id } from '../../../../_generated/dataModel';
 import type { ActionCtx } from '../../../../_generated/server';
 import type { StepExecutionResult, LLMNodeConfig } from '../../../types';
 
-// Agent execution
 import { executeAgentWithTools } from './execute_agent_with_tools';
-// Result creation
 import { createLLMResult } from './utils/create_llm_result';
 import { processPrompts } from './utils/process_prompts';
-// Validation
+import { resolveKnowledgeFileIds } from './utils/resolve_knowledge_file_ids';
 import { validateAndNormalizeConfig } from './utils/validate_and_normalize_config';
 
 // =============================================================================
@@ -23,6 +21,11 @@ import { validateAndNormalizeConfig } from './utils/validate_and_normalize_confi
 
 /**
  * Execute LLM node logic (helper function)
+ *
+ * Note: userAnswers and userProfile are injected into variables by
+ * execute_step_handler.ts before config-level variable substitution. By the time
+ * this function receives the config, {{userAnswers}} and {{userProfile}} have
+ * already been resolved.
  */
 export async function executeLLMNode(
   ctx: ActionCtx,
@@ -31,6 +34,7 @@ export async function executeLLMNode(
   executionId: string | Id<'wfExecutions'>,
   organizationId: string,
   threadId?: string,
+  stepSlug?: string,
 ): Promise<StepExecutionResult> {
   // 1. Validate and normalize configuration
   const normalizedConfig = validateAndNormalizeConfig(config);
@@ -38,7 +42,16 @@ export async function executeLLMNode(
   // 2. Process prompts with variable substitution
   const prompts = processPrompts(normalizedConfig, variables);
 
-  // 3. Execute using Convex agent with tools
+  // 3. Resolve knowledgeFileIds with variable substitution
+  const knowledgeFileIds = resolveKnowledgeFileIds(
+    normalizedConfig.knowledgeFileIds,
+    variables,
+  );
+
+  // 4. Execute using Convex agent with tools
+  const userId =
+    typeof variables.userId === 'string' ? variables.userId : undefined;
+
   const llmResult = await executeAgentWithTools(
     ctx,
     normalizedConfig,
@@ -46,12 +59,15 @@ export async function executeLLMNode(
     {
       executionId,
       organizationId,
-      threadId, // Pass shared threadId when reusing conversation context across steps
+      threadId,
+      stepSlug,
+      knowledgeFileIds,
+      userId,
     },
   );
 
-  // 4. Create and return result
+  // 5. Create and return result
   return createLLMResult(llmResult, normalizedConfig, {
-    threadId: llmResult.threadId, // Return the threadId used
+    threadId: llmResult.threadId,
   });
 }

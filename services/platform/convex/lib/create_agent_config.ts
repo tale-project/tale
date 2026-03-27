@@ -80,9 +80,16 @@ export function createAgentConfig(opts: {
     );
   }
 
-  // Add disambiguation rule for agents with request_human_input tool
+  // Add human input enforcement and disambiguation rules for agents with request_human_input tool
   if (opts.convexToolNames?.includes('request_human_input')) {
     suffixParts.push(`
+**HUMAN INPUT RULE**
+When you need ANY information, confirmation, or decision from the user:
+- You MUST use the request_human_input tool to create an interactive input card
+- NEVER ask questions as plain text in your response — the user cannot reply to text
+- The ONLY way to collect user input is through the request_human_input tool
+- This applies to: clarifications, missing values, confirmations, preferences, follow-up questions
+
 **DISAMBIGUATION RULE**
 When searching for a specific record and finding MULTIPLE matches:
 1. DO NOT proceed with all matches or pick one arbitrarily
@@ -100,6 +107,25 @@ CRITICAL: After calling request_human_input:
 Example: User asks for "John's email" and you find 3 Johns:
 → Call request_human_input with options
 → Then STOP and say "I found 3 customers named John. Please select which one you mean from the options above."`);
+  }
+
+  // Add approval card placement rule for agents with tools that create approval cards
+  if (
+    opts.convexToolNames?.some((name) =>
+      [
+        'run_workflow',
+        'create_workflow',
+        'save_workflow_definition',
+        'update_workflow_step',
+        'integration',
+        'document_write',
+      ].includes(name),
+    ) ||
+    opts.extraTools
+  ) {
+    suffixParts.push(
+      'When a tool creates an approval card, do NOT mention its position in the chat. Never say the card is "above" or "below" — just inform the user that the card has been created.',
+    );
   }
 
   const finalInstructions = [opts.instructions, suffixParts.join('\n\n')]
@@ -149,7 +175,7 @@ Example: User asks for "John's email" and you find 3 Johns:
   return {
     name: opts.name,
     instructions: finalInstructions,
-    languageModel: openai.chat(model),
+    languageModel: openai.chatModel(model),
     callSettings,
     ...(typeof opts.maxTokens === 'number'
       ? { providerOptions: { openai: { maxOutputTokens: opts.maxTokens } } }
@@ -159,7 +185,7 @@ Example: User asks for "John's email" and you find 3 Johns:
       ? { maxSteps: effectiveMaxSteps }
       : {}),
     ...(embeddingModel
-      ? { textEmbeddingModel: openai.embedding(embeddingModel) }
+      ? { embeddingModel: openai.textEmbeddingModel(embeddingModel) }
       : {}),
   } as ConstructorParameters<typeof Agent>[1];
 }

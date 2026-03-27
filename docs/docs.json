@@ -1,23 +1,142 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "name": "Tale",
-  "theme": "mint",
+  "description": "The Sovereign AI Platform — Local AI models, agents, skills, and automations — on your own infrastructure, connected to your data. ISO 27001 & SOC 2 certified. Swiss-based.",
+  "theme": "maple",
   "colors": {
-    "primary": "#0F172A",
-    "light": "#38BDF8",
-    "dark": "#0F172A"
+    "primary": "#056CFF",
+    "light": "#056CFF",
+    "dark": "#5098FF"
+  },
+  "logo": {
+    "light": "/images/logo-text-black.svg",
+    "dark": "/images/logo-text-white.svg",
+    "href": "https://tale.dev/"
+  },
+  "favicon": {
+    "light": "/images/favicon-black.png",
+    "dark": "/images/favicon-white.png"
+  },
+  "appearance": {
+    "default": "system"
+  },
+  "fonts": {
+    "heading": {
+      "family": "Inter",
+      "weight": 600
+    },
+    "body": {
+      "family": "Inter",
+      "weight": 400
+    }
+  },
+  "icons": {
+    "library": "lucide"
+  },
+  "background": {
+    "color": {
+      "light": "#FFFFFF",
+      "dark": "#0C1017"
+    }
+  },
+  "styling": {
+    "eyebrows": "breadcrumbs",
+    "codeblocks": "system"
   },
   "navigation": {
+    "global": {
+      "anchors": [
+        {
+          "anchor": "GitHub",
+          "icon": "github",
+          "href": "https://github.com/tale-project/tale"
+        },
+        {
+          "anchor": "API Reference",
+          "icon": "code",
+          "href": "/api-reference"
+        }
+      ]
+    },
     "groups": [
       {
-        "group": "Guides",
+        "group": "Getting started",
+        "pages": ["overview", "quickstart", "production-deployment"]
+      },
+      {
+        "group": "Features",
         "pages": [
-          "chat-agent-guide",
-          "workflow-guide",
-          "permissions",
-          "zero-downtime-deployment"
+          "ai-chat",
+          "knowledge-base",
+          "conversations",
+          "approvals",
+          "automations",
+          "custom-agents",
+          "settings"
+        ]
+      },
+      {
+        "group": "Administration",
+        "pages": ["roles-and-permissions", "authentication"]
+      },
+      {
+        "group": "Operations",
+        "pages": [
+          "api-reference",
+          "environment-reference",
+          "operations",
+          "troubleshooting"
         ]
       }
     ]
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "GitHub",
+        "href": "https://github.com/tale-project/tale",
+        "type": "github"
+      }
+    ]
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/tale-project/tale",
+      "website": "https://tale.dev/"
+    },
+    "links": [
+      {
+        "header": "Product",
+        "items": [
+          { "label": "Overview", "href": "/overview" },
+          { "label": "Features", "href": "/ai-chat" },
+          { "label": "API Reference", "href": "/api-reference" }
+        ]
+      },
+      {
+        "header": "Resources",
+        "items": [
+          { "label": "Quick start", "href": "/quickstart" },
+          { "label": "Environment reference", "href": "/environment-reference" },
+          { "label": "Troubleshooting", "href": "/troubleshooting" }
+        ]
+      }
+    ]
+  },
+  "interaction": {
+    "drilldown": true
+  },
+  "contextual": {
+    "options": ["copy", "view", "claude", "chatgpt", "cursor"],
+    "display": "header"
+  },
+  "search": {
+    "prompt": "Search documentation..."
+  },
+  "seo": {
+    "indexing": "navigable"
+  },
+  "metadata": {
+    "timestamp": true
   }
 }

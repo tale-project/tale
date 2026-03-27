@@ -89,18 +89,18 @@ export const createWorkflowTool = {
   name: 'create_workflow' as const,
   tool: createTool({
     description: `Create a new workflow definition with all steps.
-Requires user approval — an approval card will be shown below your message.
+Requires user approval — an approval card will be created.
 
 **⭐ IF THE USER PROVIDED A WORKFLOW JSON CONFIG:**
 Use the provided configuration DIRECTLY — do NOT recreate or rewrite it.
 Map the JSON to this tool's schema: top-level fields → workflowConfig, steps array → stepsConfig.`,
-    args: z.object({
+    inputSchema: z.object({
       workflowConfig: workflowConfigSchema,
       stepsConfig: z
         .array(stepConfigSchema)
         .describe('Complete list of steps for this workflow.'),
     }),
-    handler: async (
+    execute: async (
       ctx: ToolCtx,
       args,
     ): Promise<{
@@ -173,8 +173,8 @@ Map the JSON to this tool's schema: top-level fields → workflowConfig, steps a
           requiresApproval: true,
           approvalId,
           approvalCreated: true,
-          approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created below your message for workflow "${args.workflowConfig.name}". The user must approve this workflow creation before it will be created.`,
-          message: `Workflow "${args.workflowConfig.name}" is ready for approval. An approval card has been created below. The workflow will be created once the user approves it.`,
+          approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created for workflow "${args.workflowConfig.name}". The user must approve this workflow creation before it will be created.`,
+          message: `Workflow "${args.workflowConfig.name}" is ready for approval. An approval card has been created. The workflow will be created once the user approves it.`,
           validationWarnings:
             validation.warnings.length > 0 ? validation.warnings : undefined,
         };

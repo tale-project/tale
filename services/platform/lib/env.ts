@@ -2,6 +2,7 @@ declare global {
   interface Window {
     __ENV__?: {
       SITE_URL?: string;
+      BASE_PATH?: string;
       MICROSOFT_AUTH_ENABLED?: boolean;
       SENTRY_DSN?: string;
       SENTRY_TRACES_SAMPLE_RATE?: number;
@@ -12,6 +13,7 @@ declare global {
 }
 
 export function getEnv(key: 'SITE_URL'): string;
+export function getEnv(key: 'BASE_PATH'): string;
 export function getEnv(key: 'MICROSOFT_AUTH_ENABLED'): boolean;
 export function getEnv(key: 'SENTRY_DSN'): string | undefined;
 export function getEnv(key: 'SENTRY_TRACES_SAMPLE_RATE'): number;
@@ -19,6 +21,7 @@ export function getEnv(key: 'TALE_VERSION'): string | undefined;
 export function getEnv(
   key:
     | 'SITE_URL'
+    | 'BASE_PATH'
     | 'MICROSOFT_AUTH_ENABLED'
     | 'SENTRY_DSN'
     | 'SENTRY_TRACES_SAMPLE_RATE'
@@ -26,6 +29,9 @@ export function getEnv(
 ): string | boolean | number | undefined {
   const value = window.__ENV__?.[key];
   if (value === undefined) {
+    if (key === 'BASE_PATH') {
+      return '';
+    }
     if (key === 'MICROSOFT_AUTH_ENABLED') {
       return false;
     }

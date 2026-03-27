@@ -29,11 +29,12 @@ export const TOOL_NAMES = [
   'integration',
   'integration_batch',
   'integration_introspect',
-  'verify_approval',
   'database_schema',
   'request_human_input',
   'document_find',
   'document_retrieve',
+  'document_write',
+  'request_user_location',
 ] as const;
 
 export type ToolName = (typeof TOOL_NAMES)[number];

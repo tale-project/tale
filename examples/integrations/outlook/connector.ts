@@ -266,7 +266,11 @@ function mapGraphToEmailType(msg: GraphMessage, accountEmail: string) {
     text: contentType === 'text' ? bodyContent : '',
     html: contentType === 'html' ? bodyContent : '',
     flags: msg.isRead ? ['\\Seen'] : [],
-    headers: {},
+    headers: {
+      'message-id': msg.internetMessageId || '',
+      'in-reply-to': '',
+      references: '',
+    },
     attachments: (msg.attachments || [])
       .filter(function (att) {
         return att['@odata.type'] === '#microsoft.graph.fileAttachment';
@@ -306,9 +310,27 @@ function listMessages(
   headers: Record<string, string>,
   params: Record<string, unknown>,
 ) {
-  const top = Math.min((params.top as number) || 25, 100);
+  const requestedTop = Math.min((params.top as number) || 25, 100);
   const orderby = (params.orderby as string) || 'receivedDateTime desc';
-  const filter = (params.filter as string) || '';
+
+  // Build filter: prefer explicit cursor param, fall back to raw filter string.
+  // Use `ge` (>=) so that messages at the cursor's exact second are included;
+  // the cursor message itself is excluded by position-based skip below.
+  const cursor = params.cursor as
+    | { receivedDateTime?: string; messageId?: string }
+    | undefined;
+  let filter = (params.filter as string) || '';
+  if (cursor?.receivedDateTime && !filter) {
+    filter = 'receivedDateTime ge ' + cursor.receivedDateTime;
+  }
+
+  // Over-fetch when cursor is present: Graph API may truncate receivedDateTime
+  // to seconds while filtering with sub-second precision internally, causing
+  // messages at the cursor's truncated second to re-appear. Extra buffer lets
+  // us filter them out and still return genuinely new messages.
+  const top = cursor?.receivedDateTime
+    ? Math.min(requestedTop + 10, 100)
+    : requestedTop;
 
   // Graph API does not support $orderby combined with $filter on conversationId.
   // When this combination is detected, drop $orderby from the request and sort
@@ -341,7 +363,7 @@ function listMessages(
     queryParts.push('$select=' + params.select);
   } else {
     queryParts.push(
-      '$select=id,subject,from,toRecipients,receivedDateTime,isRead,hasAttachments,bodyPreview',
+      '$select=id,internetMessageId,subject,from,toRecipients,receivedDateTime,isRead,hasAttachments,bodyPreview',
     );
   }
   if (params.skip) {
@@ -359,7 +381,26 @@ function listMessages(
 
   const data = response.json() as Record<string, unknown>;
   const accountEmail = getAccountEmail(http, headers);
-  const rawValues = (data.value || []) as GraphMessage[];
+  let rawValues = (data.value || []) as GraphMessage[];
+
+  // Position-based skip: find the cursor message by ID in the asc-ordered
+  // results and take only messages after it. This avoids timestamp precision
+  // issues and correctly handles multiple messages within the same second.
+  // Then trim to the originally requested $top so the caller gets exactly
+  // the number of messages it asked for.
+  if (cursor?.messageId) {
+    const cursorIndex = rawValues.findIndex(function (msg) {
+      return msg.id === cursor.messageId;
+    });
+    if (cursorIndex !== -1) {
+      rawValues = rawValues.slice(
+        cursorIndex + 1,
+        cursorIndex + 1 + requestedTop,
+      );
+    }
+    // If cursor message not found (deleted or outside window), keep all results
+  }
+
   const messages =
     params.format === 'email'
       ? rawValues.map(function (msg) {
@@ -377,11 +418,21 @@ function listMessages(
     });
   }
 
+  // Compute nextCursor from the last raw message for sync cursor advancement
+  const lastRaw = rawValues[rawValues.length - 1];
+  const nextCursor = lastRaw
+    ? {
+        receivedDateTime: lastRaw.receivedDateTime || '',
+        messageId: lastRaw.id || '',
+      }
+    : null;
+
   return {
     success: true,
     operation: 'list_messages',
     data: messages,
     count: messages.length,
+    nextCursor: nextCursor,
     pagination: {
       hasNextPage: !!(data as Record<string, unknown>)['@odata.nextLink'],
       nextLink: (data as Record<string, unknown>)['@odata.nextLink'] || null,
@@ -437,7 +488,7 @@ function searchMessages(
   const queryParts = [
     '$top=' + top,
     '$search="' + encodeURIComponent(params.query as string) + '"',
-    '$select=id,subject,from,toRecipients,receivedDateTime,isRead,hasAttachments,bodyPreview',
+    '$select=id,internetMessageId,subject,from,toRecipients,receivedDateTime,isRead,hasAttachments,bodyPreview',
   ];
 
   const url = GRAPH_BASE_URL + '/me/messages?' + queryParts.join('&');

@@ -28,10 +28,10 @@ export interface SystemDefaultAgentTemplate {
   timeoutMs: number;
   outputReserve: number;
   modelPreset: 'fast' | 'standard' | 'advanced';
+  conversationStarters?: string[];
   roleRestriction?: 'admin_developer';
   knowledgeEnabled?: boolean;
   includeOrgKnowledge?: boolean;
-  filePreprocessingEnabled?: boolean;
   visibleInChat?: boolean;
   publishOnSeed?: boolean;
 }
@@ -43,13 +43,27 @@ export const SYSTEM_DEFAULT_AGENT_TEMPLATES: SystemDefaultAgentTemplate[] = [
     displayName: 'Assistant',
     description: 'General-purpose AI assistant',
     systemInstructions: CHAT_AGENT_INSTRUCTIONS,
-    toolNames: ['rag_search', 'web'],
-    delegateSlugs: ['file'],
+    toolNames: [
+      'rag_search',
+      'web',
+      'pdf',
+      'image',
+      'docx',
+      'pptx',
+      'text',
+      'excel',
+    ],
+    delegateSlugs: [],
+    conversationStarters: [
+      'Draft a project proposal for Q4',
+      "Analyze last month's revenue trends",
+      'Write a follow-up email to the client',
+      'Summarize our latest product updates',
+    ],
     knowledgeEnabled: true,
     includeOrgKnowledge: true,
-    filePreprocessingEnabled: true,
     maxSteps: 20,
-    timeoutMs: 420_000,
+    timeoutMs: 1_200_000,
     outputReserve: 4096,
     modelPreset: 'standard',
     visibleInChat: true,
@@ -88,7 +102,15 @@ export const SYSTEM_DEFAULT_AGENT_TEMPLATES: SystemDefaultAgentTemplate[] = [
     description:
       'Reads and creates files (PDF, Word, Excel, etc.). Can also create visual images by rendering HTML/CSS/SVG — use it for illustrations, charts, infographics, diagrams, and web page screenshots.',
     systemInstructions: FILE_AGENT_INSTRUCTIONS,
-    toolNames: ['pdf', 'image', 'docx', 'pptx', 'text', 'excel'],
+    toolNames: [
+      'pdf',
+      'image',
+      'docx',
+      'pptx',
+      'text',
+      'excel',
+      'document_write',
+    ],
     delegateSlugs: [],
     maxSteps: 15,
     timeoutMs: 180_000,
@@ -103,12 +125,7 @@ export const SYSTEM_DEFAULT_AGENT_TEMPLATES: SystemDefaultAgentTemplate[] = [
     displayName: 'Integration Assistant',
     description: 'Connects and operates with external systems',
     systemInstructions: INTEGRATION_AGENT_INSTRUCTIONS,
-    toolNames: [
-      'integration',
-      'integration_batch',
-      'integration_introspect',
-      'verify_approval',
-    ],
+    toolNames: ['integration', 'integration_batch', 'integration_introspect'],
     delegateSlugs: [],
     maxSteps: 20,
     timeoutMs: 180_000,
@@ -138,7 +155,6 @@ export const SYSTEM_DEFAULT_AGENT_TEMPLATES: SystemDefaultAgentTemplate[] = [
     outputReserve: 2048,
     modelPreset: 'advanced',
     roleRestriction: 'admin_developer',
-    filePreprocessingEnabled: true,
     publishOnSeed: true,
   },
 ];

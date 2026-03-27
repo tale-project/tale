@@ -85,7 +85,6 @@ def _async_ctx(mock_conn):
 SAMPLE_CONTENT = b"Hello, this is a sample document with enough text to chunk."
 SAMPLE_FILENAME = "test.txt"
 SAMPLE_DOC_ID = "doc-123"
-SAMPLE_USER_ID = "user-xyz"
 SAMPLE_HASH = "abcdef1234567890"
 DIFFERENT_HASH = "ffffffffffffffff"
 
@@ -125,12 +124,11 @@ class TestSuccessfulIndexing:
                 SAMPLE_DOC_ID,
                 SAMPLE_CONTENT,
                 SAMPLE_FILENAME,
-                user_id=SAMPLE_USER_ID,
                 embedding_service=mock_embed,
             )
 
         assert result["success"] is True
-        assert result["document_id"] == SAMPLE_DOC_ID
+        assert result["file_id"] == SAMPLE_DOC_ID
         assert result["chunks_created"] == 2
         assert result["skipped"] is False
         assert result["skip_reason"] is None
@@ -603,7 +601,6 @@ class TestHnswIndexSelfHealing:
                 SAMPLE_DOC_ID,
                 SAMPLE_FILENAME,
                 prepared,
-                user_id=SAMPLE_USER_ID,
             )
 
         assert result["success"] is True
@@ -641,7 +638,6 @@ class TestHnswIndexSelfHealing:
                     SAMPLE_DOC_ID,
                     SAMPLE_FILENAME,
                     prepared,
-                    user_id=SAMPLE_USER_ID,
                 )
 
     async def test_non_hnsw_internal_error_not_retried(self):
@@ -669,7 +665,6 @@ class TestHnswIndexSelfHealing:
                     SAMPLE_DOC_ID,
                     SAMPLE_FILENAME,
                     prepared,
-                    user_id=SAMPLE_USER_ID,
                 )
 
         reindex_calls = [c for c in mock_conn.execute.call_args_list if "REINDEX" in str(c)]
@@ -719,7 +714,6 @@ class TestCrossHashClone:
                 SAMPLE_DOC_ID,
                 SAMPLE_FILENAME,
                 SAMPLE_HASH,
-                user_id="user-new",
             )
 
         assert result["skipped"] is True
@@ -733,7 +727,7 @@ class TestCrossHashClone:
         mock_conn.fetchrow = AsyncMock(
             side_effect=[
                 None,
-                {"chunks_count": 5},
+                {"chunks_count": 5, "source_created_at": None, "source_modified_at": None},
                 {"id": "new-uuid"},
             ]
         )
@@ -746,7 +740,6 @@ class TestCrossHashClone:
                 SAMPLE_DOC_ID,
                 SAMPLE_FILENAME,
                 SAMPLE_HASH,
-                user_id="user-new",
             )
 
         assert result["success"] is True
@@ -767,7 +760,6 @@ class TestCrossHashClone:
                 SAMPLE_DOC_ID,
                 SAMPLE_FILENAME,
                 SAMPLE_HASH,
-                user_id="user-new",
             )
 
         assert result is None
@@ -791,7 +783,7 @@ class TestCrossHashClone:
                 new_callable=AsyncMock,
                 return_value={
                     "success": True,
-                    "document_id": SAMPLE_DOC_ID,
+                    "file_id": SAMPLE_DOC_ID,
                     "chunks_created": 3,
                     "skipped": False,
                     "skip_reason": None,

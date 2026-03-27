@@ -1,0 +1,95 @@
+---
+title: Environment reference
+description: Complete reference of all environment variables for configuring Tale.
+---
+
+All configuration is done through environment variables in the `.env` file. Copy `.env.example` to `.env` and fill in your values.
+
+## Domain configuration
+
+| Variable    | Required | Default        | Description                                                                 |
+| ----------- | -------- | -------------- | --------------------------------------------------------------------------- |
+| `HOST`      | Yes      | `tale.local`   | Hostname without protocol (used for Docker networking and emails)            |
+| `SITE_URL`  | Yes      | `https://tale.local` | Full canonical URL with protocol (used for external links and auth callbacks) |
+| `BASE_PATH` | No       |                | Base path for subpath deployments (e.g., `/app`). Leave empty for root deployments |
+
+`SITE_URL` must match the URL users access in their browser, including any non-standard ports (e.g., `https://example.com:8443`).
+
+## TLS/SSL
+
+| Variable   | Required | Default      | Description                                                       |
+| ---------- | -------- | ------------ | ----------------------------------------------------------------- |
+| `TLS_MODE` | No       | `selfsigned` | Certificate handling: `selfsigned`, `letsencrypt`, or `external`  |
+| `TLS_EMAIL`| No       |              | Email for Let's Encrypt notifications (recommended for production) |
+
+- **selfsigned**: Self-signed certificates for development. Browser shows a warning.
+- **letsencrypt**: Free trusted certificates from Let's Encrypt. Requires a valid public domain and ports 80/443 accessible.
+- **external**: TLS handled by an external reverse proxy. Caddy listens on HTTP only.
+
+## Security secrets
+
+| Variable               | Required | Description                                          |
+| ---------------------- | -------- | ---------------------------------------------------- |
+| `BETTER_AUTH_SECRET`   | Yes      | Auth session signing key. Generate with: `openssl rand -base64 32` |
+| `ENCRYPTION_SECRET_HEX`| Yes     | Encryption key for sensitive data. Generate with: `openssl rand -hex 32` |
+| `INSTANCE_SECRET`      | No       | Convex instance secret. Generate with: `openssl rand -hex 32` |
+
+> **Important:** The `.env.example` ships with example secrets. You must replace them with your own generated values before starting, even in local development.
+
+## AI models
+
+| Variable                      | Required | Default                       | Description                                                |
+| ----------------------------- | -------- | ----------------------------- | ---------------------------------------------------------- |
+| `OPENAI_API_KEY`              | Yes      |                               | API key for your AI provider                               |
+| `OPENAI_BASE_URL`             | No       | `https://openrouter.ai/api/v1` | Base URL for any OpenAI-compatible provider               |
+| `OPENAI_MODEL`                | No       |                               | Main model for reasoning and chat                          |
+| `OPENAI_FAST_MODEL`           | No       |                               | Fast model for sub-agents. Must be a non-thinking model    |
+| `OPENAI_CODING_MODEL`         | No       |                               | Model for code generation tasks                            |
+| `OPENAI_VISION_MODEL`         | No       | Same as `OPENAI_MODEL`        | Model for image analysis                                   |
+| `OPENAI_EMBEDDING_MODEL`      | No       |                               | Model for generating text embeddings                       |
+| `EMBEDDING_DIMENSIONS`        | No       | `1536`                        | Embedding vector size. Must match your vector store config |
+| `CRAWLER_EMBEDDING_DIMENSIONS`| No       | Same as `EMBEDDING_DIMENSIONS`| Override embedding dimensions for crawler search           |
+
+> **Tip:** You can use any OpenAI-compatible provider, including a local Ollama instance, by setting `OPENAI_BASE_URL` and `OPENAI_API_KEY`. OpenRouter is the recommended choice for its model variety and simple pricing.
+
+> **Important:** `OPENAI_FAST_MODEL` must be a non-thinking model (no reasoning tokens). Thinking models may cause issues with tool calling and streaming.
+
+## Database
+
+| Variable       | Required | Default | Description                                                                |
+| -------------- | -------- | ------- | -------------------------------------------------------------------------- |
+| `DB_PASSWORD`  | Yes      |         | Password for the self-hosted PostgreSQL database                           |
+| `POSTGRES_URL` | No       |         | Override the auto-generated database connection URL. If not set, constructed as `postgresql://tale:${DB_PASSWORD}@db:5432` |
+
+## Error tracking
+
+| Variable     | Required | Default | Description                                                         |
+| ------------ | -------- | ------- | ------------------------------------------------------------------- |
+| `SENTRY_DSN` | No       |         | Sentry DSN for error tracking. Compatible with GlitchTip and Bugsink |
+
+If not set, error tracking is disabled and errors only appear in Docker logs.
+
+## Monitoring
+
+| Variable              | Required | Default | Description                                          |
+| --------------------- | -------- | ------- | ---------------------------------------------------- |
+| `METRICS_BEARER_TOKEN`| No       |         | Bearer token for external access to Prometheus metrics |
+
+When unset, all `/metrics/*` endpoints return `404`. See [Operations](/operations) for endpoint details.
+
+## Service URLs
+
+These are automatically configured in Docker Compose but can be overridden for custom setups:
+
+| Variable       | Default                  | Description                          |
+| -------------- | ------------------------ | ------------------------------------ |
+| `OPERATOR_URL` | `http://operator:8004`   | Operator service for browser automation |
+| `CRAWLER_URL`  | `http://crawler:8002`    | Crawler service for website crawling |
+| `RAG_URL`      | `http://rag:8001`        | RAG service for document indexing and search |
+
+## Docker deployment
+
+| Variable      | Required | Default | Description                                                    |
+| ------------- | -------- | ------- | -------------------------------------------------------------- |
+| `PULL_POLICY` | No       |         | Set to `always` to use pre-built images from GitHub            |
+| `VERSION`     | No       |         | Image version tag (e.g., `latest`, `v1.0.0`). Used with `PULL_POLICY=always` |

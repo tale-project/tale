@@ -55,8 +55,8 @@ export function createJsonOutputTool(
     description: `Submit the final structured JSON output.${schemaDescription}
 
 IMPORTANT: You MUST call this tool to complete the task. After gathering all necessary information using other tools, call this tool with your final structured result. Do not respond with plain text - always use this tool to provide your answer.`,
-    args: zodSchema,
-    handler: async (_ctx, args): Promise<unknown> => {
+    inputSchema: zodSchema,
+    execute: async (_ctx, args): Promise<unknown> => {
       capturedOutput = args;
       called = true;
       return 'Output captured successfully. Task complete.';

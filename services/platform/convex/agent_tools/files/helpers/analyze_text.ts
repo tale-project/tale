@@ -160,7 +160,7 @@ function createTextAnalysisAgent(model: string): Agent {
 
   return new Agent(components.agent, {
     name: 'text-analyzer',
-    languageModel: openai.chat(model),
+    languageModel: openai.chatModel(model),
     instructions,
   });
 }

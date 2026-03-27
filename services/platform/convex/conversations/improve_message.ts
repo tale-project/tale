@@ -11,7 +11,7 @@ function createImproveMessageAgent(instruction?: string) {
 
   return new Agent(components.agent, {
     name: 'message-improver',
-    languageModel: openai.chat(model),
+    languageModel: openai.chatModel(model),
     instructions: `You are a helpful assistant that improves written messages for clarity, professionalism, and tone.
 Your task is to improve the given message while keeping its core meaning intact.
 ${instruction ? `Additional instruction: ${instruction}` : ''}

@@ -11,6 +11,7 @@ import { getUserTeamIds } from '../lib/get_user_teams';
 import { getOrganizationMember } from '../lib/rls';
 import { hasTeamAccess } from '../lib/team_access';
 import { createDocument } from './create_document';
+import { extractExtension } from './extract_extension';
 import { updateDocument as updateDocumentHelper } from './update_document';
 import { sourceProviderValidator } from './validators';
 
@@ -130,8 +131,9 @@ export const createDocumentFromUpload = mutation({
       }
     }
 
+    let fileMetadataId;
     if (args.fileSize != null) {
-      await ctx.db.insert('fileMetadata', {
+      fileMetadataId = await ctx.db.insert('fileMetadata', {
         organizationId: args.organizationId,
         storageId: args.fileId,
         fileName: args.fileName,
@@ -152,6 +154,24 @@ export const createDocumentFromUpload = mutation({
       createdBy: String(authUser._id),
       folderId: args.folderId,
     });
+
+    if (fileMetadataId) {
+      await ctx.db.patch(fileMetadataId, {
+        documentId: result.documentId,
+      });
+    }
+
+    const ext = extractExtension(args.fileName);
+    if (ext && ['pdf', 'docx', 'pptx'].includes(ext)) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.documents.internal_actions.extractDocumentDates,
+        {
+          documentId: result.documentId,
+          fileId: args.fileId,
+        },
+      );
+    }
 
     return {
       success: true,

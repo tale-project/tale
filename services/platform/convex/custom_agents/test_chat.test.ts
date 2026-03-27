@@ -41,7 +41,7 @@ describe('testCustomAgent', () => {
       const config = toSerializableConfig(draft);
 
       expect(config).toEqual({
-        name: 'custom:test-agent',
+        name: 'test-agent:v1',
         instructions: 'You are a helpful test agent.',
         convexToolNames: ['web_search', 'document_search'],
         integrationBindings: ['integration_1'],
@@ -100,35 +100,6 @@ describe('testCustomAgent', () => {
       const config = toSerializableConfig(draft);
 
       expect(config.convexToolNames).toEqual([]);
-    });
-  });
-
-  describe('file preprocessing instructions', () => {
-    it('should not append preprocessing instructions when disabled', () => {
-      const draft = createMockDraftAgent({ filePreprocessingEnabled: false });
-      const config = toSerializableConfig(draft);
-
-      expect(config.instructions).toBe('You are a helpful test agent.');
-      expect(config.instructions).not.toContain('FILE ATTACHMENTS');
-    });
-
-    it('should not append preprocessing instructions when undefined', () => {
-      const draft = createMockDraftAgent({
-        filePreprocessingEnabled: undefined,
-      });
-      const config = toSerializableConfig(draft);
-
-      expect(config.instructions).toBe('You are a helpful test agent.');
-      expect(config.instructions).not.toContain('FILE ATTACHMENTS');
-    });
-
-    it('should append preprocessing instructions when enabled', () => {
-      const draft = createMockDraftAgent({ filePreprocessingEnabled: true });
-      const config = toSerializableConfig(draft);
-
-      expect(config.instructions).toContain('You are a helpful test agent.');
-      expect(config.instructions).toContain('**FILE ATTACHMENTS**');
-      expect(config.instructions).toContain('PRE-ANALYZED CONTENT');
     });
   });
 

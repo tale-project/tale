@@ -141,7 +141,7 @@ class BaseConverterService:
         """Get a new browser page."""
         if not self.initialized:
             await self.initialize()
-        return await self._browser.new_page()
+        return await self._browser.new_page(accept_downloads=False)
 
     def _wrap_html(self, content: str, extra_head: str = "") -> str:
         """Wrap content in HTML template."""

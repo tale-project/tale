@@ -79,7 +79,7 @@ export async function scanAndTrigger(ctx: ActionCtx): Promise<void> {
           );
 
           await ctx.runMutation(
-            internal.workflow_engine.internal_mutations.startWorkflow,
+            internal.wf_executions.internal_mutations.startWorkflow,
             {
               organizationId,
               wfDefinitionId,

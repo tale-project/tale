@@ -150,7 +150,7 @@ export async function sendMessageViaIntegration(
     const approvalExistingMetadata = pendingApproval.metadata ?? {};
 
     await ctx.db.patch(pendingApproval._id, {
-      status: 'approved',
+      status: 'completed',
       approvedBy,
       reviewedAt: Date.now(),
       metadata: {

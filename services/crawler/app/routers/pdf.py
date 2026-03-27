@@ -6,7 +6,9 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import Response
 from loguru import logger
 
+from app.exceptions import DownloadDetectedException
 from app.models import (
+    FileMetadataResponse,
     HtmlToPdfRequest,
     MarkdownToPdfRequest,
     ParseFileResponse,
@@ -14,6 +16,7 @@ from app.models import (
 )
 from app.services.file_parser_service import get_file_parser_service
 from app.services.pdf_service import get_pdf_service
+from app.utils.http_download import download_file
 
 router = APIRouter(prefix="/api/v1/pdf", tags=["PDF"])
 
@@ -140,6 +143,31 @@ async def convert_url_to_pdf(request: UrlToPdfRequest):
             headers={"Content-Disposition": "attachment; filename=document.pdf"},
         )
 
+    except DownloadDetectedException:
+        logger.info(f"URL triggers download, falling back to HTTP: {request.url}")
+        try:
+            timeout_seconds = request.timeout / 1000
+            file_bytes, _content_type = await download_file(str(request.url), timeout_seconds)
+
+            if not file_bytes[:5] == b"%PDF-":
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="URL triggers a file download but the content is not a PDF",
+                )
+
+            return Response(
+                content=file_bytes,
+                media_type="application/pdf",
+                headers={"Content-Disposition": "attachment; filename=document.pdf"},
+            )
+        except HTTPException:
+            raise
+        except Exception:
+            logger.exception("HTTP fallback download failed")
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Failed to download file from URL",
+            ) from None
     except Exception:
         logger.exception("Error converting URL to PDF")
         raise HTTPException(
@@ -204,4 +232,43 @@ async def parse_pdf_file(
             success=False,
             filename=file.filename or "unknown",
             error="Failed to parse PDF file",
+        )
+
+
+@router.post("/extract-metadata", response_model=FileMetadataResponse)
+async def extract_pdf_metadata(file: UploadFile = _FILE_UPLOAD):
+    """Extract metadata from a PDF file without full text extraction."""
+    import fitz
+
+    from app.services.file_parser_service import _parse_pdf_date
+
+    try:
+        file_bytes = await file.read()
+        if not file_bytes:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty file uploaded")
+
+        filename = file.filename or "unknown.pdf"
+        doc = fitz.open(stream=file_bytes, filetype="pdf")
+        raw = doc.metadata or {}
+        page_count = len(doc)
+        doc.close()
+
+        return FileMetadataResponse(
+            success=True,
+            filename=filename,
+            file_type="application/pdf",
+            title=raw.get("title") or None,
+            author=raw.get("author") or None,
+            page_count=page_count,
+            created_at=_parse_pdf_date(raw.get("creationDate")),
+            modified_at=_parse_pdf_date(raw.get("modDate")),
+        )
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Error extracting PDF metadata")
+        return FileMetadataResponse(
+            success=False,
+            filename=file.filename or "unknown",
+            error="Failed to extract PDF metadata",
         )

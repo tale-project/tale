@@ -82,6 +82,58 @@ describe('jexl_instance', () => {
     });
   });
 
+  describe('|chunk transform', () => {
+    it('splits an array into chunks of given size', () => {
+      const result = jexlInstance.evalSync('a|chunk(2)', {
+        a: [1, 2, 3, 4, 5],
+      });
+      expect(result).toEqual([[1, 2], [3, 4], [5]]);
+    });
+
+    it('handles array evenly divisible by chunk size', () => {
+      const result = jexlInstance.evalSync('a|chunk(3)', {
+        a: [1, 2, 3, 6, 7, 8],
+      });
+      expect(result).toEqual([
+        [1, 2, 3],
+        [6, 7, 8],
+      ]);
+    });
+
+    it('returns single chunk when size >= array length', () => {
+      const result = jexlInstance.evalSync('a|chunk(10)', {
+        a: [1, 2, 3],
+      });
+      expect(result).toEqual([[1, 2, 3]]);
+    });
+
+    it('returns empty array for non-array input', () => {
+      const result = jexlInstance.evalSync('a|chunk(2)', { a: 'not-array' });
+      expect(result).toEqual([]);
+    });
+
+    it('chains with filterBy', () => {
+      const result = jexlInstance.evalSync(
+        'items|filterBy("active", true)|chunk(2)',
+        {
+          items: [
+            { id: 1, active: true },
+            { id: 2, active: false },
+            { id: 3, active: true },
+            { id: 4, active: true },
+          ],
+        },
+      );
+      expect(result).toEqual([
+        [
+          { id: 1, active: true },
+          { id: 3, active: true },
+        ],
+        [{ id: 4, active: true }],
+      ]);
+    });
+  });
+
   describe('JEXL string literal behavior', () => {
     it('handles actual newline characters in string literals', () => {
       const result = jexlInstance.evalSync("'hello\nworld'");

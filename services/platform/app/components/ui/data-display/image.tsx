@@ -7,9 +7,10 @@ import {
   useState,
 } from 'react';
 
+import { getEnv } from '@/lib/env';
 import { cn } from '@/lib/utils/cn';
 
-const PLACEHOLDER_IMAGE = '/assets/placeholder-image.png';
+const PLACEHOLDER_IMAGE = `${getEnv('BASE_PATH')}/assets/placeholder-image.png`;
 
 interface ImageProps extends Omit<ComponentPropsWithoutRef<'img'>, 'onError'> {
   /**

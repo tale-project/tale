@@ -12,6 +12,7 @@ import { customerReadTool } from './customers/customer_read_tool';
 import { databaseSchemaTool } from './database/database_schema_tool';
 import { documentFindTool } from './documents/document_find_tool';
 import { documentRetrieveTool } from './documents/document_retrieve_tool';
+import { documentWriteTool } from './documents/document_write_tool';
 import { docxTool } from './files/docx_tool';
 import { excelTool } from './files/excel_tool';
 import { imageTool } from './files/image_tool';
@@ -22,7 +23,7 @@ import { requestHumanInputTool } from './human_input/request_human_input_tool';
 import { integrationBatchTool } from './integrations/integration_batch_tool';
 import { integrationIntrospectTool } from './integrations/integration_introspect_tool';
 import { integrationTool } from './integrations/integration_tool';
-import { verifyApprovalTool } from './integrations/verify_approval_tool';
+import { requestUserLocationTool } from './location/request_user_location_tool';
 import { productReadTool } from './products/product_read_tool';
 import { ragSearchTool } from './rag/rag_search_tool';
 import { webTool } from './web/web_tool';
@@ -59,11 +60,12 @@ export const TOOL_REGISTRY = [
   integrationTool,
   integrationBatchTool,
   integrationIntrospectTool,
-  verifyApprovalTool,
   databaseSchemaTool,
   requestHumanInputTool,
   documentFindTool,
   documentRetrieveTool,
+  documentWriteTool,
+  requestUserLocationTool,
 ] as const;
 
 /**

@@ -60,6 +60,7 @@ export const messageMetadataTable = defineTable({
       hasIntegrations: v.optional(v.boolean()),
     }),
   ),
+  error: v.optional(v.string()),
 })
   .index('by_messageId', ['messageId'])
   .index('by_threadId', ['threadId']);

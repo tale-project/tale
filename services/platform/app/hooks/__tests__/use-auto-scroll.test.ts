@@ -1,13 +1,11 @@
 import { renderHook, act } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 import { useAutoScroll } from '../use-auto-scroll';
 
-// Minimal mock container with controllable scroll geometry
 function createMockContainer() {
   const el = document.createElement('div');
   let _scrollTop = 0;
-  const scrollListeners: EventListener[] = [];
 
   Object.defineProperties(el, {
     scrollTop: {
@@ -21,47 +19,11 @@ function createMockContainer() {
     clientHeight: { value: 400, writable: true, configurable: true },
   });
 
-  const origAdd = el.addEventListener.bind(el);
-  const origRemove = el.removeEventListener.bind(el);
-
-  const addEventListenerSpy = vi.fn(
-    (
-      type: string,
-      handler: EventListener,
-      opts?: AddEventListenerOptions | boolean,
-    ) => {
-      if (type === 'scroll') scrollListeners.push(handler);
-      origAdd(type, handler, opts);
-    },
-  );
-  el.addEventListener = addEventListenerSpy;
-
-  const removeEventListenerSpy = vi.fn(
-    (
-      type: string,
-      handler: EventListener,
-      opts?: EventListenerOptions | boolean,
-    ) => {
-      const idx = scrollListeners.indexOf(handler);
-      if (idx >= 0) scrollListeners.splice(idx, 1);
-      origRemove(type, handler, opts);
-    },
-  );
-  el.removeEventListener = removeEventListenerSpy;
-
   const scrollToSpy = vi.fn((opts?: ScrollToOptions) => {
     if (opts)
       _scrollTop = Math.min(opts.top ?? 0, el.scrollHeight - el.clientHeight);
-    fireScrollEvent();
   });
-  // scrollTo has two overloads; we only use the options form in the hook
   el.scrollTo = scrollToSpy as typeof el.scrollTo;
-
-  function fireScrollEvent() {
-    for (const fn of scrollListeners) {
-      fn(new Event('scroll'));
-    }
-  }
 
   function setScrollGeometry(scrollHeight: number, clientHeight: number) {
     Object.defineProperty(el, 'scrollHeight', {
@@ -79,8 +41,6 @@ function createMockContainer() {
   return {
     el,
     scrollToSpy,
-    removeEventListenerSpy,
-    fireScrollEvent,
     setScrollGeometry,
     get scrollTop() {
       return _scrollTop;
@@ -91,73 +51,6 @@ function createMockContainer() {
   };
 }
 
-let resizeObserverCallback: ResizeObserverCallback | undefined;
-let resizeObserverDisconnect: ReturnType<typeof vi.fn>;
-let now = 1000;
-
-beforeEach(() => {
-  now = 1000;
-  vi.spyOn(performance, 'now').mockImplementation(() => now);
-
-  resizeObserverCallback = undefined;
-  resizeObserverDisconnect = vi.fn();
-
-  global.ResizeObserver = class MockResizeObserver {
-    constructor(callback: ResizeObserverCallback) {
-      resizeObserverCallback = callback;
-    }
-    observe = vi.fn();
-    disconnect = resizeObserverDisconnect;
-    unobserve = vi.fn();
-  } as unknown as typeof ResizeObserver;
-});
-
-afterEach(() => {
-  vi.restoreAllMocks();
-});
-
-function simulateContentGrowth(height: number) {
-  if (!resizeObserverCallback) throw new Error('ResizeObserver not created');
-  resizeObserverCallback(
-    [{ contentRect: { height } } as ResizeObserverEntry],
-    {} as ResizeObserver,
-  );
-}
-
-// Helper: render the hook with refs pre-attached so effects see them.
-// Refs are set during the render phase (before effects run) so the
-// always-on ResizeObserver is created on mount.
-function setupStreamingHook(
-  container: ReturnType<typeof createMockContainer>,
-  opts: { threshold?: number } = {},
-) {
-  const content = document.createElement('div');
-  const threshold = opts.threshold ?? 100;
-  let refsAttached = false;
-
-  const harness = renderHook(
-    ({ enabled }) => {
-      const result = useAutoScroll({ enabled, threshold });
-      // Attach refs during render so the effect sees them on mount.
-      if (!refsAttached) {
-        refsAttached = true;
-        Object.defineProperty(result.containerRef, 'current', {
-          value: container.el,
-          writable: true,
-        });
-        Object.defineProperty(result.contentRef, 'current', {
-          value: content,
-          writable: true,
-        });
-      }
-      return result;
-    },
-    { initialProps: { enabled: false } },
-  );
-
-  return harness;
-}
-
 describe('useAutoScroll', () => {
   describe('isAtBottom', () => {
     it('returns true when at the bottom within threshold', () => {
@@ -165,9 +58,7 @@ describe('useAutoScroll', () => {
       container.setScrollGeometry(1000, 400);
       container.scrollTop = 550; // distance = 1000 - 550 - 400 = 50 < 100
 
-      const { result } = renderHook(() =>
-        useAutoScroll({ enabled: false, threshold: 100 }),
-      );
+      const { result } = renderHook(() => useAutoScroll({ threshold: 100 }));
 
       Object.defineProperty(result.current.containerRef, 'current', {
         value: container.el,
@@ -182,9 +73,7 @@ describe('useAutoScroll', () => {
       container.setScrollGeometry(1000, 400);
       container.scrollTop = 200; // distance = 1000 - 200 - 400 = 400 > 100
 
-      const { result } = renderHook(() =>
-        useAutoScroll({ enabled: false, threshold: 100 }),
-      );
+      const { result } = renderHook(() => useAutoScroll({ threshold: 100 }));
 
       Object.defineProperty(result.current.containerRef, 'current', {
         value: container.el,
@@ -195,172 +84,9 @@ describe('useAutoScroll', () => {
     });
 
     it('returns true when no container is attached', () => {
-      const { result } = renderHook(() => useAutoScroll({ enabled: false }));
+      const { result } = renderHook(() => useAutoScroll());
 
       expect(result.current.isAtBottom()).toBe(true);
-    });
-  });
-
-  describe('auto-scroll on content growth', () => {
-    it('scrolls to bottom when content grows and user was at bottom', () => {
-      const container = createMockContainer();
-      container.setScrollGeometry(1000, 400);
-      container.scrollTop = 600; // at bottom
-
-      const { rerender } = setupStreamingHook(container);
-
-      rerender({ enabled: true });
-
-      container.setScrollGeometry(1200, 400);
-      simulateContentGrowth(800);
-
-      expect(container.scrollToSpy).toHaveBeenCalledWith({
-        top: 1200,
-        behavior: 'instant',
-      });
-    });
-
-    it('does NOT scroll when content grows and user was NOT at bottom', () => {
-      const container = createMockContainer();
-      container.setScrollGeometry(1000, 400);
-      container.scrollTop = 100; // distance = 500 > 100
-
-      const { rerender } = setupStreamingHook(container);
-
-      rerender({ enabled: true });
-      container.scrollToSpy.mockClear();
-
-      container.setScrollGeometry(1200, 400);
-      simulateContentGrowth(800);
-
-      expect(container.scrollToSpy).not.toHaveBeenCalled();
-    });
-
-    it('scrolls on content shrinkage when at bottom (keeps user anchored)', () => {
-      const container = createMockContainer();
-      container.setScrollGeometry(1000, 400);
-      container.scrollTop = 600; // at bottom
-
-      const { rerender } = setupStreamingHook(container);
-
-      rerender({ enabled: true });
-
-      // First growth
-      simulateContentGrowth(600);
-      container.scrollToSpy.mockClear();
-
-      // Shrinkage — during streaming, user should stay at bottom
-      simulateContentGrowth(500);
-      expect(container.scrollToSpy).toHaveBeenCalledWith({
-        top: 1000,
-        behavior: 'instant',
-      });
-    });
-  });
-
-  describe('user scroll-away and recovery', () => {
-    it('stops auto-scrolling when user scrolls away, resumes when they return', () => {
-      const container = createMockContainer();
-      container.setScrollGeometry(1000, 400);
-      container.scrollTop = 600; // at bottom
-
-      const { rerender } = setupStreamingHook(container);
-
-      rerender({ enabled: true });
-
-      // Initial growth — should auto-scroll
-      container.setScrollGeometry(1100, 400);
-      simulateContentGrowth(700);
-      expect(container.scrollToSpy).toHaveBeenLastCalledWith({
-        top: 1100,
-        behavior: 'instant',
-      });
-
-      // Advance past programmatic scroll guard window before user scroll
-      now += 100;
-
-      // User scrolls away (any method — scrollbar, wheel, keyboard)
-      act(() => {
-        container.scrollTop = 200; // far from bottom
-        container.fireScrollEvent();
-      });
-
-      container.scrollToSpy.mockClear();
-
-      // More content growth — should NOT auto-scroll
-      container.setScrollGeometry(1200, 400);
-      simulateContentGrowth(800);
-      expect(container.scrollToSpy).not.toHaveBeenCalled();
-
-      // User scrolls back to bottom
-      act(() => {
-        container.scrollTop = 800; // at bottom (1200 - 800 - 400 = 0)
-        container.fireScrollEvent();
-      });
-
-      // More content growth — should auto-scroll again
-      container.setScrollGeometry(1300, 400);
-      simulateContentGrowth(900);
-      expect(container.scrollToSpy).toHaveBeenCalledWith({
-        top: 1300,
-        behavior: 'instant',
-      });
-    });
-
-    it('allows user to scroll away during rapid content growth', () => {
-      const container = createMockContainer();
-      container.setScrollGeometry(1000, 400);
-      container.scrollTop = 600; // at bottom
-
-      const { rerender } = setupStreamingHook(container);
-
-      rerender({ enabled: true });
-
-      // Simulate rapid streaming: multiple content growth cycles
-      container.setScrollGeometry(1050, 400);
-      simulateContentGrowth(650);
-      container.setScrollGeometry(1100, 400);
-      simulateContentGrowth(700);
-      container.setScrollGeometry(1150, 400);
-      simulateContentGrowth(750);
-
-      // User scrolls away between growth cycles. The ResizeObserver
-      // should NOT prevent this — the timestamp guard must NOT be
-      // refreshed by ResizeObserver callbacks.
-      act(() => {
-        container.scrollTop = 200; // far from bottom
-        container.fireScrollEvent();
-      });
-
-      container.scrollToSpy.mockClear();
-
-      // More content growth — should NOT auto-scroll (user escaped)
-      container.setScrollGeometry(1200, 400);
-      simulateContentGrowth(800);
-      expect(container.scrollToSpy).not.toHaveBeenCalled();
-    });
-
-    it('handles scrollbar drag correctly (no wheel/touch events needed)', () => {
-      const container = createMockContainer();
-      container.setScrollGeometry(1000, 400);
-      container.scrollTop = 600; // at bottom
-
-      const { rerender } = setupStreamingHook(container);
-
-      rerender({ enabled: true });
-
-      // Simulate scrollbar drag up — only fires scroll event, no wheel
-      act(() => {
-        container.scrollTop = 50;
-        container.fireScrollEvent();
-      });
-
-      container.scrollToSpy.mockClear();
-
-      // Content growth should NOT auto-scroll
-      container.setScrollGeometry(1100, 400);
-      simulateContentGrowth(700);
-      expect(container.scrollToSpy).not.toHaveBeenCalled();
     });
   });
 
@@ -369,7 +95,7 @@ describe('useAutoScroll', () => {
       const container = createMockContainer();
       container.setScrollGeometry(1000, 400);
 
-      const { result } = renderHook(() => useAutoScroll({ enabled: false }));
+      const { result } = renderHook(() => useAutoScroll());
 
       Object.defineProperty(result.current.containerRef, 'current', {
         value: container.el,
@@ -386,133 +112,42 @@ describe('useAutoScroll', () => {
       });
     });
 
-    it('resumes auto-scroll during streaming after user scrolled away', () => {
+    it('is a one-shot scroll with no auto-follow', () => {
       const container = createMockContainer();
       container.setScrollGeometry(1000, 400);
-      container.scrollTop = 600; // at bottom
 
-      const { result, rerender } = setupStreamingHook(container);
+      const { result } = renderHook(() => useAutoScroll());
 
-      rerender({ enabled: true });
-
-      // User scrolls away
-      act(() => {
-        container.scrollTop = 100;
-        container.fireScrollEvent();
+      Object.defineProperty(result.current.containerRef, 'current', {
+        value: container.el,
+        writable: true,
       });
 
-      container.scrollToSpy.mockClear();
-
-      // Content growth should NOT auto-scroll (user is away)
-      container.setScrollGeometry(1100, 400);
-      simulateContentGrowth(700);
-      expect(container.scrollToSpy).not.toHaveBeenCalled();
-
-      // User clicks scroll-to-bottom button
       act(() => {
         result.current.scrollToBottom();
       });
 
       container.scrollToSpy.mockClear();
 
-      // Content growth should now auto-scroll again
+      // Simulate content growth — no auto-scroll should happen
       container.setScrollGeometry(1200, 400);
-      simulateContentGrowth(800);
-      expect(container.scrollToSpy).toHaveBeenCalledWith({
-        top: 1200,
-        behavior: 'instant',
-      });
-    });
-  });
-
-  describe('end-of-streaming scroll', () => {
-    it('does a final scroll when streaming ends and user was at bottom', () => {
-      const container = createMockContainer();
-      container.setScrollGeometry(1000, 400);
-      container.scrollTop = 600; // at bottom
-
-      const { rerender } = setupStreamingHook(container);
-
-      rerender({ enabled: true });
-      container.scrollToSpy.mockClear();
-
-      rerender({ enabled: false });
-
-      expect(container.scrollToSpy).toHaveBeenCalledWith({
-        top: 1000,
-        behavior: 'instant',
-      });
-    });
-
-    it('does NOT do final scroll when user scrolled away during streaming', () => {
-      const container = createMockContainer();
-      container.setScrollGeometry(1000, 400);
-      container.scrollTop = 600; // at bottom
-
-      const { rerender } = setupStreamingHook(container);
-
-      rerender({ enabled: true });
-
-      // User scrolls away during streaming
-      act(() => {
-        container.scrollTop = 100;
-        container.fireScrollEvent();
-      });
-
-      container.scrollToSpy.mockClear();
-
-      rerender({ enabled: false });
-
+      // No ResizeObserver in the hook, so nothing fires
       expect(container.scrollToSpy).not.toHaveBeenCalled();
     });
   });
 
-  describe('ResizeObserver lifecycle', () => {
-    it('creates observer on mount regardless of enabled state', () => {
-      const container = createMockContainer();
-
-      setupStreamingHook(container);
-
-      // Observer is created on mount even with enabled=false
-      expect(resizeObserverCallback).toBeDefined();
-      expect(resizeObserverDisconnect).not.toHaveBeenCalled();
-    });
-
-    it('keeps observer active when enabled toggles', () => {
-      const container = createMockContainer();
-
-      const { rerender } = setupStreamingHook(container);
-
-      rerender({ enabled: true });
-      expect(resizeObserverDisconnect).not.toHaveBeenCalled();
-
-      rerender({ enabled: false });
-      // Observer stays active — not disconnected on enabled toggle
-      expect(resizeObserverDisconnect).not.toHaveBeenCalled();
-    });
-
-    it('disconnects observer on unmount', () => {
-      const container = createMockContainer();
-
-      const { unmount } = setupStreamingHook(container);
-
-      unmount();
-      expect(resizeObserverDisconnect).toHaveBeenCalled();
-    });
-  });
-
   describe('scrollTo', () => {
-    it('scrolls to a specific position and preserves auto-follow', () => {
+    it('scrolls to a specific position with instant behavior', () => {
       const container = createMockContainer();
       container.setScrollGeometry(1000, 400);
-      container.scrollTop = 600; // at bottom
 
-      const { result, rerender } = setupStreamingHook(container);
+      const { result } = renderHook(() => useAutoScroll());
 
-      rerender({ enabled: true });
-      container.scrollToSpy.mockClear();
+      Object.defineProperty(result.current.containerRef, 'current', {
+        value: container.el,
+        writable: true,
+      });
 
-      // Programmatic scroll to mid-page position (like scrollToAIResponse)
       act(() => {
         result.current.scrollTo(200);
       });
@@ -521,182 +156,42 @@ describe('useAutoScroll', () => {
         top: 200,
         behavior: 'instant',
       });
-
-      container.scrollToSpy.mockClear();
-
-      // Content grows — auto-scroll should still follow because scrollTo
-      // preserved wasAtBottomRef
-      container.setScrollGeometry(1200, 400);
-      simulateContentGrowth(800);
-
-      expect(container.scrollToSpy).toHaveBeenCalledWith({
-        top: 1200,
-        behavior: 'instant',
-      });
-    });
-  });
-
-  describe('programmatic scroll guard', () => {
-    it('guards scroll events within the timestamp window after scrollToBottom', () => {
-      const container = createMockContainer();
-      container.setScrollGeometry(1000, 400);
-      container.scrollTop = 600; // at bottom
-
-      const { result, rerender } = setupStreamingHook(container);
-
-      rerender({ enabled: true });
-      container.scrollToSpy.mockClear();
-
-      // scrollToBottom sets the timestamp guard
-      act(() => {
-        result.current.scrollToBottom();
-      });
-
-      // Content grew between the scrollTo and a second browser scroll event
-      // (Safari can fire multiple events for a single scrollTo call).
-      container.setScrollGeometry(1200, 400);
-      // scrollTop is still at the old position — clearly NOT at bottom
-      container.scrollTop = 500; // 1200 - 500 - 400 = 300 > threshold
-      container.fireScrollEvent();
-
-      // wasAtBottomRef should still be true (guarded by timestamp)
-      container.scrollToSpy.mockClear();
-      container.setScrollGeometry(1400, 400);
-      simulateContentGrowth(1000);
-
-      expect(container.scrollToSpy).toHaveBeenCalledWith({
-        top: 1400,
-        behavior: 'instant',
-      });
     });
 
-    it('does NOT guard scroll events after the timestamp window expires', () => {
+    it('is a one-shot scroll with no auto-follow', () => {
       const container = createMockContainer();
       container.setScrollGeometry(1000, 400);
-      container.scrollTop = 600; // at bottom
 
-      const { result, rerender } = setupStreamingHook(container);
+      const { result } = renderHook(() => useAutoScroll());
 
-      rerender({ enabled: true });
-      container.scrollToSpy.mockClear();
-
-      // scrollToBottom sets the timestamp guard
-      act(() => {
-        result.current.scrollToBottom();
+      Object.defineProperty(result.current.containerRef, 'current', {
+        value: container.el,
+        writable: true,
       });
 
-      // Advance past the guard window
-      now += 100;
+      act(() => {
+        result.current.scrollTo(200);
+      });
 
-      // User scroll arrives after the window — NOT guarded
-      container.setScrollGeometry(1200, 400);
-      container.scrollTop = 200; // 1200 - 200 - 400 = 600 > threshold
-      container.fireScrollEvent();
-
-      // wasAtBottomRef should be false — auto-scroll should stop
       container.scrollToSpy.mockClear();
-      container.setScrollGeometry(1400, 400);
-      simulateContentGrowth(1000);
 
+      // Content growth — no auto-follow
+      container.setScrollGeometry(1200, 400);
       expect(container.scrollToSpy).not.toHaveBeenCalled();
     });
   });
 
-  describe('post-streaming auto-scroll (typewriter drain)', () => {
-    it('follows content growth after enabled goes false (user at bottom)', () => {
-      const container = createMockContainer();
-      container.setScrollGeometry(1000, 400);
-      container.scrollTop = 600; // at bottom
+  describe('refs', () => {
+    it('provides stable containerRef and contentRef', () => {
+      const { result, rerender } = renderHook(() => useAutoScroll());
 
-      const { rerender } = setupStreamingHook(container);
+      const containerRef1 = result.current.containerRef;
+      const contentRef1 = result.current.contentRef;
 
-      // Streaming phase
-      rerender({ enabled: true });
-      simulateContentGrowth(600);
-      container.scrollToSpy.mockClear();
+      rerender();
 
-      // Streaming ends — enabled goes false
-      rerender({ enabled: false });
-      container.scrollToSpy.mockClear();
-
-      // Typewriter still draining — content grows
-      container.setScrollGeometry(1200, 400);
-      simulateContentGrowth(800);
-
-      expect(container.scrollToSpy).toHaveBeenCalledWith({
-        top: 1200,
-        behavior: 'instant',
-      });
-    });
-
-    it('follows content shrinkage after enabled goes false (user stays at bottom)', () => {
-      const container = createMockContainer();
-      container.setScrollGeometry(1000, 400);
-      container.scrollTop = 600; // at bottom
-
-      const { rerender } = setupStreamingHook(container);
-
-      rerender({ enabled: true });
-      simulateContentGrowth(600);
-      container.scrollToSpy.mockClear();
-
-      // Streaming ends
-      rerender({ enabled: false });
-      container.scrollToSpy.mockClear();
-
-      // Content shrinks (e.g., markdown re-parse during typewriter drain)
-      // — should auto-scroll to keep user at bottom
-      simulateContentGrowth(500);
-
-      expect(container.scrollToSpy).toHaveBeenCalledWith({
-        top: 1000,
-        behavior: 'instant',
-      });
-    });
-
-    it('resumes auto-scroll when user scrolls to bottom after enabled goes false', () => {
-      const container = createMockContainer();
-      container.setScrollGeometry(1000, 400);
-      container.scrollTop = 600; // at bottom
-
-      const { rerender } = setupStreamingHook(container);
-
-      rerender({ enabled: true });
-      simulateContentGrowth(600);
-
-      // Advance past programmatic scroll guard window before user scroll
-      now += 100;
-
-      // User scrolls away during streaming
-      act(() => {
-        container.scrollTop = 100;
-        container.fireScrollEvent();
-      });
-
-      // Streaming ends
-      rerender({ enabled: false });
-      container.scrollToSpy.mockClear();
-
-      // Content grows — should NOT auto-scroll (user is away)
-      container.setScrollGeometry(1100, 400);
-      simulateContentGrowth(700);
-      expect(container.scrollToSpy).not.toHaveBeenCalled();
-
-      // User scrolls back to bottom
-      act(() => {
-        container.scrollTop = 700; // 1100 - 700 - 400 = 0
-        container.fireScrollEvent();
-      });
-      container.scrollToSpy.mockClear();
-
-      // Content grows again — should auto-scroll now
-      container.setScrollGeometry(1200, 400);
-      simulateContentGrowth(800);
-
-      expect(container.scrollToSpy).toHaveBeenCalledWith({
-        top: 1200,
-        behavior: 'instant',
-      });
+      expect(result.current.containerRef).toBe(containerRef1);
+      expect(result.current.contentRef).toBe(contentRef1);
     });
   });
 });

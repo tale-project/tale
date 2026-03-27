@@ -1,7 +1,7 @@
 import { PanelFooter } from '@/app/components/layout/panel-footer';
-import { PanelHeader } from '@/app/components/layout/panel-header';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { HStack, VStack } from '@/app/components/ui/layout/layout';
+import { cn } from '@/lib/utils/cn';
 
 interface ConversationsListSkeletonProps {
   rows?: number;
@@ -38,18 +38,36 @@ export function ConversationsListSkeleton({
   );
 }
 
-export function ConversationPanelSkeleton() {
+export function ConversationHeaderSkeleton() {
   return (
-    <VStack className="min-w-0 flex-1">
-      <PanelHeader>
-        <HStack gap={3} className="flex-1">
-          <Skeleton className="size-10 rounded-full" />
-          <VStack className="flex-1 gap-1.5">
-            <Skeleton className="h-4 w-40" />
-            <Skeleton className="h-3 w-24" />
+    <div className="bg-background border-border sticky top-0 z-20 border-b">
+      <div className="flex flex-col gap-3 px-6 py-4">
+        <Skeleton className="h-5 w-72" />
+        <HStack gap={3}>
+          <Skeleton className="size-8 shrink-0 rounded-full" />
+          <VStack className="gap-1">
+            <Skeleton className="h-3.5 w-28" />
+            <Skeleton className="h-3 w-44" />
           </VStack>
         </HStack>
-      </PanelHeader>
+      </div>
+    </div>
+  );
+}
+
+interface ConversationPanelSkeletonProps {
+  status?: 'open' | 'closed' | 'archived' | 'spam';
+}
+
+export function ConversationPanelSkeleton({
+  status,
+}: ConversationPanelSkeletonProps) {
+  const isInactive =
+    status === 'closed' || status === 'archived' || status === 'spam';
+
+  return (
+    <VStack className="min-w-0 flex-1">
+      <ConversationHeaderSkeleton />
 
       <div className="mx-auto w-full max-w-3xl flex-1 px-4 pt-6">
         <VStack gap={4} className="mb-8">
@@ -71,11 +89,20 @@ export function ConversationPanelSkeleton() {
         </VStack>
       </div>
 
-      <PanelFooter className="px-2">
-        <div className="mx-auto w-full max-w-3xl px-4 py-4">
-          <Skeleton className="h-32 w-full rounded-lg" />
-        </div>
-      </PanelFooter>
+      {isInactive ? (
+        <PanelFooter>
+          <div className="border-border bg-muted/30 flex items-center justify-center gap-3 border-t px-8 pt-3">
+            <Skeleton className="h-4 w-48" />
+            <Skeleton className="h-8 w-36 rounded-md" />
+          </div>
+        </PanelFooter>
+      ) : (
+        <PanelFooter className={cn('py-3 px-4', isInactive && 'px-0')}>
+          <div className="mx-auto w-full max-w-3xl">
+            <Skeleton className="h-32 w-full rounded-xl" />
+          </div>
+        </PanelFooter>
+      )}
     </VStack>
   );
 }

@@ -12,6 +12,12 @@ export function useSubmitHumanInputResponse() {
   );
 }
 
+export function useSubmitLocationResponse() {
+  return useConvexMutation(
+    api.agent_tools.location.mutations.submitLocationResponse,
+  );
+}
+
 export function useUpdateApprovalStatus() {
   return useConvexMutation(api.approvals.mutations.updateApprovalStatus);
 }
@@ -32,6 +38,10 @@ export function useExecuteApprovedWorkflowRun() {
 
 export function useExecuteApprovedWorkflowUpdate() {
   return useConvexAction(api.approvals.actions.executeApprovedWorkflowUpdate);
+}
+
+export function useExecuteApprovedDocumentWrite() {
+  return useConvexAction(api.approvals.actions.executeApprovedDocumentWrite);
 }
 
 export function useCreateThread() {

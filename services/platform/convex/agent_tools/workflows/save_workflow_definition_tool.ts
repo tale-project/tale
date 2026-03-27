@@ -116,7 +116,7 @@ Map the JSON to this tool's schema: top-level fields → workflowConfig, steps a
 **APPROVAL:**
 When this tool returns { requiresApproval: true }, do NOT call this tool again.
 Inform the user the update is ready for review in the chat UI.`,
-    args: z.object({
+    inputSchema: z.object({
       workflowConfig: workflowConfigSchema,
       stepsConfig: z
         .array(stepConfigSchema)
@@ -135,7 +135,7 @@ Inform the user the update is ready for review in the chat UI.`,
           'Markdown-formatted summary of changes. Use bullet points for multiple changes. Example:\n- Added error handling step after API call\n- Updated email template with dynamic subject line',
         ),
     }),
-    handler: async (
+    execute: async (
       ctx: ToolCtx,
       args,
     ): Promise<{
@@ -235,8 +235,8 @@ Inform the user the update is ready for review in the chat UI.`,
           requiresApproval: true,
           approvalId,
           approvalCreated: true,
-          approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created below your message for updating workflow "${workflow.name}". The user must approve this update before changes will be applied.`,
-          message: `Workflow update for "${workflow.name}" is ready for approval. An approval card has been created below. Changes will be applied once the user approves it.`,
+          approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created for updating workflow "${workflow.name}". The user must approve this update before changes will be applied.`,
+          message: `Workflow update for "${workflow.name}" is ready for approval. An approval card has been created. Changes will be applied once the user approves it.`,
           validationWarnings:
             validation.warnings.length > 0 ? validation.warnings : undefined,
         };

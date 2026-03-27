@@ -158,6 +158,7 @@ export function WebsitesTable({
       onClear: handleClearFilters,
     },
     approxRowCount: count,
+    entityLabel: tWebsites('title').toLowerCase(),
   });
 
   return (

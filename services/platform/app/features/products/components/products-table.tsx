@@ -37,6 +37,7 @@ export function ProductsTable({
   const { t: tEmpty } = useT('emptyStates');
   const { t: tCommon } = useT('common');
   const { t: tTables } = useT('tables');
+  const { t: tProducts } = useT('products');
 
   const { data: count } = useApproxProductCount(organizationId);
   const { columns, searchPlaceholder, stickyLayout, pageSize } =
@@ -112,6 +113,7 @@ export function ProductsTable({
       onClear: handleClearFilters,
     },
     approxRowCount: count,
+    entityLabel: tProducts('title').toLowerCase(),
   });
 
   return (

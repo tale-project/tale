@@ -24,10 +24,10 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "ruff==0.15.6",
+    "ruff==0.15.8",
     "pytest==9.0.2",
     "pytest-asyncio>=0.23.0",
-    "pytest-cov==7.0.0",
+    "pytest-cov==7.1.0",
     "pytest-watch==4.2.0",
 ]
 

@@ -2,7 +2,7 @@
  * Convex Tool: Request Human Input
  *
  * Allows the AI to ask the user a question and receive a response.
- * Supports multiple input formats: single_select, multi_select, text_input, yes_no.
+ * Uses a unified form model where each question is a field with its own type.
  *
  * The request creates an approval record that displays as an input card in the chat UI.
  * When the user responds, the response is stored and injected into the AI's context
@@ -28,7 +28,96 @@ const optionSchema = z.object({
   value: z
     .string()
     .optional()
-    .describe('Optional value to return (defaults to label if not provided).'),
+    .describe(
+      'Optional value to return (defaults to label if not provided). When multiple options share similar labels, provide explicit distinct values to avoid ambiguity.',
+    ),
+});
+
+const uniqueOptionValues = (options: z.output<typeof optionSchema>[]) => {
+  const values = options.map((opt) => opt.value ?? opt.label);
+  return new Set(values).size === values.length;
+};
+
+const sharedFieldProps = {
+  label: z
+    .string()
+    .describe(
+      'Display label for the field. Must be unique across all fields — used as the key in the response.',
+    ),
+  description: z
+    .string()
+    .optional()
+    .describe('Help text shown below the field label.'),
+  required: z
+    .boolean()
+    .optional()
+    .describe('Whether the field must be filled. Defaults to false.'),
+};
+
+const fieldSchema = z.discriminatedUnion('type', [
+  z.object({
+    ...sharedFieldProps,
+    type: z
+      .enum(['text', 'textarea', 'number', 'email', 'url', 'tel'])
+      .describe(
+        'Input type. Use "text" for short single-line input, "textarea" for longer multi-line input, or a specialized type for validation.',
+      ),
+  }),
+  z.object({
+    ...sharedFieldProps,
+    type: z
+      .enum(['single_select', 'multi_select'])
+      .describe(
+        'Use "single_select" when the user picks ONE option, "multi_select" when the user picks ONE OR MORE.',
+      ),
+    options: z
+      .array(optionSchema)
+      .min(2)
+      .refine(uniqueOptionValues, {
+        message:
+          'Each option must have a unique resolved value (value ?? label). Use explicit "value" fields to distinguish options with similar labels.',
+      })
+      .describe('Options for the user to choose from. At least 2 required.'),
+  }),
+  z.object({
+    ...sharedFieldProps,
+    type: z.literal('yes_no').describe('Binary yes/no confirmation.'),
+    options: z
+      .array(optionSchema)
+      .length(2)
+      .refine(uniqueOptionValues, {
+        message:
+          'Each option must have a unique resolved value (value ?? label).',
+      })
+      .optional()
+      .describe(
+        'Custom Yes/No options. Must be exactly 2 if provided. Defaults to [Yes, No] if omitted.',
+      ),
+  }),
+]);
+
+const contextField = {
+  context: z
+    .string()
+    .optional()
+    .describe(
+      'Optional context to help the user understand why you are asking.',
+    ),
+};
+
+const requestHumanInputArgs = z.object({
+  ...contextField,
+  question: z
+    .string()
+    .describe(
+      'A heading or instruction shown above the form fields (e.g., "Please provide the following details for the purchase contract").',
+    ),
+  fields: z
+    .array(fieldSchema)
+    .min(1)
+    .describe(
+      'Form fields to display. Each field gets its own labeled input. Use unique labels — they serve as keys in the response.',
+    ),
 });
 
 export const requestHumanInputTool = {
@@ -41,24 +130,42 @@ export const requestHumanInputTool = {
 • When you call this tool, an interactive input card will IMMEDIATELY appear in the chat UI
 • The user can respond by clicking options or typing text directly in the chat
 • Do NOT show JSON examples or code snippets - just call this tool directly
+• NEVER present options/choices as plain text — always use this tool so the user can interactively select
 
 **WHEN TO USE:**
-• When you encounter multiple valid options and need user to decide (e.g., "Found 3 matching contacts, which one?")
+• When presenting multiple options, suggestions, or recommendations for the user to choose from
+• ANY time your response would list numbered/bulleted choices — use this tool instead of plain text
+• When you encounter multiple valid options and need user to decide
 • To clarify ambiguous requirements before proceeding
-• To get user confirmation for important or destructive actions (e.g., "Confirm deletion?")
-• To collect user preferences when the task cannot proceed without their input
+• To get user confirmation for important or destructive actions
+• To collect structured information (e.g., contract details, user profiles, configuration)
 
-**INPUT FORMATS:**
-• single_select: User picks ONE option from a list (mutually exclusive choices)
-• multi_select: User picks ONE OR MORE options (non-exclusive selections)
-• text_input: User types free-form text (open-ended questions)
-• yes_no: User confirms or denies (binary decisions, auto-generates Yes/No options)
+**HOW IT WORKS:**
+Every request is a form with one or more fields. Each field has a type that determines how it renders:
 
-**EXAMPLE - When you find multiple matching records:**
-Call this tool with:
-- question: "Found 3 contacts matching 'John'. Which one should I use?"
-- format: "single_select"
-- options: [{ label: "John Smith (Sales)", value: "contact_123" }, { label: "John Doe (Support)", value: "contact_456" }]
+**FIELD TYPES:**
+• text: Short single-line text input
+• textarea: Multi-line text input for longer content
+• number / email / url / tel: Specialized text inputs
+• single_select: User picks ONE option from a list (radio buttons). Each option must resolve to a unique value — if labels are similar, provide explicit distinct "value" fields.
+• multi_select: User picks ONE OR MORE options (checkboxes). Same uniqueness rule as single_select.
+• yes_no: Binary yes/no confirmation (defaults to Yes/No buttons)
+
+**EXAMPLE - Single question (one select field):**
+- question: "Which meal would you like?"
+- fields: [{ label: "Meal choice", type: "single_select", options: [{ label: "Creamy Garlic Pasta", description: "Italian comfort food" }, { label: "Mediterranean Bowl", description: "Quinoa with veggies" }, { label: "Thai Coconut Curry", description: "Aromatic curry with rice" }] }]
+
+**EXAMPLE - Confirmation (one yes_no field):**
+- question: "Please confirm"
+- fields: [{ label: "Delete these 3 records?", type: "yes_no", required: true }]
+
+**EXAMPLE - Collecting structured information (multiple fields):**
+- question: "Please provide the purchase contract details"
+- fields: [{ label: "Contract date", type: "text", required: true }, { label: "Seller company name", type: "text", required: true }, { label: "Seller address", type: "textarea" }, { label: "Buyer company name", type: "text", required: true }, { label: "Buyer address", type: "textarea" }, { label: "Payment terms", type: "single_select", options: [{ label: "Net 30" }, { label: "Net 60" }, { label: "Upon delivery" }] }]
+
+**EXAMPLE - Mixed field types:**
+- question: "Configure your notification preferences"
+- fields: [{ label: "Notification channels", type: "multi_select", required: true, options: [{ label: "Email" }, { label: "SMS" }, { label: "Slack" }] }, { label: "Custom webhook URL", type: "url" }, { label: "Enable daily digest?", type: "yes_no" }]
 
 **AFTER CALLING - CRITICAL:**
 • An input card appears in the user's chat interface
@@ -66,32 +173,9 @@ Call this tool with:
 • Do NOT call any more tools or continue with any operation
 • Do NOT assume or guess what the user will select
 • The user's response will appear in a FUTURE turn as <human_response>
-• Simply acknowledge you're waiting for their selection`,
-    args: z.object({
-      question: z
-        .string()
-        .describe('The question to ask the user. Be clear and specific.'),
-      format: z
-        .enum(['single_select', 'multi_select', 'text_input', 'yes_no'])
-        .describe('The input format for the response.'),
-      context: z
-        .string()
-        .optional()
-        .describe(
-          'Optional context to help the user understand why you are asking.',
-        ),
-      options: z
-        .array(optionSchema)
-        .optional()
-        .describe(
-          'Options for single_select or multi_select formats. Required for select formats.',
-        ),
-      placeholder: z
-        .string()
-        .optional()
-        .describe('Placeholder text for text_input format.'),
-    }),
-    handler: async (
+• Simply acknowledge you're waiting for their input`,
+    inputSchema: requestHumanInputArgs,
+    execute: async (
       ctx: ToolCtx,
       args,
     ): Promise<{
@@ -102,9 +186,15 @@ Call this tool with:
       message: string;
     }> => {
       const { organizationId, threadId: currentThreadId } = ctx;
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- workflow context fields spread onto ctx at runtime via execute_agent_with_tools.ts
+      const ctxRecord = ctx as unknown as Record<string, unknown>;
+      const wfExecutionId =
+        typeof ctxRecord.wfExecutionId === 'string'
+          ? ctxRecord.wfExecutionId
+          : undefined;
+      const stepSlug =
+        typeof ctxRecord.stepSlug === 'string' ? ctxRecord.stepSlug : undefined;
 
-      // Look up parent thread from thread summary (stable, database-backed)
-      // This ensures approvals from sub-agents link to the main chat thread
       const threadId = await getApprovalThreadId(ctx, currentThreadId);
 
       if (!organizationId) {
@@ -122,33 +212,19 @@ Call this tool with:
         };
       }
 
-      // Validate options for select formats
-      if (
-        (args.format === 'single_select' || args.format === 'multi_select') &&
-        (!args.options || args.options.length < 2)
-      ) {
-        return {
-          success: false,
-          message: `${args.format} format requires at least 2 options.`,
-        };
-      }
-
-      // For yes_no format, ensure exactly two options
-      let options = args.options;
-      if (args.format === 'yes_no') {
-        if (options && options.length !== 2) {
+      // Resolve yes_no defaults and map fields for the mutation
+      const fields = args.fields.map((f) => {
+        if (f.type === 'yes_no' && !('options' in f && f.options)) {
           return {
-            success: false,
-            message: 'yes_no format requires exactly 2 options.',
+            ...f,
+            options: [
+              { label: 'Yes', value: 'yes' },
+              { label: 'No', value: 'no' },
+            ],
           };
         }
-        if (!options) {
-          options = [
-            { label: 'Yes', value: 'yes' },
-            { label: 'No', value: 'no' },
-          ];
-        }
-      }
+        return f;
+      });
 
       try {
         const requestId = await ctx.runMutation(
@@ -158,14 +234,24 @@ Call this tool with:
             organizationId,
             threadId,
             question: args.question,
-            format: args.format,
             context: args.context,
-            options: options?.map((opt) => ({
-              label: opt.label,
-              description: opt.description,
-              value: opt.value,
+            fields: fields.map((f) => ({
+              label: f.label,
+              description: f.description,
+              required: f.required,
+              type: f.type,
+              ...('options' in f && f.options
+                ? {
+                    options: f.options.map((opt) => ({
+                      label: opt.label,
+                      description: opt.description,
+                      value: opt.value,
+                    })),
+                  }
+                : {}),
             })),
-            placeholder: args.placeholder,
+            wfExecutionId,
+            stepSlug,
           },
         );
 

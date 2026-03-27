@@ -93,8 +93,8 @@ export const wfStepDefsTable = defineTable({
   nextSteps: v.record(v.string(), v.string()),
   config: stepConfigValidator,
   // @deprecated — unused legacy fields, kept for schema compatibility
-  inputMapping: v.optional(v.record(v.string(), v.string())),
-  outputMapping: v.optional(v.record(v.string(), v.string())),
+  inputMapping: v.optional(v.record(v.string(), jsonValueValidator)),
+  outputMapping: v.optional(v.record(v.string(), jsonValueValidator)),
   metadata: v.optional(jsonRecordValidator),
 })
   .index('by_definition', ['wfDefinitionId'])
@@ -147,6 +147,7 @@ export const wfExecutionsTable = defineTable({
   completedAt: v.optional(v.number()),
   componentWorkflowId: v.optional(v.string()),
   shardIndex: v.optional(v.number()),
+  userId: v.optional(v.string()),
   threadId: v.optional(v.string()),
   variables: v.optional(v.string()),
   variablesStorageId: v.optional(v.id('_storage')),

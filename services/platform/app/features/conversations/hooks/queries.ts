@@ -23,7 +23,7 @@ export function useConversations(organizationId: string) {
 
 interface ListConversationsPaginatedArgs {
   organizationId: string;
-  status?: string;
+  status?: 'open' | 'closed' | 'spam' | 'archived';
   priority?: string;
   channel?: string;
   initialNumItems: number;

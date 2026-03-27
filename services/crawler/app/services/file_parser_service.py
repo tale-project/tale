@@ -7,13 +7,135 @@ Handles:
 - PPTX text extraction using python-pptx (with optional Vision API for images)
 """
 
+import datetime as dt
 import logging
+import re
 from io import BytesIO
 from typing import Any
 
 from ..config import settings
 
 logger = logging.getLogger(__name__)
+
+_PDF_DATE_RE = re.compile(
+    r"^(?:D:)?"
+    r"(\d{4})"
+    r"(\d{2})?"
+    r"(\d{2})?"
+    r"(\d{2})?"
+    r"(\d{2})?"
+    r"(\d{2})?"
+    r"([Z+\-])?"
+    r"(\d{2})?'?"
+    r"(\d{2})?'?"
+)
+
+_MIN_YEAR = 1970
+_MAX_YEAR = 2100
+
+
+def _parse_pdf_date(date_str: str | None) -> int | None:
+    """Parse PDF date format ``D:YYYYMMDDHHmmSSOHH'mm'`` to Unix timestamp ms.
+
+    Returns ``None`` for missing, malformed, or out-of-range dates.
+    """
+    if not date_str or not isinstance(date_str, str):
+        return None
+
+    date_str = date_str.strip()
+    if not date_str:
+        return None
+
+    match = _PDF_DATE_RE.match(date_str)
+    if not match:
+        logger.warning("Failed to parse PDF date: '%s'", date_str)
+        return None
+
+    try:
+        year = int(match.group(1))
+        if year < _MIN_YEAR or year > _MAX_YEAR:
+            logger.warning("PDF date year out of range (%d): '%s'", year, date_str)
+            return None
+
+        month = int(match.group(2) or "01")
+        day = int(match.group(3) or "01")
+        hour = int(match.group(4) or "00")
+        minute = int(match.group(5) or "00")
+        second = int(match.group(6) or "00")
+
+        tz_sign = match.group(7)
+        tz_hours = int(match.group(8) or "0")
+        tz_minutes = int(match.group(9) or "0")
+
+        if tz_sign == "-":
+            tz_offset = dt.timezone(dt.timedelta(hours=-tz_hours, minutes=-tz_minutes))
+        elif tz_sign == "+":
+            tz_offset = dt.timezone(dt.timedelta(hours=tz_hours, minutes=tz_minutes))
+        else:
+            tz_offset = dt.UTC
+
+        d = dt.datetime(year, month, day, hour, minute, second, tzinfo=tz_offset)
+        return int(d.timestamp() * 1000)
+    except (ValueError, OverflowError) as e:
+        logger.warning("Failed to parse PDF date '%s': %s", date_str, e)
+        return None
+
+
+def _to_unix_ms(d: dt.datetime | None) -> int | None:
+    """Convert a datetime to Unix timestamp in milliseconds.
+
+    Handles both timezone-aware and naive (assumed UTC) datetimes.
+    Returns ``None`` for ``None`` input.
+    """
+    if d is None:
+        return None
+    if not isinstance(d, dt.datetime):
+        return None
+    try:
+        if d.tzinfo is None:
+            d = d.replace(tzinfo=dt.UTC)
+        year = d.year
+        if year < _MIN_YEAR or year > _MAX_YEAR:
+            logger.warning("Datetime year out of range (%d)", year)
+            return None
+        return int(d.timestamp() * 1000)
+    except (ValueError, OverflowError, OSError) as e:
+        logger.warning("Failed to convert datetime to Unix ms: %s", e)
+        return None
+
+
+def _extract_ooxml_metadata(file_bytes: bytes, fmt: str) -> dict[str, Any]:
+    """Extract dates + title/author from OOXML (DOCX/PPTX) core properties."""
+    result: dict[str, Any] = {
+        "created_at": None,
+        "modified_at": None,
+        "title": "",
+        "author": "",
+    }
+
+    try:
+        if fmt == "docx":
+            from docx import Document
+
+            doc = Document(BytesIO(file_bytes))
+            props = doc.core_properties
+        elif fmt == "pptx":
+            from pptx import Presentation
+
+            prs = Presentation(BytesIO(file_bytes))
+            props = prs.core_properties
+        else:
+            return result
+
+        result["title"] = props.title or ""
+        result["author"] = getattr(props, "author", "") or ""
+        result["created_at"] = _to_unix_ms(props.created)
+        result["modified_at"] = _to_unix_ms(props.modified)
+
+    except Exception as e:
+        logger.warning("Failed to extract OOXML metadata from %s: %s", fmt, e)
+
+    return result
 
 
 class FileParserService:
@@ -47,6 +169,8 @@ class FileParserService:
                     "title": metadata.get("title", ""),
                     "author": metadata.get("author", ""),
                     "subject": metadata.get("subject", ""),
+                    "created_at": _parse_pdf_date(metadata.get("creationDate")),
+                    "modified_at": _parse_pdf_date(metadata.get("modDate")),
                 },
             }
         except Exception as e:
@@ -99,6 +223,21 @@ class FileParserService:
                 )
                 resolved_model = model or settings.get_fast_model()
 
+            import fitz as _fitz
+
+            pdf_metadata: dict[str, Any] = {}
+            try:
+                with _fitz.open(stream=file_bytes, filetype="pdf") as _doc:
+                    _raw = _doc.metadata or {}
+                    pdf_metadata = {
+                        "title": _raw.get("title", ""),
+                        "author": _raw.get("author", ""),
+                        "created_at": _parse_pdf_date(_raw.get("creationDate")),
+                        "modified_at": _parse_pdf_date(_raw.get("modDate")),
+                    }
+            except Exception as e:
+                logger.warning("Failed to extract PDF vision metadata: %s", e)
+
             result: dict[str, Any] = {
                 "success": True,
                 "filename": filename,
@@ -106,6 +245,7 @@ class FileParserService:
                 "page_count": len(pages_content),
                 "full_text": "\n\n".join(pages_content),
                 "vision_used": vision_used,
+                "metadata": pdf_metadata,
             }
             if acc.total_tokens > 0:
                 result["usage"] = acc.to_dict(model=resolved_model)
@@ -149,7 +289,12 @@ class FileParserService:
                 "paragraphs": paragraphs,
                 "tables": tables,
                 "full_text": full_text,
-                "metadata": {"title": core_props.title or "", "author": core_props.author or ""},
+                "metadata": {
+                    "title": core_props.title or "",
+                    "author": core_props.author or "",
+                    "created_at": _to_unix_ms(core_props.created) if hasattr(core_props, "created") else None,
+                    "modified_at": _to_unix_ms(core_props.modified) if hasattr(core_props, "modified") else None,
+                },
             }
         except Exception as e:
             logger.error(f"Error parsing DOCX: {e}")
@@ -198,6 +343,8 @@ class FileParserService:
                 )
                 resolved_model = model or settings.get_fast_model()
 
+            docx_dates = _extract_ooxml_metadata(file_bytes, "docx")
+
             result: dict[str, Any] = {
                 "success": True,
                 "filename": filename,
@@ -205,6 +352,7 @@ class FileParserService:
                 "element_count": len(content_list),
                 "full_text": "\n\n".join(content_list),
                 "vision_used": vision_used,
+                "metadata": docx_dates,
             }
             if acc.total_tokens > 0:
                 result["usage"] = acc.to_dict(model=resolved_model)
@@ -258,7 +406,12 @@ class FileParserService:
                 "slide_count": len(slides),
                 "slides": slides,
                 "full_text": "\n\n".join(full_text_parts),
-                "metadata": {"title": core_props.title or "", "author": core_props.author or ""},
+                "metadata": {
+                    "title": core_props.title or "",
+                    "author": core_props.author or "",
+                    "created_at": _to_unix_ms(core_props.created) if hasattr(core_props, "created") else None,
+                    "modified_at": _to_unix_ms(core_props.modified) if hasattr(core_props, "modified") else None,
+                },
             }
         except Exception as e:
             logger.error(f"Error parsing PPTX: {e}")
@@ -307,6 +460,8 @@ class FileParserService:
                 )
                 resolved_model = model or settings.get_fast_model()
 
+            pptx_dates = _extract_ooxml_metadata(file_bytes, "pptx")
+
             result: dict[str, Any] = {
                 "success": True,
                 "filename": filename,
@@ -314,6 +469,7 @@ class FileParserService:
                 "slide_count": len(slides_content),
                 "full_text": "\n\n".join(slides_content),
                 "vision_used": vision_used,
+                "metadata": pptx_dates,
             }
             if acc.total_tokens > 0:
                 result["usage"] = acc.to_dict(model=resolved_model)

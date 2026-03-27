@@ -1,20 +1,23 @@
 'use client';
 
-import { Loader2Icon, MessageSquareMoreIcon } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import {
+  AlertTriangleIcon,
+  ArchiveIcon,
+  CircleCheckIcon,
+  Loader2Icon,
+  MessageSquareMoreIcon,
+  RefreshCwIcon,
+  ShieldAlertIcon,
+} from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
 
 import { PanelFooter } from '@/app/components/layout/panel-footer';
-import { PanelHeader } from '@/app/components/layout/panel-header';
 import { EmptyState } from '@/app/components/ui/feedback/empty-state';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
-import {
-  Center,
-  HStack,
-  Stack,
-  VStack,
-} from '@/app/components/ui/layout/layout';
+import { Center, Stack } from '@/app/components/ui/layout/layout';
+import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useThrottledScroll } from '@/app/hooks/use-throttled-scroll';
 import { toast } from '@/app/hooks/use-toast';
@@ -23,13 +26,16 @@ import { useT } from '@/lib/i18n/client';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 
 import {
+  useDeleteConversation,
   useDownloadAttachments,
   useGenerateUploadUrl,
   useMarkAsRead,
+  useReopenConversation,
   useSendMessageViaIntegration,
 } from '../hooks/mutations';
 import { useConversationWithMessages } from '../hooks/queries';
 import { ConversationHeader } from './conversation-header';
+import { ConversationHeaderSkeleton } from './conversations-skeleton';
 import { Message } from './message';
 
 const MessageEditor = lazyComponent(
@@ -45,6 +51,7 @@ const MessageEditor = lazyComponent(
 );
 
 import { useFormatDate } from '@/app/hooks/use-format-date';
+import { cn } from '@/lib/utils/cn';
 import { groupMessagesByDate } from '@/lib/utils/conversation/date-utils';
 
 interface AttachedFile {
@@ -56,25 +63,38 @@ interface AttachedFile {
 interface ConversationPanelProps {
   selectedConversationId: string | null;
   onSelectedConversationChange: (conversationId: string | null) => void;
+  status?: 'open' | 'closed' | 'archived' | 'spam';
 }
 
 export function ConversationPanel({
   selectedConversationId,
   onSelectedConversationChange,
+  status: tabStatus,
 }: ConversationPanelProps) {
   // Translations
   const { t: tConversations } = useT('conversations');
   const { formatDateHeader } = useFormatDate();
 
-  const { data: conversation, isLoading } = useConversationWithMessages(
-    selectedConversationId,
-  );
+  const {
+    data: conversation,
+    isLoading,
+    isError,
+    refetch,
+  } = useConversationWithMessages(selectedConversationId);
 
   const { mutate: markAsRead } = useMarkAsRead();
   const { mutateAsync: sendMessageViaIntegration } =
     useSendMessageViaIntegration();
   const { mutateAsync: generateUploadUrl } = useGenerateUploadUrl();
   const { mutate: downloadAttachments } = useDownloadAttachments();
+  const { mutate: reopenConversation, isPending: isReopening } =
+    useReopenConversation();
+  const { mutate: deleteConversation, isPending: isDeleting } =
+    useDeleteConversation();
+
+  const { formatDate } = useFormatDate();
+
+  const [isThreadCollapsed, setIsThreadCollapsed] = useState(true);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const messageComposerRef = useRef<HTMLDivElement>(null);
@@ -238,21 +258,36 @@ export function ConversationPanel({
     );
   }
 
+  if (isError) {
+    return (
+      <Center className="flex-1 flex-col gap-3 px-4">
+        <AlertTriangleIcon className="text-destructive size-8" />
+        <div className="space-y-1 text-center">
+          <Text variant="label">{tConversations('panel.loadFailed')}</Text>
+          <Text variant="muted">
+            {tConversations('panel.loadFailedDescription')}
+          </Text>
+        </div>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => void refetch()}
+          className="mt-1"
+        >
+          <RefreshCwIcon className="mr-2 size-4" />
+          {tConversations('panel.tryAgain')}
+        </Button>
+      </Center>
+    );
+  }
+
   if (isLoading) {
     return (
       <div
         ref={containerRef}
         className="relative flex flex-[1_1_0] flex-col overflow-y-auto"
       >
-        <PanelHeader>
-          <HStack gap={3} className="flex-1">
-            <Skeleton className="size-10 rounded-full" />
-            <VStack className="flex-1 gap-1.5">
-              <Skeleton className="h-4 w-40" />
-              <Skeleton className="h-3 w-24" />
-            </VStack>
-          </HStack>
-        </PanelHeader>
+        <ConversationHeaderSkeleton />
 
         <div className="mx-auto w-full max-w-3xl flex-1 px-4 pt-6">
           <Stack gap={4} className="mb-8">
@@ -278,11 +313,20 @@ export function ConversationPanel({
           </Stack>
         </div>
 
-        <PanelFooter className="px-2">
-          <div className="mx-auto w-full max-w-3xl px-4 py-4">
-            <Skeleton className="h-32 w-full rounded-lg" />
-          </div>
-        </PanelFooter>
+        {tabStatus && tabStatus !== 'open' ? (
+          <PanelFooter>
+            <div className="border-border bg-muted/30 flex items-center justify-center gap-3 border-t px-8 py-3">
+              <Skeleton className="h-4 w-48" />
+              <Skeleton className="h-8 w-36 rounded-md" />
+            </div>
+          </PanelFooter>
+        ) : (
+          <PanelFooter className="px-4 py-3">
+            <div className="mx-auto w-full max-w-3xl">
+              <Skeleton className="h-32 w-full rounded-xl" />
+            </div>
+          </PanelFooter>
+        )}
       </div>
     );
   }
@@ -316,12 +360,17 @@ export function ConversationPanel({
 
   const messageGroups = groupMessagesByDate(displayMessages);
 
+  const totalMessages = displayMessages.length;
+  const COLLAPSE_THRESHOLD = 4;
+  const showCollapse = totalMessages > COLLAPSE_THRESHOLD && isThreadCollapsed;
+  const collapsedHiddenCount = totalMessages - 2;
+
   return (
     <div
       ref={containerRef}
       className="relative flex flex-[1_1_0] flex-col overflow-y-auto"
     >
-      <PanelHeader>
+      <div className="bg-background sticky top-0 z-20">
         <ConversationHeader
           conversation={conversation}
           organizationId={conversation.organizationId}
@@ -335,59 +384,96 @@ export function ConversationPanel({
             onSelectedConversationChange(null);
           }}
         />
-      </PanelHeader>
+      </div>
       <div className="mx-auto w-full max-w-3xl flex-1 px-4 pt-2">
         {messageGroups.length === 0 ? (
           <Center className="h-full">
             <Text variant="muted">{tConversations('panel.noMessages')}</Text>
           </Center>
         ) : (
-          messageGroups.map((group) => (
-            <div key={group.date} className="relative">
-              {/* Sticky Date Header */}
-              <div className="sticky top-16 z-10 mb-4 py-2">
-                <div className="flex justify-center">
-                  <div className="bg-background border-border rounded-full border px-2 py-0.5 shadow-sm">
-                    <Text as="span" variant="label-sm" className="text-primary">
-                      {formatDateHeader(group.date)}
-                    </Text>
-                  </div>
-                </div>
+          <>
+            {showCollapse && (
+              <div className="flex justify-center py-3">
+                <button
+                  type="button"
+                  className="text-muted-foreground hover:text-foreground text-sm underline-offset-2 hover:underline"
+                  onClick={() => setIsThreadCollapsed(false)}
+                >
+                  {tConversations('panel.showEarlierMessages', {
+                    count: collapsedHiddenCount,
+                  })}
+                </button>
               </div>
+            )}
+            {messageGroups.map((group, groupIndex) => {
+              const isLastGroup = groupIndex === messageGroups.length - 1;
+              const messagesToShow =
+                showCollapse && isLastGroup
+                  ? group.messages.slice(-2)
+                  : showCollapse && !isLastGroup
+                    ? []
+                    : group.messages;
 
-              {/* Messages for this date */}
-              <Stack gap={4} className="mb-8">
-                {group.messages.map((message) => (
-                  <Message
-                    key={message.id}
-                    message={message}
-                    onDownloadAttachments={(messageId) => {
-                      downloadAttachments(
-                        {
-                          messageId: toId<'conversationMessages'>(messageId),
-                        },
-                        {
-                          onError: (error) => {
-                            console.error(
-                              'Failed to download attachments:',
-                              error,
-                            );
-                            toast({
-                              title: tConversations('panel.downloadFailed'),
-                              variant: 'destructive',
-                            });
-                          },
-                        },
-                      );
-                    }}
-                  />
-                ))}
-              </Stack>
-            </div>
-          ))
+              if (messagesToShow.length === 0) return null;
+
+              return (
+                <div key={group.date} className="relative">
+                  {/* Sticky Date Header */}
+                  <div className="z-10 mb-4 py-2">
+                    <div className="flex justify-center">
+                      <div className="bg-background border-border rounded-full border px-2 py-0.5 shadow-sm">
+                        <Text
+                          as="span"
+                          variant="label-sm"
+                          className="text-primary"
+                        >
+                          {formatDateHeader(group.date)}
+                        </Text>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Messages for this date */}
+                  <Stack gap={4} className="mb-8">
+                    {messagesToShow.map((message) => (
+                      <Message
+                        key={message.id}
+                        message={message}
+                        onDownloadAttachments={(messageId) => {
+                          downloadAttachments(
+                            {
+                              messageId:
+                                toId<'conversationMessages'>(messageId),
+                            },
+                            {
+                              onError: (error) => {
+                                console.error(
+                                  'Failed to download attachments:',
+                                  error,
+                                );
+                                toast({
+                                  title: tConversations('panel.downloadFailed'),
+                                  variant: 'destructive',
+                                });
+                              },
+                            },
+                          );
+                        }}
+                      />
+                    ))}
+                  </Stack>
+                </div>
+              );
+            })}
+          </>
         )}
       </div>
-      <PanelFooter className="px-2">
+      <PanelFooter
+        className={cn(
+          'py-3 px-4',
+          conversation.status !== 'open' && 'px-0 pb-0',
+        )}
+      >
         {conversation.status === 'open' ? (
           <div ref={messageComposerRef} className="mx-auto w-full max-w-3xl">
             <MessageEditor
@@ -398,23 +484,188 @@ export function ConversationPanel({
               businessId={conversation.business_id}
               conversationId={conversation.id}
               onConversationResolved={() => {
-                // Convex will automatically update the conversation reactively
-                // Just call the parent callback to update the conversation list
                 onSelectedConversationChange(null);
               }}
               pendingMessage={pendingMessage}
               hasMessageHistory={displayMessages.length > 0}
             />
           </div>
-        ) : (
-          <div className="px-8 py-10">
-            <Text variant="muted" align="center">
-              {conversation.status === 'spam'
-                ? tConversations('panel.markedAsSpam')
-                : tConversations('panel.markedAsClosed')}
-            </Text>
+        ) : conversation.status === 'closed' ? (
+          <div
+            className="flex items-center justify-center gap-2 border-t border-gray-200 bg-gray-50 px-3 pt-3 pb-4 dark:border-gray-600 dark:bg-gray-900"
+            role="status"
+          >
+            <CircleCheckIcon
+              className="size-4 shrink-0 text-emerald-600"
+              aria-hidden="true"
+            />
+            <span className="text-[13px] text-gray-500 dark:text-gray-400">
+              {conversation.resolved_at
+                ? tConversations('panel.closedBanner', {
+                    date: formatDate(conversation.resolved_at, 'long'),
+                  })
+                : tConversations('panel.closedBannerNoDate')}
+            </span>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={isReopening}
+              className="h-auto px-3 py-1 text-[13px]"
+              onClick={() => {
+                reopenConversation(
+                  {
+                    conversationId: toId<'conversations'>(conversation.id),
+                  },
+                  {
+                    onSuccess: () => {
+                      toast({
+                        title: tConversations('header.toast.reopened'),
+                        variant: 'success',
+                      });
+                      onSelectedConversationChange(null);
+                    },
+                    onError: (error) => {
+                      console.error('Error reopening conversation:', error);
+                      toast({
+                        title: tConversations('header.toast.reopenFailed'),
+                        variant: 'destructive',
+                      });
+                    },
+                  },
+                );
+              }}
+            >
+              {isReopening
+                ? tConversations('header.reopening')
+                : tConversations('header.reopenConversation')}
+            </Button>
           </div>
-        )}
+        ) : conversation.status === 'archived' ? (
+          <div
+            className="flex items-center justify-center gap-2 border-t border-gray-200 bg-gray-50 px-3 pt-3 pb-4 dark:border-gray-600 dark:bg-gray-900"
+            role="status"
+          >
+            <ArchiveIcon
+              className="size-4 shrink-0 text-gray-500 dark:text-gray-500"
+              aria-hidden="true"
+            />
+            <span className="text-[13px] text-gray-500 dark:text-gray-400">
+              {tConversations('panel.archivedBanner')}
+            </span>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={isReopening}
+              className="h-auto px-3 py-1 text-[13px]"
+              onClick={() => {
+                reopenConversation(
+                  {
+                    conversationId: toId<'conversations'>(conversation.id),
+                  },
+                  {
+                    onSuccess: () => {
+                      toast({
+                        title: tConversations('header.toast.reopened'),
+                        variant: 'success',
+                      });
+                      onSelectedConversationChange(null);
+                    },
+                    onError: (error) => {
+                      console.error('Error reopening conversation:', error);
+                      toast({
+                        title: tConversations('header.toast.reopenFailed'),
+                        variant: 'destructive',
+                      });
+                    },
+                  },
+                );
+              }}
+            >
+              {isReopening
+                ? tConversations('header.reopening')
+                : tConversations('panel.unarchive')}
+            </Button>
+          </div>
+        ) : conversation.status === 'spam' ? (
+          <div
+            className="flex items-center justify-center gap-2 border-t border-gray-200 bg-gray-50 px-3 pt-3 pb-4 dark:border-gray-600 dark:bg-gray-900"
+            role="status"
+          >
+            <ShieldAlertIcon
+              className="size-4 shrink-0 text-red-500 dark:text-red-400"
+              aria-hidden="true"
+            />
+            <span className="text-[13px] text-gray-500 dark:text-gray-400">
+              {tConversations('panel.spamBanner')}
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={isReopening || isDeleting}
+                className="h-auto px-3 py-1 text-[13px]"
+                onClick={() => {
+                  reopenConversation(
+                    {
+                      conversationId: toId<'conversations'>(conversation.id),
+                    },
+                    {
+                      onSuccess: () => {
+                        toast({
+                          title: tConversations('header.toast.reopened'),
+                          variant: 'success',
+                        });
+                        onSelectedConversationChange(null);
+                      },
+                      onError: (error) => {
+                        console.error('Error reopening conversation:', error);
+                        toast({
+                          title: tConversations('header.toast.reopenFailed'),
+                          variant: 'destructive',
+                        });
+                      },
+                    },
+                  );
+                }}
+              >
+                {tConversations('panel.notSpam')}
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={isDeleting || isReopening}
+                className="h-auto px-3 py-1 text-[13px]"
+                onClick={() => {
+                  deleteConversation(
+                    {
+                      conversationId: toId<'conversations'>(conversation.id),
+                    },
+                    {
+                      onSuccess: () => {
+                        toast({
+                          title: tConversations('panel.deleteSuccess'),
+                          variant: 'success',
+                        });
+                        onSelectedConversationChange(null);
+                      },
+                      onError: (error) => {
+                        console.error('Error deleting conversation:', error);
+                        toast({
+                          title: tConversations('panel.deleteFailed'),
+                          variant: 'destructive',
+                        });
+                      },
+                    },
+                  );
+                }}
+              >
+                {isDeleting
+                  ? tConversations('panel.deleting')
+                  : tConversations('panel.delete')}
+              </Button>
+            </div>
+          </div>
+        ) : null}
       </PanelFooter>
     </div>
   );

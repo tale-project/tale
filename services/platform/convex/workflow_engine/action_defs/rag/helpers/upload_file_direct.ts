@@ -12,7 +12,7 @@ export interface UploadFileArgs {
 }
 
 interface RagApiUploadResponse {
-  document_id?: string;
+  file_id?: string;
   id?: string;
   success?: boolean;
   chunks_created?: number;
@@ -40,7 +40,7 @@ export async function uploadFile({
 
   const formData = new FormData();
   formData.append('file', file, filename);
-  formData.append('document_id', fileId);
+  formData.append('file_id', fileId);
   formData.append(
     'metadata',
     JSON.stringify({ ...metadata, content_type: contentType }),
@@ -70,7 +70,7 @@ export async function uploadFile({
 
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- typed response
   const result = (await response.json()) as RagApiUploadResponse;
-  const ragDocumentId = result.document_id || result.id;
+  const ragDocumentId = result.file_id || result.id;
 
   return {
     success: result.success ?? true,

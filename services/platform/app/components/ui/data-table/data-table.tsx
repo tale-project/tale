@@ -105,6 +105,10 @@ export interface DataTableProps<TData, TValue = unknown> {
     autoLoad?: boolean;
     /** Distance from bottom to trigger load in px (default: 1000) */
     threshold?: number;
+    /** Lowercase plural entity label (e.g., "websites"). Enables "Showing all X {entity}" footer. */
+    entityLabel?: string;
+    /** Unfiltered total count. When different from data.length, shows "Showing X of Y {entity}". */
+    totalCount?: number;
   };
   /**
    * Approximate row count for the skeleton display.
@@ -669,13 +673,31 @@ export function DataTable<TData, TValue = unknown>({
             ) : null}
           </div>
         </>
-      ) : (
+      ) : !infiniteScroll.entityLabel ? (
         <output className="text-muted-foreground block py-3 text-center text-xs">
           {t('pagination.noMore')}
         </output>
-      )}
+      ) : null}
     </div>
   );
+
+  const entityCountFooter = infiniteScroll &&
+    infiniteScroll.entityLabel &&
+    data.length > 0 && (
+      <output className="bg-background border-border text-muted-foreground sticky bottom-0 z-10 block border-t py-3 text-center text-xs">
+        {infiniteScroll.totalCount !== undefined &&
+        infiniteScroll.totalCount !== data.length
+          ? t('pagination.showingFiltered', {
+              filtered: data.length,
+              total: infiniteScroll.totalCount,
+              entity: infiniteScroll.entityLabel,
+            })
+          : t('pagination.showingAll', {
+              count: data.length,
+              entity: infiniteScroll.entityLabel,
+            })}
+      </output>
+    );
 
   // Non-sticky layout: simple stacked layout with gaps
   if (!stickyLayout) {
@@ -695,6 +717,7 @@ export function DataTable<TData, TValue = unknown>({
           <div className="border-border overflow-hidden rounded-xl border">
             {tableContent}
             {infiniteScrollContent}
+            {entityCountFooter}
           </div>
           {paginationContent}
           {footer}
@@ -725,6 +748,7 @@ export function DataTable<TData, TValue = unknown>({
         >
           {tableContent}
           {infiniteScrollContent}
+          {entityCountFooter}
         </div>
         {paginationContent && (
           <div className="flex-shrink-0 pt-6">{paginationContent}</div>

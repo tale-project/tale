@@ -374,6 +374,17 @@ async function main() {
 
     await waitForConvex();
 
+    // Re-read CONVEX_DEPLOYMENT from .env.local in case `convex dev` wrote it
+    // after our initial loadEnvFiles() call (happens on first run with fresh DB)
+    const platformEnvLocalPath = join(platformRoot, '.env.local');
+    const freshEnv = parseDotEnv(platformEnvLocalPath);
+    if (freshEnv.CONVEX_DEPLOYMENT && !process.env.CONVEX_DEPLOYMENT) {
+      process.env.CONVEX_DEPLOYMENT = freshEnv.CONVEX_DEPLOYMENT;
+      console.log(
+        `[dev] ℹ️  Picked up new deployment: ${freshEnv.CONVEX_DEPLOYMENT}`,
+      );
+    }
+
     console.log('[dev] 🔄 Syncing environment variables...');
     try {
       await runCommand('bun', ['scripts/sync-convex-env-from-dotenv.ts']);

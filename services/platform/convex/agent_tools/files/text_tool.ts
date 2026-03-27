@@ -15,7 +15,9 @@ import type { ToolDefinition } from '../types';
 
 import { internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
+import { buildDownloadUrl } from '../../lib/helpers/public_storage_url';
 import { analyzeTextContent } from './helpers/analyze_text';
+import { appendFilePart } from './helpers/append_file_part';
 import { getAgentModelId } from './helpers/get_agent_model';
 import { resolveFileName } from './helpers/resolve_file_name';
 
@@ -51,28 +53,24 @@ type TextResult = TextParseResult | TextGenerateResult;
 
 const textArgs = z.discriminatedUnion('operation', [
   z.object({
-    operation: z
-      .literal('parse')
-      .describe('Parse and analyze a text-based file'),
+    operation: z.literal('parse'),
     fileId: z
       .string()
       .describe(
-        "**REQUIRED** - Convex storage ID of the file (e.g., 'kg2bazp7fbgt9srq63knfagjrd7yfenj'). Get this from the file attachment context.",
+        "Convex storage ID of the file (e.g., 'kg2bazp7fbgt9srq63knfagjrd7yfenj'). Get this from the file attachment context.",
       ),
     filename: z
       .string()
       .optional()
       .describe(
-        "Original filename (e.g., 'data.txt', 'script.js', 'readme.md'). Optional — auto-resolved from file metadata if omitted.",
+        "Original filename (e.g., 'data.txt', 'script.js'). Optional — auto-resolved from file metadata if omitted.",
       ),
     user_input: z
       .string()
-      .describe(
-        'The user question or instruction about what to analyze in the file',
-      ),
+      .describe("The user's question or instruction about the file"),
   }),
   z.object({
-    operation: z.literal('generate').describe('Generate a new text file'),
+    operation: z.literal('generate'),
     filename: z
       .string()
       .describe("Output filename (e.g., 'output.txt', 'notes.md')"),
@@ -84,6 +82,8 @@ export const textTool = {
   name: 'text' as const,
   tool: createTool({
     description: `Text file tool for parsing, analyzing, and generating text-based files (.txt, .md, .js, .ts, .json, .csv, .log, and any other text format).
+
+IMPORTANT: Only call the "generate" operation when the user explicitly requests creating or exporting a text file. Do NOT proactively generate text files unless the user specifically asks for this format.
 
 OPERATIONS:
 1. **parse** - Parse and analyze an uploaded text-based file
@@ -111,18 +111,22 @@ EXAMPLES:
 • Generate: { "operation": "generate", "filename": "report.md", "content": "# Report\\n\\nContent here..." }
 
 Returns: { success, downloadUrl (for generate), result (for parse), char_count, line_count }
+
+AFTER GENERATING: Check the downloadUrl in the result:
+- If it says "[file card shown in chat]": the file is already visible as a download card. Do NOT mention downloading, do NOT include a link, and do NOT say "you can download it" — the card handles this.
+- If it contains an actual URL: no download card was shown. You MUST include the URL as a clickable markdown link so the user can download the file.
+To also save the file to a folder in the documents hub, call document_write with the returned fileStorageId and the desired folderPath.
 `,
-    args: textArgs,
-    handler: async (ctx: ToolCtx, args): Promise<TextResult> => {
+    inputSchema: textArgs,
+    execute: async (ctx: ToolCtx, args): Promise<TextResult> => {
       if (args.operation === 'generate') {
         const { filename, content } = args;
 
-        debugLog('tool:text generate start', {
-          filename,
-          contentLength: content.length,
-        });
-
         try {
+          debugLog('tool:text generate start', {
+            filename,
+            contentLength: content.length,
+          });
           const blob = new Blob([content], {
             type: 'text/plain; charset=utf-8',
           });
@@ -139,12 +143,7 @@ Returns: { success, downloadUrl (for generate), result (for parse), char_count, 
             },
           );
 
-          const url = await ctx.storage.getUrl(fileId);
-
-          if (!url) {
-            throw new Error('Storage URL unavailable for generated text file.');
-          }
-
+          const url = buildDownloadUrl(fileId, filename);
           const lineCount = content.split('\n').length;
 
           debugLog('tool:text generate success', {
@@ -154,11 +153,17 @@ Returns: { success, downloadUrl (for generate), result (for parse), char_count, 
             lineCount,
           });
 
+          const cardAppended = await appendFilePart(ctx, {
+            fileName: filename,
+            mimeType: 'text/plain; charset=utf-8',
+            downloadUrl: url,
+          });
+
           return {
             operation: 'generate',
             success: true,
             fileStorageId: fileId,
-            downloadUrl: url,
+            downloadUrl: cardAppended ? '[file card shown in chat]' : url,
             filename,
             char_count: content.length,
             line_count: lineCount,
@@ -184,23 +189,8 @@ Returns: { success, downloadUrl (for generate), result (for parse), char_count, 
         }
       }
 
+      // operation === 'parse'
       const { fileId, filename, user_input } = args;
-
-      if (!fileId) {
-        return {
-          operation: 'parse',
-          success: false,
-          result: '',
-          filename: filename || 'unknown',
-          char_count: 0,
-          line_count: 0,
-          encoding: 'unknown',
-          chunked: false,
-          error:
-            "ERROR: Missing required 'fileId' parameter. For uploaded files, you MUST provide the fileId from the file attachment context (it looks like 'kg2bazp7fbgt9srq63knfagjrd7yfenj'). Please check the attachment info and retry with fileId.",
-        };
-      }
-
       const model = getAgentModelId(ctx);
       const resolvedFilename = await resolveFileName(ctx, fileId, filename);
 

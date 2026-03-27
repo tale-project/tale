@@ -47,4 +47,5 @@ export const messageMetadataValidator = v.object({
   toolsUsage: v.optional(v.array(toolUsageItemValidator)),
   contextWindow: v.optional(v.string()),
   contextStats: v.optional(contextStatsValidator),
+  error: v.optional(v.string()),
 });

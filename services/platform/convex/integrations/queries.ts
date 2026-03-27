@@ -3,6 +3,7 @@ import { v } from 'convex/values';
 import type { Doc } from '../_generated/dataModel';
 
 import { query, QueryCtx } from '../_generated/server';
+import { toPublicUrl } from '../lib/helpers/public_storage_url';
 import { getAuthUserIdentity, getOrganizationMember } from '../lib/rls';
 import { UnauthorizedError } from '../lib/rls/errors';
 import { findRelatedAutomations } from './find_related_automations';
@@ -20,7 +21,8 @@ async function withIconUrl(
   let iconUrl: string | null = null;
   if (integration.iconStorageId) {
     try {
-      iconUrl = await ctx.storage.getUrl(integration.iconStorageId);
+      const url = await ctx.storage.getUrl(integration.iconStorageId);
+      iconUrl = url ? toPublicUrl(url) : null;
     } catch (error) {
       console.warn(
         '[Integrations] Failed to resolve icon URL',

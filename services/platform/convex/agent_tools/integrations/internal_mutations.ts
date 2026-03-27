@@ -43,6 +43,7 @@ export const updateApprovalWithResult = internalMutation({
     const executedAt = Date.now();
 
     await ctx.db.patch(args.approvalId, {
+      status: args.executionError ? 'rejected' : 'completed',
       executedAt,
       executionError: args.executionError || undefined,
       metadata: toConvexJsonRecord({

@@ -91,7 +91,7 @@ export const ragAction: ActionDefinition<RagActionParams> = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               query: migratedParams.query,
-              document_ids: migratedParams.fileIds,
+              file_ids: migratedParams.fileIds,
               top_k: migratedParams.topK ?? 10,
               similarity_threshold: migratedParams.similarityThreshold ?? 0.0,
               include_metadata: true,
@@ -130,7 +130,7 @@ export const ragAction: ActionDefinition<RagActionParams> = {
 };
 
 interface DocumentContentResponse {
-  document_id: string;
+  file_id: string;
   title: string | null;
   content: string;
   chunk_range: { start: number; end: number };
@@ -164,7 +164,7 @@ async function fetchDocumentChunks(
     }
 
     const result = await fetchJson<DocumentContentResponse>(response);
-    documentId = result.document_id;
+    documentId = result.file_id;
     title = result.title;
     totalChunks = result.total_chunks;
 

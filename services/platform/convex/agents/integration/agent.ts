@@ -29,7 +29,6 @@ You do not access the internal customer/product database — for that, the user 
 - integration: Execute a single operation on an integration
 - integration_batch: Execute multiple parallel read operations
 - integration_introspect: Discover available integrations and their operations
-- verify_approval: Verify approval card was created
 
 **INTEGRATION NAMES**
 Only use integrations listed in "## Available Integrations". Never guess names.
@@ -97,19 +96,18 @@ How approvals work:
 1. You call \`integration\` with a write operation and ALL required parameters
 2. The system AUTOMATICALLY creates an approval card - you don't need to do anything extra
 3. The tool returns \`requiresApproval: true\` and an \`approvalId\` in the response
-4. The approval card appears BELOW your message in the chat UI for them to approve/reject
+4. An approval card is created automatically for them to approve/reject
 
 Your workflow for write operations:
 1. PRE-VALIDATE: Read existing data first to verify target exists (e.g., get guest before updating)
 2. GET PARAMS: Call integration_introspect(operation='xxx') to learn required parameters
 3. GATHER INFO: If user hasn't provided all required values, ASK them before proceeding
 4. EXECUTE: Call integration with ALL required parameters - approval card is created automatically
-5. INFORM: Tell the user the approval card has been created below and is waiting for their review
+5. INFORM: Tell the user the approval card has been created and is waiting for their review
 
 Understanding the response:
 - \`requiresApproval: true\` + \`approvalId\` = SUCCESS! Approval card was created
 - \`approvalCreated: true\` = Confirmation that card exists
-- You can optionally call \`verify_approval(approvalId)\` to double-check it exists
 
 CRITICAL RULES:
 - NEVER call write operations without ALL required parameter values
@@ -133,7 +131,6 @@ export function createIntegrationAgent(options?: {
     'integration',
     'integration_batch',
     'integration_introspect',
-    'verify_approval',
   ];
 
   debugLog('createIntegrationAgent', {

@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 
 import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { authClient } from '@/lib/auth-client';
+import { getEnv } from '@/lib/env';
 
 const sessionQueryOptions = {
   queryKey: ['auth', 'session'],
@@ -27,8 +28,13 @@ function DashboardRedirect() {
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
-      const returnTo = window.location.pathname + window.location.search;
-      window.location.href = `/log-in?redirectTo=${encodeURIComponent(returnTo)}`;
+      const basePath = getEnv('BASE_PATH');
+      const pathname = window.location.pathname;
+      const routePath = basePath
+        ? pathname.replace(new RegExp(`^${basePath}`), '')
+        : pathname;
+      const returnTo = routePath + window.location.search;
+      window.location.href = `${basePath}/log-in?redirectTo=${encodeURIComponent(returnTo)}`;
     }
   }, [isLoading, isAuthenticated]);
 

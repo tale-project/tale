@@ -37,7 +37,6 @@ import { components, internal } from '../../_generated/api';
 import { queryRagContext } from '../../agent_tools/rag/query_rag_context';
 import { queryWebContext } from '../../agent_tools/web/helpers/query_web_context';
 import { onAgentComplete } from '../agent_completion';
-import { getFastModel } from '../agent_runtime_config';
 import {
   buildStructuredContext,
   AGENT_CONTEXT_CONFIGS,
@@ -51,10 +50,12 @@ import { STRUCTURED_RESPONSE_INSTRUCTIONS } from './structured_response_instruct
 import { AgentTimeoutError, withTimeout } from './with_timeout';
 
 /**
- * Convex platform hard-kills Node.js actions after 10 minutes.
- * We cap our own timeout at 9 minutes to leave room for cleanup
- * and to avoid the platform killing us mid-operation (which produces
- * an Error with an empty message that is hard to diagnose).
+ * Fallback timeout ceiling when no explicit deadline is provided.
+ * Only used as a cap for the no-deadline path (e.g. direct
+ * generateAgentResponse calls without a propagated deadlineMs).
+ * When deadlineMs IS provided (from startAgentChat or sub-agent
+ * delegation), it is trusted directly since it was already computed
+ * from the agent's configured timeoutMs.
  */
 const PLATFORM_HARD_LIMIT_MS = 540_000;
 
@@ -69,35 +70,27 @@ interface AbortWatcher {
 }
 
 /**
- * Polls the stream status for cancellation and aborts the controller when
- * detected. This bridges the gap between the `cancelGeneration` mutation
- * (which sets the DB flag) and the running action (which needs an
- * AbortSignal to stop the AI SDK / DeltaStreamer).
+ * Polls for cancellation and aborts the controller when detected.
+ * Bridges the gap between the `cancelGeneration` mutation (which sets DB
+ * flags) and the running action (which needs an AbortSignal).
  *
- * `baselineAbortedIds` contains stream IDs that were already aborted before
- * this generation started. The watcher ignores these so that stale aborted
- * streams from previous cancellations don't immediately kill a new generation.
+ * Two detection methods:
+ * - Check 1: new aborted SDK streams (mid-stream cancellation)
+ * - Check 2: `cancelledAt` on threadMetadata (early cancellation, before
+ *   any SDK stream exists)
  *
- * `baselineNewestAssistantId` is the ID of the newest *failed* assistant
- * message in the thread when this generation started. If `cancelGeneration`
- * runs before any stream exists, it creates a failed assistant message. The
- * watcher detects this by checking whether a NEW failed assistant message
- * (different from the baseline) appeared. Only `status === 'failed'` messages
- * are considered, so the SDK's own assistant messages (created during normal
- * generation) are never confused with cancellation signals.
+ * `baselineAbortedIds` filters out streams aborted before this generation.
+ * `generationStartTime` distinguishes stale `cancelledAt` from current.
  */
 function startAbortWatcher(
   ctx: GenerateResponseArgs['ctx'],
   threadId: string,
   abortController: AbortController,
   baselineAbortedIds: Set<string>,
-  baselineNewestAssistantId: string | undefined,
+  generationStartTime: number,
 ): AbortWatcher {
   let stopped = false;
   let cancelledByWatcher = false;
-  let earlyCheckDone = false;
-  let earlyCheckCount = 0;
-  const MAX_EARLY_CHECK_POLLS = 50; // ~10s at 200ms interval
 
   const check = async () => {
     if (stopped || abortController.signal.aborted) return;
@@ -116,40 +109,18 @@ function startAbortWatcher(
         return;
       }
 
-      // Check 2: early cancellation — cancelGeneration creates a failed
-      // assistant message when no streams exist yet. Only need to check
-      // until the SDK creates its own stream (first few polls).
-      if (!earlyCheckDone) {
-        earlyCheckCount++;
-        const msgs = await listMessages(ctx, components.agent, {
-          threadId,
-          paginationOpts: { numItems: 5, cursor: null },
-          excludeToolMessages: true,
-        });
-        const newestFailedAssistant = msgs.page.find(
-          (m: MessageDoc) =>
-            m.message?.role === 'assistant' && m.status === 'failed',
-        );
-        if (
-          newestFailedAssistant &&
-          newestFailedAssistant._id !== baselineNewestAssistantId
-        ) {
-          cancelledByWatcher = true;
-          abortController.abort();
-          return;
-        }
-        // Once the SDK starts streaming it creates its own message,
-        // making this check unreliable. Switch to stream-only checks.
-        // Also stop after MAX_EARLY_CHECK_POLLS to bound polling.
-        if (
-          streams.length > baselineAbortedIds.size ||
-          earlyCheckCount >= MAX_EARLY_CHECK_POLLS
-        ) {
-          earlyCheckDone = true;
-        }
+      // Check 2: cancelledAt on threadMetadata (early + universal)
+      const meta = await ctx.runQuery(
+        internal.threads.internal_queries.getThreadMetadata,
+        { threadId },
+      );
+      if (meta?.cancelledAt && meta.cancelledAt >= generationStartTime) {
+        cancelledByWatcher = true;
+        abortController.abort();
+        return;
       }
-    } catch {
-      // Query failure is non-fatal; will retry on next poll
+    } catch (pollError) {
+      console.error('[abortWatcher] Poll failed:', pollError);
     }
     if (!stopped && !abortController.signal.aborted) {
       setTimeout(check, ABORT_POLL_INTERVAL_MS);
@@ -211,6 +182,7 @@ export async function generateAgentResponse(
     organizationId,
     promptMessage,
     additionalContext,
+    userContext,
     parentThreadId,
     agentOptions,
     streamId,
@@ -225,9 +197,34 @@ export async function generateAgentResponse(
   const startTime = Date.now();
   const abortController = new AbortController();
 
-  // Declared outside try so the catch block can access them for cleanup
+  // Declared outside try so the catch block can access them for cleanup/metadata
   let abortWatcher: AbortWatcher | undefined;
   let baselineAbortedIds = new Set<string>();
+
+  // Hoisted so partial data is available in the catch block for error metadata
+  let structuredThreadContext:
+    | {
+        threadContext: string;
+        stats: {
+          totalTokens: number;
+          messageCount: number;
+          approvalCount: number;
+          hasRag: boolean;
+          hasWebContext: boolean;
+        };
+      }
+    | undefined;
+  let agentInstructions: string | undefined;
+  let retrySystemMessageId: string | undefined;
+  let firstTokenTime: number | null = null;
+  let savedMessageId: string | undefined;
+  let result: {
+    text?: string;
+    steps?: unknown[];
+    usage?: GenerateResponseResult['usage'];
+    finishReason?: string;
+    response?: { modelId?: string };
+  } = {};
 
   try {
     debugLog(`generate${capitalize(agentType)}Response called`, {
@@ -248,9 +245,8 @@ export async function generateAgentResponse(
       });
     }
 
-    // Snapshot existing aborted streams and the newest assistant message
-    // so the watcher can distinguish stale state from new cancellations.
-    let baselineNewestAssistantId: string | undefined;
+    // Snapshot existing aborted streams so the watcher can distinguish
+    // stale state from new cancellations.
     if (enableStreaming) {
       try {
         const existing = await ctx.runQuery(components.agent.streams.list, {
@@ -260,52 +256,126 @@ export async function generateAgentResponse(
         baselineAbortedIds = new Set(
           existing.map((s: { streamId: string }) => s.streamId),
         );
-      } catch {
-        // Non-fatal — watcher will still work, just without baseline filter
-      }
-      try {
-        const msgs = await listMessages(ctx, components.agent, {
-          threadId,
-          paginationOpts: { numItems: 5, cursor: null },
-          excludeToolMessages: true,
-        });
-        const newestFailedAssistant = msgs.page.find(
-          (m: MessageDoc) =>
-            m.message?.role === 'assistant' && m.status === 'failed',
+      } catch (baselineError) {
+        console.error(
+          '[generateAgentResponse] Baseline snapshot failed:',
+          baselineError,
         );
-        baselineNewestAssistantId = newestFailedAssistant?._id;
-      } catch {
-        // Non-fatal
       }
     }
 
-    // Start abort watcher for streaming mode — polls the stream status
-    // and triggers abortController when the user cancels via cancelGeneration.
+    // Start abort watcher for streaming mode — polls stream status and
+    // threadMetadata.cancelledAt, triggers abortController on cancellation.
     abortWatcher = enableStreaming
       ? startAbortWatcher(
           ctx,
           threadId,
           abortController,
           baselineAbortedIds,
-          baselineNewestAssistantId,
+          startTime,
         )
       : undefined;
 
     // Direct DB check for cancellation — closes the 200ms polling gap
-    // that abortWatcher?.cancelled can miss.
-    const checkFreshAbort = async (): Promise<boolean> => {
-      if (abortWatcher?.cancelled) return true;
+    // that abortWatcher?.cancelled can miss. Returns the cancelledMessageId
+    // when cancelled (avoids a redundant query in cancelledReturn).
+    const checkCancelled = async (): Promise<
+      false | { cancelledMessageId?: string }
+    > => {
+      if (abortWatcher?.cancelled) return {};
       try {
+        // Check cancelledAt on threadMetadata
+        const meta = await ctx.runQuery(
+          internal.threads.internal_queries.getThreadMetadata,
+          { threadId },
+        );
+        if (meta?.cancelledAt && meta.cancelledAt >= startTime) {
+          return { cancelledMessageId: meta.cancelledMessageId };
+        }
+        // Check aborted SDK streams
         const streams = await ctx.runQuery(components.agent.streams.list, {
           threadId,
           statuses: ['aborted'] as const,
         });
-        return streams.some(
-          (s: { streamId: string }) => !baselineAbortedIds.has(s.streamId),
+        if (
+          streams.some(
+            (s: { streamId: string }) => !baselineAbortedIds.has(s.streamId),
+          )
+        ) {
+          return { cancelledMessageId: meta?.cancelledMessageId };
+        }
+        return false;
+      } catch (checkError) {
+        console.error(
+          '[generateAgentResponse] checkCancelled failed:',
+          checkError,
         );
-      } catch {
         return false;
       }
+    };
+
+    // Helper: complete persistent stream, save partial metadata, return cancelled result.
+    // Accepts cancelledMessageId from checkCancelled to avoid a redundant DB query.
+    const cancelledReturn = async (
+      cancelledMessageId?: string,
+    ): Promise<GenerateResponseResult> => {
+      abortWatcher?.stop();
+      if (streamId) {
+        try {
+          await ctx.runMutation(
+            internal.streaming.internal_mutations.completeStream,
+            { streamId },
+          );
+        } catch (streamError) {
+          console.error(
+            '[generateAgentResponse] cancelledReturn stream cleanup failed:',
+            streamError,
+          );
+        }
+      }
+      // Resolve savedMessageId from cancelGeneration if we didn't capture it
+      if (!savedMessageId && cancelledMessageId) {
+        savedMessageId = cancelledMessageId;
+      }
+
+      const durationMs = Date.now() - startTime;
+      const actualModel = result.response?.modelId ?? model;
+
+      // Save partial metadata (model, duration) even on cancel — usage may be
+      // undefined if the stream was aborted before the SDK could report it
+      if (savedMessageId) {
+        try {
+          await onAgentComplete(ctx, {
+            threadId,
+            agentType,
+            result: {
+              threadId,
+              messageId: savedMessageId,
+              text: result.text || '',
+              model: actualModel,
+              provider,
+              usage: result.usage,
+              durationMs,
+            },
+          });
+        } catch (metaError) {
+          console.error(
+            '[generateAgentResponse] Failed to save cancel metadata:',
+            metaError,
+          );
+        }
+      }
+
+      return {
+        threadId,
+        text: result.text || '',
+        savedMessageId,
+        durationMs,
+        finishReason: 'cancelled',
+        usage: result.usage,
+        model: actualModel,
+        provider,
+      };
     };
 
     // Determine retrieval modes
@@ -388,7 +458,7 @@ export async function generateAgentResponse(
     // Build structured context (history, RAG, web)
     // Note: promptMessage is NOT included - it's passed via `prompt` parameter
     const agentConfig = AGENT_CONTEXT_CONFIGS[agentType];
-    const structuredThreadContext = await buildStructuredContext({
+    structuredThreadContext = await buildStructuredContext({
       ctx,
       threadId,
       additionalContext,
@@ -424,22 +494,20 @@ export async function generateAgentResponse(
       });
     }
 
-    // Compute effective timeout from deadline (if provided) or config default.
-    // The deadline is an absolute timestamp propagated from startAgentChat.
-    // Cap by platform hard limit to avoid Convex killing the action mid-operation.
-    const platformDeadline = startTime + PLATFORM_HARD_LIMIT_MS;
-    const remainingPlatformMs = Math.max(platformDeadline - Date.now(), 0);
-    const rawTimeoutMs = args.deadlineMs
-      ? Math.max(args.deadlineMs - Date.now(), 30_000)
-      : agentConfig.timeoutMs;
-    const effectiveTimeoutMs = Math.min(rawTimeoutMs, remainingPlatformMs);
+    // Compute effective deadline.
+    // When deadlineMs is provided (from startAgentChat or sub-agent delegation),
+    // trust it directly — it was already computed from agentConfig.timeoutMs.
+    // Only fall back to PLATFORM_HARD_LIMIT_MS when no deadline was propagated.
+    const actionDeadline = args.deadlineMs
+      ? Math.max(args.deadlineMs, Date.now() + 30_000)
+      : Math.min(
+          Date.now() + agentConfig.timeoutMs,
+          startTime + PLATFORM_HARD_LIMIT_MS,
+        );
+    const effectiveTimeoutMs = Math.max(actionDeadline - Date.now(), 0);
     if (effectiveTimeoutMs <= 0) {
       throw new AgentTimeoutError(0);
     }
-    const actionDeadline = Math.min(
-      args.deadlineMs ?? Date.now() + effectiveTimeoutMs,
-      platformDeadline,
-    );
 
     // Create agent instance
     const agent = createAgent(agentOptions);
@@ -457,21 +525,8 @@ export async function generateAgentResponse(
       knowledgeFileIds,
     };
 
-    // Track time to first token for streaming
-    let firstTokenTime: number | null = null;
-
-    // The first saved message ID for this generation, used for metadata and approval linking.
-    // Captured from the agent SDK's savedMessages before any retry logic can overwrite `result`.
-    let savedMessageId: string | undefined;
-
-    // Generate response - streaming or non-streaming
-    let result: {
-      text?: string;
-      steps?: unknown[];
-      usage?: GenerateResponseResult['usage'];
-      finishReason?: string;
-      response?: { modelId?: string };
-    };
+    let didRetry = false;
+    let retryInProgress = false;
 
     const promptToSend = hookPromptContent ?? promptMessage;
 
@@ -480,6 +535,8 @@ export async function generateAgentResponse(
       ? await resolveTemplateVariables(ctx, instructions, {
           organizationId,
           userId,
+          timezone: userContext?.timezone,
+          language: userContext?.language,
         })
       : undefined;
 
@@ -490,7 +547,7 @@ export async function generateAgentResponse(
     // and the structured thread context (history, RAG, web search).
     // For streaming agents, append structured response instructions so the LLM
     // can optionally emit section markers (parsed by the frontend).
-    const agentInstructions =
+    agentInstructions =
       enableStreaming &&
       resolvedInstructions &&
       structuredResponsesEnabled !== false
@@ -578,133 +635,9 @@ export async function generateAgentResponse(
 
         // Post-success abort check: direct DB query closes the 200ms
         // polling gap that the watcher flag alone can miss.
-        if (await checkFreshAbort()) {
-          abortWatcher?.stop();
-          return {
-            threadId,
-            text: '',
-            durationMs: Date.now() - startTime,
-            finishReason: 'cancelled',
-          };
-        }
-
-        // If the LLM called tools but didn't generate a substantive follow-up response,
-        // retry without tools. This handles cases where the LLM outputs preamble text
-        // (e.g., "Let me check...") before tool calls but stops without summarizing results.
-        if (needsToolResultRetry(result.text, result.steps)) {
-          debugLog(
-            'Stream: empty text with tool results, retrying without tools',
-            {
-              stepsCount: result.steps?.length ?? 0,
-              finishReason: result.finishReason,
-            },
-          );
-
-          const retryContext = await buildStructuredContext({
-            ctx,
-            threadId,
-            additionalContext,
-            parentThreadId,
-            maxHistoryTokens: agentConfig.maxHistoryTokens,
-            ragContext: hookData?.ragContext,
-          });
-
-          // Find the original user message so we can link the retry response
-          // to it without creating a duplicate user message in the thread
-          const recentMessages = await listMessages(ctx, components.agent, {
-            threadId,
-            paginationOpts: { cursor: null, numItems: 10 },
-            excludeToolMessages: true,
-          });
-          const originalUserMessage = recentMessages.page.find(
-            (m: MessageDoc) => m.message?.role === 'user',
-          );
-
-          const retryAgent = createAgent({
-            ...agentOptions,
-            withTools: false,
-            model: getFastModel(),
-          });
-
-          const retrySystemPrompt = agentInstructions
-            ? `${agentInstructions}\n\n${retryContext.threadContext}`
-            : retryContext.threadContext;
-
-          // Save messages normally so the UI can display the retry response.
-          // Pass promptMessageId to avoid creating a duplicate user message.
-          const retryRemainingMs = Math.max(
-            actionDeadline - Date.now(),
-            10_000,
-          );
-          const streamRetryStartTime = Date.now();
-          debugLog('Stream tool-result retry starting', {
-            timeoutMs: retryRemainingMs,
-            contextTokens: retryContext.stats.totalTokens,
-            model: getFastModel(),
-            elapsedMs: streamRetryStartTime - startTime,
-          });
-
-          const retryAbortController = new AbortController();
-          if (abortController.signal.aborted) {
-            retryAbortController.abort();
-          } else {
-            abortController.signal.addEventListener(
-              'abort',
-              () => retryAbortController.abort(),
-              { once: true },
-            );
-          }
-          const retryResult = await withTimeout(
-            retryAgent.generateText(
-              contextWithOrg,
-              { threadId, userId },
-              {
-                system: retrySystemPrompt,
-                prompt: promptMessage
-                  ? `Based on the tool results, complete this task: ${promptMessage}`
-                  : 'Based on the conversation and tool results above, provide a summary response.',
-                abortSignal: retryAbortController.signal,
-                ...(originalUserMessage
-                  ? { promptMessageId: originalUserMessage._id }
-                  : {}),
-              },
-              {
-                contextOptions: {
-                  recentMessages: 0,
-                  excludeToolMessages: false,
-                  searchOtherThreads: false,
-                },
-                storageOptions: { saveMessages: 'none' },
-              },
-            ),
-            retryRemainingMs,
-            retryAbortController,
-          );
-
-          result = {
-            text: retryResult.text,
-            steps: result.steps,
-            usage: mergeUsage(result.usage, retryResult.usage),
-            finishReason: retryResult.finishReason,
-            response: result.response,
-          };
-
-          debugLog('Stream tool-result retry completed', {
-            textLength: result.text?.length ?? 0,
-            finishReason: result.finishReason,
-            retryDurationMs: Date.now() - streamRetryStartTime,
-          });
-        }
-
-        // Post-retry abort check
-        if (await checkFreshAbort()) {
-          abortWatcher?.stop();
-          return {
-            threadId,
-            text: '',
-            durationMs: Date.now() - startTime,
-            finishReason: 'cancelled',
-          };
+        const cancelCheck = await checkCancelled();
+        if (cancelCheck) {
+          return cancelledReturn(cancelCheck.cancelledMessageId);
         }
       } else {
         // Non-streaming mode (sub-agents)
@@ -757,196 +690,239 @@ export async function generateAgentResponse(
           response: generateResult.response,
         };
 
-        // If the LLM called tools but didn't generate a substantive follow-up response,
-        // retry without tools. Handles both completely empty text (e.g., DeepSeek with
-        // finishReason: "stop") and preamble-only text before tool calls.
-        if (needsToolResultRetry(result.text, result.steps)) {
-          debugLog('Empty text with tool results, retrying without tools', {
-            stepsCount: result.steps?.length ?? 0,
-            finishReason: result.finishReason,
-          });
-
-          // Rebuild context to include the just-saved tool results
-          const retryContext = await buildStructuredContext({
-            ctx,
-            threadId,
-            additionalContext,
-            parentThreadId,
-            maxHistoryTokens: agentConfig.maxHistoryTokens,
-            ragContext: hookData?.ragContext,
-          });
-
-          debugLog('Rebuilt context for retry', {
-            estimatedTokens: retryContext.stats.totalTokens,
-            messageCount: retryContext.stats.messageCount,
-          });
-
-          // Create agent without tools for the retry, using the fast model
-          // since this is just summarizing tool results
-          const retryAgent = createAgent({
-            ...agentOptions,
-            withTools: false,
-            model: getFastModel(),
-          });
-
-          const retrySystemPrompt = agentInstructions
-            ? `${agentInstructions}\n\n${retryContext.threadContext}`
-            : retryContext.threadContext;
-
-          const nonStreamRetryRemainingMs = Math.max(
-            actionDeadline - Date.now(),
-            10_000,
-          );
-          const retryStartTime = Date.now();
-          debugLog('Tool-result retry starting', {
-            timeoutMs: nonStreamRetryRemainingMs,
-            contextTokens: retryContext.stats.totalTokens,
-            model: getFastModel(),
-            elapsedMs: retryStartTime - startTime,
-          });
-
-          const nonStreamRetryAbort = new AbortController();
-          const retryResult = await withTimeout(
-            retryAgent.generateText(
-              subAgentContext,
-              { threadId, userId },
-              {
-                system: retrySystemPrompt,
-                prompt: promptMessage
-                  ? `Based on the tool results, complete this task: ${promptMessage}`
-                  : 'Based on the conversation and tool results above, provide a summary response.',
-                abortSignal: nonStreamRetryAbort.signal,
-              },
-              {
-                contextOptions: {
-                  recentMessages: 0,
-                  excludeToolMessages: false,
-                },
-                storageOptions: { saveMessages: 'none' },
-              },
-            ),
-            nonStreamRetryRemainingMs,
-            nonStreamRetryAbort,
-          );
-
-          result = {
-            text: retryResult.text,
-            steps: [...(result.steps || []), ...retryResult.steps],
-            usage: mergeUsage(result.usage, retryResult.usage),
-            finishReason: retryResult.finishReason,
-            response: result.response,
-          };
-
-          debugLog('Tool-result retry completed', {
-            textLength: result.text?.length ?? 0,
-            finishReason: result.finishReason,
-            retryDurationMs: Date.now() - retryStartTime,
-          });
-        }
-
-        // General empty text retry (handles cases like thinking models that consume all tokens for reasoning)
-        if (!result.text?.trim()) {
-          debugLog('Empty text response, retrying', {
-            finishReason: result.finishReason,
-            usage: result.usage,
-          });
-
-          // Rebuild context to include any messages saved during the original generation
-          const retryContext = await buildStructuredContext({
-            ctx,
-            threadId,
-            additionalContext,
-            parentThreadId,
-            maxHistoryTokens: agentConfig.maxHistoryTokens,
-            ragContext: hookData?.ragContext,
-          });
-
-          debugLog('Rebuilt context for empty text retry', {
-            estimatedTokens: retryContext.stats.totalTokens,
-            messageCount: retryContext.stats.messageCount,
-          });
-
-          const retryAgent = createAgent({
-            ...agentOptions,
-            withTools: false,
-            model: getFastModel(),
-          });
-
-          const emptyRetrySystemPrompt = agentInstructions
-            ? `${agentInstructions}\n\n${retryContext.threadContext}`
-            : retryContext.threadContext;
-
-          const emptyRetryRemainingMs = Math.max(
-            actionDeadline - Date.now(),
-            10_000,
-          );
-          const emptyRetryStartTime = Date.now();
-          debugLog('Empty text retry starting', {
-            timeoutMs: emptyRetryRemainingMs,
-            contextTokens: retryContext.stats.totalTokens,
-            model: getFastModel(),
-            elapsedMs: emptyRetryStartTime - startTime,
-          });
-
-          const emptyRetryAbort = new AbortController();
-          const retryResult = await withTimeout(
-            retryAgent.generateText(
-              subAgentContext,
-              { threadId, userId },
-              {
-                system: emptyRetrySystemPrompt,
-                prompt: promptMessage
-                  ? `Please complete this task: ${promptMessage}`
-                  : 'Please provide a response based on the conversation above.',
-                abortSignal: emptyRetryAbort.signal,
-              },
-              {
-                contextOptions: {
-                  recentMessages: 0,
-                  excludeToolMessages: false,
-                },
-                storageOptions: { saveMessages: 'none' },
-              },
-            ),
-            emptyRetryRemainingMs,
-            emptyRetryAbort,
-          );
-
-          result = {
-            text: retryResult.text,
-            steps: result.steps,
-            usage: mergeUsage(result.usage, retryResult.usage),
-            finishReason: retryResult.finishReason,
-            response: result.response,
-          };
-
-          debugLog('Empty text retry completed', {
-            textLength: result.text?.length ?? 0,
-            finishReason: result.finishReason,
-            retryDurationMs: Date.now() - emptyRetryStartTime,
-          });
-        }
-
-        // Post-generation abort check (mirrors streaming path)
-        if (await checkFreshAbort()) {
-          abortWatcher?.stop();
-          return {
-            threadId,
-            text: '',
-            durationMs: Date.now() - startTime,
-            finishReason: 'cancelled',
-          };
+        // Post-generation abort check
+        const cancelCheck = await checkCancelled();
+        if (cancelCheck) {
+          return cancelledReturn(cancelCheck.cancelledMessageId);
         }
       }
 
-      // Fallback: if text is still missing after all retries, provide a minimal response
+      // Unified continue: if finishReason is not "stop" (or other non-retryable),
+      // rebuild context and generate a complete replacement response.
+      const continueCheck = shouldRetryGeneration(
+        result.finishReason,
+        result.text,
+        result.steps,
+        didRetry,
+      );
+      if (continueCheck.retry) {
+        const continueRemainingMs = actionDeadline - Date.now();
+        if (continueRemainingMs < 30_000) {
+          debugLog('Skipping continue, insufficient time remaining', {
+            remainingMs: continueRemainingMs,
+          });
+        } else {
+          const hasToolResults = needsToolResultRetry(
+            result.text,
+            result.steps,
+          );
+          debugLog('Continuing generation', {
+            reason: continueCheck.reason,
+            hasToolResults,
+            finishReason: result.finishReason,
+            textLength: result.text?.length ?? 0,
+            stepsCount: result.steps?.length ?? 0,
+          });
+
+          const continueContext = await buildStructuredContext({
+            ctx,
+            threadId,
+            additionalContext,
+            parentThreadId,
+            maxHistoryTokens: agentConfig.maxHistoryTokens,
+            ragContext: hookData?.ragContext,
+          });
+
+          const continueAgent = createAgent(agentOptions);
+
+          const continueSystemPrompt = agentInstructions
+            ? `${agentInstructions}\n\n${continueContext.threadContext}`
+            : continueContext.threadContext;
+
+          const continuePrompt = hasToolResults
+            ? promptMessage
+              ? `Based on the tool results, complete this task: ${promptMessage}`
+              : 'Based on the conversation and tool results above, provide your complete response.'
+            : promptMessage
+              ? `Please complete this task: ${promptMessage}`
+              : 'Please provide a response based on the conversation above.';
+
+          const recentMsgs = await listMessages(ctx, components.agent, {
+            threadId,
+            paginationOpts: { cursor: null, numItems: 10 },
+            excludeToolMessages: true,
+          });
+          const originalUserMessage = recentMsgs.page.find(
+            (m: MessageDoc) => m.message?.role === 'user',
+          );
+
+          const continueStartTime = Date.now();
+          debugLog('Continue starting', {
+            reason: continueCheck.reason,
+            timeoutMs: continueRemainingMs,
+            contextTokens: continueContext.stats.totalTokens,
+            model,
+            elapsedMs: continueStartTime - startTime,
+          });
+
+          const continueAbortController = new AbortController();
+          if (abortController.signal.aborted) {
+            continueAbortController.abort();
+          } else {
+            abortController.signal.addEventListener(
+              'abort',
+              () => continueAbortController.abort(),
+              { once: true },
+            );
+          }
+
+          // Build the appropriate context object for the continue call
+          const continueCtx = enableStreaming
+            ? contextWithOrg
+            : {
+                ...ctx,
+                organizationId,
+                threadId,
+                variables: { actionDeadlineMs: String(actionDeadline) },
+                agentTeamId,
+                includeTeamKnowledge,
+                includeOrgKnowledge,
+                knowledgeFileIds,
+                ...(parentThreadId ? { parentThreadId } : {}),
+              };
+
+          // Check for cancellation before starting continue (catches cancels during context building)
+          {
+            const cancelCheck = await checkCancelled();
+            if (cancelCheck) {
+              return cancelledReturn(cancelCheck.cancelledMessageId);
+            }
+          }
+
+          // Save system message to record the continuation in thread history
+          const retryMsg = await saveMessage(ctx, components.agent, {
+            threadId,
+            message: {
+              role: 'system',
+              content: '[RESPONSE_INTERRUPTED] Retrying…',
+            },
+          });
+          retrySystemMessageId = retryMsg.messageId;
+
+          // Prevent zombie detection during the gap before continuation saves its own message
+          const originalSavedMessageId = savedMessageId;
+          if (savedMessageId) {
+            await ctx.runMutation(components.agent.messages.updateMessage, {
+              messageId: savedMessageId,
+              patch: { status: 'pending' },
+            });
+          }
+
+          retryInProgress = true;
+          try {
+            const continueResult = await withTimeout(
+              continueAgent.generateText(
+                continueCtx,
+                { threadId, userId },
+                {
+                  system: continueSystemPrompt,
+                  prompt: continuePrompt,
+                  abortSignal: continueAbortController.signal,
+                  ...(originalUserMessage
+                    ? { promptMessageId: originalUserMessage._id }
+                    : {}),
+                },
+                {
+                  contextOptions: {
+                    recentMessages: 0,
+                    excludeToolMessages: false,
+                  },
+                },
+              ),
+              continueRemainingMs,
+              continueAbortController,
+            );
+
+            didRetry = true;
+            // Capture continuation's saved message ID for downstream operations
+            const continueSavedId = continueResult.savedMessages?.[0]?._id;
+            if (continueSavedId) savedMessageId = continueSavedId;
+
+            result = {
+              text: continueResult.text,
+              steps: [...(result.steps || []), ...continueResult.steps],
+              usage: mergeUsage(result.usage, continueResult.usage),
+              finishReason: continueResult.finishReason,
+              response: result.response,
+            };
+
+            // Update the "Retrying…" system message now that retry succeeded
+            if (retrySystemMessageId) {
+              try {
+                await ctx.runMutation(components.agent.messages.updateMessage, {
+                  messageId: retrySystemMessageId,
+                  patch: {
+                    message: {
+                      role: 'system',
+                      content: '[RESPONSE_INTERRUPTED] Retry succeeded',
+                    },
+                  },
+                });
+              } catch (updateError) {
+                console.error(
+                  '[generateAgentResponse] Failed to update retry system message on success:',
+                  updateError,
+                );
+              }
+              retrySystemMessageId = undefined;
+            }
+
+            debugLog('Continue completed', {
+              reason: continueCheck.reason,
+              textLength: result.text?.length ?? 0,
+              finishReason: result.finishReason,
+              continueDurationMs: Date.now() - continueStartTime,
+            });
+          } finally {
+            retryInProgress = false;
+            // ALWAYS restore original message status (handles all error paths)
+            if (originalSavedMessageId) {
+              try {
+                await ctx.runMutation(components.agent.messages.updateMessage, {
+                  messageId: originalSavedMessageId,
+                  patch: { status: 'success' },
+                });
+              } catch (restoreError) {
+                console.error(
+                  '[generateAgentResponse] Failed to restore message status:',
+                  restoreError,
+                );
+              }
+            }
+          }
+        }
+      }
+
+      // Post-continue abort check
+      {
+        const cancelCheck = await checkCancelled();
+        if (cancelCheck) {
+          return cancelledReturn(cancelCheck.cancelledMessageId);
+        }
+      }
+
+      // Fallback: if text is still missing after continue, provide a minimal response
       // so the user always sees something rather than an empty message
-      if (needsToolResultRetry(result.text, result.steps)) {
+      if (
+        !result.text?.trim() ||
+        needsToolResultRetry(result.text, result.steps)
+      ) {
         const toolNames = extractToolNamesFromSteps(result.steps ?? []);
         debugLog('All retries exhausted, using fallback message', {
           toolNames,
           finishReason: result.finishReason,
         });
+        didRetry = true;
         result.text =
           toolNames.length > 0
             ? `I attempted to process your request using ${toolNames.join(', ')}, but was unable to generate a complete response. Please try again.`
@@ -955,106 +931,182 @@ export async function generateAgentResponse(
     } catch (timeoutError) {
       if (!(timeoutError instanceof AgentTimeoutError)) throw timeoutError;
 
-      // Generation timed out — attempt recovery using available context + tool results
-      debugLog('Generation timed out, attempting recovery', {
-        timeoutMs: effectiveTimeoutMs,
-        elapsedMs: Date.now() - startTime,
-      });
-
-      try {
-        // Rebuild context — picks up any tool results saved before the timeout
-        const recoveryContext = await buildStructuredContext({
-          ctx,
-          threadId,
-          additionalContext,
-          parentThreadId,
-          maxHistoryTokens: agentConfig.maxHistoryTokens,
-          ragContext: hookData?.ragContext,
-        });
-
-        const recoveryAgent = createAgent({
-          ...agentOptions,
-          withTools: false,
-          model: getFastModel(),
-        });
-
-        const recoverySystemPrompt = agentInstructions
-          ? `${agentInstructions}\n\n${recoveryContext.threadContext}`
-          : recoveryContext.threadContext;
-
-        // Cap recovery timeout by platform hard limit
-        const recoveryPlatformRemainingMs = Math.max(
-          platformDeadline - Date.now(),
-          0,
-        );
-        if (recoveryPlatformRemainingMs < 10_000) {
-          throw new AgentTimeoutError(0);
-        }
-        const recoveryRemainingMs = Math.min(
-          RECOVERY_TIMEOUT_MS,
-          recoveryPlatformRemainingMs,
-        );
-        const recoveryStartTime = Date.now();
-        debugLog('Timeout recovery starting', {
-          timeoutMs: recoveryRemainingMs,
-          contextTokens: recoveryContext.stats.totalTokens,
-          model: getFastModel(),
-          elapsedMs: recoveryStartTime - startTime,
-        });
-
-        const recoveryAbortController = new AbortController();
-
-        const recoveryResult = await withTimeout(
-          recoveryAgent.generateText(
-            contextWithOrg,
-            { threadId, userId },
-            {
-              system: recoverySystemPrompt,
-              prompt: promptMessage
-                ? `The previous attempt to respond timed out. Based on any available context and tool results, provide a helpful response to: ${promptMessage}`
-                : 'The previous attempt timed out. Based on the conversation and any available tool results, provide a summary response.',
-              abortSignal: recoveryAbortController.signal,
-            },
-            {
-              contextOptions: {
-                recentMessages: 0,
-                excludeToolMessages: false,
-                searchOtherThreads: false,
-              },
-              storageOptions: { saveMessages: 'none' },
-            },
-          ),
-          recoveryRemainingMs,
-          recoveryAbortController,
-        );
-
-        result = {
-          text: recoveryResult.text,
-          steps: recoveryResult.steps,
-          usage: recoveryResult.usage,
-          finishReason: 'timeout-recovery',
-          response: recoveryResult.response,
-        };
-
-        debugLog('Timeout recovery completed', {
-          textLength: result.text?.length ?? 0,
-          retryDurationMs: Date.now() - recoveryStartTime,
+      // If the continue itself timed out, skip recovery and use fallback directly
+      if (retryInProgress) {
+        debugLog('Continue timed out, using fallback', {
           elapsedMs: Date.now() - startTime,
         });
-      } catch (recoveryError) {
-        // Recovery itself failed — use static fallback
-        console.error(
-          '[generateAgentResponse] Timeout recovery failed:',
-          recoveryError,
-        );
-
         result = {
-          text: 'I was unable to complete your request in time. Please try again.',
+          text: '',
           finishReason: 'timeout-recovery-failed',
         };
-
-        debugLog('Timeout recovery failed, using static fallback', {
+        retryInProgress = false;
+      } else {
+        // Generation timed out — attempt recovery using available context + tool results
+        debugLog('Generation timed out, attempting recovery', {
+          timeoutMs: effectiveTimeoutMs,
           elapsedMs: Date.now() - startTime,
+        });
+
+        try {
+          // Rebuild context — picks up any tool results saved before the timeout
+          const recoveryContext = await buildStructuredContext({
+            ctx,
+            threadId,
+            additionalContext,
+            parentThreadId,
+            maxHistoryTokens: agentConfig.maxHistoryTokens,
+            ragContext: hookData?.ragContext,
+          });
+
+          const recoveryAgent = createAgent(agentOptions);
+
+          const recoverySystemPrompt = agentInstructions
+            ? `${agentInstructions}\n\n${recoveryContext.threadContext}`
+            : recoveryContext.threadContext;
+
+          // Cap recovery timeout by action deadline
+          const recoveryPlatformRemainingMs = Math.max(
+            actionDeadline - Date.now(),
+            0,
+          );
+          if (recoveryPlatformRemainingMs < 10_000) {
+            throw new AgentTimeoutError(0);
+          }
+          const recoveryRemainingMs = Math.min(
+            RECOVERY_TIMEOUT_MS,
+            recoveryPlatformRemainingMs,
+          );
+          const recoveryStartTime = Date.now();
+          debugLog('Timeout recovery starting', {
+            timeoutMs: recoveryRemainingMs,
+            contextTokens: recoveryContext.stats.totalTokens,
+            model,
+            elapsedMs: recoveryStartTime - startTime,
+          });
+
+          // Save system message to record the recovery in thread history
+          await saveMessage(ctx, components.agent, {
+            threadId,
+            message: {
+              role: 'system',
+              content:
+                '[TIMEOUT_RECOVERY] Previous attempt timed out. Recovering with available context.',
+            },
+          });
+
+          // Prevent zombie detection during recovery
+          const recoveryOriginalMessageId = savedMessageId;
+          if (savedMessageId) {
+            await ctx.runMutation(components.agent.messages.updateMessage, {
+              messageId: savedMessageId,
+              patch: { status: 'pending' },
+            });
+          }
+
+          const recoveryAbortController = new AbortController();
+
+          try {
+            const recoveryResult = await withTimeout(
+              recoveryAgent.generateText(
+                contextWithOrg,
+                { threadId, userId },
+                {
+                  system: recoverySystemPrompt,
+                  prompt: promptMessage
+                    ? `The previous attempt to respond timed out. Based on any available context and tool results, provide a helpful response to: ${promptMessage}`
+                    : 'The previous attempt timed out. Based on the conversation and any available tool results, provide a summary response.',
+                  abortSignal: recoveryAbortController.signal,
+                },
+                {
+                  contextOptions: {
+                    recentMessages: 0,
+                    excludeToolMessages: false,
+                    searchOtherThreads: false,
+                  },
+                },
+              ),
+              recoveryRemainingMs,
+              recoveryAbortController,
+            );
+
+            didRetry = true;
+            const recoverySavedId = recoveryResult.savedMessages?.[0]?._id;
+            if (recoverySavedId) savedMessageId = recoverySavedId;
+
+            result = {
+              text: recoveryResult.text,
+              steps: recoveryResult.steps,
+              usage: recoveryResult.usage,
+              finishReason: 'timeout-recovery',
+              response: recoveryResult.response,
+            };
+
+            debugLog('Timeout recovery completed', {
+              textLength: result.text?.length ?? 0,
+              retryDurationMs: Date.now() - recoveryStartTime,
+              elapsedMs: Date.now() - startTime,
+            });
+          } finally {
+            // ALWAYS restore original message status
+            if (recoveryOriginalMessageId) {
+              try {
+                await ctx.runMutation(components.agent.messages.updateMessage, {
+                  messageId: recoveryOriginalMessageId,
+                  patch: { status: 'success' },
+                });
+              } catch (restoreError) {
+                console.error(
+                  '[generateAgentResponse] Failed to restore message status during recovery:',
+                  restoreError,
+                );
+              }
+            }
+          }
+        } catch (recoveryError) {
+          // Recovery itself failed — use static fallback
+          console.error(
+            '[generateAgentResponse] Timeout recovery failed:',
+            recoveryError,
+          );
+
+          didRetry = true;
+          result = {
+            text: 'I was unable to complete your request in time. Please try again.',
+            finishReason: 'timeout-recovery-failed',
+          };
+
+          debugLog('Timeout recovery failed, using static fallback', {
+            elapsedMs: Date.now() - startTime,
+          });
+        }
+      } // close else (retryInProgress)
+    }
+
+    // Persist retry/fallback text to the saved message so it survives page reloads.
+    // Retries use saveMessages: 'none', so the SDK-saved message still has the
+    // original (empty/preamble) text. Update it with the final result.
+    if (
+      didRetry &&
+      savedMessageId &&
+      result.text &&
+      !(await checkCancelled())
+    ) {
+      try {
+        await ctx.runMutation(components.agent.messages.updateMessage, {
+          messageId: savedMessageId,
+          patch: {
+            message: { role: 'assistant', content: result.text },
+          },
+        });
+      } catch (updateError) {
+        console.error(
+          '[generateAgentResponse] updateMessage failed, saving new message:',
+          updateError,
+        );
+        await saveMessage(ctx, components.agent, {
+          threadId,
+          message: { role: 'assistant', content: result.text },
         });
       }
     }
@@ -1121,14 +1173,11 @@ export async function generateAgentResponse(
 
     // Final abort check before post-processing — direct DB query
     // closes the polling gap the watcher alone can miss.
-    if (await checkFreshAbort()) {
-      abortWatcher?.stop();
-      return {
-        threadId,
-        text: '',
-        durationMs,
-        finishReason: 'cancelled',
-      };
+    {
+      const cancelCheck = await checkCancelled();
+      if (cancelCheck) {
+        return cancelledReturn(cancelCheck.cancelledMessageId);
+      }
     }
 
     // Call afterGenerate hook if provided
@@ -1206,9 +1255,9 @@ export async function generateAgentResponse(
       }
     }
 
-    // Complete stream if streamId provided (skip if user cancelled —
-    // appending would concatenate fallback text onto already-streamed content)
-    if (streamId && !(await checkFreshAbort())) {
+    // Complete stream if streamId provided
+    const cancelled = await checkCancelled();
+    if (streamId && !cancelled) {
       if (responseResult.text) {
         await ctx.runMutation(
           internal.streaming.internal_mutations.appendToStream,
@@ -1221,6 +1270,25 @@ export async function generateAgentResponse(
       await ctx.runMutation(
         internal.streaming.internal_mutations.completeStream,
         { streamId },
+      );
+    } else if (streamId && cancelled) {
+      // User cancelled — complete the stream cleanly (content already streamed)
+      try {
+        await ctx.runMutation(
+          internal.streaming.internal_mutations.completeStream,
+          { streamId },
+        );
+      } catch (streamError) {
+        console.error(
+          '[generateAgentResponse] Cancelled stream completion failed:',
+          streamError,
+        );
+      }
+    }
+    if (streamId) {
+      await ctx.runMutation(
+        internal.threads.internal_mutations.clearGenerationStatus,
+        { threadId, streamId },
       );
     }
 
@@ -1266,17 +1334,69 @@ export async function generateAgentResponse(
       );
     }
 
-    // Mark persistent text stream as errored (skip if user cancelled)
-    if (streamId && !userCancelled) {
+    // Check cancelledAt on threadMetadata and resolve cancelledMessageId
+    let cancelMeta: {
+      cancelledAt?: number;
+      cancelledMessageId?: string;
+    } | null = null;
+    try {
+      cancelMeta = await ctx.runQuery(
+        internal.threads.internal_queries.getThreadMetadata,
+        { threadId },
+      );
+      if (
+        !userCancelled &&
+        cancelMeta?.cancelledAt &&
+        cancelMeta.cancelledAt >= startTime
+      ) {
+        userCancelled = true;
+      }
+    } catch (metaError) {
+      console.error(
+        '[generateAgentResponse] Failed to check cancelledAt:',
+        metaError,
+      );
+    }
+
+    // Resolve savedMessageId from cancelGeneration if we didn't capture it
+    if (userCancelled && !savedMessageId && cancelMeta?.cancelledMessageId) {
+      savedMessageId = cancelMeta.cancelledMessageId;
+    }
+
+    // Handle persistent text stream cleanup
+    if (streamId) {
       try {
-        await ctx.runMutation(
-          internal.streaming.internal_mutations.errorStream,
-          { streamId },
-        );
+        if (userCancelled) {
+          // Complete the stream cleanly — content was already streamed
+          await ctx.runMutation(
+            internal.streaming.internal_mutations.completeStream,
+            { streamId },
+          );
+        } else {
+          await ctx.runMutation(
+            internal.streaming.internal_mutations.errorStream,
+            { streamId },
+          );
+        }
       } catch (streamError) {
         console.error(
-          '[generateAgentResponse] Failed to mark stream as errored:',
+          '[generateAgentResponse] Failed to finalize stream:',
           streamError,
+        );
+      }
+    }
+
+    // Clear generation status so isThreadGenerating returns false
+    if (streamId) {
+      try {
+        await ctx.runMutation(
+          internal.threads.internal_mutations.clearGenerationStatus,
+          { threadId, streamId },
+        );
+      } catch (clearError) {
+        console.error(
+          '[generateAgentResponse] Failed to clear generation status:',
+          clearError,
         );
       }
     }
@@ -1298,35 +1418,134 @@ export async function generateAgentResponse(
       }
     }
 
-    // Save failed message — skip if cancelGeneration already created one
-    try {
-      const msgs = await listMessages(ctx, components.agent, {
-        threadId,
-        paginationOpts: { cursor: null, numItems: 5 },
-        excludeToolMessages: true,
-      });
-      const newestAssistant = msgs.page.find(
-        (m: MessageDoc) => m.message?.role === 'assistant',
-      );
-      const hasFailedAssistant = newestAssistant?.status === 'failed';
-      if (!hasFailedAssistant) {
-        await saveMessage(ctx, components.agent, {
-          threadId,
-          message: {
-            role: 'assistant',
-            content: 'I was unable to complete your request. Please try again.',
+    // Update "Retrying…" system message to indicate retry failed
+    if (retrySystemMessageId) {
+      try {
+        await ctx.runMutation(components.agent.messages.updateMessage, {
+          messageId: retrySystemMessageId,
+          patch: {
+            message: {
+              role: 'system',
+              content: '[RESPONSE_INTERRUPTED] Retry failed',
+            },
           },
-          metadata: {
-            status: 'failed',
+        });
+      } catch (retryMsgError) {
+        console.error(
+          '[generateAgentResponse] Failed to update retry system message:',
+          retryMsgError,
+        );
+      }
+    }
+
+    // Save failed message — skip if user cancelled (cancelGeneration handles it)
+    let failedMessageId: string | undefined;
+    if (!userCancelled) {
+      try {
+        const msgs = await listMessages(ctx, components.agent, {
+          threadId,
+          paginationOpts: { cursor: null, numItems: 5 },
+          excludeToolMessages: true,
+        });
+        const newestAssistant = msgs.page.find(
+          (m: MessageDoc) => m.message?.role === 'assistant',
+        );
+        const hasFailedAssistant = newestAssistant?.status === 'failed';
+        if (!hasFailedAssistant) {
+          const { messageId: failedMsgId } = await saveMessage(
+            ctx,
+            components.agent,
+            {
+              threadId,
+              message: {
+                role: 'assistant',
+                content:
+                  'I was unable to complete your request. Please try again.',
+              },
+              metadata: {
+                status: 'failed',
+                error: errorMessage || 'Unknown error',
+              },
+            },
+          );
+          failedMessageId = failedMsgId;
+        } else {
+          failedMessageId = newestAssistant._id;
+        }
+      } catch (saveError) {
+        console.error(
+          '[generateAgentResponse] Failed to save failed message:',
+          saveError,
+        );
+      }
+    }
+
+    // Record partial metadata for debugging even on failure
+    const metadataMessageId = savedMessageId ?? failedMessageId;
+    if (metadataMessageId) {
+      try {
+        const durationMs = Date.now() - startTime;
+        const { toolCalls, toolsUsage } = extractToolCallsFromSteps(
+          result.steps ?? [],
+        );
+        const contextWindowParts: string[] = [];
+        if (agentInstructions) {
+          contextWindowParts.push(
+            wrapInDetails('📋 System Prompt', agentInstructions),
+          );
+        }
+        if (toolsSummary) {
+          contextWindowParts.push(wrapInDetails('🔧 Tools', toolsSummary));
+        }
+        if (structuredThreadContext) {
+          contextWindowParts.push(structuredThreadContext.threadContext);
+        }
+
+        await onAgentComplete(ctx, {
+          threadId,
+          agentType,
+          result: {
+            threadId,
+            messageId: metadataMessageId,
+            text: '',
+            model: result.response?.modelId ?? model,
+            provider,
+            usage: result.usage,
+            durationMs,
+            timeToFirstTokenMs: firstTokenTime
+              ? firstTokenTime - startTime
+              : undefined,
+            toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+            toolsUsage: toolsUsage.length > 0 ? toolsUsage : undefined,
+            contextWindow:
+              contextWindowParts.length > 0
+                ? contextWindowParts.join('\n\n')
+                : undefined,
+            contextStats: structuredThreadContext?.stats,
             error: errorMessage || 'Unknown error',
           },
         });
+      } catch (metadataError) {
+        console.error(
+          '[generateAgentResponse] Failed to save error metadata:',
+          metadataError,
+        );
       }
-    } catch (saveError) {
-      console.error(
-        '[generateAgentResponse] Failed to save failed message:',
-        saveError,
-      );
+    }
+
+    // If user cancelled, return cleanly instead of re-throwing — cancelGeneration
+    // already handled the message and stream state.
+    if (userCancelled) {
+      return {
+        threadId,
+        text: result.text || '',
+        savedMessageId,
+        durationMs: Date.now() - startTime,
+        finishReason: 'cancelled',
+        usage: result.usage,
+        model: result.response?.modelId ?? model,
+        provider,
+      };
     }
 
     throw error;
@@ -1345,7 +1564,8 @@ function safeStringify(value: unknown, maxLen = 10240): string {
       return json.slice(0, maxLen) + '[truncated]';
     }
     return json;
-  } catch {
+  } catch (serializeError) {
+    console.error('[safeStringify] Serialization failed:', serializeError);
     return '[unserializable]';
   }
 }
@@ -1577,6 +1797,51 @@ function needsToolResultRetry(
 }
 
 /**
+ * Finish reasons that indicate a completed or non-retryable state.
+ * - "stop": normal LLM completion
+ * - "cancelled": user explicitly cancelled the generation
+ * - "timeout-recovery" / "timeout-recovery-failed": already a recovery attempt
+ */
+const NON_RETRYABLE_FINISH_REASONS = new Set([
+  'stop',
+  'cancelled',
+  'content-filter',
+  'timeout-recovery',
+  'timeout-recovery-failed',
+]);
+
+/**
+ * Determine whether the generation result should be retried based on
+ * `finishReason`. Only `"stop"` (and other non-retryable custom reasons)
+ * counts as a successful completion. All other finish reasons — `"length"`,
+ * `"tool-calls"`, `"content-filter"`, `"unknown"`, `undefined`, etc. —
+ * trigger a single retry without tools.
+ *
+ * Special case: `finishReason === "stop"` with empty text after tool calls
+ * (known DeepSeek edge case) still triggers a retry.
+ */
+function shouldRetryGeneration(
+  finishReason: string | undefined,
+  text: string | undefined,
+  steps: unknown[] | undefined,
+  alreadyRetried: boolean,
+): { retry: boolean; reason: string } {
+  if (alreadyRetried) return { retry: false, reason: 'already-retried' };
+
+  if (finishReason && NON_RETRYABLE_FINISH_REASONS.has(finishReason)) {
+    if (finishReason === 'stop' && needsToolResultRetry(text, steps)) {
+      return { retry: true, reason: 'stop-with-empty-tool-result' };
+    }
+    return { retry: false, reason: 'non-retryable-finish-reason' };
+  }
+
+  return {
+    retry: true,
+    reason: `finish-reason-${finishReason ?? 'undefined'}`,
+  };
+}
+
+/**
  * Extract unique tool names from AI SDK steps for fallback messages.
  */
 function extractToolNamesFromSteps(steps: unknown[]): string[] {
@@ -1594,3 +1859,5 @@ function extractToolNamesFromSteps(steps: unknown[]): string[] {
 function capitalize(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
+
+export { shouldRetryGeneration, needsToolResultRetry };

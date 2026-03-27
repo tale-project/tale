@@ -229,7 +229,7 @@ const ConversationRow = memo(function ConversationRow({
     <button
       type="button"
       className={cn(
-        'w-full text-left p-4 hover:bg-secondary/20 cursor-pointer transition-colors relative',
+        'w-full text-left px-4 py-2.5 hover:bg-secondary/20 cursor-pointer transition-colors relative',
         isSelected && 'bg-muted',
       )}
       onClick={handleClick}
@@ -238,8 +238,8 @@ const ConversationRow = memo(function ConversationRow({
       {isSelected && (
         <div className="bg-primary absolute top-0 bottom-0 left-0 w-1" />
       )}
-      <div className="flex items-start gap-3">
-        <div className="mt-1 flex items-center">
+      <div className="flex items-start gap-2.5">
+        <div className="mt-0.5 flex items-center">
           <Checkbox
             checked={isChecked}
             onCheckedChange={handleCheckboxChange}
@@ -248,36 +248,44 @@ const ConversationRow = memo(function ConversationRow({
         </div>
 
         <div className="min-w-0 flex-1">
-          <div className="mb-1.5 flex items-start justify-between">
-            <Heading
-              level={3}
-              size="sm"
-              weight="medium"
-              tracking="tight"
-              truncate
-              className="flex-1"
-            >
-              {conversation?.title || conversation.customer?.name || 'Unknown'}
-            </Heading>
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <Heading
+                level={3}
+                size="sm"
+                weight="semibold"
+                tracking="tight"
+                truncate
+                className="flex-1"
+              >
+                {conversation.customer?.name ||
+                  conversation?.title ||
+                  'Unknown'}
+              </Heading>
+              {conversation.unread_count > 0 && (
+                <span
+                  className="size-1.5 shrink-0 rounded-full bg-blue-500"
+                  aria-label="Unread"
+                  role="status"
+                />
+              )}
+            </div>
             <Text
               as="span"
               variant="label-sm"
-              className="text-muted-foreground ml-4 shrink-0 tracking-tight"
+              className="text-muted-foreground shrink-0 tracking-tight"
             >
               {formatDateSmart(conversation.last_message_at || '')}
             </Text>
           </div>
 
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <Text variant="muted" truncate className="flex-1 tracking-tight">
-              {getLastMessagePreview(conversation)}
-            </Text>
-            {conversation.unread_count > 0 && (
-              <div className="text-primary-foreground flex h-5 min-w-5 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 px-1 py-2 text-xs leading-none">
-                {conversation.unread_count}
-              </div>
-            )}
-          </div>
+          <Text variant="muted" truncate className="mb-1.5 tracking-tight">
+            {conversation.title}
+          </Text>
+
+          <Text variant="caption" truncate className="mb-2 tracking-tight">
+            {getLastMessagePreview(conversation)}
+          </Text>
 
           <HStack gap={2}>
             {(() => {

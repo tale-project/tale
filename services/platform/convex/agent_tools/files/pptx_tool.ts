@@ -15,6 +15,7 @@ import type { ToolDefinition } from '../types';
 import { internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
 import { toId } from '../../lib/type_cast_helpers';
+import { appendFilePart } from './helpers/append_file_part';
 import { getAgentModelId } from './helpers/get_agent_model';
 import { parseFile, type ParseFileResult } from './helpers/parse_file';
 
@@ -66,69 +67,59 @@ const brandingSchema = z.object({
   accentColor: z.string().optional().describe('Accent color as hex'),
 });
 
-// Use a flat object schema for OpenAI-compatible JSON Schema
-const pptxArgs = z.object({
-  operation: z
-    .enum(['list_templates', 'generate', 'parse'])
-    .describe(
-      "Operation to perform: 'list_templates', 'generate', or 'parse' (extract text from PPTX)",
-    ),
-  // For list_templates operation
-  limit: z
-    .number()
-    .optional()
-    .describe(
-      "For 'list_templates': Maximum number of templates to return (default: 50)",
-    ),
-  // Required for generate operation
-  templateStorageId: z
-    .string()
-    .optional()
-    .describe(
-      "Convex storage ID of the PPTX template. Required for 'generate'. The template is used as base, preserving all styling, backgrounds, and decorative elements.",
-    ),
-  // For generate operation
-  fileName: z
-    .string()
-    .optional()
-    .describe(
-      "Required for 'generate': Base name for the PPTX file (without extension)",
-    ),
-  slidesContent: z
-    .array(slideContentSchema)
-    .optional()
-    .describe("For 'generate': Content for each slide in the presentation"),
-  branding: brandingSchema
-    .optional()
-    .describe("For 'generate': Optional additional branding overrides"),
-  // For parse operation
-  fileId: z
-    .string()
-    .optional()
-    .describe(
-      "For 'parse': **REQUIRED** - Convex storage ID (e.g., 'kg2bazp7fbgt9srq63knfagjrd7yfenj'). Get this from the file attachment context.",
-    ),
-  filename: z
-    .string()
-    .optional()
-    .describe(
-      "For 'parse': Original filename (e.g., 'presentation.pptx'). Optional — auto-resolved from file metadata if omitted.",
-    ),
-  user_input: z
-    .string()
-    .optional()
-    .describe(
-      "For 'parse': **REQUIRED** - The user's question or instruction about the presentation content",
-    ),
-});
+const pptxArgs = z.discriminatedUnion('operation', [
+  z.object({
+    operation: z.literal('list_templates'),
+    limit: z
+      .number()
+      .optional()
+      .describe('Maximum number of templates to return (default: 50)'),
+  }),
+  z.object({
+    operation: z.literal('generate'),
+    templateStorageId: z
+      .string()
+      .optional()
+      .describe(
+        'Convex storage ID of the PPTX template. The template is used as base, preserving all styling, backgrounds, and decorative elements.',
+      ),
+    fileName: z
+      .string()
+      .describe('Base name for the PPTX file (without extension)'),
+    slidesContent: z
+      .array(slideContentSchema)
+      .describe('Content for each slide in the presentation'),
+    branding: brandingSchema
+      .optional()
+      .describe('Optional additional branding overrides'),
+  }),
+  z.object({
+    operation: z.literal('parse'),
+    fileId: z
+      .string()
+      .describe(
+        "Convex storage ID (e.g., 'kg2bazp7fbgt9srq63knfagjrd7yfenj'). Get this from the file attachment context.",
+      ),
+    filename: z
+      .string()
+      .optional()
+      .describe(
+        "Original filename (e.g., 'presentation.pptx'). Optional — auto-resolved from file metadata if omitted.",
+      ),
+    user_input: z
+      .string()
+      .describe(
+        "The user's question or instruction about the presentation content",
+      ),
+  }),
+]);
 
 // Result types
 interface ListTemplatesResult {
   operation: 'list_templates';
   success: boolean;
   templates: Array<{
-    documentId: string;
-    storageId: string;
+    fileId: string;
     title: string;
     createdAt: number;
   }>;
@@ -155,6 +146,8 @@ export const pptxTool: ToolDefinition = {
   name: 'pptx',
   tool: createTool({
     description: `PowerPoint (PPTX) tool for listing templates, generating, and parsing presentations.
+
+IMPORTANT: Only call the "generate" operation when the user explicitly requests creating or exporting a PowerPoint/PPTX file. Do NOT proactively generate presentations unless the user specifically asks for this format.
 
 IMPORTANT WORKFLOW FOR GENERATING PPTX:
 1. FIRST call list_templates to check if templates are available
@@ -191,9 +184,12 @@ SLIDE CONTENT EXAMPLES:
 - Content slide: { "title": "Agenda", "bulletPoints": ["Point 1", "Point 2"] }
 - With table: { "title": "Data", "tables": [{"headers": ["A", "B"], "rows": [["1", "2"]]}] }
 
-CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the result. Never fabricate URLs.`,
-    args: pptxArgs,
-    handler: async (ctx: ToolCtx, args): Promise<PptxResult> => {
+AFTER GENERATING: Check the downloadUrl in the result:
+- If it says "[file card shown in chat]": the file is already visible as a download card. Do NOT mention downloading, do NOT include a link, and do NOT say "you can download it" — the card handles this.
+- If it contains an actual URL: no download card was shown. You MUST include the URL as a clickable markdown link so the user can download the file.
+To also save the file to a folder in the documents hub, call document_write with the returned fileStorageId and the desired folderPath.`,
+    inputSchema: pptxArgs,
+    execute: async (ctx: ToolCtx, args): Promise<PptxResult> => {
       const { organizationId } = ctx;
 
       // Handle list_templates operation
@@ -229,8 +225,7 @@ CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the 
               (doc): doc is typeof doc & { fileId: string } => !!doc.fileId,
             )
             .map((doc) => ({
-              documentId: doc._id,
-              storageId: doc.fileId,
+              fileId: doc.fileId,
               title: doc.title ?? 'Untitled Template',
               createdAt: doc._creationTime,
             }));
@@ -240,7 +235,8 @@ CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the 
           });
 
           const siteUrl = process.env.SITE_URL || '';
-          const knowledgeUrl = `${siteUrl}/dashboard/${organizationId}/documents`;
+          const basePath = process.env.BASE_PATH || '';
+          const knowledgeUrl = `${siteUrl}${basePath}/dashboard/${organizationId}/documents`;
 
           return {
             operation: 'list_templates',
@@ -249,7 +245,7 @@ CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the 
             totalCount: templates.length,
             message:
               templates.length > 0
-                ? `Found ${templates.length} PPTX template(s). Use the storageId as templateStorageId for generate operations.`
+                ? `Found ${templates.length} PPTX template(s). Use the fileId as templateStorageId for generate operations.`
                 : `No PPTX templates found. The user must upload a .pptx template file to the Knowledge Base first — uploading in the chat will NOT work as a template. Direct the user to: ${knowledgeUrl} . Do NOT attempt to call generate without a template.`,
           };
         } catch (error) {
@@ -260,19 +256,7 @@ CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the 
         }
       }
 
-      // Handle parse operation
       if (args.operation === 'parse') {
-        if (!args.fileId) {
-          throw new Error(
-            "Missing required 'fileId' for parse operation. Get the fileId from the file attachment context.",
-          );
-        }
-        if (!args.user_input) {
-          throw new Error(
-            "Missing required 'user_input' for parse operation. Provide the user's question or instruction about the presentation.",
-          );
-        }
-
         const model = getAgentModelId(ctx);
         const result = await parseFile(
           ctx,
@@ -292,19 +276,17 @@ CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the 
           success: false,
           fileStorageId: '',
           downloadUrl: '',
-          fileName: args.fileName || '',
+          fileName: args.fileName,
           contentType: '',
           size: 0,
           error:
             'templateStorageId is required. Call list_templates first to get available templates. If no templates exist, the user must upload a .pptx template to the Knowledge Base (Documents page) — not in chat.',
         };
       }
-      if (!args.fileName) {
-        throw new Error("Missing required 'fileName' for generate operation");
-      }
-      if (!args.slidesContent || args.slidesContent.length === 0) {
+
+      if (!organizationId) {
         throw new Error(
-          "Missing required 'slidesContent' for generate operation",
+          'organizationId is required to generate a presentation',
         );
       }
 
@@ -319,6 +301,7 @@ CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the 
         const result = await ctx.runAction(
           internal.documents.internal_actions.generatePptx,
           {
+            organizationId,
             fileName: args.fileName,
             slidesContent: args.slidesContent,
             branding: args.branding,
@@ -332,9 +315,18 @@ CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the 
           size: result.size,
         });
 
+        const cardAppended = await appendFilePart(ctx, {
+          fileName: result.fileName,
+          mimeType: result.contentType,
+          downloadUrl: result.downloadUrl,
+        });
+
         return {
           operation: 'generate',
           ...result,
+          downloadUrl: cardAppended
+            ? '[file card shown in chat]'
+            : result.downloadUrl,
         } as GenerateResult;
       } catch (error) {
         console.error('[tool:pptx generate] error', {

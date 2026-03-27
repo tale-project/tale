@@ -1,22 +1,27 @@
 'use client';
 
 import { AnimatePresence } from 'framer-motion';
-import { Bot, LoaderCircle } from 'lucide-react';
-import { Fragment, useMemo } from 'react';
+import { Bot, CheckCircle2, LoaderCircle } from 'lucide-react';
+import { useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 import type {
+  DocumentWriteApproval,
+  HumanInputRequest,
+  IntegrationApproval,
   WorkflowCreationApproval,
+  WorkflowRunApproval,
   WorkflowUpdateApproval,
 } from '@/app/features/chat/hooks/queries';
+import type { ChatItem } from '@/app/features/chat/hooks/use-merged-chat-items';
 
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { Image } from '@/app/components/ui/data-display/image';
 import { Text } from '@/app/components/ui/typography/text';
+import { ApprovalCardRenderer } from '@/app/features/chat/components/approval-card-renderer';
+import { CollapsibleSystemMessage } from '@/app/features/chat/components/collapsible-system-message';
 import { FileAttachmentDisplay } from '@/app/features/chat/components/message-bubble/file-displays';
-import { WorkflowCreationApprovalCard } from '@/app/features/chat/components/workflow-creation-approval-card';
-import { WorkflowUpdateApprovalCard } from '@/app/features/chat/components/workflow-update-approval-card';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -24,10 +29,6 @@ import type { Message } from './types';
 
 import { AutomationDetailsCollapse } from './automation-details-collapse';
 import { ThinkingAnimation } from './thinking-animation';
-
-type ApprovalItem =
-  | { type: 'workflow_update'; data: WorkflowUpdateApproval }
-  | { type: 'workflow_creation'; data: WorkflowCreationApproval };
 
 interface MessageListProps {
   displayMessages: Message[];
@@ -37,7 +38,15 @@ interface MessageListProps {
   organizationId: string;
   workflowUpdateApprovals: WorkflowUpdateApproval[];
   workflowCreationApprovals: WorkflowCreationApproval[];
+  workflowRunApprovals: WorkflowRunApproval[];
+  humanInputRequests: HumanInputRequest[];
+  documentWriteApprovals: DocumentWriteApproval[];
+  integrationApprovals: IntegrationApproval[];
   onImagePreview: (src: string, alt: string) => void;
+}
+
+function isActiveStatus(status: string) {
+  return status === 'pending' || status === 'executing';
 }
 
 export function MessageList({
@@ -48,38 +57,61 @@ export function MessageList({
   organizationId,
   workflowUpdateApprovals,
   workflowCreationApprovals,
+  workflowRunApprovals,
+  humanInputRequests,
+  documentWriteApprovals,
+  integrationApprovals,
   onImagePreview,
 }: MessageListProps) {
   const { t } = useT('automations');
 
-  const messageIds = useMemo(
-    () => new Set(displayMessages.map((m) => m.id)),
-    [displayMessages],
-  );
+  // Find the latest active (pending/executing) approval across all types
+  const activeApproval = useMemo((): ChatItem | null => {
+    const candidates: Exclude<ChatItem, { type: 'message' }>[] = [];
 
-  const approvalsByMessageId = useMemo(() => {
-    const byMessageId = new Map<string, ApprovalItem[]>();
-
-    const allApprovals: ApprovalItem[] = [
-      ...workflowUpdateApprovals.map(
-        (a): ApprovalItem => ({ type: 'workflow_update', data: a }),
-      ),
-      ...workflowCreationApprovals.map(
-        (a): ApprovalItem => ({ type: 'workflow_creation', data: a }),
-      ),
-    ];
-
-    for (const item of allApprovals) {
-      const mid = item.data.messageId;
-      if (mid && messageIds.has(mid)) {
-        const list = byMessageId.get(mid) ?? [];
-        list.push(item);
-        byMessageId.set(mid, list);
+    for (const a of integrationApprovals) {
+      if (isActiveStatus(a.status)) {
+        candidates.push({ type: 'approval', data: a });
+      }
+    }
+    for (const a of workflowCreationApprovals) {
+      if (isActiveStatus(a.status)) {
+        candidates.push({ type: 'workflow_approval', data: a });
+      }
+    }
+    for (const a of workflowUpdateApprovals) {
+      if (isActiveStatus(a.status)) {
+        candidates.push({ type: 'workflow_update_approval', data: a });
+      }
+    }
+    for (const a of workflowRunApprovals) {
+      if (isActiveStatus(a.status)) {
+        candidates.push({ type: 'workflow_run_approval', data: a });
+      }
+    }
+    for (const a of humanInputRequests) {
+      if (isActiveStatus(a.status)) {
+        candidates.push({ type: 'human_input_request', data: a });
+      }
+    }
+    for (const a of documentWriteApprovals) {
+      if (isActiveStatus(a.status)) {
+        candidates.push({ type: 'document_write_approval', data: a });
       }
     }
 
-    return byMessageId;
-  }, [workflowUpdateApprovals, workflowCreationApprovals, messageIds]);
+    if (candidates.length === 0) return null;
+
+    candidates.sort((a, b) => b.data._creationTime - a.data._creationTime);
+    return candidates[0];
+  }, [
+    integrationApprovals,
+    workflowCreationApprovals,
+    workflowUpdateApprovals,
+    workflowRunApprovals,
+    humanInputRequests,
+    documentWriteApprovals,
+  ]);
 
   if (displayMessages.length === 0) {
     return (
@@ -110,10 +142,36 @@ export function MessageList({
   }
 
   return (
-    <>
-      {displayMessages.map((message) => (
-        <Fragment key={message.id}>
+    <div
+      role="log"
+      aria-live="polite"
+      aria-label={t('assistant.messageHistory')}
+    >
+      {displayMessages.map((message) => {
+        if (message.role === 'system' && message.systemMessageDisplay) {
+          if (message.systemMessageDisplay === 'pill') {
+            return (
+              <div key={message.id} className="flex justify-end py-1">
+                <div className="bg-primary/10 text-primary flex items-center gap-2 rounded-full px-4 py-2 text-sm">
+                  <CheckCircle2 className="size-4" aria-hidden="true" />
+                  <span>{message.systemMessageBody ?? message.content}</span>
+                </div>
+              </div>
+            );
+          }
+
+          return (
+            <CollapsibleSystemMessage
+              key={message.id}
+              content={message.systemMessageBody ?? message.content}
+              variant={message.systemMessageDisplay}
+            />
+          );
+        }
+
+        return (
           <div
+            key={message.id}
             className={cn(
               'flex gap-1',
               message.role === 'user' ? 'justify-end' : 'justify-start',
@@ -211,36 +269,8 @@ export function MessageList({
               </div>
             </div>
           </div>
-          {approvalsByMessageId.get(message.id)?.map((item) => (
-            <div
-              key={`approval-${item.data._id}`}
-              className="flex justify-start"
-            >
-              {item.type === 'workflow_update' ? (
-                <WorkflowUpdateApprovalCard
-                  approvalId={item.data._id}
-                  organizationId={organizationId}
-                  status={item.data.status}
-                  metadata={item.data.metadata}
-                  executedAt={item.data.executedAt}
-                  executionError={item.data.executionError}
-                  className="max-w-full"
-                />
-              ) : (
-                <WorkflowCreationApprovalCard
-                  approvalId={item.data._id}
-                  organizationId={organizationId}
-                  status={item.data.status}
-                  metadata={item.data.metadata}
-                  executedAt={item.data.executedAt}
-                  executionError={item.data.executionError}
-                  className="max-w-full"
-                />
-              )}
-            </div>
-          ))}
-        </Fragment>
-      ))}
+        );
+      })}
       <AnimatePresence>
         {(isLoading || isWaitingForResponse) && (
           <ThinkingAnimation
@@ -252,6 +282,14 @@ export function MessageList({
           />
         )}
       </AnimatePresence>
-    </>
+
+      {/* Single active approval always at the bottom */}
+      {activeApproval && (
+        <ApprovalCardRenderer
+          item={activeApproval}
+          organizationId={organizationId}
+        />
+      )}
+    </div>
   );
 }

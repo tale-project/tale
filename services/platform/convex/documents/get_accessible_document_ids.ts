@@ -4,13 +4,11 @@ import { getUserTeamIds } from '../lib/get_user_teams';
 import { hasTeamAccess } from '../lib/team_access';
 
 /**
- * Get all RAG-indexed document IDs accessible to a user within an organization.
+ * Get all document IDs accessible to a user within an organization.
  *
  * Resolves the user's team memberships internally, then filters documents:
  * - Org-wide documents (no teams) are always included
  * - Team-scoped documents are included if the user belongs to at least one team
- *
- * Only returns documents with ragInfo.status === 'completed'.
  */
 export async function getAccessibleDocumentIds(
   ctx: QueryCtx,
@@ -30,8 +28,6 @@ export async function getAccessibleDocumentIds(
     );
 
   for await (const doc of query) {
-    if (doc.ragInfo?.status !== 'completed') continue;
-
     if (hasTeamAccess(doc, teamSet)) {
       ids.push(doc._id);
     }

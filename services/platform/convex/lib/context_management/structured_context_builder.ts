@@ -39,11 +39,16 @@ interface ApprovalItem {
 interface HumanInputRequestMetadata {
   question: string;
   context?: string;
-  format: 'single_select' | 'multi_select' | 'text_input' | 'yes_no';
-  options?: Array<{
+  fields: Array<{
     label: string;
     description?: string;
-    value?: string;
+    required?: boolean;
+    type: string;
+    options?: Array<{
+      label: string;
+      description?: string;
+      value?: string;
+    }>;
   }>;
   requestedAt: number;
   response?: {
@@ -59,7 +64,7 @@ function isHumanInputRequestMetadata(
   if (!isRecord(val)) return false;
   return (
     typeof val.question === 'string' &&
-    typeof val.format === 'string' &&
+    Array.isArray(val.fields) &&
     typeof val.requestedAt === 'number'
   );
 }
@@ -431,9 +436,8 @@ function formatMessagesWithApprovals(
                 fmt.formatHumanInputRequest(
                   approval._id,
                   metadata.question,
-                  metadata.format,
+                  metadata.fields,
                   metadata.context,
-                  metadata.options,
                   metadata.requestedAt,
                 ),
               );

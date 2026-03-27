@@ -20,7 +20,11 @@ env_normalize_common() {
 	  # This allows the platform to work with self-hosted PostgreSQL by default
 	  if [ -z "${POSTGRES_URL:-}" ]; then
 	    local db_user="${DB_USER:-tale}"
-	    local db_password="${DB_PASSWORD:-tale_password_change_me}"
+	    if [ -z "${DB_PASSWORD:-}" ]; then
+	      echo "ERROR: DB_PASSWORD or POSTGRES_URL must be set" >&2
+	      exit 1
+	    fi
+	    local db_password="${DB_PASSWORD}"
 	    local db_host="${DB_HOST:-db}"
 	    local db_port="${DB_PORT:-5432}"
 	    # Convex backend for postgres-v5 expects URL without database name in path

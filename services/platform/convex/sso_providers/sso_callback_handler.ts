@@ -9,7 +9,8 @@ const SESSION_COOKIE_NAME = 'better-auth.session_token';
 const SESSION_MAX_AGE = 60 * 60 * 24 * 7;
 
 function redirectWithError(origin: string, message: string): Response {
-  const errorUrl = new URL('/log-in', origin);
+  const basePath = process.env.BASE_PATH || '';
+  const errorUrl = new URL(`${basePath}/log-in`, origin);
   errorUrl.searchParams.set('error', message);
   return new Response(null, {
     status: 302,
@@ -180,7 +181,8 @@ export async function ssoCallbackHandler(
     });
 
     const headers = new Headers();
-    headers.set('Location', `${frontendOrigin}/dashboard`);
+    const basePath = process.env.BASE_PATH || '';
+    headers.set('Location', `${frontendOrigin}${basePath}/dashboard`);
     for (const cookie of cookies) {
       headers.append('Set-Cookie', cookie);
     }

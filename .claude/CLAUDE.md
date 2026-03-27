@@ -1,6 +1,7 @@
 ## Git
 
 - DO NOT include "Co-Authored-By" in commit messages.
+- DO NOT include "Generated with Claude Code" or any similar attribution in PR descriptions.
 
 ## Design Comments
 
@@ -66,6 +67,21 @@
 - USE snake_case for files, functions, and variables.
 - ORGANIZE code into modules: `routes/`, `services/`, `models/`, `utils/` as needed.
 - PREFER type hints for function signatures.
+
+## Documentation
+
+- Documentation lives in `docs/` and uses Mintlify (`docs/docs.json` controls navigation).
+- ALWAYS add Mintlify frontmatter (`title` and `description`) to every doc file.
+- USE dash-case for documentation filenames (e.g., `api-reference.md`).
+- KEEP each doc file focused on a single topic. Do not combine unrelated topics in one file.
+- WHEN adding a new doc page, also add it to the appropriate navigation group in `docs/docs.json`.
+- WHEN renaming or removing a doc page, update all references in `README.md` and `docs/docs.json`.
+- ALWAYS keep documentation up-to-date when making code changes that affect user-facing behavior, APIs, configuration, or setup steps.
+- PREFER cross-linking between doc pages over duplicating content.
+- USE code blocks with language identifiers for all command examples.
+- USE Mermaid diagrams for flow charts and architecture diagrams in documentation.
+- USE sentence case for headings.
+- FORMAT tables with aligned columns and consistent spacing for readability in editors.
 
 ## Accessibility (WCAG 2.1 Level AA)
 

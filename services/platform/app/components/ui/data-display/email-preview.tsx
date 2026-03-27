@@ -218,6 +218,49 @@ function sanitizeCssStyle(styleString: string): string {
   return sanitizedParts.join('; ');
 }
 
+/**
+ * Rewrite external img src URLs to route through the image proxy.
+ * Skips same-origin, Convex storage, cid:, data:, and already-proxied URLs.
+ */
+export function rewriteExternalImageSrcs(
+  html: string,
+  proxyBase: string,
+): string {
+  let proxyOrigin: string;
+  try {
+    proxyOrigin = new URL(proxyBase).origin;
+  } catch {
+    return html;
+  }
+
+  return html.replace(
+    /src=(["'])(https?:\/\/[^"']+)\1/gi,
+    (_match, quote: string, srcUrl: string) => {
+      try {
+        const parsed = new URL(srcUrl);
+        if (parsed.origin === proxyOrigin) return _match;
+        if (
+          parsed.hostname.endsWith('.convex.cloud') ||
+          parsed.hostname.endsWith('.convex.site')
+        ) {
+          return _match;
+        }
+      } catch {
+        return _match;
+      }
+
+      // Decode HTML entities (e.g. &amp; → &) before encoding
+      const decodedUrl = srcUrl
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"');
+      const encoded = encodeURIComponent(btoa(decodedUrl));
+      return `src=${quote}${proxyBase}/api/image-proxy?url=${encoded}${quote}`;
+    },
+  );
+}
+
 export function replaceCidReferences(
   html: string,
   cidMap: Record<string, string>,
@@ -230,15 +273,7 @@ export function replaceCidReferences(
 }
 
 function sanitizePreviewHtml(html: string): string {
-  // First, remove plain text quote markers (> at start of lines)
-  const processed = html
-    // Remove &gt; entities at the start of lines (with optional spaces)
-    .replace(/^(&gt;\s*)+/gm, '')
-    // Remove > characters at the start of lines (with optional spaces)
-    .replace(/^(>\s*)+/gm, '')
-    // Remove quote markers after line breaks
-    .replace(/(<br\s*\/?>\s*)(&gt;\s*)+/gi, '$1')
-    .replace(/(<br\s*\/?>\s*)(>\s*)+/gi, '$1');
+  const processed = html;
 
   // Add hook to sanitize styles and modify links
   DOMPurify.addHook('afterSanitizeAttributes', (node) => {
@@ -274,10 +309,24 @@ function sanitizePreviewHtml(html: string): string {
   return sanitized;
 }
 
-function splitQuotedContent(html: string): { main: string; quoted: string } {
-  // Common patterns for forwarded/quoted content
+export function splitQuotedContent(html: string): {
+  main: string;
+  quoted: string;
+} {
+  // Common patterns for forwarded/quoted content.
+  // These must be precise to avoid false-positives on normal email body text
+  // (e.g. newsletter content like "Jon Kuperman wrote about...").
   const patterns = [
-    /(?:Begin forwarded message|On .* wrote|From:.*Subject:|-----Original Message-----)/i,
+    // "Begin forwarded message" — Apple Mail forwarding header
+    /Begin forwarded message:/i,
+    // "On <date/time>, <name> wrote:" — standard reply header.
+    // Requires a colon after "wrote" and a date-like token (digit) between On and wrote.
+    // Uses [^<]{0,500} to match text content only (not across HTML tags), keeping it bounded.
+    /On\s[^<]{0,500}\d[^<]{0,500}\swrote:/i,
+    // "From: ... Subject: ..." — Outlook-style forwarding header
+    /From:\s[\s\S]*?Subject:/i,
+    // "-----Original Message-----" — Outlook reply separator
+    /-----\s*Original Message\s*-----/i,
   ];
 
   for (const pattern of patterns) {
@@ -302,16 +351,18 @@ export function EmailPreview({
   const [showQuoted, setShowQuoted] = useState(false);
 
   const { sanitizedMain, sanitizedQuoted } = useMemo(() => {
+    const proxyBase =
+      typeof window !== 'undefined' ? window.location.origin : '';
     const { main, quoted } = splitQuotedContent(html);
     const resolvedMain = cidMap ? replaceCidReferences(main, cidMap) : main;
     const resolvedQuoted = cidMap
       ? replaceCidReferences(quoted, cidMap)
       : quoted;
+    const proxiedMain = rewriteExternalImageSrcs(resolvedMain, proxyBase);
+    const proxiedQuoted = rewriteExternalImageSrcs(resolvedQuoted, proxyBase);
     return {
-      sanitizedMain: sanitizePreviewHtml(resolvedMain),
-      sanitizedQuoted: resolvedQuoted
-        ? sanitizePreviewHtml(resolvedQuoted)
-        : '',
+      sanitizedMain: sanitizePreviewHtml(proxiedMain),
+      sanitizedQuoted: proxiedQuoted ? sanitizePreviewHtml(proxiedQuoted) : '',
     };
   }, [html, cidMap]);
 

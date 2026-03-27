@@ -7,11 +7,13 @@ import {
   useDeleteThread,
 } from '@/app/features/chat/hooks/mutations';
 import {
+  useDocumentWriteApprovals,
   useIntegrationApprovals,
   useWorkflowCreationApprovals,
   useWorkflowRunApprovals,
   useWorkflowUpdateApprovals,
   useHumanInputRequests,
+  useLocationRequests,
 } from '@/app/features/chat/hooks/queries';
 import { useChatLoadingState } from '@/app/features/chat/hooks/use-chat-loading-state';
 import { useConvexFileUpload } from '@/app/features/chat/hooks/use-convex-file-upload';
@@ -151,6 +153,14 @@ export function useTestChat({
     organizationId,
     threadId ?? undefined,
   );
+  const { requests: locationRequests } = useLocationRequests(
+    organizationId,
+    threadId ?? undefined,
+  );
+  const { approvals: documentWriteApprovals } = useDocumentWriteApprovals(
+    organizationId,
+    threadId ?? undefined,
+  );
 
   const {
     messages: rawMessages,
@@ -179,24 +189,26 @@ export function useTestChat({
 
   const isUploading = uploadingFiles.length > 0;
 
-  const mergedItems = useMergedChatItems({
+  const { messages: mergedMessages, activeApproval } = useMergedChatItems({
     messages,
     integrationApprovals,
     workflowCreationApprovals,
     workflowUpdateApprovals,
     workflowRunApprovals,
     humanInputRequests,
+    locationRequests,
+    documentWriteApprovals,
   });
 
   useEffect(() => {
-    if (mergedItems.length === 0) return;
+    if (mergedMessages.length === 0) return;
     const rafId = requestAnimationFrame(() => {
       if (containerRef.current) {
         throttledScrollToBottom(containerRef.current, 'auto');
       }
     });
     return () => cancelAnimationFrame(rafId);
-  }, [mergedItems.length, isLoading, throttledScrollToBottom]);
+  }, [mergedMessages.length, isLoading, throttledScrollToBottom]);
 
   useEffect(() => {
     return cleanup;
@@ -357,7 +369,8 @@ export function useTestChat({
   }, [threadId, deleteChatThread, clearChatState, onReset]);
 
   return {
-    displayItems: mergedItems,
+    displayItems: mergedMessages,
+    activeApproval,
     isLoading,
     isUploading,
     threadId,

@@ -110,6 +110,13 @@ export interface GenerateResponseArgs {
   /** The user's message to send as prompt */
   promptMessage: string;
   additionalContext?: Record<string, string>;
+  /** User environment context (timezone, language, location) for template variables */
+  userContext?: {
+    timezone: string;
+    language: string;
+    coordinates?: string;
+    location?: string;
+  };
   parentThreadId?: string;
   agentOptions?: Record<string, unknown>;
   attachments?: FileAttachment[];
@@ -126,6 +133,7 @@ export interface GenerateResponseArgs {
 export interface GenerateResponseResult {
   threadId: string;
   text: string;
+  savedMessageId?: string;
   usage?: {
     inputTokens?: number;
     outputTokens?: number;

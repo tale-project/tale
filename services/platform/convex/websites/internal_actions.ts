@@ -10,15 +10,10 @@ import type {
 
 import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
+import { getCrawlerUrl } from '../documents/generate_document_helpers';
 
 const CRAWLER_TIMEOUT_MS = 15_000;
 const SYNC_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
-const STALE_SYNC_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
-const SYNC_BATCH_SIZE = 10;
-
-function getCrawlerUrl() {
-  return process.env.CRAWLER_URL || 'http://localhost:8002';
-}
 
 function fetchWithTimeout(
   url: string,
@@ -104,8 +99,11 @@ export async function fetchWebsiteInfo(
     if (res.ok) {
       return await res.json();
     }
-  } catch {
-    // Non-fatal: website info will be synced on next operation
+  } catch (error) {
+    console.warn(
+      `[fetchWebsiteInfo] Failed to fetch info for ${domain}:`,
+      error,
+    );
   }
   return null;
 }
@@ -187,7 +185,11 @@ export const registerAndSync = internalAction({
   handler: async (ctx, args): Promise<void> => {
     try {
       await registerDomainWithCrawler(args.domain, args.scanInterval);
-    } catch {
+    } catch (error) {
+      console.error(
+        `[registerAndSync] Failed to register domain ${args.domain}:`,
+        error,
+      );
       await ctx.runMutation(internal.websites.internal_mutations.patchWebsite, {
         websiteId: args.websiteId,
         status: 'error',
@@ -224,84 +226,6 @@ export const syncSingleWebsite = internalAction({
         ? new Date(info.last_scanned_at).getTime()
         : undefined,
     });
-  },
-});
-
-export const syncStaleWebsites = internalAction({
-  args: {},
-  handler: async (ctx): Promise<void> => {
-    const websites = await ctx.runQuery(
-      internal.websites.internal_queries.listStaleWebsites,
-      {},
-    );
-
-    if (websites.length === 0) return;
-
-    const now = Date.now();
-
-    // Filter out recently synced websites
-    const stale = websites.filter((w) => {
-      const lastSync = w.metadata?.lastStatusSyncAt;
-      return (
-        typeof lastSync !== 'number' || now - lastSync >= STALE_SYNC_INTERVAL_MS
-      );
-    });
-
-    if (stale.length === 0) return;
-
-    // Process in parallel batches
-    for (let i = 0; i < stale.length; i += SYNC_BATCH_SIZE) {
-      const batch = stale.slice(i, i + SYNC_BATCH_SIZE);
-      const results = await Promise.allSettled(
-        batch.map((w) => fetchWebsiteInfo(w.domain)),
-      );
-
-      for (let j = 0; j < batch.length; j++) {
-        const website = batch[j];
-        const result = results[j];
-
-        if (result.status === 'fulfilled' && result.value) {
-          const info = result.value;
-          await ctx.runMutation(
-            internal.websites.internal_mutations.patchWebsite,
-            {
-              websiteId: website._id,
-              metadata: {
-                ...website.metadata,
-                lastStatusSyncAt: now,
-                lastSyncError: undefined,
-              },
-              status: info.status,
-              pageCount: info.page_count,
-              crawledPageCount: info.crawled_count,
-              title: info.title ?? undefined,
-              description: info.description ?? undefined,
-              lastScannedAt: info.last_scanned_at
-                ? new Date(info.last_scanned_at).getTime()
-                : undefined,
-            },
-          );
-        } else {
-          const message =
-            result.status === 'rejected'
-              ? result.reason instanceof Error
-                ? result.reason.message
-                : String(result.reason)
-              : 'No data from crawler';
-          await ctx.runMutation(
-            internal.websites.internal_mutations.patchWebsite,
-            {
-              websiteId: website._id,
-              metadata: {
-                ...website.metadata,
-                lastStatusSyncAt: now,
-                lastSyncError: message,
-              },
-            },
-          );
-        }
-      }
-    }
   },
 });
 

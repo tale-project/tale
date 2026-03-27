@@ -133,9 +133,9 @@ export const executeApprovedOperation = internalAction({
       throw new Error('Approval not found');
     }
 
-    if (approval.status !== 'approved') {
+    if (approval.status !== 'executing') {
       throw new Error(
-        `Cannot execute operation: approval status is "${approval.status}", expected "approved"`,
+        `Cannot execute operation: approval status is "${approval.status}", expected "executing"`,
       );
     }
 

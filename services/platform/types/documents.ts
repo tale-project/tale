@@ -15,7 +15,10 @@ export interface DocumentItem {
   folderId?: string;
   sourceProvider?: 'onedrive' | 'upload' | 'sharepoint';
   sourceMode?: 'auto' | 'manual';
+  sourceCreatedAt?: number;
+  sourceModifiedAt?: number;
   lastModified?: number;
+  uploadedAt?: number;
   syncConfigId?: string;
   isDirectlySelected?: boolean;
   ragStatus?: RagStatus;

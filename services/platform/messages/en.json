@@ -101,6 +101,7 @@
       "running": "Running",
       "completed": "Completed",
       "failed": "Failed",
+      "waitingForInput": "Waiting for input",
       "published": "Published",
       "draft": "Draft",
       "enabled": "Enabled",
@@ -165,7 +166,9 @@
       "showing": "{start}-{end} of {total}",
       "loadMore": "Load more",
       "loading": "Loading more...",
-      "noMore": "No more items to load"
+      "noMore": "No more items to load",
+      "showingAll": "Showing all {count} {entity}",
+      "showingFiltered": "Showing {filtered} of {total} {entity}"
     },
     "search": {
       "noResults": "No results found",
@@ -305,7 +308,8 @@
       "source": "Source",
       "created": "Created",
       "updated": "Updated",
-      "modified": "Updated",
+      "modified": "Modified",
+      "uploadedAt": "Uploaded at",
       "actions": "Actions",
       "member": "Member",
       "role": "Role",
@@ -412,6 +416,7 @@
     "searchChat": {
       "title": "Search chat",
       "placeholder": "Search chat",
+      "loading": "Loading chats...",
       "noResults": "No results",
       "untitledChat": "Untitled chat"
     },
@@ -691,6 +696,7 @@
         "goToDraft": "Go to draft",
         "webhook": "Webhook",
         "delegation": "Delegation",
+        "conversationStarters": "Starters",
         "test": "Test"
       },
       "testChat": {
@@ -704,7 +710,8 @@
         "attachFiles": "Attach files",
         "send": "Send message",
         "previewImage": "Preview {filename}",
-        "removeAttachment": "Remove attachment"
+        "removeAttachment": "Remove attachment",
+        "messageHistory": "Message history"
       },
       "createDialog": {
         "continue": "Continue",
@@ -716,7 +723,23 @@
         "visibleInChat": "Visible in chat",
         "visibleInChatHelp": "When enabled, this agent appears in the chat page for users to select. When disabled, the agent can only be used through delegation from other agents.",
         "visibilityUpdated": "Chat visibility updated",
-        "visibilityUpdateFailed": "Failed to update chat visibility"
+        "visibilityUpdateFailed": "Failed to update chat visibility",
+        "sectionAdvanced": "Advanced",
+        "sectionAdvancedDescription": "Fine-tune agent execution behavior.",
+        "timeoutMinutes": "Execution timeout (minutes)",
+        "timeoutMinutesHelp": "Maximum time the agent can run per message. Increase for tasks that involve many file operations or sub-agent delegations.",
+        "timeoutUpdated": "Timeout updated",
+        "timeoutUpdateFailed": "Failed to update timeout"
+      },
+      "conversationStarters": {
+        "title": "Conversation starters",
+        "description": "Suggested prompts shown to users when they start a new conversation with this agent. Leave empty to show no suggestions.",
+        "placeholder": "e.g. Help me write a report",
+        "add": "Add starter",
+        "remove": "Remove conversation starter",
+        "dragHandle": "Drag to reorder",
+        "moveUp": "Move up",
+        "moveDown": "Move down"
       },
       "form": {
         "sectionGeneral": "General",
@@ -767,11 +790,6 @@
         "teamNone": "Organization-wide",
         "sharedWithTeams": "Share with additional teams",
         "sharedWithTeamsHelp": "Select additional teams that can access this agent",
-        "sectionFilePreprocessing": "File preprocessing",
-        "sectionFilePreprocessingDescription": "Configure how file attachments are processed",
-        "filePreprocessingEnabled": "Pre-analyze file attachments",
-        "filePreprocessingEnabledHelp": "When enabled, uploaded files (documents, images, text) are automatically analyzed before the AI responds. This provides faster and more accurate responses. When disabled, the AI uses tools to read files on demand.",
-        "filePreprocessingInjectedPrompt": "The following instructions will be automatically appended to the system prompt:",
         "copyPrompt": "Copy prompt",
         "sectionStructuredResponses": "Structured responses",
         "sectionStructuredResponsesDescription": "Configure whether the agent can use structured response markers (conclusion, key points, details, etc.) to format substantial answers",
@@ -1211,7 +1229,6 @@
       "testAndCreate": "Test & create provider",
       "useApiSending": "Use API sending (recommended - no port blocking)",
       "useApiSendingShort": "Use API sending",
-      "setAsDefault": "Set as default",
       "apiSending": "API sending",
       "providerGmail": "Gmail",
       "providerOutlook": "Outlook",
@@ -1695,15 +1712,25 @@
       "descriptionPlaceholder": "Describe what this automation does...",
       "creating": "Creating...",
       "continue": "Continue",
-      "tabBlank": "Blank",
-      "tabTemplate": "From template",
       "initialPrompt": "I just created a new automation called \"{name}\". Here is what it should do:\n\n{description}\n\nPlease help me build the workflow steps for this automation."
     },
     "templates": {
-      "description": "Choose a pre-built template to get started quickly.",
-      "noTemplates": "No templates available for this integration.",
+      "description": "Choose a template to get started with pre-configured steps.",
       "fetchError": "Failed to load template. Please try again.",
-      "fetching": "Loading template..."
+      "fetching": "Loading template...",
+      "noTemplates": "No templates available for this integration.",
+      "newAutomation": "New automation",
+      "createNewTemplate": "Create a new automation template",
+      "fillDetails": "Fill in the details for your new workflow.",
+      "automationTemplates": "Automation templates",
+      "manageExisting": "Manage existing automation templates",
+      "loading": "Loading automations...",
+      "noAutomationsFound": "No automations found. Create your first automation above.",
+      "configJson": "Config (JSON)",
+      "configDescription": "Automation configuration settings",
+      "noDescription": "No description",
+      "deleteTitle": "Delete automation?",
+      "deleteDescription": "This action cannot be undone. This will permanently delete the automation template and its steps."
     },
     "editDialog": {
       "title": "Edit automation",
@@ -1841,24 +1868,6 @@
     "validation": {
       "duplicateName": "An automation with this name already exists"
     },
-    "templates": {
-      "description": "Choose a template to get started with pre-configured steps.",
-      "fetchError": "Failed to load template. Please try again.",
-      "fetching": "Loading template...",
-      "noTemplates": "No templates available for this integration.",
-      "newAutomation": "New automation",
-      "createNewTemplate": "Create a new automation template",
-      "fillDetails": "Fill in the details for your new workflow.",
-      "automationTemplates": "Automation templates",
-      "manageExisting": "Manage existing automation templates",
-      "loading": "Loading automations...",
-      "noAutomationsFound": "No automations found. Create your first automation above.",
-      "configJson": "Config (JSON)",
-      "configDescription": "Automation configuration settings",
-      "noDescription": "No description",
-      "deleteTitle": "Delete automation?",
-      "deleteDescription": "This action cannot be undone. This will permanently delete the automation template and its steps."
-    },
     "deleteAutomation": {
       "title": "Delete automation",
       "description": "Are you sure you want to delete \"{name}\"? This action cannot be undone."
@@ -1891,7 +1900,8 @@
       },
       "viewMore": "View more",
       "viewLess": "View less",
-      "analyzeAttachments": "Please analyze the attached files."
+      "analyzeAttachments": "Please analyze the attached files.",
+      "messageHistory": "Message history"
     },
     "tester": {
       "inputLabel": "Test input (JSON)",
@@ -1983,9 +1993,23 @@
       "resolveFailed": "Failed to resolve conversations",
       "reopened": "Conversations reopened",
       "reopenedDescription": "Successfully reopened {successCount} conversations{failedCount, plural, =0 {} other {, {failedCount} failed}}",
-      "reopenFailed": "Failed to reopen conversations"
+      "reopenFailed": "Failed to reopen conversations",
+      "selectedCount": "{count, plural, one {# selected} other {# selected}}",
+      "archive": "Archive",
+      "unarchive": "Unarchive",
+      "archived": "Conversations archived",
+      "archivedDescription": "Successfully archived {successCount} conversations{failedCount, plural, =0 {} other {, {failedCount} failed}}",
+      "archiveFailed": "Failed to archive conversations",
+      "unarchived": "Conversations unarchived",
+      "unarchivedDescription": "Successfully unarchived {successCount} conversations{failedCount, plural, =0 {} other {, {failedCount} failed}}",
+      "unarchiveFailed": "Failed to unarchive conversations",
+      "markSpam": "Mark as spam",
+      "markedAsSpam": "Conversations marked as spam",
+      "markedAsSpamDescription": "Successfully marked {successCount} conversations as spam{failedCount, plural, =0 {} other {, {failedCount} failed}}",
+      "spamFailed": "Failed to mark conversations as spam"
     },
     "header": {
+      "moreActions": "More actions",
       "customerInfo": "Customer info",
       "closeConversation": "Close conversation",
       "closing": "Closing...",
@@ -2009,7 +2033,8 @@
       "backToEditor": "Back to editor",
       "improving": "Improving...",
       "improveWithAi": "Improve with AI",
-      "generateImprovement": "Generate improvement"
+      "generateImprovement": "Generate improvement",
+      "replyImproved": "Reply improved"
     },
     "attachment": {
       "download": "Download",
@@ -2028,7 +2053,21 @@
       "invalidFileAttachment": "Invalid file attachment",
       "defaultSubject": "Re: Conversation",
       "customerEmailNotFound": "Cannot send email: customer email not found",
-      "replySubjectPrefix": "Re: {subject}"
+      "replySubjectPrefix": "Re: {subject}",
+      "loadFailed": "Failed to load conversation",
+      "loadFailedDescription": "Something went wrong while loading this conversation.",
+      "tryAgain": "Try again",
+      "closedBanner": "This conversation was closed on {date}",
+      "closedBannerNoDate": "This conversation was closed",
+      "archivedBanner": "This conversation was archived",
+      "spamBanner": "This conversation was marked as spam",
+      "unarchive": "Unarchive",
+      "notSpam": "Not spam",
+      "delete": "Delete",
+      "deleting": "Deleting...",
+      "deleteSuccess": "Conversation deleted successfully.",
+      "deleteFailed": "Failed to delete conversation.",
+      "showEarlierMessages": "Show {count} earlier {count, plural, one {message} other {messages}}"
     },
     "filters": {
       "title": "Filters",
@@ -2061,16 +2100,93 @@
       "title": "Activate conversations",
       "description": "Connect your email to get started with conversations",
       "connectEmail": "Connect email"
+    },
+    "filter": {
+      "label": "Filter by read status",
+      "all": "All",
+      "read": "Read",
+      "unread": "Unread"
     }
+  },
+  "humanInputRequest": {
+    "questionTitle": "Question",
+    "submit": "Submit response",
+    "statusResponded": "Responded",
+    "statusProcessing": "Processing",
+    "respondedByAt": "Responded by {name} at {date}",
+    "stopWorkflow": "Stop",
+    "stopWorkflowTooltip": "Stop the running workflow",
+    "formFieldRequired": "Required",
+    "errorFillRequiredFields": "Please fill in all required fields",
+    "errorSelectRequired": "Please make a selection",
+    "errorFeedbackRequired": "Please enter your feedback",
+    "copyQuestions": "Copy questions",
+    "pushback": "Reply differently",
+    "pushbackPlaceholder": "Tell the AI what you'd like instead...",
+    "sendFeedback": "Send feedback",
+    "backToForm": "Back to form"
+  },
+  "locationRequest": {
+    "title": "Location request",
+    "shareLocation": "Share location",
+    "deny": "Deny",
+    "acquiring": "Getting location…",
+    "denied": "Location access was denied.",
+    "statusShared": "Shared",
+    "statusDenied": "Denied",
+    "sharedBy": "Shared by {name} at {date}",
+    "errorNotSupported": "Geolocation is not supported by your browser.",
+    "errorAcquireFailed": "Failed to acquire location. Please try again.",
+    "defaultReason": "The assistant needs your location to help with your request."
+  },
+  "approvalCommon": {
+    "reject": "Cancel",
+    "errorNotAuthenticated": "User not authenticated",
+    "errorRejectFailed": "Failed to reject",
+    "errorSubmitFailed": "Failed to submit response",
+    "copied": "Copied!",
+    "copyConfiguration": "Copy configuration",
+    "viewWorkflow": "View workflow"
+  },
+  "workflowCreationApproval": {
+    "approve": "Create workflow",
+    "approveTooltip": "Approve and create this workflow",
+    "rejectTooltip": "Cancel workflow creation",
+    "stepsCount": "{count} steps",
+    "copyAriaLabel": "Copy workflow configuration",
+    "createdSuccessfully": "Workflow created successfully",
+    "statusExecuting": "Workflow creation in progress...",
+    "statusCompletedFailed": "Workflow creation was approved but failed.",
+    "statusCompletedSuccess": "Workflow was created successfully.",
+    "statusRejected": "Workflow creation was cancelled.",
+    "errorCreateFailed": "Failed to create workflow"
+  },
+  "workflowUpdateApproval": {
+    "approve": "Apply update",
+    "approveTooltip": "Approve and apply this update",
+    "rejectTooltip": "Cancel workflow update",
+    "badgeFullSave": "Update workflow",
+    "badgeMultiStep": "Update {count} steps",
+    "badgeStepPatch": "Update step",
+    "versionLabel": "Version:",
+    "idLabel": "ID:",
+    "copyAriaLabel": "Copy update configuration",
+    "updatedSuccessfully": "Workflow updated successfully",
+    "statusExecuting": "Applying update...",
+    "statusCompletedFailed": "Update was approved but failed to apply.",
+    "statusCompletedSuccess": "Workflow was updated successfully.",
+    "statusRejected": "Workflow update was cancelled.",
+    "errorApplyFailed": "Failed to apply update"
   },
   "workflowRunApproval": {
     "approve": "Run workflow",
-    "reject": "Cancel",
     "approveTooltip": "Approve and run this workflow",
     "rejectTooltip": "Cancel workflow execution",
-    "statusApprovedSuccess": "Workflow execution started successfully.",
-    "statusApprovedFailed": "Workflow execution was approved but failed to start.",
-    "statusRejected": "Workflow execution was cancelled.",
+    "statusExecuting": "Executing...",
+    "statusCompleted": "Completed",
+    "statusCompletedSuccess": "Workflow execution started successfully.",
+    "statusCompletedFailed": "Workflow execution was approved but failed to start.",
+    "statusRejected": "Rejected",
     "showParameters": "Show parameters",
     "hideParameters": "Hide parameters",
     "executionRunning": "Running...",
@@ -2085,8 +2201,38 @@
     "stopExecution": "Stop",
     "stopTooltip": "Stop workflow execution",
     "statusPending": "Pending",
-    "statusApproved": "Approved",
-    "statusRejected": "Rejected"
+    "errorRunFailed": "Failed to run workflow",
+    "errorStopFailed": "Failed to stop execution",
+    "humanInputPlaceholder": "Type your response...",
+    "submitResponse": "Submit response",
+    "copyQuestions": "Copy questions",
+    "pushback": "Reply differently",
+    "pushbackPlaceholder": "Tell the AI what you'd like instead...",
+    "sendFeedback": "Send feedback",
+    "backToForm": "Back to form",
+    "errorFillRequiredFields": "Please fill in all required fields",
+    "errorSelectRequired": "Please make a selection",
+    "errorFeedbackRequired": "Please enter your feedback"
+  },
+  "documentWriteApproval": {
+    "cardTitle": "Save to documents",
+    "cardTitleWithCount": "Save {count} files to documents",
+    "approve": "Approve",
+    "reject": "Reject",
+    "approveTooltip": "Approve and save this document",
+    "approveTooltipBatch": "Approve and save all documents",
+    "rejectTooltip": "Reject this document save",
+    "rejectTooltipBatch": "Reject all document saves",
+    "savedSuccessfully": "Saved to your documents",
+    "savedPartially": "{success} of {total} files saved successfully",
+    "fileFailed": "Failed to save",
+    "statusExecuting": "Saving documents...",
+    "statusCompletedFailed": "This document was approved but failed to save.",
+    "statusCompletedSuccess": "This document was saved to your documents.",
+    "statusCompletedPartial": "Some documents failed to save.",
+    "statusRejected": "This document save was rejected.",
+    "allFilesFailed": "All {count} files failed to save",
+    "errorSaveFailed": "Failed to save document"
   },
   "integrationApproval": {
     "approve": "Approve",
@@ -2094,9 +2240,11 @@
     "executedSuccessfully": "Executed successfully",
     "approveTooltip": "Approve and execute this operation",
     "rejectTooltip": "Reject this operation",
-    "statusApprovedFailed": "This operation was approved but failed during execution.",
-    "statusApprovedSuccess": "This operation was approved and executed successfully.",
+    "statusExecuting": "Executing operation...",
+    "statusCompletedFailed": "This operation was approved but failed during execution.",
+    "statusCompletedSuccess": "This operation was approved and executed successfully.",
     "statusRejected": "This operation was rejected.",
+    "errorApproveFailed": "Failed to approve operation",
     "moreParameters": "+{count} more",
     "showLess": "Show less"
   },
@@ -2111,7 +2259,35 @@
     "deleteConfirmation": "Are you sure you want to delete {title}?",
     "deleteArchiveMessage": "This chat will be archived and won't appear in your chat history.",
     "deleteFailed": "Failed to delete chat",
-    "welcome": "How can I assist you?",
+    "welcome": "What are you working on?",
+    "welcomeEmpty": "How can I assist you?",
+    "welcomeSuffix": "here, what are we working on?",
+    "suggestions": {
+      "admin": [
+        "Draft a project proposal for Q4",
+        "Analyze last month's revenue trends",
+        "Write a follow-up email to the client",
+        "Summarize our latest product updates"
+      ],
+      "editor": [
+        "Write a blog post about our new feature",
+        "Review and improve this content draft",
+        "Create a product description for the catalog",
+        "Summarize the key points from this document"
+      ],
+      "developer": [
+        "Help me debug this issue",
+        "Review this code for best practices",
+        "Write unit tests for this function",
+        "Explain how this integration works"
+      ],
+      "member": [
+        "Draft an email to a customer",
+        "Summarize our latest product updates",
+        "Help me prepare for a meeting",
+        "Answer a question about our products"
+      ]
+    },
     "toast": {
       "generateFailed": "Failed to generate response",
       "sendFailed": "Failed to send message"
@@ -2152,7 +2328,6 @@
       "searchPlaceholder": "Search agents",
       "noResults": "No agents found",
       "addAgent": "Add agent",
-      "configureAgent": "Configure agent",
       "builtinAgents": {
         "chat": {
           "name": "Assistant",
@@ -2192,7 +2367,13 @@
     "stopGenerating": "Stop generating",
     "generationStopped": "Generation stopped",
     "errorDetails": "Error details",
+    "errorGenerating": "Something went wrong",
+    "errorGeneratingDescription": "There was an error generating a response. Please try again.",
+    "retryGeneration": "Try again",
+    "showMore": "Show more",
+    "showLess": "Show less",
     "noAgentsAvailable": "No agents available. Please publish an agent first.",
+    "pendingApprovalDisabled": "Respond to the pending request above to continue",
     "searchConversations": "Search conversations",
     "invalidFiles": "Invalid files",
     "filesNotSupported": "Some files are too large (>10MB) or not supported. Supported: images, PDF, Word docs, text files.",
@@ -2201,6 +2382,7 @@
     "uploadFailed": "Upload failed",
     "failedToUpload": "Failed to upload {filename}",
     "removeAttachment": "Remove attachment",
+    "uploadingFile": "Uploading file",
     "viewImage": "View image",
     "dropFilesToAdd": "Drop files here to add to chat",
     "fileTypes": {
@@ -2221,6 +2403,7 @@
       "attachment": "Attachment",
       "imageAttachment": "Image attachment"
     },
+    "downloadFile": "Download file",
     "toolStatus": {
       "ragSearch": "Searching knowledge base"
     },
@@ -2261,6 +2444,8 @@
       "renameChat": "Rename chat",
       "loadMore": "Load more",
       "loadingMore": "Loading...",
+      "generating": "Generating response",
+      "awaitingInput": "Awaiting your input",
       "toast": {
         "renameFailed": "Failed to rename chat"
       }
@@ -2271,7 +2456,8 @@
     },
     "structured": {
       "nextSteps": "Suggested follow-ups"
-    }
+    },
+    "welcomeSuffix": "here, what are we working on?"
   },
   "documents": {
     "title": "Documents",
@@ -2847,7 +3033,7 @@
     },
     "viewPages": "View pages",
     "indexed": "Indexed",
-    "indexedTooltip": "{percentage}\u202F% - {crawled} of {total} pages",
+    "indexedTooltip": "{percentage} % - {crawled} of {total} pages",
     "pageCount": "{count} pages",
     "pageCountOne": "{count} page",
     "pageCountProgress": "{crawled}/{total} pages",
@@ -2901,10 +3087,10 @@
   "metadata": {
     "suffix": "Tale",
     "default": {
-      "title": "AI that automates your workflows",
-      "description": "Tale is an AI-powered platform that automates your business workflows, handles customer conversations, and streamlines approvals."
+      "title": "The Sovereign AI Platform",
+      "description": "Local AI models, agents, skills, and automations — on your own infrastructure, connected to your data"
     },
-    "keywords": "AI automation, workflow automation, customer service AI, business automation, Tale",
+    "keywords": "sovereign AI, local AI, self-hosted AI platform, AI agents, AI automations, on-premise AI, data sovereignty, private infrastructure, AI skills, local language models, enterprise AI, data privacy, agentic AI, workflow automation",
     "chat": {
       "title": "Chat",
       "description": "Chat with AI to get help with your tasks."
@@ -2967,7 +3153,7 @@
     },
     "customAgents": {
       "title": "Custom agents",
-      "description": "Manage custom AI agents for your organization."
+      "description": "Create and manage AI agents for customer service."
     },
     "integrations": {
       "title": "Integrations",
@@ -3004,10 +3190,6 @@
     "knowledge": {
       "title": "Knowledge",
       "description": "Manage your knowledge base for AI agents."
-    },
-    "customAgents": {
-      "title": "Custom agents",
-      "description": "Create and manage AI agents for customer service."
     },
     "customAgent": {
       "title": "Custom agent",

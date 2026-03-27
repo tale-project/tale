@@ -12,7 +12,9 @@ import type { ToolDefinition } from '../types';
 
 import { internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
+import { buildDownloadUrl } from '../../lib/helpers/public_storage_url';
 import { toId } from '../../lib/type_cast_helpers';
+import { appendFilePart } from './helpers/append_file_part';
 import { resolveFileName } from './helpers/resolve_file_name';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
@@ -46,60 +48,53 @@ interface ParseExcelResult {
 
 type ExcelResult = GenerateExcelResult | ParseExcelResult;
 
-const excelArgs = z.object({
-  operation: z
-    .enum(['generate', 'parse'])
-    .optional()
-    .describe(
-      "Operation: 'generate' (default) or 'parse' (extract data from Excel).",
-    ),
-  // For generate operation
-  fileName: z
-    .string()
-    .optional()
-    .describe(
-      "For 'generate': Base name for the Excel file (without extension). Required for generate.",
-    ),
-  sheets: z
-    .array(
-      z.object({
-        name: z.string().describe('Sheet name'),
-        headers: z
-          .array(z.string())
-          .nonempty()
-          .describe(
-            "Column headers for the sheet (must align with each row's columns)",
-          ),
-        rows: z
-          .array(
-            z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])),
-          )
-          .describe('2D array of cell values (rows x columns)'),
-      }),
-    )
-    .optional()
-    .describe(
-      "For 'generate': Sheets to include in the Excel file. Required for generate.",
-    ),
-  // For parse operation
-  fileId: z
-    .string()
-    .optional()
-    .describe(
-      "For 'parse': **REQUIRED** - Convex storage ID (e.g., 'kg2bazp7fbgt9srq63knfagjrd7yfenj'). Get this from the file attachment context.",
-    ),
-  filename: z
-    .string()
-    .optional()
-    .describe(
-      "For 'parse': Original filename (e.g., 'report.xlsx'). Optional — auto-resolved from file metadata if omitted.",
-    ),
-});
+const excelArgs = z.discriminatedUnion('operation', [
+  z.object({
+    operation: z.literal('generate'),
+    fileName: z
+      .string()
+      .describe('Base name for the Excel file (without extension)'),
+    sheets: z
+      .array(
+        z.object({
+          name: z.string().describe('Sheet name'),
+          headers: z
+            .array(z.string())
+            .nonempty()
+            .describe(
+              "Column headers for the sheet (must align with each row's columns)",
+            ),
+          rows: z
+            .array(
+              z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])),
+            )
+            .describe('2D array of cell values (rows x columns)'),
+        }),
+      )
+      .describe('Sheets to include in the Excel file'),
+  }),
+  z.object({
+    operation: z.literal('parse'),
+    fileId: z
+      .string()
+      .describe(
+        "Convex storage ID (e.g., 'kg2bazp7fbgt9srq63knfagjrd7yfenj'). Get this from the file attachment context.",
+      ),
+    filename: z
+      .string()
+      .optional()
+      .describe(
+        "Original filename (e.g., 'report.xlsx'). Optional — auto-resolved from file metadata if omitted.",
+      ),
+  }),
+]);
 
 export const excelTool = {
   name: 'excel' as const,
   tool: createTool({
     description: `Excel (.xlsx) tool for generating and parsing spreadsheet files.
+
+IMPORTANT: Only call the "generate" operation when the user explicitly requests creating or exporting an Excel/spreadsheet file. Do NOT proactively generate Excel files unless the user specifically asks for this format.
 
 OPERATIONS:
 
@@ -121,20 +116,14 @@ EXAMPLES:
 • Generate: { "operation": "generate", "fileName": "customers", "sheets": [{ "name": "Sheet1", "headers": ["Name", "Email"], "rows": [["Alice", "alice@example.com"]] }] }
 • Parse: { "operation": "parse", "fileId": "kg2bazp7...", "filename": "report.xlsx" }
 
-CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the result. Never fabricate URLs.
+AFTER GENERATING: Check the downloadUrl in the result:
+- If it says "[file card shown in chat]": the file is already visible as a download card. Do NOT mention downloading, do NOT include a link, and do NOT say "you can download it" — the card handles this.
+- If it contains an actual URL: no download card was shown. You MUST include the URL as a clickable markdown link so the user can download the file.
+To also save the file to a folder in the documents hub, call document_write with the returned fileStorageId and the desired folderPath.
 `,
-    args: excelArgs,
-    handler: async (ctx: ToolCtx, args): Promise<ExcelResult> => {
-      const operation = args.operation ?? 'generate';
-
-      // Handle parse operation
-      if (operation === 'parse') {
-        if (!args.fileId) {
-          throw new Error(
-            "Missing required 'fileId' for parse operation. Get the fileId from the file attachment context.",
-          );
-        }
-
+    inputSchema: excelArgs,
+    execute: async (ctx: ToolCtx, args): Promise<ExcelResult> => {
+      if (args.operation === 'parse') {
         const resolvedFilename = await resolveFileName(
           ctx,
           args.fileId,
@@ -187,14 +176,7 @@ CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the 
         }
       }
 
-      // Default: generate operation
-      if (!args.fileName) {
-        throw new Error("Missing required 'fileName' for generate operation");
-      }
-      if (!args.sheets || args.sheets.length === 0) {
-        throw new Error("Missing required 'sheets' for generate operation");
-      }
-
+      // operation === 'generate'
       debugLog('tool:excel generate start', {
         fileName: args.fileName,
         sheetCount: args.sheets.length,
@@ -232,11 +214,7 @@ CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the 
           },
         );
 
-        const url = await ctx.storage.getUrl(fileId);
-
-        if (!url) {
-          throw new Error('Storage URL unavailable for generated Excel file.');
-        }
+        const url = buildDownloadUrl(fileId, result.fileName);
 
         debugLog('tool:excel generate success', {
           fileName: result.fileName,
@@ -245,11 +223,18 @@ CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the 
           sheetCount: result.sheetCount,
         });
 
+        const cardAppended = await appendFilePart(ctx, {
+          fileName: result.fileName,
+          mimeType:
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          downloadUrl: url,
+        });
+
         return {
           operation: 'generate',
           success: true,
           fileStorageId: fileId,
-          downloadUrl: url,
+          downloadUrl: cardAppended ? '[file card shown in chat]' : url,
           fileName: result.fileName,
           rowCount: result.rowCount,
           sheetCount: result.sheetCount,
@@ -261,11 +246,11 @@ CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the 
           error: message,
         });
         return {
-          operation: 'generate' as const,
+          operation: 'generate',
           success: false,
           fileStorageId: '',
           downloadUrl: '',
-          fileName: args.fileName ?? 'unknown.xlsx',
+          fileName: args.fileName,
           rowCount: 0,
           sheetCount: 0,
           error: message,

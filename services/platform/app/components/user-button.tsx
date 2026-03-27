@@ -28,6 +28,7 @@ import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
 import { toast } from '@/app/hooks/use-toast';
+import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -73,7 +74,7 @@ export function UserButton({
       // all React rendering. Using router.push causes a race condition where
       // queries (member, approvals, threads, etc.) fire with stale auth state
       // before navigation completes, resulting in "Unauthenticated" errors.
-      window.location.href = '/';
+      window.location.href = getEnv('BASE_PATH') || '/';
     } catch {
       toast({
         title: t('userButton.toast.signOutFailed'),

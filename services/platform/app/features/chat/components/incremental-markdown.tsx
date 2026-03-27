@@ -49,13 +49,32 @@ import type { Components } from 'react-markdown';
 import { memo, useMemo, useRef, type ReactNode } from 'react';
 import Markdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
-import rehypeSanitize from 'rehype-sanitize';
+import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import remarkGfm from 'remark-gfm';
 
 import type {
   MarkdownComponentMap,
   MarkdownComponentType,
 } from '@/lib/utils/markdown-types';
+
+import { remendMarkdown } from '../utils/remend-markdown';
+
+const chatSanitizeSchema = {
+  ...defaultSchema,
+  tagNames: [...(defaultSchema.tagNames ?? []), 'details', 'summary'],
+  attributes: {
+    ...defaultSchema.attributes,
+    details: [...(defaultSchema.attributes?.details ?? []), 'open'],
+  },
+};
+
+const remarkDisableIndentedCode = function (this: {
+  data: () => { micromarkExtensions?: { disable?: { null?: string[] } }[] };
+}) {
+  const data = this.data();
+  if (!data.micromarkExtensions) data.micromarkExtensions = [];
+  data.micromarkExtensions.push({ disable: { null: ['codeIndented'] } });
+};
 
 // ============================================================================
 // CONSTANTS
@@ -114,8 +133,8 @@ const StableMarkdown = memo(
 
     return (
       <Markdown
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeRaw, rehypeSanitize]}
+        remarkPlugins={[remarkDisableIndentedCode, remarkGfm]}
+        rehypePlugins={[rehypeRaw, [rehypeSanitize, chatSanitizeSchema]]}
         components={components}
       >
         {content}
@@ -161,10 +180,11 @@ const StreamingMarkdown = memo(
     components?: MarkdownComponentMap;
     showCursor?: boolean;
   }) {
-    const revealedContent = content ? content.slice(0, revealedLength) : '';
+    const rawRevealed = content ? content.slice(0, revealedLength) : '';
+    const revealedContent = remendMarkdown(rawRevealed);
 
-    // Refs for cursor position detection — avoids recreating wrapper
-    // functions on every 50ms update. Wrappers read from refs instead.
+    // Refs must track the remended string because react-markdown's AST
+    // node.position offsets reference positions in the string it received.
     const revealedLenRef = useRef(revealedContent.length);
     revealedLenRef.current = revealedContent.length;
     const revealedTextRef = useRef(revealedContent);
@@ -274,8 +294,8 @@ const StreamingMarkdown = memo(
 
     return (
       <Markdown
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeRaw, rehypeSanitize]}
+        remarkPlugins={[remarkDisableIndentedCode, remarkGfm]}
+        rehypePlugins={[rehypeRaw, [rehypeSanitize, chatSanitizeSchema]]}
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- cursor wrapper functions are structurally compatible with react-markdown Components; Index signature mismatch is a false positive
         components={componentsWithCursor as Components}
       >

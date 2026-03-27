@@ -17,14 +17,20 @@ interface PersistedAttachment {
   fileSize: number;
 }
 
-function storageKey(threadId?: string) {
-  return `${STORAGE_KEY_PREFIX}${threadId ?? 'new'}`;
+function storageKey(userId: string | undefined, threadId?: string) {
+  const base = userId
+    ? `${STORAGE_KEY_PREFIX}${userId}`
+    : `${STORAGE_KEY_PREFIX}anon`;
+  return threadId ? `${base}-${threadId}` : `${base}-new`;
 }
 
-function loadPersisted(threadId?: string): PersistedAttachment[] {
+function loadPersisted(
+  userId: string | undefined,
+  threadId?: string,
+): PersistedAttachment[] {
   if (typeof window === 'undefined') return [];
   try {
-    const raw = localStorage.getItem(storageKey(threadId));
+    const raw = localStorage.getItem(storageKey(userId, threadId));
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
@@ -34,11 +40,12 @@ function loadPersisted(threadId?: string): PersistedAttachment[] {
 }
 
 function savePersisted(
+  userId: string | undefined,
   threadId: string | undefined,
   attachments: FileAttachment[],
 ) {
   if (typeof window === 'undefined') return;
-  const key = storageKey(threadId);
+  const key = storageKey(userId, threadId);
   if (attachments.length === 0) {
     try {
       localStorage.removeItem(key);
@@ -75,12 +82,14 @@ function toFileAttachment(
 }
 
 interface UsePersistedAttachmentsOptions {
+  userId?: string;
   threadId?: string;
   attachments: FileAttachment[];
   setAttachments: (attachments: FileAttachment[]) => void;
 }
 
 export function usePersistedAttachments({
+  userId,
   threadId,
   attachments,
   setAttachments,
@@ -95,7 +104,7 @@ export function usePersistedAttachments({
   useEffect(() => {
     if (hasRestoredRef.current) return;
     hasRestoredRef.current = true;
-    const persisted = loadPersisted(threadId);
+    const persisted = loadPersisted(userId, threadId);
     if (persisted.length > 0) {
       isRestoringRef.current = true;
       setAttachments(persisted.map((p) => toFileAttachment(p)));
@@ -106,15 +115,15 @@ export function usePersistedAttachments({
   // On thread switch: save current, restore new
   useEffect(() => {
     if (prevThreadIdRef.current === threadId) return;
-    savePersisted(prevThreadIdRef.current, attachmentsRef.current);
+    savePersisted(userId, prevThreadIdRef.current, attachmentsRef.current);
     prevThreadIdRef.current = threadId;
 
-    const persisted = loadPersisted(threadId);
+    const persisted = loadPersisted(userId, threadId);
     isRestoringRef.current = true;
     setAttachments(
       persisted.length > 0 ? persisted.map((p) => toFileAttachment(p)) : [],
     );
-  }, [threadId, setAttachments]);
+  }, [userId, threadId, setAttachments]);
 
   // Persist to localStorage when attachments change (skip restore-triggered updates)
   useEffect(() => {
@@ -122,8 +131,8 @@ export function usePersistedAttachments({
       isRestoringRef.current = false;
       return;
     }
-    savePersisted(threadId, attachments);
-  }, [threadId, attachments]);
+    savePersisted(userId, threadId, attachments);
+  }, [userId, threadId, attachments]);
 
   // Fetch serving URLs for image attachments that don't have a preview URL yet
   const imageFileIdsNeedingUrl = useMemo(

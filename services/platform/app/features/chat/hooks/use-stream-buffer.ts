@@ -11,10 +11,8 @@
  *
  * STRATEGY:
  * =========
- * 1. ADAPTIVE RATE: Base CPS (default 50) when buffer is small.
- *    As buffer grows past a threshold, CPS increases via sqrt curve
- *    up to a configurable cap (default 600). This keeps short responses
- *    feeling like smooth typing while long responses reveal quickly.
+ * 1. CONSTANT RATE: Fixed CPS (default 20) for a steady, readable
+ *    typing feel regardless of buffer depth.
  *
  * 2. INITIAL BUFFERING: Waits for enough characters before starting
  *    - Builds a small reservoir to smooth the first few seconds
@@ -24,8 +22,7 @@
  *    - Cursor stays visible while waiting for next chunk
  *    - Resumes at the same rate when text arrives
  *
- * 4. STREAM ENDS: Drains remaining buffer at adaptive rate
- *    - Large leftover buffer drains fast, short tail drains smoothly
+ * 4. STREAM ENDS: Drains remaining buffer at the same constant rate
  *
  * USAGE:
  * ------
@@ -44,20 +41,14 @@ import { usePrefersReducedMotion } from '@/app/hooks/use-prefers-reduced-motion'
 // ============================================================================
 
 const DEFAULT_CONFIG = {
-  /** Base characters per second (used when buffer is small) */
-  targetCPS: 50,
+  /** Characters per second for reveal animation */
+  targetCPS: 20,
   /** Characters to buffer before starting reveal */
   initialBufferChars: 30,
   /** Interval between React state updates (ms) */
   stateUpdateInterval: 50,
   /** Maximum delta time (ms) to prevent jumps after tab switching */
   maxDeltaTime: 100,
-  /** Buffer chars before adaptive acceleration kicks in */
-  accelerationThreshold: 50,
-  /** Sqrt scale factor — controls how aggressively CPS ramps with buffer depth */
-  accelerationScale: 15,
-  /** Hard ceiling on CPS regardless of buffer size */
-  maxCPS: 600,
 };
 
 // ============================================================================
@@ -218,35 +209,6 @@ export function consumeFrozenDisplayText(): string | null {
 }
 
 // ============================================================================
-// ADAPTIVE CPS
-// ============================================================================
-
-/**
- * Compute the effective CPS given the current buffer depth.
- *
- *   effectiveCPS = baseCPS + sqrt(max(0, buffer - threshold)) * scale
- *
- * sqrt gives a smooth, non-linear ramp: gentle acceleration for small
- * buffers, tapering off as the cap is approached. This avoids jarring
- * speed jumps while keeping long responses from falling behind.
- *
- *   Buffer   50 → 50 CPS  (base)
- *   Buffer  100 → 156 CPS
- *   Buffer  300 → 237 CPS
- *   Buffer  500 → 368 CPS
- *   Buffer 1000 → 512 CPS
- *   Buffer 2000 → 600 CPS  (cap)
- */
-function getEffectiveCPS(baseCPS: number, bufferSize: number): number {
-  if (bufferSize <= DEFAULT_CONFIG.accelerationThreshold) return baseCPS;
-  const excess = bufferSize - DEFAULT_CONFIG.accelerationThreshold;
-  return Math.min(
-    baseCPS + Math.sqrt(excess) * DEFAULT_CONFIG.accelerationScale,
-    DEFAULT_CONFIG.maxCPS,
-  );
-}
-
-// ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
 
@@ -264,6 +226,43 @@ function findNextWordBoundary(text: string, startPos: number): number {
   return startPos;
 }
 
+/** Regex matching a fenced code block delimiter at line start (CommonMark). */
+const LINE_START_FENCE_RE = /^`{3,}/gm;
+
+/**
+ * Find the position of the last line-start fence in `text`.
+ * Returns -1 if none found.
+ */
+function lastLineStartFence(text: string): number {
+  let last = -1;
+  LINE_START_FENCE_RE.lastIndex = 0;
+  let m;
+  while ((m = LINE_START_FENCE_RE.exec(text)) !== null) {
+    last = m.index;
+  }
+  return last;
+}
+
+/**
+ * Find the last line-start fence followed by `\n` in `text`.
+ * This detects closing fences and bare opening fences (no language tag).
+ * Returns `{ pos, endPos }` where endPos is after the `\n`, or null if none.
+ */
+function lastLineStartFenceWithNewline(
+  text: string,
+): { pos: number; endPos: number } | null {
+  let result: { pos: number; endPos: number } | null = null;
+  LINE_START_FENCE_RE.lastIndex = 0;
+  let m;
+  while ((m = LINE_START_FENCE_RE.exec(text)) !== null) {
+    const afterMatch = m.index + m[0].length;
+    if (afterMatch < text.length && text[afterMatch] === '\n') {
+      result = { pos: m.index, endPos: afterMatch + 1 };
+    }
+  }
+  return result;
+}
+
 export function findSafeAnchor(text: string, currentPos: number): number {
   if (currentPos <= 0) return 0;
 
@@ -271,27 +270,44 @@ export function findSafeAnchor(text: string, currentPos: number): number {
   const searchText = text.slice(searchStart, currentPos);
 
   const lastParagraph = searchText.lastIndexOf('\n\n');
-  const lastCodeBlockEnd = searchText.lastIndexOf('```\n');
-  const bestBoundary = Math.max(lastParagraph, lastCodeBlockEnd);
+  const fenceMatch = lastLineStartFenceWithNewline(searchText);
+  const lastCodeBlockEndPos = fenceMatch ? fenceMatch.pos : -1;
+  const bestBoundary = Math.max(lastParagraph, lastCodeBlockEndPos);
 
   if (bestBoundary !== -1) {
     const absolutePos =
-      searchStart + bestBoundary + (lastCodeBlockEnd > lastParagraph ? 4 : 2);
+      lastCodeBlockEndPos > lastParagraph && fenceMatch
+        ? searchStart + fenceMatch.endPos
+        : searchStart + bestBoundary + 2;
 
     const textUpToAnchor = text.slice(0, absolutePos);
-    const codeBlockCount = (textUpToAnchor.match(/```/g) || []).length;
+    const codeBlockCount = (textUpToAnchor.match(LINE_START_FENCE_RE) || [])
+      .length;
 
     if (codeBlockCount % 2 !== 0) {
-      // Inside a code block. The last ``` is the opening fence (fences
+      // Inside a code block. The last fence is the opening fence (fences
       // alternate open/close; odd count means the last one opened).
       // Anchor at the paragraph break before it so everything above
       // the code block stays in the memoized StableMarkdown.
-      const lastFence = textUpToAnchor.lastIndexOf('```');
+      const lastFence = lastLineStartFence(textUpToAnchor);
       if (lastFence <= 0) return 0;
       const breakBefore = text.lastIndexOf('\n\n', lastFence);
       if (breakBefore === -1) return 0;
       return breakBefore + 2;
     }
+
+    // Inside an unclosed <details>? Don't split the element across
+    // StableMarkdown and StreamingMarkdown — fall back to before it.
+    const detailsOpens = (textUpToAnchor.match(/<details[\s>]/g) || []).length;
+    const detailsCloses = (textUpToAnchor.match(/<\/details>/g) || []).length;
+    if (detailsOpens > detailsCloses) {
+      const lastDetailsOpen = textUpToAnchor.lastIndexOf('<details');
+      if (lastDetailsOpen <= 0) return 0;
+      const breakBefore = text.lastIndexOf('\n\n', lastDetailsOpen);
+      if (breakBefore === -1) return 0;
+      return breakBefore + 2;
+    }
+
     return absolutePos;
   }
 
@@ -407,9 +423,7 @@ export function useStreamBuffer({
       const normalizedDelta = Math.min(deltaTime, DEFAULT_CONFIG.maxDeltaTime);
       const frameRatio = normalizedDelta / 16.67;
 
-      // Adaptive CPS: ramps with buffer depth so long responses don't lag
-      const effectiveCPS = getEffectiveCPS(targetCPS, bufferSize);
-      const charsPerFrame = effectiveCPS / 60;
+      const charsPerFrame = targetCPS / 60;
 
       accumulatedCharsRef.current += charsPerFrame * frameRatio;
 
@@ -544,11 +558,13 @@ export function useStreamBuffer({
       !globalFrozen &&
       displayedLengthRef.current < text.length
     ) {
-      // Stream ended but buffer still has content — keep draining
-      if (!animationFrameRef.current) {
-        lastFrameTimeRef.current = 0;
-        animationFrameRef.current = requestAnimationFrame(animate);
-      }
+      // Stream ended — reveal all remaining content immediately
+      wasStreamingRef.current = false;
+      hasStartedRevealRef.current = false;
+      displayedLengthRef.current = text.length;
+      accumulatedCharsRef.current = 0;
+      setDisplayLength(text.length);
+      setIsTyping(false);
     } else if (!frozenRef.current && !globalFrozen) {
       // Never was streaming or fully caught up — show immediately
       wasStreamingRef.current = false;

@@ -138,7 +138,7 @@ CA_CERT_PATH="${CADDY_CA_CERT_PATH:-${CADDY_ROOT_CA:-}}"
 
 # For self-signed mode, trigger and wait for Caddy to generate CA certificate
 # Caddy generates certificates on-demand (lazy), so we need to trigger it
-if [ "${TLS_MODE:-selfsigned}" != "letsencrypt" ] && [ -n "${CA_CERT_PATH}" ]; then
+if [ "${TLS_MODE:-selfsigned}" != "letsencrypt" ] && [ "${TLS_MODE:-selfsigned}" != "external" ] && [ -n "${CA_CERT_PATH}" ]; then
   CA_WAIT_TIMEOUT="${CA_WAIT_TIMEOUT:-60}"
   CA_WAIT_INTERVAL=2
   waited=0
@@ -451,13 +451,6 @@ wait_for_database
 # Build Convex site arguments
 SITE_ARGS="--site-proxy-port ${CONVEX_SITE_PROXY_PORT} --port ${CONVEX_BACKEND_PORT} --interface 0.0.0.0 --do-not-require-ssl"
 
-# Derive Convex origin and site URL from SITE_URL
-CONVEX_CLOUD_ORIGIN="${SITE_URL}/ws_api"
-CONVEX_SITE_URL="${SITE_URL}/http_api"
-
-SITE_ARGS="$SITE_ARGS --convex-origin $CONVEX_CLOUD_ORIGIN"
-SITE_ARGS="$SITE_ARGS --convex-site $CONVEX_SITE_URL"
-
 # Ensure instance secret is present (allows local dev fallback)
 ensure_instance_secret
 
@@ -502,6 +495,7 @@ deploy_convex_functions() {
   # These are the variables that Convex functions need access to
   ENV_VARS_TO_SYNC=(
     "SITE_URL"
+    "BASE_PATH"
     "ENCRYPTION_SECRET_HEX"
     "OPENAI_API_KEY"
     "OPENAI_BASE_URL"
@@ -549,12 +543,25 @@ deploy_convex_functions() {
   sync_count=0
   skip_count=0
   unchanged_count=0
+  remove_count=0
 
   for var_name in "${ENV_VARS_TO_SYNC[@]}"; do
     var_value="${!var_name}"
 
     if [ -z "$var_value" ]; then
-      skip_count=$((skip_count + 1))
+      # Remove from Convex if it was previously set but is now empty/unset
+      if [ "${CONVEX_ENV_MAP[$var_name]+_}" ]; then
+        if bunx convex env remove "$var_name" \
+          --url "http://localhost:${CONVEX_BACKEND_PORT}" \
+          --admin-key "$ADMIN_KEY" >/dev/null 2>&1; then
+          remove_count=$((remove_count + 1))
+          echo "   ✓ $var_name (removed)"
+        else
+          echo "   ⚠️  Failed to remove $var_name"
+        fi
+      else
+        skip_count=$((skip_count + 1))
+      fi
       continue
     fi
 
@@ -577,10 +584,10 @@ deploy_convex_functions() {
     fi
   done
 
-  if [ $sync_count -eq 0 ] && [ $unchanged_count -gt 0 ]; then
+  if [ $sync_count -eq 0 ] && [ $remove_count -eq 0 ] && [ $unchanged_count -gt 0 ]; then
     echo "   ⏭️  All $unchanged_count env vars unchanged"
   else
-    echo "   ✅ Synced $sync_count (new/updated), unchanged $unchanged_count, skipped $skip_count"
+    echo "   ✅ Synced $sync_count (new/updated), removed $remove_count, unchanged $unchanged_count, skipped $skip_count"
   fi
 
   # Deploy functions
@@ -638,7 +645,7 @@ wait_for_http "http://localhost:${CONVEX_DASHBOARD_PORT}" 30 "Convex Dashboard" 
 # Display URLs use SITE_URL (which includes protocol and domain)
 # For localhost development, SITE_URL will be like "http://localhost:3000"
 # For production, SITE_URL will be like "https://demo.tale.dev"
-DISPLAY_BASE_URL="${SITE_URL:-http://localhost:${PORT}}"
+DISPLAY_BASE_URL="${SITE_URL:-http://localhost:${PORT}}${BASE_PATH:-}"
 
 echo ""
 echo "🎉 Tale Platform is running!"

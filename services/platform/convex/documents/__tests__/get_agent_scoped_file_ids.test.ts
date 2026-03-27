@@ -3,22 +3,27 @@ import { describe, it, expect } from 'vitest';
 import { getAgentScopedFileIds } from '../get_agent_scoped_file_ids';
 
 function createMockCtx(docs: Array<Record<string, unknown>>) {
-  const asyncIterator = {
+  const makeAsyncIterator = (filtered: Array<Record<string, unknown>>) => ({
     [Symbol.asyncIterator]() {
       let index = 0;
       return {
         async next() {
-          if (index < docs.length) {
-            return { value: docs[index++], done: false };
+          if (index < filtered.length) {
+            return { value: filtered[index++], done: false };
           }
           return { value: undefined, done: true };
         },
       };
     },
-  };
+  });
 
   const query = () => ({
-    withIndex: () => asyncIterator,
+    withIndex: (indexName: string) => {
+      if (indexName === 'by_organizationId_and_indexed') {
+        return makeAsyncIterator(docs.filter((d) => d.indexed === true));
+      }
+      return makeAsyncIterator(docs);
+    },
   });
 
   return { db: { query } } as unknown as Parameters<
@@ -56,12 +61,14 @@ describe('getAgentScopedFileIds', () => {
         _id: 'doc1',
         fileId: 'file1',
         ragInfo: { status: 'completed' },
+        indexed: true,
         teamId: 'team-a',
       },
       {
         _id: 'doc2',
         fileId: 'file2',
         ragInfo: { status: 'completed' },
+        indexed: true,
         teamId: 'team-b',
       },
     ]);
@@ -82,6 +89,7 @@ describe('getAgentScopedFileIds', () => {
         _id: 'doc1',
         fileId: 'file1',
         ragInfo: { status: 'completed' },
+        indexed: true,
         teamId: 'team-a',
       },
     ]);
@@ -100,6 +108,7 @@ describe('getAgentScopedFileIds', () => {
         _id: 'doc1',
         fileId: 'file1',
         ragInfo: { status: 'completed' },
+        indexed: true,
         teamId: 'team-a',
       },
     ]);
@@ -116,11 +125,17 @@ describe('getAgentScopedFileIds', () => {
 
   it('includes org-wide documents when includeOrgKnowledge is true', async () => {
     const ctx = createMockCtx([
-      { _id: 'doc1', fileId: 'file1', ragInfo: { status: 'completed' } },
+      {
+        _id: 'doc1',
+        fileId: 'file1',
+        ragInfo: { status: 'completed' },
+        indexed: true,
+      },
       {
         _id: 'doc2',
         fileId: 'file2',
         ragInfo: { status: 'completed' },
+        indexed: true,
         teamId: 'team-a',
       },
     ]);
@@ -152,9 +167,19 @@ describe('getAgentScopedFileIds', () => {
 
   it('skips documents without fileId', async () => {
     const ctx = createMockCtx([
-      { _id: 'doc1', ragInfo: { status: 'completed' } },
-      { _id: 'doc2', fileId: undefined, ragInfo: { status: 'completed' } },
-      { _id: 'doc3', fileId: 'file3', ragInfo: { status: 'completed' } },
+      { _id: 'doc1', ragInfo: { status: 'completed' }, indexed: true },
+      {
+        _id: 'doc2',
+        fileId: undefined,
+        ragInfo: { status: 'completed' },
+        indexed: true,
+      },
+      {
+        _id: 'doc3',
+        fileId: 'file3',
+        ragInfo: { status: 'completed' },
+        indexed: true,
+      },
     ]);
 
     const ids = await getAgentScopedFileIds(ctx, {
@@ -171,12 +196,14 @@ describe('getAgentScopedFileIds', () => {
         _id: 'doc1',
         fileId: 'file-team',
         ragInfo: { status: 'completed' },
+        indexed: true,
         teamId: 'team-a',
       },
       {
         _id: 'doc2',
         fileId: 'file-org',
         ragInfo: { status: 'completed' },
+        indexed: true,
       },
     ]);
 
@@ -200,12 +227,14 @@ describe('getAgentScopedFileIds', () => {
         _id: 'doc1',
         fileId: 'file1',
         ragInfo: { status: 'completed' },
+        indexed: true,
         teamId: 'team-a',
       },
       {
         _id: 'doc2',
         fileId: 'file2',
         ragInfo: { status: 'completed' },
+        indexed: true,
       },
     ]);
 

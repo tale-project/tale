@@ -66,16 +66,28 @@ class TestGetDocumentStatuses:
 
         mock_conn = _mock_conn(
             fetch_return=[
-                {"document_id": "doc-1", "status": "completed", "error": None},
-                {"document_id": "doc-2", "status": "processing", "error": None},
+                {
+                    "file_id": "doc-1",
+                    "status": "completed",
+                    "error": None,
+                    "source_created_at": None,
+                    "source_modified_at": None,
+                },
+                {
+                    "file_id": "doc-2",
+                    "status": "processing",
+                    "error": None,
+                    "source_created_at": None,
+                    "source_modified_at": None,
+                },
             ]
         )
 
         with patch("app.services.rag_service.acquire_with_retry", return_value=_async_ctx(mock_conn)):
             result = await service.get_document_statuses(["doc-1", "doc-2", "doc-3"])
 
-        assert result["doc-1"] == {"status": "completed", "error": None}
-        assert result["doc-2"] == {"status": "processing", "error": None}
+        assert result["doc-1"]["status"] == "completed"
+        assert result["doc-2"]["status"] == "processing"
         assert result["doc-3"] is None
 
     async def test_returns_error_field_for_failed_documents(self):
@@ -87,7 +99,13 @@ class TestGetDocumentStatuses:
 
         mock_conn = _mock_conn(
             fetch_return=[
-                {"document_id": "doc-1", "status": "failed", "error": "Embedding failed"},
+                {
+                    "file_id": "doc-1",
+                    "status": "failed",
+                    "error": "Embedding failed",
+                    "source_created_at": None,
+                    "source_modified_at": None,
+                },
             ]
         )
 
@@ -160,7 +178,7 @@ class TestBackgroundIngest:
 
         add_result: dict[str, Any] = {
             "success": True,
-            "document_id": "doc-1",
+            "file_id": "doc-1",
             "chunks_created": 5,
             "skipped": False,
         }
@@ -170,7 +188,11 @@ class TestBackgroundIngest:
             patch("app.routers.documents.cleanup_memory"),
         ):
             mock_rag.add_document = AsyncMock(return_value=add_result)
-            await _background_ingest(b"content", "doc-1", "test.txt", user_id="user-1")
+            await _background_ingest(
+                b"content",
+                "doc-1",
+                "test.txt",
+            )
 
         mock_rag.add_document.assert_awaited_once()
 
@@ -179,7 +201,7 @@ class TestBackgroundIngest:
 
         add_result: dict[str, Any] = {
             "success": True,
-            "document_id": "doc-1",
+            "file_id": "doc-1",
             "chunks_created": 0,
             "skipped": True,
             "skip_reason": "content_unchanged",
@@ -191,16 +213,20 @@ class TestBackgroundIngest:
             patch("app.routers.documents.cleanup_memory"),
         ):
             mock_rag.add_document = AsyncMock(return_value=add_result)
-            await _background_ingest(b"content", "doc-1", "test.txt", user_id="user-1")
+            await _background_ingest(
+                b"content",
+                "doc-1",
+                "test.txt",
+            )
 
-        mock_mark.assert_awaited_once_with("doc-1", "user-1")
+        mock_mark.assert_awaited_once_with("doc-1")
 
     async def test_non_skipped_does_not_call_mark_completed(self):
         from app.routers.documents import _background_ingest
 
         add_result: dict[str, Any] = {
             "success": True,
-            "document_id": "doc-1",
+            "file_id": "doc-1",
             "chunks_created": 5,
             "skipped": False,
         }
@@ -211,7 +237,11 @@ class TestBackgroundIngest:
             patch("app.routers.documents.cleanup_memory"),
         ):
             mock_rag.add_document = AsyncMock(return_value=add_result)
-            await _background_ingest(b"content", "doc-1", "test.txt", user_id="user-1")
+            await _background_ingest(
+                b"content",
+                "doc-1",
+                "test.txt",
+            )
 
         mock_mark.assert_not_awaited()
 
@@ -224,7 +254,11 @@ class TestBackgroundIngest:
             patch("app.routers.documents.cleanup_memory"),
         ):
             mock_rag.add_document = AsyncMock(side_effect=RuntimeError("x" * 1000))
-            await _background_ingest(b"content", "doc-1", "test.txt", user_id="user-1")
+            await _background_ingest(
+                b"content",
+                "doc-1",
+                "test.txt",
+            )
 
         mock_fail.assert_awaited_once()
         error_arg = mock_fail.call_args[0][2]
@@ -243,7 +277,47 @@ class TestBackgroundIngest:
             patch("app.routers.documents.cleanup_memory"),
         ):
             mock_rag.add_document = AsyncMock(side_effect=ValueError("ingestion failed"))
-            await _background_ingest(b"content", "doc-1", "test.txt", user_id="user-1")
+            await _background_ingest(
+                b"content",
+                "doc-1",
+                "test.txt",
+            )
+
+    async def test_forwards_source_timestamps_to_add_document(self):
+        import datetime as dt
+
+        from app.routers.documents import _background_ingest
+
+        created = dt.datetime(2025, 6, 15, 10, 30, 0, tzinfo=dt.UTC)
+        modified = dt.datetime(2025, 7, 20, 14, 45, 0, tzinfo=dt.UTC)
+
+        add_result: dict[str, Any] = {
+            "success": True,
+            "file_id": "doc-1",
+            "chunks_created": 3,
+            "skipped": False,
+        }
+
+        with (
+            patch("app.routers.documents.rag_service") as mock_rag,
+            patch("app.routers.documents.cleanup_memory"),
+        ):
+            mock_rag.add_document = AsyncMock(return_value=add_result)
+            await _background_ingest(
+                b"content",
+                "doc-1",
+                "test.txt",
+                source_created_at=created,
+                source_modified_at=modified,
+            )
+
+        mock_rag.add_document.assert_awaited_once_with(
+            content=b"content",
+            file_id="doc-1",
+            filename="test.txt",
+            source_created_at=created,
+            source_modified_at=modified,
+        )
 
     async def test_cleanup_memory_always_called(self):
         from app.routers.documents import _background_ingest
@@ -254,6 +328,10 @@ class TestBackgroundIngest:
             patch("app.routers.documents.cleanup_memory") as mock_cleanup,
         ):
             mock_rag.add_document = AsyncMock(side_effect=RuntimeError("boom"))
-            await _background_ingest(b"content", "doc-1", "test.txt", user_id="user-1")
+            await _background_ingest(
+                b"content",
+                "doc-1",
+                "test.txt",
+            )
 
         mock_cleanup.assert_called_once()

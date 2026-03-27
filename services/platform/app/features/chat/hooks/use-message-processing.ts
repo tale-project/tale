@@ -2,12 +2,15 @@ import { useUIMessages, type UIMessage } from '@convex-dev/agent/react';
 import { useEffect, useMemo, useRef } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
+import type { SystemMessageDisplay } from '@/lib/shared/constants/system-message-tags';
 
 import { api } from '@/convex/_generated/api';
+import {
+  getSystemMessageDisplay,
+  parseSystemMessageTag,
+} from '@/lib/shared/constants/system-message-tags';
 
 import type { FileAttachment } from '../types';
-
-const HUMAN_INPUT_RESPONSE_PREFIX = 'User responded to question';
 
 const INTERNAL_ATTACHMENT_MARKER =
   /\n?\n?\[ATTACHED FILES - Pre-analysis was not available\. Use your tools to process these files\.\]/;
@@ -64,7 +67,8 @@ export interface ChatMessage {
   _creationTime?: number;
   isStreaming?: boolean;
   isAborted?: boolean;
-  isHumanInputResponse?: boolean;
+  systemMessageDisplay?: SystemMessageDisplay;
+  systemMessageBody?: string;
 }
 
 interface UseMessageProcessingResult {
@@ -142,6 +146,12 @@ export function useMessageProcessing(
     }
   }, [paginationStatus, isLoadingMore, visibleUserMessageCount, loadMore]);
 
+  // Reset auto-load counter on thread switch so new threads can auto-load
+  // even if the previous thread exhausted the cap.
+  useEffect(() => {
+    autoLoadCountRef.current = 0;
+  }, [threadId]);
+
   // Track which messages have been seen as streaming. Once streaming,
   // stay streaming until a terminal status (success/failed) is observed.
   // This prevents transient reconnection states (status briefly "pending")
@@ -175,11 +185,7 @@ export function useMessageProcessing(
         if (m.role === 'assistant') {
           return m.order >= minUserOrder;
         }
-        // Keep system messages that are human input responses
-        if (
-          m.role === 'system' &&
-          m.text?.startsWith(HUMAN_INPUT_RESPONSE_PREFIX)
-        ) {
+        if (m.role === 'system') {
           return true;
         }
         return false;
@@ -201,9 +207,13 @@ export function useMessageProcessing(
             url: p.url,
           }));
 
-        const isHumanInputResponse =
-          m.role === 'system' &&
-          m.text?.startsWith(HUMAN_INPUT_RESPONSE_PREFIX);
+        let systemMessageDisplay: SystemMessageDisplay | undefined;
+        let systemMessageBody: string | undefined;
+        if (m.role === 'system' && m.text) {
+          const parsed = parseSystemMessageTag(m.text);
+          systemMessageDisplay = getSystemMessageDisplay(parsed.tag);
+          systemMessageBody = parsed.body;
+        }
 
         currentKeys.add(m.key);
 
@@ -249,7 +259,8 @@ export function useMessageProcessing(
             m.role === 'assistant' && m.status === 'failed' && !m.text?.trim(),
           isFailed:
             m.role === 'assistant' && m.status === 'failed' && !!m.text?.trim(),
-          isHumanInputResponse,
+          systemMessageDisplay,
+          systemMessageBody,
         };
       });
 
@@ -265,7 +276,46 @@ export function useMessageProcessing(
       }
     }
 
-    return result;
+    // Merge file-only assistant messages into the nearest following text-bearing
+    // assistant message. The file part message has an earlier _creationTime
+    // (saved during the tool call) so it sorts before the text message.
+    //
+    // Pass 1: build a map of key → extra fileParts to attach, O(n)
+    const extraFileParts = new Map<string, FilePart[]>();
+    const fileOnlyKeys = new Set<string>();
+    for (let i = 0; i < result.length; i++) {
+      const msg = result[i];
+      if (!msg) continue;
+      if (
+        msg.role !== 'assistant' ||
+        msg.content ||
+        msg.isAborted ||
+        !msg.fileParts?.length
+      )
+        continue;
+
+      // Find the next text-bearing assistant message
+      for (let j = i + 1; j < result.length; j++) {
+        const next = result[j];
+        if (next?.role === 'assistant' && next.content) {
+          extraFileParts.set(next.key, [
+            ...(extraFileParts.get(next.key) ?? []),
+            ...(msg.fileParts ?? []),
+          ]);
+          fileOnlyKeys.add(msg.key);
+          break;
+        }
+      }
+    }
+
+    // Pass 2: rebuild without file-only messages, merging extra parts immutably
+    return result
+      .filter((msg) => !fileOnlyKeys.has(msg.key))
+      .map((msg) => {
+        const extra = extraFileParts.get(msg.key);
+        if (!extra) return msg;
+        return { ...msg, fileParts: [...(msg.fileParts ?? []), ...extra] };
+      });
   }, [uiMessages]);
 
   // Find active assistant message (streaming or pending tool execution).

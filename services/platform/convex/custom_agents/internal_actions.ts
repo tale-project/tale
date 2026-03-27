@@ -85,7 +85,7 @@ export const checkKnowledgeFileStatus = internalAction({
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ document_ids: [String(args.fileId)] }),
+        body: JSON.stringify({ file_ids: [String(args.fileId)] }),
         signal: AbortSignal.timeout(10000),
       });
 

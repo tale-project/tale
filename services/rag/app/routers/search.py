@@ -27,7 +27,7 @@ async def search(request: QueryRequest):
             query=request.query,
             top_k=request.top_k,
             similarity_threshold=request.similarity_threshold,
-            document_ids=request.document_ids,
+            file_ids=request.file_ids,
         )
 
         processing_time = (time.time() - start_time) * 1000
@@ -36,8 +36,10 @@ async def search(request: QueryRequest):
             SearchResult(
                 content=r.get("content", ""),
                 score=r.get("score", 0.0),
-                document_id=r.get("document_id"),
+                file_id=r.get("file_id"),
                 filename=r.get("filename"),
+                source_created_at=r.get("source_created_at"),
+                source_modified_at=r.get("source_modified_at"),
                 metadata=r.get("metadata") if request.include_metadata else None,
             )
             for r in results
@@ -69,14 +71,17 @@ async def generate(request: GenerateRequest):
     try:
         result = await rag_service.generate(
             query=request.query,
-            document_ids=request.document_ids,
+            file_ids=request.file_ids,
         )
 
         sources = [
             SearchResult(
                 content=s.get("content", ""),
                 score=s.get("score", 0.0),
-                document_id=s.get("document_id"),
+                file_id=s.get("file_id"),
+                filename=s.get("filename"),
+                source_created_at=s.get("source_created_at"),
+                source_modified_at=s.get("source_modified_at"),
                 metadata=s.get("metadata"),
             )
             for s in result.get("sources", [])

@@ -7,7 +7,7 @@
 ARG VERSION=dev
 
 # ParadeDB includes pg_search (BM25), pgvector, and PostgreSQL 16
-FROM paradedb/paradedb:0.21.14-pg16
+FROM paradedb/paradedb:0.22.3-pg16
 
 # Re-declare VERSION arg (ARGs don't persist after FROM)
 ARG VERSION=dev
@@ -27,11 +27,17 @@ RUN apt-get update \
                 /etc/postgresql/conf.d \
                 /var/lib/postgresql/backup
 
+# Install dbmate for database migrations
+COPY --from=ghcr.io/amacneil/dbmate:2 /usr/local/bin/dbmate /usr/local/bin/dbmate
+
 # Copy initialization scripts
 # - /docker-entrypoint-initdb.d/ : PostgreSQL runs these on first init only
 # - /etc/postgresql/init-scripts/ : Entrypoint wrapper runs these on every startup
 COPY services/db/init-scripts/ /docker-entrypoint-initdb.d/
 COPY services/db/init-scripts/ /etc/postgresql/init-scripts/
+
+# Copy database migrations (tale_knowledge)
+COPY services/db/migrations/ /etc/postgresql/migrations/
 
 # Copy custom PostgreSQL configuration to the expected location
 COPY services/db/postgresql.conf /etc/postgresql/postgresql.conf
@@ -49,30 +55,30 @@ RUN chmod +x /usr/local/bin/docker-entrypoint-wrapper.sh \
 
 # Set environment variables with DB_ prefix defaults
 # These can be overridden at runtime
-ENV TALE_VERSION=${VERSION} \
-    DB_NAME=tale \
-    DB_USER=tale \
-    DB_PASSWORD=tale_password_change_me \
-    # PostgreSQL configuration (required by base image)
-    POSTGRES_DB=tale \
-    POSTGRES_USER=tale \
-    POSTGRES_PASSWORD=tale_password_change_me \
-    # Performance tuning (conservative defaults)
-    DB_MAX_CONNECTIONS=100 \
+# Application version
+ENV TALE_VERSION=${VERSION}
+
+# Database credentials (password must be provided at runtime via DB_PASSWORD)
+ENV DB_NAME=tale \
+    DB_USER=tale
+
+# Performance tuning (conservative defaults)
+ENV DB_MAX_CONNECTIONS=100 \
     DB_SHARED_BUFFERS=256MB \
     DB_EFFECTIVE_CACHE_SIZE=1GB \
     DB_MAINTENANCE_WORK_MEM=128MB \
-    DB_WORK_MEM=32MB \
-    # Logging
-    DB_LOG_STATEMENT=none \
+    DB_WORK_MEM=32MB
+
+# Logging
+ENV DB_LOG_STATEMENT=none \
     DB_LOG_MIN_DURATION_STATEMENT=-1
 
 # Expose PostgreSQL port
 EXPOSE 5432
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} || exit 1
+# Health check — waits for both PostgreSQL readiness and migration completion
+HEALTHCHECK --interval=10s --timeout=5s --start-period=90s --retries=10 \
+    CMD pg_isready -U ${DB_USER:-tale} -d ${DB_NAME:-tale} && test -f /tmp/.db_ready || exit 1
 
 # Use custom entrypoint wrapper that handles DB_ env vars
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint-wrapper.sh"]

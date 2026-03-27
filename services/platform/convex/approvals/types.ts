@@ -52,8 +52,19 @@ export interface WorkflowCreationMetadata {
   executionError?: string;
 }
 
+export interface StepPatchEntry {
+  stepRecordId: string;
+  stepName: string;
+  stepUpdates: {
+    name?: string;
+    stepType?: string;
+    config?: Record<string, unknown>;
+    nextSteps?: Record<string, string>;
+  };
+}
+
 export interface WorkflowUpdateMetadata {
-  updateType: 'full_save' | 'step_patch';
+  updateType: 'full_save' | 'step_patch' | 'multi_step_patch';
   updateSummary: string;
   workflowId: string;
   workflowName: string;
@@ -80,6 +91,7 @@ export interface WorkflowUpdateMetadata {
     config?: Record<string, unknown>;
     nextSteps?: Record<string, string>;
   };
+  steps?: StepPatchEntry[];
   requestedAt: number;
   executedAt?: number;
   executionError?: string;
@@ -94,6 +106,53 @@ export interface WorkflowRunMetadata {
   executedAt?: number;
   executionId?: string;
   executionError?: string;
+}
+
+export interface DocumentWriteFileEntry {
+  fileId: string;
+  fileName: string;
+  title: string;
+  mimeType: string;
+  fileSize: number;
+  createdDocumentId?: string;
+  executionError?: string;
+}
+
+export interface DocumentWriteMetadata {
+  files: DocumentWriteFileEntry[];
+  folderPath?: string;
+  requestedAt: number;
+  executedAt?: number;
+  // Legacy single-file fields (present on old records only)
+  fileId?: string;
+  fileName?: string;
+  title?: string;
+  mimeType?: string;
+  fileSize?: number;
+  createdDocumentId?: string;
+  executionError?: string;
+}
+
+export function normalizeDocumentWriteMetadata(
+  raw: DocumentWriteMetadata,
+): DocumentWriteMetadata {
+  if (raw.files?.length) return raw;
+  return {
+    files: [
+      {
+        fileId: raw.fileId ?? '',
+        fileName: raw.fileName ?? '',
+        title: raw.title ?? '',
+        mimeType: raw.mimeType ?? '',
+        fileSize: raw.fileSize ?? 0,
+        createdDocumentId: raw.createdDocumentId,
+        executionError: raw.executionError,
+      },
+    ],
+    folderPath: raw.folderPath,
+    requestedAt: raw.requestedAt,
+    executedAt: raw.executedAt,
+  };
 }
 
 export interface CreateApprovalArgs {

@@ -22,5 +22,6 @@ export async function updateDocumentRagInfo(
 
   await ctx.db.patch(args.documentId, {
     ragInfo: args.ragInfo,
+    indexed: args.ragInfo.status === 'completed',
   });
 }

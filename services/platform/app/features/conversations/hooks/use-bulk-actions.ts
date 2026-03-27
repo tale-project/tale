@@ -11,8 +11,11 @@ import type { SelectionState } from '../types/selection';
 import { isAllSelection } from '../types/selection';
 import {
   useAddMessage,
+  useBulkArchiveConversations,
   useBulkCloseConversations,
   useBulkReopenConversations,
+  useBulkSpamConversations,
+  useBulkUnarchiveConversations,
 } from './mutations';
 
 function getSelectedConversationIds(
@@ -39,8 +42,11 @@ export function useBulkActions({
 }: UseBulkActionsOptions) {
   const { t: tConversations } = useT('conversations');
 
+  const { mutateAsync: bulkArchive } = useBulkArchiveConversations();
   const { mutateAsync: bulkResolve } = useBulkCloseConversations();
   const { mutateAsync: bulkReopen } = useBulkReopenConversations();
+  const { mutateAsync: bulkSpam } = useBulkSpamConversations();
+  const { mutateAsync: bulkUnarchive } = useBulkUnarchiveConversations();
   const { mutateAsync: addMessage } = useAddMessage();
 
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
@@ -204,6 +210,135 @@ export function useBulkActions({
     onComplete,
   ]);
 
+  const handleBulkSpam = useCallback(async () => {
+    if (isBulkProcessing) return;
+
+    setIsBulkProcessing(true);
+
+    try {
+      const conversationIds = getSelectedConversationIds(
+        selectionState,
+        conversations,
+      );
+
+      const result = await bulkSpam({
+        conversationIds: toIds<'conversations'>(conversationIds),
+      });
+
+      toast({
+        title: tConversations('bulk.markedAsSpam'),
+        description: tConversations('bulk.markedAsSpamDescription', {
+          successCount: result.successCount,
+          failedCount: result.failedCount,
+        }),
+        variant: result.successCount > 0 ? 'default' : 'destructive',
+      });
+
+      onComplete();
+    } catch (error) {
+      console.error('Error marking conversations as spam:', error);
+      toast({
+        title: tConversations('bulk.spamFailed'),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsBulkProcessing(false);
+    }
+  }, [
+    isBulkProcessing,
+    selectionState,
+    conversations,
+    bulkSpam,
+    tConversations,
+    onComplete,
+  ]);
+
+  const handleBulkArchive = useCallback(async () => {
+    if (isBulkProcessing) return;
+
+    setIsBulkProcessing(true);
+
+    try {
+      const conversationIds = getSelectedConversationIds(
+        selectionState,
+        conversations,
+      );
+
+      const result = await bulkArchive({
+        conversationIds: toIds<'conversations'>(conversationIds),
+      });
+
+      toast({
+        title: tConversations('bulk.archived'),
+        description: tConversations('bulk.archivedDescription', {
+          successCount: result.successCount,
+          failedCount: result.failedCount,
+        }),
+        variant: result.successCount > 0 ? 'default' : 'destructive',
+      });
+
+      onComplete();
+    } catch (error) {
+      console.error('Error archiving conversations:', error);
+      toast({
+        title: tConversations('bulk.archiveFailed'),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsBulkProcessing(false);
+    }
+  }, [
+    isBulkProcessing,
+    selectionState,
+    conversations,
+    bulkArchive,
+    tConversations,
+    onComplete,
+  ]);
+
+  const handleBulkUnarchive = useCallback(async () => {
+    if (isBulkProcessing) return;
+
+    setIsBulkProcessing(true);
+
+    try {
+      const conversationIds = getSelectedConversationIds(
+        selectionState,
+        conversations,
+      );
+
+      const result = await bulkUnarchive({
+        conversationIds: toIds<'conversations'>(conversationIds),
+      });
+
+      toast({
+        title: tConversations('bulk.unarchived'),
+        description: tConversations('bulk.unarchivedDescription', {
+          successCount: result.successCount,
+          failedCount: result.failedCount,
+        }),
+        variant: result.successCount > 0 ? 'default' : 'destructive',
+      });
+
+      onComplete();
+    } catch (error) {
+      console.error('Error unarchiving conversations:', error);
+      toast({
+        title: tConversations('bulk.unarchiveFailed'),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsBulkProcessing(false);
+    }
+  }, [
+    isBulkProcessing,
+    selectionState,
+    conversations,
+    bulkUnarchive,
+    tConversations,
+    onComplete,
+  ]);
+
   return {
     isBulkProcessing,
     bulkSendDialog,
@@ -212,5 +347,8 @@ export function useBulkActions({
     handleSendMessages,
     handleBulkResolve,
     handleBulkReopen,
+    handleBulkSpam,
+    handleBulkArchive,
+    handleBulkUnarchive,
   };
 }

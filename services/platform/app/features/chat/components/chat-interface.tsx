@@ -8,6 +8,7 @@ import { PanelFooter } from '@/app/components/layout/panel-footer';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useAutoScroll } from '@/app/hooks/use-auto-scroll';
+import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { api } from '@/convex/_generated/api';
@@ -19,8 +20,10 @@ import type { FileAttachment } from '../types';
 import { useChatLayout } from '../context/chat-layout-context';
 import {
   useChatAgents,
+  useDocumentWriteApprovals,
   useHumanInputRequests,
   useIntegrationApprovals,
+  useLocationRequests,
   useWorkflowCreationApprovals,
   useWorkflowRunApprovals,
   useWorkflowUpdateApprovals,
@@ -34,12 +37,20 @@ import { usePendingMessages } from '../hooks/use-pending-messages';
 import { usePersistedAttachments } from '../hooks/use-persisted-attachments';
 import { useSendMessage } from '../hooks/use-send-message';
 import { useStopGenerating } from '../hooks/use-stop-generating';
+import { useUserContext } from '../hooks/use-user-context';
 import { ChatInput } from './chat-input';
 import { ChatMessages } from './chat-messages';
 import { WelcomeView } from './welcome-view';
 
-function chatDraftKey(threadId?: string) {
-  return threadId ? `chat-draft-${threadId}` : 'chat-draft-new';
+function chatDraftKey(
+  userId: string | undefined,
+  organizationId: string,
+  threadId?: string,
+) {
+  const prefix = userId
+    ? `chat-draft-${userId}-${organizationId}`
+    : `chat-draft-${organizationId}`;
+  return threadId ? `${prefix}-${threadId}` : `${prefix}-new`;
 }
 
 interface ChatInterfaceProps {
@@ -52,6 +63,7 @@ export function ChatInterface({
   threadId,
 }: ChatInterfaceProps) {
   const { t } = useT('chat');
+  const { user } = useAuth();
   const {
     isPending,
     setIsPending,
@@ -65,7 +77,7 @@ export function ChatInterface({
   const effectiveAgent = useEffectiveAgent(organizationId);
 
   const [inputValue, setInputValue, clearInputValue] = usePersistedState(
-    chatDraftKey(threadId),
+    chatDraftKey(user?.userId, organizationId, threadId),
     '',
   );
   const [showScrollButton, setShowScrollButton] = useState(false);
@@ -79,7 +91,12 @@ export function ChatInterface({
     clearAttachments,
   } = useConvexFileUpload({ organizationId });
 
-  usePersistedAttachments({ threadId, attachments, setAttachments });
+  usePersistedAttachments({
+    userId: user?.userId,
+    threadId,
+    attachments,
+    setAttachments,
+  });
 
   // Message processing
   const {
@@ -122,16 +139,29 @@ export function ChatInterface({
     organizationId,
     threadId,
   );
+  const { requests: locationRequests } = useLocationRequests(
+    organizationId,
+    threadId,
+  );
+  const { approvals: documentWriteApprovals } = useDocumentWriteApprovals(
+    organizationId,
+    threadId,
+  );
 
   // Merge messages with approvals and human input requests
-  const mergedChatItems = useMergedChatItems({
+  const { messages: mergedMessages, activeApproval } = useMergedChatItems({
     messages,
     integrationApprovals,
     workflowCreationApprovals,
     workflowUpdateApprovals,
     workflowRunApprovals,
     humanInputRequests,
+    locationRequests,
+    documentWriteApprovals,
   });
+
+  // Block input when any pending or executing approval exists
+  const hasActiveApproval = activeApproval !== null;
 
   // Server-derived generation status (reactive Convex subscription)
   const { data: isGenerating } = useConvexQuery(
@@ -160,73 +190,108 @@ export function ChatInterface({
     }
   }, [isLoading, resetCancelled]);
 
-  // Auto-scroll
-  const { containerRef, contentRef, scrollToBottom, scrollTo, isAtBottom } =
-    useAutoScroll({
-      enabled: isLoading,
-      threshold: 100,
-    });
+  // Scroll utility (no auto-follow — ChatGPT-style)
+  const { containerRef, contentRef, scrollToBottom, isAtBottom } =
+    useAutoScroll({ threshold: 100 });
 
-  const aiResponseAreaRef = useRef<HTMLDivElement>(null);
-  const shouldScrollToAIRef = useRef(false);
+  const lastUserMessageRef = useRef<HTMLDivElement>(null);
 
-  // Scroll AI response to top of viewport
-  const scrollToAIResponse = useCallback(() => {
-    if (aiResponseAreaRef.current && containerRef.current) {
-      const container = containerRef.current;
-      const aiArea = aiResponseAreaRef.current;
-      const containerRect = container.getBoundingClientRect();
-      const aiAreaRect = aiArea.getBoundingClientRect();
+  // Scroll intent ref: 'smooth' on send, 'instant' on thread init, null when idle.
+  const scrollingToBottomBehaviorRef = useRef<ScrollBehavior | null>(null);
 
-      const targetScrollTop =
-        container.scrollTop + (aiAreaRect.top - containerRect.top) - 80;
-
-      scrollTo(Math.max(0, targetScrollTop));
-    }
-  }, [containerRef, scrollTo]);
-
-  useEffect(() => {
-    if (isLoading && shouldScrollToAIRef.current) {
-      requestAnimationFrame(() => {
-        scrollToAIResponse();
-        shouldScrollToAIRef.current = false;
-      });
-    }
-  }, [isLoading, scrollToAIResponse]);
-
-  // Scroll button visibility
+  // Scroll + resize handler — handles intentional scrolls and scroll button visibility.
   useEffect(() => {
     const container = containerRef.current;
-    if (!container) return;
+    const content = contentRef.current;
+    if (!container || !content) return;
 
-    const checkScroll = () => {
+    const onContentChange = () => {
+      const scrollBehavior = scrollingToBottomBehaviorRef.current;
+      if (scrollBehavior) {
+        container.scrollTo({
+          top: container.scrollHeight,
+          behavior: scrollBehavior,
+        });
+      } else if (isAtBottom()) {
+        container.scrollTo({
+          top: container.scrollHeight,
+          behavior: 'instant',
+        });
+      }
       setShowScrollButton(!isAtBottom());
     };
 
-    container.addEventListener('scroll', checkScroll, { passive: true });
-    return () => container.removeEventListener('scroll', checkScroll);
-  }, [containerRef, isAtBottom]);
+    const onScroll = () => {
+      if (scrollingToBottomBehaviorRef.current && isAtBottom()) {
+        scrollingToBottomBehaviorRef.current = null;
+      }
+      setShowScrollButton(!isAtBottom());
+    };
 
-  // Scroll to bottom on initial load
-  const hasScrolledOnLoadRef = useRef(false);
+    const resizeObserver = new ResizeObserver(onContentChange);
+    resizeObserver.observe(content);
+
+    const mutationObserver = new MutationObserver((mutations) => {
+      const hasRelevant = mutations.some(
+        (mut) => mut.type !== 'attributes' || mut.attributeName !== 'style',
+      );
+      if (hasRelevant) onContentChange();
+    });
+    mutationObserver.observe(content, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+    });
+
+    container.addEventListener('scroll', onScroll, { passive: true });
+    onContentChange();
+
+    return () => {
+      resizeObserver.disconnect();
+      mutationObserver.disconnect();
+      container.removeEventListener('scroll', onScroll);
+    };
+  }, [containerRef, contentRef, isAtBottom]);
+
+  // Scroll to bottom on thread initial load.
+  const scrolledForThreadRef = useRef<string | null>(null);
   useEffect(() => {
-    if (
-      threadId &&
-      messages.length > 0 &&
-      !hasScrolledOnLoadRef.current &&
-      containerRef.current
-    ) {
-      hasScrolledOnLoadRef.current = true;
-      containerRef.current.scrollTo({
-        top: containerRef.current.scrollHeight,
-        behavior: 'instant',
-      });
-    }
+    if (!threadId || messages.length === 0) return;
+    if (scrolledForThreadRef.current === threadId) return;
+
+    scrolledForThreadRef.current = threadId;
+    scrollingToBottomBehaviorRef.current = 'instant';
+
+    containerRef.current?.scrollTo({
+      top: containerRef.current.scrollHeight,
+      behavior: 'instant',
+    });
   }, [threadId, messages.length, containerRef]);
 
-  useEffect(() => {
-    hasScrolledOnLoadRef.current = false;
-  }, [threadId]);
+  // Load-more scroll preservation: keep viewport stable when older messages prepend
+  const handleLoadMore = useCallback(
+    (count: number) => {
+      const container = containerRef.current;
+      if (!container) {
+        loadMore(count);
+        return;
+      }
+
+      const prevScrollHeight = container.scrollHeight;
+      const observer = new MutationObserver(() => {
+        observer.disconnect();
+        container.scrollTop += container.scrollHeight - prevScrollHeight;
+      });
+      observer.observe(container, { childList: true, subtree: true });
+      loadMore(count);
+
+      // Safety timeout to disconnect if no mutation fires
+      setTimeout(() => observer.disconnect(), 2000);
+    },
+    [containerRef, loadMore],
+  );
+
+  const userContext = useUserContext();
 
   const { sendMessage } = useSendMessage({
     organizationId,
@@ -238,22 +303,22 @@ export function ChatInterface({
     clearChatState,
     onBeforeSend: () => {
       resetCancelled();
-      shouldScrollToAIRef.current = true;
     },
     selectedAgent: effectiveAgent,
+    userContext,
   });
 
   const handleSendMessage = async (
     message: string,
     sentAttachments?: FileAttachment[],
   ) => {
+    scrollingToBottomBehaviorRef.current = 'smooth';
     clearInputValue();
     await sendMessage(message, sentAttachments);
   };
 
   const handleHumanInputResponseSubmitted = useCallback(() => {
     setIsPending(true);
-    shouldScrollToAIRef.current = true;
   }, [setIsPending]);
 
   const handleSendFollowUp = useCallback(
@@ -271,35 +336,44 @@ export function ChatInterface({
   return (
     <div
       ref={containerRef}
-      className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto [overflow-anchor:none]"
+      className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto scroll-smooth"
     >
       <div
         ref={contentRef}
         className={cn(
-          'flex-1 overflow-y-visible p-4 sm:p-8',
-          showWelcome && 'flex flex-col items-center justify-end',
+          'flex flex-col overflow-y-visible p-4 sm:p-8',
+          showWelcome && 'flex-1 items-center justify-center',
         )}
       >
-        {showWelcome && <WelcomeView isPending={isLoading} />}
+        {showWelcome && (
+          <WelcomeView
+            isPending={isLoading}
+            agentName={effectiveAgent?.displayName}
+            conversationStarters={effectiveAgent?.conversationStarters}
+            onSuggestionClick={setInputValue}
+          />
+        )}
 
         {showMessages && (
           <ChatMessages
-            items={mergedChatItems}
+            items={mergedMessages}
             threadId={threadId}
             organizationId={organizationId}
             canLoadMore={canLoadMore}
             isLoadingMore={isLoadingMore}
-            loadMore={loadMore}
+            loadMore={handleLoadMore}
             activeMessage={activeMessage}
             isLoading={isLoading}
-            aiResponseAreaRef={aiResponseAreaRef}
+            lastUserMessageRef={lastUserMessageRef}
+            containerRef={containerRef}
+            activeApproval={activeApproval}
             onHumanInputResponseSubmitted={handleHumanInputResponseSubmitted}
             onSendFollowUp={handleSendFollowUp}
           />
         )}
       </div>
 
-      <PanelFooter>
+      <PanelFooter className="mt-auto">
         <div className="relative mx-auto w-full max-w-(--chat-max-width)">
           <AnimatePresence>
             {showScrollButton && (
@@ -331,7 +405,14 @@ export function ChatInterface({
             onSendMessage={handleSendMessage}
             onStopGenerating={stopGenerating}
             isLoading={isLoading}
-            disabled={hasNoAgents}
+            disabled={hasNoAgents || hasActiveApproval}
+            disabledReason={
+              hasNoAgents
+                ? 'no-agents'
+                : hasActiveApproval
+                  ? 'pending-approval'
+                  : undefined
+            }
             organizationId={organizationId}
             attachments={attachments}
             uploadingFiles={uploadingFiles}

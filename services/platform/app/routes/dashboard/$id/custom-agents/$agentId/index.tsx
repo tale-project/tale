@@ -14,6 +14,7 @@ import { StickySectionHeader } from '@/app/components/ui/layout/sticky-section-h
 import { AutoSaveIndicator } from '@/app/features/custom-agents/components/auto-save-indicator';
 import { CustomAgentActiveToggle } from '@/app/features/custom-agents/components/custom-agent-active-toggle';
 import {
+  useUpdateCustomAgent,
   useUpdateCustomAgentMetadata,
   useUpdateCustomAgentVisibility,
 } from '@/app/features/custom-agents/hooks/mutations';
@@ -33,6 +34,7 @@ export const Route = createFileRoute('/dashboard/$id/custom-agents/$agentId/')({
 });
 
 const NO_TEAM_VALUE = '__none__';
+const DEFAULT_TIMEOUT_MINUTES = 7;
 
 interface GeneralFormData {
   name: string;
@@ -50,6 +52,7 @@ function GeneralTab() {
   const { t } = useT('settings');
   const { agent, isReadOnly } = useCustomAgentVersion();
   const updateMetadata = useUpdateCustomAgentMetadata();
+  const updateAgent = useUpdateCustomAgent();
   const { mutate: updateVisibility, isPending: isUpdatingVisibility } =
     useUpdateCustomAgentVisibility();
   const { teams } = useTeamFilter();
@@ -69,6 +72,8 @@ function GeneralTab() {
   const [teamId, setTeamId] = useState<string | undefined>(undefined);
   const [sharedWithTeamIds, setSharedWithTeamIds] = useState<string[]>([]);
   const [accessInitialized, setAccessInitialized] = useState(false);
+  const [timeoutMinutes, setTimeoutMinutes] = useState(DEFAULT_TIMEOUT_MINUTES);
+  const [timeoutInitialized, setTimeoutInitialized] = useState(false);
 
   useEffect(() => {
     if (agent && !accessInitialized) {
@@ -77,6 +82,17 @@ function GeneralTab() {
       setAccessInitialized(true);
     }
   }, [agent, accessInitialized]);
+
+  useEffect(() => {
+    if (agent && !timeoutInitialized) {
+      setTimeoutMinutes(
+        agent.timeoutMs
+          ? Math.round(agent.timeoutMs / 60_000)
+          : DEFAULT_TIMEOUT_MINUTES,
+      );
+      setTimeoutInitialized(true);
+    }
+  }, [agent, timeoutInitialized]);
 
   const combinedData = useMemo<CombinedSaveData | undefined>(
     () => (agent ? { ...formValues, teamId, sharedWithTeamIds } : undefined),
@@ -145,6 +161,30 @@ function GeneralTab() {
     },
     [agentId, updateVisibility, t],
   );
+
+  const handleTimeoutBlur = useCallback(() => {
+    const clamped = Math.max(1, Math.min(25, timeoutMinutes));
+    setTimeoutMinutes(clamped);
+    void updateAgent
+      .mutateAsync({
+        customAgentId: toId<'customAgents'>(agentId),
+        timeoutMs: clamped * 60_000,
+      })
+      .then(
+        () => {
+          toast({
+            title: t('customAgents.general.timeoutUpdated'),
+            variant: 'success',
+          });
+        },
+        () => {
+          toast({
+            title: t('customAgents.general.timeoutUpdateFailed'),
+            variant: 'destructive',
+          });
+        },
+      );
+  }, [agentId, timeoutMinutes, updateAgent, t]);
 
   const nameField = form.register('name', { required: true });
   const displayNameField = form.register('displayName', { required: true });
@@ -279,6 +319,33 @@ function GeneralTab() {
           </FormSection>
         </PageSection>
       )}
+
+      <PageSection
+        title={t('customAgents.general.sectionAdvanced')}
+        description={t('customAgents.general.sectionAdvancedDescription')}
+        gap={6}
+        className="mt-8 border-t pt-8"
+      >
+        <FormSection>
+          <Input
+            id="timeoutMinutes"
+            type="number"
+            label={t('customAgents.general.timeoutMinutes')}
+            description={t('customAgents.general.timeoutMinutesHelp')}
+            value={timeoutMinutes}
+            onChange={(e) =>
+              setTimeoutMinutes(
+                Number(e.target.value) || DEFAULT_TIMEOUT_MINUTES,
+              )
+            }
+            onBlur={handleTimeoutBlur}
+            min={1}
+            max={25}
+            step={1}
+            disabled={isReadOnly}
+          />
+        </FormSection>
+      </PageSection>
     </ContentArea>
   );
 }

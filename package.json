@@ -44,19 +44,19 @@
   "devDependencies": {
     "@commitlint/cli": "^20.4.1",
     "@commitlint/config-conventional": "^20.4.1",
-    "@vitest/coverage-v8": "4.1.0",
+    "@vitest/coverage-v8": "4.1.2",
     "commitizen": "^4.3.1",
     "cz-conventional-changelog": "^3.3.0",
     "husky": "^9.1.7",
-    "jsdom": "28.1.0",
-    "knip": "^5.83.0",
+    "jsdom": "29.0.1",
+    "knip": "^6.0.0",
     "oxfmt": "^0.32.0",
     "oxlint": "^1.43.0",
-    "oxlint-tsgolint": "^0.16.0",
+    "oxlint-tsgolint": "^0.17.0",
     "postcss": "8.5.8",
-    "turbo": "2.8.16",
+    "turbo": "2.8.20",
     "typescript": "5.9.3",
-    "vitest": "4.1.0"
+    "vitest": "4.1.2"
   },
   "optionalDependencies": {
     "@tailwindcss/oxide-linux-x64-gnu": "^4.2.0"

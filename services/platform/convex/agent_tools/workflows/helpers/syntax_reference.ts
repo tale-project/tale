@@ -11,13 +11,20 @@
 export const SYNTAX_MODULES: Record<string, string> = {
   start: `## Start Step (stepType: 'start')
 
-Config: { inputSchema?: { properties: { [name]: { type, description? } }, required?: string[] } }
+Config: { inputSchema?: { properties: { [name]: PropertySchema }, required?: string[] } }
 NextSteps: { success: 'next_step_slug' }
 
 The start step defines the workflow entry point and optionally declares an input schema.
+The input schema follows JSON Schema conventions (type, description, properties, required, items).
 Trigger sources (schedules, webhooks, API keys, events) are configured separately — not in step config.
 
-**Start with Input Schema:**
+**PropertySchema:** { type, description?, items?, properties?, required? }
+Supported types: string, number, integer, boolean, array, object
+
+For array types, use \`items\` to describe the element schema.
+For object types, use \`properties\` and \`required\` to describe fields.
+
+**Simple Input Schema:**
 \`\`\`json
 {
   "inputSchema": {
@@ -26,6 +33,37 @@ Trigger sources (schedules, webhooks, API keys, events) are configured separatel
       "priority": { "type": "number", "description": "Processing priority" }
     },
     "required": ["customerId"]
+  }
+}
+\`\`\`
+
+**Rich Input Schema (with nested types):**
+\`\`\`json
+{
+  "inputSchema": {
+    "properties": {
+      "files": {
+        "type": "array",
+        "description": "Input files to process",
+        "items": {
+          "type": "object",
+          "properties": {
+            "fileId": { "type": "string", "description": "Convex storage ID" },
+            "fileName": { "type": "string", "description": "Original file name" }
+          },
+          "required": ["fileId", "fileName"]
+        }
+      },
+      "options": {
+        "type": "object",
+        "description": "Processing options",
+        "properties": {
+          "language": { "type": "string", "description": "Output language" },
+          "verbose": { "type": "boolean", "description": "Enable verbose output" }
+        }
+      }
+    },
+    "required": ["files"]
   }
 }
 \`\`\`
@@ -49,12 +87,17 @@ Note: The port name MUST be "success" (not "next" or "default").`,
 
   llm: `## LLM Step (stepType: 'llm')
 
-Config: { name (REQUIRED), systemPrompt (REQUIRED), userPrompt?, tools?: string[], outputFormat?: 'text'|'json', outputSchema?, contextVariables? }
+Config: { name (REQUIRED), systemPrompt (REQUIRED), userPrompt?, tools?: string[], knowledgeFileIds?, outputFormat?: 'text'|'json', outputSchema?, contextVariables? }
 NextSteps: { success: 'next_step', error?: 'error_handler' }
+
+**RESTRICTION:** tools and outputFormat: 'json' CANNOT be combined in a single step. If you need both, split into two steps: one text+tools step (to gather data), then a separate JSON step without tools (to format the result).
 
 **CRITICAL FIELDS:**
 - name: REQUIRED - human-readable name
 - systemPrompt: REQUIRED - role and instructions (NOT "prompt")
+- knowledgeFileIds: Optional array of file IDs (or template expression resolving to an array) to scope rag_search.
+  When set, rag_search automatically searches only these files without relying on the LLM to pass fileIds.
+  Example: "knowledgeFileIds": "{{input.knowledgeFiles | map('fileId')}}"
 
 **LLM Step Example:**
 \`\`\`json
@@ -64,6 +107,17 @@ NextSteps: { success: 'next_step', error?: 'error_handler' }
   "userPrompt": "Analyze this customer: {{steps.get_customer.output.data}}",
   "tools": ["customer_read", "product_read"],
   "outputFormat": "json"
+}
+\`\`\`
+
+**LLM Step with RAG Scoping:**
+\`\`\`json
+{
+  "name": "Search Templates",
+  "systemPrompt": "Search the knowledge base for relevant clauses.",
+  "tools": ["rag_search"],
+  "knowledgeFileIds": "{{input.knowledgeFiles | map('fileId')}}",
+  "outputFormat": "text"
 }
 \`\`\`
 
@@ -77,7 +131,7 @@ NextSteps: { success: 'next_step', error?: 'error_handler' }
 **Available Tools for LLM Steps:**
 - customer_read: Fetch customer by ID, email, or list all (operation: get_by_id, get_by_email, list)
 - product_read: Fetch product by ID or list all (operation: get_by_id, list)
-- rag_search: Search knowledge base`,
+- rag_search: Search knowledge base (automatically scoped when knowledgeFileIds is set)`,
 
   action: `## Action Step (stepType: 'action')
 
@@ -199,7 +253,132 @@ For external APIs (Shopify, Circuly, etc.)
     "params": { "limit": 50 }
   }
 }
-\`\`\``,
+\`\`\`
+
+### document
+Operations: create, update, retrieve, list, generate_docx, get_metadata, compare, extract_docx_structured, apply_docx_structured
+
+**create** — Save a file to the documents hub:
+\`\`\`json
+{
+  "type": "document",
+  "parameters": {
+    "operation": "create",
+    "fileId": "{{steps.generate.output.data.fileId}}",
+    "title": "Monthly Report",
+    "folderPath": "reports/monthly"
+  }
+}
+\`\`\`
+- fileId: storage ID of the file to save (required)
+- title: document title (optional, defaults to original file name)
+- folderPath: slash-separated folder path, created automatically if missing (optional)
+- Requires organizationId in workflow variables (auto-injected)
+
+**update** — Update an existing document by file ID:
+\`\`\`json
+{
+  "type": "document",
+  "parameters": {
+    "operation": "update",
+    "fileId": "{{steps.find_doc.output.data.fileId}}",
+    "title": "Updated Title",
+    "content": "New content"
+  }
+}
+\`\`\`
+- fileId: required
+- Optional: title, content, mimeType, extension, metadata, sourceProvider
+
+**retrieve** — Fetch document content by file ID:
+\`\`\`json
+{
+  "type": "document",
+  "parameters": {
+    "operation": "retrieve",
+    "fileId": "{{steps.find_doc.output.data.fileId}}"
+  }
+}
+\`\`\`
+- Optional: chunkStart, chunkEnd (for partial retrieval), returnChunks (boolean)
+
+**generate_docx** — Generate a DOCX file from markdown or HTML:
+\`\`\`json
+{
+  "type": "document",
+  "parameters": {
+    "operation": "generate_docx",
+    "fileName": "report.docx",
+    "sourceType": "markdown",
+    "content": "{{steps.draft.output.data}}"
+  }
+}
+\`\`\`
+- sourceType: "markdown" or "html"
+- Requires organizationId in workflow variables
+
+**get_metadata** — Fetch file metadata for one or more files:
+\`\`\`json
+{
+  "type": "document",
+  "parameters": {
+    "operation": "get_metadata",
+    "fileIds": ["{{steps.file1.output.data.fileId}}", "{{steps.file2.output.data.fileId}}"]
+  }
+}
+\`\`\`
+
+**compare** — Compare two documents and return differences:
+\`\`\`json
+{
+  "type": "document",
+  "parameters": {
+    "operation": "compare",
+    "baseFileId": "{{steps.original.output.data.fileId}}",
+    "comparisonFileId": "{{steps.revised.output.data.fileId}}"
+  }
+}
+\`\`\`
+- Optional: baseFileName, comparisonFileName, maxChanges
+
+**extract_docx_structured** — Extract structured paragraph data from a DOCX file:
+\`\`\`json
+{
+  "type": "document",
+  "parameters": {
+    "operation": "extract_docx_structured",
+    "fileId": "{{input.baseFileId}}"
+  }
+}
+\`\`\`
+- fileId: Convex storage ID of the DOCX file (required)
+- Returns: { source_hash, metadata: { paragraph_count, table_count, group_count }, lightweight: [{ key, text, editable, style }], groups: [[{ key, text, editable, style }]] }
+- Paragraph keys are stable (e.g., "p_0", "tbl_0_r0_c0_p0") and used in apply_docx_structured
+- editable: false for paragraphs with hyperlinks, images, tracked changes, SDT controls
+- groups: semantic batches of editable paragraphs, split at heading boundaries (uses outlineLvl). Use groups instead of chunk() for batch processing loops.
+
+**apply_docx_structured** — Apply text modifications to a DOCX file preserving all formatting:
+\`\`\`json
+{
+  "type": "document",
+  "parameters": {
+    "operation": "apply_docx_structured",
+    "templateFileId": "{{input.baseFileId}}",
+    "sourceHash": "{{steps.extract.output.data.source_hash}}",
+    "modifications": "{{variables.allModifications}}",
+    "fileName": "modified-contract",
+    "trackChanges": true,
+    "author": "AI Assistant"
+  }
+}
+\`\`\`
+- templateFileId: Convex storage ID of the original DOCX (required)
+- sourceHash: SHA-256 hash from extract step for validation (required)
+- modifications: Array of { key: string, text: string } (required)
+- fileName: Output file name without extension (required)
+- trackChanges: Use Word Track Changes markup (optional, default false)
+- author: Author name for Track Changes (optional, default "AI Assistant")
+- Returns: { success, fileStorageId, downloadUrl, fileName, size, report }`,
 
   condition: `## Condition Step (stepType: 'condition')
 
@@ -215,7 +394,7 @@ NextSteps: { true: 'if_true_step', false: 'if_false_step' }
 
 **Common Expressions:**
 - Check entity exists: \`steps.find_step.output.data != null\`
-- Check array not empty: \`steps.query.output.data.length > 0\`
+- Check array not empty: \`steps.query.output.data|length > 0\`
 - Compare values: \`steps.check.output.data.status == "active"\`
 - Boolean logic: \`status == "active" && count > 5\``,
 
@@ -324,7 +503,7 @@ All step outputs are wrapped: steps.{step_slug}.output.data
 - {{nowMs}} - Current timestamp (milliseconds)
 
 ### JEXL Filters
-- Array: |length, |first, |last, |map("prop"), |filter(), |unique, |flatten, |slice(start, end), |sort("field", "asc"), |reverse
+- Array: |length, |first, |last, |map("prop"), |filter(), |unique, |flatten, |slice(start, end), |sort("field", "asc"), |reverse, |chunk(size)
 - String: |join(", "), |upper, |lower, |trim
 - Boolean: |hasOverlap(otherArray)
 - Type: |string, |number, |boolean, |parseJSON
@@ -341,7 +520,7 @@ All step outputs are wrapped: steps.{step_slug}.output.data
 
   output: `## Output Step (stepType: 'output')
 
-Config: { mapping?: Record<string, string> }
+Config: { mapping?: Record<string, unknown> }
 NextSteps: {} (empty — output steps have no outgoing connections)
 
 The output step is optional. It defines what the workflow returns as its final output.
@@ -359,7 +538,8 @@ Use mapping to select which variables or step outputs to include. Values support
     "mapping": {
       "analysis": "{{steps.analyze.output.data}}",
       "customerId": "{{variables.customerId}}",
-      "processedAt": "{{now}}"
+      "processedAt": "{{now}}",
+      "version": 1
     }
   },
   "nextSteps": {}
@@ -379,7 +559,7 @@ Use mapping to select which variables or step outputs to include. Values support
 \`\`\`
 
 **IMPORTANT:**
-- mapping values are {{...}} templates — they preserve types (objects, arrays, numbers stay as-is)
+- mapping values can be {{...}} template strings (which preserve types) or literal JSON values (numbers, booleans, null, arrays, objects)
 - Do NOT reference secrets in mapping (e.g., {{secrets.apiKey}}) — this leaks sensitive data
 - If mapping is empty or omitted, the workflow output is null
 - nextSteps MUST be empty: {}`,
@@ -492,7 +672,7 @@ const SYNTAX_CATEGORY_DESCRIPTIONS: Record<string, string> = {
     'Start step configuration (workflow entry point with optional inputSchema)',
   llm: 'LLM step configuration (AI agent with tools)',
   action:
-    'Action step types and parameters (workflow_processing_records, customer, conversation, approval, set_variables, integration)',
+    'Action step types and parameters (workflow_processing_records, customer, conversation, approval, set_variables, integration, document)',
   condition: 'Condition step with JEXL expressions',
   loop: 'Loop step for iteration',
   output: 'Output step configuration (workflow output via outputMapping)',

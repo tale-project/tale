@@ -64,6 +64,7 @@ export const executeStep = internalAction({
   returns: v.object({
     port: v.string(),
     error: v.optional(v.string()),
+    approvalTaskId: v.optional(v.string()),
   }),
   handler: async (ctx, args) => {
     return await EngineHelpers.handleExecuteStep(ctx, args);
@@ -86,18 +87,6 @@ export const scanAndTrigger = internalAction({
   handler: async (ctx) => {
     await SchedulerHelpers.scanAndTrigger(ctx);
     return null;
-  },
-});
-
-export const triggerWorkflowById = internalAction({
-  args: {
-    wfDefinitionId: v.id('wfDefinitions'),
-    input: v.optional(jsonValueValidator),
-    triggeredBy: v.optional(v.string()),
-  },
-  returns: v.string(),
-  handler: async (ctx, args) => {
-    return await SchedulerHelpers.triggerWorkflowById(ctx, args);
   },
 });
 
@@ -190,6 +179,7 @@ export const executeLLMNode = internalAction({
       args.executionId,
       args.stepDef.organizationId,
       args.threadId,
+      args.stepDef.stepSlug,
     );
     return result as Infer<typeof stepExecutionResultValidator>;
   },

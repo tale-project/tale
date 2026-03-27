@@ -1,8 +1,10 @@
 import { useBrandingContext } from '@/app/components/branding/branding-provider';
 import { Image } from '@/app/components/ui/data-display/image';
+import { getEnv } from '@/lib/env';
 
 export const TaleLogoText = () => {
   const { textLogo, logoUrl } = useBrandingContext();
+  const basePath = getEnv('BASE_PATH');
 
   if (logoUrl) {
     return (
@@ -29,7 +31,7 @@ export const TaleLogoText = () => {
     <>
       <Image
         priority
-        src="/assets/logo-text-black.svg"
+        src={`${basePath}/assets/logo-text-black.svg`}
         className="dark:hidden"
         alt="logo"
         width={74}
@@ -37,7 +39,7 @@ export const TaleLogoText = () => {
       />
       <Image
         priority
-        src="/assets/logo-text-white.svg"
+        src={`${basePath}/assets/logo-text-white.svg`}
         className="hidden dark:block"
         alt="logo"
         width={74}

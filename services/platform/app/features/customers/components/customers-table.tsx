@@ -182,6 +182,7 @@ export function CustomersTable({
       onClear: handleClearFilters,
     },
     approxRowCount: count,
+    entityLabel: tCustomers('title').toLowerCase(),
   });
 
   return (

@@ -23,6 +23,7 @@ import {
 import { useReactQueryClient } from '@/app/hooks/use-react-query-client';
 import { toast } from '@/app/hooks/use-toast';
 import { authClient } from '@/lib/auth-client';
+import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
@@ -122,9 +123,10 @@ export function LogInPage() {
   };
 
   const handleSsoLogin = useCallback(() => {
-    const callbackUri = `${window.location.origin}/http_api/api/sso/callback`;
-    const authorizeUrl = `/http_api/api/sso/authorize?redirect_uri=${encodeURIComponent(callbackUri)}`;
-    window.location.href = authorizeUrl;
+    const siteUrl = getEnv('SITE_URL');
+    const basePath = getEnv('BASE_PATH');
+    const callbackUri = `${siteUrl}${basePath}/http_api/api/sso/callback`;
+    window.location.href = `${siteUrl}${basePath}/http_api/api/sso/authorize?redirect_uri=${encodeURIComponent(callbackUri)}`;
   }, []);
 
   if (isLoadingUsers) {

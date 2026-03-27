@@ -14,6 +14,7 @@ import type { ToolDefinition } from '../types';
 import { internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
 import { toId } from '../../lib/type_cast_helpers';
+import { appendFilePart } from './helpers/append_file_part';
 import { getAgentModelId } from './helpers/get_agent_model';
 import { parseFile, type ParseFileResult } from './helpers/parse_file';
 
@@ -24,8 +25,7 @@ interface ListTemplatesResult {
   operation: 'list_templates';
   success: boolean;
   templates: Array<{
-    documentId: string;
-    storageId: string;
+    fileId: string;
     title: string;
     createdAt: number;
   }>;
@@ -81,79 +81,75 @@ const sectionSchema = z.object({
     .describe('Table rows (2D array)'),
 });
 
-const docxArgs = z.object({
-  operation: z
-    .enum(['list_templates', 'generate', 'parse'])
-    .optional()
-    .describe(
-      "Operation to perform: 'list_templates', 'generate' (default), or 'parse' (extract text from DOCX).",
-    ),
-  // For list_templates operation
-  limit: z
-    .number()
-    .optional()
-    .describe(
-      "For 'list_templates': Maximum number of DOCX documents/templates to return (default: 50)",
-    ),
-  // For generate operation (optional template support)
-  templateStorageId: z
-    .string()
-    .optional()
-    .describe(
-      'Convex storage ID of a DOCX template. When provided, the template is used as base, preserving headers, footers, fonts, and page setup.',
-    ),
-  fileName: z
-    .string()
-    .optional()
-    .describe(
-      "For 'generate': Base name for the DOCX file (without extension). Required for generate.",
-    ),
-  title: z.string().optional().describe('Document title'),
-  subtitle: z.string().optional().describe('Document subtitle'),
-  sections: z
-    .array(sectionSchema)
-    .optional()
-    .describe(
-      "For 'generate': Content sections. Each section can be a heading, paragraph, bullets, numbered list, table, quote, or code block.",
-    ),
-  // For generate from markdown/html (same content as PDF tool)
-  sourceType: z
-    .enum(['markdown', 'html'])
-    .optional()
-    .describe(
-      "For 'generate': Source type when generating from markdown or HTML content instead of sections. Use this to quickly convert existing markdown/HTML to DOCX.",
-    ),
-  content: z
-    .string()
-    .optional()
-    .describe(
-      "For 'generate': Markdown or HTML text content. Use with sourceType. This is the fastest way to generate DOCX from the same content used for PDF generation.",
-    ),
-  // For parse operation
-  fileId: z
-    .string()
-    .optional()
-    .describe(
-      "For 'parse': **REQUIRED** - Convex storage ID (e.g., 'kg2bazp7fbgt9srq63knfagjrd7yfenj'). Get this from the file attachment context.",
-    ),
-  filename: z
-    .string()
-    .optional()
-    .describe(
-      "For 'parse': Original filename (e.g., 'document.docx'). Optional — auto-resolved from file metadata if omitted.",
-    ),
-  user_input: z
-    .string()
-    .optional()
-    .describe(
-      "For 'parse': **REQUIRED** - The user's question or instruction about the document content",
-    ),
-});
+const docxArgs = z.discriminatedUnion('operation', [
+  z.object({
+    operation: z.literal('list_templates'),
+    limit: z
+      .number()
+      .optional()
+      .describe(
+        'Maximum number of DOCX documents/templates to return (default: 50)',
+      ),
+  }),
+  z.object({
+    operation: z.literal('generate'),
+    templateStorageId: z
+      .string()
+      .optional()
+      .describe(
+        'Convex storage ID of a DOCX template. When provided, the template is used as base, preserving headers, footers, fonts, and page setup.',
+      ),
+    fileName: z
+      .string()
+      .describe('Base name for the DOCX file (without extension)'),
+    title: z.string().optional().describe('Document title'),
+    subtitle: z.string().optional().describe('Document subtitle'),
+    sections: z
+      .array(sectionSchema)
+      .optional()
+      .describe(
+        'Content sections. Each section can be a heading, paragraph, bullets, numbered list, table, quote, or code block.',
+      ),
+    sourceType: z
+      .enum(['markdown', 'html'])
+      .optional()
+      .describe(
+        'Source type when generating from markdown or HTML content instead of sections. Use this to quickly convert existing markdown/HTML to DOCX.',
+      ),
+    content: z
+      .string()
+      .optional()
+      .describe(
+        'Markdown or HTML text content. Use with sourceType. This is the fastest way to generate DOCX from the same content used for PDF generation.',
+      ),
+  }),
+  z.object({
+    operation: z.literal('parse'),
+    fileId: z
+      .string()
+      .describe(
+        "Convex storage ID (e.g., 'kg2bazp7fbgt9srq63knfagjrd7yfenj'). Get this from the file attachment context.",
+      ),
+    filename: z
+      .string()
+      .optional()
+      .describe(
+        "Original filename (e.g., 'document.docx'). Optional — auto-resolved from file metadata if omitted.",
+      ),
+    user_input: z
+      .string()
+      .describe(
+        "The user's question or instruction about the document content",
+      ),
+  }),
+]);
 
 export const docxTool = {
   name: 'docx' as const,
   tool: createTool({
     description: `Word document (DOCX) tool for listing templates, generating, and parsing documents.
+
+IMPORTANT: Only call the "generate" operation when the user explicitly requests creating or exporting a Word/DOCX file. Do NOT proactively generate Word documents unless the user specifically asks for this format.
 
 OPERATIONS:
 
@@ -198,15 +194,16 @@ EXAMPLES:
 • List templates: { "operation": "list_templates" }
 • Parse: { "operation": "parse", "fileId": "kg2bazp7...", "filename": "document.docx", "user_input": "Extract the main points" }
 
-CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the result. Never fabricate URLs.
+AFTER GENERATING: Check the downloadUrl in the result:
+- If it says "[file card shown in chat]": the file is already visible as a download card. Do NOT mention downloading, do NOT include a link, and do NOT say "you can download it" — the card handles this.
+- If it contains an actual URL: no download card was shown. You MUST include the URL as a clickable markdown link so the user can download the file.
+To also save the file to a folder in the documents hub, call document_write with the returned fileStorageId and the desired folderPath.
 `,
-    args: docxArgs,
-    handler: async (ctx: ToolCtx, args): Promise<DocxResult> => {
+    inputSchema: docxArgs,
+    execute: async (ctx: ToolCtx, args): Promise<DocxResult> => {
       const { organizationId } = ctx;
-      const operation = args.operation ?? 'generate';
 
-      // Handle list_templates operation
-      if (operation === 'list_templates') {
+      if (args.operation === 'list_templates') {
         if (!organizationId) {
           return {
             operation: 'list_templates',
@@ -238,8 +235,7 @@ CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the 
               (doc): doc is typeof doc & { fileId: string } => !!doc.fileId,
             )
             .map((doc) => ({
-              documentId: doc._id,
-              storageId: doc.fileId,
+              fileId: doc.fileId,
               title: doc.title ?? 'Untitled Document',
               createdAt: doc._creationTime,
             }));
@@ -255,7 +251,7 @@ CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the 
             totalCount: templates.length,
             message:
               templates.length > 0
-                ? `Found ${templates.length} DOCX template(s). Use the storageId when referencing these templates.`
+                ? `Found ${templates.length} DOCX template(s). Use the fileId when referencing these templates.`
                 : 'No DOCX templates found. Upload a DOCX file first to use it as a template.',
           };
         } catch (error) {
@@ -266,19 +262,7 @@ CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the 
         }
       }
 
-      // Handle parse operation
-      if (operation === 'parse') {
-        if (!args.fileId) {
-          throw new Error(
-            "Missing required 'fileId' for parse operation. Get the fileId from the file attachment context.",
-          );
-        }
-        if (!args.user_input) {
-          throw new Error(
-            "Missing required 'user_input' for parse operation. Provide the user's question or instruction about the document.",
-          );
-        }
-
+      if (args.operation === 'parse') {
         const model = getAgentModelId(ctx);
         const result = await parseFile(
           ctx,
@@ -291,9 +275,9 @@ CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the 
         return { operation: 'parse', ...result };
       }
 
-      // Default / generate operation
-      if (!args.fileName) {
-        throw new Error("Missing required 'fileName' for generate operation");
+      // operation === 'generate'
+      if (!organizationId) {
+        throw new Error('organizationId is required to generate a document');
       }
 
       // Mode A: Generate from markdown/html content
@@ -307,6 +291,7 @@ CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the 
           const result = await ctx.runAction(
             internal.documents.internal_actions.generateDocument,
             {
+              organizationId,
               fileName: args.fileName,
               sourceType: args.sourceType,
               outputFormat: 'docx',
@@ -320,9 +305,18 @@ CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the 
             size: result.size,
           });
 
+          const cardAppended = await appendFilePart(ctx, {
+            fileName: result.fileName,
+            mimeType: result.contentType,
+            downloadUrl: result.downloadUrl,
+          });
+
           return {
             operation: 'generate',
             ...result,
+            downloadUrl: cardAppended
+              ? '[file card shown in chat]'
+              : result.downloadUrl,
           } as GenerateDocxResult;
         } catch (error) {
           console.error('[tool:docx generate from content] error', {
@@ -382,6 +376,7 @@ CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the 
           const result = await ctx.runAction(
             internal.documents.internal_actions.generateDocxFromTemplate,
             {
+              organizationId,
               fileName: args.fileName,
               content: {
                 title: args.title,
@@ -398,9 +393,18 @@ CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the 
             size: result.size,
           });
 
+          const cardAppended = await appendFilePart(ctx, {
+            fileName: result.fileName,
+            mimeType: result.contentType,
+            downloadUrl: result.downloadUrl,
+          });
+
           return {
             operation: 'generate',
             ...result,
+            downloadUrl: cardAppended
+              ? '[file card shown in chat]'
+              : result.downloadUrl,
           } as GenerateDocxResult;
         }
 
@@ -408,6 +412,7 @@ CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the 
         const result = await ctx.runAction(
           internal.documents.internal_actions.generateDocx,
           {
+            organizationId,
             fileName: args.fileName,
             content: {
               title: args.title,
@@ -423,9 +428,18 @@ CRITICAL: When presenting download links, copy the exact 'downloadUrl' from the 
           size: result.size,
         });
 
+        const cardAppended = await appendFilePart(ctx, {
+          fileName: result.fileName,
+          mimeType: result.contentType,
+          downloadUrl: result.downloadUrl,
+        });
+
         return {
           operation: 'generate',
           ...result,
+          downloadUrl: cardAppended
+            ? '[file card shown in chat]'
+            : result.downloadUrl,
         } as GenerateDocxResult;
       } catch (error) {
         console.error('[tool:docx generate] error', {

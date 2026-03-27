@@ -32,12 +32,11 @@ export async function getAgentScopedFileIds(
 
   const query = ctx.db
     .query('documents')
-    .withIndex('by_organizationId', (q) =>
-      q.eq('organizationId', args.organizationId),
+    .withIndex('by_organizationId_and_indexed', (q) =>
+      q.eq('organizationId', args.organizationId).eq('indexed', true),
     );
 
   for await (const doc of query) {
-    if (doc.ragInfo?.status !== 'completed') continue;
     if (!doc.fileId) continue;
 
     const fileId = String(doc.fileId);

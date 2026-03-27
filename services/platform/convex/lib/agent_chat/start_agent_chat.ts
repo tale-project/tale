@@ -13,6 +13,7 @@
 
 import { listMessages, saveMessage } from '@convex-dev/agent';
 
+import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
 import type { FileAttachment } from '../attachments';
 import type { AgentType } from '../context_management/constants';
@@ -59,6 +60,11 @@ export interface StartAgentChatArgs {
   attachments?: FileAttachment[];
   /** Additional context to pass to the agent (key-value pairs) */
   additionalContext?: Record<string, string>;
+  /** User environment context (timezone, language) for template variables */
+  userContext?: {
+    timezone: string;
+    language: string;
+  };
   /** Agent configuration (serializable) */
   agentConfig: SerializableAgentConfig;
   /** Model to use for generation */
@@ -71,6 +77,8 @@ export interface StartAgentChatArgs {
   enableStreaming: boolean;
   /** Optional hooks configuration (FunctionHandles) */
   hooks?: AgentHooksConfig;
+  /** Root version ID of the custom agent, persisted on thread metadata */
+  customAgentId?: Id<'customAgents'>;
 }
 
 export interface StartAgentChatResult {
@@ -100,6 +108,7 @@ export async function startAgentChat(
     message,
     attachments,
     additionalContext,
+    userContext,
     agentConfig,
     model,
     provider,
@@ -114,6 +123,24 @@ export async function startAgentChat(
   // Always create a persistent stream for async result delivery.
   // enableStreaming only controls the LLM call strategy (streamText vs generateText).
   const streamId = await persistentStreaming.createStream(ctx);
+  const threadMeta = await ctx.db
+    .query('threadMetadata')
+    .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
+    .first();
+  // No server-side concurrent generation guard here. The frontend prevents
+  // duplicate submissions via the isThreadGenerating subscription + input disable.
+  // A server-side throw would risk permanently deadlocking a thread if the
+  // generation action crashes without resetting generationStatus.
+  if (threadMeta) {
+    await ctx.db.patch(threadMeta._id, {
+      generationStatus: 'generating' as const,
+      streamId,
+      generationStartTime: Date.now(),
+      cancelledAt: undefined,
+      cancelledMessageId: undefined,
+      ...(args.customAgentId ? { customAgentId: args.customAgentId } : {}),
+    });
+  }
 
   const thread = await ctx.runQuery(components.agent.threads.getThread, {
     threadId,
@@ -202,6 +229,7 @@ export async function startAgentChat(
       promptMessageId,
       maxSteps,
       additionalContext,
+      userContext,
       deadlineMs,
     },
   );

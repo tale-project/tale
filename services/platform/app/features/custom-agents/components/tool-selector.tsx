@@ -34,7 +34,12 @@ const TOOL_CATEGORIES: Record<string, ToolName[]> = {
   CRM: ['customer_read', 'product_read'],
   Web: ['web'],
   Files: ['pdf', 'image', 'pptx', 'docx', 'text', 'excel'],
-  Documents: ['rag_search', 'document_retrieve', 'document_find'],
+  Documents: [
+    'rag_search',
+    'document_retrieve',
+    'document_find',
+    'document_write',
+  ],
   Workflows: [
     'workflow_read',
     'workflow_syntax',
@@ -45,7 +50,7 @@ const TOOL_CATEGORIES: Record<string, ToolName[]> = {
   ],
   Integrations: ['integration', 'integration_batch', 'integration_introspect'],
   Data: ['database_schema'],
-  Other: ['verify_approval', 'request_human_input'],
+  Other: ['request_human_input'],
 };
 
 function categorizeTools(toolNames: string[]) {

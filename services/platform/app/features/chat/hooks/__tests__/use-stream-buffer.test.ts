@@ -557,6 +557,60 @@ describe('findSafeAnchor', () => {
       expect(anchor1).toBe(14); // after "Hello world.\n\n"
     });
   });
+
+  describe('line-start fence detection', () => {
+    it('ignores inline triple backticks when counting fences', () => {
+      // Inline ``` in text should not affect fence parity
+      const text = 'Use ``` for fencing.\n\n```python\n# comment\n\nclass Foo:';
+      const anchor = findSafeAnchor(text, text.length);
+      // Should anchor before the real code block, not inside it
+      expect(text.slice(anchor, anchor + 9)).toBe('```python');
+    });
+
+    it('handles 4-backtick fences correctly', () => {
+      const text = 'Intro.\n\n````python\ncode\n\nmore code';
+      const anchor = findSafeAnchor(text, text.length);
+      expect(anchor).toBe(8); // after "Intro.\n\n"
+    });
+
+    it('handles nested fences (4-backtick wrapping 3-backtick)', () => {
+      // Inner ``` should not corrupt parity since it's inside a 4-backtick block
+      // Note: the naive /```/g would count the inner ``` and break parity
+      const text =
+        'Intro.\n\n````\nshow ```python\n\nstuff\n````\n\nAfter.\n\n```js\ncode\n\nmore';
+      const anchor = findSafeAnchor(text, text.length);
+      // Should anchor before the ```js block
+      const jsStart = text.indexOf('```js');
+      const breakBefore = text.lastIndexOf('\n\n', jsStart);
+      expect(anchor).toBe(breakBefore + 2);
+    });
+
+    it('handles bare + language-tagged fences mixed', () => {
+      const text = '```js\nfoo();\n```\n\nText.\n\n```\nbar\n\nmore';
+      const anchor = findSafeAnchor(text, text.length);
+      // Should anchor before the bare ``` block
+      expect(text.slice(0, anchor)).toContain('Text.');
+      expect(text.slice(anchor, anchor + 4)).toBe('```\n');
+    });
+  });
+
+  describe('unclosed <details> element', () => {
+    it('anchors before <details> when \\n\\n is inside it', () => {
+      const text =
+        'Intro.\n\n<details>\n<summary>Title</summary>\n\nContent inside';
+      const anchor = findSafeAnchor(text, text.length);
+      expect(anchor).toBe(8); // after "Intro.\n\n"
+      expect(text.slice(anchor, anchor + 9)).toBe('<details>');
+    });
+
+    it('advances past closed <details>...</details>', () => {
+      const text =
+        'Before.\n\n<details>\n<summary>T</summary>\nBody\n</details>\n\nAfter content here';
+      const anchor = findSafeAnchor(text, text.length);
+      // Should advance past the closed details
+      expect(anchor).toBeGreaterThan(text.indexOf('</details>'));
+    });
+  });
 });
 
 // ============================================================================
@@ -833,7 +887,7 @@ describe('useStreamBuffer — freezeActiveStream (module-level)', () => {
 // Adaptive CPS (drain rate scaling)
 // ============================================================================
 
-describe('useStreamBuffer — adaptive CPS', () => {
+describe('useStreamBuffer — constant CPS', () => {
   beforeEach(() => {
     setupAnimationMocks();
     vi.mocked(usePrefersReducedMotion).mockReturnValue(false);
@@ -845,8 +899,7 @@ describe('useStreamBuffer — adaptive CPS', () => {
     vi.restoreAllMocks();
   });
 
-  it('uses base CPS for small buffers (near-empty buffer)', () => {
-    // With a short text, buffer is small so CPS should stay at base rate (~50)
+  it('reveals at constant rate for small buffers', () => {
     const text =
       'A relatively short streaming message that fits within a small buffer.';
 
@@ -859,18 +912,14 @@ describe('useStreamBuffer — adaptive CPS', () => {
       }),
     );
 
-    // Run 60 frames = 1 second at base 50 CPS → expect ~50 chars revealed
+    // Run 60 frames = 1 second at 50 CPS → expect ~50 chars revealed
     act(() => advanceFrames(60));
 
-    // At base 50 CPS over 1 second, should reveal roughly 50 chars
-    // (word boundary snapping adds tolerance)
     expect(result.current.displayLength).toBeGreaterThan(30);
     expect(result.current.displayLength).toBeLessThanOrEqual(text.length);
   });
 
-  it('accelerates CPS for large buffers', () => {
-    // Use a very long text to create a large buffer, which should trigger
-    // the adaptive CPS acceleration (buffer > 50 chars ahead)
+  it('reveals at same constant rate for large buffers', () => {
     const longText = 'word '.repeat(500); // 2500 chars
 
     const { result } = renderHook(() =>
@@ -882,36 +931,15 @@ describe('useStreamBuffer — adaptive CPS', () => {
       }),
     );
 
-    // Run 60 frames (1 second). With 2500 char buffer, effective CPS should
-    // be well above 50 (sqrt(2450) * 15 + 50 ≈ 792, capped at 600)
+    // Run 60 frames (1 second) at constant 50 CPS
     act(() => advanceFrames(60));
 
-    // Should reveal significantly more than 50 chars due to acceleration
-    expect(result.current.displayLength).toBeGreaterThan(100);
+    // Constant rate: ~50 chars/sec (word-snap can roughly double effective rate)
+    expect(result.current.displayLength).toBeGreaterThan(30);
+    expect(result.current.displayLength).toBeLessThan(200);
   });
 
-  it('CPS approaches cap for very large buffers', () => {
-    const hugeText = 'x'.repeat(5000);
-
-    const { result } = renderHook(() =>
-      useStreamBuffer({
-        text: hugeText,
-        isStreaming: true,
-        targetCPS: 50,
-        initialBufferChars: 3,
-      }),
-    );
-
-    // Run 60 frames (1 second). Buffer is huge, so CPS should be at/near cap (600)
-    act(() => advanceFrames(60));
-
-    // At 600 CPS for 1 second, expect ~600 chars (with tolerance for word snap)
-    expect(result.current.displayLength).toBeGreaterThan(400);
-    // Shouldn't exceed cap significantly
-    expect(result.current.displayLength).toBeLessThan(800);
-  });
-
-  it('CPS slows down as buffer drains', () => {
+  it('maintains constant rate regardless of buffer size', () => {
     const text = 'word '.repeat(200); // 1000 chars
 
     const { result } = renderHook(() =>
@@ -923,24 +951,23 @@ describe('useStreamBuffer — adaptive CPS', () => {
       }),
     );
 
-    // First second: large buffer → fast rate
+    // First second
     act(() => advanceFrames(60));
     const afterFirstSecond = result.current.displayLength;
 
-    // Advance another second. Buffer is smaller now, so rate should decrease.
-    // We measure the delta per second to compare.
+    // Second second
     act(() => advanceFrames(60));
     const afterSecondSecond = result.current.displayLength;
 
     const firstDelta = afterFirstSecond;
     const secondDelta = afterSecondSecond - afterFirstSecond;
 
-    // If buffer drained, second delta should be smaller (or equal if buffer
-    // is still large). At minimum, the first delta should be positive.
     expect(firstDelta).toBeGreaterThan(0);
-    // The key insight: with a shrinking buffer, the rate should decrease
-    // (or at least not increase beyond the first interval)
-    expect(secondDelta).toBeLessThanOrEqual(firstDelta + 50); // tolerance for word-snap
+    expect(secondDelta).toBeGreaterThan(0);
+    // Constant rate: second interval reveals a similar order of magnitude
+    // (word-snap variance and buffer-end effects cause some difference)
+    expect(secondDelta).toBeGreaterThan(firstDelta * 0.3);
+    expect(secondDelta).toBeLessThan(firstDelta * 2);
   });
 
   it('respects custom targetCPS parameter', () => {
@@ -1420,10 +1447,11 @@ describe('useStreamBuffer — progress and isDraining', () => {
       'A longer message that will not fully drain before the stream ends ' +
       'so we can verify the isDraining flag is set correctly during drain. ' +
       'Adding extra content to ensure the buffer has plenty of remaining ' +
-      'characters after thirty frames of animation at the adaptive rate.';
+      'characters after thirty frames of animation at the constant rate.';
 
     const { result, rerender } = renderHook(
-      (props) => useStreamBuffer({ ...props, initialBufferChars: 3 }),
+      (props) =>
+        useStreamBuffer({ ...props, targetCPS: 200, initialBufferChars: 3 }),
       { initialProps: { text: longText, isStreaming: true } },
     );
 
@@ -1434,11 +1462,9 @@ describe('useStreamBuffer — progress and isDraining', () => {
     // End stream while buffer still has content
     rerender({ text: longText, isStreaming: false });
 
-    expect(result.current.isDraining).toBe(true);
-
-    // After fully draining, isDraining should become false
-    act(() => advanceFrames(300));
+    // Content is revealed immediately when streaming ends
     expect(result.current.isDraining).toBe(false);
+    expect(result.current.displayLength).toBe(longText.length);
   });
 
   it('bufferSize decreases as text is revealed', () => {

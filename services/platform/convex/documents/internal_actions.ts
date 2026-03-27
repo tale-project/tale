@@ -7,14 +7,28 @@ import type { GenerateDocxFromTemplateResult } from './generate_docx_from_templa
 import type { GeneratePptxResult } from './generate_pptx';
 import type { GenerateDocumentResult } from './types';
 
-import { isRecord, getBoolean, getString } from '../../lib/utils/type-guards';
+import { extractExtension } from '../../lib/shared/file-types';
+import {
+  isRecord,
+  getBoolean,
+  getNumber,
+  getString,
+} from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
 import { getRagConfig } from '../lib/helpers/rag_config';
 import { ragAction } from '../workflow_engine/action_defs/rag/rag_action';
+import { getCrawlerUrl } from './generate_document_helpers';
 import * as DocumentsHelpers from './helpers';
 
 const INITIAL_POLLING_DELAY_MS = 10_000;
+
+/** Parse an ISO 8601 string to Unix milliseconds. Returns `undefined` for invalid/missing input. */
+function parseIsoTimestampMs(iso: string | undefined): number | undefined {
+  if (!iso) return undefined;
+  const ms = new Date(iso).getTime();
+  return Number.isFinite(ms) ? ms : undefined;
+}
 
 const documentSourceTypeValidator = v.union(
   v.literal('markdown'),
@@ -116,7 +130,7 @@ const docxContentValidator = v.object({
 
 export const generateDocument = internalAction({
   args: {
-    organizationId: v.optional(v.string()),
+    organizationId: v.string(),
     fileName: v.string(),
     sourceType: documentSourceTypeValidator,
     outputFormat: documentOutputFormatValidator,
@@ -128,55 +142,43 @@ export const generateDocument = internalAction({
     wrapInTemplate: v.optional(v.boolean()),
   },
   handler: async (ctx, args): Promise<GenerateDocumentResult> => {
-    return await DocumentsHelpers.generateDocument(ctx, {
-      ...args,
-      organizationId: args.organizationId ?? 'system',
-    });
+    return await DocumentsHelpers.generateDocument(ctx, args);
   },
 });
 
 export const generatePptx = internalAction({
   args: {
-    organizationId: v.optional(v.string()),
+    organizationId: v.string(),
     fileName: v.string(),
     slidesContent: v.array(slideContentValidator),
     branding: pptxBrandingValidator,
     templateStorageId: v.id('_storage'),
   },
   handler: async (ctx, args): Promise<GeneratePptxResult> => {
-    return await DocumentsHelpers.generatePptx(ctx, {
-      ...args,
-      organizationId: args.organizationId ?? 'system',
-    });
+    return await DocumentsHelpers.generatePptx(ctx, args);
   },
 });
 
 export const generateDocx = internalAction({
   args: {
-    organizationId: v.optional(v.string()),
+    organizationId: v.string(),
     fileName: v.string(),
     content: docxContentValidator,
   },
   handler: async (ctx, args): Promise<GenerateDocxResult> => {
-    return await DocumentsHelpers.generateDocx(ctx, {
-      ...args,
-      organizationId: args.organizationId ?? 'system',
-    });
+    return await DocumentsHelpers.generateDocx(ctx, args);
   },
 });
 
 export const generateDocxFromTemplate = internalAction({
   args: {
-    organizationId: v.optional(v.string()),
+    organizationId: v.string(),
     fileName: v.string(),
     content: docxContentValidator,
     templateStorageId: v.id('_storage'),
   },
   handler: async (ctx, args): Promise<GenerateDocxFromTemplateResult> => {
-    return await DocumentsHelpers.generateDocxFromTemplate(ctx, {
-      ...args,
-      organizationId: args.organizationId ?? 'system',
-    });
+    return await DocumentsHelpers.generateDocxFromTemplate(ctx, args);
   },
 });
 
@@ -215,6 +217,12 @@ export const checkRagDocumentStatus = internalAction({
       return null;
     }
 
+    if (!document.fileId) {
+      throw new Error(
+        `[checkRagDocumentStatus] Document ${args.documentId} has no fileId`,
+      );
+    }
+
     if (!document.ragInfo) {
       return null;
     }
@@ -251,7 +259,7 @@ export const checkRagDocumentStatus = internalAction({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          document_ids: [document.ragInfo.indexedFileId ?? args.documentId],
+          file_ids: [document.fileId],
         }),
         signal: AbortSignal.timeout(10000),
       });
@@ -313,7 +321,7 @@ export const checkRagDocumentStatus = internalAction({
         throw new Error('Invalid statuses field in RAG response');
       }
 
-      const ragKey = document.ragInfo.indexedFileId ?? args.documentId;
+      const ragKey = document.fileId;
       const docStatus = statuses[ragKey];
       const status = isRecord(docStatus)
         ? getString(docStatus, 'status')
@@ -323,6 +331,30 @@ export const checkRagDocumentStatus = internalAction({
         : undefined;
 
       if (status === 'completed') {
+        const sourceCreatedAt = parseIsoTimestampMs(
+          isRecord(docStatus)
+            ? getString(docStatus, 'source_created_at')
+            : undefined,
+        );
+        const sourceModifiedAt = parseIsoTimestampMs(
+          isRecord(docStatus)
+            ? getString(docStatus, 'source_modified_at')
+            : undefined,
+        );
+
+        // Write dates BEFORE marking completed — if we crash after marking
+        // completed but before writing dates, the polling loop won't retry.
+        if (sourceCreatedAt != null || sourceModifiedAt != null) {
+          await ctx.runMutation(
+            internal.documents.internal_mutations.updateDocumentDates,
+            {
+              documentId: args.documentId,
+              ...(sourceCreatedAt != null && { sourceCreatedAt }),
+              ...(sourceModifiedAt != null && { sourceModifiedAt }),
+            },
+          );
+        }
+
         await ctx.runMutation(
           internal.documents.internal_mutations.updateDocumentRagInfo,
           {
@@ -333,6 +365,7 @@ export const checkRagDocumentStatus = internalAction({
             },
           },
         );
+
         return null;
       }
 
@@ -393,28 +426,16 @@ export const checkRagDocumentStatus = internalAction({
   },
 });
 
-/** Backward-compat alias for already-scheduled calls. Remove after 2026-03-08. */
-export const checkRagJobStatus = internalAction({
-  args: {
-    documentId: v.id('documents'),
-    attempt: v.number(),
-  },
-  returns: v.null(),
-  handler: async (ctx, args): Promise<null> => {
-    await ctx.runAction(
-      internal.documents.internal_actions.checkRagDocumentStatus,
-      args,
-    );
-    return null;
-  },
-});
+const DELETE_RETRY_DELAYS = [5_000, 30_000, 120_000];
 
 export const deleteDocumentFromRag = internalAction({
   args: {
     documentId: v.id('documents'),
+    attempt: v.optional(v.number()),
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
+    const attempt = args.attempt ?? 0;
     const ragUrl = getRagConfig().serviceUrl;
 
     const document = await ctx.runQuery(
@@ -422,8 +443,14 @@ export const deleteDocumentFromRag = internalAction({
       { documentId: args.documentId },
     );
 
-    const ragKey =
-      document?.ragInfo?.indexedFileId ?? document?.fileId ?? args.documentId;
+    if (!document?.fileId) {
+      console.warn(
+        `[deleteDocumentFromRag] Document ${args.documentId} has no fileId, skipping RAG delete`,
+      );
+      return null;
+    }
+
+    const ragKey = document.fileId;
 
     let ragSuccess = false;
     try {
@@ -454,6 +481,19 @@ export const deleteDocumentFromRag = internalAction({
       await ctx.runMutation(
         internal.documents.internal_mutations.deleteDocumentById,
         { documentId: args.documentId },
+      );
+    } else if (attempt < DELETE_RETRY_DELAYS.length) {
+      console.warn(
+        `[deleteDocumentFromRag] Scheduling retry ${attempt + 1}/${DELETE_RETRY_DELAYS.length} for ${args.documentId}`,
+      );
+      await ctx.scheduler.runAfter(
+        DELETE_RETRY_DELAYS[attempt],
+        internal.documents.internal_actions.deleteDocumentFromRag,
+        { documentId: args.documentId, attempt: attempt + 1 },
+      );
+    } else {
+      console.error(
+        `[deleteDocumentFromRag] All retries exhausted for ${args.documentId}. Document remains in database.`,
       );
     }
 
@@ -502,7 +542,6 @@ export const uploadDocumentToRag = internalAction({
             documentId: args.documentId,
             ragInfo: {
               status: 'queued',
-              indexedFileId: document.fileId,
             },
           },
         );
@@ -607,7 +646,6 @@ export const reindexDocumentInRag = internalAction({
             documentId: args.documentId,
             ragInfo: {
               status: 'queued',
-              indexedFileId: document.fileId,
             },
           },
         );
@@ -641,6 +679,138 @@ export const reindexDocumentInRag = internalAction({
           ragInfo: { status: 'failed', error: message },
         },
       );
+    }
+
+    return null;
+  },
+});
+
+const EXTRACT_DATES_SUPPORTED_EXTENSIONS = new Set(['pdf', 'docx', 'pptx']);
+const EXTRACT_DATES_RETRY_DELAYS = [30_000, 60_000, 120_000];
+
+export const extractDocumentDates = internalAction({
+  args: {
+    documentId: v.id('documents'),
+    fileId: v.id('_storage'),
+    attempt: v.optional(v.number()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const attempt = args.attempt ?? 0;
+
+    try {
+      const document = await ctx.runQuery(
+        internal.documents.internal_queries.getDocumentByIdRaw,
+        { documentId: args.documentId },
+      );
+
+      if (!document) {
+        console.warn(
+          `[extractDocumentDates] Document ${args.documentId} not found, skipping`,
+        );
+        return null;
+      }
+
+      if (document.fileId !== args.fileId) {
+        console.warn(
+          `[extractDocumentDates] File changed for document ${args.documentId}, skipping stale extraction`,
+        );
+        return null;
+      }
+
+      const ext = document.extension ?? extractExtension(document.title);
+      if (!ext || !EXTRACT_DATES_SUPPORTED_EXTENSIONS.has(ext)) {
+        console.warn(
+          `[extractDocumentDates] Unsupported extension "${ext}" for document ${args.documentId}`,
+        );
+        return null;
+      }
+
+      const fileUrl = await ctx.storage.getUrl(args.fileId);
+      if (!fileUrl) {
+        console.warn(
+          `[extractDocumentDates] No URL for file ${args.fileId}, skipping`,
+        );
+        return null;
+      }
+
+      const fileResponse = await fetch(fileUrl, {
+        signal: AbortSignal.timeout(30_000),
+      });
+
+      if (!fileResponse.ok) {
+        throw new Error(
+          `Failed to download file: ${fileResponse.status} ${fileResponse.statusText}`,
+        );
+      }
+
+      const fileBlob = await fileResponse.blob();
+
+      const crawlerUrl = getCrawlerUrl();
+      const endpoint = `${crawlerUrl}/api/v1/${ext}/extract-metadata`;
+
+      const formData = new FormData();
+      formData.append('file', fileBlob, document.title ?? `file.${ext}`);
+
+      const metadataResponse = await fetch(endpoint, {
+        method: 'POST',
+        body: formData,
+        signal: AbortSignal.timeout(30_000),
+      });
+
+      if (!metadataResponse.ok) {
+        const errorText = await metadataResponse.text().catch(() => '');
+        throw new Error(
+          `Crawler extract-metadata returned ${metadataResponse.status}: ${errorText}`,
+        );
+      }
+
+      let body: unknown;
+      try {
+        body = await metadataResponse.json();
+      } catch {
+        throw new Error('Crawler returned non-JSON response');
+      }
+
+      if (!isRecord(body)) {
+        throw new Error('Invalid response shape from crawler extract-metadata');
+      }
+
+      const createdAt = getNumber(body, 'created_at');
+      const modifiedAt = getNumber(body, 'modified_at');
+
+      if (createdAt != null || modifiedAt != null) {
+        await ctx.runMutation(
+          internal.documents.internal_mutations.updateDocumentDates,
+          {
+            documentId: args.documentId,
+            sourceCreatedAt: createdAt,
+            sourceModifiedAt: modifiedAt,
+          },
+        );
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(
+        `[extractDocumentDates] Error for document ${args.documentId} (attempt ${attempt}): ${message}`,
+      );
+
+      if (attempt < EXTRACT_DATES_RETRY_DELAYS.length) {
+        const retryDelay = EXTRACT_DATES_RETRY_DELAYS[attempt];
+        await ctx.scheduler.runAfter(
+          retryDelay,
+          internal.documents.internal_actions.extractDocumentDates,
+          {
+            documentId: args.documentId,
+            fileId: args.fileId,
+            attempt: attempt + 1,
+          },
+        );
+      } else {
+        console.warn(
+          `[extractDocumentDates] All retries exhausted for document ${args.documentId}: ${message}`,
+        );
+      }
     }
 
     return null;

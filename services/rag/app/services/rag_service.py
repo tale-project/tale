@@ -7,6 +7,7 @@ All operations use the private_knowledge schema in tale_knowledge database.
 from __future__ import annotations
 
 import asyncio
+import datetime as dt
 import time
 from typing import Any
 
@@ -21,10 +22,8 @@ from ..config import settings
 from .database import (
     SCHEMA,
     close_pool,
-    ensure_content_hash_index,
-    ensure_embedding_dimensions,
-    ensure_error_column,
     init_pool,
+    pin_embedding_dimensions,
 )
 from .indexing_service import index_document
 from .search_service import RagSearchService
@@ -83,10 +82,8 @@ class RagService:
             dimensions=dimensions,
         )
 
-        # Ensure embedding dimensions and HNSW index
-        await ensure_embedding_dimensions(self._pool, dimensions)
-        await ensure_error_column(self._pool)
-        await ensure_content_hash_index(self._pool)
+        # Pin embedding dimensions and create HNSW index (runtime config, not a migration)
+        await pin_embedding_dimensions(self._pool, dimensions)
 
         # Vision client (optional — only if model is configured)
         try:
@@ -121,10 +118,11 @@ class RagService:
     async def add_document(
         self,
         content: bytes,
-        document_id: str,
+        file_id: str,
         filename: str,
         *,
-        user_id: str | None = None,
+        source_created_at: dt.datetime | None = None,
+        source_modified_at: dt.datetime | None = None,
     ) -> dict[str, Any]:
         """Add a document to the knowledge base."""
         if not self.initialized:
@@ -137,14 +135,15 @@ class RagService:
 
         return await index_document(
             self._pool,
-            document_id,
+            file_id,
             content,
             filename,
-            user_id=user_id,
             embedding_service=self._embedding_service,
             vision_client=self._vision_client,
             chunk_size=settings.chunk_size,
             chunk_overlap=settings.chunk_overlap,
+            source_created_at=source_created_at,
+            source_modified_at=source_modified_at,
         )
 
     async def search(
@@ -153,7 +152,7 @@ class RagService:
         *,
         top_k: int | None = None,
         similarity_threshold: float | None = None,
-        document_ids: list[str] | None = None,
+        file_ids: list[str] | None = None,
     ) -> list[dict[str, Any]]:
         """Search the knowledge base using hybrid BM25 + vector search."""
         if not self.initialized:
@@ -167,7 +166,7 @@ class RagService:
 
         results = await self._search_service.search(
             query,
-            document_ids=document_ids,
+            file_ids=file_ids,
             top_k=effective_top_k,
         )
 
@@ -179,7 +178,7 @@ class RagService:
     async def generate(
         self,
         query: str,
-        document_ids: list[str] | None = None,
+        file_ids: list[str] | None = None,
     ) -> dict[str, Any]:
         """Generate a response using RAG: search -> context assembly -> LLM."""
         if not self.initialized:
@@ -191,7 +190,7 @@ class RagService:
         try:
             start_time = time.time()
 
-            search_results = await self.search(query, top_k=RAG_TOP_K, document_ids=document_ids)
+            search_results = await self.search(query, top_k=RAG_TOP_K, file_ids=file_ids)
 
             if not search_results:
                 return {
@@ -259,7 +258,7 @@ class RagService:
 
     async def get_document_content(
         self,
-        document_id: str,
+        file_id: str,
         *,
         chunk_start: int = 1,
         chunk_end: int | None = None,
@@ -268,7 +267,7 @@ class RagService:
         """Retrieve document content by reassembling stored chunks.
 
         Args:
-            document_id: Logical document identifier.
+            file_id: Logical file identifier.
             chunk_start: First chunk to return (1-indexed).
             chunk_end: Last chunk to return (1-indexed, inclusive). None = capped by MAX_CHUNK_WINDOW.
             return_chunks: If True, include individual chunks as a list.
@@ -285,12 +284,13 @@ class RagService:
         if chunk_end is None:
             chunk_end = chunk_start + self.MAX_CHUNK_WINDOW - 1
 
-        where = "document_id = $1"
-        params: list[Any] = [document_id]
+        where = "file_id = $1"
+        params: list[Any] = [file_id]
 
         async with acquire_with_retry(self._pool) as conn:
             doc = await conn.fetchrow(
-                f"SELECT id, document_id, filename, chunks_count FROM {SCHEMA}.documents WHERE {where} LIMIT 1",
+                f"SELECT id, file_id, filename, chunks_count, source_created_at, source_modified_at"
+                f" FROM {SCHEMA}.documents WHERE {where} LIMIT 1",
                 *params,
             )
 
@@ -312,12 +312,14 @@ class RagService:
 
         if not rows:
             return {
-                "document_id": document_id,
+                "file_id": file_id,
                 "title": doc["filename"],
                 "content": "",
                 "chunk_range": {"start": 0, "end": 0},
                 "total_chunks": total_chunks,
                 "total_chars": 0,
+                "source_created_at": doc["source_created_at"],
+                "source_modified_at": doc["source_modified_at"],
             }
 
         combined = "\n\n".join(row["chunk_content"] for row in rows)
@@ -326,12 +328,14 @@ class RagService:
         actual_end = rows[-1]["chunk_index"] + 1
 
         result = {
-            "document_id": document_id,
+            "file_id": file_id,
             "title": doc["filename"],
             "content": combined,
             "chunk_range": {"start": actual_start, "end": actual_end},
             "total_chunks": total_chunks,
             "total_chars": len(combined),
+            "source_created_at": doc["source_created_at"],
+            "source_modified_at": doc["source_modified_at"],
         }
 
         if return_chunks:
@@ -341,11 +345,11 @@ class RagService:
 
     async def get_document_statuses(
         self,
-        document_ids: list[str],
+        file_ids: list[str],
     ) -> dict[str, dict[str, Any] | None]:
-        """Get statuses for multiple documents by document_id.
+        """Get statuses for multiple documents by file_id.
 
-        Returns a dict mapping document_id to status info or None if not found.
+        Returns a dict mapping file_id to status info or None if not found.
         When a document has multiple scope rows, priority is: processing > failed > completed.
 
         If ANY scope row is still processing, the document is considered processing.
@@ -361,11 +365,11 @@ class RagService:
         async with acquire_with_retry(self._pool) as conn:
             rows = await conn.fetch(
                 f"""
-                SELECT DISTINCT ON (document_id)
-                    document_id, status, error
+                SELECT DISTINCT ON (file_id)
+                    file_id, status, error, source_created_at, source_modified_at
                 FROM {SCHEMA}.documents
-                WHERE document_id = ANY($1)
-                ORDER BY document_id,
+                WHERE file_id = ANY($1)
+                ORDER BY file_id,
                     CASE status
                         WHEN 'processing' THEN 0
                         WHEN 'failed' THEN 1
@@ -374,15 +378,23 @@ class RagService:
                     END,
                     updated_at DESC
                 """,
-                document_ids,
+                file_ids,
             )
 
-        found = {row["document_id"]: {"status": row["status"], "error": row["error"]} for row in rows}
-        return {did: found.get(did) for did in document_ids}
+        found = {
+            row["file_id"]: {
+                "status": row["status"],
+                "error": row["error"],
+                "source_created_at": row["source_created_at"],
+                "source_modified_at": row["source_modified_at"],
+            }
+            for row in rows
+        }
+        return {fid: found.get(fid) for fid in file_ids}
 
     async def delete_document(
         self,
-        document_id: str,
+        file_id: str,
     ) -> dict[str, Any]:
         """Delete a document and its chunks from the knowledge base."""
         if not self.initialized:
@@ -395,15 +407,15 @@ class RagService:
 
         async with acquire_with_retry(self._pool) as conn:
             rows = await conn.fetch(
-                f"SELECT id FROM {SCHEMA}.documents WHERE document_id = $1",
-                document_id,
+                f"SELECT id FROM {SCHEMA}.documents WHERE file_id = $1",
+                file_id,
             )
 
         if not rows:
             processing_time = (time.time() - start_time) * 1000
             return {
                 "success": True,
-                "message": f"No documents found with ID '{document_id}'",
+                "message": f"No documents found with ID '{file_id}'",
                 "deleted_count": 0,
                 "deleted_data_ids": [],
                 "processing_time_ms": processing_time,
@@ -425,7 +437,7 @@ class RagService:
 
         return {
             "success": True,
-            "message": f"Deleted {len(ids_to_delete)} document(s) with ID '{document_id}'",
+            "message": f"Deleted {len(ids_to_delete)} document(s) with ID '{file_id}'",
             "deleted_count": len(ids_to_delete),
             "deleted_data_ids": [str(did) for did in ids_to_delete],
             "processing_time_ms": processing_time,
@@ -433,8 +445,8 @@ class RagService:
 
     async def compare_documents(
         self,
-        base_document_id: str,
-        comparison_document_id: str,
+        base_file_id: str,
+        comparison_file_id: str,
         *,
         max_changes: int = 500,
     ) -> dict[str, Any] | None:
@@ -445,13 +457,13 @@ class RagService:
         """
         from .diff_service import compute_diff
 
-        base = await self.get_document_content(base_document_id)
+        base = await self.get_document_content(base_file_id)
         if base is None:
-            return {"error": "not_found", "document_id": base_document_id, "role": "base"}
+            return {"error": "not_found", "file_id": base_file_id, "role": "base"}
 
-        comp = await self.get_document_content(comparison_document_id)
+        comp = await self.get_document_content(comparison_file_id)
         if comp is None:
-            return {"error": "not_found", "document_id": comparison_document_id, "role": "comparison"}
+            return {"error": "not_found", "file_id": comparison_file_id, "role": "comparison"}
 
         diff_result = compute_diff(
             base["content"],
@@ -462,11 +474,11 @@ class RagService:
         result = diff_result.to_dict()
         result["success"] = True
         result["base_document"] = {
-            "document_id": base_document_id,
+            "file_id": base_file_id,
             "title": base.get("title"),
         }
         result["comparison_document"] = {
-            "document_id": comparison_document_id,
+            "file_id": comparison_file_id,
             "title": comp.get("title"),
         }
 
@@ -510,11 +522,11 @@ class RagService:
         result = diff_result.to_dict()
         result["success"] = True
         result["base_document"] = {
-            "document_id": base_filename,
+            "file_id": None,
             "title": base_filename,
         }
         result["comparison_document"] = {
-            "document_id": comparison_filename,
+            "file_id": None,
             "title": comparison_filename,
         }
 

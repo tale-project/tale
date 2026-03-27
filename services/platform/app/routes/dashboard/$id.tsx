@@ -63,12 +63,12 @@ function DashboardLayout() {
         <TeamFilterProvider organizationId={organizationId}>
           <AdaptiveHeaderProvider>
             <div className="flex size-full flex-col overflow-hidden md:flex-row">
-              <div className="bg-background flex h-[--nav-size] items-center gap-2 p-2 md:hidden">
+              <div className="bg-sidebar flex h-[--nav-size] items-center gap-2 p-2 md:hidden">
                 <MobileNavigation organizationId={organizationId} />
                 <AdaptiveHeaderSlot />
               </div>
 
-              <div className="hidden h-full px-2 md:flex md:flex-[0_0_var(--nav-size)]">
+              <div className="bg-sidebar hidden h-full px-2 md:flex md:flex-[0_0_var(--nav-size)]">
                 <Navigation organizationId={organizationId} />
               </div>
 

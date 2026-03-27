@@ -13,7 +13,7 @@ import type { ComponentRunResult } from '../../types';
 
 import { isRecord, getString } from '../../../../lib/utils/type-guards';
 import { internal } from '../../../_generated/api';
-import { toConvexJsonValue, toId } from '../../../lib/type_cast_helpers';
+import { toId } from '../../../lib/type_cast_helpers';
 import { emitEvent } from '../../../workflows/triggers/emit_event';
 
 export async function handleWorkflowComplete(
@@ -56,8 +56,7 @@ export async function handleWorkflowComplete(
     // The idempotency guard in completeExecution also protects against races.
     if (!wasTerminal) {
       // Use the already-persisted output from the serialize action.
-      // Fall back to result.returnValue for simple workflows that skip serialization.
-      const output = exec.output ?? toConvexJsonValue(result.returnValue);
+      const output = exec.output ?? null;
       await ctx.runMutation(
         internal.wf_executions.internal_mutations.completeExecution,
         {
@@ -94,7 +93,39 @@ export async function handleWorkflowComplete(
   }
 
   if (!wasTerminal) {
-    await postCompletionMessageToThread(ctx, exec, kind, result);
+    // Mark the triggering approval as completed/rejected now that the workflow is done
+    await updateTriggeringApprovalStatus(ctx, exec, kind);
+    // Skip completion message for canceled workflows — cancelExecution
+    // already posts [WORKFLOW_CANCELLED] to the thread
+    if (kind !== 'canceled') {
+      await postCompletionMessageToThread(ctx, exec, kind, result);
+    }
+  }
+}
+
+async function updateTriggeringApprovalStatus(
+  ctx: MutationCtx,
+  exec: Doc<'wfExecutions'>,
+  kind: string | undefined,
+): Promise<void> {
+  const triggerData = isRecord(exec.triggerData) ? exec.triggerData : null;
+  const approvalIdStr = triggerData
+    ? getString(triggerData, 'approvalId')
+    : undefined;
+  if (!approvalIdStr) return;
+
+  try {
+    const approval = await ctx.db.get(toId<'approvals'>(approvalIdStr));
+    if (!approval || approval.status !== 'executing') return;
+
+    await ctx.db.patch(approval._id, {
+      status: kind === 'success' ? 'completed' : 'rejected',
+      ...(kind !== 'success'
+        ? { executionError: exec.error ?? 'Workflow failed' }
+        : {}),
+    });
+  } catch {
+    // Non-critical: approval status update failure should not block completion
   }
 }
 
@@ -136,7 +167,7 @@ async function postCompletionMessageToThread(
 
     const messageContent =
       kind === 'success'
-        ? `[WORKFLOW_COMPLETED]\nWorkflow "${workflowName}" completed successfully.\n\nExecution Details:\n- Execution ID: ${exec._id}\n- Status: completed${outputSummary}\n\nInstructions:\n- Inform the user that the workflow has completed successfully and present the output details`
+        ? `[WORKFLOW_COMPLETED]\nWorkflow "${workflowName}" completed successfully.\n\nExecution Details:\n- Execution ID: ${exec._id}\n- Status: completed${outputSummary}\n\nInstructions:\n- Inform the user that the workflow has completed successfully and present the output details\n- If the output contains file download links (downloadUrl), present them to the user so they can download the files`
         : `[WORKFLOW_FAILED]\nWorkflow "${workflowName}" failed.\n\nExecution Details:\n- Execution ID: ${exec._id}\n- Status: failed\n- Error: ${errorMsg || 'unknown error'}\n\nInstructions:\n- Inform the user that the workflow has failed and provide the error details`;
 
     await ctx.scheduler.runAfter(

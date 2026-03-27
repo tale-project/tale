@@ -7,8 +7,12 @@ import {
   useUnifiedChatWithAgent,
 } from '@/app/features/chat/hooks/mutations';
 import {
+  useDocumentWriteApprovals,
+  useHumanInputRequests,
+  useIntegrationApprovals,
   useThreadMessages,
   useWorkflowCreationApprovals,
+  useWorkflowRunApprovals,
   useWorkflowUpdateApprovals,
 } from '@/app/features/chat/hooks/queries';
 import { useConvexFileUpload } from '@/app/features/chat/hooks/use-convex-file-upload';
@@ -21,6 +25,10 @@ import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useThrottledScroll } from '@/app/hooks/use-throttled-scroll';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
+import {
+  getSystemMessageDisplay,
+  parseSystemMessageTag,
+} from '@/lib/shared/constants/system-message-tags';
 import { stripWorkflowContext } from '@/lib/utils/message-helpers';
 
 import type {
@@ -114,6 +122,22 @@ export function useAssistantChat({
     organizationId,
     threadId ?? undefined,
   );
+  const { approvals: workflowRunApprovals } = useWorkflowRunApprovals(
+    organizationId,
+    threadId ?? undefined,
+  );
+  const { requests: humanInputRequests } = useHumanInputRequests(
+    organizationId,
+    threadId ?? undefined,
+  );
+  const { approvals: documentWriteApprovals } = useDocumentWriteApprovals(
+    organizationId,
+    threadId ?? undefined,
+  );
+  const { approvals: integrationApprovals } = useIntegrationApprovals(
+    organizationId,
+    threadId ?? undefined,
+  );
 
   // Server-side loading state: is the agent currently generating?
   const { data: isGenerating } = useConvexQuery(
@@ -150,7 +174,10 @@ export function useAssistantChat({
     if (!uiMessages || uiMessages.length === 0) return [];
 
     return uiMessages
-      .filter((m) => m.role === 'user' || m.role === 'assistant')
+      .filter(
+        (m) =>
+          m.role === 'user' || m.role === 'assistant' || m.role === 'system',
+      )
       .map((m) => {
         const parts: unknown[] = Array.isArray(m.parts) ? m.parts : [];
         const fileParts = parts
@@ -178,6 +205,14 @@ export function useAssistantChat({
             ? extractFileAttachments(rawText)
             : undefined;
 
+        let systemMessageDisplay;
+        let systemMessageBody;
+        if (m.role === 'system' && rawText) {
+          const parsed = parseSystemMessageTag(rawText);
+          systemMessageDisplay = getSystemMessageDisplay(parsed.tag);
+          systemMessageBody = parsed.body;
+        }
+
         return {
           id: m.id,
           role: m.role,
@@ -194,6 +229,8 @@ export function useAssistantChat({
               : undefined,
           automationContext: undefined,
           clientMessageId: undefined,
+          systemMessageDisplay,
+          systemMessageBody,
         };
       });
   }, [uiMessages]);
@@ -452,5 +489,9 @@ export function useAssistantChat({
     handleKeyDown,
     workflowUpdateApprovals,
     workflowCreationApprovals,
+    workflowRunApprovals,
+    humanInputRequests,
+    documentWriteApprovals,
+    integrationApprovals,
   };
 }

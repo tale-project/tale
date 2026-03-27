@@ -56,7 +56,7 @@ ${delegate.description}
 
 Pass the user's request in natural language. The agent will handle it and return results.`,
 
-      args: z.object({
+      inputSchema: z.object({
         userRequest: z
           .string()
           .describe(
@@ -64,7 +64,7 @@ Pass the user's request in natural language. The agent will handle it and return
           ),
       }),
 
-      handler: async (ctx: ToolCtx, args): Promise<ToolResponse> => {
+      execute: async (ctx: ToolCtx, args): Promise<ToolResponse> => {
         const validation = validateToolContext(ctx, toolName);
         if (!validation.valid) return validation.error;
 

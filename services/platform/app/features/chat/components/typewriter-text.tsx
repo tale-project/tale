@@ -59,21 +59,6 @@ interface TypewriterTextProps {
 }
 
 // ============================================================================
-// ANIMATION CONFIGURATION
-// ============================================================================
-
-/**
- * Timing parameters for the typewriter animation.
- * Uses constant drain rate for smooth, steady output.
- */
-const TYPEWRITER_CONFIG = {
-  /** Target characters per second */
-  targetCPS: 50,
-  /** Characters to buffer before starting reveal */
-  initialBufferChars: 30,
-};
-
-// ============================================================================
 // STABLE STREAM TEXT
 // ============================================================================
 
@@ -115,8 +100,6 @@ function TypewriterTextComponent({
     useStreamBuffer({
       text: stableText,
       isStreaming,
-      targetCPS: TYPEWRITER_CONFIG.targetCPS,
-      initialBufferChars: TYPEWRITER_CONFIG.initialBufferChars,
     });
 
   // Track completion to fire onComplete callback

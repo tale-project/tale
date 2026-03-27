@@ -1,9 +1,4 @@
-import {
-  abortStream,
-  listMessages,
-  listStreams,
-  saveMessage,
-} from '@convex-dev/agent';
+import { abortStream, listMessages, listStreams } from '@convex-dev/agent';
 
 import type { MutationCtx } from '../_generated/server';
 
@@ -13,9 +8,10 @@ import { components } from '../_generated/api';
  * Cancel an active AI generation for a thread.
  *
  * 1. Validates thread ownership.
- * 2. Aborts all active (streaming) streams for the thread.
- * 3. If displayedContent is provided, truncates the latest assistant message
- *    to match what the user saw on screen when they clicked stop.
+ * 2. Aborts all active (streaming) SDK streams.
+ * 3. Sets cancelledAt on threadMetadata so the running action detects it.
+ * 4. If displayedContent is provided, marks the latest assistant message as
+ *    "success" with that content (ChatGPT-style clean stop).
  */
 export async function cancelGeneration(
   ctx: MutationCtx,
@@ -30,6 +26,7 @@ export async function cancelGeneration(
     throw new Error('Thread not found');
   }
 
+  // Abort all active SDK streams
   const activeStreams = await listStreams(ctx, components.agent, {
     threadId,
     includeStatuses: ['streaming'],
@@ -42,6 +39,7 @@ export async function cancelGeneration(
     });
   }
 
+  // Mark the latest assistant message based on displayed content
   const messagesResult = await listMessages(ctx, components.agent, {
     threadId,
     paginationOpts: { numItems: 5, cursor: null },
@@ -53,32 +51,37 @@ export async function cancelGeneration(
   );
 
   if (latestAssistant && latestAssistant.status !== 'success') {
-    const patch: {
-      status: 'failed';
-      message?: { role: 'assistant'; content: string };
-    } = {
-      status: 'failed',
-    };
-
-    if (displayedContent != null) {
-      patch.message = { role: 'assistant', content: displayedContent };
+    if (displayedContent?.trim()) {
+      // ChatGPT-style: preserve displayed content as a successful message
+      await ctx.runMutation(components.agent.messages.updateMessage, {
+        messageId: latestAssistant._id,
+        patch: {
+          status: 'success',
+          message: { role: 'assistant', content: displayedContent },
+        },
+      });
+    } else {
+      // No content was displayed — mark as failed so frontend shows clean state
+      await ctx.runMutation(components.agent.messages.updateMessage, {
+        messageId: latestAssistant._id,
+        patch: { status: 'failed' },
+      });
     }
+  }
+  // If no assistant message exists yet (early cancel), don't create one.
+  // The cancelledAt signal is sufficient for the running action to detect.
 
-    await ctx.runMutation(components.agent.messages.updateMessage, {
-      messageId: latestAssistant._id,
-      patch,
-    });
-  } else if (!latestAssistant) {
-    // No assistant message yet (very early stop). Create one with empty
-    // content and failed status so the frontend exits loading and shows
-    // "Generation stopped" via the isAborted flag.
-    await saveMessage(ctx, components.agent, {
-      threadId,
-      message: {
-        role: 'assistant',
-        content: displayedContent ?? '',
-      },
-      metadata: { status: 'failed' },
+  // Set cancelledAt and clear generation status
+  const threadMeta = await ctx.db
+    .query('threadMetadata')
+    .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
+    .first();
+  if (threadMeta) {
+    await ctx.db.patch(threadMeta._id, {
+      cancelledAt: Date.now(),
+      cancelledMessageId: latestAssistant?._id,
+      generationStatus: 'idle',
+      streamId: undefined,
     });
   }
 }

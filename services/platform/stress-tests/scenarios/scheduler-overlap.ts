@@ -57,7 +57,7 @@ async function run() {
 
     try {
       const executionId = await client.mutation(
-        api.workflow_engine.mutations.startWorkflow,
+        api.wf_executions.mutations.startWorkflow,
         {
           organizationId,
           wfDefinitionId: wfDefinitionId as Id<'wfDefinitions'>,
@@ -68,8 +68,8 @@ async function run() {
               'document_rag_sync',
               'onedrive_sync',
               'customer_status_assessment',
-              'product_recommendation',
-              'product_recommendation_email',
+              'integration_operation',
+              'workflow_creation',
               'conversation_auto_archive',
             ][i],
             timestamp: Date.now(),

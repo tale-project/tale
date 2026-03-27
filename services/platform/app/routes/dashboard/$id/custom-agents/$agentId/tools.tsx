@@ -3,7 +3,7 @@ import { useState, useCallback, useMemo, useEffect } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
 import { RadioGroup } from '@/app/components/ui/forms/radio-group';
-import { SectionHeader } from '@/app/components/ui/layout/section-header';
+import { PageSection } from '@/app/components/ui/layout/page-section';
 import { StickySectionHeader } from '@/app/components/ui/layout/sticky-section-header';
 import { ToolSelector } from '@/app/features/custom-agents/components/tool-selector';
 import { useUpdateCustomAgent } from '@/app/features/custom-agents/hooks/mutations';
@@ -54,11 +54,9 @@ function ToolsTab() {
   const hiddenTools = useMemo(() => {
     const hidden = new Set<string>();
     hidden.add('rag_search');
-    if (webSearchMode !== 'off') {
-      hidden.add('web');
-    }
+    hidden.add('web');
     return hidden;
-  }, [webSearchMode]);
+  }, []);
 
   // Auto-save web search mode
   const webModeData = useMemo(() => ({ webSearchMode }), [webSearchMode]);
@@ -164,7 +162,8 @@ function ToolsTab() {
         description={t('customAgents.form.sectionToolsDescription')}
       />
 
-      <SectionHeader
+      <PageSection
+        gap={3}
         title={t('customAgents.tools.webSearchMode')}
         description={
           <>
@@ -180,15 +179,15 @@ function ToolsTab() {
             </Link>
           </>
         }
-      />
-
-      <RadioGroup
-        value={webSearchMode}
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- RadioGroup returns string; options constrain to RetrievalMode values
-        onValueChange={(value) => setWebSearchMode(value as RetrievalMode)}
-        options={webModeOptions}
-        disabled={isReadOnly}
-      />
+      >
+        <RadioGroup
+          value={webSearchMode}
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- RadioGroup returns string; options constrain to RetrievalMode values
+          onValueChange={(value) => setWebSearchMode(value as RetrievalMode)}
+          options={webModeOptions}
+          disabled={isReadOnly}
+        />
+      </PageSection>
 
       <ToolSelector
         value={selectedTools}

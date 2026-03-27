@@ -30,7 +30,7 @@ export const TABLE_SCHEMAS: Record<string, TableSchemaDefinition> = {
       {
         field: 'type',
         type: 'string',
-        note: 'Conversation type (e.g., "product_recommendation", "churn_survey", "service_request", "general")',
+        note: 'Conversation type (e.g., "churn_survey", "service_request", "general")',
       },
       {
         field: 'channel',
@@ -59,7 +59,7 @@ export const TABLE_SCHEMAS: Record<string, TableSchemaDefinition> = {
       'status == "closed" && daysAgo(metadata.resolved_at) > 30',
       'status == "open" && priority == "high"',
       'channel == "email" && direction == "inbound"',
-      'type == "product_recommendation"',
+      'type == "service_request"',
     ],
   },
 
@@ -131,12 +131,12 @@ export const TABLE_SCHEMAS: Record<string, TableSchemaDefinition> = {
       {
         field: 'status',
         type: 'enum',
-        values: ['pending', 'approved', 'rejected'],
+        values: ['pending', 'executing', 'completed', 'rejected'],
       },
       {
         field: 'resourceType',
         type: 'string',
-        note: 'Type of resource being approved (e.g., "product_recommendation", "conversations", "email")',
+        note: 'Type of resource being approved (e.g., "integration_operation", "conversations", "workflow_creation")',
       },
       {
         field: 'priority',
@@ -151,8 +151,8 @@ export const TABLE_SCHEMAS: Record<string, TableSchemaDefinition> = {
     ],
     examples: [
       'status == "pending"',
-      'status == "approved"',
-      'status == "approved" && resourceType == "product_recommendation"',
+      'status == "completed"',
+      'status == "completed" && resourceType == "integration_operation"',
       'status == "pending" && priority == "urgent"',
       'daysAgo(_creationTime) > 7 && status == "pending"',
     ],

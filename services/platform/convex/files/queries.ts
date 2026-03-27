@@ -2,6 +2,7 @@ import { v } from 'convex/values';
 
 import { MAX_BATCH_FILE_IDS } from '../../lib/shared/file-types';
 import { query } from '../_generated/server';
+import { toPublicUrl } from '../lib/helpers/public_storage_url';
 import { getAuthUserIdentity } from '../lib/rls';
 
 export const getFileUrl = query({
@@ -14,7 +15,8 @@ export const getFileUrl = query({
     if (!authUser) return null;
 
     try {
-      return await ctx.storage.getUrl(args.fileId);
+      const url = await ctx.storage.getUrl(args.fileId);
+      return url ? toPublicUrl(url) : null;
     } catch {
       return null;
     }
@@ -41,7 +43,7 @@ export const getFileUrls = query({
       fileIds.map(async (fileId) => {
         try {
           const url = await ctx.storage.getUrl(fileId);
-          return { fileId, url };
+          return { fileId, url: url ? toPublicUrl(url) : null };
         } catch {
           return { fileId, url: null };
         }

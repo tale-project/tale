@@ -35,6 +35,7 @@ export const conversationsTable = defineTable({
     'organizationId',
     'externalMessageId',
   ])
+  .index('by_org_lastMessageAt', ['organizationId', 'lastMessageAt'])
   .index('by_org_status_lastMessageAt', [
     'organizationId',
     'status',

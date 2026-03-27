@@ -6,12 +6,14 @@ from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import Response
 from loguru import logger
 
+from app.exceptions import DownloadDetectedException
 from app.models import (
     HtmlToImageRequest,
     MarkdownToImageRequest,
     UrlToImageRequest,
 )
 from app.services.image_service import get_image_service
+from app.utils.http_download import download_file
 
 router = APIRouter(prefix="/api/v1/images", tags=["Images"])
 
@@ -140,6 +142,32 @@ async def convert_url_to_image(request: UrlToImageRequest):
             headers={"Content-Disposition": f"attachment; filename=screenshot.{ext}"},
         )
 
+    except DownloadDetectedException:
+        logger.info(f"URL triggers download, falling back to HTTP: {request.url}")
+        try:
+            timeout_seconds = request.timeout / 1000
+            file_bytes, content_type = await download_file(str(request.url), timeout_seconds)
+            ct = content_type.lower().split(";")[0].strip()
+
+            if not ct.startswith("image/"):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="URL triggers a file download but the content is not an image",
+                )
+
+            return Response(
+                content=file_bytes,
+                media_type=ct,
+                headers={"Content-Disposition": f"attachment; filename=screenshot.{request.options.image_type}"},
+            )
+        except HTTPException:
+            raise
+        except Exception:
+            logger.exception("HTTP fallback download failed")
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Failed to download file from URL",
+            ) from None
     except Exception:
         logger.exception("Error converting URL to image")
         raise HTTPException(

@@ -106,6 +106,21 @@
       "stepType": "llm",
       "config": {
         "name": "General Customer Status Analyzer",
+        "tools": ["rag_search"],
+        "outputFormat": "text",
+        "systemPrompt": "{{llmSystemPrompt}}",
+        "userPrompt": "{{llmUserPrompt}}"
+      },
+      "nextSteps": { "success": "structure_status" }
+    },
+    {
+      "stepSlug": "structure_status",
+      "name": "Structure Status as JSON",
+      "stepType": "llm",
+      "config": {
+        "name": "Status Structurer",
+        "systemPrompt": "You are a data extraction assistant. Extract the customer status assessment from the previous analysis into structured JSON. Extract ONLY data that was explicitly stated. Do NOT invent or fabricate any values.",
+        "userPrompt": "Extract the structured status data from this analysis:\n\n{{steps.analyze_status.output.data}}",
         "outputFormat": "json",
         "outputSchema": {
           "type": "object",
@@ -116,22 +131,17 @@
               "description": "Customer lifecycle status"
             },
             "churnReason": {
-              "type": "string",
-              "nullable": true,
+              "type": ["string", "null"],
               "description": "Reason for churn if status is churned, otherwise null"
             },
             "churnedAt": {
-              "type": "number",
-              "nullable": true,
+              "type": ["number", "null"],
               "description": "Timestamp when customer churned if status is churned, otherwise null"
             }
           },
           "required": ["status", "churnReason", "churnedAt"],
           "additionalProperties": false
-        },
-        "tools": ["rag_search"],
-        "systemPrompt": "{{llmSystemPrompt}}",
-        "userPrompt": "{{llmUserPrompt}}"
+        }
       },
       "nextSteps": { "success": "update_customer_status" }
     },
@@ -145,11 +155,11 @@
           "operation": "update",
           "customerId": "{{currentCustomerId}}",
           "updates": {
-            "status": "{{steps.analyze_status.output.data.status}}",
+            "status": "{{steps.structure_status.output.data.status}}",
             "metadata": {
               "statusAssessment": {
-                "churnReason": "{{steps.analyze_status.output.data.churnReason}}",
-                "churnedAt": "{{steps.analyze_status.output.data.churnedAt}}",
+                "churnReason": "{{steps.structure_status.output.data.churnReason}}",
+                "churnedAt": "{{steps.structure_status.output.data.churnedAt}}",
                 "assessedAt": "{{now}}"
               }
             }
@@ -172,7 +182,7 @@
             "processedAt": "{{now}}",
             "statusUpdated": true,
             "previousStatus": "{{currentCustomerStatus}}",
-            "newStatus": "{{steps.analyze_status.output.data.status}}"
+            "newStatus": "{{steps.structure_status.output.data.status}}"
           }
         }
       },

@@ -680,6 +680,206 @@ describe('useMessageProcessing', () => {
     });
   });
 
+  describe('system messages', () => {
+    it('includes system messages with info display for APPROVAL_REJECTED', () => {
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: 'msg-1',
+            order: 0,
+            role: 'user',
+            text: 'Hi',
+          }),
+          createUIMessage({
+            id: 'msg-2',
+            order: 1,
+            role: 'system',
+            text: '[APPROVAL_REJECTED]\nThe user rejected the request.',
+            status: 'success',
+          }),
+          createUIMessage({
+            id: 'msg-3',
+            order: 2,
+            role: 'assistant',
+            text: 'Understood.',
+            status: 'success',
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result } = renderHook(() => useMessageProcessing('thread-1'));
+      const systemMsg = result.current.messages.find((m) => m.key === 'msg-2');
+      expect(systemMsg).toBeDefined();
+      expect(systemMsg?.role).toBe('system');
+      expect(systemMsg?.systemMessageDisplay).toBe('info');
+      expect(systemMsg?.systemMessageBody).toBe(
+        'The user rejected the request.',
+      );
+    });
+
+    it('detects human input response as pill display', () => {
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: 'msg-1',
+            order: 0,
+            role: 'user',
+            text: 'Hi',
+          }),
+          createUIMessage({
+            id: 'msg-2',
+            order: 1,
+            role: 'system',
+            text: '[HUMAN_INPUT_RESPONSE] Yes',
+            status: 'success',
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result } = renderHook(() => useMessageProcessing('thread-1'));
+      const systemMsg = result.current.messages.find((m) => m.key === 'msg-2');
+      expect(systemMsg?.systemMessageDisplay).toBe('pill');
+      expect(systemMsg?.systemMessageBody).toBe('Yes');
+    });
+
+    it('detects workflow cancelled as info display', () => {
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: 'msg-1',
+            order: 0,
+            role: 'user',
+            text: 'Run workflow',
+          }),
+          createUIMessage({
+            id: 'msg-2',
+            order: 1,
+            role: 'system',
+            text: '[WORKFLOW_CANCELLED]\nWorkflow "test" was stopped.',
+            status: 'success',
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result } = renderHook(() => useMessageProcessing('thread-1'));
+      const systemMsg = result.current.messages.find((m) => m.key === 'msg-2');
+      expect(systemMsg).toBeDefined();
+      expect(systemMsg?.role).toBe('system');
+      expect(systemMsg?.systemMessageDisplay).toBe('info');
+    });
+
+    it('detects workflow completed as info display', () => {
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: 'msg-1',
+            order: 0,
+            role: 'user',
+            text: 'Run workflow',
+          }),
+          createUIMessage({
+            id: 'msg-2',
+            order: 1,
+            role: 'system',
+            text: '[WORKFLOW_COMPLETED]\nWorkflow completed.',
+            status: 'success',
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result } = renderHook(() => useMessageProcessing('thread-1'));
+      const systemMsg = result.current.messages.find((m) => m.key === 'msg-2');
+      expect(systemMsg?.systemMessageDisplay).toBe('info');
+    });
+
+    it('detects workflow failed as error display', () => {
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: 'msg-1',
+            order: 0,
+            role: 'user',
+            text: 'Run workflow',
+          }),
+          createUIMessage({
+            id: 'msg-2',
+            order: 1,
+            role: 'system',
+            text: '[WORKFLOW_FAILED]\nWorkflow failed with error.',
+            status: 'success',
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result } = renderHook(() => useMessageProcessing('thread-1'));
+      const systemMsg = result.current.messages.find((m) => m.key === 'msg-2');
+      expect(systemMsg?.systemMessageDisplay).toBe('error');
+    });
+
+    it('detects response interrupted as warning display', () => {
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: 'msg-1',
+            order: 0,
+            role: 'user',
+            text: 'Hi',
+          }),
+          createUIMessage({
+            id: 'msg-2',
+            order: 1,
+            role: 'system',
+            text: '[RESPONSE_INTERRUPTED] Retrying…',
+            status: 'success',
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result } = renderHook(() => useMessageProcessing('thread-1'));
+      const systemMsg = result.current.messages.find((m) => m.key === 'msg-2');
+      expect(systemMsg?.systemMessageDisplay).toBe('warning');
+    });
+
+    it('falls back to info display for unknown system messages', () => {
+      mockUseUIMessages.mockReturnValue({
+        results: [
+          createUIMessage({
+            id: 'msg-1',
+            order: 0,
+            role: 'user',
+            text: 'Hi',
+          }),
+          createUIMessage({
+            id: 'msg-2',
+            order: 1,
+            role: 'system',
+            text: 'Some unknown system message',
+            status: 'success',
+          }),
+        ],
+        loadMore: mockLoadMore,
+        status: 'Exhausted',
+      } as unknown as ReturnType<typeof useUIMessages>);
+
+      const { result } = renderHook(() => useMessageProcessing('thread-1'));
+      const systemMsg = result.current.messages.find((m) => m.key === 'msg-2');
+      expect(systemMsg?.systemMessageDisplay).toBe('info');
+      expect(systemMsg?.systemMessageBody).toBe('Some unknown system message');
+    });
+  });
+
   describe('stripInternalFileReferences', () => {
     it('removes the attached files marker', () => {
       const input =

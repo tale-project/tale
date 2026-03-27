@@ -36,9 +36,8 @@ describe('HighlightedCode', () => {
       <HighlightedCode lang="js" code="const x = 1;" />,
     );
 
-    const spans = container.querySelectorAll('span.line');
-    expect(spans.length).toBe(1);
-    expect(spans[0].textContent).toBe('const x = 1;');
+    const code = container.querySelector('code');
+    expect(code?.textContent).toBe('const x = 1;');
     // Shiki not called yet (debounce hasn't fired)
     expect(highlightCode).not.toHaveBeenCalled();
   });
@@ -101,10 +100,9 @@ describe('HighlightedCode', () => {
     rerender(<HighlightedCode lang="py" code={'line1\nline2'} />);
 
     // Should show plain text for the NEW code (not stale highlighted HTML)
-    const spans = container.querySelectorAll('span.line');
-    expect(spans.length).toBe(2);
-    expect(spans[0].textContent).toContain('line1');
-    expect(spans[1].textContent).toContain('line2');
+    const code = container.querySelector('code');
+    expect(code?.textContent).toContain('line1');
+    expect(code?.textContent).toContain('line2');
   });
 
   it('highlights once after streaming stops', async () => {

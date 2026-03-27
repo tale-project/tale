@@ -69,7 +69,8 @@ export async function generateOAuth2AuthUrl(
   }
 
   const siteUrl = process.env.SITE_URL || 'http://localhost:3000';
-  const redirectUri = `${siteUrl}/api/integrations/oauth2/callback`;
+  const basePath = process.env.BASE_PATH || '';
+  const redirectUri = `${siteUrl}${basePath}/api/integrations/oauth2/callback`;
 
   const state = btoa(
     JSON.stringify({

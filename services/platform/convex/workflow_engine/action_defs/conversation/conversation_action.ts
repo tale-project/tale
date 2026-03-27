@@ -16,13 +16,20 @@ import type { Id } from '../../../_generated/dataModel';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import type { ConversationStatus, ConversationPriority } from './helpers/types';
 
+import { createDebugLog } from '../../../lib/debug_log';
 import {
   jsonRecordValidator,
   jsonValueValidator,
-} from '../../../lib/validators/json';
+} from '../../../lib/shared/schemas/utils/json_value';
+
+const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Conversations]');
 import { createConversation } from './helpers/create_conversation';
 import { createConversationFromEmail } from './helpers/create_conversation_from_email';
 import { createConversationFromSentEmail } from './helpers/create_conversation_from_sent_email';
+import {
+  getEmailSyncCursor,
+  updateEmailSyncCursor,
+} from './helpers/email_sync_cursor';
 import { queryConversationMessages } from './helpers/query_conversation_messages';
 import { queryLatestMessageByDeliveryState } from './helpers/query_latest_message_by_delivery_state';
 import { updateConversations } from './helpers/update_conversations';
@@ -113,12 +120,21 @@ type ConversationActionParams =
       priority?: ConversationPriority;
       type?: string;
       integrationName?: string;
+    }
+  | {
+      operation: 'get_email_sync_cursor';
+      integrationName: string;
+    }
+  | {
+      operation: 'update_email_sync_cursor';
+      integrationName: string;
+      cursor: Record<string, unknown>;
     };
 
 export const conversationAction: ActionDefinition<ConversationActionParams> = {
   type: 'conversation',
   title: 'Conversation Operation',
-  description: `Execute conversation-specific operations (create, get_by_id, query_messages, query_latest_message_by_delivery_state, update, create_from_email, create_from_sent_email). organizationId is automatically read from workflow context variables.
+  description: `Execute conversation-specific operations (create, get_by_id, query_messages, query_latest_message_by_delivery_state, update, create_from_email, create_from_sent_email, get_email_sync_cursor, update_email_sync_cursor). organizationId is automatically read from workflow context variables.
 
 FOR EMAIL WORKFLOWS:
 When creating outbound email conversations, include these fields in the metadata object:
@@ -130,7 +146,7 @@ When creating outbound email conversations, include these fields in the metadata
 - emailBcc: BCC recipients (optional)
 
 Then create an approval with resourceType: 'conversations' to trigger sending when approved.
-See 'product_recommendation_email' predefined workflow for complete example.`,
+`,
   parametersValidator: v.union(
     // create: Create a new conversation
     v.object({
@@ -190,6 +206,17 @@ See 'product_recommendation_email' predefined workflow for complete example.`,
       priority: v.optional(priorityValidator),
       type: v.optional(v.string()),
       integrationName: v.optional(v.string()),
+    }),
+    // get_email_sync_cursor: Read provider-opaque sync cursor from integration metadata
+    v.object({
+      operation: v.literal('get_email_sync_cursor'),
+      integrationName: v.string(),
+    }),
+    // update_email_sync_cursor: Write provider-opaque sync cursor to integration metadata
+    v.object({
+      operation: v.literal('update_email_sync_cursor'),
+      integrationName: v.string(),
+      cursor: jsonRecordValidator,
     }),
   ),
   async execute(ctx, params, variables) {
@@ -279,6 +306,27 @@ See 'product_recommendation_email' predefined workflow for complete example.`,
           type: params.type,
           integrationName: params.integrationName,
         });
+      }
+
+      case 'get_email_sync_cursor': {
+        return await getEmailSyncCursor(ctx, {
+          organizationId,
+          integrationName: params.integrationName,
+        });
+      }
+
+      case 'update_email_sync_cursor': {
+        debugLog('update_email_sync_cursor cursor:', {
+          cursor: params.cursor,
+          cursorType: typeof params.cursor,
+          integrationName: params.integrationName,
+        });
+        await updateEmailSyncCursor(ctx, {
+          organizationId,
+          integrationName: params.integrationName,
+          cursor: params.cursor,
+        });
+        return { success: true };
       }
 
       default:

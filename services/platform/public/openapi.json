@@ -7684,10 +7684,6 @@
                       },
                       {
                         "type": "string",
-                        "enum": ["product_recommendation"]
-                      },
-                      {
-                        "type": "string",
                         "enum": ["integration_operation"]
                       },
                       {
@@ -7707,10 +7703,6 @@
                         {
                           "type": "string",
                           "enum": ["conversations"]
-                        },
-                        {
-                          "type": "string",
-                          "enum": ["product_recommendation"]
                         },
                         {
                           "type": "string",
@@ -7833,10 +7825,6 @@
                     {
                       "type": "string",
                       "enum": ["conversations"]
-                    },
-                    {
-                      "type": "string",
-                      "enum": ["product_recommendation"]
                     },
                     {
                       "type": "string",
@@ -7987,10 +7975,6 @@
                     },
                     {
                       "type": "string",
-                      "enum": ["product_recommendation"]
-                    },
-                    {
-                      "type": "string",
                       "enum": ["integration_operation"]
                     },
                     {
@@ -8138,10 +8122,6 @@
                     },
                     {
                       "type": "string",
-                      "enum": ["product_recommendation"]
-                    },
-                    {
-                      "type": "string",
                       "enum": ["integration_operation"]
                     },
                     {
@@ -8286,10 +8266,6 @@
                     {
                       "type": "string",
                       "enum": ["conversations"]
-                    },
-                    {
-                      "type": "string",
-                      "enum": ["product_recommendation"]
                     },
                     {
                       "type": "string",
@@ -9798,10 +9774,6 @@
                       },
                       {
                         "type": "string",
-                        "enum": ["product_recommendation"]
-                      },
-                      {
-                        "type": "string",
                         "enum": ["integration_operation"]
                       },
                       {
@@ -10246,10 +10218,6 @@
                             {
                               "type": "string",
                               "enum": ["conversations"]
-                            },
-                            {
-                              "type": "string",
-                              "enum": ["product_recommendation"]
                             },
                             {
                               "type": "string",

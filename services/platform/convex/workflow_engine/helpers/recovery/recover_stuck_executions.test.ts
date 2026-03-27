@@ -12,6 +12,7 @@ const NOW = new Date('2026-02-12T12:00:00Z').getTime();
 const SEVEN_HOURS_AGO = NOW - 7 * 60 * 60 * 1000;
 const FIVE_HOURS_AGO = NOW - 5 * 60 * 60 * 1000;
 const TWO_HOURS_AGO = NOW - 2 * 60 * 60 * 1000;
+const THIRTY_ONE_HOURS_AGO = NOW - 31 * 60 * 60 * 1000;
 const FIVE_MINUTES_AGO = NOW - 5 * 60 * 1000;
 
 function makeExecution(
@@ -22,6 +23,7 @@ function makeExecution(
     componentWorkflowId: string;
     shardIndex: number;
     workflowConfig: string;
+    waitingFor: string;
     variablesStorageId: string;
     outputStorageId: string;
   }> = {},
@@ -37,6 +39,7 @@ function makeExecution(
     componentWorkflowId: overrides.componentWorkflowId,
     shardIndex: overrides.shardIndex,
     workflowConfig: overrides.workflowConfig,
+    waitingFor: overrides.waitingFor,
     variablesStorageId: overrides.variablesStorageId,
     outputStorageId: overrides.outputStorageId,
   };
@@ -352,6 +355,45 @@ describe('recoverStuckExecutions', () => {
         outputStorageId: 'out_storage_456',
       }),
     );
+  });
+
+  it('should NOT recover execution waiting for approval within extended timeout (6h + 24h)', async () => {
+    const execution = makeExecution({
+      _id: 'exec_waiting_approval',
+      status: 'running',
+      updatedAt: SEVEN_HOURS_AGO,
+      waitingFor: 'approval_task_123',
+    });
+    const ctx = createMockCtx([execution]);
+    const { managers } = createMockManagers();
+
+    const result = await recoverStuckExecutions(
+      ctx as unknown as MutationCtx,
+      managers,
+    );
+
+    expect(result.recovered).toBe(0);
+    expect(ctx.db.patch).not.toHaveBeenCalled();
+  });
+
+  it('should recover execution waiting for approval that exceeds extended timeout', async () => {
+    const execution = makeExecution({
+      _id: 'exec_approval_expired',
+      status: 'running',
+      updatedAt: THIRTY_ONE_HOURS_AGO,
+      waitingFor: 'approval_task_456',
+    });
+    const ctx = createMockCtx([execution]);
+    const { managers } = createMockManagers();
+
+    const result = await recoverStuckExecutions(
+      ctx as unknown as MutationCtx,
+      managers,
+    );
+
+    expect(result.recovered).toBe(1);
+    const metadata = JSON.parse(ctx._patchCalls[0].data.metadata as string);
+    expect(metadata.error).toContain('1800 minutes');
   });
 
   it('should schedule storage cleanup for pending execution with storage IDs', async () => {

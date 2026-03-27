@@ -2,10 +2,12 @@ import { v } from 'convex/values';
 
 import { internalQuery } from '../_generated/server';
 import { getUserTeamIds } from '../lib/get_user_teams';
+import { checkMembership } from './check_membership';
 import { getAccessibleDocumentIds as getAccessibleDocumentIdsHelper } from './get_accessible_document_ids';
 import { getAgentScopedFileIds as getAgentScopedFileIdsHelper } from './get_agent_scoped_file_ids';
 import * as DocumentsHelpers from './helpers';
 import { listDocumentsForAgent as listDocumentsForAgentHelper } from './list_documents_for_agent';
+import { listIndexedDocumentsForAgent as listIndexedDocumentsForAgentHelper } from './list_indexed_documents_for_agent';
 import { sourceProviderValidator } from './validators';
 
 export const getDocumentByIdRaw = internalQuery({
@@ -52,6 +54,16 @@ export const findDocumentByExternalId = internalQuery({
   },
 });
 
+export const findDocumentByFileId = internalQuery({
+  args: {
+    organizationId: v.string(),
+    fileId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return await DocumentsHelpers.findDocumentByFileId(ctx, args);
+  },
+});
+
 export const listForAgent = internalQuery({
   args: {
     organizationId: v.string(),
@@ -81,6 +93,32 @@ export const getAccessibleDocumentIds = internalQuery({
   },
   handler: async (ctx, args) => {
     return await getAccessibleDocumentIdsHelper(ctx, args);
+  },
+});
+
+export const verifyOrganizationMembership = internalQuery({
+  args: {
+    organizationId: v.string(),
+    userId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const member = await checkMembership(ctx, args);
+    return member !== null;
+  },
+});
+
+export const listIndexedForAgent = internalQuery({
+  args: {
+    organizationId: v.string(),
+    agentTeamId: v.optional(v.string()),
+    includeTeamKnowledge: v.optional(v.boolean()),
+    includeOrgKnowledge: v.optional(v.boolean()),
+    knowledgeFileIds: v.optional(v.array(v.string())),
+    limit: v.optional(v.number()),
+    cursor: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    return listIndexedDocumentsForAgentHelper(ctx, args);
   },
 });
 

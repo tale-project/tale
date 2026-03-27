@@ -71,7 +71,7 @@ function SidebarShell({
   showLogo?: boolean;
 }) {
   return (
-    <NavigationMenu className="bg-background border-border flex h-[500px] w-14 flex-col rounded-lg border">
+    <NavigationMenu className="bg-sidebar border-border flex h-[500px] w-14 flex-col rounded-lg border">
       {showLogo && (
         <div className="flex flex-shrink-0 items-center justify-center py-3">
           <div className="bg-primary text-primary-foreground flex size-8 items-center justify-center rounded text-xs font-bold">

@@ -232,18 +232,39 @@ export function useDocumentsTableConfig({
         accessorKey: 'lastModified',
         header: () => (
           <span className="block w-full text-right">
-            {tTables('headers.updated')}
+            {tTables('headers.modified')}
           </span>
         ),
         size: 192,
         meta: {
-          headerLabel: tTables('headers.updated'),
+          headerLabel: tTables('headers.modified'),
           align: 'right' as const,
         },
         cell: ({ row }) => (
           <CopyableTimestamp
             date={row.original.lastModified}
-            preset="long" // preset="long" triggers timezone abbreviation appending
+            preset="long"
+            customFormat="ll LT"
+            alignRight
+          />
+        ),
+      },
+      {
+        accessorKey: 'uploadedAt',
+        header: () => (
+          <span className="block w-full text-right">
+            {tTables('headers.uploadedAt')}
+          </span>
+        ),
+        size: 192,
+        meta: {
+          headerLabel: tTables('headers.uploadedAt'),
+          align: 'right' as const,
+        },
+        cell: ({ row }) => (
+          <CopyableTimestamp
+            date={row.original.uploadedAt}
+            preset="long"
             customFormat="ll LT"
             alignRight
           />

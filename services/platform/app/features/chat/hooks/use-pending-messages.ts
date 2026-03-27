@@ -27,7 +27,8 @@ export function usePendingMessages({
   threadId,
   realMessages,
 }: UsePendingMessagesParams): ChatMessage[] {
-  const { pendingMessage, setPendingMessage } = useChatLayout();
+  const { pendingMessage, setPendingMessage, pendingThreadId } =
+    useChatLayout();
 
   // Derived scalars for the cleanup effect — avoids re-running on every
   // streaming update when only the message content (not the tail key) changes.
@@ -41,8 +42,10 @@ export function usePendingMessages({
     // Only clear for matching thread
     const isMatchingThread =
       pendingMessage.threadId === threadId ||
-      threadId === undefined ||
-      pendingMessage.threadId === 'pending';
+      (threadId === undefined && pendingMessage.threadId === 'pending') ||
+      (threadId === undefined &&
+        pendingThreadId !== null &&
+        pendingMessage.threadId === pendingThreadId);
     if (!isMatchingThread) return;
 
     // For new threads: clear when any real message arrives
@@ -64,6 +67,7 @@ export function usePendingMessages({
     currentLastKey,
     hasMessages,
     pendingMessage,
+    pendingThreadId,
     threadId,
     setPendingMessage,
   ]);
@@ -72,8 +76,10 @@ export function usePendingMessages({
     const isMatchingThread =
       pendingMessage &&
       (pendingMessage.threadId === threadId ||
-        threadId === undefined ||
-        pendingMessage.threadId === 'pending');
+        (threadId === undefined && pendingMessage.threadId === 'pending') ||
+        (threadId === undefined &&
+          pendingThreadId !== null &&
+          pendingMessage.threadId === pendingThreadId));
 
     if (!isMatchingThread) return realMessages;
 
@@ -111,5 +117,5 @@ export function usePendingMessages({
 
     // Real message arrived — return realMessages as-is (no duplicate)
     return realMessages;
-  }, [threadId, realMessages, pendingMessage, currentLastKey]);
+  }, [threadId, realMessages, pendingMessage, pendingThreadId, currentLastKey]);
 }

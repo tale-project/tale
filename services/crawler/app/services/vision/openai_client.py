@@ -18,7 +18,7 @@ from loguru import logger
 from openai import AsyncOpenAI
 
 from ...config import settings
-from .cache import vision_cache
+from .cache import compute_text_hash, llm_cache
 
 
 @dataclass
@@ -106,7 +106,7 @@ class VisionClient:
         Returns:
             Extracted text from the image
         """
-        cached_result, image_hash = vision_cache.get_ocr(image_bytes)
+        cached_result, image_hash = llm_cache.get_ocr(image_bytes)
         if cached_result is not None:
             return cached_result
 
@@ -148,17 +148,17 @@ class VisionClient:
 
             if not response.choices:
                 logger.warning("Vision API returned empty choices for OCR")
-                vision_cache.set_ocr(image_hash, "")
+                llm_cache.set_ocr(image_hash, "")
                 return ""
 
             result = response.choices[0].message.content or ""
 
             if result.strip().lower() in ["[no text found]", "no text found", ""]:
-                vision_cache.set_ocr(image_hash, "")
+                llm_cache.set_ocr(image_hash, "")
                 return ""
 
             logger.debug(f"OCR extracted {len(result)} characters")
-            vision_cache.set_ocr(image_hash, result)
+            llm_cache.set_ocr(image_hash, result)
 
             await asyncio.sleep(1)
 
@@ -185,7 +185,7 @@ class VisionClient:
         Returns:
             Description of the image content
         """
-        cached_result, image_hash = vision_cache.get_description(image_bytes)
+        cached_result, image_hash = llm_cache.get_description(image_bytes)
         if cached_result is not None:
             return cached_result
 
@@ -227,12 +227,12 @@ class VisionClient:
 
             if not response.choices:
                 logger.warning("Vision API returned empty choices for description")
-                vision_cache.set_description(image_hash, "")
+                llm_cache.set_description(image_hash, "")
                 return ""
 
             result = (response.choices[0].message.content or "").strip()
             logger.debug(f"Generated image description: {len(result)} characters")
-            vision_cache.set_description(image_hash, result)
+            llm_cache.set_description(image_hash, result)
 
             return result
 
@@ -301,20 +301,21 @@ async def process_pages_with_llm(
     pages_content: list[str],
     user_input: str,
     max_concurrent: int = 3,
-    max_chars_per_chunk: int = 100_000,
+    max_chars_per_chunk: int = 30_000,
     model: str | None = None,
     usage: UsageAccumulator | None = None,
 ) -> list[str]:
     """Process document content with Fast LLM based on user instruction.
 
     First merges all pages into a single text, then splits by character count
-    (default 100k per chunk) for efficient LLM processing.
+    (default 30k per chunk) for efficient LLM processing. Results are cached
+    per chunk so repeated calls with the same content and instruction skip the API.
 
     Args:
         pages_content: List of page text contents
         user_input: User instruction for extraction
         max_concurrent: Maximum concurrent API calls
-        max_chars_per_chunk: Maximum characters per chunk (default 100k)
+        max_chars_per_chunk: Maximum characters per chunk (default 30k)
         usage: Optional accumulator for tracking LLM token usage
 
     Returns:
@@ -332,7 +333,7 @@ async def process_pages_with_llm(
     client = AsyncOpenAI(
         api_key=settings.get_openai_api_key(),
         base_url=settings.get_openai_base_url(),
-        timeout=180.0,
+        timeout=300.0,
     )
     resolved_model = model or settings.get_fast_model()
     semaphore = asyncio.Semaphore(max_concurrent)
@@ -343,6 +344,12 @@ async def process_pages_with_llm(
     logger.info(f"Split into {total_chunks} chunks for LLM processing")
 
     async def process_chunk(chunk_idx: int, chunk_text: str) -> tuple[int, str]:
+        cache_key = compute_text_hash(chunk_text + "\n---\n" + user_input + "\n---\n" + resolved_model)
+        cached = llm_cache.get_llm(cache_key)
+        if cached is not None:
+            logger.info(f"LLM chunk {chunk_idx + 1}/{total_chunks} cache hit ({len(chunk_text)} chars)")
+            return chunk_idx, cached
+
         async with semaphore:
             try:
                 logger.debug(f"Processing chunk {chunk_idx + 1}/{total_chunks} ({len(chunk_text)} chars)")
@@ -368,6 +375,7 @@ async def process_pages_with_llm(
                 if usage:
                     usage.add(response.usage, duration_ms=elapsed_ms)
                 result = response.choices[0].message.content or ""
+                llm_cache.set_llm(cache_key, result)
                 logger.info(f"LLM chunk {chunk_idx + 1}/{total_chunks} done: {len(chunk_text)} -> {len(result)} chars")
                 return chunk_idx, result
             except Exception as e:

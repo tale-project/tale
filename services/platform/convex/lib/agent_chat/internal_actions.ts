@@ -52,7 +52,7 @@ import {
 } from '../context_management/constants';
 import { createAgentConfig } from '../create_agent_config';
 import { createDebugLog } from '../debug_log';
-import { classifyError, NonRetryableError } from '../error_classification';
+import { NonRetryableError } from '../error_classification';
 
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[runAgentGeneration]');
 
@@ -112,6 +112,12 @@ export const runAgentGeneration = internalAction({
     userId: v.optional(v.string()),
     promptMessage: v.string(),
     additionalContext: v.optional(v.record(v.string(), v.string())),
+    userContext: v.optional(
+      v.object({
+        timezone: v.string(),
+        language: v.string(),
+      }),
+    ),
     parentThreadId: v.optional(v.string()),
     agentOptions: v.optional(v.any()),
     attachments: v.optional(
@@ -149,6 +155,7 @@ export const runAgentGeneration = internalAction({
       userId,
       promptMessage,
       additionalContext,
+      userContext,
       parentThreadId,
       agentOptions,
       attachments,
@@ -323,6 +330,7 @@ export const runAgentGeneration = internalAction({
           userId,
           promptMessage,
           additionalContext,
+          userContext,
           parentThreadId,
           agentOptions,
           attachments,
@@ -332,6 +340,11 @@ export const runAgentGeneration = internalAction({
           deadlineMs,
         },
       );
+
+      // User cancelled — cancelGeneration already handled message state
+      if (result.finishReason === 'cancelled') {
+        return result;
+      }
 
       // Validate response — save a failed message so the client exits loading
       if (!result.text?.trim()) {
@@ -414,17 +427,15 @@ export const runAgentGeneration = internalAction({
         );
       }
 
-      // Classify and wrap error for retry decisions
-      const classification = classifyError(error);
       throw new NonRetryableError(
-        `${classification.description}: ${JSON.stringify({
+        `Agent generation failed: ${JSON.stringify({
           message: getString(err, 'message'),
           code: getString(err, 'code'),
           status: err['status'],
           cause: err['cause'],
         })}`,
         error,
-        classification.reason,
+        'generation_error',
       );
     }
   },
@@ -570,7 +581,7 @@ export const beforeGenerateHook = internalAction({
     promptContent: v.optional(v.any()),
     contextExceedsBudget: v.boolean(),
   }),
-  handler: async (ctx, args) => {
+  handler: async (_ctx, args) => {
     const { threadId, promptMessage, contextMessagesTokens } = args;
 
     // Token budget check for logging
@@ -590,9 +601,6 @@ export const beforeGenerateHook = internalAction({
       });
     }
 
-    return {
-      promptContent: undefined,
-      contextExceedsBudget,
-    };
+    return { promptContent: undefined, contextExceedsBudget };
   },
 });

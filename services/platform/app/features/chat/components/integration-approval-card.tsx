@@ -9,6 +9,8 @@ import {
   Loader2,
 } from 'lucide-react';
 import { memo, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { ActionRow } from '@/app/components/ui/layout/action-row';
@@ -26,10 +28,12 @@ import { IntegrationOperationMetadata } from '@/convex/approvals/types';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
+import { markdownWrapperStyles } from './message-bubble/markdown-renderer';
+
 interface IntegrationApprovalCardProps {
   approvalId: Id<'approvals'>;
   organizationId: string;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'executing' | 'completed' | 'rejected';
   metadata: IntegrationOperationMetadata;
   executedAt?: number;
   executionError?: string;
@@ -48,6 +52,7 @@ function IntegrationApprovalCardComponent({
   className,
 }: IntegrationApprovalCardProps) {
   const { t } = useT('integrationApproval');
+  const { t: tCommon } = useT('approvalCommon');
   const { user } = useAuth();
   const [isApproving, setIsApproving] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
@@ -62,7 +67,7 @@ function IntegrationApprovalCardComponent({
 
   const handleApprove = async () => {
     if (!user?.userId) {
-      setError('User not authenticated');
+      setError(tCommon('errorNotAuthenticated'));
       return;
     }
     setIsApproving(true);
@@ -70,15 +75,13 @@ function IntegrationApprovalCardComponent({
     try {
       await updateApprovalStatus({
         approvalId,
-        status: 'approved',
+        status: 'executing',
       });
       await executeApprovedOperation({
         approvalId,
       });
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Failed to approve operation',
-      );
+      setError(err instanceof Error ? err.message : t('errorApproveFailed'));
       console.error('Failed to approve:', err);
     } finally {
       setIsApproving(false);
@@ -87,7 +90,7 @@ function IntegrationApprovalCardComponent({
 
   const handleReject = async () => {
     if (!user?.userId) {
-      setError('User not authenticated');
+      setError(tCommon('errorNotAuthenticated'));
       return;
     }
     setIsRejecting(true);
@@ -99,7 +102,7 @@ function IntegrationApprovalCardComponent({
       });
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : 'Failed to reject operation',
+        err instanceof Error ? err.message : tCommon('errorRejectFailed'),
       );
       console.error('Failed to reject:', err);
     } finally {
@@ -192,22 +195,31 @@ function IntegrationApprovalCardComponent({
 
         {/* Estimated Impact */}
         {metadata.estimatedImpact && (
-          <Text as="div" variant="caption" className="wrap-break-word italic">
-            {metadata.estimatedImpact}
-          </Text>
+          <div
+            className={cn(
+              markdownWrapperStyles,
+              'text-muted-foreground max-w-none text-xs italic',
+            )}
+          >
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {metadata.estimatedImpact}
+            </ReactMarkdown>
+          </div>
         )}
       </Stack>
 
       {/* Execution Result (if approved and executed) */}
-      {status === 'approved' && executedAt && !executionError && (
-        <HStack gap={1} className="mb-3 text-xs text-green-600">
-          <CheckCircle className="size-3" />
-          {t('executedSuccessfully')}
-        </HStack>
-      )}
+      {(status === 'executing' || status === 'completed') &&
+        executedAt &&
+        !executionError && (
+          <HStack gap={1} className="mb-3 text-xs text-green-600">
+            <CheckCircle className="size-3" />
+            {t('executedSuccessfully')}
+          </HStack>
+        )}
 
       {/* Execution Error (persisted from backend) */}
-      {status === 'approved' && executionError && (
+      {(status === 'executing' || status === 'completed') && executionError && (
         <HStack
           gap={1}
           align="start"
@@ -269,14 +281,22 @@ function IntegrationApprovalCardComponent({
       {!isPending && (
         <HStack justify="between" align="center" className="mt-2">
           <Text as="div" variant="caption">
-            {status === 'approved' && executionError
-              ? t('statusApprovedFailed')
-              : status === 'approved'
-                ? t('statusApprovedSuccess')
-                : t('statusRejected')}
+            {status === 'executing'
+              ? t('statusExecuting')
+              : status === 'completed' && executionError
+                ? t('statusCompletedFailed')
+                : status === 'completed'
+                  ? t('statusCompletedSuccess')
+                  : t('statusRejected')}
           </Text>
           <Badge
-            variant={status === 'approved' ? 'green' : 'destructive'}
+            variant={
+              status === 'completed'
+                ? 'green'
+                : status === 'executing'
+                  ? 'blue'
+                  : 'destructive'
+            }
             className="shrink-0 text-xs capitalize"
           >
             {status}

@@ -1,8 +1,6 @@
-import { listMessages, listStreams } from '@convex-dev/agent';
 import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
-import { components } from '../_generated/api';
 import { query } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls';
 import { getThreadMessagesStreaming as getThreadMessagesStreamingHelper } from './get_thread_messages_streaming';
@@ -36,32 +34,12 @@ export const isThreadGenerating = query({
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) return false;
 
-    const activeStreams = await listStreams(ctx, components.agent, {
-      threadId: args.threadId,
-      includeStatuses: ['streaming'],
-    });
+    const metadata = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
+      .first();
 
-    if (activeStreams.length === 0) return false;
-
-    // Defense: if the latest assistant message already has a terminal status,
-    // any remaining "streaming" streams are zombies (e.g. action threw before
-    // the SDK could clean up). Return false so the UI exits loading state.
-    const messages = await listMessages(ctx, components.agent, {
-      threadId: args.threadId,
-      paginationOpts: { numItems: 5, cursor: null },
-      excludeToolMessages: true,
-    });
-    const latestAssistant = messages.page.find(
-      (m) => m.message?.role === 'assistant',
-    );
-    if (
-      latestAssistant?.status === 'failed' ||
-      latestAssistant?.status === 'success'
-    ) {
-      return false;
-    }
-
-    return true;
+    return metadata?.generationStatus === 'generating';
   },
 });
 
