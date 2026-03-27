@@ -149,7 +149,7 @@
     "@vitest/browser-playwright": "^4.0.18",
     "bcryptjs": "3.0.3",
     "convex-test": "0.0.44",
-    "jsdom": "28.1.0",
+    "jsdom": "29.0.1",
     "postcss-load-config": "6.0.1",
     "storybook": "10.3.3",
     "tree-kill": "1.2.2",
