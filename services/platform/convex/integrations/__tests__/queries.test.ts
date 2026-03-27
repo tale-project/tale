@@ -55,6 +55,10 @@ vi.mock('convex/values', () => {
   };
 });
 
+vi.mock('../../lib/helpers/public_storage_url', () => ({
+  toPublicUrl: (url: string) => url,
+}));
+
 vi.mock('../validators', () => ({
   integrationDocValidator: 'integrationDocValidator',
 }));
