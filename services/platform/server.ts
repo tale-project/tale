@@ -3,13 +3,17 @@ import { join, resolve } from 'node:path';
 import { convexMetricsResponse } from './convex-metrics';
 import { initTelemetry, metricsResponse } from './telemetry';
 
-function escapeHtml(value: string) {
+function escapeHtmlAttr(value: string) {
   return value
     .replaceAll('&', '&amp;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;')
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;');
+}
+
+function escapeScriptContent(value: string) {
+  return value.replaceAll('</', '<\\/').replaceAll('<!--', '<\\!--');
 }
 
 interface EnvConfig {
@@ -91,18 +95,18 @@ Bun.serve({
     let html = indexHtmlTemplate
       .replace(
         /window\.__ENV__\s*=\s*['"]__ENV_PLACEHOLDER__['"];/,
-        escapeHtml(`window.__ENV__ = ${JSON.stringify(envConfig)};`),
+        escapeScriptContent(`window.__ENV__ = ${JSON.stringify(envConfig)};`),
       )
       .replace(
         /window\.__ACCEPT_LANGUAGE__\s*=\s*['"]__ACCEPT_LANGUAGE_PLACEHOLDER__['"];/,
-        escapeHtml(
+        escapeScriptContent(
           `window.__ACCEPT_LANGUAGE__ = ${JSON.stringify(acceptLanguage)};`,
         ),
       );
 
     html = html.replace(
       '<head>',
-      `<head>\n    <base href="${escapeHtml(basePath)}/">`,
+      `<head>\n    <base href="${escapeHtmlAttr(basePath)}/">`,
     );
 
     return new Response(html, {
