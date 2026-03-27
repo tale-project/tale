@@ -36,13 +36,18 @@ export function buildDownloadUrl(storageId: string, fileName: string): string {
  *
  * Internal URLs like `http://127.0.0.1:3210/api/storage/...` are unreachable
  * from the browser. This replaces the origin with SITE_URL + BASE_PATH.
+ *
+ * Idempotent: if the URL already starts with `SITE_URL + BASE_PATH`, it is
+ * returned unchanged so callers never need to worry about double-rewriting.
  */
 export function toPublicUrl(internalUrl: string): string {
   const siteUrl = process.env.SITE_URL;
   if (!siteUrl) return internalUrl;
   const basePath = process.env.BASE_PATH ?? '';
+  const publicPrefix = `${siteUrl.replace(/\/$/, '')}${basePath}`;
+  if (internalUrl.startsWith(publicPrefix)) return internalUrl;
   const originMatch = internalUrl.match(/^https?:\/\/[^/]+/);
   if (!originMatch) return internalUrl;
   const path = internalUrl.slice(originMatch[0].length);
-  return `${siteUrl.replace(/\/$/, '')}${basePath}${path}`;
+  return `${publicPrefix}${path}`;
 }

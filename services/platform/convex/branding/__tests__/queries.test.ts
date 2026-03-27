@@ -7,6 +7,10 @@ vi.mock('../../lib/rls', () => ({
   getAuthUserIdentity: vi.fn(),
 }));
 
+vi.mock('../../lib/helpers/public_storage_url', () => ({
+  toPublicUrl: (url: string) => url,
+}));
+
 const { getBrandingHandler } = await import('../queries');
 const { validateOrganizationAccess } = await import('../../lib/rls');
 

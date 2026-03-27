@@ -4,6 +4,7 @@ import type { QueryCtx } from '../_generated/server';
 import type { AuthenticatedUser } from '../lib/rls/types';
 
 import { query } from '../_generated/server';
+import { toPublicUrl } from '../lib/helpers/public_storage_url';
 import { getAuthUserIdentity, validateOrganizationAccess } from '../lib/rls';
 
 export async function getBrandingHandler(
@@ -25,7 +26,8 @@ export async function getBrandingHandler(
   async function safeGetUrl(storageId: string | undefined) {
     if (!storageId) return null;
     try {
-      return await ctx.storage.getUrl(storageId);
+      const url = await ctx.storage.getUrl(storageId);
+      return url ? toPublicUrl(url) : null;
     } catch (error) {
       console.warn(
         '[Branding] Failed to resolve storage URL',
