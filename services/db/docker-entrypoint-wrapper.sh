@@ -12,7 +12,11 @@ set -e
 # Database credentials
 export POSTGRES_DB="${DB_NAME:-${POSTGRES_DB:-tale}}"
 export POSTGRES_USER="${DB_USER:-${POSTGRES_USER:-tale}}"
-export POSTGRES_PASSWORD="${DB_PASSWORD:-${POSTGRES_PASSWORD:-tale_password_change_me}}"
+if [ -z "${DB_PASSWORD:-${POSTGRES_PASSWORD:-}}" ]; then
+  echo "ERROR: DB_PASSWORD or POSTGRES_PASSWORD must be set" >&2
+  exit 1
+fi
+export POSTGRES_PASSWORD="${DB_PASSWORD:-${POSTGRES_PASSWORD}}"
 
 # ============================================================================
 # Build PostgreSQL command-line arguments from DB_ variables

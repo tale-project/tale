@@ -40,6 +40,16 @@ Document indexing runs in the background. After uploading, the RAG service extra
 
 After adding a website, the crawler does an initial pass of the homepage and any links it finds. This takes a few minutes depending on site size. If the page count stays at 0, check `docker compose logs crawler` for errors. Common causes are SSL issues on the target site or `robots.txt` blocks.
 
+### Service fails with "DB_PASSWORD must be set"
+
+All database-connected services require `DB_PASSWORD` to be set in your `.env` file. If you see one of these errors:
+
+- `ERROR: DB_PASSWORD or POSTGRES_PASSWORD must be set` (database)
+- `ERROR: DB_PASSWORD or POSTGRES_URL must be set` (platform)
+- `ERROR: DB_PASSWORD or RAG_DATABASE_URL must be set` (RAG)
+
+Open your `.env` file and ensure `DB_PASSWORD` is set to a non-empty value. If you are setting up for the first time, choose any password. If you previously relied on the default, set it explicitly now.
+
 ### Forgot admin password
 
 If you are locked out of your admin account, another admin can reset your password from Settings > Organization > member row > Edit > Set Password. If no admins are available, someone with Docker access can use the Convex Dashboard to update the user record directly.
