@@ -96,11 +96,10 @@ function TypewriterTextComponent({
   const stableText = useStableStreamText(text, isStreaming);
 
   // Use the stream buffer hook for animation management
-  const { displayLength, anchorPosition, progress, isTyping, isDraining } =
-    useStreamBuffer({
-      text: stableText,
-      isStreaming,
-    });
+  const { displayLength, progress, isTyping, isDraining } = useStreamBuffer({
+    text: stableText,
+    isStreaming,
+  });
 
   // Track completion to fire onComplete callback
   const hasCompletedRef = useRef(false);
@@ -135,7 +134,6 @@ function TypewriterTextComponent({
       <IncrementalMarkdown
         content={stableText}
         revealPosition={displayLength}
-        anchorPosition={anchorPosition}
         components={components}
         showCursor={showCursor}
       />

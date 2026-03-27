@@ -146,6 +146,23 @@ export function remendMarkdown(text: string): string {
       continue;
     }
 
+    // Close bracket — check if this is part of a link [text](url) or
+    // just a standalone bracket (e.g., task list checkbox `- [ ]`).
+    // If ] is NOT followed by (, it's not a link — reset tracking.
+    if (ch === ']' && lastOpenBracket !== -1) {
+      if (i + 1 < len && text[i + 1] === '(') {
+        // ] followed by ( — this is the [text]( boundary of a link.
+        // Don't reset; let the ) handler below complete the link.
+      } else {
+        // ] NOT followed by ( — not a link (e.g., task list, standalone brackets).
+        lastOpenBracket = -1;
+        lastOpenBracketIsImage = false;
+      }
+      i++;
+      atLineStart = false;
+      continue;
+    }
+
     // Close bracket + parenthesized URL — complete link
     if (ch === ')' && lastOpenBracket !== -1) {
       // Check if this closes a ](... pattern
@@ -254,12 +271,29 @@ export function remendMarkdown(text: string): string {
     }
   }
 
+  // Phase 1c: Relocate trailing whitespace past closing markers.
+  // CommonMark requires closing emphasis delimiters to be preceded by
+  // non-whitespace. "**text **" is invalid — the space before "**"
+  // prevents it from being a right-flanking delimiter run, so the
+  // parser renders literal asterisks instead of bold. Moving the
+  // whitespace to after the closing markers produces valid emphasis:
+  // "**text** " (bold "text" + trailing space).
+  let trailingWhitespace = '';
+  if (context === 'normal' && formattingStack.length > 0) {
+    const wsMatch = result.match(/(\s+)$/);
+    if (wsMatch) {
+      trailingWhitespace = wsMatch[1];
+      result = result.slice(0, -trailingWhitespace.length);
+    }
+  }
+
   // Phase 2: Build formatting suffix from open markers
   let formattingSuffix = '';
   if (context === 'normal' || context === 'inline_code') {
     for (let j = formattingStack.length - 1; j >= 0; j--) {
       formattingSuffix += formattingStack[j];
     }
+    formattingSuffix += trailingWhitespace;
   }
 
   // Phase 3: Auto-complete incomplete GFM tables (only outside code blocks)

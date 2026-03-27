@@ -62,7 +62,16 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/http_api/, ''),
       },
-      // Proxy all /api/* requests to Convex HTTP endpoint (auth, SSO, documents, workflows, etc.)
+      // Storage and internal action callbacks go to the Convex backend (port 3210)
+      '/api/storage': {
+        target: 'http://127.0.0.1:3210',
+        changeOrigin: true,
+      },
+      '/api/actions': {
+        target: 'http://127.0.0.1:3210',
+        changeOrigin: true,
+      },
+      // All other /api/* requests to Convex HTTP endpoint (auth, SSO, documents, workflows, etc.)
       '/api': {
         target: 'http://127.0.0.1:3211',
         changeOrigin: true,
