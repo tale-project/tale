@@ -32,8 +32,6 @@ function generatePassword(): string {
   return randomBytes(16).toString('base64url');
 }
 
-const DEFAULT_DB_PASSWORD = 'tale_password_change_me';
-
 interface EnvSetupOptions {
   deployDir: string;
   skipIfExists?: boolean;
@@ -167,7 +165,7 @@ async function runEnvSetup(envPath: string): Promise<boolean> {
     logger.blank();
 
     dbPassword = await password({
-      message: `Enter existing database password (default: ${DEFAULT_DB_PASSWORD}):`,
+      message: 'Enter existing database password:',
       mask: '*',
       validate: (value) => {
         if (!value.trim()) {
@@ -176,10 +174,6 @@ async function runEnvSetup(envPath: string): Promise<boolean> {
         return true;
       },
     });
-
-    if (dbPassword === DEFAULT_DB_PASSWORD) {
-      logger.info('Using default password.');
-    }
   } else {
     dbPassword = generatePassword();
     logger.info('Generated new database password.');

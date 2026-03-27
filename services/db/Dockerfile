@@ -58,15 +58,9 @@ RUN chmod +x /usr/local/bin/docker-entrypoint-wrapper.sh \
 # Application version
 ENV TALE_VERSION=${VERSION}
 
-# Database credentials
+# Database credentials (password must be provided at runtime via DB_PASSWORD)
 ENV DB_NAME=tale \
-    DB_USER=tale \
-    DB_PASSWORD=tale_password_change_me
-
-# PostgreSQL configuration (required by base image)
-ENV POSTGRES_DB=tale \
-    POSTGRES_USER=tale \
-    POSTGRES_PASSWORD=tale_password_change_me
+    DB_USER=tale
 
 # Performance tuning (conservative defaults)
 ENV DB_MAX_CONNECTIONS=100 \
@@ -84,7 +78,7 @@ EXPOSE 5432
 
 # Health check — waits for both PostgreSQL readiness and migration completion
 HEALTHCHECK --interval=10s --timeout=5s --start-period=90s --retries=10 \
-    CMD pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} && test -f /tmp/.db_ready || exit 1
+    CMD pg_isready -U ${DB_USER:-tale} -d ${DB_NAME:-tale} && test -f /tmp/.db_ready || exit 1
 
 # Use custom entrypoint wrapper that handles DB_ env vars
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint-wrapper.sh"]

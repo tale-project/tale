@@ -75,7 +75,6 @@ ENV TALE_VERSION=${VERSION} \
     RAG_LOG_LEVEL=info \
     RAG_CHUNK_SIZE=2048 \
     RAG_CHUNK_OVERLAP=200 \
-    RAG_DATABASE_URL=postgresql://tale:tale_password_change_me@db:5432/tale_knowledge \
     DO_NOT_TRACK=1
 
 # Expose port
