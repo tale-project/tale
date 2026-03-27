@@ -12,10 +12,6 @@ function escapeHtmlAttr(value: string) {
     .replaceAll('>', '&gt;');
 }
 
-function escapeScriptContent(value: string) {
-  return value.replaceAll('</', '<\\/').replaceAll('<!--', '<\\!--');
-}
-
 interface EnvConfig {
   SITE_URL: string | undefined;
   BASE_PATH: string;
@@ -95,13 +91,11 @@ Bun.serve({
     let html = indexHtmlTemplate
       .replace(
         /window\.__ENV__\s*=\s*['"]__ENV_PLACEHOLDER__['"];/,
-        escapeScriptContent(`window.__ENV__ = ${JSON.stringify(envConfig)};`),
+        `window.__ENV__ = ${JSON.stringify(envConfig)};`,
       )
       .replace(
         /window\.__ACCEPT_LANGUAGE__\s*=\s*['"]__ACCEPT_LANGUAGE_PLACEHOLDER__['"];/,
-        escapeScriptContent(
-          `window.__ACCEPT_LANGUAGE__ = ${JSON.stringify(acceptLanguage)};`,
-        ),
+        `window.__ACCEPT_LANGUAGE__ = ${JSON.stringify(acceptLanguage)};`,
       );
 
     html = html.replace(
