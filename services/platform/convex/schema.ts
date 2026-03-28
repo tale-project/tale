@@ -1,5 +1,9 @@
 import { defineSchema } from 'convex/server';
 
+import {
+  customAgentsTable,
+  customAgentWebhooksTable,
+} from './agents/legacy_schema';
 import { agentBindingsTable } from './agents/schema';
 import { agentWebhooksTable } from './agents/webhooks/schema';
 import { approvalsTable } from './approvals/schema';
@@ -44,6 +48,10 @@ export default defineSchema({
   conversations: conversationsTable,
   agentBindings: agentBindingsTable,
   agentWebhooks: agentWebhooksTable,
+  /** @deprecated Retained for backward compatibility with existing data. */
+  customAgents: customAgentsTable,
+  /** @deprecated Retained for backward compatibility with existing data. */
+  customAgentWebhooks: customAgentWebhooksTable,
   customers: customersTable,
   documents: documentsTable,
   fileMetadata: fileMetadataTable,

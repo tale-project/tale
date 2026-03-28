@@ -116,6 +116,7 @@ import type * as agents_file_utils from "../agents/file_utils.js";
 import type * as agents_internal_actions from "../agents/internal_actions.js";
 import type * as agents_internal_mutations from "../agents/internal_mutations.js";
 import type * as agents_internal_queries from "../agents/internal_queries.js";
+import type * as agents_legacy_schema from "../agents/legacy_schema.js";
 import type * as agents_mutations from "../agents/mutations.js";
 import type * as agents_queries from "../agents/queries.js";
 import type * as agents_seed_system_defaults from "../agents/seed_system_defaults.js";
@@ -410,6 +411,7 @@ import type * as migrations_backfill_thread_metadata from "../migrations/backfil
 import type * as migrations_backfill_workflow_schedules from "../migrations/backfill_workflow_schedules.js";
 import type * as migrations_migrate_org_creators from "../migrations/migrate_org_creators.js";
 import type * as migrations_remove_deprecated_llm_fields from "../migrations/remove_deprecated_llm_fields.js";
+import type * as migrations_rename_org_slug from "../migrations/rename_org_slug.js";
 import type * as migrations_trigger_steps_to_start from "../migrations/trigger_steps_to_start.js";
 import type * as node_only_documents_internal_actions from "../node_only/documents/internal_actions.js";
 import type * as node_only_integration_sandbox_execute_integration_impl from "../node_only/integration_sandbox/execute_integration_impl.js";
@@ -982,6 +984,7 @@ declare const fullApi: ApiFromModules<{
   "agents/internal_actions": typeof agents_internal_actions;
   "agents/internal_mutations": typeof agents_internal_mutations;
   "agents/internal_queries": typeof agents_internal_queries;
+  "agents/legacy_schema": typeof agents_legacy_schema;
   "agents/mutations": typeof agents_mutations;
   "agents/queries": typeof agents_queries;
   "agents/seed_system_defaults": typeof agents_seed_system_defaults;
@@ -1276,6 +1279,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/backfill_workflow_schedules": typeof migrations_backfill_workflow_schedules;
   "migrations/migrate_org_creators": typeof migrations_migrate_org_creators;
   "migrations/remove_deprecated_llm_fields": typeof migrations_remove_deprecated_llm_fields;
+  "migrations/rename_org_slug": typeof migrations_rename_org_slug;
   "migrations/trigger_steps_to_start": typeof migrations_trigger_steps_to_start;
   "node_only/documents/internal_actions": typeof node_only_documents_internal_actions;
   "node_only/integration_sandbox/execute_integration_impl": typeof node_only_integration_sandbox_execute_integration_impl;

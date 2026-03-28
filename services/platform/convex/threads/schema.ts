@@ -18,6 +18,8 @@ export const threadMetadataTable = defineTable({
   cancelledMessageId: v.optional(v.string()),
   generationStartTime: v.optional(v.number()),
   agentId: v.optional(v.id('agentBindings')),
+  /** @deprecated Retained for backward compatibility with existing documents. */
+  customAgentId: v.optional(v.id('customAgents')),
 })
   .index('by_threadId', ['threadId'])
   .index('by_userId_chatType_status', [
