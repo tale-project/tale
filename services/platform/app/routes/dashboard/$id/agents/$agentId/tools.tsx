@@ -8,13 +8,10 @@ import { StickySectionHeader } from '@/app/components/ui/layout/sticky-section-h
 import { ToolSelector } from '@/app/features/agents/components/tool-selector';
 import { useAgentConfig } from '@/app/features/agents/hooks/use-agent-config-context';
 import { useT } from '@/lib/i18n/client';
+import { isRetrievalMode } from '@/lib/shared/schemas/agents';
 import { seo } from '@/lib/utils/seo';
 
-type RetrievalMode = 'off' | 'tool' | 'context' | 'both';
-
-export const Route = createFileRoute(
-  '/dashboard/$id/agents/$agentId/tools',
-)({
+export const Route = createFileRoute('/dashboard/$id/agents/$agentId/tools')({
   head: () => ({
     meta: seo('agentTools'),
   }),
@@ -26,7 +23,7 @@ function ToolsTab() {
   const { t } = useT('settings');
   const { config, updateConfig } = useAgentConfig();
 
-  const webSearchMode: RetrievalMode =
+  const webSearchMode =
     config.webSearchMode ??
     (config.toolNames?.includes('web') ? 'tool' : 'off');
 
@@ -86,10 +83,11 @@ function ToolsTab() {
       >
         <RadioGroup
           value={webSearchMode}
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- RadioGroup returns string; options constrain to RetrievalMode values
-          onValueChange={(value) =>
-            updateConfig({ webSearchMode: value as RetrievalMode })
-          }
+          onValueChange={(value) => {
+            if (isRetrievalMode(value)) {
+              updateConfig({ webSearchMode: value });
+            }
+          }}
           options={webModeOptions}
         />
       </PageSection>

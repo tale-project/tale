@@ -9,7 +9,7 @@
  */
 
 import { v } from 'convex/values';
-import { readFile, lstat, stat, open, constants } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 
 import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
@@ -19,7 +19,6 @@ import {
   MAX_FILE_SIZE_BYTES,
   parseAgentJson,
   resolveAgentFilePath,
-  sha256,
 } from './file_utils';
 
 export const chatWithAgent = action({
@@ -70,7 +69,8 @@ export const chatWithAgent = action({
       content = await readFile(filePath, 'utf-8');
     } catch (err) {
       throw new Error(
-        `Agent not found: ${args.agentFileName} — ${err instanceof Error ? err.message : err}`,
+        `Agent not found: ${args.agentFileName} — ${err instanceof Error ? err.message : String(err)}`,
+        { cause: err },
       );
     }
     const config = parseAgentJson(content);

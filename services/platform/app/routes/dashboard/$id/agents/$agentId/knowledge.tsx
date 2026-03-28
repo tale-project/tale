@@ -15,7 +15,5 @@ export const Route = createFileRoute(
 function KnowledgeTab() {
   const { id: organizationId, agentId } = Route.useParams();
 
-  return (
-    <AgentKnowledge organizationId={organizationId} agentId={agentId} />
-  );
+  return <AgentKnowledge organizationId={organizationId} agentId={agentId} />;
 }

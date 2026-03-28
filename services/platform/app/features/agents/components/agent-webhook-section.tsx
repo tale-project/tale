@@ -30,10 +30,7 @@ import {
   useDeleteAgentWebhook,
   useToggleAgentWebhook,
 } from '../hooks/mutations';
-import {
-  useAgentWebhooks,
-  type AgentWebhook,
-} from '../hooks/queries';
+import { useAgentWebhooks, type AgentWebhook } from '../hooks/queries';
 
 interface AgentWebhookSectionProps {
   organizationId: string;

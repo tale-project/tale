@@ -26,6 +26,7 @@ import path from 'node:path';
 
 import type { AgentJsonConfig, AgentReadResult } from './file_utils';
 
+import { agentJsonSchema } from '../../lib/shared/schemas/agents';
 import { action, internalAction } from '../_generated/server';
 import { authComponent } from '../auth';
 import {
@@ -96,7 +97,7 @@ async function readAgentFile(
     return {
       ok: false,
       error: 'not_found',
-      message: `Failed to read agent file: ${agentName} — ${err}`,
+      message: `Failed to read agent file: ${agentName} — ${err instanceof Error ? err.message : String(err)}`,
     };
   }
 
@@ -107,7 +108,7 @@ async function readAgentFile(
     return {
       ok: false,
       error: 'corrupted',
-      message: `Invalid JSON in ${agentName}: ${err}`,
+      message: `Invalid JSON in ${agentName}: ${err instanceof Error ? err.message : String(err)}`,
     };
   }
 }
@@ -230,10 +231,9 @@ export const saveAgent = action({
       throw new Error(`Invalid agent name: ${args.agentName}`);
     }
 
-    const config = args.config as AgentJsonConfig;
+    const config = agentJsonSchema.parse(args.config);
     const content = serializeAgentJson(config);
     const filePath = resolveAgentFilePath(args.orgSlug, args.agentName);
-    const historyDir = resolveHistoryDir(args.orgSlug, args.agentName);
 
     // Write new data FIRST (critical path)
     await atomicWrite(filePath, content);
@@ -409,7 +409,10 @@ export const readHistoryEntry = action({
       const content = await readFile(filePath, 'utf-8');
       return { ok: true, config: parseAgentJson(content) };
     } catch (err) {
-      return { ok: false, message: `History entry not found: ${err}` };
+      return {
+        ok: false,
+        message: `History entry not found: ${err instanceof Error ? err.message : String(err)}`,
+      };
     }
   },
 });

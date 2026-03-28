@@ -5,7 +5,13 @@ export const modelPresetSchema = z.enum(modelPresetLiterals);
 export type ModelPreset = z.infer<typeof modelPresetSchema>;
 
 const retrievalModeLiterals = ['off', 'tool', 'context', 'both'] as const;
-export const retrievalModeSchema = z.enum(retrievalModeLiterals);
+type RetrievalMode = (typeof retrievalModeLiterals)[number];
+
+export function isRetrievalMode(value: string): value is RetrievalMode {
+  return (retrievalModeLiterals as readonly string[]).includes(value);
+}
+
+const retrievalModeSchema = z.enum(retrievalModeLiterals);
 
 /**
  * Schema for the agent JSON file format.
@@ -35,12 +41,12 @@ export const agentJsonSchema = z.object({
   conversationStarters: z.array(z.string().max(200)).max(4).optional(),
   visibleInChat: z.boolean().optional(),
 });
-export type AgentJson = z.infer<typeof agentJsonSchema>;
+type AgentJson = z.infer<typeof agentJsonSchema>;
 
 /**
  * Schema for creating a new agent (filename validation).
  */
-export const createAgentSchema = z.object({
+const createAgentSchema = z.object({
   name: z
     .string()
     .min(1)
@@ -48,4 +54,4 @@ export const createAgentSchema = z.object({
     .regex(/^[a-z0-9][a-z0-9_-]*$/),
   config: agentJsonSchema,
 });
-export type CreateAgent = z.infer<typeof createAgentSchema>;
+type CreateAgent = z.infer<typeof createAgentSchema>;

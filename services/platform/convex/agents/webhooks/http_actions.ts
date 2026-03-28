@@ -159,8 +159,7 @@ export const agentWebhookHandler = httpAction(async (ctx, req) => {
   }
 
   await ctx.runMutation(
-    internal.agents.webhooks.internal_mutations
-      .updateWebhookLastTriggered,
+    internal.agents.webhooks.internal_mutations.updateWebhookLastTriggered,
     { webhookId: webhook._id, lastTriggeredAt: Date.now() },
   );
 

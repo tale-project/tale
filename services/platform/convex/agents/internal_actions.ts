@@ -101,8 +101,7 @@ export const checkKnowledgeFileStatus = internalAction({
           response.status !== 429
         ) {
           await ctx.runMutation(
-            internal.agents.internal_mutations
-              .updateKnowledgeFileRagInfo,
+            internal.agents.internal_mutations.updateKnowledgeFileRagInfo,
             {
               organizationId: args.organizationId,
               agentFileName: args.agentFileName,

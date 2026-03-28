@@ -19,6 +19,7 @@ import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
+import { agentJsonSchema } from '@/lib/shared/schemas/agents';
 
 import { useAgentConfig } from '../hooks/use-agent-config-context';
 import { HistoryDiffDialog } from './history-diff-dialog';
@@ -60,12 +61,11 @@ export function AgentNavigation({
   );
 
   const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [, setIsLoadingHistory] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<HistoryEntry | null>(null);
-  const [snapshotConfig, setSnapshotConfig] = useState<Record<
-    string,
-    unknown
-  > | null>(null);
+  const [snapshotConfig, setSnapshotConfig] = useState<AgentJsonConfig | null>(
+    null,
+  );
   const [isRestoring, setIsRestoring] = useState(false);
   const [isDiffOpen, setIsDiffOpen] = useState(false);
 
@@ -174,13 +174,13 @@ export function AgentNavigation({
           result &&
           typeof result === 'object' &&
           'ok' in result &&
-          result.ok
+          result.ok &&
+          'config' in result
         ) {
+          const parsed = agentJsonSchema.safeParse(result.config);
+          if (!parsed.success) return;
           setSelectedEntry(entry);
-          setSnapshotConfig(
-            (result as { ok: true; config: AgentJsonConfig })
-              .config as unknown as Record<string, unknown>,
-          );
+          setSnapshotConfig(parsed.data);
           setIsDiffOpen(true);
         }
       } catch (err) {
@@ -301,7 +301,7 @@ export function AgentNavigation({
         <HistoryDiffDialog
           open={isDiffOpen}
           onOpenChange={setIsDiffOpen}
-          currentConfig={config as unknown as Record<string, unknown>}
+          currentConfig={config}
           snapshotConfig={snapshotConfig}
           snapshotDate={selectedEntry.date}
           isRestoring={isRestoring}

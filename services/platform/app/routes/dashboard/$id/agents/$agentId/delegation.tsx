@@ -32,9 +32,7 @@ function DelegationTab() {
   const { t } = useT('settings');
   const { config, updateConfig, agentName } = useAgentConfig();
 
-  const listAgentsAction = useConvexAction(
-    api.agents.file_actions.listAgents,
-  );
+  const listAgentsAction = useConvexAction(api.agents.file_actions.listAgents);
   const listAgentsRef = useRef(listAgentsAction);
   listAgentsRef.current = listAgentsAction;
 

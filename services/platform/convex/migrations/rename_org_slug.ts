@@ -26,7 +26,13 @@ export const renameOrgSlug = internalMutation({
       where: [],
     });
 
-    const orgs = (result as { page?: unknown[] })?.page ?? [];
+    const orgs =
+      result &&
+      typeof result === 'object' &&
+      'page' in result &&
+      Array.isArray(result.page)
+        ? result.page
+        : [];
 
     let updated = 0;
     let skipped = 0;

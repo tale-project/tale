@@ -44,9 +44,7 @@ function GeneralTab() {
   }, [config.timeoutMs, timeoutInitialized]);
 
   const teamOptions = useMemo(() => {
-    const items = [
-      { value: NO_TEAM_VALUE, label: t('agents.form.teamNone') },
-    ];
+    const items = [{ value: NO_TEAM_VALUE, label: t('agents.form.teamNone') }];
     if (teams) {
       for (const team of teams) {
         items.push({ value: team.id, label: team.name });

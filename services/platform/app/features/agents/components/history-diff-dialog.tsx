@@ -3,6 +3,8 @@
 import { ArrowRight } from 'lucide-react';
 import { useMemo } from 'react';
 
+import type { AgentJsonConfig } from '@/convex/agents/file_utils';
+
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useFormatDate } from '@/app/hooks/use-format-date';
@@ -11,8 +13,8 @@ import { useT } from '@/lib/i18n/client';
 interface HistoryDiffDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  currentConfig: Record<string, unknown>;
-  snapshotConfig: Record<string, unknown>;
+  currentConfig: AgentJsonConfig;
+  snapshotConfig: AgentJsonConfig;
   snapshotDate: string;
   isRestoring: boolean;
   onRestore: () => void;
@@ -45,10 +47,16 @@ function formatValue(value: unknown): string {
   return JSON.stringify(value);
 }
 
+function toRecord(config: AgentJsonConfig): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(config));
+}
+
 function computeChanges(
-  current: Record<string, unknown>,
-  snapshot: Record<string, unknown>,
+  currentConfig: AgentJsonConfig,
+  snapshotConfig: AgentJsonConfig,
 ): FieldChange[] {
+  const current = toRecord(currentConfig);
+  const snapshot = toRecord(snapshotConfig);
   const changes: FieldChange[] = [];
   const allKeys = new Set([...Object.keys(current), ...Object.keys(snapshot)]);
 

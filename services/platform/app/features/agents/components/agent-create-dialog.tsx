@@ -48,10 +48,7 @@ export function CreateAgentDialog({
               field: t('agents.form.name'),
             }),
           )
-          .regex(
-            /^[a-z0-9][a-z0-9_-]*$/,
-            t('agents.form.namePatternError'),
-          ),
+          .regex(/^[a-z0-9][a-z0-9_-]*$/, t('agents.form.namePatternError')),
         displayName: z.string().min(
           1,
           tCommon('validation.required', {

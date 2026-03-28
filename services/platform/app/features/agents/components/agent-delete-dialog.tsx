@@ -12,7 +12,6 @@ interface AgentDeleteDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   agentName: string;
-  displayName: string;
   onDeleted?: () => void;
 }
 
@@ -20,7 +19,6 @@ export function AgentDeleteDialog({
   open,
   onOpenChange,
   agentName,
-  displayName,
   onDeleted,
 }: AgentDeleteDialogProps) {
   const { t } = useT('settings');

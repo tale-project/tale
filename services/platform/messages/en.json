@@ -709,7 +709,7 @@
       "history": {
         "empty": "No history entries",
         "diffTitle": "Compare changes",
-        "diffDescription": "Review differences before restoring snapshot from {{date}}",
+        "diffDescription": "Review differences before restoring snapshot from {date}",
         "noDifferences": "No differences found",
         "restore": "Restore this version",
         "field": "Field",

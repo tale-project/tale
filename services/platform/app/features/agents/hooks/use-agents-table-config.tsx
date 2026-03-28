@@ -95,7 +95,6 @@ export function useAgentsTableConfig({
           <HStack gap={1} justify="end">
             <AgentRowActions
               agentName={row.original.name}
-              displayName={row.original.displayName}
               onDuplicated={onDuplicated}
               onDeleted={onDeleted}
             />

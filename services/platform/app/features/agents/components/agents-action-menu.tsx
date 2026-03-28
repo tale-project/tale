@@ -12,9 +12,7 @@ interface AgentsActionMenuProps {
   organizationId: string;
 }
 
-export function AgentsActionMenu({
-  organizationId,
-}: AgentsActionMenuProps) {
+export function AgentsActionMenu({ organizationId }: AgentsActionMenuProps) {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const { t } = useT('settings');
 

@@ -22,12 +22,11 @@ import { useDocuments } from '@/app/features/documents/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
+import { isRetrievalMode } from '@/lib/shared/schemas/agents';
 
 import { useRemoveKnowledgeFile } from '../hooks/mutations';
 import { useAgentConfig } from '../hooks/use-agent-config-context';
 import { useAgentFileUpload } from '../hooks/use-agent-file-upload';
-
-type RetrievalMode = 'off' | 'tool' | 'context' | 'both';
 
 interface AgentKnowledgeProps {
   organizationId: string;
@@ -136,7 +135,7 @@ export function AgentKnowledge({
   const { config, updateConfig } = useAgentConfig();
   const removeKnowledgeFile = useRemoveKnowledgeFile();
 
-  const knowledgeMode: RetrievalMode = config.knowledgeMode ?? 'off';
+  const knowledgeMode = config.knowledgeMode ?? 'off';
   const includeOrgKnowledge = config.includeOrgKnowledge ?? false;
   const includeTeamKnowledge = config.includeTeamKnowledge ?? true;
 
@@ -180,7 +179,7 @@ export function AgentKnowledge({
           });
         });
     },
-    [agentId, removeKnowledgeFile, t],
+    [agentId, organizationId, removeKnowledgeFile, t],
   );
 
   const modeOptions = useMemo(
@@ -228,10 +227,11 @@ export function AgentKnowledge({
       <RadioGroup
         label={t('agents.knowledge.retrievalMode')}
         value={knowledgeMode}
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- RadioGroup returns string; options constrain to RetrievalMode values
-        onValueChange={(value) =>
-          updateConfig({ knowledgeMode: value as RetrievalMode })
-        }
+        onValueChange={(value) => {
+          if (isRetrievalMode(value)) {
+            updateConfig({ knowledgeMode: value });
+          }
+        }}
         options={modeOptions}
       />
 

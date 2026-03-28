@@ -86,21 +86,18 @@ vi.mock('@/app/hooks/use-dialog-search-param', () => ({
   }),
 }));
 
-vi.mock(
-  '@/app/features/agents/components/agent-create-dialog',
-  () => ({
-    CreateAgentDialog: ({
-      open,
-    }: {
-      open: boolean;
-      onOpenChange: (open: boolean) => void;
-      organizationId: string;
-    }) =>
-      open ? (
-        <div data-testid="create-agent-dialog">Create Agent Dialog</div>
-      ) : null,
-  }),
-);
+vi.mock('@/app/features/agents/components/agent-create-dialog', () => ({
+  CreateAgentDialog: ({
+    open,
+  }: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    organizationId: string;
+  }) =>
+    open ? (
+      <div data-testid="create-agent-dialog">Create Agent Dialog</div>
+    ) : null,
+}));
 
 vi.mock('@tanstack/react-router', () => ({
   useSearch: () => ({}),

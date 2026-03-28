@@ -89,7 +89,6 @@
     "intl-messageformat": "^11.1.2",
     "jexl": "2.3.0",
     "jose": "6.2.2",
-    "jsondiffpatch": "^0.7.3",
     "jszip": "^3.10.1",
     "lodash": "4.17.23",
     "lucide-react": "1.7.0",

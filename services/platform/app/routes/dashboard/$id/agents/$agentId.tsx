@@ -2,7 +2,6 @@ import { createFileRoute, Link, Outlet } from '@tanstack/react-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { AgentJsonConfig } from '@/convex/agents/file_utils';
-import type { AgentReadResult } from '@/convex/agents/file_utils';
 
 import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
 import { ContentArea } from '@/app/components/layout/content-area';
@@ -47,11 +46,10 @@ function AgentDetailLayout() {
     setIsLoading(true);
     setLoadError(null);
     try {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex action returns AgentReadResult but typed as any
-      const result = (await readAgentRef.current.mutateAsync({
+      const result = await readAgentRef.current.mutateAsync({
         orgSlug: 'default',
         agentName: agentId,
-      })) as AgentReadResult;
+      });
 
       if (result.ok) {
         setAgentConfig(result.config);
@@ -169,9 +167,7 @@ function AgentDetailLayout() {
     return (
       <PageLayout>
         <ContentArea variant="narrow" className="py-6">
-          <Text variant="muted">
-            {loadError ?? t('agents.agentNotFound')}
-          </Text>
+          <Text variant="muted">{loadError ?? t('agents.agentNotFound')}</Text>
         </ContentArea>
       </PageLayout>
     );
