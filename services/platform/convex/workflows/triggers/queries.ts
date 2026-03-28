@@ -74,6 +74,7 @@ export const getWebhooks = query({
       .withIndex('by_workflowRoot', (q) =>
         q.eq('workflowRootId', args.workflowRootId),
       )) {
+      if (!wh.workflowRootId) continue;
       results.push({
         _id: wh._id,
         _creationTime: wh._creationTime,
@@ -126,6 +127,7 @@ export const getApiKeys = query({
       .withIndex('by_workflowRoot', (q) =>
         q.eq('workflowRootId', args.workflowRootId),
       )) {
+      if (!k.workflowRootId) continue;
       results.push({
         _id: k._id,
         _creationTime: k._creationTime,

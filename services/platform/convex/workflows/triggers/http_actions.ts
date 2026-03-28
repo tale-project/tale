@@ -56,6 +56,13 @@ export const webhookHandler = httpAction(async (ctx, req) => {
     return jsonResponse({ error: 'Webhook is disabled' }, 403);
   }
 
+  if (!webhook.workflowRootId) {
+    return jsonResponse(
+      { error: 'Slug-based triggers are not yet supported via webhook' },
+      501,
+    );
+  }
+
   let bodyText: string;
   try {
     bodyText = await req.text();

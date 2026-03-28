@@ -31,6 +31,7 @@ export interface IntegrationOperationMetadata {
 
 export interface WorkflowCreationMetadata {
   workflowName: string;
+  workflowSlug?: string;
   workflowDescription?: string;
   workflowConfig: {
     name: string;
@@ -49,6 +50,7 @@ export interface WorkflowCreationMetadata {
   requestedAt: number;
   executedAt?: number;
   createdWorkflowId?: string;
+  createdWorkflowSlug?: string;
   executionError?: string;
 }
 
@@ -67,6 +69,7 @@ export interface WorkflowUpdateMetadata {
   updateType: 'full_save' | 'step_patch' | 'multi_step_patch';
   updateSummary: string;
   workflowId: string;
+  workflowSlug?: string;
   workflowName: string;
   workflowVersionNumber: number;
   workflowConfig?: {
@@ -98,7 +101,7 @@ export interface WorkflowUpdateMetadata {
 }
 
 export interface WorkflowRunMetadata {
-  workflowId: string;
+  workflowSlug: string;
   workflowName: string;
   workflowDescription?: string;
   parameters?: Record<string, unknown>;

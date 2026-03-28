@@ -39,7 +39,7 @@ export const claimWorkflowApprovalForExecution = internalMutation({
 export const updateWorkflowApprovalWithResult = internalMutation({
   args: {
     approvalId: v.id('approvals'),
-    createdWorkflowId: v.union(v.id('wfDefinitions'), v.null()),
+    createdWorkflowId: v.union(v.string(), v.null()),
     executionError: v.union(v.string(), v.null()),
   },
   handler: async (ctx, args): Promise<void> => {
@@ -59,7 +59,7 @@ export const updateWorkflowApprovalWithResult = internalMutation({
         ...metadata,
         executedAt: now,
         ...(args.createdWorkflowId
-          ? { createdWorkflowId: args.createdWorkflowId }
+          ? { createdWorkflowSlug: args.createdWorkflowId }
           : {}),
         ...(args.executionError ? { executionError: args.executionError } : {}),
       } as ApprovalMetadata,
@@ -237,7 +237,7 @@ export const createWorkflowCreationApproval = internalMutation({
 export const createWorkflowRunApproval = internalMutation({
   args: {
     organizationId: v.string(),
-    workflowId: v.id('wfDefinitions'),
+    workflowSlug: v.string(),
     workflowName: v.string(),
     workflowDescription: v.optional(v.string()),
     parameters: v.optional(jsonRecordValidator),
@@ -248,7 +248,7 @@ export const createWorkflowRunApproval = internalMutation({
     await checkOrganizationRateLimit(ctx, 'workflow:run', args.organizationId);
 
     const metadata: WorkflowRunMetadata = {
-      workflowId: args.workflowId,
+      workflowSlug: args.workflowSlug,
       workflowName: args.workflowName,
       workflowDescription: args.workflowDescription,
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex jsonRecordValidator returns broader type; parameters is always Record<string, unknown>
@@ -259,7 +259,7 @@ export const createWorkflowRunApproval = internalMutation({
     const approvalId = await createApproval(ctx, {
       organizationId: args.organizationId,
       resourceType: 'workflow_run',
-      resourceId: `workflow_run:${args.workflowId}`,
+      resourceId: `workflow_run:${args.workflowSlug}`,
       priority: 'high',
       description: `Run workflow: ${args.workflowName}${args.workflowDescription ? ` - ${args.workflowDescription}` : ''}`,
       threadId: args.threadId,

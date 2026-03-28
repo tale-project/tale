@@ -1,10 +1,9 @@
-import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { z } from 'zod';
 
-import { ExecutionsTable } from '@/app/features/automations/executions/executions-table';
-import { api } from '@/convex/_generated/api';
-import { toId } from '@/convex/lib/type_cast_helpers';
+import { ContentArea } from '@/app/components/layout/content-area';
+import { Text } from '@/app/components/ui/typography/text';
+import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
 const searchSchema = z.object({
@@ -22,30 +21,20 @@ export const Route = createFileRoute(
     meta: seo('automationExecutions'),
   }),
   validateSearch: searchSchema,
-  loader: ({ context, params }) => {
-    void context.queryClient.prefetchQuery(
-      convexQuery(api.wf_executions.queries.approxCountExecutions, {
-        wfDefinitionId: toId<'wfDefinitions'>(params.amId),
-      }),
-    );
-  },
   component: ExecutionsPage,
 });
 
 function ExecutionsPage() {
-  const { id: organizationId, amId } = Route.useParams();
-  const automationId = toId<'wfDefinitions'>(amId);
-  const { query, status, triggeredBy, dateFrom, dateTo } = Route.useSearch();
+  const { t } = useT('automations');
 
   return (
-    <ExecutionsTable
-      amId={automationId}
-      organizationId={organizationId}
-      searchTerm={query}
-      status={status ? [status] : undefined}
-      triggeredBy={triggeredBy}
-      dateFrom={dateFrom}
-      dateTo={dateTo}
-    />
+    <ContentArea variant="narrow" gap={4} className="py-8">
+      <Text as="p" variant="label">
+        {t('executions.title')}
+      </Text>
+      <Text as="p" variant="caption">
+        Execution history will be available here once workflows are triggered.
+      </Text>
+    </ContentArea>
   );
 }

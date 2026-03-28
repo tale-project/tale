@@ -1,27 +1,30 @@
 {
-  "workflowConfig": {
-    "name": "Circuly Customers Sync",
-    "description": "Synchronize customers from Circuly to local database with pagination",
-    "version": "2.0.0",
-    "workflowType": "predefined",
-    "config": {
-      "timeout": 300000,
-      "retryPolicy": { "maxRetries": 3, "backoffMs": 2000 },
-      "variables": {
-        "organizationId": "org_demo",
-        "pageSize": 50,
-        "maxPages": 20,
-        "currentPage": 1
-      }
+  "name": "Circuly Customers Sync",
+  "description": "Synchronize customers from Circuly to local database with pagination",
+  "version": "2.0.0",
+  "enabled": true,
+  "config": {
+    "timeout": 300000,
+    "retryPolicy": {
+      "maxRetries": 3,
+      "backoffMs": 2000
+    },
+    "variables": {
+      "organizationId": "org_demo",
+      "pageSize": 50,
+      "maxPages": 20,
+      "currentPage": 1
     }
   },
-  "stepsConfig": [
+  "steps": [
     {
       "stepSlug": "start",
       "name": "start",
       "stepType": "start",
       "config": {},
-      "nextSteps": { "success": "fetch_customers" }
+      "nextSteps": {
+        "success": "fetch_customers"
+      }
     },
     {
       "stepSlug": "fetch_customers",
@@ -40,7 +43,9 @@
           }
         }
       },
-      "nextSteps": { "success": "loop_customers" }
+      "nextSteps": {
+        "success": "loop_customers"
+      }
     },
     {
       "stepSlug": "loop_customers",
@@ -50,7 +55,10 @@
         "items": "{{steps.fetch_customers.output.data.result.data}}",
         "itemVariable": "customer"
       },
-      "nextSteps": { "loop": "query_existing_customer", "done": "check_has_next_page" }
+      "nextSteps": {
+        "loop": "query_existing_customer",
+        "done": "check_has_next_page"
+      }
     },
     {
       "stepSlug": "query_existing_customer",
@@ -61,10 +69,15 @@
         "parameters": {
           "operation": "query",
           "externalId": "{{loop.item.id}}",
-          "paginationOpts": { "numItems": 1, "cursor": null }
+          "paginationOpts": {
+            "numItems": 1,
+            "cursor": null
+          }
         }
       },
-      "nextSteps": { "success": "check_customer_exists" }
+      "nextSteps": {
+        "success": "check_customer_exists"
+      }
     },
     {
       "stepSlug": "check_customer_exists",
@@ -74,7 +87,10 @@
         "expression": "steps.query_existing_customer.output.data.page|length > 0",
         "description": "Check if customer already exists in database"
       },
-      "nextSteps": { "true": "update_existing_customer", "false": "insert_new_customer" }
+      "nextSteps": {
+        "true": "update_existing_customer",
+        "false": "insert_new_customer"
+      }
     },
     {
       "stepSlug": "update_existing_customer",
@@ -104,7 +120,9 @@
           }
         }
       },
-      "nextSteps": { "success": "loop_customers" }
+      "nextSteps": {
+        "success": "loop_customers"
+      }
     },
     {
       "stepSlug": "insert_new_customer",
@@ -132,7 +150,9 @@
           }
         }
       },
-      "nextSteps": { "success": "loop_customers" }
+      "nextSteps": {
+        "success": "loop_customers"
+      }
     },
     {
       "stepSlug": "check_has_next_page",
@@ -142,7 +162,10 @@
         "expression": "steps.fetch_customers.output.data.result.pagination.hasNextPage == true && currentPage < maxPages",
         "description": "Check if Circuly has more pages and we have not exceeded max page limit"
       },
-      "nextSteps": { "true": "prepare_next_page", "false": "noop" }
+      "nextSteps": {
+        "true": "prepare_next_page",
+        "false": "noop"
+      }
     },
     {
       "stepSlug": "prepare_next_page",
@@ -151,10 +174,17 @@
       "config": {
         "type": "set_variables",
         "parameters": {
-          "variables": [{ "name": "currentPage", "value": "{{currentPage + 1}}" }]
+          "variables": [
+            {
+              "name": "currentPage",
+              "value": "{{currentPage + 1}}"
+            }
+          ]
         }
       },
-      "nextSteps": { "success": "fetch_customers" }
+      "nextSteps": {
+        "success": "fetch_customers"
+      }
     }
   ]
 }

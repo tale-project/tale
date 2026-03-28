@@ -410,7 +410,8 @@ function WorkflowRunApprovalCardComponent({
                 to="/dashboard/$id/automations/$amId/executions"
                 params={{
                   id: organizationId,
-                  amId: metadata.workflowId,
+                  // TODO: Update route to use slug-based workflow URLs
+                  amId: metadata.workflowSlug,
                 }}
                 className="text-primary flex items-center gap-1 text-xs hover:underline"
               >

@@ -192,6 +192,7 @@ function validateStepUpdates(updates: {
 export const updateWorkflowStepTool = {
   name: 'update_workflow_step' as const,
   tool: createTool({
+    // TODO: Migrate to file-based workflow system — update steps within the workflow JSON file instead of patching DB step records
     description: `Update one or more workflow steps. Requires user approval — an approval card will be created.
 
 **SINGLE STEP:**
@@ -201,7 +202,7 @@ export const updateWorkflowStepTool = {
 { steps: [{ stepRecordId: "...", updates: {...} }, ...], updateSummary: "..." }
 
 **REQUIRED STEPS:**
-1. Call workflow_read(operation='get_step', stepId='...') to get current config for each step
+1. Call workflow_read(operation='get_structure', workflowSlug='...') to get the workflow and all its steps
 2. Modify config based on current values (keep ALL required fields)
 3. Call this tool with the updates
 

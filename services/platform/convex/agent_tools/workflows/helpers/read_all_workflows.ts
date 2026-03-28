@@ -1,19 +1,15 @@
 import type { ToolCtx } from '@convex-dev/agent';
 
-import type { WorkflowStatus } from '../../../../lib/shared/schemas/wf_definitions';
-import type { Doc } from '../../../_generated/dataModel';
 import type { WorkflowReadListAllResult, WorkflowSummary } from './types';
 
+import { isRecord } from '../../../../lib/utils/type-guards';
 import { internal } from '../../../_generated/api';
 
-export interface ReadAllWorkflowsArgs {
-  status?: WorkflowStatus;
-  includeStepCount?: boolean;
-}
+const DEFAULT_ORG_SLUG = 'default';
 
 export async function readAllWorkflows(
   ctx: ToolCtx,
-  args: ReadAllWorkflowsArgs,
+  args: { enabledOnly?: boolean },
 ): Promise<WorkflowReadListAllResult> {
   const { organizationId } = ctx;
 
@@ -28,41 +24,38 @@ export async function readAllWorkflows(
   }
 
   try {
-    const allWorkflows: Doc<'wfDefinitions'>[] = await ctx.runQuery(
-      internal.wf_definitions.internal_queries.listWorkflows,
-      {
-        organizationId,
-        status: args.status,
-      },
+    const rawResults: unknown = await ctx.runAction(
+      internal.workflows.file_actions.listWorkflowsForAgent,
+      { orgSlug: DEFAULT_ORG_SLUG },
     );
 
-    const includeStepCount = args.includeStepCount ?? false;
+    if (!Array.isArray(rawResults)) {
+      return {
+        operation: 'list_all',
+        totalWorkflows: 0,
+        workflows: [],
+        message: 'No workflows found for this organization.',
+      };
+    }
 
-    const workflows: WorkflowSummary[] = await Promise.all(
-      allWorkflows.map(async (wf) => {
-        let stepCount: number | undefined;
+    const workflows: WorkflowSummary[] = [];
+    for (const item of rawResults) {
+      if (!isRecord(item) || typeof item.slug !== 'string') continue;
 
-        if (includeStepCount) {
-          const steps = await ctx.runQuery(
-            internal.wf_step_defs.internal_queries.listWorkflowSteps,
-            {
-              wfDefinitionId: wf._id,
-            },
-          );
-          stepCount = steps.length;
-        }
+      const enabled = typeof item.enabled === 'boolean' ? item.enabled : false;
+      if (args.enabledOnly && !enabled) continue;
 
-        return {
-          workflowId: wf._id,
-          name: wf.name,
-          description: wf.description,
-          status: wf.status,
-          version: wf.version,
-          versionNumber: wf.versionNumber,
-          ...(stepCount !== undefined && { stepCount }),
-        };
-      }),
-    );
+      workflows.push({
+        slug: item.slug,
+        name: typeof item.name === 'string' ? item.name : item.slug,
+        description:
+          typeof item.description === 'string' ? item.description : undefined,
+        enabled,
+        version: typeof item.version === 'string' ? item.version : undefined,
+        stepCount:
+          typeof item.stepCount === 'number' ? item.stepCount : undefined,
+      });
+    }
 
     return {
       operation: 'list_all',

@@ -26,6 +26,7 @@ export async function getScheduledWorkflows(
   const allSchedules = await ctx.db.query('wfSchedules').take(MAX_SCHEDULES);
   for (const sched of allSchedules) {
     if (!sched.isActive) continue;
+    if (!sched.workflowRootId) continue;
 
     const activeVersion = await getActiveWorkflowVersion(
       ctx,

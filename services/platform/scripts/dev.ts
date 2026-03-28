@@ -71,6 +71,10 @@ function envNormalizeCommon() {
   if (!process.env.AGENTS_DIR) {
     process.env.AGENTS_DIR = join(repoRoot, 'examples', 'agents');
   }
+
+  if (!process.env.WORKFLOWS_DIR) {
+    process.env.WORKFLOWS_DIR = join(repoRoot, 'examples', 'workflows');
+  }
 }
 
 function ensureInstanceSecret() {
@@ -393,7 +397,7 @@ async function main() {
     try {
       await runCommand('bun', ['scripts/sync-convex-env-from-dotenv.ts']);
 
-      // Sync AGENTS_DIR explicitly (set dynamically, not in .env files)
+      // Sync AGENTS_DIR and WORKFLOWS_DIR explicitly (set dynamically, not in .env files)
       const agentsDir = process.env.AGENTS_DIR;
       if (agentsDir) {
         await runCommand('bunx', [
@@ -403,6 +407,17 @@ async function main() {
           `AGENTS_DIR=${agentsDir}`,
         ]);
         console.log(`[dev] ✅ AGENTS_DIR=${agentsDir}`);
+      }
+
+      const workflowsDir = process.env.WORKFLOWS_DIR;
+      if (workflowsDir) {
+        await runCommand('bunx', [
+          'convex',
+          'env',
+          'set',
+          `WORKFLOWS_DIR=${workflowsDir}`,
+        ]);
+        console.log(`[dev] ✅ WORKFLOWS_DIR=${workflowsDir}`);
       }
 
       console.log('[dev] ✅ Environment variables synced successfully');

@@ -123,12 +123,13 @@ Inform the user the update is ready for review in the chat UI.`,
         .describe(
           'Complete list of steps for this workflow; existing steps will be replaced.',
         ),
-      workflowId: z
+      workflowSlug: z
         .string()
         .optional()
         .describe(
-          'ID of an existing draft workflow to update. When omitted, the tool will use the workflowId from context; if neither is available, the call will fail. This tool never creates a new workflow.',
+          'Slug of an existing workflow to update (e.g., "conversation-sync"). When omitted, the tool will use the workflowId from context; if neither is available, the call will fail. This tool never creates a new workflow.',
         ),
+      // TODO: Migrate approval execution to use file-based saveWorkflowWithSnapshot instead of DB mutations
       updateSummary: z
         .string()
         .describe(
@@ -165,13 +166,14 @@ Inform the user the update is ready for review in the chat UI.`,
         };
       }
 
-      const targetWorkflowId = args.workflowId ?? workflowIdFromContext;
+      // TODO: Migrate to file-based workflow reads instead of DB queries
+      const targetWorkflowId = args.workflowSlug ?? workflowIdFromContext;
 
       if (!targetWorkflowId) {
         return {
           success: false,
           message:
-            'workflowId is required to save a workflow definition. This tool only updates existing draft workflows. Ensure it is attached to an automation or provide workflowId explicitly.',
+            'workflowSlug is required to save a workflow definition. This tool only updates existing workflows. Provide workflowSlug explicitly.',
         };
       }
 

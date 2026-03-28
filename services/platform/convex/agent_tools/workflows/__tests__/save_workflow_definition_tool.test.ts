@@ -64,7 +64,7 @@ function createValidArgs() {
         nextSteps: { default: 'next_step' },
       },
     ],
-    workflowId: 'wf-def-1',
+    workflowSlug: 'wf-def-1',
     updateSummary: 'Added error handling step',
   };
 }
@@ -111,17 +111,17 @@ describe('save_workflow_definition tool handler', () => {
     expect(result.message).toContain('organizationId is required');
   });
 
-  it('returns failure when workflowId is missing', async () => {
+  it('returns failure when workflowSlug is missing', async () => {
     const handler = await getHandler();
     const ctx = createMockCtx({ workflowId: undefined });
     const args = createValidArgs();
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test-only: simulating missing workflowId
-    (args as Record<string, unknown>).workflowId = undefined;
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test-only: simulating missing workflowSlug
+    (args as Record<string, unknown>).workflowSlug = undefined;
 
     const result = await handler(ctx, args);
 
     expect(result.success).toBe(false);
-    expect(result.message).toContain('workflowId is required');
+    expect(result.message).toContain('workflowSlug is required');
   });
 
   it('returns failure when validation fails', async () => {

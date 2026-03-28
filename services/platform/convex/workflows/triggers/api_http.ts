@@ -68,6 +68,13 @@ export const apiTriggerHandler = httpAction(async (ctx, req) => {
     return jsonResponse({ error: 'API key has expired' }, 403);
   }
 
+  if (!apiKeyRecord.workflowRootId) {
+    return jsonResponse(
+      { error: 'Slug-based triggers are not yet supported via API' },
+      501,
+    );
+  }
+
   // Parse request body
   let body: {
     workflowRootId?: string;

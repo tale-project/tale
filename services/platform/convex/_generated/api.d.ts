@@ -96,10 +96,7 @@ import type * as agent_tools_web_web_tool from "../agent_tools/web/web_tool.js";
 import type * as agent_tools_workflows_create_bound_workflow_tool from "../agent_tools/workflows/create_bound_workflow_tool.js";
 import type * as agent_tools_workflows_create_workflow_tool from "../agent_tools/workflows/create_workflow_tool.js";
 import type * as agent_tools_workflows_helpers_extract_input_schema from "../agent_tools/workflows/helpers/extract_input_schema.js";
-import type * as agent_tools_workflows_helpers_read_active_version_steps from "../agent_tools/workflows/helpers/read_active_version_steps.js";
 import type * as agent_tools_workflows_helpers_read_all_workflows from "../agent_tools/workflows/helpers/read_all_workflows.js";
-import type * as agent_tools_workflows_helpers_read_version_history from "../agent_tools/workflows/helpers/read_version_history.js";
-import type * as agent_tools_workflows_helpers_read_workflow_examples from "../agent_tools/workflows/helpers/read_workflow_examples.js";
 import type * as agent_tools_workflows_helpers_read_workflow_structure from "../agent_tools/workflows/helpers/read_workflow_structure.js";
 import type * as agent_tools_workflows_helpers_syntax_reference from "../agent_tools/workflows/helpers/syntax_reference.js";
 import type * as agent_tools_workflows_helpers_types from "../agent_tools/workflows/helpers/types.js";
@@ -341,6 +338,7 @@ import type * as lib_crypto_hex_to_bytes from "../lib/crypto/hex_to_bytes.js";
 import type * as lib_crypto_internal_actions from "../lib/crypto/internal_actions.js";
 import type * as lib_debug_log from "../lib/debug_log.js";
 import type * as lib_error_classification from "../lib/error_classification.js";
+import type * as lib_file_io from "../lib/file_io.js";
 import type * as lib_fuzzy_match from "../lib/fuzzy_match.js";
 import type * as lib_get_or_throw from "../lib/get_or_throw.js";
 import type * as lib_get_user_teams from "../lib/get_user_teams.js";
@@ -662,6 +660,7 @@ import type * as workflow_engine_action_defs_workflow_processing_records_workflo
 import type * as workflow_engine_engine from "../workflow_engine/engine.js";
 import type * as workflow_engine_execution_dry_run_executor from "../workflow_engine/execution/dry_run_executor.js";
 import type * as workflow_engine_helpers_data_source_database_workflow_data_source from "../workflow_engine/helpers/data_source/database_workflow_data_source.js";
+import type * as workflow_engine_helpers_data_source_file_workflow_data_source from "../workflow_engine/helpers/data_source/file_workflow_data_source.js";
 import type * as workflow_engine_helpers_data_source_types from "../workflow_engine/helpers/data_source/types.js";
 import type * as workflow_engine_helpers_engine_build_steps_config_map from "../workflow_engine/helpers/engine/build_steps_config_map.js";
 import type * as workflow_engine_helpers_engine_build_workflow_user_profile from "../workflow_engine/helpers/engine/build_workflow_user_profile.js";
@@ -671,9 +670,11 @@ import type * as workflow_engine_helpers_engine_execute_step_handler from "../wo
 import type * as workflow_engine_helpers_engine_execute_workflow_start from "../workflow_engine/helpers/engine/execute_workflow_start.js";
 import type * as workflow_engine_helpers_engine_index from "../workflow_engine/helpers/engine/index.js";
 import type * as workflow_engine_helpers_engine_load_database_workflow from "../workflow_engine/helpers/engine/load_database_workflow.js";
+import type * as workflow_engine_helpers_engine_load_file_workflow from "../workflow_engine/helpers/engine/load_file_workflow.js";
 import type * as workflow_engine_helpers_engine_on_workflow_complete from "../workflow_engine/helpers/engine/on_workflow_complete.js";
 import type * as workflow_engine_helpers_engine_serialize_and_complete_execution_handler from "../workflow_engine/helpers/engine/serialize_and_complete_execution_handler.js";
 import type * as workflow_engine_helpers_engine_shard from "../workflow_engine/helpers/engine/shard.js";
+import type * as workflow_engine_helpers_engine_start_workflow_from_file from "../workflow_engine/helpers/engine/start_workflow_from_file.js";
 import type * as workflow_engine_helpers_engine_start_workflow_handler from "../workflow_engine/helpers/engine/start_workflow_handler.js";
 import type * as workflow_engine_helpers_engine_workflow_data from "../workflow_engine/helpers/engine/workflow_data.js";
 import type * as workflow_engine_helpers_formatting_stringify from "../workflow_engine/helpers/formatting/stringify.js";
@@ -813,6 +814,8 @@ import type * as workflows_executions_update_execution_metadata from "../workflo
 import type * as workflows_executions_update_execution_status from "../workflows/executions/update_execution_status.js";
 import type * as workflows_executions_update_execution_variables from "../workflows/executions/update_execution_variables.js";
 import type * as workflows_executions_validators from "../workflows/executions/validators.js";
+import type * as workflows_file_actions from "../workflows/file_actions.js";
+import type * as workflows_file_utils from "../workflows/file_utils.js";
 import type * as workflows_helpers from "../workflows/helpers.js";
 import type * as workflows_processing_records_ast_helpers_extract_comparison from "../workflows/processing_records/ast_helpers/extract_comparison.js";
 import type * as workflows_processing_records_ast_helpers_extract_literal_value from "../workflows/processing_records/ast_helpers/extract_literal_value.js";
@@ -867,6 +870,8 @@ import type * as workflows_triggers_internal_queries from "../workflows/triggers
 import type * as workflows_triggers_mutations from "../workflows/triggers/mutations.js";
 import type * as workflows_triggers_process_event from "../workflows/triggers/process_event.js";
 import type * as workflows_triggers_queries from "../workflows/triggers/queries.js";
+import type * as workflows_triggers_slug_mutations from "../workflows/triggers/slug_mutations.js";
+import type * as workflows_triggers_slug_queries from "../workflows/triggers/slug_queries.js";
 import type * as workflows_validators from "../workflows/validators.js";
 
 import type {
@@ -964,10 +969,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/workflows/create_bound_workflow_tool": typeof agent_tools_workflows_create_bound_workflow_tool;
   "agent_tools/workflows/create_workflow_tool": typeof agent_tools_workflows_create_workflow_tool;
   "agent_tools/workflows/helpers/extract_input_schema": typeof agent_tools_workflows_helpers_extract_input_schema;
-  "agent_tools/workflows/helpers/read_active_version_steps": typeof agent_tools_workflows_helpers_read_active_version_steps;
   "agent_tools/workflows/helpers/read_all_workflows": typeof agent_tools_workflows_helpers_read_all_workflows;
-  "agent_tools/workflows/helpers/read_version_history": typeof agent_tools_workflows_helpers_read_version_history;
-  "agent_tools/workflows/helpers/read_workflow_examples": typeof agent_tools_workflows_helpers_read_workflow_examples;
   "agent_tools/workflows/helpers/read_workflow_structure": typeof agent_tools_workflows_helpers_read_workflow_structure;
   "agent_tools/workflows/helpers/syntax_reference": typeof agent_tools_workflows_helpers_syntax_reference;
   "agent_tools/workflows/helpers/types": typeof agent_tools_workflows_helpers_types;
@@ -1209,6 +1211,7 @@ declare const fullApi: ApiFromModules<{
   "lib/crypto/internal_actions": typeof lib_crypto_internal_actions;
   "lib/debug_log": typeof lib_debug_log;
   "lib/error_classification": typeof lib_error_classification;
+  "lib/file_io": typeof lib_file_io;
   "lib/fuzzy_match": typeof lib_fuzzy_match;
   "lib/get_or_throw": typeof lib_get_or_throw;
   "lib/get_user_teams": typeof lib_get_user_teams;
@@ -1530,6 +1533,7 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/engine": typeof workflow_engine_engine;
   "workflow_engine/execution/dry_run_executor": typeof workflow_engine_execution_dry_run_executor;
   "workflow_engine/helpers/data_source/database_workflow_data_source": typeof workflow_engine_helpers_data_source_database_workflow_data_source;
+  "workflow_engine/helpers/data_source/file_workflow_data_source": typeof workflow_engine_helpers_data_source_file_workflow_data_source;
   "workflow_engine/helpers/data_source/types": typeof workflow_engine_helpers_data_source_types;
   "workflow_engine/helpers/engine/build_steps_config_map": typeof workflow_engine_helpers_engine_build_steps_config_map;
   "workflow_engine/helpers/engine/build_workflow_user_profile": typeof workflow_engine_helpers_engine_build_workflow_user_profile;
@@ -1539,9 +1543,11 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/helpers/engine/execute_workflow_start": typeof workflow_engine_helpers_engine_execute_workflow_start;
   "workflow_engine/helpers/engine/index": typeof workflow_engine_helpers_engine_index;
   "workflow_engine/helpers/engine/load_database_workflow": typeof workflow_engine_helpers_engine_load_database_workflow;
+  "workflow_engine/helpers/engine/load_file_workflow": typeof workflow_engine_helpers_engine_load_file_workflow;
   "workflow_engine/helpers/engine/on_workflow_complete": typeof workflow_engine_helpers_engine_on_workflow_complete;
   "workflow_engine/helpers/engine/serialize_and_complete_execution_handler": typeof workflow_engine_helpers_engine_serialize_and_complete_execution_handler;
   "workflow_engine/helpers/engine/shard": typeof workflow_engine_helpers_engine_shard;
+  "workflow_engine/helpers/engine/start_workflow_from_file": typeof workflow_engine_helpers_engine_start_workflow_from_file;
   "workflow_engine/helpers/engine/start_workflow_handler": typeof workflow_engine_helpers_engine_start_workflow_handler;
   "workflow_engine/helpers/engine/workflow_data": typeof workflow_engine_helpers_engine_workflow_data;
   "workflow_engine/helpers/formatting/stringify": typeof workflow_engine_helpers_formatting_stringify;
@@ -1681,6 +1687,8 @@ declare const fullApi: ApiFromModules<{
   "workflows/executions/update_execution_status": typeof workflows_executions_update_execution_status;
   "workflows/executions/update_execution_variables": typeof workflows_executions_update_execution_variables;
   "workflows/executions/validators": typeof workflows_executions_validators;
+  "workflows/file_actions": typeof workflows_file_actions;
+  "workflows/file_utils": typeof workflows_file_utils;
   "workflows/helpers": typeof workflows_helpers;
   "workflows/processing_records/ast_helpers/extract_comparison": typeof workflows_processing_records_ast_helpers_extract_comparison;
   "workflows/processing_records/ast_helpers/extract_literal_value": typeof workflows_processing_records_ast_helpers_extract_literal_value;
@@ -1735,6 +1743,8 @@ declare const fullApi: ApiFromModules<{
   "workflows/triggers/mutations": typeof workflows_triggers_mutations;
   "workflows/triggers/process_event": typeof workflows_triggers_process_event;
   "workflows/triggers/queries": typeof workflows_triggers_queries;
+  "workflows/triggers/slug_mutations": typeof workflows_triggers_slug_mutations;
+  "workflows/triggers/slug_queries": typeof workflows_triggers_slug_queries;
   "workflows/validators": typeof workflows_validators;
 }>;
 

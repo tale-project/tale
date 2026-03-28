@@ -1,27 +1,30 @@
 {
-  "workflowConfig": {
-    "name": "Document RAG Sync",
-    "description": "Find one unprocessed document and upload it to RAG service",
-    "version": "1.0.0",
-    "workflowType": "predefined",
-    "config": {
-      "timeout": 120000,
-      "retryPolicy": { "maxRetries": 3, "backoffMs": 2000 },
-      "variables": {
-        "organizationId": "org_demo",
-        "backoffHours": 72,
-        "includeMetadata": true,
-        "workflowId": "document_rag_sync"
-      }
+  "name": "Document RAG Sync",
+  "description": "Find one unprocessed document and upload it to RAG service",
+  "version": "1.0.0",
+  "enabled": true,
+  "config": {
+    "timeout": 120000,
+    "retryPolicy": {
+      "maxRetries": 3,
+      "backoffMs": 2000
+    },
+    "variables": {
+      "organizationId": "org_demo",
+      "backoffHours": 72,
+      "includeMetadata": true,
+      "workflowId": "document_rag_sync"
     }
   },
-  "stepsConfig": [
+  "steps": [
     {
       "stepSlug": "start",
       "name": "start",
       "stepType": "start",
       "config": {},
-      "nextSteps": { "success": "find_unprocessed_document" }
+      "nextSteps": {
+        "success": "find_unprocessed_document"
+      }
     },
     {
       "stepSlug": "find_unprocessed_document",

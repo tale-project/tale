@@ -255,7 +255,8 @@ export function createBoundWorkflowTool(
             .createWorkflowRunApproval,
           {
             organizationId,
-            workflowId: resolvedWf._id,
+            // TODO: Migrate bound workflows to file-based system — use actual workflow slug
+            workflowSlug: sanitizeWorkflowName(resolvedWf.name),
             workflowName: resolvedWf.name,
             workflowDescription: resolvedWf.description,
             parameters: normalizedArgs,

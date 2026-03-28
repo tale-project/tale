@@ -72,6 +72,7 @@ export async function processEventHandler(
 
   for await (const sub of subscriptions) {
     if (!sub.isActive) continue;
+    if (!sub.workflowRootId) continue;
 
     if (isSelfTrigger(args.eventType, eventData, sub.workflowRootId)) continue;
 
