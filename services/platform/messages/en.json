@@ -711,10 +711,7 @@
         "diffTitle": "Compare changes",
         "diffDescription": "Review differences before restoring snapshot from {date}",
         "noDifferences": "No differences found",
-        "restore": "Restore this version",
-        "field": "Field",
-        "current": "Current",
-        "snapshot": "Snapshot"
+        "restore": "Restore this version"
       },
       "testChat": {
         "title": "Test agent",
