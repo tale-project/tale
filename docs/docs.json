@@ -36,12 +36,17 @@
   "background": {
     "color": {
       "light": "#FFFFFF",
-      "dark": "#0C1017"
+      "dark": "#0A0A0A"
     }
   },
   "styling": {
     "eyebrows": "breadcrumbs",
-    "codeblocks": "system"
+    "codeblocks": {
+      "theme": {
+        "light": "github-light",
+        "dark": "github-dark-default"
+      }
+    }
   },
   "navigation": {
     "global": {
@@ -54,6 +59,16 @@
         {
           "anchor": "API Reference",
           "icon": "code",
+          "href": "/api-reference"
+        }
+      ],
+      "tabs": [
+        {
+          "tab": "Documentation",
+          "href": "/"
+        },
+        {
+          "tab": "API Reference",
           "href": "/api-reference"
         }
       ]
@@ -117,7 +132,10 @@
         "header": "Resources",
         "items": [
           { "label": "Quick start", "href": "/quickstart" },
-          { "label": "Environment reference", "href": "/environment-reference" },
+          {
+            "label": "Environment reference",
+            "href": "/environment-reference"
+          },
           { "label": "Troubleshooting", "href": "/troubleshooting" }
         ]
       }
