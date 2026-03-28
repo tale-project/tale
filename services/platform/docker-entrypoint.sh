@@ -29,11 +29,11 @@ SHUTDOWN_MARKER="/tmp/shutting_down"
 rm -f "$SHUTDOWN_MARKER"
 
 # PID file for Convex process (shared between main script and monitor subshell)
-CONVEX_PID_FILE="/app/convex-data/convex.pid"
+CONVEX_PID_FILE="/app/data/convex/convex.pid"
 
 # Lock file for blue-green deployment coordination
 # Prevents restart loops when both blue and green containers are running
-CONVEX_LOCK_FILE="/app/convex-data/convex.lock"
+CONVEX_LOCK_FILE="/app/data/convex/convex.lock"
 CONTAINER_NAME=$(hostname)
 
 # Gracefully shutdown all services with connection draining
@@ -342,7 +342,7 @@ configure_database() {
     echo "-d mysql-v5 $db_url"
   else
     echo "   ✓ Using local SQLite database" >&2
-    echo "/app/convex-data/convex_local_backend.sqlite3"
+    echo "/app/data/convex/convex_local_backend.sqlite3"
   fi
 }
 
@@ -399,17 +399,34 @@ echo "📦 Starting Convex backend on port ${CONVEX_BACKEND_PORT}..."
 export RUST_LOG="${RUST_LOG:-info,common::errors=off,isolate::client=off,application::scheduled_jobs=off}"
 
 # Prepare working directory
-mkdir -p /app/convex-data
+mkdir -p /app/data/convex
 # Ensure temp dir on same filesystem as local storage to avoid cross-device rename (EXDEV)
-export TMPDIR=/app/convex-data/tmp
+export TMPDIR=/app/data/convex/tmp
 mkdir -p "$TMPDIR"
 cd /app
+
+# Seed default agent JSON files — skip agents the user has modified
+agents_dir="${AGENTS_DIR:-/app/data/agents}"
+builtin_dir="/app/agents-builtin"
+mkdir -p "$agents_dir"
+if [ -d "$builtin_dir" ] && [ "$(ls -A "$builtin_dir" 2>/dev/null)" ]; then
+  for src in "$builtin_dir"/*.json; do
+    [ -f "$src" ] || continue
+    name="$(basename "$src" .json)"
+    history_dir="$agents_dir/.history/$name"
+    if [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
+      echo "   ⏭ Skipping $name.json (user has modifications in .history)"
+    else
+      cp "$src" "$agents_dir/"
+    fi
+  done
+fi
 
 # Clean up derived data that is safe to rebuild.
 # Search indexes and compiled modules are rebuilt automatically from the database.
 # User uploads (files/) are NEVER touched — they contain permanent user data.
 clean_convex_derived_data() {
-  local data_dir="/app/convex-data"
+  local data_dir="/app/data/convex"
 
   # Search indexes: rebuilt automatically from document data on startup
   if [ -d "$data_dir/search" ]; then
@@ -433,14 +450,14 @@ clean_convex_derived_data() {
 # This prevents crash loops where the backend repeatedly hits corrupted search
 # index segments left behind by an unclean shutdown (e.g. VectorCompactor killed
 # mid-compaction, leaving segment metadata pointing to files that don't exist).
-if [ -f "/app/convex-data/crash.log" ]; then
+if [ -f "/app/data/convex/crash.log" ]; then
   echo "⚠️  Previous crash detected, cleaning derived data to prevent crash loop..."
   clean_convex_derived_data
-  rm -f /app/convex-data/crash.log
+  rm -f /app/data/convex/crash.log
 fi
 
 # Clean stale process state from previous container runs
-rm -f /app/convex-data/convex.pid /app/convex-data/convex.lock
+rm -f /app/data/convex/convex.pid /app/data/convex/convex.lock
 
 # Configure database
 DB_ARGS=$(configure_database)
@@ -457,7 +474,7 @@ ensure_instance_secret
 SITE_ARGS="$SITE_ARGS --instance-name $INSTANCE_NAME --instance-secret $INSTANCE_SECRET"
 
 # Start Convex backend
-convex-local-backend ${DB_ARGS} --local-storage /app/convex-data ${SITE_ARGS} &
+convex-local-backend ${DB_ARGS} --local-storage /app/data/convex ${SITE_ARGS} &
 CONVEX_PID=$!
 # Write initial PID to file for cross-subshell visibility (used by monitor and shutdown)
 echo "$CONVEX_PID" > "$CONVEX_PID_FILE"
@@ -520,6 +537,8 @@ deploy_convex_functions() {
     "TRUSTED_EMAIL_HEADER"
     "TRUSTED_NAME_HEADER"
     "TRUSTED_ROLE_HEADER"
+    # Agents directory (filesystem path for agent JSON configs)
+    "AGENTS_DIR"
     # Debug flag (enables all debug loggers when set to "true")
     "DEBUG_MODE"
   )
@@ -660,7 +679,7 @@ echo ""
 # Process Supervisor - Monitor and restart Convex if it crashes
 # ============================================================================
 
-CRASH_LOG="/app/convex-data/crash.log"
+CRASH_LOG="/app/data/convex/crash.log"
 
 monitor_convex() {
   local max_restarts=10
@@ -713,15 +732,15 @@ monitor_convex() {
       # VectorCompactor killed mid-compaction). Compiled modules are left
       # intact — they are written atomically during deploy and don't corrupt.
       echo "[$(date -Iseconds)] Cleaning search indexes before restart..." | tee -a "$CRASH_LOG"
-      if [ -d "/app/convex-data/search" ]; then
-        rm -rf "/app/convex-data/search"
+      if [ -d "/app/data/convex/search" ]; then
+        rm -rf "/app/data/convex/search"
         echo "   ✓ Cleaned search indexes (will rebuild from database)"
       fi
-      rm -rf /app/convex-data/tmp/*
+      rm -rf /app/data/convex/tmp/*
 
       # Restart Convex backend
       echo "[$(date -Iseconds)] Restarting Convex backend..." | tee -a "$CRASH_LOG"
-      convex-local-backend ${DB_ARGS} --local-storage /app/convex-data ${SITE_ARGS} &
+      convex-local-backend ${DB_ARGS} --local-storage /app/data/convex ${SITE_ARGS} &
       echo $! > "$CONVEX_PID_FILE"
       # Update lock after restart
       echo "$CONTAINER_NAME" > "$CONVEX_LOCK_FILE"

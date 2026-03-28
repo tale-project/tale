@@ -28,7 +28,7 @@ export interface PendingMessage {
 }
 
 export interface SelectedAgent {
-  _id: string;
+  name: string;
   displayName: string;
 }
 

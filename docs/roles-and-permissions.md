@@ -23,7 +23,7 @@ Tale uses five roles. Every user belongs to exactly one role within an organizat
 | Create and send messages | ✓ | ✓ | ✓ | ✓ |
 | View own chat history | ✓ | ✓ | ✓ | ✓ |
 | Delete and rename conversations | ✓ | ✓ | ✓ | ✓ |
-| Select custom agent | ✓ | ✓ | ✓ | ✓ |
+| Select agent | ✓ | ✓ | ✓ | ✓ |
 
 ### Knowledge base
 
@@ -50,7 +50,7 @@ Tale uses five roles. Every user belongs to exactly one role within an organizat
 | View pending approvals | ✓ | ✓ | ✓ | ✓ |
 | Approve or reject actions | — | ✓ | ✓ | ✓ |
 
-### Automations and custom agents
+### Automations and agents
 
 | Feature | Member | Editor | Developer | Admin |
 | --- | --- | --- | --- | --- |

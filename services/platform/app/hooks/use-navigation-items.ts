@@ -104,12 +104,12 @@ export function useNavigationItems(businessId: string): NavItem[] {
         ],
       },
       {
-        label: tNav('customAgents'),
-        to: '/dashboard/$id/custom-agents',
+        label: tNav('agents'),
+        to: '/dashboard/$id/agents',
         params: { id: businessId },
-        href: `/dashboard/${businessId}/custom-agents`,
+        href: `/dashboard/${businessId}/agents`,
         icon: Bot,
-        can: ['write', 'customAgents'],
+        can: ['write', 'agents'],
       },
       {
         label: tNav('automations'),

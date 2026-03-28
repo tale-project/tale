@@ -5,7 +5,7 @@
  *   teamId: optional string — primary/first team (backward compat)
  *   teamTags: optional string[] — full list of teams
  *
- * This helper is used by documents, custom agents, and future team-scoped modules.
+ * This helper is used by documents, agents, and future team-scoped modules.
  */
 
 interface TeamScopedResource {

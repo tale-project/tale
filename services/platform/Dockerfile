@@ -138,8 +138,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && groupadd --system --gid 1001 app || true \
     && useradd --system --uid 1001 --gid app app || true \
     && mkdir -p /home/app && chmod 777 /home/app \
-    && mkdir -p /app/convex-data /dashboard \
-    && chown -R app:app /app/convex-data /dashboard
+    && mkdir -p /app/data/convex /app/data/agents /dashboard /app/agents-builtin \
+    && chown -R app:app /app/data /dashboard /app/agents-builtin
 
 # Re-declare VERSION arg (ARGs don't persist after FROM)
 ARG VERSION=dev
@@ -177,9 +177,14 @@ ENV NODE_ENV=production \
     APPLICATION_MAX_CONCURRENT_QUERIES=32 \
     APPLICATION_MAX_CONCURRENT_MUTATIONS=32 \
     APPLICATION_MAX_CONCURRENT_V8_ACTIONS=32 \
-    APPLICATION_MAX_CONCURRENT_NODE_ACTIONS=32
+    APPLICATION_MAX_CONCURRENT_NODE_ACTIONS=32 \
+    # Custom agent JSON files directory
+    AGENTS_DIR=/app/data/agents
 
 COPY --from=convex-dashboard --chown=app:app /app /dashboard
+
+# Copy builtin agent JSON files (used to seed /app/agents on first run)
+COPY --chown=app:app examples/agents/ /app/agents-builtin/
 
 COPY --from=pruner --chown=app:app /app/services/platform/dist ./dist
 COPY --from=pruner --chown=app:app \

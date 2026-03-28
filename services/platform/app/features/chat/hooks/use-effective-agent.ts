@@ -9,11 +9,13 @@ export interface EffectiveAgent extends SelectedAgent {
   conversationStarters?: string[];
 }
 
+const DEFAULT_CHAT_AGENT_NAME = 'chat-agent';
+
 /**
  * Resolves the currently effective agent for chat.
  *
  * When the user has explicitly selected an agent, returns that selection.
- * Otherwise, falls back to the organization's system default chat agent.
+ * Otherwise, falls back to the hardcoded default 'chat-agent' filename.
  */
 export function useEffectiveAgent(
   organizationId: string,
@@ -24,13 +26,10 @@ export function useEffectiveAgent(
   return useMemo(() => {
     if (selectedAgent) {
       if (!agents) return null;
-      const match = agents.find(
-        (a) => (a.rootVersionId ?? a._id) === selectedAgent._id,
-      );
+      const match = agents.find((a) => a.name === selectedAgent.name);
       if (match) {
-        const rootId = match.rootVersionId ?? match._id;
         return {
-          _id: rootId,
+          name: match.name,
           displayName: match.displayName,
           conversationStarters: match.conversationStarters,
         };
@@ -39,16 +38,23 @@ export function useEffectiveAgent(
 
     if (!agents) return null;
 
-    const defaultAgent = agents.find(
-      (a) => Boolean(a.isSystemDefault) && a.systemAgentSlug === 'chat',
-    );
-    if (!defaultAgent) return null;
+    const defaultAgent = agents.find((a) => a.name === DEFAULT_CHAT_AGENT_NAME);
+    if (defaultAgent) {
+      return {
+        name: defaultAgent.name,
+        displayName: defaultAgent.displayName,
+        conversationStarters: defaultAgent.conversationStarters,
+      };
+    }
 
-    const rootId = defaultAgent.rootVersionId ?? defaultAgent._id;
+    // Fall back to first available agent
+    const firstAgent = agents[0];
+    if (!firstAgent) return null;
+
     return {
-      _id: rootId,
-      displayName: defaultAgent.displayName,
-      conversationStarters: defaultAgent.conversationStarters,
+      name: firstAgent.name,
+      displayName: firstAgent.displayName,
+      conversationStarters: firstAgent.conversationStarters,
     };
   }, [selectedAgent, agents]);
 }

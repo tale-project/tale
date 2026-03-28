@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import type { Id } from '@/convex/_generated/dataModel';
+
 import {
   useCreateThread,
   useUnifiedChatWithAgent,
@@ -24,7 +26,6 @@ import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useThrottledScroll } from '@/app/hooks/use-throttled-scroll';
 import { api } from '@/convex/_generated/api';
-import { Id } from '@/convex/_generated/dataModel';
 import {
   getSystemMessageDisplay,
   parseSystemMessageTag,
@@ -101,11 +102,7 @@ export function useAssistantChat({
     delay: 16,
   });
 
-  // Resolve workflow agent ID via system default slug
-  const { data: workflowAgentId } = useConvexQuery(
-    api.custom_agents.queries.getSystemAgentBySlug,
-    organizationId ? { organizationId, systemAgentSlug: 'workflow' } : 'skip',
-  );
+  const workflowAgentFileName = 'workflow-agent';
 
   const { mutateAsync: chatWithAgent } = useUnifiedChatWithAgent();
   const { mutateAsync: createChatThread } = useCreateThread();
@@ -366,8 +363,7 @@ export function useAssistantChat({
     if (
       (!inputValue.trim() && attachments.length === 0) ||
       isLoading ||
-      !organizationId ||
-      !workflowAgentId
+      !organizationId
     )
       return;
 
@@ -433,7 +429,8 @@ export function useAssistantChat({
       if (!currentThreadId) return;
 
       await chatWithAgent({
-        agentId: workflowAgentId,
+        agentFileName: workflowAgentFileName,
+        orgSlug: 'default',
         threadId: currentThreadId,
         organizationId,
         message: messageContent || analyzeAttachmentsText,

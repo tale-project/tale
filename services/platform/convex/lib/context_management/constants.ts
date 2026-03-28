@@ -127,7 +127,7 @@ export const AGENT_CONTEXT_CONFIGS = {
     enableSummarization: true,
     timeoutMs: 180_000,
   },
-  /** Custom agent - user-configurable agent with DB-stored config */
+  /** Agent - user-configurable agent with DB-stored config */
   custom: {
     modelContextLimit: DEFAULT_MODEL_CONTEXT_LIMIT,
     maxHistoryTokens: DEFAULT_MAX_HISTORY_TOKENS,

@@ -1,7 +1,6 @@
 @import 'tailwindcss';
 @import 'react-day-picker/style.css';
 @import 'react-datepicker/dist/react-datepicker.css';
-
 /* Configure dark mode to use class selector instead of media query */
 @variant dark (&:where(.dark, .dark *));
 
@@ -366,6 +365,59 @@ body,
 
 * {
   box-sizing: border-box;
+}
+
+/* json-diff-kit Viewer theme overrides */
+.json-diff-wrapper .json-diff-viewer {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.json-diff-wrapper .json-diff-viewer pre {
+  font-size: 0.8125rem;
+  line-height: 1.625;
+}
+
+.json-diff-wrapper .json-diff-viewer td {
+  color: hsl(var(--foreground));
+  background: hsl(var(--background));
+}
+
+.json-diff-wrapper .json-diff-viewer tr .line-add {
+  background: hsl(var(--success) / 0.12);
+}
+
+.json-diff-wrapper .json-diff-viewer tr .line-remove {
+  background: hsl(var(--destructive) / 0.12);
+}
+
+.json-diff-wrapper .json-diff-viewer tr .line-modify {
+  background: hsl(var(--warning) / 0.1);
+}
+
+.json-diff-wrapper .json-diff-viewer tr:hover td::before {
+  background: hsl(var(--foreground) / 0.04);
+}
+
+.json-diff-wrapper .json-diff-viewer pre .inline-diff-add {
+  background: hsl(var(--success) / 0.25);
+  text-decoration: none;
+  border-radius: 2px;
+}
+
+.json-diff-wrapper .json-diff-viewer pre .inline-diff-remove {
+  background: hsl(var(--destructive) / 0.25);
+  text-decoration: line-through;
+  border-radius: 2px;
+}
+
+.json-diff-wrapper .json-diff-viewer tr.expand-line button {
+  color: hsl(var(--ring));
+}
+
+.json-diff-wrapper .json-diff-viewer tr.message-line,
+.json-diff-wrapper .json-diff-viewer tr.expand-line .has-lines-before,
+.json-diff-wrapper .json-diff-viewer tr.expand-line .has-lines-after {
+  border-color: hsl(var(--border));
 }
 
 /* ReactFlow Handle Overrides - remove default styles for invisible handles */

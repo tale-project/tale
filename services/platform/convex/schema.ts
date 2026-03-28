@@ -1,5 +1,11 @@
 import { defineSchema } from 'convex/server';
 
+import {
+  customAgentsTable,
+  customAgentWebhooksTable,
+} from './agents/legacy_schema';
+import { agentBindingsTable } from './agents/schema';
+import { agentWebhooksTable } from './agents/webhooks/schema';
 import { approvalsTable } from './approvals/schema';
 import { auditLogsTable } from './audit_logs/schema';
 import { brandingSettingsTable } from './branding/schema';
@@ -7,8 +13,6 @@ import {
   conversationsTable,
   conversationMessagesTable,
 } from './conversations/schema';
-import { customAgentsTable } from './custom_agents/schema';
-import { customAgentWebhooksTable } from './custom_agents/webhooks/schema';
 import { customersTable } from './customers/schema';
 import { documentsTable } from './documents/schema';
 import { fileMetadataTable } from './file_metadata/schema';
@@ -42,7 +46,11 @@ export default defineSchema({
   brandingSettings: brandingSettingsTable,
   conversationMessages: conversationMessagesTable,
   conversations: conversationsTable,
+  agentBindings: agentBindingsTable,
+  agentWebhooks: agentWebhooksTable,
+  /** @deprecated Retained for backward compatibility with existing data. */
   customAgents: customAgentsTable,
+  /** @deprecated Retained for backward compatibility with existing data. */
   customAgentWebhooks: customAgentWebhooksTable,
   customers: customersTable,
   documents: documentsTable,

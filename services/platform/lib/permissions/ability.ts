@@ -12,7 +12,7 @@ export type PlatformResource =
   | 'auditLogs'
   | 'conversationMessages'
   | 'conversations'
-  | 'customAgents'
+  | 'agents'
   | 'customers'
   | 'documents'
   | 'integrations'
@@ -80,7 +80,7 @@ export function defineAbilityFor(role: string | null): AppAbility {
         'approvals',
         'conversationMessages',
         'conversations',
-        'customAgents',
+        'agents',
         'customers',
         'documents',
         'products',
