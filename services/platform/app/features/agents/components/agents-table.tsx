@@ -87,6 +87,7 @@ export function AgentsTable({ organizationId }: AgentsTableProps) {
       teamNameMap,
       modelPresets,
       onDuplicated: loadAgents,
+      onDeleted: loadAgents,
     });
 
   const handleRowClick = useCallback(

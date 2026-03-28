@@ -17,12 +17,14 @@ interface AgentRowActionsProps {
   agentName: string;
   displayName: string;
   onDuplicated?: () => void;
+  onDeleted?: () => void;
 }
 
 export function AgentRowActions({
   agentName,
   displayName,
   onDuplicated,
+  onDeleted,
 }: AgentRowActionsProps) {
   const { t: tCommon } = useT('common');
   const { t } = useT('settings');
@@ -79,6 +81,7 @@ export function AgentRowActions({
         displayName={displayName}
         open={dialogs.isOpen.delete}
         onOpenChange={dialogs.setOpen.delete}
+        onDeleted={onDeleted}
       />
     </>
   );

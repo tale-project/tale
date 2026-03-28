@@ -13,6 +13,7 @@ interface AgentDeleteDialogProps {
   onOpenChange: (open: boolean) => void;
   agentName: string;
   displayName: string;
+  onDeleted?: () => void;
 }
 
 export function AgentDeleteDialog({
@@ -20,6 +21,7 @@ export function AgentDeleteDialog({
   onOpenChange,
   agentName,
   displayName,
+  onDeleted,
 }: AgentDeleteDialogProps) {
   const { t } = useT('settings');
   const { mutateAsync: deleteAgent } = useDeleteAgent();
@@ -38,6 +40,7 @@ export function AgentDeleteDialog({
         variant: 'success',
       });
       onOpenChange(false);
+      onDeleted?.();
     } catch (error) {
       console.error(error);
       toast({

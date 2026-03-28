@@ -25,11 +25,13 @@ interface AgentsTableConfigOptions {
   teamNameMap: Map<string, string>;
   modelPresets: Record<string, string[]> | undefined;
   onDuplicated?: () => void;
+  onDeleted?: () => void;
 }
 
 export function useAgentsTableConfig({
   modelPresets,
   onDuplicated,
+  onDeleted,
 }: AgentsTableConfigOptions): AgentsTableConfig {
   const { t } = useT('settings');
 
@@ -95,13 +97,14 @@ export function useAgentsTableConfig({
               agentName={row.original.name}
               displayName={row.original.displayName}
               onDuplicated={onDuplicated}
+              onDeleted={onDeleted}
             />
           </HStack>
         ),
         size: 80,
       },
     ],
-    [t, modelPresets, onDuplicated],
+    [t, modelPresets, onDuplicated, onDeleted],
   );
 
   return {
