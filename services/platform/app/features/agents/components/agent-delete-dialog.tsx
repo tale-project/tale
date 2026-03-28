@@ -6,23 +6,23 @@ import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
-import { useDeleteCustomAgent } from '../hooks/mutations';
+import { useDeleteAgent } from '../hooks/mutations';
 
-interface CustomAgentDeleteDialogProps {
+interface AgentDeleteDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   agentName: string;
   displayName: string;
 }
 
-export function CustomAgentDeleteDialog({
+export function AgentDeleteDialog({
   open,
   onOpenChange,
   agentName,
   displayName,
-}: CustomAgentDeleteDialogProps) {
+}: AgentDeleteDialogProps) {
   const { t } = useT('settings');
-  const { mutateAsync: deleteAgent } = useDeleteCustomAgent();
+  const { mutateAsync: deleteAgent } = useDeleteAgent();
   const [isDeleting, setIsDeleting] = useState(false);
 
   const handleConfirm = async () => {
@@ -34,14 +34,14 @@ export function CustomAgentDeleteDialog({
         agentName,
       });
       toast({
-        title: t('customAgents.agentDeleted'),
+        title: t('agents.agentDeleted'),
         variant: 'success',
       });
       onOpenChange(false);
     } catch (error) {
       console.error(error);
       toast({
-        title: t('customAgents.agentDeleteFailed'),
+        title: t('agents.agentDeleteFailed'),
         variant: 'destructive',
       });
     } finally {
@@ -53,9 +53,9 @@ export function CustomAgentDeleteDialog({
     <DeleteDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={t('customAgents.deleteAgent')}
-      description={t('customAgents.deleteConfirmation')}
-      deleteText={t('customAgents.deleteAgent')}
+      title={t('agents.deleteAgent')}
+      description={t('agents.deleteConfirmation')}
+      deleteText={t('agents.deleteAgent')}
       isDeleting={isDeleting}
       onDelete={handleConfirm}
     />

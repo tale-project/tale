@@ -156,7 +156,7 @@ cd services/crawler && uv sync --extra dev
 - **[Knowledge Base](docs/knowledge-base.md)** — Manage documents, websites, products, customers, and vendors
 - **[Conversations](docs/conversations.md)** — Manage customer conversations from a unified inbox
 - **[Automations](docs/automations.md)** — Build multi-step workflows with triggers, conditions, loops, and AI steps
-- **[Custom Agents](docs/custom-agents.md)** — Create specialized AI assistants with custom instructions and tools
+- **[Agents](docs/agents.md)** — Create specialized AI assistants with custom instructions and tools
 
 ### Administration
 

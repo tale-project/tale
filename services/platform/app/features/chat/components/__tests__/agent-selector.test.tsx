@@ -87,9 +87,9 @@ vi.mock('@/app/hooks/use-dialog-search-param', () => ({
 }));
 
 vi.mock(
-  '@/app/features/custom-agents/components/custom-agent-create-dialog',
+  '@/app/features/agents/components/agent-create-dialog',
   () => ({
-    CreateCustomAgentDialog: ({
+    CreateAgentDialog: ({
       open,
     }: {
       open: boolean;
@@ -166,7 +166,7 @@ describe('AgentSelector', () => {
     expect(mockDialogOpen).toHaveBeenCalled();
   });
 
-  it('renders CreateCustomAgentDialog when dialog is open', () => {
+  it('renders CreateAgentDialog when dialog is open', () => {
     mockDialogIsOpen = true;
 
     render(<AgentSelector organizationId="org-1" />);
@@ -174,7 +174,7 @@ describe('AgentSelector', () => {
     expect(screen.getByTestId('create-agent-dialog')).toBeInTheDocument();
   });
 
-  it('does not render CreateCustomAgentDialog when dialog is closed', () => {
+  it('does not render CreateAgentDialog when dialog is closed', () => {
     mockDialogIsOpen = false;
 
     render(<AgentSelector organizationId="org-1" />);

@@ -289,6 +289,55 @@ export const snapshotToHistory = action({
   },
 });
 
+export const duplicateAgent = action({
+  args: {
+    orgSlug: v.string(),
+    agentName: v.string(),
+  },
+  returns: v.object({ newAgentName: v.string() }),
+  handler: async (ctx, args): Promise<{ newAgentName: string }> => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) throw new Error('Unauthenticated');
+
+    const source = await readAgentFile(args.orgSlug, args.agentName);
+    if (!source.ok) {
+      throw new Error(`Cannot duplicate: ${source.message}`);
+    }
+
+    const dir = resolveAgentsDir(args.orgSlug);
+    let entries: string[];
+    try {
+      entries = await readdir(dir);
+    } catch {
+      entries = [];
+    }
+    const existingNames = new Set(
+      entries
+        .filter((e) => e.endsWith('.json'))
+        .map((e) => agentNameFromFileName(e)),
+    );
+
+    let newName = `${args.agentName}-copy`;
+    let counter = 2;
+    while (existingNames.has(newName)) {
+      newName = `${args.agentName}-copy-${counter}`;
+      counter++;
+    }
+
+    const newConfig: AgentJsonConfig = {
+      ...source.config,
+      displayName: `${source.config.displayName} (Copy)`,
+      visibleInChat: false,
+    };
+
+    const content = serializeAgentJson(newConfig);
+    const filePath = resolveAgentFilePath(args.orgSlug, newName);
+    await atomicWrite(filePath, content);
+
+    return { newAgentName: newName };
+  },
+});
+
 export const deleteAgent = action({
   args: {
     orgSlug: v.string(),

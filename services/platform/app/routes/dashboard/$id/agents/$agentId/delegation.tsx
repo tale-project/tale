@@ -7,14 +7,14 @@ import { CheckboxGroup } from '@/app/components/ui/forms/checkbox-group';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { StickySectionHeader } from '@/app/components/ui/layout/sticky-section-header';
 import { Text } from '@/app/components/ui/typography/text';
-import { useAgentConfig } from '@/app/features/custom-agents/hooks/use-agent-config-context';
+import { useAgentConfig } from '@/app/features/agents/hooks/use-agent-config-context';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute(
-  '/dashboard/$id/custom-agents/$agentId/delegation',
+  '/dashboard/$id/agents/$agentId/delegation',
 )({
   head: () => ({
     meta: seo('agentDelegation'),
@@ -85,8 +85,8 @@ function DelegationTab() {
   return (
     <ContentArea variant="narrow" gap={6}>
       <StickySectionHeader
-        title={t('customAgents.delegation.title')}
-        description={t('customAgents.delegation.description')}
+        title={t('agents.delegation.title')}
+        description={t('agents.delegation.description')}
       />
 
       {isLoading ? (
@@ -97,7 +97,7 @@ function DelegationTab() {
         </Stack>
       ) : availableAgents.length === 0 ? (
         <Text variant="muted" className="italic">
-          {t('customAgents.delegation.noDelegatesAvailable')}
+          {t('agents.delegation.noDelegatesAvailable')}
         </Text>
       ) : (
         <CheckboxGroup

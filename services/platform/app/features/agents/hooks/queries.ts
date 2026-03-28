@@ -164,11 +164,11 @@ export function useModelPresets() {
   return useConvexQuery(api.agents.queries.getModelPresets);
 }
 
-export type CustomAgentWebhook = ConvexItemOf<
+export type AgentWebhook = ConvexItemOf<
   typeof api.agents.webhooks.queries.getWebhooks
 >;
 
-export function useCustomAgentWebhooks(
+export function useAgentWebhooks(
   organizationId: string,
   agentFileName: string,
 ) {

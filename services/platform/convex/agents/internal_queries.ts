@@ -1,5 +1,5 @@
 /**
- * Internal queries for custom agent bindings.
+ * Internal queries for agent bindings.
  *
  * Only DB-level lookups belong here. Agent config is read from
  * JSON files via internal actions in file_actions.ts.

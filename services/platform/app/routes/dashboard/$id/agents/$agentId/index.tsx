@@ -9,12 +9,12 @@ import { Switch } from '@/app/components/ui/forms/switch';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { PageSection } from '@/app/components/ui/layout/page-section';
 import { StickySectionHeader } from '@/app/components/ui/layout/sticky-section-header';
-import { useAgentConfig } from '@/app/features/custom-agents/hooks/use-agent-config-context';
+import { useAgentConfig } from '@/app/features/agents/hooks/use-agent-config-context';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
-export const Route = createFileRoute('/dashboard/$id/custom-agents/$agentId/')({
+export const Route = createFileRoute('/dashboard/$id/agents/$agentId/')({
   head: () => ({
     meta: seo('agentSettings'),
   }),
@@ -45,7 +45,7 @@ function GeneralTab() {
 
   const teamOptions = useMemo(() => {
     const items = [
-      { value: NO_TEAM_VALUE, label: t('customAgents.form.teamNone') },
+      { value: NO_TEAM_VALUE, label: t('agents.form.teamNone') },
     ];
     if (teams) {
       for (const team of teams) {
@@ -71,24 +71,24 @@ function GeneralTab() {
   return (
     <ContentArea variant="narrow" gap={6}>
       <StickySectionHeader
-        title={t('customAgents.form.sectionGeneral')}
-        description={t('customAgents.form.sectionGeneralDescription')}
+        title={t('agents.form.sectionGeneral')}
+        description={t('agents.form.sectionGeneralDescription')}
       />
 
       <FormSection>
         <Switch
           checked={config.visibleInChat !== false}
           onCheckedChange={handleVisibilityChange}
-          label={t('customAgents.general.visibleInChat')}
-          description={t('customAgents.general.visibleInChatHelp')}
+          label={t('agents.general.visibleInChat')}
+          description={t('agents.general.visibleInChatHelp')}
         />
       </FormSection>
 
       <FormSection>
         <Input
           id="displayName"
-          label={t('customAgents.form.displayName')}
-          placeholder={t('customAgents.form.displayNamePlaceholder')}
+          label={t('agents.form.displayName')}
+          placeholder={t('agents.form.displayNamePlaceholder')}
           value={config.displayName}
           onChange={(e) => updateConfig({ displayName: e.target.value })}
           required
@@ -96,8 +96,8 @@ function GeneralTab() {
 
         <Textarea
           id="description"
-          label={t('customAgents.form.description')}
-          placeholder={t('customAgents.form.descriptionPlaceholder')}
+          label={t('agents.form.description')}
+          placeholder={t('agents.form.descriptionPlaceholder')}
           value={config.description ?? ''}
           onChange={(e) =>
             updateConfig({ description: e.target.value || undefined })
@@ -108,16 +108,16 @@ function GeneralTab() {
 
       {teams && teams.length > 0 && (
         <PageSection
-          title={t('customAgents.form.sectionAccess')}
-          description={t('customAgents.form.sectionAccessDescription')}
+          title={t('agents.form.sectionAccess')}
+          description={t('agents.form.sectionAccessDescription')}
           gap={6}
           className="mt-8 border-t pt-8"
         >
           <FormSection>
             <Select
               options={teamOptions}
-              label={t('customAgents.form.team')}
-              description={t('customAgents.form.teamHelp')}
+              label={t('agents.form.team')}
+              description={t('agents.form.teamHelp')}
               value={NO_TEAM_VALUE}
               onValueChange={() => {}}
               disabled
@@ -127,8 +127,8 @@ function GeneralTab() {
       )}
 
       <PageSection
-        title={t('customAgents.general.sectionAdvanced')}
-        description={t('customAgents.general.sectionAdvancedDescription')}
+        title={t('agents.general.sectionAdvanced')}
+        description={t('agents.general.sectionAdvancedDescription')}
         gap={6}
         className="mt-8 border-t pt-8"
       >
@@ -136,8 +136,8 @@ function GeneralTab() {
           <Input
             id="timeoutMinutes"
             type="number"
-            label={t('customAgents.general.timeoutMinutes')}
-            description={t('customAgents.general.timeoutMinutesHelp')}
+            label={t('agents.general.timeoutMinutes')}
+            description={t('agents.general.timeoutMinutesHelp')}
             value={timeoutMinutes}
             onChange={(e) =>
               setTimeoutMinutes(

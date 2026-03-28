@@ -26,36 +26,36 @@ import { useSiteUrl } from '@/lib/site-url-context';
 
 import { SecretRevealDialog } from '../../automations/triggers/components/secret-reveal-dialog';
 import {
-  useCreateCustomAgentWebhook,
-  useDeleteCustomAgentWebhook,
-  useToggleCustomAgentWebhook,
+  useCreateAgentWebhook,
+  useDeleteAgentWebhook,
+  useToggleAgentWebhook,
 } from '../hooks/mutations';
 import {
-  useCustomAgentWebhooks,
-  type CustomAgentWebhook,
+  useAgentWebhooks,
+  type AgentWebhook,
 } from '../hooks/queries';
 
-interface CustomAgentWebhookSectionProps {
+interface AgentWebhookSectionProps {
   organizationId: string;
   agentFileName: string;
 }
 
-type WebhookRow = CustomAgentWebhook;
+type WebhookRow = AgentWebhook;
 
-export function CustomAgentWebhookSection({
+export function AgentWebhookSection({
   organizationId,
   agentFileName,
-}: CustomAgentWebhookSectionProps) {
+}: AgentWebhookSectionProps) {
   const { t } = useT('settings');
   const { toast } = useToast();
 
-  const { webhooks } = useCustomAgentWebhooks(organizationId, agentFileName);
+  const { webhooks } = useAgentWebhooks(organizationId, agentFileName);
 
   const { mutateAsync: createWebhook, isPending: isCreating } =
-    useCreateCustomAgentWebhook();
-  const { mutateAsync: toggleWebhook } = useToggleCustomAgentWebhook();
+    useCreateAgentWebhook();
+  const { mutateAsync: toggleWebhook } = useToggleAgentWebhook();
   const { mutate: deleteWebhookMutation, isPending: isDeleting } =
-    useDeleteCustomAgentWebhook();
+    useDeleteAgentWebhook();
 
   const [createdUrl, setCreatedUrl] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<WebhookRow | null>(null);
@@ -79,30 +79,30 @@ export function CustomAgentWebhookSection({
       });
       setCreatedUrl(getWebhookUrl(result.token));
       toast({
-        title: t('customAgents.webhook.toast.created'),
+        title: t('agents.webhook.toast.created'),
         variant: 'success',
       });
     } catch {
       toast({
-        title: t('customAgents.webhook.toast.createFailed'),
+        title: t('agents.webhook.toast.createFailed'),
         variant: 'destructive',
       });
     }
   }, [createWebhook, organizationId, agentFileName, toast, t, getWebhookUrl]);
 
   const handleToggle = useCallback(
-    async (webhookId: Id<'customAgentWebhooks'>, isActive: boolean) => {
+    async (webhookId: Id<'agentWebhooks'>, isActive: boolean) => {
       try {
         await toggleWebhook({ webhookId, isActive });
         toast({
           title: isActive
-            ? t('customAgents.webhook.toast.enabled')
-            : t('customAgents.webhook.toast.disabled'),
+            ? t('agents.webhook.toast.enabled')
+            : t('agents.webhook.toast.disabled'),
           variant: 'success',
         });
       } catch {
         toast({
-          title: t('customAgents.webhook.toast.toggleFailed'),
+          title: t('agents.webhook.toast.toggleFailed'),
           variant: 'destructive',
         });
       }
@@ -113,18 +113,18 @@ export function CustomAgentWebhookSection({
   const handleDelete = useCallback(() => {
     if (!deleteTarget) return;
     deleteWebhookMutation(
-      { webhookId: toId<'customAgentWebhooks'>(deleteTarget._id) },
+      { webhookId: toId<'agentWebhooks'>(deleteTarget._id) },
       {
         onSuccess: () => {
           toast({
-            title: t('customAgents.webhook.toast.deleted'),
+            title: t('agents.webhook.toast.deleted'),
             variant: 'success',
           });
           setDeleteTarget(null);
         },
         onError: () => {
           toast({
-            title: t('customAgents.webhook.toast.deleteFailed'),
+            title: t('agents.webhook.toast.deleteFailed'),
             variant: 'destructive',
           });
         },
@@ -139,7 +139,7 @@ export function CustomAgentWebhookSection({
         await navigator.clipboard.writeText(url);
         setCopiedToken(token);
         toast({
-          title: t('customAgents.webhook.toast.urlCopied'),
+          title: t('agents.webhook.toast.urlCopied'),
           variant: 'success',
         });
         setTimeout(() => setCopiedToken(null), 2000);
@@ -153,7 +153,7 @@ export function CustomAgentWebhookSection({
   const { formatDate: formatDateLong } = useFormatDate();
   const formatTimestamp = useCallback(
     (timestamp?: number) => {
-      if (!timestamp) return t('customAgents.webhook.never');
+      if (!timestamp) return t('agents.webhook.never');
       return formatDateLong(new Date(timestamp), 'long');
     },
     [t, formatDateLong],
@@ -163,7 +163,7 @@ export function CustomAgentWebhookSection({
     () => [
       {
         id: 'url',
-        header: t('customAgents.webhook.columns.url'),
+        header: t('agents.webhook.columns.url'),
         cell: ({ row }) => {
           const url = getWebhookUrl(row.original.token);
           return (
@@ -178,7 +178,7 @@ export function CustomAgentWebhookSection({
                 variant="ghost"
                 size="sm"
                 onClick={() => handleCopyUrl(row.original.token)}
-                aria-label={t('customAgents.webhook.copyUrl')}
+                aria-label={t('agents.webhook.copyUrl')}
                 className="shrink-0"
               >
                 {copiedToken === row.original.token ? (
@@ -194,21 +194,21 @@ export function CustomAgentWebhookSection({
       },
       {
         id: 'active',
-        header: t('customAgents.webhook.columns.active'),
+        header: t('agents.webhook.columns.active'),
         cell: ({ row }) => (
           <Switch
             checked={row.original.isActive}
             onCheckedChange={(checked) =>
               handleToggle(row.original._id, checked)
             }
-            aria-label={t('customAgents.webhook.columns.active')}
+            aria-label={t('agents.webhook.columns.active')}
           />
         ),
         size: 80,
       },
       {
         id: 'lastTriggered',
-        header: t('customAgents.webhook.columns.lastTriggered'),
+        header: t('agents.webhook.columns.lastTriggered'),
         cell: ({ row }) => (
           <Text as="span" variant="muted">
             {formatTimestamp(row.original.lastTriggeredAt)}
@@ -225,7 +225,7 @@ export function CustomAgentWebhookSection({
               variant="ghost"
               size="sm"
               onClick={() => setUsageTarget(row.original)}
-              aria-label={t('customAgents.webhook.usageExamples')}
+              aria-label={t('agents.webhook.usageExamples')}
             >
               <Code className="size-4" />
             </Button>
@@ -233,7 +233,7 @@ export function CustomAgentWebhookSection({
               variant="ghost"
               size="sm"
               onClick={() => setDeleteTarget(row.original)}
-              aria-label={t('customAgents.webhook.deleteWebhook')}
+              aria-label={t('agents.webhook.deleteWebhook')}
             >
               <Trash2 className="size-4" />
             </Button>
@@ -259,27 +259,27 @@ export function CustomAgentWebhookSection({
     return [
       {
         key: 'nonStreaming',
-        label: t('customAgents.webhook.exampleNonStreaming'),
+        label: t('agents.webhook.exampleNonStreaming'),
         code: `curl -X POST ${usageUrl} \\\n  -H "Content-Type: application/json" \\\n  -d '{"message": "Hello"}'`,
       },
       {
         key: 'streaming',
-        label: t('customAgents.webhook.exampleStreaming'),
+        label: t('agents.webhook.exampleStreaming'),
         code: `curl -X POST ${usageUrl} \\\n  -H "Content-Type: application/json" \\\n  -d '{"message": "Hello", "stream": true}'`,
       },
       {
         key: 'multiTurn',
-        label: t('customAgents.webhook.exampleMultiTurn'),
+        label: t('agents.webhook.exampleMultiTurn'),
         code: `curl -X POST ${usageUrl} \\\n  -H "Content-Type: application/json" \\\n  -d '{"message": "Follow-up", "threadId": "THREAD_ID"}'`,
       },
       {
         key: 'fileUpload',
-        label: t('customAgents.webhook.exampleFileUpload'),
+        label: t('agents.webhook.exampleFileUpload'),
         code: `curl -X POST ${usageUrl} \\\n  -F 'message=Analyze this image' \\\n  -F 'file=@/path/to/image.png'`,
       },
       {
         key: 'fileUploadStream',
-        label: t('customAgents.webhook.exampleFileUploadStream'),
+        label: t('agents.webhook.exampleFileUploadStream'),
         code: `curl -N -X POST ${usageUrl} \\\n  -F 'message=Analyze this image' \\\n  -F 'file=@/path/to/image.png' \\\n  -F 'stream=true'`,
       },
     ];
@@ -288,25 +288,25 @@ export function CustomAgentWebhookSection({
   return (
     <ContentArea variant="panel" gap={6}>
       <PageSection
-        title={t('customAgents.webhook.title')}
-        description={t('customAgents.webhook.description')}
+        title={t('agents.webhook.title')}
+        description={t('agents.webhook.description')}
       >
         {!isPublished && (
           <Alert
             variant="warning"
-            description={t('customAgents.webhook.notPublished')}
+            description={t('agents.webhook.notPublished')}
           />
         )}
 
         <DataTable
           columns={columns}
           data={webhooks ?? []}
-          caption={t('customAgents.webhook.title')}
+          caption={t('agents.webhook.title')}
           getRowId={(row) => row._id}
           emptyState={{
             icon: Webhook,
-            title: t('customAgents.webhook.emptyTitle'),
-            description: t('customAgents.webhook.emptyDescription'),
+            title: t('agents.webhook.emptyTitle'),
+            description: t('agents.webhook.emptyDescription'),
           }}
           actionMenu={
             <Button
@@ -316,7 +316,7 @@ export function CustomAgentWebhookSection({
               disabled={isCreating}
             >
               <Plus className="mr-2 size-4" />
-              {t('customAgents.webhook.createButton')}
+              {t('agents.webhook.createButton')}
             </Button>
           }
         />
@@ -325,11 +325,11 @@ export function CustomAgentWebhookSection({
           <SecretRevealDialog
             open={!!createdUrl}
             onOpenChange={() => setCreatedUrl(null)}
-            title={t('customAgents.webhook.createdTitle')}
-            warning={t('customAgents.webhook.urlWarning')}
+            title={t('agents.webhook.createdTitle')}
+            warning={t('agents.webhook.urlWarning')}
             secrets={[
               {
-                label: t('customAgents.webhook.webhookUrl'),
+                label: t('agents.webhook.webhookUrl'),
                 value: createdUrl,
               },
             ]}
@@ -341,8 +341,8 @@ export function CustomAgentWebhookSection({
           onOpenChange={(open) => {
             if (!open) setUsageTarget(null);
           }}
-          title={t('customAgents.webhook.usageExamples')}
-          description={t('customAgents.webhook.usageExamplesDescription')}
+          title={t('agents.webhook.usageExamples')}
+          description={t('agents.webhook.usageExamplesDescription')}
           size="lg"
         >
           <div className="max-h-[60vh] space-y-4 overflow-y-auto">
@@ -351,7 +351,7 @@ export function CustomAgentWebhookSection({
                 key={example.key}
                 label={example.label}
                 copyValue={example.code}
-                copyLabel={t('customAgents.webhook.copyExample')}
+                copyLabel={t('agents.webhook.copyExample')}
               >
                 {example.code}
               </CodeBlock>
@@ -364,8 +364,8 @@ export function CustomAgentWebhookSection({
           onOpenChange={(open) => {
             if (!open) setDeleteTarget(null);
           }}
-          title={t('customAgents.webhook.deleteTitle')}
-          description={t('customAgents.webhook.deleteDescription')}
+          title={t('agents.webhook.deleteTitle')}
+          description={t('agents.webhook.deleteDescription')}
           isDeleting={isDeleting}
           onDelete={handleDelete}
         />

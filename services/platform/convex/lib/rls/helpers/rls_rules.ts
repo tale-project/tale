@@ -57,7 +57,7 @@ export async function rlsRules(
     hasTeamAccess(doc, userTeamIds);
 
   return {
-    // Custom Agents - organization-scoped with team-based access control
+    // Agents - organization-scoped with team-based access control
     agentBindings: {
       read: async (_, agent) => {
         if (!user) return false;

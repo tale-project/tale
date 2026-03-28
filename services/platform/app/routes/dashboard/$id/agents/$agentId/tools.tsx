@@ -5,15 +5,15 @@ import { ContentArea } from '@/app/components/layout/content-area';
 import { RadioGroup } from '@/app/components/ui/forms/radio-group';
 import { PageSection } from '@/app/components/ui/layout/page-section';
 import { StickySectionHeader } from '@/app/components/ui/layout/sticky-section-header';
-import { ToolSelector } from '@/app/features/custom-agents/components/tool-selector';
-import { useAgentConfig } from '@/app/features/custom-agents/hooks/use-agent-config-context';
+import { ToolSelector } from '@/app/features/agents/components/tool-selector';
+import { useAgentConfig } from '@/app/features/agents/hooks/use-agent-config-context';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
 type RetrievalMode = 'off' | 'tool' | 'context' | 'both';
 
 export const Route = createFileRoute(
-  '/dashboard/$id/custom-agents/$agentId/tools',
+  '/dashboard/$id/agents/$agentId/tools',
 )({
   head: () => ({
     meta: seo('agentTools'),
@@ -41,19 +41,19 @@ function ToolsTab() {
     () => [
       {
         value: 'off',
-        label: `${t('customAgents.tools.modeOff')} — ${t('customAgents.tools.webModeOffDescription')}`,
+        label: `${t('agents.tools.modeOff')} — ${t('agents.tools.webModeOffDescription')}`,
       },
       {
         value: 'tool',
-        label: `${t('customAgents.tools.modeTool')} — ${t('customAgents.tools.webModeToolDescription')}`,
+        label: `${t('agents.tools.modeTool')} — ${t('agents.tools.webModeToolDescription')}`,
       },
       {
         value: 'context',
-        label: `${t('customAgents.tools.modeContext')} — ${t('customAgents.tools.webModeContextDescription')}`,
+        label: `${t('agents.tools.modeContext')} — ${t('agents.tools.webModeContextDescription')}`,
       },
       {
         value: 'both',
-        label: `${t('customAgents.tools.modeBoth')} — ${t('customAgents.tools.webModeBothDescription')}`,
+        label: `${t('agents.tools.modeBoth')} — ${t('agents.tools.webModeBothDescription')}`,
       },
     ],
     [t],
@@ -62,24 +62,24 @@ function ToolsTab() {
   return (
     <ContentArea variant="narrow" gap={6}>
       <StickySectionHeader
-        title={t('customAgents.form.sectionTools')}
-        description={t('customAgents.form.sectionToolsDescription')}
+        title={t('agents.form.sectionTools')}
+        description={t('agents.form.sectionToolsDescription')}
       />
 
       <PageSection
         gap={3}
-        title={t('customAgents.tools.webSearchMode')}
+        title={t('agents.tools.webSearchMode')}
         description={
           <>
-            {t('customAgents.tools.webSearchModeDescription')}
+            {t('agents.tools.webSearchModeDescription')}
             {'. '}
-            {t('customAgents.tools.webSearchHint')}{' '}
+            {t('agents.tools.webSearchHint')}{' '}
             <Link
               to="/dashboard/$id/websites"
               params={{ id: organizationId }}
               className="text-primary hover:underline"
             >
-              {t('customAgents.tools.webSearchHintLink')}
+              {t('agents.tools.webSearchHintLink')}
             </Link>
           </>
         }

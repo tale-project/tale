@@ -10,32 +10,34 @@ import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { isKeyOf } from '@/lib/utils/type-guards';
 
-import type { CustomAgentRow } from '../components/custom-agents-table';
+import type { AgentRow } from '../components/agents-table';
 
-import { CustomAgentRowActions } from '../components/custom-agent-row-actions';
+import { AgentRowActions } from '../components/agent-row-actions';
 
-interface CustomAgentsTableConfig {
-  columns: ColumnDef<CustomAgentRow>[];
+interface AgentsTableConfig {
+  columns: ColumnDef<AgentRow>[];
   searchPlaceholder: string;
   stickyLayout: boolean;
   pageSize: number;
 }
 
-interface CustomAgentsTableConfigOptions {
+interface AgentsTableConfigOptions {
   teamNameMap: Map<string, string>;
   modelPresets: Record<string, string[]> | undefined;
+  onDuplicated?: () => void;
 }
 
-export function useCustomAgentsTableConfig({
+export function useAgentsTableConfig({
   modelPresets,
-}: CustomAgentsTableConfigOptions): CustomAgentsTableConfig {
+  onDuplicated,
+}: AgentsTableConfigOptions): AgentsTableConfig {
   const { t } = useT('settings');
 
-  const columns = useMemo<ColumnDef<CustomAgentRow>[]>(
+  const columns = useMemo<ColumnDef<AgentRow>[]>(
     () => [
       {
         id: 'displayName',
-        header: t('customAgents.columns.displayName'),
+        header: t('agents.columns.displayName'),
         meta: { hasAvatar: false },
         cell: ({ row }) => (
           <Text as="span" variant="label">
@@ -46,11 +48,11 @@ export function useCustomAgentsTableConfig({
       },
       {
         id: 'modelPreset',
-        header: t('customAgents.columns.modelPreset'),
+        header: t('agents.columns.modelPreset'),
         meta: { skeleton: { type: 'badge' } },
         cell: ({ row }) => {
           const preset = row.original.modelPreset ?? 'standard';
-          const presetLabel = t(`customAgents.form.modelPresets.${preset}`);
+          const presetLabel = t(`agents.form.modelPresets.${preset}`);
           const modelName =
             modelPresets && isKeyOf(preset, modelPresets)
               ? modelPresets[preset]?.[0]
@@ -72,11 +74,11 @@ export function useCustomAgentsTableConfig({
         id: 'tools',
         header: () => (
           <span className="block w-full text-right">
-            {t('customAgents.columns.tools')}
+            {t('agents.columns.tools')}
           </span>
         ),
         size: 100,
-        meta: { headerLabel: t('customAgents.columns.tools'), align: 'right' },
+        meta: { headerLabel: t('agents.columns.tools'), align: 'right' },
         cell: ({ row }) => (
           <Text as="span" variant="muted" className="block text-right">
             {row.original.toolNames?.length ?? 0}
@@ -89,21 +91,22 @@ export function useCustomAgentsTableConfig({
         meta: { isAction: true },
         cell: ({ row }) => (
           <HStack gap={1} justify="end">
-            <CustomAgentRowActions
+            <AgentRowActions
               agentName={row.original.name}
               displayName={row.original.displayName}
+              onDuplicated={onDuplicated}
             />
           </HStack>
         ),
         size: 80,
       },
     ],
-    [t, modelPresets],
+    [t, modelPresets, onDuplicated],
   );
 
   return {
     columns,
-    searchPlaceholder: t('customAgents.searchAgent'),
+    searchPlaceholder: t('agents.searchAgent'),
     stickyLayout: false,
     pageSize: 50,
   };

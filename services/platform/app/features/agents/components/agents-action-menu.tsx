@@ -6,26 +6,26 @@ import { useState } from 'react';
 import { DataTableActionMenu } from '@/app/components/ui/data-table/data-table-action-menu';
 import { useT } from '@/lib/i18n/client';
 
-import { CreateCustomAgentDialog } from './custom-agent-create-dialog';
+import { CreateAgentDialog } from './agent-create-dialog';
 
-interface CustomAgentsActionMenuProps {
+interface AgentsActionMenuProps {
   organizationId: string;
 }
 
-export function CustomAgentsActionMenu({
+export function AgentsActionMenu({
   organizationId,
-}: CustomAgentsActionMenuProps) {
+}: AgentsActionMenuProps) {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const { t } = useT('settings');
 
   return (
     <>
       <DataTableActionMenu
-        label={t('customAgents.createAgent')}
+        label={t('agents.createAgent')}
         icon={Plus}
         onClick={() => setCreateDialogOpen(true)}
       />
-      <CreateCustomAgentDialog
+      <CreateAgentDialog
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
         organizationId={organizationId}

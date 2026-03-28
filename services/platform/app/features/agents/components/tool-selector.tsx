@@ -225,7 +225,7 @@ function IntegrationBindingsSection({
 }) {
   if (isLoading) {
     return (
-      <FormSection label={t('customAgents.form.sectionIntegrationBindings')}>
+      <FormSection label={t('agents.form.sectionIntegrationBindings')}>
         <Skeleton className="h-6 w-full" />
       </FormSection>
     );
@@ -233,12 +233,12 @@ function IntegrationBindingsSection({
 
   return (
     <FormSection
-      label={t('customAgents.form.sectionIntegrationBindings')}
-      description={t('customAgents.form.sectionIntegrationBindingsDescription')}
+      label={t('agents.form.sectionIntegrationBindings')}
+      description={t('agents.form.sectionIntegrationBindingsDescription')}
     >
       {!integrations || integrations.length === 0 ? (
         <Text variant="caption" className="italic">
-          {t('customAgents.form.noIntegrationsAvailable')}
+          {t('agents.form.noIntegrationsAvailable')}
         </Text>
       ) : (
         <Grid cols={2} className="gap-x-4 gap-y-1.5">
@@ -273,7 +273,7 @@ function WorkflowBindingsSection({
 }) {
   if (isLoading) {
     return (
-      <FormSection label={t('customAgents.form.sectionWorkflowBindings')}>
+      <FormSection label={t('agents.form.sectionWorkflowBindings')}>
         <Skeleton className="h-6 w-full" />
       </FormSection>
     );
@@ -281,12 +281,12 @@ function WorkflowBindingsSection({
 
   return (
     <FormSection
-      label={t('customAgents.form.sectionWorkflowBindings')}
-      description={t('customAgents.form.sectionWorkflowBindingsDescription')}
+      label={t('agents.form.sectionWorkflowBindings')}
+      description={t('agents.form.sectionWorkflowBindingsDescription')}
     >
       {!workflows || workflows.length === 0 ? (
         <Text variant="caption" className="italic">
-          {t('customAgents.form.noWorkflowsAvailable')}
+          {t('agents.form.noWorkflowsAvailable')}
         </Text>
       ) : (
         <Grid cols={2} className="gap-x-4 gap-y-1.5">

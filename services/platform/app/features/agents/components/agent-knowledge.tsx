@@ -29,7 +29,7 @@ import { useAgentFileUpload } from '../hooks/use-agent-file-upload';
 
 type RetrievalMode = 'off' | 'tool' | 'context' | 'both';
 
-interface CustomAgentKnowledgeProps {
+interface AgentKnowledgeProps {
   organizationId: string;
   agentId: string;
 }
@@ -107,15 +107,15 @@ function AgentFileRow({
             variant="ghost"
             size="icon"
             onClick={() => setConfirmOpen(true)}
-            aria-label={t('customAgents.knowledge.removeFile')}
+            aria-label={t('agents.knowledge.removeFile')}
           >
             <Trash2 className="text-muted-foreground size-4" />
           </Button>
           <ConfirmDialog
             open={confirmOpen}
             onOpenChange={setConfirmOpen}
-            title={t('customAgents.knowledge.removeFile')}
-            description={t('customAgents.knowledge.removeFileConfirm')}
+            title={t('agents.knowledge.removeFile')}
+            description={t('agents.knowledge.removeFileConfirm')}
             variant="destructive"
             onConfirm={() => {
               onRemove(file.fileId);
@@ -128,10 +128,10 @@ function AgentFileRow({
   );
 }
 
-export function CustomAgentKnowledge({
+export function AgentKnowledge({
   organizationId,
   agentId,
-}: CustomAgentKnowledgeProps) {
+}: AgentKnowledgeProps) {
   const { t } = useT('settings');
   const { config, updateConfig } = useAgentConfig();
   const removeKnowledgeFile = useRemoveKnowledgeFile();
@@ -175,7 +175,7 @@ export function CustomAgentKnowledge({
         })
         .catch(() => {
           toast({
-            title: t('customAgents.knowledge.removeFailed'),
+            title: t('agents.knowledge.removeFailed'),
             variant: 'destructive',
           });
         });
@@ -187,19 +187,19 @@ export function CustomAgentKnowledge({
     () => [
       {
         value: 'off',
-        label: `${t('customAgents.knowledge.modeOff')} — ${t('customAgents.knowledge.modeOffDescription')}`,
+        label: `${t('agents.knowledge.modeOff')} — ${t('agents.knowledge.modeOffDescription')}`,
       },
       {
         value: 'tool',
-        label: `${t('customAgents.knowledge.modeTool')} — ${t('customAgents.knowledge.modeToolDescription')}`,
+        label: `${t('agents.knowledge.modeTool')} — ${t('agents.knowledge.modeToolDescription')}`,
       },
       {
         value: 'context',
-        label: `${t('customAgents.knowledge.modeContext')} — ${t('customAgents.knowledge.modeContextDescription')}`,
+        label: `${t('agents.knowledge.modeContext')} — ${t('agents.knowledge.modeContextDescription')}`,
       },
       {
         value: 'both',
-        label: `${t('customAgents.knowledge.modeBoth')} — ${t('customAgents.knowledge.modeBothDescription')}`,
+        label: `${t('agents.knowledge.modeBoth')} — ${t('agents.knowledge.modeBothDescription')}`,
       },
     ],
     [t],
@@ -208,25 +208,25 @@ export function CustomAgentKnowledge({
   return (
     <ContentArea variant="narrow" gap={6}>
       <SectionHeader
-        title={t('customAgents.form.sectionKnowledge')}
+        title={t('agents.form.sectionKnowledge')}
         description={
           <>
-            {t('customAgents.form.sectionKnowledgeDescription')}
+            {t('agents.form.sectionKnowledgeDescription')}
             {'. '}
-            {t('customAgents.form.knowledgeHint')}{' '}
+            {t('agents.form.knowledgeHint')}{' '}
             <Link
               to="/dashboard/$id/documents"
               params={{ id: organizationId }}
               className="text-primary hover:underline"
             >
-              {t('customAgents.form.knowledgeHintLink')}
+              {t('agents.form.knowledgeHintLink')}
             </Link>
           </>
         }
       />
 
       <RadioGroup
-        label={t('customAgents.knowledge.retrievalMode')}
+        label={t('agents.knowledge.retrievalMode')}
         value={knowledgeMode}
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- RadioGroup returns string; options constrain to RetrievalMode values
         onValueChange={(value) =>
@@ -242,8 +242,8 @@ export function CustomAgentKnowledge({
             onCheckedChange={(checked) =>
               updateConfig({ includeTeamKnowledge: checked })
             }
-            label={t('customAgents.knowledge.includeTeamKnowledge')}
-            description={t('customAgents.knowledge.includeTeamKnowledgeHelp')}
+            label={t('agents.knowledge.includeTeamKnowledge')}
+            description={t('agents.knowledge.includeTeamKnowledgeHelp')}
           />
 
           {includeTeamKnowledge && teamDocuments.length > 0 && (
@@ -251,7 +251,7 @@ export function CustomAgentKnowledge({
               as="h3"
               titleSize="sm"
               titleWeight="medium"
-              title={t('customAgents.knowledge.teamDocuments')}
+              title={t('agents.knowledge.teamDocuments')}
               gap={3}
             >
               <div className="divide-y rounded-lg border">
@@ -266,7 +266,7 @@ export function CustomAgentKnowledge({
             teamDocuments.length === 0 &&
             !isDocumentsLoading && (
               <EmptyPlaceholder icon={FileText}>
-                {t('customAgents.knowledge.emptyState')}
+                {t('agents.knowledge.emptyState')}
               </EmptyPlaceholder>
             )}
 
@@ -275,8 +275,8 @@ export function CustomAgentKnowledge({
             onCheckedChange={(checked) =>
               updateConfig({ includeOrgKnowledge: checked })
             }
-            label={t('customAgents.knowledge.includeOrgKnowledge')}
-            description={t('customAgents.knowledge.includeOrgKnowledgeHelp')}
+            label={t('agents.knowledge.includeOrgKnowledge')}
+            description={t('agents.knowledge.includeOrgKnowledgeHelp')}
           />
 
           {includeOrgKnowledge && orgDocuments.length > 0 && (
@@ -284,7 +284,7 @@ export function CustomAgentKnowledge({
               as="h3"
               titleSize="sm"
               titleWeight="medium"
-              title={t('customAgents.knowledge.orgDocuments')}
+              title={t('agents.knowledge.orgDocuments')}
               gap={3}
             >
               <div className="divide-y rounded-lg border">
@@ -299,7 +299,7 @@ export function CustomAgentKnowledge({
             orgDocuments.length === 0 &&
             !isDocumentsLoading && (
               <EmptyPlaceholder icon={FileText}>
-                {t('customAgents.knowledge.orgDocumentsEmptyState')}
+                {t('agents.knowledge.orgDocumentsEmptyState')}
               </EmptyPlaceholder>
             )}
 
@@ -307,8 +307,8 @@ export function CustomAgentKnowledge({
             as="h3"
             titleSize="sm"
             titleWeight="medium"
-            title={t('customAgents.knowledge.agentDocuments')}
-            description={t('customAgents.knowledge.agentDocumentsHelp')}
+            title={t('agents.knowledge.agentDocuments')}
+            description={t('agents.knowledge.agentDocumentsHelp')}
             gap={3}
           >
             {knowledgeFiles.length > 0 && (
@@ -326,7 +326,7 @@ export function CustomAgentKnowledge({
 
             {knowledgeFiles.length === 0 && (
               <EmptyPlaceholder icon={FileText}>
-                {t('customAgents.knowledge.agentDocumentsEmptyState')}
+                {t('agents.knowledge.agentDocumentsEmptyState')}
               </EmptyPlaceholder>
             )}
 
@@ -337,7 +337,7 @@ export function CustomAgentKnowledge({
                 multiple
                 disabled={isUploading}
                 inputId="agent-knowledge-file-upload"
-                aria-label={t('customAgents.knowledge.uploadAgentDocuments')}
+                aria-label={t('agents.knowledge.uploadAgentDocuments')}
                 className="hover:border-primary/50 relative flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed p-6 transition-colors"
               >
                 <Upload
@@ -346,8 +346,8 @@ export function CustomAgentKnowledge({
                 />
                 <Text as="span" variant="muted">
                   {isUploading
-                    ? t('customAgents.knowledge.uploadStarted')
-                    : t('customAgents.knowledge.uploadAgentDocuments')}
+                    ? t('agents.knowledge.uploadStarted')
+                    : t('agents.knowledge.uploadAgentDocuments')}
                 </Text>
                 <FileUpload.Overlay />
               </FileUpload.DropZone>

@@ -8,16 +8,16 @@ import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { StickySectionHeader } from '@/app/components/ui/layout/sticky-section-header';
 import { Button } from '@/app/components/ui/primitives/button';
-import { useAgentConfig } from '@/app/features/custom-agents/hooks/use-agent-config-context';
+import { useAgentConfig } from '@/app/features/agents/hooks/use-agent-config-context';
 import { useT } from '@/lib/i18n/client';
 import {
   MAX_CONVERSATION_STARTER_LENGTH,
   MAX_CONVERSATION_STARTERS,
-} from '@/lib/shared/constants/custom-agents';
+} from '@/lib/shared/constants/agents';
 import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute(
-  '/dashboard/$id/custom-agents/$agentId/conversation-starters',
+  '/dashboard/$id/agents/$agentId/conversation-starters',
 )({
   head: () => ({
     meta: seo('agentSettings'),
@@ -126,8 +126,8 @@ function ConversationStartersTab() {
   return (
     <ContentArea gap={6} className="mx-auto max-w-3xl px-4 py-4">
       <StickySectionHeader
-        title={t('customAgents.conversationStarters.title')}
-        description={t('customAgents.conversationStarters.description')}
+        title={t('agents.conversationStarters.title')}
+        description={t('agents.conversationStarters.description')}
       />
 
       <FormSection>
@@ -149,7 +149,7 @@ function ConversationStartersTab() {
                 value={item}
                 type="button"
                 className="text-muted-foreground hover:text-foreground mt-2 shrink-0 cursor-grab active:cursor-grabbing"
-                aria-label={t('customAgents.conversationStarters.dragHandle')}
+                aria-label={t('agents.conversationStarters.dragHandle')}
               >
                 <GripVertical className="h-4 w-4" />
               </Reorder.Item>
@@ -162,7 +162,7 @@ function ConversationStartersTab() {
                 value={item.text}
                 onChange={(e) => handleChange(item.id, e.target.value)}
                 onBlur={handleBlur}
-                placeholder={t('customAgents.conversationStarters.placeholder')}
+                placeholder={t('agents.conversationStarters.placeholder')}
                 maxLength={MAX_CONVERSATION_STARTER_LENGTH}
                 wrapperClassName="min-w-0 flex-1"
               />
@@ -175,7 +175,7 @@ function ConversationStartersTab() {
                   className="h-5 w-5"
                   onClick={() => handleMoveUp(index)}
                   disabled={index === 0}
-                  aria-label={t('customAgents.conversationStarters.moveUp')}
+                  aria-label={t('agents.conversationStarters.moveUp')}
                 >
                   <ChevronUp className="h-3 w-3" />
                 </Button>
@@ -186,7 +186,7 @@ function ConversationStartersTab() {
                   className="h-5 w-5"
                   onClick={() => handleMoveDown(index)}
                   disabled={index === items.length - 1}
-                  aria-label={t('customAgents.conversationStarters.moveDown')}
+                  aria-label={t('agents.conversationStarters.moveDown')}
                 >
                   <ChevronDown className="h-3 w-3" />
                 </Button>
@@ -198,7 +198,7 @@ function ConversationStartersTab() {
                 size="icon"
                 className="mt-1.5 shrink-0"
                 onClick={() => handleRemove(item.id)}
-                aria-label={t('customAgents.conversationStarters.remove')}
+                aria-label={t('agents.conversationStarters.remove')}
               >
                 <X className="h-4 w-4" />
               </Button>
@@ -215,7 +215,7 @@ function ConversationStartersTab() {
             className="self-start"
           >
             <Plus className="mr-1 h-4 w-4" />
-            {t('customAgents.conversationStarters.add')}
+            {t('agents.conversationStarters.add')}
           </Button>
         )}
       </FormSection>

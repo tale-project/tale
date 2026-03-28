@@ -104,8 +104,8 @@ export function HistoryDiffDialog({
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
-      title={t('customAgents.history.diffTitle')}
-      description={t('customAgents.history.diffDescription', {
+      title={t('agents.history.diffTitle')}
+      description={t('agents.history.diffDescription', {
         date: formattedDate,
       })}
       size="wide"
@@ -125,14 +125,14 @@ export function HistoryDiffDialog({
           >
             {isRestoring
               ? tCommon('actions.loading')
-              : t('customAgents.history.restore')}
+              : t('agents.history.restore')}
           </Button>
         </div>
       }
     >
       {changes.length === 0 ? (
         <p className="text-muted-foreground py-4 text-center text-sm">
-          {t('customAgents.history.noDifferences')}
+          {t('agents.history.noDifferences')}
         </p>
       ) : (
         <div className="max-h-[50vh] overflow-auto rounded-md border">
@@ -140,14 +140,14 @@ export function HistoryDiffDialog({
             <thead>
               <tr className="bg-muted/50 border-b">
                 <th className="px-3 py-2 text-left font-medium">
-                  {t('customAgents.history.field')}
+                  {t('agents.history.field')}
                 </th>
                 <th className="px-3 py-2 text-left font-medium">
-                  {t('customAgents.history.current')}
+                  {t('agents.history.current')}
                 </th>
                 <th className="w-8 px-1 py-2" />
                 <th className="px-3 py-2 text-left font-medium">
-                  {t('customAgents.history.snapshot')}
+                  {t('agents.history.snapshot')}
                 </th>
               </tr>
             </thead>

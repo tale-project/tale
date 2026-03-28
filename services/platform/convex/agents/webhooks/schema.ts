@@ -1,7 +1,7 @@
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
-export const customAgentWebhooksTable = defineTable({
+export const agentWebhooksTable = defineTable({
   organizationId: v.string(),
   agentFileName: v.string(),
   token: v.string(),

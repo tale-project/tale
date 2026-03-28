@@ -95,10 +95,10 @@ export const triggerWorkflowCompletionResponse = internalMutation({
       .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
       .first();
 
-    const customAgentId = threadMeta?.customAgentId;
-    if (!customAgentId) {
+    const agentId = threadMeta?.agentId;
+    if (!agentId) {
       throw new Error(
-        `[triggerWorkflowCompletionResponse] Thread ${threadId} has no customAgentId`,
+        `[triggerWorkflowCompletionResponse] Thread ${threadId} has no agentId`,
       );
     }
 
@@ -117,7 +117,7 @@ export const triggerWorkflowCompletionResponse = internalMutation({
 
     const { model, provider } = getDefaultAgentRuntimeConfig();
     const agentConfig = {
-      name: String(customAgentId),
+      name: String(agentId),
       instructions: '',
       convexToolNames: [],
       model: getDefaultModel(),
@@ -147,7 +147,7 @@ export const triggerWorkflowCompletionResponse = internalMutation({
         agentConfig,
         model: agentConfig.model ?? model,
         provider,
-        debugTag: `[Agent:${customAgentId}:WorkflowComplete]`,
+        debugTag: `[Agent:${agentId}:WorkflowComplete]`,
         enableStreaming: true,
         threadId,
         organizationId,

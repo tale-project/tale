@@ -91,7 +91,7 @@ export function useAgentFileUpload({
         if (file.size > DOCUMENT_MAX_FILE_SIZE) {
           const maxSizeMB = DOCUMENT_MAX_FILE_SIZE / (1024 * 1024);
           toast({
-            title: t('customAgents.knowledge.fileTooLarge'),
+            title: t('agents.knowledge.fileTooLarge'),
             description: `${file.name} exceeds ${maxSizeMB} MB limit.`,
             variant: 'destructive',
           });
@@ -136,7 +136,7 @@ export function useAgentFileUpload({
 
         console.error('Failed to upload agent knowledge file:', error);
         toast({
-          title: t('customAgents.knowledge.uploadFailed'),
+          title: t('agents.knowledge.uploadFailed'),
           variant: 'destructive',
         });
       } finally {

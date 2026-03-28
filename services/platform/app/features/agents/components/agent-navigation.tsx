@@ -23,7 +23,7 @@ import { useT } from '@/lib/i18n/client';
 import { useAgentConfig } from '../hooks/use-agent-config-context';
 import { HistoryDiffDialog } from './history-diff-dialog';
 
-interface CustomAgentNavigationProps {
+interface AgentNavigationProps {
   organizationId: string;
   agentId: string;
   onSaved: () => Promise<void>;
@@ -34,11 +34,11 @@ interface HistoryEntry {
   date: string;
 }
 
-export function CustomAgentNavigation({
+export function AgentNavigation({
   organizationId,
   agentId,
   onSaved,
-}: CustomAgentNavigationProps) {
+}: AgentNavigationProps) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
   const { config, isDirty, isSaving, resetConfig, markSaving } =
@@ -69,41 +69,41 @@ export function CustomAgentNavigation({
   const [isRestoring, setIsRestoring] = useState(false);
   const [isDiffOpen, setIsDiffOpen] = useState(false);
 
-  const basePath = `/dashboard/${organizationId}/custom-agents/${agentId}`;
+  const basePath = `/dashboard/${organizationId}/agents/${agentId}`;
 
   const navigationItems: TabNavigationItem[] = [
     {
-      label: t('customAgents.navigation.general'),
+      label: t('agents.navigation.general'),
       href: basePath,
       matchMode: 'exact',
     },
     {
-      label: t('customAgents.navigation.instructionsModel'),
+      label: t('agents.navigation.instructionsModel'),
       href: `${basePath}/instructions`,
       matchMode: 'exact',
     },
     {
-      label: t('customAgents.navigation.tools'),
+      label: t('agents.navigation.tools'),
       href: `${basePath}/tools`,
       matchMode: 'exact',
     },
     {
-      label: t('customAgents.navigation.knowledge'),
+      label: t('agents.navigation.knowledge'),
       href: `${basePath}/knowledge`,
       matchMode: 'exact',
     },
     {
-      label: t('customAgents.navigation.delegation'),
+      label: t('agents.navigation.delegation'),
       href: `${basePath}/delegation`,
       matchMode: 'exact',
     },
     {
-      label: t('customAgents.navigation.conversationStarters'),
+      label: t('agents.navigation.conversationStarters'),
       href: `${basePath}/conversation-starters`,
       matchMode: 'exact',
     },
     {
-      label: t('customAgents.navigation.webhook'),
+      label: t('agents.navigation.webhook'),
       href: `${basePath}/webhook`,
       matchMode: 'exact',
     },
@@ -123,14 +123,14 @@ export function CustomAgentNavigation({
       });
       setHistoryEntries([]);
       toast({
-        title: t('customAgents.agentSaved'),
+        title: t('agents.agentSaved'),
         variant: 'success',
       });
       await onSaved();
     } catch (err) {
       console.error(err);
       toast({
-        title: t('customAgents.agentSaveFailed'),
+        title: t('agents.agentSaveFailed'),
         variant: 'destructive',
       });
     } finally {
@@ -154,7 +154,7 @@ export function CustomAgentNavigation({
     } catch (err) {
       console.error(err);
       toast({
-        title: t('customAgents.historyLoadFailed'),
+        title: t('agents.historyLoadFailed'),
         variant: 'destructive',
       });
     } finally {
@@ -186,7 +186,7 @@ export function CustomAgentNavigation({
       } catch (err) {
         console.error(err);
         toast({
-          title: t('customAgents.historyLoadFailed'),
+          title: t('agents.historyLoadFailed'),
           variant: 'destructive',
         });
       }
@@ -208,14 +208,14 @@ export function CustomAgentNavigation({
       setSnapshotConfig(null);
       setHistoryEntries([]);
       toast({
-        title: t('customAgents.historyRestored'),
+        title: t('agents.historyRestored'),
         variant: 'success',
       });
       await onSaved();
     } catch (err) {
       console.error(err);
       toast({
-        title: t('customAgents.historyRestoreFailed'),
+        title: t('agents.historyRestoreFailed'),
         variant: 'destructive',
       });
     } finally {
@@ -229,7 +229,7 @@ export function CustomAgentNavigation({
         [
           {
             type: 'item' as const,
-            label: t('customAgents.history.empty'),
+            label: t('agents.history.empty'),
             disabled: true,
           },
         ],
@@ -249,14 +249,14 @@ export function CustomAgentNavigation({
       <TabNavigation
         items={navigationItems}
         standalone={false}
-        ariaLabel={tCommon('aria.customAgentsNavigation')}
+        ariaLabel={tCommon('aria.agentsNavigation')}
       >
         <div className="ml-auto flex items-center gap-2">
           <DropdownMenu
             trigger={
               <Button variant="secondary" size="sm" className="h-8 text-sm">
                 <History className="mr-1.5 size-3.5" aria-hidden="true" />
-                {t('customAgents.navigation.history')}
+                {t('agents.navigation.history')}
               </Button>
             }
             items={historyMenuItems}

@@ -7,7 +7,7 @@ import { createChatThread } from '../../threads/create_chat_thread';
 
 export const updateWebhookLastTriggered = internalMutation({
   args: {
-    webhookId: v.id('customAgentWebhooks'),
+    webhookId: v.id('agentWebhooks'),
     lastTriggeredAt: v.number(),
   },
   returns: v.null(),
@@ -23,7 +23,7 @@ export const startWebhookChat = internalMutation({
   args: {
     agentFileName: v.string(),
     organizationId: v.string(),
-    webhookId: v.id('customAgentWebhooks'),
+    webhookId: v.id('agentWebhooks'),
     message: v.string(),
     threadId: v.optional(v.string()),
     enableStreaming: v.optional(v.boolean()),

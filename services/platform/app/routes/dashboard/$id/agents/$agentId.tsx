@@ -15,22 +15,22 @@ import {
 } from '@/app/components/ui/navigation/tab-navigation';
 import { Heading } from '@/app/components/ui/typography/heading';
 import { Text } from '@/app/components/ui/typography/text';
-import { CustomAgentNavigation } from '@/app/features/custom-agents/components/custom-agent-navigation';
-import { AgentConfigProvider } from '@/app/features/custom-agents/hooks/use-agent-config-context';
+import { AgentNavigation } from '@/app/features/agents/components/agent-navigation';
+import { AgentConfigProvider } from '@/app/features/agents/hooks/use-agent-config-context';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { seo } from '@/lib/utils/seo';
 
-export const Route = createFileRoute('/dashboard/$id/custom-agents/$agentId')({
+export const Route = createFileRoute('/dashboard/$id/agents/$agentId')({
   head: () => ({
-    meta: seo('customAgent'),
+    meta: seo('agent'),
   }),
-  component: CustomAgentDetailLayout,
+  component: AgentDetailLayout,
 });
 
-function CustomAgentDetailLayout() {
+function AgentDetailLayout() {
   const { id: organizationId, agentId } = Route.useParams();
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
@@ -77,11 +77,11 @@ function CustomAgentDetailLayout() {
             <AdaptiveHeaderRoot standalone={false} className="gap-2">
               <Heading level={1} size="base" truncate>
                 <Link
-                  to="/dashboard/$id/custom-agents"
+                  to="/dashboard/$id/agents"
                   params={{ id: organizationId }}
                   className="text-muted-foreground hidden md:inline"
                 >
-                  {t('customAgents.title')}&nbsp;&nbsp;
+                  {t('agents.title')}&nbsp;&nbsp;
                 </Link>
                 <span className="hidden md:inline">/&nbsp;&nbsp;</span>
                 <Skeleton className="inline-block h-4 w-32 align-middle" />
@@ -91,44 +91,44 @@ function CustomAgentDetailLayout() {
               items={
                 [
                   {
-                    label: t('customAgents.navigation.general'),
-                    href: `/dashboard/${organizationId}/custom-agents/${agentId}`,
+                    label: t('agents.navigation.general'),
+                    href: `/dashboard/${organizationId}/agents/${agentId}`,
                     matchMode: 'exact',
                   },
                   {
-                    label: t('customAgents.navigation.instructionsModel'),
-                    href: `/dashboard/${organizationId}/custom-agents/${agentId}/instructions`,
+                    label: t('agents.navigation.instructionsModel'),
+                    href: `/dashboard/${organizationId}/agents/${agentId}/instructions`,
                     matchMode: 'exact',
                   },
                   {
-                    label: t('customAgents.navigation.tools'),
-                    href: `/dashboard/${organizationId}/custom-agents/${agentId}/tools`,
+                    label: t('agents.navigation.tools'),
+                    href: `/dashboard/${organizationId}/agents/${agentId}/tools`,
                     matchMode: 'exact',
                   },
                   {
-                    label: t('customAgents.navigation.knowledge'),
-                    href: `/dashboard/${organizationId}/custom-agents/${agentId}/knowledge`,
+                    label: t('agents.navigation.knowledge'),
+                    href: `/dashboard/${organizationId}/agents/${agentId}/knowledge`,
                     matchMode: 'exact',
                   },
                   {
-                    label: t('customAgents.navigation.delegation'),
-                    href: `/dashboard/${organizationId}/custom-agents/${agentId}/delegation`,
+                    label: t('agents.navigation.delegation'),
+                    href: `/dashboard/${organizationId}/agents/${agentId}/delegation`,
                     matchMode: 'exact',
                   },
                   {
-                    label: t('customAgents.navigation.conversationStarters'),
-                    href: `/dashboard/${organizationId}/custom-agents/${agentId}/conversation-starters`,
+                    label: t('agents.navigation.conversationStarters'),
+                    href: `/dashboard/${organizationId}/agents/${agentId}/conversation-starters`,
                     matchMode: 'exact',
                   },
                   {
-                    label: t('customAgents.navigation.webhook'),
-                    href: `/dashboard/${organizationId}/custom-agents/${agentId}/webhook`,
+                    label: t('agents.navigation.webhook'),
+                    href: `/dashboard/${organizationId}/agents/${agentId}/webhook`,
                     matchMode: 'exact',
                   },
                 ] satisfies TabNavigationItem[]
               }
               standalone={false}
-              ariaLabel={tCommon('aria.customAgentsNavigation')}
+              ariaLabel={tCommon('aria.agentsNavigation')}
             >
               <div className="ml-auto flex items-center gap-2">
                 <Skeleton className="h-8 w-14 rounded-md" />
@@ -170,7 +170,7 @@ function CustomAgentDetailLayout() {
       <PageLayout>
         <ContentArea variant="narrow" className="py-6">
           <Text variant="muted">
-            {loadError ?? t('customAgents.agentNotFound')}
+            {loadError ?? t('agents.agentNotFound')}
           </Text>
         </ContentArea>
       </PageLayout>
@@ -185,7 +185,7 @@ function CustomAgentDetailLayout() {
             <AdaptiveHeaderRoot standalone={false} className="gap-2">
               <Heading level={1} size="base" truncate>
                 <Link
-                  to="/dashboard/$id/custom-agents"
+                  to="/dashboard/$id/agents"
                   params={{ id: organizationId }}
                   className={cn(
                     'hidden md:inline text-foreground',
@@ -193,7 +193,7 @@ function CustomAgentDetailLayout() {
                       'text-muted-foreground cursor-pointer',
                   )}
                 >
-                  {t('customAgents.title')}&nbsp;&nbsp;
+                  {t('agents.title')}&nbsp;&nbsp;
                 </Link>
                 {agentConfig.displayName && (
                   <span className="text-foreground">
@@ -203,7 +203,7 @@ function CustomAgentDetailLayout() {
                 )}
               </Heading>
             </AdaptiveHeaderRoot>
-            <CustomAgentNavigation
+            <AgentNavigation
               organizationId={organizationId}
               agentId={agentId}
               onSaved={loadAgent}

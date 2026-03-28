@@ -13,7 +13,7 @@ import { Text } from '@/app/components/ui/typography/text';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
-import { useSaveCustomAgent } from '../hooks/mutations';
+import { useSaveAgent } from '../hooks/mutations';
 
 type FormData = {
   name: string;
@@ -21,21 +21,21 @@ type FormData = {
   description?: string;
 };
 
-interface CreateCustomAgentDialogProps {
+interface CreateAgentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   organizationId: string;
 }
 
-export function CreateCustomAgentDialog({
+export function CreateAgentDialog({
   open,
   onOpenChange,
   organizationId,
-}: CreateCustomAgentDialogProps) {
+}: CreateAgentDialogProps) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
   const navigate = useNavigate();
-  const { mutateAsync: saveAgent } = useSaveCustomAgent();
+  const { mutateAsync: saveAgent } = useSaveAgent();
 
   const formSchema = useMemo(
     () =>
@@ -45,17 +45,17 @@ export function CreateCustomAgentDialog({
           .min(
             1,
             tCommon('validation.required', {
-              field: t('customAgents.form.name'),
+              field: t('agents.form.name'),
             }),
           )
           .regex(
             /^[a-z0-9][a-z0-9_-]*$/,
-            t('customAgents.form.namePatternError'),
+            t('agents.form.namePatternError'),
           ),
         displayName: z.string().min(
           1,
           tCommon('validation.required', {
-            field: t('customAgents.form.displayName'),
+            field: t('agents.form.displayName'),
           }),
         ),
         description: z.string().optional(),
@@ -89,17 +89,17 @@ export function CreateCustomAgentDialog({
         },
       });
       toast({
-        title: t('customAgents.agentCreated'),
+        title: t('agents.agentCreated'),
         variant: 'success',
       });
       void navigate({
-        to: '/dashboard/$id/custom-agents/$agentId',
+        to: '/dashboard/$id/agents/$agentId',
         params: { id: organizationId, agentId: data.name },
       });
     } catch (error) {
       console.error(error);
       toast({
-        title: t('customAgents.agentCreateFailed'),
+        title: t('agents.agentCreateFailed'),
         variant: 'destructive',
       });
     }
@@ -109,36 +109,36 @@ export function CreateCustomAgentDialog({
     <FormDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={t('customAgents.createAgent')}
-      submitText={t('customAgents.createDialog.continue')}
-      submittingText={t('customAgents.createDialog.creating')}
+      title={t('agents.createAgent')}
+      submitText={t('agents.createDialog.continue')}
+      submittingText={t('agents.createDialog.creating')}
       isSubmitting={isSubmitting}
       onSubmit={handleSubmit(onSubmit)}
     >
       <Input
         id="name"
-        label={t('customAgents.form.name')}
+        label={t('agents.form.name')}
         {...register('name')}
-        placeholder={t('customAgents.form.namePlaceholder')}
+        placeholder={t('agents.form.namePlaceholder')}
         errorMessage={errors.name?.message}
       />
       <Text variant="caption" className="-mt-2">
-        {t('customAgents.form.nameHelp')}
+        {t('agents.form.nameHelp')}
       </Text>
 
       <Input
         id="displayName"
-        label={t('customAgents.form.displayName')}
+        label={t('agents.form.displayName')}
         {...register('displayName')}
-        placeholder={t('customAgents.form.displayNamePlaceholder')}
+        placeholder={t('agents.form.displayNamePlaceholder')}
         errorMessage={errors.displayName?.message}
       />
 
       <Textarea
         id="description"
-        label={t('customAgents.form.description')}
+        label={t('agents.form.description')}
         {...register('description')}
-        placeholder={t('customAgents.form.descriptionPlaceholder')}
+        placeholder={t('agents.form.descriptionPlaceholder')}
         rows={3}
       />
     </FormDialog>

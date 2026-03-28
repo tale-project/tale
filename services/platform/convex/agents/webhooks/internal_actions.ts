@@ -17,7 +17,7 @@ export const chatViaWebhook = internalAction({
   args: {
     agentFileName: v.string(),
     organizationId: v.string(),
-    webhookId: v.id('customAgentWebhooks'),
+    webhookId: v.id('agentWebhooks'),
     message: v.string(),
     threadId: v.optional(v.string()),
     enableStreaming: v.optional(v.boolean()),

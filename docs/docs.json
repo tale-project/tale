@@ -71,7 +71,7 @@
           "conversations",
           "approvals",
           "automations",
-          "custom-agents",
+          "agents",
           "settings"
         ]
       },

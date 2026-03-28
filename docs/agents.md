@@ -1,13 +1,13 @@
 ---
-title: Custom agents
+title: Agents
 description: Create specialized AI assistants with custom instructions, knowledge, and tools.
 ---
 
-Custom Agents are specialized AI assistants you configure for specific tasks. Unlike the default chat agent, which is general-purpose, a custom agent has its own instructions, a defined set of knowledge it can access, a specific AI model, and optional tool restrictions.
+Agents are specialized AI assistants you configure for specific tasks. Unlike the default chat agent, which is general-purpose, an agent has its own instructions, a defined set of knowledge it can access, a specific AI model, and optional tool restrictions.
 
-## Creating a custom agent
+## Creating an agent
 
-1. Navigate to Custom Agents in the sidebar.
+1. Navigate to Agents in the sidebar.
 2. Click New Agent.
 3. Enter a Display Name shown in the agent selector and an Internal Name, a URL-safe slug used in API calls such as `support-agent`.
 4. Optionally add a description, then click Create.
@@ -40,14 +40,14 @@ Each starter has a title and a prompt. The title is displayed as a clickable sug
 
 ## Delegation tab
 
-Configure agent-to-agent handoff rules. Delegation allows this agent to route conversations to other custom agents when the topic falls outside its scope. For example, a general support agent can delegate billing questions to a specialized billing agent.
+Configure agent-to-agent handoff rules. Delegation allows this agent to route conversations to other agents when the topic falls outside its scope. For example, a general support agent can delegate billing questions to a specialized billing agent.
 
 ## Webhook tab
 
-Each custom agent gets a unique webhook endpoint. You can POST a message and conversation context to this URL to get a response from the agent without using the platform UI. This is useful for integrating the agent into external products or chat widgets.
+Each agent gets a unique webhook endpoint. You can POST a message and conversation context to this URL to get a response from the agent without using the platform UI. This is useful for integrating the agent into external products or chat widgets.
 
 You can add a webhook secret to verify that incoming requests are genuine.
 
 ## Versioning
 
-Custom agents support versioning. When you edit an agent's instructions, a draft version is created. The live version keeps serving requests until you publish the draft. The version history dialog shows all past versions and lets you compare or roll back.
+Agents support versioning. When you edit an agent's instructions, a draft version is created. The live version keeps serving requests until you publish the draft. The version history dialog shows all past versions and lets you compare or roll back.

@@ -1,5 +1,5 @@
 /**
- * Queries for custom agent bindings and available resources.
+ * Queries for agent bindings and available resources.
  *
  * Agent configuration lives in JSON files on the filesystem (see file_actions.ts).
  * This module only queries the slim binding table and resource lookups.

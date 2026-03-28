@@ -11,7 +11,7 @@ export const createWebhook = mutation({
     agentFileName: v.string(),
   },
   returns: v.object({
-    webhookId: v.id('customAgentWebhooks'),
+    webhookId: v.id('agentWebhooks'),
     token: v.string(),
   }),
   handler: async (ctx, args) => {
@@ -26,7 +26,7 @@ export const createWebhook = mutation({
 
     const token = generateToken();
 
-    const webhookId = await ctx.db.insert('customAgentWebhooks', {
+    const webhookId = await ctx.db.insert('agentWebhooks', {
       organizationId: args.organizationId,
       agentFileName: args.agentFileName,
       token,
@@ -41,7 +41,7 @@ export const createWebhook = mutation({
 
 export const toggleWebhook = mutation({
   args: {
-    webhookId: v.id('customAgentWebhooks'),
+    webhookId: v.id('agentWebhooks'),
     isActive: v.boolean(),
   },
   returns: v.null(),
@@ -64,7 +64,7 @@ export const toggleWebhook = mutation({
 });
 
 export const deleteWebhook = mutation({
-  args: { webhookId: v.id('customAgentWebhooks') },
+  args: { webhookId: v.id('agentWebhooks') },
   returns: v.null(),
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);

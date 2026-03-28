@@ -14,10 +14,10 @@ import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
 import { useModelPresets } from '../hooks/queries';
-import { useCustomAgentsTableConfig } from '../hooks/use-custom-agents-table-config';
-import { CustomAgentsActionMenu } from './custom-agents-action-menu';
+import { useAgentsTableConfig } from '../hooks/use-agents-table-config';
+import { AgentsActionMenu } from './agents-action-menu';
 
-export interface CustomAgentRow {
+export interface AgentRow {
   name: string;
   displayName: string;
   description?: string;
@@ -29,24 +29,24 @@ export interface CustomAgentRow {
   message?: string;
 }
 
-interface CustomAgentsTableProps {
+interface AgentsTableProps {
   organizationId: string;
 }
 
-export function CustomAgentsTable({ organizationId }: CustomAgentsTableProps) {
+export function AgentsTable({ organizationId }: AgentsTableProps) {
   const { t: tEmpty } = useT('emptyStates');
   const { teams } = useTeamFilter();
   const navigate = useNavigate();
   const { data: modelPresets } = useModelPresets();
   const listAgents = useAction(api.agents.file_actions.listAgents);
-  const [agents, setAgents] = useState<CustomAgentRow[]>([]);
+  const [agents, setAgents] = useState<AgentRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const loadAgents = useCallback(async () => {
     setIsLoading(true);
     try {
       const result = await listAgents({ orgSlug: 'default' });
-      const validAgents: CustomAgentRow[] = [];
+      const validAgents: AgentRow[] = [];
       for (const a of result ?? []) {
         if (a && 'displayName' in a && typeof a.displayName === 'string') {
           validAgents.push({
@@ -83,12 +83,16 @@ export function CustomAgentsTable({ organizationId }: CustomAgentsTableProps) {
   }, [teams]);
 
   const { columns, searchPlaceholder, stickyLayout, pageSize } =
-    useCustomAgentsTableConfig({ teamNameMap, modelPresets });
+    useAgentsTableConfig({
+      teamNameMap,
+      modelPresets,
+      onDuplicated: loadAgents,
+    });
 
   const handleRowClick = useCallback(
-    (row: Row<CustomAgentRow>) => {
+    (row: Row<AgentRow>) => {
       void navigate({
-        to: '/dashboard/$id/custom-agents/$agentId',
+        to: '/dashboard/$id/agents/$agentId',
         params: {
           id: organizationId,
           agentId: row.original.name,
@@ -98,7 +102,7 @@ export function CustomAgentsTable({ organizationId }: CustomAgentsTableProps) {
     [navigate, organizationId],
   );
 
-  const list = useListPage<CustomAgentRow>({
+  const list = useListPage<AgentRow>({
     dataSource: {
       type: 'query',
       data: isLoading ? undefined : agents,
@@ -117,11 +121,11 @@ export function CustomAgentsTable({ organizationId }: CustomAgentsTableProps) {
       columns={columns}
       stickyLayout={stickyLayout}
       onRowClick={handleRowClick}
-      actionMenu={<CustomAgentsActionMenu organizationId={organizationId} />}
+      actionMenu={<AgentsActionMenu organizationId={organizationId} />}
       emptyState={{
         icon: Bot,
-        title: tEmpty('customAgents.title'),
-        description: tEmpty('customAgents.description'),
+        title: tEmpty('agents.title'),
+        description: tEmpty('agents.description'),
       }}
     />
   );

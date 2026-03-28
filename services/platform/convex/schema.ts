@@ -1,7 +1,7 @@
 import { defineSchema } from 'convex/server';
 
 import { agentBindingsTable } from './agents/schema';
-import { customAgentWebhooksTable } from './agents/webhooks/schema';
+import { agentWebhooksTable } from './agents/webhooks/schema';
 import { approvalsTable } from './approvals/schema';
 import { auditLogsTable } from './audit_logs/schema';
 import { brandingSettingsTable } from './branding/schema';
@@ -43,7 +43,7 @@ export default defineSchema({
   conversationMessages: conversationMessagesTable,
   conversations: conversationsTable,
   agentBindings: agentBindingsTable,
-  customAgentWebhooks: customAgentWebhooksTable,
+  agentWebhooks: agentWebhooksTable,
   customers: customersTable,
   documents: documentsTable,
   fileMetadata: fileMetadataTable,

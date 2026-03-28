@@ -147,7 +147,7 @@
       "confidence": "{value} percent confidence",
       "settingsNavigation": "Settings navigation",
       "automationsNavigation": "Automations navigation",
-      "customAgentsNavigation": "Custom agents navigation",
+      "agentsNavigation": "Agents navigation",
       "knowledgeNavigation": "Knowledge navigation",
       "actionsMenu": "Actions menu",
       "conversationsNavigation": "Conversations navigation",
@@ -233,7 +233,7 @@
     "apiDocs": "API docs",
     "account": "Account",
     "logs": "Logs",
-    "customAgents": "Custom agents",
+    "agents": "Agents",
     "teamFilter": {
       "allTeams": "All teams",
       "label": "Team"
@@ -272,9 +272,9 @@
       "title": "No automations yet",
       "description": "Describe your workflow and let your AI automate it"
     },
-    "customAgents": {
-      "title": "No custom agents yet",
-      "description": "Create your first custom agent to specialize AI behavior for your team"
+    "agents": {
+      "title": "No agents yet",
+      "description": "Create your first agent to specialize AI behavior for your team"
     },
     "examples": {
       "title": "No examples yet",
@@ -642,14 +642,14 @@
       "noTeamMembers": "No members in this team yet",
       "cannotRemoveLastMember": "Cannot remove the last member. Delete the team instead."
     },
-    "customAgents": {
-      "title": "Custom agents",
-      "description": "Create and manage custom AI agents with specialized instructions and tools",
+    "agents": {
+      "title": "Agents",
+      "description": "Create and manage AI agents with specialized instructions and tools",
       "createAgent": "Create agent",
-      "createAgentDescription": "Configure a custom AI agent with specialized instructions, tools, and model settings.",
+      "createAgentDescription": "Configure an AI agent with specialized instructions, tools, and model settings.",
       "searchAgent": "Search agents",
-      "noAgents": "No custom agents yet",
-      "noAgentsDescription": "Create your first custom agent to specialize AI behavior for your team.",
+      "noAgents": "No agents yet",
+      "noAgentsDescription": "Create your first agent to specialize AI behavior for your team.",
       "columns": {
         "displayName": "Name",
         "active": "Active",
@@ -3095,7 +3095,7 @@
     "apiDocs": "You need Admin or Developer permissions to access API documentation.",
     "organization": "You need Admin permissions to access organization settings.",
     "teams": "You need Admin permissions to access team settings.",
-    "customAgents": "You need Admin or Developer permissions to manage custom agents.",
+    "agents": "You need Admin or Developer permissions to manage agents.",
     "branding": "You need Admin permissions to access branding settings.",
     "knowledge": "Your account does not have permission to access knowledge.",
     "noMembership": "You are not a member of this workspace. Please contact an administrator for access.",
@@ -3168,8 +3168,8 @@
       "title": "Teams",
       "description": "Manage teams within your organization."
     },
-    "customAgents": {
-      "title": "Custom agents",
+    "agents": {
+      "title": "Agents",
       "description": "Create and manage AI agents for customer service."
     },
     "integrations": {
@@ -3208,13 +3208,13 @@
       "title": "Knowledge",
       "description": "Manage your knowledge base for AI agents."
     },
-    "customAgent": {
-      "title": "Custom agent",
-      "description": "Configure and test your custom AI agent."
+    "agent": {
+      "title": "Agent",
+      "description": "Configure and test your AI agent."
     },
     "agentSettings": {
       "title": "Agent settings",
-      "description": "Configure custom agent general settings."
+      "description": "Configure agent general settings."
     },
     "agentInstructions": {
       "title": "Instructions",
@@ -3230,7 +3230,7 @@
     },
     "agentWebhook": {
       "title": "Agent webhook",
-      "description": "Manage webhook URLs for your custom agent."
+      "description": "Manage webhook URLs for your agent."
     },
     "agentDelegation": {
       "title": "Agent delegation",

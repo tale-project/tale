@@ -1,5 +1,5 @@
 /**
- * DB-only mutations for the custom agents binding table.
+ * DB-only mutations for the agents binding table.
  *
  * Agent configuration lives in JSON files on the filesystem (see file_actions.ts).
  * This module manages the slim DB binding record that stores Convex-internal
@@ -52,7 +52,7 @@ export const upsertBinding = internalMutation({
   },
 });
 
-export const updateCustomAgentBindings = mutation({
+export const updateAgentBindings = mutation({
   args: {
     organizationId: v.string(),
     agentFileName: v.string(),

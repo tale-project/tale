@@ -6,7 +6,7 @@ import { api } from '@/convex/_generated/api';
 // Action-based hooks (filesystem writes)
 // ---------------------------------------------------------------------------
 
-export function useSaveCustomAgent() {
+export function useSaveAgent() {
   return useConvexAction(api.agents.file_actions.saveAgent);
 }
 
@@ -14,7 +14,11 @@ export function useSnapshotToHistory() {
   return useConvexAction(api.agents.file_actions.snapshotToHistory);
 }
 
-export function useDeleteCustomAgent() {
+export function useDuplicateAgent() {
+  return useConvexAction(api.agents.file_actions.duplicateAgent);
+}
+
+export function useDeleteAgent() {
   return useConvexAction(api.agents.file_actions.deleteAgent);
 }
 
@@ -26,10 +30,8 @@ export function useRestoreFromHistory() {
 // Mutation-based hooks (DB writes)
 // ---------------------------------------------------------------------------
 
-export function useUpdateCustomAgentBindings() {
-  return useConvexMutation(
-    api.agents.mutations.updateCustomAgentBindings,
-  );
+export function useUpdateAgentBindings() {
+  return useConvexMutation(api.agents.mutations.updateAgentBindings);
 }
 
 export function useAddKnowledgeFile() {
@@ -44,14 +46,14 @@ export function useRemoveKnowledgeFile() {
 // Webhook hooks
 // ---------------------------------------------------------------------------
 
-export function useCreateCustomAgentWebhook() {
+export function useCreateAgentWebhook() {
   return useConvexMutation(api.agents.webhooks.mutations.createWebhook);
 }
 
-export function useToggleCustomAgentWebhook() {
+export function useToggleAgentWebhook() {
   return useConvexMutation(api.agents.webhooks.mutations.toggleWebhook);
 }
 
-export function useDeleteCustomAgentWebhook() {
+export function useDeleteAgentWebhook() {
   return useConvexMutation(api.agents.webhooks.mutations.deleteWebhook);
 }

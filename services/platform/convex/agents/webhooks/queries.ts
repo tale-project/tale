@@ -13,7 +13,7 @@ export const getWebhooks = query({
     if (!authUser) throw new Error('Unauthenticated');
 
     const webhookQuery = ctx.db
-      .query('customAgentWebhooks')
+      .query('agentWebhooks')
       .withIndex('by_agent', (q) =>
         q
           .eq('organizationId', args.organizationId)
