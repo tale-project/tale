@@ -34,7 +34,8 @@ export function remendMarkdown(text: string): string {
 
   // State
   let context: 'normal' | 'fenced_code' | 'inline_code' = 'normal';
-  let fenceBacktickCount = 0;
+  let fenceChar = '';
+  let fenceCount = 0;
   let inlineCodeBacktickCount = 0;
   const formattingStack: FormattingMarker[] = [];
 
@@ -53,13 +54,13 @@ export function remendMarkdown(text: string): string {
 
     if (context === 'fenced_code') {
       // Inside a fenced code block — only look for closing fence
-      if (atLineStart && ch === '`') {
+      if (atLineStart && ch === fenceChar) {
         let count = 0;
-        while (i < len && text[i] === '`') {
+        while (i < len && text[i] === fenceChar) {
           count++;
           i++;
         }
-        if (count >= fenceBacktickCount) {
+        if (count >= fenceCount) {
           context = 'normal';
           atLineStart = false;
           continue;
@@ -122,7 +123,8 @@ export function remendMarkdown(text: string): string {
 
       if (count >= 3 && atLineStart) {
         context = 'fenced_code';
-        fenceBacktickCount = count;
+        fenceChar = '`';
+        fenceCount = count;
         while (i < len && text[i] !== '\n') i++;
         if (i < len) {
           atLineStart = true;
@@ -141,6 +143,23 @@ export function remendMarkdown(text: string): string {
     if (ch === '[') {
       lastOpenBracketIsImage = i > 0 && text[i - 1] === '!';
       lastOpenBracket = lastOpenBracketIsImage ? i - 1 : i;
+      i++;
+      atLineStart = false;
+      continue;
+    }
+
+    // Close bracket — check if this is part of a link [text](url) or
+    // just a standalone bracket (e.g., task list checkbox `- [ ]`).
+    // If ] is NOT followed by (, it's not a link — reset tracking.
+    if (ch === ']' && lastOpenBracket !== -1) {
+      if (i + 1 < len && text[i + 1] === '(') {
+        // ] followed by ( — this is the [text]( boundary of a link.
+        // Don't reset; let the ) handler below complete the link.
+      } else {
+        // ] NOT followed by ( — not a link (e.g., task list, standalone brackets).
+        lastOpenBracket = -1;
+        lastOpenBracketIsImage = false;
+      }
       i++;
       atLineStart = false;
       continue;
@@ -175,16 +194,37 @@ export function remendMarkdown(text: string): string {
       continue;
     }
 
-    // Tilde — strikethrough (~~)
-    if (ch === '~' && i + 1 < len && text[i + 1] === '~') {
-      i += 2;
-      atLineStart = false;
-      const topIdx = formattingStack.lastIndexOf('~~');
-      if (topIdx !== -1) {
-        formattingStack.splice(topIdx, 1);
-      } else {
-        formattingStack.push('~~');
+    // Tilde — fenced code block (~~~+) or strikethrough (~~)
+    if (ch === '~') {
+      let count = 0;
+      while (i < len && text[i] === '~') {
+        count++;
+        i++;
       }
+
+      if (count >= 3 && atLineStart) {
+        context = 'fenced_code';
+        fenceChar = '~';
+        fenceCount = count;
+        while (i < len && text[i] !== '\n') i++;
+        if (i < len) {
+          atLineStart = true;
+          i++;
+        }
+        continue;
+      }
+
+      let remaining = count;
+      while (remaining >= 2) {
+        const topIdx = formattingStack.lastIndexOf('~~');
+        if (topIdx !== -1) {
+          formattingStack.splice(topIdx, 1);
+        } else {
+          formattingStack.push('~~');
+        }
+        remaining -= 2;
+      }
+      atLineStart = false;
       continue;
     }
 
@@ -254,12 +294,29 @@ export function remendMarkdown(text: string): string {
     }
   }
 
+  // Phase 1c: Relocate trailing whitespace past closing markers.
+  // CommonMark requires closing emphasis delimiters to be preceded by
+  // non-whitespace. "**text **" is invalid — the space before "**"
+  // prevents it from being a right-flanking delimiter run, so the
+  // parser renders literal asterisks instead of bold. Moving the
+  // whitespace to after the closing markers produces valid emphasis:
+  // "**text** " (bold "text" + trailing space).
+  let trailingWhitespace = '';
+  if (context === 'normal' && formattingStack.length > 0) {
+    const wsMatch = result.match(/(\s+)$/);
+    if (wsMatch) {
+      trailingWhitespace = wsMatch[1];
+      result = result.slice(0, -trailingWhitespace.length);
+    }
+  }
+
   // Phase 2: Build formatting suffix from open markers
   let formattingSuffix = '';
   if (context === 'normal' || context === 'inline_code') {
     for (let j = formattingStack.length - 1; j >= 0; j--) {
       formattingSuffix += formattingStack[j];
     }
+    formattingSuffix += trailingWhitespace;
   }
 
   // Phase 3: Auto-complete incomplete GFM tables (only outside code blocks)
@@ -277,7 +334,7 @@ export function remendMarkdown(text: string): string {
   }
   suffix += formattingSuffix;
   if (context === 'fenced_code') {
-    suffix += '\n' + '`'.repeat(fenceBacktickCount);
+    suffix += '\n' + fenceChar.repeat(fenceCount);
   }
 
   // Phase 4: Strip trailing incomplete HTML tag (only outside code blocks)
@@ -295,8 +352,8 @@ export function remendMarkdown(text: string): string {
     const lastDetails = result.lastIndexOf('<details');
     if (lastDetails !== -1 && !result.includes('</details>', lastDetails)) {
       const textBefore = result.slice(0, lastDetails);
-      const fenceCount = (textBefore.match(/^`{3,}/gm) || []).length;
-      if (fenceCount % 2 === 0) {
+      const fenceLines = (textBefore.match(/^`{3,}/gm) || []).length;
+      if (fenceLines % 2 === 0) {
         const detailsContent = result.slice(lastDetails);
         if (detailsContent.includes('</summary>')) {
           suffix += '\n</details>';

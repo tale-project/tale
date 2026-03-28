@@ -5,7 +5,6 @@ import {
   clearDisplayPositionCache,
   consumeFrozenDisplayText,
   findCachedPosition,
-  findSafeAnchor,
   freezeActiveStream,
   isStreamFrozen,
   resetGlobalFreeze,
@@ -238,6 +237,39 @@ describe('useStreamBuffer', () => {
     });
   });
 
+  describe('targetCPS edge cases', () => {
+    it('still reveals text when targetCPS is 0', () => {
+      const text = 'Hello world this is a complete message for testing.';
+      const { result } = renderHook(() =>
+        useStreamBuffer({
+          text,
+          isStreaming: true,
+          targetCPS: 0,
+          initialBufferChars: 3,
+        }),
+      );
+
+      act(() => advanceFrames(120));
+      expect(result.current.displayLength).toBeGreaterThan(0);
+    });
+
+    it('drains remaining buffer when targetCPS is 0 and stream ends', () => {
+      const drainText = 'Short text here for drain test.';
+      const { result, rerender } = renderHook(
+        (props) =>
+          useStreamBuffer({ ...props, targetCPS: 0, initialBufferChars: 3 }),
+        { initialProps: { text: drainText, isStreaming: true } },
+      );
+
+      act(() => advanceFrames(60));
+
+      rerender({ text: drainText, isStreaming: false });
+      act(() => advanceFrames(300));
+
+      expect(result.current.displayLength).toBe(drainText.length);
+    });
+  });
+
   describe('reduced motion', () => {
     it('shows all text instantly when reduced motion is preferred', () => {
       vi.mocked(usePrefersReducedMotion).mockReturnValue(true);
@@ -284,7 +316,8 @@ describe('useStreamBuffer — reconnection resilience', () => {
       'a simulated WebSocket reconnection event that briefly interrupts.';
 
     const { result, rerender } = renderHook(
-      (props) => useStreamBuffer({ ...props, initialBufferChars: 3 }),
+      (props) =>
+        useStreamBuffer({ ...props, initialBufferChars: 3, targetCPS: 200 }),
       { initialProps: { text, isStreaming: true } },
     );
 
@@ -310,309 +343,7 @@ describe('useStreamBuffer — reconnection resilience', () => {
 });
 
 // ============================================================================
-// anchorPosition monotonicity (hook-level behavior)
-// ============================================================================
-
-describe('useStreamBuffer — anchor monotonicity', () => {
-  beforeEach(() => {
-    setupAnimationMocks();
-    vi.mocked(usePrefersReducedMotion).mockReturnValue(false);
-  });
-
-  afterEach(() => {
-    resetGlobalFreeze();
-    clearDisplayPositionCache();
-    vi.restoreAllMocks();
-  });
-
-  it('anchorPosition never decreases when text grows into a long table', () => {
-    // Start with text that has a paragraph boundary
-    const shortText = 'First paragraph.\n\nSecond paragraph.';
-
-    const { result, rerender } = renderHook(
-      ({ text }) => useStreamBuffer({ text, isStreaming: false }),
-      { initialProps: { text: shortText } },
-    );
-
-    const anchor1 = result.current.anchorPosition;
-    expect(anchor1).toBe(18); // after "First paragraph.\n\n"
-
-    // Add a long table (no \n\n within 200 chars of the end).
-    // findSafeAnchor would return 0 for this text, but the
-    // monotonic guard prevents regression.
-    const tableRows = Array.from(
-      { length: 20 },
-      (_, i) => `| cell_${i}_long_content | data_value_${i} |`,
-    ).join('\n');
-    const longText =
-      shortText + '\n\n| Header A | Header B |\n|---|---|\n' + tableRows;
-
-    rerender({ text: longText });
-
-    const anchor2 = result.current.anchorPosition;
-    expect(anchor2).toBeGreaterThanOrEqual(anchor1);
-  });
-
-  it('anchorPosition never decreases inside a long code block', () => {
-    const textBefore = 'Intro text.\n\n';
-    const codeLines = Array.from(
-      { length: 30 },
-      (_, i) => `  line${i} = ${i}`,
-    ).join('\n');
-    const fullText = textBefore + '```python\n' + codeLines;
-
-    const { result, rerender } = renderHook(
-      ({ text }) => useStreamBuffer({ text, isStreaming: false }),
-      { initialProps: { text: textBefore + 'Some text.' } },
-    );
-
-    const anchor1 = result.current.anchorPosition;
-    expect(anchor1).toBeGreaterThan(0);
-
-    // Now the text is a long code block — findSafeAnchor may return 0
-    rerender({ text: fullText });
-
-    const anchor2 = result.current.anchorPosition;
-    expect(anchor2).toBeGreaterThanOrEqual(anchor1);
-  });
-
-  it('anchor starts at 0 for a fresh component (new message)', () => {
-    // Each message gets its own TypewriterText component instance.
-    // A fresh mount should have anchor at 0, even for text without \n\n.
-    const { result } = renderHook(() =>
-      useStreamBuffer({
-        text: 'Single paragraph no breaks',
-        isStreaming: false,
-      }),
-    );
-
-    expect(result.current.anchorPosition).toBe(0);
-  });
-});
-
-// ============================================================================
-// anchor freeze during drain
-// ============================================================================
-
-describe('useStreamBuffer — anchor freeze during drain', () => {
-  beforeEach(() => {
-    setupAnimationMocks();
-    vi.mocked(usePrefersReducedMotion).mockReturnValue(false);
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it('anchor does not advance while draining remaining buffer', () => {
-    // Text with multiple paragraph boundaries — anchor COULD advance
-    // at each \n\n if not frozen during drain
-    const fullText =
-      'First paragraph.\n\n' +
-      'Second paragraph with more content here.\n\n' +
-      'Third paragraph that continues on.\n\n' +
-      'Fourth paragraph with even more text.\n\n' +
-      'Fifth paragraph at the very end of this message.';
-
-    const { result, rerender } = renderHook(
-      (props) => useStreamBuffer({ ...props, initialBufferChars: 3 }),
-      { initialProps: { text: fullText, isStreaming: true } },
-    );
-
-    // Advance to reveal some text — anchor should reach a boundary
-    act(() => advanceFrames(60));
-    const anchorDuringStreaming = result.current.anchorPosition;
-    expect(anchorDuringStreaming).toBeGreaterThan(0);
-
-    // Stream ends — enter drain phase
-    rerender({ text: fullText, isStreaming: false });
-    const anchorAtDrainStart = result.current.anchorPosition;
-
-    // Drain remaining buffer
-    act(() => advanceFrames(300));
-
-    // Anchor should NOT have advanced during drain
-    expect(result.current.anchorPosition).toBe(anchorAtDrainStart);
-    // But text should be fully revealed
-    expect(result.current.displayLength).toBe(fullText.length);
-  });
-
-  it('anchor still advances normally during active streaming', () => {
-    const fullText =
-      'First paragraph.\n\n' +
-      'Second paragraph with more content here.\n\n' +
-      'Third paragraph that continues on.\n\n' +
-      'Fourth paragraph with even more text.';
-
-    const { result } = renderHook(
-      (props) => useStreamBuffer({ ...props, initialBufferChars: 3 }),
-      { initialProps: { text: fullText, isStreaming: true } },
-    );
-
-    act(() => advanceFrames(30));
-    const anchor1 = result.current.anchorPosition;
-
-    act(() => advanceFrames(60));
-    const anchor2 = result.current.anchorPosition;
-
-    // Anchor should have advanced as more text was revealed
-    expect(anchor2).toBeGreaterThanOrEqual(anchor1);
-  });
-
-  it('anchor advances normally for non-streaming messages', () => {
-    const text = 'First paragraph.\n\nSecond paragraph.';
-
-    const { result } = renderHook(() =>
-      useStreamBuffer({ text, isStreaming: false }),
-    );
-
-    // Non-streaming: anchor should be at the paragraph boundary
-    expect(result.current.anchorPosition).toBe(18);
-  });
-});
-
-// ============================================================================
-// findSafeAnchor
-// ============================================================================
-
-describe('findSafeAnchor', () => {
-  it('returns 0 for empty text', () => {
-    expect(findSafeAnchor('', 0)).toBe(0);
-  });
-
-  it('returns 0 when currentPos is 0', () => {
-    expect(findSafeAnchor('Hello world', 0)).toBe(0);
-  });
-
-  it('anchors at paragraph boundary', () => {
-    const text = 'First paragraph.\n\nSecond paragraph.';
-    // Position deep into the second paragraph
-    const anchor = findSafeAnchor(text, text.length);
-    // Should anchor after \n\n (position 18)
-    expect(anchor).toBe(18);
-    expect(text.slice(0, anchor)).toBe('First paragraph.\n\n');
-  });
-
-  it('anchors at code block end boundary', () => {
-    const text = '```js\nfoo();\n```\nAfter code.';
-    const anchor = findSafeAnchor(text, text.length);
-    // ```\n match at position 13, +4 chars = absolutePos 17
-    expect(anchor).toBe(17);
-    expect(text.slice(0, anchor)).toBe('```js\nfoo();\n```\n');
-  });
-
-  describe('inside code block (odd fence count)', () => {
-    it('anchors before code block when blank line inside code block', () => {
-      const text = 'Hello.\n\n```python\n# comment\n\nclass Foo:\n  pass';
-      // currentPos past the \n\n inside the code block
-      const anchor = findSafeAnchor(text, text.length);
-      // Should anchor after "Hello.\n\n" — right before the code block
-      expect(anchor).toBe(8);
-      expect(text.slice(0, anchor)).toBe('Hello.\n\n');
-    });
-
-    it('returns 0 when code block is at the very start', () => {
-      const text = '```python\n# comment\n\nclass Foo:\n  pass';
-      const anchor = findSafeAnchor(text, text.length);
-      expect(anchor).toBe(0);
-    });
-
-    it('anchors correctly with multiple code blocks', () => {
-      const text =
-        '```js\nfoo();\n```\n\nBetween.\n\n```python\n# comment\n\nclass Bar:';
-      const anchor = findSafeAnchor(text, text.length);
-      // Should anchor after "Between.\n\n" — before the second code block
-      const expected = text.indexOf('```python');
-      const breakBefore = text.lastIndexOf('\n\n', expected);
-      expect(anchor).toBe(breakBefore + 2);
-      // Verify the stable content includes the first code block
-      expect(text.slice(0, anchor)).toContain('```js\nfoo();\n```');
-      expect(text.slice(0, anchor)).toContain('Between.');
-    });
-
-    it('handles long code block with blank line far from currentPos', () => {
-      // Code block with a blank line, but the blank line is >200 chars
-      // from currentPos. The 200-char search window finds the blank line
-      // inside the code block, but the fix searches the full text for the
-      // opening fence.
-      const longCode = 'x = 1\n'.repeat(50); // ~300 chars
-      const text = `Intro.\n\n\`\`\`python\n${longCode}\n\nmore_code = True`;
-      const anchor = findSafeAnchor(text, text.length);
-      // Should anchor after "Intro.\n\n"
-      expect(anchor).toBe(8);
-      expect(text.slice(0, anchor)).toBe('Intro.\n\n');
-    });
-
-    it('keeps anchor stable during code block streaming', () => {
-      // Simulate streaming: code block grows but anchor should stay fixed
-      const base = 'Hello world.\n\n```python\ndef foo():\n';
-      const v1 = base + '  x = 1\n\n  y = 2';
-      const v2 = base + '  x = 1\n\n  y = 2\n  z = 3';
-
-      const anchor1 = findSafeAnchor(v1, v1.length);
-      const anchor2 = findSafeAnchor(v2, v2.length);
-
-      // Both should anchor at the same position (before the code block)
-      expect(anchor1).toBe(anchor2);
-      expect(anchor1).toBe(14); // after "Hello world.\n\n"
-    });
-  });
-
-  describe('line-start fence detection', () => {
-    it('ignores inline triple backticks when counting fences', () => {
-      // Inline ``` in text should not affect fence parity
-      const text = 'Use ``` for fencing.\n\n```python\n# comment\n\nclass Foo:';
-      const anchor = findSafeAnchor(text, text.length);
-      // Should anchor before the real code block, not inside it
-      expect(text.slice(anchor, anchor + 9)).toBe('```python');
-    });
-
-    it('handles 4-backtick fences correctly', () => {
-      const text = 'Intro.\n\n````python\ncode\n\nmore code';
-      const anchor = findSafeAnchor(text, text.length);
-      expect(anchor).toBe(8); // after "Intro.\n\n"
-    });
-
-    it('handles nested fences (4-backtick wrapping 3-backtick)', () => {
-      // Inner ``` should not corrupt parity since it's inside a 4-backtick block
-      // Note: the naive /```/g would count the inner ``` and break parity
-      const text =
-        'Intro.\n\n````\nshow ```python\n\nstuff\n````\n\nAfter.\n\n```js\ncode\n\nmore';
-      const anchor = findSafeAnchor(text, text.length);
-      // Should anchor before the ```js block
-      const jsStart = text.indexOf('```js');
-      const breakBefore = text.lastIndexOf('\n\n', jsStart);
-      expect(anchor).toBe(breakBefore + 2);
-    });
-
-    it('handles bare + language-tagged fences mixed', () => {
-      const text = '```js\nfoo();\n```\n\nText.\n\n```\nbar\n\nmore';
-      const anchor = findSafeAnchor(text, text.length);
-      // Should anchor before the bare ``` block
-      expect(text.slice(0, anchor)).toContain('Text.');
-      expect(text.slice(anchor, anchor + 4)).toBe('```\n');
-    });
-  });
-
-  describe('unclosed <details> element', () => {
-    it('anchors before <details> when \\n\\n is inside it', () => {
-      const text =
-        'Intro.\n\n<details>\n<summary>Title</summary>\n\nContent inside';
-      const anchor = findSafeAnchor(text, text.length);
-      expect(anchor).toBe(8); // after "Intro.\n\n"
-      expect(text.slice(anchor, anchor + 9)).toBe('<details>');
-    });
-
-    it('advances past closed <details>...</details>', () => {
-      const text =
-        'Before.\n\n<details>\n<summary>T</summary>\nBody\n</details>\n\nAfter content here';
-      const anchor = findSafeAnchor(text, text.length);
-      // Should advance past the closed details
-      expect(anchor).toBeGreaterThan(text.indexOf('</details>'));
-    });
-  });
-});
-
+// Display Position Cache
 // ============================================================================
 // Display Position Cache
 // ============================================================================
@@ -1442,7 +1173,7 @@ describe('useStreamBuffer — progress and isDraining', () => {
     expect(result.current.progress).toBe(1);
   });
 
-  it('isDraining is true when stream ended but buffer has content', () => {
+  it('isDraining is true while buffer drains after stream ends', () => {
     const longText =
       'A longer message that will not fully drain before the stream ends ' +
       'so we can verify the isDraining flag is set correctly during drain. ' +
@@ -1462,9 +1193,15 @@ describe('useStreamBuffer — progress and isDraining', () => {
     // End stream while buffer still has content
     rerender({ text: longText, isStreaming: false });
 
-    // Content is revealed immediately when streaming ends
+    // Drain phase: buffer drains gradually instead of instant reveal
+    expect(result.current.isDraining).toBe(true);
+    expect(result.current.displayLength).toBeLessThan(longText.length);
+
+    // Advance enough frames to fully drain
+    act(() => advanceFrames(300));
     expect(result.current.isDraining).toBe(false);
     expect(result.current.displayLength).toBe(longText.length);
+    expect(result.current.isTyping).toBe(false);
   });
 
   it('bufferSize decreases as text is revealed', () => {
@@ -1486,5 +1223,150 @@ describe('useStreamBuffer — progress and isDraining', () => {
     const buf2 = result.current.bufferSize;
 
     expect(buf2).toBeLessThan(buf1);
+  });
+});
+
+// ============================================================================
+// Smooth drain on stream end
+// ============================================================================
+
+describe('useStreamBuffer — smooth drain', () => {
+  beforeEach(() => {
+    setupAnimationMocks();
+    vi.mocked(usePrefersReducedMotion).mockReturnValue(false);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('reduced motion skips drain and reveals immediately', () => {
+    vi.mocked(usePrefersReducedMotion).mockReturnValue(true);
+
+    const content = 'word '.repeat(50); // 250 chars
+
+    const { result, rerender } = renderHook(
+      (props) => useStreamBuffer({ ...props, initialBufferChars: 3 }),
+      { initialProps: { text: content, isStreaming: true } },
+    );
+
+    // Let some chars reveal
+    act(() => advanceFrames(10));
+
+    // End stream — reduced motion should reveal everything immediately
+    rerender({ text: content, isStreaming: false });
+    expect(result.current.displayLength).toBe(content.length);
+    expect(result.current.isDraining).toBe(false);
+    expect(result.current.isTyping).toBe(false);
+  });
+
+  it('new streaming session during drain resets drain state', () => {
+    // Use a very long text so the buffer is never fully drained in 30 frames
+    const text1 = 'word '.repeat(400); // 2000 chars
+
+    const { result, rerender } = renderHook(
+      (props) => useStreamBuffer({ ...props, initialBufferChars: 3 }),
+      { initialProps: { text: text1, isStreaming: true } },
+    );
+
+    // Partially reveal — only a small fraction at default CPS
+    act(() => advanceFrames(30));
+    expect(result.current.displayLength).toBeLessThan(text1.length);
+
+    // End stream — enters drain phase
+    rerender({ text: text1, isStreaming: false });
+    expect(result.current.isDraining).toBe(true);
+
+    // New streaming session starts
+    const text2 = 'new message content here and more';
+    rerender({ text: text2, isStreaming: true });
+
+    // Drain should be reset, now streaming fresh content
+    expect(result.current.isDraining).toBe(false);
+  });
+});
+
+// ============================================================================
+// LINE BUFFERING — ambiguous markdown line starts
+// ============================================================================
+
+describe('line buffering', () => {
+  it('never reveals partial thematic break line during streaming', () => {
+    // Text has a thematic break "---" starting at position 12 (after "Some text.\n")
+    const text = 'Some text.\n---\nMore content here and beyond';
+
+    const { result } = renderHook(() =>
+      useStreamBuffer({
+        text,
+        isStreaming: true,
+        targetCPS: 200,
+        initialBufferChars: 3,
+      }),
+    );
+
+    // Run many frames to let animation progress
+    for (let frame = 0; frame < 200; frame++) {
+      act(() => advanceFrames(1));
+      const len = result.current.displayLength;
+
+      // displayLength should never be 12, 13, or 14 (partial "---" line)
+      // It can be <= 11 (before the line) or >= 15 (past "---\n")
+      if (len > 11 && len < 15) {
+        throw new Error(
+          `displayLength ${len} reveals partial thematic break "---" ` +
+            `(positions 12-14). Expected <= 11 or >= 15.`,
+        );
+      }
+    }
+
+    // Should have advanced past the thematic break
+    expect(result.current.displayLength).toBeGreaterThanOrEqual(15);
+  });
+
+  it('never reveals partial code fence during streaming', () => {
+    const text = 'Hello.\n```js\nconsole.log("hi");\n```\nDone.';
+
+    const { result } = renderHook(() =>
+      useStreamBuffer({
+        text,
+        isStreaming: true,
+        targetCPS: 200,
+        initialBufferChars: 3,
+      }),
+    );
+
+    for (let frame = 0; frame < 200; frame++) {
+      act(() => advanceFrames(1));
+      const len = result.current.displayLength;
+
+      // Positions 7 and 8 are partial backtick fence (` and ``)
+      // Position 7 = `, 8 = ``, 9 = ``` (still ambiguous until non-backtick)
+      if (len === 8) {
+        throw new Error(
+          `displayLength ${len} reveals partial code fence. ` +
+            `Should hold before the fence line or advance past the ambiguous prefix.`,
+        );
+      }
+    }
+  });
+
+  it('reveals normally after ambiguous line resolves', () => {
+    // A list item "- item" is ambiguous at "- " but resolves at "- i"
+    const text = 'Hello.\n- item text here and more words after';
+
+    const { result } = renderHook(() =>
+      useStreamBuffer({
+        text,
+        isStreaming: true,
+        targetCPS: 200,
+        initialBufferChars: 3,
+      }),
+    );
+
+    // Run enough frames to pass through the list item
+    act(() => advanceFrames(200));
+
+    // Should have advanced well past the list item
+    expect(result.current.displayLength).toBeGreaterThan(15);
   });
 });

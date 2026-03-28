@@ -16,6 +16,8 @@ describe('idempotency', () => {
     ['strikethrough', '~~strikethrough~~'],
     ['fenced code block', '```js\nconst x = 1;\n```'],
     ['fenced code block with 4 backticks', '````\ncode\n````'],
+    ['tilde fenced code block', '~~~\ncode\n~~~'],
+    ['tilde fenced code block with language', '~~~python\ndef foo():\n~~~'],
     ['mixed complete syntax', '**bold** and *italic* and ~~strike~~'],
     [
       'all types',
@@ -57,7 +59,61 @@ describe('empty formatting marker stripping', () => {
   });
 
   it('strips inner marker but keeps outer with content', () => {
-    expect(remendMarkdown('the **bold *')).toBe('the **bold **');
+    // Phase 1b strips the trailing empty `*`, leaving `the **bold ` with open `**`.
+    // Phase 1c relocates trailing space past closing markers for valid emphasis.
+    expect(remendMarkdown('the **bold *')).toBe('the **bold** ');
+  });
+});
+
+// ============================================================================
+// TRAILING WHITESPACE BEFORE CLOSING MARKERS
+// ============================================================================
+
+describe('trailing whitespace before closing markers', () => {
+  it('relocates trailing space past closing bold', () => {
+    expect(remendMarkdown('**text ')).toBe('**text** ');
+  });
+
+  it('relocates trailing space past closing italic', () => {
+    expect(remendMarkdown('*italic ')).toBe('*italic* ');
+  });
+
+  it('relocates trailing space past closing strikethrough', () => {
+    expect(remendMarkdown('~~strike ')).toBe('~~strike~~ ');
+  });
+
+  it('relocates trailing tab past closing bold', () => {
+    expect(remendMarkdown('**text\t')).toBe('**text**\t');
+  });
+
+  it('relocates multiple trailing spaces', () => {
+    expect(remendMarkdown('**text   ')).toBe('**text**   ');
+  });
+
+  it('handles nested bold+italic with trailing space', () => {
+    expect(remendMarkdown('***bold italic ')).toBe('***bold italic*** ');
+  });
+
+  it('does not affect well-formed bold (no trailing whitespace)', () => {
+    expect(remendMarkdown('**bold**')).toBe('**bold**');
+  });
+
+  it('does not affect well-formed bold followed by text', () => {
+    expect(remendMarkdown('**bold** text')).toBe('**bold** text');
+  });
+
+  it('handles bold content with trailing newline', () => {
+    expect(remendMarkdown('**text\n')).toBe('**text**\n');
+  });
+
+  it('handles the streaming scenario: bold with space mid-word', () => {
+    // This is the exact scenario that caused flickering:
+    // "**Artificial " should render as bold, not literal asterisks
+    expect(remendMarkdown('**Artificial ')).toBe('**Artificial** ');
+  });
+
+  it('handles CJK text with trailing space inside bold', () => {
+    expect(remendMarkdown('**人工智能 ')).toBe('**人工智能** ');
   });
 });
 
@@ -100,6 +156,26 @@ describe('incomplete syntax closure', () => {
     expect(remendMarkdown('````python\ndef foo():')).toBe(
       '````python\ndef foo():\n````',
     );
+  });
+
+  it('closes unclosed tilde fence', () => {
+    expect(remendMarkdown('~~~\ncode')).toBe('~~~\ncode\n~~~');
+  });
+
+  it('closes unclosed tilde fence with language', () => {
+    expect(remendMarkdown('~~~python\ndef foo():')).toBe(
+      '~~~python\ndef foo():\n~~~',
+    );
+  });
+
+  it('does not close tilde fence with backticks', () => {
+    const result = remendMarkdown('~~~\ncode');
+    expect(result).toBe('~~~\ncode\n~~~');
+    expect(result).not.toContain('`');
+  });
+
+  it('closes 4-tilde fence with 4 tildes', () => {
+    expect(remendMarkdown('~~~~\ncode')).toBe('~~~~\ncode\n~~~~');
   });
 
   it('closes bold that opened after complete bold', () => {
@@ -250,8 +326,8 @@ describe('link handling', () => {
     expect(remendMarkdown('[text')).toBe('text');
   });
 
-  it('strips incomplete link with closing bracket', () => {
-    expect(remendMarkdown('[text]')).toBe('text');
+  it('preserves [text] without (url) — not a link, just brackets', () => {
+    expect(remendMarkdown('[text]')).toBe('[text]');
   });
 
   it('strips incomplete link with opening paren', () => {

@@ -3,50 +3,27 @@
 /**
  * IncrementalMarkdown Component
  *
- * Optimized markdown rendering for streaming content. Splits text into
- * stable and streaming portions to minimize re-parsing overhead.
+ * Renders streaming markdown content with a typewriter reveal effect.
+ * Content is split into two portions for optimal performance:
  *
- * STRATEGY:
- * =========
- * 1. STABLE PORTION (before anchorPosition):
- *    - Complete markdown blocks (paragraphs, code blocks, etc.)
- *    - Fully parsed once and memoized
- *    - Never re-rendered during streaming
+ * ```
+ * [  Stable (complete blocks)  ][  Streaming (last block)  ][  Hidden  ]
+ * ^                              ^                           ^          ^
+ * 0                         splitPoint                 revealPosition  length
+ * ```
  *
- * 2. STREAMING PORTION (anchorPosition to revealPosition):
- *    - Current incomplete block being typed
- *    - Re-parsed on each update, but content is small
+ * - **Stable portion**: Complete blocks before the last `\n\n` boundary.
+ *   Parsed ONCE and memoized — never re-parsed during animation.
+ * - **Streaming portion**: The last in-progress block. Re-parsed per frame
+ *   with remendMarkdown to close incomplete syntax.
  *
- * 3. HIDDEN PORTION (after revealPosition):
- *    - Text that hasn't been revealed yet
- *    - Not rendered at all (saves parsing overhead)
- *
- * WHY THIS MATTERS:
- * =================
- * Markdown parsing (especially with GFM tables, code blocks, etc.) is
- * expensive. For a 1000-character response, without splitting:
- * - Every frame: Parse all 1000 characters
- * - Total: 60 parses/second × response_duration
- *
- * With splitting:
- * - Stable portion: Parsed once when anchor advances
- * - Streaming portion: Parse only ~50-100 characters per frame
- * - Total: Much less work, smoother animation
- *
- * ANCHOR ADVANCEMENT:
- * ===================
- * The anchor position advances when the reveal reaches a "safe" boundary:
- * - After a double newline (paragraph end)
- * - After a code block closing (```)
- * - Never inside a code block or incomplete syntax
- *
- * This ensures the stable portion is always valid markdown that won't
- * change structure as more text arrives.
+ * This reduces per-frame parsing from O(revealed_length) to O(last_block_length),
+ * typically ~10x faster for long responses.
  */
 
-import type { Components } from 'react-markdown';
+import type { Components, Options as MarkdownOptions } from 'react-markdown';
 
-import { memo, useMemo, useRef, type ReactNode } from 'react';
+import { memo, useLayoutEffect, useMemo, useRef, type ReactNode } from 'react';
 import Markdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
@@ -57,6 +34,7 @@ import type {
   MarkdownComponentType,
 } from '@/lib/utils/markdown-types';
 
+import { findBlockSplitPoint } from '../utils/find-block-split';
 import { remendMarkdown } from '../utils/remend-markdown';
 
 const chatSanitizeSchema = {
@@ -75,6 +53,14 @@ const remarkDisableIndentedCode = function (this: {
   if (!data.micromarkExtensions) data.micromarkExtensions = [];
   data.micromarkExtensions.push({ disable: { null: ['codeIndented'] } });
 };
+
+type PluginList = NonNullable<MarkdownOptions['remarkPlugins']>;
+
+const REMARK_PLUGINS: PluginList = [remarkDisableIndentedCode, remarkGfm];
+const REHYPE_PLUGINS: PluginList = [
+  rehypeRaw,
+  [rehypeSanitize, chatSanitizeSchema],
+];
 
 // ============================================================================
 // CONSTANTS
@@ -103,49 +89,15 @@ interface IncrementalMarkdownProps {
   content: string;
   /** Current reveal position (characters shown) */
   revealPosition: number;
-  /** Safe anchor position for splitting (at a block boundary) */
-  anchorPosition: number;
   /** Custom markdown components */
   components?: MarkdownComponentMap;
   /** Additional CSS class */
   className?: string;
   /** Whether to show the typing cursor */
   showCursor?: boolean;
+  /** Whether the content is still being generated */
+  'aria-busy'?: boolean;
 }
-
-// ============================================================================
-// STABLE MARKDOWN COMPONENT
-// ============================================================================
-
-/**
- * Renders the stable (complete) portion of markdown.
- * Memoized to prevent re-rendering during streaming.
- */
-const StableMarkdown = memo(
-  function StableMarkdown({
-    content,
-    components,
-  }: {
-    content: string;
-    components?: MarkdownComponentMap;
-  }) {
-    if (!content) return null;
-
-    return (
-      <Markdown
-        remarkPlugins={[remarkDisableIndentedCode, remarkGfm]}
-        rehypePlugins={[rehypeRaw, [rehypeSanitize, chatSanitizeSchema]]}
-        components={components}
-      >
-        {content}
-      </Markdown>
-    );
-  },
-  (prevProps, nextProps) => {
-    // Only re-render if content actually changed
-    return prevProps.content === nextProps.content;
-  },
-);
 
 // ============================================================================
 // STREAMING MARKDOWN COMPONENT
@@ -189,6 +141,26 @@ const StreamingMarkdown = memo(
     revealedLenRef.current = revealedContent.length;
     const revealedTextRef = useRef(revealedContent);
     revealedTextRef.current = revealedContent;
+
+    // Single-cursor guarantee: if the isLastElement heuristic matches
+    // multiple elements (rare edge case with trailing whitespace after
+    // remendMarkdown), hide all but the last cursor. Runs synchronously
+    // after DOM commit but before paint — double cursor is never visible.
+    const containerRef = useRef<HTMLDivElement>(null);
+    useLayoutEffect(() => {
+      const el = containerRef.current;
+      if (!el) return;
+      const cursors = el.querySelectorAll<HTMLElement>('.animate-cursor-blink');
+      if (cursors.length <= 1) return;
+      for (let i = 0; i < cursors.length - 1; i++) {
+        cursors[i].style.display = 'none';
+      }
+      return () => {
+        for (let i = 0; i < cursors.length - 1; i++) {
+          cursors[i].style.display = '';
+        }
+      };
+    }, [revealedLength, showCursor]);
 
     // Cursor wrapper components — stable across renders (only recreated
     // when showCursor or components change, not on every text update).
@@ -293,14 +265,16 @@ const StreamingMarkdown = memo(
     if (!revealedContent) return null;
 
     return (
-      <Markdown
-        remarkPlugins={[remarkDisableIndentedCode, remarkGfm]}
-        rehypePlugins={[rehypeRaw, [rehypeSanitize, chatSanitizeSchema]]}
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- cursor wrapper functions are structurally compatible with react-markdown Components; Index signature mismatch is a false positive
-        components={componentsWithCursor as Components}
-      >
-        {revealedContent}
-      </Markdown>
+      <div ref={containerRef}>
+        <Markdown
+          remarkPlugins={REMARK_PLUGINS}
+          rehypePlugins={REHYPE_PLUGINS}
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- cursor wrapper functions are structurally compatible with react-markdown Components; Index signature mismatch is a false positive
+          components={componentsWithCursor as Components}
+        >
+          {revealedContent}
+        </Markdown>
+      </div>
     );
   },
   (prevProps, nextProps) => {
@@ -308,76 +282,74 @@ const StreamingMarkdown = memo(
     return (
       prevProps.content === nextProps.content &&
       prevProps.revealedLength === nextProps.revealedLength &&
-      prevProps.showCursor === nextProps.showCursor
+      prevProps.showCursor === nextProps.showCursor &&
+      prevProps.components === nextProps.components
     );
   },
+);
+
+// ============================================================================
+// STABLE MARKDOWN COMPONENT
+// ============================================================================
+
+/**
+ * Renders completed markdown blocks. Memoized on content — only re-renders
+ * when a new block "graduates" from streaming to stable (infrequent).
+ */
+const StableMarkdown = memo(
+  function StableMarkdown({
+    content,
+    components,
+  }: {
+    content: string;
+    components?: MarkdownComponentMap;
+  }) {
+    return (
+      <Markdown
+        remarkPlugins={REMARK_PLUGINS}
+        rehypePlugins={REHYPE_PLUGINS}
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- same as StreamingMarkdown
+        components={components as Components}
+      >
+        {content}
+      </Markdown>
+    );
+  },
+  (prevProps, nextProps) =>
+    prevProps.content === nextProps.content &&
+    prevProps.components === nextProps.components,
 );
 
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 
-/**
- * IncrementalMarkdown splits streaming content into stable and streaming
- * portions for optimal rendering performance.
- *
- * Architecture:
- * ```
- * [  Stable Content  ][  Streaming Content  ][  Hidden  ]
- * ^                   ^                      ^          ^
- * 0            anchorPosition          revealPosition  length
- * ```
- *
- * - Stable: Memoized, parsed once
- * - Streaming: Small, re-parsed on updates
- * - Hidden: Not rendered
- */
 export function IncrementalMarkdown({
   content,
   revealPosition,
-  anchorPosition,
   components,
   className,
   showCursor,
+  'aria-busy': ariaBusy,
 }: IncrementalMarkdownProps) {
-  // Split content at anchor position.
-  // Note: we intentionally do NOT consolidate all content into stable when
-  // streaming ends. Doing so causes a full markdown re-parse that produces
-  // slightly different DOM (e.g. separate lists become a single loose list),
-  // which changes the content height and triggers a visible scroll jump.
-  // Instead, the split stays at the current anchor — the streaming portion
-  // simply loses its cursor, a minimal DOM change with no height impact.
-  const { stableContent, streamingContent, streamingRevealLength } =
-    useMemo(() => {
-      // Ensure anchor doesn't exceed reveal position
-      const effectiveAnchor = Math.min(anchorPosition, revealPosition);
+  const splitIndex = useMemo(
+    () => findBlockSplitPoint(content, revealPosition),
+    [content, revealPosition],
+  );
 
-      // Split at anchor
-      const stable = content.slice(0, effectiveAnchor);
-      const streaming = content.slice(effectiveAnchor, content.length);
-
-      // Calculate how much of streaming content is revealed
-      const revealedInStreaming = Math.max(0, revealPosition - effectiveAnchor);
-
-      return {
-        stableContent: stable,
-        streamingContent: streaming,
-        streamingRevealLength: revealedInStreaming,
-      };
-    }, [content, anchorPosition, revealPosition]);
+  const stableContent = splitIndex > 0 ? content.slice(0, splitIndex) : '';
+  const streamContent = content.slice(splitIndex);
+  const streamRevealLength = revealPosition - splitIndex;
 
   return (
-    <div className={className}>
-      {/* Stable portion - memoized, parsed once */}
+    <div className={className} aria-busy={ariaBusy}>
       {stableContent && (
         <StableMarkdown content={stableContent} components={components} />
       )}
-
-      {/* Streaming portion - small, re-parsed on updates */}
-      {streamingContent && (
+      {streamContent && (
         <StreamingMarkdown
-          content={streamingContent}
-          revealedLength={streamingRevealLength}
+          content={streamContent}
+          revealedLength={streamRevealLength}
           components={components}
           showCursor={showCursor}
         />
