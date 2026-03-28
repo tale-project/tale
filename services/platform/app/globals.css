@@ -1,8 +1,6 @@
 @import 'tailwindcss';
 @import 'react-day-picker/style.css';
 @import 'react-datepicker/dist/react-datepicker.css';
-@import 'json-diff-kit/dist/viewer.css';
-
 /* Configure dark mode to use class selector instead of media query */
 @variant dark (&:where(.dark, .dark *));
 

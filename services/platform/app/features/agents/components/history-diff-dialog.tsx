@@ -1,5 +1,6 @@
 'use client';
 
+import 'json-diff-kit/viewer.css';
 import { Differ, Viewer } from 'json-diff-kit';
 import { useMemo } from 'react';
 
