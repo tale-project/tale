@@ -1,8 +1,6 @@
 'use client';
 
-import { diff } from 'jsondiffpatch';
-import { format } from 'jsondiffpatch/formatters/html';
-import 'jsondiffpatch/formatters/styles/html.css';
+import { ArrowRight } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
@@ -20,6 +18,65 @@ interface HistoryDiffDialogProps {
   onRestore: () => void;
 }
 
+type ChangeType = 'modified' | 'added' | 'removed';
+
+interface FieldChange {
+  field: string;
+  type: ChangeType;
+  oldValue?: unknown;
+  newValue?: unknown;
+}
+
+function formatValue(value: unknown): string {
+  if (value === undefined || value === null) return '—';
+  if (typeof value === 'string') {
+    if (value.length > 80) return `"${value.slice(0, 80)}…"`;
+    return `"${value}"`;
+  }
+  if (Array.isArray(value)) {
+    if (value.length === 0) return '[]';
+    if (value.length <= 3)
+      return `[${value.map((v) => JSON.stringify(v)).join(', ')}]`;
+    return `[${value
+      .slice(0, 3)
+      .map((v) => JSON.stringify(v))
+      .join(', ')}, …+${value.length - 3}]`;
+  }
+  return JSON.stringify(value);
+}
+
+function computeChanges(
+  current: Record<string, unknown>,
+  snapshot: Record<string, unknown>,
+): FieldChange[] {
+  const changes: FieldChange[] = [];
+  const allKeys = new Set([...Object.keys(current), ...Object.keys(snapshot)]);
+
+  for (const key of allKeys) {
+    const inCurrent = key in current;
+    const inSnapshot = key in snapshot;
+    const currentVal = current[key];
+    const snapshotVal = snapshot[key];
+
+    if (inCurrent && inSnapshot) {
+      if (JSON.stringify(currentVal) !== JSON.stringify(snapshotVal)) {
+        changes.push({
+          field: key,
+          type: 'modified',
+          oldValue: currentVal,
+          newValue: snapshotVal,
+        });
+      }
+    } else if (inSnapshot && !inCurrent) {
+      changes.push({ field: key, type: 'added', newValue: snapshotVal });
+    } else if (inCurrent && !inSnapshot) {
+      changes.push({ field: key, type: 'removed', oldValue: currentVal });
+    }
+  }
+
+  return changes;
+}
+
 export function HistoryDiffDialog({
   open,
   onOpenChange,
@@ -33,15 +90,14 @@ export function HistoryDiffDialog({
   const { t: tCommon } = useT('common');
   const { formatDate } = useFormatDate();
 
-  const diffHtml = useMemo(() => {
-    const delta = diff(currentConfig, snapshotConfig);
-    if (!delta) return null;
-    return format(delta, currentConfig);
-  }, [currentConfig, snapshotConfig]);
-
   const formattedDate = useMemo(
     () => formatDate(new Date(snapshotDate), 'long'),
     [snapshotDate, formatDate],
+  );
+
+  const changes = useMemo(
+    () => computeChanges(currentConfig, snapshotConfig),
+    [currentConfig, snapshotConfig],
   );
 
   return (
@@ -52,38 +108,74 @@ export function HistoryDiffDialog({
       description={t('customAgents.history.diffDescription', {
         date: formattedDate,
       })}
+      size="wide"
+      footer={
+        <div className="flex justify-end gap-2">
+          <Button
+            variant="secondary"
+            onClick={() => onOpenChange(false)}
+            disabled={isRestoring}
+          >
+            {tCommon('actions.cancel')}
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={onRestore}
+            disabled={isRestoring || changes.length === 0}
+          >
+            {isRestoring
+              ? tCommon('actions.loading')
+              : t('customAgents.history.restore')}
+          </Button>
+        </div>
+      }
     >
-      <div className="max-h-[60vh] overflow-auto rounded border p-4">
-        {diffHtml ? (
-          <div
-            className="jsondiffpatch-delta"
-            dangerouslySetInnerHTML={{ __html: diffHtml }}
-          />
-        ) : (
-          <p className="text-muted-foreground text-sm">
-            {t('customAgents.history.noDifferences')}
-          </p>
-        )}
-      </div>
-
-      <div className="mt-4 flex justify-end gap-2">
-        <Button
-          variant="secondary"
-          onClick={() => onOpenChange(false)}
-          disabled={isRestoring}
-        >
-          {tCommon('actions.cancel')}
-        </Button>
-        <Button
-          variant="destructive"
-          onClick={onRestore}
-          disabled={isRestoring || !diffHtml}
-        >
-          {isRestoring
-            ? tCommon('actions.loading')
-            : t('customAgents.history.restore')}
-        </Button>
-      </div>
+      {changes.length === 0 ? (
+        <p className="text-muted-foreground py-4 text-center text-sm">
+          {t('customAgents.history.noDifferences')}
+        </p>
+      ) : (
+        <div className="max-h-[50vh] overflow-auto rounded-md border">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-muted/50 border-b">
+                <th className="px-3 py-2 text-left font-medium">
+                  {t('customAgents.history.field')}
+                </th>
+                <th className="px-3 py-2 text-left font-medium">
+                  {t('customAgents.history.current')}
+                </th>
+                <th className="w-8 px-1 py-2" />
+                <th className="px-3 py-2 text-left font-medium">
+                  {t('customAgents.history.snapshot')}
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {changes.map((change) => (
+                <tr key={change.field}>
+                  <td className="text-muted-foreground px-3 py-2 font-mono">
+                    {change.field}
+                  </td>
+                  <td className="text-foreground/70 max-w-[200px] truncate px-3 py-2 font-mono">
+                    {change.type === 'added'
+                      ? '—'
+                      : formatValue(change.oldValue)}
+                  </td>
+                  <td className="text-muted-foreground px-1 py-2 text-center">
+                    <ArrowRight className="inline size-3.5" />
+                  </td>
+                  <td className="text-foreground max-w-[200px] truncate px-3 py-2 font-mono">
+                    {change.type === 'removed'
+                      ? '—'
+                      : formatValue(change.newValue)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </Dialog>
   );
 }

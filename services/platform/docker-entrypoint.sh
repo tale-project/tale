@@ -405,12 +405,21 @@ export TMPDIR=/app/data/convex/tmp
 mkdir -p "$TMPDIR"
 cd /app
 
-# Seed default agent JSON files (cp -n never overwrites user-modified files)
+# Seed default agent JSON files — skip agents the user has modified
 agents_dir="${AGENTS_DIR:-/app/data/agents}"
 builtin_dir="/app/agents-builtin"
 mkdir -p "$agents_dir"
 if [ -d "$builtin_dir" ] && [ "$(ls -A "$builtin_dir" 2>/dev/null)" ]; then
-  cp "$builtin_dir"/*.json "$agents_dir/" 2>/dev/null || true
+  for src in "$builtin_dir"/*.json; do
+    [ -f "$src" ] || continue
+    name="$(basename "$src" .json)"
+    history_dir="$agents_dir/.history/$name"
+    if [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
+      echo "   ⏭ Skipping $name.json (user has modifications in .history)"
+    else
+      cp "$src" "$agents_dir/"
+    fi
+  done
 fi
 
 # Clean up derived data that is safe to rebuild.
