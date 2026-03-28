@@ -237,6 +237,39 @@ describe('useStreamBuffer', () => {
     });
   });
 
+  describe('targetCPS edge cases', () => {
+    it('still reveals text when targetCPS is 0', () => {
+      const text = 'Hello world this is a complete message for testing.';
+      const { result } = renderHook(() =>
+        useStreamBuffer({
+          text,
+          isStreaming: true,
+          targetCPS: 0,
+          initialBufferChars: 3,
+        }),
+      );
+
+      act(() => advanceFrames(120));
+      expect(result.current.displayLength).toBeGreaterThan(0);
+    });
+
+    it('drains remaining buffer when targetCPS is 0 and stream ends', () => {
+      const drainText = 'Short text here for drain test.';
+      const { result, rerender } = renderHook(
+        (props) =>
+          useStreamBuffer({ ...props, targetCPS: 0, initialBufferChars: 3 }),
+        { initialProps: { text: drainText, isStreaming: true } },
+      );
+
+      act(() => advanceFrames(60));
+
+      rerender({ text: drainText, isStreaming: false });
+      act(() => advanceFrames(300));
+
+      expect(result.current.displayLength).toBe(drainText.length);
+    });
+  });
+
   describe('reduced motion', () => {
     it('shows all text instantly when reduced motion is preferred', () => {
       vi.mocked(usePrefersReducedMotion).mockReturnValue(true);

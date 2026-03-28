@@ -129,15 +129,14 @@ function TypewriterTextComponent({
     (isStreaming || isDraining) && isTyping && !isStreamFrozen();
 
   return (
-    <div className={className}>
-      {/* Render text with incremental markdown parsing */}
-      <IncrementalMarkdown
-        content={stableText}
-        revealPosition={displayLength}
-        components={components}
-        showCursor={showCursor}
-      />
-    </div>
+    <IncrementalMarkdown
+      content={stableText}
+      revealPosition={displayLength}
+      components={components}
+      className={className}
+      showCursor={showCursor}
+      aria-busy={isStreaming || isDraining}
+    />
   );
 }
 
@@ -153,7 +152,9 @@ export const TypewriterText = memo(
     return (
       prevProps.text === nextProps.text &&
       prevProps.isStreaming === nextProps.isStreaming &&
-      prevProps.className === nextProps.className
+      prevProps.className === nextProps.className &&
+      prevProps.components === nextProps.components &&
+      prevProps.onComplete === nextProps.onComplete
     );
   },
 );

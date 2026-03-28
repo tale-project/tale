@@ -348,8 +348,9 @@ export function useStreamBuffer({
       const normalizedDelta = Math.min(deltaTime, DEFAULT_CONFIG.maxDeltaTime);
       const frameRatio = normalizedDelta / 16.67;
 
+      const safeCPS = Math.max(1, targetCPS);
       const effectiveCPS =
-        drainCPSRef.current > 0 && !streaming ? drainCPSRef.current : targetCPS;
+        drainCPSRef.current > 0 && !streaming ? drainCPSRef.current : safeCPS;
       const charsPerFrame = effectiveCPS / 60;
 
       accumulatedCharsRef.current += charsPerFrame * frameRatio;
@@ -433,7 +434,7 @@ export function useStreamBuffer({
         const effectiveCatchUpCPS =
           drainCPSRef.current > 0 && !isStreamingRef.current
             ? drainCPSRef.current
-            : targetCPS;
+            : Math.max(1, targetCPS);
         const catchUpChars = Math.floor(
           (hiddenDuration / 1000) * effectiveCatchUpCPS,
         );
@@ -534,7 +535,7 @@ export function useStreamBuffer({
       } else {
         // Stream ended — drain remaining buffer at a moderately faster rate.
         // Cap at 3× the streaming CPS so the speed-up is noticeable but not jarring.
-        drainCPSRef.current = targetCPS * 3;
+        drainCPSRef.current = Math.max(1, targetCPS) * 3;
         if (!animationFrameRef.current) {
           lastFrameTimeRef.current = 0;
           animationFrameRef.current = requestAnimationFrame(animate);
@@ -583,11 +584,7 @@ export function useStreamBuffer({
   // After calling freeze(), displayLength will not advance even as more text arrives.
   // The freeze is automatically cleared when the next streaming session begins.
   const freeze = useCallback(() => {
-    frozenRef.current = true;
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
+    freezeActiveStream();
     setIsTyping(false);
   }, []);
 

@@ -4,24 +4,25 @@
  * IncrementalMarkdown Component
  *
  * Renders streaming markdown content with a typewriter reveal effect.
- * Only the first `revealPosition` characters are shown. The revealed
- * slice is run through remendMarkdown to close any incomplete syntax,
- * then parsed via react-markdown. A blinking cursor is injected into
- * the last block-level element when showCursor is true.
+ * Content is split into two portions for optimal performance:
  *
- * Architecture:
  * ```
- * [  Revealed Content  ][  Hidden (not rendered)  ]
- * ^                     ^                          ^
- * 0               revealPosition                length
+ * [  Stable (complete blocks)  ][  Streaming (last block)  ][  Hidden  ]
+ * ^                              ^                           ^          ^
+ * 0                         splitPoint                 revealPosition  length
  * ```
  *
- * The revealed portion is parsed as a single markdown document.
- * remendMarkdown ensures structurally valid markdown at every reveal
- * position by auto-closing incomplete syntax (bold, code fences, etc).
+ * - **Stable portion**: Complete blocks before the last `\n\n` boundary.
+ *   Parsed ONCE and memoized — never re-parsed during animation.
+ * - **Streaming portion**: The last in-progress block. Re-parsed per frame
+ *   with remendMarkdown to close incomplete syntax.
+ *
+ * This reduces per-frame parsing from O(revealed_length) to O(last_block_length),
+ * typically ~10x faster for long responses.
  */
 
 import type { Components } from 'react-markdown';
+import type { PluggableList } from 'unified';
 
 import { memo, useLayoutEffect, useMemo, useRef, type ReactNode } from 'react';
 import Markdown from 'react-markdown';
@@ -34,6 +35,7 @@ import type {
   MarkdownComponentType,
 } from '@/lib/utils/markdown-types';
 
+import { findBlockSplitPoint } from '../utils/find-block-split';
 import { remendMarkdown } from '../utils/remend-markdown';
 
 const chatSanitizeSchema = {
@@ -52,6 +54,12 @@ const remarkDisableIndentedCode = function (this: {
   if (!data.micromarkExtensions) data.micromarkExtensions = [];
   data.micromarkExtensions.push({ disable: { null: ['codeIndented'] } });
 };
+
+const REMARK_PLUGINS: PluggableList = [remarkDisableIndentedCode, remarkGfm];
+const REHYPE_PLUGINS: PluggableList = [
+  rehypeRaw,
+  [rehypeSanitize, chatSanitizeSchema],
+];
 
 // ============================================================================
 // CONSTANTS
@@ -86,6 +94,8 @@ interface IncrementalMarkdownProps {
   className?: string;
   /** Whether to show the typing cursor */
   showCursor?: boolean;
+  /** Whether the content is still being generated */
+  'aria-busy'?: boolean;
 }
 
 // ============================================================================
@@ -256,8 +266,8 @@ const StreamingMarkdown = memo(
     return (
       <div ref={containerRef}>
         <Markdown
-          remarkPlugins={[remarkDisableIndentedCode, remarkGfm]}
-          rehypePlugins={[rehypeRaw, [rehypeSanitize, chatSanitizeSchema]]}
+          remarkPlugins={REMARK_PLUGINS}
+          rehypePlugins={REHYPE_PLUGINS}
           // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- cursor wrapper functions are structurally compatible with react-markdown Components; Index signature mismatch is a false positive
           components={componentsWithCursor as Components}
         >
@@ -271,9 +281,42 @@ const StreamingMarkdown = memo(
     return (
       prevProps.content === nextProps.content &&
       prevProps.revealedLength === nextProps.revealedLength &&
-      prevProps.showCursor === nextProps.showCursor
+      prevProps.showCursor === nextProps.showCursor &&
+      prevProps.components === nextProps.components
     );
   },
+);
+
+// ============================================================================
+// STABLE MARKDOWN COMPONENT
+// ============================================================================
+
+/**
+ * Renders completed markdown blocks. Memoized on content — only re-renders
+ * when a new block "graduates" from streaming to stable (infrequent).
+ */
+const StableMarkdown = memo(
+  function StableMarkdown({
+    content,
+    components,
+  }: {
+    content: string;
+    components?: MarkdownComponentMap;
+  }) {
+    return (
+      <Markdown
+        remarkPlugins={REMARK_PLUGINS}
+        rehypePlugins={REHYPE_PLUGINS}
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- same as StreamingMarkdown
+        components={components as Components}
+      >
+        {content}
+      </Markdown>
+    );
+  },
+  (prevProps, nextProps) =>
+    prevProps.content === nextProps.content &&
+    prevProps.components === nextProps.components,
 );
 
 // ============================================================================
@@ -286,13 +329,26 @@ export function IncrementalMarkdown({
   components,
   className,
   showCursor,
+  'aria-busy': ariaBusy,
 }: IncrementalMarkdownProps) {
+  const splitIndex = useMemo(
+    () => findBlockSplitPoint(content, revealPosition),
+    [content, revealPosition],
+  );
+
+  const stableContent = splitIndex > 0 ? content.slice(0, splitIndex) : '';
+  const streamContent = content.slice(splitIndex);
+  const streamRevealLength = revealPosition - splitIndex;
+
   return (
-    <div className={className}>
-      {content && (
+    <div className={className} aria-busy={ariaBusy}>
+      {stableContent && (
+        <StableMarkdown content={stableContent} components={components} />
+      )}
+      {streamContent && (
         <StreamingMarkdown
-          content={content}
-          revealedLength={revealPosition}
+          content={streamContent}
+          revealedLength={streamRevealLength}
           components={components}
           showCursor={showCursor}
         />

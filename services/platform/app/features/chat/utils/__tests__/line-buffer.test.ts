@@ -305,6 +305,30 @@ describe('trailing empty marker detection', () => {
       // **done** then new * — the new * is an empty marker
       expect(isAtTrailingEmptyMarker('**done** and *', 14, true)).toBe(true);
     });
+
+    it('detects trailing __', () => {
+      expect(isAtTrailingEmptyMarker('关于 __', 5, true)).toBe(true);
+    });
+
+    it('detects trailing _', () => {
+      expect(isAtTrailingEmptyMarker('关于 _', 4, true)).toBe(true);
+    });
+
+    it('detects __ mid-text', () => {
+      expect(isAtTrailingEmptyMarker('Hello world __', 14, true)).toBe(true);
+    });
+
+    it('detects ** directly after CJK without space', () => {
+      expect(isAtTrailingEmptyMarker('关于**', 4, true)).toBe(true);
+    });
+
+    it('detects * directly after CJK without space', () => {
+      expect(isAtTrailingEmptyMarker('中文*', 3, true)).toBe(true);
+    });
+
+    it('detects ~~ directly after CJK without space', () => {
+      expect(isAtTrailingEmptyMarker('删除~~', 4, true)).toBe(true);
+    });
   });
 
   describe('returns false (no hold needed)', () => {
@@ -325,13 +349,12 @@ describe('trailing empty marker detection', () => {
       expect(isAtTrailingEmptyMarker('hello **text', 12, true)).toBe(false);
     });
 
-    it('returns false for escaped marker', () => {
-      expect(isAtTrailingEmptyMarker('hello \\**', 9, true)).toBe(false);
+    it('holds for escaped marker (harmless false positive)', () => {
+      expect(isAtTrailingEmptyMarker('hello \\**', 9, true)).toBe(true);
     });
 
-    it('returns false for closing ** (bold text followed by **)', () => {
-      // "**bold**" — second ** is closing, not opening
-      expect(isAtTrailingEmptyMarker('**bold**', 8, true)).toBe(false);
+    it('holds for closing ** (harmless — one frame delay)', () => {
+      expect(isAtTrailingEmptyMarker('**bold**', 8, true)).toBe(true);
     });
 
     it('returns false for normal text', () => {

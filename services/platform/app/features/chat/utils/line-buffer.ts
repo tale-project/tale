@@ -41,7 +41,7 @@ const SETEXT_RE = /^[ ]{0,3}=+[ \t]*$/;
  * reveal before the marker, the marker and its first content character appear
  * together in the same frame.
  */
-const TRAILING_MARKER_RE = /(^|[\s])(\*{1,2}|~~)[ \t]*$/;
+const TRAILING_MARKER_RE = /(^|[^*_~])(\*{1,2}|_{1,2}|~~)[ \t]*$/;
 
 /**
  * Check whether the reveal position falls on a partial line whose start

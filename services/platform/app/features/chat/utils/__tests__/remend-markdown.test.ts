@@ -16,6 +16,8 @@ describe('idempotency', () => {
     ['strikethrough', '~~strikethrough~~'],
     ['fenced code block', '```js\nconst x = 1;\n```'],
     ['fenced code block with 4 backticks', '````\ncode\n````'],
+    ['tilde fenced code block', '~~~\ncode\n~~~'],
+    ['tilde fenced code block with language', '~~~python\ndef foo():\n~~~'],
     ['mixed complete syntax', '**bold** and *italic* and ~~strike~~'],
     [
       'all types',
@@ -154,6 +156,26 @@ describe('incomplete syntax closure', () => {
     expect(remendMarkdown('````python\ndef foo():')).toBe(
       '````python\ndef foo():\n````',
     );
+  });
+
+  it('closes unclosed tilde fence', () => {
+    expect(remendMarkdown('~~~\ncode')).toBe('~~~\ncode\n~~~');
+  });
+
+  it('closes unclosed tilde fence with language', () => {
+    expect(remendMarkdown('~~~python\ndef foo():')).toBe(
+      '~~~python\ndef foo():\n~~~',
+    );
+  });
+
+  it('does not close tilde fence with backticks', () => {
+    const result = remendMarkdown('~~~\ncode');
+    expect(result).toBe('~~~\ncode\n~~~');
+    expect(result).not.toContain('`');
+  });
+
+  it('closes 4-tilde fence with 4 tildes', () => {
+    expect(remendMarkdown('~~~~\ncode')).toBe('~~~~\ncode\n~~~~');
   });
 
   it('closes bold that opened after complete bold', () => {
