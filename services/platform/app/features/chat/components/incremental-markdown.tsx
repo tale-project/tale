@@ -21,8 +21,7 @@
  * typically ~10x faster for long responses.
  */
 
-import type { Components } from 'react-markdown';
-import type { PluggableList } from 'unified';
+import type { Components, Options as MarkdownOptions } from 'react-markdown';
 
 import { memo, useLayoutEffect, useMemo, useRef, type ReactNode } from 'react';
 import Markdown from 'react-markdown';
@@ -55,8 +54,10 @@ const remarkDisableIndentedCode = function (this: {
   data.micromarkExtensions.push({ disable: { null: ['codeIndented'] } });
 };
 
-const REMARK_PLUGINS: PluggableList = [remarkDisableIndentedCode, remarkGfm];
-const REHYPE_PLUGINS: PluggableList = [
+type PluginList = NonNullable<MarkdownOptions['remarkPlugins']>;
+
+const REMARK_PLUGINS: PluginList = [remarkDisableIndentedCode, remarkGfm];
+const REHYPE_PLUGINS: PluginList = [
   rehypeRaw,
   [rehypeSanitize, chatSanitizeSchema],
 ];
