@@ -31,27 +31,25 @@ import {
   useToggleCustomAgentWebhook,
 } from '../hooks/mutations';
 import {
-  useCustomAgentVersions,
   useCustomAgentWebhooks,
   type CustomAgentWebhook,
 } from '../hooks/queries';
 
 interface CustomAgentWebhookSectionProps {
   organizationId: string;
-  agentId: string;
+  agentFileName: string;
 }
 
 type WebhookRow = CustomAgentWebhook;
 
 export function CustomAgentWebhookSection({
   organizationId,
-  agentId,
+  agentFileName,
 }: CustomAgentWebhookSectionProps) {
   const { t } = useT('settings');
   const { toast } = useToast();
 
-  const { versions } = useCustomAgentVersions(agentId);
-  const { webhooks } = useCustomAgentWebhooks(agentId);
+  const { webhooks } = useCustomAgentWebhooks(organizationId, agentFileName);
 
   const { mutateAsync: createWebhook, isPending: isCreating } =
     useCreateCustomAgentWebhook();
@@ -66,7 +64,7 @@ export function CustomAgentWebhookSection({
 
   const siteUrl = useSiteUrl();
   const basePath = getEnv('BASE_PATH');
-  const isPublished = versions?.some((v) => v.status === 'active') ?? false;
+  const isPublished = true; // All agents are live in the file-based architecture
 
   const getWebhookUrl = useCallback(
     (token: string) => `${siteUrl}${basePath}/api/agents/wh/${token}`,
@@ -77,7 +75,7 @@ export function CustomAgentWebhookSection({
     try {
       const result = await createWebhook({
         organizationId,
-        customAgentId: toId<'customAgents'>(agentId),
+        agentFileName,
       });
       setCreatedUrl(getWebhookUrl(result.token));
       toast({
@@ -90,7 +88,7 @@ export function CustomAgentWebhookSection({
         variant: 'destructive',
       });
     }
-  }, [createWebhook, organizationId, agentId, toast, t, getWebhookUrl]);
+  }, [createWebhook, organizationId, agentFileName, toast, t, getWebhookUrl]);
 
   const handleToggle = useCallback(
     async (webhookId: Id<'customAgentWebhooks'>, isActive: boolean) => {

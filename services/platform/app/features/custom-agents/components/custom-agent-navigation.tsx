@@ -1,10 +1,10 @@
 'use client';
 
-import { useLocation, useNavigate } from '@tanstack/react-router';
-import { ChevronDown, CircleStop, FlaskConical, Pencil } from 'lucide-react';
-import { useMemo, useCallback } from 'react';
+import { History, Loader2, Save, Undo2 } from 'lucide-react';
+import { useCallback, useMemo, useState } from 'react';
 
-import { Badge } from '@/app/components/ui/feedback/badge';
+import type { AgentJsonConfig } from '@/convex/agents/file_utils';
+
 import {
   TabNavigation,
   type TabNavigationItem,
@@ -14,336 +14,300 @@ import {
   type DropdownMenuItem,
 } from '@/app/components/ui/overlays/dropdown-menu';
 import { Button } from '@/app/components/ui/primitives/button';
+import { useConvexAction } from '@/app/hooks/use-convex-action';
+import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
-import { toId } from '@/convex/lib/type_cast_helpers';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
-import {
-  useActivateCustomAgentVersion,
-  useCreateDraftFromVersion,
-  usePublishCustomAgent,
-  useUnpublishCustomAgent,
-} from '../hooks/mutations';
-import { useCustomAgentVersion } from '../hooks/use-custom-agent-version-context';
-import { AUTO_SAVE_PORTAL_ID } from './auto-save-indicator';
+import { useAgentConfig } from '../hooks/use-agent-config-context';
+import { HistoryDiffDialog } from './history-diff-dialog';
 
 interface CustomAgentNavigationProps {
   organizationId: string;
   agentId: string;
-  onTestClick: () => void;
+  onSaved: () => Promise<void>;
+}
+
+interface HistoryEntry {
+  timestamp: string;
+  date: string;
 }
 
 export function CustomAgentNavigation({
   organizationId,
   agentId,
-  onTestClick,
+  onSaved,
 }: CustomAgentNavigationProps) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
-  const navigate = useNavigate();
-  const location = useLocation();
-  const { agent, versions, hasDraft, draftVersionNumber } =
-    useCustomAgentVersion();
+  const { config, isDirty, isSaving, resetConfig, markSaving } =
+    useAgentConfig();
+  const { formatDate } = useFormatDate();
 
-  const { mutate: publishAgent, isPending: isPublishing } =
-    usePublishCustomAgent();
-  const { mutate: unpublishAgent, isPending: isUnpublishing } =
-    useUnpublishCustomAgent();
-  const { mutate: activateVersion, isPending: isActivating } =
-    useActivateCustomAgentVersion();
-  const { mutateAsync: createDraft, isPending: isCreatingDraft } =
-    useCreateDraftFromVersion();
+  const snapshotAction = useConvexAction(
+    api.agents.file_actions.snapshotToHistory,
+  );
+  const saveAction = useConvexAction(api.agents.file_actions.saveAgent);
+  const listHistoryAction = useConvexAction(
+    api.agents.file_actions.listHistory,
+  );
+  const readHistoryAction = useConvexAction(
+    api.agents.file_actions.readHistoryEntry,
+  );
+  const restoreAction = useConvexAction(
+    api.agents.file_actions.restoreFromHistory,
+  );
+
+  const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [selectedEntry, setSelectedEntry] = useState<HistoryEntry | null>(null);
+  const [snapshotConfig, setSnapshotConfig] = useState<Record<
+    string,
+    unknown
+  > | null>(null);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const [isDiffOpen, setIsDiffOpen] = useState(false);
 
   const basePath = `/dashboard/${organizationId}/custom-agents/${agentId}`;
-  const tabSuffix = location.pathname.startsWith(basePath)
-    ? location.pathname.slice(basePath.length)
-    : '';
-  const versionSearch =
-    agent.status !== 'draft' ? { v: agent.versionNumber } : undefined;
 
   const navigationItems: TabNavigationItem[] = [
     {
       label: t('customAgents.navigation.general'),
       href: basePath,
       matchMode: 'exact',
-      search: versionSearch,
     },
     {
       label: t('customAgents.navigation.instructionsModel'),
       href: `${basePath}/instructions`,
       matchMode: 'exact',
-      search: versionSearch,
     },
     {
       label: t('customAgents.navigation.tools'),
       href: `${basePath}/tools`,
       matchMode: 'exact',
-      search: versionSearch,
     },
     {
       label: t('customAgents.navigation.knowledge'),
       href: `${basePath}/knowledge`,
       matchMode: 'exact',
-      search: versionSearch,
     },
     {
       label: t('customAgents.navigation.delegation'),
       href: `${basePath}/delegation`,
       matchMode: 'exact',
-      search: versionSearch,
     },
     {
       label: t('customAgents.navigation.conversationStarters'),
       href: `${basePath}/conversation-starters`,
       matchMode: 'exact',
-      search: versionSearch,
     },
     {
       label: t('customAgents.navigation.webhook'),
       href: `${basePath}/webhook`,
       matchMode: 'exact',
-      search: versionSearch,
     },
   ];
 
-  const navigateToVersion = useCallback(
-    (versionNum: number) => {
-      void navigate({
-        to: basePath + tabSuffix,
-        search: { v: versionNum },
-      });
-    },
-    [navigate, basePath, tabSuffix],
-  );
-
-  const navigateToDraft = useCallback(() => {
-    void navigate({
-      to: basePath + tabSuffix,
-      search: {},
-    });
-  }, [navigate, basePath, tabSuffix]);
-
-  const handlePublish = () => {
-    publishAgent(
-      { customAgentId: toId<'customAgents'>(agentId) },
-      {
-        onSuccess: () => {
-          toast({
-            title: t('customAgents.agentPublished'),
-            variant: 'success',
-          });
-        },
-        onError: (error) => {
-          console.error(error);
-          toast({
-            title: t('customAgents.agentPublishFailed'),
-            variant: 'destructive',
-          });
-        },
-      },
-    );
-  };
-
-  const handleUnpublish = () => {
-    unpublishAgent(
-      { customAgentId: toId<'customAgents'>(agentId) },
-      {
-        onSuccess: () => {
-          toast({
-            title: t('customAgents.agentDeactivated'),
-            variant: 'success',
-          });
-        },
-        onError: (error) => {
-          console.error(error);
-          toast({
-            title: t('customAgents.agentDeactivateFailed'),
-            variant: 'destructive',
-          });
-        },
-      },
-    );
-  };
-
-  const handleActivate = () => {
-    activateVersion(
-      {
-        customAgentId: toId<'customAgents'>(agentId),
-        targetVersion: agent.versionNumber,
-      },
-      {
-        onSuccess: () => {
-          toast({
-            title: t('customAgents.agentPublished'),
-            variant: 'success',
-          });
-        },
-        onError: (error) => {
-          console.error(error);
-          toast({
-            title: t('customAgents.agentPublishFailed'),
-            variant: 'destructive',
-          });
-        },
-      },
-    );
-  };
-
-  const handleCreateDraft = async () => {
-    if (hasDraft && draftVersionNumber) {
-      navigateToDraft();
-      return;
-    }
-
+  const handleSave = useCallback(async () => {
+    markSaving(true);
     try {
-      await createDraft({
-        customAgentId: toId<'customAgents'>(agentId),
-        sourceVersionNumber: agent.versionNumber,
+      await snapshotAction.mutateAsync({
+        orgSlug: 'default',
+        agentName: agentId,
       });
-      navigateToDraft();
-    } catch (error) {
-      console.error(error);
+      await saveAction.mutateAsync({
+        orgSlug: 'default',
+        agentName: agentId,
+        config,
+      });
+      setHistoryEntries([]);
       toast({
-        title: t('customAgents.agentUpdateFailed'),
+        title: t('customAgents.agentSaved'),
+        variant: 'success',
+      });
+      await onSaved();
+    } catch (err) {
+      console.error(err);
+      toast({
+        title: t('customAgents.agentSaveFailed'),
         variant: 'destructive',
       });
+    } finally {
+      markSaving(false);
     }
-  };
+  }, [agentId, config, markSaving, onSaved, saveAction, snapshotAction, t]);
 
-  const sortedVersions = useMemo(
-    () => [...versions].sort((a, b) => b.versionNumber - a.versionNumber),
-    [versions],
+  const handleDiscard = useCallback(() => {
+    resetConfig();
+  }, [resetConfig]);
+
+  const handleLoadHistory = useCallback(async () => {
+    setIsLoadingHistory(true);
+    try {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex action returns HistoryEntry[]
+      const entries = (await listHistoryAction.mutateAsync({
+        orgSlug: 'default',
+        agentName: agentId,
+      })) as HistoryEntry[];
+      setHistoryEntries(entries);
+    } catch (err) {
+      console.error(err);
+      toast({
+        title: t('customAgents.historyLoadFailed'),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  }, [agentId, listHistoryAction, t]);
+
+  const handleSelectEntry = useCallback(
+    async (entry: HistoryEntry) => {
+      try {
+        const result = await readHistoryAction.mutateAsync({
+          orgSlug: 'default',
+          agentName: agentId,
+          timestamp: entry.timestamp,
+        });
+        if (
+          result &&
+          typeof result === 'object' &&
+          'ok' in result &&
+          result.ok
+        ) {
+          setSelectedEntry(entry);
+          setSnapshotConfig(
+            (result as { ok: true; config: AgentJsonConfig })
+              .config as unknown as Record<string, unknown>,
+          );
+          setIsDiffOpen(true);
+        }
+      } catch (err) {
+        console.error(err);
+        toast({
+          title: t('customAgents.historyLoadFailed'),
+          variant: 'destructive',
+        });
+      }
+    },
+    [agentId, readHistoryAction, t],
   );
 
-  const isDraft = agent.status === 'draft';
-  const isActive = agent.status === 'active';
-  const isArchived = agent.status === 'archived';
+  const handleRestore = useCallback(async () => {
+    if (!selectedEntry) return;
+    setIsRestoring(true);
+    try {
+      await restoreAction.mutateAsync({
+        orgSlug: 'default',
+        agentName: agentId,
+        timestamp: selectedEntry.timestamp,
+      });
+      setIsDiffOpen(false);
+      setSelectedEntry(null);
+      setSnapshotConfig(null);
+      setHistoryEntries([]);
+      toast({
+        title: t('customAgents.historyRestored'),
+        variant: 'success',
+      });
+      await onSaved();
+    } catch (err) {
+      console.error(err);
+      toast({
+        title: t('customAgents.historyRestoreFailed'),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsRestoring(false);
+    }
+  }, [agentId, onSaved, restoreAction, selectedEntry, t]);
+
+  const historyMenuItems = useMemo(() => {
+    if (historyEntries.length === 0) {
+      return [
+        [
+          {
+            type: 'item' as const,
+            label: t('customAgents.history.empty'),
+            disabled: true,
+          },
+        ],
+      ];
+    }
+    return [
+      historyEntries.map<DropdownMenuItem>((entry) => ({
+        type: 'item',
+        label: formatDate(new Date(entry.date), 'long'),
+        onClick: () => void handleSelectEntry(entry),
+      })),
+    ];
+  }, [historyEntries, formatDate, handleSelectEntry, t]);
 
   return (
-    <TabNavigation
-      items={navigationItems}
-      standalone={false}
-      ariaLabel={tCommon('aria.customAgentsNavigation')}
-    >
-      <div className="ml-auto flex items-center gap-2">
-        <div id={AUTO_SAVE_PORTAL_ID} />
-
-        {sortedVersions.length > 0 && (
+    <>
+      <TabNavigation
+        items={navigationItems}
+        standalone={false}
+        ariaLabel={tCommon('aria.customAgentsNavigation')}
+      >
+        <div className="ml-auto flex items-center gap-2">
           <DropdownMenu
             trigger={
               <Button variant="secondary" size="sm" className="h-8 text-sm">
-                v{agent.versionNumber}
-                <ChevronDown className="ml-1 size-3" aria-hidden="true" />
+                <History className="mr-1.5 size-3.5" aria-hidden="true" />
+                {t('customAgents.navigation.history')}
               </Button>
             }
-            items={[
-              sortedVersions.map<DropdownMenuItem>((version) => ({
-                type: 'item',
-                label: (
-                  <div className="flex w-full items-center gap-2">
-                    <span>
-                      {t('customAgents.versions.version', {
-                        number: version.versionNumber,
-                      })}
-                    </span>
-                    {version.status === 'active' && (
-                      <Badge
-                        variant="green"
-                        className="px-1.5 py-0 text-[10px]"
-                      >
-                        {t('customAgents.versions.active')}
-                      </Badge>
-                    )}
-                    {version.status === 'draft' && (
-                      <Badge
-                        variant="outline"
-                        className="px-1.5 py-0 text-[10px]"
-                      >
-                        {t('customAgents.versions.draft')}
-                      </Badge>
-                    )}
-                    {version.status === 'archived' && (
-                      <Badge
-                        variant="outline"
-                        className="px-1.5 py-0 text-[10px]"
-                      >
-                        {t('customAgents.versions.archived')}
-                      </Badge>
-                    )}
-                  </div>
-                ),
-                onClick: () => navigateToVersion(version.versionNumber),
-                className: cn(
-                  version.versionNumber === agent.versionNumber &&
-                    'bg-accent/50',
-                ),
-              })),
-            ]}
+            items={historyMenuItems}
             align="end"
-            contentClassName="w-56"
+            contentClassName="w-64"
+            onOpenChange={(open) => {
+              if (open) void handleLoadHistory();
+            }}
           />
-        )}
 
-        <Button onClick={onTestClick} variant="secondary" size="sm">
-          <FlaskConical className="mr-1.5 size-3.5" aria-hidden="true" />
-          {t('customAgents.navigation.test')}
-        </Button>
-
-        {isDraft && (
-          <Button onClick={handlePublish} disabled={isPublishing} size="sm">
-            {isPublishing
-              ? t('customAgents.navigation.publishing')
-              : t('customAgents.navigation.publish')}
-          </Button>
-        )}
-
-        {isActive && (
-          <>
+          {isDirty && (
             <Button
-              onClick={handleUnpublish}
-              disabled={isUnpublishing}
-              size="sm"
+              onClick={handleDiscard}
               variant="secondary"
-            >
-              <CircleStop className="mr-1.5 size-3.5" aria-hidden="true" />
-              {isUnpublishing
-                ? tCommon('actions.deactivating')
-                : tCommon('actions.deactivate')}
-            </Button>
-            <Button
-              onClick={handleCreateDraft}
-              disabled={isCreatingDraft}
               size="sm"
+              disabled={isSaving}
             >
-              <Pencil className="mr-1.5 size-3.5" aria-hidden="true" />
-              {hasDraft
-                ? t('customAgents.navigation.goToDraft')
-                : tCommon('actions.edit')}
+              <Undo2 className="mr-1.5 size-3.5" aria-hidden="true" />
+              {tCommon('actions.discard')}
             </Button>
-          </>
-        )}
+          )}
 
-        {isArchived && (
-          <>
-            <Button onClick={handleActivate} disabled={isActivating} size="sm">
-              {isActivating
-                ? t('customAgents.navigation.publishing')
-                : t('customAgents.navigation.publish')}
-            </Button>
-            <Button
-              onClick={handleCreateDraft}
-              disabled={isCreatingDraft}
-              size="sm"
-            >
-              <Pencil className="mr-1.5 size-3.5" aria-hidden="true" />
-              {hasDraft
-                ? t('customAgents.navigation.goToDraft')
-                : tCommon('actions.edit')}
-            </Button>
-          </>
-        )}
-      </div>
-    </TabNavigation>
+          <Button
+            onClick={() => void handleSave()}
+            disabled={!isDirty || isSaving}
+            size="sm"
+          >
+            {isSaving ? (
+              <Loader2
+                className="mr-1.5 size-3.5 animate-spin"
+                aria-hidden="true"
+              />
+            ) : (
+              <Save className="mr-1.5 size-3.5" aria-hidden="true" />
+            )}
+            {isSaving ? tCommon('actions.saving') : tCommon('actions.save')}
+          </Button>
+        </div>
+      </TabNavigation>
+
+      {snapshotConfig && selectedEntry && (
+        <HistoryDiffDialog
+          open={isDiffOpen}
+          onOpenChange={setIsDiffOpen}
+          currentConfig={config as unknown as Record<string, unknown>}
+          snapshotConfig={snapshotConfig}
+          snapshotDate={selectedEntry.date}
+          isRestoring={isRestoring}
+          onRestore={() => void handleRestore()}
+        />
+      )}
+    </>
   );
 }

@@ -196,6 +196,7 @@ export const runAgentGeneration = internalAction({
         ctx,
         agentConfig.delegateAgentIds,
         organizationId,
+        'default',
       );
 
       if (delegates.length > 0) {

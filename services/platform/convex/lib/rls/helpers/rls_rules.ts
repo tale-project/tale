@@ -58,7 +58,7 @@ export async function rlsRules(
 
   return {
     // Custom Agents - organization-scoped with team-based access control
-    customAgents: {
+    agentBindings: {
       read: async (_, agent) => {
         if (!user) return false;
         if (!userOrgIds.has(agent.organizationId)) return false;
@@ -66,7 +66,7 @@ export async function rlsRules(
         const membership = userOrganizations.find(
           (m) => m.organizationId === agent.organizationId,
         );
-        return authorizeRls(membership?.role, 'customAgents', 'read');
+        return authorizeRls(membership?.role, 'agentBindings', 'read');
       },
       modify: async (_, agent) => {
         if (!user) return false;
@@ -75,7 +75,7 @@ export async function rlsRules(
         const membership = userOrganizations.find(
           (m) => m.organizationId === agent.organizationId,
         );
-        return authorizeRls(membership?.role, 'customAgents', 'write');
+        return authorizeRls(membership?.role, 'agentBindings', 'write');
       },
       insert: async ({ user: ruleUser }, agent) => {
         if (!ruleUser) return false;
@@ -83,7 +83,7 @@ export async function rlsRules(
         const membership = userOrganizations.find(
           (m) => m.organizationId === agent.organizationId,
         );
-        return authorizeRls(membership?.role, 'customAgents', 'write');
+        return authorizeRls(membership?.role, 'agentBindings', 'write');
       },
     },
 

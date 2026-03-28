@@ -1,104 +1,140 @@
-import { useMemo } from 'react';
+import type { FunctionReturnType } from 'convex/server';
 
-import type { Id } from '@/convex/_generated/dataModel';
+import { useAction } from 'convex/react';
+import { useCallback, useEffect, useState } from 'react';
+
 import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 
-import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { api } from '@/convex/_generated/api';
-import { toId } from '@/convex/lib/type_cast_helpers';
 
-export type CustomAgent = ConvexItemOf<
-  typeof api.custom_agents.queries.listCustomAgents
+// ---------------------------------------------------------------------------
+// Action-based hooks (filesystem reads — no reactivity)
+// ---------------------------------------------------------------------------
+
+type ListAgentsResult = FunctionReturnType<
+  typeof api.agents.file_actions.listAgents
 >;
 
-export function useApproxCustomAgentCount(organizationId: string) {
-  return useConvexQuery(api.custom_agents.queries.approxCountCustomAgents, {
+export function useListAgents(orgSlug: string) {
+  const listAgentsFn = useAction(api.agents.file_actions.listAgents);
+  const [data, setData] = useState<ListAgentsResult | undefined>(undefined);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const refetch = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const result = await listAgentsFn({ orgSlug });
+      setData(result);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error(String(err)));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [listAgentsFn, orgSlug]);
+
+  useEffect(() => {
+    void refetch();
+  }, [refetch]);
+
+  return { agents: data, isLoading, error, refetch };
+}
+
+type ReadAgentResult = FunctionReturnType<
+  typeof api.agents.file_actions.readAgent
+>;
+
+export function useReadAgent(orgSlug: string, agentName: string) {
+  const readAgentFn = useAction(api.agents.file_actions.readAgent);
+  const [data, setData] = useState<ReadAgentResult | undefined>(undefined);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const refetch = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const result = await readAgentFn({ orgSlug, agentName });
+      setData(result);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error(String(err)));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [readAgentFn, orgSlug, agentName]);
+
+  useEffect(() => {
+    void refetch();
+  }, [refetch]);
+
+  return { data, isLoading, error, refetch };
+}
+
+type ListHistoryResult = FunctionReturnType<
+  typeof api.agents.file_actions.listHistory
+>;
+
+export function useAgentHistory(orgSlug: string, agentName: string) {
+  const listHistoryFn = useAction(api.agents.file_actions.listHistory);
+  const [data, setData] = useState<ListHistoryResult | undefined>(undefined);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const refetch = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const result = await listHistoryFn({ orgSlug, agentName });
+      setData(result);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error(String(err)));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [listHistoryFn, orgSlug, agentName]);
+
+  useEffect(() => {
+    void refetch();
+  }, [refetch]);
+
+  return { history: data, isLoading, error, refetch };
+}
+
+// ---------------------------------------------------------------------------
+// Query-based hooks (DB reads — reactive)
+// ---------------------------------------------------------------------------
+
+export function useAgentBinding(organizationId: string, agentFileName: string) {
+  return useConvexQuery(api.agents.queries.getBindingByAgent, {
     organizationId,
+    agentFileName,
   });
 }
 
-interface ListCustomAgentsPaginatedArgs {
-  organizationId: string;
-  initialNumItems: number;
-}
-
-export function useListCustomAgentsPaginated(
-  args: ListCustomAgentsPaginatedArgs,
-) {
-  const { initialNumItems, ...queryArgs } = args;
-  return useCachedPaginatedQuery(
-    api.custom_agents.queries.listCustomAgentsPaginated,
-    queryArgs,
-    { initialNumItems },
-  );
-}
-
-export function useCustomAgents(organizationId: string) {
-  const { selectedTeamId } = useTeamFilter();
-
-  const { data, isLoading } = useConvexQuery(
-    api.custom_agents.queries.listCustomAgents,
-    { organizationId },
-  );
-
-  const agents = useMemo(() => {
-    if (!data) return undefined;
-    return data.filter((agent) => {
-      if (!selectedTeamId) return true;
-      return (
-        agent.teamId === selectedTeamId ||
-        (agent.sharedWithTeamIds?.includes(selectedTeamId) ?? false)
-      );
-    });
-  }, [data, selectedTeamId]);
-
-  return {
-    agents,
-    isLoading,
-  };
-}
-
-export type CustomAgentVersion = ConvexItemOf<
-  typeof api.custom_agents.queries.getCustomAgentVersions
+export type AvailableTool = ConvexItemOf<
+  typeof api.agents.queries.getAvailableTools
 >;
 
-export function useCustomAgentVersions(customAgentId: string) {
+export function useAvailableTools() {
   const { data, isLoading } = useConvexQuery(
-    api.custom_agents.queries.getCustomAgentVersions,
-    { customAgentId: toId<'customAgents'>(customAgentId) },
+    api.agents.queries.getAvailableTools,
   );
 
   return {
-    versions: data,
-    isLoading,
-  };
-}
-
-export type CustomAgentWebhook = ConvexItemOf<
-  typeof api.custom_agents.webhooks.queries.getWebhooks
->;
-
-export function useCustomAgentWebhooks(customAgentId: string) {
-  const { data, isLoading } = useConvexQuery(
-    api.custom_agents.webhooks.queries.getWebhooks,
-    { customAgentId: toId<'customAgents'>(customAgentId) },
-  );
-
-  return {
-    webhooks: data,
+    tools: data,
     isLoading,
   };
 }
 
 export type AvailableIntegration = ConvexItemOf<
-  typeof api.custom_agents.queries.getAvailableIntegrations
+  typeof api.agents.queries.getAvailableIntegrations
 >;
 
 export function useAvailableIntegrations(organizationId: string) {
   const { data, isLoading } = useConvexQuery(
-    api.custom_agents.queries.getAvailableIntegrations,
+    api.agents.queries.getAvailableIntegrations,
     { organizationId },
   );
 
@@ -109,12 +145,12 @@ export function useAvailableIntegrations(organizationId: string) {
 }
 
 export type AvailableWorkflow = ConvexItemOf<
-  typeof api.custom_agents.queries.getAvailableWorkflows
+  typeof api.agents.queries.getAvailableWorkflows
 >;
 
 export function useAvailableWorkflows(organizationId: string) {
   const { data, isLoading } = useConvexQuery(
-    api.custom_agents.queries.getAvailableWorkflows,
+    api.agents.queries.getAvailableWorkflows,
     { organizationId },
   );
 
@@ -124,31 +160,25 @@ export function useAvailableWorkflows(organizationId: string) {
   };
 }
 
-export type AvailableTool = ConvexItemOf<
-  typeof api.custom_agents.queries.getAvailableTools
+export function useModelPresets() {
+  return useConvexQuery(api.agents.queries.getModelPresets);
+}
+
+export type CustomAgentWebhook = ConvexItemOf<
+  typeof api.agents.webhooks.queries.getWebhooks
 >;
 
-export function useAvailableTools() {
+export function useCustomAgentWebhooks(
+  organizationId: string,
+  agentFileName: string,
+) {
   const { data, isLoading } = useConvexQuery(
-    api.custom_agents.queries.getAvailableTools,
+    api.agents.webhooks.queries.getWebhooks,
+    { organizationId, agentFileName },
   );
 
   return {
-    tools: data,
+    webhooks: data,
     isLoading,
   };
-}
-
-export function useCustomAgentByVersion(
-  customAgentId: Id<'customAgents'>,
-  versionNumber?: number,
-) {
-  return useConvexQuery(api.custom_agents.queries.getCustomAgentByVersion, {
-    customAgentId,
-    versionNumber,
-  });
-}
-
-export function useModelPresets() {
-  return useConvexQuery(api.custom_agents.queries.getModelPresets);
 }

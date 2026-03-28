@@ -49,6 +49,7 @@
       "showInfo": "Show info",
       "clearAll": "Clear all",
       "reset": "Reset",
+      "discard": "Discard",
       "upload": "Upload",
       "import": "Import",
       "select": "Select",
@@ -678,6 +679,11 @@
       "agentPublishFailed": "Failed to publish agent",
       "agentDeactivated": "Agent deactivated",
       "agentDeactivateFailed": "Failed to deactivate agent",
+      "agentSaved": "Agent saved",
+      "agentSaveFailed": "Failed to save agent",
+      "historyLoadFailed": "Failed to load history",
+      "historyRestored": "Agent restored from history",
+      "historyRestoreFailed": "Failed to restore from history",
       "activeToggle": {
         "ariaLabel": "Toggle agent active state"
       },
@@ -697,7 +703,15 @@
         "webhook": "Webhook",
         "delegation": "Delegation",
         "conversationStarters": "Starters",
-        "test": "Test"
+        "test": "Test",
+        "history": "History"
+      },
+      "history": {
+        "empty": "No history entries",
+        "diffTitle": "Compare changes",
+        "diffDescription": "Review differences before restoring snapshot from {{date}}",
+        "noDifferences": "No differences found",
+        "restore": "Restore this version"
       },
       "testChat": {
         "title": "Test agent",

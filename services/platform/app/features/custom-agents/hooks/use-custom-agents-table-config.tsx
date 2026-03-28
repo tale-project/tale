@@ -12,7 +12,6 @@ import { isKeyOf } from '@/lib/utils/type-guards';
 
 import type { CustomAgentRow } from '../components/custom-agents-table';
 
-import { CustomAgentActiveToggle } from '../components/custom-agent-active-toggle';
 import { CustomAgentRowActions } from '../components/custom-agent-row-actions';
 
 interface CustomAgentsTableConfig {
@@ -28,12 +27,9 @@ interface CustomAgentsTableConfigOptions {
 }
 
 export function useCustomAgentsTableConfig({
-  teamNameMap,
   modelPresets,
 }: CustomAgentsTableConfigOptions): CustomAgentsTableConfig {
   const { t } = useT('settings');
-  const { t: tCommon } = useT('common');
-  const { t: tTables } = useT('tables');
 
   const columns = useMemo<ColumnDef<CustomAgentRow>[]>(
     () => [
@@ -49,42 +45,16 @@ export function useCustomAgentsTableConfig({
         size: 250,
       },
       {
-        id: 'status',
-        header: tTables('headers.status'),
-        meta: { skeleton: { type: 'badge' } },
-        cell: ({ row }) => {
-          const { status } = row.original;
-          return (
-            <Badge dot variant={status === 'active' ? 'green' : 'outline'}>
-              {status === 'active'
-                ? tCommon('status.published')
-                : status === 'archived'
-                  ? tCommon('status.archived')
-                  : tCommon('status.draft')}
-            </Badge>
-          );
-        },
-        size: 140,
-      },
-      {
-        id: 'active',
-        header: t('customAgents.columns.active'),
-        size: 80,
-        meta: { skeleton: { type: 'switch' } },
-        cell: ({ row }) => <CustomAgentActiveToggle agent={row.original} />,
-      },
-      {
         id: 'modelPreset',
         header: t('customAgents.columns.modelPreset'),
         meta: { skeleton: { type: 'badge' } },
         cell: ({ row }) => {
-          const preset = row.original.modelPreset;
+          const preset = row.original.modelPreset ?? 'standard';
           const presetLabel = t(`customAgents.form.modelPresets.${preset}`);
           const modelName =
-            row.original.modelId ??
-            (modelPresets && isKeyOf(preset, modelPresets)
+            modelPresets && isKeyOf(preset, modelPresets)
               ? modelPresets[preset]?.[0]
-              : undefined);
+              : undefined;
           return (
             <Badge variant="outline">
               {presetLabel}
@@ -109,27 +79,9 @@ export function useCustomAgentsTableConfig({
         meta: { headerLabel: t('customAgents.columns.tools'), align: 'right' },
         cell: ({ row }) => (
           <Text as="span" variant="muted" className="block text-right">
-            {row.original.toolNames.length}
+            {row.original.toolNames?.length ?? 0}
           </Text>
         ),
-      },
-      {
-        id: 'team',
-        header: t('customAgents.columns.team'),
-        meta: { skeleton: { type: 'badge' } },
-        cell: ({ row }) => {
-          const { teamId: rowTeamId } = row.original;
-          if (!rowTeamId) {
-            return (
-              <Text as="span" variant="caption">
-                {t('customAgents.columns.orgWide')}
-              </Text>
-            );
-          }
-          const teamName = teamNameMap.get(rowTeamId) ?? rowTeamId;
-          return <Badge variant="blue">{teamName}</Badge>;
-        },
-        size: 140,
       },
       {
         id: 'actions',
@@ -137,19 +89,22 @@ export function useCustomAgentsTableConfig({
         meta: { isAction: true },
         cell: ({ row }) => (
           <HStack gap={1} justify="end">
-            <CustomAgentRowActions agent={row.original} />
+            <CustomAgentRowActions
+              agentName={row.original.name}
+              displayName={row.original.displayName}
+            />
           </HStack>
         ),
         size: 80,
       },
     ],
-    [t, tCommon, tTables, teamNameMap, modelPresets],
+    [t, modelPresets],
   );
 
   return {
     columns,
     searchPlaceholder: t('customAgents.searchAgent'),
     stickyLayout: false,
-    pageSize: 20,
+    pageSize: 50,
   };
 }

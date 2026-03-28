@@ -110,11 +110,23 @@ import type * as agent_tools_workflows_save_workflow_definition_tool from "../ag
 import type * as agent_tools_workflows_update_workflow_step_tool from "../agent_tools/workflows/update_workflow_step_tool.js";
 import type * as agent_tools_workflows_workflow_read_tool from "../agent_tools/workflows/workflow_read_tool.js";
 import type * as agent_tools_workflows_workflow_syntax_tool from "../agent_tools/workflows/workflow_syntax_tool.js";
-import type * as agents_chat_agent from "../agents/chat/agent.js";
-import type * as agents_crm_agent from "../agents/crm/agent.js";
-import type * as agents_file_agent from "../agents/file/agent.js";
-import type * as agents_integration_agent from "../agents/integration/agent.js";
-import type * as agents_web_agent from "../agents/web/agent.js";
+import type * as agents_config from "../agents/config.js";
+import type * as agents_file_actions from "../agents/file_actions.js";
+import type * as agents_file_utils from "../agents/file_utils.js";
+import type * as agents_internal_actions from "../agents/internal_actions.js";
+import type * as agents_internal_mutations from "../agents/internal_mutations.js";
+import type * as agents_internal_queries from "../agents/internal_queries.js";
+import type * as agents_mutations from "../agents/mutations.js";
+import type * as agents_queries from "../agents/queries.js";
+import type * as agents_seed_system_defaults from "../agents/seed_system_defaults.js";
+import type * as agents_start_chat from "../agents/start_chat.js";
+import type * as agents_unified_chat from "../agents/unified_chat.js";
+import type * as agents_webhooks_http_actions from "../agents/webhooks/http_actions.js";
+import type * as agents_webhooks_internal_actions from "../agents/webhooks/internal_actions.js";
+import type * as agents_webhooks_internal_mutations from "../agents/webhooks/internal_mutations.js";
+import type * as agents_webhooks_internal_queries from "../agents/webhooks/internal_queries.js";
+import type * as agents_webhooks_mutations from "../agents/webhooks/mutations.js";
+import type * as agents_webhooks_queries from "../agents/webhooks/queries.js";
 import type * as api_gateway from "../api_gateway.js";
 import type * as approvals_actions from "../approvals/actions.js";
 import type * as approvals_helpers from "../approvals/helpers.js";
@@ -174,22 +186,6 @@ import type * as conversations_update_conversation_message from "../conversation
 import type * as conversations_update_conversations from "../conversations/update_conversations.js";
 import type * as conversations_validators from "../conversations/validators.js";
 import type * as crons from "../crons.js";
-import type * as custom_agents_config from "../custom_agents/config.js";
-import type * as custom_agents_internal_actions from "../custom_agents/internal_actions.js";
-import type * as custom_agents_internal_mutations from "../custom_agents/internal_mutations.js";
-import type * as custom_agents_internal_queries from "../custom_agents/internal_queries.js";
-import type * as custom_agents_list_custom_agents_paginated from "../custom_agents/list_custom_agents_paginated.js";
-import type * as custom_agents_mutations from "../custom_agents/mutations.js";
-import type * as custom_agents_queries from "../custom_agents/queries.js";
-import type * as custom_agents_seed_system_defaults from "../custom_agents/seed_system_defaults.js";
-import type * as custom_agents_system_defaults from "../custom_agents/system_defaults.js";
-import type * as custom_agents_test_chat from "../custom_agents/test_chat.js";
-import type * as custom_agents_unified_chat from "../custom_agents/unified_chat.js";
-import type * as custom_agents_webhooks_http_actions from "../custom_agents/webhooks/http_actions.js";
-import type * as custom_agents_webhooks_internal_mutations from "../custom_agents/webhooks/internal_mutations.js";
-import type * as custom_agents_webhooks_internal_queries from "../custom_agents/webhooks/internal_queries.js";
-import type * as custom_agents_webhooks_mutations from "../custom_agents/webhooks/mutations.js";
-import type * as custom_agents_webhooks_queries from "../custom_agents/webhooks/queries.js";
 import type * as customers_bulk_create_customers from "../customers/bulk_create_customers.js";
 import type * as customers_create_customer from "../customers/create_customer.js";
 import type * as customers_create_customer_public from "../customers/create_customer_public.js";
@@ -756,7 +752,6 @@ import type * as workflow_engine_helpers_validation_variables_types from "../wor
 import type * as workflow_engine_helpers_validation_variables_validate from "../workflow_engine/helpers/validation/variables/validate.js";
 import type * as workflow_engine_helpers_validation_variables_validate_variable_references_known_sources from "../workflow_engine/helpers/validation/variables/validate_variable_references_known_sources.js";
 import type * as workflow_engine_helpers_variables_decrypt_inline_secrets from "../workflow_engine/helpers/variables/decrypt_inline_secrets.js";
-import type * as workflow_engine_instructions_core_instructions from "../workflow_engine/instructions/core_instructions.js";
 import type * as workflow_engine_internal_actions from "../workflow_engine/internal_actions.js";
 import type * as workflow_engine_internal_mutations from "../workflow_engine/internal_mutations.js";
 import type * as workflow_engine_internal_queries from "../workflow_engine/internal_queries.js";
@@ -981,11 +976,23 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/workflows/update_workflow_step_tool": typeof agent_tools_workflows_update_workflow_step_tool;
   "agent_tools/workflows/workflow_read_tool": typeof agent_tools_workflows_workflow_read_tool;
   "agent_tools/workflows/workflow_syntax_tool": typeof agent_tools_workflows_workflow_syntax_tool;
-  "agents/chat/agent": typeof agents_chat_agent;
-  "agents/crm/agent": typeof agents_crm_agent;
-  "agents/file/agent": typeof agents_file_agent;
-  "agents/integration/agent": typeof agents_integration_agent;
-  "agents/web/agent": typeof agents_web_agent;
+  "agents/config": typeof agents_config;
+  "agents/file_actions": typeof agents_file_actions;
+  "agents/file_utils": typeof agents_file_utils;
+  "agents/internal_actions": typeof agents_internal_actions;
+  "agents/internal_mutations": typeof agents_internal_mutations;
+  "agents/internal_queries": typeof agents_internal_queries;
+  "agents/mutations": typeof agents_mutations;
+  "agents/queries": typeof agents_queries;
+  "agents/seed_system_defaults": typeof agents_seed_system_defaults;
+  "agents/start_chat": typeof agents_start_chat;
+  "agents/unified_chat": typeof agents_unified_chat;
+  "agents/webhooks/http_actions": typeof agents_webhooks_http_actions;
+  "agents/webhooks/internal_actions": typeof agents_webhooks_internal_actions;
+  "agents/webhooks/internal_mutations": typeof agents_webhooks_internal_mutations;
+  "agents/webhooks/internal_queries": typeof agents_webhooks_internal_queries;
+  "agents/webhooks/mutations": typeof agents_webhooks_mutations;
+  "agents/webhooks/queries": typeof agents_webhooks_queries;
   api_gateway: typeof api_gateway;
   "approvals/actions": typeof approvals_actions;
   "approvals/helpers": typeof approvals_helpers;
@@ -1045,22 +1052,6 @@ declare const fullApi: ApiFromModules<{
   "conversations/update_conversations": typeof conversations_update_conversations;
   "conversations/validators": typeof conversations_validators;
   crons: typeof crons;
-  "custom_agents/config": typeof custom_agents_config;
-  "custom_agents/internal_actions": typeof custom_agents_internal_actions;
-  "custom_agents/internal_mutations": typeof custom_agents_internal_mutations;
-  "custom_agents/internal_queries": typeof custom_agents_internal_queries;
-  "custom_agents/list_custom_agents_paginated": typeof custom_agents_list_custom_agents_paginated;
-  "custom_agents/mutations": typeof custom_agents_mutations;
-  "custom_agents/queries": typeof custom_agents_queries;
-  "custom_agents/seed_system_defaults": typeof custom_agents_seed_system_defaults;
-  "custom_agents/system_defaults": typeof custom_agents_system_defaults;
-  "custom_agents/test_chat": typeof custom_agents_test_chat;
-  "custom_agents/unified_chat": typeof custom_agents_unified_chat;
-  "custom_agents/webhooks/http_actions": typeof custom_agents_webhooks_http_actions;
-  "custom_agents/webhooks/internal_mutations": typeof custom_agents_webhooks_internal_mutations;
-  "custom_agents/webhooks/internal_queries": typeof custom_agents_webhooks_internal_queries;
-  "custom_agents/webhooks/mutations": typeof custom_agents_webhooks_mutations;
-  "custom_agents/webhooks/queries": typeof custom_agents_webhooks_queries;
   "customers/bulk_create_customers": typeof customers_bulk_create_customers;
   "customers/create_customer": typeof customers_create_customer;
   "customers/create_customer_public": typeof customers_create_customer_public;
@@ -1627,7 +1618,6 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/helpers/validation/variables/validate": typeof workflow_engine_helpers_validation_variables_validate;
   "workflow_engine/helpers/validation/variables/validate_variable_references_known_sources": typeof workflow_engine_helpers_validation_variables_validate_variable_references_known_sources;
   "workflow_engine/helpers/variables/decrypt_inline_secrets": typeof workflow_engine_helpers_variables_decrypt_inline_secrets;
-  "workflow_engine/instructions/core_instructions": typeof workflow_engine_instructions_core_instructions;
   "workflow_engine/internal_actions": typeof workflow_engine_internal_actions;
   "workflow_engine/internal_mutations": typeof workflow_engine_internal_mutations;
   "workflow_engine/internal_queries": typeof workflow_engine_internal_queries;
@@ -3876,6 +3866,20 @@ export declare const components: {
                     | { error: string; kind: "failed" }
                     | { kind: "canceled" };
                   startedAt: number;
+                }
+              | {
+                  args: any;
+                  argsSize: number;
+                  completedAt?: number;
+                  inProgress: boolean;
+                  kind: "sleep";
+                  name: string;
+                  runResult?:
+                    | { kind: "success"; returnValue: any }
+                    | { error: string; kind: "failed" }
+                    | { kind: "canceled" };
+                  startedAt: number;
+                  workId?: string;
                 };
             stepNumber: number;
             workflowId: string;
@@ -3955,6 +3959,20 @@ export declare const components: {
                     | { error: string; kind: "failed" }
                     | { kind: "canceled" };
                   startedAt: number;
+                }
+              | {
+                  args: any;
+                  argsSize: number;
+                  completedAt?: number;
+                  inProgress: boolean;
+                  kind: "sleep";
+                  name: string;
+                  runResult?:
+                    | { kind: "success"; returnValue: any }
+                    | { error: string; kind: "failed" }
+                    | { kind: "canceled" };
+                  startedAt: number;
+                  workId?: string;
                 };
           }>;
           workflowId: string;
@@ -4017,6 +4035,20 @@ export declare const components: {
                   | { error: string; kind: "failed" }
                   | { kind: "canceled" };
                 startedAt: number;
+              }
+            | {
+                args: any;
+                argsSize: number;
+                completedAt?: number;
+                inProgress: boolean;
+                kind: "sleep";
+                name: string;
+                runResult?:
+                  | { kind: "success"; returnValue: any }
+                  | { error: string; kind: "failed" }
+                  | { kind: "canceled" };
+                startedAt: number;
+                workId?: string;
               };
           stepNumber: number;
           workflowId: string;
@@ -4115,6 +4147,20 @@ export declare const components: {
                     | { error: string; kind: "failed" }
                     | { kind: "canceled" };
                   startedAt: number;
+                }
+              | {
+                  args: any;
+                  argsSize: number;
+                  completedAt?: number;
+                  inProgress: boolean;
+                  kind: "sleep";
+                  name: string;
+                  runResult?:
+                    | { kind: "success"; returnValue: any }
+                    | { error: string; kind: "failed" }
+                    | { kind: "canceled" };
+                  startedAt: number;
+                  workId?: string;
                 };
             stepNumber: number;
             workflowId: string;
@@ -4223,7 +4269,7 @@ export declare const components: {
             args: any;
             completedAt?: number;
             eventId?: string;
-            kind: "function" | "workflow" | "event";
+            kind: "function" | "workflow" | "event" | "sleep";
             name: string;
             nestedWorkflowId?: string;
             runResult?:
@@ -4336,6 +4382,20 @@ export declare const components: {
                     | { error: string; kind: "failed" }
                     | { kind: "canceled" };
                   startedAt: number;
+                }
+              | {
+                  args: any;
+                  argsSize: number;
+                  completedAt?: number;
+                  inProgress: boolean;
+                  kind: "sleep";
+                  name: string;
+                  runResult?:
+                    | { kind: "success"; returnValue: any }
+                    | { error: string; kind: "failed" }
+                    | { kind: "canceled" };
+                  startedAt: number;
+                  workId?: string;
                 };
             stepNumber: number;
             workflowId: string;
@@ -4415,6 +4475,20 @@ export declare const components: {
                     | { error: string; kind: "failed" }
                     | { kind: "canceled" };
                   startedAt: number;
+                }
+              | {
+                  args: any;
+                  argsSize: number;
+                  completedAt?: number;
+                  inProgress: boolean;
+                  kind: "sleep";
+                  name: string;
+                  runResult?:
+                    | { kind: "success"; returnValue: any }
+                    | { error: string; kind: "failed" }
+                    | { kind: "canceled" };
+                  startedAt: number;
+                  workId?: string;
                 };
           }>;
           workflowId: string;
@@ -4477,6 +4551,20 @@ export declare const components: {
                   | { error: string; kind: "failed" }
                   | { kind: "canceled" };
                 startedAt: number;
+              }
+            | {
+                args: any;
+                argsSize: number;
+                completedAt?: number;
+                inProgress: boolean;
+                kind: "sleep";
+                name: string;
+                runResult?:
+                  | { kind: "success"; returnValue: any }
+                  | { error: string; kind: "failed" }
+                  | { kind: "canceled" };
+                startedAt: number;
+                workId?: string;
               };
           stepNumber: number;
           workflowId: string;
@@ -4575,6 +4663,20 @@ export declare const components: {
                     | { error: string; kind: "failed" }
                     | { kind: "canceled" };
                   startedAt: number;
+                }
+              | {
+                  args: any;
+                  argsSize: number;
+                  completedAt?: number;
+                  inProgress: boolean;
+                  kind: "sleep";
+                  name: string;
+                  runResult?:
+                    | { kind: "success"; returnValue: any }
+                    | { error: string; kind: "failed" }
+                    | { kind: "canceled" };
+                  startedAt: number;
+                  workId?: string;
                 };
             stepNumber: number;
             workflowId: string;
@@ -4683,7 +4785,7 @@ export declare const components: {
             args: any;
             completedAt?: number;
             eventId?: string;
-            kind: "function" | "workflow" | "event";
+            kind: "function" | "workflow" | "event" | "sleep";
             name: string;
             nestedWorkflowId?: string;
             runResult?:
@@ -4796,6 +4898,20 @@ export declare const components: {
                     | { error: string; kind: "failed" }
                     | { kind: "canceled" };
                   startedAt: number;
+                }
+              | {
+                  args: any;
+                  argsSize: number;
+                  completedAt?: number;
+                  inProgress: boolean;
+                  kind: "sleep";
+                  name: string;
+                  runResult?:
+                    | { kind: "success"; returnValue: any }
+                    | { error: string; kind: "failed" }
+                    | { kind: "canceled" };
+                  startedAt: number;
+                  workId?: string;
                 };
             stepNumber: number;
             workflowId: string;
@@ -4875,6 +4991,20 @@ export declare const components: {
                     | { error: string; kind: "failed" }
                     | { kind: "canceled" };
                   startedAt: number;
+                }
+              | {
+                  args: any;
+                  argsSize: number;
+                  completedAt?: number;
+                  inProgress: boolean;
+                  kind: "sleep";
+                  name: string;
+                  runResult?:
+                    | { kind: "success"; returnValue: any }
+                    | { error: string; kind: "failed" }
+                    | { kind: "canceled" };
+                  startedAt: number;
+                  workId?: string;
                 };
           }>;
           workflowId: string;
@@ -4937,6 +5067,20 @@ export declare const components: {
                   | { error: string; kind: "failed" }
                   | { kind: "canceled" };
                 startedAt: number;
+              }
+            | {
+                args: any;
+                argsSize: number;
+                completedAt?: number;
+                inProgress: boolean;
+                kind: "sleep";
+                name: string;
+                runResult?:
+                  | { kind: "success"; returnValue: any }
+                  | { error: string; kind: "failed" }
+                  | { kind: "canceled" };
+                startedAt: number;
+                workId?: string;
               };
           stepNumber: number;
           workflowId: string;
@@ -5035,6 +5179,20 @@ export declare const components: {
                     | { error: string; kind: "failed" }
                     | { kind: "canceled" };
                   startedAt: number;
+                }
+              | {
+                  args: any;
+                  argsSize: number;
+                  completedAt?: number;
+                  inProgress: boolean;
+                  kind: "sleep";
+                  name: string;
+                  runResult?:
+                    | { kind: "success"; returnValue: any }
+                    | { error: string; kind: "failed" }
+                    | { kind: "canceled" };
+                  startedAt: number;
+                  workId?: string;
                 };
             stepNumber: number;
             workflowId: string;
@@ -5143,7 +5301,7 @@ export declare const components: {
             args: any;
             completedAt?: number;
             eventId?: string;
-            kind: "function" | "workflow" | "event";
+            kind: "function" | "workflow" | "event" | "sleep";
             name: string;
             nestedWorkflowId?: string;
             runResult?:
@@ -5256,6 +5414,20 @@ export declare const components: {
                     | { error: string; kind: "failed" }
                     | { kind: "canceled" };
                   startedAt: number;
+                }
+              | {
+                  args: any;
+                  argsSize: number;
+                  completedAt?: number;
+                  inProgress: boolean;
+                  kind: "sleep";
+                  name: string;
+                  runResult?:
+                    | { kind: "success"; returnValue: any }
+                    | { error: string; kind: "failed" }
+                    | { kind: "canceled" };
+                  startedAt: number;
+                  workId?: string;
                 };
             stepNumber: number;
             workflowId: string;
@@ -5335,6 +5507,20 @@ export declare const components: {
                     | { error: string; kind: "failed" }
                     | { kind: "canceled" };
                   startedAt: number;
+                }
+              | {
+                  args: any;
+                  argsSize: number;
+                  completedAt?: number;
+                  inProgress: boolean;
+                  kind: "sleep";
+                  name: string;
+                  runResult?:
+                    | { kind: "success"; returnValue: any }
+                    | { error: string; kind: "failed" }
+                    | { kind: "canceled" };
+                  startedAt: number;
+                  workId?: string;
                 };
           }>;
           workflowId: string;
@@ -5397,6 +5583,20 @@ export declare const components: {
                   | { error: string; kind: "failed" }
                   | { kind: "canceled" };
                 startedAt: number;
+              }
+            | {
+                args: any;
+                argsSize: number;
+                completedAt?: number;
+                inProgress: boolean;
+                kind: "sleep";
+                name: string;
+                runResult?:
+                  | { kind: "success"; returnValue: any }
+                  | { error: string; kind: "failed" }
+                  | { kind: "canceled" };
+                startedAt: number;
+                workId?: string;
               };
           stepNumber: number;
           workflowId: string;
@@ -5495,6 +5695,20 @@ export declare const components: {
                     | { error: string; kind: "failed" }
                     | { kind: "canceled" };
                   startedAt: number;
+                }
+              | {
+                  args: any;
+                  argsSize: number;
+                  completedAt?: number;
+                  inProgress: boolean;
+                  kind: "sleep";
+                  name: string;
+                  runResult?:
+                    | { kind: "success"; returnValue: any }
+                    | { error: string; kind: "failed" }
+                    | { kind: "canceled" };
+                  startedAt: number;
+                  workId?: string;
                 };
             stepNumber: number;
             workflowId: string;
@@ -5603,7 +5817,7 @@ export declare const components: {
             args: any;
             completedAt?: number;
             eventId?: string;
-            kind: "function" | "workflow" | "event";
+            kind: "function" | "workflow" | "event" | "sleep";
             name: string;
             nestedWorkflowId?: string;
             runResult?:

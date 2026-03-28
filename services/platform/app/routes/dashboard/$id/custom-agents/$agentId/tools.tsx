@@ -1,16 +1,12 @@
 import { Link, createFileRoute } from '@tanstack/react-router';
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useMemo } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
 import { RadioGroup } from '@/app/components/ui/forms/radio-group';
 import { PageSection } from '@/app/components/ui/layout/page-section';
 import { StickySectionHeader } from '@/app/components/ui/layout/sticky-section-header';
 import { ToolSelector } from '@/app/features/custom-agents/components/tool-selector';
-import { useUpdateCustomAgent } from '@/app/features/custom-agents/hooks/mutations';
-import { useAutoSave } from '@/app/features/custom-agents/hooks/use-auto-save';
-import { useCustomAgentVersion } from '@/app/features/custom-agents/hooks/use-custom-agent-version-context';
-import { useToast } from '@/app/hooks/use-toast';
-import { toId, toIds } from '@/convex/lib/type_cast_helpers';
+import { useAgentConfig } from '@/app/features/custom-agents/hooks/use-agent-config-context';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
@@ -26,30 +22,13 @@ export const Route = createFileRoute(
 });
 
 function ToolsTab() {
-  const { id: organizationId, agentId } = Route.useParams();
+  const { id: organizationId } = Route.useParams();
   const { t } = useT('settings');
-  const { agent, isReadOnly } = useCustomAgentVersion();
-  const updateAgent = useUpdateCustomAgent();
-  const { toast } = useToast();
+  const { config, updateConfig } = useAgentConfig();
 
-  const [webSearchMode, setWebSearchMode] = useState<RetrievalMode>('off');
-  const [selectedTools, setSelectedTools] = useState<string[]>([]);
-  const [selectedBindings, setSelectedBindings] = useState<string[]>([]);
-  const [selectedWorkflowBindings, setSelectedWorkflowBindings] = useState<
-    string[]
-  >([]);
-  const [initialized, setInitialized] = useState(false);
-
-  useEffect(() => {
-    if (!agent) return;
-    const mode: RetrievalMode =
-      agent.webSearchMode ?? (agent.toolNames.includes('web') ? 'tool' : 'off');
-    setWebSearchMode(mode);
-    setSelectedTools(agent.toolNames);
-    setSelectedBindings(agent.integrationBindings ?? []);
-    setSelectedWorkflowBindings(agent.workflowBindings?.map(String) ?? []);
-    setInitialized(true);
-  }, [agent, agentId]);
+  const webSearchMode: RetrievalMode =
+    config.webSearchMode ??
+    (config.toolNames?.includes('web') ? 'tool' : 'off');
 
   const hiddenTools = useMemo(() => {
     const hidden = new Set<string>();
@@ -57,81 +36,6 @@ function ToolsTab() {
     hidden.add('web');
     return hidden;
   }, []);
-
-  // Auto-save web search mode
-  const webModeData = useMemo(() => ({ webSearchMode }), [webSearchMode]);
-
-  const handleWebModeSave = useCallback(
-    async (data: { webSearchMode?: RetrievalMode }) => {
-      try {
-        await updateAgent.mutateAsync({
-          customAgentId: toId<'customAgents'>(agentId),
-          webSearchMode: data.webSearchMode,
-        });
-        toast({
-          title: t('customAgents.tools.webModeSaved'),
-          variant: 'success',
-        });
-      } catch (error) {
-        toast({
-          title: t('customAgents.tools.webModeSaveFailed'),
-          variant: 'destructive',
-        });
-        throw error;
-      }
-    },
-    [agentId, updateAgent, toast, t],
-  );
-
-  useAutoSave({
-    data: webModeData,
-    onSave: handleWebModeSave,
-    enabled: initialized && !isReadOnly,
-  });
-
-  // Auto-save tools, integration bindings, and workflow bindings
-  const toolsData = useMemo(
-    () => ({
-      toolNames: selectedTools,
-      integrationBindings: selectedBindings,
-      workflowBindings: selectedWorkflowBindings,
-    }),
-    [selectedTools, selectedBindings, selectedWorkflowBindings],
-  );
-
-  const handleToolsSave = useCallback(
-    async (data: {
-      toolNames: string[];
-      integrationBindings: string[];
-      workflowBindings: string[];
-    }) => {
-      try {
-        await updateAgent.mutateAsync({
-          customAgentId: toId<'customAgents'>(agentId),
-          toolNames: data.toolNames,
-          integrationBindings: data.integrationBindings,
-          workflowBindings: toIds<'wfDefinitions'>(data.workflowBindings),
-        });
-        toast({
-          title: t('customAgents.tools.toolsSaved'),
-          variant: 'success',
-        });
-      } catch (error) {
-        toast({
-          title: t('customAgents.tools.toolsSaveFailed'),
-          variant: 'destructive',
-        });
-        throw error;
-      }
-    },
-    [agentId, updateAgent, toast, t],
-  );
-
-  useAutoSave({
-    data: toolsData,
-    onSave: handleToolsSave,
-    enabled: initialized && !isReadOnly,
-  });
 
   const webModeOptions = useMemo(
     () => [
@@ -183,22 +87,24 @@ function ToolsTab() {
         <RadioGroup
           value={webSearchMode}
           // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- RadioGroup returns string; options constrain to RetrievalMode values
-          onValueChange={(value) => setWebSearchMode(value as RetrievalMode)}
+          onValueChange={(value) =>
+            updateConfig({ webSearchMode: value as RetrievalMode })
+          }
           options={webModeOptions}
-          disabled={isReadOnly}
         />
       </PageSection>
 
       <ToolSelector
-        value={selectedTools}
-        onChange={setSelectedTools}
-        integrationBindings={selectedBindings}
-        onIntegrationBindingsChange={setSelectedBindings}
-        workflowBindings={selectedWorkflowBindings}
-        onWorkflowBindingsChange={setSelectedWorkflowBindings}
+        value={config.toolNames ?? []}
+        onChange={(toolNames) => updateConfig({ toolNames })}
+        integrationBindings={config.integrationBindings ?? []}
+        onIntegrationBindingsChange={(integrationBindings) =>
+          updateConfig({ integrationBindings })
+        }
+        workflowBindings={config.workflows ?? []}
+        onWorkflowBindingsChange={(workflows) => updateConfig({ workflows })}
         organizationId={organizationId}
         hiddenTools={hiddenTools}
-        disabled={isReadOnly}
       />
     </ContentArea>
   );

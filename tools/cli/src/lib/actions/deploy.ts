@@ -27,7 +27,7 @@ import { setPreviousVersion } from '../state/set-previous-version';
 import { withLock } from '../state/with-lock';
 
 const REQUIRED_VOLUMES = [
-  'platform-convex-data',
+  'platform-data',
   'caddy-data',
   'rag-data',
   'crawler-data',

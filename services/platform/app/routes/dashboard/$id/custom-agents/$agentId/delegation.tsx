@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
@@ -7,12 +7,9 @@ import { CheckboxGroup } from '@/app/components/ui/forms/checkbox-group';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { StickySectionHeader } from '@/app/components/ui/layout/sticky-section-header';
 import { Text } from '@/app/components/ui/typography/text';
-import { AutoSaveIndicator } from '@/app/features/custom-agents/components/auto-save-indicator';
-import { useUpdateCustomAgent } from '@/app/features/custom-agents/hooks/mutations';
-import { useCustomAgents } from '@/app/features/custom-agents/hooks/queries';
-import { useAutoSave } from '@/app/features/custom-agents/hooks/use-auto-save';
-import { useCustomAgentVersion } from '@/app/features/custom-agents/hooks/use-custom-agent-version-context';
-import { toId } from '@/convex/lib/type_cast_helpers';
+import { useAgentConfig } from '@/app/features/custom-agents/hooks/use-agent-config-context';
+import { useConvexAction } from '@/app/hooks/use-convex-action';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
@@ -25,74 +22,71 @@ export const Route = createFileRoute(
   component: DelegationTab,
 });
 
+interface AgentListEntry {
+  name: string;
+  displayName?: string;
+  description?: string;
+}
+
 function DelegationTab() {
-  const { id: organizationId, agentId } = Route.useParams();
   const { t } = useT('settings');
-  const { agent, isReadOnly } = useCustomAgentVersion();
-  const updateAgent = useUpdateCustomAgent();
-  const { agents, isLoading } = useCustomAgents(organizationId);
+  const { config, updateConfig, agentName } = useAgentConfig();
 
-  const currentRootId = agent.rootVersionId ?? agent._id;
+  const listAgentsAction = useConvexAction(
+    api.agents.file_actions.listAgents,
+  );
+  const listAgentsRef = useRef(listAgentsAction);
+  listAgentsRef.current = listAgentsAction;
 
-  const availableAgents = useMemo(() => {
-    if (!agents) return [];
-    return agents
-      .filter((a) => {
-        if (a.status !== 'active') return false;
-        const rootId = a.rootVersionId ?? a._id;
-        return rootId !== currentRootId;
-      })
-      .sort((a, b) => a.displayName.localeCompare(b.displayName));
-  }, [agents, currentRootId]);
-
-  const [selectedValues, setSelectedValues] = useState<string[]>([]);
-  const [initialized, setInitialized] = useState(false);
+  const [availableAgents, setAvailableAgents] = useState<AgentListEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!agent) return;
-    setSelectedValues(agent.delegateAgentIds?.map(String) ?? []);
-    setInitialized(true);
-  }, [agent, agentId]);
+    let cancelled = false;
+    const load = async () => {
+      setIsLoading(true);
+      try {
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex action returns AgentListEntry[] but typed as any
+        const agents = (await listAgentsRef.current.mutateAsync({
+          orgSlug: 'default',
+        })) as AgentListEntry[];
+        if (!cancelled) {
+          setAvailableAgents(
+            agents.filter(
+              (a) => a.name !== agentName && a.displayName !== undefined,
+            ),
+          );
+        }
+      } catch {
+        // Silently handle — empty list shown
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentName]);
 
   const delegateOptions = useMemo(
     () =>
       availableAgents.map((a) => ({
-        value: String(a.rootVersionId ?? a._id),
-        label: a.displayName,
+        value: a.name,
+        label: a.displayName ?? a.name,
         description: a.description,
       })),
     [availableAgents],
   );
 
-  const delegateData = useMemo(
-    () => ({ delegateAgentIds: selectedValues }),
-    [selectedValues],
-  );
-
-  const handleSave = useCallback(
-    async (data: { delegateAgentIds: string[] }) => {
-      await updateAgent.mutateAsync({
-        customAgentId: toId<'customAgents'>(agentId),
-        delegateAgentIds: data.delegateAgentIds.map((id) =>
-          toId<'customAgents'>(id),
-        ),
-      });
-    },
-    [agentId, updateAgent],
-  );
-
-  const { status } = useAutoSave({
-    data: delegateData,
-    onSave: handleSave,
-    enabled: initialized && !isReadOnly,
-  });
+  const selectedValues = config.delegates ?? [];
 
   return (
     <ContentArea variant="narrow" gap={6}>
       <StickySectionHeader
         title={t('customAgents.delegation.title')}
         description={t('customAgents.delegation.description')}
-        action={<AutoSaveIndicator status={status} />}
       />
 
       {isLoading ? (
@@ -109,8 +103,7 @@ function DelegationTab() {
         <CheckboxGroup
           options={delegateOptions}
           value={selectedValues}
-          onValueChange={setSelectedValues}
-          disabled={isReadOnly}
+          onValueChange={(delegates) => updateConfig({ delegates })}
           columns={1}
         />
       )}

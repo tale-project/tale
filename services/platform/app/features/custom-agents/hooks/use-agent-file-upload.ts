@@ -2,8 +2,6 @@
 
 import { useState, useRef, useCallback } from 'react';
 
-import type { Id } from '@/convex/_generated/dataModel';
-
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
@@ -64,11 +62,13 @@ export interface AgentUploadProgress {
 }
 
 interface UseAgentFileUploadOptions {
-  customAgentId: Id<'customAgents'>;
+  organizationId: string;
+  agentFileName: string;
 }
 
 export function useAgentFileUpload({
-  customAgentId,
+  organizationId,
+  agentFileName,
 }: UseAgentFileUploadOptions) {
   const { t } = useT('settings');
   const [isUploading, setIsUploading] = useState(false);
@@ -80,7 +80,7 @@ export function useAgentFileUpload({
     api.files.mutations.generateUploadUrl,
   );
   const { mutateAsync: addKnowledgeFile } = useConvexMutation(
-    api.custom_agents.mutations.addKnowledgeFile,
+    api.agents.mutations.addKnowledgeFile,
   );
 
   const uploadFiles = useCallback(
@@ -121,7 +121,8 @@ export function useAgentFileUpload({
           );
 
           await addKnowledgeFile({
-            customAgentId,
+            organizationId,
+            agentFileName,
             fileId: toId<'_storage'>(storageId),
             fileName: file.name,
             contentType,
@@ -144,7 +145,14 @@ export function useAgentFileUpload({
         abortControllerRef.current = null;
       }
     },
-    [isUploading, generateUploadUrl, addKnowledgeFile, customAgentId, t],
+    [
+      isUploading,
+      generateUploadUrl,
+      addKnowledgeFile,
+      organizationId,
+      agentFileName,
+      t,
+    ],
   );
 
   const cancelUpload = useCallback(() => {

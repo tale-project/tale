@@ -82,15 +82,8 @@ export async function deleteWorkflow(
     },
   );
 
-  // Remove deleted workflow from any custom agent workflowBindings
-  await ctx.scheduler.runAfter(
-    0,
-    internal.custom_agents.internal_mutations.removeDeletedWorkflowBindings,
-    {
-      organizationId: workflow.organizationId,
-      workflowRootId: rootId,
-    },
-  );
+  // Note: Workflow bindings are now in agent JSON files (as "workflows" field).
+  // Stale references are handled gracefully at runtime (missing workflows are skipped).
 
   return null;
 }

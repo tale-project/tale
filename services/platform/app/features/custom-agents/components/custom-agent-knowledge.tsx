@@ -2,9 +2,9 @@
 
 import { Link } from '@tanstack/react-router';
 import { FileText, Trash2, Upload } from 'lucide-react';
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 
-import type { KnowledgeFile } from '@/convex/custom_agents/schema';
+import type { KnowledgeFile } from '@/convex/agents/schema';
 import type { RagStatus } from '@/types/documents';
 
 import { ContentArea } from '@/app/components/layout/content-area';
@@ -19,19 +19,13 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { RagStatusBadge } from '@/app/features/documents/components/rag-status-badge';
 import { useDocuments } from '@/app/features/documents/hooks/queries';
-import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { toast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 
-import {
-  useRemoveKnowledgeFile,
-  useUpdateCustomAgent,
-} from '../hooks/mutations';
+import { useRemoveKnowledgeFile } from '../hooks/mutations';
+import { useAgentConfig } from '../hooks/use-agent-config-context';
 import { useAgentFileUpload } from '../hooks/use-agent-file-upload';
-import { useAutoSave } from '../hooks/use-auto-save';
-import { useCustomAgentVersion } from '../hooks/use-custom-agent-version-context';
-import { AutoSaveIndicator } from './auto-save-indicator';
 
 type RetrievalMode = 'off' | 'tool' | 'context' | 'both';
 
@@ -139,15 +133,14 @@ export function CustomAgentKnowledge({
   agentId,
 }: CustomAgentKnowledgeProps) {
   const { t } = useT('settings');
-  const { agent, isReadOnly } = useCustomAgentVersion();
-  const updateAgent = useUpdateCustomAgent();
+  const { config, updateConfig } = useAgentConfig();
   const removeKnowledgeFile = useRemoveKnowledgeFile();
-  const { teams } = useTeamFilter();
 
-  const teamName = useMemo(() => {
-    if (!agent?.teamId || !teams) return null;
-    return teams.find((team) => team.id === agent.teamId)?.name ?? null;
-  }, [agent?.teamId, teams]);
+  const knowledgeMode: RetrievalMode = config.knowledgeMode ?? 'off';
+  const includeOrgKnowledge = config.includeOrgKnowledge ?? false;
+  const includeTeamKnowledge = config.includeTeamKnowledge ?? true;
+
+  const isEnabled = knowledgeMode !== 'off';
 
   const { documents: allDocuments, isLoading: isDocumentsLoading } =
     useDocuments(organizationId);
@@ -158,80 +151,26 @@ export function CustomAgentKnowledge({
     [allDocuments],
   );
 
-  const teamDocuments = useMemo(() => {
-    if (!agent?.teamId) return [];
-    return documents.filter((doc) => doc.teamId === agent.teamId);
-  }, [documents, agent?.teamId]);
-
-  const [knowledgeMode, setKnowledgeMode] = useState<RetrievalMode | undefined>(
-    undefined,
-  );
-  const [includeOrgKnowledge, setIncludeOrgKnowledge] = useState<
-    boolean | undefined
-  >(undefined);
-  const [includeTeamKnowledge, setIncludeTeamKnowledge] = useState<
-    boolean | undefined
-  >(undefined);
-  const [initialized, setInitialized] = useState(false);
-
-  useEffect(() => {
-    if (!agent) return;
-    const mode: RetrievalMode =
-      agent.knowledgeMode ?? (agent.knowledgeEnabled ? 'tool' : 'off');
-    setKnowledgeMode(mode);
-    setIncludeOrgKnowledge(agent.includeOrgKnowledge ?? false);
-    setIncludeTeamKnowledge(agent.includeTeamKnowledge ?? true);
-    setInitialized(true);
-  }, [agent, agentId]);
-
-  const isEnabled = knowledgeMode !== undefined && knowledgeMode !== 'off';
+  const teamDocuments = useMemo((): DocumentEntry[] => [], []);
 
   const orgDocuments = useMemo(() => {
     if (!isEnabled || !includeOrgKnowledge) return [];
     return documents.filter((doc) => !doc.teamId);
   }, [documents, isEnabled, includeOrgKnowledge]);
 
-  const knowledgeFiles = useMemo(
-    () => agent?.knowledgeFiles ?? [],
-    [agent?.knowledgeFiles],
-  );
-
-  const knowledgeData = useMemo(
-    () => ({ knowledgeMode, includeOrgKnowledge, includeTeamKnowledge }),
-    [knowledgeMode, includeOrgKnowledge, includeTeamKnowledge],
-  );
-
-  const handleSave = useCallback(
-    async (data: {
-      knowledgeMode?: RetrievalMode;
-      includeOrgKnowledge?: boolean;
-      includeTeamKnowledge?: boolean;
-    }) => {
-      await updateAgent.mutateAsync({
-        customAgentId: toId<'customAgents'>(agentId),
-        knowledgeMode: data.knowledgeMode,
-        includeOrgKnowledge: data.includeOrgKnowledge,
-        includeTeamKnowledge: data.includeTeamKnowledge,
-      });
-    },
-    [agentId, updateAgent],
-  );
-
-  const { status } = useAutoSave({
-    data: knowledgeData,
-    onSave: handleSave,
-    enabled: initialized && !isReadOnly,
-  });
+  const knowledgeFiles: KnowledgeFile[] = [];
 
   const { uploadFiles, isUploading, accept } = useAgentFileUpload({
-    customAgentId: toId<'customAgents'>(agentId),
+    organizationId,
+    agentFileName: agentId,
   });
 
   const handleRemoveFile = useCallback(
     (fileId: string) => {
       removeKnowledgeFile
         .mutateAsync({
-          customAgentId: toId<'customAgents'>(agentId),
+          organizationId,
+          agentFileName: agentId,
           fileId: toId<'_storage'>(fileId),
         })
         .catch(() => {
@@ -284,68 +223,60 @@ export function CustomAgentKnowledge({
             </Link>
           </>
         }
-        action={<AutoSaveIndicator status={status} />}
       />
 
       <RadioGroup
         label={t('customAgents.knowledge.retrievalMode')}
-        value={knowledgeMode ?? 'off'}
+        value={knowledgeMode}
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- RadioGroup returns string; options constrain to RetrievalMode values
-        onValueChange={(value) => setKnowledgeMode(value as RetrievalMode)}
+        onValueChange={(value) =>
+          updateConfig({ knowledgeMode: value as RetrievalMode })
+        }
         options={modeOptions}
-        disabled={isReadOnly}
       />
 
       {isEnabled && (
         <>
-          {agent.teamId && teamName ? (
-            <>
-              <Switch
-                checked={includeTeamKnowledge ?? true}
-                onCheckedChange={(checked) => setIncludeTeamKnowledge(checked)}
-                label={t('customAgents.knowledge.includeTeamKnowledge')}
-                description={t(
-                  'customAgents.knowledge.includeTeamKnowledgeHelp',
-                )}
-                disabled={isReadOnly}
-              />
+          <Switch
+            checked={includeTeamKnowledge}
+            onCheckedChange={(checked) =>
+              updateConfig({ includeTeamKnowledge: checked })
+            }
+            label={t('customAgents.knowledge.includeTeamKnowledge')}
+            description={t('customAgents.knowledge.includeTeamKnowledgeHelp')}
+          />
 
-              {includeTeamKnowledge && teamDocuments.length > 0 && (
-                <PageSection
-                  as="h3"
-                  titleSize="sm"
-                  titleWeight="medium"
-                  title={t('customAgents.knowledge.teamDocuments')}
-                  gap={3}
-                >
-                  <div className="divide-y rounded-lg border">
-                    {teamDocuments.map((doc) => (
-                      <DocumentRow key={doc.id} doc={doc} />
-                    ))}
-                  </div>
-                </PageSection>
-              )}
-
-              {includeTeamKnowledge &&
-                teamDocuments.length === 0 &&
-                !isDocumentsLoading && (
-                  <EmptyPlaceholder icon={FileText}>
-                    {t('customAgents.knowledge.emptyState')}
-                  </EmptyPlaceholder>
-                )}
-            </>
-          ) : (
-            <Text variant="muted">
-              {t('customAgents.knowledge.noTeamAssigned')}
-            </Text>
+          {includeTeamKnowledge && teamDocuments.length > 0 && (
+            <PageSection
+              as="h3"
+              titleSize="sm"
+              titleWeight="medium"
+              title={t('customAgents.knowledge.teamDocuments')}
+              gap={3}
+            >
+              <div className="divide-y rounded-lg border">
+                {teamDocuments.map((doc) => (
+                  <DocumentRow key={doc.id} doc={doc} />
+                ))}
+              </div>
+            </PageSection>
           )}
 
+          {includeTeamKnowledge &&
+            teamDocuments.length === 0 &&
+            !isDocumentsLoading && (
+              <EmptyPlaceholder icon={FileText}>
+                {t('customAgents.knowledge.emptyState')}
+              </EmptyPlaceholder>
+            )}
+
           <Switch
-            checked={includeOrgKnowledge ?? false}
-            onCheckedChange={(checked) => setIncludeOrgKnowledge(checked)}
+            checked={includeOrgKnowledge}
+            onCheckedChange={(checked) =>
+              updateConfig({ includeOrgKnowledge: checked })
+            }
             label={t('customAgents.knowledge.includeOrgKnowledge')}
             description={t('customAgents.knowledge.includeOrgKnowledgeHelp')}
-            disabled={isReadOnly}
           />
 
           {includeOrgKnowledge && orgDocuments.length > 0 && (
@@ -387,7 +318,7 @@ export function CustomAgentKnowledge({
                     key={file.fileId}
                     file={file}
                     onRemove={handleRemoveFile}
-                    isReadOnly={isReadOnly}
+                    isReadOnly={false}
                   />
                 ))}
               </div>
@@ -399,30 +330,28 @@ export function CustomAgentKnowledge({
               </EmptyPlaceholder>
             )}
 
-            {!isReadOnly && (
-              <FileUpload.Root>
-                <FileUpload.DropZone
-                  onFilesSelected={uploadFiles}
-                  accept={accept}
-                  multiple
-                  disabled={isUploading}
-                  inputId="agent-knowledge-file-upload"
-                  aria-label={t('customAgents.knowledge.uploadAgentDocuments')}
-                  className="hover:border-primary/50 relative flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed p-6 transition-colors"
-                >
-                  <Upload
-                    className="text-muted-foreground size-6"
-                    aria-hidden="true"
-                  />
-                  <Text as="span" variant="muted">
-                    {isUploading
-                      ? t('customAgents.knowledge.uploadStarted')
-                      : t('customAgents.knowledge.uploadAgentDocuments')}
-                  </Text>
-                  <FileUpload.Overlay />
-                </FileUpload.DropZone>
-              </FileUpload.Root>
-            )}
+            <FileUpload.Root>
+              <FileUpload.DropZone
+                onFilesSelected={uploadFiles}
+                accept={accept}
+                multiple
+                disabled={isUploading}
+                inputId="agent-knowledge-file-upload"
+                aria-label={t('customAgents.knowledge.uploadAgentDocuments')}
+                className="hover:border-primary/50 relative flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed p-6 transition-colors"
+              >
+                <Upload
+                  className="text-muted-foreground size-6"
+                  aria-hidden="true"
+                />
+                <Text as="span" variant="muted">
+                  {isUploading
+                    ? t('customAgents.knowledge.uploadStarted')
+                    : t('customAgents.knowledge.uploadAgentDocuments')}
+                </Text>
+                <FileUpload.Overlay />
+              </FileUpload.DropZone>
+            </FileUpload.Root>
           </PageSection>
         </>
       )}

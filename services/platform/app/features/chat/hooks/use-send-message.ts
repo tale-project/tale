@@ -2,7 +2,6 @@ import { useNavigate } from '@tanstack/react-router';
 import { useCallback, startTransition } from 'react';
 
 import { toast } from '@/app/hooks/use-toast';
-import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { sanitizeChatMessage } from '@/lib/utils/sanitize-chat';
 
@@ -146,11 +145,9 @@ export function useSendMessage({
           await updateThread({ threadId: currentThreadId, title });
         }
 
-        // Send message via unified agent chat mutation.
-        // isPending stays true until useChatLoadingState detects handoff
-        // (isGenerating) or a new terminal assistant message (slow-network backup).
         await chatWithAgent({
-          agentId: toId<'customAgents'>(selectedAgent._id),
+          agentFileName: selectedAgent.name,
+          orgSlug: 'default',
           threadId: currentThreadId,
           organizationId,
           message: sanitizedContent,

@@ -12,7 +12,7 @@ export const initializeDefaultWorkflows = action({
   returns: v.null(),
   handler: async (ctx, args) => {
     await ctx.runMutation(
-      internal.custom_agents.seed_system_defaults.seedSystemDefaultAgents,
+      internal.agents.seed_system_defaults.seedSystemDefaultAgents,
       { organizationId: args.organizationId },
     );
   },

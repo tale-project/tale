@@ -67,6 +67,10 @@ function envNormalizeCommon() {
   if (!process.env.SITE_URL) {
     process.env.SITE_URL = `http://${host}${host === 'localhost' ? `:${port}` : ''}`;
   }
+
+  if (!process.env.AGENTS_DIR) {
+    process.env.AGENTS_DIR = join(repoRoot, 'examples', 'agents');
+  }
 }
 
 function ensureInstanceSecret() {
@@ -388,6 +392,19 @@ async function main() {
     console.log('[dev] 🔄 Syncing environment variables...');
     try {
       await runCommand('bun', ['scripts/sync-convex-env-from-dotenv.ts']);
+
+      // Sync AGENTS_DIR explicitly (set dynamically, not in .env files)
+      const agentsDir = process.env.AGENTS_DIR;
+      if (agentsDir) {
+        await runCommand('bunx', [
+          'convex',
+          'env',
+          'set',
+          `AGENTS_DIR=${agentsDir}`,
+        ]);
+        console.log(`[dev] ✅ AGENTS_DIR=${agentsDir}`);
+      }
+
       console.log('[dev] ✅ Environment variables synced successfully');
     } catch (err) {
       console.warn(

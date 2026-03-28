@@ -35,11 +35,10 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
 
     return [...allAgents]
       .map((agent) => ({
-        value: agent.rootVersionId ?? agent._id,
+        value: agent.name,
         label: agent.displayName,
         description: agent.description || '',
-        isDefaultChat:
-          Boolean(agent.isSystemDefault) && agent.systemAgentSlug === 'chat',
+        isDefaultChat: agent.name === 'chat-agent',
       }))
       .sort((a, b) => {
         if (a.isDefaultChat) return -1;
@@ -48,19 +47,17 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
       });
   }, [allAgents]);
 
-  const currentValue = effectiveAgent?._id ?? null;
+  const currentValue = effectiveAgent?.name ?? null;
 
   const currentLabel =
     effectiveAgent?.displayName ?? t('agentSelector.defaultAgent');
 
   const handleSelect = useCallback(
     (value: string) => {
-      const agent = allAgents?.find(
-        (a) => (a.rootVersionId ?? a._id) === value,
-      );
+      const agent = allAgents?.find((a) => a.name === value);
       if (agent) {
         setSelectedAgent({
-          _id: agent.rootVersionId ?? agent._id,
+          name: agent.name,
           displayName: agent.displayName,
         });
       }

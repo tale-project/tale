@@ -6,7 +6,7 @@
  */
 
 type PlatformTable =
-  | 'customAgents'
+  | 'agentBindings'
   | 'documents'
   | 'products'
   | 'customers'
@@ -42,7 +42,7 @@ const platformPermissions: Record<
   Partial<Record<PlatformTable, readonly PlatformAction[]>>
 > = {
   admin: {
-    customAgents: ALL,
+    agentBindings: ALL,
     documents: ALL,
     products: ALL,
     customers: ALL,
@@ -61,7 +61,7 @@ const platformPermissions: Record<
     auditLogs: ALL,
   },
   developer: {
-    customAgents: ALL,
+    agentBindings: ALL,
     documents: ALL,
     products: ALL,
     customers: ALL,
@@ -80,7 +80,7 @@ const platformPermissions: Record<
     auditLogs: ALL,
   },
   editor: {
-    customAgents: ALL,
+    agentBindings: ALL,
     documents: ALL,
     products: ALL,
     customers: ALL,
@@ -99,7 +99,7 @@ const platformPermissions: Record<
     auditLogs: ALL,
   },
   member: {
-    customAgents: READ_ONLY,
+    agentBindings: READ_ONLY,
     documents: READ_ONLY,
     products: READ_ONLY,
     customers: READ_ONLY,
@@ -118,7 +118,7 @@ const platformPermissions: Record<
     auditLogs: READ_ONLY,
   },
   disabled: {
-    customAgents: NONE,
+    agentBindings: NONE,
     documents: NONE,
     products: NONE,
     customers: NONE,

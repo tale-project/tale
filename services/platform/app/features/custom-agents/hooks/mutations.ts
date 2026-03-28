@@ -1,72 +1,57 @@
+import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { api } from '@/convex/_generated/api';
 
-export function useTestAgent() {
-  return useConvexMutation(api.custom_agents.test_chat.testCustomAgent);
+// ---------------------------------------------------------------------------
+// Action-based hooks (filesystem writes)
+// ---------------------------------------------------------------------------
+
+export function useSaveCustomAgent() {
+  return useConvexAction(api.agents.file_actions.saveAgent);
 }
 
-export function useCreateCustomAgent() {
-  return useConvexMutation(api.custom_agents.mutations.createCustomAgent);
+export function useSnapshotToHistory() {
+  return useConvexAction(api.agents.file_actions.snapshotToHistory);
 }
 
-export function useDuplicateCustomAgent() {
-  return useConvexMutation(api.custom_agents.mutations.duplicateCustomAgent);
+export function useDeleteCustomAgent() {
+  return useConvexAction(api.agents.file_actions.deleteAgent);
 }
 
-export function useActivateCustomAgentVersion() {
+export function useRestoreFromHistory() {
+  return useConvexAction(api.agents.file_actions.restoreFromHistory);
+}
+
+// ---------------------------------------------------------------------------
+// Mutation-based hooks (DB writes)
+// ---------------------------------------------------------------------------
+
+export function useUpdateCustomAgentBindings() {
   return useConvexMutation(
-    api.custom_agents.mutations.activateCustomAgentVersion,
-  );
-}
-
-export function useCreateDraftFromVersion() {
-  return useConvexMutation(api.custom_agents.mutations.createDraftFromVersion);
-}
-
-export function usePublishCustomAgent() {
-  return useConvexMutation(api.custom_agents.mutations.publishCustomAgent);
-}
-
-export function useUnpublishCustomAgent() {
-  return useConvexMutation(api.custom_agents.mutations.unpublishCustomAgent);
-}
-
-export function useCreateCustomAgentWebhook() {
-  return useConvexMutation(api.custom_agents.webhooks.mutations.createWebhook);
-}
-
-export function useUpdateCustomAgent() {
-  return useConvexMutation(api.custom_agents.mutations.updateCustomAgent);
-}
-
-export function useUpdateCustomAgentMetadata() {
-  return useConvexMutation(
-    api.custom_agents.mutations.updateCustomAgentMetadata,
-  );
-}
-
-export function useUpdateCustomAgentVisibility() {
-  return useConvexMutation(
-    api.custom_agents.mutations.updateCustomAgentVisibility,
+    api.agents.mutations.updateCustomAgentBindings,
   );
 }
 
 export function useAddKnowledgeFile() {
-  return useConvexMutation(api.custom_agents.mutations.addKnowledgeFile);
+  return useConvexMutation(api.agents.mutations.addKnowledgeFile);
 }
 
 export function useRemoveKnowledgeFile() {
-  return useConvexMutation(api.custom_agents.mutations.removeKnowledgeFile);
+  return useConvexMutation(api.agents.mutations.removeKnowledgeFile);
 }
 
-export function useDeleteCustomAgent() {
-  return useConvexMutation(api.custom_agents.mutations.deleteCustomAgent);
+// ---------------------------------------------------------------------------
+// Webhook hooks
+// ---------------------------------------------------------------------------
+
+export function useCreateCustomAgentWebhook() {
+  return useConvexMutation(api.agents.webhooks.mutations.createWebhook);
 }
 
 export function useToggleCustomAgentWebhook() {
-  return useConvexMutation(api.custom_agents.webhooks.mutations.toggleWebhook);
+  return useConvexMutation(api.agents.webhooks.mutations.toggleWebhook);
 }
 
 export function useDeleteCustomAgentWebhook() {
-  return useConvexMutation(api.custom_agents.webhooks.mutations.deleteWebhook);
+  return useConvexMutation(api.agents.webhooks.mutations.deleteWebhook);
 }

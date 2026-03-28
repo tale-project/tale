@@ -326,10 +326,12 @@ services:
     # Volume mounts
     # Persist Convex local data
     volumes:
-      # Convex local backend data
-      - platform-convex-data:/app/convex-data
+      # All persistent platform data (Convex DB, agents, workflows, integrations)
+      - platform-data:/app/data
       # Mount Caddy's CA certificates for trusting self-signed certificates (development only)
       - caddy-data:/caddy-data:ro
+      # Development: mount local agents directory to override defaults
+      # - ./examples/agents:/app/data/agents
 
     # Environment file
     # Create a .env file in the project root with your configuration
@@ -499,8 +501,8 @@ volumes:
   rag-data:
     driver: local
 
-  # Persistent storage for Platform Convex local backend
-  platform-convex-data:
+  # Persistent storage for all platform data (Convex DB, agents, workflows, integrations)
+  platform-data:
     driver: local
 
   # Persistent storage for Caddy proxy data (certificates, etc.)

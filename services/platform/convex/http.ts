@@ -6,7 +6,7 @@ import { authComponent, createAuth } from './auth';
 import {
   agentWebhookHandler,
   agentWebhookOptionsHandler,
-} from './custom_agents/webhooks/http_actions';
+} from './agents/webhooks/http_actions';
 import { imageProxyHandler } from './images/http_actions';
 import { integrationOAuth2CallbackHandler } from './integrations/oauth2_callback';
 import {

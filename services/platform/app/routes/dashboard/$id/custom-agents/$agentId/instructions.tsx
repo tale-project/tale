@@ -1,9 +1,8 @@
 import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { useCallback, useMemo } from 'react';
-import { useForm } from 'react-hook-form';
+import { useMemo } from 'react';
 
-import type { ModelPreset } from '@/lib/shared/schemas/custom_agents';
+import type { ModelPreset } from '@/lib/shared/schemas/agents';
 
 import { ContentArea } from '@/app/components/layout/content-area';
 import { CodeBlock } from '@/app/components/ui/data-display/code-block';
@@ -12,15 +11,11 @@ import { Switch } from '@/app/components/ui/forms/switch';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { PageSection } from '@/app/components/ui/layout/page-section';
 import { CollapsibleDetails } from '@/app/components/ui/navigation/collapsible-details';
-import { AutoSaveIndicator } from '@/app/features/custom-agents/components/auto-save-indicator';
-import { useUpdateCustomAgent } from '@/app/features/custom-agents/hooks/mutations';
 import { useModelPresets } from '@/app/features/custom-agents/hooks/queries';
-import { useAutoSave } from '@/app/features/custom-agents/hooks/use-auto-save';
-import { useCustomAgentVersion } from '@/app/features/custom-agents/hooks/use-custom-agent-version-context';
+import { useAgentConfig } from '@/app/features/custom-agents/hooks/use-agent-config-context';
 import { api } from '@/convex/_generated/api';
 import { SUPPORTED_TEMPLATE_VARIABLES } from '@/convex/lib/agent_response/resolve_template_variables';
 import { STRUCTURED_RESPONSE_INSTRUCTIONS } from '@/convex/lib/agent_response/structured_response_instructions';
-import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
@@ -32,17 +27,11 @@ export const Route = createFileRoute(
   }),
   loader: ({ context }) => {
     void context.queryClient.prefetchQuery(
-      convexQuery(api.custom_agents.queries.getModelPresets, {}),
+      convexQuery(api.agents.queries.getModelPresets, {}),
     );
   },
   component: InstructionsTab,
 });
-
-interface InstructionsFormData {
-  systemInstructions: string;
-  modelId: string;
-  structuredResponsesEnabled: boolean;
-}
 
 const PRESET_KEYS = ['fast', 'standard', 'advanced'] as const;
 
@@ -64,10 +53,8 @@ function getDefaultModelId(
 }
 
 function InstructionsTab() {
-  const { agentId } = Route.useParams();
   const { t } = useT('settings');
-  const { agent, isReadOnly } = useCustomAgentVersion();
-  const updateAgent = useUpdateCustomAgent();
+  const { config, updateConfig } = useAgentConfig();
 
   const { data: modelPresets } = useModelPresets();
 
@@ -87,72 +74,28 @@ function InstructionsTab() {
     return options;
   }, [modelPresets, t]);
 
-  const initialModelId =
-    agent?.modelId ??
-    getDefaultModelId(agent?.modelPreset ?? 'standard', modelPresets);
+  const currentModelId =
+    config.modelId ??
+    getDefaultModelId(config.modelPreset ?? 'standard', modelPresets);
 
-  const form = useForm<InstructionsFormData>({
-    values: agent
-      ? {
-          systemInstructions: agent.systemInstructions,
-          modelId: initialModelId,
-          structuredResponsesEnabled: agent.structuredResponsesEnabled ?? true,
-        }
-      : undefined,
-  });
-
-  const formValues = form.watch();
-
-  const handleSave = useCallback(
-    async (data: InstructionsFormData) => {
-      const modelPreset = modelPresets
-        ? derivePresetFromModelId(data.modelId, modelPresets)
-        : 'standard';
-
-      await updateAgent.mutateAsync({
-        customAgentId: toId<'customAgents'>(agentId),
-        systemInstructions: data.systemInstructions,
-        modelPreset,
-        modelId: data.modelId,
-        structuredResponsesEnabled: data.structuredResponsesEnabled,
-      });
-    },
-    [agentId, updateAgent, modelPresets],
-  );
-
-  const { status, save } = useAutoSave({
-    data: formValues,
-    onSave: handleSave,
-    enabled: !isReadOnly,
-    mode: 'manual',
-  });
-
-  const systemInstructionsField = form.register('systemInstructions', {
-    required: t('customAgents.form.systemInstructionsRequired'),
-  });
+  const structuredResponsesEnabled = config.structuredResponsesEnabled ?? true;
 
   return (
     <ContentArea variant="narrow" gap={6}>
       <PageSection
         title={t('customAgents.form.sectionInstructions')}
         description={t('customAgents.form.sectionInstructionsDescription')}
-        action={<AutoSaveIndicator status={status} />}
         gap={4}
       >
         <Textarea
           id="systemInstructions"
           label={t('customAgents.form.systemInstructions')}
           placeholder={t('customAgents.form.systemInstructionsPlaceholder')}
-          {...systemInstructionsField}
-          onBlur={(e) => {
-            void systemInstructionsField.onBlur(e);
-            void form.handleSubmit((data) => save(data))();
-          }}
+          value={config.systemInstructions}
+          onChange={(e) => updateConfig({ systemInstructions: e.target.value })}
           required
           rows={8}
           className="font-mono text-sm"
-          disabled={isReadOnly}
-          errorMessage={form.formState.errors.systemInstructions?.message}
         />
         <CollapsibleDetails
           variant="compact"
@@ -179,16 +122,14 @@ function InstructionsTab() {
         <Select
           options={modelOptions}
           label={t('customAgents.form.model')}
-          value={formValues.modelId}
+          value={currentModelId}
           onValueChange={(val) => {
-            form.setValue('modelId', val);
-            void save({
-              ...form.getValues(),
-              modelId: val,
-            });
+            const modelPreset = modelPresets
+              ? derivePresetFromModelId(val, modelPresets)
+              : 'standard';
+            updateConfig({ modelId: val, modelPreset });
           }}
           required
-          disabled={isReadOnly}
         />
       </PageSection>
 
@@ -199,19 +140,14 @@ function InstructionsTab() {
         )}
       >
         <Switch
-          checked={formValues.structuredResponsesEnabled}
-          onCheckedChange={(checked) => {
-            form.setValue('structuredResponsesEnabled', checked);
-            void save({
-              ...form.getValues(),
-              structuredResponsesEnabled: checked,
-            });
-          }}
+          checked={structuredResponsesEnabled}
+          onCheckedChange={(checked) =>
+            updateConfig({ structuredResponsesEnabled: checked })
+          }
           label={t('customAgents.form.structuredResponsesEnabled')}
           description={t('customAgents.form.structuredResponsesEnabledHelp')}
-          disabled={isReadOnly}
         />
-        {formValues.structuredResponsesEnabled && (
+        {structuredResponsesEnabled && (
           <CodeBlock
             label={t('customAgents.form.structuredResponsesInjectedPrompt')}
             copyValue={STRUCTURED_RESPONSE_INSTRUCTIONS}

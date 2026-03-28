@@ -3,43 +3,30 @@
 import type { Row } from '@tanstack/react-table';
 
 import { useNavigate } from '@tanstack/react-router';
+import { useAction } from 'convex/react';
 import { Bot } from 'lucide-react';
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useEffect, useState } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
-import {
-  useApproxCustomAgentCount,
-  useListCustomAgentsPaginated,
-  useModelPresets,
-} from '../hooks/queries';
+import { useModelPresets } from '../hooks/queries';
 import { useCustomAgentsTableConfig } from '../hooks/use-custom-agents-table-config';
 import { CustomAgentsActionMenu } from './custom-agents-action-menu';
 
 export interface CustomAgentRow {
-  _id: string;
   name: string;
   displayName: string;
   description?: string;
-  systemInstructions: string;
-  toolNames: string[];
-  modelPreset: string;
-  modelId?: string;
-  temperature?: number;
-  maxTokens?: number;
-  maxSteps?: number;
-  includeOrgKnowledge?: boolean;
-  knowledgeTopK?: number;
-  status: 'draft' | 'active' | 'archived';
-  versionNumber: number;
-  rootVersionId?: string;
-  teamId?: string;
-  sharedWithTeamIds?: string[];
+  modelPreset?: string;
+  toolNames?: string[];
   visibleInChat?: boolean;
-  isSystemDefault?: boolean;
+  roleRestriction?: string;
+  status?: string;
+  message?: string;
 }
 
 interface CustomAgentsTableProps {
@@ -50,8 +37,40 @@ export function CustomAgentsTable({ organizationId }: CustomAgentsTableProps) {
   const { t: tEmpty } = useT('emptyStates');
   const { teams } = useTeamFilter();
   const navigate = useNavigate();
-  const { data: count } = useApproxCustomAgentCount(organizationId);
   const { data: modelPresets } = useModelPresets();
+  const listAgents = useAction(api.agents.file_actions.listAgents);
+  const [agents, setAgents] = useState<CustomAgentRow[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const loadAgents = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const result = await listAgents({ orgSlug: 'default' });
+      const validAgents: CustomAgentRow[] = [];
+      for (const a of result ?? []) {
+        if (a && 'displayName' in a && typeof a.displayName === 'string') {
+          validAgents.push({
+            name: a.name,
+            displayName: a.displayName,
+            description: a.description,
+            modelPreset: a.modelPreset,
+            toolNames: a.toolNames,
+            visibleInChat: a.visibleInChat,
+            roleRestriction: a.roleRestriction,
+          });
+        }
+      }
+      setAgents(validAgents);
+    } catch (err) {
+      console.error('Failed to load agents:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [listAgents]);
+
+  useEffect(() => {
+    void loadAgents();
+  }, [loadAgents]);
 
   const teamNameMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -65,10 +84,6 @@ export function CustomAgentsTable({ organizationId }: CustomAgentsTableProps) {
 
   const { columns, searchPlaceholder, stickyLayout, pageSize } =
     useCustomAgentsTableConfig({ teamNameMap, modelPresets });
-  const paginatedResult = useListCustomAgentsPaginated({
-    organizationId,
-    initialNumItems: pageSize,
-  });
 
   const handleRowClick = useCallback(
     (row: Row<CustomAgentRow>) => {
@@ -76,7 +91,7 @@ export function CustomAgentsTable({ organizationId }: CustomAgentsTableProps) {
         to: '/dashboard/$id/custom-agents/$agentId',
         params: {
           id: organizationId,
-          agentId: row.original.rootVersionId ?? row.original._id,
+          agentId: row.original.name,
         },
       });
     },
@@ -85,18 +100,14 @@ export function CustomAgentsTable({ organizationId }: CustomAgentsTableProps) {
 
   const list = useListPage<CustomAgentRow>({
     dataSource: {
-      type: 'paginated',
-      results: paginatedResult.results,
-      status: paginatedResult.status,
-      loadMore: paginatedResult.loadMore,
-      isLoading: paginatedResult.isLoading,
+      type: 'query',
+      data: isLoading ? undefined : agents,
     },
     pageSize,
     search: {
       fields: ['displayName', 'name'],
       placeholder: searchPlaceholder,
     },
-    approxRowCount: count,
   });
 
   return (

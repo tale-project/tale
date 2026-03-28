@@ -1,80 +1,75 @@
-import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute, Link, Outlet } from '@tanstack/react-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+
+import type { AgentJsonConfig } from '@/convex/agents/file_utils';
+import type { AgentReadResult } from '@/convex/agents/file_utils';
 
 import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
 import { ContentArea } from '@/app/components/layout/content-area';
 import { PageLayout } from '@/app/components/layout/page-layout';
-import { Badge } from '@/app/components/ui/feedback/badge';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Stack } from '@/app/components/ui/layout/layout';
 import {
   TabNavigation,
   type TabNavigationItem,
 } from '@/app/components/ui/navigation/tab-navigation';
-import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { Heading } from '@/app/components/ui/typography/heading';
 import { Text } from '@/app/components/ui/typography/text';
 import { CustomAgentNavigation } from '@/app/features/custom-agents/components/custom-agent-navigation';
-import { TestChatPanel } from '@/app/features/custom-agents/components/test-chat-panel';
-import {
-  useCustomAgentVersions,
-  useCustomAgentByVersion,
-} from '@/app/features/custom-agents/hooks/queries';
-import { CustomAgentVersionProvider } from '@/app/features/custom-agents/hooks/use-custom-agent-version-context';
+import { AgentConfigProvider } from '@/app/features/custom-agents/hooks/use-agent-config-context';
+import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { api } from '@/convex/_generated/api';
-import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { seo } from '@/lib/utils/seo';
-
-interface SearchParams {
-  v?: number;
-}
 
 export const Route = createFileRoute('/dashboard/$id/custom-agents/$agentId')({
   head: () => ({
     meta: seo('customAgent'),
   }),
-  validateSearch: (search: Record<string, unknown>): SearchParams => ({
-    v: typeof search.v === 'number' ? search.v : undefined,
-  }),
-  loader: ({ context, params }) => {
-    void context.queryClient.prefetchQuery(
-      convexQuery(api.custom_agents.queries.getCustomAgentByVersion, {
-        customAgentId: toId<'customAgents'>(params.agentId),
-      }),
-    );
-    void context.queryClient.prefetchQuery(
-      convexQuery(api.custom_agents.queries.getCustomAgentVersions, {
-        customAgentId: toId<'customAgents'>(params.agentId),
-      }),
-    );
-  },
   component: CustomAgentDetailLayout,
 });
 
 function CustomAgentDetailLayout() {
   const { id: organizationId, agentId } = Route.useParams();
-  const { v: versionNumber } = Route.useSearch();
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
-  const [isTestOpen, setIsTestOpen] = useState(false);
 
-  const handleTestReset = useCallback(() => {
-    setIsTestOpen(false);
-    requestAnimationFrame(() => setIsTestOpen(true));
-  }, []);
+  const [agentConfig, setAgentConfig] = useState<AgentJsonConfig | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const { data: agent, isLoading: isLoadingAgent } = useCustomAgentByVersion(
-    toId<'customAgents'>(agentId),
-    versionNumber,
-  );
+  const readAgent = useConvexAction(api.agents.file_actions.readAgent);
+  const readAgentRef = useRef(readAgent);
+  readAgentRef.current = readAgent;
 
-  const { versions, isLoading: isLoadingVersions } =
-    useCustomAgentVersions(agentId);
+  const loadAgent = useCallback(async () => {
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex action returns AgentReadResult but typed as any
+      const result = (await readAgentRef.current.mutateAsync({
+        orgSlug: 'default',
+        agentName: agentId,
+      })) as AgentReadResult;
 
-  if (isLoadingAgent || isLoadingVersions) {
+      if (result.ok) {
+        setAgentConfig(result.config);
+      } else {
+        setLoadError(result.message);
+      }
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Failed to load agent');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [agentId]);
+
+  useEffect(() => {
+    void loadAgent();
+  }, [loadAgent]);
+
+  if (isLoading) {
     return (
       <PageLayout
         header={
@@ -91,7 +86,6 @@ function CustomAgentDetailLayout() {
                 <span className="hidden md:inline">/&nbsp;&nbsp;</span>
                 <Skeleton className="inline-block h-4 w-32 align-middle" />
               </Heading>
-              <Skeleton className="ml-2 h-5 w-16 rounded-full" />
             </AdaptiveHeaderRoot>
             <TabNavigation
               items={
@@ -150,13 +144,6 @@ function CustomAgentDetailLayout() {
               <Skeleton className="h-5 w-20" />
               <Skeleton className="h-4 w-64" />
             </Stack>
-            <Stack gap={2}>
-              <div className="flex items-center justify-between">
-                <Skeleton className="h-4 w-16" />
-                <Skeleton className="h-[1.15rem] w-8 rounded-full" />
-              </div>
-              <Skeleton className="h-3 w-48" />
-            </Stack>
             <Stack gap={3}>
               <Stack gap={2}>
                 <Skeleton className="h-4 w-16" />
@@ -178,18 +165,20 @@ function CustomAgentDetailLayout() {
     );
   }
 
-  if (!agent) {
+  if (loadError || !agentConfig) {
     return (
       <PageLayout>
         <ContentArea variant="narrow" className="py-6">
-          <Text variant="muted">{t('customAgents.agentNotFound')}</Text>
+          <Text variant="muted">
+            {loadError ?? t('customAgents.agentNotFound')}
+          </Text>
         </ContentArea>
       </PageLayout>
     );
   }
 
   return (
-    <CustomAgentVersionProvider agent={agent} versions={versions ?? []}>
+    <AgentConfigProvider agentName={agentId} initialConfig={agentConfig}>
       <PageLayout
         header={
           <>
@@ -200,29 +189,24 @@ function CustomAgentDetailLayout() {
                   params={{ id: organizationId }}
                   className={cn(
                     'hidden md:inline text-foreground',
-                    agent.displayName && 'text-muted-foreground cursor-pointer',
+                    agentConfig.displayName &&
+                      'text-muted-foreground cursor-pointer',
                   )}
                 >
                   {t('customAgents.title')}&nbsp;&nbsp;
                 </Link>
-                {agent.displayName && (
+                {agentConfig.displayName && (
                   <span className="text-foreground">
                     <span className="hidden md:inline">/&nbsp;&nbsp;</span>
-                    {agent.displayName}
+                    {agentConfig.displayName}
                   </span>
                 )}
               </Heading>
-              <Badge
-                variant={agent.status === 'active' ? 'green' : 'outline'}
-                className="ml-2"
-              >
-                {tCommon(`status.${agent.status}`)}
-              </Badge>
             </AdaptiveHeaderRoot>
             <CustomAgentNavigation
               organizationId={organizationId}
               agentId={agentId}
-              onTestClick={() => setIsTestOpen(true)}
+              onSaved={loadAgent}
             />
           </>
         }
@@ -230,23 +214,7 @@ function CustomAgentDetailLayout() {
         className="relative"
       >
         <Outlet />
-
-        <Sheet
-          open={isTestOpen}
-          onOpenChange={setIsTestOpen}
-          title={t('customAgents.testChat.title')}
-          description={t('customAgents.testChat.welcome')}
-          className="flex w-full flex-col p-0 sm:max-w-[480px]"
-          hideClose
-        >
-          <TestChatPanel
-            organizationId={organizationId}
-            agentId={agentId}
-            onClose={() => setIsTestOpen(false)}
-            onReset={handleTestReset}
-          />
-        </Sheet>
       </PageLayout>
-    </CustomAgentVersionProvider>
+    </AgentConfigProvider>
   );
 }

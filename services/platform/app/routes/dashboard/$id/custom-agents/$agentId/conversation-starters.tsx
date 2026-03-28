@@ -1,18 +1,14 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { Reorder } from 'framer-motion';
 import { ChevronDown, ChevronUp, GripVertical, Plus, X } from 'lucide-react';
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { StickySectionHeader } from '@/app/components/ui/layout/sticky-section-header';
 import { Button } from '@/app/components/ui/primitives/button';
-import { AutoSaveIndicator } from '@/app/features/custom-agents/components/auto-save-indicator';
-import { useUpdateCustomAgent } from '@/app/features/custom-agents/hooks/mutations';
-import { useAutoSave } from '@/app/features/custom-agents/hooks/use-auto-save';
-import { useCustomAgentVersion } from '@/app/features/custom-agents/hooks/use-custom-agent-version-context';
-import { toId } from '@/convex/lib/type_cast_helpers';
+import { useAgentConfig } from '@/app/features/custom-agents/hooks/use-agent-config-context';
 import { useT } from '@/lib/i18n/client';
 import {
   MAX_CONVERSATION_STARTER_LENGTH,
@@ -43,46 +39,30 @@ function toStrings(items: StarterItem[]): string[] {
 }
 
 function ConversationStartersTab() {
-  const { agentId } = Route.useParams();
   const { t } = useT('settings');
-  const { agent, isReadOnly } = useCustomAgentVersion();
-  const updateAgent = useUpdateCustomAgent();
+  const { config, updateConfig } = useAgentConfig();
 
-  const [items, setItems] = useState<StarterItem[]>([]);
-  const [initialized, setInitialized] = useState(false);
-
-  const startersKey = JSON.stringify(agent?.conversationStarters ?? []);
-  useEffect(() => {
-    if (!agent) return;
-    setItems(toItems(agent.conversationStarters ?? []));
-    setInitialized(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startersKey, agentId]);
-
-  const saveData = useMemo(
-    () => ({ conversationStarters: toStrings(items) }),
-    [items],
+  const [items, setItems] = useState<StarterItem[]>(() =>
+    toItems(config.conversationStarters ?? []),
   );
 
-  const handleSave = useCallback(
-    async (data: { conversationStarters: string[] }) => {
-      const filtered = data.conversationStarters
+  const startersKey = JSON.stringify(config.conversationStarters ?? []);
+  useEffect(() => {
+    setItems(toItems(config.conversationStarters ?? []));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startersKey]);
+
+  const syncToConfig = useCallback(
+    (newItems: StarterItem[]) => {
+      const filtered = toStrings(newItems)
         .map((s) => s.trim())
         .filter(Boolean);
-      await updateAgent.mutateAsync({
-        customAgentId: toId<'customAgents'>(agentId),
-        conversationStarters: filtered.length ? filtered : [],
+      updateConfig({
+        conversationStarters: filtered.length ? filtered : undefined,
       });
     },
-    [agentId, updateAgent],
+    [updateConfig],
   );
-
-  const { status, save } = useAutoSave({
-    data: saveData,
-    onSave: handleSave,
-    enabled: initialized && !isReadOnly,
-    mode: 'manual',
-  });
 
   const handleChange = useCallback((id: string, value: string) => {
     setItems((prev) =>
@@ -91,8 +71,8 @@ function ConversationStartersTab() {
   }, []);
 
   const handleBlur = useCallback(() => {
-    void save();
-  }, [save]);
+    syncToConfig(items);
+  }, [items, syncToConfig]);
 
   const handleAdd = useCallback(() => {
     setItems((prev) => [...prev, { id: crypto.randomUUID(), text: '' }]);
@@ -102,11 +82,11 @@ function ConversationStartersTab() {
     (id: string) => {
       setItems((prev) => {
         const next = prev.filter((item) => item.id !== id);
-        void save({ conversationStarters: toStrings(next) });
+        syncToConfig(next);
         return next;
       });
     },
-    [save],
+    [syncToConfig],
   );
 
   const handleMoveUp = useCallback(
@@ -115,11 +95,11 @@ function ConversationStartersTab() {
       setItems((prev) => {
         const next = [...prev];
         [next[index - 1], next[index]] = [next[index], next[index - 1]];
-        void save({ conversationStarters: toStrings(next) });
+        syncToConfig(next);
         return next;
       });
     },
-    [save],
+    [syncToConfig],
   );
 
   const handleMoveDown = useCallback(
@@ -128,19 +108,19 @@ function ConversationStartersTab() {
         if (index >= prev.length - 1) return prev;
         const next = [...prev];
         [next[index], next[index + 1]] = [next[index + 1], next[index]];
-        void save({ conversationStarters: toStrings(next) });
+        syncToConfig(next);
         return next;
       });
     },
-    [save],
+    [syncToConfig],
   );
 
   const handleReorder = useCallback(
     (newItems: StarterItem[]) => {
       setItems(newItems);
-      void save({ conversationStarters: toStrings(newItems) });
+      syncToConfig(newItems);
     },
-    [save],
+    [syncToConfig],
   );
 
   return (
@@ -148,7 +128,6 @@ function ConversationStartersTab() {
       <StickySectionHeader
         title={t('customAgents.conversationStarters.title')}
         description={t('customAgents.conversationStarters.description')}
-        action={<AutoSaveIndicator status={status} />}
       />
 
       <FormSection>
@@ -171,7 +150,6 @@ function ConversationStartersTab() {
                 type="button"
                 className="text-muted-foreground hover:text-foreground mt-2 shrink-0 cursor-grab active:cursor-grabbing"
                 aria-label={t('customAgents.conversationStarters.dragHandle')}
-                disabled={isReadOnly}
               >
                 <GripVertical className="h-4 w-4" />
               </Reorder.Item>
@@ -186,7 +164,6 @@ function ConversationStartersTab() {
                 onBlur={handleBlur}
                 placeholder={t('customAgents.conversationStarters.placeholder')}
                 maxLength={MAX_CONVERSATION_STARTER_LENGTH}
-                disabled={isReadOnly}
                 wrapperClassName="min-w-0 flex-1"
               />
 
@@ -197,7 +174,7 @@ function ConversationStartersTab() {
                   size="icon"
                   className="h-5 w-5"
                   onClick={() => handleMoveUp(index)}
-                  disabled={isReadOnly || index === 0}
+                  disabled={index === 0}
                   aria-label={t('customAgents.conversationStarters.moveUp')}
                 >
                   <ChevronUp className="h-3 w-3" />
@@ -208,7 +185,7 @@ function ConversationStartersTab() {
                   size="icon"
                   className="h-5 w-5"
                   onClick={() => handleMoveDown(index)}
-                  disabled={isReadOnly || index === items.length - 1}
+                  disabled={index === items.length - 1}
                   aria-label={t('customAgents.conversationStarters.moveDown')}
                 >
                   <ChevronDown className="h-3 w-3" />
@@ -221,7 +198,6 @@ function ConversationStartersTab() {
                 size="icon"
                 className="mt-1.5 shrink-0"
                 onClick={() => handleRemove(item.id)}
-                disabled={isReadOnly}
                 aria-label={t('customAgents.conversationStarters.remove')}
               >
                 <X className="h-4 w-4" />
@@ -236,7 +212,6 @@ function ConversationStartersTab() {
             variant="secondary"
             size="sm"
             onClick={handleAdd}
-            disabled={isReadOnly}
             className="self-start"
           >
             <Plus className="mr-1 h-4 w-4" />

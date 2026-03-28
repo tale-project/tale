@@ -20,9 +20,9 @@ export function generateColorCompose(
       [`operator-${color}`]: createOperatorService(config, color),
     },
     volumes: {
-      'platform-convex-data': {
+      'platform-data': {
         external: true,
-        name: `${PROJECT_NAME}_platform-convex-data`,
+        name: `${PROJECT_NAME}_platform-data`,
       },
       'caddy-data': {
         external: true,

@@ -13,12 +13,12 @@ export const Route = createFileRoute(
 });
 
 function WebhookTab() {
-  const { id: organizationId, agentId } = Route.useParams();
+  const { id: organizationId, agentId: agentFileName } = Route.useParams();
 
   return (
     <CustomAgentWebhookSection
       organizationId={organizationId}
-      agentId={agentId}
+      agentFileName={agentFileName}
     />
   );
 }

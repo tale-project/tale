@@ -13,7 +13,7 @@ import { Text } from '@/app/components/ui/typography/text';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
-import { useCreateCustomAgent } from '../hooks/mutations';
+import { useSaveCustomAgent } from '../hooks/mutations';
 
 type FormData = {
   name: string;
@@ -35,7 +35,7 @@ export function CreateCustomAgentDialog({
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
   const navigate = useNavigate();
-  const { mutateAsync: createAgent } = useCreateCustomAgent();
+  const { mutateAsync: saveAgent } = useSaveCustomAgent();
 
   const formSchema = useMemo(
     () =>
@@ -78,15 +78,15 @@ export function CreateCustomAgentDialog({
 
   const onSubmit = async (data: FormData) => {
     try {
-      const agentId = await createAgent({
-        organizationId,
-        name: data.name,
-        displayName: data.displayName,
-        description: data.description,
-        systemInstructions: 'You are a helpful assistant.',
-        toolNames: [],
-        modelPreset: 'standard',
-        includeOrgKnowledge: false,
+      await saveAgent({
+        orgSlug: 'default',
+        agentName: data.name,
+        config: {
+          displayName: data.displayName,
+          description: data.description,
+          systemInstructions: 'You are a helpful assistant.',
+          modelPreset: 'standard',
+        },
       });
       toast({
         title: t('customAgents.agentCreated'),
@@ -94,7 +94,7 @@ export function CreateCustomAgentDialog({
       });
       void navigate({
         to: '/dashboard/$id/custom-agents/$agentId',
-        params: { id: organizationId, agentId: String(agentId) },
+        params: { id: organizationId, agentId: data.name },
       });
     } catch (error) {
       console.error(error);

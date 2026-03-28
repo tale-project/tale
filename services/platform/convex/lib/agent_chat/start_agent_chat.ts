@@ -78,7 +78,7 @@ export interface StartAgentChatArgs {
   /** Optional hooks configuration (FunctionHandles) */
   hooks?: AgentHooksConfig;
   /** Root version ID of the custom agent, persisted on thread metadata */
-  customAgentId?: Id<'customAgents'>;
+  customAgentId?: Id<'agentBindings'>;
 }
 
 export interface StartAgentChatResult {

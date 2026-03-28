@@ -3,7 +3,7 @@ import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { api } from '@/convex/_generated/api';
 
 export function useUnifiedChatWithAgent() {
-  return useConvexMutation(api.custom_agents.unified_chat.chatWithAgent);
+  return useConvexAction(api.agents.unified_chat.chatWithAgent);
 }
 
 export function useSubmitHumanInputResponse() {

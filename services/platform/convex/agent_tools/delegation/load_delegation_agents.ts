@@ -1,31 +1,58 @@
+'use node';
+
 /**
  * Load Delegate Agent Configurations
  *
- * Fetches the active published versions of delegate agents from the DB
+ * Reads delegate agent JSON files from the filesystem
  * and converts them to DelegateAgentMeta for tool creation.
  */
 
-'use node';
+import { readFile, stat } from 'node:fs/promises';
 
 import type { ActionCtx } from '../../_generated/server';
 import type { DelegateAgentMeta } from './create_delegation_tool';
 
-import { internal } from '../../_generated/api';
+import { toSerializableConfig } from '../../agents/config';
+import {
+  MAX_FILE_SIZE_BYTES,
+  parseAgentJson,
+  resolveAgentFilePath,
+} from '../../agents/file_utils';
 
 export async function loadDelegateAgents(
   ctx: ActionCtx,
-  delegateAgentIds: string[],
+  delegateNames: string[],
   organizationId: string,
+  orgSlug: string,
 ): Promise<DelegateAgentMeta[]> {
-  if (delegateAgentIds.length === 0) return [];
+  if (delegateNames.length === 0) return [];
 
-  const delegates = await ctx.runQuery(
-    internal.custom_agents.internal_queries.getActiveDelegateAgents,
-    {
-      rootVersionIds: delegateAgentIds,
-      organizationId,
-    },
-  );
+  const delegates: DelegateAgentMeta[] = [];
+
+  for (const name of delegateNames) {
+    try {
+      const filePath = resolveAgentFilePath(orgSlug, name);
+      const fileStat = await stat(filePath);
+      if (fileStat.size > MAX_FILE_SIZE_BYTES) continue;
+
+      const content = await readFile(filePath, 'utf-8');
+      const config = parseAgentJson(content);
+      const agentConfig = toSerializableConfig(name, config);
+
+      delegates.push({
+        rootVersionId: name,
+        name,
+        displayName: config.displayName,
+        description: config.description ?? '',
+        agentConfig,
+        model: agentConfig.model ?? '',
+        provider: 'openai',
+        roleRestriction: config.roleRestriction,
+      });
+    } catch {
+      // Skip unavailable delegate agents gracefully
+    }
+  }
 
   return delegates;
 }
