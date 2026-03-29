@@ -49,7 +49,6 @@ export interface WorkflowCreationMetadata {
   }>;
   requestedAt: number;
   executedAt?: number;
-  createdWorkflowId?: string;
   createdWorkflowSlug?: string;
   executionError?: string;
 }

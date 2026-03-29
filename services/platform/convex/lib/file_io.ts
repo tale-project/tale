@@ -201,9 +201,19 @@ export async function readJsonFile<T>(
       await fd.close();
     }
   } catch (err) {
+    const code =
+      err instanceof Error && 'code' in err
+        ? (err as NodeJS.ErrnoException).code
+        : undefined;
+    const errorType =
+      code === 'ENOENT'
+        ? 'not_found'
+        : code === 'EACCES' || code === 'EPERM'
+          ? 'inaccessible'
+          : 'inaccessible';
     return {
       ok: false,
-      error: 'not_found',
+      error: errorType,
       message: `Failed to read file: ${path.basename(filePath)} — ${err instanceof Error ? err.message : String(err)}`,
     };
   }

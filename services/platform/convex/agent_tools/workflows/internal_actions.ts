@@ -151,7 +151,7 @@ export const executeApprovedWorkflowCreation = internalAction({
           .updateWorkflowApprovalWithResult,
         {
           approvalId: args.approvalId,
-          createdWorkflowId: workflowSlug,
+          createdWorkflowSlug: workflowSlug,
           executionError: null,
         },
       );
@@ -199,7 +199,7 @@ Instructions:
           .updateWorkflowApprovalWithResult,
         {
           approvalId: args.approvalId,
-          createdWorkflowId: null,
+          createdWorkflowSlug: null,
           executionError: errorMessage,
         },
       );

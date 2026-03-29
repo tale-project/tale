@@ -151,7 +151,6 @@ export function EventCreateDialog({
       } else {
         await createEventSubscription.mutateAsync({
           organizationId,
-          orgSlug,
           workflowSlug,
           eventType: selectedEventType,
           eventFilter: filterPayload,

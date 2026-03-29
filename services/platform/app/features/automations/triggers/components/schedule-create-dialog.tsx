@@ -150,7 +150,6 @@ export function ScheduleCreateDialog({
       } else {
         await createSchedule({
           organizationId,
-          orgSlug,
           workflowSlug,
           cronExpression: data.cronExpression,
           timezone: 'UTC',

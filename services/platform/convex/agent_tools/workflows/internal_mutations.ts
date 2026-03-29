@@ -39,7 +39,7 @@ export const claimWorkflowApprovalForExecution = internalMutation({
 export const updateWorkflowApprovalWithResult = internalMutation({
   args: {
     approvalId: v.id('approvals'),
-    createdWorkflowId: v.union(v.string(), v.null()),
+    createdWorkflowSlug: v.union(v.string(), v.null()),
     executionError: v.union(v.string(), v.null()),
   },
   handler: async (ctx, args): Promise<void> => {
@@ -58,8 +58,8 @@ export const updateWorkflowApprovalWithResult = internalMutation({
       metadata: {
         ...metadata,
         executedAt: now,
-        ...(args.createdWorkflowId
-          ? { createdWorkflowSlug: args.createdWorkflowId }
+        ...(args.createdWorkflowSlug
+          ? { createdWorkflowSlug: args.createdWorkflowSlug }
           : {}),
         ...(args.executionError ? { executionError: args.executionError } : {}),
       } as ApprovalMetadata,

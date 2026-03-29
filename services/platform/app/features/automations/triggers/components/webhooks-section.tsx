@@ -69,7 +69,6 @@ export function WebhooksSection({
     try {
       const result = await createWebhook({
         organizationId,
-        orgSlug,
         workflowSlug,
       });
       setCreatedUrl(getWebhookUrl(result.token));

@@ -8,10 +8,16 @@ import { getOrganizationMember } from '../../lib/rls';
 import { isValidEventType } from './event_types';
 import { generateToken } from './helpers/crypto';
 
+const WORKFLOW_SLUG_REGEX =
+  /^(?!.*__)[a-z0-9][a-z0-9_-]*(\/(?!.*__)[a-z0-9][a-z0-9_-]*)?$/;
+
+function validateWorkflowSlug(slug: string): boolean {
+  return WORKFLOW_SLUG_REGEX.test(slug) && slug.length <= 128;
+}
+
 export const createScheduleBySlug = mutation({
   args: {
     organizationId: v.string(),
-    orgSlug: v.string(),
     workflowSlug: v.string(),
     cronExpression: v.string(),
     timezone: v.string(),
@@ -20,6 +26,10 @@ export const createScheduleBySlug = mutation({
   handler: async (ctx, args): Promise<Id<'wfSchedules'>> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
+
+    if (!validateWorkflowSlug(args.workflowSlug)) {
+      throw new Error(`Invalid workflow slug: ${args.workflowSlug}`);
+    }
 
     await getOrganizationMember(ctx, args.organizationId, {
       userId: String(authUser._id),
@@ -115,7 +125,6 @@ export const deleteScheduleBySlug = mutation({
 export const createWebhookBySlug = mutation({
   args: {
     organizationId: v.string(),
-    orgSlug: v.string(),
     workflowSlug: v.string(),
   },
   returns: v.object({
@@ -128,6 +137,10 @@ export const createWebhookBySlug = mutation({
   ): Promise<{ webhookId: Id<'wfWebhooks'>; token: string }> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
+
+    if (!validateWorkflowSlug(args.workflowSlug)) {
+      throw new Error(`Invalid workflow slug: ${args.workflowSlug}`);
+    }
 
     await getOrganizationMember(ctx, args.organizationId, {
       userId: String(authUser._id),
@@ -198,7 +211,6 @@ export const deleteWebhookBySlug = mutation({
 export const createEventSubscriptionBySlug = mutation({
   args: {
     organizationId: v.string(),
-    orgSlug: v.string(),
     workflowSlug: v.string(),
     eventType: v.string(),
     eventFilter: v.optional(v.record(v.string(), v.string())),
@@ -207,6 +219,10 @@ export const createEventSubscriptionBySlug = mutation({
   handler: async (ctx, args): Promise<Id<'wfEventSubscriptions'>> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
+
+    if (!validateWorkflowSlug(args.workflowSlug)) {
+      throw new Error(`Invalid workflow slug: ${args.workflowSlug}`);
+    }
 
     await getOrganizationMember(ctx, args.organizationId, {
       userId: String(authUser._id),
@@ -223,7 +239,12 @@ export const createEventSubscriptionBySlug = mutation({
       .withIndex('by_workflowSlug', (q) =>
         q.eq('workflowSlug', args.workflowSlug),
       )
-      .filter((q) => q.eq(q.field('eventType'), args.eventType))
+      .filter((q) =>
+        q.and(
+          q.eq(q.field('organizationId'), args.organizationId),
+          q.eq(q.field('eventType'), args.eventType),
+        ),
+      )
       .first();
 
     if (existing) {

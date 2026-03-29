@@ -110,7 +110,7 @@ function BlankTabContent({
         });
         void navigate({
           to: '/dashboard/$id/automations/$amId',
-          params: { id: organizationId, amId: workflowSlug },
+          params: { id: organizationId, amId: slugToUrlParam(workflowSlug) },
           search: { panel: 'ai-chat' },
         });
       } catch (error) {

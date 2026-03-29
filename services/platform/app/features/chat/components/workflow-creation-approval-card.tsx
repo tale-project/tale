@@ -33,6 +33,7 @@ import { WorkflowCreationMetadata } from '@/convex/approvals/types';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-guards';
+import { slugToUrlParam } from '@/lib/utils/workflow-slug';
 
 import { markdownWrapperStyles } from './message-bubble/markdown-renderer';
 
@@ -485,12 +486,12 @@ function WorkflowCreationApprovalCardComponent({
               <CheckCircle className="size-3" />
               {t('createdSuccessfully')}
             </HStack>
-            {metadata.createdWorkflowId && (
+            {metadata.createdWorkflowSlug && (
               <Link
                 to="/dashboard/$id/automations/$amId"
                 params={{
                   id: organizationId,
-                  amId: metadata.createdWorkflowId,
+                  amId: slugToUrlParam(metadata.createdWorkflowSlug ?? ''),
                 }}
                 className="text-primary flex items-center gap-1 text-xs hover:underline"
               >

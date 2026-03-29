@@ -610,3 +610,65 @@ export const listWorkflowsForAgent = internalAction({
     return results.filter(Boolean);
   },
 });
+
+export const getAvailableWorkflows = action({
+  args: {
+    organizationId: v.string(),
+  },
+  returns: v.array(
+    v.object({
+      id: v.string(),
+      name: v.string(),
+      description: v.optional(v.string()),
+    }),
+  ),
+  handler: async (ctx, _args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) return [];
+
+    const dir = resolveWorkflowsDir('default');
+    let raw;
+    try {
+      raw = await readdir(dir, { recursive: true, withFileTypes: true });
+    } catch {
+      return [];
+    }
+
+    const jsonFiles = raw.filter(
+      (e) =>
+        !e.isDirectory() &&
+        e.name.endsWith('.json') &&
+        !e.name.startsWith('.') &&
+        !(e.parentPath ?? '').includes('.history'),
+    );
+
+    const workflows: Array<{
+      id: string;
+      name: string;
+      description?: string;
+    }> = [];
+
+    for (const entry of jsonFiles) {
+      const parentPath = entry.parentPath ?? '';
+      const relativePath = path
+        .relative(dir, path.join(parentPath, entry.name))
+        .replace(/\\/g, '/');
+      const slug = workflowSlugFromRelativePath(relativePath);
+
+      if (!validateWorkflowSlug(slug)) continue;
+
+      const result = await readWorkflowFile('default', slug);
+      if (result.ok && result.config.installed && result.config.enabled) {
+        workflows.push({
+          id: slug,
+          name: result.config.name,
+          ...(result.config.description && {
+            description: result.config.description,
+          }),
+        });
+      }
+    }
+
+    return workflows;
+  },
+});

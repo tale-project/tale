@@ -2,7 +2,7 @@
  * Factory for creating workflow-bound tools.
  *
  * Creates a createTool() result scoped to a specific workflow.
- * The workflowId is captured in a closure — the agent only needs
+ * The workflowSlug is captured in a closure — the agent only needs
  * to specify parameters.
  */
 
