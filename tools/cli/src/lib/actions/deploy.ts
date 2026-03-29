@@ -1,3 +1,6 @@
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { PROJECT_NAME, type DeploymentEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import { generateColorCompose } from '../compose/generators/generate-color-compose';
@@ -14,12 +17,14 @@ import {
 import { dockerCompose } from '../docker/docker-compose';
 import { ensureNetwork } from '../docker/ensure-network';
 import { ensureVolumes } from '../docker/ensure-volumes';
+import { exec } from '../docker/exec';
 import { getContainerVersion } from '../docker/get-container-version';
 import { isContainerRunning } from '../docker/is-container-running';
 import { pullImage } from '../docker/pull-image';
 import { removeContainer } from '../docker/remove-container';
 import { stopContainer } from '../docker/stop-container';
 import { waitForHealthy } from '../docker/wait-for-healthy';
+import { findProject } from '../project/find-project';
 import { getCurrentColor } from '../state/get-current-color';
 import { getNextColor } from '../state/get-next-color';
 import { setCurrentColor } from '../state/set-current-color';
@@ -381,6 +386,13 @@ export async function deploy(options: DeployOptions): Promise<void> {
       }
     }
 
+    // Determine the active platform container for project sync
+    const activeColor = inPlaceUpdate
+      ? currentColor
+      : isFirstDeploy
+        ? getNextColor(null)
+        : getNextColor(currentColor);
+
     if (dryRun) {
       logger.success(
         `${prefix}Dry-run complete! Would deploy version ${version}`,
@@ -388,5 +400,65 @@ export async function deploy(options: DeployOptions): Promise<void> {
     } else {
       logger.success(`Deployment complete! Version ${version} is now live`);
     }
+
+    // Sync project files if running from a Tale project directory
+    if (activeColor) {
+      await syncProjectFiles(
+        `${PROJECT_NAME}-platform-${activeColor}`,
+        dryRun,
+        prefix,
+      );
+    }
   });
+}
+
+const SYNC_DIRS = ['agents', 'workflows', 'integrations'];
+
+async function syncProjectFiles(
+  containerName: string,
+  dryRun: boolean,
+  prefix: string,
+): Promise<void> {
+  const projectDir = findProject(process.cwd());
+  if (!projectDir) {
+    return;
+  }
+
+  const dirsToSync = SYNC_DIRS.filter((dir) =>
+    existsSync(join(projectDir, dir)),
+  );
+
+  if (dirsToSync.length === 0) {
+    return;
+  }
+
+  logger.blank();
+  logger.step(`${prefix}Syncing project files to ${containerName}...`);
+
+  for (const dir of dirsToSync) {
+    const srcPath = join(projectDir, dir);
+
+    if (dryRun) {
+      logger.info(
+        `${prefix}Would sync ${dir}/ → ${containerName}:/app/data/${dir}/`,
+      );
+      continue;
+    }
+
+    const result = await exec('docker', [
+      'cp',
+      `${srcPath}/.`,
+      `${containerName}:/app/data/${dir}/`,
+    ]);
+
+    if (result.success) {
+      logger.info(`Synced ${dir}/`);
+    } else {
+      logger.warn(`Failed to sync ${dir}/: ${result.stderr}`);
+    }
+  }
+
+  if (!dryRun) {
+    logger.success('Project files synced');
+  }
 }

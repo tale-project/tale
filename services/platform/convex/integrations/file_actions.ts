@@ -362,3 +362,41 @@ export const readIntegrationForExecution = internalAction({
     };
   },
 });
+
+export const listIntegrationsForAgent = internalAction({
+  args: {
+    orgSlug: v.string(),
+  },
+  returns: v.any(),
+  handler: async (_ctx, args) => {
+    const dir = resolveIntegrationsDir(args.orgSlug);
+    let entries: string[];
+    try {
+      entries = await readdir(dir);
+    } catch {
+      return [];
+    }
+
+    const dirs = entries.filter(
+      (e) => !e.startsWith('.') && validateIntegrationSlug(e),
+    );
+
+    const results = await Promise.all(
+      dirs.map(async (slug) => {
+        const result = await readIntegrationConfigFile(args.orgSlug, slug);
+        if (result.ok && result.config.installed) {
+          return {
+            slug,
+            title: result.config.title,
+            description: result.config.description,
+            type: result.config.type,
+            operationCount: result.config.operations?.length ?? 0,
+          };
+        }
+        return null;
+      }),
+    );
+
+    return results.filter(Boolean);
+  },
+});
