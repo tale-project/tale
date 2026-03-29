@@ -19,7 +19,7 @@ type ErrorType =
   | 'callback_failed';
 
 interface ParsedState {
-  integrationId: Id<'integrations'>;
+  credentialId: Id<'integrationCredentials'>;
   organizationId: string;
 }
 
@@ -55,10 +55,10 @@ function parseState(state: string): ParsedState | null {
   try {
     const parsed = JSON.parse(atob(state));
     if (parsed.prefix !== 'integration') return null;
-    if (!parsed.integrationId || !parsed.organizationId) return null;
+    if (!parsed.credentialId || !parsed.organizationId) return null;
 
     return {
-      integrationId: toId<'integrations'>(parsed.integrationId),
+      credentialId: toId<'integrationCredentials'>(parsed.credentialId),
       organizationId: parsed.organizationId,
     };
   } catch {
@@ -112,7 +112,7 @@ export const integrationOAuth2CallbackHandler = httpAction(async (ctx, req) => {
     return Response.redirect(redirectUrl, 302);
   }
 
-  const { integrationId, organizationId } = parsedState;
+  const { credentialId, organizationId } = parsedState;
 
   try {
     const siteUrl = process.env.SITE_URL || 'http://localhost:3000';
@@ -122,7 +122,7 @@ export const integrationOAuth2CallbackHandler = httpAction(async (ctx, req) => {
     await ctx.runAction(
       internal.integrations.oauth2_token_exchange.handleOAuth2Callback,
       {
-        integrationId,
+        credentialId,
         code,
         redirectUri,
       },
@@ -130,7 +130,7 @@ export const integrationOAuth2CallbackHandler = httpAction(async (ctx, req) => {
 
     console.log(
       '[Integration OAuth2 Callback] Successfully processed callback for:',
-      { integrationId },
+      { credentialId },
     );
 
     const redirectUrl = buildRedirectUrl(organizationId, {

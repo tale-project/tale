@@ -11,6 +11,7 @@ type PlatformTable =
   | 'products'
   | 'customers'
   | 'vendors'
+  | 'integrationCredentials'
   | 'integrations'
   | 'onedriveSyncConfigs'
   | 'conversations'
@@ -47,6 +48,7 @@ const platformPermissions: Record<
     products: ALL,
     customers: ALL,
     vendors: ALL,
+    integrationCredentials: ALL,
     integrations: ALL,
     onedriveSyncConfigs: ALL,
     conversations: ALL,
@@ -66,6 +68,7 @@ const platformPermissions: Record<
     products: ALL,
     customers: ALL,
     vendors: ALL,
+    integrationCredentials: ALL,
     integrations: ALL,
     onedriveSyncConfigs: ALL,
     conversations: ALL,
@@ -85,6 +88,7 @@ const platformPermissions: Record<
     products: ALL,
     customers: ALL,
     vendors: ALL,
+    integrationCredentials: READ_ONLY,
     integrations: READ_ONLY,
     onedriveSyncConfigs: READ_ONLY,
     conversations: ALL,
@@ -104,6 +108,7 @@ const platformPermissions: Record<
     products: READ_ONLY,
     customers: READ_ONLY,
     vendors: READ_ONLY,
+    integrationCredentials: READ_ONLY,
     integrations: READ_ONLY,
     onedriveSyncConfigs: READ_ONLY,
     conversations: READ_ONLY,
@@ -123,6 +128,7 @@ const platformPermissions: Record<
     products: NONE,
     customers: NONE,
     vendors: NONE,
+    integrationCredentials: NONE,
     integrations: NONE,
     onedriveSyncConfigs: NONE,
     conversations: NONE,

@@ -3,15 +3,17 @@
  * Maps auth method to decrypted credential values (accessToken, password, etc.).
  */
 
-import type { Doc } from '../_generated/dataModel';
+import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
+import type { IntegrationWithCredentials } from './shared_types';
 
 import { internal } from '../_generated/api';
 import { decryptAndRefreshIntegrationOAuth2 } from './decrypt_and_refresh_oauth2';
 
 export async function buildIntegrationSecrets(
   ctx: ActionCtx,
-  integration: Doc<'integrations'>,
+  integration: IntegrationWithCredentials,
+  credentialId?: Id<'integrationCredentials'>,
 ): Promise<Record<string, string>> {
   const secrets: Record<string, string> = {};
 
@@ -40,6 +42,7 @@ export async function buildIntegrationSecrets(
     secrets['accessToken'] = await decryptAndRefreshIntegrationOAuth2(
       ctx,
       integration,
+      credentialId,
     );
   }
 

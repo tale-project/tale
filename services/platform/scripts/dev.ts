@@ -75,6 +75,10 @@ function envNormalizeCommon() {
   if (!process.env.WORKFLOWS_DIR) {
     process.env.WORKFLOWS_DIR = join(repoRoot, 'examples', 'workflows');
   }
+
+  if (!process.env.INTEGRATIONS_DIR) {
+    process.env.INTEGRATIONS_DIR = join(repoRoot, 'examples', 'integrations');
+  }
 }
 
 function ensureInstanceSecret() {
@@ -418,6 +422,17 @@ async function main() {
           `WORKFLOWS_DIR=${workflowsDir}`,
         ]);
         console.log(`[dev] ✅ WORKFLOWS_DIR=${workflowsDir}`);
+      }
+
+      const integrationsDir = process.env.INTEGRATIONS_DIR;
+      if (integrationsDir) {
+        await runCommand('bunx', [
+          'convex',
+          'env',
+          'set',
+          `INTEGRATIONS_DIR=${integrationsDir}`,
+        ]);
+        console.log(`[dev] ✅ INTEGRATIONS_DIR=${integrationsDir}`);
       }
 
       console.log('[dev] ✅ Environment variables synced successfully');

@@ -2,6 +2,7 @@
   "name": "Circuly Customers Sync",
   "description": "Synchronize customers from Circuly to local database with pagination",
   "version": "1.0.0",
+  "installed": true,
   "enabled": true,
   "config": {
     "timeout": 300000,

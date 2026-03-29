@@ -454,6 +454,26 @@ if [ -d "$workflows_builtin_dir" ] && [ "$(ls -A "$workflows_builtin_dir" 2>/dev
   done
 fi
 
+# Seed builtin integration template directories — skip integrations the user has installed
+integrations_dir="${INTEGRATIONS_DIR:-/app/data/integrations}"
+integrations_builtin_dir="/app/integrations-builtin"
+mkdir -p "$integrations_dir"
+if [ -d "$integrations_builtin_dir" ] && [ "$(ls -A "$integrations_builtin_dir" 2>/dev/null)" ]; then
+  for src_dir in "$integrations_builtin_dir"/*/; do
+    [ -d "$src_dir" ] || continue
+    name="$(basename "$src_dir")"
+    dest_dir="$integrations_dir/$name"
+
+    # Skip if the existing config has "installed": true (user explicitly installed it)
+    if [ -f "$dest_dir/config.json" ] && grep -q '"installed"[[:space:]]*:[[:space:]]*true' "$dest_dir/config.json" 2>/dev/null; then
+      echo "   ⏭ Skipping integration $name (user has installed it)"
+      continue
+    fi
+
+    cp -r "$src_dir" "$dest_dir"
+  done
+fi
+
 # Clean up derived data that is safe to rebuild.
 # Search indexes and compiled modules are rebuilt automatically from the database.
 # User uploads (files/) are NEVER touched — they contain permanent user data.
@@ -573,6 +593,8 @@ deploy_convex_functions() {
     "AGENTS_DIR"
     # Workflows directory (filesystem path for workflow template JSON configs)
     "WORKFLOWS_DIR"
+    # Integrations directory (filesystem path for integration template files)
+    "INTEGRATIONS_DIR"
     # Debug flag (enables all debug loggers when set to "true")
     "DEBUG_MODE"
   )

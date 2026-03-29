@@ -80,29 +80,36 @@ export const SHOPIFY_API_VERSION = '2024-01';
 // =============================================================================
 
 /**
- * Base integration type alias for Doc<'integrations'>.
- * Use the type guards below to narrow to specific integration types.
+ * @deprecated Use LoadedIntegration from load_integration.ts instead.
+ * Retained for backward compatibility during migration.
  */
 export type Integration = Doc<'integrations'>;
+
+/** Credential record from the integrationCredentials table. */
+export type IntegrationCredentials = Doc<'integrationCredentials'>;
+
+/**
+ * Re-export LoadedIntegration from the loader module for convenience.
+ */
+export type { LoadedIntegration } from './load_integration';
 
 /**
  * SQL Integration - integration with type='sql' and required SQL-specific fields.
  * Use `isSqlIntegration()` to safely narrow to this type.
  */
-export interface SqlIntegration extends Integration {
+export interface SqlIntegration {
   type: 'sql';
   sqlConnectionConfig: SqlConnectionConfig;
   sqlOperations: SqlOperation[];
+  [key: string]: unknown;
 }
 
 /**
  * REST API Integration - integration with type='rest_api' (or undefined for legacy) and connector config.
  * Use `isRestApiIntegration()` to safely narrow to this type.
- *
- * Note: type can be undefined for backward compatibility with legacy integrations
- * that were created before the type field was added.
  */
-export interface RestApiIntegration extends Integration {
+export interface RestApiIntegration {
   type: 'rest_api' | undefined;
   connector: ConnectorConfig;
+  [key: string]: unknown;
 }

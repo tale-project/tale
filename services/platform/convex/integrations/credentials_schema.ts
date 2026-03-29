@@ -1,20 +1,20 @@
-/**
- * @deprecated Retained for backward compatibility with existing data.
- * New code should use integrationCredentials (credentials_schema.ts) for DB storage
- * and file-based config.json for integration definitions.
- */
-
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
 import { jsonRecordValidator } from '../lib/validators/json';
 
-export const integrationsTable = defineTable({
+/**
+ * Slim credentials table for installed integrations.
+ *
+ * Integration definitions (operations, connector code, config) live in filesystem
+ * files under INTEGRATIONS_DIR. This table stores only per-installation runtime
+ * data: encrypted credentials, status, health metrics, and icon storage.
+ *
+ * The `slug` field matches the integration directory name (the canonical identifier).
+ */
+export const integrationCredentialsTable = defineTable({
   organizationId: v.string(),
-  name: v.string(),
-  title: v.string(),
-  description: v.optional(v.string()),
-  type: v.optional(v.union(v.literal('rest_api'), v.literal('sql'))),
+  slug: v.string(),
   status: v.union(
     v.literal('active'),
     v.literal('inactive'),
@@ -76,48 +76,6 @@ export const integrationsTable = defineTable({
       rateLimit: v.optional(v.number()),
     }),
   ),
-  lastSyncedAt: v.optional(v.number()),
-  lastTestedAt: v.optional(v.number()),
-  lastSuccessAt: v.optional(v.number()),
-  lastErrorAt: v.optional(v.number()),
-  errorMessage: v.optional(v.string()),
-  syncStats: v.optional(
-    v.object({
-      totalRecords: v.optional(v.number()),
-      lastSyncCount: v.optional(v.number()),
-      failedSyncCount: v.optional(v.number()),
-    }),
-  ),
-  capabilities: v.optional(
-    v.object({
-      canSync: v.optional(v.boolean()),
-      canPush: v.optional(v.boolean()),
-      canWebhook: v.optional(v.boolean()),
-      syncFrequency: v.optional(v.string()),
-    }),
-  ),
-  connector: v.optional(
-    v.object({
-      code: v.string(),
-      version: v.number(),
-      operations: v.array(
-        v.object({
-          name: v.string(),
-          title: v.optional(v.string()),
-          description: v.optional(v.string()),
-          parametersSchema: v.optional(jsonRecordValidator),
-          operationType: v.optional(
-            v.union(v.literal('read'), v.literal('write')),
-          ),
-          requiresApproval: v.optional(v.boolean()),
-          requiredScopes: v.optional(v.array(v.string())),
-        }),
-      ),
-      secretBindings: v.array(v.string()),
-      allowedHosts: v.optional(v.array(v.string())),
-      timeoutMs: v.optional(v.number()),
-    }),
-  ),
   sqlConnectionConfig: v.optional(
     v.object({
       engine: v.union(
@@ -146,26 +104,29 @@ export const integrationsTable = defineTable({
       ),
     }),
   ),
-  sqlOperations: v.optional(
-    v.array(
-      v.object({
-        name: v.string(),
-        title: v.optional(v.string()),
-        description: v.optional(v.string()),
-        query: v.string(),
-        parametersSchema: v.optional(jsonRecordValidator),
-        operationType: v.optional(
-          v.union(v.literal('read'), v.literal('write')),
-        ),
-        requiresApproval: v.optional(v.boolean()),
-        requiredScopes: v.optional(v.array(v.string())),
-      }),
-    ),
+  lastSyncedAt: v.optional(v.number()),
+  lastTestedAt: v.optional(v.number()),
+  lastSuccessAt: v.optional(v.number()),
+  lastErrorAt: v.optional(v.number()),
+  errorMessage: v.optional(v.string()),
+  syncStats: v.optional(
+    v.object({
+      totalRecords: v.optional(v.number()),
+      lastSyncCount: v.optional(v.number()),
+      failedSyncCount: v.optional(v.number()),
+    }),
+  ),
+  capabilities: v.optional(
+    v.object({
+      canSync: v.optional(v.boolean()),
+      canPush: v.optional(v.boolean()),
+      canWebhook: v.optional(v.boolean()),
+      syncFrequency: v.optional(v.string()),
+    }),
   ),
   iconStorageId: v.optional(v.id('_storage')),
   metadata: v.optional(jsonRecordValidator),
 })
   .index('by_organizationId', ['organizationId'])
-  .index('by_organizationId_and_name', ['organizationId', 'name'])
-  .index('by_organizationId_and_status', ['organizationId', 'status'])
+  .index('by_organizationId_and_slug', ['organizationId', 'slug'])
   .index('by_status', ['status']);

@@ -7,9 +7,13 @@
  * Operations are fetched on-demand via integration_introspect tool.
  */
 
-import type { Doc } from '../../../_generated/dataModel';
-
-type Integration = Doc<'integrations'>;
+interface Integration {
+  name: string;
+  type?: string;
+  status?: string;
+  title?: string;
+  description?: string;
+}
 
 /**
  * Format a list of integrations into a domain-aware string for LLM context.

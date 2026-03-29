@@ -3,30 +3,30 @@ import type { ActionCtx } from '../../../../_generated/server';
 import { internal } from '../../../../_generated/api';
 
 /**
- * Read the email sync cursor from integration metadata.
+ * Read the email sync cursor from integration credentials metadata.
  * Returns the provider-opaque cursor blob, or null if no cursor exists.
  */
 export async function getEmailSyncCursor(
   ctx: ActionCtx,
   params: { organizationId: string; integrationName: string },
 ) {
-  const integration = await ctx.runQuery(
-    internal.integrations.internal_queries.getByName,
+  const credential = await ctx.runQuery(
+    internal.integrations.credential_queries.getBySlugInternal,
     {
       organizationId: params.organizationId,
-      name: params.integrationName,
+      slug: params.integrationName,
     },
   );
 
-  if (!integration) {
+  if (!credential) {
     return { cursor: null };
   }
 
   const metadata =
-    integration.metadata &&
-    typeof integration.metadata === 'object' &&
-    !Array.isArray(integration.metadata)
-      ? integration.metadata
+    credential.metadata &&
+    typeof credential.metadata === 'object' &&
+    !Array.isArray(credential.metadata)
+      ? credential.metadata
       : undefined;
   const cursor = metadata?.emailSyncCursor ?? null;
 
@@ -34,7 +34,7 @@ export async function getEmailSyncCursor(
 }
 
 /**
- * Write the email sync cursor to integration metadata.
+ * Write the email sync cursor to integration credentials metadata.
  * Shallow-merges with existing metadata to preserve other fields.
  */
 export async function updateEmailSyncCursor(
@@ -45,25 +45,36 @@ export async function updateEmailSyncCursor(
     cursor: Record<string, unknown>;
   },
 ) {
-  const integration = await ctx.runQuery(
-    internal.integrations.internal_queries.getByName,
+  const credential = await ctx.runQuery(
+    internal.integrations.credential_queries.getBySlugInternal,
     {
       organizationId: params.organizationId,
-      name: params.integrationName,
+      slug: params.integrationName,
     },
   );
 
-  if (!integration) {
+  if (!credential) {
     throw new Error(
-      `Integration "${params.integrationName}" not found for organization`,
+      `Integration credentials for "${params.integrationName}" not found for organization`,
     );
   }
 
+  const currentMetadata =
+    credential.metadata &&
+    typeof credential.metadata === 'object' &&
+    !Array.isArray(credential.metadata)
+      ? credential.metadata
+      : {};
+  const merged = {
+    ...currentMetadata,
+    emailSyncCursor: params.cursor,
+  };
+
   await ctx.runMutation(
-    internal.integrations.internal_mutations.patchIntegrationMetadata,
+    internal.integrations.credential_mutations.updateCredentialsInternal,
     {
-      integrationId: integration._id,
-      metadataPatch: { emailSyncCursor: params.cursor },
+      credentialId: credential._id,
+      metadata: merged,
     },
   );
 }

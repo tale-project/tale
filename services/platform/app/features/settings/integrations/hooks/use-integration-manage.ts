@@ -1,10 +1,10 @@
 'use client';
 
+import { useAction } from 'convex/react';
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 
-import type { Doc } from '@/convex/_generated/dataModel';
-
 import { toast } from '@/app/hooks/use-toast';
+import { api } from '@/convex/_generated/api';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { fetchJson } from '@/lib/utils/type-cast-helpers';
@@ -17,13 +17,8 @@ import {
   useGenerateIntegrationOAuth2Url,
   useSaveOAuth2Credentials,
   useTestIntegration,
-  useUpdateIntegration,
 } from './actions';
-import {
-  useDeleteIntegration,
-  useGenerateUploadUrl,
-  useUpdateIntegrationIcon,
-} from './mutations';
+import { useGenerateUploadUrl, useUpdateCredentials } from './mutations';
 
 const SENSITIVE_KEYS = new Set([
   'password',
@@ -54,7 +49,76 @@ function parsePort(value: string | undefined): number | undefined {
   return Number.isFinite(parsed) ? Math.trunc(parsed) : undefined;
 }
 
-type Integration = Doc<'integrations'> & { iconUrl?: string | null };
+export type Integration = Record<string, unknown> & {
+  _id: string;
+  title: string;
+  name?: string;
+  description?: string;
+  organizationId?: string;
+  authMethod?: string;
+  supportedAuthMethods?: string[];
+  isActive?: boolean;
+  iconUrl?: string | null;
+  oauth2Config?: {
+    authorizationUrl?: string;
+    tokenUrl?: string;
+    clientId?: string;
+    clientSecret?: string;
+    scopes?: string[];
+    [key: string]: unknown;
+  };
+  connector?: {
+    version?: number;
+    code?: string;
+    secretBindings?: string[];
+    operations?: Array<{
+      name: string;
+      title?: string;
+      description?: string;
+      parametersSchema?: Record<string, unknown>;
+      operationType?: string;
+      requiresApproval?: boolean;
+    }>;
+    allowedHosts?: string[];
+    [key: string]: unknown;
+  };
+  type?: string;
+  sqlConnectionConfig?: {
+    engine?: string;
+    server?: string;
+    port?: number;
+    database?: string;
+    readOnly?: boolean;
+    options?: Record<string, unknown>;
+    security?: {
+      maxResultRows?: number;
+      queryTimeoutMs?: number;
+      maxConnectionPoolSize?: number;
+    };
+    [key: string]: unknown;
+  };
+  sqlOperations?: Array<{
+    name: string;
+    title?: string;
+    description?: string;
+    query: string;
+    parametersSchema?: Record<string, unknown>;
+    operationType?: string;
+    requiresApproval?: boolean;
+  }>;
+  basicAuth?: { username?: string; password?: string; [key: string]: unknown };
+  apiKeyAuth?: { key?: string; [key: string]: unknown };
+  oauth2Auth?: {
+    accessToken?: string;
+    refreshToken?: string;
+    [key: string]: unknown;
+  };
+  connectionConfig?: {
+    domain?: string;
+    apiEndpoint?: string;
+    [key: string]: unknown;
+  };
+};
 
 export function useIntegrationManage(
   integration: Integration,
@@ -107,18 +171,17 @@ export function useIntegrationManage(
   const isActive = optimisticActive ?? integration.isActive;
   const iconUrl = optimisticIconUrl ?? integration.iconUrl;
 
-  const { mutateAsync: updateIntegration, isPending: isUpdating } =
-    useUpdateIntegration();
+  const { mutateAsync: updateCredentials } = useUpdateCredentials();
   const { mutateAsync: testConnection, isPending: isTesting } =
     useTestIntegration();
-  const { mutateAsync: deleteIntegration, isPending: isDeleting } =
-    useDeleteIntegration();
+  const uninstallFn = useAction(
+    api.integrations.file_actions.uninstallIntegration,
+  );
   const { mutateAsync: generateUploadUrl } = useGenerateUploadUrl();
-  const { mutateAsync: updateIcon } = useUpdateIntegrationIcon();
   const { mutateAsync: generateOAuth2Url } = useGenerateIntegrationOAuth2Url();
   const { mutateAsync: saveOAuth2Credentials } = useSaveOAuth2Credentials();
 
-  const isSubmitting = isUpdating || isDeleting;
+  const isSubmitting = false;
 
   const hasOAuth2Config = !!integration.oauth2Config;
 
@@ -169,10 +232,14 @@ export function useIntegrationManage(
 
   const isSql = integration.type === 'sql';
 
-  const secretBindings = useMemo(
-    () => integration.connector?.secretBindings ?? [],
-    [integration.connector],
-  );
+  const secretBindings = useMemo(() => {
+    if (integration.connector?.secretBindings) {
+      return integration.connector.secretBindings;
+    }
+    const topLevel = integration.secretBindings;
+    if (Array.isArray(topLevel)) return topLevel;
+    return [];
+  }, [integration.connector, integration.secretBindings]);
 
   const displayBindings = useMemo(() => {
     if (isSql && selectedAuthMethod === 'basic_auth') {
@@ -246,8 +313,8 @@ export function useIntegrationManage(
           uploadResponse,
         );
 
-        await updateIcon({
-          integrationId: integration._id,
+        await updateCredentials({
+          credentialId: toId<'integrationCredentials'>(integration._id),
           iconStorageId: toId<'_storage'>(storageId),
         });
 
@@ -270,7 +337,7 @@ export function useIntegrationManage(
         }
       }
     },
-    [generateUploadUrl, updateIcon, integration._id, t],
+    [generateUploadUrl, updateCredentials, integration._id, t],
   );
 
   const handleUpdateFilesSelected = useCallback(
@@ -344,7 +411,7 @@ export function useIntegrationManage(
           : undefined;
 
       const payload: Record<string, unknown> = {
-        integrationId: integration._id,
+        credentialId: toId<'integrationCredentials'>(integration._id),
         title: config.title,
         description: config.description,
         authMethod,
@@ -388,15 +455,15 @@ export function useIntegrationManage(
         const { storageId } = await fetchJson<{ storageId: string }>(
           uploadResponse,
         );
-        await updateIcon({
-          integrationId: integration._id,
+        await updateCredentials({
+          credentialId: toId<'integrationCredentials'>(integration._id),
           iconStorageId: toId<'_storage'>(storageId),
         });
       }
 
-      await updateIntegration(
+      await updateCredentials(
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Payload is dynamically built to match the mutation's expected shape
-        payload as Parameters<typeof updateIntegration>[0],
+        payload as Parameters<typeof updateCredentials>[0],
       );
 
       toast({
@@ -415,14 +482,7 @@ export function useIntegrationManage(
     } finally {
       setIsApplyingUpdate(false);
     }
-  }, [
-    parsedUpdate,
-    integration,
-    updateIntegration,
-    generateUploadUrl,
-    updateIcon,
-    t,
-  ]);
+  }, [parsedUpdate, integration, updateCredentials, generateUploadUrl, t]);
 
   const buildCredentialPayload = useCallback(() => {
     const authMethod = selectedAuthMethod;
@@ -454,7 +514,9 @@ export function useIntegrationManage(
     }
 
     const connectionUpdates: Record<string, string> = {};
-    const authHandledKeys = new Set(AUTH_HANDLED_KEYS[authMethod] ?? []);
+    const authHandledKeys = new Set(
+      authMethod ? (AUTH_HANDLED_KEYS[authMethod] ?? []) : [],
+    );
     for (const binding of secretBindings) {
       if (
         !SENSITIVE_KEYS.has(binding) &&
@@ -477,7 +539,8 @@ export function useIntegrationManage(
   const buildSqlConnectionPayload = useCallback(() => {
     const existing = integration.sqlConnectionConfig;
     return {
-      engine: existing?.engine ?? 'mssql',
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- engine value comes from existing config with known runtime shape
+      engine: (existing?.engine ?? 'mssql') as 'mssql' | 'postgres' | 'mysql',
       server: sqlConfig['server']?.trim() || existing?.server,
       port: parsePort(sqlConfig['port']) ?? existing?.port,
       database: sqlConfig['database']?.trim() || existing?.database,
@@ -489,7 +552,7 @@ export function useIntegrationManage(
 
   const buildUpdateArgs = useCallback(() => {
     const updateArgs: Record<string, unknown> = {
-      integrationId: integration._id,
+      credentialId: toId<'integrationCredentials'>(integration._id),
       isActive: true,
       status: 'active',
       ...buildCredentialPayload(),
@@ -518,7 +581,7 @@ export function useIntegrationManage(
 
     try {
       const testArgs: Parameters<typeof testConnection>[0] = {
-        integrationId: integration._id,
+        credentialId: toId<'integrationCredentials'>(integration._id),
       };
 
       if (hasChanges) {
@@ -533,9 +596,9 @@ export function useIntegrationManage(
 
       if (result.success && hasChanges) {
         const updateArgs = buildUpdateArgs();
-        await updateIntegration(
+        await updateCredentials(
           // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Payload is dynamically built to match the mutation's expected shape
-          updateArgs as Parameters<typeof updateIntegration>[0],
+          updateArgs as Parameters<typeof updateCredentials>[0],
         );
         setOptimisticActive(true);
         setCredentials({});
@@ -569,15 +632,15 @@ export function useIntegrationManage(
     buildCredentialPayload,
     buildSqlConnectionPayload,
     buildUpdateArgs,
-    updateIntegration,
+    updateCredentials,
     testConnection,
     t,
   ]);
 
   const handleDisconnect = useCallback(async () => {
     try {
-      await updateIntegration({
-        integrationId: integration._id,
+      await updateCredentials({
+        credentialId: toId<'integrationCredentials'>(integration._id),
         isActive: false,
         status: 'inactive',
       });
@@ -603,7 +666,7 @@ export function useIntegrationManage(
         variant: 'destructive',
       });
     }
-  }, [updateIntegration, integration, t]);
+  }, [updateCredentials, integration, t]);
 
   const handleSaveOAuth2Only = useCallback(async () => {
     if (
@@ -623,7 +686,7 @@ export function useIntegrationManage(
         .filter(Boolean);
 
       await saveOAuth2Credentials({
-        integrationId: integration._id,
+        credentialId: toId<'integrationCredentials'>(integration._id),
         authorizationUrl: oauth2Fields.authorizationUrl.trim(),
         tokenUrl: oauth2Fields.tokenUrl.trim(),
         scopes: parsedScopes.length > 0 ? parsedScopes : undefined,
@@ -654,8 +717,8 @@ export function useIntegrationManage(
     setIsSavingOAuth2(true);
     try {
       const authUrl = await generateOAuth2Url({
-        integrationId: integration._id,
-        organizationId: integration.organizationId,
+        credentialId: toId<'integrationCredentials'>(integration._id),
+        organizationId: integration.organizationId ?? '',
       });
       window.location.href = authUrl;
     } catch (error) {
@@ -677,9 +740,10 @@ export function useIntegrationManage(
   const hasOAuth2Credentials =
     !!integration.oauth2Config?.clientId || oauth2SavedOptimistic;
 
-  const handleDelete = useCallback(async () => {
+  const handleUninstall = useCallback(async () => {
     try {
-      await deleteIntegration({ integrationId: integration._id });
+      await uninstallFn({ orgSlug: 'default', slug: integration.name ?? '' });
+      window.dispatchEvent(new Event('integration-updated'));
       toast({
         title: t('integrations.manageDialog.deleted'),
         description: t('integrations.manageDialog.deletedDescription', {
@@ -696,7 +760,7 @@ export function useIntegrationManage(
     } finally {
       setConfirmDelete(false);
     }
-  }, [deleteIntegration, integration, onOpenChange, t]);
+  }, [uninstallFn, integration, onOpenChange, t]);
 
   const operationCount =
     (integration.connector?.operations?.length ?? 0) +
@@ -757,7 +821,7 @@ export function useIntegrationManage(
 
     confirmDelete,
     setConfirmDelete,
-    handleDelete,
+    handleUninstall,
 
     maskValue,
   };

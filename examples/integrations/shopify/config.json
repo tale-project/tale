@@ -1,6 +1,6 @@
 {
-  "name": "shopify",
   "title": "Shopify",
+  "installed": false,
   "description": "Shopify Admin API integration for products, customers, and orders",
   "version": 1,
   "authMethod": "api_key",
