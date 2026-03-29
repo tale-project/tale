@@ -8,23 +8,20 @@ import {
   EntityRowActions,
   useEntityRowDialogs,
 } from '@/app/components/ui/entity/entity-row-actions';
-import { useAuth } from '@/app/hooks/use-convex-auth';
 import { toast } from '@/app/hooks/use-toast';
-import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import {
-  useDeleteAutomation,
-  useDuplicateAutomation,
-  useRepublishAutomation,
-  useUnpublishAutomation,
-  useUpdateAutomation,
-} from '../hooks/mutations';
+  useDeleteWorkflowFile,
+  useDuplicateWorkflowFile,
+  useRenameWorkflow,
+  useToggleWorkflowEnabled,
+} from '../hooks/file-mutations';
 import { DeleteAutomationDialog } from './automation-delete-dialog';
 import { AutomationRenameDialog } from './automation-rename-dialog';
 
 interface AutomationRowActionsProps {
-  automation: Doc<'wfDefinitions'>;
+  automation: { _id: string; name: string; status: string };
 }
 
 export function AutomationRowActions({
@@ -33,79 +30,66 @@ export function AutomationRowActions({
   const { t: tCommon } = useT('common');
   const { t: tAutomations } = useT('automations');
   const { t: tToast } = useT('toast');
-  const { user } = useAuth();
   const dialogs = useEntityRowDialogs(['delete', 'rename', 'unpublish']);
 
-  const { mutate: duplicateAutomation } = useDuplicateAutomation();
+  const { mutate: duplicateAutomation } = useDuplicateWorkflowFile();
   const { mutate: deleteAutomation, isPending: isDeleting } =
-    useDeleteAutomation();
-  const { mutate: republishAutomation } = useRepublishAutomation();
-  const { mutate: unpublishAutomation, isPending: isUnpublishing } =
-    useUnpublishAutomation();
-  const { mutateAsync: updateAutomation } = useUpdateAutomation();
+    useDeleteWorkflowFile();
+  const toggleEnabled = useToggleWorkflowEnabled();
+  const { mutateAsync: renameWorkflow } = useRenameWorkflow();
 
-  const handlePublish = useCallback(() => {
-    if (!user) return;
-    republishAutomation(
-      {
-        wfDefinitionId: automation._id,
-        publishedBy: user.email ?? user.userId,
-      },
-      {
-        onSuccess: () => {
-          toast({
-            title: tToast('success.automationPublished'),
-            variant: 'success',
-          });
-        },
-        onError: (error) => {
-          console.error('Failed to publish automation:', error);
-          toast({
-            title: tToast('error.automationPublishFailed'),
-            variant: 'destructive',
-          });
-        },
-      },
-    );
-  }, [republishAutomation, automation._id, user, tToast]);
+  const workflowArgs = useMemo(
+    () => ({ orgSlug: 'default', workflowSlug: automation._id }),
+    [automation._id],
+  );
+
+  const handlePublish = useCallback(async () => {
+    try {
+      await toggleEnabled.mutate(workflowArgs);
+      toast({
+        title: tToast('success.automationPublished'),
+        variant: 'success',
+      });
+    } catch (error: unknown) {
+      console.error('Failed to publish automation:', error);
+      toast({
+        title: tToast('error.automationPublishFailed'),
+        variant: 'destructive',
+      });
+    }
+  }, [toggleEnabled, workflowArgs, tToast]);
 
   const handleDuplicate = useCallback(() => {
-    duplicateAutomation(
-      {
-        wfDefinitionId: automation._id,
+    duplicateAutomation(workflowArgs, {
+      onSuccess: () => {
+        toast({
+          title: tToast('success.automationDuplicated'),
+          variant: 'success',
+        });
       },
-      {
-        onSuccess: () => {
-          toast({
-            title: tToast('success.automationDuplicated'),
-            variant: 'success',
-          });
-        },
-        onError: (error) => {
-          console.error('Failed to duplicate automation:', error);
-          toast({
-            title: tToast('error.automationDuplicateFailed'),
-            variant: 'destructive',
-          });
-        },
+      onError: (error: Error) => {
+        console.error('Failed to duplicate automation:', error);
+        toast({
+          title: tToast('error.automationDuplicateFailed'),
+          variant: 'destructive',
+        });
       },
-    );
-  }, [duplicateAutomation, automation._id, tToast]);
+    });
+  }, [duplicateAutomation, workflowArgs, tToast]);
 
   const handleRename = useCallback(
     async (name: string) => {
-      if (!user) return;
       try {
-        await updateAutomation({
-          wfDefinitionId: automation._id,
-          updates: { name },
-          updatedBy: user.userId,
+        await renameWorkflow({
+          orgSlug: 'default',
+          oldSlug: automation._id,
+          newSlug: name,
         });
         toast({
           title: tToast('success.automationRenamed'),
           variant: 'success',
         });
-      } catch (error) {
+      } catch (error: unknown) {
         console.error('Failed to rename automation:', error);
         toast({
           title: tToast('error.automationRenameFailed'),
@@ -114,54 +98,40 @@ export function AutomationRowActions({
         throw error;
       }
     },
-    [updateAutomation, automation._id, user, tToast],
+    [renameWorkflow, automation._id, tToast],
   );
 
-  const handleUnpublishConfirm = useCallback(() => {
-    if (!user) return;
-    unpublishAutomation(
-      {
-        wfDefinitionId: automation._id,
-        updatedBy: user.userId,
-      },
-      {
-        onSuccess: () => {
-          dialogs.setOpen.unpublish(false);
-          toast({
-            title: tToast('success.automationDeactivated'),
-            variant: 'success',
-          });
-        },
-        onError: (error) => {
-          console.error('Failed to unpublish automation:', error);
-          toast({
-            title: tToast('error.automationDeactivateFailed'),
-            variant: 'destructive',
-          });
-        },
-      },
-    );
-  }, [unpublishAutomation, automation._id, user, dialogs.setOpen, tToast]);
+  const handleUnpublishConfirm = useCallback(async () => {
+    try {
+      await toggleEnabled.mutate(workflowArgs);
+      dialogs.setOpen.unpublish(false);
+      toast({
+        title: tToast('success.automationDeactivated'),
+        variant: 'success',
+      });
+    } catch (error: unknown) {
+      console.error('Failed to unpublish automation:', error);
+      toast({
+        title: tToast('error.automationDeactivateFailed'),
+        variant: 'destructive',
+      });
+    }
+  }, [toggleEnabled, workflowArgs, dialogs.setOpen, tToast]);
 
   const handleDeleteConfirm = useCallback(() => {
-    deleteAutomation(
-      {
-        wfDefinitionId: automation._id,
+    deleteAutomation(workflowArgs, {
+      onSuccess: () => {
+        dialogs.setOpen.delete(false);
       },
-      {
-        onSuccess: () => {
-          dialogs.setOpen.delete(false);
-        },
-        onError: (error) => {
-          console.error('Failed to delete automation:', error);
-          toast({
-            title: tToast('error.automationDeleteFailed'),
-            variant: 'destructive',
-          });
-        },
+      onError: (error: Error) => {
+        console.error('Failed to delete automation:', error);
+        toast({
+          title: tToast('error.automationDeleteFailed'),
+          variant: 'destructive',
+        });
       },
-    );
-  }, [deleteAutomation, automation._id, dialogs.setOpen, tToast]);
+    });
+  }, [deleteAutomation, workflowArgs, dialogs.setOpen, tToast]);
 
   const actions = useMemo(
     () => [
@@ -222,7 +192,7 @@ export function AutomationRowActions({
         })}
         confirmText={tCommon('actions.deactivate')}
         loadingText={tCommon('actions.deactivating')}
-        isLoading={isUnpublishing}
+        isLoading={toggleEnabled.isPending}
         onConfirm={handleUnpublishConfirm}
       />
 

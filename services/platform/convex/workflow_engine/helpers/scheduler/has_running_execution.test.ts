@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
 
-import type { Id } from '../../../_generated/dataModel';
 import type { QueryCtx } from '../../../_generated/server';
 
 import {
@@ -43,9 +42,9 @@ function createMockCtx(executions: MockExecution[]) {
   return { db } as unknown as QueryCtx;
 }
 
-const defId1 = 'def_1' as Id<'wfDefinitions'>;
-const defId2 = 'def_2' as Id<'wfDefinitions'>;
-const defId3 = 'def_3' as Id<'wfDefinitions'>;
+const defId1 = 'def_1';
+const defId2 = 'def_2';
+const defId3 = 'def_3';
 
 describe('hasRunningExecution', () => {
   it('returns true when a running execution exists', async () => {

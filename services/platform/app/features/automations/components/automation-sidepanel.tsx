@@ -17,12 +17,10 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { Heading } from '@/app/components/ui/typography/heading';
 import { Text } from '@/app/components/ui/typography/text';
 import { toast } from '@/app/hooks/use-toast';
-import { Doc, Id } from '@/convex/_generated/dataModel';
+import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import { useUpdateStep } from '../hooks/mutations';
-import { useStepValidation } from '../hooks/queries';
 import { useResizable } from '../hooks/use-resizable';
 import { getStepIcon } from '../utils/step-icons';
 import { AutomationTester } from './automation-tester';
@@ -33,7 +31,7 @@ interface AutomationSidePanelProps {
   isOpen: boolean;
   onClose: () => void;
   showTestPanel?: boolean;
-  automationId?: Id<'wfDefinitions'>;
+  automationId?: string;
   organizationId?: string;
   stepOptions?: Array<{
     stepSlug: string;
@@ -217,7 +215,8 @@ export function AutomationSidePanel({
     config: '',
     nextSteps: {},
   });
-  const { mutate: updateStep, isPending: isSaving } = useUpdateStep();
+  // TODO: Replace with file-based workflow save
+  const isSaving = false;
 
   const originalNextStepsJson = useMemo(
     () => (step?.nextSteps ? JSON.stringify(step.nextSteps) : '{}'),
@@ -251,20 +250,10 @@ export function AutomationSidePanel({
     }
   }, [editState.config]);
 
-  const validationConfig = useMemo(() => {
-    if (!step || !parsedEditedConfig) return null;
-    return {
-      stepSlug: step.stepSlug,
-      name: step.name,
-      stepType: step.stepType,
-      config: parsedEditedConfig,
-    };
-  }, [step, parsedEditedConfig]);
-
-  const { isValid, errors, warnings } = useStepValidation(
-    validationConfig,
-    automationId,
-  );
+  // TODO: Replace with file-based step validation
+  const isValid = parsedEditedConfig !== null;
+  const errors: string[] = [];
+  const warnings: string[] = [];
 
   const handleConfigChange = useCallback((value: string) => {
     setEditState((prev) => ({ ...prev, config: value }));
@@ -274,45 +263,16 @@ export function AutomationSidePanel({
     setEditState((prev) => ({ ...prev, nextSteps: value }));
   }, []);
 
+  // TODO: Replace with file-based workflow save (modify workflow JSON and save via useSaveWorkflow)
   const handleSave = useCallback(() => {
     if (!step || !parsedEditedConfig || !isValid || !isDirty) return;
 
-    const updates: Record<string, unknown> = { config: parsedEditedConfig };
-    if (isNextStepsDirty) {
-      updates.nextSteps = editState.nextSteps;
-    }
-    updateStep(
-      {
-        stepRecordId: step._id,
-        updates,
-        editMode: 'json',
-      },
-      {
-        onSuccess: () => {
-          toast({
-            title: t('sidePanel.stepSaved'),
-            variant: 'default',
-          });
-        },
-        onError: (error) => {
-          console.error('Failed to save step:', error);
-          toast({
-            title: t('sidePanel.stepSaveFailed'),
-            variant: 'destructive',
-          });
-        },
-      },
-    );
-  }, [
-    step,
-    parsedEditedConfig,
-    isValid,
-    isDirty,
-    isNextStepsDirty,
-    editState.nextSteps,
-    updateStep,
-    t,
-  ]);
+    toast({
+      title: t('sidePanel.stepSaveFailed'),
+      description: 'Step saving is not yet wired to file-based workflows.',
+      variant: 'destructive',
+    });
+  }, [step, parsedEditedConfig, isValid, isDirty, t]);
 
   if (!isOpen) return null;
 
@@ -401,7 +361,7 @@ export function AutomationSidePanel({
       {showTestPanel && automationId && organizationId ? (
         <AutomationTester
           organizationId={organizationId}
-          automationId={automationId}
+          workflowSlug={automationId}
         />
       ) : step ? (
         <StepEditorContent

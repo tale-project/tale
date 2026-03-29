@@ -33,6 +33,7 @@ import { WorkflowUpdateMetadata } from '@/convex/approvals/types';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-guards';
+import { slugToUrlParam } from '@/lib/utils/workflow-slug';
 
 interface WorkflowUpdateApprovalCardProps {
   approvalId: Id<'approvals'>;
@@ -96,7 +97,7 @@ function WorkflowUpdateApprovalCardComponent({
       return JSON.stringify(
         {
           steps: metadata.steps?.map((s) => ({
-            stepRecordId: s.stepRecordId,
+            stepSlug: s.stepSlug,
             stepName: s.stepName,
             updates: s.stepUpdates,
           })),
@@ -107,7 +108,7 @@ function WorkflowUpdateApprovalCardComponent({
     }
     return JSON.stringify(
       {
-        stepRecordId: metadata.stepRecordId,
+        stepSlug: metadata.stepSlug,
         stepName: metadata.stepName,
         updates: metadata.stepUpdates,
       },
@@ -139,6 +140,7 @@ function WorkflowUpdateApprovalCardComponent({
       await executeApprovedUpdate({
         approvalId,
       });
+      window.dispatchEvent(new CustomEvent('workflow-updated'));
     } catch (err) {
       setError(err instanceof Error ? err.message : t('errorApplyFailed'));
       console.error('Failed to approve workflow update:', err);
@@ -199,11 +201,11 @@ function WorkflowUpdateApprovalCardComponent({
       <div className="text-muted-foreground mb-3 space-y-0.5 text-xs">
         <div className="flex gap-1.5">
           <span className="shrink-0">{t('versionLabel')}</span>
-          <span className="font-mono">{metadata.workflowVersionNumber}</span>
+          <span className="font-mono">{metadata.workflowVersion}</span>
         </div>
         <div className="flex gap-1.5">
-          <span className="shrink-0">{t('idLabel')}</span>
-          <span className="font-mono">{metadata.workflowId}</span>
+          <span className="shrink-0">{t('slugLabel')}</span>
+          <span className="font-mono">{metadata.workflowSlug}</span>
         </div>
       </div>
 
@@ -290,7 +292,7 @@ function WorkflowUpdateApprovalCardComponent({
           metadata.steps && (
             <div className="bg-muted/50 space-y-1.5 rounded-md p-2">
               {metadata.steps.map((step) => (
-                <div key={step.stepRecordId} className="space-y-0.5">
+                <div key={step.stepSlug} className="space-y-0.5">
                   <Text as="div" variant="label" className="text-[11px]">
                     {step.stepName}
                   </Text>
@@ -334,7 +336,10 @@ function WorkflowUpdateApprovalCardComponent({
             </HStack>
             <Link
               to="/dashboard/$id/automations/$amId"
-              params={{ id: organizationId, amId: metadata.workflowId }}
+              params={{
+                id: organizationId,
+                amId: slugToUrlParam(metadata.workflowSlug),
+              }}
               className="text-primary flex items-center gap-1 text-xs hover:underline"
             >
               {tCommon('viewWorkflow')}

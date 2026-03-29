@@ -7,9 +7,13 @@ vi.mock('../../../_generated/api', () => ({
         getApprovalById: 'mock-getApprovalById',
       },
     },
-    wf_executions: {
-      internal_mutations: {
-        startWorkflow: 'mock-startWorkflow',
+    workflow_engine: {
+      helpers: {
+        engine: {
+          start_workflow_from_file: {
+            startWorkflowFromFile: 'mock-startWorkflowFromFile',
+          },
+        },
       },
     },
     agent_tools: {
@@ -39,7 +43,7 @@ function createMockApproval(overrides?: Record<string, unknown>) {
     threadId: 'thread-1',
     executedAt: undefined,
     metadata: {
-      workflowId: 'wf-def-1',
+      workflowSlug: 'test-workflow',
       workflowName: 'Test Workflow',
       parameters: { key: 'value' },
     },
@@ -50,9 +54,12 @@ function createMockApproval(overrides?: Record<string, unknown>) {
 function createMockCtx(approval: ReturnType<typeof createMockApproval> | null) {
   return {
     runQuery: vi.fn().mockResolvedValue(approval),
+    runAction: vi.fn().mockImplementation((ref: string) => {
+      if (ref === 'mock-startWorkflowFromFile') return 'exec-1';
+      return undefined;
+    }),
     runMutation: vi.fn().mockImplementation((ref: string) => {
       if (ref === 'mock-claimWorkflowApprovalForExecution') return true;
-      if (ref === 'mock-startWorkflow') return 'exec-1';
       return undefined;
     }),
   };
@@ -84,10 +91,12 @@ describe('executeApprovedWorkflowRun', () => {
 
     expect(result.success).toBe(true);
     expect(result.executionId).toBe('exec-1');
-    expect(ctx.runMutation).toHaveBeenCalledWith(
-      'mock-startWorkflow',
+    expect(ctx.runAction).toHaveBeenCalledWith(
+      'mock-startWorkflowFromFile',
       expect.objectContaining({
         organizationId: 'org-1',
+        orgSlug: 'default',
+        workflowSlug: 'test-workflow',
         input: { key: 'value' },
         triggeredBy: 'agent_tool:run_workflow',
       }),
@@ -147,7 +156,7 @@ describe('executeApprovedWorkflowRun', () => {
     ).rejects.toThrow('already been executed');
   });
 
-  it('throws when metadata is missing workflowId', async () => {
+  it('throws when metadata is missing workflowSlug', async () => {
     const handler = await getHandler();
     const approval = createMockApproval({
       metadata: { workflowName: 'Test' },
@@ -156,16 +165,15 @@ describe('executeApprovedWorkflowRun', () => {
 
     await expect(
       handler(ctx, { approvalId: 'approval-1', approvedBy: 'user-1' }),
-    ).rejects.toThrow('missing workflow ID');
+    ).rejects.toThrow('missing workflow slug');
   });
 
   it('updates approval with error when workflow start fails', async () => {
     const handler = await getHandler();
     const approval = createMockApproval();
     const ctx = createMockCtx(approval);
-    ctx.runMutation = vi.fn().mockImplementation((ref: string) => {
-      if (ref === 'mock-claimWorkflowApprovalForExecution') return true;
-      if (ref === 'mock-startWorkflow') throw new Error('Start failed');
+    ctx.runAction = vi.fn().mockImplementation((ref: string) => {
+      if (ref === 'mock-startWorkflowFromFile') throw new Error('Start failed');
       return undefined;
     });
 
@@ -216,14 +224,15 @@ describe('executeApprovedWorkflowRun', () => {
     const approval = createMockApproval();
     const ctx = createMockCtx(approval);
 
-    ctx.runMutation = vi.fn().mockImplementation((ref: string) => {
-      if (ref === 'mock-claimWorkflowApprovalForExecution') return true;
-      if (ref === 'mock-startWorkflow') return 'exec-1';
-      if (ref === 'mock-saveSystemMessage') {
-        throw new Error('Message save failed');
-      }
-      return undefined;
-    });
+    const originalRunMutation = ctx.runMutation;
+    ctx.runMutation = vi
+      .fn()
+      .mockImplementation((ref: string, ...args: unknown[]) => {
+        if (ref === 'mock-saveSystemMessage') {
+          throw new Error('Message save failed');
+        }
+        return originalRunMutation(ref, ...args);
+      });
 
     const result = await handler(ctx, {
       approvalId: 'approval-1',
@@ -237,7 +246,7 @@ describe('executeApprovedWorkflowRun', () => {
   it('uses fallback when workflowName is missing', async () => {
     const handler = await getHandler();
     const approval = createMockApproval({
-      metadata: { workflowId: 'wf-def-1', parameters: {} },
+      metadata: { workflowSlug: 'test-workflow', parameters: {} },
     });
     const ctx = createMockCtx(approval);
 
@@ -252,17 +261,28 @@ describe('executeApprovedWorkflowRun', () => {
   it('uses empty object when parameters are missing', async () => {
     const handler = await getHandler();
     const approval = createMockApproval({
-      metadata: { workflowId: 'wf-def-1', workflowName: 'Test' },
+      metadata: { workflowSlug: 'test-workflow', workflowName: 'Test' },
     });
     const ctx = createMockCtx(approval);
 
     await handler(ctx, { approvalId: 'approval-1', approvedBy: 'user-1' });
 
-    expect(ctx.runMutation).toHaveBeenCalledWith(
-      'mock-startWorkflow',
+    expect(ctx.runAction).toHaveBeenCalledWith(
+      'mock-startWorkflowFromFile',
       expect.objectContaining({
         input: {},
       }),
     );
+  });
+
+  it('throws when startWorkflowFromFile returns null', async () => {
+    const handler = await getHandler();
+    const approval = createMockApproval();
+    const ctx = createMockCtx(approval);
+    ctx.runAction = vi.fn().mockResolvedValue(null);
+
+    await expect(
+      handler(ctx, { approvalId: 'approval-1', approvedBy: 'user-1' }),
+    ).rejects.toThrow('disabled or the file could not be read');
   });
 });

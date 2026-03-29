@@ -1,28 +1,31 @@
 {
-  "workflowConfig": {
-    "name": "Shopify Products Sync",
-    "description": "Synchronize products from Shopify to local database with pagination",
-    "version": "3.0.0",
-    "workflowType": "predefined",
-    "config": {
-      "timeout": 300000,
-      "retryPolicy": { "maxRetries": 3, "backoffMs": 2000 },
-      "variables": {
-        "organizationId": "org_demo",
-        "pageSize": 10,
-        "maxPages": 20,
-        "currentPage": 0,
-        "nextPageInfo": null
-      }
+  "name": "Shopify Products Sync",
+  "description": "Synchronize products from Shopify to local database with pagination",
+  "version": "1.0.0",
+  "enabled": true,
+  "config": {
+    "timeout": 300000,
+    "retryPolicy": {
+      "maxRetries": 3,
+      "backoffMs": 2000
+    },
+    "variables": {
+      "organizationId": "org_demo",
+      "pageSize": 10,
+      "maxPages": 20,
+      "currentPage": 0,
+      "nextPageInfo": null
     }
   },
-  "stepsConfig": [
+  "steps": [
     {
       "stepSlug": "trigger_start",
       "name": "Start Products Sync",
       "stepType": "start",
       "config": {},
-      "nextSteps": { "success": "fetch_products" }
+      "nextSteps": {
+        "success": "fetch_products"
+      }
     },
     {
       "stepSlug": "fetch_products",

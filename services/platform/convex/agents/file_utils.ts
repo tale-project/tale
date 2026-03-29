@@ -7,10 +7,12 @@
  * No Convex dependencies — these can be used in any Node.js context.
  */
 
-import { createHash } from 'node:crypto';
 import path from 'node:path';
 
 import { agentJsonSchema } from '../../lib/shared/schemas/agents';
+import { serializeJson, sha256, validateOrgSlug } from '../lib/file_io';
+
+export { sha256 };
 
 const AGENT_NAME_REGEX = /^[a-z0-9][a-z0-9_-]*$/;
 const MAX_FILE_SIZE_BYTES = 256 * 1024; // 256 KB
@@ -45,7 +47,12 @@ export type AgentReadResult =
   | { ok: true; config: AgentJsonConfig; hash: string }
   | {
       ok: false;
-      error: 'not_found' | 'corrupted' | 'too_large' | 'symlink';
+      error:
+        | 'not_found'
+        | 'corrupted'
+        | 'too_large'
+        | 'symlink'
+        | 'inaccessible';
       message: string;
     };
 
@@ -57,18 +64,8 @@ export function agentNameFromFileName(fileName: string): string {
   return path.basename(fileName, '.json');
 }
 
-export function sha256(content: string): string {
-  return createHash('sha256').update(content, 'utf-8').digest('hex');
-}
-
 export function serializeAgentJson(config: AgentJsonConfig): string {
-  const cleaned = Object.fromEntries(
-    Object.entries(config).filter(
-      ([, v]) =>
-        v !== null && v !== undefined && !(Array.isArray(v) && v.length === 0),
-    ),
-  );
-  return JSON.stringify(cleaned, null, 2) + '\n';
+  return serializeJson(config);
 }
 
 export function parseAgentJson(content: string): AgentJsonConfig {
@@ -93,6 +90,9 @@ function getBaseDir(): string {
 }
 
 export function resolveAgentsDir(orgSlug: string): string {
+  if (!validateOrgSlug(orgSlug)) {
+    throw new Error(`Invalid org slug: ${orgSlug}`);
+  }
   const baseDir = getBaseDir();
   if (orgSlug === 'default') {
     return baseDir;

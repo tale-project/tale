@@ -1,26 +1,29 @@
 {
-  "workflowConfig": {
-    "name": "OneDrive Sync",
-    "description": "Find one active OneDrive sync configuration and sync the file/folder",
-    "version": "1.0.0",
-    "workflowType": "predefined",
-    "config": {
-      "timeout": 120000,
-      "retryPolicy": { "maxRetries": 3, "backoffMs": 2000 },
-      "variables": {
-        "organizationId": "org_demo",
-        "backoffHours": 1,
-        "workflowId": "onedrive_sync"
-      }
+  "name": "OneDrive Sync",
+  "description": "Find one active OneDrive sync configuration and sync the file/folder",
+  "version": "1.0.0",
+  "enabled": true,
+  "config": {
+    "timeout": 120000,
+    "retryPolicy": {
+      "maxRetries": 3,
+      "backoffMs": 2000
+    },
+    "variables": {
+      "organizationId": "org_demo",
+      "backoffHours": 1,
+      "workflowId": "onedrive_sync"
     }
   },
-  "stepsConfig": [
+  "steps": [
     {
       "stepSlug": "start",
       "name": "start",
       "stepType": "start",
       "config": {},
-      "nextSteps": { "success": "find_sync_config" }
+      "nextSteps": {
+        "success": "find_sync_config"
+      }
     },
     {
       "stepSlug": "find_sync_config",

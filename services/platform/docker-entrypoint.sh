@@ -422,6 +422,38 @@ if [ -d "$builtin_dir" ] && [ "$(ls -A "$builtin_dir" 2>/dev/null)" ]; then
   done
 fi
 
+# Seed default workflow template JSON files — skip workflows the user has modified or installed
+workflows_dir="${WORKFLOWS_DIR:-/app/data/workflows}"
+workflows_builtin_dir="/app/workflows-builtin"
+mkdir -p "$workflows_dir"
+if [ -d "$workflows_builtin_dir" ] && [ "$(ls -A "$workflows_builtin_dir" 2>/dev/null)" ]; then
+  find "$workflows_builtin_dir" -name '*.json' -type f | while read -r src; do
+    rel_path="${src#$workflows_builtin_dir/}"
+    dest="$workflows_dir/$rel_path"
+    dest_dir="$(dirname "$dest")"
+
+    # Derive the flat slug for history check (general/foo → general__foo)
+    slug="${rel_path%.json}"
+    flat_slug="$(echo "$slug" | sed 's|/|__|g')"
+    history_dir="$workflows_dir/.history/$flat_slug"
+
+    # Skip if user has history entries (manual edits)
+    if [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
+      echo "   ⏭ Skipping workflow $rel_path (user has modifications in .history)"
+      continue
+    fi
+
+    # Skip if the existing file has "installed": true (user explicitly installed it)
+    if [ -f "$dest" ] && grep -q '"installed"[[:space:]]*:[[:space:]]*true' "$dest" 2>/dev/null; then
+      echo "   ⏭ Skipping workflow $rel_path (user has installed it)"
+      continue
+    fi
+
+    mkdir -p "$dest_dir"
+    cp "$src" "$dest"
+  done
+fi
+
 # Clean up derived data that is safe to rebuild.
 # Search indexes and compiled modules are rebuilt automatically from the database.
 # User uploads (files/) are NEVER touched — they contain permanent user data.
@@ -539,6 +571,8 @@ deploy_convex_functions() {
     "TRUSTED_ROLE_HEADER"
     # Agents directory (filesystem path for agent JSON configs)
     "AGENTS_DIR"
+    # Workflows directory (filesystem path for workflow template JSON configs)
+    "WORKFLOWS_DIR"
     # Debug flag (enables all debug loggers when set to "true")
     "DEBUG_MODE"
   )

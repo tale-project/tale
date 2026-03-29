@@ -1,28 +1,31 @@
 {
-  "workflowConfig": {
-    "name": "Shopify Customers Sync",
-    "description": "Synchronize customers from Shopify to local database with pagination",
-    "version": "3.0.0",
-    "workflowType": "predefined",
-    "config": {
-      "timeout": 300000,
-      "retryPolicy": { "maxRetries": 3, "backoffMs": 2000 },
-      "variables": {
-        "organizationId": "org_demo",
-        "pageSize": 50,
-        "maxPages": 20,
-        "currentPage": 0,
-        "nextPageInfo": null
-      }
+  "name": "Shopify Customers Sync",
+  "description": "Synchronize customers from Shopify to local database with pagination",
+  "version": "1.0.0",
+  "enabled": true,
+  "config": {
+    "timeout": 300000,
+    "retryPolicy": {
+      "maxRetries": 3,
+      "backoffMs": 2000
+    },
+    "variables": {
+      "organizationId": "org_demo",
+      "pageSize": 50,
+      "maxPages": 20,
+      "currentPage": 0,
+      "nextPageInfo": null
     }
   },
-  "stepsConfig": [
+  "steps": [
     {
       "stepSlug": "trigger_start",
       "name": "Start Customers Sync",
       "stepType": "start",
       "config": {},
-      "nextSteps": { "success": "fetch_customers" }
+      "nextSteps": {
+        "success": "fetch_customers"
+      }
     },
     {
       "stepSlug": "fetch_customers",

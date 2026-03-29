@@ -12,8 +12,10 @@ import { shouldTriggerWorkflow } from './should_trigger_workflow';
 
 const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
 
+const DEFAULT_ORG_SLUG = 'default';
+
 interface ScheduledWorkflow {
-  wfDefinitionId: Id<'wfDefinitions'>;
+  workflowSlug: string;
   organizationId: string;
   name: string;
   schedule: string;
@@ -32,24 +34,24 @@ export async function scanAndTrigger(ctx: ActionCtx): Promise<void> {
 
     debugLog(`Found ${scheduled.length} scheduled workflows`);
 
-    const wfDefinitionIds = scheduled.map(
-      (wf: ScheduledWorkflow) => wf.wfDefinitionId,
+    const workflowSlugs = scheduled.map(
+      (wf: ScheduledWorkflow) => wf.workflowSlug,
     );
     const lastExecutionTimesObj = await ctx.runQuery(
       internal.workflow_engine.internal_queries.getLastExecutionTimes,
-      { wfDefinitionIds },
+      { wfDefinitionIds: workflowSlugs },
     );
 
     const runningExecutionsObj = (await ctx.runQuery(
       internal.workflow_engine.internal_queries.getRunningExecutions,
-      { wfDefinitionIds },
+      { wfDefinitionIds: workflowSlugs },
     )) as Record<string, boolean>;
 
     let triggeredCount = 0;
     let skippedRunning = 0;
 
     for (const {
-      wfDefinitionId,
+      workflowSlug,
       organizationId,
       name,
       schedule,
@@ -57,15 +59,15 @@ export async function scanAndTrigger(ctx: ActionCtx): Promise<void> {
       scheduleId,
     } of scheduled) {
       try {
-        if (runningExecutionsObj[wfDefinitionId]) {
+        if (runningExecutionsObj[workflowSlug]) {
           debugLog(
-            `Skipping workflow (already running): ${name} (${wfDefinitionId})`,
+            `Skipping workflow (already running): ${name} (${workflowSlug})`,
           );
           skippedRunning++;
           continue;
         }
 
-        const lastExecutionMs = lastExecutionTimesObj[wfDefinitionId];
+        const lastExecutionMs = lastExecutionTimesObj[workflowSlug];
 
         const shouldTrigger = await shouldTriggerWorkflow(
           schedule,
@@ -74,15 +76,15 @@ export async function scanAndTrigger(ctx: ActionCtx): Promise<void> {
         );
 
         if (shouldTrigger) {
-          debugLog(
-            `Triggering scheduled workflow: ${name} (${wfDefinitionId})`,
-          );
+          debugLog(`Triggering scheduled workflow: ${name} (${workflowSlug})`);
 
-          await ctx.runMutation(
-            internal.wf_executions.internal_mutations.startWorkflow,
+          await ctx.runAction(
+            internal.workflow_engine.helpers.engine.start_workflow_from_file
+              .startWorkflowFromFile,
             {
               organizationId,
-              wfDefinitionId,
+              orgSlug: DEFAULT_ORG_SLUG,
+              workflowSlug,
               input: {},
               triggeredBy: 'schedule',
               triggerData: {
@@ -102,7 +104,7 @@ export async function scanAndTrigger(ctx: ActionCtx): Promise<void> {
           triggeredCount++;
         }
       } catch (error) {
-        console.error(`Failed to trigger workflow ${wfDefinitionId}:`, error);
+        console.error(`Failed to trigger workflow ${workflowSlug}:`, error);
       }
     }
 

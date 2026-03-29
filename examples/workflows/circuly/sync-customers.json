@@ -1,160 +1,199 @@
 {
-  "workflowConfig": {
-    "name": "Circuly Customers Sync",
-    "description": "Synchronize customers from Circuly to local database with pagination",
-    "version": "2.0.0",
-    "workflowType": "predefined",
-    "config": {
-      "timeout": 300000,
-      "retryPolicy": { "maxRetries": 3, "backoffMs": 2000 },
-      "variables": {
-        "organizationId": "org_demo",
-        "pageSize": 50,
-        "maxPages": 20,
-        "currentPage": 1
-      }
+  "name": "Circuly Customers Sync",
+  "description": "Synchronize customers from Circuly to local database with pagination",
+  "version": "1.0.0",
+  "enabled": true,
+  "config": {
+    "timeout": 300000,
+    "retryPolicy": {
+      "maxRetries": 3,
+      "backoffMs": 2000
+    },
+    "variables": {
+      "currentPage": 1,
+      "maxPages": 20,
+      "organizationId": "org_demo",
+      "pageSize": 50
     }
   },
-  "stepsConfig": [
+  "steps": [
     {
       "stepSlug": "start",
       "name": "start",
       "stepType": "start",
+      "order": 0,
       "config": {},
-      "nextSteps": { "success": "fetch_customers" }
+      "nextSteps": {
+        "success": "fetch_customers"
+      }
     },
     {
       "stepSlug": "fetch_customers",
       "name": "Fetch Customers from Circuly",
       "stepType": "action",
+      "order": 1,
       "config": {
-        "type": "integration",
         "parameters": {
           "name": "circuly",
           "operation": "list_customers",
           "params": {
-            "page": "{{currentPage}}",
-            "per_page": "{{pageSize}}",
-            "sort": "created_at",
-            "desc": false
+            "desc": false,
+            "page": "{{config.currentPage}}",
+            "per_page": "{{config.pageSize}}",
+            "sort": "created_at"
           }
-        }
+        },
+        "type": "integration"
       },
-      "nextSteps": { "success": "loop_customers" }
+      "nextSteps": {
+        "success": "loop_customers"
+      }
     },
     {
       "stepSlug": "loop_customers",
       "name": "Loop Through Customers",
       "stepType": "loop",
+      "order": 2,
       "config": {
-        "items": "{{steps.fetch_customers.output.data.result.data}}",
-        "itemVariable": "customer"
+        "itemVariable": "customer",
+        "items": "{{steps.fetch_customers.output.data.result.data}}"
       },
-      "nextSteps": { "loop": "query_existing_customer", "done": "check_has_next_page" }
+      "nextSteps": {
+        "done": "check_has_next_page",
+        "loop": "query_existing_customer"
+      }
     },
     {
       "stepSlug": "query_existing_customer",
       "name": "Query Existing Customer",
       "stepType": "action",
+      "order": 3,
       "config": {
-        "type": "customer",
         "parameters": {
-          "operation": "query",
           "externalId": "{{loop.item.id}}",
-          "paginationOpts": { "numItems": 1, "cursor": null }
-        }
+          "operation": "query",
+          "paginationOpts": {
+            "cursor": null,
+            "numItems": 1
+          }
+        },
+        "type": "customer"
       },
-      "nextSteps": { "success": "check_customer_exists" }
+      "nextSteps": {
+        "success": "check_customer_exists"
+      }
     },
     {
       "stepSlug": "check_customer_exists",
       "name": "Check Customer Exists",
       "stepType": "condition",
+      "order": 4,
       "config": {
-        "expression": "steps.query_existing_customer.output.data.page|length > 0",
-        "description": "Check if customer already exists in database"
+        "description": "Check if customer already exists in database",
+        "expression": "steps.query_existing_customer.output.data.items|length > 0"
       },
-      "nextSteps": { "true": "update_existing_customer", "false": "insert_new_customer" }
+      "nextSteps": {
+        "false": "insert_new_customer",
+        "true": "update_existing_customer"
+      }
     },
     {
       "stepSlug": "update_existing_customer",
       "name": "Update Existing Customer",
       "stepType": "action",
+      "order": 5,
       "config": {
-        "type": "customer",
         "parameters": {
+          "customerId": "{{steps.query_existing_customer.output.data.items[0]._id}}",
           "operation": "update",
-          "customerId": "{{steps.query_existing_customer.output.data.page[0]._id}}",
           "updates": {
-            "name": "{{loop.item.first_name}} {{loop.item.last_name}}",
-            "email": "{{loop.item.email}}",
             "address": {
-              "street": "{{loop.item.address.shipping.street}}",
               "city": "{{loop.item.address.shipping.city}}",
               "country": "{{loop.item.address.shipping.country}}",
-              "postalCode": "{{loop.item.address.shipping.postal_code}}"
+              "postalCode": "{{loop.item.address.shipping.postal_code}}",
+              "street": "{{loop.item.address.shipping.street}}"
             },
-            "status": "active",
-            "source": "circuly",
+            "email": "{{loop.item.email}}",
             "locale": "{{loop.item.default_locale}}",
             "metadata": {
               "circuly": "{{loop.item}}",
               "syncedAt": "{{now}}"
-            }
+            },
+            "name": "{{loop.item.first_name}} {{loop.item.last_name}}",
+            "source": "circuly",
+            "status": "active"
           }
-        }
+        },
+        "type": "customer"
       },
-      "nextSteps": { "success": "loop_customers" }
+      "nextSteps": {
+        "success": "loop_customers"
+      }
     },
     {
       "stepSlug": "insert_new_customer",
       "name": "Insert New Customer",
       "stepType": "action",
+      "order": 6,
       "config": {
-        "type": "customer",
         "parameters": {
-          "operation": "create",
-          "name": "{{loop.item.first_name}} {{loop.item.last_name}}",
-          "email": "{{loop.item.email}}",
           "address": {
-            "street": "{{loop.item.address.shipping.street}}",
             "city": "{{loop.item.address.shipping.city}}",
             "country": "{{loop.item.address.shipping.country}}",
-            "postalCode": "{{loop.item.address.shipping.postal_code}}"
+            "postalCode": "{{loop.item.address.shipping.postal_code}}",
+            "street": "{{loop.item.address.shipping.street}}"
           },
+          "email": "{{loop.item.email}}",
           "externalId": "{{loop.item.id}}",
-          "status": "active",
-          "source": "circuly",
           "locale": "{{loop.item.default_locale}}",
           "metadata": {
             "circuly": "{{loop.item}}",
             "syncedAt": "{{now}}"
-          }
-        }
+          },
+          "name": "{{loop.item.first_name}} {{loop.item.last_name}}",
+          "operation": "create",
+          "source": "circuly",
+          "status": "active"
+        },
+        "type": "customer"
       },
-      "nextSteps": { "success": "loop_customers" }
+      "nextSteps": {
+        "success": "loop_customers"
+      }
     },
     {
       "stepSlug": "check_has_next_page",
       "name": "Check Has Next Page",
       "stepType": "condition",
+      "order": 7,
       "config": {
-        "expression": "steps.fetch_customers.output.data.result.pagination.hasNextPage == true && currentPage < maxPages",
-        "description": "Check if Circuly has more pages and we have not exceeded max page limit"
+        "description": "Check if Circuly has more pages and we have not exceeded max page limit",
+        "expression": "steps.fetch_customers.output.data.result.pagination.hasNextPage == true && config.currentPage < config.maxPages"
       },
-      "nextSteps": { "true": "prepare_next_page", "false": "noop" }
+      "nextSteps": {
+        "false": "noop",
+        "true": "prepare_next_page"
+      }
     },
     {
       "stepSlug": "prepare_next_page",
       "name": "Prepare Next Page",
       "stepType": "action",
+      "order": 8,
       "config": {
-        "type": "set_variables",
         "parameters": {
-          "variables": [{ "name": "currentPage", "value": "{{currentPage + 1}}" }]
-        }
+          "variables": [
+            {
+              "name": "currentPage",
+              "value": "{{config.currentPage + 1}}"
+            }
+          ]
+        },
+        "type": "set_variables"
       },
-      "nextSteps": { "success": "fetch_customers" }
+      "nextSteps": {
+        "success": "fetch_customers"
+      }
     }
   ]
 }

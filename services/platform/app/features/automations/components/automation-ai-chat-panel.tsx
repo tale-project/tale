@@ -7,7 +7,6 @@ import { PanelHeader } from '@/app/components/layout/panel-header';
 import { HStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Heading } from '@/app/components/ui/typography/heading';
-import { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -15,7 +14,8 @@ import { useResizable } from '../hooks/use-resizable';
 import { AutomationAssistant } from './automation-assistant';
 
 interface AutomationAIChatPanelProps {
-  automationId: Id<'wfDefinitions'>;
+  workflowSlug: string;
+  workflowName?: string;
   organizationId: string;
   onClose: () => void;
   panelWidth?: number;
@@ -23,7 +23,8 @@ interface AutomationAIChatPanelProps {
 }
 
 export function AutomationAIChatPanel({
-  automationId,
+  workflowSlug,
+  workflowName,
   organizationId,
   onClose,
   panelWidth,
@@ -102,7 +103,8 @@ export function AutomationAIChatPanel({
       </PanelHeader>
 
       <AutomationAssistant
-        automationId={automationId}
+        workflowSlug={workflowSlug}
+        workflowName={workflowName}
         organizationId={organizationId}
       />
     </aside>

@@ -1,7 +1,7 @@
 /**
  * Convex Tool: Run Workflow with Approval
  *
- * Triggers execution of an existing workflow definition.
+ * Triggers execution of an existing file-based workflow definition.
  * Requires user approval before the workflow is actually started.
  */
 
@@ -10,20 +10,23 @@ import type { ToolCtx } from '@convex-dev/agent';
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
+import type { WorkflowJsonConfig } from '../../../lib/shared/schemas/workflows';
 import type { ToolDefinition } from '../types';
 
+import { isRecord } from '../../../lib/utils/type-guards';
 import { internal } from '../../_generated/api';
-import { toId } from '../../lib/type_cast_helpers';
 import { getApprovalThreadId } from '../../threads/get_parent_thread_id';
 import { validateWorkflowInput } from '../../workflow_engine/helpers/validation/validate_workflow_input';
 import { extractInputSchema } from './helpers/extract_input_schema';
 
+const DEFAULT_ORG_SLUG = 'default';
+
 const runWorkflowArgs = z.object({
-  workflowId: z
+  workflowSlug: z
     .string()
     .min(1)
     .describe(
-      'The ID of the workflow definition to execute. Use workflow_read(operation="list_all") to find available workflows.',
+      'The slug of the workflow to execute (e.g., "conversation-sync"). Use workflow_read(operation="list_all") to find available workflows.',
     ),
   // WORKAROUND: Use z.string() instead of z.record(z.string(), z.unknown()).
   // The AI SDK's addAdditionalPropertiesToJsonSchema() post-processing
@@ -47,11 +50,11 @@ export { runWorkflowArgs };
 export const runWorkflowTool = {
   name: 'run_workflow' as const,
   tool: createTool({
-    description: `Trigger execution of an existing workflow definition.
+    description: `Trigger execution of an existing file-based workflow definition.
 
 **WHEN TO USE:**
 • Use this tool to run/execute a workflow that has already been created
-• First use workflow_read(operation="list_all") to find the workflow ID
+• First use workflow_read(operation="list_all") to find the workflow slug
 • Use workflow_read(operation="get_structure") to understand expected input parameters
 
 **DO NOT USE THIS TOOL FOR:**
@@ -63,11 +66,11 @@ export const runWorkflowTool = {
 This tool creates an approval card. The user must click "Run Workflow" to confirm execution. The workflow will NOT start until approved.
 
 **PARAMETERS:**
-• workflowId (required): The workflow definition ID
+• workflowSlug (required): The workflow file slug (e.g., "conversation-sync")
 • parameters (optional): JSON string of input variables for the workflow
 
 **EXAMPLE:**
-{ "workflowId": "abc123", "parameters": "{\\"targetFolder\\": \\"/invoices\\", \\"daysBack\\": 30}" }`,
+{ "workflowSlug": "conversation-sync", "parameters": "{\\"targetFolder\\": \\"/invoices\\", \\"daysBack\\": 30}" }`,
     inputSchema: runWorkflowArgs,
     execute: async (
       ctx: ToolCtx,
@@ -90,36 +93,29 @@ This tool creates an approval card. The user must click "Run Workflow" to confir
         };
       }
 
-      // Look up workflow definition
-      const wfDefinition = await ctx.runQuery(
-        internal.wf_definitions.internal_queries.resolveWorkflow,
-        { wfDefinitionId: toId<'wfDefinitions'>(args.workflowId) },
+      const result: unknown = await ctx.runAction(
+        internal.workflows.file_actions.readWorkflowForExecution,
+        { orgSlug: DEFAULT_ORG_SLUG, workflowSlug: args.workflowSlug },
       );
 
-      if (!wfDefinition) {
+      if (!isRecord(result) || result.ok !== true) {
+        const msg =
+          isRecord(result) && typeof result.message === 'string'
+            ? result.message
+            : `Workflow "${args.workflowSlug}" not found.`;
+        return { success: false, message: msg };
+      }
+
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- readWorkflowForExecution returns v.any() but ok=true guarantees WorkflowJsonConfig
+      const config = result.config as WorkflowJsonConfig;
+
+      if (!config.enabled) {
         return {
           success: false,
-          message: `Workflow with ID "${args.workflowId}" not found.`,
+          message: `Workflow "${config.name}" is disabled and cannot be executed. Enable it first.`,
         };
       }
 
-      // Validate org ownership (resolveWorkflow does NOT check this)
-      if (wfDefinition.organizationId !== organizationId) {
-        return {
-          success: false,
-          message: `Workflow "${args.workflowId}" does not belong to the current organization.`,
-        };
-      }
-
-      // Reject archived workflows
-      if (wfDefinition.status === 'archived') {
-        return {
-          success: false,
-          message: `Workflow "${wfDefinition.name}" is archived and cannot be executed. Only active or draft workflows can be run.`,
-        };
-      }
-
-      // Parse the JSON string parameters back into a record
       let parsedParameters: Record<string, unknown> | undefined;
       if (args.parameters) {
         try {
@@ -133,13 +129,8 @@ This tool creates an approval card. The user must click "Run Workflow" to confir
         }
       }
 
-      // Validate input parameters against the start step's inputSchema
-      const startStepConfig = await ctx.runQuery(
-        internal.wf_definitions.internal_queries.getStartStepConfig,
-        { wfDefinitionId: wfDefinition._id },
-      );
-
-      const inputSchema = extractInputSchema(startStepConfig);
+      const startStep = config.steps.find((s) => s.stepType === 'start');
+      const inputSchema = extractInputSchema(startStep?.config);
       const validation = validateWorkflowInput(parsedParameters, inputSchema);
 
       if (!validation.valid) {
@@ -149,7 +140,6 @@ This tool creates an approval card. The user must click "Run Workflow" to confir
         };
       }
 
-      // Get stable parent thread ID for approval linking
       const threadId = await getApprovalThreadId(ctx, currentThreadId);
 
       try {
@@ -158,9 +148,9 @@ This tool creates an approval card. The user must click "Run Workflow" to confir
             .createWorkflowRunApproval,
           {
             organizationId,
-            workflowId: wfDefinition._id,
-            workflowName: wfDefinition.name,
-            workflowDescription: wfDefinition.description,
+            workflowSlug: args.workflowSlug,
+            workflowName: config.name,
+            workflowDescription: config.description,
             parameters: parsedParameters,
             threadId,
             messageId,
@@ -172,8 +162,8 @@ This tool creates an approval card. The user must click "Run Workflow" to confir
           requiresApproval: true,
           approvalId,
           approvalCreated: true,
-          approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created to run workflow "${wfDefinition.name}". The user must approve this before execution begins.`,
-          message: `Workflow "${wfDefinition.name}" is ready to run. An approval card has been created. The workflow will start once the user approves it.`,
+          approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created to run workflow "${config.name}". The user must approve this before execution begins.`,
+          message: `Workflow "${config.name}" is ready to run. An approval card has been created. The workflow will start once the user approves it.`,
         };
       } catch (error) {
         return {

@@ -144,18 +144,37 @@ export function useAvailableIntegrations(organizationId: string) {
   };
 }
 
-export type AvailableWorkflow = ConvexItemOf<
-  typeof api.agents.queries.getAvailableWorkflows
->;
+export type AvailableWorkflow = {
+  id: string;
+  name: string;
+  description?: string;
+};
 
 export function useAvailableWorkflows(organizationId: string) {
-  const { data, isLoading } = useConvexQuery(
-    api.agents.queries.getAvailableWorkflows,
-    { organizationId },
+  const getWorkflowsFn = useAction(
+    api.workflows.file_actions.getAvailableWorkflows,
   );
+  const [workflows, setWorkflows] = useState<AvailableWorkflow[] | undefined>(
+    undefined,
+  );
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setIsLoading(true);
+    void getWorkflowsFn({ organizationId }).then((result) => {
+      if (!cancelled) {
+        setWorkflows(result);
+        setIsLoading(false);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [getWorkflowsFn, organizationId]);
 
   return {
-    workflows: data,
+    workflows,
     isLoading,
   };
 }

@@ -9,7 +9,7 @@ import { listExecutionsPaginatedNative } from '../workflows/executions/list_exec
 
 export const listExecutionsCursor = queryWithRLS({
   args: {
-    wfDefinitionId: v.id('wfDefinitions'),
+    wfDefinitionId: v.string(),
     cursor: v.optional(v.string()),
     numItems: v.optional(v.number()),
     status: v.optional(v.array(v.string())),
@@ -38,7 +38,7 @@ export const getExecutionStepJournal = queryWithRLS({
 export const listExecutions = queryWithRLS({
   args: {
     paginationOpts: paginationOptsValidator,
-    wfDefinitionId: v.id('wfDefinitions'),
+    wfDefinitionId: v.string(),
     status: v.optional(v.array(v.string())),
     dateFrom: v.optional(v.string()),
     dateTo: v.optional(v.string()),
@@ -81,7 +81,7 @@ export const getExecutionStatus = queryWithRLS({
 
 export const approxCountExecutions = queryWithRLS({
   args: {
-    wfDefinitionId: v.id('wfDefinitions'),
+    wfDefinitionId: v.string(),
   },
   returns: v.number(),
   handler: async (ctx, args) => {

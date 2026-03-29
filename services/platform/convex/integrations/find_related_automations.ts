@@ -12,6 +12,8 @@ export interface RelatedAutomation {
  * Find all automations (workflow definitions) that reference a given
  * integration by name. Scans action steps in the org and resolves
  * back to root workflow definitions with effective status.
+ *
+ * @deprecated Needs rewrite to scan file-based workflows. Currently only finds legacy DB-based workflows.
  */
 export async function findRelatedAutomations(
   ctx: QueryCtx,

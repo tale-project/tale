@@ -1485,8 +1485,12 @@
       "noSteps": "No automation steps to display",
       "createStepsHint": "Create steps to see the automation overview, or use the AI assistant to help you get started."
     },
+    "search": {
+      "placeholder": "Search automations"
+    },
     "columns": {
       "automation": "Automation",
+      "category": "Category",
       "status": "Status",
       "active": "Active",
       "version": "Version",
@@ -1509,6 +1513,7 @@
     "navigation": {
       "editor": "Editor",
       "archived": "Archived",
+      "history": "History",
       "publish": "Publish",
       "publishing": "Publishing...",
       "rollback": "Activate",
@@ -1526,6 +1531,16 @@
         "navigatingToExisting": "Navigating to existing draft",
         "draftFailed": "Failed to create draft"
       }
+    },
+    "history": {
+      "empty": "No history entries",
+      "diffTitle": "Compare changes",
+      "diffDescription": "Review differences before restoring snapshot from {date}",
+      "restore": "Restore",
+      "noDifferences": "No differences found",
+      "loadFailed": "Failed to load history",
+      "restoreSuccess": "Version restored successfully",
+      "restoreFailed": "Failed to restore version"
     },
     "form": {
       "name": "Name"
@@ -2183,7 +2198,7 @@
     "badgeMultiStep": "Update {count} steps",
     "badgeStepPatch": "Update step",
     "versionLabel": "Version:",
-    "idLabel": "ID:",
+    "slugLabel": "Slug:",
     "copyAriaLabel": "Copy update configuration",
     "updatedSuccessfully": "Workflow updated successfully",
     "statusExecuting": "Applying update...",

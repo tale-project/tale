@@ -55,6 +55,10 @@ env_normalize_common() {
 	  export INSTANCE_NAME="tale_platform"
 	  export INSTANCE_SECRET="${INSTANCE_SECRET}"
 
+  # Filesystem directories for file-based configs
+  export AGENTS_DIR="${AGENTS_DIR:-/app/data/agents}"
+  export WORKFLOWS_DIR="${WORKFLOWS_DIR:-/app/data/workflows}"
+
   # AI provider keys
   export OPENAI_API_KEY="${OPENAI_API_KEY}"
 

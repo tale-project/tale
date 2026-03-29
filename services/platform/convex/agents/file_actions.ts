@@ -9,19 +9,7 @@
  */
 
 import { v } from 'convex/values';
-import {
-  constants,
-  open,
-  lstat,
-  mkdir,
-  readFile,
-  readdir,
-  rename,
-  rm,
-  stat,
-  unlink,
-  writeFile,
-} from 'node:fs/promises';
+import { mkdir, readdir, rm, unlink } from 'node:fs/promises';
 import path from 'node:path';
 
 import type { AgentJsonConfig, AgentReadResult } from './file_utils';
@@ -29,6 +17,14 @@ import type { AgentJsonConfig, AgentReadResult } from './file_utils';
 import { agentJsonSchema } from '../../lib/shared/schemas/agents';
 import { action, internalAction } from '../_generated/server';
 import { authComponent } from '../auth';
+import {
+  atomicWrite,
+  generateHistoryTimestamp,
+  pruneHistory,
+  readFileSafe,
+  readJsonFile,
+  sha256,
+} from '../lib/file_io';
 import {
   MAX_FILE_SIZE_BYTES,
   MAX_HISTORY_ENTRIES,
@@ -38,116 +34,23 @@ import {
   resolveAgentsDir,
   resolveHistoryDir,
   serializeAgentJson,
-  sha256,
   validateAgentName,
 } from './file_utils';
-
-async function isSymlink(filePath: string): Promise<boolean> {
-  try {
-    const stats = await lstat(filePath);
-    return stats.isSymbolicLink();
-  } catch {
-    return false;
-  }
-}
 
 async function readAgentFile(
   orgSlug: string,
   agentName: string,
 ): Promise<AgentReadResult> {
   const filePath = resolveAgentFilePath(orgSlug, agentName);
-
-  if (await isSymlink(filePath)) {
-    return {
-      ok: false,
-      error: 'symlink',
-      message: `Symlink rejected: ${agentName}`,
-    };
-  }
-
-  let fileStat;
-  try {
-    fileStat = await stat(filePath);
-  } catch {
-    return {
-      ok: false,
-      error: 'not_found',
-      message: `Agent not found: ${agentName}`,
-    };
-  }
-
-  if (fileStat.size > MAX_FILE_SIZE_BYTES) {
-    return {
-      ok: false,
-      error: 'too_large',
-      message: `Agent file exceeds ${MAX_FILE_SIZE_BYTES} bytes: ${agentName}`,
-    };
-  }
-
-  let content: string;
-  try {
-    const fd = await open(filePath, constants.O_RDONLY | constants.O_NOFOLLOW);
-    try {
-      const buf = await fd.readFile('utf-8');
-      content = buf;
-    } finally {
-      await fd.close();
-    }
-  } catch (err) {
-    return {
-      ok: false,
-      error: 'not_found',
-      message: `Failed to read agent file: ${agentName} — ${err instanceof Error ? err.message : String(err)}`,
-    };
-  }
-
-  try {
-    const config = parseAgentJson(content);
-    return { ok: true, config, hash: sha256(content) };
-  } catch (err) {
-    return {
-      ok: false,
-      error: 'corrupted',
-      message: `Invalid JSON in ${agentName}: ${err instanceof Error ? err.message : String(err)}`,
-    };
-  }
-}
-
-async function atomicWrite(filePath: string, content: string): Promise<void> {
-  const dir = path.dirname(filePath);
-  await mkdir(dir, { recursive: true });
-
-  const tmpPath = path.join(
-    dir,
-    `.${path.basename(filePath)}.${Date.now()}.tmp`,
+  const result = await readJsonFile<AgentJsonConfig>(
+    filePath,
+    MAX_FILE_SIZE_BYTES,
+    parseAgentJson,
   );
-
-  const fd = await open(tmpPath, 'w');
-  try {
-    await fd.writeFile(content, 'utf-8');
-    await fd.sync();
-  } finally {
-    await fd.close();
+  if (result.ok) {
+    return { ok: true, config: result.data, hash: result.hash };
   }
-
-  await rename(tmpPath, filePath);
-}
-
-async function pruneHistory(historyDir: string): Promise<void> {
-  let entries: string[];
-  try {
-    entries = await readdir(historyDir);
-  } catch {
-    return;
-  }
-
-  const jsonFiles = entries.filter((e) => e.endsWith('.json')).sort();
-  if (jsonFiles.length <= MAX_HISTORY_ENTRIES) return;
-
-  const toDelete = jsonFiles.slice(0, jsonFiles.length - MAX_HISTORY_ENTRIES);
-  await Promise.all(
-    toDelete.map((f) => unlink(path.join(historyDir, f)).catch(() => {})),
-  );
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -269,21 +172,17 @@ export const snapshotToHistory = action({
     if (!authUser) throw new Error('Unauthenticated');
 
     const filePath = resolveAgentFilePath(args.orgSlug, args.agentName);
-    let currentContent: string;
-    try {
-      currentContent = await readFile(filePath, 'utf-8');
-    } catch {
-      return null;
-    }
+    const currentContent = await readFileSafe(filePath);
+    if (!currentContent) return null;
 
     const historyDir = resolveHistoryDir(args.orgSlug, args.agentName);
     await mkdir(historyDir, { recursive: true });
 
-    const timestamp = String(Date.now());
+    const timestamp = generateHistoryTimestamp();
     const historyPath = path.join(historyDir, `${timestamp}.json`);
-    await writeFile(historyPath, currentContent, 'utf-8');
+    await atomicWrite(historyPath, currentContent);
 
-    await pruneHistory(historyDir);
+    await pruneHistory(historyDir, MAX_HISTORY_ENTRIES);
 
     return { timestamp };
   },
@@ -405,13 +304,19 @@ export const readHistoryEntry = action({
       throw new Error('Path traversal detected');
     }
 
+    const content = await readFileSafe(filePath);
+    if (!content) {
+      return {
+        ok: false,
+        message: `History entry not found: ${args.timestamp}`,
+      };
+    }
     try {
-      const content = await readFile(filePath, 'utf-8');
       return { ok: true, config: parseAgentJson(content) };
     } catch (err) {
       return {
         ok: false,
-        message: `History entry not found: ${err instanceof Error ? err.message : String(err)}`,
+        message: `Corrupted history entry: ${err instanceof Error ? err.message : String(err)}`,
       };
     }
   },
@@ -437,16 +342,12 @@ export const restoreFromHistory = action({
       throw new Error('Path traversal detected');
     }
 
-    const historyContent = await readFile(historyPath, 'utf-8');
+    const historyContent = await readFileSafe(historyPath);
+    if (!historyContent) throw new Error('History entry not found');
     parseAgentJson(historyContent);
 
     // Snapshot current state before overwriting
-    let currentContent: string | null = null;
-    try {
-      currentContent = await readFile(agentPath, 'utf-8');
-    } catch {
-      // No current file to snapshot
-    }
+    const currentContent = await readFileSafe(agentPath);
 
     // Write the restored version
     await atomicWrite(agentPath, historyContent);
@@ -454,13 +355,9 @@ export const restoreFromHistory = action({
     // Snapshot the previous state (best-effort)
     if (currentContent) {
       await mkdir(historyDir, { recursive: true });
-      const ts = String(Date.now());
-      await writeFile(
-        path.join(historyDir, `${ts}.json`),
-        currentContent,
-        'utf-8',
-      ).catch(() => {});
-      await pruneHistory(historyDir);
+      const ts = generateHistoryTimestamp();
+      await atomicWrite(path.join(historyDir, `${ts}.json`), currentContent);
+      await pruneHistory(historyDir, MAX_HISTORY_ENTRIES);
     }
 
     return { hash: sha256(historyContent) };

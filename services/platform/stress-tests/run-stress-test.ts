@@ -24,7 +24,7 @@ import { MetricsCollector } from './metrics';
 interface StressTestConfig {
   convexUrl: string;
   organizationId: string;
-  wfDefinitionId: string;
+  workflowSlug: string;
   concurrency: number;
   total: number;
   rampUpSeconds: number;
@@ -46,7 +46,7 @@ function parseArgs(): Partial<StressTestConfig> {
     concurrency: config.concurrency ? parseInt(config.concurrency) : undefined,
     total: config.total ? parseInt(config.total) : undefined,
     rampUpSeconds: config['ramp-up'] ? parseInt(config['ramp-up']) : undefined,
-    wfDefinitionId: config.workflow ?? undefined,
+    workflowSlug: config.workflow ?? undefined,
     organizationId: config.org ?? undefined,
   };
 }
@@ -66,10 +66,10 @@ function getConfig(): StressTestConfig {
 
   const organizationId =
     args.organizationId || process.env.ORGANIZATION_ID || '';
-  const wfDefinitionId =
-    args.wfDefinitionId || process.env.WORKFLOW_DEFINITION_ID || '';
+  const workflowSlug =
+    args.workflowSlug || process.env.WORKFLOW_DEFINITION_ID || '';
 
-  if (!organizationId || !wfDefinitionId) {
+  if (!organizationId || !workflowSlug) {
     console.error(
       'Error: ORGANIZATION_ID and WORKFLOW_DEFINITION_ID are required.',
     );
@@ -80,7 +80,7 @@ function getConfig(): StressTestConfig {
   return {
     convexUrl,
     organizationId,
-    wfDefinitionId,
+    workflowSlug,
     concurrency: args.concurrency ?? 10,
     total: args.total ?? 50,
     rampUpSeconds: args.rampUpSeconds ?? 0,
@@ -97,11 +97,11 @@ async function startWorkflow(
   client: ConvexHttpClient,
   config: StressTestConfig,
 ): Promise<Id<'wfExecutions'>> {
-  const executionId = await client.mutation(
-    api.wf_executions.mutations.startWorkflow,
+  const executionId = await client.action(
+    api.wf_executions.actions.startWorkflowFromFile,
     {
       organizationId: config.organizationId,
-      wfDefinitionId: config.wfDefinitionId as Id<'wfDefinitions'>,
+      workflowSlug: config.workflowSlug,
       input: {
         stressTest: true,
         timestamp: Date.now(),
@@ -114,6 +114,11 @@ async function startWorkflow(
       },
     },
   );
+  if (!executionId) {
+    throw new Error(
+      'Workflow start returned null — workflow may be disabled or missing',
+    );
+  }
   return executionId;
 }
 
@@ -146,7 +151,7 @@ async function runStressTest() {
   console.log('Stress Test Configuration:');
   console.log(`  Convex URL:        ${config.convexUrl}`);
   console.log(`  Organization:      ${config.organizationId}`);
-  console.log(`  Workflow:          ${config.wfDefinitionId}`);
+  console.log(`  Workflow:          ${config.workflowSlug}`);
   console.log(`  Concurrency:       ${config.concurrency}`);
   console.log(`  Total workflows:   ${config.total}`);
   console.log(`  Ramp-up:           ${config.rampUpSeconds}s`);

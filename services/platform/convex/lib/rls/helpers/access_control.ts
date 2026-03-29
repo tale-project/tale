@@ -15,9 +15,9 @@ type PlatformTable =
   | 'onedriveSyncConfigs'
   | 'conversations'
   | 'conversationMessages'
-  | 'wfDefinitions'
-  | 'wfStepDefs'
-  | 'wfStepAuditLogs'
+  | 'wfDefinitions' // @deprecated — DB table deprecated; kept as permission subject for legacy data access
+  | 'wfStepDefs' // @deprecated — DB table deprecated; kept as permission subject for legacy data access
+  | 'wfStepAuditLogs' // @deprecated — DB table deprecated; kept as permission subject for legacy data access
   | 'wfExecutions'
   | 'approvals'
   | 'websites'

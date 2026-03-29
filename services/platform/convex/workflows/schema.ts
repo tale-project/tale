@@ -6,9 +6,15 @@ import {
   jsonValueValidator,
 } from '../lib/validators/json';
 import { stepConfigValidator } from '../workflow_engine/types/nodes';
-import { workflowStatusValidator } from './definitions/validators';
 import { executionStatusValidator } from './executions/validators';
 
+const workflowStatusValidator = v.union(
+  v.literal('draft'),
+  v.literal('active'),
+  v.literal('archived'),
+);
+
+/** @deprecated — Legacy table. New workflows use file-based JSON storage. Kept for backward compatibility. */
 export const wfDefinitionsTable = defineTable({
   organizationId: v.string(),
   version: v.string(),
@@ -74,6 +80,7 @@ export const wfDefinitionsTable = defineTable({
   .index('by_root_status', ['rootVersionId', 'status'])
   .index('by_org_versionNumber', ['organizationId', 'versionNumber']);
 
+/** @deprecated — Legacy table. Steps are now stored in workflow JSON files. Kept for backward compatibility. */
 export const wfStepDefsTable = defineTable({
   organizationId: v.string(),
   wfDefinitionId: v.id('wfDefinitions'),
@@ -106,6 +113,7 @@ export const wfStepDefsTable = defineTable({
     'order',
   ]);
 
+/** @deprecated — Legacy table. Audit history is now file-based (.history/ snapshots). Kept for backward compatibility. */
 export const wfStepAuditLogsTable = defineTable({
   stepId: v.id('wfStepDefs'),
   wfDefinitionId: v.id('wfDefinitions'),
@@ -156,6 +164,7 @@ export const wfExecutionsTable = defineTable({
   outputStorageId: v.optional(v.id('_storage')),
   workflowConfig: v.optional(v.string()),
   stepsConfig: v.optional(v.string()),
+  stepsConfigStorageId: v.optional(v.id('_storage')),
   triggeredBy: v.optional(v.string()),
   triggerData: v.optional(jsonValueValidator),
   error: v.optional(v.string()),
@@ -173,7 +182,8 @@ export const wfExecutionsTable = defineTable({
   .index('by_status', ['status'])
   .index('by_org_status', ['organizationId', 'status'])
   .index('by_org_triggeredBy', ['organizationId', 'triggeredBy'])
-  .index('by_component_workflow', ['componentWorkflowId']);
+  .index('by_component_workflow', ['componentWorkflowId'])
+  .index('by_org_workflowSlug', ['organizationId', 'workflowSlug']);
 
 export const workflowProcessingRecordsTable = defineTable({
   organizationId: v.string(),

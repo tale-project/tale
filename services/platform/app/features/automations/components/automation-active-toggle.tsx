@@ -4,18 +4,13 @@ import { useCallback, useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Switch } from '@/app/components/ui/forms/switch';
-import { useAuth } from '@/app/hooks/use-convex-auth';
 import { toast } from '@/app/hooks/use-toast';
-import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
-import {
-  useRepublishAutomation,
-  useUnpublishAutomation,
-} from '../hooks/mutations';
+import { useToggleWorkflowEnabled } from '../hooks/file-mutations';
 
 interface AutomationActiveToggleProps {
-  automation: Doc<'wfDefinitions'>;
+  automation: { _id: string; name: string; status: string };
   label?: string;
 }
 
@@ -26,75 +21,58 @@ export function AutomationActiveToggle({
   const { t: tAutomations } = useT('automations');
   const { t: tCommon } = useT('common');
   const { t: tToast } = useT('toast');
-  const { user } = useAuth();
 
   const [showDeactivateDialog, setShowDeactivateDialog] = useState(false);
 
-  const { mutate: republishAutomation, isPending: isRepublishing } =
-    useRepublishAutomation();
-  const { mutate: unpublishAutomation, isPending: isUnpublishing } =
-    useUnpublishAutomation();
-
-  const isToggling = isRepublishing || isUnpublishing;
+  const { mutate: toggleEnabled, isPending: isToggling } =
+    useToggleWorkflowEnabled();
 
   const isActive = automation.status === 'active';
   const isDraft = automation.status === 'draft';
 
-  const handleActivate = useCallback(() => {
-    if (!user) return;
-    republishAutomation(
-      {
-        wfDefinitionId: automation._id,
-        publishedBy: user.email ?? user.userId,
-      },
-      {
-        onSuccess: () => {
-          toast({
-            title: tToast('success.automationPublished'),
-            variant: 'success',
-          });
-        },
-        onError: (error) => {
-          console.error('Failed to activate automation:', error);
-          toast({
-            title: tToast('error.automationPublishFailed'),
-            variant: 'destructive',
-          });
-        },
-      },
-    );
-  }, [republishAutomation, automation._id, user, tToast]);
+  const handleActivate = useCallback(async () => {
+    try {
+      await toggleEnabled({
+        orgSlug: 'default',
+        workflowSlug: automation._id,
+      });
+      toast({
+        title: tToast('success.automationPublished'),
+        variant: 'success',
+      });
+    } catch (error) {
+      console.error('Failed to activate automation:', error);
+      toast({
+        title: tToast('error.automationPublishFailed'),
+        variant: 'destructive',
+      });
+    }
+  }, [toggleEnabled, automation._id, tToast]);
 
-  const handleDeactivateConfirm = useCallback(() => {
-    if (!user) return;
-    unpublishAutomation(
-      {
-        wfDefinitionId: automation._id,
-        updatedBy: user.userId,
-      },
-      {
-        onSuccess: () => {
-          setShowDeactivateDialog(false);
-          toast({
-            title: tToast('success.automationDeactivated'),
-            variant: 'success',
-          });
-        },
-        onError: (error) => {
-          console.error('Failed to deactivate automation:', error);
-          toast({
-            title: tToast('error.automationDeactivateFailed'),
-            variant: 'destructive',
-          });
-        },
-      },
-    );
-  }, [unpublishAutomation, automation._id, user, tToast]);
+  const handleDeactivateConfirm = useCallback(async () => {
+    try {
+      await toggleEnabled({
+        orgSlug: 'default',
+        workflowSlug: automation._id,
+      });
+      setShowDeactivateDialog(false);
+      toast({
+        title: tToast('success.automationDeactivated'),
+        variant: 'success',
+      });
+    } catch (error) {
+      console.error('Failed to deactivate automation:', error);
+      toast({
+        title: tToast('error.automationDeactivateFailed'),
+        variant: 'destructive',
+      });
+    }
+  }, [toggleEnabled, automation._id, tToast]);
 
   const handleToggle = useCallback(
     (checked: boolean) => {
       if (checked) {
-        handleActivate();
+        void handleActivate();
       } else {
         setShowDeactivateDialog(true);
       }

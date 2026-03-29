@@ -6,7 +6,7 @@ import { parseISO, formatISO } from 'date-fns';
 import { Copy, Check } from 'lucide-react';
 import { useState, useMemo, useCallback, memo } from 'react';
 
-import type { Doc, Id } from '@/convex/_generated/dataModel';
+import type { Doc } from '@/convex/_generated/dataModel';
 
 import { JsonViewer } from '@/app/components/ui/data-display/json-viewer';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
@@ -28,7 +28,7 @@ import {
 import { useExecutionsTableConfig } from './use-executions-table-config';
 
 interface ExecutionsTableProps {
-  amId: Id<'wfDefinitions'>;
+  amId: string;
   organizationId: string;
   searchTerm?: string;
   status?: string[];
