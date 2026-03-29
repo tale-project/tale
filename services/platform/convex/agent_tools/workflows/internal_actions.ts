@@ -402,7 +402,7 @@ export const executeApprovedWorkflowUpdate = internalAction({
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- approval.metadata is v.any() but always matches WorkflowUpdateMetadata for workflow_update approvals
     const metadata = approval.metadata as WorkflowUpdateMetadata;
 
-    const workflowSlug = metadata.workflowSlug ?? metadata.workflowId;
+    const workflowSlug = metadata.workflowSlug;
 
     if (!workflowSlug || !metadata.updateType) {
       throw new Error(
@@ -453,13 +453,13 @@ export const executeApprovedWorkflowUpdate = internalAction({
           })),
         };
       } else if (metadata.updateType === 'step_patch') {
-        if (!metadata.stepRecordId || !metadata.stepUpdates) {
+        if (!metadata.stepSlug || !metadata.stepUpdates) {
           throw new Error(
-            'Invalid approval metadata: missing step identifier or updates for step patch',
+            'Invalid approval metadata: missing step slug or updates for step patch',
           );
         }
 
-        const stepSlug = metadata.stepRecordId;
+        const stepSlug = metadata.stepSlug;
         const stepIndex = currentConfig.steps.findIndex(
           (s) => s.stepSlug === stepSlug,
         );
@@ -488,7 +488,7 @@ export const executeApprovedWorkflowUpdate = internalAction({
         const missingSteps: string[] = [];
 
         for (const patch of metadata.steps) {
-          const stepSlug = patch.stepRecordId;
+          const stepSlug = patch.stepSlug;
           const stepIndex = updatedSteps.findIndex(
             (s) => s.stepSlug === stepSlug,
           );

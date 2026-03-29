@@ -2187,7 +2187,7 @@
     "badgeMultiStep": "Update {count} steps",
     "badgeStepPatch": "Update step",
     "versionLabel": "Version:",
-    "idLabel": "ID:",
+    "slugLabel": "Slug:",
     "copyAriaLabel": "Copy update configuration",
     "updatedSuccessfully": "Workflow updated successfully",
     "statusExecuting": "Applying update...",
