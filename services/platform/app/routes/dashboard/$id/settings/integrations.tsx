@@ -156,32 +156,32 @@ function IntegrationsPage() {
     (credentials ?? []).map((c) => [c.slug, c]),
   );
 
-  const mergedIntegrations = fileIntegrations
-    .filter(
-      (
-        item,
-      ): item is Record<string, unknown> & { slug: string; title: string } =>
-        item != null && 'title' in item && 'slug' in item,
-    )
-    .map((item) => {
-      const cred = credentialsBySlug.get(item.slug);
-      return {
-        ...item,
-        _id: cred?._id ?? item.slug,
-        name: item.slug,
-        organizationId,
-        isActive: cred?.isActive ?? false,
-        status: cred?.status ?? 'inactive',
-        authMethod: cred?.authMethod ?? item.authMethod,
-        oauth2Config: cred?.oauth2Config,
-        basicAuth: cred?.basicAuth,
-        apiKeyAuth: cred?.apiKeyAuth,
-        oauth2Auth: cred?.oauth2Auth,
-        connectionConfig: cred?.connectionConfig,
-        sqlConnectionConfig: cred?.sqlConnectionConfig,
-      };
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- merging file + DB data into IntegrationListItem shape
-    }) as IntegrationListItem[];
+  const validIntegrations = (
+    fileIntegrations as (Record<string, unknown> | null)[]
+  ).filter(
+    (item): item is Record<string, unknown> =>
+      item != null && 'title' in item && 'slug' in item,
+  );
+  const mergedIntegrations = validIntegrations.map((item) => {
+    const slug = item.slug;
+    const cred = credentialsBySlug.get(slug as string);
+    return {
+      ...item,
+      _id: cred?._id ?? slug,
+      name: slug,
+      organizationId,
+      isActive: cred?.isActive ?? false,
+      status: cred?.status ?? 'inactive',
+      authMethod: cred?.authMethod ?? item.authMethod,
+      oauth2Config: cred?.oauth2Config,
+      basicAuth: cred?.basicAuth,
+      apiKeyAuth: cred?.apiKeyAuth,
+      oauth2Auth: cred?.oauth2Auth,
+      connectionConfig: cred?.connectionConfig,
+      sqlConnectionConfig: cred?.sqlConnectionConfig,
+    };
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- merging file + DB data into IntegrationListItem shape
+  }) as unknown as IntegrationListItem[];
 
   return (
     <Integrations

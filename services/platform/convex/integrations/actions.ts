@@ -47,6 +47,7 @@ export const saveCredentials = action({
     connectionConfig: v.optional(connectionConfigValidator),
     sqlConnectionConfig: v.optional(sqlConnectionConfigValidator),
     capabilities: v.optional(capabilitiesValidator),
+    iconStorageId: v.optional(v.id('_storage')),
     metadata: v.optional(jsonRecordValidator),
   },
   returns: v.null(),
