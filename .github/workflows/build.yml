@@ -57,8 +57,6 @@ jobs:
               - 'services/db/**'
             proxy:
               - 'services/proxy/**'
-            operator:
-              - 'services/operator/**'
 
   build:
     name: Build ${{ matrix.service }}
@@ -81,8 +79,6 @@ jobs:
           - service: db
             context: '.'
           - service: proxy
-            context: '.'
-          - service: operator
             context: '.'
 
     steps:

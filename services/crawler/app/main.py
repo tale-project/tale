@@ -19,6 +19,7 @@ from contextlib import asynccontextmanager, suppress
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
+from tale_shared.logging import suppress_health_check_logs
 from tale_telemetry import init_telemetry, shutdown_telemetry
 
 from app import __version__
@@ -45,6 +46,7 @@ from app.services.pdf_service import get_pdf_service
 async def lifespan(app: FastAPI) -> AsyncGenerator:
     """Lifespan context manager for startup and shutdown events."""
     # Startup
+    suppress_health_check_logs()
     logger.info(f"Starting Tale Crawler service v{__version__}...")
     logger.info(f"Server: {settings.host}:{settings.port}")
     logger.info(f"Log level: {settings.log_level}")

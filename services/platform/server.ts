@@ -1,7 +1,57 @@
+import { watch } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import { convexMetricsResponse } from './convex-metrics';
 import { initTelemetry, metricsResponse } from './telemetry';
+
+// ---------------------------------------------------------------------------
+// Live reload (dev only, gated by LIVE_RELOAD env var)
+// ---------------------------------------------------------------------------
+
+const liveReloadEnabled = process.env.LIVE_RELOAD === 'true';
+const sseClients = new Set<ReadableStreamDefaultController>();
+
+if (liveReloadEnabled) {
+  const watchDirs = [
+    process.env.AGENTS_DIR,
+    process.env.WORKFLOWS_DIR,
+    process.env.INTEGRATIONS_DIR,
+  ].filter((d): d is string => Boolean(d));
+
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function notifyClients() {
+    for (const controller of sseClients) {
+      try {
+        controller.enqueue('data: reload\n\n');
+      } catch {
+        sseClients.delete(controller);
+      }
+    }
+  }
+
+  for (const dir of watchDirs) {
+    try {
+      watch(dir, { recursive: true }, (_event, filename) => {
+        if (typeof filename === 'string' && filename.endsWith('.json')) {
+          if (debounceTimer) clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(notifyClients, 100);
+        }
+      });
+    } catch {
+      // Directory may not exist yet — skip silently
+    }
+  }
+
+  console.log(`Live reload watching: ${watchDirs.join(', ')}`);
+}
+
+const LIVE_RELOAD_SCRIPT = `<script>(() => {
+  const es = new EventSource('/__dev/live-reload');
+  es.onmessage = (e) => { if (e.data === 'reload') location.reload(); };
+})()</script>`;
+
+// ---------------------------------------------------------------------------
 
 function escapeHtmlAttr(value: string) {
   return value
@@ -57,6 +107,25 @@ Bun.serve({
       return Response.json({ status: 'ok' });
     }
 
+    if (liveReloadEnabled && pathname === '/__dev/live-reload') {
+      const stream = new ReadableStream({
+        start(controller) {
+          sseClients.add(controller);
+          controller.enqueue('data: connected\n\n');
+        },
+        cancel(controller) {
+          sseClients.delete(controller);
+        },
+      });
+      return new Response(stream, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive',
+        },
+      });
+    }
+
     if (pathname === '/metrics') {
       return metricsResponse();
     }
@@ -102,6 +171,10 @@ Bun.serve({
       '<head>',
       `<head>\n    <base href="${escapeHtmlAttr(basePath)}/">`,
     );
+
+    if (liveReloadEnabled) {
+      html = html.replace('</body>', `${LIVE_RELOAD_SCRIPT}\n</body>`);
+    }
 
     return new Response(html, {
       headers: { 'Content-Type': 'text/html' },

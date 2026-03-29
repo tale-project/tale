@@ -4,15 +4,44 @@ import { join } from 'node:path';
 import { PROJECT_NAME } from '../../utils/load-env';
 import { type ExecResult, exec } from './exec';
 
+interface DockerComposeOptions {
+  projectName?: string;
+  cwd?: string;
+  inherit?: boolean;
+  onLine?: (line: string) => void;
+}
+
+async function pipeLines(
+  stream: ReadableStream<Uint8Array>,
+  onLine: (line: string) => void,
+) {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() ?? '';
+    for (const line of lines) {
+      if (line) onLine(line);
+    }
+  }
+  if (buffer) onLine(buffer);
+}
+
 export async function dockerCompose(
   composeContent: string,
   args: string[],
-  options: { projectName?: string; cwd?: string; inherit?: boolean } = {},
+  options: DockerComposeOptions = {},
 ): Promise<ExecResult> {
   const {
     projectName = PROJECT_NAME,
     cwd = process.cwd(),
     inherit = false,
+    onLine,
   } = options;
 
   // Write compose file to cwd so env_file paths resolve correctly
@@ -20,6 +49,20 @@ export async function dockerCompose(
   await Bun.write(tempFile, composeContent);
 
   try {
+    if (onLine) {
+      const proc = Bun.spawn(
+        ['docker', 'compose', '-p', projectName, '-f', tempFile, ...args],
+        { cwd, stdout: 'pipe', stderr: 'pipe' },
+      );
+      await Promise.all([
+        pipeLines(proc.stdout, onLine),
+        pipeLines(proc.stderr, onLine),
+        proc.exited,
+      ]);
+      const exitCode = await proc.exited;
+      return { success: exitCode === 0, stdout: '', stderr: '', exitCode };
+    }
+
     if (inherit) {
       const proc = Bun.spawn(
         ['docker', 'compose', '-p', projectName, '-f', tempFile, ...args],

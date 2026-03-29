@@ -8,6 +8,7 @@ from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from loguru import logger
+from tale_shared.logging import suppress_health_check_logs
 from tale_telemetry import init_telemetry, shutdown_telemetry
 
 from . import __version__
@@ -34,6 +35,7 @@ async def periodic_gc_cleanup() -> None:
 async def lifespan(app: FastAPI):
     """Lifecycle manager for the application."""
     # Startup
+    suppress_health_check_logs()
     logger.info("Starting Tale RAG service...")
     logger.info("Version: {}", __version__)
     logger.info("Host: {}:{}", settings.host, settings.port)
