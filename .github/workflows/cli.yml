@@ -46,12 +46,12 @@ jobs:
           - os: ubuntu-latest
             platform: linux
             build_script: build:linux
-            binary: tale
+            binary: tale-linux
             artifact: tale_linux
           - os: macos-latest
             platform: macos
             build_script: build:mac
-            binary: tale
+            binary: tale-darwin
             artifact: tale_macos
 
     steps:
