@@ -17,8 +17,6 @@
 
 import { ConvexHttpClient } from 'convex/browser';
 
-import type { Id } from '../../convex/_generated/dataModel';
-
 import { api } from '../../convex/_generated/api';
 import { scenarios } from '../fixtures/stress-workflows';
 import { MetricsCollector } from '../metrics';
@@ -29,9 +27,9 @@ const config = scenarios.scheduler_overlap;
 async function run() {
   const convexUrl = process.env.CONVEX_URL || process.env.VITE_CONVEX_URL || '';
   const organizationId = process.env.ORGANIZATION_ID || '';
-  const wfDefinitionId = process.env.WORKFLOW_DEFINITION_ID || '';
+  const workflowSlug = process.env.WORKFLOW_DEFINITION_ID || '';
 
-  if (!convexUrl || !organizationId || !wfDefinitionId) {
+  if (!convexUrl || !organizationId || !workflowSlug) {
     console.error(
       'Required env vars: CONVEX_URL, ORGANIZATION_ID, WORKFLOW_DEFINITION_ID',
     );
@@ -56,11 +54,11 @@ async function run() {
     const startMs = Date.now();
 
     try {
-      const executionId = await client.mutation(
-        api.wf_executions.mutations.startWorkflow,
+      const executionId = await client.action(
+        api.wf_executions.actions.startWorkflowFromFile,
         {
           organizationId,
-          wfDefinitionId: wfDefinitionId as Id<'wfDefinitions'>,
+          workflowSlug,
           input: {
             stressTest: true,
             scenarioIndex: i,
@@ -81,9 +79,10 @@ async function run() {
           },
         },
       );
+      if (!executionId) throw new Error('Workflow start returned null');
       const endMs = Date.now();
       metrics.update(id, 'running');
-      executionMap.set(id, executionId);
+      executionMap.set(id, String(executionId));
       launchTimings.push({ id, startMs, endMs });
       console.log(`  [${i + 1}/6] Started in ${endMs - startMs}ms`);
     } catch (error) {

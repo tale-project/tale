@@ -37,7 +37,6 @@ import {
   resolveWorkflowFilePath,
   resolveWorkflowsDir,
   serializeWorkflowJson,
-  slugToUrlParam,
   validateWorkflowSlug,
   workflowSlugFromRelativePath,
 } from './file_utils';
@@ -102,15 +101,12 @@ export const listWorkflows = action({
         isDirectory: e.isDirectory(),
       }));
     } catch (err) {
-      if (
-        err instanceof Error &&
-        'code' in err &&
-        (err as NodeJS.ErrnoException).code === 'ENOENT'
-      ) {
+      if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
         return [];
       }
       throw new Error(
         `Workflows directory inaccessible: ${err instanceof Error ? err.message : String(err)}`,
+        { cause: err },
       );
     }
 
@@ -234,11 +230,7 @@ export const deleteWorkflow = action({
     const historyDir = resolveHistoryDir(args.orgSlug, args.workflowSlug);
 
     await unlink(filePath).catch((err) => {
-      if (
-        err instanceof Error &&
-        'code' in err &&
-        (err as NodeJS.ErrnoException).code !== 'ENOENT'
-      ) {
+      if (err instanceof Error && 'code' in err && err.code !== 'ENOENT') {
         throw err;
       }
     });
@@ -314,7 +306,7 @@ export const duplicateWorkflow = action({
 
     // Determine the folder prefix and base name
     const parts = args.workflowSlug.split('/');
-    const baseName = parts.pop()!;
+    const baseName = parts.pop() ?? args.workflowSlug;
     const folderPrefix = parts.length > 0 ? parts.join('/') + '/' : '';
 
     // Find a unique name

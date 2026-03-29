@@ -201,10 +201,7 @@ export async function readJsonFile<T>(
       await fd.close();
     }
   } catch (err) {
-    const code =
-      err instanceof Error && 'code' in err
-        ? (err as NodeJS.ErrnoException).code
-        : undefined;
+    const code = err instanceof Error && 'code' in err ? err.code : undefined;
     const errorType =
       code === 'ENOENT'
         ? 'not_found'
@@ -250,7 +247,7 @@ export async function readFileSafe(filePath: string): Promise<string | null> {
 /**
  * Serialize a JSON config, filtering out null/undefined/empty-array values.
  */
-export function serializeJson(data: Record<string, unknown>): string {
+export function serializeJson(data: object): string {
   const cleaned = Object.fromEntries(
     Object.entries(data).filter(
       ([, v]) =>
@@ -261,11 +258,7 @@ export function serializeJson(data: Record<string, unknown>): string {
 }
 
 function isFileNotFound(err: unknown): boolean {
-  return (
-    err instanceof Error &&
-    'code' in err &&
-    (err as NodeJS.ErrnoException).code === 'ENOENT'
-  );
+  return err instanceof Error && 'code' in err && err.code === 'ENOENT';
 }
 
 /**

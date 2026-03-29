@@ -121,7 +121,6 @@ function AutomationDetailLayout() {
   const { id: organizationId, amId } = Route.useParams();
   const workflowSlug = urlParamToSlug(amId);
   const { t } = useT('automations');
-  const { t: tCommon } = useT('common');
 
   const {
     data: readResult,

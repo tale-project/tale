@@ -33,9 +33,7 @@ export class FileWorkflowDataSource implements WorkflowDataSource {
         ? {
             timeout: this.config.config.timeout,
             retryPolicy: this.config.config.retryPolicy,
-            variables: this.config.config.variables as
-              | Record<string, unknown>
-              | undefined,
+            variables: this.config.config.variables,
           }
         : undefined,
     };
@@ -48,8 +46,7 @@ export class FileWorkflowDataSource implements WorkflowDataSource {
       wfDefinitionId: this.workflowSlug,
       stepSlug: step.stepSlug,
       name: step.name,
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- stepType values match Doc<'wfStepDefs'>['stepType'] union
-      stepType: step.stepType as StepDefinition['stepType'],
+      stepType: step.stepType,
       order: step.order ?? index,
       config: step.config,
       nextSteps: step.nextSteps,

@@ -139,7 +139,7 @@ export function resolveHistoryDir(
 }
 
 export function serializeWorkflowJson(config: WorkflowJsonConfig): string {
-  return serializeJson(config as unknown as Record<string, unknown>);
+  return serializeJson(config);
 }
 
 export function parseWorkflowJson(content: string): WorkflowJsonConfig {

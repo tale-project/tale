@@ -39,9 +39,7 @@ export function loadFileWorkflow(
       ? {
           timeout: config.config.timeout,
           retryPolicy: config.config.retryPolicy,
-          variables: config.config.variables as
-            | Record<string, unknown>
-            | undefined,
+          variables: config.config.variables,
         }
       : undefined,
   };
@@ -54,8 +52,7 @@ export function loadFileWorkflow(
     wfDefinitionId: workflowSlug,
     stepSlug: step.stepSlug,
     name: step.name,
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- stepType values match the engine's expected union
-    stepType: step.stepType as StepDefinition['stepType'],
+    stepType: step.stepType,
     order: step.order ?? index,
     config: step.config,
     nextSteps: step.nextSteps,

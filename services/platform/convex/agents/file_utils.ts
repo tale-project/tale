@@ -65,7 +65,7 @@ export function agentNameFromFileName(fileName: string): string {
 }
 
 export function serializeAgentJson(config: AgentJsonConfig): string {
-  return serializeJson(config as unknown as Record<string, unknown>);
+  return serializeJson(config);
 }
 
 export function parseAgentJson(content: string): AgentJsonConfig {

@@ -38,9 +38,9 @@ interface WebhooksSectionProps {
 type WebhookRow = WfWebhook;
 
 export function WebhooksSection({
-  workflowRootId,
+  workflowRootId: _workflowRootId,
   organizationId,
-  orgSlug,
+  orgSlug: _orgSlug,
   workflowSlug,
 }: WebhooksSectionProps) {
   const { t } = useT('automations');
@@ -82,15 +82,7 @@ export function WebhooksSection({
         variant: 'destructive',
       });
     }
-  }, [
-    createWebhook,
-    organizationId,
-    orgSlug,
-    workflowSlug,
-    toast,
-    t,
-    getWebhookUrl,
-  ]);
+  }, [createWebhook, organizationId, workflowSlug, toast, t, getWebhookUrl]);
 
   const handleToggle = useCallback(
     async (webhookId: string, isActive: boolean) => {

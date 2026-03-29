@@ -103,13 +103,11 @@ describe('run_workflow tool handler', () => {
   it('returns failure when workflow not found', async () => {
     const handler = await getHandler();
     const ctx = createMockCtx({
-      runAction: vi
-        .fn()
-        .mockResolvedValue({
-          ok: false,
-          error: 'not_found',
-          message: 'Workflow not found',
-        }),
+      runAction: vi.fn().mockResolvedValue({
+        ok: false,
+        error: 'not_found',
+        message: 'Workflow not found',
+      }),
     });
 
     const result = await handler(ctx, { workflowSlug: 'nonexistent' });

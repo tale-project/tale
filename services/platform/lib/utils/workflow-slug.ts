@@ -26,17 +26,6 @@ export function urlParamToSlug(param: string): string {
 }
 
 /**
- * Extract the folder name from a workflow slug.
- * "general/conversation-sync" → "general"
- * "my-workflow" → undefined (no folder)
- */
-export function getSlugFolder(slug: string): string | undefined {
-  const slashIndex = slug.indexOf('/');
-  if (slashIndex === -1) return undefined;
-  return slug.slice(0, slashIndex);
-}
-
-/**
  * Extract the base name from a workflow slug.
  * "general/conversation-sync" → "conversation-sync"
  * "my-workflow" → "my-workflow"

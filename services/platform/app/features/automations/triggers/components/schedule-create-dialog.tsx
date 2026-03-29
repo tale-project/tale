@@ -52,7 +52,7 @@ export function ScheduleCreateDialog({
   onOpenChange,
   workflowRootId: _workflowRootId,
   organizationId,
-  orgSlug,
+  orgSlug: _orgSlug,
   workflowSlug,
   schedule,
 }: ScheduleCreateDialogProps) {

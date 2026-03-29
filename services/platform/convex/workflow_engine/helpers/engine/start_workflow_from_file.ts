@@ -13,7 +13,6 @@
 import { v } from 'convex/values';
 
 import type { Id } from '../../../_generated/dataModel';
-import type { WorkflowReadResult } from '../../../workflows/file_utils';
 
 import { internal } from '../../../_generated/api';
 import { internalAction } from '../../../_generated/server';
@@ -40,14 +39,13 @@ export const startWorkflowFromFile = internalAction({
     });
 
     // Step 1: Read workflow JSON from filesystem
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- readWorkflowForExecution returns v.any() but is always WorkflowReadResult
-    const result = (await ctx.runAction(
+    const result = await ctx.runAction(
       internal.workflows.file_actions.readWorkflowForExecution,
       {
         orgSlug: args.orgSlug,
         workflowSlug: args.workflowSlug,
       },
-    )) as WorkflowReadResult;
+    );
 
     if (!result.ok) {
       console.error(

@@ -199,7 +199,8 @@ describe('executeApprovedWorkflowUpdate', () => {
       (call) => call[0] === 'mock-saveWorkflowForExecution',
     );
     expect(saveCall).toBeDefined();
-    const savedConfig = saveCall![1].config;
+    if (!saveCall) throw new Error('Expected saveCall to be defined');
+    const savedConfig = saveCall[1].config;
     const patchedStep = savedConfig.steps.find(
       (s: { stepSlug: string }) => s.stepSlug === 'send_email',
     );
@@ -225,7 +226,8 @@ describe('executeApprovedWorkflowUpdate', () => {
       (call) => call[0] === 'mock-saveWorkflowForExecution',
     );
     expect(saveCall).toBeDefined();
-    const savedConfig = saveCall![1].config;
+    if (!saveCall) throw new Error('Expected saveCall to be defined');
+    const savedConfig = saveCall[1].config;
 
     const startStep = savedConfig.steps.find(
       (s: { stepSlug: string }) => s.stepSlug === 'start',

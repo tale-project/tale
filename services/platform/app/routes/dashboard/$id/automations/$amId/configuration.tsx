@@ -40,7 +40,7 @@ function ConfigurationPage() {
     isLoading,
     refetch,
   } = useReadWorkflow('default', workflowSlug);
-  const { mutate: saveWorkflow, isPending: isSaving } = useSaveWorkflow();
+  const { mutateAsync: saveWorkflow, isPending: isSaving } = useSaveWorkflow();
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');

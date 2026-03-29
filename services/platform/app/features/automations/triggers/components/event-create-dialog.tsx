@@ -45,7 +45,7 @@ export function EventCreateDialog({
   onOpenChange,
   workflowRootId,
   organizationId,
-  orgSlug,
+  orgSlug: _orgSlug,
   workflowSlug,
   existingEventTypes,
   editing,

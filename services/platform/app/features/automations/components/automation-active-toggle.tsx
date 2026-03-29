@@ -72,7 +72,7 @@ export function AutomationActiveToggle({
   const handleToggle = useCallback(
     (checked: boolean) => {
       if (checked) {
-        handleActivate();
+        void handleActivate();
       } else {
         setShowDeactivateDialog(true);
       }

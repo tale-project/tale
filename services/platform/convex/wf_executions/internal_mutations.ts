@@ -161,6 +161,7 @@ export const startWorkflowFromFileConfig = internalMutation({
     } catch (error) {
       throw new Error(
         `Failed to load workflow ${args.workflowSlug}: ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error },
       );
     }
 
