@@ -405,19 +405,23 @@ export TMPDIR=/app/data/convex/tmp
 mkdir -p "$TMPDIR"
 cd /app
 
-# Seed default agent JSON files — skip agents the user has modified
+# Seed default agent JSON files — skip agents the user already has or has modified
 agents_dir="${AGENTS_DIR:-/app/data/agents}"
 builtin_dir="/app/agents-builtin"
 mkdir -p "$agents_dir"
 if [ -d "$builtin_dir" ] && [ "$(ls -A "$builtin_dir" 2>/dev/null)" ]; then
   for src in "$builtin_dir"/*.json; do
     [ -f "$src" ] || continue
-    name="$(basename "$src" .json)"
-    history_dir="$agents_dir/.history/$name"
-    if [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
-      echo "   ⏭ Skipping $name.json (user has modifications in .history)"
+    name="$(basename "$src")"
+    slug="$(basename "$src" .json)"
+    dest="$agents_dir/$name"
+    history_dir="$agents_dir/.history/$slug"
+    if [ -f "$dest" ]; then
+      echo "   ⏭ Skipping $name (already exists)"
+    elif [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
+      echo "   ⏭ Skipping $name (user has modifications in .history)"
     else
-      cp "$src" "$agents_dir/"
+      cp "$src" "$dest"
     fi
   done
 fi
@@ -437,15 +441,15 @@ if [ -d "$workflows_builtin_dir" ] && [ "$(ls -A "$workflows_builtin_dir" 2>/dev
     flat_slug="$(echo "$slug" | sed 's|/|__|g')"
     history_dir="$workflows_dir/.history/$flat_slug"
 
-    # Skip if user has history entries (manual edits)
-    if [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
-      echo "   ⏭ Skipping workflow $rel_path (user has modifications in .history)"
+    # Skip if file already exists (user-provided config takes priority)
+    if [ -f "$dest" ]; then
+      echo "   ⏭ Skipping workflow $rel_path (already exists)"
       continue
     fi
 
-    # Skip if the existing file has "installed": true (user explicitly installed it)
-    if [ -f "$dest" ] && grep -q '"installed"[[:space:]]*:[[:space:]]*true' "$dest" 2>/dev/null; then
-      echo "   ⏭ Skipping workflow $rel_path (user has installed it)"
+    # Skip if user has history entries (manual edits to a now-deleted file)
+    if [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
+      echo "   ⏭ Skipping workflow $rel_path (user has modifications in .history)"
       continue
     fi
 
@@ -464,9 +468,9 @@ if [ -d "$integrations_builtin_dir" ] && [ "$(ls -A "$integrations_builtin_dir" 
     name="$(basename "$src_dir")"
     dest_dir="$integrations_dir/$name"
 
-    # Skip if the existing config has "installed": true (user explicitly installed it)
-    if [ -f "$dest_dir/config.json" ] && grep -q '"installed"[[:space:]]*:[[:space:]]*true' "$dest_dir/config.json" 2>/dev/null; then
-      echo "   ⏭ Skipping integration $name (user has installed it)"
+    # Skip if directory already exists (user-provided config takes priority)
+    if [ -d "$dest_dir" ]; then
+      echo "   ⏭ Skipping integration $name (already exists)"
       continue
     fi
 
