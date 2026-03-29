@@ -1,7 +1,9 @@
 import { v } from 'convex/values';
 
 import { internalMutation, mutation } from '../_generated/server';
+import * as AuditLogHelpers from '../audit_logs/helpers';
 import { authComponent } from '../auth';
+import { getOrganizationMember } from '../lib/rls';
 import { jsonRecordValidator } from '../lib/validators/json';
 import {
   authMethodValidator,
@@ -80,11 +82,47 @@ export const updateCredentials = mutation({
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
+    const cred = await ctx.db.get(args.credentialId);
+    if (!cred) throw new Error('Credential record not found');
+
+    const member = await getOrganizationMember(ctx, cred.organizationId, {
+      userId: String(authUser._id),
+      email: authUser.email,
+      name: authUser.name,
+    });
+
     const { credentialId, ...updates } = args;
     const cleanUpdates = Object.fromEntries(
       Object.entries(updates).filter(([_, value]) => value !== undefined),
     );
     await ctx.db.patch(credentialId, cleanUpdates);
+
+    await AuditLogHelpers.logSuccess(
+      ctx,
+      {
+        organizationId: cred.organizationId,
+        actor: {
+          id: String(authUser._id),
+          email: authUser.email,
+          role: member?.role,
+          type: 'user',
+        },
+      },
+      'update_credential',
+      'integration',
+      'integrationCredentials',
+      String(credentialId),
+      cred.slug,
+      AuditLogHelpers.redactSensitiveFields({
+        status: cred.status,
+        authMethod: cred.authMethod,
+        isActive: cred.isActive,
+      }),
+      AuditLogHelpers.redactSensitiveFields({
+        ...cleanUpdates,
+      }),
+    );
+
     return null;
   },
 });
@@ -112,11 +150,42 @@ export const deleteCredentials = mutation({
     const cred = await ctx.db.get(args.credentialId);
     if (!cred) throw new Error('Credential record not found');
 
+    const member = await getOrganizationMember(ctx, cred.organizationId, {
+      userId: String(authUser._id),
+      email: authUser.email,
+      name: authUser.name,
+    });
+
     if (cred.iconStorageId) {
       await ctx.storage.delete(cred.iconStorageId);
     }
 
     await ctx.db.delete(args.credentialId);
+
+    await AuditLogHelpers.logSuccess(
+      ctx,
+      {
+        organizationId: cred.organizationId,
+        actor: {
+          id: String(authUser._id),
+          email: authUser.email,
+          role: member?.role,
+          type: 'user',
+        },
+      },
+      'delete_credential',
+      'integration',
+      'integrationCredentials',
+      String(args.credentialId),
+      cred.slug,
+      AuditLogHelpers.redactSensitiveFields({
+        slug: cred.slug,
+        status: cred.status,
+        authMethod: cred.authMethod,
+      }),
+      undefined,
+    );
+
     return null;
   },
 });

@@ -68,7 +68,7 @@ export const getAvailableIntegrations = query({
       integrations.push({
         name: cred.slug,
         title: cred.slug,
-        type: 'rest_api',
+        type: cred.sqlConnectionConfig ? 'sql' : 'rest_api',
       });
     }
 

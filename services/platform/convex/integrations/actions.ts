@@ -54,6 +54,12 @@ export const saveCredentials = action({
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
+    const cred = await ctx.runQuery(
+      internal.integrations.credential_queries.verifyCredentialAccess,
+      { credentialId: args.credentialId, userId: String(authUser._id) },
+    );
+    if (!cred) throw new Error('Credential not found or access denied');
+
     const { credentialId, apiKeyAuth, basicAuth, oauth2Auth, ...rest } = args;
 
     // Encrypt plaintext credentials
@@ -89,9 +95,13 @@ export const testConnection = action({
   returns: testConnectionResultValidator,
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) {
-      throw new Error('Unauthenticated');
-    }
+    if (!authUser) throw new Error('Unauthenticated');
+
+    const cred = await ctx.runQuery(
+      internal.integrations.credential_queries.verifyCredentialAccess,
+      { credentialId: args.credentialId, userId: String(authUser._id) },
+    );
+    if (!cred) throw new Error('Credential not found or access denied');
 
     return await testConnectionHandler(ctx, args);
   },
@@ -105,9 +115,13 @@ export const generateOAuth2Url = action({
   returns: v.string(),
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) {
-      throw new Error('Unauthenticated');
-    }
+    if (!authUser) throw new Error('Unauthenticated');
+
+    const cred = await ctx.runQuery(
+      internal.integrations.credential_queries.verifyCredentialAccess,
+      { credentialId: args.credentialId, userId: String(authUser._id) },
+    );
+    if (!cred) throw new Error('Credential not found or access denied');
 
     return await generateOAuth2AuthUrl(ctx, args);
   },
@@ -125,9 +139,13 @@ export const saveOAuth2ClientCredentials = action({
   returns: v.null(),
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) {
-      throw new Error('Unauthenticated');
-    }
+    if (!authUser) throw new Error('Unauthenticated');
+
+    const cred = await ctx.runQuery(
+      internal.integrations.credential_queries.verifyCredentialAccess,
+      { credentialId: args.credentialId, userId: String(authUser._id) },
+    );
+    if (!cred) throw new Error('Credential not found or access denied');
 
     await saveOAuth2ClientCredentialsHandler(ctx, args);
     return null;
