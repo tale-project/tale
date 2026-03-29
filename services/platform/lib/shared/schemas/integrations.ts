@@ -92,5 +92,3 @@ export const integrationJsonSchema = z.object({
 });
 
 export type IntegrationJsonConfig = z.infer<typeof integrationJsonSchema>;
-export type IntegrationOperation = z.infer<typeof operationSchema>;
-export type SqlOperation = z.infer<typeof sqlOperationSchema>;
