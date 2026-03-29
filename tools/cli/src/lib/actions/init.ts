@@ -23,13 +23,12 @@ This is a Tale project. Editable configs are in \`agents/\`, \`workflows/\`, and
 
 ## Key reference code (read-only, for understanding schemas and constraints)
 
-- \`.tale/reference/schemas/agents.ts\` — Agent JSON schema (Zod). Defines all valid fields for agent configs.
-- \`.tale/reference/schemas/workflows.ts\` — Workflow JSON schema (Zod). Defines step types, config structure.
-- \`.tale/reference/schemas/integrations.ts\` — Integration JSON schema (Zod). Defines config.json structure, auth methods, operations.
+- \`.tale/reference/lib/shared/schemas/agents.ts\` — Agent JSON schema (Zod). Defines all valid fields for agent configs.
+- \`.tale/reference/lib/shared/schemas/workflows.ts\` — Workflow JSON schema (Zod). Defines step types, config structure.
+- \`.tale/reference/lib/shared/schemas/integrations.ts\` — Integration JSON schema (Zod). Defines config.json structure, auth methods, operations.
 - \`.tale/reference/convex/agents/file_actions.ts\` — How agent files are read/written. Naming rules, validation.
 - \`.tale/reference/convex/workflows/file_actions.ts\` — How workflow files are read/written. Slug format, history.
 - \`.tale/reference/convex/integrations/file_actions.ts\` — How integration files are read/written. Directory structure, validation.
-- \`.tale/reference/examples/\` — Canonical examples from this Tale version.
 
 ## Editing rules
 

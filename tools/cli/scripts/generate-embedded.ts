@@ -14,14 +14,17 @@ const CLI_ROOT = resolve(dirname(Bun.main), '..');
 const REPO_ROOT = resolve(CLI_ROOT, '../..');
 
 const REFERENCE_DIRS: [string, string][] = [
-  ['services/platform/lib/shared/schemas', 'schemas'],
-  ['services/platform/convex/agents', 'convex/agents'],
-  ['services/platform/convex/workflows', 'convex/workflows'],
-  ['services/platform/convex/integrations', 'convex/integrations'],
+  ['services/platform/convex', 'convex'],
+  ['services/platform/lib', 'lib'],
   ['examples', 'examples'],
 ];
 
-const SKIP_DIRS = new Set(['.history', '__tests__', 'node_modules']);
+const SKIP_DIRS = new Set([
+  '.history',
+  '__tests__',
+  '_generated',
+  'node_modules',
+]);
 const SKIP_EXTENSIONS = ['.test.ts', '.test.js', '.spec.ts'];
 
 function shouldSkipFile(name: string): boolean {

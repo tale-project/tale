@@ -20,13 +20,6 @@ export async function fetchReference(projectDir: string): Promise<void> {
     await mkdir(dirname(destPath), { recursive: true });
     await writeFile(destPath, content);
   }
-
-  // Also write example files as reference copies
-  for (const [relPath, content] of Object.entries(EMBEDDED_EXAMPLES)) {
-    const destPath = join(referenceDir, relPath);
-    await mkdir(dirname(destPath), { recursive: true });
-    await writeFile(destPath, content);
-  }
 }
 
 export function getEmbeddedExamples(prefix: string): Map<string, string> {
