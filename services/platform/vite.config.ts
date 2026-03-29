@@ -6,6 +6,7 @@ import tsConfigPaths from 'vite-tsconfig-paths';
 import { injectAcceptLanguage } from './vite-plugins/inject-accept-language';
 import { injectEnv } from './vite-plugins/inject-env';
 import { stubSSRImports } from './vite-plugins/stub-ssr';
+import { watchExamples } from './vite-plugins/watch-examples';
 
 export default defineConfig({
   base: './',
@@ -123,5 +124,6 @@ export default defineConfig({
     stubSSRImports(),
     tsConfigPaths(),
     viteReact(),
+    watchExamples(),
   ],
 });

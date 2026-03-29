@@ -131,6 +131,27 @@ describe('useEffectiveAgent', () => {
       });
     });
 
+    it('includes conversationStarters from matched agent', () => {
+      const starters = ['Hello', 'Help me'];
+      mockAgents = [
+        {
+          name: 'chat-agent',
+          displayName: 'Default Chat',
+          description: 'Default assistant',
+          conversationStarters: starters,
+        },
+      ];
+      mockSelectedAgent = null;
+
+      const { result } = renderHook(() => useEffectiveAgent(ORG_ID));
+
+      expect(result.current).toEqual({
+        name: 'chat-agent',
+        displayName: 'Default Chat',
+        conversationStarters: starters,
+      });
+    });
+
     it('falls back to first agent when no chat-agent default exists', () => {
       mockAgents = [
         {

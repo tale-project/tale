@@ -105,6 +105,7 @@ export const listAgents = action({
             modelPreset: result.config.modelPreset,
             toolNames: result.config.toolNames,
             roleRestriction: result.config.roleRestriction,
+            conversationStarters: result.config.conversationStarters,
           };
         }
         return {
