@@ -1,7 +1,7 @@
 {
   "name": "Shopify Customers Sync",
   "description": "Synchronize customers from Shopify to local database with pagination",
-  "version": "3.0.0",
+  "version": "1.0.0",
   "enabled": true,
   "config": {
     "timeout": 300000,

@@ -1,7 +1,7 @@
 {
   "name": "Product Relationship Analysis",
   "description": "Analyze product relationships based on customer subscription patterns using AI",
-  "version": "2.0.0",
+  "version": "1.0.0",
   "enabled": true,
   "config": {
     "timeout": 1800000,

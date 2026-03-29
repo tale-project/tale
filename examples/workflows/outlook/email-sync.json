@@ -1,7 +1,7 @@
 {
   "name": "Email Sync (Outlook)",
   "description": "Sync emails from Outlook via Microsoft Graph API into conversations with automatic thread grouping",
-  "version": "1.1.0",
+  "version": "1.0.0",
   "enabled": true,
   "config": {
     "timeout": 300000,

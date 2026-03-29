@@ -1,7 +1,7 @@
 {
   "name": "Circuly Subscriptions Sync",
   "description": "Synchronize subscription data from Circuly to customer metadata with pagination",
-  "version": "2.0.0",
+  "version": "1.0.0",
   "enabled": true,
   "config": {
     "timeout": 600000,
