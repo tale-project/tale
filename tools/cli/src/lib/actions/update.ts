@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname, join, relative } from 'node:path';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 
 import type { Checksums } from '../project/types';
 
@@ -12,7 +12,10 @@ import {
   readChecksums,
   writeChecksums,
 } from '../project/checksums';
-import { fetchReference, resolveRepoRoot } from '../project/fetch-reference';
+import {
+  fetchReference,
+  getEmbeddedExamples,
+} from '../project/fetch-reference';
 import { findProject } from '../project/find-project';
 import { readProject } from '../project/read-project';
 
@@ -47,40 +50,28 @@ export async function update(options: UpdateOptions): Promise<void> {
   logger.info(`Current version: ${project.cliVersion}`);
   logger.info(`Target version:  ${pkg.version}`);
 
-  const repoRoot = resolveRepoRoot();
-  if (!repoRoot) {
-    throw new Error(
-      'Could not find Tale repository. Production download is not yet supported.',
-    );
-  }
-
   // Update reference code
   logger.step(`${prefix}Updating reference code...`);
   if (!options.dryRun) {
-    await fetchReference(projectDir, repoRoot);
+    await fetchReference(projectDir);
   }
 
   // Read existing checksums
   const oldChecksums = await readChecksums(projectDir);
   const oldFiles = oldChecksums?.files ?? {};
 
-  // Scan new example files
+  // Get new example files from embedded data
   const newExampleFiles = new Map<string, string>();
-  await scanExampleFiles(
-    join(repoRoot, 'examples', 'agents'),
-    'agents',
-    newExampleFiles,
-  );
-  await scanExampleFiles(
-    join(repoRoot, 'examples', 'workflows'),
-    'workflows',
-    newExampleFiles,
-  );
-  await scanExampleFiles(
-    join(repoRoot, 'examples', 'integrations'),
-    'integrations',
-    newExampleFiles,
-  );
+
+  for (const [relPath, content] of getEmbeddedExamples('agents')) {
+    newExampleFiles.set(join('agents', relPath), content);
+  }
+  for (const [relPath, content] of getEmbeddedExamples('workflows')) {
+    newExampleFiles.set(join('workflows', relPath), content);
+  }
+  for (const [relPath, content] of getEmbeddedExamples('integrations')) {
+    newExampleFiles.set(join('integrations', relPath), content);
+  }
 
   // Classify and apply changes
   const summary: UpdateSummary = {
@@ -175,42 +166,5 @@ export async function update(options: UpdateOptions): Promise<void> {
     logger.info(
       'Skipped files can be compared against .tale/reference/examples/ to merge changes.',
     );
-  }
-}
-
-async function scanExampleFiles(
-  srcDir: string,
-  prefix: string,
-  files: Map<string, string>,
-): Promise<void> {
-  if (!existsSync(srcDir)) {
-    return;
-  }
-
-  await scanRecursive(srcDir, srcDir, prefix, files);
-}
-
-async function scanRecursive(
-  dir: string,
-  baseDir: string,
-  prefix: string,
-  files: Map<string, string>,
-): Promise<void> {
-  const entries = await readdir(dir, { withFileTypes: true });
-
-  for (const entry of entries) {
-    if (entry.name === '.history') {
-      continue;
-    }
-
-    const fullPath = join(dir, entry.name);
-
-    if (entry.isDirectory()) {
-      await scanRecursive(fullPath, baseDir, prefix, files);
-    } else {
-      const content = await readFile(fullPath, 'utf-8');
-      const relPath = join(prefix, relative(baseDir, fullPath));
-      files.set(relPath, content);
-    }
   }
 }

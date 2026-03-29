@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
+import pkg from '../../../package.json';
 import { loadEnv, PROJECT_NAME } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import { generateDevCompose } from '../compose/generators/generate-dev-compose';
@@ -8,8 +9,8 @@ import { dockerCompose } from '../docker/docker-compose';
 import { findProject } from '../project/find-project';
 
 interface StartOptions {
-  version?: string;
   detach?: boolean;
+  port?: number;
   host?: string;
 }
 
@@ -27,18 +28,22 @@ export async function start(options: StartOptions): Promise<void> {
   }
 
   const env = loadEnv(projectDir);
-  const version = options.version ?? 'latest';
+  const version = pkg.version.includes('-dev') ? 'latest' : pkg.version;
+  const port = options.port ?? 443;
   const hostAlias = options.host ?? 'tale.local';
+  const portSuffix = port === 443 ? '' : `:${port}`;
+  const url = `${env.SITE_URL.replace(/:443$/, '')}${portSuffix}`;
 
   logger.header('Starting Tale (Dev Mode)');
   logger.info(`Project: ${projectDir}`);
   logger.info(`Version: ${version}`);
-  logger.info(`Host:    ${hostAlias}`);
+  logger.info(`URL:     ${url}`);
   logger.blank();
 
   const compose = generateDevCompose(
     { version, registry: env.GHCR_REGISTRY },
     hostAlias,
+    port,
   );
 
   const args = ['up', ...(options.detach ? ['-d'] : [])];
@@ -47,6 +52,7 @@ export async function start(options: StartOptions): Promise<void> {
   const result = await dockerCompose(compose, args, {
     projectName: `${PROJECT_NAME}-dev`,
     cwd: projectDir,
+    inherit: !options.detach,
   });
 
   if (!result.success) {

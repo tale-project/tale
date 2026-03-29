@@ -16,6 +16,7 @@ const DEV_COLOR = 'blue' as const;
 export function generateDevCompose(
   config: ServiceConfig,
   hostAlias: string,
+  port: number,
 ): string {
   const platform = createPlatformService(config, DEV_COLOR);
   platform.container_name = `${PROJECT_NAME}-platform`;
@@ -43,10 +44,13 @@ export function generateDevCompose(
   const operator = createOperatorService(config, DEV_COLOR);
   operator.container_name = `${PROJECT_NAME}-operator`;
 
+  const proxy = createProxyService(config, hostAlias);
+  proxy.ports = [`${port}:443`];
+
   const compose: ComposeConfig = {
     services: {
       db: createDbService(config),
-      proxy: createProxyService(config, hostAlias),
+      proxy,
       platform,
       rag,
       crawler,

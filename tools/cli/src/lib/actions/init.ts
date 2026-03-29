@@ -1,11 +1,14 @@
 import { existsSync } from 'node:fs';
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
-import { join, relative, resolve } from 'node:path';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
 
 import pkg from '../../../package.json';
 import * as logger from '../../utils/logger';
 import { computeContentHash, writeChecksums } from '../project/checksums';
-import { fetchReference, resolveRepoRoot } from '../project/fetch-reference';
+import {
+  fetchReference,
+  getEmbeddedExamples,
+} from '../project/fetch-reference';
 import { CURRENT_PROJECT_VERSION, type Checksums } from '../project/types';
 
 interface InitOptions {
@@ -37,9 +40,25 @@ This is a Tale project. Editable configs are in \`agents/\`, \`workflows/\`, and
 - Refer to the Zod schemas for valid field values and constraints
 `;
 
-const GITIGNORE_ENTRIES = ['.tale/', '.env'];
+const GITIGNORE_ENTRIES = ['.tale/', '.env', '.history/'];
 
 export async function init(options: InitOptions): Promise<void> {
+  if (!options.directory && process.stdin.isTTY && process.stdout.isTTY) {
+    const { input } = await import('@inquirer/prompts');
+    const projectName = await input({
+      message: 'Project name:',
+      default: 'my-tale-project',
+      validate: (value) => {
+        if (!value.trim()) return 'Project name cannot be empty';
+        if (!/^[a-z0-9][a-z0-9_-]*$/.test(value.trim())) {
+          return 'Use lowercase letters, numbers, hyphens, and underscores only';
+        }
+        return true;
+      },
+    });
+    options.directory = join(process.cwd(), projectName.trim());
+  }
+
   const target = resolve(options.directory ?? process.cwd());
   const taleJsonPath = join(target, 'tale.json');
 
@@ -52,16 +71,7 @@ export async function init(options: InitOptions): Promise<void> {
     );
   }
 
-  // Resolve monorepo root
-  const repoRoot = resolveRepoRoot();
-  if (!repoRoot) {
-    throw new Error(
-      'Could not find Tale repository. Production download is not yet supported.',
-    );
-  }
-
   logger.info(`Project directory: ${target}`);
-  logger.info(`Source repository: ${repoRoot}`);
 
   // Ensure target directory exists
   await mkdir(target, { recursive: true });
@@ -69,28 +79,22 @@ export async function init(options: InitOptions): Promise<void> {
   // Fetch reference code
   logger.step('Copying reference code to .tale/reference/...');
   await mkdir(join(target, '.tale'), { recursive: true });
-  await fetchReference(target, repoRoot);
+  await fetchReference(target);
 
-  // Copy agents
+  // Copy agents from embedded examples
   logger.step('Copying agent configurations...');
-  const agentFiles = await copyExampleFiles(
-    join(repoRoot, 'examples', 'agents'),
-    join(target, 'agents'),
-  );
+  const agentFiles = getEmbeddedExamples('agents');
+  await writeEmbeddedFiles(agentFiles, join(target, 'agents'));
 
-  // Copy workflows
+  // Copy workflows from embedded examples
   logger.step('Copying workflow configurations...');
-  const workflowFiles = await copyExampleFiles(
-    join(repoRoot, 'examples', 'workflows'),
-    join(target, 'workflows'),
-  );
+  const workflowFiles = getEmbeddedExamples('workflows');
+  await writeEmbeddedFiles(workflowFiles, join(target, 'workflows'));
 
-  // Copy integrations
+  // Copy integrations from embedded examples
   logger.step('Copying integration configurations...');
-  const integrationFiles = await copyExampleFiles(
-    join(repoRoot, 'examples', 'integrations'),
-    join(target, 'integrations'),
-  );
+  const integrationFiles = getEmbeddedExamples('integrations');
+  await writeEmbeddedFiles(integrationFiles, join(target, 'integrations'));
 
   // Compute checksums
   logger.step('Computing file checksums...');
@@ -153,48 +157,16 @@ export async function init(options: InitOptions): Promise<void> {
   logger.info('  2. Run "tale start" to launch the platform locally');
 }
 
-async function copyExampleFiles(
-  srcDir: string,
-  destDir: string,
-): Promise<Map<string, string>> {
-  const files = new Map<string, string>();
-
-  if (!existsSync(srcDir)) {
-    return files;
-  }
-
-  await mkdir(destDir, { recursive: true });
-  await copyRecursive(srcDir, destDir, srcDir, files);
-
-  return files;
-}
-
-async function copyRecursive(
-  srcDir: string,
-  destDir: string,
-  baseDir: string,
+async function writeEmbeddedFiles(
   files: Map<string, string>,
+  destDir: string,
 ): Promise<void> {
-  const entries = await readdir(srcDir, { withFileTypes: true });
+  await mkdir(destDir, { recursive: true });
 
-  for (const entry of entries) {
-    // Skip .history directories
-    if (entry.name === '.history') {
-      continue;
-    }
-
-    const srcPath = join(srcDir, entry.name);
-    const destPath = join(destDir, entry.name);
-
-    if (entry.isDirectory()) {
-      await mkdir(destPath, { recursive: true });
-      await copyRecursive(srcPath, destPath, baseDir, files);
-    } else {
-      const content = await readFile(srcPath, 'utf-8');
-      await writeFile(destPath, content);
-      const relPath = relative(baseDir, srcPath);
-      files.set(relPath, content);
-    }
+  for (const [relPath, content] of files) {
+    const destPath = join(destDir, relPath);
+    await mkdir(dirname(destPath), { recursive: true });
+    await writeFile(destPath, content);
   }
 }
 

@@ -6,24 +6,19 @@ import * as logger from '../../utils/logger';
 export function createStartCommand(): Command {
   return new Command('start')
     .description('Start Tale platform locally with project files')
-    .argument('[version]', 'image version to use (default: latest)')
     .option('-d, --detach', 'run in background')
+    .option('-p, --port <port>', 'HTTPS port to expose', '443')
     .option('--host <hostname>', 'host alias for proxy', 'tale.local')
-    .action(
-      async (
-        version: string | undefined,
-        opts: { detach?: boolean; host: string },
-      ) => {
-        try {
-          await start({
-            version,
-            detach: opts.detach,
-            host: opts.host,
-          });
-        } catch (err) {
-          logger.error(err instanceof Error ? err.message : String(err));
-          process.exit(1);
-        }
-      },
-    );
+    .action(async (opts: { detach?: boolean; port: string; host: string }) => {
+      try {
+        await start({
+          detach: opts.detach,
+          port: Number(opts.port),
+          host: opts.host,
+        });
+      } catch (err) {
+        logger.error(err instanceof Error ? err.message : String(err));
+        process.exit(1);
+      }
+    });
 }
