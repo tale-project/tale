@@ -63,6 +63,34 @@ export const toggleScheduleBySlug = mutation({
   },
 });
 
+export const updateScheduleBySlug = mutation({
+  args: {
+    scheduleId: v.id('wfSchedules'),
+    cronExpression: v.string(),
+    timezone: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) throw new Error('Unauthenticated');
+
+    const schedule = await ctx.db.get(args.scheduleId);
+    if (!schedule) throw new Error('Schedule not found');
+
+    await getOrganizationMember(ctx, schedule.organizationId, {
+      userId: String(authUser._id),
+      email: authUser.email,
+      name: authUser.name,
+    });
+
+    await ctx.db.patch(args.scheduleId, {
+      cronExpression: args.cronExpression,
+      timezone: args.timezone,
+    });
+    return null;
+  },
+});
+
 export const deleteScheduleBySlug = mutation({
   args: { scheduleId: v.id('wfSchedules') },
   returns: v.null(),
@@ -242,6 +270,32 @@ export const toggleEventSubscriptionBySlug = mutation({
     });
 
     await ctx.db.patch(args.subscriptionId, { isActive: args.isActive });
+    return null;
+  },
+});
+
+export const updateEventSubscriptionBySlug = mutation({
+  args: {
+    subscriptionId: v.id('wfEventSubscriptions'),
+    eventFilter: v.optional(v.record(v.string(), v.string())),
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) throw new Error('Unauthenticated');
+
+    const sub = await ctx.db.get(args.subscriptionId);
+    if (!sub) throw new Error('Event subscription not found');
+
+    await getOrganizationMember(ctx, sub.organizationId, {
+      userId: String(authUser._id),
+      email: authUser.email,
+      name: authUser.name,
+    });
+
+    await ctx.db.patch(args.subscriptionId, {
+      eventFilter: args.eventFilter,
+    });
     return null;
   },
 });

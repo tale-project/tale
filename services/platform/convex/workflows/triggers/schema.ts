@@ -74,7 +74,7 @@ export const wfTriggerLogsTable = defineTable({
   /** @deprecated — Use workflowSlug for file-based workflows. */
   workflowRootId: v.optional(v.id('wfDefinitions')),
   workflowSlug: v.optional(v.string()),
-  wfDefinitionId: v.union(v.id('wfDefinitions'), v.string()),
+  wfDefinitionId: v.optional(v.union(v.id('wfDefinitions'), v.string())),
   wfExecutionId: v.optional(v.id('wfExecutions')),
   triggerType: v.union(
     v.literal('manual'),

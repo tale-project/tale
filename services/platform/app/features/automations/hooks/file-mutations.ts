@@ -47,3 +47,7 @@ export function useRenameWorkflow() {
 export function useRestoreFromHistory() {
   return useConvexAction(api.workflows.file_actions.restoreFromHistory);
 }
+
+export function useStartWorkflowFromFile() {
+  return useConvexAction(api.wf_executions.actions.startWorkflowFromFile);
+}

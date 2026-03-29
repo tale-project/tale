@@ -2,14 +2,14 @@
  * Workflow slug utilities for URL routing.
  *
  * Workflow slugs can contain `/` for subdirectories (e.g., "general/conversation-sync").
- * TanStack Router's $amId param cannot contain slashes, so we use `--` as separator in URLs.
+ * TanStack Router's $amId param cannot contain slashes, so we use `__` as separator in URLs.
  */
 
-const SLUG_SEPARATOR = '--';
+const SLUG_SEPARATOR = '__';
 
 /**
- * Convert a filesystem slug (with /) to a URL-safe parameter (with --).
- * "general/conversation-sync" → "general--conversation-sync"
+ * Convert a filesystem slug (with /) to a URL-safe parameter (with __).
+ * "general/conversation-sync" → "general__conversation-sync"
  * "my-workflow" → "my-workflow" (no change for flat slugs)
  */
 export function slugToUrlParam(slug: string): string {
@@ -17,8 +17,8 @@ export function slugToUrlParam(slug: string): string {
 }
 
 /**
- * Convert a URL parameter (with --) back to a filesystem slug (with /).
- * "general--conversation-sync" → "general/conversation-sync"
+ * Convert a URL parameter (with __) back to a filesystem slug (with /).
+ * "general__conversation-sync" → "general/conversation-sync"
  * "my-workflow" → "my-workflow" (no change for flat slugs)
  */
 export function urlParamToSlug(param: string): string {
@@ -33,7 +33,7 @@ export function urlParamToSlug(param: string): string {
 export function getSlugFolder(slug: string): string | undefined {
   const slashIndex = slug.indexOf('/');
   if (slashIndex === -1) return undefined;
-  return slug.substring(0, slashIndex);
+  return slug.slice(0, slashIndex);
 }
 
 /**
@@ -44,5 +44,5 @@ export function getSlugFolder(slug: string): string | undefined {
 export function getSlugBaseName(slug: string): string {
   const slashIndex = slug.lastIndexOf('/');
   if (slashIndex === -1) return slug;
-  return slug.substring(slashIndex + 1);
+  return slug.slice(slashIndex + 1);
 }

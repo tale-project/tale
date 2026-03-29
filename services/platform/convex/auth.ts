@@ -29,9 +29,9 @@ const platformResourceStatements = {
   onedriveSyncConfigs: ['read', 'write'],
   conversations: ['read', 'write'],
   conversationMessages: ['read', 'write'],
-  wfDefinitions: ['read', 'write'],
-  wfStepDefs: ['read', 'write'],
-  wfStepAuditLogs: ['read', 'write'],
+  wfDefinitions: ['read', 'write'], // @deprecated — DB table deprecated; permission for legacy data access only
+  wfStepDefs: ['read', 'write'], // @deprecated — DB table deprecated; permission for legacy data access only
+  wfStepAuditLogs: ['read', 'write'], // @deprecated — DB table deprecated; permission for legacy data access only
   wfExecutions: ['read', 'write'],
   approvals: ['read', 'write'],
   websites: ['read', 'write'],
@@ -58,9 +58,9 @@ const admin = ac.newRole({
   onedriveSyncConfigs: ['read', 'write'],
   conversations: ['read', 'write'],
   conversationMessages: ['read', 'write'],
-  wfDefinitions: ['read', 'write'],
-  wfStepDefs: ['read', 'write'],
-  wfStepAuditLogs: ['read', 'write'],
+  wfDefinitions: ['read', 'write'], // @deprecated — DB table deprecated; permission for legacy data access only
+  wfStepDefs: ['read', 'write'], // @deprecated — DB table deprecated; permission for legacy data access only
+  wfStepAuditLogs: ['read', 'write'], // @deprecated — DB table deprecated; permission for legacy data access only
   wfExecutions: ['read', 'write'],
   workflowProcessingRecords: ['read', 'write'],
   approvals: ['read', 'write'],
@@ -78,9 +78,9 @@ const developer = ac.newRole({
   onedriveSyncConfigs: ['read', 'write'],
   conversations: ['read', 'write'],
   conversationMessages: ['read', 'write'],
-  wfDefinitions: ['read', 'write'],
-  wfStepDefs: ['read', 'write'],
-  wfStepAuditLogs: ['read', 'write'],
+  wfDefinitions: ['read', 'write'], // @deprecated — DB table deprecated; permission for legacy data access only
+  wfStepDefs: ['read', 'write'], // @deprecated — DB table deprecated; permission for legacy data access only
+  wfStepAuditLogs: ['read', 'write'], // @deprecated — DB table deprecated; permission for legacy data access only
   wfExecutions: ['read', 'write'],
   workflowProcessingRecords: ['read', 'write'],
   approvals: ['read', 'write'],
@@ -99,9 +99,9 @@ const editor = ac.newRole({
   onedriveSyncConfigs: ['read'],
   conversations: ['read', 'write'],
   conversationMessages: ['read', 'write'],
-  wfDefinitions: ['read'],
-  wfStepDefs: ['read'],
-  wfStepAuditLogs: ['read'],
+  wfDefinitions: ['read'], // @deprecated — DB table deprecated; permission for legacy data access only
+  wfStepDefs: ['read'], // @deprecated — DB table deprecated; permission for legacy data access only
+  wfStepAuditLogs: ['read'], // @deprecated — DB table deprecated; permission for legacy data access only
   wfExecutions: ['read'],
   workflowProcessingRecords: ['read'],
   approvals: ['read', 'write'],
@@ -120,9 +120,9 @@ const member = ac.newRole({
   onedriveSyncConfigs: ['read'],
   conversations: ['read'],
   conversationMessages: ['read'],
-  wfDefinitions: ['read'],
-  wfStepDefs: ['read'],
-  wfStepAuditLogs: ['read'],
+  wfDefinitions: ['read'], // @deprecated — DB table deprecated; permission for legacy data access only
+  wfStepDefs: ['read'], // @deprecated — DB table deprecated; permission for legacy data access only
+  wfStepAuditLogs: ['read'], // @deprecated — DB table deprecated; permission for legacy data access only
   wfExecutions: ['read'],
   workflowProcessingRecords: ['read'],
   approvals: ['read'],
@@ -141,9 +141,9 @@ const disabled = ac.newRole({
   onedriveSyncConfigs: [],
   conversations: [],
   conversationMessages: [],
-  wfDefinitions: [],
-  wfStepDefs: [],
-  wfStepAuditLogs: [],
+  wfDefinitions: [], // @deprecated — DB table deprecated; permission for legacy data access only
+  wfStepDefs: [], // @deprecated — DB table deprecated; permission for legacy data access only
+  wfStepAuditLogs: [], // @deprecated — DB table deprecated; permission for legacy data access only
   wfExecutions: [],
   workflowProcessingRecords: [],
   approvals: [],

@@ -37,7 +37,8 @@ export const createTriggerLog = internalMutation({
   args: {
     organizationId: v.string(),
     workflowRootId: v.optional(v.id('wfDefinitions')),
-    wfDefinitionId: v.union(v.id('wfDefinitions'), v.string()),
+    workflowSlug: v.optional(v.string()),
+    wfDefinitionId: v.optional(v.union(v.id('wfDefinitions'), v.string())),
     wfExecutionId: v.optional(v.id('wfExecutions')),
     triggerType: v.union(
       v.literal('manual'),

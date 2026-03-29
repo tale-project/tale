@@ -20,10 +20,10 @@ export type PlatformResource =
   | 'products'
   | 'vendors'
   | 'websites'
-  | 'wfDefinitions'
+  | 'wfDefinitions' // @deprecated — DB table deprecated; kept as permission subject
   | 'wfExecutions'
-  | 'wfStepAuditLogs'
-  | 'wfStepDefs'
+  | 'wfStepAuditLogs' // @deprecated — DB table deprecated; kept as permission subject
+  | 'wfStepDefs' // @deprecated — DB table deprecated; kept as permission subject
   | 'workflowProcessingRecords';
 
 /**

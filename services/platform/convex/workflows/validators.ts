@@ -18,17 +18,44 @@ import {
 import { stepConfigValidator } from '../workflow_engine/types/nodes';
 
 // =============================================================================
-// WORKFLOW DEFINITIONS VALIDATORS (re-export from definitions/validators.ts)
+// WORKFLOW DEFINITIONS VALIDATORS
 // =============================================================================
 
-export {
-  workflowStatusValidator,
-  workflowTypeValidator,
-  retryPolicyValidator,
-  secretConfigValidator,
-  workflowConfigValidator,
-  workflowUpdateValidator,
-} from './definitions/validators';
+export const workflowStatusValidator = v.union(
+  v.literal('draft'),
+  v.literal('active'),
+  v.literal('archived'),
+);
+
+export const workflowTypeValidator = v.literal('predefined');
+
+export const retryPolicyValidator = v.object({
+  maxRetries: v.number(),
+  backoffMs: v.number(),
+});
+
+export const secretConfigValidator = v.object({
+  kind: v.literal('inlineEncrypted'),
+  cipherText: v.string(),
+  keyId: v.optional(v.string()),
+});
+
+export const workflowConfigValidator = v.optional(
+  v.object({
+    timeout: v.optional(v.number()),
+    retryPolicy: v.optional(retryPolicyValidator),
+    variables: v.optional(v.record(v.string(), jsonValueValidator)),
+    secrets: v.optional(v.record(v.string(), secretConfigValidator)),
+  }),
+);
+
+export const workflowUpdateValidator = v.object({
+  name: v.optional(v.string()),
+  description: v.optional(v.string()),
+  category: v.optional(v.string()),
+  config: v.optional(workflowConfigValidator),
+  metadata: v.optional(jsonRecordValidator),
+});
 
 // =============================================================================
 // WORKFLOW EXECUTIONS VALIDATORS (re-export from executions/validators.ts)

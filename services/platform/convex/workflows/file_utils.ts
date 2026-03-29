@@ -19,15 +19,17 @@ export { sha256 };
 
 /**
  * Workflow slug: max 2 levels deep (folder/name), lowercase alphanumeric + hyphens/underscores.
- * Examples: "conversation-sync", "general/conversation-sync"
+ * Consecutive underscores (__) are reserved as URL separator and not allowed in slugs.
+ * Examples: "conversation-sync", "general/conversation-sync", "my_workflow"
  */
-const WORKFLOW_SLUG_REGEX = /^[a-z0-9][a-z0-9_-]*(\/[a-z0-9][a-z0-9_-]*)?$/;
+const WORKFLOW_SLUG_REGEX =
+  /^(?!.*__)[a-z0-9][a-z0-9_-]*(\/(?!.*__)[a-z0-9][a-z0-9_-]*)?$/;
 
 const MAX_FILE_SIZE_BYTES = 512 * 1024; // 512 KB
 const MAX_HISTORY_ENTRIES = 100;
 
 /** Separator used in URLs and flattened history paths to represent `/` in slugs. */
-const SLUG_SEPARATOR = '--';
+const SLUG_SEPARATOR = '__';
 
 export type WorkflowReadResult =
   | { ok: true; config: WorkflowJsonConfig; hash: string }

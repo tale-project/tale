@@ -314,7 +314,7 @@ export async function rlsRules(
       },
     },
 
-    // Workflow Definitions - organization-scoped
+    // @deprecated — DB table deprecated; RLS rules kept for legacy data access only
     wfDefinitions: {
       read: async (_, wf) => {
         if (!user) return false;
@@ -342,7 +342,7 @@ export async function rlsRules(
       },
     },
 
-    // Workflow Step Definitions - organization-scoped
+    // @deprecated — DB table deprecated; RLS rules kept for legacy data access only
     wfStepDefs: {
       read: async (_, step) => {
         if (!user) return false;

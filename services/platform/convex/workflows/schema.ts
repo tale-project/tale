@@ -6,8 +6,13 @@ import {
   jsonValueValidator,
 } from '../lib/validators/json';
 import { stepConfigValidator } from '../workflow_engine/types/nodes';
-import { workflowStatusValidator } from './definitions/validators';
 import { executionStatusValidator } from './executions/validators';
+
+const workflowStatusValidator = v.union(
+  v.literal('draft'),
+  v.literal('active'),
+  v.literal('archived'),
+);
 
 /** @deprecated — Legacy table. New workflows use file-based JSON storage. Kept for backward compatibility. */
 export const wfDefinitionsTable = defineTable({

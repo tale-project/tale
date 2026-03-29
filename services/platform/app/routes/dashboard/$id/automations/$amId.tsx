@@ -7,7 +7,7 @@ import {
 import { lazy, Suspense, useCallback, useMemo, useState } from 'react';
 import { z } from 'zod';
 
-import type { Doc, Id } from '@/convex/_generated/dataModel';
+import type { Doc } from '@/convex/_generated/dataModel';
 
 import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
 import { PageLayout } from '@/app/components/layout/page-layout';
@@ -218,24 +218,22 @@ function AutomationDetailInner({
   const isExactAutomationPage =
     location.pathname === `/dashboard/${organizationId}/automations/${amId}`;
 
-  // Map file-based steps to the Doc<'wfStepDefs'> shape expected by AutomationSteps.
-  // The component only reads display fields (stepSlug, name, stepType, config, nextSteps, order).
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- bridging file-based data to DB-typed component; component only reads display fields
   const steps = useMemo(
     () =>
       config.steps.map((step, index) => ({
-        _id: `${workflowSlug}:${step.stepSlug}` as unknown as Id<'wfStepDefs'>,
+        _id: `${workflowSlug}:${step.stepSlug}`,
         _creationTime: 0,
         organizationId,
-        wfDefinitionId: workflowSlug as unknown as Id<'wfDefinitions'>,
+        wfDefinitionId: workflowSlug,
         stepSlug: step.stepSlug,
         name: step.name,
         description: step.description,
         stepType: step.stepType,
         order: step.order ?? index,
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- file-based config is validated by schema
         config: step.config as Doc<'wfStepDefs'>['config'],
         nextSteps: step.nextSteps,
-      })) satisfies Doc<'wfStepDefs'>[],
+      })),
     [config.steps, workflowSlug, organizationId],
   );
 
@@ -273,7 +271,7 @@ function AutomationDetailInner({
           <AutomationNavigation
             organizationId={organizationId}
             automationId={amId}
-            automation={null}
+            isEnabled={config.enabled}
             isLoading={false}
           />
         </>
@@ -287,10 +285,10 @@ function AutomationDetailInner({
               <AutomationSteps
                 status={config.enabled ? 'active' : 'draft'}
                 className="flex-1"
-                steps={steps}
+                // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- file-based steps mapped to Doc shape; component only reads display fields
+                steps={steps as Doc<'wfStepDefs'>[]}
                 organizationId={organizationId}
-                // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- slug used as ID for file-based workflows; component only uses it for display/context
-                automationId={workflowSlug as unknown as Id<'wfDefinitions'>}
+                automationId={workflowSlug}
               />
             </Suspense>
           ) : (

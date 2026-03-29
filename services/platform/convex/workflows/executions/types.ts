@@ -81,7 +81,7 @@ export interface UpdateExecutionVariablesArgs {
 }
 
 export interface ListExecutionsArgs {
-  wfDefinitionId: Doc<'wfDefinitions'>['_id'];
+  wfDefinitionId: string;
   status?: string;
   limit?: number;
   search?: string;
@@ -95,7 +95,7 @@ export interface ListExecutionsArgs {
 // =============================================================================
 
 export interface ListExecutionsCursorArgs {
-  wfDefinitionId: Doc<'wfDefinitions'>['_id'];
+  wfDefinitionId: string;
   /** Number of items to fetch per page */
   numItems?: number;
   /** Cursor for pagination (null for first page) */

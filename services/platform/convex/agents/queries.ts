@@ -75,6 +75,7 @@ export const getAvailableIntegrations = query({
   },
 });
 
+/** @deprecated Needs rewrite to list file-based workflows instead of DB records. */
 export const getAvailableWorkflows = query({
   args: {
     organizationId: v.string(),

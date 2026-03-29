@@ -18,7 +18,7 @@ import { useT } from '@/lib/i18n/client';
 
 import type { WorkflowTemplateData } from '../utils/fetch-workflow-template';
 
-import { useCreateAutomation } from '../hooks/mutations';
+import { useSaveWorkflow } from '../hooks/file-mutations';
 import { WorkflowTemplateGrid } from './workflow-template-grid';
 
 type FormData = {
@@ -44,6 +44,13 @@ interface CreateAutomationDialogProps {
   defaultTab?: TabValue;
 }
 
+function nameToSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
 function BlankTabContent({
   organizationId,
   onOpenChange,
@@ -54,7 +61,7 @@ function BlankTabContent({
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
   const navigate = useNavigate();
-  const { mutateAsync: createAutomation } = useCreateAutomation();
+  const { mutateAsync: saveWorkflow } = useSaveWorkflow();
 
   const formSchema = useMemo(
     () =>
@@ -78,15 +85,22 @@ function BlankTabContent({
 
   const onSubmit = useCallback(
     async (data: FormData) => {
+      const workflowSlug = nameToSlug(data.name);
+      if (!workflowSlug) {
+        setError('name', { message: t('validation.duplicateName') });
+        return;
+      }
+
       try {
-        const { workflowId: wfDefinitionId } = await createAutomation({
-          organizationId,
-          workflowConfig: {
+        await saveWorkflow({
+          orgSlug: 'default',
+          workflowSlug,
+          config: {
             name: data.name,
-            description: data.description,
-            config: {},
+            description: data.description ?? '',
+            enabled: false,
+            steps: [],
           },
-          stepsConfig: [],
         });
 
         toast({
@@ -95,7 +109,7 @@ function BlankTabContent({
         });
         void navigate({
           to: '/dashboard/$id/automations/$amId',
-          params: { id: organizationId, amId: wfDefinitionId },
+          params: { id: organizationId, amId: workflowSlug },
           search: { panel: 'ai-chat' },
         });
       } catch (error) {
@@ -112,7 +126,7 @@ function BlankTabContent({
         });
       }
     },
-    [createAutomation, organizationId, t, navigate, setError],
+    [saveWorkflow, organizationId, t, navigate, setError],
   );
 
   return (
@@ -164,21 +178,24 @@ function TemplateTabContent({
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
   const navigate = useNavigate();
-  const { mutateAsync: createAutomation } = useCreateAutomation();
+  const { mutateAsync: saveWorkflow } = useSaveWorkflow();
   const [isCreating, setIsCreating] = useState(false);
 
   const handleTemplateSelected = useCallback(
     async (data: WorkflowTemplateData) => {
       setIsCreating(true);
+      const workflowSlug = nameToSlug(data.workflowConfig.name);
       try {
-        const { workflowId: wfDefinitionId } = await createAutomation({
-          organizationId,
-          workflowConfig: {
+        await saveWorkflow({
+          orgSlug: 'default',
+          workflowSlug,
+          config: {
             name: data.workflowConfig.name,
-            description: data.workflowConfig.description,
+            description: data.workflowConfig.description ?? '',
+            enabled: false,
             config: data.workflowConfig.config ?? {},
+            steps: data.stepsConfig,
           },
-          stepsConfig: data.stepsConfig,
         });
 
         toast({
@@ -187,7 +204,7 @@ function TemplateTabContent({
         });
         void navigate({
           to: '/dashboard/$id/automations/$amId',
-          params: { id: organizationId, amId: wfDefinitionId },
+          params: { id: organizationId, amId: workflowSlug },
         });
       } catch (error) {
         if (
@@ -208,7 +225,7 @@ function TemplateTabContent({
         setIsCreating(false);
       }
     },
-    [createAutomation, organizationId, t, navigate],
+    [saveWorkflow, organizationId, t, navigate],
   );
 
   return (

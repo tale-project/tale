@@ -1,9 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router';
 
-import { ContentArea } from '@/app/components/layout/content-area';
-import { Text } from '@/app/components/ui/typography/text';
-import { useT } from '@/lib/i18n/client';
+import { Triggers } from '@/app/features/automations/triggers/triggers';
 import { seo } from '@/lib/utils/seo';
+import { urlParamToSlug } from '@/lib/utils/workflow-slug';
 
 export const Route = createFileRoute(
   '/dashboard/$id/automations/$amId/triggers',
@@ -15,16 +14,15 @@ export const Route = createFileRoute(
 });
 
 function TriggersPage() {
-  const { t } = useT('automations');
+  const { id: organizationId, amId } = Route.useParams();
+  const workflowSlug = urlParamToSlug(amId);
 
   return (
-    <ContentArea variant="narrow" gap={4} className="py-8">
-      <Text as="p" variant="label">
-        {t('triggers.title')}
-      </Text>
-      <Text as="p" variant="caption">
-        Trigger configuration for file-based workflows is coming soon.
-      </Text>
-    </ContentArea>
+    <Triggers
+      automationId={amId}
+      organizationId={organizationId}
+      orgSlug="default"
+      workflowSlug={workflowSlug}
+    />
   );
 }
