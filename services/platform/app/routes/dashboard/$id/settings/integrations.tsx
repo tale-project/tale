@@ -163,8 +163,8 @@ function IntegrationsPage() {
       item != null && 'title' in item && 'slug' in item,
   );
   const mergedIntegrations = validIntegrations.map((item) => {
-    const slug = item.slug;
-    const cred = credentialsBySlug.get(slug as string);
+    const slug = String(item.slug);
+    const cred = credentialsBySlug.get(slug);
     return {
       ...item,
       _id: cred?._id ?? slug,
