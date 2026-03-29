@@ -124,6 +124,7 @@ export const executeApprovedWorkflowCreation = internalAction({
         name: metadata.workflowConfig.name,
         description: metadata.workflowConfig.description,
         version: metadata.workflowConfig.version,
+        installed: true,
         enabled: false,
         config: metadata.workflowConfig.config,
         steps: metadata.stepsConfig.map((step, index) => ({

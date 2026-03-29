@@ -13,7 +13,9 @@ type ListWorkflowsResult = FunctionReturnType<
   typeof api.workflows.file_actions.listWorkflows
 >;
 
-export function useListWorkflows(orgSlug: string) {
+type WorkflowFilter = 'installed' | 'templates' | 'all';
+
+export function useListWorkflows(orgSlug: string, filter?: WorkflowFilter) {
   const listWorkflowsFn = useAction(api.workflows.file_actions.listWorkflows);
   const [data, setData] = useState<ListWorkflowsResult | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
@@ -23,14 +25,14 @@ export function useListWorkflows(orgSlug: string) {
     setIsLoading(true);
     setError(null);
     try {
-      const result = await listWorkflowsFn({ orgSlug });
+      const result = await listWorkflowsFn({ orgSlug, filter });
       setData(result);
     } catch (err) {
       setError(err instanceof Error ? err : new Error(String(err)));
     } finally {
       setIsLoading(false);
     }
-  }, [listWorkflowsFn, orgSlug]);
+  }, [listWorkflowsFn, orgSlug, filter]);
 
   useEffect(() => {
     void refetch();

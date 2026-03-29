@@ -3,7 +3,7 @@
 import { useNavigate } from '@tanstack/react-router';
 import { type Row } from '@tanstack/react-table';
 import { Folder, FolderTree, List, Workflow } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Badge } from '@/app/components/ui/feedback/badge';
@@ -64,8 +64,19 @@ export function AutomationsTable({ organizationId }: AutomationsTableProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('folder');
 
-  const { workflows, isLoading } = useListWorkflows('default');
+  const { workflows, isLoading, refetch } = useListWorkflows(
+    'default',
+    'installed',
+  );
   const { columns, listColumns } = useAutomationsTableConfig();
+
+  useEffect(() => {
+    const handleWorkflowUpdated = () => void refetch();
+    window.addEventListener('workflow-updated', handleWorkflowUpdated);
+    return () => {
+      window.removeEventListener('workflow-updated', handleWorkflowUpdated);
+    };
+  }, [refetch]);
 
   const validWorkflows = useMemo(
     () =>
@@ -133,7 +144,7 @@ export function AutomationsTable({ organizationId }: AutomationsTableProps) {
 
   if (!validWorkflows || validWorkflows.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center gap-2 p-12">
+      <div className="flex flex-col items-center justify-center gap-4 p-12">
         <Workflow className="text-muted-foreground size-10" />
         <Text as="span" variant="label">
           {tEmpty('automations.title')}
@@ -141,6 +152,7 @@ export function AutomationsTable({ organizationId }: AutomationsTableProps) {
         <Text as="span" variant="caption">
           {tEmpty('automations.description')}
         </Text>
+        <AutomationsActionMenu organizationId={organizationId} />
       </div>
     );
   }

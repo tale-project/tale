@@ -15,8 +15,7 @@ import { Tabs } from '@/app/components/ui/navigation/tabs';
 import { Button } from '@/app/components/ui/primitives/button';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-
-import type { WorkflowTemplateData } from '../utils/fetch-workflow-template';
+import { slugToUrlParam } from '@/lib/utils/workflow-slug';
 
 import { useSaveWorkflow } from '../hooks/file-mutations';
 import { WorkflowTemplateGrid } from './workflow-template-grid';
@@ -98,11 +97,13 @@ function BlankTabContent({
           config: {
             name: data.name,
             description: data.description ?? '',
+            installed: true,
             enabled: false,
             steps: [],
           },
         });
 
+        window.dispatchEvent(new Event('workflow-updated'));
         toast({
           title: t('toast.created'),
           variant: 'success',
@@ -178,68 +179,33 @@ function TemplateTabContent({
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
   const navigate = useNavigate();
-  const { mutateAsync: saveWorkflow } = useSaveWorkflow();
-  const [isCreating, setIsCreating] = useState(false);
 
-  const handleTemplateSelected = useCallback(
-    async (data: WorkflowTemplateData) => {
-      setIsCreating(true);
-      const workflowSlug = nameToSlug(data.workflowConfig.name);
-      try {
-        await saveWorkflow({
-          orgSlug: 'default',
-          workflowSlug,
-          config: {
-            name: data.workflowConfig.name,
-            description: data.workflowConfig.description ?? '',
-            enabled: false,
-            config: data.workflowConfig.config ?? {},
-            steps: data.stepsConfig,
-          },
-        });
-
-        toast({
-          title: t('toast.created'),
-          variant: 'success',
-        });
-        void navigate({
-          to: '/dashboard/$id/automations/$amId',
-          params: { id: organizationId, amId: workflowSlug },
-        });
-      } catch (error) {
-        if (
-          error instanceof ConvexError &&
-          error.data?.code === 'DUPLICATE_NAME'
-        ) {
-          toast({
-            title: t('validation.duplicateName'),
-            variant: 'destructive',
-          });
-          return;
-        }
-        toast({
-          title: t('toast.createFailed'),
-          variant: 'destructive',
-        });
-      } finally {
-        setIsCreating(false);
-      }
+  const handleTemplateInstalled = useCallback(
+    (slug: string) => {
+      toast({
+        title: t('toast.created'),
+        variant: 'success',
+      });
+      const amId = slugToUrlParam(slug);
+      void navigate({
+        to: '/dashboard/$id/automations/$amId',
+        params: { id: organizationId, amId },
+      });
     },
-    [saveWorkflow, organizationId, t, navigate],
+    [organizationId, t, navigate],
   );
 
   return (
     <Stack gap={4}>
       <WorkflowTemplateGrid
         integrationName={integrationName}
-        onTemplateSelected={handleTemplateSelected}
+        onTemplateInstalled={handleTemplateInstalled}
       />
       <div className="flex justify-end pt-2">
         <Button
           type="button"
           variant="secondary"
           onClick={() => onOpenChange(false)}
-          disabled={isCreating}
         >
           {tCommon('actions.cancel')}
         </Button>

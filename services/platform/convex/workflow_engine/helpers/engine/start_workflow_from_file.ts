@@ -59,7 +59,14 @@ export const startWorkflowFromFile = internalAction({
 
     const config = result.config;
 
-    // Step 2: Check if workflow is enabled
+    // Step 2: Check if workflow is installed and enabled
+    if (!config.installed) {
+      debugLog('startWorkflowFromFile Workflow is not installed, skipping', {
+        workflowSlug: args.workflowSlug,
+      });
+      return null;
+    }
+
     if (!config.enabled) {
       debugLog('startWorkflowFromFile Workflow is disabled, skipping', {
         workflowSlug: args.workflowSlug,

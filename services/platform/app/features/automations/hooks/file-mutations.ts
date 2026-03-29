@@ -5,6 +5,10 @@ export function useSaveWorkflow() {
   return useConvexAction(api.workflows.file_actions.saveWorkflowWithSnapshot);
 }
 
+export function useInstallWorkflow() {
+  return useConvexAction(api.workflows.file_actions.installWorkflow);
+}
+
 export function useToggleWorkflowEnabled() {
   const readAction = useConvexAction(api.workflows.file_actions.readWorkflow);
   const saveAction = useConvexAction(

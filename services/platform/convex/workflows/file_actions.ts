@@ -82,12 +82,16 @@ export const readWorkflow = action({
 export const listWorkflows = action({
   args: {
     orgSlug: v.string(),
+    filter: v.optional(
+      v.union(v.literal('installed'), v.literal('templates'), v.literal('all')),
+    ),
   },
   returns: v.any(),
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
+    const filterMode = args.filter ?? 'all';
     const dir = resolveWorkflowsDir(args.orgSlug);
     let entries: { name: string; parentPath: string; isDirectory: boolean }[];
     try {
@@ -129,10 +133,15 @@ export const listWorkflows = action({
 
         const result = await readWorkflowFile(args.orgSlug, slug);
         if (result.ok) {
+          const installed = result.config.installed ?? false;
+          if (filterMode === 'installed' && !installed) return null;
+          if (filterMode === 'templates' && installed) return null;
+
           return {
             slug,
             name: result.config.name,
             description: result.config.description,
+            installed,
             enabled: result.config.enabled,
             version: result.config.version,
             stepCount: result.config.steps.length,
@@ -239,6 +248,55 @@ export const deleteWorkflow = action({
   },
 });
 
+export const installWorkflow = action({
+  args: {
+    orgSlug: v.string(),
+    workflowSlug: v.string(),
+  },
+  returns: v.object({ hash: v.string() }),
+  handler: async (ctx, args): Promise<{ hash: string }> => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) throw new Error('Unauthenticated');
+
+    if (!validateWorkflowSlug(args.workflowSlug)) {
+      throw new Error(`Invalid workflow slug: ${args.workflowSlug}`);
+    }
+
+    const result = await readWorkflowFile(args.orgSlug, args.workflowSlug);
+    if (!result.ok) {
+      throw new Error(`Cannot install workflow: ${result.message}`);
+    }
+
+    if (result.config.installed) {
+      return { hash: result.hash };
+    }
+
+    const updatedConfig: WorkflowJsonConfig = {
+      ...result.config,
+      installed: true,
+    };
+
+    const newContent = serializeWorkflowJson(updatedConfig);
+    const filePath = resolveWorkflowFilePath(args.orgSlug, args.workflowSlug);
+
+    const historyDir = resolveHistoryDir(args.orgSlug, args.workflowSlug);
+    await mkdir(historyDir, { recursive: true });
+    const currentContent = await readFileSafe(filePath);
+    if (currentContent) {
+      const timestamp = generateHistoryTimestamp();
+      await atomicWrite(
+        path.join(historyDir, `${timestamp}.json`),
+        currentContent,
+      );
+      await pruneHistory(historyDir, MAX_HISTORY_ENTRIES);
+    }
+
+    await atomicWrite(filePath, newContent);
+
+    return { hash: sha256(newContent) };
+  },
+});
+
 export const duplicateWorkflow = action({
   args: {
     orgSlug: v.string(),
@@ -280,6 +338,7 @@ export const duplicateWorkflow = action({
     const newConfig: WorkflowJsonConfig = {
       ...source.config,
       name: `${source.config.name} (Copy)`,
+      installed: true,
       enabled: false,
     };
 
@@ -535,7 +594,7 @@ export const listWorkflowsForAgent = internalAction({
         if (!validateWorkflowSlug(slug)) return null;
 
         const result = await readWorkflowFile(args.orgSlug, slug);
-        if (result.ok) {
+        if (result.ok && result.config.installed) {
           return {
             slug,
             name: result.config.name,
