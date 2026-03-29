@@ -156,7 +156,7 @@
         "@vitest/browser": "^4.0.18",
         "@vitest/browser-playwright": "^4.0.18",
         "bcryptjs": "3.0.3",
-        "convex-test": "0.0.44",
+        "convex-test": "0.0.45",
         "jsdom": "29.0.1",
         "postcss-load-config": "6.0.1",
         "storybook": "10.3.3",
@@ -1699,7 +1699,7 @@
 
     "convex-helpers": ["convex-helpers@0.1.114", "", { "peerDependencies": { "@standard-schema/spec": "^1.0.0", "convex": "^1.32.0", "hono": "^4.0.5", "react": "^17.0.2 || ^18.0.0 || ^19.0.0", "typescript": "^5.5", "zod": "^3.25.0 || ^4.0.0" }, "optionalPeers": ["@standard-schema/spec", "hono", "react", "typescript", "zod"], "bin": { "convex-helpers": "bin.cjs" } }, "sha512-elEdh+gG6BDv2dWIWVvBeJPbHnDQS5+WexUuwlGVJXz1EbMkXz/UIQwFIfLMZIXUwW6ot4JYf/1JJKNStrE6lg=="],
 
-    "convex-test": ["convex-test@0.0.44", "", { "peerDependencies": { "convex": "^1.32.0" } }, "sha512-2tv5XRx1n9z4kKwIiUU1UZgC0UDgUGpqAL2D2Hq45cHJ6HBTemfP2wKPMOcfag6ATFfmyqK3Xau0fKiJCtrdxQ=="],
+    "convex-test": ["convex-test@0.0.45", "", { "peerDependencies": { "convex": "^1.32.0" } }, "sha512-e7wjl/1EXWDlbpIbfMqlmpwMwKC8bp+XiKQUk1xeG4u/mIiMLel5u/KaSueHm4zAxLdoyqAjGb6LAOZMqaIlSQ=="],
 
     "cookie-es": ["cookie-es@2.0.0", "", {}, "sha512-RAj4E421UYRgqokKUmotqAwuplYw15qtdXfY+hGzgCJ/MBjCVZcSoHK/kH9kocfjRjcDME7IiDWR/1WX1TM2Pg=="],
 
