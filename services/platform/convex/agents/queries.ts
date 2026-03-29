@@ -57,17 +57,18 @@ export const getAvailableIntegrations = query({
 
     const integrations: Array<{ name: string; title: string; type: string }> =
       [];
-    const integrationQuery = ctx.db
-      .query('integrations')
-      .withIndex('by_organizationId_and_status', (q) =>
-        q.eq('organizationId', args.organizationId).eq('status', 'active'),
+    const credentialQuery = ctx.db
+      .query('integrationCredentials')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', args.organizationId),
       );
 
-    for await (const integration of integrationQuery) {
+    for await (const cred of credentialQuery) {
+      if (cred.status !== 'active') continue;
       integrations.push({
-        name: integration.name,
-        title: integration.title,
-        type: integration.type ?? 'rest_api',
+        name: cred.slug,
+        title: cred.slug,
+        type: cred.sqlConnectionConfig ? 'sql' : 'rest_api',
       });
     }
 

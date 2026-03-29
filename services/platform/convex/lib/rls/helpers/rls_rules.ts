@@ -230,6 +230,42 @@ export async function rlsRules(
       },
     },
 
+    // Integration Credentials - organization-scoped, Developer+ role required for modifications
+    integrationCredentials: {
+      read: async (_, cred) => {
+        if (!user) return false;
+        if (!userOrgIds.has(cred.organizationId)) return false;
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === cred.organizationId,
+        );
+        return authorizeRls(membership?.role, 'integrationCredentials', 'read');
+      },
+      modify: async (_, cred) => {
+        if (!user) return false;
+        if (!userOrgIds.has(cred.organizationId)) return false;
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === cred.organizationId,
+        );
+        return authorizeRls(
+          membership?.role,
+          'integrationCredentials',
+          'write',
+        );
+      },
+      insert: async ({ user: ruleUser }, cred) => {
+        if (!ruleUser) return false;
+        if (!userOrgIds.has(cred.organizationId)) return false;
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === cred.organizationId,
+        );
+        return authorizeRls(
+          membership?.role,
+          'integrationCredentials',
+          'write',
+        );
+      },
+    },
+
     // OneDrive Sync Configs - organization-scoped
     onedriveSyncConfigs: {
       read: async (_, config) => {

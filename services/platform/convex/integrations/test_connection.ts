@@ -5,9 +5,9 @@
  * SQL integrations use SELECT 1 database ping.
  */
 
-import type { Doc } from '../_generated/dataModel';
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
+import type { LoadedIntegration } from './load_integration';
 import type {
   ApiKeyAuth,
   BasicAuth,
@@ -17,7 +17,7 @@ import type {
   TestConnectionResult,
 } from './types';
 
-import { api, internal } from '../_generated/api';
+import { internal } from '../_generated/api';
 import { createDebugLog } from '../lib/debug_log';
 import { buildIntegrationSecrets } from './build_test_secrets';
 import { isSqlIntegration } from './guards/is_sql_integration';
@@ -25,7 +25,7 @@ import { isSqlIntegration } from './guards/is_sql_integration';
 const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations]');
 
 export interface TestConnectionArgs {
-  integrationId: Id<'integrations'>;
+  credentialId: Id<'integrationCredentials'>;
   /** Inline API key auth for pre-save testing (plaintext, not yet encrypted) */
   apiKeyAuth?: ApiKeyAuth;
   /** Inline basic auth for pre-save testing (plaintext password, not yet encrypted) */
@@ -38,7 +38,7 @@ export interface TestConnectionArgs {
   sqlConnectionConfig?: SqlConnectionConfig;
 }
 
-function hasCredentials(integration: Doc<'integrations'>): boolean {
+function hasCredentials(integration: LoadedIntegration): boolean {
   return (
     !!integration.apiKeyAuth ||
     !!integration.basicAuth ||
@@ -51,7 +51,7 @@ function hasCredentials(integration: Doc<'integrations'>): boolean {
  * Mirrors the pattern used by runHealthCheck in run_health_check.ts.
  */
 function buildInlineSecrets(
-  integration: Doc<'integrations'>,
+  integration: LoadedIntegration,
   overrides: {
     apiKeyAuth?: ApiKeyAuth;
     basicAuth?: BasicAuth;
@@ -99,7 +99,7 @@ function buildInlineSecrets(
  */
 async function testRestConnection(
   ctx: ActionCtx,
-  integration: Doc<'integrations'>,
+  integration: LoadedIntegration,
   overrides?: {
     apiKeyAuth?: ApiKeyAuth;
     basicAuth?: BasicAuth;
@@ -162,7 +162,7 @@ async function testRestConnection(
  */
 async function testSqlConnection(
   ctx: ActionCtx,
-  integration: Doc<'integrations'>,
+  integration: LoadedIntegration,
   overrides?: {
     sqlConnectionConfig?: TestConnectionArgs['sqlConnectionConfig'];
     basicAuth?: TestConnectionArgs['basicAuth'];
@@ -233,9 +233,22 @@ export async function testConnection(
   ctx: ActionCtx,
   args: TestConnectionArgs,
 ): Promise<TestConnectionResult> {
-  const integration = await ctx.runQuery(api.integrations.queries.get, {
-    integrationId: args.integrationId,
-  });
+  const credential = await ctx.runQuery(
+    internal.integrations.credential_queries.getByIdInternal,
+    { credentialId: args.credentialId },
+  );
+  if (!credential) {
+    return { success: false, message: 'Integration credentials not found' };
+  }
+
+  const integration = await ctx.runAction(
+    internal.integrations.load_integration.loadIntegration,
+    {
+      orgSlug: 'default',
+      organizationId: credential.organizationId,
+      slug: credential.slug,
+    },
+  );
 
   if (!integration) {
     return {
@@ -285,10 +298,10 @@ export async function testConnection(
 
     if (!isDryRun) {
       await ctx.runMutation(
-        internal.integrations.internal_mutations.updateIntegration,
+        internal.integrations.credential_mutations.updateCredentialsInternal,
         {
-          integrationId: args.integrationId,
-          status: 'active',
+          credentialId: args.credentialId,
+          status: 'active' as const,
           isActive: true,
           errorMessage: undefined,
         },
@@ -311,10 +324,10 @@ export async function testConnection(
 
     if (!isDryRun) {
       await ctx.runMutation(
-        internal.integrations.internal_mutations.updateIntegration,
+        internal.integrations.credential_mutations.updateCredentialsInternal,
         {
-          integrationId: args.integrationId,
-          status: 'error',
+          credentialId: args.credentialId,
+          status: 'error' as const,
           errorMessage:
             error instanceof Error ? error.message : 'Unknown error',
         },

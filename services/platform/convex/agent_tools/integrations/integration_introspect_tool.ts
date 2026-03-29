@@ -53,10 +53,9 @@ Returns operation names and types. Use 'operation' param to get parameter detail
         );
       }
 
-      // Fetch the specific integration
-      const integration = await ctx.runQuery(
-        internal.integrations.internal_queries.getByName,
-        { organizationId, name: args.integrationName },
+      const integration = await ctx.runAction(
+        internal.integrations.load_integration.loadIntegration,
+        { orgSlug: 'default', organizationId, slug: args.integrationName },
       );
 
       if (!integration) {

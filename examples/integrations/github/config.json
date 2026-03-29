@@ -1,6 +1,6 @@
 {
-  "name": "github",
   "title": "GitHub",
+  "installed": false,
   "description": "GitHub REST API integration for repositories, issues, pull requests, and code search",
   "version": 1,
   "authMethod": "bearer_token",

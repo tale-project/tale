@@ -27,39 +27,52 @@ interface TokenResponse {
 
 export const handleOAuth2Callback = internalAction({
   args: {
-    integrationId: v.id('integrations'),
+    credentialId: v.id('integrationCredentials'),
     code: v.string(),
     redirectUri: v.string(),
   },
   handler: async (ctx, args) => {
-    const integration = await ctx.runQuery(
-      internal.integrations.internal_queries.getInternal,
-      { integrationId: args.integrationId },
+    const credential = await ctx.runQuery(
+      internal.integrations.credential_queries.getByIdInternal,
+      { credentialId: args.credentialId },
     );
 
-    if (!integration) {
-      throw new Error('Integration not found');
+    if (!credential) {
+      throw new Error('Integration credential not found');
     }
 
-    const oauth2Config = integration.oauth2Config;
-    if (!oauth2Config?.clientId || !oauth2Config.clientSecretEncrypted) {
+    const fileResult = await ctx.runAction(
+      internal.integrations.file_actions.readIntegrationForExecution,
+      { orgSlug: 'default', slug: credential.slug },
+    );
+
+    const fileOAuth2Config = fileResult?.ok
+      ? fileResult.config?.oauth2Config
+      : undefined;
+    const dbOAuth2Config = credential.oauth2Config;
+
+    const tokenUrl = fileOAuth2Config?.tokenUrl ?? dbOAuth2Config?.tokenUrl;
+    const clientId = dbOAuth2Config?.clientId;
+    const clientSecretEncrypted = dbOAuth2Config?.clientSecretEncrypted;
+
+    if (!clientId || !clientSecretEncrypted || !tokenUrl) {
       throw new Error('Integration OAuth2 client credentials not configured');
     }
 
     const clientSecret = await ctx.runAction(
       internal.lib.crypto.internal_actions.decryptString,
-      { jwe: oauth2Config.clientSecretEncrypted },
+      { jwe: clientSecretEncrypted },
     );
 
     const body = new URLSearchParams({
-      client_id: oauth2Config.clientId,
+      client_id: clientId,
       client_secret: clientSecret,
       code: args.code,
       redirect_uri: args.redirectUri,
       grant_type: 'authorization_code',
     });
 
-    const response = await fetch(oauth2Config.tokenUrl, {
+    const response = await fetch(tokenUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body,
@@ -78,7 +91,7 @@ export const handleOAuth2Callback = internalAction({
 
     if (!tokens.access_token) {
       console.error(
-        `[OAuth2 Token Exchange] Response missing access_token for integration ${args.integrationId}`,
+        `[OAuth2 Token Exchange] Response missing access_token for credential ${args.credentialId}`,
       );
       throw new Error(
         'OAuth2 token exchange returned an invalid response. Please try authorizing again.',
@@ -97,9 +110,9 @@ export const handleOAuth2Callback = internalAction({
     const scopes = tokens.scope ? tokens.scope.split(' ') : undefined;
 
     await ctx.runMutation(
-      internal.integrations.internal_mutations.updateIntegration,
+      internal.integrations.credential_mutations.updateCredentialsInternal,
       {
-        integrationId: args.integrationId,
+        credentialId: args.credentialId,
         oauth2Auth: {
           accessTokenEncrypted,
           refreshTokenEncrypted,
@@ -113,7 +126,7 @@ export const handleOAuth2Callback = internalAction({
     );
 
     debugLog(
-      `OAuth2 token exchange successful for integration ${args.integrationId}`,
+      `OAuth2 token exchange successful for credential ${args.credentialId}`,
     );
 
     return {};

@@ -2,6 +2,7 @@
   "name": "Circuly Customers Sync",
   "description": "Synchronize customers from Circuly to local database with pagination",
   "version": "1.0.0",
+  "installed": true,
   "enabled": true,
   "config": {
     "timeout": 300000,
@@ -119,7 +120,7 @@
               "circuly": "{{loop.item}}",
               "syncedAt": "{{now}}"
             },
-            "name": "{{loop.item.first_name}} {{loop.item.last_name}}",
+            "name": "{{loop.item.address.billing.first_name}} {{loop.item.address.billing.last_name}}",
             "source": "circuly",
             "status": "active"
           }
@@ -150,7 +151,7 @@
             "circuly": "{{loop.item}}",
             "syncedAt": "{{now}}"
           },
-          "name": "{{loop.item.first_name}} {{loop.item.last_name}}",
+          "name": "{{loop.item.address.billing.first_name}} {{loop.item.address.billing.last_name}}",
           "operation": "create",
           "source": "circuly",
           "status": "active"

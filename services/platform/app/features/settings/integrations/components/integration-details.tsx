@@ -3,8 +3,6 @@
 import { Check, Code, Copy, Database, Globe, Zap } from 'lucide-react';
 import { useMemo } from 'react';
 
-import type { Doc } from '@/convex/_generated/dataModel';
-
 import {
   type StatGridItem,
   StatGrid,
@@ -18,10 +16,12 @@ import { useCopyButton } from '@/app/hooks/use-copy';
 import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-guards';
 
+import type { Integration } from '../hooks/use-integration-manage';
+
 import { IntegrationRelatedAutomations } from './integration-manage/integration-related-automations';
 
 interface IntegrationDetailsProps {
-  integration: Doc<'integrations'> & { iconUrl?: string | null };
+  integration: Integration;
   children?: React.ReactNode;
 }
 
@@ -428,8 +428,8 @@ export function IntegrationDetails({
       )}
 
       <IntegrationRelatedAutomations
-        integrationName={integration.name}
-        organizationId={integration.organizationId}
+        integrationName={integration.name ?? ''}
+        organizationId={integration.organizationId ?? ''}
       />
 
       {children}

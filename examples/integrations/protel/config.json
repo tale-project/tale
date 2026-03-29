@@ -1,6 +1,6 @@
 {
-  "name": "protel",
   "title": "Protel PMS",
+  "installed": false,
   "description": "Hotel Property Management System - Direct SQL Access for reservations, guest profiles, rooms, and postings",
   "version": 1,
   "type": "sql",

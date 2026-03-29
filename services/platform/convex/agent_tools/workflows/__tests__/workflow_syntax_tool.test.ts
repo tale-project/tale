@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('../../../_generated/api', () => ({
   internal: {
     integrations: {
-      internal_queries: {
+      credential_queries: {
         listInternal: 'mock-listInternal',
       },
     },
@@ -35,17 +35,12 @@ describe('workflow_syntax tool handler', () => {
     const ctx = createMockCtx({
       runQuery: vi.fn().mockResolvedValue([
         {
-          name: 'shopify',
-          type: 'rest_api',
+          slug: 'shopify',
           status: 'active',
-          title: 'Shopify',
-          description: 'E-commerce platform',
         },
         {
-          name: 'my_db',
-          type: 'sql',
+          slug: 'my_db',
           status: 'active',
-          title: 'Production DB',
         },
       ]),
     });
@@ -54,10 +49,8 @@ describe('workflow_syntax tool handler', () => {
 
     expect(result.syntax).toContain('### Available Integrations');
     expect(result.syntax).toContain('integration_introspect');
-    expect(result.syntax).toContain(
-      'shopify (rest_api, active): Shopify - E-commerce platform',
-    );
-    expect(result.syntax).toContain('my_db (sql, active): Production DB');
+    expect(result.syntax).toContain('shopify (rest_api, active): shopify');
+    expect(result.syntax).toContain('my_db (rest_api, active): my_db');
   });
 
   it('shows "no integrations" message when org has none', async () => {
@@ -86,11 +79,8 @@ describe('workflow_syntax tool handler', () => {
     const ctx = createMockCtx({
       runQuery: vi.fn().mockResolvedValue([
         {
-          name: 'erp',
-          type: 'rest_api',
+          slug: 'erp',
           status: 'active',
-          title: 'ERP System',
-          description: 'Enterprise resource planning',
         },
       ]),
     });
@@ -98,7 +88,7 @@ describe('workflow_syntax tool handler', () => {
     const result = await handler(ctx, {});
 
     expect(result.syntax).toContain('### Available Integrations');
-    expect(result.syntax).toContain('erp (rest_api, active): ERP System');
+    expect(result.syntax).toContain('erp (rest_api, active): erp');
   });
 
   it('handles missing organizationId gracefully', async () => {

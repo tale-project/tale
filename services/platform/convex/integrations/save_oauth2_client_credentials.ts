@@ -1,5 +1,5 @@
 /**
- * Save OAuth2 client credentials (clientId + clientSecret) to an integration's oauth2Config.
+ * Save OAuth2 client credentials (clientId + clientSecret) to the integrationCredentials table.
  *
  * Encrypts the clientSecret before storing. Also persists any user-edited
  * authorizationUrl / tokenUrl / scopes overrides.
@@ -8,11 +8,11 @@
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 
-import { api, internal } from '../_generated/api';
+import { internal } from '../_generated/api';
 import { encryptString } from '../lib/crypto/encrypt_string';
 
 interface SaveOAuth2ClientCredentialsArgs {
-  integrationId: Id<'integrations'>;
+  credentialId: Id<'integrationCredentials'>;
   authorizationUrl: string;
   tokenUrl: string;
   scopes?: string[];
@@ -24,20 +24,21 @@ export async function saveOAuth2ClientCredentials(
   ctx: ActionCtx,
   args: SaveOAuth2ClientCredentialsArgs,
 ): Promise<void> {
-  const integration = await ctx.runQuery(api.integrations.queries.get, {
-    integrationId: args.integrationId,
-  });
+  const credential = await ctx.runQuery(
+    internal.integrations.credential_queries.getByIdInternal,
+    { credentialId: args.credentialId },
+  );
 
-  if (!integration) {
-    throw new Error('Integration not found');
+  if (!credential) {
+    throw new Error('Integration credential not found');
   }
 
   const clientSecretEncrypted = await encryptString(args.clientSecret);
 
   await ctx.runMutation(
-    internal.integrations.internal_mutations.updateIntegration,
+    internal.integrations.credential_mutations.updateCredentialsInternal,
     {
-      integrationId: args.integrationId,
+      credentialId: args.credentialId,
       oauth2Config: {
         authorizationUrl: args.authorizationUrl,
         tokenUrl: args.tokenUrl,

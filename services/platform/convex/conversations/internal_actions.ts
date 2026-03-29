@@ -35,9 +35,13 @@ export const sendMessageViaIntegrationAction = internalAction({
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     try {
-      const integration = await ctx.runQuery(
-        internal.integrations.internal_queries.getByName,
-        { organizationId: args.organizationId, name: args.integrationName },
+      const integration = await ctx.runAction(
+        internal.integrations.load_integration.loadIntegration,
+        {
+          orgSlug: 'default',
+          organizationId: args.organizationId,
+          slug: args.integrationName,
+        },
       );
 
       if (!integration) {
@@ -54,7 +58,11 @@ export const sendMessageViaIntegrationAction = internalAction({
         );
       }
 
-      const secrets = await buildIntegrationSecrets(ctx, integration);
+      const secrets = await buildIntegrationSecrets(
+        ctx,
+        integration,
+        integration._id,
+      );
 
       const opParams: Record<string, unknown> = {
         to: args.to,
@@ -202,9 +210,13 @@ export const checkMessageDeliveryAction = internalAction({
     const retryCount = args.retryCount ?? 0;
 
     try {
-      const integration = await ctx.runQuery(
-        internal.integrations.internal_queries.getByName,
-        { organizationId: args.organizationId, name: args.integrationName },
+      const integration = await ctx.runAction(
+        internal.integrations.load_integration.loadIntegration,
+        {
+          orgSlug: 'default',
+          organizationId: args.organizationId,
+          slug: args.integrationName,
+        },
       );
 
       if (!integration) {
@@ -223,7 +235,11 @@ export const checkMessageDeliveryAction = internalAction({
         return null;
       }
 
-      const secrets = await buildIntegrationSecrets(ctx, integration);
+      const secrets = await buildIntegrationSecrets(
+        ctx,
+        integration,
+        integration._id,
+      );
 
       const result = await ctx.runAction(
         internal.node_only.integration_sandbox.internal_actions
@@ -324,9 +340,13 @@ export const downloadAttachmentsAction = internalAction({
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     try {
-      const integration = await ctx.runQuery(
-        internal.integrations.internal_queries.getByName,
-        { organizationId: args.organizationId, name: args.integrationName },
+      const integration = await ctx.runAction(
+        internal.integrations.load_integration.loadIntegration,
+        {
+          orgSlug: 'default',
+          organizationId: args.organizationId,
+          slug: args.integrationName,
+        },
       );
 
       if (!integration) {
@@ -343,7 +363,11 @@ export const downloadAttachmentsAction = internalAction({
         );
       }
 
-      const secrets = await buildIntegrationSecrets(ctx, integration);
+      const secrets = await buildIntegrationSecrets(
+        ctx,
+        integration,
+        integration._id,
+      );
 
       const result = await ctx.runAction(
         internal.node_only.integration_sandbox.internal_actions

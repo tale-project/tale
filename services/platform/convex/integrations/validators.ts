@@ -111,6 +111,7 @@ export const connectorOperationValidator = v.object({
   parametersSchema: v.optional(jsonRecordValidator),
   operationType: v.optional(operationTypeValidator),
   requiresApproval: v.optional(v.boolean()),
+  requiredScopes: v.optional(v.array(v.string())),
 });
 
 export const connectorConfigValidator = v.object({
@@ -153,6 +154,7 @@ export const sqlOperationValidator = v.object({
   parametersSchema: v.optional(jsonRecordValidator),
   operationType: v.optional(operationTypeValidator),
   requiresApproval: v.optional(v.boolean()),
+  requiredScopes: v.optional(v.array(v.string())),
 });
 
 const syncStatsValidator = v.object({

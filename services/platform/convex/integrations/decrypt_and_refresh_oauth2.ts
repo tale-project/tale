@@ -5,8 +5,9 @@
  * Returns decrypted accessToken, refreshing first if the token is expired or expiring soon.
  */
 
-import type { Doc } from '../_generated/dataModel';
+import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
+import type { IntegrationWithCredentials } from './shared_types';
 
 import { fetchJson } from '../../lib/utils/type-cast-helpers';
 import { internal } from '../_generated/api';
@@ -25,7 +26,8 @@ interface TokenRefreshResponse {
 
 export async function decryptAndRefreshIntegrationOAuth2(
   ctx: ActionCtx,
-  integration: Doc<'integrations'>,
+  integration: IntegrationWithCredentials,
+  credentialId?: Id<'integrationCredentials'>,
 ): Promise<string> {
   const { oauth2Auth, oauth2Config } = integration;
 
@@ -142,18 +144,19 @@ export async function decryptAndRefreshIntegrationOAuth2(
     ? refreshTime + tokens.expires_in
     : undefined;
 
-  await ctx.runMutation(
-    internal.integrations.internal_mutations.updateIntegration,
-    {
-      integrationId: integration._id,
-      oauth2Auth: {
-        accessTokenEncrypted,
-        refreshTokenEncrypted,
-        tokenExpiry,
-        scopes: tokens.scope ? tokens.scope.split(' ') : oauth2Auth.scopes,
-      },
-    },
-  );
+  const updatedOAuth2Auth = {
+    accessTokenEncrypted,
+    refreshTokenEncrypted,
+    tokenExpiry,
+    scopes: tokens.scope ? tokens.scope.split(' ') : oauth2Auth.scopes,
+  };
+
+  if (credentialId) {
+    await ctx.runMutation(
+      internal.integrations.credential_mutations.updateCredentialsInternal,
+      { credentialId, oauth2Auth: updatedOAuth2Auth },
+    );
+  }
 
   console.log(
     `[Integration OAuth2] Token refreshed successfully for integration ${integration._id} ` +

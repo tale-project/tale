@@ -29,9 +29,9 @@ export async function fetchOperationsSummary(
   organizationId: string,
   integrationName: string,
 ): Promise<string | undefined> {
-  const integration = await ctx.runQuery(
-    internal.integrations.internal_queries.getByName,
-    { organizationId, name: integrationName },
+  const integration = await ctx.runAction(
+    internal.integrations.load_integration.loadIntegration,
+    { orgSlug: 'default', organizationId, slug: integrationName },
   );
 
   if (!integration) {

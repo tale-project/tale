@@ -3,10 +3,8 @@
 import { Settings, Plus, Puzzle } from 'lucide-react';
 import { useState } from 'react';
 
-import type { Doc } from '@/convex/_generated/dataModel';
 import type { SsoProvider } from '@/lib/shared/schemas/sso_providers';
 
-import { Image } from '@/app/components/ui/data-display/image';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Card } from '@/app/components/ui/layout/card';
 import { Stack, HStack, Grid, Center } from '@/app/components/ui/layout/layout';
@@ -19,11 +17,22 @@ import { IntegrationManageDialog } from './integration-manage-dialog';
 import { IntegrationUploadDialog } from './integration-upload/integration-upload-dialog';
 import { SSOCard } from './sso-card';
 
-type Integration = Doc<'integrations'> & { iconUrl?: string | null };
+export interface IntegrationListItem {
+  _id: string;
+  slug: string;
+  title: string;
+  description?: string;
+  installed: boolean;
+  type?: 'rest_api' | 'sql';
+  authMethod: string;
+  operationCount: number;
+  hash: string;
+  [key: string]: unknown;
+}
 
 interface IntegrationsProps {
   organizationId: string;
-  integrations: Integration[];
+  integrations: IntegrationListItem[];
   ssoProvider: SsoProvider | null;
 }
 
@@ -36,17 +45,17 @@ export function Integrations({
 
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [managingIntegration, setManagingIntegration] =
-    useState<Integration | null>(null);
+    useState<IntegrationListItem | null>(null);
 
   return (
     <Stack className="pb-8">
       <Grid cols={1} md={2} lg={3}>
         <SSOCard organizationId={organizationId} ssoProvider={ssoProvider} />
 
-        {/* Dynamic integration cards from DB */}
+        {/* Dynamic integration cards from filesystem */}
         {integrations.map((integration) => (
           <Card
-            key={integration._id}
+            key={integration.slug}
             className="flex flex-col justify-between"
             contentClassName="p-5"
             footer={
@@ -61,7 +70,7 @@ export function Integrations({
                   {t('integrations.manage')}
                 </Button>
                 <Switch
-                  checked={integration.isActive}
+                  checked={integration.installed}
                   onCheckedChange={() => setManagingIntegration(integration)}
                 />
               </HStack>
@@ -70,15 +79,7 @@ export function Integrations({
           >
             <Stack gap={3}>
               <Center className="border-border h-11 w-11 rounded-md border">
-                {integration.iconUrl ? (
-                  <Image
-                    src={integration.iconUrl}
-                    alt={integration.title}
-                    className="size-6 rounded object-contain"
-                  />
-                ) : (
-                  <Puzzle className="size-6" />
-                )}
+                <Puzzle className="size-6" />
               </Center>
               <Stack gap={1}>
                 <HStack gap={2}>
@@ -92,7 +93,7 @@ export function Integrations({
                   </Heading>
                 </HStack>
                 <Text variant="muted">
-                  {integration.description ?? integration.name}
+                  {integration.description ?? integration.slug}
                 </Text>
               </Stack>
             </Stack>

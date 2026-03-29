@@ -1,14 +1,14 @@
 /**
  * Generate OAuth2 authorization URL for an integration.
  *
- * Reads the integration's oauth2Config (authorizationUrl, clientId, scopes)
- * and builds a redirect URL with a state parameter for CSRF protection.
+ * Reads the credential record + file config to build an OAuth2 authorization
+ * URL with a state parameter for CSRF protection.
  */
 
 import type { Doc } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 
-import { api } from '../_generated/api';
+import { internal } from '../_generated/api';
 import { createDebugLog } from '../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations OAuth2]');
@@ -38,7 +38,7 @@ function applyProviderAuthParams(
 }
 
 interface GenerateOAuth2AuthUrlArgs {
-  integrationId: Doc<'integrations'>['_id'];
+  credentialId: Doc<'integrationCredentials'>['_id'];
   organizationId: string;
 }
 
@@ -46,23 +46,42 @@ export async function generateOAuth2AuthUrl(
   ctx: ActionCtx,
   args: GenerateOAuth2AuthUrlArgs,
 ): Promise<string> {
-  const integration = await ctx.runQuery(api.integrations.queries.get, {
-    integrationId: args.integrationId,
-  });
+  const credential = await ctx.runQuery(
+    internal.integrations.credential_queries.getByIdInternal,
+    { credentialId: args.credentialId },
+  );
 
-  if (!integration) {
-    throw new Error('Integration not found');
+  if (!credential) {
+    throw new Error('Integration credential not found');
   }
 
-  const oauth2Config = integration.oauth2Config;
-  if (!oauth2Config) {
+  const fileResult = await ctx.runAction(
+    internal.integrations.file_actions.readIntegrationForExecution,
+    { orgSlug: 'default', slug: credential.slug },
+  );
+
+  if (!fileResult?.ok) {
+    throw new Error(
+      'Integration file config not found for slug: ' + credential.slug,
+    );
+  }
+
+  const fileOAuth2Config = fileResult.config?.oauth2Config;
+  const dbOAuth2Config = credential.oauth2Config;
+
+  const authorizationUrl =
+    fileOAuth2Config?.authorizationUrl ?? dbOAuth2Config?.authorizationUrl;
+  const clientId = dbOAuth2Config?.clientId;
+  const configScopes = fileOAuth2Config?.scopes ?? dbOAuth2Config?.scopes;
+
+  if (!authorizationUrl) {
     throw new Error(
       'Integration does not have OAuth2 configuration. ' +
         'Ensure the integration package includes oauth2Config.',
     );
   }
 
-  if (!oauth2Config.clientId) {
+  if (!clientId) {
     throw new Error(
       'Please save your Client ID before starting authorization.',
     );
@@ -75,32 +94,32 @@ export async function generateOAuth2AuthUrl(
   const state = btoa(
     JSON.stringify({
       prefix: 'integration',
-      integrationId: args.integrationId,
+      credentialId: args.credentialId,
       organizationId: args.organizationId,
     }),
   );
 
   const params = new URLSearchParams({
-    client_id: oauth2Config.clientId,
+    client_id: clientId,
     redirect_uri: redirectUri,
     response_type: 'code',
     state,
   });
 
-  const scopes = oauth2Config.scopes ? [...oauth2Config.scopes] : [];
+  const scopes = configScopes ? [...configScopes] : [];
 
-  applyProviderAuthParams(oauth2Config.authorizationUrl, params, scopes);
+  applyProviderAuthParams(authorizationUrl, params, scopes);
 
   if (scopes.length > 0) {
     params.set('scope', scopes.join(' '));
   }
 
-  const authUrl = `${oauth2Config.authorizationUrl}?${params.toString()}`;
+  const authUrl = `${authorizationUrl}?${params.toString()}`;
 
   debugLog('Generated OAuth2 authorization URL', {
-    integrationId: args.integrationId,
+    credentialId: args.credentialId,
     redirectUri,
-    clientId: oauth2Config.clientId.slice(0, 10) + '...',
+    clientId: clientId.slice(0, 10) + '...',
   });
 
   return authUrl;

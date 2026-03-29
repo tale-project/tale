@@ -1,10 +1,7 @@
 import { v, Infer } from 'convex/values';
 
-import type {
-  Integration,
-  SqlIntegration,
-  SqlOperation,
-} from '../../integrations/types';
+import type { LoadedIntegration } from '../../integrations/load_integration';
+import type { SqlOperation } from '../../integrations/types';
 
 import {
   jsonValueValidator,
@@ -12,10 +9,7 @@ import {
 } from '../../../lib/shared/schemas/utils/json-value';
 import { internal } from '../../_generated/api';
 import { internalAction, type ActionCtx } from '../../_generated/server';
-import {
-  getIntegrationType,
-  isSqlIntegration,
-} from '../../integrations/helpers';
+import { isSqlIntegration } from '../../integrations/helpers';
 import {
   toConvexJsonRecord,
   toConvexJsonValue,
@@ -267,9 +261,9 @@ export const executeBatchIntegration = internalAction({
     });
 
     // 1. Load integration config ONCE
-    const integration = await ctx.runQuery(
-      internal.integrations.internal_queries.getByName,
-      { organizationId, name: integrationName },
+    const integration = await ctx.runAction(
+      internal.integrations.load_integration.loadIntegration,
+      { orgSlug: 'default', organizationId, slug: integrationName },
     );
 
     if (!integration) {
@@ -291,7 +285,7 @@ export const executeBatchIntegration = internalAction({
       };
     }
 
-    const integrationType = getIntegrationType(integration);
+    const integrationType = integration.type ?? 'rest_api';
 
     // For SQL integrations, optimize by decrypting credentials once
     if (integrationType === 'sql' && isSqlIntegration(integration)) {
@@ -320,7 +314,10 @@ export const executeBatchIntegration = internalAction({
 
 async function executeSqlBatch(
   ctx: ActionCtx,
-  integration: SqlIntegration,
+  integration: LoadedIntegration & {
+    sqlConnectionConfig: NonNullable<LoadedIntegration['sqlConnectionConfig']>;
+    sqlOperations: NonNullable<LoadedIntegration['sqlOperations']>;
+  },
   operations: Array<{
     id?: string;
     operation: string;
@@ -566,7 +563,7 @@ async function executeSqlBatch(
 
 async function executeRestApiBatch(
   ctx: ActionCtx,
-  integration: Integration,
+  integration: LoadedIntegration,
   operations: Array<{
     id?: string;
     operation: string;

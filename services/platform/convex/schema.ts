@@ -17,6 +17,7 @@ import { customersTable } from './customers/schema';
 import { documentsTable } from './documents/schema';
 import { fileMetadataTable } from './file_metadata/schema';
 import { foldersTable } from './folders/schema';
+import { integrationCredentialsTable } from './integrations/credentials_schema';
 import { integrationsTable } from './integrations/schema';
 import { onedriveSyncConfigsTable } from './onedrive/schema';
 import { productsTable } from './products/schema';
@@ -56,6 +57,8 @@ export default defineSchema({
   documents: documentsTable,
   fileMetadata: fileMetadataTable,
   folders: foldersTable,
+  integrationCredentials: integrationCredentialsTable,
+  /** @deprecated Retained for backward compatibility with existing data. Use integrationCredentials + file-based config. */
   integrations: integrationsTable,
   messageMetadata: messageMetadataTable,
   onedriveSyncConfigs: onedriveSyncConfigsTable,
