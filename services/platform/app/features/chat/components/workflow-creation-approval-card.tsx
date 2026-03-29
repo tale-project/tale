@@ -293,6 +293,7 @@ function WorkflowCreationApprovalCardComponent({
       await executeApprovedWorkflow({
         approvalId,
       });
+      window.dispatchEvent(new CustomEvent('workflow-updated'));
     } catch (err) {
       setError(err instanceof Error ? err.message : t('errorCreateFailed'));
       console.error('Failed to approve:', err);

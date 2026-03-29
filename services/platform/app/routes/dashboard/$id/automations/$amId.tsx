@@ -4,7 +4,14 @@ import {
   useLocation,
   Link,
 } from '@tanstack/react-router';
-import { lazy, Suspense, useCallback, useMemo, useState } from 'react';
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import { z } from 'zod';
 
 import type { Doc } from '@/convex/_generated/dataModel';
@@ -215,6 +222,12 @@ function AutomationDetailInner({
     setIsAIChatOpen(false);
   }, []);
 
+  useEffect(() => {
+    const handler = () => void onRefetch();
+    window.addEventListener('workflow-updated', handler);
+    return () => window.removeEventListener('workflow-updated', handler);
+  }, [onRefetch]);
+
   const isExactAutomationPage =
     location.pathname === `/dashboard/${organizationId}/automations/${amId}`;
 
@@ -271,8 +284,8 @@ function AutomationDetailInner({
           <AutomationNavigation
             organizationId={organizationId}
             automationId={amId}
-            isEnabled={config.enabled}
-            isLoading={false}
+            workflowSlug={workflowSlug}
+            onRefetch={onRefetch}
           />
         </>
       }

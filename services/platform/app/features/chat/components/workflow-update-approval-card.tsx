@@ -140,6 +140,7 @@ function WorkflowUpdateApprovalCardComponent({
       await executeApprovedUpdate({
         approvalId,
       });
+      window.dispatchEvent(new CustomEvent('workflow-updated'));
     } catch (err) {
       setError(err instanceof Error ? err.message : t('errorApplyFailed'));
       console.error('Failed to approve workflow update:', err);

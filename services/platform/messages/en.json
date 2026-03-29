@@ -1513,6 +1513,7 @@
     "navigation": {
       "editor": "Editor",
       "archived": "Archived",
+      "history": "History",
       "publish": "Publish",
       "publishing": "Publishing...",
       "rollback": "Activate",
@@ -1530,6 +1531,16 @@
         "navigatingToExisting": "Navigating to existing draft",
         "draftFailed": "Failed to create draft"
       }
+    },
+    "history": {
+      "empty": "No history entries",
+      "diffTitle": "Compare changes",
+      "diffDescription": "Review differences before restoring snapshot from {date}",
+      "restore": "Restore",
+      "noDifferences": "No differences found",
+      "loadFailed": "Failed to load history",
+      "restoreSuccess": "Version restored successfully",
+      "restoreFailed": "Failed to restore version"
     },
     "form": {
       "name": "Name"
