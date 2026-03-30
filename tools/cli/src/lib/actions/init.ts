@@ -149,11 +149,17 @@ export async function init(options: InitOptions): Promise<void> {
     ['Integrations', `${integrationFiles.size} files`],
   ]);
   logger.blank();
+  const needsCd = resolve(process.cwd()) !== resolve(target);
+  let step = 1;
+
   logger.info('Next steps:');
+  if (needsCd) {
+    logger.info(`  ${step++}. Run "cd ${target}" to enter your project`);
+  }
   logger.info(
-    '  1. Edit agents/, workflows/, and integrations/ to customize your setup',
+    `  ${step++}. Edit agents/, workflows/, and integrations/ to customize your setup`,
   );
-  logger.info('  2. Run "tale start" to launch the platform locally');
+  logger.info(`  ${step++}. Run "tale start" to launch the platform locally`);
 }
 
 async function writeEmbeddedFiles(

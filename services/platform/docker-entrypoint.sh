@@ -726,7 +726,7 @@ sed -i "s|\"assetPrefix\":\"\"|\"assetPrefix\":\"${DASHBOARD_BASE_PATH}\"|g" ser
 NEXT_PUBLIC_DEPLOYMENT_URL="${SITE_URL}" \
   PORT=${CONVEX_DASHBOARD_PORT} \
   HOSTNAME=0.0.0.0 \
-  node server.js &
+  node server.js > /dev/null &
 DASHBOARD_PID=$!
 cd /app
 
