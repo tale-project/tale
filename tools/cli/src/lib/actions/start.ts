@@ -8,6 +8,7 @@ import { StatusHeader, isHealthCheckLog } from '../../utils/terminal';
 import { generateDevCompose } from '../compose/generators/generate-dev-compose';
 import { dockerCompose } from '../docker/docker-compose';
 import { findProject } from '../project/find-project';
+import { init } from './init';
 
 async function waitForHealthAndOpenBrowser(url: string): Promise<void> {
   const healthUrl = `${url}/api/health`;
@@ -46,16 +47,28 @@ interface StartOptions {
 }
 
 export async function start(options: StartOptions): Promise<void> {
-  const projectDir = findProject();
+  let projectDir = findProject();
   if (!projectDir) {
-    throw new Error('No Tale project found. Run "tale init" to create one.');
+    logger.warn('No Tale project found. Initializing in current directory...');
+    logger.blank();
+    await init({ directory: process.cwd() });
+    projectDir = findProject();
+    if (!projectDir) {
+      throw new Error('Initialization failed: tale.json was not created.');
+    }
   }
 
   const envPath = join(projectDir, '.env');
   if (!existsSync(envPath)) {
-    throw new Error(
-      `No .env file found in ${projectDir}. Run "tale init" to set up your environment.`,
-    );
+    logger.warn('No .env file found. Running environment setup...');
+    logger.blank();
+    const { ensureEnv } = await import('../config/ensure-env');
+    const success = await ensureEnv({ deployDir: projectDir });
+    if (!success) {
+      throw new Error(
+        'Environment setup failed. Cannot start without .env file.',
+      );
+    }
   }
 
   const env = loadEnv(projectDir);
