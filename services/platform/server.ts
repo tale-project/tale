@@ -1,4 +1,4 @@
-import { watch } from 'node:fs';
+import { existsSync, watch } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import { convexMetricsResponse } from './convex-metrics';
@@ -6,7 +6,17 @@ import { initTelemetry, metricsResponse } from './telemetry';
 
 // ---------------------------------------------------------------------------
 // Live reload (dev only, gated by LIVE_RELOAD env var)
+//
+// Watches agent/workflow/integration directories for .json changes and
+// triggers a full page reload via SSE.  To avoid reloading the browser when
+// the *web UI itself* writes files (via atomicWrite), we detect atomicWrite's
+// temp-file naming pattern (.{name}.{ts}.{uuid}.tmp) as a signal that the
+// change is internal.  History-directory writes and file deletions are also
+// skipped — only genuine external content edits trigger a reload.
 // ---------------------------------------------------------------------------
+
+const ATOMIC_WRITE_TMP_RE = /\.\d+\.[a-f0-9]{8}\.tmp$/;
+const INTERNAL_WRITE_WINDOW_MS = 2_000;
 
 const liveReloadEnabled = process.env.LIVE_RELOAD === 'true';
 const sseClients = new Set<ReadableStreamDefaultController>();
@@ -19,8 +29,10 @@ if (liveReloadEnabled) {
   ].filter((d): d is string => Boolean(d));
 
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  let lastInternalWriteTime = 0;
 
   function notifyClients() {
+    if (Date.now() - lastInternalWriteTime < INTERNAL_WRITE_WINDOW_MS) return;
     for (const controller of sseClients) {
       try {
         controller.enqueue('data: reload\n\n');
@@ -33,13 +45,26 @@ if (liveReloadEnabled) {
   for (const dir of watchDirs) {
     try {
       watch(dir, { recursive: true }, (_event, filename) => {
-        if (typeof filename === 'string' && filename.endsWith('.json')) {
-          if (debounceTimer) clearTimeout(debounceTimer);
-          debounceTimer = setTimeout(notifyClients, 100);
+        if (typeof filename !== 'string') return;
+
+        // Detect atomicWrite temp files: .{name}.{timestamp}.{uuid}.tmp
+        if (ATOMIC_WRITE_TMP_RE.test(filename)) {
+          lastInternalWriteTime = Date.now();
+          return;
         }
+
+        // Skip non-JSON and history files
+        if (!filename.endsWith('.json') || filename.includes('/.history/'))
+          return;
+
+        // Skip deletions — live reload is for content changes only
+        if (!existsSync(join(dir, filename))) return;
+
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(notifyClients, 100);
       });
-    } catch {
-      // Directory may not exist yet — skip silently
+    } catch (err) {
+      console.warn(`Live reload: failed to watch ${dir}:`, err);
     }
   }
 
