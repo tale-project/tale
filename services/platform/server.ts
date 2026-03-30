@@ -63,8 +63,8 @@ if (liveReloadEnabled) {
         if (debounceTimer) clearTimeout(debounceTimer);
         debounceTimer = setTimeout(notifyClients, 100);
       });
-    } catch {
-      // Directory may not exist yet — skip silently
+    } catch (err) {
+      console.warn(`Live reload: failed to watch ${dir}:`, err);
     }
   }
 
