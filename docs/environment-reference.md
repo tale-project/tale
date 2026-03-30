@@ -75,7 +75,7 @@ If not set, error tracking is disabled and errors only appear in Docker logs.
 | --------------------- | -------- | ------- | ---------------------------------------------------- |
 | `METRICS_BEARER_TOKEN`| No       |         | Bearer token for external access to Prometheus metrics |
 
-When unset, all `/metrics/*` endpoints return `404`. See [Operations](/operations) for endpoint details.
+When unset, all `/metrics/*` endpoints return `401`. See [Operations](/operations) for endpoint details.
 
 ## Service URLs
 
@@ -83,7 +83,6 @@ These are automatically configured in Docker Compose but can be overridden for c
 
 | Variable       | Default                  | Description                          |
 | -------------- | ------------------------ | ------------------------------------ |
-| `OPERATOR_URL` | `http://operator:8004`   | Operator service for browser automation |
 | `CRAWLER_URL`  | `http://crawler:8002`    | Crawler service for website crawling |
 | `RAG_URL`      | `http://rag:8001`        | RAG service for document indexing and search |
 
@@ -93,3 +92,22 @@ These are automatically configured in Docker Compose but can be overridden for c
 | ------------- | -------- | ------- | -------------------------------------------------------------- |
 | `PULL_POLICY` | No       |         | Set to `always` to use pre-built images from GitHub            |
 | `VERSION`     | No       |         | Image version tag (e.g., `latest`, `v1.0.0`). Used with `PULL_POLICY=always` |
+
+## Microsoft Entra ID SSO
+
+These variables are only needed if you configure SSO through environment variables instead of the in-app Settings > Integrations UI.
+
+| Variable                            | Required | Description                                 |
+| ----------------------------------- | -------- | ------------------------------------------- |
+| `AUTH_MICROSOFT_ENTRA_ID_ID`        | No       | Microsoft Entra ID application (client) ID  |
+| `AUTH_MICROSOFT_ENTRA_ID_SECRET`    | No       | Microsoft Entra ID client secret             |
+| `AUTH_MICROSOFT_ENTRA_ID_TENANT_ID` | No       | Microsoft Entra ID tenant ID                 |
+
+## Trusted headers authentication
+
+| Variable                          | Required | Description                                                    |
+| --------------------------------- | -------- | -------------------------------------------------------------- |
+| `TRUSTED_HEADERS_ENABLED`         | No       | Set to `true` to enable trusted headers authentication         |
+| `TRUSTED_HEADERS_INTERNAL_SECRET` | No       | Shared secret for validating trusted header requests           |
+
+See the [Authentication guide](/authentication) for details on configuring trusted headers.

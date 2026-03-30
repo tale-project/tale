@@ -43,11 +43,9 @@ Add these variables to your `.env` file:
 
 ```dotenv
 TRUSTED_HEADERS_ENABLED=true
-TRUSTED_EMAIL_HEADER=X-Auth-Email      # optional, default shown
-TRUSTED_NAME_HEADER=X-Auth-Name        # optional, default shown
-TRUSTED_ROLE_HEADER=X-Auth-Role        # optional, default shown
-TRUSTED_TEAMS_HEADER=X-Auth-Teams      # optional, default shown
 ```
+
+The header names are fixed and cannot be customized via environment variables.
 
 ### Required headers
 

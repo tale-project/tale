@@ -1,50 +1,160 @@
 ---
 title: Production deployment
-description: Deploy Tale to a production server with Docker Compose, zero-downtime deployments, and reverse proxy configurations.
+description: Deploy Tale to a production server using the Tale CLI with zero-downtime blue-green deployments.
 ---
 
-## Docker Compose deployment
+## Prerequisites
 
-For a single-server production setup, update your `.env` with these values:
+- A Linux server with Docker Engine 24.0+ installed
+- At least 8 GB of RAM (12 GB recommended for zero-downtime deployments)
+- Ports 80 and 443 open on your firewall
+- A domain name pointing to your server
+
+## Installing the Tale CLI
+
+The Tale CLI is the recommended way to manage production deployments. Install it with:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.sh | bash
+```
+
+Or download the binary directly from [GitHub Releases](https://github.com/tale-project/tale/releases):
+
+```bash
+curl -fsSL https://github.com/tale-project/tale/releases/latest/download/tale_linux \
+  -o /usr/local/bin/tale
+chmod +x /usr/local/bin/tale
+```
+
+## Initial setup
+
+### Step 1: Initialize your deployment directory
+
+```bash
+mkdir ~/tale && cd ~/tale
+tale init
+```
+
+This creates your `.env` file with secure generated secrets.
+
+### Step 2: Configure your environment
+
+Open `.env` and set the required values:
 
 ```dotenv
 HOST=yourdomain.com
 SITE_URL=https://yourdomain.com
 TLS_MODE=letsencrypt
 TLS_EMAIL=admin@yourdomain.com
-PULL_POLICY=always
-VERSION=latest
+OPENAI_API_KEY=your-api-key
+DB_PASSWORD=a-strong-database-password
 ```
 
-Make sure ports 80 and 443 are open on your server firewall. Let's Encrypt will issue and renew TLS certificates automatically.
+See the [environment reference](/environment-reference) for all available options.
 
-Then start in detached mode:
+### Step 3: Deploy
 
 ```bash
-docker compose up -d
+tale deploy
+```
+
+The CLI pulls pre-built images, starts all services, waits for health checks, and reports when the platform is ready. On first deploy it also starts the database and proxy.
+
+## Managing deployments
+
+### Deploy a new version
+
+```bash
+# Interactive version selection
+tale deploy
+
+# Deploy a specific version
+tale deploy 1.2.0
+
+# Preview changes without deploying
+tale deploy 1.2.0 --dry-run
+
+# Also update infrastructure services (db, proxy)
+tale deploy 1.2.0 --all
+```
+
+### Check status
+
+```bash
+tale status
+```
+
+Shows the active deployment color (blue or green), running containers, and health.
+
+### View logs
+
+```bash
+tale logs platform
+tale logs platform --follow
+tale logs db --tail 100
+```
+
+### Rollback
+
+```bash
+# Rollback to the previous version
+tale rollback
+
+# Rollback to a specific version
+tale rollback --version 0.9.0
+```
+
+### Cleanup
+
+```bash
+# Remove inactive containers
+tale cleanup
+
+# Remove ALL containers (requires confirmation)
+tale reset --force
 ```
 
 ## Zero-downtime deployment
 
-For production environments where downtime is not acceptable, Tale ships with a blue-green deployment script. It runs two versions of stateless services at the same time, checks that the new version is healthy, then switches traffic over.
+The CLI uses a blue-green deployment strategy. When you deploy a new version:
 
-```bash
-# Deploy a specific version with no downtime
-./scripts/deploy.sh deploy v1.2.0
+1. New containers start alongside the current ones
+2. Health checks confirm the new version is ready
+3. Traffic switches to the new version
+4. Old containers are drained and removed
 
-# Deploy latest version
-./scripts/deploy.sh deploy latest
+This requires at least **12 GB of RAM** because both versions run simultaneously during the switchover. The database and proxy are shared and not duplicated.
 
-# Roll back to the previous version
-./scripts/deploy.sh rollback
+## TLS configuration
 
-# Check which version is currently live
-./scripts/deploy.sh status
+### Let's Encrypt (recommended)
+
+```dotenv
+TLS_MODE=letsencrypt
+TLS_EMAIL=admin@yourdomain.com
 ```
 
-> **Note:** Zero-downtime deployment requires at least 12 GB of RAM on the server because both versions run at the same time during the switchover. The database and proxy are shared and are not duplicated.
+Caddy automatically issues and renews trusted TLS certificates. Ports 80 and 443 must be publicly accessible.
 
-For CLI-based deployments, see the [Tale CLI documentation](../tools/cli/README.md).
+### Self-signed (development)
+
+```dotenv
+TLS_MODE=selfsigned
+```
+
+Generates a self-signed certificate. Browsers will show a security warning. To trust it on the host:
+
+```bash
+docker exec tale-proxy caddy trust
+```
+
+### External TLS (behind a reverse proxy)
+
+```dotenv
+TLS_MODE=external
+```
+
+Caddy listens on HTTP only (port 80). Your reverse proxy handles TLS termination.
 
 ## Behind a reverse proxy
 
@@ -121,45 +231,18 @@ location /tale/ {
 **Known limitations:**
 - Convex Dashboard (`/convex-dashboard`) is not accessible under subpath deployments
 
-## Updating Tale
-
-### Using the Tale CLI (recommended for production)
-
-```bash
-tale deploy              # Deploy with interactive version selection
-tale deploy v1.0.0       # Deploy a specific version
-tale status              # Check current deployment status
-tale rollback            # Rollback to the previous version
-```
-
-### From source (development)
-
-```bash
-git pull
-docker compose down
-docker compose up --build -d
-```
-
-### Using pre-built images
-
-```bash
-docker compose down
-docker compose pull
-docker compose up -d
-```
-
 ## Convex dashboard access
 
 Tale includes an embedded Convex backend. The Convex Dashboard lets you inspect the database, view function logs, and manage background jobs.
 
-1. Run this to generate an admin key:
+1. Generate an admin key:
 
 ```bash
-docker exec tale-platform /app/generate-admin-key.sh
+./scripts/get-admin-key.sh
 ```
 
 2. Copy the key from the output.
-3. Open https://tale.local/convex-dashboard in your browser.
+3. Open `https://yourdomain.com/convex-dashboard` in your browser.
 4. Paste the admin key when prompted.
 
 > **Note:** The Convex Dashboard gives direct read and write access to all data. Only share admin keys with trusted team members.

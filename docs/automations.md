@@ -24,13 +24,14 @@ There are two ways to create a workflow:
 
 ## Step types
 
-| Step type | Color | What it does |
-| --- | --- | --- |
-| Trigger | Teal | The entry point of the workflow. Defines when it starts, such as schedule, event, webhook, or manual run |
-| Action | Blue | Runs an operation such as create a record, send a message, call an API, or update data |
-| LLM | Purple | Sends a prompt to an AI model and passes the response to the next step |
-| Condition | Orange | Checks a condition and routes execution down different branches |
-| Loop | Green | Repeats a set of steps for each item in a list |
+| Step type | Color  | What it does                                                                                              |
+| --------- | ------ | --------------------------------------------------------------------------------------------------------- |
+| Start     | Blue   | The entry point of the workflow. Defines the input schema and when it starts (schedule, event, webhook, or manual run) |
+| Action    | Orange | Runs an operation such as create a record, send a message, call an API, or update data                    |
+| LLM       | Purple | Sends a prompt to an AI model and passes the response to the next step                                    |
+| Condition | Amber  | Checks a condition and routes execution down different branches                                           |
+| Loop      | Cyan   | Repeats a set of steps for each item in a list                                                            |
+| Output    | Green  | Defines the output mapping for the workflow, determining what data is returned when the workflow completes |
 
 ## Triggers
 
@@ -64,7 +65,6 @@ Navigate to a workflow's Configuration tab to adjust:
 
 Use the Test panel, available from the side panel in the workflow editor, to:
 
-- Dry Run: shows which steps would run and in what order, without actually executing anything
 - Execute: triggers a real run with test input data. Check the Executions tab to see the result
 
 ## Execution history
