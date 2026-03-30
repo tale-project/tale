@@ -125,7 +125,9 @@ export class StatusHeader {
 
     if (this.ready && this.urls) {
       moveTo(1, 1);
-      write(`${BOLD}${CYAN}  Tale Dev${RESET} ${DIM}v${this.version}${RESET}`);
+      write(
+        `${BOLD}${CYAN}  Tale Dev${RESET} ${DIM}v${this.version}${RESET}  ${GREEN}Ready${RESET}`,
+      );
 
       moveTo(3, 1);
       write(`  ${GREEN}Application${RESET}    ${this.urls.app}`);
