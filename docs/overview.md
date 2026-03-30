@@ -9,15 +9,14 @@ Unlike cloud-only AI products, Tale runs entirely on your own infrastructure. Yo
 
 ## Architecture at a glance
 
-Tale runs as six Docker services that communicate over an internal network:
+Tale runs as five Docker services that communicate over an internal network:
 
 | Service | Technology | Role | Local port |
 | --- | --- | --- | --- |
 | Platform | Bun + TanStack + Convex | Web UI, real-time backend, auth, data, workflows | 3000 (via proxy) |
 | RAG | Python + FastAPI | Document indexing, vector search, answer generation | 8001 |
 | Crawler | Python + Playwright + Crawl4AI | Website crawling, URL discovery, file-to-text conversion | 8002 |
-| Operator | Python + Playwright + LLM | Browser automation agent for web tasks | 8004 |
-| Database | PostgreSQL | Persistent storage for platform data | 5432 |
+| Database | ParadeDB (PostgreSQL + pg_search + pgvector) | Persistent storage, full-text search, vector search | 5432 |
 | Proxy | Caddy | TLS termination and routing | 80 / 443 |
 
 ```mermaid
@@ -30,18 +29,16 @@ graph TD
         PB[platform-blue]
         RB[rag-blue]
         CB[crawler-blue]
-        OB[operator-blue]
     end
 
     subgraph Green["Green Services (Standby)"]
         PG[platform-green]
         RG[rag-green]
         CG[crawler-green]
-        OG[operator-green]
     end
 
     subgraph Shared["Shared Services (Stateful)"]
-        DB[db - TimescaleDB]
+        DB[db - ParadeDB]
         PR[proxy - Caddy]
     end
 
@@ -51,7 +48,7 @@ graph TD
     Green --> Shared
 ```
 
-> **Note:** All communication between services stays on the internal Docker network. Only ports 80 and 443 are exposed publicly through the Caddy proxy. The database (5432) and API services (8001, 8002, 8004) are exposed on the host for local development only.
+> **Note:** All communication between services stays on the internal Docker network. Only ports 80 and 443 are exposed publicly through the Caddy proxy. The database (5432) and API services (8001, 8002) are exposed on the host for local development only.
 
 ## Key capabilities
 

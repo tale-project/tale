@@ -46,8 +46,11 @@ Website tracking tells Tale's crawler to visit and index pages from a given doma
 | --- | --- |
 | Every hour | Sites with frequent content changes |
 | Every 6 hours (default) | Documentation sites and company wikis |
+| Every 12 hours | Semi-active sites |
 | Every day | Marketing sites and blogs |
+| Every 5 days | Moderately static content |
 | Every 7 days | Reference sites with infrequent updates |
+| Every 30 days | Rarely changing reference material |
 
 ## Products
 

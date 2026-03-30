@@ -18,8 +18,7 @@ Agents are specialized AI assistants you configure for specific tasks. Unlike th
 This is the most important tab. It defines what the agent knows, how it behaves, and what it can do.
 
 - System Instructions: the prompt sent to the model before every conversation. Use this to define the agent's role, tone, what topics it should and should not cover, and how it should format its answers.
-- Model Preset: choose between Fast, Standard, and Advanced. Your admin's model configuration determines which models are in each tier.
-- File Preprocessing: when on, attached files are processed with vision AI before being passed to the agent, which helps with image-heavy or scanned documents.
+- Model Preset: choose between Fast, Standard, and Advanced. Each tier maps to an AI model configured via environment variables (`OPENAI_FAST_MODEL`, `OPENAI_MODEL`, `OPENAI_CODING_MODEL`).
 - Structured Responses: when on, the agent formats its answers with consistent structure such as sections and lists instead of free-form text.
 
 Changes on this tab are saved automatically. A save indicator in the top-right shows the current status.

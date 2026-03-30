@@ -27,9 +27,8 @@ Conversations is the customer inbox. When customers contact your team through a 
 Select multiple conversations using the checkbox at the top of the list. Available bulk actions:
 
 - Change status: close, reopen, archive, or mark as spam
-- Assign to a team
 - Send a message to all selected conversation participants at once
 
-## Priority filtering
+## Filtering
 
-Use the filter dropdown in the toolbar to show conversations by priority. This helps surface urgent threads without scrolling through the full inbox.
+Use the filter dropdown in the toolbar to show read or unread conversations. This helps surface threads that still need attention without scrolling through the full inbox.

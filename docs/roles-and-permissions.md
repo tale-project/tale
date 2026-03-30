@@ -3,16 +3,18 @@ title: Roles and permissions
 description: Role overview, permission matrix, and SSO configuration.
 ---
 
-Tale uses five roles. Every user belongs to exactly one role within an organization. The same person can have different roles in different organizations.
+Tale uses six roles. Every user belongs to exactly one role within an organization. The same person can have different roles in different organizations.
 
 ## Role overview
 
 | Role | Who it's for |
 | --- | --- |
+| Owner | Organization creator. Same permissions as Admin with the ability to transfer ownership. |
 | Admin | Full control over the organization. Manages members, settings, integrations, and all content. |
 | Developer | For engineers and integration builders. Full data access but cannot manage members or organization settings. |
-| Editor | For content and customer service staff. Creates knowledge base content, handles conversations, and approves actions. |
+| Editor | For content and customer service staff. Creates knowledge base content, handles conversations, manages agents, and approves actions. |
 | Member | Read-only access. Can use AI chat to explore data but cannot create or edit content. |
+| Disabled | Account suspended. Cannot access any features. |
 
 ## Permission matrix
 
@@ -22,7 +24,6 @@ Tale uses five roles. Every user belongs to exactly one role within an organizat
 | --- | --- | --- | --- | --- |
 | Create and send messages | ✓ | ✓ | ✓ | ✓ |
 | View own chat history | ✓ | ✓ | ✓ | ✓ |
-| Delete and rename conversations | ✓ | ✓ | ✓ | ✓ |
 | Select agent | ✓ | ✓ | ✓ | ✓ |
 
 ### Knowledge base
@@ -50,7 +51,14 @@ Tale uses five roles. Every user belongs to exactly one role within an organizat
 | View pending approvals | ✓ | ✓ | ✓ | ✓ |
 | Approve or reject actions | — | ✓ | ✓ | ✓ |
 
-### Automations and agents
+### Agents
+
+| Feature | Member | Editor | Developer | Admin |
+| --- | --- | --- | --- | --- |
+| View agent list | — | ✓ | ✓ | ✓ |
+| Create and edit agents | — | ✓ | ✓ | ✓ |
+
+### Automations
 
 | Feature | Member | Editor | Developer | Admin |
 | --- | --- | --- | --- | --- |
