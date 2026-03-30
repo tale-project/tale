@@ -416,7 +416,10 @@ if [ -d "$builtin_dir" ] && [ "$(ls -A "$builtin_dir" 2>/dev/null)" ]; then
     slug="$(basename "$src" .json)"
     dest="$agents_dir/$name"
     history_dir="$agents_dir/.history/$slug"
-    if [ -f "$dest" ]; then
+    if [ "$FORCE_SEED" = "true" ]; then
+      cp "$src" "$dest"
+      echo "   ✓ Seeded $name (forced)"
+    elif [ -f "$dest" ]; then
       echo "   ⏭ Skipping $name (already exists)"
     elif [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
       echo "   ⏭ Skipping $name (user has modifications in .history)"
@@ -440,6 +443,13 @@ if [ -d "$workflows_builtin_dir" ] && [ "$(ls -A "$workflows_builtin_dir" 2>/dev
     slug="${rel_path%.json}"
     flat_slug="$(echo "$slug" | sed 's|/|__|g')"
     history_dir="$workflows_dir/.history/$flat_slug"
+
+    if [ "$FORCE_SEED" = "true" ]; then
+      mkdir -p "$dest_dir"
+      cp "$src" "$dest"
+      echo "   ✓ Seeded workflow $rel_path (forced)"
+      continue
+    fi
 
     # Skip if file already exists (user-provided config takes priority)
     if [ -f "$dest" ]; then
@@ -467,6 +477,12 @@ if [ -d "$integrations_builtin_dir" ] && [ "$(ls -A "$integrations_builtin_dir" 
     [ -d "$src_dir" ] || continue
     name="$(basename "$src_dir")"
     dest_dir="$integrations_dir/$name"
+
+    if [ "$FORCE_SEED" = "true" ]; then
+      cp -r "$src_dir" "$dest_dir"
+      echo "   ✓ Seeded integration $name (forced)"
+      continue
+    fi
 
     # Skip if directory already exists (user-provided config takes priority)
     if [ -d "$dest_dir" ]; then

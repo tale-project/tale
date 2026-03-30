@@ -109,10 +109,12 @@ services:
   # ============================================================================
   # Tale Crawler (Crawl4AI)
   # ============================================================================
-  # Stateless service - no container_name for blue-green deployment
   crawler:
     # Image from GHCR (used when PULL_POLICY=always)
     image: ghcr.io/tale-project/tale/tale-crawler:${VERSION:-latest}
+
+    # Container name
+    container_name: tale-crawler
     # Pull policy: 'build' for local dev, 'always' for production
     pull_policy: ${PULL_POLICY:-build}
     # Build configuration (used when PULL_POLICY=build)
@@ -182,10 +184,12 @@ services:
   # ============================================================================
   # Tale RAG
   # ============================================================================
-  # Stateless service - no container_name for blue-green deployment
   rag:
     # Image from GHCR (used when PULL_POLICY=always)
     image: ghcr.io/tale-project/tale/tale-rag:${VERSION:-latest}
+
+    # Container name
+    container_name: tale-rag
     # Pull policy: 'build' for local dev, 'always' for production
     pull_policy: ${PULL_POLICY:-build}
     # Build configuration (used when PULL_POLICY=build)
@@ -250,10 +254,12 @@ services:
   # ============================================================================
   # Tale Platform (TanStack Start + Convex)
   # ============================================================================
-  # Stateless service - no container_name for blue-green deployment
   platform:
     # Image from GHCR (used when PULL_POLICY=always)
     image: ghcr.io/tale-project/tale/tale-platform:${VERSION:-latest}
+
+    # Container name
+    container_name: tale-platform
     # Pull policy: 'build' for local dev, 'always' for production
     pull_policy: ${PULL_POLICY:-build}
     # Build configuration (used when PULL_POLICY=build)

@@ -12,10 +12,15 @@ import { NETWORKS, VOLUMES } from './constants';
 
 const DEV_COLOR = 'blue' as const;
 
+interface DevComposeOptions {
+  fresh?: boolean;
+}
+
 export function generateDevCompose(
   config: ServiceConfig,
   hostAlias: string,
   port: number,
+  options: DevComposeOptions = {},
 ): string {
   const platform = createPlatformService(config, DEV_COLOR);
   platform.container_name = `${PROJECT_NAME}-platform`;
@@ -31,6 +36,7 @@ export function generateDevCompose(
     WORKFLOWS_DIR: '/app/data/workflows',
     INTEGRATIONS_DIR: '/app/data/integrations',
     LIVE_RELOAD: 'true',
+    ...(options.fresh ? { FORCE_SEED: 'true' } : {}),
   };
   platform.depends_on = { db: { condition: 'service_healthy' } };
 

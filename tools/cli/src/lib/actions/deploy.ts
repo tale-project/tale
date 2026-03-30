@@ -68,6 +68,7 @@ interface DeployOptions {
   hostAlias: string;
   dryRun: boolean;
   services?: ServiceName[];
+  fresh?: boolean;
 }
 
 export async function deploy(options: DeployOptions): Promise<void> {
@@ -230,7 +231,9 @@ export async function deploy(options: DeployOptions): Promise<void> {
 
         // Update services in current color
         logger.step(`${prefix}Updating ${currentColor} services...`);
-        const colorCompose = generateColorCompose(serviceConfig, currentColor);
+        const colorCompose = generateColorCompose(serviceConfig, currentColor, {
+          fresh: options.fresh,
+        });
 
         if (dryRun) {
           for (const service of rotatableToUpdate) {
@@ -293,7 +296,9 @@ export async function deploy(options: DeployOptions): Promise<void> {
 
         // Deploy new color
         logger.step(`${prefix}Deploying ${nextColor} services...`);
-        const colorCompose = generateColorCompose(serviceConfig, nextColor);
+        const colorCompose = generateColorCompose(serviceConfig, nextColor, {
+          fresh: options.fresh,
+        });
 
         if (dryRun) {
           for (const service of rotatableToUpdate) {
