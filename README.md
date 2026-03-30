@@ -2,7 +2,7 @@
 
 Build AI-powered applications in minutes, not months.
 
-Tale is a self-hosted AI platform with intelligent assistants, automated data collection, and a modern web interface. Install the CLI and run a single command to get started.
+Tale is a self-hosted AI platform with custom agents, a knowledge base, workflow automation, integrations, and a unified inbox. Install the CLI and run a single command to get started.
 
 ## Quick start
 
