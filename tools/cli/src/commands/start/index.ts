@@ -9,16 +9,28 @@ export function createStartCommand(): Command {
     .option('-d, --detach', 'run in background')
     .option('-p, --port <port>', 'HTTPS port to expose', '443')
     .option('--host <hostname>', 'host alias for proxy', 'tale.local')
-    .action(async (opts: { detach?: boolean; port: string; host: string }) => {
-      try {
-        await start({
-          detach: opts.detach,
-          port: Number(opts.port),
-          host: opts.host,
-        });
-      } catch (err) {
-        logger.error(err instanceof Error ? err.message : String(err));
-        process.exit(1);
-      }
-    });
+    .option(
+      '--fresh',
+      'force re-seed builtin agent/workflow/integration configs',
+    )
+    .action(
+      async (opts: {
+        detach?: boolean;
+        port: string;
+        host: string;
+        fresh?: boolean;
+      }) => {
+        try {
+          await start({
+            detach: opts.detach,
+            port: Number(opts.port),
+            host: opts.host,
+            fresh: opts.fresh,
+          });
+        } catch (err) {
+          logger.error(err instanceof Error ? err.message : String(err));
+          process.exit(1);
+        }
+      },
+    );
 }

@@ -23,6 +23,10 @@ export function createDeployCommand(): Command {
     )
     .option('--dry-run', 'Preview deployment without making changes', false)
     .option('--host <hostname>', 'Host alias for proxy')
+    .option(
+      '--fresh',
+      'force re-seed builtin agent/workflow/integration configs',
+    )
     .action(async (versionArg: string | undefined, options) => {
       try {
         const deployDir = await ensureConfig();
@@ -63,6 +67,7 @@ export function createDeployCommand(): Command {
           hostAlias,
           dryRun: options.dryRun,
           services,
+          fresh: options.fresh,
         });
       } catch (err) {
         logger.error(err instanceof Error ? err.message : String(err));

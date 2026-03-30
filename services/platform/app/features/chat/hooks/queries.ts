@@ -91,6 +91,7 @@ export function useChatAgents(_organizationId: string) {
             displayName: a.displayName,
             description: a.description,
             visibleInChat: a.visibleInChat,
+            conversationStarters: a.conversationStarters,
           });
         }
       }

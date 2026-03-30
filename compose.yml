@@ -109,10 +109,12 @@ services:
   # ============================================================================
   # Tale Crawler (Crawl4AI)
   # ============================================================================
-  # Stateless service - no container_name for blue-green deployment
   crawler:
     # Image from GHCR (used when PULL_POLICY=always)
     image: ghcr.io/tale-project/tale/tale-crawler:${VERSION:-latest}
+
+    # Container name
+    container_name: tale-crawler
     # Pull policy: 'build' for local dev, 'always' for production
     pull_policy: ${PULL_POLICY:-build}
     # Build configuration (used when PULL_POLICY=build)
@@ -180,69 +182,14 @@ services:
       - internal
 
   # ============================================================================
-  # Tale Operator (Direct Playwright + LLM Agent Loop)
-  # ============================================================================
-  # AI-powered operator service
-  # - Uses real browser to bypass anti-bot detection
-  # - Supports web search, browsing, and interaction
-  # - Requires OpenAI-compatible LLM API
-  operator:
-    # Image from GHCR (used when PULL_POLICY=always)
-    image: ghcr.io/tale-project/tale/tale-operator:${VERSION:-latest}
-    # Pull policy: 'build' for local dev, 'always' for production
-    pull_policy: ${PULL_POLICY:-build}
-    # Build configuration (used when PULL_POLICY=build)
-    build:
-      context: .
-      dockerfile: services/operator/Dockerfile
-      args:
-        VERSION: ${VERSION:-dev}
-
-    # Port mapping: host:container (for development)
-    # Access Operator API at localhost:8004
-    ports:
-      - '8004:8004'
-
-    # Environment file
-    env_file:
-      - .env
-
-    # Restart policy
-    restart: unless-stopped
-
-    # Security options for Chromium browser
-    # Chrome needs these permissions to run in a container
-    security_opt:
-      - seccomp=unconfined
-    cap_add:
-      - SYS_ADMIN
-
-    # Health check
-    healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:8004/health']
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 15s
-
-    # Logging configuration
-    logging:
-      driver: 'json-file'
-      options:
-        max-size: '10m'
-        max-file: '3'
-
-    # Networks
-    networks:
-      - internal
-
-  # ============================================================================
   # Tale RAG
   # ============================================================================
-  # Stateless service - no container_name for blue-green deployment
   rag:
     # Image from GHCR (used when PULL_POLICY=always)
     image: ghcr.io/tale-project/tale/tale-rag:${VERSION:-latest}
+
+    # Container name
+    container_name: tale-rag
     # Pull policy: 'build' for local dev, 'always' for production
     pull_policy: ${PULL_POLICY:-build}
     # Build configuration (used when PULL_POLICY=build)
@@ -307,10 +254,12 @@ services:
   # ============================================================================
   # Tale Platform (TanStack Start + Convex)
   # ============================================================================
-  # Stateless service - no container_name for blue-green deployment
   platform:
     # Image from GHCR (used when PULL_POLICY=always)
     image: ghcr.io/tale-project/tale/tale-platform:${VERSION:-latest}
+
+    # Container name
+    container_name: tale-platform
     # Pull policy: 'build' for local dev, 'always' for production
     pull_policy: ${PULL_POLICY:-build}
     # Build configuration (used when PULL_POLICY=build)

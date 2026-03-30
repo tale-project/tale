@@ -7,7 +7,6 @@
     "services/platform",
     "services/crawler",
     "services/rag",
-    "services/operator",
     "services/db",
     "services/proxy",
     "tools/cli"

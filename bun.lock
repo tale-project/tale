@@ -33,10 +33,6 @@
       "name": "@tale/db",
       "version": "0.1.0",
     },
-    "services/operator": {
-      "name": "@tale/operator",
-      "version": "0.1.0",
-    },
     "services/platform": {
       "name": "@tale/platform",
       "version": "0.1.0",
@@ -188,7 +184,7 @@
     },
     "tools/cli": {
       "name": "@tale/cli",
-      "version": "1.0.0",
+      "version": "1.0.0-dev",
       "dependencies": {
         "@inquirer/prompts": "^8.0.0",
         "commander": "^14.0.0",
@@ -1286,8 +1282,6 @@
     "@tale/crawler": ["@tale/crawler@workspace:services/crawler"],
 
     "@tale/db": ["@tale/db@workspace:services/db"],
-
-    "@tale/operator": ["@tale/operator@workspace:services/operator"],
 
     "@tale/platform": ["@tale/platform@workspace:services/platform"],
 

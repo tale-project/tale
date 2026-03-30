@@ -52,12 +52,7 @@ export interface ServiceConfig {
   registry: string;
 }
 
-export const ROTATABLE_SERVICES = [
-  'platform',
-  'rag',
-  'crawler',
-  'operator',
-] as const;
+export const ROTATABLE_SERVICES = ['platform', 'rag', 'crawler'] as const;
 export const STATEFUL_SERVICES = ['db', 'proxy'] as const;
 export const ALL_SERVICES = [
   ...ROTATABLE_SERVICES,
