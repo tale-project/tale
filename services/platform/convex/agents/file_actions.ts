@@ -280,7 +280,8 @@ export const listHistory = action({
       .filter((e) => e.endsWith('.json'))
       .map((e) => {
         const ts = e.replace('.json', '');
-        return { timestamp: ts, date: new Date(Number(ts)).toISOString() };
+        const epochMs = Number(ts.split('-')[0]);
+        return { timestamp: ts, date: new Date(epochMs).toISOString() };
       })
       .sort((a, b) => Number(b.timestamp) - Number(a.timestamp));
   },

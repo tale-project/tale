@@ -73,7 +73,12 @@ if (liveReloadEnabled) {
 
 const LIVE_RELOAD_SCRIPT = `<script>(() => {
   const es = new EventSource('/__dev/live-reload');
-  es.onmessage = (e) => { if (e.data === 'reload') location.reload(); };
+  es.onmessage = (e) => {
+    if (e.data === 'reload') {
+      if (Date.now() - (window.__taleLastSaveAt || 0) < 5000) return;
+      location.reload();
+    }
+  };
 })()</script>`;
 
 // ---------------------------------------------------------------------------
@@ -146,7 +151,6 @@ Bun.serve({
         headers: {
           'Content-Type': 'text/event-stream',
           'Cache-Control': 'no-cache',
-          Connection: 'keep-alive',
         },
       });
     }

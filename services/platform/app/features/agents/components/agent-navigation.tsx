@@ -110,6 +110,7 @@ export function AgentNavigation({
   ];
 
   const handleSave = useCallback(async () => {
+    window.__taleLastSaveAt = Date.now();
     markSaving(true);
     try {
       await snapshotAction.mutateAsync({
