@@ -25,6 +25,112 @@ Tale is a **self-hosted, AI-native platform** that provides custom agents, a kno
 
 ---
 
+## Market positioning
+
+### Target audience
+
+**Primary:** Technical teams at SMBs and startups that need AI-powered customer service, internal automation, or knowledge management — and prefer self-hosting for data sovereignty.
+
+**Secondary:** Agencies and consultants building AI solutions for clients, using Tale as a white-label foundation (branding customization + MIT license enables this).
+
+### Positioning statement
+
+> "The self-hosted AI platform where AI builds your AI. Define agents, workflows, and integrations as code — let AI editors generate them, Git version them, and hot-reload them instantly."
+
+---
+
+## Core competitive advantages
+
+### 1. AI-first editing paradigm (key differentiator)
+
+Competitors like n8n and Dify are adding AI features — but their AI operates **inside** their proprietary UI, assisting users within the platform's own editor. Tale takes a fundamentally different approach: configuration lives as **plain JSON files on the filesystem**, and the platform **hot-reloads on every file change** — users edit in their own AI tool, and the platform UI instantly reflects the result. No restart, no redeploy, no manual import.
+
+```
+n8n/Dify:  AI assists inside platform UI → still locked to their editor, their AI, their workflow
+Tale:      User's own AI tool → edits JSON file → platform hot-reloads → instant visual feedback → one-click test
+```
+
+This applies to **all three core configuration surfaces** — agents, workflows, and integrations:
+
+- **Agents:** system instructions, tool bindings, model presets, knowledge modes — all defined in JSON, editable with one prompt
+- **Workflows:** full DAG definitions with steps, conditions, loops, and triggers — generated or rewritten by AI in seconds
+- **Integrations:** connector config schemas, authentication, and operation definitions — created as JSON + TypeScript files
+
+The key difference: competitors add AI as a feature inside their platform. Tale makes the **entire AI ecosystem** its editor — Claude Code, Cursor, Copilot, Windsurf, or any future AI tool can directly generate and modify Tale configurations with full schema awareness, without ever opening the platform UI.
+
+| Dimension          | Platform-embedded AI (n8n/Dify) | Tale: open file-based configuration       |
+| ------------------ | ------------------------------- | ----------------------------------------- |
+| AI tooling         | Platform's built-in AI only     | Any AI tool — Claude Code, Copilot, Cursor, etc. |
+| Live feedback loop | Edit in platform UI, preview in platform UI | Edit in any editor → platform UI hot-reloads instantly |
+| Creation speed     | AI assists within UI, still requires manual steps | One prompt generates full agent/workflow/integration |
+| AI upgrade path    | Wait for platform to update their AI | Instantly benefit from any AI tool improvement |
+| Version control    | Stored in DB, diffs are opaque  | Git-native, clean diffs, PR reviews       |
+| Bulk modification  | Click through each node         | AI rewrites entire definition at once     |
+| Reproducibility    | Export/import required          | File = config, inherently portable        |
+| Collaboration      | Platform-specific collaboration | Standard Git PR workflow                  |
+| CI/CD              | Needs adapter                   | Native fit                                |
+
+**Note:** for teams not yet using AI coding tools, Tale also provides form-based configuration panels. As AI editor adoption accelerates, the open file-based approach becomes an increasingly natural fit.
+
+### 2. All-in-one self-hosted platform
+
+Most open-source tools cover one or two of these. Tale covers all six in a single self-hosted deployment:
+
+- AI agents with 25 built-in tools
+- Workflow automation with DAG engine
+- Knowledge base with hybrid RAG and automatic website crawling
+- Unified inbox with multi-channel support
+- Integrations with REST API + SQL
+- CRM (customers, products, vendors)
+
+This reduces tool sprawl and eliminates data synchronization overhead between separate systems.
+
+### 3. Config-as-Code architecture
+
+Every configurable entity — agents, workflows, integrations, branding — is a JSON file on the filesystem:
+
+- **Version controlled** via Git
+- **Hot-reloaded** on file change (no restart, no redeploy)
+- **Portable** across environments (dev → staging → prod)
+- **Diffable** in pull requests
+- **AI-editable** with full schema awareness
+
+### 4. Production-grade deployment out of the box
+
+`tale init && tale start` gives a running platform. `tale deploy` gives blue-green zero-downtime deployment with:
+
+- Automatic health checks and rollback
+- TLS via Let's Encrypt (zero configuration)
+- Docker-based, single-machine deployable
+- No Kubernetes required
+
+### 5. MIT license
+
+No license restrictions, no open-core limitations, no enterprise tier gatekeeping. Full platform under the most permissive open-source license.
+
+### 6. Modern technical foundation
+
+- Convex: real-time subscriptions, ACID transactions, serverless scaling
+- ParadeDB: PostgreSQL with BM25 + pgvector in a single database
+- TanStack Start: modern React meta-framework with SSR
+- Bun: fast runtime for CLI and development
+- Caddy: automatic TLS, zero-config reverse proxy
+
+---
+
+## Platform strengths
+
+| Dimension                        | Highlights                                                                 |
+| -------------------------------- | -------------------------------------------------------------------------- |
+| Technical architecture           | Modern stack, clean separation, real-time capabilities, 165k LoC with good modularity |
+| Feature completeness             | Broad all-in-one coverage; each module has meaningful depth                |
+| AI-native design                 | AI editing paradigm, 25 agent tools, LLM workflow nodes, RAG — AI is foundational, not bolted on |
+| Developer experience             | Excellent CLI, Config-as-Code, hot-reload, AI editor integration           |
+| Deployment and operations        | Blue-green deploy, auto TLS, health checks, rollback — production-grade out of the box |
+| Differentiation                  | "AI-first Config-as-Code" is a genuinely unique position in the market     |
+
+---
+
 ## Feature inventory
 
 ### 1. AI agent system
@@ -241,85 +347,6 @@ Each integration includes: `config.json` (schema + operations), `connector.ts` (
 
 ---
 
-## Core competitive advantages
-
-### 1. AI-first editing paradigm (key differentiator)
-
-Competitors like n8n and Dify are adding AI features — but their AI operates **inside** their proprietary UI, assisting users within the platform's own editor. Tale takes a fundamentally different approach: configuration lives as **plain JSON files on the filesystem**, and the platform **hot-reloads on every file change** — users edit in their own AI tool, and the platform UI instantly reflects the result. No restart, no redeploy, no manual import.
-
-```
-n8n/Dify:  AI assists inside platform UI → still locked to their editor, their AI, their workflow
-Tale:      User's own AI tool → edits JSON file → platform hot-reloads → instant visual feedback → one-click test
-```
-
-This applies to **all three core configuration surfaces** — agents, workflows, and integrations:
-
-- **Agents:** system instructions, tool bindings, model presets, knowledge modes — all defined in JSON, editable with one prompt
-- **Workflows:** full DAG definitions with steps, conditions, loops, and triggers — generated or rewritten by AI in seconds
-- **Integrations:** connector config schemas, authentication, and operation definitions — created as JSON + TypeScript files
-
-The key difference: competitors add AI as a feature inside their platform. Tale makes the **entire AI ecosystem** its editor — Claude Code, Cursor, Copilot, Windsurf, or any future AI tool can directly generate and modify Tale configurations with full schema awareness, without ever opening the platform UI.
-
-| Dimension          | Platform-embedded AI (n8n/Dify) | Tale: open file-based configuration       |
-| ------------------ | ------------------------------- | ----------------------------------------- |
-| AI tooling         | Platform's built-in AI only     | Any AI tool — Claude Code, Copilot, Cursor, etc. |
-| Live feedback loop | Edit in platform UI, preview in platform UI | Edit in any editor → platform UI hot-reloads instantly |
-| Creation speed     | AI assists within UI, still requires manual steps | One prompt generates full agent/workflow/integration |
-| AI upgrade path    | Wait for platform to update their AI | Instantly benefit from any AI tool improvement |
-| Version control    | Stored in DB, diffs are opaque  | Git-native, clean diffs, PR reviews       |
-| Bulk modification  | Click through each node         | AI rewrites entire definition at once     |
-| Reproducibility    | Export/import required          | File = config, inherently portable        |
-| Collaboration      | Platform-specific collaboration | Standard Git PR workflow                  |
-| CI/CD              | Needs adapter                   | Native fit                                |
-
-**Note:** for teams not yet using AI coding tools, Tale also provides form-based configuration panels. As AI editor adoption accelerates, the open file-based approach becomes an increasingly natural fit.
-
-### 2. All-in-one self-hosted platform
-
-Most open-source tools cover one or two of these. Tale covers all six in a single self-hosted deployment:
-
-- AI agents with 25 built-in tools
-- Workflow automation with DAG engine
-- Knowledge base with hybrid RAG and automatic website crawling
-- Unified inbox with multi-channel support
-- Integrations with REST API + SQL
-- CRM (customers, products, vendors)
-
-This reduces tool sprawl and eliminates data synchronization overhead between separate systems.
-
-### 3. Config-as-Code architecture
-
-Every configurable entity — agents, workflows, integrations, branding — is a JSON file on the filesystem:
-
-- **Version controlled** via Git
-- **Hot-reloaded** on file change (no restart, no redeploy)
-- **Portable** across environments (dev → staging → prod)
-- **Diffable** in pull requests
-- **AI-editable** with full schema awareness
-
-### 4. Production-grade deployment out of the box
-
-`tale init && tale start` gives a running platform. `tale deploy` gives blue-green zero-downtime deployment with:
-
-- Automatic health checks and rollback
-- TLS via Let's Encrypt (zero configuration)
-- Docker-based, single-machine deployable
-- No Kubernetes required
-
-### 5. MIT license
-
-No license restrictions, no open-core limitations, no enterprise tier gatekeeping. Full platform under the most permissive open-source license.
-
-### 6. Modern technical foundation
-
-- Convex: real-time subscriptions, ACID transactions, serverless scaling
-- ParadeDB: PostgreSQL with BM25 + pgvector in a single database
-- TanStack Start: modern React meta-framework with SSR
-- Bun: fast runtime for CLI and development
-- Caddy: automatic TLS, zero-config reverse proxy
-
----
-
 ## Roadmap and trade-offs
 
 ### Expanding the integration catalog
@@ -333,33 +360,6 @@ The i18n framework is fully in place and ready for translation contributions. Pr
 ### Additional inbox channels
 
 Expanding beyond email and chat to include WhatsApp Business API, Facebook Messenger, and Instagram DM.
-
----
-
-## Market positioning
-
-### Target audience
-
-**Primary:** Technical teams at SMBs and startups that need AI-powered customer service, internal automation, or knowledge management — and prefer self-hosting for data sovereignty.
-
-**Secondary:** Agencies and consultants building AI solutions for clients, using Tale as a white-label foundation (branding customization + MIT license enables this).
-
-### Positioning statement
-
-> "The self-hosted AI platform where AI builds your AI. Define agents, workflows, and integrations as code — let AI editors generate them, Git version them, and hot-reload them instantly."
-
----
-
-## Platform strengths
-
-| Dimension                        | Highlights                                                                 |
-| -------------------------------- | -------------------------------------------------------------------------- |
-| Technical architecture           | Modern stack, clean separation, real-time capabilities, 165k LoC with good modularity |
-| Feature completeness             | Broad all-in-one coverage; each module has meaningful depth                |
-| AI-native design                 | AI editing paradigm, 25 agent tools, LLM workflow nodes, RAG — AI is foundational, not bolted on |
-| Developer experience             | Excellent CLI, Config-as-Code, hot-reload, AI editor integration           |
-| Deployment and operations        | Blue-green deploy, auto TLS, health checks, rollback — production-grade out of the box |
-| Differentiation                  | "AI-first Config-as-Code" is a genuinely unique position in the market     |
 
 ---
 
