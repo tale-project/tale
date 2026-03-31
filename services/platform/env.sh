@@ -55,9 +55,10 @@ env_normalize_common() {
 	  export INSTANCE_SECRET="${INSTANCE_SECRET}"
 
   # Filesystem directories for file-based configs
-  export AGENTS_DIR="${AGENTS_DIR:-/app/data/agents}"
-  export WORKFLOWS_DIR="${WORKFLOWS_DIR:-/app/data/workflows}"
-  export INTEGRATIONS_DIR="${INTEGRATIONS_DIR:-/app/data/integrations}"
+  export TALE_CONFIG_DIR="${TALE_CONFIG_DIR:-/app/data}"
+  export AGENTS_DIR="${AGENTS_DIR:-${TALE_CONFIG_DIR}/agents}"
+  export WORKFLOWS_DIR="${WORKFLOWS_DIR:-${TALE_CONFIG_DIR}/workflows}"
+  export INTEGRATIONS_DIR="${INTEGRATIONS_DIR:-${TALE_CONFIG_DIR}/integrations}"
 
   # AI provider keys
   export OPENAI_API_KEY="${OPENAI_API_KEY}"

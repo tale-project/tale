@@ -22,11 +22,9 @@ const liveReloadEnabled = process.env.LIVE_RELOAD === 'true';
 const sseClients = new Set<ReadableStreamDefaultController>();
 
 if (liveReloadEnabled) {
-  const watchDirs = [
-    process.env.AGENTS_DIR,
-    process.env.WORKFLOWS_DIR,
-    process.env.INTEGRATIONS_DIR,
-  ].filter((d): d is string => Boolean(d));
+  const watchDirs = [process.env.TALE_CONFIG_DIR].filter((d): d is string =>
+    Boolean(d),
+  );
 
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   let lastInternalWriteTime = 0;
@@ -103,6 +101,9 @@ interface EnvConfig {
 
 const port = process.env.PORT || 3000;
 const distDir = join(import.meta.dir, 'dist');
+const brandingImagesDir = process.env.TALE_CONFIG_DIR
+  ? join(process.env.TALE_CONFIG_DIR, 'branding', 'images')
+  : null;
 
 function getBasePath(): string {
   const basePath = process.env.BASE_PATH ?? '';
@@ -161,6 +162,23 @@ Bun.serve({
 
     if (pathname === '/metrics/convex') {
       return convexMetricsResponse(url.searchParams.get('format'));
+    }
+
+    if (brandingImagesDir && pathname.startsWith('/branding/images/')) {
+      const filename = pathname.slice('/branding/images/'.length);
+      if (filename && !filename.includes('/') && !filename.includes('..')) {
+        const filePath = resolve(brandingImagesDir, filename);
+        if (filePath.startsWith(brandingImagesDir)) {
+          const file = Bun.file(filePath);
+          if (await file.exists()) {
+            return new Response(file, {
+              headers: {
+                'Cache-Control': 'no-cache, must-revalidate',
+              },
+            });
+          }
+        }
+      }
     }
 
     if (pathname !== '/') {

@@ -19,10 +19,17 @@ vi.mock('@/app/hooks/use-toast', () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));
 
-// Mock upsert mutation
+// Mock branding mutations
 const mockMutateAsync = vi.fn().mockResolvedValue(undefined);
 vi.mock('../../hooks/mutations', () => ({
-  useUpsertBranding: () => ({ mutateAsync: mockMutateAsync }),
+  useSaveBranding: () => ({ mutateAsync: mockMutateAsync }),
+  useSnapshotBrandingHistory: () => ({ mutateAsync: mockMutateAsync }),
+  useDeleteImage: () => ({ mutateAsync: mockMutateAsync }),
+}));
+
+// Mock branding context
+vi.mock('@/app/components/branding/branding-provider', () => ({
+  useBrandingContext: () => ({ refetch: vi.fn() }),
 }));
 
 // Mock Image component
@@ -50,7 +57,6 @@ afterEach(() => {
 
 describe('BrandingForm', () => {
   const defaultProps = {
-    organizationId: 'org_1',
     onPreviewChange: vi.fn(),
   };
 

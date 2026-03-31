@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from 'react';
 
+import { useBrandingContext } from '@/app/components/branding/branding-provider';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useResizeObserver } from '@/app/hooks/use-resize-observer';
 import { type AppAction, type AppSubject } from '@/lib/permissions/ability';
@@ -61,6 +62,7 @@ export function TabNavigation({
   const location = useLocation();
   const pathname = location.pathname;
   const ability = useAbility();
+  const { accentColor } = useBrandingContext();
   const navRef = useRef<HTMLElement | null>(null);
   const itemRefs = useRef<(HTMLAnchorElement | null)[]>([]);
   const [indicatorStyle, setIndicatorStyle] = useState({ width: 0, left: 0 });
@@ -180,12 +182,14 @@ export function TabNavigation({
       {activeIndex !== -1 && (
         <div
           className={cn(
-            'absolute bottom-0 h-0.5 bg-foreground',
+            'absolute bottom-0 h-0.5',
+            !accentColor && 'bg-foreground',
             shouldAnimate && 'transition-all duration-200 ease-out',
           )}
           style={{
             width: `${indicatorStyle.width}px`,
             left: `${indicatorStyle.left}px`,
+            backgroundColor: accentColor || undefined,
           }}
         />
       )}

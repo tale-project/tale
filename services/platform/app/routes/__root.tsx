@@ -9,6 +9,7 @@ import { LazyMotion, domAnimation } from 'framer-motion';
 
 import type { RouterContext } from '@/app/router';
 
+import { BrandingProvider } from '@/app/components/branding/branding-provider';
 import { ThemeColorMeta } from '@/app/components/theme/theme-color-meta';
 import { ThemeProvider } from '@/app/components/theme/theme-provider';
 import { Toaster } from '@/app/components/ui/feedback/toaster';
@@ -39,7 +40,9 @@ function RootComponent() {
             <ThemeColorMeta />
             <QueryClientProvider client={queryClient}>
               <LazyMotion features={domAnimation} strict>
-                <Outlet />
+                <BrandingProvider>
+                  <Outlet />
+                </BrandingProvider>
               </LazyMotion>
             </QueryClientProvider>
             <Toaster />

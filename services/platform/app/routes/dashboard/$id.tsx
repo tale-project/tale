@@ -1,7 +1,6 @@
 import { Outlet, createFileRoute } from '@tanstack/react-router';
 import { useEffect, useRef } from 'react';
 
-import { BrandingProvider } from '@/app/components/branding/branding-provider';
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import {
   AdaptiveHeaderProvider,
@@ -59,36 +58,34 @@ function DashboardLayout() {
 
   return (
     <AbilityContext.Provider value={ability}>
-      <BrandingProvider organizationId={organizationId}>
-        <TeamFilterProvider organizationId={organizationId}>
-          <AdaptiveHeaderProvider>
-            <div className="flex size-full flex-col overflow-hidden md:flex-row">
-              <div className="bg-sidebar flex h-[--nav-size] items-center gap-2 p-2 md:hidden">
-                <MobileNavigation organizationId={organizationId} />
-                <AdaptiveHeaderSlot />
-              </div>
-
-              <div className="bg-sidebar hidden h-full px-2 md:flex md:flex-[0_0_var(--nav-size)]">
-                <Navigation organizationId={organizationId} />
-              </div>
-
-              <div className="border-border bg-background flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:border-l">
-                {hasRole ? (
-                  <Outlet />
-                ) : isLoading ? (
-                  <div className="flex flex-1 items-center justify-center">
-                    <Spinner size="md" />
-                  </div>
-                ) : (
-                  <AccessDenied
-                    message={t(isDisabled ? 'disabled' : 'noMembership')}
-                  />
-                )}
-              </div>
+      <TeamFilterProvider organizationId={organizationId}>
+        <AdaptiveHeaderProvider>
+          <div className="flex size-full flex-col overflow-hidden md:flex-row">
+            <div className="bg-sidebar flex h-[--nav-size] items-center gap-2 p-2 md:hidden">
+              <MobileNavigation organizationId={organizationId} />
+              <AdaptiveHeaderSlot />
             </div>
-          </AdaptiveHeaderProvider>
-        </TeamFilterProvider>
-      </BrandingProvider>
+
+            <div className="bg-sidebar hidden h-full px-2 md:flex md:flex-[0_0_var(--nav-size)]">
+              <Navigation organizationId={organizationId} />
+            </div>
+
+            <div className="border-border bg-background flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:border-l">
+              {hasRole ? (
+                <Outlet />
+              ) : isLoading ? (
+                <div className="flex flex-1 items-center justify-center">
+                  <Spinner size="md" />
+                </div>
+              ) : (
+                <AccessDenied
+                  message={t(isDisabled ? 'disabled' : 'noMembership')}
+                />
+              )}
+            </div>
+          </div>
+        </AdaptiveHeaderProvider>
+      </TeamFilterProvider>
     </AbilityContext.Provider>
   );
 }

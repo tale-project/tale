@@ -10,7 +10,11 @@ export function watchExamples(): Plugin {
     configureServer(server) {
       server.watcher.add(examplesDir);
       server.watcher.on('change', (filePath) => {
-        if (filePath.startsWith(examplesDir) && filePath.endsWith('.json')) {
+        if (
+          filePath.startsWith(examplesDir) &&
+          filePath.endsWith('.json') &&
+          !filePath.includes(`${path.sep}branding${path.sep}`)
+        ) {
           server.ws.send({ type: 'full-reload' });
         }
       });

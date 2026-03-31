@@ -32,6 +32,7 @@ export function generateDevCompose(
     'caddy-data:/caddy-data:ro',
   ];
   platform.environment = {
+    TALE_CONFIG_DIR: '/app/data',
     AGENTS_DIR: '/app/data/agents',
     WORKFLOWS_DIR: '/app/data/workflows',
     INTEGRATIONS_DIR: '/app/data/integrations',

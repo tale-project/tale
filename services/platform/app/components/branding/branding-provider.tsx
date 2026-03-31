@@ -1,18 +1,21 @@
 'use client';
 
+import { useAction } from 'convex/react';
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
   useRef,
+  useState,
   type ReactNode,
 } from 'react';
 
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
+import { hexToHsl, isLightColor } from '@/lib/utils/color';
 
-interface BrandingContextValue {
+interface BrandingState {
   appName?: string;
   textLogo?: string;
   logoUrl?: string | null;
@@ -23,8 +26,15 @@ interface BrandingContextValue {
   isLoaded: boolean;
 }
 
+interface BrandingContextValue extends BrandingState {
+  refetch: () => Promise<void>;
+}
+
+const noop = async () => {};
+
 const BrandingContext = createContext<BrandingContextValue>({
   isLoaded: false,
+  refetch: noop,
 });
 
 export function useBrandingContext() {
@@ -32,25 +42,45 @@ export function useBrandingContext() {
 }
 
 interface BrandingProviderProps {
-  organizationId: string;
-  skip?: boolean;
   children: ReactNode;
 }
 
 const DEFAULT_TITLE_SUFFIX = 'Tale';
 
-export function BrandingProvider({
-  organizationId,
-  skip,
-  children,
-}: BrandingProviderProps) {
-  const { data: branding } = useConvexQuery(
-    api.branding.queries.getBranding,
-    skip ? 'skip' : { organizationId },
+const CSS_OVERRIDES = ['primary', 'primary-foreground'] as const;
+
+export function BrandingProvider({ children }: BrandingProviderProps) {
+  const readBrandingFn = useAction(api.branding.file_actions.readBranding);
+  const [branding, setBranding] = useState<BrandingState | undefined>(
+    undefined,
   );
+
+  const fetchBranding = useCallback(async () => {
+    try {
+      const result = await readBrandingFn({});
+      setBranding({
+        appName: result.appName,
+        textLogo: result.textLogo,
+        logoUrl: result.logoUrl,
+        faviconLightUrl: result.faviconLightUrl,
+        faviconDarkUrl: result.faviconDarkUrl,
+        brandColor: result.brandColor,
+        accentColor: result.accentColor,
+        isLoaded: true,
+      });
+    } catch (error) {
+      console.error('[Branding] Failed to load branding config', error);
+      setBranding({ isLoaded: true });
+    }
+  }, [readBrandingFn]);
+
+  useEffect(() => {
+    void fetchBranding();
+  }, [fetchBranding]);
 
   const originalFaviconHrefRef = useRef<string | null>(null);
 
+  // App title override
   useEffect(() => {
     const customName = branding?.appName;
     const targetSuffix = customName || DEFAULT_TITLE_SUFFIX;
@@ -85,6 +115,7 @@ export function BrandingProvider({
     };
   }, [branding?.appName]);
 
+  // Favicon override
   useEffect(() => {
     const link =
       document.querySelector<HTMLLinkElement>('link[rel="icon"]') ??
@@ -125,18 +156,32 @@ export function BrandingProvider({
     };
   }, [branding?.faviconLightUrl, branding?.faviconDarkUrl]);
 
+  // CSS variable injection for brand/accent colors
+  useEffect(() => {
+    const root = document.documentElement;
+    const brandColor = branding?.brandColor;
+
+    if (brandColor) {
+      root.style.setProperty('--primary', hexToHsl(brandColor));
+      root.style.setProperty(
+        '--primary-foreground',
+        isLightColor(brandColor) ? '0 0% 3.9%' : '0 0% 98%',
+      );
+    }
+
+    return () => {
+      for (const prop of CSS_OVERRIDES) {
+        root.style.removeProperty(`--${prop}`);
+      }
+    };
+  }, [branding?.brandColor]);
+
   const value = useMemo<BrandingContextValue>(
     () => ({
-      appName: branding?.appName,
-      textLogo: branding?.textLogo,
-      logoUrl: branding?.logoUrl,
-      faviconLightUrl: branding?.faviconLightUrl,
-      faviconDarkUrl: branding?.faviconDarkUrl,
-      brandColor: branding?.brandColor,
-      accentColor: branding?.accentColor,
-      isLoaded: branding !== undefined,
+      ...(branding ?? { isLoaded: false }),
+      refetch: fetchBranding,
     }),
-    [branding],
+    [branding, fetchBranding],
   );
 
   return (

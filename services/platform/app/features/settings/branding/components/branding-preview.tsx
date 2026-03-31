@@ -125,7 +125,7 @@ export const BrandingPreview = memo(function BrandingPreview({
                 >
                   {i === 0 && accentColor && (
                     <div
-                      className="absolute inset-0 rounded opacity-[0.08]"
+                      className="absolute inset-0 rounded opacity-10"
                       style={{ backgroundColor: accentColor }}
                     />
                   )}

@@ -77,14 +77,14 @@ export function urlParamToSlug(param: string): string {
 
 function getBaseDir(): string {
   const dir = process.env.WORKFLOWS_DIR;
-  if (!dir) {
-    throw new Error(
-      'WORKFLOWS_DIR environment variable is not set. ' +
-        'Set it in .env to the absolute path of your workflows directory ' +
-        '(e.g., WORKFLOWS_DIR=/path/to/tale/examples/workflows).',
-    );
-  }
-  return dir;
+  if (dir) return dir;
+  const configDir = process.env.TALE_CONFIG_DIR;
+  if (configDir) return path.join(configDir, 'workflows');
+  throw new Error(
+    'Neither TALE_CONFIG_DIR nor WORKFLOWS_DIR environment variable is set. ' +
+      'Set TALE_CONFIG_DIR in .env to the root config directory ' +
+      '(e.g., TALE_CONFIG_DIR=/path/to/tale/examples).',
+  );
 }
 
 /**
