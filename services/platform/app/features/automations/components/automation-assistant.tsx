@@ -2,7 +2,6 @@
 
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { ImagePreviewDialog } from '@/app/features/chat/components/message-bubble';
-import { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useAssistantChat } from '../hooks/use-assistant-chat';
@@ -10,12 +9,14 @@ import { ChatInput } from './automation-assistant/chat-input';
 import { MessageList } from './automation-assistant/message-list';
 
 interface AutomationAssistantProps {
-  automationId?: Id<'wfDefinitions'>;
+  workflowSlug?: string;
+  workflowName?: string;
   organizationId: string;
 }
 
 function AutomationAssistantContent({
-  automationId,
+  workflowSlug,
+  workflowName,
   organizationId,
 }: AutomationAssistantProps) {
   const { t } = useT('automations');
@@ -47,7 +48,8 @@ function AutomationAssistantContent({
     documentWriteApprovals,
     integrationApprovals,
   } = useAssistantChat({
-    automationId,
+    workflowSlug,
+    workflowName,
     organizationId,
     errorMessageText: t('assistant.errorMessage'),
     analyzeAttachmentsText: t('assistant.analyzeAttachments'),

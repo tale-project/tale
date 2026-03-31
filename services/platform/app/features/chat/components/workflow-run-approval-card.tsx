@@ -48,6 +48,7 @@ import { useT } from '@/lib/i18n/client';
 import { FEEDBACK_KEY } from '@/lib/shared/schemas/approvals';
 import { cn } from '@/lib/utils/cn';
 import { stripLeadingPunctuation } from '@/lib/utils/text';
+import { slugToUrlParam } from '@/lib/utils/workflow-slug';
 
 import { HumanInputFields } from './human-input-fields';
 import { markdownWrapperStyles } from './message-bubble/markdown-renderer';
@@ -410,7 +411,7 @@ function WorkflowRunApprovalCardComponent({
                 to="/dashboard/$id/automations/$amId/executions"
                 params={{
                   id: organizationId,
-                  amId: metadata.workflowId,
+                  amId: slugToUrlParam(metadata.workflowSlug),
                 }}
                 className="text-primary flex items-center gap-1 text-xs hover:underline"
               >

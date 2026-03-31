@@ -1,5 +1,6 @@
 import { useUIMessages } from '@convex-dev/agent/react';
-import { useMemo } from 'react';
+import { useAction } from 'convex/react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
 import type {
@@ -11,11 +12,9 @@ import type {
   HumanInputRequestMetadata,
   LocationRequestMetadata,
 } from '@/lib/shared/schemas/approvals';
-import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { api } from '@/convex/_generated/api';
 import {
   normalizeDocumentWriteMetadata,
@@ -59,32 +58,60 @@ export function useThreads({ skip = false } = {}) {
   };
 }
 
-export type CustomAgent = ConvexItemOf<
-  typeof api.custom_agents.queries.listCustomAgents
->;
+export interface ChatAgent {
+  name: string;
+  displayName: string;
+  description?: string;
+  visibleInChat?: boolean;
+  modelPreset?: string;
+  toolNames?: string[];
+  roleRestriction?: string;
+  conversationStarters?: string[];
+}
 
-export function useChatAgents(organizationId: string) {
-  const { selectedTeamId } = useTeamFilter();
-  const { data } = useConvexQuery(api.custom_agents.queries.listCustomAgents, {
-    organizationId,
-    filterPublished: true,
-  });
+export function useChatAgents(_organizationId: string) {
+  const listAgents = useAction(api.agents.file_actions.listAgents);
+  const [agents, setAgents] = useState<ChatAgent[] | undefined>(undefined);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const agents = useMemo(() => {
-    if (!data) return undefined;
-    if (!selectedTeamId) return data;
-    return data.filter((agent) => {
-      // Org-wide agents (no teamId) are always visible, matching backend hasTeamAccess logic
-      if (!agent.teamId) return true;
-      return (
-        agent.teamId === selectedTeamId ||
-        (agent.sharedWithTeamIds?.includes(selectedTeamId) ?? false)
-      );
-    });
-  }, [data, selectedTeamId]);
+  const fetchAgents = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const results = await listAgents({ orgSlug: 'default' });
+      const chatAgents: ChatAgent[] = [];
+      for (const a of results ?? []) {
+        if (
+          a &&
+          'displayName' in a &&
+          typeof a.displayName === 'string' &&
+          a.visibleInChat === true
+        ) {
+          chatAgents.push({
+            name: a.name,
+            displayName: a.displayName,
+            description: a.description,
+            visibleInChat: a.visibleInChat,
+            conversationStarters: a.conversationStarters,
+          });
+        }
+      }
+      setAgents(chatAgents);
+    } catch (error) {
+      console.error('Failed to fetch chat agents:', error);
+      setAgents([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [listAgents]);
+
+  useEffect(() => {
+    void fetchAgents();
+  }, [fetchAgents]);
 
   return {
     agents,
+    isLoading,
+    refetch: fetchAgents,
   };
 }
 

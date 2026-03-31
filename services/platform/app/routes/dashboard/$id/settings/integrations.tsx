@@ -1,14 +1,19 @@
 import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { useEffect } from 'react';
+import { useAction } from 'convex/react';
+import { useEffect, useRef } from 'react';
 import { z } from 'zod';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Card } from '@/app/components/ui/layout/card';
 import { Grid, HStack, Stack } from '@/app/components/ui/layout/layout';
-import { Integrations } from '@/app/features/settings/integrations/components/integrations';
 import {
+  type IntegrationListItem,
+  Integrations,
+} from '@/app/features/settings/integrations/components/integrations';
+import {
+  useIntegrationCredentials,
   useIntegrations,
   useSsoProvider,
 } from '@/app/features/settings/integrations/hooks/queries';
@@ -32,7 +37,7 @@ export const Route = createFileRoute('/dashboard/$id/settings/integrations')({
   validateSearch: searchSchema,
   loader: ({ context, params }) => {
     void context.queryClient.prefetchQuery(
-      convexQuery(api.integrations.queries.list, {
+      convexQuery(api.integrations.credential_queries.list, {
         organizationId: params.id,
       }),
     );
@@ -89,9 +94,26 @@ function IntegrationsPage() {
 
   const ability = useAbility();
 
-  const { integrations, isLoading: isIntegrationsLoading } =
-    useIntegrations(organizationId);
+  const { integrations: fileIntegrations, isLoading: isIntegrationsLoading } =
+    useIntegrations('default');
+  const { data: credentials } = useIntegrationCredentials(organizationId);
   const { data: ssoProvider, isLoading: isSsoLoading } = useSsoProvider();
+
+  // Auto-create missing credential records for installed integrations
+  const installFn = useAction(api.integrations.file_actions.installIntegration);
+  const ensuredRef = useRef(new Set<string>());
+  useEffect(() => {
+    if (!credentials || !fileIntegrations.length) return;
+    const credSlugs = new Set((credentials ?? []).map((c) => c.slug));
+    for (const item of fileIntegrations) {
+      if (!item || !('slug' in item)) continue;
+      const { slug } = item;
+      if (!credSlugs.has(slug) && !ensuredRef.current.has(slug)) {
+        ensuredRef.current.add(slug);
+        void installFn({ orgSlug: 'default', slug, organizationId });
+      }
+    }
+  }, [fileIntegrations, credentials, installFn, organizationId]);
 
   // Handle OAuth2 redirect query params
   useEffect(() => {
@@ -128,10 +150,43 @@ function IntegrationsPage() {
     return <IntegrationsSkeleton />;
   }
 
+  // Merge file-based integration config with DB credential records
+  // so each item has the real credential _id for API calls
+  const credentialsBySlug = new Map(
+    (credentials ?? []).map((c) => [c.slug, c]),
+  );
+
+  const validIntegrations = (
+    fileIntegrations as (Record<string, unknown> | null)[]
+  ).filter(
+    (item): item is Record<string, unknown> =>
+      item != null && 'title' in item && 'slug' in item,
+  );
+  const mergedIntegrations = validIntegrations.map((item) => {
+    const slug = String(item.slug);
+    const cred = credentialsBySlug.get(slug);
+    return {
+      ...item,
+      _id: cred?._id ?? slug,
+      name: slug,
+      organizationId,
+      isActive: cred?.isActive ?? false,
+      status: cred?.status ?? 'inactive',
+      authMethod: cred?.authMethod ?? item.authMethod,
+      oauth2Config: cred?.oauth2Config,
+      basicAuth: cred?.basicAuth,
+      apiKeyAuth: cred?.apiKeyAuth,
+      oauth2Auth: cred?.oauth2Auth,
+      connectionConfig: cred?.connectionConfig,
+      sqlConnectionConfig: cred?.sqlConnectionConfig,
+    };
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- merging file + DB data into IntegrationListItem shape
+  }) as unknown as IntegrationListItem[];
+
   return (
     <Integrations
       organizationId={organizationId}
-      integrations={integrations}
+      integrations={mergedIntegrations}
       ssoProvider={ssoProvider ?? null}
     />
   );

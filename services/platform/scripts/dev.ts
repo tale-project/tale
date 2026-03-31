@@ -67,6 +67,18 @@ function envNormalizeCommon() {
   if (!process.env.SITE_URL) {
     process.env.SITE_URL = `http://${host}${host === 'localhost' ? `:${port}` : ''}`;
   }
+
+  if (!process.env.AGENTS_DIR) {
+    process.env.AGENTS_DIR = join(repoRoot, 'examples', 'agents');
+  }
+
+  if (!process.env.WORKFLOWS_DIR) {
+    process.env.WORKFLOWS_DIR = join(repoRoot, 'examples', 'workflows');
+  }
+
+  if (!process.env.INTEGRATIONS_DIR) {
+    process.env.INTEGRATIONS_DIR = join(repoRoot, 'examples', 'integrations');
+  }
 }
 
 function ensureInstanceSecret() {
@@ -388,6 +400,41 @@ async function main() {
     console.log('[dev] 🔄 Syncing environment variables...');
     try {
       await runCommand('bun', ['scripts/sync-convex-env-from-dotenv.ts']);
+
+      // Sync AGENTS_DIR and WORKFLOWS_DIR explicitly (set dynamically, not in .env files)
+      const agentsDir = process.env.AGENTS_DIR;
+      if (agentsDir) {
+        await runCommand('bunx', [
+          'convex',
+          'env',
+          'set',
+          `AGENTS_DIR=${agentsDir}`,
+        ]);
+        console.log(`[dev] ✅ AGENTS_DIR=${agentsDir}`);
+      }
+
+      const workflowsDir = process.env.WORKFLOWS_DIR;
+      if (workflowsDir) {
+        await runCommand('bunx', [
+          'convex',
+          'env',
+          'set',
+          `WORKFLOWS_DIR=${workflowsDir}`,
+        ]);
+        console.log(`[dev] ✅ WORKFLOWS_DIR=${workflowsDir}`);
+      }
+
+      const integrationsDir = process.env.INTEGRATIONS_DIR;
+      if (integrationsDir) {
+        await runCommand('bunx', [
+          'convex',
+          'env',
+          'set',
+          `INTEGRATIONS_DIR=${integrationsDir}`,
+        ]);
+        console.log(`[dev] ✅ INTEGRATIONS_DIR=${integrationsDir}`);
+      }
+
       console.log('[dev] ✅ Environment variables synced successfully');
     } catch (err) {
       console.warn(

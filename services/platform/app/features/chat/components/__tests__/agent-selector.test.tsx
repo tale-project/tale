@@ -29,30 +29,21 @@ vi.mock('../../context/chat-layout-context', () => ({
 }));
 
 interface MockAgent {
-  _id: string;
-  rootVersionId: string | null;
+  name: string;
   displayName: string;
   description: string;
-  isSystemDefault: boolean;
-  systemAgentSlug: string | null;
 }
 
 const defaultAgents: MockAgent[] = [
   {
-    _id: 'agent-1',
-    rootVersionId: null,
+    name: 'chat-agent',
     displayName: 'Default Chat',
     description: 'Default assistant',
-    isSystemDefault: true,
-    systemAgentSlug: 'chat',
   },
   {
-    _id: 'agent-2',
-    rootVersionId: 'root-2',
+    name: 'custom-agent',
     displayName: 'Custom Agent',
     description: 'A custom agent',
-    isSystemDefault: false,
-    systemAgentSlug: null,
   },
 ];
 
@@ -64,8 +55,8 @@ vi.mock('../../hooks/queries', () => ({
   }),
 }));
 
-let mockEffectiveAgent: { _id: string; displayName: string } | null = {
-  _id: 'agent-1',
+let mockEffectiveAgent: { name: string; displayName: string } | null = {
+  name: 'chat-agent',
   displayName: 'Default Chat',
 };
 
@@ -95,21 +86,18 @@ vi.mock('@/app/hooks/use-dialog-search-param', () => ({
   }),
 }));
 
-vi.mock(
-  '@/app/features/custom-agents/components/custom-agent-create-dialog',
-  () => ({
-    CreateCustomAgentDialog: ({
-      open,
-    }: {
-      open: boolean;
-      onOpenChange: (open: boolean) => void;
-      organizationId: string;
-    }) =>
-      open ? (
-        <div data-testid="create-agent-dialog">Create Agent Dialog</div>
-      ) : null,
-  }),
-);
+vi.mock('@/app/features/agents/components/agent-create-dialog', () => ({
+  CreateAgentDialog: ({
+    open,
+  }: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    organizationId: string;
+  }) =>
+    open ? (
+      <div data-testid="create-agent-dialog">Create Agent Dialog</div>
+    ) : null,
+}));
 
 vi.mock('@tanstack/react-router', () => ({
   useSearch: () => ({}),
@@ -123,7 +111,7 @@ beforeEach(() => {
   mockCanWrite = true;
   mockDialogIsOpen = false;
   mockAgents = defaultAgents;
-  mockEffectiveAgent = { _id: 'agent-1', displayName: 'Default Chat' };
+  mockEffectiveAgent = { name: 'chat-agent', displayName: 'Default Chat' };
 });
 
 describe('AgentSelector', () => {
@@ -175,7 +163,7 @@ describe('AgentSelector', () => {
     expect(mockDialogOpen).toHaveBeenCalled();
   });
 
-  it('renders CreateCustomAgentDialog when dialog is open', () => {
+  it('renders CreateAgentDialog when dialog is open', () => {
     mockDialogIsOpen = true;
 
     render(<AgentSelector organizationId="org-1" />);
@@ -183,7 +171,7 @@ describe('AgentSelector', () => {
     expect(screen.getByTestId('create-agent-dialog')).toBeInTheDocument();
   });
 
-  it('does not render CreateCustomAgentDialog when dialog is closed', () => {
+  it('does not render CreateAgentDialog when dialog is closed', () => {
     mockDialogIsOpen = false;
 
     render(<AgentSelector organizationId="org-1" />);
@@ -191,7 +179,7 @@ describe('AgentSelector', () => {
     expect(screen.queryByTestId('create-agent-dialog')).not.toBeInTheDocument();
   });
 
-  it('calls setSelectedAgent with real agent ID when option is clicked', async () => {
+  it('calls setSelectedAgent with agent name when option is clicked', async () => {
     const { user } = render(<AgentSelector organizationId="org-1" />);
 
     const trigger = screen.getByLabelText('Select agent');
@@ -201,13 +189,13 @@ describe('AgentSelector', () => {
     await user.click(customOption);
 
     expect(mockSetSelectedAgent).toHaveBeenCalledWith({
-      _id: 'root-2',
+      name: 'custom-agent',
       displayName: 'Custom Agent',
     });
   });
 
-  it('calls setSelectedAgent with real ID even for system default agent', async () => {
-    mockEffectiveAgent = { _id: 'root-2', displayName: 'Custom Agent' };
+  it('calls setSelectedAgent with name for default agent', async () => {
+    mockEffectiveAgent = { name: 'custom-agent', displayName: 'Custom Agent' };
 
     const { user } = render(<AgentSelector organizationId="org-1" />);
 
@@ -218,31 +206,25 @@ describe('AgentSelector', () => {
     await user.click(defaultOption);
 
     expect(mockSetSelectedAgent).toHaveBeenCalledWith({
-      _id: 'agent-1',
+      name: 'chat-agent',
       displayName: 'Default Chat',
     });
   });
 
-  it('only highlights one agent when multiple have isSystemDefault', async () => {
+  it('only highlights one agent when selected', async () => {
     mockAgents = [
       {
-        _id: 'agent-1',
-        rootVersionId: null,
+        name: 'chat-agent',
         displayName: 'Assistant',
         description: 'Default assistant',
-        isSystemDefault: true,
-        systemAgentSlug: 'chat',
       },
       {
-        _id: 'agent-3',
-        rootVersionId: 'root-3',
-        displayName: 'Duplicated Default',
-        description: 'Also marked as default',
-        isSystemDefault: true,
-        systemAgentSlug: 'chat',
+        name: 'another-chat-agent',
+        displayName: 'Another Chat',
+        description: 'Also a chat agent',
       },
     ];
-    mockEffectiveAgent = { _id: 'agent-1', displayName: 'Assistant' };
+    mockEffectiveAgent = { name: 'chat-agent', displayName: 'Assistant' };
 
     const { user } = render(<AgentSelector organizationId="org-1" />);
 

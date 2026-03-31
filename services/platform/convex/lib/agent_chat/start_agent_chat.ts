@@ -77,8 +77,8 @@ export interface StartAgentChatArgs {
   enableStreaming: boolean;
   /** Optional hooks configuration (FunctionHandles) */
   hooks?: AgentHooksConfig;
-  /** Root version ID of the custom agent, persisted on thread metadata */
-  customAgentId?: Id<'customAgents'>;
+  /** Root version ID of the agent, persisted on thread metadata */
+  agentId?: Id<'agentBindings'>;
 }
 
 export interface StartAgentChatResult {
@@ -138,7 +138,7 @@ export async function startAgentChat(
       generationStartTime: Date.now(),
       cancelledAt: undefined,
       cancelledMessageId: undefined,
-      ...(args.customAgentId ? { customAgentId: args.customAgentId } : {}),
+      ...(args.agentId ? { agentId: args.agentId } : {}),
     });
   }
 

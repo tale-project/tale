@@ -57,8 +57,8 @@ export async function rlsRules(
     hasTeamAccess(doc, userTeamIds);
 
   return {
-    // Custom Agents - organization-scoped with team-based access control
-    customAgents: {
+    // Agents - organization-scoped with team-based access control
+    agentBindings: {
       read: async (_, agent) => {
         if (!user) return false;
         if (!userOrgIds.has(agent.organizationId)) return false;
@@ -66,7 +66,7 @@ export async function rlsRules(
         const membership = userOrganizations.find(
           (m) => m.organizationId === agent.organizationId,
         );
-        return authorizeRls(membership?.role, 'customAgents', 'read');
+        return authorizeRls(membership?.role, 'agentBindings', 'read');
       },
       modify: async (_, agent) => {
         if (!user) return false;
@@ -75,7 +75,7 @@ export async function rlsRules(
         const membership = userOrganizations.find(
           (m) => m.organizationId === agent.organizationId,
         );
-        return authorizeRls(membership?.role, 'customAgents', 'write');
+        return authorizeRls(membership?.role, 'agentBindings', 'write');
       },
       insert: async ({ user: ruleUser }, agent) => {
         if (!ruleUser) return false;
@@ -83,7 +83,7 @@ export async function rlsRules(
         const membership = userOrganizations.find(
           (m) => m.organizationId === agent.organizationId,
         );
-        return authorizeRls(membership?.role, 'customAgents', 'write');
+        return authorizeRls(membership?.role, 'agentBindings', 'write');
       },
     },
 
@@ -230,6 +230,42 @@ export async function rlsRules(
       },
     },
 
+    // Integration Credentials - organization-scoped, Developer+ role required for modifications
+    integrationCredentials: {
+      read: async (_, cred) => {
+        if (!user) return false;
+        if (!userOrgIds.has(cred.organizationId)) return false;
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === cred.organizationId,
+        );
+        return authorizeRls(membership?.role, 'integrationCredentials', 'read');
+      },
+      modify: async (_, cred) => {
+        if (!user) return false;
+        if (!userOrgIds.has(cred.organizationId)) return false;
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === cred.organizationId,
+        );
+        return authorizeRls(
+          membership?.role,
+          'integrationCredentials',
+          'write',
+        );
+      },
+      insert: async ({ user: ruleUser }, cred) => {
+        if (!ruleUser) return false;
+        if (!userOrgIds.has(cred.organizationId)) return false;
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === cred.organizationId,
+        );
+        return authorizeRls(
+          membership?.role,
+          'integrationCredentials',
+          'write',
+        );
+      },
+    },
+
     // OneDrive Sync Configs - organization-scoped
     onedriveSyncConfigs: {
       read: async (_, config) => {
@@ -314,7 +350,7 @@ export async function rlsRules(
       },
     },
 
-    // Workflow Definitions - organization-scoped
+    // @deprecated — DB table deprecated; RLS rules kept for legacy data access only
     wfDefinitions: {
       read: async (_, wf) => {
         if (!user) return false;
@@ -342,7 +378,7 @@ export async function rlsRules(
       },
     },
 
-    // Workflow Step Definitions - organization-scoped
+    // @deprecated — DB table deprecated; RLS rules kept for legacy data access only
     wfStepDefs: {
       read: async (_, step) => {
         if (!user) return false;

@@ -8,8 +8,10 @@ import type { LocationRequestMetadata } from '../../../lib/shared/schemas/approv
 
 import { components, internal } from '../../_generated/api';
 import { mutation } from '../../_generated/server';
-import { toSerializableConfig } from '../../custom_agents/config';
-import { getDefaultAgentRuntimeConfig } from '../../lib/agent_runtime_config';
+import {
+  getDefaultAgentRuntimeConfig,
+  getDefaultModel,
+} from '../../lib/agent_runtime_config';
 import { getOrganizationMember } from '../../lib/rls';
 import { persistentStreaming } from '../../streaming/helpers';
 import { workflowManagers } from '../../workflow_engine/engine';
@@ -150,26 +152,21 @@ export const submitLocationResponse = mutation({
       threadId,
     });
 
-    const systemChatQuery = ctx.db
-      .query('customAgents')
-      .withIndex('by_org_system_slug', (q) =>
-        q.eq('organizationId', organizationId).eq('systemAgentSlug', 'chat'),
-      );
-
-    let chatAgent = null;
-    for await (const agent of systemChatQuery) {
-      if (agent.status === 'active') {
-        chatAgent = agent;
-        break;
-      }
-    }
-
-    if (!chatAgent) {
-      throw new Error('System default chat agent not found');
-    }
-
-    const agentConfig = toSerializableConfig(chatAgent);
     const { model, provider } = getDefaultAgentRuntimeConfig();
+    const agentConfig = {
+      name: 'chat-agent',
+      instructions: '',
+      convexToolNames: [],
+      model: getDefaultModel(),
+      enableVectorSearch: false,
+      knowledgeMode: 'off' as const,
+      webSearchMode: 'off' as const,
+      includeTeamKnowledge: false,
+      includeOrgKnowledge: false,
+      knowledgeFileIds: [],
+      structuredResponsesEnabled: true,
+      timeoutMs: 1_200_000,
+    };
 
     const beforeGenerate = await createFunctionHandle(beforeGenerateHookRef);
 

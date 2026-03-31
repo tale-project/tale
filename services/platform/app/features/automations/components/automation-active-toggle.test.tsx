@@ -3,30 +3,17 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
 import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest';
 
-import type { Doc } from '@/convex/_generated/dataModel';
-
 import { render, screen, waitFor } from '@/test/utils/render';
 
 import { AutomationActiveToggle } from './automation-active-toggle';
 
-const mockRepublish = vi.fn();
-const mockUnpublish = vi.fn();
+const mockToggleEnabled = vi.fn();
 
-vi.mock('../hooks/mutations', async (importOriginal) => ({
+vi.mock('../hooks/file-mutations', async (importOriginal) => ({
   ...(await importOriginal()),
-  useRepublishAutomation: () => ({
-    mutate: mockRepublish,
-    mutateAsync: mockRepublish,
-    isPending: false,
-    isError: false,
-    isSuccess: false,
-    error: null,
-    data: undefined,
-    reset: vi.fn(),
-  }),
-  useUnpublishAutomation: () => ({
-    mutate: mockUnpublish,
-    mutateAsync: mockUnpublish,
+  useToggleWorkflowEnabled: () => ({
+    mutate: mockToggleEnabled,
+    mutateAsync: mockToggleEnabled,
     isPending: false,
     isError: false,
     isSuccess: false,
@@ -48,18 +35,14 @@ vi.mock('@/app/hooks/use-toast', () => ({
 }));
 
 function createAutomation(
-  overrides: Partial<Doc<'wfDefinitions'>> = {},
-): Doc<'wfDefinitions'> {
+  overrides: Partial<{ _id: string; name: string; status: string }> = {},
+) {
   return {
-    _id: 'wf-1' as Doc<'wfDefinitions'>['_id'],
-    _creationTime: Date.now(),
-    organizationId: 'org-1',
+    _id: 'wf-1',
     name: 'Test Automation',
     status: 'active',
-    version: 'v1.0',
-    versionNumber: 1,
     ...overrides,
-  } as Doc<'wfDefinitions'>;
+  };
 }
 
 describe('AutomationActiveToggle', () => {
@@ -67,8 +50,7 @@ describe('AutomationActiveToggle', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRepublish.mockResolvedValue({ activatedId: 'wf-1' });
-    mockUnpublish.mockResolvedValue(null);
+    mockToggleEnabled.mockResolvedValue(null);
   });
 
   describe('rendering', () => {
@@ -110,7 +92,7 @@ describe('AutomationActiveToggle', () => {
   });
 
   describe('interactions', () => {
-    it('calls republish when toggling on an archived automation', async () => {
+    it('calls toggleEnabled when toggling on an archived automation', async () => {
       const { user } = render(
         <AutomationActiveToggle
           automation={createAutomation({ status: 'archived' })}
@@ -120,13 +102,10 @@ describe('AutomationActiveToggle', () => {
       await user.click(screen.getByRole('switch'));
 
       await waitFor(() => {
-        expect(mockRepublish).toHaveBeenCalledWith(
-          {
-            wfDefinitionId: 'wf-1',
-            publishedBy: 'test@example.com',
-          },
-          expect.any(Object),
-        );
+        expect(mockToggleEnabled).toHaveBeenCalledWith({
+          orgSlug: 'default',
+          workflowSlug: 'wf-1',
+        });
       });
     });
 
@@ -140,10 +119,10 @@ describe('AutomationActiveToggle', () => {
       await user.click(screen.getByRole('switch'));
 
       expect(screen.getByText('Deactivate automation')).toBeInTheDocument();
-      expect(mockUnpublish).not.toHaveBeenCalled();
+      expect(mockToggleEnabled).not.toHaveBeenCalled();
     });
 
-    it('calls unpublish when confirming deactivation', async () => {
+    it('calls toggleEnabled when confirming deactivation', async () => {
       const { user } = render(
         <AutomationActiveToggle
           automation={createAutomation({ name: 'My Workflow' })}
@@ -158,13 +137,10 @@ describe('AutomationActiveToggle', () => {
       await user.click(confirmButton);
 
       await waitFor(() => {
-        expect(mockUnpublish).toHaveBeenCalledWith(
-          {
-            wfDefinitionId: 'wf-1',
-            updatedBy: 'user-1',
-          },
-          expect.any(Object),
-        );
+        expect(mockToggleEnabled).toHaveBeenCalledWith({
+          orgSlug: 'default',
+          workflowSlug: 'wf-1',
+        });
       });
     });
 
@@ -177,8 +153,7 @@ describe('AutomationActiveToggle', () => {
 
       await user.click(screen.getByRole('switch'));
 
-      expect(mockRepublish).not.toHaveBeenCalled();
-      expect(mockUnpublish).not.toHaveBeenCalled();
+      expect(mockToggleEnabled).not.toHaveBeenCalled();
     });
   });
 });

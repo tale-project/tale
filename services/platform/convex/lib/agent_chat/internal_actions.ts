@@ -37,7 +37,6 @@ import {
   sanitizeWorkflowName,
 } from '../../agent_tools/workflows/create_bound_workflow_tool';
 import { extractInputSchema } from '../../agent_tools/workflows/helpers/extract_input_schema';
-import { toId } from '../../lib/type_cast_helpers';
 import { generateAgentResponse } from '../agent_response';
 import {
   estimateTokens,
@@ -196,6 +195,7 @@ export const runAgentGeneration = internalAction({
         ctx,
         agentConfig.delegateAgentIds,
         organizationId,
+        'default',
       );
 
       if (delegates.length > 0) {
@@ -212,35 +212,44 @@ export const runAgentGeneration = internalAction({
       }
     }
 
-    // Build bound workflow tools eagerly
+    // Build bound workflow tools eagerly (file-based)
     let workflowExtraTools: Record<string, unknown> | undefined;
     if (agentConfig.workflowBindings?.length) {
       workflowExtraTools = {};
-      for (const rootId of agentConfig.workflowBindings) {
-        const activeVersion = await ctx.runQuery(
-          internal.wf_definitions.internal_queries.getActiveVersionByRoot,
-          { rootVersionId: toId<'wfDefinitions'>(rootId) },
+      for (const slug of agentConfig.workflowBindings) {
+        const result: unknown = await ctx.runAction(
+          internal.workflows.file_actions.readWorkflowForExecution,
+          { orgSlug: 'default', workflowSlug: slug },
         );
 
-        if (!activeVersion) {
-          debugLog('Skipping bound workflow (no active version)', { rootId });
+        if (!isRecord(result) || result.ok !== true) {
+          debugLog('Skipping bound workflow (not found)', { slug });
           continue;
         }
 
-        if (activeVersion.organizationId !== organizationId) {
-          debugLog('Skipping bound workflow (wrong org)', { rootId });
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- readWorkflowForExecution returns v.any() but ok=true guarantees WorkflowJsonConfig shape
+        const config = result.config as {
+          name: string;
+          description?: string;
+          enabled?: boolean;
+          steps: Array<{ stepType: string; config?: unknown }>;
+        };
+
+        if (!config.enabled) {
+          debugLog('Skipping bound workflow (disabled)', { slug });
           continue;
         }
 
-        const startStepConfig = await ctx.runQuery(
-          internal.wf_definitions.internal_queries.getStartStepConfig,
-          { wfDefinitionId: activeVersion._id },
-        );
-        const inputSchema = extractInputSchema(startStepConfig);
+        const startStep = config.steps.find((s) => s.stepType === 'start');
+        const inputSchema = extractInputSchema(startStep?.config);
 
-        const toolKey = `workflow_${sanitizeWorkflowName(activeVersion.name)}_${rootId.slice(0, 6)}`;
+        const toolKey = `workflow_${sanitizeWorkflowName(config.name)}_${slug}`;
         workflowExtraTools[toolKey] = createBoundWorkflowTool(
-          activeVersion,
+          {
+            workflowSlug: slug,
+            name: config.name,
+            description: config.description,
+          },
           inputSchema,
         );
       }

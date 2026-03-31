@@ -1,56 +1,68 @@
 'use client';
 
+import type { ColumnDef } from '@tanstack/react-table';
+
+import { useMemo } from 'react';
+
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Text } from '@/app/components/ui/typography/text';
-import { createTableConfigHook } from '@/app/hooks/use-table-config-factory';
+import { useT } from '@/lib/i18n/client';
 
-import { AutomationActiveToggle } from '../components/automation-active-toggle';
-import { AutomationRowActions } from '../components/automation-row-actions';
+import type { WorkflowListItem } from '../components/automations-table';
 
-export const useAutomationsTableConfig = createTableConfigHook<'wfDefinitions'>(
-  {
-    entityNamespace: 'automations',
-    additionalNamespaces: ['common'],
-    defaultSort: '_creationTime',
-  },
-  ({ tTables, tEntity, t, builders }) => [
-    {
+export function useAutomationsTableConfig() {
+  const { t: tTables } = useT('tables');
+  const { t: tCommon } = useT('common');
+  const { t: tAutomations } = useT('automations');
+
+  const nameColumn: ColumnDef<WorkflowListItem> = useMemo(
+    () => ({
       accessorKey: 'name',
       header: tTables('headers.automation'),
-      size: 328,
+      size: 300,
       meta: { hasAvatar: false },
       cell: ({ row }) => (
         <Text as="span" variant="label" truncate>
           {row.original.name}
         </Text>
       ),
-    },
-    {
-      accessorKey: 'status',
-      header: tTables('headers.status'),
-      size: 140,
+    }),
+    [tTables],
+  );
+
+  const categoryColumn: ColumnDef<WorkflowListItem> = useMemo(
+    () => ({
+      id: 'category',
+      header: tAutomations('columns.category'),
+      size: 120,
       meta: { skeleton: { type: 'badge' } },
       cell: ({ row }) => {
-        const status = row.original.status;
-        return (
-          <Badge dot variant={status === 'active' ? 'green' : 'outline'}>
-            {status === 'active'
-              ? t.common('status.published')
-              : status === 'archived'
-                ? t.common('status.archived')
-                : t.common('status.draft')}
-          </Badge>
-        );
+        if (!row.original.category) return null;
+        return <Badge variant="outline">{row.original.category}</Badge>;
       },
-    },
-    {
-      id: 'active',
-      header: tEntity('columns.active'),
-      size: 80,
-      meta: { skeleton: { type: 'switch' } },
-      cell: ({ row }) => <AutomationActiveToggle automation={row.original} />,
-    },
-    {
+    }),
+    [tAutomations],
+  );
+
+  const statusColumn: ColumnDef<WorkflowListItem> = useMemo(
+    () => ({
+      accessorKey: 'enabled',
+      header: tTables('headers.status'),
+      size: 120,
+      meta: { skeleton: { type: 'badge' } },
+      cell: ({ row }) => (
+        <Badge dot variant={row.original.enabled ? 'green' : 'outline'}>
+          {row.original.enabled
+            ? tCommon('status.published')
+            : tCommon('status.draft')}
+        </Badge>
+      ),
+    }),
+    [tTables, tCommon],
+  );
+
+  const versionColumn: ColumnDef<WorkflowListItem> = useMemo(
+    () => ({
       accessorKey: 'version',
       header: () => (
         <span className="block w-full text-right">
@@ -64,10 +76,23 @@ export const useAutomationsTableConfig = createTableConfigHook<'wfDefinitions'>(
           {row.original.version}
         </Text>
       ),
-    },
-    builders.createCreationTimeColumn(tTables),
-    builders.createActionsColumn(AutomationRowActions, 'automation', {
-      size: 80,
     }),
-  ],
-);
+    [tTables],
+  );
+
+  const folderColumns = useMemo(
+    () => [nameColumn, statusColumn, versionColumn],
+    [nameColumn, statusColumn, versionColumn],
+  );
+
+  const listColumns = useMemo(
+    () => [nameColumn, categoryColumn, statusColumn, versionColumn],
+    [nameColumn, categoryColumn, statusColumn, versionColumn],
+  );
+
+  return {
+    columns: folderColumns,
+    listColumns,
+    searchPlaceholder: tAutomations('search.placeholder'),
+  };
+}

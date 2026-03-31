@@ -1,3 +1,4 @@
+import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { toId } from '@/convex/lib/type_cast_helpers';
@@ -29,10 +30,9 @@ vi.mock('@/convex/_generated/api', () => ({
     integrations: {
       mutations: {
         updateIcon: 'updateIcon',
-        deleteIntegration: 'deleteIntegration',
       },
-      queries: {
-        list: 'list',
+      credential_mutations: {
+        deleteCredentials: 'deleteCredentials',
       },
     },
   },
@@ -46,31 +46,43 @@ describe('useDeleteIntegration', () => {
   });
 
   it('returns a mutation result object', () => {
-    const result = useDeleteIntegration();
-    expect(result).toHaveProperty('mutateAsync');
-    expect(result).toHaveProperty('isPending');
+    const { result } = renderHook(() => useDeleteIntegration());
+    expect(result.current).toHaveProperty('mutateAsync');
+    expect(result.current).toHaveProperty('isPending');
   });
 
-  it('calls mutation with the correct args', async () => {
+  it('calls mutation with the correct args and dispatches event', async () => {
     mockMutateAsync.mockResolvedValueOnce(null);
-    const { mutateAsync: deleteIntegration } = useDeleteIntegration();
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
 
-    await deleteIntegration({
-      integrationId: toId<'integrations'>('int-123'),
+    const { result } = renderHook(() => useDeleteIntegration());
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        credentialId: toId<'integrationCredentials'>('cred-123'),
+      });
     });
 
     expect(mockMutateAsync).toHaveBeenCalledWith({
-      integrationId: 'int-123',
+      credentialId: 'cred-123',
     });
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'integration-updated' }),
+    );
+
+    dispatchSpy.mockRestore();
   });
 
   it('propagates errors from mutation', async () => {
     mockMutateAsync.mockRejectedValueOnce(new Error('Delete failed'));
-    const { mutateAsync: deleteIntegration } = useDeleteIntegration();
+
+    const { result } = renderHook(() => useDeleteIntegration());
 
     await expect(
-      deleteIntegration({
-        integrationId: toId<'integrations'>('int-789'),
+      act(async () => {
+        await result.current.mutateAsync({
+          credentialId: toId<'integrationCredentials'>('cred-789'),
+        });
       }),
     ).rejects.toThrow('Delete failed');
   });

@@ -3,8 +3,6 @@
 import { ExternalLink, Loader2 } from 'lucide-react';
 import { useMemo } from 'react';
 
-import type { Doc } from '@/convex/_generated/dataModel';
-
 import {
   type StatGridItem,
   StatGrid,
@@ -16,11 +14,13 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
+import type { Integration } from '../../hooks/use-integration-manage';
+
 import { SENSITIVE_KEYS, maskValue } from '../../hooks/use-integration-manage';
 import { TestResultFeedback } from './test-result-feedback';
 
 interface IntegrationActiveViewProps {
-  integration: Doc<'integrations'> & { iconUrl?: string | null };
+  integration: Integration;
   isSql: boolean;
   busy: boolean;
   isSubmitting: boolean;
@@ -61,7 +61,7 @@ export function IntegrationActiveView({
               label: t('integrations.manageDialog.server'),
               value: (
                 <Text variant="code">
-                  {maskValue(integration.sqlConnectionConfig.server)}
+                  {maskValue(integration.sqlConnectionConfig.server ?? '')}
                 </Text>
               ),
             },
@@ -74,7 +74,7 @@ export function IntegrationActiveView({
               label: t('integrations.manageDialog.username'),
               value: (
                 <Text variant="code">
-                  {maskValue(integration.basicAuth.username)}
+                  {maskValue(integration.basicAuth.username ?? '')}
                 </Text>
               ),
             },
@@ -109,7 +109,7 @@ export function IntegrationActiveView({
               label: 'domain',
               value: (
                 <Text variant="code" truncate>
-                  {maskValue(integration.connectionConfig.domain)}
+                  {maskValue(integration.connectionConfig.domain ?? '')}
                 </Text>
               ),
             },

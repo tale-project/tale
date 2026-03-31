@@ -17,13 +17,12 @@ Metrics are then available at these endpoints:
 | --- | --- |
 | Crawler | `https://yourdomain.com/metrics/crawler` |
 | RAG | `https://yourdomain.com/metrics/rag` |
-| Operator | `https://yourdomain.com/metrics/operator` |
 | Platform (Bun) | `https://yourdomain.com/metrics/platform` |
 | Convex | `https://yourdomain.com/metrics/convex` |
 
 > **Note:** The Convex backend exposes over 260 built-in metrics covering query latency, mutation throughput, and scheduler performance.
 
-When the token is unset, all `/metrics/*` endpoints return `404`.
+When the token is unset, all `/metrics/*` endpoints return `401`.
 
 ### Prometheus scrape config
 
@@ -37,7 +36,7 @@ scrape_configs:
     static_configs:
       - targets: ['your-tale-host.com']
 
-  # Repeat for: tale-rag, tale-operator, tale-platform, tale-convex
+  # Repeat for: tale-rag, tale-platform, tale-convex
   # changing metrics_path accordingly
 ```
 
@@ -90,4 +89,3 @@ Each service has a health check endpoint:
 | `GET /api/health` | Platform is up and Convex backend is reachable |
 | `http://localhost:8001/health` | RAG service is running and database pool is connected |
 | `http://localhost:8002/health` | Crawler service and browser engine are ready |
-| `http://localhost:8004/health` | Operator service is running |

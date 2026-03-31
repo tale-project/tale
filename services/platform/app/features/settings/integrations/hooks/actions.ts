@@ -1,5 +1,29 @@
+import { useAction } from 'convex/react';
+import { useCallback, useState } from 'react';
+
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { api } from '@/convex/_generated/api';
+
+export function useInstallIntegration() {
+  const installFn = useAction(api.integrations.file_actions.installIntegration);
+  const [isPending, setIsPending] = useState(false);
+
+  const install = useCallback(
+    async (args: { orgSlug: string; slug: string; organizationId: string }) => {
+      setIsPending(true);
+      try {
+        const result = await installFn(args);
+        window.dispatchEvent(new Event('integration-updated'));
+        return result;
+      } finally {
+        setIsPending(false);
+      }
+    },
+    [installFn],
+  );
+
+  return { install, isPending };
+}
 
 export function useTestIntegration() {
   return useConvexAction(api.integrations.actions.testConnection);
@@ -11,14 +35,6 @@ export function useTestSsoConfig() {
 
 export function useTestExistingSsoConfig() {
   return useConvexAction(api.sso_providers.actions.testExistingConfig);
-}
-
-export function useCreateIntegration() {
-  return useConvexAction(api.integrations.actions.create);
-}
-
-export function useUpdateIntegration() {
-  return useConvexAction(api.integrations.actions.update);
 }
 
 export function useUpsertSsoProvider() {

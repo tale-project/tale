@@ -15,10 +15,9 @@ import { Tabs } from '@/app/components/ui/navigation/tabs';
 import { Button } from '@/app/components/ui/primitives/button';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import { slugToUrlParam } from '@/lib/utils/workflow-slug';
 
-import type { WorkflowTemplateData } from '../utils/fetch-workflow-template';
-
-import { useCreateAutomation } from '../hooks/mutations';
+import { useSaveWorkflow } from '../hooks/file-mutations';
 import { WorkflowTemplateGrid } from './workflow-template-grid';
 
 type FormData = {
@@ -44,6 +43,13 @@ interface CreateAutomationDialogProps {
   defaultTab?: TabValue;
 }
 
+function nameToSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
 function BlankTabContent({
   organizationId,
   onOpenChange,
@@ -54,7 +60,7 @@ function BlankTabContent({
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
   const navigate = useNavigate();
-  const { mutateAsync: createAutomation } = useCreateAutomation();
+  const { mutateAsync: saveWorkflow } = useSaveWorkflow();
 
   const formSchema = useMemo(
     () =>
@@ -78,24 +84,34 @@ function BlankTabContent({
 
   const onSubmit = useCallback(
     async (data: FormData) => {
+      const workflowSlug = nameToSlug(data.name);
+      if (!workflowSlug) {
+        setError('name', { message: t('validation.duplicateName') });
+        return;
+      }
+
+      window.__taleLastSaveAt = Date.now();
       try {
-        const { workflowId: wfDefinitionId } = await createAutomation({
-          organizationId,
-          workflowConfig: {
+        await saveWorkflow({
+          orgSlug: 'default',
+          workflowSlug,
+          config: {
             name: data.name,
-            description: data.description,
-            config: {},
+            description: data.description ?? '',
+            installed: true,
+            enabled: false,
+            steps: [],
           },
-          stepsConfig: [],
         });
 
+        window.dispatchEvent(new Event('workflow-updated'));
         toast({
           title: t('toast.created'),
           variant: 'success',
         });
         void navigate({
           to: '/dashboard/$id/automations/$amId',
-          params: { id: organizationId, amId: wfDefinitionId },
+          params: { id: organizationId, amId: slugToUrlParam(workflowSlug) },
           search: { panel: 'ai-chat' },
         });
       } catch (error) {
@@ -112,7 +128,7 @@ function BlankTabContent({
         });
       }
     },
-    [createAutomation, organizationId, t, navigate, setError],
+    [saveWorkflow, organizationId, t, navigate, setError],
   );
 
   return (
@@ -164,65 +180,33 @@ function TemplateTabContent({
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
   const navigate = useNavigate();
-  const { mutateAsync: createAutomation } = useCreateAutomation();
-  const [isCreating, setIsCreating] = useState(false);
 
-  const handleTemplateSelected = useCallback(
-    async (data: WorkflowTemplateData) => {
-      setIsCreating(true);
-      try {
-        const { workflowId: wfDefinitionId } = await createAutomation({
-          organizationId,
-          workflowConfig: {
-            name: data.workflowConfig.name,
-            description: data.workflowConfig.description,
-            config: data.workflowConfig.config ?? {},
-          },
-          stepsConfig: data.stepsConfig,
-        });
-
-        toast({
-          title: t('toast.created'),
-          variant: 'success',
-        });
-        void navigate({
-          to: '/dashboard/$id/automations/$amId',
-          params: { id: organizationId, amId: wfDefinitionId },
-        });
-      } catch (error) {
-        if (
-          error instanceof ConvexError &&
-          error.data?.code === 'DUPLICATE_NAME'
-        ) {
-          toast({
-            title: t('validation.duplicateName'),
-            variant: 'destructive',
-          });
-          return;
-        }
-        toast({
-          title: t('toast.createFailed'),
-          variant: 'destructive',
-        });
-      } finally {
-        setIsCreating(false);
-      }
+  const handleTemplateInstalled = useCallback(
+    (slug: string) => {
+      toast({
+        title: t('toast.created'),
+        variant: 'success',
+      });
+      const amId = slugToUrlParam(slug);
+      void navigate({
+        to: '/dashboard/$id/automations/$amId',
+        params: { id: organizationId, amId },
+      });
     },
-    [createAutomation, organizationId, t, navigate],
+    [organizationId, t, navigate],
   );
 
   return (
     <Stack gap={4}>
       <WorkflowTemplateGrid
         integrationName={integrationName}
-        onTemplateSelected={handleTemplateSelected}
+        onTemplateInstalled={handleTemplateInstalled}
       />
       <div className="flex justify-end pt-2">
         <Button
           type="button"
           variant="secondary"
           onClick={() => onOpenChange(false)}
-          disabled={isCreating}
         >
           {tCommon('actions.cancel')}
         </Button>

@@ -20,11 +20,9 @@ import {
   extractFileAttachments,
   stripInternalFileReferences,
 } from '@/app/features/chat/hooks/use-message-processing';
-import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useThrottledScroll } from '@/app/hooks/use-throttled-scroll';
 import { api } from '@/convex/_generated/api';
-import { Id } from '@/convex/_generated/dataModel';
 import {
   getSystemMessageDisplay,
   parseSystemMessageTag,
@@ -36,8 +34,7 @@ import type {
   Message,
 } from '../components/automation-assistant/types';
 
-import { useUpdateAutomationMetadata } from './mutations';
-import { useWorkflow } from './queries';
+import { useReadWorkflow } from './file-queries';
 
 // Module-level guard to prevent duplicate sends (survives component remounts)
 const recentSends = new Map<string, number>();
@@ -64,14 +61,16 @@ function canSendMessage(content: string, threadId: string | null): boolean {
 }
 
 interface UseAssistantChatOptions {
-  automationId?: Id<'wfDefinitions'>;
+  workflowSlug?: string;
+  workflowName?: string;
   organizationId: string;
   errorMessageText: string;
   analyzeAttachmentsText: string;
 }
 
 export function useAssistantChat({
-  automationId,
+  workflowSlug,
+  workflowName,
   organizationId,
   errorMessageText,
   analyzeAttachmentsText,
@@ -83,7 +82,6 @@ export function useAssistantChat({
     removeAttachment,
     clearAttachments,
   } = useConvexFileUpload({ organizationId });
-  const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isPending, setIsPending] = useState(false);
@@ -101,17 +99,20 @@ export function useAssistantChat({
     delay: 16,
   });
 
-  // Resolve workflow agent ID via system default slug
-  const { data: workflowAgentId } = useConvexQuery(
-    api.custom_agents.queries.getSystemAgentBySlug,
-    organizationId ? { organizationId, systemAgentSlug: 'workflow' } : 'skip',
-  );
+  const workflowAgentFileName = 'workflow-assistant';
 
   const { mutateAsync: chatWithAgent } = useUnifiedChatWithAgent();
   const { mutateAsync: createChatThread } = useCreateThread();
-  const { mutateAsync: updateWorkflowMetadata } = useUpdateAutomationMetadata();
 
-  const { data: workflow } = useWorkflow(automationId);
+  const { data: readResult } = useReadWorkflow('default', workflowSlug);
+  const workflow = useMemo(() => {
+    if (!readResult || !readResult.ok) return null;
+    return {
+      name: readResult.config.name,
+      status: readResult.config.enabled ? 'active' : 'draft',
+      metadata: readResult.config.metadata,
+    };
+  }, [readResult]);
 
   const uiMessages = useThreadMessages(threadId);
   const { approvals: workflowUpdateApprovals } = useWorkflowUpdateApprovals(
@@ -164,10 +165,11 @@ export function useAssistantChat({
 
   // Load threadId from workflow metadata when workflow is loaded
   useEffect(() => {
-    if (workflow?.metadata?.threadId && !threadId) {
-      setThreadId(String(workflow.metadata.threadId));
+    const metaThreadId = workflow?.metadata?.threadId;
+    if (metaThreadId && typeof metaThreadId === 'string' && !threadId) {
+      setThreadId(metaThreadId);
     }
-  }, [workflow, threadId, automationId]);
+  }, [workflow, threadId, workflowSlug]);
 
   // Transform uiMessages to Message[] format
   const transformedMessages = useMemo(() => {
@@ -366,8 +368,7 @@ export function useAssistantChat({
     if (
       (!inputValue.trim() && attachments.length === 0) ||
       isLoading ||
-      !organizationId ||
-      !workflowAgentId
+      !organizationId
     )
       return;
 
@@ -411,14 +412,6 @@ export function useAssistantChat({
           chatType: 'workflow_assistant',
         });
         setThreadId(currentThreadId);
-
-        if (automationId && user?.userId) {
-          await updateWorkflowMetadata({
-            wfDefinitionId: automationId,
-            metadata: { ...workflow?.metadata, threadId: currentThreadId },
-            updatedBy: user.userId,
-          });
-        }
       }
 
       const mutationAttachments = attachmentsToSend
@@ -433,15 +426,16 @@ export function useAssistantChat({
       if (!currentThreadId) return;
 
       await chatWithAgent({
-        agentId: workflowAgentId,
+        agentFileName: workflowAgentFileName,
+        orgSlug: 'default',
         threadId: currentThreadId,
         organizationId,
         message: messageContent || analyzeAttachmentsText,
         attachments: mutationAttachments,
-        additionalContext: automationId
+        additionalContext: workflowSlug
           ? {
-              target_workflow_id: String(automationId),
-              target_workflow_name: workflow?.name ?? '',
+              target_workflow_id: workflowSlug,
+              target_workflow_name: workflowName ?? workflow?.name ?? '',
             }
           : undefined,
       });

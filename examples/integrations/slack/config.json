@@ -1,6 +1,6 @@
 {
-  "name": "slack",
   "title": "Slack",
+  "installed": false,
   "description": "Slack API integration for channels, messages, and users",
   "version": 1,
   "authMethod": "oauth2",

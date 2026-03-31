@@ -24,8 +24,8 @@ export interface StepDefinition {
 
 export interface ExecutionData {
   _id: Id<'wfExecutions'>;
-  wfDefinitionId?: Id<'wfDefinitions'> | null;
-  rootWfDefinitionId?: Id<'wfDefinitions'>; // Root version of the workflow family
+  wfDefinitionId?: string | null;
+  rootWfDefinitionId?: string; // Root version of the workflow family
   userId?: string;
   stepsConfig?: Record<string, unknown>;
   workflowConfig?: WorkflowConfig;

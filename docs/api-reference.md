@@ -1,6 +1,6 @@
 ---
 title: API reference
-description: REST API endpoints for RAG, Crawler, Operator, and Platform services.
+description: REST API endpoints for RAG, Crawler, and Platform services.
 ---
 
 Each Tale service has its own REST API. These are used internally between services but are also available for direct integration with external systems.
@@ -13,30 +13,12 @@ All Python-based services have a Swagger UI for exploring and testing the API:
 | --- | --- | --- |
 | RAG | http://localhost:8001/docs | http://localhost:8001/openapi.json |
 | Crawler | http://localhost:8002/docs | http://localhost:8002/openapi.json |
-| Operator | http://localhost:8004/docs | http://localhost:8004/openapi.json |
 
 ## RAG API
 
 The RAG API handles document indexing and search. It is the engine behind the knowledge base.
 
-### Add a document
-
-```http
-POST /api/v1/documents
-```
-
-```json
-{
-  "content": "Your document text here...",
-  "document_id": "optional-custom-id",
-  "team_ids": ["team-abc123"],
-  "metadata": { "source": "manual", "category": "policy" }
-}
-```
-
-Document indexing runs in the background. The response includes a `job_id` you can use to check progress.
-
-### Upload a file
+### Upload a document
 
 ```http
 POST /api/v1/documents/upload
@@ -45,9 +27,26 @@ Content-Type: multipart/form-data
 
 ```text
 file:      <binary file data>
-team_ids:  "team-abc123"
+file_id:   "unique-file-id"
+sync:      "true"  (optional, wait for indexing to complete)
 metadata:  '{"source": "upload"}'  (optional JSON string)
 ```
+
+Document indexing runs in the background by default. Set `sync=true` to wait for indexing to complete before the response returns.
+
+### Check document statuses
+
+```http
+POST /api/v1/documents/statuses
+```
+
+```json
+{
+  "file_ids": ["file-id-1", "file-id-2"]
+}
+```
+
+Returns the indexing status for each document. States: `queued`, `running`, `completed`, `failed`.
 
 ### Search the knowledge base
 
@@ -58,19 +57,41 @@ POST /api/v1/search
 ```json
 {
   "query": "What is our return policy?",
-  "team_ids": ["team-abc123"],
+  "file_ids": ["file-id-1", "file-id-2"],
   "top_k": 5,
-  "similarity_threshold": 0.0
+  "similarity_threshold": 0.0,
+  "include_metadata": true
 }
 ```
 
-### Check indexing job status
+The `file_ids` parameter is required and scopes the search to specific documents.
+
+### Delete a document
 
 ```http
-GET /api/v1/jobs/{job_id}
+DELETE /api/v1/documents/{file_id}
 ```
 
-Job states: `queued`, `running`, `completed`, `failed`. Keep checking this endpoint until the state is `completed` or `failed`.
+### Get document content
+
+```http
+GET /api/v1/documents/{file_id}/content
+```
+
+Returns the full extracted text of an indexed document.
+
+### Compare documents
+
+```http
+POST /api/v1/documents/compare
+```
+
+```json
+{
+  "file_id_a": "file-id-1",
+  "file_id_b": "file-id-2"
+}
+```
 
 ## Crawler API
 
@@ -104,8 +125,26 @@ POST /api/v1/urls/fetch
 
 Returns cached content when available, or fetches it live if not.
 
+### Get website info
+
+```http
+GET /api/v1/websites/{domain}
+```
+
+### Deregister a website
+
+```http
+DELETE /api/v1/websites/{domain}
+```
+
+### List website URLs
+
+```http
+GET /api/v1/websites/{domain}/urls
+```
+
 ## Platform API
 
-The Platform service exposes a public API at `/api/v1/*` for programmatic access to your data. Authenticate using a Bearer token from Settings > API Keys.
+The Platform service exposes a public API at `/api/v1/*` for programmatic access to your data. Authenticate using an `x-api-key` header with a key from Settings > API Keys.
 
 Full API documentation: `https://yourdomain.com/api/v1/openapi.json`

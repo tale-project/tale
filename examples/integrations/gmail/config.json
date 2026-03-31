@@ -1,6 +1,6 @@
 {
-  "name": "gmail",
   "title": "Gmail",
+  "installed": false,
   "description": "Google Gmail API integration for email, labels, threads, and drafts",
   "version": 2,
   "authMethod": "oauth2",

@@ -7,6 +7,7 @@
  * Provides isolated execution with controlled HTTP access.
  */
 
+import { transform } from 'sucrase';
 import * as vm from 'vm';
 
 import type {
@@ -68,10 +69,29 @@ export async function executeIntegrationImpl(
 
     vm.createContext(sandbox);
 
+    // Transpile TypeScript to JavaScript if needed (strips type annotations only)
+    let jsCode: string;
+    try {
+      jsCode = transform(params.code, {
+        transforms: ['typescript'],
+        disableESTransforms: true,
+      }).code;
+    } catch (transpileError) {
+      const duration = Date.now() - startTime;
+      return {
+        success: false,
+        result: null,
+        error: `TypeScript transpilation failed: ${transpileError instanceof Error ? transpileError.message : String(transpileError)}`,
+        logs,
+        duration,
+        fileReferences: [],
+      };
+    }
+
     // Execute the connector code and capture the result
     // We wrap the code to ensure 'connector' is accessible even if declared with const/let
     const wrappedCode = `
-      ${params.code}
+      ${jsCode}
 
       // Export connector object if it exists (handles const/let declarations)
       (typeof connector !== 'undefined' ? connector : undefined)

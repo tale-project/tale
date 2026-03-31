@@ -10,10 +10,7 @@ export function createPlatformService(
   return {
     image: `${config.registry}/tale-platform:${config.version}`,
     container_name: `${PROJECT_NAME}-platform-${color}`,
-    volumes: [
-      'platform-convex-data:/app/convex-data',
-      'caddy-data:/caddy-data:ro',
-    ],
+    volumes: ['platform-data:/app/data', 'caddy-data:/caddy-data:ro'],
     env_file: ['.env'],
     restart: 'unless-stopped',
     healthcheck: {

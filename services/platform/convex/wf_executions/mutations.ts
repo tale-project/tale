@@ -5,46 +5,13 @@ import { v } from 'convex/values';
 
 import { isRecord, getString } from '../../lib/utils/type-guards';
 import { components, internal } from '../_generated/api';
-import { mutation } from '../_generated/server';
-import { authComponent } from '../auth';
-import { getOrganizationMember, mutationWithRLS } from '../lib/rls';
+import { mutationWithRLS } from '../lib/rls';
 import { toId } from '../lib/type_cast_helpers';
-import { jsonValueValidator } from '../lib/validators/json';
 import { workflowManagers } from '../workflow_engine/engine';
 import { safeShardIndex } from '../workflow_engine/helpers/engine/shard';
-import { handleStartWorkflow } from '../workflow_engine/helpers/engine/start_workflow_handler';
 import { STORAGE_RETENTION_MS } from '../workflows/executions/cleanup_execution_storage';
 
 const CLEANUP_DELAY_MS = 10_000;
-
-export const startWorkflow = mutation({
-  args: {
-    organizationId: v.string(),
-    wfDefinitionId: v.id('wfDefinitions'),
-    input: v.optional(jsonValueValidator),
-    triggeredBy: v.string(),
-    triggerData: v.optional(jsonValueValidator),
-  },
-  returns: v.id('wfExecutions'),
-  handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) {
-      throw new Error('Unauthenticated');
-    }
-
-    await getOrganizationMember(ctx, args.organizationId, {
-      userId: String(authUser._id),
-      email: authUser.email,
-      name: authUser.name,
-    });
-
-    return await handleStartWorkflow(
-      ctx,
-      { ...args, userId: String(authUser._id) },
-      workflowManagers,
-    );
-  },
-});
 
 export const cancelExecution = mutationWithRLS({
   args: {

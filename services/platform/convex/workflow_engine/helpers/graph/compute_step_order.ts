@@ -131,6 +131,57 @@ export function computeStepOrder(
     }
   }
 
+  // Phase 2.5: Break remaining cycles via DFS back-edge detection.
+  // After loop-specific rewiring, non-loop cycles may remain (e.g., pagination
+  // patterns like prepare_next_page → fetch_customers). DFS from the start node;
+  // edges to ancestors in the current path are back-edges — collect and remove them.
+  const startSlug =
+    steps.find((s) => s.stepType === 'start' || s.stepType === 'trigger')
+      ?.stepSlug ?? [...inDegree.entries()].find(([, deg]) => deg === 0)?.[0];
+
+  if (startSlug) {
+    const visiting = new Set<string>();
+    const visited = new Set<string>();
+    const backEdges: Array<{ from: string; to: string }> = [];
+    const stack: Array<{ node: string; edgeIdx: number }> = [
+      { node: startSlug, edgeIdx: 0 },
+    ];
+    visiting.add(startSlug);
+
+    while (stack.length > 0) {
+      const frame = stack[stack.length - 1];
+      const edges = adjacency.get(frame.node) ?? [];
+
+      if (frame.edgeIdx >= edges.length) {
+        visiting.delete(frame.node);
+        visited.add(frame.node);
+        stack.pop();
+        continue;
+      }
+
+      const neighbor = edges[frame.edgeIdx];
+      frame.edgeIdx++;
+
+      if (visiting.has(neighbor)) {
+        backEdges.push({ from: frame.node, to: neighbor });
+      } else if (!visited.has(neighbor)) {
+        visiting.add(neighbor);
+        stack.push({ node: neighbor, edgeIdx: 0 });
+      }
+    }
+
+    for (const { from, to } of backEdges) {
+      const edges = adjacency.get(from);
+      if (edges) {
+        const idx = edges.indexOf(to);
+        if (idx !== -1) {
+          edges.splice(idx, 1);
+          inDegree.set(to, (inDegree.get(to) ?? 1) - 1);
+        }
+      }
+    }
+  }
+
   // Phase 3: Kahn's algorithm — only seed with start/trigger step
   const queue: string[] = [];
   const startStep = steps.find(

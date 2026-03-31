@@ -6,15 +6,16 @@ import { join } from 'node:path';
 
 import * as logger from '../../utils/logger';
 
-function checkDbVolumeExists(projectName: string): boolean {
+function listTaleVolumes(): string[] {
   try {
-    const result = execSync(`docker volume inspect ${projectName}_db-data`, {
+    const result = execSync('docker volume ls --filter name=tale -q', {
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'ignore'],
     });
-    return result.includes(projectName);
-  } catch {
-    return false;
+    return result.trim().split('\n').filter(Boolean);
+  } catch (err) {
+    logger.debug(`Failed to list Docker volumes: ${err}`);
+    return [];
   }
 }
 
@@ -66,6 +67,48 @@ export async function ensureEnv(options: EnvSetupOptions): Promise<boolean> {
 async function runEnvSetup(envPath: string): Promise<boolean> {
   const { input, password, select } = await import('@inquirer/prompts');
 
+  const existingVolumes = listTaleVolumes();
+
+  if (existingVolumes.length > 0) {
+    const { confirm } = await import('@inquirer/prompts');
+    logger.blank();
+    logger.warn(`Found ${existingVolumes.length} existing Tale volume(s):`);
+    for (const v of existingVolumes) {
+      logger.info(`  - ${v}`);
+    }
+    const shouldRemove = await confirm({
+      message: 'Remove all Tale volumes and start fresh?',
+      default: true,
+    });
+    if (!shouldRemove) {
+      logger.error(
+        'Cannot continue with existing volumes. Run "tale init" again after removing manually:',
+      );
+      logger.info('  docker volume rm ' + existingVolumes.join(' '));
+      return false;
+    }
+    logger.step('Stopping Tale containers...');
+    try {
+      execSync('docker compose -p tale down --remove-orphans', {
+        stdio: 'ignore',
+      });
+    } catch (err) {
+      logger.debug(`Failed to stop tale containers: ${err}`);
+    }
+    try {
+      execSync('docker compose -p tale-dev down --remove-orphans', {
+        stdio: 'ignore',
+      });
+    } catch (err) {
+      logger.debug(`Failed to stop tale-dev containers: ${err}`);
+    }
+
+    for (const v of existingVolumes) {
+      execSync(`docker volume rm ${v}`, { stdio: 'ignore' });
+    }
+    logger.success(`Removed ${existingVolumes.length} Tale volume(s).`);
+  }
+
   logger.blank();
   logger.header('Environment Setup');
   logger.info("Let's configure your deployment environment.");
@@ -73,7 +116,7 @@ async function runEnvSetup(envPath: string): Promise<boolean> {
 
   const host = await input({
     message: 'Enter your domain (without protocol):',
-    default: 'tale.local',
+    default: 'localhost',
     validate: (value) => {
       if (!value.trim()) {
         return 'Domain cannot be empty';
@@ -85,24 +128,7 @@ async function runEnvSetup(envPath: string): Promise<boolean> {
     },
   });
 
-  const protocol = await select({
-    message: 'Select protocol:',
-    choices: [
-      {
-        name: 'https (recommended)',
-        value: 'https',
-        description: 'Secure connection, required for production',
-      },
-      {
-        name: 'http',
-        value: 'http',
-        description: 'Development only, not recommended',
-      },
-    ],
-    default: 'https',
-  });
-
-  const siteUrl = `${protocol}://${host}`;
+  const siteUrl = `https://${host}`;
 
   const tlsMode = await select({
     message: 'Select TLS/SSL mode:',
@@ -154,30 +180,8 @@ async function runEnvSetup(envPath: string): Promise<boolean> {
   logger.blank();
   logger.step('Generating security secrets...');
 
-  let dbPassword: string;
-  const dbVolumeExists = checkDbVolumeExists('tale');
-
-  if (dbVolumeExists) {
-    logger.blank();
-    logger.warn('Existing database detected!');
-    logger.info('A database volume already exists from a previous deployment.');
-    logger.info('You need to provide the password that was used to create it.');
-    logger.blank();
-
-    dbPassword = await password({
-      message: 'Enter existing database password:',
-      mask: '*',
-      validate: (value) => {
-        if (!value.trim()) {
-          return 'Password cannot be empty';
-        }
-        return true;
-      },
-    });
-  } else {
-    dbPassword = generatePassword();
-    logger.info('Generated new database password.');
-  }
+  const dbPassword = generatePassword();
+  logger.info('Generated new database password.');
 
   const secrets = {
     betterAuthSecret: generateBase64Secret(),

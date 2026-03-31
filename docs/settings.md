@@ -38,7 +38,7 @@ Connect any HTTP-based API by entering the base URL and credentials. Supported a
 
 ### SQL integrations
 
-Connect a PostgreSQL or MySQL database. The AI agent and automations can query it using plain language that is translated to SQL.
+Connect a PostgreSQL, MySQL, or Microsoft SQL Server (MSSQL) database. The AI agent and automations can query it using plain language that is translated to SQL.
 
 ### Email (conversations)
 
@@ -68,4 +68,4 @@ Available to all users. Change your password here. If you signed up via SSO, you
 
 ## Audit logs
 
-Admin only. A time-ordered record of significant actions taken in the organization, including member changes, integration updates, workflow publications, and settings changes. Useful for compliance and troubleshooting.
+Admin only. A time-ordered record of significant actions taken in the organization. Categories include authentication events, member changes, data operations, integration updates, workflow publications, security events, and admin actions. Useful for compliance and troubleshooting.

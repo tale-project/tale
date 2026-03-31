@@ -1,133 +1,77 @@
 ---
 title: Quick start
-description: Get Tale running locally in 15 minutes.
+description: Get Tale running locally in under 5 minutes.
 ---
 
-This section walks you through getting Tale running locally for the first time. The whole process takes about 15 minutes.
+This guide walks you through getting Tale running locally for the first time using the Tale CLI.
 
 ## Prerequisites
-
-### Required software
 
 | Software | Minimum version | Where to get it |
 | --- | --- | --- |
 | Docker Desktop | 24.0+ | https://www.docker.com/products/docker-desktop |
-| Git | Any recent version | https://git-scm.com |
 
-### Required API key
+### Get an API key
 
 Tale uses OpenRouter as its default AI gateway, which gives you access to hundreds of models through a single API key.
 
 1. Go to https://openrouter.ai and create a free account.
 2. Navigate to Keys in your account dashboard and generate a new API key.
-3. Copy the key. You will need it in Step 3.
+3. Copy the key. You will need it during setup.
 
-> **Tip:** You can use any OpenAI-compatible provider, including a local Ollama instance, by setting `OPENAI_BASE_URL` and `OPENAI_API_KEY` in your `.env`. OpenRouter is the recommended choice for its model variety and simple pricing.
+> **Tip:** You can use any OpenAI-compatible provider, including a local Ollama instance. OpenRouter is the recommended default for its model variety and simple pricing.
 
-## Local setup
+## Setup
 
-If you are on Windows or want to skip building from source, jump to the [pre-built images](#using-pre-built-images) section instead. It is faster and has the same result.
-
-### Step 1: Set up your local domain
-
-Tale uses `tale.local` as its default local address. Add one line to your hosts file so your browser can reach it.
-
-On macOS or Linux:
+### Step 1: Install the CLI
 
 ```bash
-sudo sh -c 'echo "127.0.0.1 tale.local" >> /etc/hosts'
+curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.sh | bash
 ```
 
-On Windows, run PowerShell as Administrator:
-
-```powershell
-Add-Content -Path "C:\Windows\System32\drivers\etc\hosts" -Value "127.0.0.1 tale.local"
-```
-
-### Step 2: Clone the repository
+Or download the binary directly from [GitHub Releases](https://github.com/tale-project/tale/releases):
 
 ```bash
-git clone https://github.com/tale-project/tale.git
-cd tale
+curl -fsSL https://github.com/tale-project/tale/releases/latest/download/tale_linux \
+  -o /usr/local/bin/tale
+chmod +x /usr/local/bin/tale
 ```
 
-### Step 3: Set up your `.env` file
-
-Copy the example environment file:
+### Step 2: Create a project
 
 ```bash
-cp .env.example .env
+tale init my-project
+cd my-project
 ```
 
-Open `.env` in any text editor. The file already has placeholder values for everything. You only need to fill in these required ones:
+The CLI prompts for your domain, API key, and TLS mode. Security secrets (`BETTER_AUTH_SECRET`, `ENCRYPTION_SECRET_HEX`) are generated automatically.
 
-| Variable | Required? | How to fill it in |
-| --- | --- | --- |
-| `OPENAI_API_KEY` | Yes | Paste your OpenRouter API key here |
-| `BETTER_AUTH_SECRET` | Yes | Generate with: `openssl rand -base64 32` |
-| `ENCRYPTION_SECRET_HEX` | Yes | Generate with: `openssl rand -hex 32` |
-| `DB_PASSWORD` | Yes | Choose any password for the local database |
-
-> **Important:** The `.env.example` file ships with example secrets that are not safe to use. You must replace `BETTER_AUTH_SECRET` and `ENCRYPTION_SECRET_HEX` with your own generated values before starting. Using the example values is a security risk even in local development.
-
-### Step 4: Start the platform
-
-The first time you run this, Docker builds the service images from source. This takes 3 to 5 minutes. Subsequent starts are much faster.
+### Step 3: Start Tale
 
 ```bash
-docker compose up --build
+tale start
 ```
 
-Watch the logs. When you see this message, everything is ready:
+Wait for the ready message:
 
 ```text
 🎉 Tale Platform is running!
 ```
 
-> **Note:** You will see a stream of `200 OK` health check messages while services are starting. Those are normal and do not mean the UI is ready. Wait for the ready message before opening your browser.
+> **Note:** You will see a stream of health check messages while services are starting. Those are normal. Wait for the ready message before opening your browser.
 
-### Step 5: Trust the certificate (recommended)
+### Step 4: Open the app
 
-Tale generates a self-signed TLS certificate for local development. Your browser will show a security warning the first time you visit. To get rid of it permanently, run:
-
-```bash
-docker exec tale-proxy caddy trust
-```
-
-Then restart your browser.
-
-### Step 6: Open the app
-
-Go to https://tale.local in your browser. The first time you open it, you will be taken to a sign-up page to create your admin account.
-
-## Using pre-built images
-
-This approach skips the local build entirely. Docker pulls pre-built images from GitHub and starts them directly. You only need two files from the repository: `compose.yml` and `.env`.
-
-Add these two lines to your `.env` file:
-
-```dotenv
-PULL_POLICY=always
-VERSION=latest
-```
-
-Then start without the `--build` flag:
-
-```bash
-docker compose up
-```
-
-> **Tip:** To update Tale to the latest version when using pre-built images, run `docker compose down`, then `docker compose pull`, then `docker compose up`. This fetches new images without affecting your data.
+Go to https://localhost (or your configured domain) in your browser. The first time you open it, you will be taken to a sign-up page to create your admin account.
 
 ## Daily workflow
 
-### Starting the platform
+### Starting and stopping
 
-1. Open Docker Desktop and wait until the engine status shows green.
-2. In your terminal, go to the `tale` folder and run `docker compose up`.
-3. Wait for the platform ready message, then open https://tale.local.
-
-### Stopping the platform
+```bash
+tale start              # Start all services
+tale start --detach     # Start in background
+```
 
 To stop all services while keeping your data:
 
@@ -136,3 +80,46 @@ docker compose down
 ```
 
 > **Important:** Never run `docker compose down -v`. The `-v` flag deletes all Docker volumes, which permanently erases your database, uploaded documents, crawler state, and all platform data. There is no recovery from this.
+
+### Updating
+
+```bash
+tale update             # Update project files to match CLI version
+```
+
+### Viewing backend data
+
+```bash
+tale convex admin       # Generate admin key for the Convex Dashboard
+```
+
+Open `/convex-dashboard` in your browser and paste the key to inspect the database, view function logs, and manage background jobs.
+
+## Alternative: build from source
+
+If you want to contribute to Tale or customize the platform code, you can run from source instead of using pre-built images.
+
+```bash
+git clone https://github.com/tale-project/tale.git
+cd tale
+cp .env.example .env
+```
+
+Edit `.env` and fill in the required values:
+
+| Variable | How to fill it in |
+| --- | --- |
+| `OPENAI_API_KEY` | Your OpenRouter (or other provider) API key |
+| `BETTER_AUTH_SECRET` | Generate with: `openssl rand -base64 32` |
+| `ENCRYPTION_SECRET_HEX` | Generate with: `openssl rand -hex 32` |
+| `DB_PASSWORD` | Choose any password for the local database |
+
+> **Important:** The `.env.example` file ships with example secrets that must be replaced before starting.
+
+Then build and start:
+
+```bash
+docker compose up --build
+```
+
+The first build takes 3 to 5 minutes. Subsequent starts are much faster.

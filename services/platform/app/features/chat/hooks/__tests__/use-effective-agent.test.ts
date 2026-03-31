@@ -5,12 +5,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { SelectedAgent } from '../../context/chat-layout-context';
 
 interface MockAgent {
-  _id: string;
-  rootVersionId: string | null;
+  name: string;
   displayName: string;
   description: string;
-  isSystemDefault: boolean;
-  systemAgentSlug: string | null;
+  conversationStarters?: string[];
 }
 
 let mockSelectedAgent: SelectedAgent | null = null;
@@ -35,20 +33,14 @@ const ORG_ID = 'org-1';
 
 const AGENTS: MockAgent[] = [
   {
-    _id: 'agent-1',
-    rootVersionId: null,
+    name: 'chat-agent',
     displayName: 'Default Chat',
     description: 'Default assistant',
-    isSystemDefault: true,
-    systemAgentSlug: 'chat',
   },
   {
-    _id: 'agent-2',
-    rootVersionId: 'root-2',
+    name: 'custom-agent',
     displayName: 'Custom Agent',
     description: 'A custom agent',
-    isSystemDefault: false,
-    systemAgentSlug: null,
   },
 ];
 
@@ -70,7 +62,7 @@ describe('useEffectiveAgent', () => {
 
     it('returns null even when selected agent exists in localStorage', () => {
       mockAgents = undefined;
-      mockSelectedAgent = { _id: 'agent-1', displayName: 'Default Chat' };
+      mockSelectedAgent = { name: 'chat-agent', displayName: 'Default Chat' };
 
       const { result } = renderHook(() => useEffectiveAgent(ORG_ID));
 
@@ -79,14 +71,14 @@ describe('useEffectiveAgent', () => {
   });
 
   describe('when agents are loaded', () => {
-    it('returns default chat agent when no selection', () => {
+    it('returns default chat-agent when no selection', () => {
       mockAgents = AGENTS;
       mockSelectedAgent = null;
 
       const { result } = renderHook(() => useEffectiveAgent(ORG_ID));
 
       expect(result.current).toEqual({
-        _id: 'agent-1',
+        name: 'chat-agent',
         displayName: 'Default Chat',
       });
     });
@@ -102,12 +94,12 @@ describe('useEffectiveAgent', () => {
 
     it('returns validated selected agent when it exists in list', () => {
       mockAgents = AGENTS;
-      mockSelectedAgent = { _id: 'root-2', displayName: 'Custom Agent' };
+      mockSelectedAgent = { name: 'custom-agent', displayName: 'Custom Agent' };
 
       const { result } = renderHook(() => useEffectiveAgent(ORG_ID));
 
       expect(result.current).toEqual({
-        _id: 'root-2',
+        name: 'custom-agent',
         displayName: 'Custom Agent',
       });
     });
@@ -115,46 +107,67 @@ describe('useEffectiveAgent', () => {
     it('falls back to default when selected agent was deleted', () => {
       mockAgents = AGENTS;
       mockSelectedAgent = {
-        _id: 'deleted-agent',
+        name: 'deleted-agent',
         displayName: 'Gone Agent',
       };
 
       const { result } = renderHook(() => useEffectiveAgent(ORG_ID));
 
       expect(result.current).toEqual({
-        _id: 'agent-1',
+        name: 'chat-agent',
         displayName: 'Default Chat',
       });
     });
 
-    it('uses rootVersionId when agent has one', () => {
+    it('updates displayName from server data', () => {
       mockAgents = AGENTS;
-      mockSelectedAgent = { _id: 'root-2', displayName: 'Old Name' };
+      mockSelectedAgent = { name: 'custom-agent', displayName: 'Old Name' };
 
       const { result } = renderHook(() => useEffectiveAgent(ORG_ID));
 
       expect(result.current).toEqual({
-        _id: 'root-2',
+        name: 'custom-agent',
         displayName: 'Custom Agent',
       });
     });
 
-    it('returns null when no default agent and no selection', () => {
+    it('includes conversationStarters from matched agent', () => {
+      const starters = ['Hello', 'Help me'];
       mockAgents = [
         {
-          _id: 'agent-x',
-          rootVersionId: null,
-          displayName: 'Non-default',
-          description: '',
-          isSystemDefault: false,
-          systemAgentSlug: null,
+          name: 'chat-agent',
+          displayName: 'Default Chat',
+          description: 'Default assistant',
+          conversationStarters: starters,
         },
       ];
       mockSelectedAgent = null;
 
       const { result } = renderHook(() => useEffectiveAgent(ORG_ID));
 
-      expect(result.current).toBeNull();
+      expect(result.current).toEqual({
+        name: 'chat-agent',
+        displayName: 'Default Chat',
+        conversationStarters: starters,
+      });
+    });
+
+    it('falls back to first agent when no chat-agent default exists', () => {
+      mockAgents = [
+        {
+          name: 'other-agent',
+          displayName: 'Other Agent',
+          description: '',
+        },
+      ];
+      mockSelectedAgent = null;
+
+      const { result } = renderHook(() => useEffectiveAgent(ORG_ID));
+
+      expect(result.current).toEqual({
+        name: 'other-agent',
+        displayName: 'Other Agent',
+      });
     });
   });
 });

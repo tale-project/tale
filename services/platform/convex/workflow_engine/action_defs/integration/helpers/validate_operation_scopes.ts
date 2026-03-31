@@ -5,7 +5,7 @@
  * required by an operation. Throws a clear error if scopes are missing.
  */
 
-import type { Doc } from '../../../../_generated/dataModel';
+import type { IntegrationWithCredentials } from '../../../../integrations/shared_types';
 
 interface OperationConfig {
   name?: string;
@@ -14,7 +14,7 @@ interface OperationConfig {
 
 export function validateOperationScopes(
   operationConfig: OperationConfig | null | undefined,
-  integration: Doc<'integrations'>,
+  integration: IntegrationWithCredentials,
   operationName: string,
 ): void {
   const requiredScopes = operationConfig?.requiredScopes;

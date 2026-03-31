@@ -1,17 +1,15 @@
 'use client';
 
+import { useAction } from 'convex/react';
 import { useCallback, useMemo } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Tabs } from '@/app/components/ui/navigation/tabs';
 import { Button } from '@/app/components/ui/primitives/button';
 import { toast } from '@/app/hooks/use-toast';
-import { toId } from '@/convex/lib/type_cast_helpers';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
-import { fetchJson } from '@/lib/utils/type-cast-helpers';
 
-import { useCreateIntegration } from '../../hooks/actions';
-import { useGenerateUploadUrl } from '../../hooks/mutations';
 import { useUploadIntegration } from './hooks/use-upload-integration';
 import { PreviewStep } from './steps/preview-step';
 import { TemplateStep } from './steps/template-step';
@@ -30,8 +28,10 @@ export function IntegrationUploadDialog({
 }: IntegrationUploadDialogProps) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
-  const { mutateAsync: createIntegration } = useCreateIntegration();
-  const { mutateAsync: generateUploadUrl } = useGenerateUploadUrl();
+  const writeFilesFn = useAction(
+    api.integrations.file_actions.writeIntegrationFiles,
+  );
+  const installFn = useAction(api.integrations.file_actions.installIntegration);
 
   const state = useUploadIntegration();
 
@@ -48,100 +48,23 @@ export function IntegrationUploadDialog({
   const handleCreate = useCallback(async () => {
     if (!state.parsedPackage) return;
 
-    const { config, connectorCode, iconFile } = state.parsedPackage;
+    const { config, connectorCode } = state.parsedPackage;
     state.setIsCreating(true);
 
     try {
-      const isSql = config.type === 'sql';
-      const authMethod =
-        config.authMethod === 'bearer_token' ? 'api_key' : config.authMethod;
-      const supportedAuthMethods = config.supportedAuthMethods?.map((m) =>
-        m === 'bearer_token' ? 'api_key' : m,
-      );
+      const slug = config.name;
 
-      // Upload icon to Convex storage if present
-      let iconStorageId: string | undefined;
-      if (iconFile) {
-        const uploadUrl = await generateUploadUrl({});
-        const uploadResponse = await fetch(uploadUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': iconFile.type || 'image/png' },
-          body: iconFile,
-        });
-        if (!uploadResponse.ok) {
-          throw new Error(t('integrations.upload.iconUploadFailed'));
-        }
-        const { storageId } = await fetchJson<{ storageId: string }>(
-          uploadResponse,
-        );
-        iconStorageId = storageId;
-      }
+      await writeFilesFn({
+        orgSlug: 'default',
+        slug,
+        config,
+        connectorCode:
+          connectorCode.trim().length > 0 ? connectorCode : undefined,
+      });
 
-      // Build connector config
-      const connector =
-        !isSql && connectorCode.trim().length > 0
-          ? {
-              code: connectorCode,
-              version: config.version ?? 1,
-              operations: config.operations.map((op) => ({
-                name: op.name,
-                title: op.title,
-                description: op.description,
-                parametersSchema: op.parametersSchema,
-                operationType: op.operationType,
-                requiresApproval: op.requiresApproval,
-              })),
-              secretBindings: config.secretBindings,
-              allowedHosts: config.allowedHosts,
-              timeoutMs: config.connectionConfig?.timeout,
-            }
-          : undefined;
+      await installFn({ orgSlug: 'default', slug, organizationId });
 
-      const payload: Record<string, unknown> = {
-        organizationId,
-        name: config.name,
-        title: config.title,
-        description: config.description,
-        authMethod,
-        supportedAuthMethods,
-        connectionConfig: config.connectionConfig ?? undefined,
-        capabilities: config.capabilities ?? undefined,
-        connector,
-        type: isSql ? 'sql' : undefined,
-        iconStorageId: iconStorageId
-          ? toId<'_storage'>(iconStorageId)
-          : undefined,
-      };
-
-      if (config.oauth2Config) {
-        payload.oauth2Config = config.oauth2Config;
-      }
-
-      if (isSql && config.sqlConnectionConfig) {
-        payload.sqlConnectionConfig = config.sqlConnectionConfig;
-      }
-
-      if (isSql) {
-        const sqlOps = config.operations
-          .filter((op) => op.query)
-          .map((op) => ({
-            name: op.name,
-            title: op.title,
-            description: op.description,
-            query: op.query,
-            parametersSchema: op.parametersSchema,
-            operationType: op.operationType,
-            requiresApproval: op.requiresApproval,
-          }));
-        if (sqlOps.length > 0) {
-          payload.sqlOperations = sqlOps;
-        }
-      }
-
-      await createIntegration(
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Payload is dynamically built to match the mutation's expected shape
-        payload as Parameters<typeof createIntegration>[0],
-      );
+      window.dispatchEvent(new Event('integration-updated'));
 
       toast({
         title: t('integrations.upload.createSuccess'),
@@ -161,14 +84,7 @@ export function IntegrationUploadDialog({
     } finally {
       state.setIsCreating(false);
     }
-  }, [
-    state,
-    organizationId,
-    createIntegration,
-    generateUploadUrl,
-    handleOpenChange,
-    t,
-  ]);
+  }, [state, writeFilesFn, installFn, handleOpenChange, organizationId, t]);
 
   const tabItems = useMemo(
     () => [

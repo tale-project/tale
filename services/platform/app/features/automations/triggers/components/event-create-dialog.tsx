@@ -2,14 +2,13 @@
 
 import { useState, useMemo, useEffect } from 'react';
 
-import type { Id } from '@/convex/_generated/dataModel';
-
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Text } from '@/app/components/ui/typography/text';
 import { useToast } from '@/app/hooks/use-toast';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import {
   EVENT_TYPES,
   EVENT_TYPE_CATEGORIES,
@@ -18,14 +17,14 @@ import {
 } from '@/convex/workflows/triggers/event_types';
 import { useT } from '@/lib/i18n/client';
 
-import { useAutomationRoots } from '../../hooks/queries';
+import { useListWorkflows } from '../../hooks/file-queries';
 import {
   useCreateEventSubscription,
   useUpdateEventSubscription,
-} from '../hooks/mutations';
+} from '../hooks/slug-mutations';
 
 interface EditingSubscription {
-  _id: Id<'wfEventSubscriptions'>;
+  _id: string;
   eventType: string;
   eventFilter?: Record<string, string>;
 }
@@ -33,8 +32,10 @@ interface EditingSubscription {
 interface EventCreateDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  workflowRootId: Id<'wfDefinitions'>;
+  workflowRootId: string;
   organizationId: string;
+  orgSlug: string;
+  workflowSlug: string;
   existingEventTypes: string[];
   editing?: EditingSubscription | null;
 }
@@ -44,6 +45,8 @@ export function EventCreateDialog({
   onOpenChange,
   workflowRootId,
   organizationId,
+  orgSlug: _orgSlug,
+  workflowSlug,
   existingEventTypes,
   editing,
 }: EventCreateDialogProps) {
@@ -76,7 +79,16 @@ export function EventCreateDialog({
     [selectedEventType],
   );
 
-  const { automationRoots: workflows } = useAutomationRoots(organizationId);
+  const { workflows: rawWorkflows } = useListWorkflows('default');
+  const workflows = useMemo(() => {
+    const result: { _id: string; name: string }[] = [];
+    for (const w of rawWorkflows ?? []) {
+      if (w !== null && 'slug' in w && 'name' in w) {
+        result.push({ _id: String(w.slug), name: String(w.name) });
+      }
+    }
+    return result;
+  }, [rawWorkflows]);
 
   const options = useMemo(() => {
     const result: { value: string; label: string; disabled?: boolean }[] = [];
@@ -129,7 +141,7 @@ export function EventCreateDialog({
 
       if (isEditMode && editing) {
         await updateEventSubscription.mutateAsync({
-          subscriptionId: editing._id,
+          subscriptionId: toId<'wfEventSubscriptions'>(editing._id),
           eventFilter: filterPayload,
         });
         toast({
@@ -139,7 +151,7 @@ export function EventCreateDialog({
       } else {
         await createEventSubscription.mutateAsync({
           organizationId,
-          workflowRootId,
+          workflowSlug,
           eventType: selectedEventType,
           eventFilter: filterPayload,
         });
@@ -245,7 +257,7 @@ interface FilterFieldInputProps {
   value: string;
   onChange: (value: string) => void;
   workflows?: { _id: string; name: string }[] | null;
-  currentWorkflowRootId: Id<'wfDefinitions'>;
+  currentWorkflowRootId: string;
 }
 
 const FILTER_NONE = '__none__';
@@ -267,7 +279,7 @@ function FilterFieldInput({
 
   if (field.inputType === 'workflow-select') {
     const workflowOptions = (workflows ?? [])
-      .filter((w) => w._id !== (currentWorkflowRootId as string))
+      .filter((w) => w._id !== currentWorkflowRootId)
       .map((w) => ({ value: w._id, label: w.name }));
 
     return (

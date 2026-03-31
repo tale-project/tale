@@ -41,14 +41,19 @@ async function fetchIntegrationsContext(ctx: ToolCtx): Promise<string> {
     return '';
   }
 
-  const integrations = await ctx.runQuery(
-    internal.integrations.internal_queries.listInternal,
+  const credentials = await ctx.runQuery(
+    internal.integrations.credential_queries.listInternal,
     { organizationId },
   );
 
-  if (!integrations || integrations.length === 0) {
+  if (!credentials || credentials.length === 0) {
     return '\n\n### Available Integrations\nNo integrations configured. Set up in Settings > Integrations first.';
   }
+
+  const integrations = credentials.map((cred) => ({
+    name: cred.slug,
+    status: cred.status,
+  }));
 
   const listing = formatIntegrationsForContext(integrations);
   return `\n\n### Available Integrations\nUse integration_introspect to get operations and parameter details.\n\n${listing}`;

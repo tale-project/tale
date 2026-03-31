@@ -2,14 +2,15 @@
 
 import { Trash2 } from 'lucide-react';
 
-import type { Doc } from '@/convex/_generated/dataModel';
-
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 
-import { useIntegrationManage } from '../hooks/use-integration-manage';
+import {
+  type Integration,
+  useIntegrationManage,
+} from '../hooks/use-integration-manage';
 import { IntegrationDetails } from './integration-details';
 import { IntegrationActiveView } from './integration-manage/integration-active-view';
 import { IntegrationCredentialsForm } from './integration-manage/integration-credentials-form';
@@ -19,7 +20,7 @@ import { IntegrationUpdateSection } from './integration-manage/integration-updat
 interface IntegrationManageDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  integration: Doc<'integrations'> & { iconUrl?: string | null };
+  integration: Integration;
 }
 
 export function IntegrationManageDialog({
@@ -43,9 +44,9 @@ export function IntegrationManageDialog({
           iconUrl={manage.iconUrl}
           title={integration.title}
           isUploadingIcon={manage.isUploadingIcon}
-          isActive={manage.isActive}
+          isActive={manage.isActive ?? false}
           isSql={manage.isSql}
-          authMethod={integration.authMethod}
+          authMethod={integration.authMethod ?? ''}
           operationCount={manage.operationCount}
           iconInputRef={manage.iconInputRef}
           onIconUpload={manage.handleIconUpload}
@@ -90,8 +91,10 @@ export function IntegrationManageDialog({
             busy={manage.busy}
             isTesting={manage.isTesting}
             isSavingOAuth2={manage.isSavingOAuth2}
-            selectedAuthMethod={manage.selectedAuthMethod}
-            supportedMethods={manage.supportedMethods}
+            selectedAuthMethod={manage.selectedAuthMethod ?? ''}
+            supportedMethods={manage.supportedMethods.filter(
+              (m): m is string => m != null,
+            )}
             hasMultipleAuthMethods={manage.hasMultipleAuthMethods}
             hasOAuth2Config={manage.hasOAuth2Config}
             hasOAuth2Credentials={manage.hasOAuth2Credentials}
@@ -131,19 +134,21 @@ export function IntegrationManageDialog({
         <DeleteDialog
           open={manage.confirmDelete}
           onOpenChange={manage.setConfirmDelete}
-          title={manage.t('integrations.manageDialog.deleteIntegration')}
-          description={manage.t('integrations.manageDialog.deleteDescription')}
+          title={manage.t('integrations.manageDialog.uninstallIntegration')}
+          description={manage.t(
+            'integrations.manageDialog.uninstallDescription',
+          )}
           isDeleting={manage.busy}
-          onDelete={manage.handleDelete}
+          onDelete={manage.handleUninstall}
         />
         <Button
           variant="secondary"
           onClick={() => manage.setConfirmDelete(true)}
           disabled={manage.busy}
-          className="text-destructive hover:text-destructive w-full"
+          className="w-full"
         >
           <Trash2 className="mr-1.5 size-3.5" />
-          {manage.t('integrations.manageDialog.deleteIntegration')}
+          {manage.t('integrations.manageDialog.uninstallIntegration')}
         </Button>
       </Stack>
     </Dialog>

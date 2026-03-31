@@ -7,7 +7,6 @@
     "services/platform",
     "services/crawler",
     "services/rag",
-    "services/operator",
     "services/db",
     "services/proxy",
     "tools/cli"
@@ -52,9 +51,9 @@
     "knip": "^6.0.0",
     "oxfmt": "^0.32.0",
     "oxlint": "^1.43.0",
-    "oxlint-tsgolint": "^0.17.0",
+    "oxlint-tsgolint": "^0.18.0",
     "postcss": "8.5.8",
-    "turbo": "2.8.20",
+    "turbo": "2.8.21",
     "typescript": "5.9.3",
     "vitest": "4.1.2"
   },

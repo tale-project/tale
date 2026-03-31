@@ -2,8 +2,6 @@
 
 import { ExternalLink, Loader2, Pencil, Save } from 'lucide-react';
 
-import type { Doc } from '@/convex/_generated/dataModel';
-
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
@@ -15,11 +13,13 @@ import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
+import type { Integration } from '../../hooks/use-integration-manage';
+
 import { SENSITIVE_KEYS, maskValue } from '../../hooks/use-integration-manage';
 import { TestResultFeedback } from './test-result-feedback';
 
 interface IntegrationCredentialsFormProps {
-  integration: Doc<'integrations'> & { iconUrl?: string | null };
+  integration: Integration;
   isSql: boolean;
   busy: boolean;
   isTesting: boolean;
@@ -259,7 +259,7 @@ function SqlConnectionSection({
   busy,
   onSqlConfigChange,
 }: {
-  integration: Doc<'integrations'>;
+  integration: Integration;
   sqlConfig: Record<string, string>;
   busy: boolean;
   onSqlConfigChange: (key: string, value: string) => void;
@@ -315,7 +315,7 @@ function OAuth2CredentialsSummary({
   isSavingOAuth2,
   onReauthorize,
 }: {
-  integration: Doc<'integrations'> & { iconUrl?: string | null };
+  integration: Integration;
   busy: boolean;
   isSavingOAuth2: boolean;
   onReauthorize: () => void;

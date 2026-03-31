@@ -9,9 +9,9 @@ vi.mock('../../../_generated/api', () => ({
         },
       },
     },
-    wf_definitions: {
-      internal_queries: {
-        resolveWorkflow: 'mock-resolveWorkflow',
+    workflows: {
+      file_actions: {
+        readWorkflowForExecution: 'mock-readWorkflowForExecution',
       },
     },
   },
@@ -34,15 +34,33 @@ vi.mock('@convex-dev/agent', () => ({
   createTool: vi.fn((def) => ({ _handler: def.execute })),
 }));
 
+const MOCK_WORKFLOW_CONFIG = {
+  name: 'My Workflow',
+  description: 'A test workflow',
+  version: '1.0.0',
+  enabled: true,
+  steps: [
+    {
+      stepSlug: 'start_step',
+      name: 'Start',
+      stepType: 'start',
+      config: {},
+      nextSteps: { success: 'next_step' },
+    },
+  ],
+};
+
 function createMockCtx(overrides?: Record<string, unknown>) {
   return {
     organizationId: 'org1',
     userId: 'user1',
     threadId: 'thread-current',
     messageId: 'msg-123',
-    runQuery: vi.fn().mockResolvedValue({
-      name: 'My Workflow',
-      versionNumber: 1,
+    runAction: vi.fn().mockImplementation((ref: string) => {
+      if (ref === 'mock-readWorkflowForExecution') {
+        return { ok: true, config: structuredClone(MOCK_WORKFLOW_CONFIG) };
+      }
+      return null;
     }),
     runMutation: vi.fn().mockResolvedValue('approval-id-1'),
     ...overrides,
@@ -64,7 +82,7 @@ function createValidArgs() {
         nextSteps: { default: 'next_step' },
       },
     ],
-    workflowId: 'wf-def-1',
+    workflowSlug: 'my-workflow',
     updateSummary: 'Added error handling step',
   };
 }
@@ -94,8 +112,9 @@ describe('save_workflow_definition tool handler', () => {
       'mock-createWorkflowUpdateApproval',
       expect.objectContaining({
         organizationId: 'org1',
+        workflowSlug: 'my-workflow',
         workflowName: 'My Workflow',
-        workflowVersionNumber: 1,
+        workflowVersion: '1.0.0',
         updateSummary: 'Added error handling step',
       }),
     );
@@ -109,19 +128,6 @@ describe('save_workflow_definition tool handler', () => {
 
     expect(result.success).toBe(false);
     expect(result.message).toContain('organizationId is required');
-  });
-
-  it('returns failure when workflowId is missing', async () => {
-    const handler = await getHandler();
-    const ctx = createMockCtx({ workflowId: undefined });
-    const args = createValidArgs();
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test-only: simulating missing workflowId
-    (args as Record<string, unknown>).workflowId = undefined;
-
-    const result = await handler(ctx, args);
-
-    expect(result.success).toBe(false);
-    expect(result.message).toContain('workflowId is required');
   });
 
   it('returns failure when validation fails', async () => {
@@ -143,10 +149,15 @@ describe('save_workflow_definition tool handler', () => {
     expect(result.validationErrors).toContain('Missing start step');
   });
 
-  it('returns failure when workflow not found', async () => {
+  it('returns failure when workflow file not found', async () => {
     const handler = await getHandler();
     const ctx = createMockCtx({
-      runQuery: vi.fn().mockResolvedValue(null),
+      runAction: vi.fn().mockImplementation((ref: string) => {
+        if (ref === 'mock-readWorkflowForExecution') {
+          return { ok: false, error: 'not_found', message: 'File not found' };
+        }
+        return null;
+      }),
     });
 
     const result = await handler(ctx, createValidArgs());
@@ -158,10 +169,6 @@ describe('save_workflow_definition tool handler', () => {
   it('returns failure when approval creation throws', async () => {
     const handler = await getHandler();
     const ctx = createMockCtx({
-      runQuery: vi.fn().mockResolvedValue({
-        name: 'My Workflow',
-        versionNumber: 1,
-      }),
       runMutation: vi.fn().mockRejectedValue(new Error('DB error')),
     });
 

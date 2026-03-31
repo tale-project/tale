@@ -1,8 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router';
 
 import { Triggers } from '@/app/features/automations/triggers/triggers';
-import { toId } from '@/convex/lib/type_cast_helpers';
 import { seo } from '@/lib/utils/seo';
+import { urlParamToSlug } from '@/lib/utils/workflow-slug';
 
 export const Route = createFileRoute(
   '/dashboard/$id/automations/$amId/triggers',
@@ -15,9 +15,14 @@ export const Route = createFileRoute(
 
 function TriggersPage() {
   const { id: organizationId, amId } = Route.useParams();
-  const automationId = toId<'wfDefinitions'>(amId);
+  const workflowSlug = urlParamToSlug(amId);
 
   return (
-    <Triggers automationId={automationId} organizationId={organizationId} />
+    <Triggers
+      automationId={amId}
+      organizationId={organizationId}
+      orgSlug="default"
+      workflowSlug={workflowSlug}
+    />
   );
 }

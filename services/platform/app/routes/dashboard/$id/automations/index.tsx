@@ -1,10 +1,8 @@
-import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { AutomationsTable } from '@/app/features/automations/components/automations-table';
 import { useAbility } from '@/app/hooks/use-ability';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
@@ -12,19 +10,6 @@ export const Route = createFileRoute('/dashboard/$id/automations/')({
   head: () => ({
     meta: seo('automations'),
   }),
-  loader: ({ context, params }) => {
-    void context.queryClient.prefetchQuery(
-      convexQuery(api.wf_definitions.queries.approxCountAutomations, {
-        organizationId: params.id,
-      }),
-    );
-    void context.queryClient.prefetchQuery(
-      convexQuery(api.wf_definitions.queries.listAutomationsPaginated, {
-        organizationId: params.id,
-        paginationOpts: { numItems: 10, cursor: null },
-      }),
-    );
-  },
   component: AutomationsPage,
 });
 

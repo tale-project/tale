@@ -67,6 +67,10 @@ jobs:
         working-directory: tools/cli
         run: bun install
 
+      - name: Generate embedded files
+        working-directory: tools/cli
+        run: bun run generate
+
       - name: Type check
         if: matrix.platform == 'linux'
         working-directory: tools/cli

@@ -1,26 +1,29 @@
 {
-  "workflowConfig": {
-    "name": "General Customer Status Assessment",
-    "description": "Analyze a customer's status (active/churned/potential) using the full customer record and metadata",
-    "workflowType": "predefined",
-    "version": "1.0.0",
-    "config": {
-      "timeout": 120000,
-      "retryPolicy": { "maxRetries": 2, "backoffMs": 1000 },
-      "variables": {
-        "organizationId": "org_demo",
-        "workflowId": "general-customer-status-assessment",
-        "backoffHours": 72
-      }
+  "name": "General Customer Status Assessment",
+  "description": "Analyze a customer's status (active/churned/potential) using the full customer record and metadata",
+  "version": "1.0.0",
+  "enabled": true,
+  "config": {
+    "timeout": 120000,
+    "retryPolicy": {
+      "maxRetries": 2,
+      "backoffMs": 1000
+    },
+    "variables": {
+      "organizationId": "org_demo",
+      "workflowId": "general-customer-status-assessment",
+      "backoffHours": 72
     }
   },
-  "stepsConfig": [
+  "steps": [
     {
       "stepSlug": "start",
       "name": "Start",
       "stepType": "start",
       "config": {},
-      "nextSteps": { "success": "find_unprocessed_customer" }
+      "nextSteps": {
+        "success": "find_unprocessed_customer"
+      }
     },
     {
       "stepSlug": "find_unprocessed_customer",
@@ -34,7 +37,9 @@
           "backoffHours": "{{backoffHours}}"
         }
       },
-      "nextSteps": { "success": "check_has_customer" }
+      "nextSteps": {
+        "success": "check_has_customer"
+      }
     },
     {
       "stepSlug": "check_has_customer",
@@ -44,7 +49,10 @@
         "expression": "steps.find_unprocessed_customer.output.data != null",
         "description": "Check if we found an unprocessed customer"
       },
-      "nextSteps": { "true": "extract_customer_data", "false": "noop" }
+      "nextSteps": {
+        "true": "extract_customer_data",
+        "false": "noop"
+      }
     },
     {
       "stepSlug": "extract_customer_data",
@@ -77,7 +85,9 @@
           ]
         }
       },
-      "nextSteps": { "success": "compose_prompts" }
+      "nextSteps": {
+        "success": "compose_prompts"
+      }
     },
     {
       "stepSlug": "compose_prompts",
@@ -98,7 +108,9 @@
           ]
         }
       },
-      "nextSteps": { "success": "analyze_status" }
+      "nextSteps": {
+        "success": "analyze_status"
+      }
     },
     {
       "stepSlug": "analyze_status",
@@ -106,12 +118,16 @@
       "stepType": "llm",
       "config": {
         "name": "General Customer Status Analyzer",
-        "tools": ["rag_search"],
+        "tools": [
+          "rag_search"
+        ],
         "outputFormat": "text",
         "systemPrompt": "{{llmSystemPrompt}}",
         "userPrompt": "{{llmUserPrompt}}"
       },
-      "nextSteps": { "success": "structure_status" }
+      "nextSteps": {
+        "success": "structure_status"
+      }
     },
     {
       "stepSlug": "structure_status",
@@ -127,23 +143,39 @@
           "properties": {
             "status": {
               "type": "string",
-              "enum": ["active", "churned", "potential"],
+              "enum": [
+                "active",
+                "churned",
+                "potential"
+              ],
               "description": "Customer lifecycle status"
             },
             "churnReason": {
-              "type": ["string", "null"],
+              "type": [
+                "string",
+                "null"
+              ],
               "description": "Reason for churn if status is churned, otherwise null"
             },
             "churnedAt": {
-              "type": ["number", "null"],
+              "type": [
+                "number",
+                "null"
+              ],
               "description": "Timestamp when customer churned if status is churned, otherwise null"
             }
           },
-          "required": ["status", "churnReason", "churnedAt"],
+          "required": [
+            "status",
+            "churnReason",
+            "churnedAt"
+          ],
           "additionalProperties": false
         }
       },
-      "nextSteps": { "success": "update_customer_status" }
+      "nextSteps": {
+        "success": "update_customer_status"
+      }
     },
     {
       "stepSlug": "update_customer_status",
@@ -166,7 +198,9 @@
           }
         }
       },
-      "nextSteps": { "success": "record_processed" }
+      "nextSteps": {
+        "success": "record_processed"
+      }
     },
     {
       "stepSlug": "record_processed",
@@ -186,7 +220,9 @@
           }
         }
       },
-      "nextSteps": { "success": "noop" }
+      "nextSteps": {
+        "success": "noop"
+      }
     }
   ]
 }

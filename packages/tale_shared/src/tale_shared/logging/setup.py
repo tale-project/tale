@@ -1,8 +1,21 @@
 """Loguru configuration helpers for Tale services."""
 
+import logging
 import sys
 
 from loguru import logger
+
+
+class _HealthCheckFilter(logging.Filter):
+    """Filter out uvicorn access log entries for health check endpoints."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return "GET /health" not in record.getMessage()
+
+
+def suppress_health_check_logs() -> None:
+    """Attach a filter to uvicorn's access logger that drops /health requests."""
+    logging.getLogger("uvicorn.access").addFilter(_HealthCheckFilter())
 
 
 def configure_logging(*, level: str = "INFO", json_format: bool = False) -> None:

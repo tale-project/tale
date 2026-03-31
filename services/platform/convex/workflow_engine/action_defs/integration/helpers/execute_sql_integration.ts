@@ -5,12 +5,10 @@
  */
 
 import type { ActionCtx } from '../../../../_generated/server';
+import type { LoadedIntegration } from '../../../../integrations/load_integration';
 
 import { internal } from '../../../../_generated/api';
-import {
-  type SqlIntegration,
-  type SqlOperation,
-} from '../../../../integrations/types';
+import { type SqlOperation } from '../../../../integrations/types';
 import { createDebugLog } from '../../../../lib/debug_log';
 import { toConvexJsonRecord } from '../../../../lib/type_cast_helpers';
 import { decryptSqlCredentials } from './decrypt_sql_credentials';
@@ -38,11 +36,20 @@ export interface ApprovalRequiredResult {
 }
 
 /**
+ * SQL-narrowed LoadedIntegration with guaranteed SQL fields.
+ */
+interface SqlLoadedIntegration extends LoadedIntegration {
+  type: 'sql';
+  sqlConnectionConfig: NonNullable<LoadedIntegration['sqlConnectionConfig']>;
+  sqlOperations: NonNullable<LoadedIntegration['sqlOperations']>;
+}
+
+/**
  * Execute a SQL integration operation
  */
 export async function executeSqlIntegration(
   ctx: ActionCtx,
-  integration: SqlIntegration,
+  integration: SqlLoadedIntegration,
   operation: string,
   params: Record<string, unknown>,
   skipApprovalCheck: boolean = false,

@@ -2,24 +2,23 @@ import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
-import { toId } from '@/convex/lib/type_cast_helpers';
 
 export type WfSchedule = ConvexItemOf<
-  typeof api.workflows.triggers.queries.getSchedules
+  typeof api.workflows.triggers.slug_queries.getSchedulesBySlug
 >;
 
 export type WfWebhook = ConvexItemOf<
-  typeof api.workflows.triggers.queries.getWebhooks
+  typeof api.workflows.triggers.slug_queries.getWebhooksBySlug
 >;
 
 export type WfEventSubscription = ConvexItemOf<
-  typeof api.workflows.triggers.queries.getEventSubscriptions
+  typeof api.workflows.triggers.slug_queries.getEventSubscriptionsBySlug
 >;
 
-export function useSchedules(workflowRootId: string) {
+export function useSchedules(organizationId: string, workflowSlug: string) {
   const { data, isLoading } = useConvexQuery(
-    api.workflows.triggers.queries.getSchedules,
-    { workflowRootId: toId<'wfDefinitions'>(workflowRootId) },
+    api.workflows.triggers.slug_queries.getSchedulesBySlug,
+    { organizationId, workflowSlug },
   );
 
   return {
@@ -28,10 +27,10 @@ export function useSchedules(workflowRootId: string) {
   };
 }
 
-export function useWebhooks(workflowRootId: string) {
+export function useWebhooks(organizationId: string, workflowSlug: string) {
   const { data, isLoading } = useConvexQuery(
-    api.workflows.triggers.queries.getWebhooks,
-    { workflowRootId: toId<'wfDefinitions'>(workflowRootId) },
+    api.workflows.triggers.slug_queries.getWebhooksBySlug,
+    { organizationId, workflowSlug },
   );
 
   return {
@@ -40,10 +39,13 @@ export function useWebhooks(workflowRootId: string) {
   };
 }
 
-export function useEventSubscriptions(workflowRootId: string) {
+export function useEventSubscriptions(
+  organizationId: string,
+  workflowSlug: string,
+) {
   const { data, isLoading } = useConvexQuery(
-    api.workflows.triggers.queries.getEventSubscriptions,
-    { workflowRootId: toId<'wfDefinitions'>(workflowRootId) },
+    api.workflows.triggers.slug_queries.getEventSubscriptionsBySlug,
+    { organizationId, workflowSlug },
   );
 
   return {

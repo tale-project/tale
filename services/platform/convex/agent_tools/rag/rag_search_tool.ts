@@ -9,7 +9,7 @@
  * 1. Explicit fileIds arg → use directly (workflow / scoped searches)
  * 2. Agent knowledge config on ToolCtx → resolve via getAgentScopedFileIds
  *
- * All agents are custom agents; the agent's knowledge config is the sole
+ * All agents are agents; the agent's knowledge config is the sole
  * authorization boundary for RAG file access.
  */
 
@@ -31,7 +31,7 @@ import {
 } from './format_search_results';
 import { listIndexedDocuments } from './helpers/list_indexed_documents';
 
-// ToolCtx from @convex-dev/agent does not include our custom agent knowledge
+// ToolCtx from @convex-dev/agent does not include our agent knowledge
 // properties — these are set by our agent configuration and injected at runtime.
 export interface AgentKnowledgeCtx extends ToolCtx {
   agentTeamId?: string;
@@ -61,7 +61,7 @@ export async function resolveFileIds(
     throw new Error('rag_search requires organizationId in ToolCtx.');
   }
 
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ToolCtx from @convex-dev/agent lacks our custom agent knowledge properties injected at runtime
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ToolCtx from @convex-dev/agent lacks our agent knowledge properties injected at runtime
   const extended = ctx as AgentKnowledgeCtx;
 
   debugLog('tool:rag_search using agent-scoped file resolution', {

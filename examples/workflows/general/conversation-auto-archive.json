@@ -1,27 +1,30 @@
 {
-  "workflowConfig": {
-    "name": "Conversation Auto-Archive",
-    "description": "Automatically archive conversations that have been closed for over 30 days",
-    "workflowType": "predefined",
-    "version": "1.0.0",
-    "config": {
-      "timeout": 60000,
-      "retryPolicy": { "maxRetries": 2, "backoffMs": 3000 },
-      "variables": {
-        "organizationId": "org_demo",
-        "workflowId": "conversationAutoArchive",
-        "backoffHours": 168,
-        "staleDays": 30
-      }
+  "name": "Conversation Auto-Archive",
+  "description": "Automatically archive conversations that have been closed for over 30 days",
+  "version": "1.0.0",
+  "enabled": true,
+  "config": {
+    "timeout": 60000,
+    "retryPolicy": {
+      "maxRetries": 2,
+      "backoffMs": 3000
+    },
+    "variables": {
+      "organizationId": "org_demo",
+      "workflowId": "conversationAutoArchive",
+      "backoffHours": 168,
+      "staleDays": 30
     }
   },
-  "stepsConfig": [
+  "steps": [
     {
       "stepSlug": "start",
       "name": "Start",
       "stepType": "start",
       "config": {},
-      "nextSteps": { "success": "find_stale_conversation" }
+      "nextSteps": {
+        "success": "find_stale_conversation"
+      }
     },
     {
       "stepSlug": "find_stale_conversation",
@@ -36,7 +39,9 @@
           "filterExpression": "status == \"closed\" && metadata.resolved_at && daysAgo(metadata.resolved_at) > {{staleDays}}"
         }
       },
-      "nextSteps": { "success": "check_has_conversation" }
+      "nextSteps": {
+        "success": "check_has_conversation"
+      }
     },
     {
       "stepSlug": "check_has_conversation",
@@ -46,7 +51,10 @@
         "expression": "steps.find_stale_conversation.output.data != null",
         "description": "Check if a stale closed conversation was found"
       },
-      "nextSteps": { "true": "extract_conversation_data", "false": "noop" }
+      "nextSteps": {
+        "true": "extract_conversation_data",
+        "false": "noop"
+      }
     },
     {
       "stepSlug": "extract_conversation_data",
@@ -71,7 +79,9 @@
           ]
         }
       },
-      "nextSteps": { "success": "archive_conversation" }
+      "nextSteps": {
+        "success": "archive_conversation"
+      }
     },
     {
       "stepSlug": "archive_conversation",
@@ -87,7 +97,9 @@
           }
         }
       },
-      "nextSteps": { "success": "record_processed" }
+      "nextSteps": {
+        "success": "record_processed"
+      }
     },
     {
       "stepSlug": "record_processed",
@@ -107,7 +119,9 @@
           }
         }
       },
-      "nextSteps": { "success": "noop" }
+      "nextSteps": {
+        "success": "noop"
+      }
     }
   ]
 }

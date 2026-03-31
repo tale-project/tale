@@ -1,15 +1,14 @@
 /**
  * Helper function to get all workflows that have schedule triggers.
- * Reads from the wfSchedules table (version-agnostic triggers).
+ * Reads from the wfSchedules table and resolves workflow slug for file-based workflows.
  */
 
 import type { Id } from '../../../_generated/dataModel';
 
 import { QueryCtx } from '../../../_generated/server';
-import { getActiveWorkflowVersion } from '../../../workflows/triggers/queries';
 
 export interface ScheduledWorkflow {
-  wfDefinitionId: Id<'wfDefinitions'>;
+  workflowSlug: string;
   organizationId: string;
   name: string;
   schedule: string;
@@ -26,17 +25,12 @@ export async function getScheduledWorkflows(
   const allSchedules = await ctx.db.query('wfSchedules').take(MAX_SCHEDULES);
   for (const sched of allSchedules) {
     if (!sched.isActive) continue;
-
-    const activeVersion = await getActiveWorkflowVersion(
-      ctx,
-      sched.workflowRootId,
-    );
-    if (!activeVersion) continue;
+    if (!sched.workflowSlug) continue;
 
     results.push({
-      wfDefinitionId: activeVersion._id,
+      workflowSlug: sched.workflowSlug,
       organizationId: sched.organizationId,
-      name: activeVersion.name,
+      name: sched.workflowSlug,
       schedule: sched.cronExpression,
       timezone: sched.timezone,
       scheduleId: sched._id,

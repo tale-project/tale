@@ -1,7 +1,6 @@
 import type { MutationCtx } from '../../_generated/server';
 
 import { internal } from '../../_generated/api';
-import { getActiveWorkflowVersion } from './queries';
 
 function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
   let current: unknown = obj;
@@ -39,15 +38,17 @@ function matchesFilter(
 function isSelfTrigger(
   eventType: string,
   eventData: Record<string, unknown> | undefined,
-  subscriptionWorkflowRootId: string,
+  subscriptionWorkflowSlug: string | undefined,
 ): boolean {
   if (eventType !== 'workflow.completed') return false;
+  if (!subscriptionWorkflowSlug) return false;
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic data
-  const sourceRoot = getNestedValue(
+  const sourceSlug = getNestedValue(
     eventData ?? {},
-    'execution.rootWfDefinitionId',
+    'execution.workflowSlug',
   ) as string | undefined;
-  return !!sourceRoot && sourceRoot === subscriptionWorkflowRootId;
+  if (!sourceSlug) return false;
+  return sourceSlug === subscriptionWorkflowSlug;
 }
 
 interface ProcessEventArgs {
@@ -72,23 +73,20 @@ export async function processEventHandler(
 
   for await (const sub of subscriptions) {
     if (!sub.isActive) continue;
+    if (!sub.workflowSlug) continue;
 
-    if (isSelfTrigger(args.eventType, eventData, sub.workflowRootId)) continue;
+    if (isSelfTrigger(args.eventType, eventData, sub.workflowSlug)) continue;
 
     if (!matchesFilter(eventData, sub.eventFilter)) continue;
 
-    const activeVersion = await getActiveWorkflowVersion(
-      ctx,
-      sub.workflowRootId,
-    );
-    if (!activeVersion) continue;
-
     await ctx.scheduler.runAfter(
       0,
-      internal.wf_executions.internal_mutations.startWorkflow,
+      internal.workflow_engine.helpers.engine.start_workflow_from_file
+        .startWorkflowFromFile,
       {
         organizationId: args.organizationId,
-        wfDefinitionId: activeVersion._id,
+        orgSlug: 'default',
+        workflowSlug: sub.workflowSlug,
         input: args.eventData ?? {},
         triggeredBy: 'event',
         triggerData: {
@@ -107,7 +105,7 @@ export async function processEventHandler(
       {
         organizationId: args.organizationId,
         workflowRootId: sub.workflowRootId,
-        wfDefinitionId: activeVersion._id,
+        workflowSlug: sub.workflowSlug,
         triggerType: 'event',
         status: 'accepted',
       },

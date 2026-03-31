@@ -46,7 +46,6 @@ env_normalize_common() {
 	  # They can be overridden via environment variables in .env when needed.
 	  export RAG_URL="${RAG_URL:-http://rag:8001}"
 	  export CRAWLER_URL="${CRAWLER_URL:-http://crawler:8002}"
-	  export OPERATOR_URL="${OPERATOR_URL:-http://operator:8004}"
 	  export SEARCH_SERVICE_URL="${SEARCH_SERVICE_URL:-http://search:8080}"
 
 	  # Convex instance configuration
@@ -54,6 +53,11 @@ env_normalize_common() {
 	  # This matches the database name created in init-scripts/02-create-convex-database.sql
 	  export INSTANCE_NAME="tale_platform"
 	  export INSTANCE_SECRET="${INSTANCE_SECRET}"
+
+  # Filesystem directories for file-based configs
+  export AGENTS_DIR="${AGENTS_DIR:-/app/data/agents}"
+  export WORKFLOWS_DIR="${WORKFLOWS_DIR:-/app/data/workflows}"
+  export INTEGRATIONS_DIR="${INTEGRATIONS_DIR:-/app/data/integrations}"
 
   # AI provider keys
   export OPENAI_API_KEY="${OPENAI_API_KEY}"

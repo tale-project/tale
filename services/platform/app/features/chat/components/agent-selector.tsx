@@ -5,7 +5,7 @@ import { useCallback, useMemo, useState } from 'react';
 
 import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
 import { Button } from '@/app/components/ui/primitives/button';
-import { CreateCustomAgentDialog } from '@/app/features/custom-agents/components/custom-agent-create-dialog';
+import { CreateAgentDialog } from '@/app/features/agents/components/agent-create-dialog';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useDialogSearchParam } from '@/app/hooks/use-dialog-search-param';
 import { useT } from '@/lib/i18n/client';
@@ -24,7 +24,7 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
   const { setSelectedAgent } = useChatLayout();
   const effectiveAgent = useEffectiveAgent(organizationId);
   const { agents: allAgents } = useChatAgents(organizationId);
-  const canManageAgents = ability.can('write', 'customAgents');
+  const canManageAgents = ability.can('write', 'agents');
   const [open, setOpen] = useState(false);
   const createAgentDialog = useDialogSearchParam({
     paramValue: 'create-agent',
@@ -35,11 +35,10 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
 
     return [...allAgents]
       .map((agent) => ({
-        value: agent.rootVersionId ?? agent._id,
+        value: agent.name,
         label: agent.displayName,
         description: agent.description || '',
-        isDefaultChat:
-          Boolean(agent.isSystemDefault) && agent.systemAgentSlug === 'chat',
+        isDefaultChat: agent.name === 'chat-agent',
       }))
       .sort((a, b) => {
         if (a.isDefaultChat) return -1;
@@ -48,19 +47,17 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
       });
   }, [allAgents]);
 
-  const currentValue = effectiveAgent?._id ?? null;
+  const currentValue = effectiveAgent?.name ?? null;
 
   const currentLabel =
     effectiveAgent?.displayName ?? t('agentSelector.defaultAgent');
 
   const handleSelect = useCallback(
     (value: string) => {
-      const agent = allAgents?.find(
-        (a) => (a.rootVersionId ?? a._id) === value,
-      );
+      const agent = allAgents?.find((a) => a.name === value);
       if (agent) {
         setSelectedAgent({
-          _id: agent.rootVersionId ?? agent._id,
+          name: agent.name,
           displayName: agent.displayName,
         });
       }
@@ -115,7 +112,7 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
       />
 
       {canManageAgents && (
-        <CreateCustomAgentDialog
+        <CreateAgentDialog
           open={createAgentDialog.isOpen}
           onOpenChange={createAgentDialog.onOpenChange}
           organizationId={organizationId}

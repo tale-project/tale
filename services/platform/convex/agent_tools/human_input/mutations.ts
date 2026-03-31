@@ -10,8 +10,10 @@ import { FEEDBACK_KEY } from '../../../lib/shared/schemas/approvals';
 import { getString, isRecord } from '../../../lib/utils/type-guards';
 import { components, internal } from '../../_generated/api';
 import { mutation } from '../../_generated/server';
-import { toSerializableConfig } from '../../custom_agents/config';
-import { getDefaultAgentRuntimeConfig } from '../../lib/agent_runtime_config';
+import {
+  getDefaultAgentRuntimeConfig,
+  getDefaultModel,
+} from '../../lib/agent_runtime_config';
 import { getOrganizationMember } from '../../lib/rls';
 import { persistentStreaming } from '../../streaming/helpers';
 import { workflowManagers } from '../../workflow_engine/engine';
@@ -184,27 +186,24 @@ export const submitHumanInputResponse = mutation({
     const thread = await ctx.runQuery(components.agent.threads.getThread, {
       threadId,
     });
-    // Load system default chat agent from DB
-    const systemChatQuery = ctx.db
-      .query('customAgents')
-      .withIndex('by_org_system_slug', (q) =>
-        q.eq('organizationId', organizationId).eq('systemAgentSlug', 'chat'),
-      );
-
-    let chatAgent = null;
-    for await (const agent of systemChatQuery) {
-      if (agent.status === 'active') {
-        chatAgent = agent;
-        break;
-      }
-    }
-
-    if (!chatAgent) {
-      throw new Error('System default chat agent not found');
-    }
-
-    const agentConfig = toSerializableConfig(chatAgent);
+    // Use default model config for re-triggering after human input.
+    // The agent config was already established when the thread was created;
+    // the generation action will use the thread's existing context.
     const { model, provider } = getDefaultAgentRuntimeConfig();
+    const agentConfig = {
+      name: 'chat-agent',
+      instructions: '',
+      convexToolNames: [],
+      model: getDefaultModel(),
+      enableVectorSearch: false,
+      knowledgeMode: 'off' as const,
+      webSearchMode: 'off' as const,
+      includeTeamKnowledge: false,
+      includeOrgKnowledge: false,
+      knowledgeFileIds: [],
+      structuredResponsesEnabled: true,
+      timeoutMs: 1_200_000,
+    };
 
     const beforeGenerate = await createFunctionHandle(beforeGenerateHookRef);
 

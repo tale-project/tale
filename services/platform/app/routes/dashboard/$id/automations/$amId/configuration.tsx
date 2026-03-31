@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { Loader2 } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
@@ -11,23 +11,12 @@ import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Grid } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
-import { AutomationActiveToggle } from '@/app/features/automations/components/automation-active-toggle';
-import { useUpdateAutomation } from '@/app/features/automations/hooks/mutations';
-import { useWorkflow } from '@/app/features/automations/hooks/queries';
-import { useAuth } from '@/app/hooks/use-convex-auth';
+import { useSaveWorkflow } from '@/app/features/automations/hooks/file-mutations';
+import { useReadWorkflow } from '@/app/features/automations/hooks/file-queries';
 import { toast } from '@/app/hooks/use-toast';
-import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
-
-interface WorkflowConfig {
-  timeout?: number;
-  retryPolicy?: {
-    maxRetries: number;
-    backoffMs: number;
-  };
-  variables?: Record<string, unknown>;
-}
+import { urlParamToSlug } from '@/lib/utils/workflow-slug';
 
 export const Route = createFileRoute(
   '/dashboard/$id/automations/$amId/configuration',
@@ -39,13 +28,19 @@ export const Route = createFileRoute(
 });
 
 function ConfigurationPage() {
-  const { id: _organizationId, amId } = Route.useParams();
-  const automationId = toId<'wfDefinitions'>(amId);
-  const { user } = useAuth();
+  const { amId } = Route.useParams();
+  const workflowSlug = urlParamToSlug(amId);
 
   const { t: tAutomations } = useT('automations');
   const { t: tCommon } = useT('common');
   const { t: tToast } = useT('toast');
+
+  const {
+    data: readResult,
+    isLoading,
+    refetch,
+  } = useReadWorkflow('default', workflowSlug);
+  const { mutateAsync: saveWorkflow, isPending: isSaving } = useSaveWorkflow();
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -57,36 +52,25 @@ function ConfigurationPage() {
   );
   const [hasChanges, setHasChanges] = useState(false);
 
-  const { data: workflow, isLoading: isWorkflowLoading } =
-    useWorkflow(automationId);
-
-  const { mutateAsync: updateWorkflow, isPending: isSaving } =
-    useUpdateAutomation();
+  const config = readResult && readResult.ok ? readResult.config : undefined;
 
   useEffect(() => {
-    if (workflow) {
-      setName(workflow.name || '');
-      setDescription(workflow.description || '');
-
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex config field uses flexible schema
-      const config = workflow.config as WorkflowConfig;
-      if (config) {
-        setTimeoutValue(config.timeout || 300000);
-        setMaxRetries(config.retryPolicy?.maxRetries || 3);
-        setBackoffMs(config.retryPolicy?.backoffMs || 1000);
-
-        if (config.variables) {
-          setVariables(JSON.stringify(config.variables, null, 2));
+    if (config) {
+      setName(config.name || '');
+      setDescription(config.description || '');
+      if (config.config) {
+        setTimeoutValue(config.config.timeout || 300000);
+        setMaxRetries(config.config.retryPolicy?.maxRetries || 3);
+        setBackoffMs(config.config.retryPolicy?.backoffMs || 1000);
+        if (config.config.variables) {
+          setVariables(JSON.stringify(config.config.variables, null, 2));
         }
       }
     }
-  }, [workflow]);
+  }, [config]);
 
   useEffect(() => {
-    if (!workflow) return;
-
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex config field uses flexible schema
-    const config = workflow.config as WorkflowConfig;
+    if (!config) return;
     let currentVariables = {};
     try {
       currentVariables = variables.trim() ? JSON.parse(variables) : {};
@@ -95,27 +79,22 @@ function ConfigurationPage() {
     }
 
     const changed =
-      name !== (workflow.name || '') ||
-      description !== (workflow.description || '') ||
-      timeout !== (config?.timeout || 300000) ||
-      maxRetries !== (config?.retryPolicy?.maxRetries || 3) ||
-      backoffMs !== (config?.retryPolicy?.backoffMs || 1000) ||
+      name !== (config.name || '') ||
+      description !== (config.description || '') ||
+      timeout !== (config.config?.timeout || 300000) ||
+      maxRetries !== (config.config?.retryPolicy?.maxRetries || 3) ||
+      backoffMs !== (config.config?.retryPolicy?.backoffMs || 1000) ||
       JSON.stringify(currentVariables) !==
-        JSON.stringify(config?.variables || { environment: 'production' });
+        JSON.stringify(
+          config.config?.variables || { environment: 'production' },
+        );
 
     setHasChanges(changed);
-  }, [workflow, name, description, timeout, maxRetries, backoffMs, variables]);
+  }, [config, name, description, timeout, maxRetries, backoffMs, variables]);
 
   const handleSave = async () => {
-    if (!workflow) return;
-
-    if (!user?.userId) {
-      toast({
-        title: tCommon('errors.generic'),
-        variant: 'destructive',
-      });
-      return;
-    }
+    window.__taleLastSaveAt = Date.now();
+    if (!config) return;
 
     if (!name.trim()) {
       toast({
@@ -143,27 +122,26 @@ function ConfigurationPage() {
         parsedVariables = JSON.parse(variables);
       }
 
-      await updateWorkflow({
-        wfDefinitionId: automationId,
-        updates: {
+      await saveWorkflow({
+        orgSlug: 'default',
+        workflowSlug,
+        config: {
+          ...config,
           name: name.trim(),
           description: description.trim() || undefined,
           config: {
+            ...config.config,
             timeout,
-            retryPolicy: {
-              maxRetries,
-              backoffMs,
-            },
+            retryPolicy: { maxRetries, backoffMs },
             variables: parsedVariables,
           },
         },
-        updatedBy: user.userId,
+        expectedHash: readResult && readResult.ok ? readResult.hash : undefined,
       });
 
       setHasChanges(false);
-      toast({
-        title: tToast('success.saved'),
-      });
+      await refetch();
+      toast({ title: tToast('success.saved') });
     } catch (error) {
       console.error('Failed to save configuration:', error);
       toast({
@@ -173,7 +151,7 @@ function ConfigurationPage() {
     }
   };
 
-  if (isWorkflowLoading) {
+  if (isLoading) {
     return (
       <ContentArea variant="narrow" gap={4}>
         <FormSection>
@@ -184,55 +162,14 @@ function ConfigurationPage() {
           <Skeleton className="h-4 w-12" />
           <Skeleton className="h-9 w-full" />
         </FormSection>
-        <FormSection>
-          <Skeleton className="h-4 w-20" />
-          <Skeleton className="h-24 w-full" />
-        </FormSection>
-        <Grid cols={2} gap={4}>
-          <FormSection>
-            <Skeleton className="h-4 w-20" />
-            <Skeleton className="h-9 w-full" />
-            <Skeleton className="h-3 w-48" />
-          </FormSection>
-          <FormSection>
-            <Skeleton className="h-4 w-20" />
-            <Skeleton className="h-9 w-full" />
-            <Skeleton className="h-3 w-40" />
-          </FormSection>
-        </Grid>
-        <FormSection>
-          <Skeleton className="h-4 w-20" />
-          <Skeleton className="h-9 w-full" />
-          <Skeleton className="h-3 w-56" />
-        </FormSection>
-        <FormSection>
-          <Skeleton className="h-4 w-28" />
-          <Skeleton className="h-32 w-full" />
-          <Skeleton className="h-3 w-72" />
-        </FormSection>
-        <div className="pt-4">
-          <Skeleton className="h-9 w-36" />
-        </div>
       </ContentArea>
     );
   }
 
-  if (!workflow) {
-    return null;
-  }
+  if (!config) return null;
 
   return (
     <ContentArea variant="narrow" gap={4}>
-      <FormSection>
-        <AutomationActiveToggle
-          automation={workflow}
-          label={tAutomations('configuration.active')}
-        />
-        <Text variant="caption">
-          {tAutomations('configuration.activeHelp')}
-        </Text>
-      </FormSection>
-
       <Input
         id="name"
         label={tAutomations('configuration.name')}
@@ -260,7 +197,6 @@ function ConfigurationPage() {
             onChange={(e) =>
               setTimeoutValue(parseInt(e.target.value) || 300000)
             }
-            placeholder={tAutomations('configuration.timeoutPlaceholder')}
             min={1000}
           />
           <Text variant="caption">
@@ -275,7 +211,6 @@ function ConfigurationPage() {
             label={tAutomations('configuration.maxRetries')}
             value={maxRetries}
             onChange={(e) => setMaxRetries(parseInt(e.target.value) || 3)}
-            placeholder={tAutomations('configuration.maxRetriesPlaceholder')}
             min={0}
             max={10}
           />
@@ -292,7 +227,6 @@ function ConfigurationPage() {
           label={tAutomations('configuration.backoff')}
           value={backoffMs}
           onChange={(e) => setBackoffMs(parseInt(e.target.value) || 1000)}
-          placeholder={tAutomations('configuration.backoffPlaceholder')}
           min={100}
         />
         <Text variant="caption">

@@ -7,9 +7,14 @@ import { IncrementalMarkdown } from '../incremental-markdown';
 // HELPERS
 // ============================================================================
 
-/** Count cursor elements (the blinking span) in the rendered output */
+/** Count visible cursor elements (useLayoutEffect hides duplicates via display:none) */
 function countCursors(container: HTMLElement) {
-  return container.querySelectorAll('[aria-hidden="true"]').length;
+  const all = container.querySelectorAll<HTMLElement>('[aria-hidden="true"]');
+  let visible = 0;
+  for (const el of all) {
+    if (el.style.display !== 'none') visible++;
+  }
+  return visible;
 }
 
 // ============================================================================
@@ -23,7 +28,6 @@ describe('IncrementalMarkdown — cursor injection', () => {
       <IncrementalMarkdown
         content={content}
         revealPosition={content.length}
-        anchorPosition={0}
         showCursor
       />,
     );
@@ -39,7 +43,6 @@ describe('IncrementalMarkdown — cursor injection', () => {
       <IncrementalMarkdown
         content={content}
         revealPosition={content.length}
-        anchorPosition={0}
         showCursor
       />,
     );
@@ -53,7 +56,6 @@ describe('IncrementalMarkdown — cursor injection', () => {
       <IncrementalMarkdown
         content={content}
         revealPosition={content.length}
-        anchorPosition={0}
         showCursor
       />,
     );
@@ -67,7 +69,6 @@ describe('IncrementalMarkdown — cursor injection', () => {
       <IncrementalMarkdown
         content={content}
         revealPosition={content.length}
-        anchorPosition={0}
         showCursor
       />,
     );
@@ -81,7 +82,6 @@ describe('IncrementalMarkdown — cursor injection', () => {
       <IncrementalMarkdown
         content={content}
         revealPosition={content.length}
-        anchorPosition={0}
         showCursor={false}
       />,
     );
@@ -95,7 +95,6 @@ describe('IncrementalMarkdown — cursor injection', () => {
       <IncrementalMarkdown
         content={content}
         revealPosition={content.length}
-        anchorPosition={0}
         showCursor
       />,
     );
@@ -109,7 +108,6 @@ describe('IncrementalMarkdown — cursor injection', () => {
       <IncrementalMarkdown
         content={content}
         revealPosition={content.length}
-        anchorPosition={0}
         showCursor
       />,
     );
@@ -123,7 +121,6 @@ describe('IncrementalMarkdown — cursor injection', () => {
       <IncrementalMarkdown
         content={content}
         revealPosition={content.length}
-        anchorPosition={0}
         showCursor
       />,
     );
@@ -137,7 +134,6 @@ describe('IncrementalMarkdown — cursor injection', () => {
       <IncrementalMarkdown
         content={content}
         revealPosition={content.length}
-        anchorPosition={0}
         showCursor
       />,
     );
@@ -151,7 +147,6 @@ describe('IncrementalMarkdown — cursor injection', () => {
       <IncrementalMarkdown
         content={content}
         revealPosition={content.length}
-        anchorPosition={0}
         showCursor
       />,
     );
@@ -168,30 +163,17 @@ describe('IncrementalMarkdown — cursor during partial reveal (mid-stream)', ()
   it('renders cursor when reveal is mid-paragraph', () => {
     const content = 'Hello world, this is streaming text.';
     const { container } = render(
-      <IncrementalMarkdown
-        content={content}
-        revealPosition={10}
-        anchorPosition={0}
-        showCursor
-      />,
+      <IncrementalMarkdown content={content} revealPosition={10} showCursor />,
     );
 
     expect(countCursors(container)).toBe(1);
   });
 
-  it('renders cursor after anchor advances and new paragraph is mid-stream', () => {
-    // Simulates the post-anchor case: first paragraph is stable,
-    // second paragraph is partially revealed in the streaming bucket.
+  it('renders cursor when reveal is mid-way through multi-paragraph content', () => {
     const content = 'First paragraph.\n\nSecond paragraph being typed.';
-    const anchorPosition = 18; // after "First paragraph.\n\n"
 
     const { container } = render(
-      <IncrementalMarkdown
-        content={content}
-        revealPosition={28}
-        anchorPosition={anchorPosition}
-        showCursor
-      />,
+      <IncrementalMarkdown content={content} revealPosition={28} showCursor />,
     );
 
     expect(countCursors(container)).toBe(1);
@@ -200,12 +182,7 @@ describe('IncrementalMarkdown — cursor during partial reveal (mid-stream)', ()
   it('renders cursor mid-list item', () => {
     const content = '- First item\n- Second item being typed';
     const { container } = render(
-      <IncrementalMarkdown
-        content={content}
-        revealPosition={20}
-        anchorPosition={0}
-        showCursor
-      />,
+      <IncrementalMarkdown content={content} revealPosition={20} showCursor />,
     );
 
     expect(countCursors(container)).toBe(1);
@@ -214,12 +191,7 @@ describe('IncrementalMarkdown — cursor during partial reveal (mid-stream)', ()
   it('renders cursor mid-heading', () => {
     const content = '## This heading is still being typ';
     const { container } = render(
-      <IncrementalMarkdown
-        content={content}
-        revealPosition={20}
-        anchorPosition={0}
-        showCursor
-      />,
+      <IncrementalMarkdown content={content} revealPosition={20} showCursor />,
     );
 
     expect(countCursors(container)).toBe(1);
@@ -229,22 +201,12 @@ describe('IncrementalMarkdown — cursor during partial reveal (mid-stream)', ()
     const content = 'Streaming paragraph content here.';
 
     const { container, rerender } = render(
-      <IncrementalMarkdown
-        content={content}
-        revealPosition={5}
-        anchorPosition={0}
-        showCursor
-      />,
+      <IncrementalMarkdown content={content} revealPosition={5} showCursor />,
     );
     expect(countCursors(container)).toBe(1);
 
     rerender(
-      <IncrementalMarkdown
-        content={content}
-        revealPosition={15}
-        anchorPosition={0}
-        showCursor
-      />,
+      <IncrementalMarkdown content={content} revealPosition={15} showCursor />,
     );
     expect(countCursors(container)).toBe(1);
 
@@ -252,7 +214,6 @@ describe('IncrementalMarkdown — cursor during partial reveal (mid-stream)', ()
       <IncrementalMarkdown
         content={content}
         revealPosition={content.length}
-        anchorPosition={0}
         showCursor
       />,
     );
@@ -264,76 +225,35 @@ describe('IncrementalMarkdown — cursor during partial reveal (mid-stream)', ()
 // SPLIT STABILITY (scroll jump prevention)
 // ============================================================================
 
-describe('IncrementalMarkdown — split stability on stream end', () => {
-  it('does not re-parse stable content when showCursor changes', () => {
+describe('IncrementalMarkdown — DOM stability on cursor toggle', () => {
+  it('does not change DOM structure when showCursor changes', () => {
     const content = 'Paragraph one.\n\nParagraph two.';
-    const anchorPosition = 16; // after "Paragraph one.\n\n"
 
-    // Render with cursor (streaming state)
     const { container, rerender } = render(
       <IncrementalMarkdown
         content={content}
         revealPosition={content.length}
-        anchorPosition={anchorPosition}
         showCursor
       />,
     );
 
-    // Capture the DOM structure with cursor
     const withCursorHTML = container.innerHTML;
     expect(countCursors(container)).toBe(1);
 
-    // Rerender without cursor (stream ended)
     rerender(
       <IncrementalMarkdown
         content={content}
         revealPosition={content.length}
-        anchorPosition={anchorPosition}
         showCursor={false}
       />,
     );
 
-    // Cursor should be gone
     expect(countCursors(container)).toBe(0);
 
-    // The DOM should differ ONLY by the cursor span removal —
-    // the stable portion should NOT have been re-parsed with different content
     const withoutCursorHTML = container.innerHTML;
     const cursorSpanPattern =
       /<span class="[^"]*animate-cursor-blink[^"]*"[^>]*aria-hidden="true"><\/span>/;
     const normalizedWithCursor = withCursorHTML.replace(cursorSpanPattern, '');
     expect(normalizedWithCursor).toBe(withoutCursorHTML);
-  });
-
-  it('keeps streaming portion rendered (not consolidated) after cursor removal', () => {
-    const content = 'First block.\n\nSecond block.';
-    const anchorPosition = 14; // after "First block.\n\n"
-
-    const { container, rerender } = render(
-      <IncrementalMarkdown
-        content={content}
-        revealPosition={content.length}
-        anchorPosition={anchorPosition}
-        showCursor
-      />,
-    );
-
-    // The root div should have children from both StableMarkdown and StreamingMarkdown
-    const childCountWithCursor =
-      container.firstElementChild?.children.length ?? 0;
-
-    rerender(
-      <IncrementalMarkdown
-        content={content}
-        revealPosition={content.length}
-        anchorPosition={anchorPosition}
-        showCursor={false}
-      />,
-    );
-
-    // Child count should remain the same (no consolidation into single Markdown)
-    const childCountWithoutCursor =
-      container.firstElementChild?.children.length ?? 0;
-    expect(childCountWithoutCursor).toBe(childCountWithCursor);
   });
 });

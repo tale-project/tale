@@ -6,18 +6,19 @@
  */
 
 type PlatformTable =
-  | 'customAgents'
+  | 'agentBindings'
   | 'documents'
   | 'products'
   | 'customers'
   | 'vendors'
+  | 'integrationCredentials'
   | 'integrations'
   | 'onedriveSyncConfigs'
   | 'conversations'
   | 'conversationMessages'
-  | 'wfDefinitions'
-  | 'wfStepDefs'
-  | 'wfStepAuditLogs'
+  | 'wfDefinitions' // @deprecated — DB table deprecated; kept as permission subject for legacy data access
+  | 'wfStepDefs' // @deprecated — DB table deprecated; kept as permission subject for legacy data access
+  | 'wfStepAuditLogs' // @deprecated — DB table deprecated; kept as permission subject for legacy data access
   | 'wfExecutions'
   | 'approvals'
   | 'websites'
@@ -42,11 +43,12 @@ const platformPermissions: Record<
   Partial<Record<PlatformTable, readonly PlatformAction[]>>
 > = {
   admin: {
-    customAgents: ALL,
+    agentBindings: ALL,
     documents: ALL,
     products: ALL,
     customers: ALL,
     vendors: ALL,
+    integrationCredentials: ALL,
     integrations: ALL,
     onedriveSyncConfigs: ALL,
     conversations: ALL,
@@ -61,11 +63,12 @@ const platformPermissions: Record<
     auditLogs: ALL,
   },
   developer: {
-    customAgents: ALL,
+    agentBindings: ALL,
     documents: ALL,
     products: ALL,
     customers: ALL,
     vendors: ALL,
+    integrationCredentials: ALL,
     integrations: ALL,
     onedriveSyncConfigs: ALL,
     conversations: ALL,
@@ -80,11 +83,12 @@ const platformPermissions: Record<
     auditLogs: ALL,
   },
   editor: {
-    customAgents: ALL,
+    agentBindings: ALL,
     documents: ALL,
     products: ALL,
     customers: ALL,
     vendors: ALL,
+    integrationCredentials: READ_ONLY,
     integrations: READ_ONLY,
     onedriveSyncConfigs: READ_ONLY,
     conversations: ALL,
@@ -99,11 +103,12 @@ const platformPermissions: Record<
     auditLogs: ALL,
   },
   member: {
-    customAgents: READ_ONLY,
+    agentBindings: READ_ONLY,
     documents: READ_ONLY,
     products: READ_ONLY,
     customers: READ_ONLY,
     vendors: READ_ONLY,
+    integrationCredentials: READ_ONLY,
     integrations: READ_ONLY,
     onedriveSyncConfigs: READ_ONLY,
     conversations: READ_ONLY,
@@ -118,11 +123,12 @@ const platformPermissions: Record<
     auditLogs: READ_ONLY,
   },
   disabled: {
-    customAgents: NONE,
+    agentBindings: NONE,
     documents: NONE,
     products: NONE,
     customers: NONE,
     vendors: NONE,
+    integrationCredentials: NONE,
     integrations: NONE,
     onedriveSyncConfigs: NONE,
     conversations: NONE,

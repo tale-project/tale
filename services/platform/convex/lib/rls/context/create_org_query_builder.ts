@@ -49,10 +49,22 @@ export class OrganizationQueryBuilder {
 
   /**
    * Query integrations for organization
+   * @deprecated Use integrationCredentials() for the new file-based architecture
    */
   integrations() {
     return this.ctx.db
       .query('integrations')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', this.organizationId),
+      );
+  }
+
+  /**
+   * Query integration credentials for organization
+   */
+  integrationCredentials() {
+    return this.ctx.db
+      .query('integrationCredentials')
       .withIndex('by_organizationId', (q) =>
         q.eq('organizationId', this.organizationId),
       );

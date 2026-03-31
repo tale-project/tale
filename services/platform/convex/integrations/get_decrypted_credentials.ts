@@ -2,13 +2,14 @@
  * Decrypt and return integration credentials
  */
 
-import { api, internal } from '../_generated/api';
-import { Id } from '../_generated/dataModel';
-import { ActionCtx } from '../_generated/server';
-import { DecryptedCredentials } from './types';
+import type { Id } from '../_generated/dataModel';
+import type { ActionCtx } from '../_generated/server';
+import type { DecryptedCredentials } from './types';
+
+import { internal } from '../_generated/api';
 
 export interface GetDecryptedCredentialsArgs {
-  integrationId: Id<'integrations'>;
+  credentialId: Id<'integrationCredentials'>;
 }
 
 /**
@@ -18,16 +19,17 @@ export async function getDecryptedCredentials(
   ctx: ActionCtx,
   args: GetDecryptedCredentialsArgs,
 ): Promise<DecryptedCredentials> {
-  const integration = await ctx.runQuery(api.integrations.queries.get, {
-    integrationId: args.integrationId,
-  });
+  const integration = await ctx.runQuery(
+    internal.integrations.credential_queries.getByIdInternal,
+    { credentialId: args.credentialId },
+  );
 
   if (!integration) {
     throw new Error('Integration not found');
   }
 
   const credentials: DecryptedCredentials = {
-    name: integration.name,
+    name: integration.slug,
     connectionConfig: integration.connectionConfig,
   };
 

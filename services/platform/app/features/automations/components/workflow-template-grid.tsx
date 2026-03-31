@@ -9,53 +9,68 @@ import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import type { WorkflowTemplate } from '../constants/workflow-templates';
-import type { WorkflowTemplateData } from '../utils/fetch-workflow-template';
-
-import { WORKFLOW_TEMPLATES } from '../constants/workflow-templates';
-import { fetchWorkflowTemplate } from '../utils/fetch-workflow-template';
+import { useInstallWorkflow } from '../hooks/file-mutations';
+import { useListWorkflows } from '../hooks/file-queries';
 
 interface WorkflowTemplateGridProps {
   integrationName?: string;
-  onTemplateSelected: (data: WorkflowTemplateData) => void | Promise<void>;
+  onTemplateInstalled: (slug: string) => void;
 }
 
 export function WorkflowTemplateGrid({
   integrationName,
-  onTemplateSelected,
+  onTemplateInstalled,
 }: WorkflowTemplateGridProps) {
   const { t } = useT('automations');
-  const [fetchingTemplate, setFetchingTemplate] = useState<string | null>(null);
+  const { workflows, isLoading: isLoadingTemplates } = useListWorkflows(
+    'default',
+    'templates',
+  );
+  const { mutateAsync: installWorkflow } = useInstallWorkflow();
+  const [installingSlug, setInstallingSlug] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const filteredTemplates = useMemo(() => {
-    if (!integrationName) return WORKFLOW_TEMPLATES;
-    return WORKFLOW_TEMPLATES.filter(
-      (tpl) =>
-        tpl.integrationName === integrationName || tpl.integrationName === '',
+    if (!workflows) return [];
+    const valid = workflows.filter(
+      (w): w is NonNullable<typeof w> & { name: string } => !!w && 'name' in w,
     );
-  }, [integrationName]);
+    if (!integrationName) return valid;
+    return valid.filter((w) => {
+      const category = w.slug.includes('/') ? w.slug.split('/')[0] : '';
+      return (
+        category === integrationName || category === 'general' || !category
+      );
+    });
+  }, [workflows, integrationName]);
 
   const handleSelectTemplate = useCallback(
-    async (template: WorkflowTemplate) => {
+    async (slug: string) => {
       setError(null);
-      setFetchingTemplate(template.path);
+      setInstallingSlug(slug);
 
       try {
-        const result = await fetchWorkflowTemplate(template);
-        if (result.success && result.data) {
-          await onTemplateSelected(result.data);
-        } else {
-          setError(result.error ?? t('templates.fetchError'));
-        }
-      } catch {
-        setError(t('templates.fetchError'));
+        await installWorkflow({ orgSlug: 'default', workflowSlug: slug });
+        window.dispatchEvent(new Event('workflow-updated'));
+        onTemplateInstalled(slug);
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : t('templates.fetchError'),
+        );
       } finally {
-        setFetchingTemplate(null);
+        setInstallingSlug(null);
       }
     },
-    [onTemplateSelected, t],
+    [installWorkflow, onTemplateInstalled, t],
   );
+
+  if (isLoadingTemplates) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <Spinner size="sm" label={t('templates.fetching')} />
+      </div>
+    );
+  }
 
   if (filteredTemplates.length === 0) {
     return <Text variant="muted">{t('templates.noTemplates')}</Text>;
@@ -77,32 +92,34 @@ export function WorkflowTemplateGrid({
 
       <div
         className="grid max-h-80 grid-cols-1 gap-3 overflow-y-auto sm:grid-cols-2"
-        aria-busy={!!fetchingTemplate}
+        aria-busy={!!installingSlug}
       >
         {filteredTemplates.map((template) => (
           <button
-            key={template.path}
+            key={template.slug}
             type="button"
-            onClick={() => handleSelectTemplate(template)}
-            disabled={!!fetchingTemplate}
+            onClick={() => handleSelectTemplate(template.slug)}
+            disabled={!!installingSlug}
             className={cn(
               'border-border hover:border-primary/50 flex items-start gap-3 rounded-lg border p-3 text-left transition-colors',
-              fetchingTemplate === template.path && 'border-primary/50',
-              fetchingTemplate &&
-                fetchingTemplate !== template.path &&
+              installingSlug === template.slug && 'border-primary/50',
+              installingSlug &&
+                installingSlug !== template.slug &&
                 'opacity-50',
             )}
-            aria-label={template.title}
+            aria-label={template.name}
           >
             <Stack gap={1} className="min-w-0 flex-1">
               <Text variant="label" className="truncate">
-                {template.title}
+                {template.name}
               </Text>
-              <Text variant="caption" className="line-clamp-2">
-                {template.description}
-              </Text>
+              {template.description && (
+                <Text variant="caption" className="line-clamp-2">
+                  {template.description}
+                </Text>
+              )}
             </Stack>
-            {fetchingTemplate === template.path && (
+            {installingSlug === template.slug && (
               <Spinner
                 size="sm"
                 label={t('templates.fetching')}

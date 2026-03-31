@@ -3,7 +3,9 @@ import { v } from 'convex/values';
 
 export const wfSchedulesTable = defineTable({
   organizationId: v.string(),
-  workflowRootId: v.id('wfDefinitions'),
+  /** @deprecated — Use workflowSlug for file-based workflows. Kept for legacy DB-backed triggers. */
+  workflowRootId: v.optional(v.id('wfDefinitions')),
+  workflowSlug: v.optional(v.string()),
   cronExpression: v.string(),
   timezone: v.string(),
   isActive: v.boolean(),
@@ -13,11 +15,14 @@ export const wfSchedulesTable = defineTable({
 })
   .index('by_org', ['organizationId'])
   .index('by_workflowRoot', ['workflowRootId'])
+  .index('by_workflowSlug', ['workflowSlug'])
   .index('by_org_active', ['organizationId', 'isActive']);
 
 export const wfWebhooksTable = defineTable({
   organizationId: v.string(),
-  workflowRootId: v.id('wfDefinitions'),
+  /** @deprecated — Use workflowSlug for file-based workflows. Kept for legacy DB-backed triggers. */
+  workflowRootId: v.optional(v.id('wfDefinitions')),
+  workflowSlug: v.optional(v.string()),
   token: v.string(),
   isActive: v.boolean(),
   lastTriggeredAt: v.optional(v.number()),
@@ -26,11 +31,14 @@ export const wfWebhooksTable = defineTable({
 })
   .index('by_org', ['organizationId'])
   .index('by_workflowRoot', ['workflowRootId'])
+  .index('by_workflowSlug', ['workflowSlug'])
   .index('by_token', ['token']);
 
 export const wfApiKeysTable = defineTable({
   organizationId: v.string(),
-  workflowRootId: v.id('wfDefinitions'),
+  /** @deprecated — Use workflowSlug for file-based workflows. Kept for legacy DB-backed triggers. */
+  workflowRootId: v.optional(v.id('wfDefinitions')),
+  workflowSlug: v.optional(v.string()),
   name: v.string(),
   keyHash: v.string(),
   keyPrefix: v.string(),
@@ -41,11 +49,14 @@ export const wfApiKeysTable = defineTable({
 })
   .index('by_org', ['organizationId'])
   .index('by_workflowRoot', ['workflowRootId'])
+  .index('by_workflowSlug', ['workflowSlug'])
   .index('by_keyHash', ['keyHash']);
 
 export const wfEventSubscriptionsTable = defineTable({
   organizationId: v.string(),
-  workflowRootId: v.id('wfDefinitions'),
+  /** @deprecated — Use workflowSlug for file-based workflows. Kept for legacy DB-backed triggers. */
+  workflowRootId: v.optional(v.id('wfDefinitions')),
+  workflowSlug: v.optional(v.string()),
   eventType: v.string(),
   eventFilter: v.optional(v.record(v.string(), v.string())),
   isActive: v.boolean(),
@@ -55,12 +66,15 @@ export const wfEventSubscriptionsTable = defineTable({
 })
   .index('by_org', ['organizationId'])
   .index('by_workflowRoot', ['workflowRootId'])
+  .index('by_workflowSlug', ['workflowSlug'])
   .index('by_org_eventType', ['organizationId', 'eventType']);
 
 export const wfTriggerLogsTable = defineTable({
   organizationId: v.string(),
-  workflowRootId: v.id('wfDefinitions'),
-  wfDefinitionId: v.id('wfDefinitions'),
+  /** @deprecated — Use workflowSlug for file-based workflows. */
+  workflowRootId: v.optional(v.id('wfDefinitions')),
+  workflowSlug: v.optional(v.string()),
+  wfDefinitionId: v.optional(v.union(v.id('wfDefinitions'), v.string())),
   wfExecutionId: v.optional(v.id('wfExecutions')),
   triggerType: v.union(
     v.literal('manual'),
@@ -82,4 +96,5 @@ export const wfTriggerLogsTable = defineTable({
 })
   .index('by_org', ['organizationId'])
   .index('by_workflowRoot', ['workflowRootId'])
+  .index('by_workflowSlug', ['workflowSlug'])
   .index('by_idempotencyKey', ['organizationId', 'idempotencyKey']);

@@ -5,8 +5,6 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { Plus, Zap, Trash2, Pencil } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 
-import type { Id } from '@/convex/_generated/dataModel';
-
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { Badge } from '@/app/components/ui/feedback/badge';
@@ -16,6 +14,7 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useToast } from '@/app/hooks/use-toast';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import {
   EVENT_TYPES,
   getFilterFieldsForEventType,
@@ -24,18 +23,20 @@ import { useT } from '@/lib/i18n/client';
 
 import type { WfEventSubscription } from '../hooks/queries';
 
-import { useAutomationRoots } from '../../hooks/queries';
+import { useListWorkflows } from '../../hooks/file-queries';
+import { useEventSubscriptions } from '../hooks/queries';
 import {
   useDeleteEventSubscription,
   useToggleEventSubscription,
-} from '../hooks/mutations';
-import { useEventSubscriptions } from '../hooks/queries';
+} from '../hooks/slug-mutations';
 import { CollapsibleSection } from './collapsible-section';
 import { EventCreateDialog } from './event-create-dialog';
 
 interface EventsSectionProps {
-  workflowRootId: Id<'wfDefinitions'>;
+  workflowRootId: string;
   organizationId: string;
+  orgSlug: string;
+  workflowSlug: string;
 }
 
 type EventSubscription = WfEventSubscription;
@@ -43,18 +44,22 @@ type EventSubscription = WfEventSubscription;
 export function EventsSection({
   workflowRootId,
   organizationId,
+  orgSlug,
+  workflowSlug,
 }: EventsSectionProps) {
   const { t } = useT('automations');
   const { toast } = useToast();
-  const { subscriptions } = useEventSubscriptions(workflowRootId);
+  const { subscriptions } = useEventSubscriptions(organizationId, workflowSlug);
 
-  const { automationRoots: workflows } = useAutomationRoots(organizationId);
+  const { workflows } = useListWorkflows('default');
 
   const workflowNameMap = useMemo(() => {
     const map = new Map<string, string>();
     if (workflows) {
       for (const w of workflows) {
-        map.set(w._id, w.name);
+        if (w !== null && 'slug' in w && 'name' in w) {
+          map.set(String(w.slug), String(w.name));
+        }
       }
     }
     return map;
@@ -71,9 +76,12 @@ export function EventsSection({
   const [isDeleting, setIsDeleting] = useState(false);
 
   const handleToggle = useCallback(
-    async (subscriptionId: Id<'wfEventSubscriptions'>, isActive: boolean) => {
+    async (subscriptionId: string, isActive: boolean) => {
       try {
-        await toggleSubscription.mutateAsync({ subscriptionId, isActive });
+        await toggleSubscription.mutateAsync({
+          subscriptionId: toId<'wfEventSubscriptions'>(subscriptionId),
+          isActive,
+        });
         toast({
           title: isActive
             ? t('triggers.events.toast.enabled')
@@ -281,6 +289,8 @@ export function EventsSection({
         }}
         workflowRootId={workflowRootId}
         organizationId={organizationId}
+        orgSlug={orgSlug}
+        workflowSlug={workflowSlug}
         existingEventTypes={subscriptions?.map((s) => s.eventType) ?? []}
         editing={
           editTarget

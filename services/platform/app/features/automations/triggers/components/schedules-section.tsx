@@ -5,8 +5,6 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { Plus, Calendar, Pencil, Trash2 } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 
-import type { Id } from '@/convex/_generated/dataModel';
-
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { Switch } from '@/app/components/ui/forms/switch';
@@ -14,18 +12,21 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useToast } from '@/app/hooks/use-toast';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 
 import type { WfSchedule } from '../hooks/queries';
 
-import { useDeleteSchedule, useToggleSchedule } from '../hooks/mutations';
 import { useSchedules } from '../hooks/queries';
+import { useDeleteSchedule, useToggleSchedule } from '../hooks/slug-mutations';
 import { CollapsibleSection } from './collapsible-section';
 import { ScheduleCreateDialog } from './schedule-create-dialog';
 
 interface SchedulesSectionProps {
-  workflowRootId: Id<'wfDefinitions'>;
+  workflowRootId: string;
   organizationId: string;
+  orgSlug: string;
+  workflowSlug: string;
 }
 
 type Schedule = WfSchedule;
@@ -33,10 +34,12 @@ type Schedule = WfSchedule;
 export function SchedulesSection({
   workflowRootId,
   organizationId,
+  orgSlug,
+  workflowSlug,
 }: SchedulesSectionProps) {
   const { t } = useT('automations');
   const { toast } = useToast();
-  const { schedules } = useSchedules(workflowRootId);
+  const { schedules } = useSchedules(organizationId, workflowSlug);
 
   const toggleSchedule = useToggleSchedule();
   const deleteScheduleMutation = useDeleteSchedule();
@@ -47,9 +50,12 @@ export function SchedulesSection({
   const [isDeleting, setIsDeleting] = useState(false);
 
   const handleToggle = useCallback(
-    async (scheduleId: Id<'wfSchedules'>, isActive: boolean) => {
+    async (scheduleId: string, isActive: boolean) => {
       try {
-        await toggleSchedule.mutateAsync({ scheduleId, isActive });
+        await toggleSchedule.mutateAsync({
+          scheduleId: toId<'wfSchedules'>(scheduleId),
+          isActive,
+        });
         toast({
           title: isActive
             ? t('triggers.schedules.toast.enabled')
@@ -216,6 +222,8 @@ export function SchedulesSection({
         }}
         workflowRootId={workflowRootId}
         organizationId={organizationId}
+        orgSlug={orgSlug}
+        workflowSlug={workflowSlug}
         schedule={editSchedule}
       />
 
