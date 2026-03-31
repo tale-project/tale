@@ -1,10 +1,9 @@
 'use client';
 
 import { useAction } from 'convex/react';
-import { useCallback, useMemo } from 'react';
+import { useCallback } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
-import { Tabs } from '@/app/components/ui/navigation/tabs';
 import { Button } from '@/app/components/ui/primitives/button';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
@@ -12,7 +11,6 @@ import { useT } from '@/lib/i18n/client';
 
 import { useUploadIntegration } from './hooks/use-upload-integration';
 import { PreviewStep } from './steps/preview-step';
-import { TemplateStep } from './steps/template-step';
 import { UploadStep } from './steps/upload-step';
 
 interface IntegrationUploadDialogProps {
@@ -57,7 +55,7 @@ export function IntegrationUploadDialog({
       await writeFilesFn({
         orgSlug: 'default',
         slug,
-        config,
+        config: { ...config, metadata: { source: 'custom' } },
         connectorCode:
           connectorCode.trim().length > 0 ? connectorCode : undefined,
       });
@@ -85,20 +83,6 @@ export function IntegrationUploadDialog({
       state.setIsCreating(false);
     }
   }, [state, writeFilesFn, installFn, handleOpenChange, organizationId, t]);
-
-  const tabItems = useMemo(
-    () => [
-      {
-        value: 'upload' as const,
-        label: t('integrations.upload.tabUpload'),
-      },
-      {
-        value: 'template' as const,
-        label: t('integrations.upload.tabTemplate'),
-      },
-    ],
-    [t],
-  );
 
   const footer = (
     <>
@@ -146,28 +130,10 @@ export function IntegrationUploadDialog({
       className="max-h-[90vh] grid-rows-[auto_1fr_auto] overflow-hidden"
     >
       <div className="flex min-h-0 min-w-0 flex-col gap-4 overflow-hidden">
-        {/* Step 1: Tab selection (Upload / Template) */}
         {state.step === 'upload' && (
-          <>
-            <Tabs
-              items={tabItems}
-              value={state.activeTab}
-              onValueChange={(v) => {
-                if (v === 'upload' || v === 'template') {
-                  state.setActiveTab(v);
-                }
-              }}
-              listClassName="grid w-full grid-cols-2"
-            />
-            <div className="min-h-0 min-w-0 flex-1 overflow-y-auto pr-2">
-              {state.activeTab === 'upload' && (
-                <UploadStep onPackageParsed={state.setParsedPackage} />
-              )}
-              {state.activeTab === 'template' && (
-                <TemplateStep onPackageParsed={state.setParsedPackage} />
-              )}
-            </div>
-          </>
+          <div className="min-h-0 min-w-0 flex-1 overflow-y-auto pr-2">
+            <UploadStep onPackageParsed={state.setParsedPackage} />
+          </div>
         )}
 
         {/* Step 2: Preview */}

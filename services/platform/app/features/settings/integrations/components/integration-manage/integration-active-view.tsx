@@ -7,7 +7,6 @@ import {
   type StatGridItem,
   StatGrid,
 } from '@/app/components/ui/data-display/stat-grid';
-import { ActionRow } from '@/app/components/ui/layout/action-row';
 import { BorderedSection } from '@/app/components/ui/layout/bordered-section';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
@@ -23,14 +22,10 @@ interface IntegrationActiveViewProps {
   integration: Integration;
   isSql: boolean;
   busy: boolean;
-  isSubmitting: boolean;
-  isTesting: boolean;
   isSavingOAuth2: boolean;
   hasOAuth2Config: boolean;
   testResult: { success: boolean; message: string } | null;
   secretBindings: string[];
-  onTestConnection: () => void;
-  onDisconnect: () => void;
   onReauthorize: () => void;
   onDismissTestResult: () => void;
 }
@@ -39,14 +34,10 @@ export function IntegrationActiveView({
   integration,
   isSql,
   busy,
-  isSubmitting,
-  isTesting,
   isSavingOAuth2,
   hasOAuth2Config,
   testResult,
   secretBindings,
-  onTestConnection,
-  onDisconnect,
   onReauthorize,
   onDismissTestResult,
 }: IntegrationActiveViewProps) {
@@ -143,61 +134,28 @@ export function IntegrationActiveView({
         )}
       </BorderedSection>
 
-      <Button
-        variant="secondary"
-        onClick={onTestConnection}
-        disabled={busy}
-        className="w-full"
-      >
-        {isTesting ? (
-          <>
-            <Loader2 className="mr-2 size-4 animate-spin" />
-            {t('integrations.manageDialog.testingConnection')}
-          </>
-        ) : (
-          t('integrations.manageDialog.testConnection')
+      {hasOAuth2Config &&
+        integration.authMethod === 'oauth2' &&
+        integration.oauth2Config?.clientId && (
+          <Button
+            variant="secondary"
+            onClick={onReauthorize}
+            disabled={busy}
+            className="w-full"
+          >
+            {isSavingOAuth2 ? (
+              <>
+                <Loader2 className="mr-2 size-4 animate-spin" />
+                {t('integrations.manageDialog.savingCredentials')}
+              </>
+            ) : (
+              <>
+                <ExternalLink className="mr-2 size-4" />
+                {t('integrations.manageDialog.reauthorize')}
+              </>
+            )}
+          </Button>
         )}
-      </Button>
-
-      <ActionRow gap={2}>
-        {hasOAuth2Config &&
-          integration.authMethod === 'oauth2' &&
-          integration.oauth2Config?.clientId && (
-            <Button
-              variant="secondary"
-              onClick={onReauthorize}
-              disabled={busy}
-              className="flex-1"
-            >
-              {isSavingOAuth2 ? (
-                <>
-                  <Loader2 className="mr-2 size-4 animate-spin" />
-                  {t('integrations.manageDialog.savingCredentials')}
-                </>
-              ) : (
-                <>
-                  <ExternalLink className="mr-2 size-4" />
-                  {t('integrations.manageDialog.reauthorize')}
-                </>
-              )}
-            </Button>
-          )}
-        <Button
-          variant="secondary"
-          onClick={onDisconnect}
-          disabled={busy}
-          className="flex-1"
-        >
-          {isSubmitting ? (
-            <>
-              <Loader2 className="mr-2 size-4 animate-spin" />
-              {t('integrations.disconnecting')}
-            </>
-          ) : (
-            t('integrations.disconnect')
-          )}
-        </Button>
-      </ActionRow>
 
       {testResult && (
         <TestResultFeedback

@@ -73,10 +73,21 @@ export const readIntegration = action({
     slug: v.string(),
   },
   returns: v.any(),
-  handler: async (ctx, args): Promise<IntegrationReadResult> => {
+  handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
-    return readIntegrationConfigFile(args.orgSlug, args.slug);
+    const configResult = await readIntegrationConfigFile(
+      args.orgSlug,
+      args.slug,
+    );
+    if (!configResult.ok) return configResult;
+    const connectorCode = await readConnectorCode(args.orgSlug, args.slug);
+    return {
+      ok: true,
+      config: configResult.config,
+      connectorCode,
+      hash: configResult.hash,
+    };
   },
 });
 
@@ -138,6 +149,7 @@ export const listIntegrations = action({
             sqlConnectionConfig: result.config.sqlConnectionConfig,
             sqlOperations: result.config.sqlOperations,
             operationCount: result.config.operations?.length ?? 0,
+            metadata: result.config.metadata,
             hash: result.hash,
           };
         }

@@ -1,12 +1,11 @@
 'use client';
 
-import { ExternalLink, Loader2, Pencil, Save } from 'lucide-react';
+import { Loader2, Pencil, Save } from 'lucide-react';
 
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
-import { BorderedSection } from '@/app/components/ui/layout/bordered-section';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { IconButton } from '@/app/components/ui/primitives/icon-button';
@@ -22,7 +21,6 @@ interface IntegrationCredentialsFormProps {
   integration: Integration;
   isSql: boolean;
   busy: boolean;
-  isTesting: boolean;
   isSavingOAuth2: boolean;
   selectedAuthMethod: string;
   supportedMethods: string[];
@@ -41,7 +39,6 @@ interface IntegrationCredentialsFormProps {
   credentials: Record<string, string>;
   displayBindings: string[];
   sqlConfig: Record<string, string>;
-  hasChanges: boolean;
   testResult: { success: boolean; message: string } | null;
   onAuthMethodChange: (method: string) => void;
   onCredentialChange: (key: string, value: string) => void;
@@ -52,8 +49,6 @@ interface IntegrationCredentialsFormProps {
   ) => void;
   onEditOAuth2: (editing: boolean) => void;
   onSaveOAuth2: () => void;
-  onReauthorize: () => void;
-  onTestConnection: () => void;
   onDismissTestResult: () => void;
 }
 
@@ -61,7 +56,6 @@ export function IntegrationCredentialsForm({
   integration,
   isSql,
   busy,
-  isTesting,
   isSavingOAuth2,
   selectedAuthMethod,
   supportedMethods,
@@ -74,7 +68,6 @@ export function IntegrationCredentialsForm({
   credentials,
   displayBindings,
   sqlConfig,
-  hasChanges,
   testResult,
   onAuthMethodChange,
   onCredentialChange,
@@ -82,8 +75,6 @@ export function IntegrationCredentialsForm({
   onOAuth2FieldChange,
   onEditOAuth2,
   onSaveOAuth2,
-  onReauthorize,
-  onTestConnection,
   onDismissTestResult,
 }: IntegrationCredentialsFormProps) {
   const { t } = useT('settings');
@@ -100,16 +91,11 @@ export function IntegrationCredentialsForm({
         />
       )}
 
-      <BorderedSection>
+      <Stack gap={3}>
         <HStack className="items-start justify-between">
-          <div>
-            <Text variant="label">
-              {t('integrations.manageDialog.authentication')}
-            </Text>
-            <Text variant="caption" className="mt-1">
-              {t('integrations.upload.updateCredentialsHint')}
-            </Text>
-          </div>
+          <Text variant="label">
+            {t('integrations.manageDialog.authentication')}
+          </Text>
           {selectedAuthMethod === 'oauth2' &&
             hasOAuth2Config &&
             hasOAuth2Credentials &&
@@ -164,12 +150,7 @@ export function IntegrationCredentialsForm({
         {selectedAuthMethod === 'oauth2' &&
           hasOAuth2Config &&
           (hasOAuth2Credentials && !isEditingOAuth2 ? (
-            <OAuth2CredentialsSummary
-              integration={integration}
-              busy={busy}
-              isSavingOAuth2={isSavingOAuth2}
-              onReauthorize={onReauthorize}
-            />
+            <OAuth2CredentialsSummary integration={integration} />
           ) : (
             <OAuth2CredentialsEditor
               oauth2Fields={oauth2Fields}
@@ -226,21 +207,6 @@ export function IntegrationCredentialsForm({
           );
         })}
 
-        {!(selectedAuthMethod === 'oauth2' && hasOAuth2Config) && (
-          <Button onClick={onTestConnection} disabled={busy} className="w-full">
-            {isTesting ? (
-              <>
-                <Loader2 className="mr-2 size-4 animate-spin" />
-                {t('integrations.manageDialog.connecting')}
-              </>
-            ) : hasChanges ? (
-              t('integrations.manageDialog.testAndConnect')
-            ) : (
-              t('integrations.manageDialog.connect')
-            )}
-          </Button>
-        )}
-
         {testResult && (
           <TestResultFeedback
             result={testResult}
@@ -248,7 +214,7 @@ export function IntegrationCredentialsForm({
             closeLabel={tCommon('aria.close')}
           />
         )}
-      </BorderedSection>
+      </Stack>
     </>
   );
 }
@@ -267,7 +233,7 @@ function SqlConnectionSection({
   const { t } = useT('settings');
 
   return (
-    <BorderedSection>
+    <Stack gap={3}>
       <HStack gap={2} className="items-center">
         <Text variant="label">
           {t('integrations.manageDialog.databaseConnection')}
@@ -305,71 +271,47 @@ function SqlConnectionSection({
           disabled={busy}
         />
       </HStack>
-    </BorderedSection>
+    </Stack>
   );
 }
 
 function OAuth2CredentialsSummary({
   integration,
-  busy,
-  isSavingOAuth2,
-  onReauthorize,
 }: {
   integration: Integration;
-  busy: boolean;
-  isSavingOAuth2: boolean;
-  onReauthorize: () => void;
 }) {
   const { t } = useT('settings');
 
   return (
-    <>
-      <Stack gap={2}>
-        <HStack gap={2} className="text-muted-foreground items-center text-sm">
-          <Text as="span" variant="body-sm" className="w-20 shrink-0">
-            {t('integrations.manageDialog.clientId')}
-          </Text>
-          <Text as="span" variant="code" truncate>
-            {maskValue(integration.oauth2Config?.clientId ?? '')}
-          </Text>
-        </HStack>
-        <HStack gap={2} className="text-muted-foreground items-center text-sm">
-          <Text as="span" variant="body-sm" className="w-20 shrink-0">
-            {t('integrations.manageDialog.clientSecret')}
-          </Text>
-          <Text as="span" variant="code">
-            {'\u00d7'.repeat(8)}
-          </Text>
-        </HStack>
-        {integration.oauth2Config?.scopes &&
-          integration.oauth2Config.scopes.length > 0 && (
-            <HStack
-              gap={2}
-              className="text-muted-foreground items-start text-sm"
-            >
-              <Text as="span" variant="body-sm" className="w-20 shrink-0">
-                {t('integrations.manageDialog.scopes')}
-              </Text>
-              <Text as="span" variant="code" className="break-all">
-                {integration.oauth2Config.scopes.join(', ')}
-              </Text>
-            </HStack>
-          )}
-      </Stack>
-      <Button onClick={onReauthorize} disabled={busy} className="w-full">
-        {isSavingOAuth2 ? (
-          <>
-            <Loader2 className="mr-2 size-4 animate-spin" />
-            {t('integrations.manageDialog.savingCredentials')}
-          </>
-        ) : (
-          <>
-            <ExternalLink className="mr-2 size-4" />
-            {t('integrations.authorize')}
-          </>
+    <Stack gap={2}>
+      <HStack gap={2} className="text-muted-foreground items-center text-sm">
+        <Text as="span" variant="body-sm" className="w-20 shrink-0">
+          {t('integrations.manageDialog.clientId')}
+        </Text>
+        <Text as="span" variant="code" truncate>
+          {maskValue(integration.oauth2Config?.clientId ?? '')}
+        </Text>
+      </HStack>
+      <HStack gap={2} className="text-muted-foreground items-center text-sm">
+        <Text as="span" variant="body-sm" className="w-20 shrink-0">
+          {t('integrations.manageDialog.clientSecret')}
+        </Text>
+        <Text as="span" variant="code">
+          {'\u00d7'.repeat(8)}
+        </Text>
+      </HStack>
+      {integration.oauth2Config?.scopes &&
+        integration.oauth2Config.scopes.length > 0 && (
+          <HStack gap={2} className="text-muted-foreground items-start text-sm">
+            <Text as="span" variant="body-sm" className="w-20 shrink-0">
+              {t('integrations.manageDialog.scopes')}
+            </Text>
+            <Text as="span" variant="code" className="break-all">
+              {integration.oauth2Config.scopes.join(', ')}
+            </Text>
+          </HStack>
         )}
-      </Button>
-    </>
+    </Stack>
   );
 }
 
@@ -403,20 +345,6 @@ function OAuth2CredentialsEditor({
 
   return (
     <>
-      <Input
-        id="manage-oauth2-authorization-url"
-        label={t('integrations.manageDialog.authorizationUrl')}
-        value={oauth2Fields.authorizationUrl}
-        onChange={(e) => onFieldChange('authorizationUrl', e.target.value)}
-        disabled={busy}
-      />
-      <Input
-        id="manage-oauth2-token-url"
-        label={t('integrations.manageDialog.tokenUrl')}
-        value={oauth2Fields.tokenUrl}
-        onChange={(e) => onFieldChange('tokenUrl', e.target.value)}
-        disabled={busy}
-      />
       <Input
         id="manage-oauth2-client-id"
         label={t('integrations.manageDialog.clientId')}
