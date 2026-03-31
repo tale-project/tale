@@ -1,7 +1,6 @@
 'use client';
 
 import { Puzzle, type LucideIcon } from 'lucide-react';
-import { useCallback } from 'react';
 
 import { Image } from '@/app/components/ui/data-display/image';
 import { Badge } from '@/app/components/ui/feedback/badge';
@@ -34,10 +33,6 @@ export function IntegrationCard({
 }: IntegrationCardProps) {
   const { t } = useT('settings');
 
-  const handleClick = useCallback(() => {
-    onClick?.();
-  }, [onClick]);
-
   return (
     <Card
       className="hover:border-primary/50 cursor-pointer transition-colors"
@@ -45,7 +40,7 @@ export function IntegrationCard({
     >
       <button
         type="button"
-        onClick={handleClick}
+        onClick={onClick}
         disabled={disabled}
         className="w-full p-5 text-left outline-none disabled:opacity-50"
       >

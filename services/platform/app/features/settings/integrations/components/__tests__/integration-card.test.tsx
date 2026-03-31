@@ -86,14 +86,14 @@ describe('IntegrationCard', () => {
   });
 
   it('renders custom icon', () => {
-    render(
+    const { container } = render(
       <IntegrationCard
         title="Custom"
         description="Custom integration."
         icon={Code}
       />,
     );
-    expect(screen.getByText('Custom')).toBeInTheDocument();
+    expect(container.querySelector('svg')).toBeInTheDocument();
   });
 
   it('renders iconUrl as image when provided', () => {

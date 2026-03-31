@@ -4,6 +4,8 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { SsoProvider } from '@/lib/shared/schemas/sso_providers';
+
 import { SSOCard } from '../sso-card';
 
 vi.mock('next-intl', () => ({
@@ -55,8 +57,8 @@ describe('SSOCard', () => {
       scopes: ['openid', 'profile'],
       autoProvisionRole: false,
       roleMappingRules: [],
-      defaultRole: 'member' as const,
-    };
+      defaultRole: 'member',
+    } satisfies SsoProvider;
     render(<SSOCard organizationId="org-1" ssoProvider={provider} />);
     expect(
       screen.getByText('integrations.badge.connected'),
