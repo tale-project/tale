@@ -2,10 +2,15 @@ import { describe, it, expect, vi } from 'vitest';
 
 import { hexToHsl, isLightColor } from '../../../lib/utils/color';
 import {
+  mimeToExtension,
   parseBrandingJson,
-  serializeBrandingJson,
   resolveBrandingDir,
   resolveBrandingFilePath,
+  resolveImagePath,
+  resolveImagesDir,
+  serializeBrandingJson,
+  validateImageFilename,
+  validateImageType,
 } from '../file_utils';
 
 vi.stubEnv('TALE_CONFIG_DIR', '/tmp/test-data');
@@ -27,6 +32,21 @@ describe('parseBrandingJson', () => {
       brandColor: '#FF0000',
       accentColor: '#00FF00',
     });
+  });
+
+  it('parses branding JSON with image filenames', () => {
+    const input = JSON.stringify({
+      appName: 'Acme',
+      logoFilename: 'logo.png',
+      faviconLightFilename: 'favicon-light.ico',
+      faviconDarkFilename: 'favicon-dark.ico',
+    });
+
+    const result = parseBrandingJson(input);
+
+    expect(result.logoFilename).toBe('logo.png');
+    expect(result.faviconLightFilename).toBe('favicon-light.ico');
+    expect(result.faviconDarkFilename).toBe('favicon-dark.ico');
   });
 
   it('parses minimal branding JSON', () => {
@@ -73,6 +93,67 @@ describe('resolveBrandingFilePath', () => {
     expect(resolveBrandingFilePath('default')).toBe(
       '/tmp/test-data/branding/branding.json',
     );
+  });
+});
+
+describe('validateImageType', () => {
+  it('accepts valid image types', () => {
+    expect(validateImageType('logo')).toBe(true);
+    expect(validateImageType('favicon-light')).toBe(true);
+    expect(validateImageType('favicon-dark')).toBe(true);
+  });
+
+  it('rejects invalid types', () => {
+    expect(validateImageType('banner')).toBe(false);
+    expect(validateImageType('')).toBe(false);
+  });
+});
+
+describe('validateImageFilename', () => {
+  it('accepts valid filenames', () => {
+    expect(validateImageFilename('logo.png')).toBe(true);
+    expect(validateImageFilename('favicon-light.svg')).toBe(true);
+    expect(validateImageFilename('favicon-dark.ico')).toBe(true);
+  });
+
+  it('rejects invalid filenames', () => {
+    expect(validateImageFilename('../evil.png')).toBe(false);
+    expect(validateImageFilename('logo.exe')).toBe(false);
+    expect(validateImageFilename('LOGO.PNG')).toBe(false);
+    expect(validateImageFilename('')).toBe(false);
+  });
+});
+
+describe('mimeToExtension', () => {
+  it('maps known MIME types', () => {
+    expect(mimeToExtension('image/png')).toBe('png');
+    expect(mimeToExtension('image/svg+xml')).toBe('svg');
+    expect(mimeToExtension('image/jpeg')).toBe('jpg');
+    expect(mimeToExtension('image/webp')).toBe('webp');
+    expect(mimeToExtension('image/x-icon')).toBe('ico');
+  });
+
+  it('returns null for unknown types', () => {
+    expect(mimeToExtension('application/pdf')).toBeNull();
+    expect(mimeToExtension('text/plain')).toBeNull();
+  });
+});
+
+describe('resolveImagesDir', () => {
+  it('returns images subdirectory', () => {
+    expect(resolveImagesDir('default')).toBe('/tmp/test-data/branding/images');
+  });
+});
+
+describe('resolveImagePath', () => {
+  it('resolves valid image filename', () => {
+    expect(resolveImagePath('default', 'logo.png')).toBe(
+      '/tmp/test-data/branding/images/logo.png',
+    );
+  });
+
+  it('throws for invalid filename', () => {
+    expect(() => resolveImagePath('default', '../evil.png')).toThrow();
   });
 });
 

@@ -68,7 +68,8 @@ export function BrandingProvider({ children }: BrandingProviderProps) {
         accentColor: result.accentColor,
         isLoaded: true,
       });
-    } catch {
+    } catch (error) {
+      console.error('[Branding] Failed to load branding config', error);
       setBranding({ isLoaded: true });
     }
   }, [readBrandingFn]);
@@ -164,7 +165,7 @@ export function BrandingProvider({ children }: BrandingProviderProps) {
       root.style.setProperty('--primary', hexToHsl(brandColor));
       root.style.setProperty(
         '--primary-foreground',
-        isLightColor(brandColor) ? '240 5.9% 10%' : '0 0% 98%',
+        isLightColor(brandColor) ? '0 0% 3.9%' : '0 0% 98%',
       );
     }
 

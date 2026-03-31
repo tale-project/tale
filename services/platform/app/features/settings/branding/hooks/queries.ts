@@ -9,6 +9,9 @@ interface BrandingData {
   logoUrl: string | null;
   faviconLightUrl: string | null;
   faviconDarkUrl: string | null;
+  logoFilename?: string;
+  faviconLightFilename?: string;
+  faviconDarkFilename?: string;
   brandColor?: string;
   accentColor?: string;
   hash: string;

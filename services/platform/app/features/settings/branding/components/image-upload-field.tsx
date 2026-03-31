@@ -3,21 +3,20 @@
 import { Plus, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { Id } from '@/convex/_generated/dataModel';
-
 import { Image } from '@/app/components/ui/data-display/image';
 import { Spinner } from '@/app/components/ui/feedback/spinner';
 import { VStack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
-import { api } from '@/convex/_generated/api';
 import { cn } from '@/lib/utils/cn';
+
+import { useSaveImage } from '../hooks/mutations';
 
 const ACCEPTED_IMAGE_TYPES = '.png,.svg,.jpg,.jpeg,.webp,.ico';
 
 interface ImageUploadFieldProps {
   currentUrl?: string | null;
-  onUpload: (storageId: Id<'_storage'>) => void;
+  imageType: 'logo' | 'favicon-light' | 'favicon-dark';
+  onUpload: (filename: string) => void;
   onRemove?: () => void;
   onPreviewUrlChange?: (url: string | null) => void;
   size?: 'sm' | 'md';
@@ -27,6 +26,7 @@ interface ImageUploadFieldProps {
 
 export function ImageUploadField({
   currentUrl,
+  imageType,
   onUpload,
   onRemove,
   onPreviewUrlChange,
@@ -40,9 +40,7 @@ export function ImageUploadField({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const objectUrlRef = useRef<string | null>(null);
   const prevCurrentUrlRef = useRef(currentUrl);
-  const generateUploadUrl = useConvexMutation(
-    api.files.mutations.generateUploadUrl,
-  );
+  const saveImage = useSaveImage();
 
   if (prevCurrentUrlRef.current !== currentUrl) {
     prevCurrentUrlRef.current = currentUrl;
@@ -82,17 +80,19 @@ export function ImageUploadField({
       setIsUploading(true);
 
       try {
-        const uploadUrl = await generateUploadUrl.mutateAsync({});
-        const result = await fetch(uploadUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': file.type },
-          body: file,
+        const arrayBuffer = await file.arrayBuffer();
+        const bytes = new Uint8Array(arrayBuffer);
+        let binary = '';
+        for (let i = 0; i < bytes.length; i++) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+        const base64 = btoa(binary);
+        const result = await saveImage.mutateAsync({
+          type: imageType,
+          base64,
+          mimeType: file.type,
         });
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex storage upload response shape
-        const { storageId } = (await result.json()) as {
-          storageId: Id<'_storage'>;
-        };
-        onUpload(storageId);
+        onUpload(result.filename);
       } catch {
         setPreviewUrl(null);
         onPreviewUrlChange?.(null);
@@ -107,7 +107,7 @@ export function ImageUploadField({
         }
       }
     },
-    [generateUploadUrl, onUpload, onPreviewUrlChange],
+    [saveImage, imageType, onUpload, onPreviewUrlChange],
   );
 
   const handleRemove = useCallback(() => {
@@ -140,13 +140,23 @@ export function ImageUploadField({
           {isUploading ? (
             <Spinner className="size-4" />
           ) : displayUrl ? (
-            <Image
-              src={displayUrl}
-              alt=""
-              className="size-full object-contain"
-              width={48}
-              height={48}
-            />
+            previewUrl ? (
+              <img
+                src={previewUrl}
+                alt=""
+                className="size-full object-contain"
+                width={48}
+                height={48}
+              />
+            ) : (
+              <Image
+                src={displayUrl}
+                alt=""
+                className="size-full object-contain"
+                width={48}
+                height={48}
+              />
+            )
           ) : (
             <Plus className="text-muted-foreground size-4 shrink-0" />
           )}

@@ -123,6 +123,41 @@ export async function atomicWrite(
 }
 
 /**
+ * Atomically write binary content to a file using temp → fsync → rename.
+ * Same safety guarantees as {@link atomicWrite} but for Buffer data.
+ */
+export async function atomicWriteBuffer(
+  filePath: string,
+  content: Buffer,
+): Promise<void> {
+  const dir = path.dirname(filePath);
+  await mkdir(dir, { recursive: true });
+
+  const randomSuffix = randomUUID().slice(0, 8);
+  const tmpPath = path.join(
+    dir,
+    `.${path.basename(filePath)}.${Date.now()}.${randomSuffix}.tmp`,
+  );
+
+  try {
+    const fd = await open(
+      tmpPath,
+      constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY,
+    );
+    try {
+      await fd.writeFile(content);
+      await fd.sync();
+    } finally {
+      await fd.close();
+    }
+    await fsRename(tmpPath, filePath);
+  } catch (err) {
+    await unlink(tmpPath).catch(() => {});
+    throw err;
+  }
+}
+
+/**
  * Prune history entries to keep only the most recent N.
  */
 export async function pruneHistory(

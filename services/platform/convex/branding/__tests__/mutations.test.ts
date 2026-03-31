@@ -6,6 +6,10 @@ vi.mock('../../lib/rls', () => ({
   getAuthUserIdentity: vi.fn().mockResolvedValue({ userId: 'user_1' }),
 }));
 
+vi.mock('../../lib/rls/auth/get_trusted_auth_data', () => ({
+  getTrustedAuthData: vi.fn().mockResolvedValue({ trustedRole: 'admin' }),
+}));
+
 const { upsertBrandingBindingsHandler } = await import('../mutations');
 
 function createMockMutationCtx(

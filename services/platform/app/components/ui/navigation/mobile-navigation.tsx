@@ -53,7 +53,7 @@ function MobileNavigationItem({ item, onClose }: MobileNavigationItemProps) {
 
   const activeStyle =
     isActive && accentColor
-      ? { backgroundColor: `${accentColor}14`, color: accentColor }
+      ? { backgroundColor: `${accentColor}26`, color: accentColor }
       : undefined;
 
   return (

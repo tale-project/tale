@@ -3,10 +3,36 @@ import { v } from 'convex/values';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 
+import { components } from '../_generated/api';
 import { mutation } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls';
+import { getTrustedAuthData } from '../lib/rls/auth/get_trusted_auth_data';
+import { isAdmin } from '../lib/rls/helpers/role_helpers';
 
 const GLOBAL_BINDING_KEY = 'global';
+
+async function requireBrandingAdmin(ctx: MutationCtx): Promise<void> {
+  const authUser = await getAuthUserIdentity(ctx);
+  if (!authUser) throw new Error('Unauthenticated');
+
+  const trustedData = await getTrustedAuthData(ctx);
+  if (trustedData) {
+    if (!isAdmin(trustedData.trustedRole)) {
+      throw new Error('Only admins can modify branding');
+    }
+    return;
+  }
+
+  const memberRes = await ctx.runQuery(components.betterAuth.adapter.findMany, {
+    model: 'member',
+    paginationOpts: { cursor: null, numItems: 10 },
+    where: [{ field: 'userId', value: authUser.userId, operator: 'eq' }],
+  });
+  for (const member of memberRes?.page ?? []) {
+    if (typeof member.role === 'string' && isAdmin(member.role)) return;
+  }
+  throw new Error('Only admins can modify branding');
+}
 
 interface UpsertBindingsArgs {
   logoStorageId?: Id<'_storage'> | null;
@@ -14,12 +40,12 @@ interface UpsertBindingsArgs {
   faviconDarkStorageId?: Id<'_storage'> | null;
 }
 
+/** @deprecated Images now stored on filesystem via file_actions.saveImage. */
 export async function upsertBrandingBindingsHandler(
   ctx: MutationCtx,
   args: UpsertBindingsArgs,
 ): Promise<null> {
-  const authUser = await getAuthUserIdentity(ctx);
-  if (!authUser) throw new Error('Unauthenticated');
+  await requireBrandingAdmin(ctx);
 
   const existing = await ctx.db
     .query('brandingBindings')
@@ -76,6 +102,7 @@ export async function upsertBrandingBindingsHandler(
   return null;
 }
 
+/** @deprecated Images now stored on filesystem via file_actions.saveImage. */
 export const upsertBrandingBindings = mutation({
   args: {
     logoStorageId: v.optional(v.union(v.id('_storage'), v.null())),
@@ -86,12 +113,12 @@ export const upsertBrandingBindings = mutation({
   handler: async (ctx, args) => upsertBrandingBindingsHandler(ctx, args),
 });
 
+/** @deprecated Images now stored on filesystem via file_actions.deleteImage. */
 export const clearBrandingBindings = mutation({
   args: {},
   returns: v.null(),
   handler: async (ctx) => {
-    const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    await requireBrandingAdmin(ctx);
 
     const existing = await ctx.db
       .query('brandingBindings')

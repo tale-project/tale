@@ -44,7 +44,7 @@ function NavigationItem({ item }: { item: NavItem }) {
 
   const activeStyle =
     isActive && accentColor
-      ? { backgroundColor: `${accentColor}14`, color: accentColor }
+      ? { backgroundColor: `${accentColor}26`, color: accentColor }
       : undefined;
 
   const iconActiveStyle =

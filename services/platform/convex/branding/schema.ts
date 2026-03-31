@@ -1,6 +1,7 @@
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
+/** @deprecated Images now stored on filesystem. Retained for backward compatibility with existing data. */
 export const brandingBindingsTable = defineTable({
   organizationId: v.string(),
   logoStorageId: v.optional(v.id('_storage')),
