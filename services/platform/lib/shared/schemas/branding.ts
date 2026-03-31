@@ -1,6 +1,6 @@
 import { z } from 'zod/v4';
 
-export const HEX_COLOR_REGEX = /^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$/;
+const HEX_COLOR_REGEX = /^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$/;
 
 const hexColorSchema = z
   .string()

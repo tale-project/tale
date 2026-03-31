@@ -317,7 +317,7 @@ export function BrandingForm({
 
         <HStack justify="between" className="pt-6">
           {hasAnyBranding && (
-            <Button type="button" variant="outline" onClick={handleReset}>
+            <Button type="button" variant="secondary" onClick={handleReset}>
               {tCommon('actions.reset')}
             </Button>
           )}
