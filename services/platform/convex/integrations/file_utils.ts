@@ -46,14 +46,14 @@ export function validateIntegrationSlug(slug: string): boolean {
 
 function getBaseDir(): string {
   const dir = process.env.INTEGRATIONS_DIR;
-  if (!dir) {
-    throw new Error(
-      'INTEGRATIONS_DIR environment variable is not set. ' +
-        'Set it in .env to the absolute path of your integrations directory ' +
-        '(e.g., INTEGRATIONS_DIR=/path/to/tale/examples/integrations).',
-    );
-  }
-  return dir;
+  if (dir) return dir;
+  const configDir = process.env.TALE_CONFIG_DIR;
+  if (configDir) return path.join(configDir, 'integrations');
+  throw new Error(
+    'Neither TALE_CONFIG_DIR nor INTEGRATIONS_DIR environment variable is set. ' +
+      'Set TALE_CONFIG_DIR in .env to the root config directory ' +
+      '(e.g., TALE_CONFIG_DIR=/path/to/tale/examples).',
+  );
 }
 
 /**

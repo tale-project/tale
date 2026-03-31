@@ -79,14 +79,14 @@ export function parseAgentJson(content: string): AgentJsonConfig {
 
 function getBaseDir(): string {
   const dir = process.env.AGENTS_DIR;
-  if (!dir) {
-    throw new Error(
-      'AGENTS_DIR environment variable is not set. ' +
-        'Set it in .env to the absolute path of your agents directory ' +
-        '(e.g., AGENTS_DIR=/path/to/tale/examples/agents).',
-    );
-  }
-  return dir;
+  if (dir) return dir;
+  const configDir = process.env.TALE_CONFIG_DIR;
+  if (configDir) return path.join(configDir, 'agents');
+  throw new Error(
+    'Neither TALE_CONFIG_DIR nor AGENTS_DIR environment variable is set. ' +
+      'Set TALE_CONFIG_DIR in .env to the root config directory ' +
+      '(e.g., TALE_CONFIG_DIR=/path/to/tale/examples).',
+  );
 }
 
 export function resolveAgentsDir(orgSlug: string): string {

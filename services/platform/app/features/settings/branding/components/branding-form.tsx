@@ -6,6 +6,7 @@ import { useForm } from 'react-hook-form';
 
 import type { Id } from '@/convex/_generated/dataModel';
 
+import { useBrandingContext } from '@/app/components/branding/branding-provider';
 import { Form } from '@/app/components/ui/forms/form';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
@@ -21,7 +22,11 @@ import {
 
 import type { BrandingPreviewData } from './branding-preview';
 
-import { useUpsertBranding } from '../hooks/mutations';
+import {
+  useSaveBranding,
+  useSnapshotBrandingHistory,
+  useUpsertBrandingBindings,
+} from '../hooks/mutations';
 import { ColorPickerInput } from './color-picker-input';
 import { ImageUploadField } from './image-upload-field';
 
@@ -44,21 +49,24 @@ interface BrandingData {
 }
 
 interface BrandingFormProps {
-  organizationId: string;
   branding?: BrandingData;
   onPreviewChange: (data: BrandingPreviewData) => void;
+  onSaved?: () => void;
 }
 
 export function BrandingForm({
-  organizationId,
   branding,
   onPreviewChange,
+  onSaved,
 }: BrandingFormProps) {
+  const { refetch: refetchBranding } = useBrandingContext();
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
   const { t: tToast } = useT('toast');
   const { toast } = useToast();
-  const upsertBranding = useUpsertBranding();
+  const saveBranding = useSaveBranding();
+  const snapshotHistory = useSnapshotBrandingHistory();
+  const upsertBindings = useUpsertBrandingBindings();
 
   const form = useForm<BrandingFormData>({
     resolver: zodResolver(brandingFormSchema),
@@ -103,19 +111,38 @@ export function BrandingForm({
 
   const onSubmit = useCallback(
     async (data: BrandingFormData) => {
+      window.__taleLastSaveAt = Date.now();
       try {
-        await upsertBranding.mutateAsync({
-          organizationId,
-          appName: data.appName || undefined,
-          textLogo: data.textLogo || undefined,
-          brandColor: data.brandColor || undefined,
-          accentColor: data.accentColor || undefined,
-          logoStorageId: toStorageId(data.logoStorageId),
-          faviconLightStorageId: toStorageId(data.faviconLightStorageId),
-          faviconDarkStorageId: toStorageId(data.faviconDarkStorageId),
+        await snapshotHistory.mutateAsync({});
+
+        await saveBranding.mutateAsync({
+          config: {
+            appName: data.appName || undefined,
+            textLogo: data.textLogo || undefined,
+            brandColor: data.brandColor || undefined,
+            accentColor: data.accentColor || undefined,
+          },
         });
 
+        const logoId = toStorageId(data.logoStorageId);
+        const faviconLightId = toStorageId(data.faviconLightStorageId);
+        const faviconDarkId = toStorageId(data.faviconDarkStorageId);
+
+        if (
+          logoId !== undefined ||
+          faviconLightId !== undefined ||
+          faviconDarkId !== undefined
+        ) {
+          await upsertBindings.mutateAsync({
+            logoStorageId: logoId,
+            faviconLightStorageId: faviconLightId,
+            faviconDarkStorageId: faviconDarkId,
+          });
+        }
+
         form.reset(data);
+        onSaved?.();
+        void refetchBranding();
 
         toast({
           title: tToast('success.brandingUpdated'),
@@ -128,7 +155,16 @@ export function BrandingForm({
         });
       }
     },
-    [organizationId, upsertBranding, form, toast, tToast],
+    [
+      saveBranding,
+      snapshotHistory,
+      upsertBindings,
+      form,
+      toast,
+      tToast,
+      onSaved,
+      refetchBranding,
+    ],
   );
 
   const handleBrandColorChange = useCallback(
@@ -144,6 +180,26 @@ export function BrandingForm({
     },
     [setValue],
   );
+
+  const handleReset = useCallback(() => {
+    const opts = { shouldDirty: true };
+    setValue('appName', '', opts);
+    setValue('textLogo', '', opts);
+    setValue('brandColor', '', opts);
+    setValue('accentColor', '', opts);
+    setValue('logoStorageId', '', opts);
+    setValue('faviconLightStorageId', '', opts);
+    setValue('faviconDarkStorageId', '', opts);
+  }, [setValue]);
+
+  const hasAnyBranding =
+    !!branding?.appName ||
+    !!branding?.textLogo ||
+    !!branding?.brandColor ||
+    !!branding?.accentColor ||
+    !!branding?.logoUrl ||
+    !!branding?.faviconLightUrl ||
+    !!branding?.faviconDarkUrl;
 
   return (
     <Form
@@ -268,17 +324,24 @@ export function BrandingForm({
           />
         </FormSection>
 
-        <div className="ml-auto pt-6">
-          <Button
-            type="submit"
-            disabled={isSubmitting || !isDirty}
-            className="bg-foreground text-background hover:bg-foreground/90"
-          >
-            {isSubmitting
-              ? tCommon('actions.saving')
-              : tCommon('actions.saveChanges')}
-          </Button>
-        </div>
+        <HStack justify="between" className="pt-6">
+          {hasAnyBranding && (
+            <Button type="button" variant="outline" onClick={handleReset}>
+              {tCommon('actions.reset')}
+            </Button>
+          )}
+          <div className="ml-auto">
+            <Button
+              type="submit"
+              disabled={isSubmitting || !isDirty}
+              className="bg-foreground text-background hover:bg-foreground/90"
+            >
+              {isSubmitting
+                ? tCommon('actions.saving')
+                : tCommon('actions.saveChanges')}
+            </Button>
+          </div>
+        </HStack>
       </div>
     </Form>
   );

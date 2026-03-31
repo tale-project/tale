@@ -405,8 +405,11 @@ export TMPDIR=/app/data/convex/tmp
 mkdir -p "$TMPDIR"
 cd /app
 
+# Ensure TALE_CONFIG_DIR is set for derived paths
+data_dir="${TALE_CONFIG_DIR:-/app/data}"
+
 # Seed default agent JSON files — skip agents the user already has or has modified
-agents_dir="${AGENTS_DIR:-/app/data/agents}"
+agents_dir="${AGENTS_DIR:-${data_dir}/agents}"
 builtin_dir="/app/agents-builtin"
 mkdir -p "$agents_dir"
 if [ -d "$builtin_dir" ] && [ "$(ls -A "$builtin_dir" 2>/dev/null)" ]; then
@@ -430,7 +433,7 @@ if [ -d "$builtin_dir" ] && [ "$(ls -A "$builtin_dir" 2>/dev/null)" ]; then
 fi
 
 # Seed default workflow template JSON files — skip workflows the user has modified or installed
-workflows_dir="${WORKFLOWS_DIR:-/app/data/workflows}"
+workflows_dir="${WORKFLOWS_DIR:-${data_dir}/workflows}"
 workflows_builtin_dir="/app/workflows-builtin"
 mkdir -p "$workflows_dir"
 if [ -d "$workflows_builtin_dir" ] && [ "$(ls -A "$workflows_builtin_dir" 2>/dev/null)" ]; then
@@ -469,7 +472,7 @@ if [ -d "$workflows_builtin_dir" ] && [ "$(ls -A "$workflows_builtin_dir" 2>/dev
 fi
 
 # Seed builtin integration template directories — skip integrations the user has installed
-integrations_dir="${INTEGRATIONS_DIR:-/app/data/integrations}"
+integrations_dir="${INTEGRATIONS_DIR:-${data_dir}/integrations}"
 integrations_builtin_dir="/app/integrations-builtin"
 mkdir -p "$integrations_dir"
 if [ -d "$integrations_builtin_dir" ] && [ "$(ls -A "$integrations_builtin_dir" 2>/dev/null)" ]; then
@@ -608,6 +611,8 @@ deploy_convex_functions() {
     "TRUSTED_EMAIL_HEADER"
     "TRUSTED_NAME_HEADER"
     "TRUSTED_ROLE_HEADER"
+    # Root directory for file-based configs (agents, workflows, integrations, branding)
+    "TALE_CONFIG_DIR"
     # Agents directory (filesystem path for agent JSON configs)
     "AGENTS_DIR"
     # Workflows directory (filesystem path for workflow template JSON configs)

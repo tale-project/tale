@@ -68,16 +68,19 @@ function envNormalizeCommon() {
     process.env.SITE_URL = `http://${host}${host === 'localhost' ? `:${port}` : ''}`;
   }
 
+  if (!process.env.TALE_CONFIG_DIR) {
+    process.env.TALE_CONFIG_DIR = join(repoRoot, 'examples');
+  }
+  const configDir = process.env.TALE_CONFIG_DIR;
+
   if (!process.env.AGENTS_DIR) {
-    process.env.AGENTS_DIR = join(repoRoot, 'examples', 'agents');
+    process.env.AGENTS_DIR = join(configDir, 'agents');
   }
-
   if (!process.env.WORKFLOWS_DIR) {
-    process.env.WORKFLOWS_DIR = join(repoRoot, 'examples', 'workflows');
+    process.env.WORKFLOWS_DIR = join(configDir, 'workflows');
   }
-
   if (!process.env.INTEGRATIONS_DIR) {
-    process.env.INTEGRATIONS_DIR = join(repoRoot, 'examples', 'integrations');
+    process.env.INTEGRATIONS_DIR = join(configDir, 'integrations');
   }
 }
 
@@ -401,7 +404,18 @@ async function main() {
     try {
       await runCommand('bun', ['scripts/sync-convex-env-from-dotenv.ts']);
 
-      // Sync AGENTS_DIR and WORKFLOWS_DIR explicitly (set dynamically, not in .env files)
+      // Sync TALE_CONFIG_DIR and derived dirs explicitly (set dynamically, not in .env files)
+      const taleConfigDir = process.env.TALE_CONFIG_DIR;
+      if (taleConfigDir) {
+        await runCommand('bunx', [
+          'convex',
+          'env',
+          'set',
+          `TALE_CONFIG_DIR=${taleConfigDir}`,
+        ]);
+        console.log(`[dev] ✅ TALE_CONFIG_DIR=${taleConfigDir}`);
+      }
+
       const agentsDir = process.env.AGENTS_DIR;
       if (agentsDir) {
         await runCommand('bunx', [

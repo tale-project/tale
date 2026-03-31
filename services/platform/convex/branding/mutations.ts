@@ -3,54 +3,32 @@ import { v } from 'convex/values';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 
-import { HEX_COLOR_REGEX } from '../../lib/shared/schemas/branding';
 import { mutation } from '../_generated/server';
-import * as AuditLogHelpers from '../audit_logs/helpers';
-import { ADMIN_ONLY, validateOrganizationAccess } from '../lib/rls';
+import { getAuthUserIdentity } from '../lib/rls';
 
-interface UpsertBrandingArgs {
-  organizationId: string;
-  appName?: string;
-  textLogo?: string;
+const GLOBAL_BINDING_KEY = 'global';
+
+interface UpsertBindingsArgs {
   logoStorageId?: Id<'_storage'> | null;
   faviconLightStorageId?: Id<'_storage'> | null;
   faviconDarkStorageId?: Id<'_storage'> | null;
-  brandColor?: string;
-  accentColor?: string;
 }
 
-export async function upsertBrandingHandler(
+export async function upsertBrandingBindingsHandler(
   ctx: MutationCtx,
-  args: UpsertBrandingArgs,
+  args: UpsertBindingsArgs,
 ): Promise<null> {
-  if (args.brandColor && !HEX_COLOR_REGEX.test(args.brandColor)) {
-    throw new Error('Invalid brandColor: must be a hex color (e.g. #FF0000)');
-  }
-  if (args.accentColor && !HEX_COLOR_REGEX.test(args.accentColor)) {
-    throw new Error('Invalid accentColor: must be a hex color (e.g. #FF0000)');
-  }
-
-  const rlsContext = await validateOrganizationAccess(
-    ctx,
-    args.organizationId,
-    ADMIN_ONLY,
-  );
+  const authUser = await getAuthUserIdentity(ctx);
+  if (!authUser) throw new Error('Unauthenticated');
 
   const existing = await ctx.db
-    .query('brandingSettings')
+    .query('brandingBindings')
     .withIndex('by_organizationId', (q) =>
-      q.eq('organizationId', args.organizationId),
+      q.eq('organizationId', GLOBAL_BINDING_KEY),
     )
     .first();
 
-  const {
-    organizationId: _,
-    logoStorageId,
-    faviconLightStorageId,
-    faviconDarkStorageId,
-    ...restFields
-  } = args;
-  const now = Date.now();
+  const { logoStorageId, faviconLightStorageId, faviconDarkStorageId } = args;
 
   const storageFields = {
     ...(logoStorageId !== undefined && {
@@ -87,66 +65,54 @@ export async function upsertBrandingHandler(
       await ctx.storage.delete(existing.faviconDarkStorageId);
     }
 
-    await ctx.db.patch(existing._id, {
-      ...restFields,
-      ...storageFields,
-      updatedAt: now,
-    });
+    await ctx.db.patch(existing._id, storageFields);
   } else {
-    await ctx.db.insert('brandingSettings', {
-      organizationId: args.organizationId,
-      ...restFields,
+    await ctx.db.insert('brandingBindings', {
+      organizationId: GLOBAL_BINDING_KEY,
       ...storageFields,
-      updatedAt: now,
     });
   }
-
-  await AuditLogHelpers.logSuccess(
-    ctx,
-    {
-      organizationId: args.organizationId,
-      actor: {
-        id: rlsContext.user.userId,
-        email: rlsContext.user.email,
-        role: rlsContext.role,
-        type: 'user',
-      },
-    },
-    existing ? 'update_branding' : 'create_branding',
-    'admin',
-    'branding',
-    args.organizationId,
-    'Branding settings',
-    existing
-      ? {
-          appName: existing.appName,
-          textLogo: existing.textLogo,
-          brandColor: existing.brandColor,
-          accentColor: existing.accentColor,
-        }
-      : undefined,
-    {
-      appName: args.appName,
-      textLogo: args.textLogo,
-      brandColor: args.brandColor,
-      accentColor: args.accentColor,
-    },
-  );
 
   return null;
 }
 
-export const upsertBranding = mutation({
+export const upsertBrandingBindings = mutation({
   args: {
-    organizationId: v.string(),
-    appName: v.optional(v.string()),
-    textLogo: v.optional(v.string()),
     logoStorageId: v.optional(v.union(v.id('_storage'), v.null())),
     faviconLightStorageId: v.optional(v.union(v.id('_storage'), v.null())),
     faviconDarkStorageId: v.optional(v.union(v.id('_storage'), v.null())),
-    brandColor: v.optional(v.string()),
-    accentColor: v.optional(v.string()),
   },
   returns: v.null(),
-  handler: async (ctx, args) => upsertBrandingHandler(ctx, args),
+  handler: async (ctx, args) => upsertBrandingBindingsHandler(ctx, args),
+});
+
+export const clearBrandingBindings = mutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) throw new Error('Unauthenticated');
+
+    const existing = await ctx.db
+      .query('brandingBindings')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', GLOBAL_BINDING_KEY),
+      )
+      .first();
+
+    if (existing) {
+      if (existing.logoStorageId) {
+        await ctx.storage.delete(existing.logoStorageId);
+      }
+      if (existing.faviconLightStorageId) {
+        await ctx.storage.delete(existing.faviconLightStorageId);
+      }
+      if (existing.faviconDarkStorageId) {
+        await ctx.storage.delete(existing.faviconDarkStorageId);
+      }
+      await ctx.db.delete(existing._id);
+    }
+
+    return null;
+  },
 });

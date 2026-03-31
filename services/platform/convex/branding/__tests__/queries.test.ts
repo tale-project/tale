@@ -1,193 +1,101 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
-import type { QueryCtx } from '../../_generated/server';
+import { hexToHsl, isLightColor } from '../../../lib/utils/color';
+import {
+  parseBrandingJson,
+  serializeBrandingJson,
+  resolveBrandingDir,
+  resolveBrandingFilePath,
+} from '../file_utils';
 
-vi.mock('../../lib/rls', () => ({
-  validateOrganizationAccess: vi.fn(),
-  getAuthUserIdentity: vi.fn(),
-}));
+vi.stubEnv('TALE_CONFIG_DIR', '/tmp/test-data');
 
-vi.mock('../../lib/helpers/public_storage_url', () => ({
-  toPublicUrl: (url: string) => url,
-}));
-
-const { getBrandingHandler } = await import('../queries');
-const { validateOrganizationAccess } = await import('../../lib/rls');
-
-const mockedValidate = vi.mocked(validateOrganizationAccess);
-
-function createMockQueryCtx(
-  brandingDoc: Record<string, unknown> | null = null,
-) {
-  const builder = {
-    withIndex: vi.fn().mockReturnThis(),
-    first: vi.fn().mockResolvedValue(brandingDoc),
-  };
-
-  const ctx = {
-    db: {
-      query: vi.fn().mockReturnValue(builder),
-    },
-    storage: {
-      getUrl: vi
-        .fn()
-        .mockImplementation((id: string) =>
-          Promise.resolve(`https://storage.example.com/${id}`),
-        ),
-    },
-  };
-
-  return { ctx, builder };
-}
-
-describe('getBrandingHandler', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it('validates organization access', async () => {
-    const { ctx } = createMockQueryCtx();
-
-    await getBrandingHandler(ctx as unknown as QueryCtx, {
-      organizationId: 'org_1',
-    });
-
-    expect(mockedValidate).toHaveBeenCalledWith(
-      ctx,
-      'org_1',
-      undefined,
-      undefined,
-    );
-  });
-
-  it('returns null when no branding exists', async () => {
-    const { ctx } = createMockQueryCtx(null);
-
-    const result = await getBrandingHandler(ctx as unknown as QueryCtx, {
-      organizationId: 'org_1',
-    });
-
-    expect(result).toBeNull();
-  });
-
-  it('queries branding by organizationId index', async () => {
-    const { ctx, builder } = createMockQueryCtx(null);
-
-    await getBrandingHandler(ctx as unknown as QueryCtx, {
-      organizationId: 'org_1',
-    });
-
-    expect(ctx.db.query).toHaveBeenCalledWith('brandingSettings');
-    expect(builder.withIndex).toHaveBeenCalledWith(
-      'by_organizationId',
-      expect.any(Function),
-    );
-  });
-
-  it('returns branding with resolved storage URLs', async () => {
-    const { ctx } = createMockQueryCtx({
-      _id: 'branding_1',
-      organizationId: 'org_1',
-      appName: 'Acme Corp',
-      textLogo: 'Acme',
-      logoStorageId: 'storage_logo',
-      faviconLightStorageId: 'storage_fav_light',
-      faviconDarkStorageId: 'storage_fav_dark',
+describe('parseBrandingJson', () => {
+  it('parses valid branding JSON', () => {
+    const input = JSON.stringify({
+      appName: 'Acme',
+      textLogo: 'A',
       brandColor: '#FF0000',
       accentColor: '#00FF00',
-      updatedAt: 1000,
     });
 
-    const result = await getBrandingHandler(ctx as unknown as QueryCtx, {
-      organizationId: 'org_1',
-    });
+    const result = parseBrandingJson(input);
 
     expect(result).toEqual({
-      appName: 'Acme Corp',
-      textLogo: 'Acme',
-      logoUrl: 'https://storage.example.com/storage_logo',
-      faviconLightUrl: 'https://storage.example.com/storage_fav_light',
-      faviconDarkUrl: 'https://storage.example.com/storage_fav_dark',
+      appName: 'Acme',
+      textLogo: 'A',
       brandColor: '#FF0000',
       accentColor: '#00FF00',
     });
   });
 
-  it('resolves null URLs when storage IDs are missing', async () => {
-    const { ctx } = createMockQueryCtx({
-      _id: 'branding_1',
-      organizationId: 'org_1',
-      appName: 'Acme',
-      updatedAt: 1000,
-    });
-
-    const result = await getBrandingHandler(ctx as unknown as QueryCtx, {
-      organizationId: 'org_1',
-    });
-
-    expect(result).toEqual({
-      appName: 'Acme',
-      textLogo: undefined,
-      logoUrl: null,
-      faviconLightUrl: null,
-      faviconDarkUrl: null,
-      brandColor: undefined,
-      accentColor: undefined,
-    });
-    expect(ctx.storage.getUrl).not.toHaveBeenCalled();
+  it('parses minimal branding JSON', () => {
+    const result = parseBrandingJson('{}');
+    expect(result).toEqual({});
   });
 
-  it('returns partial branding when only some fields are set', async () => {
-    const { ctx } = createMockQueryCtx({
-      _id: 'branding_1',
-      organizationId: 'org_1',
-      brandColor: '#3366FF',
-      updatedAt: 1000,
-    });
+  it('throws on invalid JSON', () => {
+    expect(() => parseBrandingJson('not json')).toThrow();
+  });
+});
 
-    const result = await getBrandingHandler(ctx as unknown as QueryCtx, {
-      organizationId: 'org_1',
-    });
+describe('serializeBrandingJson', () => {
+  it('round-trips through parse', () => {
+    const config = {
+      appName: 'Acme',
+      brandColor: '#FF0000',
+    };
 
-    expect(result).toEqual({
-      appName: undefined,
-      textLogo: undefined,
-      logoUrl: null,
-      faviconLightUrl: null,
-      faviconDarkUrl: null,
-      brandColor: '#3366FF',
-      accentColor: undefined,
-    });
+    const serialized = serializeBrandingJson(config);
+    const parsed = parseBrandingJson(serialized);
+
+    expect(parsed.appName).toBe('Acme');
+    expect(parsed.brandColor).toBe('#FF0000');
+  });
+});
+
+describe('resolveBrandingDir', () => {
+  it('returns base dir for default org', () => {
+    expect(resolveBrandingDir('default')).toBe('/tmp/test-data/branding');
   });
 
-  it('returns null for URLs when storage fetch fails', async () => {
-    const { ctx } = createMockQueryCtx({
-      _id: 'branding_1',
-      organizationId: 'org_1',
-      appName: 'Acme',
-      logoStorageId: 'storage_logo',
-      faviconLightStorageId: 'storage_fav_light',
-      faviconDarkStorageId: 'storage_fav_dark',
-      updatedAt: 1000,
-    });
+  it('returns subdirectory for named org', () => {
+    expect(resolveBrandingDir('acme')).toBe('/tmp/test-data/branding/acme');
+  });
 
-    ctx.storage.getUrl
-      .mockResolvedValueOnce('https://storage.example.com/storage_logo')
-      .mockRejectedValueOnce(new Error('Storage unavailable'))
-      .mockResolvedValueOnce('https://storage.example.com/storage_fav_dark');
+  it('throws for invalid org slug', () => {
+    expect(() => resolveBrandingDir('../evil')).toThrow();
+  });
+});
 
-    const result = await getBrandingHandler(ctx as unknown as QueryCtx, {
-      organizationId: 'org_1',
-    });
+describe('resolveBrandingFilePath', () => {
+  it('returns branding.json path', () => {
+    expect(resolveBrandingFilePath('default')).toBe(
+      '/tmp/test-data/branding/branding.json',
+    );
+  });
+});
 
-    expect(result).toEqual({
-      appName: 'Acme',
-      textLogo: undefined,
-      logoUrl: 'https://storage.example.com/storage_logo',
-      faviconLightUrl: null,
-      faviconDarkUrl: 'https://storage.example.com/storage_fav_dark',
-      brandColor: undefined,
-      accentColor: undefined,
-    });
+describe('hexToHsl', () => {
+  it('converts pure red', () => {
+    expect(hexToHsl('#FF0000')).toBe('0 100% 50%');
+  });
+
+  it('converts black', () => {
+    expect(hexToHsl('#000000')).toBe('0 0% 0%');
+  });
+
+  it('converts white', () => {
+    expect(hexToHsl('#FFFFFF')).toBe('0 0% 100%');
+  });
+});
+
+describe('isLightColor', () => {
+  it('white is light', () => {
+    expect(isLightColor('#FFFFFF')).toBe(true);
+  });
+
+  it('black is not light', () => {
+    expect(isLightColor('#000000')).toBe(false);
   });
 });

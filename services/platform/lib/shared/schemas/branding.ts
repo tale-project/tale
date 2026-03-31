@@ -7,6 +7,14 @@ const hexColorSchema = z
   .refine((val) => val === '' || HEX_COLOR_REGEX.test(val), 'Invalid hex color')
   .optional();
 
+export const brandingJsonSchema = z.object({
+  appName: z.string().max(100).optional(),
+  textLogo: z.string().max(50).optional(),
+  brandColor: hexColorSchema,
+  accentColor: hexColorSchema,
+});
+export type BrandingJsonConfig = z.infer<typeof brandingJsonSchema>;
+
 export const brandingFormSchema = z.object({
   appName: z.string().max(100).optional(),
   textLogo: z.string().max(50).optional(),

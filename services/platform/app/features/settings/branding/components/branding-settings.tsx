@@ -16,14 +16,11 @@ interface BrandingData {
 }
 
 interface BrandingSettingsProps {
-  organizationId: string;
   branding?: BrandingData;
+  onSaved?: () => void;
 }
 
-export function BrandingSettings({
-  organizationId,
-  branding,
-}: BrandingSettingsProps) {
+export function BrandingSettings({ branding, onSaved }: BrandingSettingsProps) {
   const [previewData, setPreviewData] = useState<BrandingPreviewData>({
     appName: branding?.appName,
     textLogo: branding?.textLogo,
@@ -39,9 +36,9 @@ export function BrandingSettings({
   return (
     <div className="flex flex-1 gap-6">
       <BrandingForm
-        organizationId={organizationId}
         branding={branding}
         onPreviewChange={handlePreviewChange}
+        onSaved={onSaved}
       />
       <div className="hidden flex-1 lg:flex">
         <BrandingPreview data={previewData} />

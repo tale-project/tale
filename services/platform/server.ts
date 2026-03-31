@@ -22,11 +22,9 @@ const liveReloadEnabled = process.env.LIVE_RELOAD === 'true';
 const sseClients = new Set<ReadableStreamDefaultController>();
 
 if (liveReloadEnabled) {
-  const watchDirs = [
-    process.env.AGENTS_DIR,
-    process.env.WORKFLOWS_DIR,
-    process.env.INTEGRATIONS_DIR,
-  ].filter((d): d is string => Boolean(d));
+  const watchDirs = [process.env.TALE_CONFIG_DIR].filter((d): d is string =>
+    Boolean(d),
+  );
 
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   let lastInternalWriteTime = 0;

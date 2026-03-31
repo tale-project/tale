@@ -1,4 +1,3 @@
-import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
@@ -8,7 +7,6 @@ import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { BrandingSettings } from '@/app/features/settings/branding/components/branding-settings';
 import { useBranding } from '@/app/features/settings/branding/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
@@ -16,13 +14,6 @@ export const Route = createFileRoute('/dashboard/$id/settings/branding')({
   head: () => ({
     meta: seo('branding'),
   }),
-  loader: ({ context, params }) => {
-    void context.queryClient.prefetchQuery(
-      convexQuery(api.branding.queries.getBranding, {
-        organizationId: params.id,
-      }),
-    );
-  },
   component: BrandingSettingsPage,
 });
 
@@ -70,13 +61,15 @@ function BrandingSettingsSkeleton() {
 }
 
 function BrandingSettingsPage() {
-  const { id: organizationId } = Route.useParams();
   const { t } = useT('accessDenied');
 
   const ability = useAbility();
 
-  const { data: branding, isLoading: isBrandingLoading } =
-    useBranding(organizationId);
+  const {
+    data: branding,
+    isLoading: isBrandingLoading,
+    refetch,
+  } = useBranding();
 
   if (ability.cannot('read', 'orgSettings')) {
     return <AccessDenied message={t('branding')} />;
@@ -87,9 +80,6 @@ function BrandingSettingsPage() {
   }
 
   return (
-    <BrandingSettings
-      organizationId={organizationId}
-      branding={branding ?? undefined}
-    />
+    <BrandingSettings branding={branding ?? undefined} onSaved={refetch} />
   );
 }
