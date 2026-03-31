@@ -36,4 +36,11 @@ Tale generates configuration files for Claude Code, Cursor, GitHub Copilot, and 
 
 ## Keeping rules up to date
 
-When you update the CLI with `tale update`, rules files and the reference directory are regenerated to match the new version. Do not edit these files manually as they are overwritten on update.
+Rules files and the reference directory are bundled into the CLI binary. To get the latest version, first update the CLI itself, then run `tale update` to regenerate the files in your project:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.sh | bash
+tale update
+```
+
+Do not edit these files manually as they are overwritten on update.
