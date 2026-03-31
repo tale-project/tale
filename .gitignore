@@ -84,5 +84,5 @@ build/
 # Local ARM64 Dockerfile for operator
 services/operator/Dockerfile.arm64
 
-# Agent examples
-examples/agents/.history/
+# Examples
+examples/**/.history/
