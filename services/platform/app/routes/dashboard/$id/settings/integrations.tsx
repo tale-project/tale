@@ -206,10 +206,9 @@ function IntegrationsPage() {
           cred?.sqlConnectionConfig,
         ),
         iconUrl:
-          cred?.iconUrl ??
-          (typeof item.iconUrl === 'string'
+          typeof item.iconUrl === 'string'
             ? item.iconUrl
-            : getTemplateIconUrl(slug)),
+            : getTemplateIconUrl(slug),
       };
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- merging file + DB data into IntegrationListItem shape
     },
