@@ -26,9 +26,14 @@ const sheetVariants = cva(
         right:
           'inset-y-0 right-0 h-full w-3/4 border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-sm',
       },
+      size: {
+        sm: '',
+        md: 'sm:max-w-[26rem]',
+      },
     },
     defaultVariants: {
       side: 'right',
+      size: 'sm',
     },
   },
 );
@@ -43,6 +48,8 @@ interface SheetProps extends VariantProps<typeof sheetVariants> {
   children: ReactNode;
   className?: string;
   hideClose?: boolean;
+  /** Width of the sheet panel */
+  size?: 'sm' | 'md';
 }
 
 const SheetCloseButton = forwardRef<
@@ -68,6 +75,7 @@ export function Sheet({
   title,
   description,
   side = 'right',
+  size = 'sm',
   children,
   className,
   hideClose,
@@ -77,7 +85,7 @@ export function Sheet({
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/80" />
         <DialogPrimitive.Content
-          className={cn(sheetVariants({ side }), className)}
+          className={cn(sheetVariants({ side, size }), className)}
         >
           <DialogPrimitive.Title className="sr-only">
             {title}

@@ -920,8 +920,30 @@
       }
     },
     "integrations": {
+      "title": "Integrations",
       "accessDenied": "You need Admin or Developer permissions to access integrations settings.",
       "manage": "Manage",
+      "pageSubtitle": "Connect third-party services to your workspace.",
+      "addCustomIntegration": "Custom integration",
+      "tabs": {
+        "all": "All integrations",
+        "connected": "Connected",
+        "custom": "Custom integrations"
+      },
+      "searchPlaceholder": "Search integrations...",
+      "badge": {
+        "connected": "Connected",
+        "connect": "Connect",
+        "active": "Active"
+      },
+      "empty": {
+        "connectedTitle": "No connected integrations",
+        "connectedDescription": "Integrations you connect will appear here.",
+        "customTitle": "No custom integrations",
+        "customDescription": "Custom integrations you create will appear here.",
+        "searchTitle": "No results found",
+        "searchDescription": "Try adjusting your search or request a new integration."
+      },
       "errors": {
         "organizationRequired": "Organization ID is required"
       },
@@ -1194,6 +1216,20 @@
         "noRelatedAutomations": "No automations use this integration yet",
         "createAutomation": "Create automation",
         "loadingAutomations": "Loading automations"
+      },
+      "panel": {
+        "addIntegration": "Add integration",
+        "integrationDetails": "Integration details",
+        "connectName": "Connect {name}",
+        "saveChanges": "Save changes",
+        "disconnectConfirmTitle": "Disconnect integration",
+        "disconnectConfirmDescription": "Are you sure you want to disconnect this integration? You can reconnect it later.",
+        "deleteConfirmTitle": "Delete integration",
+        "deleteConfirmDescription": "Are you sure you want to delete this integration? This action cannot be undone.",
+        "deleteIntegration": "Delete integration",
+        "connectedAccount": "Connected account",
+        "connectedVia": "Connected via {provider}",
+        "reconnect": "Reconnect"
       },
       "authMethods": {
         "api_key": "API key",

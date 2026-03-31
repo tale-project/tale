@@ -8,6 +8,7 @@ import { AccessDenied } from '@/app/components/layout/access-denied';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Card } from '@/app/components/ui/layout/card';
 import { Grid, HStack, Stack } from '@/app/components/ui/layout/layout';
+import { getTemplateIconUrl } from '@/app/features/settings/integrations/components/integration-upload/constants/integration-templates';
 import {
   type IntegrationListItem,
   Integrations,
@@ -22,6 +23,7 @@ import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
+import { isRecord } from '@/lib/utils/type-guards';
 
 const searchSchema = z.object({
   tab: z.string().optional(),
@@ -50,21 +52,14 @@ export const Route = createFileRoute('/dashboard/$id/settings/integrations')({
 
 function IntegrationCardSkeleton() {
   return (
-    <Card
-      className="flex flex-col justify-between"
-      contentClassName="p-5"
-      footer={
-        <HStack justify="between" className="w-full">
-          <Skeleton className="h-6 w-20" />
-          <Skeleton className="h-5 w-9 rounded-full" />
-        </HStack>
-      }
-      footerClassName="border-border border-t px-5 py-4"
-    >
+    <Card className="flex flex-col justify-between" contentClassName="p-5">
       <Stack gap={3}>
-        <div className="border-border flex h-11 w-11 items-center justify-center rounded-md border">
-          <Skeleton className="size-6 rounded-sm" />
-        </div>
+        <HStack justify="between" align="start">
+          <div className="border-border flex h-11 w-11 items-center justify-center rounded-lg border">
+            <Skeleton className="size-6 rounded-sm" />
+          </div>
+          <Skeleton className="h-5 w-16 rounded-full" />
+        </HStack>
         <Stack gap={1}>
           <Skeleton className="h-5 w-24" />
           <Skeleton className="h-5 w-full" />
@@ -77,11 +72,24 @@ function IntegrationCardSkeleton() {
 
 function IntegrationsSkeleton() {
   return (
-    <Grid cols={1} md={2} lg={3}>
-      {Array.from({ length: 4 }).map((_, i) => (
-        <IntegrationCardSkeleton key={i} />
-      ))}
-    </Grid>
+    <Stack gap={0}>
+      <HStack justify="between" align="start" className="pb-3">
+        <Stack gap={1}>
+          <Skeleton className="h-7 w-32" />
+          <Skeleton className="h-5 w-64" />
+        </Stack>
+        <Skeleton className="h-9 w-40" />
+      </HStack>
+      <HStack justify="between" align="center" className="mb-4">
+        <Skeleton className="h-9 w-72 rounded-lg" />
+        <Skeleton className="h-9 w-64 rounded-md" />
+      </HStack>
+      <Grid cols={1} md={2} lg={3}>
+        {Array.from({ length: 6 }).map((_, i) => (
+          <IntegrationCardSkeleton key={i} />
+        ))}
+      </Grid>
+    </Stack>
   );
 }
 
@@ -106,10 +114,12 @@ function IntegrationsPage() {
     if (!credentials || !fileIntegrations.length) return;
     const credSlugs = new Set((credentials ?? []).map((c) => c.slug));
     for (const item of fileIntegrations) {
-      if (!item || !('slug' in item)) continue;
-      const { slug } = item;
+      if (!item || !('slug' in item) || !('installed' in item)) continue;
+      if (!item.installed) continue;
+      const slug = String(item.slug);
       if (!credSlugs.has(slug) && !ensuredRef.current.has(slug)) {
         ensuredRef.current.add(slug);
+        window.__taleLastSaveAt = Date.now();
         void installFn({ orgSlug: 'default', slug, organizationId });
       }
     }
@@ -151,7 +161,6 @@ function IntegrationsPage() {
   }
 
   // Merge file-based integration config with DB credential records
-  // so each item has the real credential _id for API calls
   const credentialsBySlug = new Map(
     (credentials ?? []).map((c) => [c.slug, c]),
   );
@@ -162,32 +171,64 @@ function IntegrationsPage() {
     (item): item is Record<string, unknown> =>
       item != null && 'title' in item && 'slug' in item,
   );
-  const mergedIntegrations = validIntegrations.map((item) => {
-    const slug = String(item.slug);
-    const cred = credentialsBySlug.get(slug);
-    return {
-      ...item,
-      _id: cred?._id ?? slug,
-      name: slug,
-      organizationId,
-      isActive: cred?.isActive ?? false,
-      status: cred?.status ?? 'inactive',
-      authMethod: cred?.authMethod ?? item.authMethod,
-      oauth2Config: cred?.oauth2Config,
-      basicAuth: cred?.basicAuth,
-      apiKeyAuth: cred?.apiKeyAuth,
-      oauth2Auth: cred?.oauth2Auth,
-      connectionConfig: cred?.connectionConfig,
-      sqlConnectionConfig: cred?.sqlConnectionConfig,
-    };
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- merging file + DB data into IntegrationListItem shape
-  }) as unknown as IntegrationListItem[];
+
+  // Deep-merge object configs so DB partials don't wipe file-defined defaults
+  // (e.g. OAuth2 authorizationUrl/tokenUrl from config.json)
+  const mergeConfig = (fileVal: unknown, credVal: unknown): unknown => {
+    if (isRecord(credVal) && isRecord(fileVal)) {
+      return { ...fileVal, ...credVal };
+    }
+    return credVal ?? fileVal;
+  };
+
+  const allIntegrations: IntegrationListItem[] = validIntegrations.map(
+    (item) => {
+      const slug = String(item.slug);
+      const cred = credentialsBySlug.get(slug);
+      return {
+        ...item,
+        _id: cred?._id ?? slug,
+        name: slug,
+        organizationId,
+        isActive: cred?.isActive ?? false,
+        status: cred?.status ?? 'inactive',
+        authMethod: cred?.authMethod ?? item.authMethod,
+        oauth2Config: mergeConfig(item.oauth2Config, cred?.oauth2Config),
+        basicAuth: cred?.basicAuth ?? item.basicAuth,
+        apiKeyAuth: cred?.apiKeyAuth ?? item.apiKeyAuth,
+        oauth2Auth: cred?.oauth2Auth ?? item.oauth2Auth,
+        connectionConfig: mergeConfig(
+          item.connectionConfig,
+          cred?.connectionConfig,
+        ),
+        sqlConnectionConfig: mergeConfig(
+          item.sqlConnectionConfig,
+          cred?.sqlConnectionConfig,
+        ),
+        iconUrl:
+          typeof item.iconUrl === 'string'
+            ? item.iconUrl
+            : getTemplateIconUrl(slug),
+      };
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- merging file + DB data into IntegrationListItem shape
+    },
+  ) as unknown as IntegrationListItem[];
+
+  const handleTabChange = (tab: string) => {
+    void navigate({
+      from: Route.fullPath,
+      search: { ...search, tab },
+      replace: true,
+    });
+  };
 
   return (
     <Integrations
       organizationId={organizationId}
-      integrations={mergedIntegrations}
+      integrations={allIntegrations}
       ssoProvider={ssoProvider ?? null}
+      tab={search.tab ?? 'all'}
+      onTabChange={handleTabChange}
     />
   );
 }
