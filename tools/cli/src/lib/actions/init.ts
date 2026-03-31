@@ -151,6 +151,9 @@ export async function init(options: InitOptions): Promise<void> {
   logger.info(
     `  ${step++}. Edit agents/, workflows/, integrations/, and branding/ to customize your setup`,
   );
+  logger.info(
+    `  ${step++}. Open the project in an AI-powered editor (Claude Code, Cursor, Copilot, or Windsurf) for guided config creation`,
+  );
   logger.info(`  ${step++}. Run "tale start" to launch the platform locally`);
 }
 

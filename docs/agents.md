@@ -13,6 +13,10 @@ Agents are specialized AI assistants you configure for specific tasks. Unlike th
 4. Optionally add a description, then click Create.
 5. You will land on the agent configuration page where you can set up its Instructions, Knowledge, Tools, and Webhook.
 
+### File-based creation with AI assistance
+
+You can also create agents by adding JSON files directly to the `agents/` directory in your project. If you open the project in an AI-powered editor (Claude Code, Cursor, GitHub Copilot, or Windsurf), the editor has full context about agent schemas and platform capabilities. Describe the agent you want and it will generate a valid configuration file. See [AI-assisted development](/ai-assisted-development) for setup details.
+
 ## Instructions tab
 
 This is the most important tab. It defines what the agent knows, how it behaves, and what it can do.

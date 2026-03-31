@@ -76,7 +76,7 @@
     "groups": [
       {
         "group": "Getting started",
-        "pages": ["overview", "quickstart", "production-deployment"]
+        "pages": ["overview", "quickstart", "ai-assisted-development", "production-deployment"]
       },
       {
         "group": "Features",
