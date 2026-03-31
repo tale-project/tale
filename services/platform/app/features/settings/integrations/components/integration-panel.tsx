@@ -50,14 +50,19 @@ export function IntegrationPanel({
   const readIntegrationFn = useAction(
     api.integrations.file_actions.readIntegration,
   );
-  const [connectorCode, setConnectorCode] = useState<string | null>(null);
+  const [connectorCode, setConnectorCode] = useState<string | undefined>(
+    undefined,
+  );
+  const [isLoadingCode, setIsLoadingCode] = useState(false);
   useEffect(() => {
     if (!open) {
-      setConnectorCode(null);
+      setConnectorCode(undefined);
+      setIsLoadingCode(false);
       return;
     }
     const slug = integration.name ?? '';
     if (!slug) return;
+    setIsLoadingCode(true);
     void readIntegrationFn({ orgSlug: 'default', slug })
       .then((result) => {
         if (
@@ -69,12 +74,17 @@ export function IntegrationPanel({
           setConnectorCode(
             typeof result.connectorCode === 'string'
               ? result.connectorCode
-              : null,
+              : '',
           );
+        } else {
+          setConnectorCode('');
         }
       })
       .catch(() => {
-        // Connector code is optional — silently ignore load failures
+        setConnectorCode('');
+      })
+      .finally(() => {
+        setIsLoadingCode(false);
       });
   }, [open, integration.name, readIntegrationFn]);
 
@@ -88,6 +98,8 @@ export function IntegrationPanel({
       },
     };
   }, [integration, connectorCode]);
+
+  const connectorCodeLoading = open && isLoadingCode;
 
   const isDetailsMode = manage.isActive ?? false;
 
@@ -143,7 +155,7 @@ export function IntegrationPanel({
 
             <IntegrationDetails
               integration={enrichedIntegration}
-              connectorCodeLoading={open && connectorCode === null}
+              connectorCodeLoading={connectorCodeLoading}
             >
               <IntegrationUpdateSection
                 parsedUpdate={manage.parsedUpdate}

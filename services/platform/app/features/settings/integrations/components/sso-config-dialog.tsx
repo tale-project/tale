@@ -85,6 +85,10 @@ export function SSOConfigDialog({
     ? t('integrations.panel.integrationDetails')
     : t('integrations.panel.addIntegration');
 
+  const handleClose = () => {
+    if (!isSubmitting) onOpenChange?.(false);
+  };
+
   return (
     <Sheet
       open={open ?? false}
@@ -109,7 +113,7 @@ export function SSOConfigDialog({
           icon={X}
           aria-label={tCommon('aria.close')}
           variant="ghost"
-          onClick={() => onOpenChange?.(false)}
+          onClick={handleClose}
         />
       </HStack>
 
@@ -323,7 +327,7 @@ export function SSOConfigDialog({
           <HStack justify="end" align="center" gap={3}>
             <button
               type="button"
-              onClick={() => onOpenChange?.(false)}
+              onClick={handleClose}
               className="text-muted-foreground hover:text-foreground text-sm font-medium transition-colors"
             >
               {tCommon('actions.cancel')}

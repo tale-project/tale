@@ -23,6 +23,7 @@ import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
+import { isRecord } from '@/lib/utils/type-guards';
 
 const searchSchema = z.object({
   tab: z.string().optional(),
@@ -171,6 +172,15 @@ function IntegrationsPage() {
       item != null && 'title' in item && 'slug' in item,
   );
 
+  // Deep-merge object configs so DB partials don't wipe file-defined defaults
+  // (e.g. OAuth2 authorizationUrl/tokenUrl from config.json)
+  const mergeConfig = (fileVal: unknown, credVal: unknown): unknown => {
+    if (isRecord(credVal) && isRecord(fileVal)) {
+      return { ...fileVal, ...credVal };
+    }
+    return credVal ?? fileVal;
+  };
+
   const allIntegrations: IntegrationListItem[] = validIntegrations.map(
     (item) => {
       const slug = String(item.slug);
@@ -183,17 +193,23 @@ function IntegrationsPage() {
         isActive: cred?.isActive ?? false,
         status: cred?.status ?? 'inactive',
         authMethod: cred?.authMethod ?? item.authMethod,
-        oauth2Config: cred?.oauth2Config ?? item.oauth2Config,
+        oauth2Config: mergeConfig(item.oauth2Config, cred?.oauth2Config),
         basicAuth: cred?.basicAuth ?? item.basicAuth,
         apiKeyAuth: cred?.apiKeyAuth ?? item.apiKeyAuth,
         oauth2Auth: cred?.oauth2Auth ?? item.oauth2Auth,
-        connectionConfig: cred?.connectionConfig ?? item.connectionConfig,
-        sqlConnectionConfig:
-          cred?.sqlConnectionConfig ?? item.sqlConnectionConfig,
+        connectionConfig: mergeConfig(
+          item.connectionConfig,
+          cred?.connectionConfig,
+        ),
+        sqlConnectionConfig: mergeConfig(
+          item.sqlConnectionConfig,
+          cred?.sqlConnectionConfig,
+        ),
         iconUrl:
-          typeof item.iconUrl === 'string'
+          cred?.iconUrl ??
+          (typeof item.iconUrl === 'string'
             ? item.iconUrl
-            : getTemplateIconUrl(slug),
+            : getTemplateIconUrl(slug)),
       };
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- merging file + DB data into IntegrationListItem shape
     },
