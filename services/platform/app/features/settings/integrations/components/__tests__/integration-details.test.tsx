@@ -51,11 +51,11 @@ async function expandSection(label: string) {
 }
 
 describe('IntegrationDetails', () => {
-  it('renders nothing when no operations or connector details exist', () => {
+  it('renders the container even with no operations (automations section always present)', () => {
     const { container } = render(
       <IntegrationDetails integration={makeIntegration()} />,
     );
-    expect(container.firstChild).toBeNull();
+    expect(container.firstChild).not.toBeNull();
   });
 
   it('renders REST operations with names and titles', async () => {

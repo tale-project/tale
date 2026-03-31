@@ -49,13 +49,13 @@ describe('SSOCard', () => {
 
   it('shows "Connected" badge when SSO provider exists', () => {
     const provider = {
-      _id: 'sso-1' as never,
-      _creationTime: 0,
-      organizationId: 'org-1',
-      provider: 'saml' as const,
+      _id: 'sso-1',
+      providerId: 'entra-id',
       issuer: 'https://example.com',
-      ssoUrl: 'https://example.com/sso',
-      certificate: 'cert',
+      scopes: ['openid', 'profile'],
+      autoProvisionRole: false,
+      roleMappingRules: [],
+      defaultRole: 'member' as const,
     };
     render(<SSOCard organizationId="org-1" ssoProvider={provider} />);
     expect(

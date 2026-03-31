@@ -102,7 +102,7 @@ export function SSOConfigDialog({
         align="center"
         className="border-border shrink-0 border-b px-6 py-4"
       >
-        <Text as="h2" variant="label" className="text-base font-semibold">
+        <Text variant="label" className="text-base font-semibold">
           {panelTitle}
         </Text>
         <IconButton
@@ -119,7 +119,7 @@ export function SSOConfigDialog({
             <Center className="border-border size-10 rounded-md border">
               <MicrosoftIcon className="size-5" />
             </Center>
-            <Stack gap={0.5}>
+            <Stack gap={1}>
               <Text variant="label">{t('integrations.sso.name')}</Text>
               {isConnected ? (
                 <Badge variant="green" dot>

@@ -159,7 +159,7 @@ export function Integrations({
         />
       </HStack>
 
-      {filteredIntegrations.length > 0 || isSsoVisible ? (
+      {filteredIntegrations.length > 0 || (isSsoVisible && !showSearch) ? (
         <Grid cols={1} md={2} lg={3}>
           {isSsoVisible && !showSearch && (
             <SSOCard

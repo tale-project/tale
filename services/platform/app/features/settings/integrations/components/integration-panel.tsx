@@ -109,7 +109,7 @@ export function IntegrationPanel({
         align="center"
         className="border-border shrink-0 border-b px-6 py-4"
       >
-        <Text as="h2" variant="label" className="text-base font-semibold">
+        <Text variant="label" className="text-base font-semibold">
           {panelTitle}
         </Text>
         <IconButton
