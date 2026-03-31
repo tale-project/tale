@@ -10,37 +10,13 @@ import {
   getEmbeddedExamples,
 } from '../project/fetch-reference';
 import { CURRENT_PROJECT_VERSION, type Checksums } from '../project/types';
+import { generateAllRules } from '../rules/generators';
 
 interface InitOptions {
   directory?: string;
   force?: boolean;
   noEnv?: boolean;
 }
-
-const CLAUDE_MD_CONTENT = `# Tale Project
-
-This is a Tale project. Editable configs are in \`agents/\`, \`workflows/\`, \`integrations/\`, and \`branding/\`.
-
-## Key reference code (read-only, for understanding schemas and constraints)
-
-- \`.tale/reference/lib/shared/schemas/agents.ts\` — Agent JSON schema (Zod). Defines all valid fields for agent configs.
-- \`.tale/reference/lib/shared/schemas/workflows.ts\` — Workflow JSON schema (Zod). Defines step types, config structure.
-- \`.tale/reference/lib/shared/schemas/integrations.ts\` — Integration JSON schema (Zod). Defines config.json structure, auth methods, operations.
-- \`.tale/reference/convex/agents/file_actions.ts\` — How agent files are read/written. Naming rules, validation.
-- \`.tale/reference/convex/workflows/file_actions.ts\` — How workflow files are read/written. Slug format, history.
-- \`.tale/reference/convex/integrations/file_actions.ts\` — How integration files are read/written. Directory structure, validation.
-- \`.tale/reference/lib/shared/schemas/branding.ts\` — Branding JSON schema (Zod). Defines colors, app name, image filenames.
-- \`.tale/reference/convex/branding/file_actions.ts\` — How branding files are read/written. Image storage, validation.
-
-## Editing rules
-
-- Agent filenames must match: \`[a-z0-9][a-z0-9_-]*\\.json\`
-- Workflow files are organized by category in subdirectories
-- Each integration is a directory containing: \`config.json\` (metadata + operations), \`connector.ts\` (runtime code), \`icon.svg\` (UI icon)
-- Integration directory names must be lowercase alphanumeric with hyphens/underscores
-- Branding has a single \`branding.json\` file with optional images in \`branding/images/\`
-- Refer to the Zod schemas for valid field values and constraints
-`;
 
 const GITIGNORE_ENTRIES = ['.tale/', '.env', '.history/'];
 
@@ -134,9 +110,14 @@ export async function init(options: InitOptions): Promise<void> {
   };
   await Bun.write(taleJsonPath, JSON.stringify(project, null, 2) + '\n');
 
-  // Write CLAUDE.md
-  logger.step('Writing CLAUDE.md...');
-  await Bun.write(join(target, 'CLAUDE.md'), CLAUDE_MD_CONTENT);
+  // Write AI rules files
+  logger.step('Writing AI rules files...');
+  const rulesFiles = generateAllRules();
+  for (const { relativePath, content } of rulesFiles) {
+    const destPath = join(target, relativePath);
+    await mkdir(dirname(destPath), { recursive: true });
+    await Bun.write(destPath, content);
+  }
 
   // Ensure .gitignore
   await ensureGitignore(target);

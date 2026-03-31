@@ -18,6 +18,7 @@ import {
 } from '../project/fetch-reference';
 import { findProject } from '../project/find-project';
 import { readProject } from '../project/read-project';
+import { generateAllRules } from '../rules/generators';
 
 interface UpdateOptions {
   force?: boolean;
@@ -54,6 +55,17 @@ export async function update(options: UpdateOptions): Promise<void> {
   logger.step(`${prefix}Updating reference code...`);
   if (!options.dryRun) {
     await fetchReference(projectDir);
+  }
+
+  // Regenerate AI rules files
+  logger.step(`${prefix}Updating AI rules files...`);
+  if (!options.dryRun) {
+    const rulesFiles = generateAllRules();
+    for (const { relativePath, content } of rulesFiles) {
+      const destPath = join(projectDir, relativePath);
+      await mkdir(dirname(destPath), { recursive: true });
+      await writeFile(destPath, content);
+    }
   }
 
   // Read existing checksums
