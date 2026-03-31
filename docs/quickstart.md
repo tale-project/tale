@@ -46,6 +46,8 @@ cd my-project
 
 The CLI prompts for your domain, API key, and TLS mode. Security secrets (`BETTER_AUTH_SECRET`, `ENCRYPTION_SECRET_HEX`) are generated automatically.
 
+> **Tip:** The CLI also generates configuration files for AI-powered editors (Claude Code, Cursor, GitHub Copilot, Windsurf) and extracts the full platform source code to `.tale/reference/`. Open your project in any of these editors to create and edit agents, workflows, and integrations by describing what you want in natural language. See [AI-assisted development](/ai-assisted-development) for details.
+
 ### Step 3: Start Tale
 
 ```bash

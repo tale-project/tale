@@ -7,7 +7,7 @@ Automations let you define and run multi-step business processes without writing
 
 ## Creating a workflow
 
-There are two ways to create a workflow:
+There are three ways to create a workflow:
 
 ### AI-assisted creation
 
@@ -21,6 +21,10 @@ There are two ways to create a workflow:
 2. Use the Add Step button on the workflow canvas to add steps one at a time.
 3. Configure each step using the side panel that appears when you click on a step.
 4. Connect steps by clicking the connector handles and drawing lines between them.
+
+### File-based creation with AI assistance
+
+You can create workflows by adding JSON files to the `workflows/` directory in your project. If you open the project in an AI-powered editor (Claude Code, Cursor, GitHub Copilot, or Windsurf), the editor has full context about workflow schemas, step types, and trigger configuration. Describe what you want the workflow to do and the AI will generate a valid configuration. See [AI-assisted development](/ai-assisted-development) for setup details.
 
 ## Step types
 

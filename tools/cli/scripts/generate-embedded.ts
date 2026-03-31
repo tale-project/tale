@@ -26,9 +26,19 @@ const SKIP_DIRS = new Set([
   'node_modules',
 ]);
 const SKIP_EXTENSIONS = ['.test.ts', '.test.js', '.spec.ts'];
+const BINARY_EXTENSIONS = new Set([
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.gif',
+  '.ico',
+  '.webp',
+]);
 
 function shouldSkipFile(name: string): boolean {
-  return SKIP_EXTENSIONS.some((ext) => name.endsWith(ext));
+  if (SKIP_EXTENSIONS.some((ext) => name.endsWith(ext))) return true;
+  const ext = name.slice(name.lastIndexOf('.')).toLowerCase();
+  return BINARY_EXTENSIONS.has(ext);
 }
 
 async function collectFiles(

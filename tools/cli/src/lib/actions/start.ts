@@ -113,9 +113,11 @@ export async function start(options: StartOptions): Promise<void> {
     logger.blank();
     logger.success('Tale is running in the background');
     logger.blank();
-    logger.info('Agents and workflows are bind-mounted from your project.');
     logger.info(
-      'Edits to agents/, workflows/, and integrations/ will auto-refresh the browser.',
+      'Agents, workflows, integrations, and branding are bind-mounted from your project.',
+    );
+    logger.info(
+      'Edits to agents/, workflows/, integrations/, and branding/ will auto-refresh the browser.',
     );
     logger.blank();
     logger.info(`Stop with: docker compose -p ${PROJECT_NAME}-dev down`);
@@ -180,7 +182,7 @@ export async function start(options: StartOptions): Promise<void> {
         return;
       }
 
-      process.stdout.write(line + '\n');
+      header.writeLine(line);
     },
   });
 
