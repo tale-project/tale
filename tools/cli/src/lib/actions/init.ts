@@ -19,7 +19,7 @@ interface InitOptions {
 
 const CLAUDE_MD_CONTENT = `# Tale Project
 
-This is a Tale project. Editable configs are in \`agents/\`, \`workflows/\`, and \`integrations/\`.
+This is a Tale project. Editable configs are in \`agents/\`, \`workflows/\`, \`integrations/\`, and \`branding/\`.
 
 ## Key reference code (read-only, for understanding schemas and constraints)
 
@@ -29,6 +29,8 @@ This is a Tale project. Editable configs are in \`agents/\`, \`workflows/\`, and
 - \`.tale/reference/convex/agents/file_actions.ts\` — How agent files are read/written. Naming rules, validation.
 - \`.tale/reference/convex/workflows/file_actions.ts\` — How workflow files are read/written. Slug format, history.
 - \`.tale/reference/convex/integrations/file_actions.ts\` — How integration files are read/written. Directory structure, validation.
+- \`.tale/reference/lib/shared/schemas/branding.ts\` — Branding JSON schema (Zod). Defines colors, app name, image filenames.
+- \`.tale/reference/convex/branding/file_actions.ts\` — How branding files are read/written. Image storage, validation.
 
 ## Editing rules
 
@@ -36,6 +38,7 @@ This is a Tale project. Editable configs are in \`agents/\`, \`workflows/\`, and
 - Workflow files are organized by category in subdirectories
 - Each integration is a directory containing: \`config.json\` (metadata + operations), \`connector.ts\` (runtime code), \`icon.svg\` (UI icon)
 - Integration directory names must be lowercase alphanumeric with hyphens/underscores
+- Branding has a single \`branding.json\` file with optional images in \`branding/images/\`
 - Refer to the Zod schemas for valid field values and constraints
 `;
 
@@ -95,6 +98,12 @@ export async function init(options: InitOptions): Promise<void> {
   const integrationFiles = getEmbeddedExamples('integrations');
   await writeEmbeddedFiles(integrationFiles, join(target, 'integrations'));
 
+  // Create branding directory with empty config
+  logger.step('Creating branding configuration...');
+  await mkdir(join(target, 'branding', 'images'), { recursive: true });
+  await writeFile(join(target, 'branding', 'branding.json'), '{}\n');
+  await writeFile(join(target, 'branding', 'images', '.gitkeep'), '');
+
   // Compute checksums
   logger.step('Computing file checksums...');
   const allFiles = new Map<string, string>();
@@ -108,6 +117,7 @@ export async function init(options: InitOptions): Promise<void> {
   for (const [relPath, content] of integrationFiles) {
     allFiles.set(join('integrations', relPath), computeContentHash(content));
   }
+  allFiles.set(join('branding', 'branding.json'), computeContentHash('{}\n'));
 
   const checksums: Checksums = {
     cliVersion: pkg.version,
@@ -147,6 +157,7 @@ export async function init(options: InitOptions): Promise<void> {
     ['Agents', `${agentFiles.size} files`],
     ['Workflows', `${workflowFiles.size} files`],
     ['Integrations', `${integrationFiles.size} files`],
+    ['Branding', '1 file'],
   ]);
   logger.blank();
   const needsCd = resolve(process.cwd()) !== resolve(target);
@@ -157,7 +168,7 @@ export async function init(options: InitOptions): Promise<void> {
     logger.info(`  ${step++}. Run "cd ${target}" to enter your project`);
   }
   logger.info(
-    `  ${step++}. Edit agents/, workflows/, and integrations/ to customize your setup`,
+    `  ${step++}. Edit agents/, workflows/, integrations/, and branding/ to customize your setup`,
   );
   logger.info(`  ${step++}. Run "tale start" to launch the platform locally`);
 }

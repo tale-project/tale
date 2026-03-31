@@ -72,6 +72,9 @@ export async function update(options: UpdateOptions): Promise<void> {
   for (const [relPath, content] of getEmbeddedExamples('integrations')) {
     newExampleFiles.set(join('integrations', relPath), content);
   }
+  for (const [relPath, content] of getEmbeddedExamples('branding')) {
+    newExampleFiles.set(join('branding', relPath), content);
+  }
 
   // Classify and apply changes
   const summary: UpdateSummary = {

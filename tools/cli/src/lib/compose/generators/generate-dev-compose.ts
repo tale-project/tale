@@ -29,6 +29,7 @@ export function generateDevCompose(
     './agents:/app/data/agents',
     './workflows:/app/data/workflows',
     './integrations:/app/data/integrations',
+    './branding:/app/data/branding',
     'caddy-data:/caddy-data:ro',
   ];
   platform.environment = {
