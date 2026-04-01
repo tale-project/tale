@@ -450,9 +450,10 @@ async function syncProjectFiles(
       continue;
     }
 
+    const dockerSrcPath = srcPath.replaceAll('\\', '/');
     const result = await exec('docker', [
       'cp',
-      `${srcPath}/.`,
+      `${dockerSrcPath}/.`,
       `${containerName}:/app/data/${dir}/`,
     ]);
 

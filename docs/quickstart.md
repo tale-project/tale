@@ -25,13 +25,22 @@ Tale uses OpenRouter as its default AI gateway, which gives you access to hundre
 
 ### Step 1: Install the CLI
 
+**Linux / macOS:**
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.sh | bash
+```
+
+**Windows (PowerShell):**
+
+```powershell
+irm https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.ps1 | iex
 ```
 
 Or download the binary directly from [GitHub Releases](https://github.com/tale-project/tale/releases):
 
 ```bash
+# Linux
 curl -fsSL https://github.com/tale-project/tale/releases/latest/download/tale_linux \
   -o /usr/local/bin/tale
 chmod +x /usr/local/bin/tale

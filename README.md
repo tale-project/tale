@@ -8,10 +8,20 @@ Tale is a self-hosted AI platform with custom agents, a knowledge base, workflow
 
 **Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop) (v24+) and an [OpenRouter API key](https://openrouter.ai).
 
+> **Windows with Hyper-V backend:** Ensure your project drive is shared in Docker Desktop Settings > Resources > File Sharing. WSL2 backend (default) requires no extra configuration.
+
 ### 1. Install the CLI
+
+**Linux / macOS:**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.sh | bash
+```
+
+**Windows (PowerShell):**
+
+```powershell
+irm https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.ps1 | iex
 ```
 
 ### 2. Create a project
