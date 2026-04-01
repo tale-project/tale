@@ -93,6 +93,14 @@ export function HistoryDiffDialog({
         </p>
       ) : (
         <div className="json-diff-wrapper max-h-[50vh] overflow-auto rounded-md border">
+          <div className="bg-muted sticky top-0 z-20 grid grid-cols-2 border-b">
+            <div className="text-muted-foreground px-3 py-1.5 text-xs font-medium">
+              {t('agents.history.currentVersion')}
+            </div>
+            <div className="text-muted-foreground border-l px-3 py-1.5 text-xs font-medium">
+              {t('agents.history.snapshotVersion')}
+            </div>
+          </div>
           <Viewer
             diff={diff}
             indent={2}
