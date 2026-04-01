@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
 
 import { mutation } from '../../_generated/server';
+import { validateAgentName } from '../../agents/file_utils';
 import { authComponent } from '../../auth';
 import { getOrganizationMember } from '../../lib/rls';
 import { generateToken } from '../../workflows/triggers/helpers/crypto';
@@ -23,6 +24,10 @@ export const createWebhook = mutation({
       email: authUser.email,
       name: authUser.name,
     });
+
+    if (!validateAgentName(args.agentSlug)) {
+      throw new Error(`Invalid agent slug: ${args.agentSlug}`);
+    }
 
     const token = generateToken();
 

@@ -64,6 +64,7 @@ export function AutomationsTable({
 }: AutomationsTableProps) {
   const navigate = useNavigate();
   const { t: tAutomations } = useT('automations');
+  const { t: tCommon } = useT('common');
   const { t: tEmpty } = useT('emptyStates');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -159,7 +160,7 @@ export function AutomationsTable({
     return (
       <div className="flex items-center justify-center p-12">
         <Text as="span" variant="caption">
-          Loading...
+          {tCommon('actions.loading')}
         </Text>
       </div>
     );
@@ -187,6 +188,7 @@ export function AutomationsTable({
           type="text"
           className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex h-9 w-full max-w-sm rounded-md border px-3 py-1 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
           placeholder={tAutomations('search.placeholder')}
+          aria-label={tAutomations('search.placeholder')}
           value={searchQuery}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
             setSearchQuery(e.target.value)
@@ -205,7 +207,7 @@ export function AutomationsTable({
       {tableItems.length === 0 && searchQuery && (
         <div className="flex flex-col items-center justify-center gap-2 p-8">
           <Text as="span" variant="caption">
-            No results found
+            {tCommon('search.noResults')}
           </Text>
         </div>
       )}

@@ -226,6 +226,7 @@ export async function startAgentChat(
       threadId,
       organizationId,
       userId: thread?.userId,
+      agentSlug: args.agentSlug,
       promptMessage: messageContent,
       attachments: actionAttachments,
       streamId: streamId || undefined,

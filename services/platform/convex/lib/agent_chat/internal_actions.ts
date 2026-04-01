@@ -109,6 +109,7 @@ export const runAgentGeneration = internalAction({
     threadId: v.string(),
     organizationId: v.string(),
     userId: v.optional(v.string()),
+    agentSlug: v.optional(v.string()),
     promptMessage: v.string(),
     additionalContext: v.optional(v.record(v.string(), v.string())),
     userContext: v.optional(

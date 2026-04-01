@@ -12,6 +12,7 @@ import { internal } from '../_generated/api';
 import { internalMutation, mutation } from '../_generated/server';
 import { authComponent } from '../auth';
 import { extractExtension } from '../documents/extract_extension';
+import { getOrganizationMember } from '../lib/rls';
 import { knowledgeFileValidator } from './schema';
 
 export const upsertBinding = internalMutation({
@@ -63,6 +64,12 @@ export const updateAgentBindings = mutation({
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
+    await getOrganizationMember(ctx, args.organizationId, {
+      userId: String(authUser._id),
+      email: authUser.email,
+      name: authUser.name,
+    });
+
     const existing = await ctx.db
       .query('agentBindings')
       .withIndex('by_org_agent', (q) =>
@@ -103,6 +110,12 @@ export const addKnowledgeFile = mutation({
   handler: async (ctx, args): Promise<null> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
+
+    await getOrganizationMember(ctx, args.organizationId, {
+      userId: String(authUser._id),
+      email: authUser.email,
+      name: authUser.name,
+    });
 
     await ctx.db.insert('fileMetadata', {
       organizationId: args.organizationId,
@@ -170,6 +183,12 @@ export const removeKnowledgeFile = mutation({
   handler: async (ctx, args): Promise<null> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
+
+    await getOrganizationMember(ctx, args.organizationId, {
+      userId: String(authUser._id),
+      email: authUser.email,
+      name: authUser.name,
+    });
 
     const binding = await ctx.db
       .query('agentBindings')

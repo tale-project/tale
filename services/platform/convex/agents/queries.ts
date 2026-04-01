@@ -10,7 +10,8 @@ import { v } from 'convex/values';
 import { parseModelList } from '../../lib/shared/utils/model-list';
 import { query } from '../_generated/server';
 import { TOOL_NAMES } from '../agent_tools/tool_names';
-import { getAuthUserIdentity } from '../lib/rls';
+import { authComponent } from '../auth';
+import { getOrganizationMember } from '../lib/rls';
 
 export const getBindingByAgent = query({
   args: {
@@ -18,8 +19,14 @@ export const getBindingByAgent = query({
     agentSlug: v.string(),
   },
   handler: async (ctx, args) => {
-    const authUser = await getAuthUserIdentity(ctx);
+    const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) return null;
+
+    await getOrganizationMember(ctx, args.organizationId, {
+      userId: String(authUser._id),
+      email: authUser.email,
+      name: authUser.name,
+    });
 
     const binding = await ctx.db
       .query('agentBindings')
@@ -52,8 +59,14 @@ export const getAvailableIntegrations = query({
     ctx,
     args,
   ): Promise<Array<{ name: string; title: string; type: string }>> => {
-    const authUser = await getAuthUserIdentity(ctx);
+    const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) return [];
+
+    await getOrganizationMember(ctx, args.organizationId, {
+      userId: String(authUser._id),
+      email: authUser.email,
+      name: authUser.name,
+    });
 
     const integrations: Array<{ name: string; title: string; type: string }> =
       [];

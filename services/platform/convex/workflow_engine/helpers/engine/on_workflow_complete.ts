@@ -174,7 +174,7 @@ async function postCompletionMessageToThread(
     const threadMeta = await ctx.db
       .query('threadMetadata')
       .withIndex('by_threadId', (q) =>
-        q.eq('threadId', approval.threadId as string),
+        q.eq('threadId', String(approval.threadId)),
       )
       .first();
     const agentSlug = threadMeta?.agentSlug;

@@ -40,7 +40,8 @@
                 ],
                 "type": "object"
               },
-              "type": "array"
+              "type": "array",
+              "minItems": 2
             },
             "language": {
               "description": "Output language for the report (e.g., 'de', 'en', 'fr'). If omitted, auto-detected from documents.",
@@ -127,7 +128,8 @@
         "type": "document"
       },
       "nextSteps": {
-        "success": "analyze_differences"
+        "success": "analyze_differences",
+        "failure": "error_output"
       }
     },
     {
@@ -142,7 +144,8 @@
         "userPrompt": "Analyze the changes from \"{{input.files[loop.index].fileName}}\" to \"{{loop.item.fileName}}\".\n\nTransition {{loop.index + 1}} of {{variables.filesToCompare | length}} in the version sequence.\n\nOutput language:\n{{variables.language || 'auto-detect from documents'}}\n\nDiff statistics:\n\nModified paragraphs: {{steps.compare_documents.output.data.stats.modified}}\nAdded paragraphs: {{steps.compare_documents.output.data.stats.added}}\nDeleted paragraphs: {{steps.compare_documents.output.data.stats.deleted}}\nUnchanged paragraphs: {{steps.compare_documents.output.data.stats.unchanged}}\nHigh divergence: {{steps.compare_documents.output.data.stats.highDivergence}}\nTruncated: {{steps.compare_documents.output.data.truncated}}\n\nIf high divergence is true, the documents differ substantially. This commonly occurs when a draft expands significantly between versions.\n\nIf truncated is true, only the first 500 detected changes are available for analysis.\n\nChange blocks:\n\n{{steps.compare_documents.output.data.changeBlocks|string}}\n\nInstructions:\n\n1. Group rows under clause family headings using \"###\".\n2. Produce one row for each meaningful change cluster.\n3. Avoid merging unrelated changes into one row.\n4. Use cautious interpretation in the final column.\n5. Focus on factual differences rather than speculation."
       },
       "nextSteps": {
-        "success": "summarize_transition"
+        "success": "summarize_transition",
+        "failure": "error_output"
       }
     },
     {
@@ -157,7 +160,8 @@
         "userPrompt": "Output language: {{variables.language || 'auto-detect from documents'}}\n\nTransition {{loop.index + 1}} of {{variables.filesToCompare | length}}: \"{{input.files[loop.index].fileName}}\" → \"{{loop.item.fileName}}\"\n\nBelow is the detailed change analysis for this version transition. Summarize the key transaction-level developments.\n\nCount the table rows grouped under each ### heading and their change type column values to produce the statistics line at the end.\n\n{{steps.analyze_differences.output.data}}"
       },
       "nextSteps": {
-        "success": "extract_clause_frequencies"
+        "success": "extract_clause_frequencies",
+        "failure": "error_output"
       }
     },
     {
@@ -207,7 +211,8 @@
         "userPrompt": "{{steps.analyze_differences.output.data}}"
       },
       "nextSteps": {
-        "success": "accumulate_results"
+        "success": "accumulate_results",
+        "failure": "error_output"
       }
     },
     {
@@ -250,7 +255,8 @@
         "userPrompt": "Generate the top section of a contract comparison report.\n\nOutput language:\n{{variables.language || 'auto-detect from documents'}}\n\nDocument versions (chronological) — use this exact string for the version chain:\n{{variables.fileNames|join(' → ')}}\n\nNumber of version transitions analyzed:\n{{variables.filesToCompare|length}}\n\nPer-transition summaries (each ending with a change statistics line):\n\n{{variables.transitionSummaries|join('\\n\\n')}}\n\nFor the Negotiation Arc section, use the per-transition summaries to describe the trajectory.\nFor the Risk Allocation Shifts section, use the change statistics and summaries to analyze which areas saw the most substantive amendments and in which direction.\nFor the Key Findings section, provide specific bullets referencing clause types and transitions.\n\nKeep the executive insights concise, roughly 300 words."
       },
       "nextSteps": {
-        "success": "format_frequency_table"
+        "success": "format_frequency_table",
+        "failure": "error_output"
       }
     },
     {
@@ -265,7 +271,8 @@
         "userPrompt": "Output language: {{variables.language || 'auto-detect from documents'}}\nTotal transitions: {{variables.filesToCompare|length}}\n\nClause frequency data:\n{{variables.clauseFrequencyData|string}}"
       },
       "nextSteps": {
-        "success": "generate_report"
+        "success": "generate_report",
+        "failure": "error_output"
       }
     },
     {
@@ -283,7 +290,8 @@
         "type": "document"
       },
       "nextSteps": {
-        "success": "output"
+        "success": "output",
+        "failure": "error_output"
       }
     },
     {
@@ -296,6 +304,19 @@
           "downloadUrl": "{{steps.generate_report.output.data.downloadUrl}}",
           "fileName": "{{steps.generate_report.output.data.fileName}}",
           "fileStorageId": "{{steps.generate_report.output.data.fileStorageId}}"
+        }
+      },
+      "nextSteps": {}
+    },
+    {
+      "stepSlug": "error_output",
+      "name": "Error Output",
+      "stepType": "output",
+      "order": 12,
+      "config": {
+        "mapping": {
+          "error": "{{error.message}}",
+          "failedStep": "{{error.stepSlug}}"
         }
       },
       "nextSteps": {}

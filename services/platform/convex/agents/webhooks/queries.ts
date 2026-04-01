@@ -1,7 +1,8 @@
 import { v } from 'convex/values';
 
 import { query } from '../../_generated/server';
-import { getAuthUserIdentity } from '../../lib/rls/auth/get_auth_user_identity';
+import { authComponent } from '../../auth';
+import { getOrganizationMember } from '../../lib/rls';
 
 export const getWebhooks = query({
   args: {
@@ -9,8 +10,14 @@ export const getWebhooks = query({
     agentSlug: v.string(),
   },
   handler: async (ctx, args) => {
-    const authUser = await getAuthUserIdentity(ctx);
+    const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
+
+    await getOrganizationMember(ctx, args.organizationId, {
+      userId: String(authUser._id),
+      email: authUser.email,
+      name: authUser.name,
+    });
 
     const webhookQuery = ctx.db
       .query('agentWebhooks')
