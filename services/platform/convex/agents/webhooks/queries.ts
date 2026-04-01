@@ -6,7 +6,7 @@ import { getAuthUserIdentity } from '../../lib/rls/auth/get_auth_user_identity';
 export const getWebhooks = query({
   args: {
     organizationId: v.string(),
-    agentFileName: v.string(),
+    agentSlug: v.string(),
   },
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
@@ -17,7 +17,7 @@ export const getWebhooks = query({
       .withIndex('by_agent', (q) =>
         q
           .eq('organizationId', args.organizationId)
-          .eq('agentFileName', args.agentFileName),
+          .eq('agentSlug', args.agentSlug),
       );
 
     const results = [];
@@ -26,7 +26,7 @@ export const getWebhooks = query({
         _id: wh._id,
         _creationTime: wh._creationTime,
         organizationId: wh.organizationId,
-        agentFileName: wh.agentFileName,
+        agentSlug: wh.agentSlug,
         token: wh.token,
         isActive: wh.isActive,
         lastTriggeredAt: wh.lastTriggeredAt,

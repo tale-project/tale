@@ -16,7 +16,7 @@ const MAX_POLLING_ATTEMPTS = 50;
 export const indexKnowledgeFile = internalAction({
   args: {
     organizationId: v.string(),
-    agentFileName: v.string(),
+    agentSlug: v.string(),
     fileId: v.id('_storage'),
   },
   returns: v.null(),
@@ -31,7 +31,7 @@ export const indexKnowledgeFile = internalAction({
         internal.agents.internal_actions.checkKnowledgeFileStatus,
         {
           organizationId: args.organizationId,
-          agentFileName: args.agentFileName,
+          agentSlug: args.agentSlug,
           fileId: args.fileId,
           attempt: 1,
         },
@@ -45,7 +45,7 @@ export const indexKnowledgeFile = internalAction({
         internal.agents.internal_mutations.updateKnowledgeFileRagInfo,
         {
           organizationId: args.organizationId,
-          agentFileName: args.agentFileName,
+          agentSlug: args.agentSlug,
           fileId: args.fileId,
           ragStatus: 'failed',
           ragError: error instanceof Error ? error.message : 'Upload failed',
@@ -60,7 +60,7 @@ export const indexKnowledgeFile = internalAction({
 export const checkKnowledgeFileStatus = internalAction({
   args: {
     organizationId: v.string(),
-    agentFileName: v.string(),
+    agentSlug: v.string(),
     fileId: v.id('_storage'),
     attempt: v.number(),
   },
@@ -74,7 +74,7 @@ export const checkKnowledgeFileStatus = internalAction({
         internal.agents.internal_mutations.updateKnowledgeFileRagInfo,
         {
           organizationId: args.organizationId,
-          agentFileName: args.agentFileName,
+          agentSlug: args.agentSlug,
           fileId: args.fileId,
           ragStatus: 'failed',
           ragError: `Status check timed out after ${MAX_POLLING_ATTEMPTS} attempts`,
@@ -104,7 +104,7 @@ export const checkKnowledgeFileStatus = internalAction({
             internal.agents.internal_mutations.updateKnowledgeFileRagInfo,
             {
               organizationId: args.organizationId,
-              agentFileName: args.agentFileName,
+              agentSlug: args.agentSlug,
               fileId: args.fileId,
               ragStatus: 'failed',
               ragError: `RAG service returned ${response.status}`,
@@ -118,7 +118,7 @@ export const checkKnowledgeFileStatus = internalAction({
           internal.agents.internal_actions.checkKnowledgeFileStatus,
           {
             organizationId: args.organizationId,
-            agentFileName: args.agentFileName,
+            agentSlug: args.agentSlug,
             fileId: args.fileId,
             attempt: args.attempt + 1,
           },
@@ -155,7 +155,7 @@ export const checkKnowledgeFileStatus = internalAction({
           internal.agents.internal_mutations.updateKnowledgeFileRagInfo,
           {
             organizationId: args.organizationId,
-            agentFileName: args.agentFileName,
+            agentSlug: args.agentSlug,
             fileId: args.fileId,
             ragStatus: 'completed',
             ragIndexedAt: Math.floor(Date.now() / 1000),
@@ -169,7 +169,7 @@ export const checkKnowledgeFileStatus = internalAction({
           internal.agents.internal_mutations.updateKnowledgeFileRagInfo,
           {
             organizationId: args.organizationId,
-            agentFileName: args.agentFileName,
+            agentSlug: args.agentSlug,
             fileId: args.fileId,
             ragStatus: 'failed',
             ragError: error || 'Unknown error',
@@ -183,7 +183,7 @@ export const checkKnowledgeFileStatus = internalAction({
           internal.agents.internal_mutations.updateKnowledgeFileRagInfo,
           {
             organizationId: args.organizationId,
-            agentFileName: args.agentFileName,
+            agentSlug: args.agentSlug,
             fileId: args.fileId,
             ragStatus: 'running',
           },
@@ -195,7 +195,7 @@ export const checkKnowledgeFileStatus = internalAction({
         internal.agents.internal_actions.checkKnowledgeFileStatus,
         {
           organizationId: args.organizationId,
-          agentFileName: args.agentFileName,
+          agentSlug: args.agentSlug,
           fileId: args.fileId,
           attempt: args.attempt + 1,
         },
@@ -210,7 +210,7 @@ export const checkKnowledgeFileStatus = internalAction({
         internal.agents.internal_actions.checkKnowledgeFileStatus,
         {
           organizationId: args.organizationId,
-          agentFileName: args.agentFileName,
+          agentSlug: args.agentSlug,
           fileId: args.fileId,
           attempt: args.attempt + 1,
         },

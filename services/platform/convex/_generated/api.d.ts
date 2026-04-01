@@ -104,6 +104,7 @@ import type * as agent_tools_workflows_internal_actions from "../agent_tools/wor
 import type * as agent_tools_workflows_internal_mutations from "../agent_tools/workflows/internal_mutations.js";
 import type * as agent_tools_workflows_run_workflow_tool from "../agent_tools/workflows/run_workflow_tool.js";
 import type * as agent_tools_workflows_save_workflow_definition_tool from "../agent_tools/workflows/save_workflow_definition_tool.js";
+import type * as agent_tools_workflows_trigger_completion_action from "../agent_tools/workflows/trigger_completion_action.js";
 import type * as agent_tools_workflows_update_workflow_step_tool from "../agent_tools/workflows/update_workflow_step_tool.js";
 import type * as agent_tools_workflows_workflow_read_tool from "../agent_tools/workflows/workflow_read_tool.js";
 import type * as agent_tools_workflows_workflow_syntax_tool from "../agent_tools/workflows/workflow_syntax_tool.js";
@@ -933,6 +934,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/workflows/internal_mutations": typeof agent_tools_workflows_internal_mutations;
   "agent_tools/workflows/run_workflow_tool": typeof agent_tools_workflows_run_workflow_tool;
   "agent_tools/workflows/save_workflow_definition_tool": typeof agent_tools_workflows_save_workflow_definition_tool;
+  "agent_tools/workflows/trigger_completion_action": typeof agent_tools_workflows_trigger_completion_action;
   "agent_tools/workflows/update_workflow_step_tool": typeof agent_tools_workflows_update_workflow_step_tool;
   "agent_tools/workflows/workflow_read_tool": typeof agent_tools_workflows_workflow_read_tool;
   "agent_tools/workflows/workflow_syntax_tool": typeof agent_tools_workflows_workflow_syntax_tool;

@@ -34,19 +34,19 @@ import { useAgentWebhooks, type AgentWebhook } from '../hooks/queries';
 
 interface AgentWebhookSectionProps {
   organizationId: string;
-  agentFileName: string;
+  agentSlug: string;
 }
 
 type WebhookRow = AgentWebhook;
 
 export function AgentWebhookSection({
   organizationId,
-  agentFileName,
+  agentSlug,
 }: AgentWebhookSectionProps) {
   const { t } = useT('settings');
   const { toast } = useToast();
 
-  const { webhooks } = useAgentWebhooks(organizationId, agentFileName);
+  const { webhooks } = useAgentWebhooks(organizationId, agentSlug);
 
   const { mutateAsync: createWebhook, isPending: isCreating } =
     useCreateAgentWebhook();
@@ -72,7 +72,7 @@ export function AgentWebhookSection({
     try {
       const result = await createWebhook({
         organizationId,
-        agentFileName,
+        agentSlug,
       });
       setCreatedUrl(getWebhookUrl(result.token));
       toast({
@@ -85,7 +85,7 @@ export function AgentWebhookSection({
         variant: 'destructive',
       });
     }
-  }, [createWebhook, organizationId, agentFileName, toast, t, getWebhookUrl]);
+  }, [createWebhook, organizationId, agentSlug, toast, t, getWebhookUrl]);
 
   const handleToggle = useCallback(
     async (webhookId: Id<'agentWebhooks'>, isActive: boolean) => {

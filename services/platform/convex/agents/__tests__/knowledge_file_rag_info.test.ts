@@ -55,7 +55,7 @@ describe('updateKnowledgeFileRagInfo', () => {
       ctx as never,
       {
         organizationId: 'org-1',
-        agentFileName: 'my-agent',
+        agentSlug: 'my-agent',
         fileId: 'file-a',
         ragStatus: 'completed',
         ragIndexedAt: 1234567890,
@@ -89,7 +89,7 @@ describe('updateKnowledgeFileRagInfo', () => {
       ctx as never,
       {
         organizationId: 'org-1',
-        agentFileName: 'my-agent',
+        agentSlug: 'my-agent',
         fileId: 'file-a',
         ragStatus: 'failed',
         ragError: 'Upload timeout',
@@ -117,7 +117,7 @@ describe('updateKnowledgeFileRagInfo', () => {
       ctx as never,
       {
         organizationId: 'org-1',
-        agentFileName: 'my-agent',
+        agentSlug: 'my-agent',
         fileId: 'file-a',
         ragStatus: 'completed',
       } as never,
@@ -133,7 +133,7 @@ describe('updateKnowledgeFileRagInfo', () => {
       ctx as never,
       {
         organizationId: 'org-1',
-        agentFileName: 'my-agent',
+        agentSlug: 'my-agent',
         fileId: 'file-a',
         ragStatus: 'completed',
       } as never,

@@ -8,7 +8,7 @@ import { generateToken } from '../../workflows/triggers/helpers/crypto';
 export const createWebhook = mutation({
   args: {
     organizationId: v.string(),
-    agentFileName: v.string(),
+    agentSlug: v.string(),
   },
   returns: v.object({
     webhookId: v.id('agentWebhooks'),
@@ -28,7 +28,7 @@ export const createWebhook = mutation({
 
     const webhookId = await ctx.db.insert('agentWebhooks', {
       organizationId: args.organizationId,
-      agentFileName: args.agentFileName,
+      agentSlug: args.agentSlug,
       token,
       isActive: true,
       createdAt: Date.now(),

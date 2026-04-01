@@ -34,10 +34,10 @@ export type KnowledgeFile = Infer<typeof knowledgeFileValidator>;
  */
 export const agentBindingsTable = defineTable({
   organizationId: v.string(),
-  agentFileName: v.string(),
+  agentSlug: v.string(),
   teamId: v.optional(v.string()),
   knowledgeFiles: v.optional(v.array(knowledgeFileValidator)),
 })
   .index('by_organization', ['organizationId'])
-  .index('by_org_agent', ['organizationId', 'agentFileName'])
+  .index('by_org_agent', ['organizationId', 'agentSlug'])
   .index('by_team', ['teamId']);

@@ -161,7 +161,7 @@ export function AgentKnowledge({
 
   const { uploadFiles, isUploading, accept } = useAgentFileUpload({
     organizationId,
-    agentFileName: agentId,
+    agentSlug: agentId,
   });
 
   const handleRemoveFile = useCallback(
@@ -169,7 +169,7 @@ export function AgentKnowledge({
       removeKnowledgeFile
         .mutateAsync({
           organizationId,
-          agentFileName: agentId,
+          agentSlug: agentId,
           fileId: toId<'_storage'>(fileId),
         })
         .catch(() => {

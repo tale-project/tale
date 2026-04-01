@@ -23,7 +23,7 @@ import {
 
 export const chatWithAgent = action({
   args: {
-    agentFileName: v.string(),
+    agentSlug: v.string(),
     threadId: v.string(),
     organizationId: v.string(),
     orgSlug: v.string(),
@@ -59,7 +59,7 @@ export const chatWithAgent = action({
     if (!authUser) throw new Error('Unauthenticated');
 
     // Read agent config from filesystem
-    const filePath = resolveAgentFilePath(args.orgSlug, args.agentFileName);
+    const filePath = resolveAgentFilePath(args.orgSlug, args.agentSlug);
     let content: string;
     try {
       const fileStat = await stat(filePath);
@@ -69,7 +69,7 @@ export const chatWithAgent = action({
       content = await readFile(filePath, 'utf-8');
     } catch (err) {
       throw new Error(
-        `Agent not found: ${args.agentFileName} — ${err instanceof Error ? err.message : String(err)}`,
+        `Agent not found: ${args.agentSlug} — ${err instanceof Error ? err.message : String(err)}`,
         { cause: err },
       );
     }
@@ -86,7 +86,7 @@ export const chatWithAgent = action({
       internal.agents.internal_queries.getBindingByAgent,
       {
         organizationId: args.organizationId,
-        agentFileName: args.agentFileName,
+        agentSlug: args.agentSlug,
       },
     );
 
@@ -97,7 +97,7 @@ export const chatWithAgent = action({
     }
 
     const agentConfig = toSerializableConfig(
-      args.agentFileName,
+      args.agentSlug,
       config,
       binding
         ? {
@@ -120,7 +120,7 @@ export const chatWithAgent = action({
       additionalContext: args.additionalContext,
       userContext: args.userContext,
       agentConfig,
-      agentFileName: args.agentFileName,
+      agentSlug: args.agentSlug,
     });
   },
 });

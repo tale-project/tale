@@ -3,7 +3,7 @@ import { v } from 'convex/values';
 
 export const agentWebhooksTable = defineTable({
   organizationId: v.string(),
-  agentFileName: v.string(),
+  agentSlug: v.string(),
   token: v.string(),
   isActive: v.boolean(),
   lastTriggeredAt: v.optional(v.number()),
@@ -11,5 +11,5 @@ export const agentWebhooksTable = defineTable({
   createdBy: v.string(),
 })
   .index('by_org', ['organizationId'])
-  .index('by_agent', ['organizationId', 'agentFileName'])
+  .index('by_agent', ['organizationId', 'agentSlug'])
   .index('by_token', ['token']);

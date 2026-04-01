@@ -144,7 +144,7 @@ export const agentWebhookHandler = httpAction(async (ctx, req) => {
     chatResult = await ctx.runAction(
       internal.agents.webhooks.internal_actions.chatViaWebhook,
       {
-        agentFileName: webhook.agentFileName,
+        agentSlug: webhook.agentSlug,
         organizationId: webhook.organizationId,
         webhookId: webhook._id,
         message,

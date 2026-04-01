@@ -11,12 +11,12 @@ export const Route = createFileRoute('/dashboard/$id/agents/$agentId/webhook')({
 });
 
 function WebhookTab() {
-  const { id: organizationId, agentId: agentFileName } = Route.useParams();
+  const { id: organizationId, agentId: agentSlug } = Route.useParams();
 
   return (
     <AgentWebhookSection
       organizationId={organizationId}
-      agentFileName={agentFileName}
+      agentSlug={agentSlug}
     />
   );
 }

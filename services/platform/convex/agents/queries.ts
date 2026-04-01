@@ -15,7 +15,7 @@ import { getAuthUserIdentity } from '../lib/rls';
 export const getBindingByAgent = query({
   args: {
     organizationId: v.string(),
-    agentFileName: v.string(),
+    agentSlug: v.string(),
   },
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
@@ -26,7 +26,7 @@ export const getBindingByAgent = query({
       .withIndex('by_org_agent', (q) =>
         q
           .eq('organizationId', args.organizationId)
-          .eq('agentFileName', args.agentFileName),
+          .eq('agentSlug', args.agentSlug),
       )
       .first();
 
