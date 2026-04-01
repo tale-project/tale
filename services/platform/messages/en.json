@@ -1525,6 +1525,9 @@
       "noSteps": "No automation steps to display",
       "createStepsHint": "Create steps to see the automation overview, or use the AI assistant to help you get started."
     },
+    "breadcrumb": {
+      "back": "Back to automations"
+    },
     "search": {
       "placeholder": "Search automations"
     },

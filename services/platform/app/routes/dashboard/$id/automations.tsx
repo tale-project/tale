@@ -1,4 +1,10 @@
-import { createFileRoute, Outlet, useMatch } from '@tanstack/react-router';
+import {
+  createFileRoute,
+  Outlet,
+  useMatch,
+  useNavigate,
+} from '@tanstack/react-router';
+import { ChevronRight } from 'lucide-react';
 
 import {
   AdaptiveHeaderRoot,
@@ -19,11 +25,18 @@ export const Route = createFileRoute('/dashboard/$id/automations')({
 function AutomationsLayout() {
   const { id: organizationId } = Route.useParams();
   const { t } = useT('automations');
+  const navigate = useNavigate();
 
   const isSpecificAutomation = useMatch({
     from: '/dashboard/$id/automations/$amId',
     shouldThrow: false,
   });
+
+  const indexMatch = useMatch({
+    from: '/dashboard/$id/automations/',
+    shouldThrow: false,
+  });
+  const currentFolder = indexMatch?.search?.folder;
 
   return (
     <PageLayout
@@ -32,7 +45,28 @@ function AutomationsLayout() {
         !isSpecificAutomation ? (
           <>
             <AdaptiveHeaderRoot standalone={false}>
-              <AdaptiveHeaderTitle>{t('title')}</AdaptiveHeaderTitle>
+              <AdaptiveHeaderTitle>
+                {currentFolder ? (
+                  <span className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void navigate({
+                          to: '/dashboard/$id/automations',
+                          params: { id: organizationId },
+                        })
+                      }
+                      className="text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {t('title')}
+                    </button>
+                    <ChevronRight className="text-muted-foreground size-4 shrink-0" />
+                    <span>{currentFolder}</span>
+                  </span>
+                ) : (
+                  t('title')
+                )}
+              </AdaptiveHeaderTitle>
             </AdaptiveHeaderRoot>
             <AutomationsListNavigation organizationId={organizationId} />
           </>

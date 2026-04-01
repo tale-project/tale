@@ -27,7 +27,7 @@ import { HistoryDiffDialog } from './history-diff-dialog';
 interface AgentNavigationProps {
   organizationId: string;
   agentId: string;
-  onSaved: () => Promise<void>;
+  onSaved: (config: AgentJsonConfig) => void;
 }
 
 interface HistoryEntry {
@@ -42,7 +42,7 @@ export function AgentNavigation({
 }: AgentNavigationProps) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
-  const { config, isDirty, isSaving, resetConfig, markSaving } =
+  const { config, isDirty, isSaving, resetConfig, markSaving, overrideConfig } =
     useAgentConfig();
   const { formatDate } = useFormatDate();
 
@@ -122,12 +122,13 @@ export function AgentNavigation({
         agentName: agentId,
         config,
       });
+      window.__taleLastSaveAt = Date.now();
       setHistoryEntries([]);
       toast({
         title: t('agents.agentSaved'),
         variant: 'success',
       });
-      await onSaved();
+      onSaved(config);
     } catch (err) {
       console.error(err);
       toast({
@@ -196,14 +197,17 @@ export function AgentNavigation({
   );
 
   const handleRestore = useCallback(async () => {
-    if (!selectedEntry) return;
+    if (!selectedEntry || !snapshotConfig) return;
     setIsRestoring(true);
     try {
+      window.__taleLastSaveAt = Date.now();
       await restoreAction.mutateAsync({
         orgSlug: 'default',
         agentName: agentId,
         timestamp: selectedEntry.timestamp,
       });
+      window.__taleLastSaveAt = Date.now();
+      overrideConfig(snapshotConfig);
       setIsDiffOpen(false);
       setSelectedEntry(null);
       setSnapshotConfig(null);
@@ -212,7 +216,7 @@ export function AgentNavigation({
         title: t('agents.historyRestored'),
         variant: 'success',
       });
-      await onSaved();
+      onSaved(snapshotConfig);
     } catch (err) {
       console.error(err);
       toast({
@@ -222,7 +226,15 @@ export function AgentNavigation({
     } finally {
       setIsRestoring(false);
     }
-  }, [agentId, onSaved, restoreAction, selectedEntry, t]);
+  }, [
+    agentId,
+    onSaved,
+    overrideConfig,
+    restoreAction,
+    selectedEntry,
+    snapshotConfig,
+    t,
+  ]);
 
   const historyMenuItems = useMemo(() => {
     if (historyEntries.length === 0) {
