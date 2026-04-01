@@ -11,10 +11,10 @@ import path from 'node:path';
 
 import { agentJsonSchema } from '../../lib/shared/schemas/agents';
 import { serializeJson, sha256, validateOrgSlug } from '../lib/file_io';
+import { validateAgentName } from './validators';
 
-export { sha256 };
+export { sha256, validateAgentName };
 
-const AGENT_NAME_REGEX = /^[a-z0-9][a-z0-9_-]*$/;
 const MAX_FILE_SIZE_BYTES = 256 * 1024; // 256 KB
 const MAX_HISTORY_ENTRIES = 100;
 
@@ -55,10 +55,6 @@ export type AgentReadResult =
         | 'inaccessible';
       message: string;
     };
-
-export function validateAgentName(name: string): boolean {
-  return AGENT_NAME_REGEX.test(name);
-}
 
 export function agentNameFromFileName(fileName: string): string {
   return path.basename(fileName, '.json');
