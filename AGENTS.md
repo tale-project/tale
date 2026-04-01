@@ -13,6 +13,14 @@
 - DO NOT write inline comments explaining what was removed or changed.
 - DO NOT use `toLocaleDateString()`, `toLocaleTimeString()`, or `toLocaleString()`. Use `useFormatDate()` hook (React) or `formatDate()` from `lib/utils/date/format` instead.
 
+## Security
+
+- ALWAYS keep security in mind when writing code.
+- Be careful not to introduce vulnerabilities such as command injection, XSS, SQL injection, and other OWASP top 10 vulnerabilities.
+- DO NOT hardcode secrets, API keys, or credentials. Use environment variables instead.
+- Validate and sanitize all user input at system boundaries.
+- Use parameterized queries for database operations.
+
 ## Git
 
 - Write clear, descriptive commit messages.
