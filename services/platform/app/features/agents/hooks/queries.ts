@@ -106,10 +106,10 @@ export function useAgentHistory(orgSlug: string, agentName: string) {
 // Query-based hooks (DB reads — reactive)
 // ---------------------------------------------------------------------------
 
-export function useAgentBinding(organizationId: string, agentFileName: string) {
+export function useAgentBinding(organizationId: string, agentSlug: string) {
   return useConvexQuery(api.agents.queries.getBindingByAgent, {
     organizationId,
-    agentFileName,
+    agentSlug,
   });
 }
 
@@ -187,13 +187,10 @@ export type AgentWebhook = ConvexItemOf<
   typeof api.agents.webhooks.queries.getWebhooks
 >;
 
-export function useAgentWebhooks(
-  organizationId: string,
-  agentFileName: string,
-) {
+export function useAgentWebhooks(organizationId: string, agentSlug: string) {
   const { data, isLoading } = useConvexQuery(
     api.agents.webhooks.queries.getWebhooks,
-    { organizationId, agentFileName },
+    { organizationId, agentSlug },
   );
 
   return {

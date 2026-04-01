@@ -77,7 +77,9 @@ export interface StartAgentChatArgs {
   enableStreaming: boolean;
   /** Optional hooks configuration (FunctionHandles) */
   hooks?: AgentHooksConfig;
-  /** Root version ID of the agent, persisted on thread metadata */
+  /** Agent slug (file name without extension), persisted on thread metadata */
+  agentSlug?: string;
+  /** @deprecated Use agentSlug instead */
   agentId?: Id<'agentBindings'>;
 }
 
@@ -138,6 +140,7 @@ export async function startAgentChat(
       generationStartTime: Date.now(),
       cancelledAt: undefined,
       cancelledMessageId: undefined,
+      ...(args.agentSlug ? { agentSlug: args.agentSlug } : {}),
       ...(args.agentId ? { agentId: args.agentId } : {}),
     });
   }
@@ -223,6 +226,7 @@ export async function startAgentChat(
       threadId,
       organizationId,
       userId: thread?.userId,
+      agentSlug: args.agentSlug,
       promptMessage: messageContent,
       attachments: actionAttachments,
       streamId: streamId || undefined,

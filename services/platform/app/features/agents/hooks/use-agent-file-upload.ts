@@ -63,12 +63,12 @@ export interface AgentUploadProgress {
 
 interface UseAgentFileUploadOptions {
   organizationId: string;
-  agentFileName: string;
+  agentSlug: string;
 }
 
 export function useAgentFileUpload({
   organizationId,
-  agentFileName,
+  agentSlug,
 }: UseAgentFileUploadOptions) {
   const { t } = useT('settings');
   const [isUploading, setIsUploading] = useState(false);
@@ -122,7 +122,7 @@ export function useAgentFileUpload({
 
           await addKnowledgeFile({
             organizationId,
-            agentFileName,
+            agentSlug,
             fileId: toId<'_storage'>(storageId),
             fileName: file.name,
             contentType,
@@ -150,7 +150,7 @@ export function useAgentFileUpload({
       generateUploadUrl,
       addKnowledgeFile,
       organizationId,
-      agentFileName,
+      agentSlug,
       t,
     ],
   );

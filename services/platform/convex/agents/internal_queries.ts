@@ -12,7 +12,7 @@ import { internalQuery } from '../_generated/server';
 export const getBindingByAgent = internalQuery({
   args: {
     organizationId: v.string(),
-    agentFileName: v.string(),
+    agentSlug: v.string(),
   },
   handler: async (ctx, args) => {
     return ctx.db
@@ -20,7 +20,7 @@ export const getBindingByAgent = internalQuery({
       .withIndex('by_org_agent', (q) =>
         q
           .eq('organizationId', args.organizationId)
-          .eq('agentFileName', args.agentFileName),
+          .eq('agentSlug', args.agentSlug),
       )
       .first();
   },

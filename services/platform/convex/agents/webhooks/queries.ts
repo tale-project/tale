@@ -1,23 +1,30 @@
 import { v } from 'convex/values';
 
 import { query } from '../../_generated/server';
-import { getAuthUserIdentity } from '../../lib/rls/auth/get_auth_user_identity';
+import { authComponent } from '../../auth';
+import { getOrganizationMember } from '../../lib/rls';
 
 export const getWebhooks = query({
   args: {
     organizationId: v.string(),
-    agentFileName: v.string(),
+    agentSlug: v.string(),
   },
   handler: async (ctx, args) => {
-    const authUser = await getAuthUserIdentity(ctx);
+    const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
+
+    await getOrganizationMember(ctx, args.organizationId, {
+      userId: String(authUser._id),
+      email: authUser.email,
+      name: authUser.name,
+    });
 
     const webhookQuery = ctx.db
       .query('agentWebhooks')
       .withIndex('by_agent', (q) =>
         q
           .eq('organizationId', args.organizationId)
-          .eq('agentFileName', args.agentFileName),
+          .eq('agentSlug', args.agentSlug),
       );
 
     const results = [];
@@ -26,7 +33,7 @@ export const getWebhooks = query({
         _id: wh._id,
         _creationTime: wh._creationTime,
         organizationId: wh.organizationId,
-        agentFileName: wh.agentFileName,
+        agentSlug: wh.agentSlug,
         token: wh.token,
         isActive: wh.isActive,
         lastTriggeredAt: wh.lastTriggeredAt,

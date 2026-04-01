@@ -21,7 +21,7 @@ export const updateWebhookLastTriggered = internalMutation({
 
 export const startWebhookChat = internalMutation({
   args: {
-    agentFileName: v.string(),
+    agentSlug: v.string(),
     organizationId: v.string(),
     webhookId: v.id('agentWebhooks'),
     message: v.string(),
@@ -62,7 +62,8 @@ export const startWebhookChat = internalMutation({
       agentConfig: args.agentConfig,
       model: args.agentConfig.model ?? model,
       provider,
-      debugTag: `[${args.agentFileName}:webhook]`,
+      agentSlug: args.agentSlug,
+      debugTag: `[${args.agentSlug}:webhook]`,
       enableStreaming: args.enableStreaming ?? true,
     });
 

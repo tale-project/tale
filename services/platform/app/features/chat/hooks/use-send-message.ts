@@ -146,7 +146,7 @@ export function useSendMessage({
         }
 
         await chatWithAgent({
-          agentFileName: selectedAgent.name,
+          agentSlug: selectedAgent.name,
           orgSlug: 'default',
           threadId: currentThreadId,
           organizationId,

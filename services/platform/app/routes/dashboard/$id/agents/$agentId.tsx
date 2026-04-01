@@ -202,7 +202,7 @@ function AgentDetailLayout() {
             <AgentNavigation
               organizationId={organizationId}
               agentId={agentId}
-              onSaved={loadAgent}
+              onSaved={setAgentConfig}
             />
           </>
         }

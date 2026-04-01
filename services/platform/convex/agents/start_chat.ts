@@ -41,7 +41,7 @@ export const startChat = internalMutation({
       }),
     ),
     agentConfig: v.any(),
-    agentFileName: v.string(),
+    agentSlug: v.string(),
   },
   returns: v.object({
     messageAlreadyExists: v.boolean(),
@@ -76,7 +76,8 @@ export const startChat = internalMutation({
       agentConfig: args.agentConfig,
       model: args.agentConfig.model ?? model,
       provider,
-      debugTag: `[${args.agentFileName}]`,
+      agentSlug: args.agentSlug,
+      debugTag: `[${args.agentSlug}]`,
       enableStreaming: true,
     });
   },

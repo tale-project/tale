@@ -17,6 +17,8 @@ export const threadMetadataTable = defineTable({
   cancelledAt: v.optional(v.number()),
   cancelledMessageId: v.optional(v.string()),
   generationStartTime: v.optional(v.number()),
+  agentSlug: v.optional(v.string()),
+  /** @deprecated Use agentSlug. Retained for backward compatibility with existing documents. */
   agentId: v.optional(v.id('agentBindings')),
   /** @deprecated Retained for backward compatibility with existing documents. */
   customAgentId: v.optional(v.id('customAgents')),

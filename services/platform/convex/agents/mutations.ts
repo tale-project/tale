@@ -12,12 +12,13 @@ import { internal } from '../_generated/api';
 import { internalMutation, mutation } from '../_generated/server';
 import { authComponent } from '../auth';
 import { extractExtension } from '../documents/extract_extension';
+import { getOrganizationMember } from '../lib/rls';
 import { knowledgeFileValidator } from './schema';
 
 export const upsertBinding = internalMutation({
   args: {
     organizationId: v.string(),
-    agentFileName: v.string(),
+    agentSlug: v.string(),
     teamId: v.optional(v.string()),
     knowledgeFiles: v.optional(v.array(knowledgeFileValidator)),
   },
@@ -28,7 +29,7 @@ export const upsertBinding = internalMutation({
       .withIndex('by_org_agent', (q) =>
         q
           .eq('organizationId', args.organizationId)
-          .eq('agentFileName', args.agentFileName),
+          .eq('agentSlug', args.agentSlug),
       )
       .first();
 
@@ -45,7 +46,7 @@ export const upsertBinding = internalMutation({
 
     return ctx.db.insert('agentBindings', {
       organizationId: args.organizationId,
-      agentFileName: args.agentFileName,
+      agentSlug: args.agentSlug,
       teamId: args.teamId || undefined,
       knowledgeFiles: args.knowledgeFiles,
     });
@@ -55,7 +56,7 @@ export const upsertBinding = internalMutation({
 export const updateAgentBindings = mutation({
   args: {
     organizationId: v.string(),
-    agentFileName: v.string(),
+    agentSlug: v.string(),
     teamId: v.optional(v.string()),
   },
   returns: v.null(),
@@ -63,12 +64,18 @@ export const updateAgentBindings = mutation({
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
+    await getOrganizationMember(ctx, args.organizationId, {
+      userId: String(authUser._id),
+      email: authUser.email,
+      name: authUser.name,
+    });
+
     const existing = await ctx.db
       .query('agentBindings')
       .withIndex('by_org_agent', (q) =>
         q
           .eq('organizationId', args.organizationId)
-          .eq('agentFileName', args.agentFileName),
+          .eq('agentSlug', args.agentSlug),
       )
       .first();
 
@@ -81,7 +88,7 @@ export const updateAgentBindings = mutation({
     } else {
       await ctx.db.insert('agentBindings', {
         organizationId: args.organizationId,
-        agentFileName: args.agentFileName,
+        agentSlug: args.agentSlug,
         teamId: args.teamId || undefined,
       });
     }
@@ -93,7 +100,7 @@ export const updateAgentBindings = mutation({
 export const addKnowledgeFile = mutation({
   args: {
     organizationId: v.string(),
-    agentFileName: v.string(),
+    agentSlug: v.string(),
     fileId: v.id('_storage'),
     fileName: v.string(),
     contentType: v.string(),
@@ -103,6 +110,12 @@ export const addKnowledgeFile = mutation({
   handler: async (ctx, args): Promise<null> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
+
+    await getOrganizationMember(ctx, args.organizationId, {
+      userId: String(authUser._id),
+      email: authUser.email,
+      name: authUser.name,
+    });
 
     await ctx.db.insert('fileMetadata', {
       organizationId: args.organizationId,
@@ -117,7 +130,7 @@ export const addKnowledgeFile = mutation({
       .withIndex('by_org_agent', (q) =>
         q
           .eq('organizationId', args.organizationId)
-          .eq('agentFileName', args.agentFileName),
+          .eq('agentSlug', args.agentSlug),
       )
       .first();
 
@@ -141,7 +154,7 @@ export const addKnowledgeFile = mutation({
     } else {
       await ctx.db.insert('agentBindings', {
         organizationId: args.organizationId,
-        agentFileName: args.agentFileName,
+        agentSlug: args.agentSlug,
         knowledgeFiles: updatedFiles,
       });
     }
@@ -151,7 +164,7 @@ export const addKnowledgeFile = mutation({
       internal.agents.internal_actions.indexKnowledgeFile,
       {
         organizationId: args.organizationId,
-        agentFileName: args.agentFileName,
+        agentSlug: args.agentSlug,
         fileId: args.fileId,
       },
     );
@@ -163,7 +176,7 @@ export const addKnowledgeFile = mutation({
 export const removeKnowledgeFile = mutation({
   args: {
     organizationId: v.string(),
-    agentFileName: v.string(),
+    agentSlug: v.string(),
     fileId: v.id('_storage'),
   },
   returns: v.null(),
@@ -171,12 +184,18 @@ export const removeKnowledgeFile = mutation({
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
+    await getOrganizationMember(ctx, args.organizationId, {
+      userId: String(authUser._id),
+      email: authUser.email,
+      name: authUser.name,
+    });
+
     const binding = await ctx.db
       .query('agentBindings')
       .withIndex('by_org_agent', (q) =>
         q
           .eq('organizationId', args.organizationId)
-          .eq('agentFileName', args.agentFileName),
+          .eq('agentSlug', args.agentSlug),
       )
       .first();
 
@@ -207,7 +226,7 @@ export const removeKnowledgeFile = mutation({
 export const cleanupAgentBinding = internalMutation({
   args: {
     organizationId: v.string(),
-    agentFileName: v.string(),
+    agentSlug: v.string(),
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
@@ -216,7 +235,7 @@ export const cleanupAgentBinding = internalMutation({
       .withIndex('by_org_agent', (q) =>
         q
           .eq('organizationId', args.organizationId)
-          .eq('agentFileName', args.agentFileName),
+          .eq('agentSlug', args.agentSlug),
       )
       .first();
 

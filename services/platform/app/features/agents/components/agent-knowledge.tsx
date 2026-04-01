@@ -25,6 +25,7 @@ import { useT } from '@/lib/i18n/client';
 import { isRetrievalMode } from '@/lib/shared/schemas/agents';
 
 import { useRemoveKnowledgeFile } from '../hooks/mutations';
+import { useAgentBinding } from '../hooks/queries';
 import { useAgentConfig } from '../hooks/use-agent-config-context';
 import { useAgentFileUpload } from '../hooks/use-agent-file-upload';
 
@@ -157,11 +158,13 @@ export function AgentKnowledge({
     return documents.filter((doc) => !doc.teamId);
   }, [documents, isEnabled, includeOrgKnowledge]);
 
-  const knowledgeFiles: KnowledgeFile[] = [];
+  const { data: binding } = useAgentBinding(organizationId, agentId);
+  const knowledgeFiles = (binding?.knowledgeFiles ??
+    []) satisfies KnowledgeFile[];
 
   const { uploadFiles, isUploading, accept } = useAgentFileUpload({
     organizationId,
-    agentFileName: agentId,
+    agentSlug: agentId,
   });
 
   const handleRemoveFile = useCallback(
@@ -169,7 +172,7 @@ export function AgentKnowledge({
       removeKnowledgeFile
         .mutateAsync({
           organizationId,
-          agentFileName: agentId,
+          agentSlug: agentId,
           fileId: toId<'_storage'>(fileId),
         })
         .catch(() => {

@@ -102,6 +102,7 @@ export interface RunAgentGenerationArgs {
   threadId: string;
   organizationId: string;
   userId?: string;
+  agentSlug?: string;
   promptMessage: string;
   additionalContext?: Record<string, string>;
   parentThreadId?: string;

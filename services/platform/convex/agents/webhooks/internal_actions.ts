@@ -15,7 +15,7 @@ import {
 
 export const chatViaWebhook = internalAction({
   args: {
-    agentFileName: v.string(),
+    agentSlug: v.string(),
     organizationId: v.string(),
     webhookId: v.id('agentWebhooks'),
     message: v.string(),
@@ -51,7 +51,7 @@ export const chatViaWebhook = internalAction({
       throw new Error('Organization not found');
     }
 
-    const filePath = resolveAgentFilePath(orgSlug, args.agentFileName);
+    const filePath = resolveAgentFilePath(orgSlug, args.agentSlug);
     let content: string;
     try {
       const fileStat = await stat(filePath);
@@ -61,7 +61,7 @@ export const chatViaWebhook = internalAction({
       content = await readFile(filePath, 'utf-8');
     } catch (err) {
       const detail = err instanceof Error ? err.message : 'unknown error';
-      throw new Error(`Agent not found: ${args.agentFileName} — ${detail}`, {
+      throw new Error(`Agent not found: ${args.agentSlug} — ${detail}`, {
         cause: err,
       });
     }
@@ -71,12 +71,12 @@ export const chatViaWebhook = internalAction({
       internal.agents.internal_queries.getBindingByAgent,
       {
         organizationId: args.organizationId,
-        agentFileName: args.agentFileName,
+        agentSlug: args.agentSlug,
       },
     );
 
     const agentConfig = toSerializableConfig(
-      args.agentFileName,
+      args.agentSlug,
       config,
       binding
         ? {
@@ -89,7 +89,7 @@ export const chatViaWebhook = internalAction({
     return ctx.runMutation(
       internal.agents.webhooks.internal_mutations.startWebhookChat,
       {
-        agentFileName: args.agentFileName,
+        agentSlug: args.agentSlug,
         organizationId: args.organizationId,
         webhookId: args.webhookId,
         message: args.message,

@@ -20,6 +20,7 @@ interface AgentConfigContextValue {
   updateConfig: (partial: Partial<AgentJsonConfig>) => void;
   resetConfig: () => void;
   markSaving: (saving: boolean) => void;
+  overrideConfig: (config: AgentJsonConfig) => void;
 }
 
 const AgentConfigContext = createContext<AgentConfigContextValue | null>(null);
@@ -69,6 +70,11 @@ export function AgentConfigProvider({
     }
   }, []);
 
+  const overrideConfig = useCallback((next: AgentJsonConfig) => {
+    setConfig(next);
+    initialRef.current = next;
+  }, []);
+
   const value = useMemo<AgentConfigContextValue>(
     () => ({
       agentName,
@@ -79,6 +85,7 @@ export function AgentConfigProvider({
       updateConfig,
       resetConfig,
       markSaving,
+      overrideConfig,
     }),
     [
       agentName,
@@ -88,6 +95,7 @@ export function AgentConfigProvider({
       updateConfig,
       resetConfig,
       markSaving,
+      overrideConfig,
     ],
   );
 

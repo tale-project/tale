@@ -10,7 +10,7 @@ import { knowledgeFileRagStatusValidator } from './schema';
 export const updateKnowledgeFileRagInfo = internalMutation({
   args: {
     organizationId: v.string(),
-    agentFileName: v.string(),
+    agentSlug: v.string(),
     fileId: v.id('_storage'),
     ragStatus: knowledgeFileRagStatusValidator,
     ragIndexedAt: v.optional(v.number()),
@@ -22,7 +22,7 @@ export const updateKnowledgeFileRagInfo = internalMutation({
       .withIndex('by_org_agent', (q) =>
         q
           .eq('organizationId', args.organizationId)
-          .eq('agentFileName', args.agentFileName),
+          .eq('agentSlug', args.agentSlug),
       )
       .first();
 
@@ -49,7 +49,7 @@ export const updateKnowledgeFileRagInfo = internalMutation({
 export const cleanupAgentBinding = internalMutation({
   args: {
     organizationId: v.string(),
-    agentFileName: v.string(),
+    agentSlug: v.string(),
   },
   handler: async (ctx, args) => {
     const binding = await ctx.db
@@ -57,7 +57,7 @@ export const cleanupAgentBinding = internalMutation({
       .withIndex('by_org_agent', (q) =>
         q
           .eq('organizationId', args.organizationId)
-          .eq('agentFileName', args.agentFileName),
+          .eq('agentSlug', args.agentSlug),
       )
       .first();
 

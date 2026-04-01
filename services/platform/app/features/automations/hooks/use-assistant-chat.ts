@@ -99,7 +99,7 @@ export function useAssistantChat({
     delay: 16,
   });
 
-  const workflowAgentFileName = 'workflow-assistant';
+  const workflowAgentSlug = 'workflow-assistant';
 
   const { mutateAsync: chatWithAgent } = useUnifiedChatWithAgent();
   const { mutateAsync: createChatThread } = useCreateThread();
@@ -426,7 +426,7 @@ export function useAssistantChat({
       if (!currentThreadId) return;
 
       await chatWithAgent({
-        agentFileName: workflowAgentFileName,
+        agentSlug: workflowAgentSlug,
         orgSlug: 'default',
         threadId: currentThreadId,
         organizationId,

@@ -12,10 +12,7 @@ import { jsonRecordValidator } from '../../../lib/shared/schemas/utils/json-valu
 import { components, internal } from '../../_generated/api';
 import { internalMutation } from '../../_generated/server';
 import { createApproval } from '../../approvals/helpers';
-import {
-  getDefaultAgentRuntimeConfig,
-  getDefaultModel,
-} from '../../lib/agent_runtime_config';
+import { getDefaultAgentRuntimeConfig } from '../../lib/agent_runtime_config';
 import { checkOrganizationRateLimit } from '../../lib/rate_limiter/helpers';
 import { persistentStreaming } from '../../streaming/helpers';
 import { stepConfigValidator } from '../../workflow_engine/types/nodes';
@@ -84,23 +81,18 @@ export const triggerWorkflowCompletionResponse = internalMutation({
   args: {
     threadId: v.string(),
     organizationId: v.string(),
+    agentSlug: v.string(),
     messageContent: v.string(),
+    agentConfig: v.any(),
   },
   handler: async (ctx, args): Promise<void> => {
-    const { threadId, organizationId, messageContent } = args;
+    const { threadId, organizationId, agentSlug, messageContent, agentConfig } =
+      args;
 
-    // Resolve the agent from thread metadata
     const threadMeta = await ctx.db
       .query('threadMetadata')
       .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
       .first();
-
-    const agentId = threadMeta?.agentId;
-    if (!agentId) {
-      throw new Error(
-        `[triggerWorkflowCompletionResponse] Thread ${threadId} has no agentId`,
-      );
-    }
 
     const thread = await ctx.runQuery(components.agent.threads.getThread, {
       threadId,
@@ -116,20 +108,6 @@ export const triggerWorkflowCompletionResponse = internalMutation({
     );
 
     const { model, provider } = getDefaultAgentRuntimeConfig();
-    const agentConfig = {
-      name: String(agentId),
-      instructions: '',
-      convexToolNames: [],
-      model: getDefaultModel(),
-      enableVectorSearch: false,
-      knowledgeMode: 'off' as const,
-      webSearchMode: 'off' as const,
-      includeTeamKnowledge: false,
-      includeOrgKnowledge: false,
-      knowledgeFileIds: [],
-      structuredResponsesEnabled: true,
-      timeoutMs: 1_200_000,
-    };
     const streamId = await persistentStreaming.createStream(ctx);
 
     if (threadMeta) {
@@ -147,7 +125,7 @@ export const triggerWorkflowCompletionResponse = internalMutation({
         agentConfig,
         model: agentConfig.model ?? model,
         provider,
-        debugTag: `[Agent:${agentId}:WorkflowComplete]`,
+        debugTag: `[${agentSlug}:WorkflowComplete]`,
         enableStreaming: true,
         threadId,
         organizationId,

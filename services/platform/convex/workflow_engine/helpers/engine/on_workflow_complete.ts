@@ -170,16 +170,39 @@ async function postCompletionMessageToThread(
         ? `[WORKFLOW_COMPLETED]\nWorkflow "${workflowName}" completed successfully.\n\nExecution Details:\n- Execution ID: ${exec._id}\n- Status: completed${outputSummary}\n\nInstructions:\n- Inform the user that the workflow has completed successfully and present the output details\n- If the output contains file download links (downloadUrl), present them to the user so they can download the files`
         : `[WORKFLOW_FAILED]\nWorkflow "${workflowName}" failed.\n\nExecution Details:\n- Execution ID: ${exec._id}\n- Status: failed\n- Error: ${errorMsg || 'unknown error'}\n\nInstructions:\n- Inform the user that the workflow has failed and provide the error details`;
 
-    await ctx.scheduler.runAfter(
-      0,
-      internal.agent_tools.workflows.internal_mutations
-        .triggerWorkflowCompletionResponse,
-      {
-        threadId: approval.threadId,
-        organizationId: exec.organizationId,
-        messageContent,
-      },
-    );
+    // Resolve agentSlug from thread metadata to load full agent config
+    const threadMeta = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_threadId', (q) =>
+        q.eq('threadId', String(approval.threadId)),
+      )
+      .first();
+    const agentSlug = threadMeta?.agentSlug;
+
+    if (agentSlug) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.agent_tools.workflows.trigger_completion_action
+          .triggerCompletionWithAgent,
+        {
+          threadId: approval.threadId,
+          organizationId: exec.organizationId,
+          agentSlug,
+          messageContent,
+        },
+      );
+    } else {
+      // Fallback for legacy threads without agentSlug: save the system message
+      // directly so the user still sees the workflow result, but skip agent generation
+      await ctx.scheduler.runAfter(
+        0,
+        internal.agent_tools.workflows.internal_mutations.saveSystemMessage,
+        {
+          threadId: approval.threadId,
+          content: messageContent,
+        },
+      );
+    }
   } catch {
     // Completion response trigger failure is non-critical; execution status is already persisted
   }

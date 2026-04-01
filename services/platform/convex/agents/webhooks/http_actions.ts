@@ -139,12 +139,17 @@ export const agentWebhookHandler = httpAction(async (ctx, req) => {
     shouldStream = body.stream === true;
   }
 
+  await ctx.runMutation(
+    internal.agents.webhooks.internal_mutations.updateWebhookLastTriggered,
+    { webhookId: webhook._id, lastTriggeredAt: Date.now() },
+  );
+
   let chatResult: { threadId: string; streamId: string };
   try {
     chatResult = await ctx.runAction(
       internal.agents.webhooks.internal_actions.chatViaWebhook,
       {
-        agentFileName: webhook.agentFileName,
+        agentSlug: webhook.agentSlug,
         organizationId: webhook.organizationId,
         webhookId: webhook._id,
         message,
@@ -157,11 +162,6 @@ export const agentWebhookHandler = httpAction(async (ctx, req) => {
     const msg = error instanceof Error ? error.message : 'Failed to start chat';
     return jsonResponse({ error: msg }, 500);
   }
-
-  await ctx.runMutation(
-    internal.agents.webhooks.internal_mutations.updateWebhookLastTriggered,
-    { webhookId: webhook._id, lastTriggeredAt: Date.now() },
-  );
 
   if (shouldStream) {
     return streamResponse(ctx, chatResult);

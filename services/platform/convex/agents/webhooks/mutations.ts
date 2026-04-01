@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
 
 import { mutation } from '../../_generated/server';
+import { validateAgentName } from '../../agents/file_utils';
 import { authComponent } from '../../auth';
 import { getOrganizationMember } from '../../lib/rls';
 import { generateToken } from '../../workflows/triggers/helpers/crypto';
@@ -8,7 +9,7 @@ import { generateToken } from '../../workflows/triggers/helpers/crypto';
 export const createWebhook = mutation({
   args: {
     organizationId: v.string(),
-    agentFileName: v.string(),
+    agentSlug: v.string(),
   },
   returns: v.object({
     webhookId: v.id('agentWebhooks'),
@@ -24,11 +25,15 @@ export const createWebhook = mutation({
       name: authUser.name,
     });
 
+    if (!validateAgentName(args.agentSlug)) {
+      throw new Error(`Invalid agent slug: ${args.agentSlug}`);
+    }
+
     const token = generateToken();
 
     const webhookId = await ctx.db.insert('agentWebhooks', {
       organizationId: args.organizationId,
-      agentFileName: args.agentFileName,
+      agentSlug: args.agentSlug,
       token,
       isActive: true,
       createdAt: Date.now(),
