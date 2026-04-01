@@ -49,7 +49,7 @@
     "husky": "^9.1.7",
     "jsdom": "29.0.1",
     "knip": "^6.0.0",
-    "oxfmt": "^0.32.0",
+    "oxfmt": "^0.43.0",
     "oxlint": "^1.43.0",
     "oxlint-tsgolint": "^0.18.0",
     "postcss": "8.5.8",
