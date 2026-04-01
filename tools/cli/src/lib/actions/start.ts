@@ -10,8 +10,36 @@ import { dockerCompose } from '../docker/docker-compose';
 import { findProject } from '../project/find-project';
 import { init } from './init';
 
+async function openBrowser(url: string): Promise<void> {
+  const commands: string[][] =
+    process.platform === 'darwin'
+      ? [['open', url]]
+      : process.platform === 'win32'
+        ? [['cmd', '/c', 'start', '', url]]
+        : [
+            ['xdg-open', url],
+            ['sensible-browser', url],
+            ['x-www-browser', url],
+          ];
+
+  for (const cmd of commands) {
+    try {
+      const proc = Bun.spawn(cmd, {
+        stdout: 'ignore',
+        stderr: 'ignore',
+        stdin: 'ignore',
+      });
+      const exitCode = await proc.exited;
+      if (exitCode === 0) return;
+    } catch {
+      // Command not found, try next
+    }
+  }
+  logger.debug(`Could not open browser. Visit: ${url}`);
+}
+
 async function waitForHealthAndOpenBrowser(url: string): Promise<void> {
-  const healthUrl = `${url}/api/health`;
+  const healthUrl = `${url}/health`;
   const maxAttempts = 120;
 
   for (let i = 0; i < maxAttempts; i++) {
@@ -20,9 +48,7 @@ async function waitForHealthAndOpenBrowser(url: string): Promise<void> {
         signal: AbortSignal.timeout(2000),
       });
       if (res.ok) {
-        const cmd =
-          process.platform === 'darwin' ? ['open', url] : ['xdg-open', url];
-        Bun.spawn(cmd, { stdout: 'ignore', stderr: 'ignore' });
+        await openBrowser(url);
         return;
       }
     } catch {

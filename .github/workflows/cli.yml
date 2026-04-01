@@ -53,6 +53,15 @@ jobs:
             build_script: build:mac
             binary: tale
             artifact: tale_macos
+          - os: windows-latest
+            platform: windows
+            build_script: build:windows
+            binary: tale.exe
+            artifact: tale_windows.exe
+
+    defaults:
+      run:
+        shell: bash
 
     steps:
       - name: Checkout
@@ -93,7 +102,9 @@ jobs:
       - name: Verify binary
         working-directory: tools/cli/dist
         run: |
-          chmod +x ${{ matrix.artifact }}
+          if [ "${{ matrix.platform }}" != "windows" ]; then
+            chmod +x ${{ matrix.artifact }}
+          fi
           ./${{ matrix.artifact }} --version
 
       - name: Upload artifact
@@ -125,5 +136,6 @@ jobs:
           gh release upload ${{ github.event.inputs.release_tag }} \
             artifacts/tale_linux/* \
             artifacts/tale_macos/* \
+            artifacts/tale_windows.exe/* \
             --repo ${{ github.repository }} \
             --clobber

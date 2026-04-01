@@ -10,6 +10,11 @@ import {
 import { containerExists } from '../docker/container-exists';
 import { getCurrentColor } from '../state/get-current-color';
 
+// 130 = SIGINT (Unix), 143 = SIGTERM (Unix), 3221225786 = STATUS_CONTROL_C_EXIT (Windows)
+function isUserInterrupt(code: number): boolean {
+  return code === 130 || code === 143 || code === 3221225786;
+}
+
 interface LogsOptions {
   service: string;
   color?: DeploymentColor;
@@ -95,8 +100,7 @@ export async function logs(options: LogsOptions): Promise<void> {
   });
 
   const exitCode = await proc.exited;
-  // 130 = SIGINT (Ctrl+C), 143 = SIGTERM - expected when user stops following
-  if (exitCode !== 0 && exitCode !== 130 && exitCode !== 143) {
+  if (exitCode !== 0 && !isUserInterrupt(exitCode)) {
     throw new Error(`docker logs exited with code ${exitCode}`);
   }
 }
