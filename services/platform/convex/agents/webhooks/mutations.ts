@@ -1,7 +1,7 @@
 import { v } from 'convex/values';
 
 import { mutation } from '../../_generated/server';
-import { validateAgentName } from '../../agents/file_utils';
+import { validateAgentName } from '../../agents/validators';
 import { authComponent } from '../../auth';
 import { getOrganizationMember } from '../../lib/rls';
 import { generateToken } from '../../workflows/triggers/helpers/crypto';

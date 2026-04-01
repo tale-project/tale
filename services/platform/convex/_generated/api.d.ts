@@ -120,6 +120,7 @@ import type * as agents_queries from "../agents/queries.js";
 import type * as agents_seed_system_defaults from "../agents/seed_system_defaults.js";
 import type * as agents_start_chat from "../agents/start_chat.js";
 import type * as agents_unified_chat from "../agents/unified_chat.js";
+import type * as agents_validators from "../agents/validators.js";
 import type * as agents_webhooks_http_actions from "../agents/webhooks/http_actions.js";
 import type * as agents_webhooks_internal_actions from "../agents/webhooks/internal_actions.js";
 import type * as agents_webhooks_internal_mutations from "../agents/webhooks/internal_mutations.js";
@@ -950,6 +951,7 @@ declare const fullApi: ApiFromModules<{
   "agents/seed_system_defaults": typeof agents_seed_system_defaults;
   "agents/start_chat": typeof agents_start_chat;
   "agents/unified_chat": typeof agents_unified_chat;
+  "agents/validators": typeof agents_validators;
   "agents/webhooks/http_actions": typeof agents_webhooks_http_actions;
   "agents/webhooks/internal_actions": typeof agents_webhooks_internal_actions;
   "agents/webhooks/internal_mutations": typeof agents_webhooks_internal_mutations;
