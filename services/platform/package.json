@@ -91,7 +91,7 @@
     "jose": "6.2.2",
     "json-diff-kit": "^1.0.35",
     "jszip": "^3.10.1",
-    "lodash": "4.17.23",
+    "lodash": "4.18.1",
     "lucide-react": "1.7.0",
     "mammoth": "1.12.0",
     "mssql": "12.2.1",
