@@ -138,6 +138,13 @@
           },
           { "label": "Troubleshooting", "href": "/troubleshooting" }
         ]
+      },
+      {
+        "header": "Legal",
+        "items": [
+          { "label": "Privacy policy", "href": "/privacy-policy" },
+          { "label": "Terms of service", "href": "/terms-of-service" }
+        ]
       }
     ]
   },
