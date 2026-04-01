@@ -17,9 +17,7 @@
     "document_find",
     "document_write"
   ],
-  "workflows": [
-    "contract_comparison"
-  ],
+  "workflows": [],
   "modelPreset": "standard",
   "knowledgeMode": "tool",
   "includeOrgKnowledge": true,
