@@ -14,6 +14,15 @@ export function isRetrievalMode(value: string): value is RetrievalMode {
 const retrievalModeSchema = z.enum(retrievalModeLiterals);
 
 /**
+ * Fields that can be overridden per locale via the i18n key.
+ */
+const translatableFieldsSchema = z.object({
+  displayName: z.string().min(1).max(200).optional(),
+  description: z.string().max(1000).optional(),
+  conversationStarters: z.array(z.string().max(200)).max(4).optional(),
+});
+
+/**
  * Schema for the agent JSON file format.
  * Matches the AgentJsonConfig type in convex/agents/file_utils.ts.
  */
@@ -40,6 +49,12 @@ export const agentJsonSchema = z.object({
   roleRestriction: z.literal('admin_developer').optional(),
   conversationStarters: z.array(z.string().max(200)).max(4).optional(),
   visibleInChat: z.boolean().optional(),
+  i18n: z
+    .record(
+      z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/),
+      translatableFieldsSchema,
+    )
+    .optional(),
 });
 type AgentJson = z.infer<typeof agentJsonSchema>;
 

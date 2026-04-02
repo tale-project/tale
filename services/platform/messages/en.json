@@ -569,6 +569,7 @@
       "organizationId": "Organization ID",
       "membersTitle": "Organization members",
       "manageAccess": "Manage access to the organization",
+      "defaultLocale": "Default language",
       "searchMember": "Search member",
       "addMember": "Add member",
       "members": {
@@ -756,7 +757,11 @@
         "remove": "Remove conversation starter",
         "dragHandle": "Drag to reorder",
         "moveUp": "Move up",
-        "moveDown": "Move down"
+        "moveDown": "Move down",
+        "default": "default",
+        "untranslated": "untranslated",
+        "autoTranslate": "Auto-translate",
+        "translateError": "Failed to auto-translate"
       },
       "form": {
         "sectionGeneral": "General",

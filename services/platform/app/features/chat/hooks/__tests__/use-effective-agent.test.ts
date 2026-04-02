@@ -9,10 +9,23 @@ interface MockAgent {
   displayName: string;
   description: string;
   conversationStarters?: string[];
+  i18n?: Record<
+    string,
+    { displayName?: string; conversationStarters?: string[] }
+  >;
 }
 
 let mockSelectedAgent: SelectedAgent | null = null;
 let mockAgents: MockAgent[] | undefined;
+let mockLocale = 'en';
+let mockOrgMetadata: unknown = undefined;
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    i18n: { language: mockLocale },
+    t: (key: string) => key,
+  }),
+}));
 
 vi.mock('../../context/chat-layout-context', () => ({
   useChatLayout: () => ({
@@ -23,6 +36,13 @@ vi.mock('../../context/chat-layout-context', () => ({
 vi.mock('../queries', () => ({
   useChatAgents: () => ({
     agents: mockAgents,
+  }),
+}));
+
+vi.mock('@/app/features/organization/hooks/queries', () => ({
+  useOrganization: () => ({
+    data:
+      mockOrgMetadata !== undefined ? { metadata: mockOrgMetadata } : undefined,
   }),
 }));
 
@@ -47,6 +67,8 @@ const AGENTS: MockAgent[] = [
 beforeEach(() => {
   mockSelectedAgent = null;
   mockAgents = undefined;
+  mockLocale = 'en';
+  mockOrgMetadata = undefined;
 });
 
 describe('useEffectiveAgent', () => {
@@ -167,6 +189,79 @@ describe('useEffectiveAgent', () => {
       expect(result.current).toEqual({
         name: 'other-agent',
         displayName: 'Other Agent',
+      });
+    });
+  });
+
+  describe('i18n locale resolution', () => {
+    const I18N_AGENTS: MockAgent[] = [
+      {
+        name: 'chat-agent',
+        displayName: 'Chat Agent',
+        description: 'Default assistant',
+        conversationStarters: ['Hello', 'Help me'],
+        i18n: {
+          de: {
+            displayName: 'Chat-Assistent',
+            conversationStarters: ['Hallo', 'Hilf mir'],
+          },
+        },
+      },
+    ];
+
+    it('returns top-level fields when locale matches org default', () => {
+      mockAgents = I18N_AGENTS;
+      mockLocale = 'en';
+      mockOrgMetadata = { defaultLocale: 'en' };
+
+      const { result } = renderHook(() => useEffectiveAgent(ORG_ID));
+
+      expect(result.current).toEqual({
+        name: 'chat-agent',
+        displayName: 'Chat Agent',
+        conversationStarters: ['Hello', 'Help me'],
+      });
+    });
+
+    it('returns i18n overrides when locale differs from org default', () => {
+      mockAgents = I18N_AGENTS;
+      mockLocale = 'de';
+      mockOrgMetadata = { defaultLocale: 'en' };
+
+      const { result } = renderHook(() => useEffectiveAgent(ORG_ID));
+
+      expect(result.current).toEqual({
+        name: 'chat-agent',
+        displayName: 'Chat-Assistent',
+        conversationStarters: ['Hallo', 'Hilf mir'],
+      });
+    });
+
+    it('falls back to top-level when locale has no i18n overrides', () => {
+      mockAgents = I18N_AGENTS;
+      mockLocale = 'fr';
+      mockOrgMetadata = { defaultLocale: 'en' };
+
+      const { result } = renderHook(() => useEffectiveAgent(ORG_ID));
+
+      expect(result.current).toEqual({
+        name: 'chat-agent',
+        displayName: 'Chat Agent',
+        conversationStarters: ['Hello', 'Help me'],
+      });
+    });
+
+    it('defaults to en when org metadata is missing', () => {
+      mockAgents = I18N_AGENTS;
+      mockLocale = 'en';
+      mockOrgMetadata = undefined;
+
+      const { result } = renderHook(() => useEffectiveAgent(ORG_ID));
+
+      expect(result.current).toEqual({
+        name: 'chat-agent',
+        displayName: 'Chat Agent',
+        conversationStarters: ['Hello', 'Help me'],
       });
     });
   });

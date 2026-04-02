@@ -67,6 +67,14 @@ export interface ChatAgent {
   toolNames?: string[];
   roleRestriction?: string;
   conversationStarters?: string[];
+  i18n?: Record<
+    string,
+    {
+      displayName?: string;
+      description?: string;
+      conversationStarters?: string[];
+    }
+  >;
 }
 
 export function useChatAgents(_organizationId: string) {
@@ -88,6 +96,7 @@ export function useChatAgents(_organizationId: string) {
           description: a.description,
           visibleInChat: a.visibleInChat,
           conversationStarters: a.conversationStarters,
+          i18n: a.i18n,
         });
       }
     }

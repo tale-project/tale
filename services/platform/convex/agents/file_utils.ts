@@ -18,6 +18,12 @@ export { sha256, validateAgentName };
 const MAX_FILE_SIZE_BYTES = 256 * 1024; // 256 KB
 const MAX_HISTORY_ENTRIES = 100;
 
+export interface AgentI18nOverrides {
+  displayName?: string;
+  description?: string;
+  conversationStarters?: string[];
+}
+
 export interface AgentJsonConfig {
   displayName: string;
   description?: string;
@@ -41,6 +47,7 @@ export interface AgentJsonConfig {
   roleRestriction?: 'admin_developer';
   conversationStarters?: string[];
   visibleInChat?: boolean;
+  i18n?: Record<string, AgentI18nOverrides>;
 }
 
 export type AgentReadResult =

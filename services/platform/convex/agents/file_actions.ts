@@ -106,6 +106,7 @@ export const listAgents = action({
             toolNames: result.config.toolNames,
             roleRestriction: result.config.roleRestriction,
             conversationStarters: result.config.conversationStarters,
+            i18n: result.config.i18n,
           };
         }
         return {
@@ -378,5 +379,33 @@ export const readAgentForChat = internalAction({
   returns: v.any(),
   handler: async (_ctx, args): Promise<AgentReadResult> => {
     return readAgentFile(args.orgSlug, args.agentName);
+  },
+});
+
+// ---------------------------------------------------------------------------
+// AI-assisted translation for agent content fields
+// ---------------------------------------------------------------------------
+
+export const translateAgentFields = action({
+  args: {
+    fields: v.record(v.string(), v.union(v.string(), v.array(v.string()))),
+    targetLocale: v.string(),
+  },
+  returns: v.object({
+    translated: v.record(v.string(), v.union(v.string(), v.array(v.string()))),
+    error: v.optional(v.string()),
+  }),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    translated: Record<string, string | string[]>;
+    error?: string;
+  }> => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) throw new Error('Unauthenticated');
+
+    const { translateFields } = await import('./translate_fields');
+    return translateFields(ctx, args);
   },
 });
