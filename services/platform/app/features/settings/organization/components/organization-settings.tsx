@@ -19,6 +19,7 @@ import { useToast } from '@/app/hooks/use-toast';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 import { SUPPORTED_AGENT_LOCALES } from '@/lib/shared/constants/agents';
+import { getOrganizationDefaultLocale } from '@/lib/shared/utils/get-organization-default-locale';
 
 import { useMembers } from '../hooks/queries';
 import { AddMemberDialog } from './member-add-dialog';
@@ -55,8 +56,6 @@ function parseMetadata(metadata: unknown): {
   return metadata as { defaultLocale?: string; [key: string]: unknown };
 }
 
-const DEFAULT_LOCALE = 'en';
-
 export function OrganizationSettings({
   organization,
   memberContext,
@@ -87,10 +86,7 @@ export function OrganizationSettings({
     mode: 'onChange',
     defaultValues: {
       name: organization?.name || '',
-      defaultLocale:
-        typeof existingMetadata.defaultLocale === 'string'
-          ? existingMetadata.defaultLocale
-          : DEFAULT_LOCALE,
+      defaultLocale: getOrganizationDefaultLocale(organization?.metadata),
     },
   });
 

@@ -388,17 +388,20 @@ export const readAgentForChat = internalAction({
 
 export const translateAgentFields = action({
   args: {
-    fields: v.array(v.string()),
+    fields: v.record(v.string(), v.union(v.string(), v.array(v.string()))),
     targetLocale: v.string(),
   },
   returns: v.object({
-    translated: v.array(v.string()),
+    translated: v.record(v.string(), v.union(v.string(), v.array(v.string()))),
     error: v.optional(v.string()),
   }),
   handler: async (
     ctx,
     args,
-  ): Promise<{ translated: string[]; error?: string }> => {
+  ): Promise<{
+    translated: Record<string, string | string[]>;
+    error?: string;
+  }> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 

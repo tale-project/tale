@@ -51,15 +51,7 @@ function toStrings(items: StarterItem[]): string[] {
   return items.map((item) => item.text);
 }
 
-const DEFAULT_LOCALE = 'en';
-
-function parseDefaultLocale(metadata: unknown): string {
-  if (metadata && typeof metadata === 'object' && 'defaultLocale' in metadata) {
-    const value = (metadata as { defaultLocale: unknown }).defaultLocale; // oxlint-disable-line typescript/no-unsafe-type-assertion
-    if (typeof value === 'string') return value;
-  }
-  return DEFAULT_LOCALE;
-}
+import { getOrganizationDefaultLocale } from '@/lib/shared/utils/get-organization-default-locale';
 
 function ConversationStartersTab() {
   const { t } = useT('settings');
@@ -70,7 +62,7 @@ function ConversationStartersTab() {
   const translateMutation = useTranslateAgentFields();
   const { toast } = useToast();
 
-  const defaultLocale = parseDefaultLocale(organization?.metadata);
+  const defaultLocale = getOrganizationDefaultLocale(organization?.metadata);
 
   // null = editing the default locale (top-level conversationStarters)
   const [editingLocale, setEditingLocale] = useState<string | null>(null);
@@ -199,10 +191,12 @@ function ConversationStartersTab() {
   async function handleAutoTranslate() {
     if (!editingLocale || sourceStarters.length === 0) return;
 
+    const targetLocale = editingLocale;
+
     try {
       const result = await translateMutation.mutateAsync({
-        fields: sourceStarters,
-        targetLocale: editingLocale,
+        fields: { conversationStarters: sourceStarters },
+        targetLocale,
       });
 
       if (result.error) {
@@ -213,10 +207,18 @@ function ConversationStartersTab() {
         return;
       }
 
-      const newItems = toItems(result.translated);
+      const translated = result.translated.conversationStarters;
+      if (!Array.isArray(translated)) return;
+
+      const newItems = toItems(translated);
+
+      // Guard against locale tab switch during in-flight translation
+      if (editingLocale !== targetLocale) return;
+
       setItems(newItems);
       syncToConfig(newItems);
-    } catch {
+    } catch (error) {
+      console.error('[auto-translate]', error);
       toast({
         title: t('agents.conversationStarters.translateError'),
         variant: 'destructive',
@@ -240,6 +242,7 @@ function ConversationStartersTab() {
             <button
               key={locale}
               type="button"
+              disabled={translateMutation.isPending}
               onClick={() => setEditingLocale(isDefault ? null : locale)}
               className={cn(
                 'relative flex shrink-0 items-center gap-1.5 whitespace-nowrap pb-2 text-sm font-medium transition-colors',

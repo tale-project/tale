@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useOrganization } from '@/app/features/organization/hooks/queries';
+import { getOrganizationDefaultLocale } from '@/lib/shared/utils/get-organization-default-locale';
 import { resolveAgentLocale } from '@/lib/shared/utils/resolve-agent-locale';
 
 import type { SelectedAgent } from '../context/chat-layout-context';
@@ -14,15 +15,6 @@ export interface EffectiveAgent extends SelectedAgent {
 }
 
 const DEFAULT_CHAT_AGENT_NAME = 'chat-agent';
-const DEFAULT_LOCALE = 'en';
-
-function parseDefaultLocale(metadata: unknown): string {
-  if (metadata && typeof metadata === 'object' && 'defaultLocale' in metadata) {
-    const value = (metadata as { defaultLocale: unknown }).defaultLocale; // oxlint-disable-line typescript/no-unsafe-type-assertion
-    if (typeof value === 'string') return value;
-  }
-  return DEFAULT_LOCALE;
-}
 
 /**
  * Resolves the currently effective agent for chat.
@@ -42,7 +34,7 @@ export function useEffectiveAgent(
   const { data: organization } = useOrganization(organizationId);
 
   const locale = i18n.language;
-  const defaultLocale = parseDefaultLocale(organization?.metadata);
+  const defaultLocale = getOrganizationDefaultLocale(organization?.metadata);
 
   return useMemo(() => {
     function resolve(agent: NonNullable<typeof agents>[number]) {
