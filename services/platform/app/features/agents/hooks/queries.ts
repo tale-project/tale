@@ -106,6 +106,10 @@ export function useAgentHistory(orgSlug: string, agentName: string) {
 // Query-based hooks (DB reads — reactive)
 // ---------------------------------------------------------------------------
 
+export function useHasAgentsByTeam(teamId: string) {
+  return useConvexQuery(api.agents.queries.hasBindingsByTeam, { teamId });
+}
+
 export function useAgentBinding(organizationId: string, agentSlug: string) {
   return useConvexQuery(api.agents.queries.getBindingByAgent, {
     organizationId,
