@@ -9,8 +9,11 @@ import { Switch } from '@/app/components/ui/forms/switch';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { PageSection } from '@/app/components/ui/layout/page-section';
 import { StickySectionHeader } from '@/app/components/ui/layout/sticky-section-header';
+import { useUpdateAgentBindings } from '@/app/features/agents/hooks/mutations';
+import { useAgentBinding } from '@/app/features/agents/hooks/queries';
 import { useAgentConfig } from '@/app/features/agents/hooks/use-agent-config-context';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
+import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
@@ -26,8 +29,11 @@ const DEFAULT_TIMEOUT_MINUTES = 7;
 
 function GeneralTab() {
   const { t } = useT('settings');
+  const { id: organizationId, agentId: agentSlug } = Route.useParams();
   const { config, updateConfig } = useAgentConfig();
   const { teams } = useTeamFilter();
+  const { data: binding } = useAgentBinding(organizationId, agentSlug);
+  const updateBindings = useUpdateAgentBindings();
 
   const [timeoutMinutes, setTimeoutMinutes] = useState(DEFAULT_TIMEOUT_MINUTES);
   const [timeoutInitialized, setTimeoutInitialized] = useState(false);
@@ -52,6 +58,30 @@ function GeneralTab() {
     }
     return items;
   }, [teams, t]);
+
+  const handleTeamChange = useCallback(
+    (value: string) => {
+      updateBindings
+        .mutateAsync({
+          organizationId,
+          agentSlug,
+          teamId: value === NO_TEAM_VALUE ? '' : value,
+        })
+        .then(() => {
+          toast({
+            title: t('agents.form.teamUpdateSuccess'),
+            variant: 'success',
+          });
+        })
+        .catch(() => {
+          toast({
+            title: t('agents.form.teamUpdateFailed'),
+            variant: 'destructive',
+          });
+        });
+    },
+    [updateBindings, organizationId, agentSlug, t],
+  );
 
   const handleVisibilityChange = useCallback(
     (checked: boolean) => {
@@ -116,9 +146,8 @@ function GeneralTab() {
               options={teamOptions}
               label={t('agents.form.team')}
               description={t('agents.form.teamHelp')}
-              value={NO_TEAM_VALUE}
-              onValueChange={() => {}}
-              disabled
+              value={binding?.teamId ?? NO_TEAM_VALUE}
+              onValueChange={handleTeamChange}
             />
           </FormSection>
         </PageSection>

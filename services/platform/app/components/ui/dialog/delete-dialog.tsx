@@ -34,6 +34,8 @@ export interface DeleteDialogProps {
   deletingText?: string;
   /** Whether the deletion is in progress */
   isDeleting?: boolean;
+  /** Whether the delete button is disabled (without affecting cancel/close) */
+  disableDelete?: boolean;
   /** Callback when delete is confirmed */
   onDelete: () => void;
   /** Additional className for DialogContent */
@@ -56,6 +58,7 @@ export function DeleteDialog({
   deleteText,
   deletingText,
   isDeleting = false,
+  disableDelete = false,
   onDelete,
   className,
 }: DeleteDialogProps) {
@@ -73,6 +76,7 @@ export function DeleteDialog({
       confirmText={deleteText ?? tCommon('actions.delete')}
       loadingText={deletingText ?? tCommon('actions.deleting')}
       isLoading={isDeleting}
+      disableConfirm={disableDelete}
       onConfirm={onDelete}
       variant="destructive"
       className={className}

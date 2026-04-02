@@ -41,6 +41,23 @@ export const getBindingByAgent = query({
   },
 });
 
+export const hasBindingsByTeam = query({
+  args: {
+    teamId: v.string(),
+  },
+  handler: async (ctx, args): Promise<boolean> => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) return false;
+
+    const binding = await ctx.db
+      .query('agentBindings')
+      .withIndex('by_team', (q) => q.eq('teamId', args.teamId))
+      .first();
+
+    return binding !== null;
+  },
+});
+
 export const getAvailableTools = query({
   args: {},
   handler: async (): Promise<Array<{ name: string; available: boolean }>> => {

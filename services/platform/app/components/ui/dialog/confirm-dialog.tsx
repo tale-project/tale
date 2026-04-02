@@ -40,6 +40,8 @@ export interface ConfirmDialogProps {
   loadingText?: string;
   /** Whether the dialog is in a loading state */
   isLoading?: boolean;
+  /** Whether the confirm button is disabled (without affecting cancel/close) */
+  disableConfirm?: boolean;
   /** Callback when confirmed */
   onConfirm: () => void;
   /** Variant of the dialog - affects confirm button styling */
@@ -62,6 +64,7 @@ export function ConfirmDialog({
   confirmText,
   loadingText,
   isLoading = false,
+  disableConfirm = false,
   onConfirm,
   variant = 'default',
   className,
@@ -94,7 +97,7 @@ export function ConfirmDialog({
           e.stopPropagation();
           onConfirm();
         }}
-        disabled={isLoading}
+        disabled={isLoading || disableConfirm}
         className={cn(confirmButtonVariants({ variant }))}
       >
         {isLoading
