@@ -147,7 +147,7 @@
         "@types/pg": "8.20.0",
         "@types/react": "19.2.14",
         "@types/react-dom": "19.2.3",
-        "@types/react-file-icon": "1.0.4",
+        "@types/react-file-icon": "1.0.5",
         "@types/swagger-ui-react": "^5.18.0",
         "@vitejs/plugin-react": "6.0.1",
         "@vitest/browser": "^4.1.2",
@@ -1422,7 +1422,7 @@
 
     "@types/react-dom": ["@types/react-dom@19.2.3", "", { "peerDependencies": { "@types/react": "^19.2.0" } }, "sha512-jp2L/eY6fn+KgVVQAOqYItbF0VY/YApe5Mz2F0aykSO8gx31bYCZyvSeYxCHKvzHG5eZjc+zyaS5BrBWya2+kQ=="],
 
-    "@types/react-file-icon": ["@types/react-file-icon@1.0.4", "", { "dependencies": { "@types/react": "*" } }, "sha512-c1mIklUDaxm9odxf8RTiy/EAxsblZliJ86EKIOAyuafP9eK3iudyn4ATv53DX6ZvgGymc7IttVNm97LTGnTiYA=="],
+    "@types/react-file-icon": ["@types/react-file-icon@1.0.5", "", { "dependencies": { "@types/react": "*" } }, "sha512-2QkghuxsQhwJ7J1QdkFxMEciPyh/H/fX/ShAHAje1iuwcOnCI3AwnMZ3LHYvNv/3XYArV5KCbMHOtqiHIYJg0Q=="],
 
     "@types/readable-stream": ["@types/readable-stream@4.0.23", "", { "dependencies": { "@types/node": "*" } }, "sha512-wwXrtQvbMHxCbBgjHaMGEmImFTQxxpfMOR/ZoQnXxB1woqkUbdLGFDgauo00Py9IudiaqSeiBiulSV9i6XIPig=="],
 
