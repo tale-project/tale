@@ -1,7 +1,7 @@
 import chokidar from 'chokidar';
 import { relative } from 'node:path';
 
-export interface ConfigChangeEvent {
+interface ConfigChangeEvent {
   type: 'agents' | 'workflows' | 'integrations' | 'branding';
   orgSlug?: string;
   slug?: string;
@@ -21,9 +21,7 @@ const ATOMIC_WRITE_TMP_RE = /\.\d+\.[a-f0-9]{8}\.tmp$/;
  *   integrations/@acme/slack/config.json → { type: 'integration', orgSlug: 'acme', slug: 'slack' }
  *   branding/branding.json         → { type: 'branding' }
  */
-export function parseConfigChange(
-  relativePath: string,
-): ConfigChangeEvent | null {
+function parseConfigChange(relativePath: string): ConfigChangeEvent | null {
   const parts = relativePath.split('/');
   if (parts.length < 2) return null;
 
@@ -74,7 +72,7 @@ export function parseConfigChange(
   return null;
 }
 
-export interface ConfigWatcher {
+interface ConfigWatcher {
   onChange: (callback: (event: ConfigChangeEvent) => void) => void;
   close: () => Promise<void>;
 }
