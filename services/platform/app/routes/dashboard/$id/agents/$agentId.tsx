@@ -1,7 +1,4 @@
 import { createFileRoute, Link, Outlet } from '@tanstack/react-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
-
-import type { AgentJsonConfig } from '@/convex/agents/file_utils';
 
 import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
 import { ContentArea } from '@/app/components/layout/content-area';
@@ -15,9 +12,8 @@ import {
 import { Heading } from '@/app/components/ui/typography/heading';
 import { Text } from '@/app/components/ui/typography/text';
 import { AgentNavigation } from '@/app/features/agents/components/agent-navigation';
+import { useReadAgent } from '@/app/features/agents/hooks/queries';
 import { AgentConfigProvider } from '@/app/features/agents/hooks/use-agent-config-context';
-import { useConvexAction } from '@/app/hooks/use-convex-action';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { seo } from '@/lib/utils/seo';
@@ -34,38 +30,9 @@ function AgentDetailLayout() {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
 
-  const [agentConfig, setAgentConfig] = useState<AgentJsonConfig | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  const readAgent = useConvexAction(api.agents.file_actions.readAgent);
-  const readAgentRef = useRef(readAgent);
-  readAgentRef.current = readAgent;
-
-  const loadAgent = useCallback(async () => {
-    setIsLoading(true);
-    setLoadError(null);
-    try {
-      const result = await readAgentRef.current.mutateAsync({
-        orgSlug: 'default',
-        agentName: agentId,
-      });
-
-      if (result.ok) {
-        setAgentConfig(result.config);
-      } else {
-        setLoadError(result.message);
-      }
-    } catch (err) {
-      setLoadError(err instanceof Error ? err.message : 'Failed to load agent');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [agentId]);
-
-  useEffect(() => {
-    void loadAgent();
-  }, [loadAgent]);
+  const { data, isLoading, error } = useReadAgent('default', agentId);
+  const agentConfig = data?.ok ? data.config : null;
+  const loadError = data && !data.ok ? data.message : (error?.message ?? null);
 
   if (isLoading) {
     return (
@@ -202,7 +169,7 @@ function AgentDetailLayout() {
             <AgentNavigation
               organizationId={organizationId}
               agentId={agentId}
-              onSaved={setAgentConfig}
+              onSaved={() => {}}
             />
           </>
         }

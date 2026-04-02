@@ -2,7 +2,7 @@ import chokidar from 'chokidar';
 import { relative } from 'node:path';
 
 export interface ConfigChangeEvent {
-  type: 'agent' | 'workflow' | 'integration' | 'branding';
+  type: 'agents' | 'workflows' | 'integrations' | 'branding';
   orgSlug?: string;
   slug?: string;
 }
@@ -34,9 +34,9 @@ export function parseConfigChange(
   }
 
   const typeMap: Record<string, ConfigChangeEvent['type']> = {
-    agents: 'agent',
-    workflows: 'workflow',
-    integrations: 'integration',
+    agents: 'agents',
+    workflows: 'workflows',
+    integrations: 'integrations',
   };
 
   const type = typeMap[topDir];
@@ -53,19 +53,19 @@ export function parseConfigChange(
 
   if (rest.length === 0) return null;
 
-  if (type === 'agent') {
+  if (type === 'agents') {
     // agents/[@org/]name.json
     const filename = rest[0];
     return { type, orgSlug, slug: filename.replace(/\.json$/, '') };
   }
 
-  if (type === 'workflow') {
+  if (type === 'workflows') {
     // workflows/[@org/][folder/]name.json — slug is the path without extension
     const slug = rest.join('/').replace(/\.json$/, '');
     return { type, orgSlug, slug };
   }
 
-  if (type === 'integration') {
+  if (type === 'integrations') {
     // integrations/[@org/]slug/config.json
     const slug = rest[0];
     return { type, orgSlug, slug };

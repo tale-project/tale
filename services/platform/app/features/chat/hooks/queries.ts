@@ -1,6 +1,5 @@
 import { useUIMessages } from '@convex-dev/agent/react';
-import { useAction } from 'convex/react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
 import type {
@@ -13,6 +12,7 @@ import type {
   LocationRequestMetadata,
 } from '@/lib/shared/schemas/approvals';
 
+import { useListAgents } from '@/app/features/agents/hooks/queries';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
@@ -70,48 +70,33 @@ export interface ChatAgent {
 }
 
 export function useChatAgents(_organizationId: string) {
-  const listAgents = useAction(api.agents.file_actions.listAgents);
-  const [agents, setAgents] = useState<ChatAgent[] | undefined>(undefined);
-  const [isLoading, setIsLoading] = useState(true);
+  const { agents: rawAgents, isLoading } = useListAgents('default');
 
-  const fetchAgents = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const results = await listAgents({ orgSlug: 'default' });
-      const chatAgents: ChatAgent[] = [];
-      for (const a of results ?? []) {
-        if (
-          a &&
-          'displayName' in a &&
-          typeof a.displayName === 'string' &&
-          a.visibleInChat === true
-        ) {
-          chatAgents.push({
-            name: a.name,
-            displayName: a.displayName,
-            description: a.description,
-            visibleInChat: a.visibleInChat,
-            conversationStarters: a.conversationStarters,
-          });
-        }
+  const agents = useMemo(() => {
+    if (!rawAgents) return undefined;
+    const chatAgents: ChatAgent[] = [];
+    for (const a of rawAgents) {
+      if (
+        a &&
+        'displayName' in a &&
+        typeof a.displayName === 'string' &&
+        a.visibleInChat === true
+      ) {
+        chatAgents.push({
+          name: a.name,
+          displayName: a.displayName,
+          description: a.description,
+          visibleInChat: a.visibleInChat,
+          conversationStarters: a.conversationStarters,
+        });
       }
-      setAgents(chatAgents);
-    } catch (error) {
-      console.error('Failed to fetch chat agents:', error);
-      setAgents([]);
-    } finally {
-      setIsLoading(false);
     }
-  }, [listAgents]);
-
-  useEffect(() => {
-    void fetchAgents();
-  }, [fetchAgents]);
+    return chatAgents;
+  }, [rawAgents]);
 
   return {
     agents,
     isLoading,
-    refetch: fetchAgents,
   };
 }
 
