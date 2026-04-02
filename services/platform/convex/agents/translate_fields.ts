@@ -1,13 +1,12 @@
 'use node';
 
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { Agent } from '@convex-dev/agent';
 import { z } from 'zod';
 
 import type { ActionCtx } from '../_generated/server';
 
-import { components } from '../_generated/api';
-import { getFastModel } from '../lib/agent_runtime_config';
-import { openai } from '../lib/openai_provider';
+import { components, internal } from '../_generated/api';
 
 const MAX_RETRIES = 3;
 
@@ -24,12 +23,13 @@ export type TranslateInput = Record<string, string | string[]>;
  */
 export type TranslateOutput = Record<string, string | string[]>;
 
-function createTranslationAgent(targetLocale: string) {
-  const model = getFastModel();
-
+function createTranslationAgent(
+  targetLocale: string,
+  languageModel: import('@ai-sdk/provider').LanguageModelV3,
+) {
   return new Agent(components.agent, {
     name: 'field-translator',
-    languageModel: openai.chatModel(model),
+    languageModel,
     instructions: `You are a translation assistant. Translate the given texts to the locale "${targetLocale}".
 
 Rules:
@@ -103,7 +103,27 @@ export async function translateFields(
     translated: z.array(z.string()).length(flat.length),
   });
 
-  const agent = createTranslationAgent(args.targetLocale);
+  // Resolve chat model from provider files
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- resolveModelByTag returns v.any() but shape is guaranteed by provider file_actions contract
+  const modelData = (await ctx.runAction(
+    internal.providers.file_actions.resolveModelByTag,
+    { tag: 'chat' },
+  )) as {
+    providerName: string;
+    baseUrl: string;
+    apiKey: string;
+    modelId: string;
+    supportsStructuredOutputs: boolean;
+  };
+  const providerInstance = createOpenAICompatible({
+    name: modelData.providerName,
+    baseURL: modelData.baseUrl,
+    apiKey: modelData.apiKey,
+    supportsStructuredOutputs: modelData.supportsStructuredOutputs,
+  });
+  const languageModel = providerInstance.chatModel(modelData.modelId);
+
+  const agent = createTranslationAgent(args.targetLocale, languageModel);
   const userId = `translate-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
   const prompt = JSON.stringify(flat);
 

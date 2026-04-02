@@ -6,6 +6,6 @@
   "maxSteps": 20,
   "timeoutMs": 180000,
   "outputReserve": 2048,
-  "modelPreset": "fast",
+  "supportedModels": ["qwen/qwen3-next-80b-a3b-instruct", "qwen/qwen3.5-35b-a3b"],
   "roleRestriction": "admin_developer"
 }

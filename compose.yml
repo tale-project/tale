@@ -134,6 +134,9 @@ services:
     env_file:
       - .env
 
+    environment:
+      - SOPS_AGE_KEY=${SOPS_AGE_KEY:-}
+
     # Restart policy
     # Automatically restart the container if it crashes
     restart: unless-stopped
@@ -213,6 +216,9 @@ services:
     env_file:
       - .env
 
+    environment:
+      - SOPS_AGE_KEY=${SOPS_AGE_KEY:-}
+
     # Restart policy
     # Automatically restart the container if it crashes
     restart: unless-stopped
@@ -286,6 +292,9 @@ services:
     # Create a .env file in the project root with your configuration
     env_file:
       - .env
+
+    environment:
+      - SOPS_AGE_KEY=${SOPS_AGE_KEY:-}
 
     # Restart policy
     # Automatically restart the container if it crashes

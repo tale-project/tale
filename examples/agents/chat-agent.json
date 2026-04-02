@@ -17,7 +17,7 @@
     "document_find",
     "document_write"
   ],
-  "modelPreset": "standard",
+  "supportedModels": ["moonshotai/kimi-k2.5", "deepseek/deepseek-v3.2"],
   "knowledgeMode": "tool",
   "includeOrgKnowledge": true,
   "structuredResponsesEnabled": true,

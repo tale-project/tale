@@ -82,7 +82,7 @@ export function CreateAgentDialog({
           displayName: data.displayName,
           description: data.description,
           systemInstructions: 'You are a helpful assistant.',
-          modelPreset: 'standard',
+          supportedModels: ['moonshotai/kimi-k2.5'],
         },
       });
       toast({

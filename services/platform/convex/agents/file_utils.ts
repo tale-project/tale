@@ -33,8 +33,7 @@ export interface AgentJsonConfig {
   integrationBindings?: string[];
   delegates?: string[];
   workflows?: string[];
-  modelPreset?: 'fast' | 'standard' | 'advanced';
-  modelId?: string;
+  supportedModels: string[];
   knowledgeMode?: 'off' | 'tool' | 'context' | 'both';
   webSearchMode?: 'off' | 'tool' | 'context' | 'both';
   includeOrgKnowledge?: boolean;

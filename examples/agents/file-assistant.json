@@ -15,7 +15,7 @@
     "request_human_input",
     "request_user_location"
   ],
-  "modelPreset": "fast",
+  "supportedModels": ["qwen/qwen3-next-80b-a3b-instruct", "qwen/qwen3.5-35b-a3b"],
   "knowledgeMode": "tool",
   "includeTeamKnowledge": false,
   "maxSteps": 15,

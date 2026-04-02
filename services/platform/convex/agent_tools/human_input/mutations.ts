@@ -10,10 +10,6 @@ import { FEEDBACK_KEY } from '../../../lib/shared/schemas/approvals';
 import { getString, isRecord } from '../../../lib/utils/type-guards';
 import { components, internal } from '../../_generated/api';
 import { mutation } from '../../_generated/server';
-import {
-  getDefaultAgentRuntimeConfig,
-  getDefaultModel,
-} from '../../lib/agent_runtime_config';
 import { getOrganizationMember } from '../../lib/rls';
 import { persistentStreaming } from '../../streaming/helpers';
 import { workflowManagers } from '../../workflow_engine/engine';
@@ -189,12 +185,11 @@ export const submitHumanInputResponse = mutation({
     // Use default model config for re-triggering after human input.
     // The agent config was already established when the thread was created;
     // the generation action will use the thread's existing context.
-    const { model, provider } = getDefaultAgentRuntimeConfig();
     const agentConfig = {
       name: 'chat-agent',
       instructions: '',
       convexToolNames: [],
-      model: getDefaultModel(),
+      model: 'default',
       enableVectorSearch: false,
       knowledgeMode: 'off' as const,
       webSearchMode: 'off' as const,
@@ -213,8 +208,8 @@ export const submitHumanInputResponse = mutation({
       {
         agentType: 'custom',
         agentConfig,
-        model: agentConfig.model ?? model,
-        provider,
+        model: agentConfig.model,
+        provider: 'file',
         debugTag: '[ChatAgent:HumanInput]',
         enableStreaming: true,
         hooks: { beforeGenerate },

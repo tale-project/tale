@@ -12,7 +12,7 @@
     "integration_introspect",
     "run_workflow"
   ],
-  "modelPreset": "advanced",
+  "supportedModels": ["anthropic/claude-opus-4.6", "openai/gpt-5.2"],
   "maxSteps": 30,
   "timeoutMs": 240000,
   "outputReserve": 2048,

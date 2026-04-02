@@ -210,6 +210,9 @@ To also save the file to a folder in the documents hub, call document_write with
           filename: resolvedFilename,
           userInput: user_input,
           model,
+          // oxlint-disable-next-line typescript/no-non-null-assertion,typescript/no-unsafe-type-assertion -- ctx.agent is guaranteed non-null inside a tool execute callback
+          languageModel: ctx.agent!.options
+            .languageModel as import('@ai-sdk/provider').LanguageModelV3,
         });
 
         debugLog('tool:text parse success', {

@@ -102,7 +102,7 @@ export const listAgents = action({
             displayName: result.config.displayName,
             description: result.config.description,
             visibleInChat: result.config.visibleInChat,
-            modelPreset: result.config.modelPreset,
+            supportedModels: result.config.supportedModels,
             toolNames: result.config.toolNames,
             roleRestriction: result.config.roleRestriction,
             conversationStarters: result.config.conversationStarters,

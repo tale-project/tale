@@ -9,6 +9,8 @@
  * - JSON output with tools: NOT ALLOWED — split into two explicit LLM steps
  */
 
+import type { LanguageModelV3 } from '@ai-sdk/provider';
+
 import { Agent } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
@@ -95,6 +97,7 @@ export async function executeAgentWithTools(
     threadId?: string;
     stepSlug?: string;
     knowledgeFileIds?: string[];
+    languageModel: LanguageModelV3;
   },
 ): Promise<LLMExecutionResult> {
   if (config.outputFormat === 'json' && !config.outputSchema) {
@@ -148,6 +151,7 @@ export async function executeAgentWithTools(
       zodSchema,
       threadId,
       _args.userId,
+      _args.languageModel,
     );
   }
 
@@ -166,6 +170,7 @@ export async function executeAgentWithTools(
     prompts,
     threadId,
     _args.userId,
+    _args.languageModel,
   );
 }
 
@@ -199,7 +204,8 @@ async function executeJsonOutputWithoutTools(
   prompts: ProcessedPrompts,
   zodSchema: z.ZodType,
   threadId: string,
-  userId?: string,
+  userId: string | undefined,
+  languageModel: LanguageModelV3,
 ): Promise<LLMExecutionResult> {
   debugLog('executeJsonOutputWithoutTools START', {
     configName: config.name,
@@ -217,7 +223,7 @@ async function executeJsonOutputWithoutTools(
     components.agent,
     createAgentConfig({
       name: config.name,
-      model: config.model,
+      languageModel,
       outputFormat: config.outputFormat,
       instructions: prompts.systemPrompt,
     }),
@@ -250,7 +256,8 @@ async function executeTextOutput(
   config: NormalizedConfig,
   prompts: ProcessedPrompts,
   threadId: string,
-  userId?: string,
+  userId: string | undefined,
+  languageModel: LanguageModelV3,
 ): Promise<LLMExecutionResult> {
   debugLog('executeTextOutput START', {
     configName: config.name,
@@ -268,7 +275,7 @@ async function executeTextOutput(
     components.agent,
     createAgentConfig({
       name: config.name,
-      model: config.model,
+      languageModel,
       outputFormat: config.outputFormat,
       instructions: prompts.systemPrompt,
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- config.tools contains valid ToolName strings from workflow step configuration

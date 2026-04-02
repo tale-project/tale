@@ -8,14 +8,14 @@
  * - Example: 100K tokens → multiple iterations until all processed
  */
 
+import type { LanguageModelV3 } from '@ai-sdk/provider';
+
 import { Agent } from '@convex-dev/agent';
 
 import type { ActionCtx } from '../_generated/server';
 
 import { components } from '../_generated/api';
-import { getDefaultModel } from './agent_runtime_config';
 import { createDebugLog } from './debug_log';
-import { openai } from './openai_provider';
 
 const debugLog = createDebugLog('DEBUG_CONTEXT_SUMMARY', '[ContextSummary]');
 
@@ -73,12 +73,13 @@ Output ONLY the updated summary, not commentary about changes.`;
 /**
  * Create a lightweight summarizer agent (no tools, just for summarization)
  */
-function createSummarizerAgent(incremental: boolean = false): Agent {
-  const envModel = getDefaultModel();
-
+function createSummarizerAgent(
+  languageModel: LanguageModelV3,
+  incremental: boolean = false,
+): Agent {
   return new Agent(components.agent, {
     name: 'summarizer',
-    languageModel: openai.chatModel(envModel),
+    languageModel,
     instructions: incremental
       ? INCREMENTAL_SUMMARIZATION_INSTRUCTIONS
       : SUMMARIZATION_INSTRUCTIONS,
@@ -186,7 +187,8 @@ function splitIntoTokenChunks(
 export async function summarizeMessages(
   ctx: ActionCtx,
   messages: MessageForSummary[],
-  currentPrompt?: string,
+  currentPrompt: string | undefined,
+  languageModel: LanguageModelV3,
 ): Promise<string> {
   if (messages.length === 0) {
     debugLog('summarizeMessages No messages to summarize');
@@ -198,7 +200,12 @@ export async function summarizeMessages(
 
   // If only one chunk, summarize directly
   if (chunks.length === 1) {
-    return await summarizeSingleChunk(ctx, chunks[0], currentPrompt);
+    return await summarizeSingleChunk(
+      ctx,
+      chunks[0],
+      currentPrompt,
+      languageModel,
+    );
   }
 
   // CHUNKED SUMMARIZATION: process multiple chunks
@@ -223,7 +230,12 @@ export async function summarizeMessages(
 
     if (chunkIndex === 0) {
       // First chunk: create initial summary
-      rollingSummary = await summarizeSingleChunk(ctx, chunk, currentPrompt);
+      rollingSummary = await summarizeSingleChunk(
+        ctx,
+        chunk,
+        currentPrompt,
+        languageModel,
+      );
     } else {
       // Subsequent chunks: update existing summary with new messages
       rollingSummary = await updateSummary(
@@ -231,6 +243,7 @@ export async function summarizeMessages(
         rollingSummary,
         chunk,
         currentPrompt,
+        languageModel,
       );
     }
 
@@ -253,14 +266,15 @@ export async function summarizeMessages(
 async function summarizeSingleChunk(
   ctx: ActionCtx,
   messages: MessageForSummary[],
-  currentPrompt?: string,
+  currentPrompt: string | undefined,
+  languageModel: LanguageModelV3,
 ): Promise<string> {
   const formattedMessages = formatMessagesForSummary(messages);
   debugLog(
     `summarizeSingleChunk Formatted ${messages.length} messages, total chars: ${formattedMessages.length}`,
   );
 
-  const summarizer = createSummarizerAgent(false);
+  const summarizer = createSummarizerAgent(languageModel, false);
 
   let prompt = '';
   if (currentPrompt) {
@@ -306,14 +320,15 @@ export async function updateSummary(
   ctx: ActionCtx,
   existingSummary: string,
   newMessages: MessageForSummary[],
-  currentPrompt?: string,
+  currentPrompt: string | undefined,
+  languageModel: LanguageModelV3,
 ): Promise<string> {
   if (newMessages.length === 0) {
     return existingSummary;
   }
 
   const formattedNewMessages = formatMessagesForSummary(newMessages);
-  const summarizer = createSummarizerAgent(true);
+  const summarizer = createSummarizerAgent(languageModel, true);
 
   let prompt = `## Existing Summary
 

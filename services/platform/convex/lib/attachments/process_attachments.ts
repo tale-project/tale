@@ -5,11 +5,16 @@
  * including document parsing and image metadata extraction.
  */
 
+import type { LanguageModelV3 } from '@ai-sdk/provider';
+
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
+
 import type { Id } from '../../_generated/dataModel';
 import type { ActionCtx } from '../../_generated/server';
 import type { FileAttachment, MessageContentPart } from './types';
 
 import { isImage, isTextFile } from '../../../lib/shared/file-types';
+import { internal } from '../../_generated/api';
 import { analyzeImageCached } from '../../agent_tools/files/helpers/analyze_image';
 import { analyzeTextContent } from '../../agent_tools/files/helpers/analyze_text';
 import { parseFile } from '../../agent_tools/files/helpers/parse_file';
@@ -62,6 +67,7 @@ export interface ProcessAttachmentsConfig {
   debugLog?: (message: string, data?: Record<string, unknown>) => void;
   toolName?: string;
   model?: string;
+  languageModel?: LanguageModelV3;
 }
 
 const DEFAULT_MAX_DOCUMENT_LENGTH = 50000;
@@ -192,6 +198,29 @@ export async function processAttachments(
     (r): r is { fileName: string; analysis: string } => r !== null,
   );
 
+  // Resolve language model for text analysis if not provided
+  let resolvedLanguageModelV3 = config.languageModel;
+  if (!resolvedLanguageModelV3 && textFileAttachments.length > 0) {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- resolveModelByTag returns v.any() but shape is guaranteed by provider file_actions contract
+    const modelData = (await ctx.runAction(
+      internal.providers.file_actions.resolveModelByTag,
+      { tag: 'chat' },
+    )) as {
+      providerName: string;
+      baseUrl: string;
+      apiKey: string;
+      modelId: string;
+      supportsStructuredOutputs: boolean;
+    };
+    const providerInstance = createOpenAICompatible({
+      name: modelData.providerName,
+      baseURL: modelData.baseUrl,
+      apiKey: modelData.apiKey,
+      supportsStructuredOutputs: modelData.supportsStructuredOutputs,
+    });
+    resolvedLanguageModelV3 = providerInstance.chatModel(modelData.modelId);
+  }
+
   // Analyze text files with LLM (in parallel)
   const textAnalysisResults = await Promise.all(
     textFileAttachments.map(async (attachment) => {
@@ -201,6 +230,9 @@ export async function processAttachments(
           filename: attachment.fileName,
           userInput: userText || 'Analyze this file',
           model: config.model,
+          // resolvedLanguageModelV3 is guaranteed set: either from config or resolved above
+          // oxlint-disable-next-line typescript/no-non-null-assertion -- guard above ensures non-null
+          languageModel: resolvedLanguageModelV3!,
         });
 
         if (result.success) {

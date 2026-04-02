@@ -63,7 +63,7 @@ export interface ChatAgent {
   displayName: string;
   description?: string;
   visibleInChat?: boolean;
-  modelPreset?: string;
+  supportedModels?: string[];
   toolNames?: string[];
   roleRestriction?: string;
   conversationStarters?: string[];

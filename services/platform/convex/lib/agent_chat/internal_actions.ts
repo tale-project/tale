@@ -2,6 +2,7 @@
 
 import type { FunctionHandle } from 'convex/server';
 
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import {
   Agent,
   listMessages,
@@ -277,26 +278,59 @@ export const runAgentGeneration = internalAction({
       ? agentConfig.instructions + delegationInstructionsAppend
       : agentConfig.instructions;
 
+    // Resolve model from provider files
+    const modelId = model === 'default' ? undefined : model;
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- resolveModelByTag/resolveModelData returns v.any() but shape is guaranteed by provider file_actions contract
+    const modelData = modelId
+      ? ((await ctx.runAction(
+          internal.providers.file_actions.resolveModelData,
+          { modelId },
+        )) as {
+          providerName: string;
+          baseUrl: string;
+          apiKey: string;
+          modelId: string;
+          supportsStructuredOutputs: boolean;
+        })
+      : ((await ctx.runAction(
+          internal.providers.file_actions.resolveModelByTag,
+          { tag: 'chat' },
+        )) as {
+          providerName: string;
+          baseUrl: string;
+          apiKey: string;
+          modelId: string;
+          supportsStructuredOutputs: boolean;
+        });
+    const providerInstance = createOpenAICompatible({
+      name: modelData.providerName,
+      baseURL: modelData.baseUrl,
+      apiKey: modelData.apiKey,
+      supportsStructuredOutputs: modelData.supportsStructuredOutputs,
+    });
+    const languageModel = providerInstance.chatModel(modelData.modelId);
+
     // Create agent factory function from serializable config
     const createAgent = (options?: Record<string, unknown>) => {
+      // If a model override is provided via options, resolve it inline
+      // (this is a sync context, so we use the already-resolved languageModel)
+      const effectiveLanguageModel = languageModel;
+
       const config = createAgentConfig({
         name: agentConfig.name,
         instructions: finalInstructions,
+        languageModel: effectiveLanguageModel,
         convexToolNames: agentConfig.convexToolNames
           ? agentConfig.convexToolNames.filter((n): n is ToolName =>
               (TOOL_NAMES as readonly string[]).includes(n),
             )
           : undefined,
         extraTools: allExtraTools,
-        model:
-          (typeof options?.model === 'string' ? options.model : undefined) ??
-          agentConfig.model,
         maxSteps:
           (typeof options?.maxSteps === 'number'
             ? options.maxSteps
             : undefined) ?? agentConfig.maxSteps,
         outputFormat: agentConfig.outputFormat,
-        enableVectorSearch: agentConfig.enableVectorSearch,
       });
       return new Agent(components.agent, config);
     };
