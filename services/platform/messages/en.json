@@ -249,6 +249,10 @@
     "vendors": "Vendors"
   },
   "emptyStates": {
+    "providers": {
+      "title": "No providers configured",
+      "description": "Add an LLM provider to get started with AI features"
+    },
     "customers": {
       "title": "No customers yet",
       "description": "Upload your first customer to get started"
@@ -1433,6 +1437,14 @@
       "deleteFailed": "Failed to delete provider",
       "secretSaveFailed": "Failed to save API key",
       "createFailed": "Failed to create provider",
+      "discard": "Discard",
+      "save": "Save",
+      "saving": "Saving...",
+      "saveKey": "Save key",
+      "apiKeyReplace": "Enter new API key to replace",
+      "apiKeyEnter": "Enter API key",
+      "searchProvider": "Search providers...",
+      "description": "Description",
       "created": "Provider created",
       "modelCount": "{count, plural, one {# model} other {# models}}",
       "removeModel": "Remove model",
