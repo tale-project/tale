@@ -2,18 +2,17 @@
 
 import type { Row } from '@tanstack/react-table';
 
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
-import { useAction } from 'convex/react';
 import { Bot } from 'lucide-react';
-import { useMemo, useCallback, useEffect, useState } from 'react';
+import { useMemo, useCallback } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
-import { useModelPresets } from '../hooks/queries';
+import { useListAgents, useModelPresets } from '../hooks/queries';
 import { useAgentsTableConfig } from '../hooks/use-agents-table-config';
 import { AgentsActionMenu } from './agents-action-menu';
 
@@ -37,40 +36,32 @@ export function AgentsTable({ organizationId }: AgentsTableProps) {
   const { t: tEmpty } = useT('emptyStates');
   const { teams } = useTeamFilter();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { data: modelPresets } = useModelPresets();
-  const listAgents = useAction(api.agents.file_actions.listAgents);
-  const [agents, setAgents] = useState<AgentRow[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { agents: rawAgents, isLoading } = useListAgents('default');
 
-  const loadAgents = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const result = await listAgents({ orgSlug: 'default' });
-      const validAgents: AgentRow[] = [];
-      for (const a of result ?? []) {
-        if (a && 'displayName' in a && typeof a.displayName === 'string') {
-          validAgents.push({
-            name: a.name,
-            displayName: a.displayName,
-            description: a.description,
-            modelPreset: a.modelPreset,
-            toolNames: a.toolNames,
-            visibleInChat: a.visibleInChat,
-            roleRestriction: a.roleRestriction,
-          });
-        }
+  const agents = useMemo(() => {
+    if (!rawAgents) return [];
+    const validAgents: AgentRow[] = [];
+    for (const a of rawAgents) {
+      if (a && 'displayName' in a && typeof a.displayName === 'string') {
+        validAgents.push({
+          name: a.name,
+          displayName: a.displayName,
+          description: a.description,
+          modelPreset: a.modelPreset,
+          toolNames: a.toolNames,
+          visibleInChat: a.visibleInChat,
+          roleRestriction: a.roleRestriction,
+        });
       }
-      setAgents(validAgents);
-    } catch (err) {
-      console.error('Failed to load agents:', err);
-    } finally {
-      setIsLoading(false);
     }
-  }, [listAgents]);
+    return validAgents;
+  }, [rawAgents]);
 
-  useEffect(() => {
-    void loadAgents();
-  }, [loadAgents]);
+  const invalidateAgents = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ['config', 'agents'] });
+  }, [queryClient]);
 
   const teamNameMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -86,8 +77,8 @@ export function AgentsTable({ organizationId }: AgentsTableProps) {
     useAgentsTableConfig({
       teamNameMap,
       modelPresets,
-      onDuplicated: loadAgents,
-      onDeleted: loadAgents,
+      onDuplicated: invalidateAgents,
+      onDeleted: invalidateAgents,
     });
 
   const handleRowClick = useCallback(
