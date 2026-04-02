@@ -30,5 +30,15 @@
     "Write a follow-up email to the client",
     "Summarize our latest product updates"
   ],
-  "visibleInChat": true
+  "visibleInChat": true,
+  "i18n": {
+    "de": {
+      "conversationStarters": [
+        "Einen Projektvorschlag für Q4 verfassen",
+        "Die Umsatzentwicklungen des letzten Monats analysieren",
+        "Eine Follow-up-E-Mail an den Kunden verfassen",
+        "Die neuesten Produktupdates zusammenfassen"
+      ]
+    }
+  }
 }

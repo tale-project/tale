@@ -46,6 +46,10 @@ export function useRestoreFromHistory() {
   });
 }
 
+export function useTranslateAgentFields() {
+  return useConvexAction(api.agents.file_actions.translateAgentFields);
+}
+
 // ---------------------------------------------------------------------------
 // Mutation-based hooks (DB writes)
 // ---------------------------------------------------------------------------
