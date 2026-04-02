@@ -22,8 +22,6 @@ const translatableFieldsSchema = z.object({
   conversationStarters: z.array(z.string().max(200)).max(4).optional(),
 });
 
-export type TranslatableFields = z.infer<typeof translatableFieldsSchema>;
-
 /**
  * Schema for the agent JSON file format.
  * Matches the AgentJsonConfig type in convex/agents/file_utils.ts.
