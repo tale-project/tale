@@ -37,7 +37,6 @@ export function generateDevCompose(
     AGENTS_DIR: '/app/data/agents',
     WORKFLOWS_DIR: '/app/data/workflows',
     INTEGRATIONS_DIR: '/app/data/integrations',
-    LIVE_RELOAD: 'true',
     ...(options.fresh ? { FORCE_SEED: 'true' } : {}),
   };
   platform.depends_on = { db: { condition: 'service_healthy' } };

@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -49,6 +50,16 @@ export function AgentConfigProvider({
   const initialRef = useRef(initialConfig);
   const configRef = useRef(config);
   configRef.current = config;
+
+  // Sync with external changes (SSE file events) when user has no unsaved edits
+  useEffect(() => {
+    const hasUnsavedEdits =
+      JSON.stringify(configRef.current) !== JSON.stringify(initialRef.current);
+    if (!hasUnsavedEdits) {
+      setConfig(initialConfig);
+      initialRef.current = initialConfig;
+    }
+  }, [initialConfig]);
 
   const isDirty = useMemo(
     () => JSON.stringify(config) !== JSON.stringify(initialRef.current),

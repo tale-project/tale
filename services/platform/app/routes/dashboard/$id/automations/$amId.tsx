@@ -191,7 +191,9 @@ function AutomationDetailLayout() {
         organizationId={organizationId}
         amId={amId}
         workflowSlug={workflowSlug}
-        onRefetch={refetch}
+        onRefetch={async () => {
+          await refetch();
+        }}
       />
     </WorkflowConfigProvider>
   );

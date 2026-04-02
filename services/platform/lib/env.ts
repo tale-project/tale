@@ -9,7 +9,6 @@ declare global {
       TALE_VERSION?: string;
     };
     __ACCEPT_LANGUAGE__?: string;
-    __taleLastSaveAt?: number;
   }
 }
 

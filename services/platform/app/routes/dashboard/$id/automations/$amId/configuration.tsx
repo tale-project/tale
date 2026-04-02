@@ -93,7 +93,6 @@ function ConfigurationPage() {
   }, [config, name, description, timeout, maxRetries, backoffMs, variables]);
 
   const handleSave = async () => {
-    window.__taleLastSaveAt = Date.now();
     if (!config) return;
 
     if (!name.trim()) {

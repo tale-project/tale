@@ -1,83 +1,34 @@
-import { existsSync, watch } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import { convexMetricsResponse } from './convex-metrics';
+import { createConfigWatcher } from './lib/config-watcher';
 import { initTelemetry, metricsResponse } from './telemetry';
 
 // ---------------------------------------------------------------------------
-// Live reload (dev only, gated by LIVE_RELOAD env var)
+// Config file events (SSE)
 //
-// Watches agent/workflow/integration directories for .json changes and
-// triggers a full page reload via SSE.  To avoid reloading the browser when
-// the *web UI itself* writes files (via atomicWrite), we detect atomicWrite's
-// temp-file naming pattern (.{name}.{ts}.{uuid}.tmp) as a signal that the
-// change is internal.  History-directory writes and file deletions are also
-// skipped — only genuine external content edits trigger a reload.
+// Watches TALE_CONFIG_DIR for .json changes via chokidar and pushes
+// structured events to connected frontends so they can invalidate their
+// TanStack Query caches without a full page reload.
 // ---------------------------------------------------------------------------
 
-const ATOMIC_WRITE_TMP_RE = /\.\d+\.[a-f0-9]{8}\.tmp$/;
-const INTERNAL_WRITE_WINDOW_MS = 2_000;
-
-const liveReloadEnabled = process.env.LIVE_RELOAD === 'true';
 const sseClients = new Set<ReadableStreamDefaultController>();
 
-if (liveReloadEnabled) {
-  const watchDirs = [process.env.TALE_CONFIG_DIR].filter((d): d is string =>
-    Boolean(d),
-  );
-
-  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-  let lastInternalWriteTime = 0;
-
-  function notifyClients() {
-    if (Date.now() - lastInternalWriteTime < INTERNAL_WRITE_WINDOW_MS) return;
+const configDir = process.env.TALE_CONFIG_DIR;
+if (configDir) {
+  const watcher = createConfigWatcher(configDir);
+  watcher.onChange((event) => {
+    const payload = `data: ${JSON.stringify(event)}\n\n`;
     for (const controller of sseClients) {
       try {
-        controller.enqueue('data: reload\n\n');
+        controller.enqueue(payload);
       } catch {
         sseClients.delete(controller);
       }
     }
-  }
-
-  for (const dir of watchDirs) {
-    try {
-      watch(dir, { recursive: true }, (_event, filename) => {
-        if (typeof filename !== 'string') return;
-
-        // Detect atomicWrite temp files: .{name}.{timestamp}.{uuid}.tmp
-        if (ATOMIC_WRITE_TMP_RE.test(filename)) {
-          lastInternalWriteTime = Date.now();
-          return;
-        }
-
-        // Skip non-JSON and history files
-        if (!filename.endsWith('.json') || filename.includes('/.history/'))
-          return;
-
-        // Skip deletions — live reload is for content changes only
-        if (!existsSync(join(dir, filename))) return;
-
-        if (debounceTimer) clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(notifyClients, 100);
-      });
-    } catch (err) {
-      console.warn(`Live reload: failed to watch ${dir}:`, err);
-    }
-  }
-
-  console.log(`Live reload watching: ${watchDirs.join(', ')}`);
+  });
+  console.log(`Config file watcher active: ${configDir}`);
 }
-
-const LIVE_RELOAD_SCRIPT = `<script>(() => {
-  const es = new EventSource('/__dev/live-reload');
-  es.onmessage = (e) => {
-    if (e.data === 'reload') {
-      if (Date.now() - (window.__taleLastSaveAt || 0) < 5000) return;
-      location.reload();
-    }
-  };
-})()</script>`;
 
 // ---------------------------------------------------------------------------
 
@@ -138,11 +89,11 @@ Bun.serve({
       return Response.json({ status: 'ok' });
     }
 
-    if (liveReloadEnabled && pathname === '/__dev/live-reload') {
+    if (pathname === '/api/file-events') {
       const stream = new ReadableStream({
         start(controller) {
           sseClients.add(controller);
-          controller.enqueue('data: connected\n\n');
+          controller.enqueue('data: {"type":"connected"}\n\n');
         },
         cancel(controller) {
           sseClients.delete(controller);
@@ -218,10 +169,6 @@ Bun.serve({
       '<head>',
       `<head>\n    <base href="${escapeHtmlAttr(basePath)}/">`,
     );
-
-    if (liveReloadEnabled) {
-      html = html.replace('</body>', `${LIVE_RELOAD_SCRIPT}\n</body>`);
-    }
 
     return new Response(html, {
       headers: { 'Content-Type': 'text/html' },

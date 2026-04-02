@@ -1,18 +1,15 @@
 'use client';
 
-import { useAction } from 'convex/react';
 import {
   createContext,
-  useCallback,
   useContext,
   useEffect,
   useMemo,
   useRef,
-  useState,
   type ReactNode,
 } from 'react';
 
-import { api } from '@/convex/_generated/api';
+import { useBranding } from '@/app/features/settings/branding/hooks/queries';
 import { hexToHsl, isLightColor } from '@/lib/utils/color';
 
 interface BrandingState {
@@ -50,33 +47,21 @@ const DEFAULT_TITLE_SUFFIX = 'Tale';
 const CSS_OVERRIDES = ['primary', 'primary-foreground'] as const;
 
 export function BrandingProvider({ children }: BrandingProviderProps) {
-  const readBrandingFn = useAction(api.branding.file_actions.readBranding);
-  const [branding, setBranding] = useState<BrandingState | undefined>(
-    undefined,
-  );
+  const { data, refetch } = useBranding();
 
-  const fetchBranding = useCallback(async () => {
-    try {
-      const result = await readBrandingFn({});
-      setBranding({
-        appName: result.appName,
-        textLogo: result.textLogo,
-        logoUrl: result.logoUrl,
-        faviconLightUrl: result.faviconLightUrl,
-        faviconDarkUrl: result.faviconDarkUrl,
-        brandColor: result.brandColor,
-        accentColor: result.accentColor,
-        isLoaded: true,
-      });
-    } catch (error) {
-      console.error('[Branding] Failed to load branding config', error);
-      setBranding({ isLoaded: true });
-    }
-  }, [readBrandingFn]);
-
-  useEffect(() => {
-    void fetchBranding();
-  }, [fetchBranding]);
+  const branding = useMemo<BrandingState | undefined>(() => {
+    if (!data) return undefined;
+    return {
+      appName: data.appName,
+      textLogo: data.textLogo,
+      logoUrl: data.logoUrl,
+      faviconLightUrl: data.faviconLightUrl,
+      faviconDarkUrl: data.faviconDarkUrl,
+      brandColor: data.brandColor,
+      accentColor: data.accentColor,
+      isLoaded: true,
+    };
+  }, [data]);
 
   const originalFaviconHrefRef = useRef<string | null>(null);
 
@@ -179,9 +164,11 @@ export function BrandingProvider({ children }: BrandingProviderProps) {
   const value = useMemo<BrandingContextValue>(
     () => ({
       ...(branding ?? { isLoaded: false }),
-      refetch: fetchBranding,
+      refetch: async () => {
+        await refetch();
+      },
     }),
-    [branding, fetchBranding],
+    [branding, refetch],
   );
 
   return (

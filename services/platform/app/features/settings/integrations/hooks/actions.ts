@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useAction } from 'convex/react';
 import { useCallback, useState } from 'react';
 
@@ -6,6 +7,7 @@ import { api } from '@/convex/_generated/api';
 
 export function useInstallIntegration() {
   const installFn = useAction(api.integrations.file_actions.installIntegration);
+  const queryClient = useQueryClient();
   const [isPending, setIsPending] = useState(false);
 
   const install = useCallback(
@@ -13,13 +15,15 @@ export function useInstallIntegration() {
       setIsPending(true);
       try {
         const result = await installFn(args);
-        window.dispatchEvent(new Event('integration-updated'));
+        void queryClient.invalidateQueries({
+          queryKey: ['config', 'integrations'],
+        });
         return result;
       } finally {
         setIsPending(false);
       }
     },
-    [installFn],
+    [installFn, queryClient],
   );
 
   return { install, isPending };

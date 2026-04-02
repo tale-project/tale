@@ -110,7 +110,6 @@ export function AgentNavigation({
   ];
 
   const handleSave = useCallback(async () => {
-    window.__taleLastSaveAt = Date.now();
     markSaving(true);
     try {
       await snapshotAction.mutateAsync({
@@ -122,7 +121,7 @@ export function AgentNavigation({
         agentName: agentId,
         config,
       });
-      window.__taleLastSaveAt = Date.now();
+
       setHistoryEntries([]);
       toast({
         title: t('agents.agentSaved'),
@@ -200,13 +199,12 @@ export function AgentNavigation({
     if (!selectedEntry || !snapshotConfig) return;
     setIsRestoring(true);
     try {
-      window.__taleLastSaveAt = Date.now();
       await restoreAction.mutateAsync({
         orgSlug: 'default',
         agentName: agentId,
         timestamp: selectedEntry.timestamp,
       });
-      window.__taleLastSaveAt = Date.now();
+
       overrideConfig(snapshotConfig);
       setIsDiffOpen(false);
       setSelectedEntry(null);
