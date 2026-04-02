@@ -1,12 +1,28 @@
+import { useQueryClient } from '@tanstack/react-query';
+
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { api } from '@/convex/_generated/api';
 
+function useInvalidateWorkflows() {
+  const queryClient = useQueryClient();
+  return (orgSlug: string) =>
+    queryClient.invalidateQueries({
+      queryKey: ['config', 'workflows', orgSlug],
+    });
+}
+
 export function useSaveWorkflow() {
-  return useConvexAction(api.workflows.file_actions.saveWorkflowWithSnapshot);
+  const invalidate = useInvalidateWorkflows();
+  return useConvexAction(api.workflows.file_actions.saveWorkflowWithSnapshot, {
+    onSuccess: (_data, variables) => invalidate(variables.orgSlug),
+  });
 }
 
 export function useInstallWorkflow() {
-  return useConvexAction(api.workflows.file_actions.installWorkflow);
+  const invalidate = useInvalidateWorkflows();
+  return useConvexAction(api.workflows.file_actions.installWorkflow, {
+    onSuccess: (_data, variables) => invalidate(variables.orgSlug),
+  });
 }
 
 export function useToggleWorkflowEnabled() {
@@ -14,6 +30,7 @@ export function useToggleWorkflowEnabled() {
   const saveAction = useConvexAction(
     api.workflows.file_actions.saveWorkflowWithSnapshot,
   );
+  const invalidate = useInvalidateWorkflows();
 
   return {
     mutate: async (args: { orgSlug: string; workflowSlug: string }) => {
@@ -25,31 +42,45 @@ export function useToggleWorkflowEnabled() {
         ...result.config,
         enabled: !result.config.enabled,
       };
-      return saveAction.mutateAsync({
+      const saveResult = await saveAction.mutateAsync({
         orgSlug: args.orgSlug,
         workflowSlug: args.workflowSlug,
         config: updatedConfig,
         expectedHash: result.hash,
       });
+      void invalidate(args.orgSlug);
+      return saveResult;
     },
     isPending: readAction.isPending || saveAction.isPending,
   };
 }
 
 export function useDeleteWorkflowFile() {
-  return useConvexAction(api.workflows.file_actions.deleteWorkflow);
+  const invalidate = useInvalidateWorkflows();
+  return useConvexAction(api.workflows.file_actions.deleteWorkflow, {
+    onSuccess: (_data, variables) => invalidate(variables.orgSlug),
+  });
 }
 
 export function useDuplicateWorkflowFile() {
-  return useConvexAction(api.workflows.file_actions.duplicateWorkflow);
+  const invalidate = useInvalidateWorkflows();
+  return useConvexAction(api.workflows.file_actions.duplicateWorkflow, {
+    onSuccess: (_data, variables) => invalidate(variables.orgSlug),
+  });
 }
 
 export function useRenameWorkflow() {
-  return useConvexAction(api.workflows.file_actions.renameWorkflow);
+  const invalidate = useInvalidateWorkflows();
+  return useConvexAction(api.workflows.file_actions.renameWorkflow, {
+    onSuccess: (_data, variables) => invalidate(variables.orgSlug),
+  });
 }
 
 export function useRestoreFromHistory() {
-  return useConvexAction(api.workflows.file_actions.restoreFromHistory);
+  const invalidate = useInvalidateWorkflows();
+  return useConvexAction(api.workflows.file_actions.restoreFromHistory, {
+    onSuccess: (_data, variables) => invalidate(variables.orgSlug),
+  });
 }
 
 export function useStartWorkflowFromFile() {

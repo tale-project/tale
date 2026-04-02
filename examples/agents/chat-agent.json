@@ -17,10 +17,10 @@
     "document_find",
     "document_write"
   ],
-  "workflows": [],
   "modelPreset": "standard",
   "knowledgeMode": "tool",
   "includeOrgKnowledge": true,
+  "structuredResponsesEnabled": true,
   "maxSteps": 20,
   "timeoutMs": 1200000,
   "outputReserve": 4096,

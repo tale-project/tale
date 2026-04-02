@@ -1,5 +1,6 @@
 'use client';
 
+import { useQueryClient } from '@tanstack/react-query';
 import { useAction } from 'convex/react';
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 
@@ -136,6 +137,7 @@ export function useIntegrationManage(
 ) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
+  const queryClient = useQueryClient();
 
   const [isUploadingIcon, setIsUploadingIcon] = useState(false);
   const [testResult, setTestResult] = useState<{
@@ -750,7 +752,9 @@ export function useIntegrationManage(
   const handleUninstall = useCallback(async () => {
     try {
       await uninstallFn({ orgSlug: 'default', slug: integration.name ?? '' });
-      window.dispatchEvent(new Event('integration-updated'));
+      void queryClient.invalidateQueries({
+        queryKey: ['config', 'integrations'],
+      });
       toast({
         title: t('integrations.manageDialog.deleted'),
         description: t('integrations.manageDialog.deletedDescription', {
@@ -767,7 +771,7 @@ export function useIntegrationManage(
     } finally {
       setConfirmDelete(false);
     }
-  }, [uninstallFn, integration, onOpenChange, t]);
+  }, [uninstallFn, integration, onOpenChange, t, queryClient]);
 
   const operationCount =
     (integration.connector?.operations?.length ??

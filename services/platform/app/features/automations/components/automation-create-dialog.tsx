@@ -90,7 +90,6 @@ function BlankTabContent({
         return;
       }
 
-      window.__taleLastSaveAt = Date.now();
       try {
         await saveWorkflow({
           orgSlug: 'default',

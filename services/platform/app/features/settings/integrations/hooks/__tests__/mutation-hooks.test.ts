@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { toId } from '@/convex/lib/type_cast_helpers';
 
 const mockMutateAsync = vi.fn();
+const mockInvalidateQueries = vi.fn();
 
 const mockMutationResult = {
   mutate: mockMutateAsync,
@@ -18,6 +19,10 @@ const mockMutationResult = {
 
 vi.mock('@/app/hooks/use-convex-mutation', () => ({
   useConvexMutation: () => mockMutationResult,
+}));
+
+vi.mock('@tanstack/react-query', () => ({
+  useQueryClient: () => ({ invalidateQueries: mockInvalidateQueries }),
 }));
 
 vi.mock('@/convex/_generated/api', () => ({
@@ -51,9 +56,8 @@ describe('useDeleteIntegration', () => {
     expect(result.current).toHaveProperty('isPending');
   });
 
-  it('calls mutation with the correct args and dispatches event', async () => {
+  it('calls mutation with the correct args and invalidates queries', async () => {
     mockMutateAsync.mockResolvedValueOnce(null);
-    const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
 
     const { result } = renderHook(() => useDeleteIntegration());
 
@@ -66,11 +70,9 @@ describe('useDeleteIntegration', () => {
     expect(mockMutateAsync).toHaveBeenCalledWith({
       credentialId: 'cred-123',
     });
-    expect(dispatchSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'integration-updated' }),
-    );
-
-    dispatchSpy.mockRestore();
+    expect(mockInvalidateQueries).toHaveBeenCalledWith({
+      queryKey: ['config', 'integrations'],
+    });
   });
 
   it('propagates errors from mutation', async () => {

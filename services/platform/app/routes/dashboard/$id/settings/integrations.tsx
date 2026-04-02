@@ -119,7 +119,6 @@ function IntegrationsPage() {
       const slug = String(item.slug);
       if (!credSlugs.has(slug) && !ensuredRef.current.has(slug)) {
         ensuredRef.current.add(slug);
-        window.__taleLastSaveAt = Date.now();
         void installFn({ orgSlug: 'default', slug, organizationId });
       }
     }

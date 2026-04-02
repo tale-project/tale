@@ -1,13 +1,24 @@
+import { useQueryClient } from '@tanstack/react-query';
+
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { api } from '@/convex/_generated/api';
+
+function useInvalidateAgents() {
+  const queryClient = useQueryClient();
+  return (orgSlug: string) =>
+    queryClient.invalidateQueries({ queryKey: ['config', 'agents', orgSlug] });
+}
 
 // ---------------------------------------------------------------------------
 // Action-based hooks (filesystem writes)
 // ---------------------------------------------------------------------------
 
 export function useSaveAgent() {
-  return useConvexAction(api.agents.file_actions.saveAgent);
+  const invalidate = useInvalidateAgents();
+  return useConvexAction(api.agents.file_actions.saveAgent, {
+    onSuccess: (_data, variables) => invalidate(variables.orgSlug),
+  });
 }
 
 export function useSnapshotToHistory() {
@@ -15,15 +26,24 @@ export function useSnapshotToHistory() {
 }
 
 export function useDuplicateAgent() {
-  return useConvexAction(api.agents.file_actions.duplicateAgent);
+  const invalidate = useInvalidateAgents();
+  return useConvexAction(api.agents.file_actions.duplicateAgent, {
+    onSuccess: (_data, variables) => invalidate(variables.orgSlug),
+  });
 }
 
 export function useDeleteAgent() {
-  return useConvexAction(api.agents.file_actions.deleteAgent);
+  const invalidate = useInvalidateAgents();
+  return useConvexAction(api.agents.file_actions.deleteAgent, {
+    onSuccess: (_data, variables) => invalidate(variables.orgSlug),
+  });
 }
 
 export function useRestoreFromHistory() {
-  return useConvexAction(api.agents.file_actions.restoreFromHistory);
+  const invalidate = useInvalidateAgents();
+  return useConvexAction(api.agents.file_actions.restoreFromHistory, {
+    onSuccess: (_data, variables) => invalidate(variables.orgSlug),
+  });
 }
 
 // ---------------------------------------------------------------------------

@@ -62,8 +62,6 @@ export function IntegrationUploadDialog({
 
       await installFn({ orgSlug: 'default', slug, organizationId });
 
-      window.dispatchEvent(new Event('integration-updated'));
-
       toast({
         title: t('integrations.upload.createSuccess'),
         description: t('integrations.upload.configureCredentialsHint'),

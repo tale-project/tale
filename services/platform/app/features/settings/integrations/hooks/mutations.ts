@@ -1,8 +1,15 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useAction } from 'convex/react';
 import { useCallback } from 'react';
 
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { api } from '@/convex/_generated/api';
+
+function useInvalidateIntegrations() {
+  const queryClient = useQueryClient();
+  return () =>
+    queryClient.invalidateQueries({ queryKey: ['config', 'integrations'] });
+}
 
 export function useGenerateUploadUrl() {
   return useConvexMutation(api.files.mutations.generateUploadUrl);
@@ -10,14 +17,15 @@ export function useGenerateUploadUrl() {
 
 export function useUpdateCredentials() {
   const saveFn = useAction(api.integrations.actions.saveCredentials);
+  const invalidate = useInvalidateIntegrations();
 
   const mutateAsync = useCallback(
     async (...args: Parameters<typeof saveFn>) => {
       const result = await saveFn(...args);
-      window.dispatchEvent(new Event('integration-updated'));
+      void invalidate();
       return result;
     },
-    [saveFn],
+    [saveFn, invalidate],
   );
 
   return { mutateAsync };
@@ -27,16 +35,17 @@ export function useDeleteIntegration() {
   const mutation = useConvexMutation(
     api.integrations.credential_mutations.deleteCredentials,
   );
+  const invalidate = useInvalidateIntegrations();
 
   const originalMutateAsync = mutation.mutateAsync;
 
   const mutateAsync = useCallback(
     async (...args: Parameters<typeof originalMutateAsync>) => {
       const result = await originalMutateAsync(...args);
-      window.dispatchEvent(new Event('integration-updated'));
+      void invalidate();
       return result;
     },
-    [originalMutateAsync],
+    [originalMutateAsync, invalidate],
   );
 
   return { ...mutation, mutateAsync };

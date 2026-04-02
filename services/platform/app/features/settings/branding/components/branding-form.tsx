@@ -107,7 +107,6 @@ export function BrandingForm({
 
   const onSubmit = useCallback(
     async (data: BrandingFormData) => {
-      window.__taleLastSaveAt = Date.now();
       try {
         await snapshotHistory.mutateAsync({});
 
