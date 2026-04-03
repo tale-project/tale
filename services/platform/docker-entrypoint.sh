@@ -497,6 +497,30 @@ if [ -d "$integrations_builtin_dir" ] && [ "$(ls -A "$integrations_builtin_dir" 
   done
 fi
 
+# Seed builtin provider config files — skip providers the user has configured
+providers_dir="${PROVIDERS_DIR:-${data_dir}/providers}"
+providers_builtin_dir="/app/providers-builtin"
+mkdir -p "$providers_dir"
+if [ -d "$providers_builtin_dir" ] && [ "$(ls -A "$providers_builtin_dir" 2>/dev/null)" ]; then
+  for src in "$providers_builtin_dir"/*.json; do
+    [ -f "$src" ] || continue
+    name="$(basename "$src")"
+    dest="$providers_dir/$name"
+    if [ "$FORCE_SEED" = "true" ]; then
+      cp "$src" "$dest"
+      echo "   ✓ Seeded provider $name (forced)"
+    elif [ -f "$dest" ]; then
+      echo "   ⏭ Skipping provider $name (already exists)"
+    else
+      cp "$src" "$dest"
+    fi
+  done
+  # Also seed .sops.yaml if not present
+  if [ -f "$providers_builtin_dir/.sops.yaml" ] && [ ! -f "$providers_dir/.sops.yaml" ]; then
+    cp "$providers_builtin_dir/.sops.yaml" "$providers_dir/.sops.yaml"
+  fi
+fi
+
 # Clean up derived data that is safe to rebuild.
 # Search indexes and compiled modules are rebuilt automatically from the database.
 # User uploads (files/) are NEVER touched — they contain permanent user data.

@@ -138,8 +138,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && groupadd --system --gid 1001 app || true \
     && useradd --system --uid 1001 --gid app app || true \
     && mkdir -p /home/app && chmod 777 /home/app \
-    && mkdir -p /app/data/convex /app/data/agents /app/data/workflows /app/data/integrations /dashboard /app/agents-builtin /app/workflows-builtin /app/integrations-builtin \
-    && chown -R app:app /app/data /dashboard /app/agents-builtin /app/workflows-builtin /app/integrations-builtin
+    && mkdir -p /app/data/convex /app/data/agents /app/data/workflows /app/data/integrations /dashboard /app/agents-builtin /app/workflows-builtin /app/integrations-builtin /app/providers-builtin \
+    && chown -R app:app /app/data /dashboard /app/agents-builtin /app/workflows-builtin /app/integrations-builtin /app/providers-builtin
 
 # Re-declare VERSION arg (ARGs don't persist after FROM)
 ARG VERSION=dev
@@ -195,6 +195,9 @@ COPY --chown=app:app examples/workflows/ /app/workflows-builtin/
 
 # Copy builtin integration template files (used to seed /app/data/integrations on first run)
 COPY --chown=app:app examples/integrations/ /app/integrations-builtin/
+
+# Copy builtin provider config files (used to seed /app/data/providers on first run)
+COPY --chown=app:app examples/providers/ /app/providers-builtin/
 
 COPY --from=pruner --chown=app:app /app/services/platform/dist ./dist
 COPY --from=pruner --chown=app:app \
