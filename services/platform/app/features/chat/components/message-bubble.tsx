@@ -6,6 +6,7 @@ import {
   Info,
   TriangleAlert,
   RotateCcw,
+  Square,
 } from 'lucide-react';
 import {
   ComponentPropsWithoutRef,
@@ -265,7 +266,8 @@ function MessageBubbleComponent({
             )}
           </div>
         ) : (
-          message.isAborted && (
+          message.isAborted &&
+          (message.error ? (
             <div
               className="mt-3 flex flex-col gap-2"
               role="alert"
@@ -277,11 +279,9 @@ function MessageBubbleComponent({
                   {tChat('errorGenerating')}
                 </span>
               </div>
-              {message.error && (
-                <p className="text-muted-foreground text-[13px] break-all whitespace-pre-wrap">
-                  {message.error}
-                </p>
-              )}
+              <p className="text-muted-foreground text-[13px] break-all whitespace-pre-wrap">
+                {message.error}
+              </p>
               {onRetry && (
                 <Button
                   variant="secondary"
@@ -294,7 +294,12 @@ function MessageBubbleComponent({
                 </Button>
               )}
             </div>
-          )
+          ) : (
+            <div className="text-muted-foreground flex items-center gap-1.5 text-sm italic">
+              <Square className="size-3" />
+              {tChat('generationStopped')}
+            </div>
+          ))
         )}
 
         {message.fileParts && message.fileParts.length > 0 && (
