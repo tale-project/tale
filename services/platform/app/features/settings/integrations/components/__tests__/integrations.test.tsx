@@ -71,7 +71,6 @@ describe('Integrations', () => {
     render(<Integrations {...defaultProps} />);
     expect(screen.getByText('integrations.tabs.all')).toBeInTheDocument();
     expect(screen.getByText('integrations.tabs.connected')).toBeInTheDocument();
-    expect(screen.getByText('integrations.tabs.custom')).toBeInTheDocument();
   });
 
   it('renders SSO card on "all" tab', () => {
@@ -113,26 +112,6 @@ describe('Integrations', () => {
     expect(screen.queryByText('Slack')).not.toBeInTheDocument();
   });
 
-  it('filters integrations by "custom" tab', () => {
-    const integrations = [
-      makeIntegration({
-        slug: 'my-custom',
-        title: 'My Custom',
-        metadata: { source: 'custom' },
-      }),
-      makeIntegration({ slug: 'github', title: 'GitHub' }),
-    ];
-    render(
-      <Integrations
-        {...defaultProps}
-        integrations={integrations}
-        tab="custom"
-      />,
-    );
-    expect(screen.getByText('My Custom')).toBeInTheDocument();
-    expect(screen.queryByText('GitHub')).not.toBeInTheDocument();
-  });
-
   it('filters integrations by search query', async () => {
     const user = userEvent.setup();
     const integrations = [
@@ -154,13 +133,6 @@ describe('Integrations', () => {
     render(<Integrations {...defaultProps} tab="connected" />);
     expect(
       screen.getByText('integrations.empty.connectedTitle'),
-    ).toBeInTheDocument();
-  });
-
-  it('shows empty state for custom tab when no custom integrations', () => {
-    render(<Integrations {...defaultProps} tab="custom" />);
-    expect(
-      screen.getByText('integrations.empty.customTitle'),
     ).toBeInTheDocument();
   });
 

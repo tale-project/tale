@@ -43,6 +43,7 @@ type BaseProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> &
   VariantProps<typeof inputVariants> & {
     passwordToggle?: boolean;
     errorMessage?: string;
+    isInvalid?: boolean;
     label?: string;
     description?: ReactNode;
     required?: boolean;
@@ -59,6 +60,7 @@ export const Input = forwardRef<HTMLInputElement, BaseProps>(
       variant,
       size,
       errorMessage,
+      isInvalid,
       label,
       description,
       required,
@@ -80,6 +82,7 @@ export const Input = forwardRef<HTMLInputElement, BaseProps>(
     const resolvedAutoComplete =
       autoComplete ?? (isPassword ? 'current-password' : undefined);
     const hasError = !!errorMessage;
+    const showInvalid = hasError || !!isInvalid;
     const describedBy =
       [description && descriptionId, hasError && errorId]
         .filter(Boolean)
@@ -87,12 +90,12 @@ export const Input = forwardRef<HTMLInputElement, BaseProps>(
 
     // Trigger shake animation when error appears
     useEffect(() => {
-      if (hasError) {
+      if (showInvalid) {
         setShowShake(true);
         const timer = setTimeout(() => setShowShake(false), 400);
         return () => clearTimeout(timer);
       }
-    }, [hasError, errorMessage]);
+    }, [showInvalid, errorMessage]);
 
     if (isPassword && passwordToggle) {
       return (
@@ -109,14 +112,15 @@ export const Input = forwardRef<HTMLInputElement, BaseProps>(
               autoComplete={resolvedAutoComplete}
               className={cn(
                 inputVariants({ variant, size }),
-                hasError && 'border-destructive focus-visible:ring-destructive',
+                showInvalid &&
+                  'border-destructive focus-visible:ring-destructive',
                 showShake && 'animate-shake',
                 'pr-10',
                 className,
               )}
               ref={ref}
               required={required}
-              aria-invalid={hasError || undefined}
+              aria-invalid={showInvalid || undefined}
               aria-describedby={describedBy}
               aria-errormessage={hasError ? errorId : undefined}
               {...props}
@@ -170,13 +174,13 @@ export const Input = forwardRef<HTMLInputElement, BaseProps>(
           autoComplete={resolvedAutoComplete}
           className={cn(
             inputVariants({ variant, size }),
-            hasError && 'border-destructive focus-visible:ring-destructive',
+            showInvalid && 'border-destructive focus-visible:ring-destructive',
             showShake && 'animate-shake',
             className,
           )}
           ref={ref}
           required={required}
-          aria-invalid={hasError || undefined}
+          aria-invalid={showInvalid || undefined}
           aria-describedby={describedBy}
           aria-errormessage={hasError ? errorId : undefined}
           {...props}

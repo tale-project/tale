@@ -99,7 +99,7 @@ describe('LogInPage – submit button state after failed login (#648)', () => {
       expect(screen.getByText('login.wrongCredentials')).toBeInTheDocument();
     });
 
-    // User edits the email field — onChange clears the password error
+    // User edits the email field — onChange clears the error
     fireEvent.change(screen.getByLabelText('email'), {
       target: { value: 'correct@example.com' },
     });
