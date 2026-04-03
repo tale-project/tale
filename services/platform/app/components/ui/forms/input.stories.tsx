@@ -51,6 +51,11 @@ import { Input } from './input';
       control: 'text',
       description: 'Error message displayed below the input',
     },
+    isInvalid: {
+      control: 'boolean',
+      description:
+        'Shows error styling (border, shake) without requiring an error message',
+    },
     required: {
       control: 'boolean',
       description: 'Marks the field as required',
@@ -106,6 +111,23 @@ export const Required: Story = {
     label: 'Username',
     required: true,
     placeholder: 'Enter username',
+  },
+};
+
+export const InvalidWithoutMessage: Story = {
+  args: {
+    label: 'Email',
+    type: 'email',
+    defaultValue: 'user@example.com',
+    isInvalid: true,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Visual error state without an error message. Useful when the error is displayed externally (e.g. a shared form-level alert).',
+      },
+    },
   },
 };
 
