@@ -207,10 +207,6 @@ export BETTER_AUTH_URL="${BETTER_AUTH_URL}"
 # Encryption configuration
 export ENCRYPTION_SECRET_HEX="${ENCRYPTION_SECRET_HEX}"
 
-# LLM provider configuration
-export OPENAI_API_KEY="${OPENAI_API_KEY}"
-export OPENAI_BASE_URL="${OPENAI_BASE_URL}"
-
 # RAG database configuration
 # RAG and Crawler share the tale_knowledge database with separate schemas
 if [ -z "${RAG_DATABASE_URL:-}" ]; then
@@ -615,14 +611,6 @@ deploy_convex_functions() {
     "SITE_URL"
     "BASE_PATH"
     "ENCRYPTION_SECRET_HEX"
-    "OPENAI_API_KEY"
-    "OPENAI_BASE_URL"
-    "OPENAI_MODEL"
-    "OPENAI_FAST_MODEL"
-    "OPENAI_VISION_MODEL"
-    "OPENAI_CODING_MODEL"
-    "OPENAI_EMBEDDING_MODEL"
-    "EMBEDDING_DIMENSIONS"
     "BETTER_AUTH_SECRET"
     "AUTH_MICROSOFT_ENTRA_ID_ID"
     "AUTH_MICROSOFT_ENTRA_ID_SECRET"

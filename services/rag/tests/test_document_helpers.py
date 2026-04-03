@@ -4,8 +4,8 @@ Covers:
 - _validate_file_extension: supported, unsupported, no extension
 - _parse_metadata: valid JSON, invalid JSON, non-dict JSON, None
 - SUPPORTED_EXTENSIONS: excludes legacy Office formats (.doc, .ppt, .xls)
-- Settings.get_embedding_dimensions(): valid, missing, invalid
-- Settings.get_llm_config(): missing required keys raise ValueError
+- Settings.get_embedding_dimensions(): via provider files
+- Settings.get_llm_config(): via provider files
 """
 
 import os
@@ -195,171 +195,108 @@ class TestSupportedExtensions:
             assert ext == ext.lower(), f"{ext} must be lowercase"
 
 
-def _base_env():
-    """Minimum valid environment for Settings + get_llm_config."""
-    return {
-        "OPENAI_API_KEY": "sk-test",
-        "OPENAI_BASE_URL": "https://api.openai.com/v1",
-        "OPENAI_FAST_MODEL": "gpt-4o-mini",
-        "OPENAI_EMBEDDING_MODEL": "text-embedding-3-small",
-        "EMBEDDING_DIMENSIONS": "1536",
-    }
+def _mock_chat_model():
+    return ("https://openrouter.ai/api/v1", "sk-test", "gpt-4o-mini")
+
+
+def _mock_embedding_model():
+    return ("https://openrouter.ai/api/v1", "sk-test", "text-embedding-3-small", 1536)
 
 
 class TestGetEmbeddingDimensions:
-    """Settings.get_embedding_dimensions() parsing and validation."""
+    """Settings.get_embedding_dimensions() from provider files."""
 
-    def test_valid_dimensions(self):
-        env = _base_env()
-        env["EMBEDDING_DIMENSIONS"] = "1536"
-        with patch.dict(os.environ, env, clear=True):
+    @patch("tale_shared.config.base._provider_embedding_model", return_value=_mock_embedding_model())
+    def test_valid_dimensions(self, mock_provider):
+        with patch.dict(os.environ, {}, clear=True):
             s = Settings()
             assert s.get_embedding_dimensions() == 1536
 
-    def test_large_dimensions(self):
-        env = _base_env()
-        env["EMBEDDING_DIMENSIONS"] = "3072"
-        with patch.dict(os.environ, env, clear=True):
+    @patch(
+        "tale_shared.config.base._provider_embedding_model",
+        return_value=("https://openrouter.ai/api/v1", "sk-test", "embed-large", 3072),
+    )
+    def test_large_dimensions(self, mock_provider):
+        with patch.dict(os.environ, {}, clear=True):
             s = Settings()
             assert s.get_embedding_dimensions() == 3072
 
-    def test_missing_dimensions_raises(self):
-        env = _base_env()
-        del env["EMBEDDING_DIMENSIONS"]
-        with patch.dict(os.environ, env, clear=True):
+    @patch(
+        "tale_shared.config.base._provider_embedding_model",
+        side_effect=ValueError("No embedding model"),
+    )
+    def test_missing_provider_raises(self, mock_provider):
+        with patch.dict(os.environ, {}, clear=True):
             s = Settings()
-            with pytest.raises(ValueError, match="EMBEDDING_DIMENSIONS must be set"):
-                s.get_embedding_dimensions()
-
-    def test_non_numeric_dimensions_raises(self):
-        env = _base_env()
-        env["EMBEDDING_DIMENSIONS"] = "not_a_number"
-        with patch.dict(os.environ, env, clear=True):
-            s = Settings()
-            with pytest.raises(ValueError, match="valid positive integer"):
-                s.get_embedding_dimensions()
-
-    def test_zero_dimensions_raises(self):
-        env = _base_env()
-        env["EMBEDDING_DIMENSIONS"] = "0"
-        with patch.dict(os.environ, env, clear=True):
-            s = Settings()
-            with pytest.raises(ValueError, match="positive integer"):
-                s.get_embedding_dimensions()
-
-    def test_negative_dimensions_raises(self):
-        env = _base_env()
-        env["EMBEDDING_DIMENSIONS"] = "-100"
-        with patch.dict(os.environ, env, clear=True):
-            s = Settings()
-            with pytest.raises(ValueError, match="positive integer"):
-                s.get_embedding_dimensions()
-
-    def test_float_dimensions_raises(self):
-        env = _base_env()
-        env["EMBEDDING_DIMENSIONS"] = "1536.5"
-        with patch.dict(os.environ, env, clear=True):
-            s = Settings()
-            with pytest.raises(ValueError, match="valid positive integer"):
-                s.get_embedding_dimensions()
-
-    def test_empty_string_dimensions_raises(self):
-        env = _base_env()
-        env["EMBEDDING_DIMENSIONS"] = ""
-        with patch.dict(os.environ, env, clear=True):
-            s = Settings()
-            with pytest.raises(ValueError, match="EMBEDDING_DIMENSIONS"):
+            with pytest.raises(ValueError, match="No embedding model"):
                 s.get_embedding_dimensions()
 
 
-class TestGetLlmConfigMissingKeys:
-    """Settings.get_llm_config() must raise ValueError for missing required keys."""
+class TestGetLlmConfig:
+    """Settings.get_llm_config() from provider files."""
 
-    def test_missing_api_key_raises(self):
-        env = _base_env()
-        del env["OPENAI_API_KEY"]
-        with patch.dict(os.environ, env, clear=True):
-            s = Settings()
-            with pytest.raises(ValueError, match="OPENAI_API_KEY"):
-                s.get_llm_config()
-
-    def test_missing_base_url_raises(self):
-        env = _base_env()
-        del env["OPENAI_BASE_URL"]
-        with patch.dict(os.environ, env, clear=True):
-            s = Settings()
-            with pytest.raises(ValueError, match="OPENAI_BASE_URL"):
-                s.get_llm_config()
-
-    def test_missing_fast_model_raises(self):
-        env = _base_env()
-        del env["OPENAI_FAST_MODEL"]
-        with patch.dict(os.environ, env, clear=True):
-            s = Settings()
-            with pytest.raises(ValueError, match="OPENAI_FAST_MODEL"):
-                s.get_llm_config()
-
-    def test_missing_embedding_model_raises(self):
-        env = _base_env()
-        del env["OPENAI_EMBEDDING_MODEL"]
-        with patch.dict(os.environ, env, clear=True):
-            s = Settings()
-            with pytest.raises(ValueError, match="OPENAI_EMBEDDING_MODEL"):
-                s.get_llm_config()
-
-    def test_all_present_returns_valid_config(self):
-        env = _base_env()
-        with patch.dict(os.environ, env, clear=True):
+    @patch("tale_shared.config.base._provider_embedding_model", return_value=_mock_embedding_model())
+    @patch("tale_shared.config.base._provider_chat_model", return_value=_mock_chat_model())
+    def test_all_present_returns_valid_config(self, mock_chat, mock_embed):
+        with patch.dict(os.environ, {}, clear=True):
             s = Settings()
             config = s.get_llm_config()
         assert config["provider"] == "openai"
         assert config["api_key"] == "sk-test"
-        assert config["base_url"] == "https://api.openai.com/v1"
+        assert config["base_url"] == "https://openrouter.ai/api/v1"
         assert config["model"] == "gpt-4o-mini"
         assert config["embedding_model"] == "text-embedding-3-small"
 
-    def test_optional_max_tokens_included_when_set(self):
-        env = _base_env()
-        env["OPENAI_MAX_TOKENS"] = "4096"
-        with patch.dict(os.environ, env, clear=True):
+    @patch("tale_shared.config.base._provider_embedding_model", return_value=_mock_embedding_model())
+    @patch(
+        "tale_shared.config.base._provider_chat_model",
+        side_effect=ValueError("No chat model"),
+    )
+    def test_missing_chat_model_raises(self, mock_chat, mock_embed):
+        with patch.dict(os.environ, {}, clear=True):
+            s = Settings()
+            with pytest.raises(ValueError, match="No chat model"):
+                s.get_llm_config()
+
+    @patch(
+        "tale_shared.config.base._provider_embedding_model",
+        side_effect=ValueError("No embedding model"),
+    )
+    @patch("tale_shared.config.base._provider_chat_model", return_value=_mock_chat_model())
+    def test_missing_embedding_model_raises(self, mock_chat, mock_embed):
+        with patch.dict(os.environ, {}, clear=True):
+            s = Settings()
+            with pytest.raises(ValueError, match="No embedding model"):
+                s.get_llm_config()
+
+    @patch("tale_shared.config.base._provider_embedding_model", return_value=_mock_embedding_model())
+    @patch("tale_shared.config.base._provider_chat_model", return_value=_mock_chat_model())
+    def test_optional_max_tokens_included_when_set(self, mock_chat, mock_embed):
+        with patch.dict(os.environ, {"RAG_OPENAI_MAX_TOKENS": "4096"}, clear=True):
             s = Settings()
             config = s.get_llm_config()
         assert config["max_tokens"] == 4096
 
-    def test_optional_temperature_included_when_set(self):
-        env = _base_env()
-        env["OPENAI_TEMPERATURE"] = "0.7"
-        with patch.dict(os.environ, env, clear=True):
+    @patch("tale_shared.config.base._provider_embedding_model", return_value=_mock_embedding_model())
+    @patch("tale_shared.config.base._provider_chat_model", return_value=_mock_chat_model())
+    def test_optional_temperature_included_when_set(self, mock_chat, mock_embed):
+        with patch.dict(os.environ, {"RAG_OPENAI_TEMPERATURE": "0.7"}, clear=True):
             s = Settings()
             config = s.get_llm_config()
         assert config["temperature"] == pytest.approx(0.7)
 
-    def test_max_tokens_omitted_when_not_set(self):
-        env = _base_env()
-        with patch.dict(os.environ, env, clear=True):
+    @patch("tale_shared.config.base._provider_embedding_model", return_value=_mock_embedding_model())
+    @patch("tale_shared.config.base._provider_chat_model", return_value=_mock_chat_model())
+    def test_max_tokens_omitted_when_not_set(self, mock_chat, mock_embed):
+        with patch.dict(os.environ, {}, clear=True):
             s = Settings()
             config = s.get_llm_config()
         assert "max_tokens" not in config
 
-    def test_temperature_omitted_when_not_set(self):
-        env = _base_env()
-        with patch.dict(os.environ, env, clear=True):
+    @patch("tale_shared.config.base._provider_embedding_model", return_value=_mock_embedding_model())
+    @patch("tale_shared.config.base._provider_chat_model", return_value=_mock_chat_model())
+    def test_temperature_omitted_when_not_set(self, mock_chat, mock_embed):
+        with patch.dict(os.environ, {}, clear=True):
             s = Settings()
             config = s.get_llm_config()
         assert "temperature" not in config
-
-    def test_rag_prefixed_api_key_takes_priority(self):
-        env = _base_env()
-        env["RAG_OPENAI_API_KEY"] = "sk-rag-specific"
-        with patch.dict(os.environ, env, clear=True):
-            s = Settings()
-            config = s.get_llm_config()
-        assert config["api_key"] == "sk-rag-specific"
-
-    def test_rag_prefixed_base_url_takes_priority(self):
-        env = _base_env()
-        env["RAG_OPENAI_BASE_URL"] = "https://rag.api.example.com"
-        with patch.dict(os.environ, env, clear=True):
-            s = Settings()
-            config = s.get_llm_config()
-        assert config["base_url"] == "https://rag.api.example.com"

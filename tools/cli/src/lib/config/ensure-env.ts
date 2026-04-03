@@ -42,6 +42,7 @@ interface EnvSetupOptions {
 interface EnvSetupResult {
   success: boolean;
   agePublicKey?: string;
+  openrouterKey?: string;
 }
 
 export async function ensureEnv(
@@ -207,7 +208,6 @@ async function runEnvSetup(envPath: string): Promise<EnvSetupResult> {
     siteUrl,
     tlsMode,
     tlsEmail,
-    openrouterKey,
     ...secrets,
   });
 
@@ -221,7 +221,7 @@ async function runEnvSetup(envPath: string): Promise<EnvSetupResult> {
   logger.info('You can modify the .env file later to customize settings.');
   logger.blank();
 
-  return { success: true, agePublicKey: ageKeypair.publicKey };
+  return { success: true, agePublicKey: ageKeypair.publicKey, openrouterKey };
 }
 
 interface EnvConfig {
@@ -229,7 +229,6 @@ interface EnvConfig {
   siteUrl: string;
   tlsMode: string;
   tlsEmail: string;
-  openrouterKey: string;
   betterAuthSecret: string;
   encryptionSecretHex: string;
   instanceSecret: string;
@@ -275,18 +274,6 @@ function generateEnvContent(config: EnvConfig): string {
     '# WARNING: PostgreSQL only reads this on FIRST initialization.',
     '# Changing this after the database exists requires manual SQL update.',
     `DB_PASSWORD=${config.dbPassword}`,
-    '',
-    '# ============================================================================',
-    '# API Keys',
-    '# ============================================================================',
-    'OPENAI_BASE_URL=https://openrouter.ai/api/v1',
-    `OPENAI_API_KEY=${config.openrouterKey}`,
-    'OPENAI_MODEL=moonshotai/kimi-k2-0905:exacto',
-    'OPENAI_FAST_MODEL=qwen/qwen3-next-80b-a3b-instruct',
-    'OPENAI_CODING_MODEL=openai/gpt-5.2',
-    'OPENAI_EMBEDDING_MODEL=qwen/qwen3-embedding-4b',
-    'OPENAI_VISION_MODEL=qwen/qwen3-vl-32b-instruct',
-    'EMBEDDING_DIMENSIONS=1536',
     '',
     '# ============================================================================',
     '# Provider Secrets Encryption (age/SOPS)',
