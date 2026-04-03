@@ -641,6 +641,8 @@ deploy_convex_functions() {
     "INTEGRATIONS_DIR"
     # Debug flag (enables all debug loggers when set to "true")
     "DEBUG_MODE"
+    # Age secret key for SOPS provider secret encryption/decryption
+    "SOPS_AGE_KEY"
   )
 
   # Fetch current env vars from Convex (output format: KEY=value per line)
