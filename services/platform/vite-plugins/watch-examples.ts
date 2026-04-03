@@ -7,7 +7,7 @@ import { createConfigWatcher } from '../lib/config-watcher';
 
 /**
  * Vite plugin that watches the config directory for JSON changes and serves
- * an SSE endpoint at /api/file-events — the same path used by server.ts in
+ * an SSE endpoint at /events/file — the same path used by server.ts in
  * production, so the frontend code is identical in dev and prod.
  */
 export function watchExamples(): Plugin {
@@ -33,8 +33,8 @@ export function watchExamples(): Plugin {
         }
       });
 
-      // Serve SSE at /api/file-events in the Vite dev server
-      server.middlewares.use('/api/file-events', (_req, res) => {
+      // Serve SSE at /events/file in the Vite dev server
+      server.middlewares.use('/events/file', (_req, res) => {
         res.writeHead(200, {
           'Content-Type': 'text/event-stream',
           'Cache-Control': 'no-cache',
