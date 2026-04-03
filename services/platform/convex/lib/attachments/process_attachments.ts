@@ -7,17 +7,15 @@
 
 import type { LanguageModelV3 } from '@ai-sdk/provider';
 
-import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
-
 import type { Id } from '../../_generated/dataModel';
 import type { ActionCtx } from '../../_generated/server';
 import type { FileAttachment, MessageContentPart } from './types';
 
 import { isImage, isTextFile } from '../../../lib/shared/file-types';
-import { internal } from '../../_generated/api';
 import { analyzeImageCached } from '../../agent_tools/files/helpers/analyze_image';
 import { analyzeTextContent } from '../../agent_tools/files/helpers/analyze_text';
 import { parseFile } from '../../agent_tools/files/helpers/parse_file';
+import { resolveLanguageModel } from '../../providers/resolve_model';
 import { registerFilesWithAgent } from './register_files';
 
 /**
@@ -201,24 +199,8 @@ export async function processAttachments(
   // Resolve language model for text analysis if not provided
   let resolvedLanguageModelV3 = config.languageModel;
   if (!resolvedLanguageModelV3 && textFileAttachments.length > 0) {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- resolveModelByTag returns v.any() but shape is guaranteed by provider file_actions contract
-    const modelData = (await ctx.runAction(
-      internal.providers.file_actions.resolveModelByTag,
-      { tag: 'chat' },
-    )) as {
-      providerName: string;
-      baseUrl: string;
-      apiKey: string;
-      modelId: string;
-      supportsStructuredOutputs: boolean;
-    };
-    const providerInstance = createOpenAICompatible({
-      name: modelData.providerName,
-      baseURL: modelData.baseUrl,
-      apiKey: modelData.apiKey,
-      supportsStructuredOutputs: modelData.supportsStructuredOutputs,
-    });
-    resolvedLanguageModelV3 = providerInstance.chatModel(modelData.modelId);
+    const resolved = await resolveLanguageModel(ctx, { tag: 'chat' });
+    resolvedLanguageModelV3 = resolved.languageModel;
   }
 
   // Analyze text files with LLM (in parallel)

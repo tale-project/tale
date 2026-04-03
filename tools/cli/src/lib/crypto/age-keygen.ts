@@ -42,6 +42,7 @@ export function deriveAgePublicKey(secretKey: string): string {
   if (!lowercase.includes('1')) {
     throw new Error('Invalid age secret key: missing bech32 separator');
   }
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- The includes('1') guard above proves the bech32 separator exists
   const decoded = bech32.decode(lowercase as `${string}1${string}`, false);
   if (decoded.prefix !== SECRET_HRP) {
     throw new Error(`Invalid age secret key prefix: "${decoded.prefix}"`);

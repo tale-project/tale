@@ -34,7 +34,6 @@ export function toSerializableConfig(
       })(),
     provider: config.provider,
     maxSteps: config.maxSteps,
-    enableVectorSearch: false,
     knowledgeMode,
     webSearchMode,
     includeTeamKnowledge: config.includeTeamKnowledge ?? true,

@@ -99,8 +99,52 @@ class BaseServiceSettings(BaseSettings):
             raise ValueError("OPENAI_VISION_MODEL must be set in environment.")
         return model
 
+    def get_chat_config(self) -> tuple[str, str, str]:
+        """Return (base_url, api_key, model_id) for chat model from provider files, then env var fallback."""
+        try:
+            return _provider_chat_model()
+        except (ValueError, FileNotFoundError):
+            logger.debug("No provider chat config found, falling back to env vars")
+            return (
+                self.get_openai_base_url(),
+                self.get_openai_api_key(),
+                self.get_fast_model(),
+            )
+
+    def get_embedding_config(self) -> tuple[str, str, str, int]:
+        """Return (base_url, api_key, model_id, dimensions) for embedding model."""
+        try:
+            return _provider_embedding_model()
+        except (ValueError, FileNotFoundError):
+            logger.debug("No provider embedding config found, falling back to env vars")
+            return (
+                self.get_openai_base_url(),
+                self.get_openai_api_key(),
+                self.get_embedding_model(),
+                self.get_embedding_dimensions(),
+            )
+
+    def get_vision_config(self) -> tuple[str, str, str]:
+        """Return (base_url, api_key, model_id) for vision model."""
+        try:
+            return _provider_vision_model()
+        except (ValueError, FileNotFoundError):
+            logger.debug("No provider vision config found, falling back to env vars")
+            return (
+                self.get_openai_base_url(),
+                self.get_openai_api_key(),
+                self.get_vision_model(),
+            )
+
     def get_embedding_dimensions(self) -> int:
-        """Get embedding dimensions from service-prefixed or generic env var."""
+        """Get embedding dimensions from provider files, then env var fallback."""
+        try:
+            _base_url, _api_key, _model_id, dims = _provider_embedding_model()
+            return dims
+        except (ValueError, FileNotFoundError):
+            logger.debug(
+                "No provider embedding dimensions found, falling back to env vars"
+            )
         dims = self.embedding_dimensions
         if dims is None:
             raw = os.environ.get("EMBEDDING_DIMENSIONS")

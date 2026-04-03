@@ -22,7 +22,7 @@ export function createAgentConfig(opts: {
   name: string;
   /** Pre-resolved language model instance from the provider */
   languageModel: LanguageModelV3;
-  /** Pre-resolved text embedding model for vector search (pass when enableVectorSearch is true) */
+  /** Pre-resolved text embedding model for vector search */
   textEmbeddingModel?: unknown;
   /** Temperature override. If not provided, auto-determined by outputFormat: json→0.2, text→0.5 */
   temperature?: number;
@@ -158,7 +158,7 @@ Example: User asks for "John's email" and you find 3 Johns:
     languageModel: opts.languageModel,
     callSettings,
     ...(typeof opts.maxTokens === 'number'
-      ? { providerOptions: { openai: { maxOutputTokens: opts.maxTokens } } }
+      ? { maxOutputTokens: opts.maxTokens }
       : {}),
     ...(hasAnyTools ? { tools: mergedTools } : {}),
     ...(typeof effectiveMaxSteps === 'number'

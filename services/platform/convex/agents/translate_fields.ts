@@ -1,12 +1,12 @@
 'use node';
 
-import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { Agent } from '@convex-dev/agent';
 import { z } from 'zod';
 
 import type { ActionCtx } from '../_generated/server';
 
-import { components, internal } from '../_generated/api';
+import { components } from '../_generated/api';
+import { resolveLanguageModel } from '../providers/resolve_model';
 
 const MAX_RETRIES = 3;
 
@@ -104,24 +104,7 @@ export async function translateFields(
   });
 
   // Resolve chat model from provider files
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- resolveModelByTag returns v.any() but shape is guaranteed by provider file_actions contract
-  const modelData = (await ctx.runAction(
-    internal.providers.file_actions.resolveModelByTag,
-    { tag: 'chat' },
-  )) as {
-    providerName: string;
-    baseUrl: string;
-    apiKey: string;
-    modelId: string;
-    supportsStructuredOutputs: boolean;
-  };
-  const providerInstance = createOpenAICompatible({
-    name: modelData.providerName,
-    baseURL: modelData.baseUrl,
-    apiKey: modelData.apiKey,
-    supportsStructuredOutputs: modelData.supportsStructuredOutputs,
-  });
-  const languageModel = providerInstance.chatModel(modelData.modelId);
+  const { languageModel } = await resolveLanguageModel(ctx, { tag: 'chat' });
 
   const agent = createTranslationAgent(args.targetLocale, languageModel);
   const userId = `translate-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;

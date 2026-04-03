@@ -50,8 +50,8 @@ export interface LLMNodeConfig {
   description?: string;
 
   // Model configuration (provider-agnostic; any OpenAI-compatible model id)
-  // Model is now controlled centrally via environment (OPENAI_MODEL) and cannot
-  // be customized per step.
+  // Model is resolved from provider configuration files and cannot be
+  // customized per step.
   // Temperature is automatically determined based on outputFormat:
   // - json → 0.2 (more deterministic for structured output)
   // - text → 0.5 (balanced creativity)
@@ -150,7 +150,7 @@ export const llmNodeConfigValidator = v.object({
   description: v.optional(v.string()),
 
   // Allow arbitrary model ids so users can target any OpenAI-compatible provider
-  // NOTE: Model is resolved from environment (OPENAI_MODEL) at runtime. This
+  // NOTE: Model is resolved from provider configuration files at runtime. This
   // field is optional and, if provided, is ignored by execution.
   // Temperature is auto-determined based on outputFormat (json→0.2, text→0.5).
   model: v.optional(v.string()),

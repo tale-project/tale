@@ -74,9 +74,9 @@ export function validateAndNormalizeConfig(
     name: llmConfig.name || 'Workflow LLM',
     systemPrompt: llmConfig.systemPrompt,
     userPrompt: llmConfig.userPrompt || '',
-    // Model is controlled via the OPENAI_MODEL environment variable. We do not
-    // provide a fallback model: OPENAI_MODEL must be set explicitly in the
-    // Convex environment or LLM workflow steps will fail to run.
+    // Model is resolved from provider configuration files. We do not provide a
+    // fallback model: a valid provider config must exist or LLM workflow steps
+    // will fail to run.
     model: envModel,
     // Note: The following are intentionally not configurable in workflow definitions:
     // - maxTokens: uses model's default value

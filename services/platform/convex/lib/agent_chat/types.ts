@@ -31,8 +31,6 @@ export interface SerializableAgentConfig {
   maxSteps?: number;
   /** Output format (text or json) */
   outputFormat?: 'text' | 'json';
-  /** Enable vector search for semantic message retrieval */
-  enableVectorSearch?: boolean;
   /** Knowledge retrieval mode: tool (agent calls rag_search), context (auto-inject), both, or off */
   knowledgeMode?: 'off' | 'tool' | 'context' | 'both';
   /** Web search retrieval mode: tool (agent calls web), context (auto-inject), both, or off */

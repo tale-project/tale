@@ -5,13 +5,11 @@
  * Uses AI SDK with OpenAI provider and Agent SDK for tool integration.
  */
 
-import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
-
 import type { Id } from '../../../../_generated/dataModel';
 import type { ActionCtx } from '../../../../_generated/server';
 import type { StepExecutionResult, LLMNodeConfig } from '../../../types';
 
-import { internal } from '../../../../_generated/api';
+import { resolveLanguageModel } from '../../../../providers/resolve_model';
 import { executeAgentWithTools } from './execute_agent_with_tools';
 import { createLLMResult } from './utils/create_llm_result';
 import { processPrompts } from './utils/process_prompts';
@@ -40,24 +38,8 @@ export async function executeLLMNode(
   stepSlug?: string,
 ): Promise<StepExecutionResult> {
   // 1. Resolve default model from provider files, then validate and normalize config
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- resolveModelByTag returns v.any() but shape is guaranteed by provider file_actions contract
-  const chatModelData = (await ctx.runAction(
-    internal.providers.file_actions.resolveModelByTag,
-    { tag: 'chat' },
-  )) as {
-    providerName: string;
-    baseUrl: string;
-    apiKey: string;
-    modelId: string;
-    supportsStructuredOutputs: boolean;
-  };
-  const providerInstance = createOpenAICompatible({
-    name: chatModelData.providerName,
-    baseURL: chatModelData.baseUrl,
-    apiKey: chatModelData.apiKey,
-    supportsStructuredOutputs: chatModelData.supportsStructuredOutputs,
-  });
-  const languageModel = providerInstance.chatModel(chatModelData.modelId);
+  const { languageModel, modelData: chatModelData } =
+    await resolveLanguageModel(ctx, { tag: 'chat' });
   const normalizedConfig = validateAndNormalizeConfig(
     config,
     chatModelData.modelId,

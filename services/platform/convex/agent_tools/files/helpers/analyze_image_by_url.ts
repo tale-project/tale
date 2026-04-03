@@ -4,13 +4,12 @@
  * Helper for analyzing images by URL using the vision model.
  */
 
-import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
-
 import type { ActionCtx } from '../../../_generated/server';
 import type { AnalyzeImageResult } from './analyze_image';
 
-import { components, internal } from '../../../_generated/api';
+import { components } from '../../../_generated/api';
 import { createDebugLog } from '../../../lib/debug_log';
+import { resolveLanguageModel } from '../../../providers/resolve_model';
 import { createVisionAgent } from './vision_agent';
 
 const debugLog = createDebugLog('DEBUG_IMAGE_ANALYSIS', '[ImageAnalysis]');
@@ -39,24 +38,9 @@ export async function analyzeImageByUrl(
   });
 
   // Resolve vision model from provider files
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- resolveModelByTag returns v.any() but shape is guaranteed by provider file_actions contract
-  const modelData = (await ctx.runAction(
-    internal.providers.file_actions.resolveModelByTag,
-    { tag: 'vision' },
-  )) as {
-    providerName: string;
-    baseUrl: string;
-    apiKey: string;
-    modelId: string;
-    supportsStructuredOutputs: boolean;
-  };
-  const providerInstance = createOpenAICompatible({
-    name: modelData.providerName,
-    baseURL: modelData.baseUrl,
-    apiKey: modelData.apiKey,
-    supportsStructuredOutputs: modelData.supportsStructuredOutputs,
+  const { languageModel, modelData } = await resolveLanguageModel(ctx, {
+    tag: 'vision',
   });
-  const languageModel = providerInstance.chatModel(modelData.modelId);
   const visionModelId = modelData.modelId;
 
   try {

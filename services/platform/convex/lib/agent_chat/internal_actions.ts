@@ -2,7 +2,6 @@
 
 import type { FunctionHandle } from 'convex/server';
 
-import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import {
   Agent,
   listMessages,
@@ -38,6 +37,10 @@ import {
   sanitizeWorkflowName,
 } from '../../agent_tools/workflows/create_bound_workflow_tool';
 import { extractInputSchema } from '../../agent_tools/workflows/helpers/extract_input_schema';
+import {
+  resolveLanguageModel,
+  resolveLanguageModelById,
+} from '../../providers/resolve_model';
 import { generateAgentResponse } from '../agent_response';
 import {
   estimateTokens,
@@ -66,7 +69,6 @@ const serializableAgentConfigValidator = v.object({
   provider: v.optional(v.string()),
   maxSteps: v.optional(v.number()),
   outputFormat: v.optional(v.union(v.literal('text'), v.literal('json'))),
-  enableVectorSearch: v.optional(v.boolean()),
   knowledgeMode: v.optional(
     v.union(
       v.literal('off'),
@@ -281,56 +283,29 @@ export const runAgentGeneration = internalAction({
 
     // Resolve model from provider files
     const modelId = model === 'default' ? undefined : model;
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- resolveModelByTag/resolveModelData returns v.any() but shape is guaranteed by provider file_actions contract
-    const modelData = modelId
-      ? ((await ctx.runAction(
-          internal.providers.file_actions.resolveModelData,
-          { modelId, providerName: agentConfig.provider },
-        )) as {
-          providerName: string;
-          baseUrl: string;
-          apiKey: string;
-          modelId: string;
-          supportsStructuredOutputs: boolean;
+    const { languageModel } = modelId
+      ? await resolveLanguageModelById(ctx, {
+          modelId,
+          providerName: agentConfig.provider,
         })
-      : ((await ctx.runAction(
-          internal.providers.file_actions.resolveModelByTag,
-          { tag: 'chat', providerName: agentConfig.provider },
-        )) as {
-          providerName: string;
-          baseUrl: string;
-          apiKey: string;
-          modelId: string;
-          supportsStructuredOutputs: boolean;
+      : await resolveLanguageModel(ctx, {
+          tag: 'chat',
+          providerName: agentConfig.provider,
         });
-    const providerInstance = createOpenAICompatible({
-      name: modelData.providerName,
-      baseURL: modelData.baseUrl,
-      apiKey: modelData.apiKey,
-      supportsStructuredOutputs: modelData.supportsStructuredOutputs,
-    });
-    const languageModel = providerInstance.chatModel(modelData.modelId);
 
     // Create agent factory function from serializable config
-    const createAgent = (options?: Record<string, unknown>) => {
-      // If a model override is provided via options, resolve it inline
-      // (this is a sync context, so we use the already-resolved languageModel)
-      const effectiveLanguageModel = languageModel;
-
+    const createAgent = () => {
       const config = createAgentConfig({
         name: agentConfig.name,
         instructions: finalInstructions,
-        languageModel: effectiveLanguageModel,
+        languageModel,
         convexToolNames: agentConfig.convexToolNames
           ? agentConfig.convexToolNames.filter((n): n is ToolName =>
               (TOOL_NAMES as readonly string[]).includes(n),
             )
           : undefined,
         extraTools: allExtraTools,
-        maxSteps:
-          (typeof options?.maxSteps === 'number'
-            ? options.maxSteps
-            : undefined) ?? agentConfig.maxSteps,
+        maxSteps: agentConfig.maxSteps,
         outputFormat: agentConfig.outputFormat,
       });
       return new Agent(components.agent, config);

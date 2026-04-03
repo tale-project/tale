@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -44,7 +45,11 @@ def load_providers(config_dir: str | None = None) -> list[ProviderConfig]:
     Reads *.json (excluding *.secrets.json) and decrypts matching
     *.secrets.json files via SOPS.
     """
-    base = Path(config_dir or os.environ.get("CONFIG_DIR", DEFAULT_CONFIG_DIR))
+    base = Path(
+        config_dir
+        or os.environ.get("TALE_CONFIG_DIR")
+        or os.environ.get("CONFIG_DIR", DEFAULT_CONFIG_DIR)
+    )
     providers_dir = base / "providers"
 
     if not providers_dir.is_dir():
@@ -73,7 +78,7 @@ def load_providers(config_dir: str | None = None) -> list[ProviderConfig]:
             try:
                 secrets = decrypt_secrets_file(secrets_file)
                 api_key = secrets.get("apiKey")
-            except (RuntimeError, OSError) as exc:
+            except (RuntimeError, OSError, subprocess.TimeoutExpired) as exc:
                 logger.error("Failed to decrypt secrets for %s: %s", provider_name, exc)
 
         models = []

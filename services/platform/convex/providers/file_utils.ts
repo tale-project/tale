@@ -102,7 +102,15 @@ export function resolveProviderSecretsPath(
   if (!validateProviderName(providerName))
     throw new Error(`Invalid provider name: ${providerName}`);
   const dir = resolveProvidersDir(orgSlug);
-  return path.resolve(dir, `${providerName}.secrets.json`);
+  const resolved = path.resolve(dir, `${providerName}.secrets.json`);
+  const expectedPrefix = path.resolve(dir);
+  if (
+    !resolved.startsWith(expectedPrefix + path.sep) &&
+    resolved !== expectedPrefix
+  ) {
+    throw new Error(`Path traversal detected: ${providerName}`);
+  }
+  return resolved;
 }
 
 export { MAX_FILE_SIZE_BYTES };

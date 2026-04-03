@@ -33,6 +33,7 @@ import {
   ProviderConfigProvider,
   useProviderConfig,
 } from '@/app/features/settings/providers/hooks/use-provider-config-context';
+import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 export const Route = createFileRoute(
@@ -42,6 +43,7 @@ export const Route = createFileRoute(
 });
 
 function ProviderDetailRoute() {
+  const { t } = useT('settings');
   const { id: organizationId, providerName } = Route.useParams();
   const { data, isLoading } = useReadProvider('default', providerName);
 
@@ -57,12 +59,14 @@ function ProviderDetailRoute() {
   if (!data?.ok) {
     return (
       <Stack gap={4} className="p-6">
-        <Text variant="muted">Provider not found: {providerName}</Text>
+        <Text variant="muted">
+          {t('providers.providerNotFound', { name: providerName })}
+        </Text>
         <Link
           to="/dashboard/$id/settings/providers"
           params={{ id: organizationId }}
         >
-          <Button variant="secondary">Back to providers</Button>
+          <Button variant="secondary">{t('providers.backToProviders')}</Button>
         </Link>
       </Stack>
     );
@@ -103,21 +107,27 @@ function ProviderDetailContent({
         providerName,
         config,
       });
+    } catch {
+      toast({ title: t('providers.saveFailed'), variant: 'destructive' });
     } finally {
       markSaving(false);
     }
-  }, [config, providerName, saveProvider, markSaving]);
+  }, [config, providerName, saveProvider, markSaving, t]);
 
   const handleDelete = useCallback(async () => {
-    await deleteProvider.mutateAsync({
-      orgSlug: 'default',
-      providerName,
-    });
-    void navigate({
-      to: '/dashboard/$id/settings/providers',
-      params: { id: organizationId },
-    });
-  }, [providerName, organizationId, deleteProvider, navigate]);
+    try {
+      await deleteProvider.mutateAsync({
+        orgSlug: 'default',
+        providerName,
+      });
+      void navigate({
+        to: '/dashboard/$id/settings/providers',
+        params: { id: organizationId },
+      });
+    } catch {
+      toast({ title: t('providers.deleteFailed'), variant: 'destructive' });
+    }
+  }, [providerName, organizationId, deleteProvider, navigate, t]);
 
   return (
     <Stack gap={6} className="p-6">
@@ -301,11 +311,16 @@ function ApiKeySection({ providerName }: { providerName: string }) {
         });
         setApiKey('');
         setDialogOpen(false);
+      } catch {
+        toast({
+          title: t('providers.secretSaveFailed'),
+          variant: 'destructive',
+        });
       } finally {
         setSaving(false);
       }
     },
-    [apiKey, providerName, saveSecret],
+    [apiKey, providerName, saveSecret, t],
   );
 
   return (
@@ -514,7 +529,13 @@ function ModelsSection() {
                   <HStack gap={1}>
                     {model.tags.map((tag) => (
                       <Badge key={tag} variant="outline" className="text-xs">
-                        {tag}
+                        {tag === 'chat'
+                          ? t('providers.tagChat')
+                          : tag === 'vision'
+                            ? t('providers.tagVision')
+                            : tag === 'embedding'
+                              ? t('providers.tagEmbedding')
+                              : tag}
                       </Badge>
                     ))}
                   </HStack>
@@ -596,7 +617,13 @@ function ModelsSection() {
                     }));
                   }}
                 />
-                {tag}
+                {tag === 'chat'
+                  ? t('providers.tagChat')
+                  : tag === 'vision'
+                    ? t('providers.tagVision')
+                    : tag === 'embedding'
+                      ? t('providers.tagEmbedding')
+                      : tag}
               </label>
             ))}
           </HStack>

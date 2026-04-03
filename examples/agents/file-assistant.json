@@ -16,7 +16,6 @@
     "request_user_location"
   ],
   "supportedModels": ["qwen/qwen3-next-80b-a3b-instruct", "qwen/qwen3.5-35b-a3b"],
-  "provider": "openrouter",
   "knowledgeMode": "tool",
   "includeTeamKnowledge": false,
   "maxSteps": 15,

@@ -1459,7 +1459,15 @@
       "modelCount": "{count, plural, one {# model} other {# models}}",
       "removeModel": "Remove model",
       "apiKeyPlaceholder": "Enter API key",
-      "apiKeyReplacePlaceholder": "Enter new API key to replace ({maskedKey})"
+      "apiKeyReplacePlaceholder": "Enter new API key to replace ({maskedKey})",
+      "providerNotFound": "Provider not found: {name}",
+      "backToProviders": "Back to providers",
+      "tagChat": "Chat",
+      "tagVision": "Vision",
+      "tagEmbedding": "Embedding",
+      "displayNameRequired": "Display name is required",
+      "invalidBaseUrl": "Base URL must be a valid URL",
+      "modelIdRequired": "All models must have an ID"
     },
     "form": {
       "name": "Name",

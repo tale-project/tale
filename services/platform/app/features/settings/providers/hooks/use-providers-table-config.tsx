@@ -49,7 +49,9 @@ export function useProvidersTableConfig(_opts: {
         header: t('providers.models'),
         meta: { skeleton: { type: 'badge' } },
         cell: ({ row }) => (
-          <Badge variant="outline">{row.original.modelCount ?? 0} models</Badge>
+          <Badge variant="outline">
+            {t('providers.modelCount', { count: row.original.modelCount ?? 0 })}
+          </Badge>
         ),
         size: 120,
       },

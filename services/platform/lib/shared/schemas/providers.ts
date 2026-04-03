@@ -31,7 +31,16 @@ export const providerJsonSchema = z.object({
   description: z.string().max(1000).optional(),
   baseUrl: z.string().url(),
   supportsStructuredOutputs: z.boolean().optional(),
-  models: z.array(modelDefinitionSchema).min(1),
+  models: z
+    .array(modelDefinitionSchema)
+    .min(1)
+    .refine(
+      (models) => new Set(models.map((m) => m.id)).size === models.length,
+      { message: 'Model IDs must be unique' },
+    )
+    .refine((models) => models.filter((m) => m.default).length <= 1, {
+      message: 'At most one model can be marked as default',
+    }),
   i18n: z
     .record(
       z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/),

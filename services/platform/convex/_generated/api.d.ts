@@ -322,7 +322,6 @@ import type * as lib_agent_response_structured_response_instructions from "../li
 import type * as lib_agent_response_types from "../lib/agent_response/types.js";
 import type * as lib_agent_response_validators from "../lib/agent_response/validators.js";
 import type * as lib_agent_response_with_timeout from "../lib/agent_response/with_timeout.js";
-import type * as lib_agent_runtime_config from "../lib/agent_runtime_config.js";
 import type * as lib_attachments_build_multi_modal_content from "../lib/attachments/build_multi_modal_content.js";
 import type * as lib_attachments_format_markdown from "../lib/attachments/format_markdown.js";
 import type * as lib_attachments_index from "../lib/attachments/index.js";
@@ -363,7 +362,6 @@ import type * as lib_helpers_rag_config from "../lib/helpers/rag_config.js";
 import type * as lib_helpers_status_priority from "../lib/helpers/status_priority.js";
 import type * as lib_message_deduplication from "../lib/message_deduplication.js";
 import type * as lib_metadata_get_metadata_string from "../lib/metadata/get_metadata_string.js";
-import type * as lib_openai_provider from "../lib/openai_provider.js";
 import type * as lib_pagination_helpers from "../lib/pagination/helpers.js";
 import type * as lib_pagination_index from "../lib/pagination/index.js";
 import type * as lib_pagination_types from "../lib/pagination/types.js";
@@ -507,6 +505,7 @@ import type * as products_upsert_product_translation from "../products/upsert_pr
 import type * as products_validators from "../products/validators.js";
 import type * as providers_file_actions from "../providers/file_actions.js";
 import type * as providers_file_utils from "../providers/file_utils.js";
+import type * as providers_resolve_model from "../providers/resolve_model.js";
 import type * as providers_validators from "../providers/validators.js";
 import type * as sso_providers_actions from "../sso_providers/actions.js";
 import type * as sso_providers_create_user_session from "../sso_providers/create_user_session.js";
@@ -1159,7 +1158,6 @@ declare const fullApi: ApiFromModules<{
   "lib/agent_response/types": typeof lib_agent_response_types;
   "lib/agent_response/validators": typeof lib_agent_response_validators;
   "lib/agent_response/with_timeout": typeof lib_agent_response_with_timeout;
-  "lib/agent_runtime_config": typeof lib_agent_runtime_config;
   "lib/attachments/build_multi_modal_content": typeof lib_attachments_build_multi_modal_content;
   "lib/attachments/format_markdown": typeof lib_attachments_format_markdown;
   "lib/attachments/index": typeof lib_attachments_index;
@@ -1200,7 +1198,6 @@ declare const fullApi: ApiFromModules<{
   "lib/helpers/status_priority": typeof lib_helpers_status_priority;
   "lib/message_deduplication": typeof lib_message_deduplication;
   "lib/metadata/get_metadata_string": typeof lib_metadata_get_metadata_string;
-  "lib/openai_provider": typeof lib_openai_provider;
   "lib/pagination/helpers": typeof lib_pagination_helpers;
   "lib/pagination/index": typeof lib_pagination_index;
   "lib/pagination/types": typeof lib_pagination_types;
@@ -1344,6 +1341,7 @@ declare const fullApi: ApiFromModules<{
   "products/validators": typeof products_validators;
   "providers/file_actions": typeof providers_file_actions;
   "providers/file_utils": typeof providers_file_utils;
+  "providers/resolve_model": typeof providers_resolve_model;
   "providers/validators": typeof providers_validators;
   "sso_providers/actions": typeof sso_providers_actions;
   "sso_providers/create_user_session": typeof sso_providers_create_user_session;

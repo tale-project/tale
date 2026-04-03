@@ -43,11 +43,7 @@ interface ModelFormData {
   dimensions: string;
 }
 
-const TAG_OPTIONS = [
-  { value: 'chat', label: 'Chat' },
-  { value: 'vision', label: 'Vision' },
-  { value: 'embedding', label: 'Embedding' },
-];
+const TAG_VALUES = ['chat', 'vision', 'embedding'] as const;
 
 function emptyModel(): ModelFormData {
   return {
@@ -122,6 +118,25 @@ export function ProviderEditPanel({
   }, [readResult]);
 
   const handleSave = useCallback(async () => {
+    // Validate before saving
+    if (!displayName.trim()) {
+      toast({
+        title: t('providers.displayNameRequired'),
+        variant: 'destructive',
+      });
+      return;
+    }
+    try {
+      const _url = new URL(baseUrl);
+      void _url;
+    } catch {
+      toast({ title: t('providers.invalidBaseUrl'), variant: 'destructive' });
+      return;
+    }
+    if (models.some((m) => !m.id.trim())) {
+      toast({ title: t('providers.modelIdRequired'), variant: 'destructive' });
+      return;
+    }
     try {
       const config = {
         displayName,
@@ -348,7 +363,17 @@ export function ProviderEditPanel({
                   />
                   <CheckboxGroup
                     label={t('providers.tags')}
-                    options={TAG_OPTIONS}
+                    options={TAG_VALUES.map((tag) => ({
+                      value: tag,
+                      label:
+                        tag === 'chat'
+                          ? t('providers.tagChat')
+                          : tag === 'vision'
+                            ? t('providers.tagVision')
+                            : tag === 'embedding'
+                              ? t('providers.tagEmbedding')
+                              : tag,
+                    }))}
                     value={model.tags}
                     onValueChange={(tags) => updateModel(index, { tags })}
                     columns={2}

@@ -4,10 +4,10 @@
  * SOPS decryption utility.
  *
  * Decrypts SOPS-encrypted JSON files using the `sops` CLI binary.
- * Results are cached in memory and invalidated explicitly via `clearCache()`.
+ * Results are cached in memory and invalidated when the file's mtime changes.
  */
 
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { stat } from 'node:fs/promises';
 
 interface CacheEntry {
@@ -28,7 +28,7 @@ export async function decryptSecretsFile(
 
   let stdout: string;
   try {
-    stdout = execSync(`sops -d --output-type json "${filePath}"`, {
+    stdout = execFileSync('sops', ['-d', '--output-type', 'json', filePath], {
       encoding: 'utf-8',
       timeout: 10_000,
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -46,12 +46,4 @@ export async function decryptSecretsFile(
   const data = JSON.parse(stdout) as Record<string, unknown>;
   cache.set(filePath, { data, mtimeMs: fileStat.mtimeMs });
   return data;
-}
-
-export function clearSopsCache(filePath?: string): void {
-  if (filePath) {
-    cache.delete(filePath);
-  } else {
-    cache.clear();
-  }
 }

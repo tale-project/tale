@@ -1,8 +1,7 @@
-import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { v } from 'convex/values';
 
-import { internal } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
+import { resolveLanguageModel } from '../../providers/resolve_model';
 import { autoSummarizeIfNeededModel } from './auto_summarize';
 
 export const autoSummarizeIfNeeded = internalAction({
@@ -17,24 +16,7 @@ export const autoSummarizeIfNeeded = internalAction({
   }),
   handler: async (ctx, args) => {
     // Resolve chat model from provider files
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- resolveModelByTag returns v.any() but shape is guaranteed by provider file_actions contract
-    const modelData = (await ctx.runAction(
-      internal.providers.file_actions.resolveModelByTag,
-      { tag: 'chat' },
-    )) as {
-      providerName: string;
-      baseUrl: string;
-      apiKey: string;
-      modelId: string;
-      supportsStructuredOutputs: boolean;
-    };
-    const provider = createOpenAICompatible({
-      name: modelData.providerName,
-      baseURL: modelData.baseUrl,
-      apiKey: modelData.apiKey,
-      supportsStructuredOutputs: modelData.supportsStructuredOutputs,
-    });
-    const languageModel = provider.chatModel(modelData.modelId);
+    const { languageModel } = await resolveLanguageModel(ctx, { tag: 'chat' });
 
     return await autoSummarizeIfNeededModel(ctx, {
       ...args,

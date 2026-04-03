@@ -153,7 +153,6 @@ export const submitLocationResponse = mutation({
       instructions: '',
       convexToolNames: [],
       model: 'default',
-      enableVectorSearch: false,
       knowledgeMode: 'off' as const,
       webSearchMode: 'off' as const,
       includeTeamKnowledge: false,

@@ -190,7 +190,6 @@ export const submitHumanInputResponse = mutation({
       instructions: '',
       convexToolNames: [],
       model: 'default',
-      enableVectorSearch: false,
       knowledgeMode: 'off' as const,
       webSearchMode: 'off' as const,
       includeTeamKnowledge: false,

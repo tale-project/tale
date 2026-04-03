@@ -505,12 +505,18 @@ if [ -d "$providers_builtin_dir" ] && [ "$(ls -A "$providers_builtin_dir" 2>/dev
   for src in "$providers_builtin_dir"/*.json; do
     [ -f "$src" ] || continue
     name="$(basename "$src")"
+    # Skip encrypted secrets files
+    [[ "$name" == *.secrets.json ]] && continue
+    slug="$(basename "$src" .json)"
     dest="$providers_dir/$name"
+    history_dir="$providers_dir/.history/$slug"
     if [ "$FORCE_SEED" = "true" ]; then
       cp "$src" "$dest"
       echo "   ✓ Seeded provider $name (forced)"
     elif [ -f "$dest" ]; then
       echo "   ⏭ Skipping provider $name (already exists)"
+    elif [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
+      echo "   ⏭ Skipping provider $name (user has modifications in .history)"
     else
       cp "$src" "$dest"
     fi

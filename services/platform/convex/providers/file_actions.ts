@@ -95,7 +95,10 @@ async function loadAllProviders(
 
   for (const fileName of jsonFiles) {
     const providerName = path.basename(fileName, '.json');
-    if (!validateProviderName(providerName)) continue;
+    if (!validateProviderName(providerName)) {
+      console.warn(`Provider "${providerName}": invalid name, skipping.`);
+      continue;
+    }
 
     const filePath = path.join(dir, fileName);
     const result = await readJsonFile<ProviderJson>(
@@ -103,16 +106,20 @@ async function loadAllProviders(
       MAX_FILE_SIZE_BYTES,
       parseProviderJson,
     );
-    if (!result.ok) continue;
+    if (!result.ok) {
+      console.warn(`Provider "${providerName}": ${result.message}, skipping.`);
+      continue;
+    }
 
     const secretsPath = path.join(dir, `${providerName}.secrets.json`);
     let secrets: ProviderSecrets;
     try {
       const raw = await decryptSecretsFile(secretsPath);
       secrets = parseProviderSecrets(raw);
-    } catch {
+    } catch (err) {
       console.warn(
-        `Provider "${providerName}": secrets not available, skipping. Configure the API key in the management UI.`,
+        `Provider "${providerName}": secrets not available, skipping.`,
+        err instanceof Error ? err.message : err,
       );
       continue;
     }
@@ -215,8 +222,14 @@ export const deleteProvider = action({
       args.orgSlug,
       args.providerName,
     );
-    await unlink(filePath).catch(() => {});
-    await unlink(secretsPath).catch(() => {});
+    await unlink(filePath).catch((err: unknown) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Node.js errors always have .code
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+    });
+    await unlink(secretsPath).catch((err: unknown) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Node.js errors always have .code
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+    });
     return null;
   },
 });
@@ -235,7 +248,14 @@ export const resolveModelData = internalAction({
     orgSlug: v.optional(v.string()),
     providerName: v.optional(v.string()),
   },
-  returns: v.any(),
+  returns: v.object({
+    providerName: v.string(),
+    baseUrl: v.string(),
+    apiKey: v.string(),
+    modelId: v.string(),
+    dimensions: v.optional(v.number()),
+    supportsStructuredOutputs: v.boolean(),
+  }),
   handler: async (_ctx, args) => {
     const orgSlug = args.orgSlug ?? 'default';
     const providers = await loadAllProviders(orgSlug);
@@ -285,7 +305,14 @@ export const resolveModelByTag = internalAction({
     orgSlug: v.optional(v.string()),
     providerName: v.optional(v.string()),
   },
-  returns: v.any(),
+  returns: v.object({
+    providerName: v.string(),
+    baseUrl: v.string(),
+    apiKey: v.string(),
+    modelId: v.string(),
+    dimensions: v.optional(v.number()),
+    supportsStructuredOutputs: v.boolean(),
+  }),
   handler: async (_ctx, args) => {
     const orgSlug = args.orgSlug ?? 'default';
     const providers = await loadAllProviders(orgSlug);
@@ -321,23 +348,6 @@ export const resolveModelByTag = internalAction({
     throw new Error(
       `No model with tag "${args.tag}" found${args.providerName ? ` in provider "${args.providerName}"` : ' in any provider'}.`,
     );
-  },
-});
-
-/**
- * Get the default model ID (first model marked default:true, or first model).
- */
-export const getDefaultModelId = internalAction({
-  args: { orgSlug: v.optional(v.string()) },
-  returns: v.string(),
-  handler: async (_ctx, args) => {
-    const orgSlug = args.orgSlug ?? 'default';
-    const providers = await loadAllProviders(orgSlug);
-    for (const provider of providers) {
-      const defaultModel = provider.config.models.find((m) => m.default);
-      if (defaultModel) return defaultModel.id;
-    }
-    return providers[0].config.models[0].id;
   },
 });
 
@@ -427,19 +437,30 @@ export const saveProviderSecret = action({
     const agePublicKey = deriveAgePublicKey(sopsAgeKey);
 
     const plaintext = JSON.stringify({ apiKey: args.apiKey }, null, 2) + '\n';
-    const { execSync } = await import('node:child_process');
+    const { execFileSync } = await import('node:child_process');
 
-    await atomicWrite(secretsPath, plaintext);
-
+    let encrypted: string;
     try {
-      execSync(`sops -e --age "${agePublicKey}" -i "${secretsPath}"`, {
-        encoding: 'utf-8',
-        timeout: 10_000,
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
+      encrypted = execFileSync(
+        'sops',
+        [
+          '-e',
+          '--input-type',
+          'json',
+          '--output-type',
+          'json',
+          '--age',
+          agePublicKey,
+          '/dev/stdin',
+        ],
+        {
+          input: plaintext,
+          encoding: 'utf-8',
+          timeout: 10_000,
+          stdio: ['pipe', 'pipe', 'pipe'],
+        },
+      );
     } catch (err) {
-      const { unlink: unlinkFile } = await import('node:fs/promises');
-      await unlinkFile(secretsPath).catch(() => {});
       const message = err instanceof Error ? err.message : String(err);
       throw new Error(
         `Failed to encrypt secrets for "${args.providerName}": ${message}. ` +
@@ -447,6 +468,8 @@ export const saveProviderSecret = action({
         { cause: err },
       );
     }
+
+    await atomicWrite(secretsPath, encrypted);
 
     return null;
   },
