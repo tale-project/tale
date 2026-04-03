@@ -12,7 +12,7 @@ import { useListPage } from '@/app/hooks/use-list-page';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { useT } from '@/lib/i18n/client';
 
-import { useListAgents, useModelPresets } from '../hooks/queries';
+import { useListAgents } from '../hooks/queries';
 import { useAgentsTableConfig } from '../hooks/use-agents-table-config';
 import { AgentsActionMenu } from './agents-action-menu';
 
@@ -20,7 +20,7 @@ export interface AgentRow {
   name: string;
   displayName: string;
   description?: string;
-  modelPreset?: string;
+  supportedModels?: string[];
   toolNames?: string[];
   visibleInChat?: boolean;
   roleRestriction?: string;
@@ -37,7 +37,6 @@ export function AgentsTable({ organizationId }: AgentsTableProps) {
   const { teams } = useTeamFilter();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { data: modelPresets } = useModelPresets();
   const { agents: rawAgents, isLoading } = useListAgents('default');
 
   const agents = useMemo(() => {
@@ -49,7 +48,7 @@ export function AgentsTable({ organizationId }: AgentsTableProps) {
           name: a.name,
           displayName: a.displayName,
           description: a.description,
-          modelPreset: a.modelPreset,
+          supportedModels: a.supportedModels,
           toolNames: a.toolNames,
           visibleInChat: a.visibleInChat,
           roleRestriction: a.roleRestriction,
@@ -76,7 +75,6 @@ export function AgentsTable({ organizationId }: AgentsTableProps) {
   const { columns, searchPlaceholder, stickyLayout, pageSize } =
     useAgentsTableConfig({
       teamNameMap,
-      modelPresets,
       onDuplicated: invalidateAgents,
       onDeleted: invalidateAgents,
     });

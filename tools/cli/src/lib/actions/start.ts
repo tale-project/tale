@@ -89,7 +89,7 @@ export async function start(options: StartOptions): Promise<void> {
     logger.warn('No .env file found. Running environment setup...');
     logger.blank();
     const { ensureEnv } = await import('../config/ensure-env');
-    const success = await ensureEnv({ deployDir: projectDir });
+    const { success } = await ensureEnv({ deployDir: projectDir });
     if (!success) {
       throw new Error(
         'Environment setup failed. Cannot start without .env file.',

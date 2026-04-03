@@ -30,7 +30,7 @@ export function createDeployCommand(): Command {
     .action(async (versionArg: string | undefined, options) => {
       try {
         const deployDir = await ensureConfig();
-        const envSetupSuccess = await ensureEnv({ deployDir });
+        const { success: envSetupSuccess } = await ensureEnv({ deployDir });
         if (!envSetupSuccess) {
           process.exit(1);
         }

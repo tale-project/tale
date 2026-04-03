@@ -13,11 +13,13 @@ WORKDIR /app
 # - curl: Health checks and downloads
 # - build-essential: Compilation for native Python packages
 # - libpq-dev: PostgreSQL client library for asyncpg
+ARG SOPS_VERSION=3.9.4
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     build-essential \
     libpq-dev \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && curl -fsSL "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.amd64" -o /usr/local/bin/sops && chmod +x /usr/local/bin/sops
 
 # Install uv for faster package management
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv

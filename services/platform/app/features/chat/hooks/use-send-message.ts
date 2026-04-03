@@ -29,6 +29,7 @@ interface UseSendMessageParams {
   clearChatState: () => void;
   onBeforeSend?: () => void;
   selectedAgent: SelectedAgent | null;
+  modelId?: string;
   userContext?: UserContext;
 }
 
@@ -46,6 +47,7 @@ export function useSendMessage({
   clearChatState,
   onBeforeSend,
   selectedAgent,
+  modelId,
   userContext,
 }: UseSendMessageParams) {
   const { t } = useT('chat');
@@ -151,6 +153,7 @@ export function useSendMessage({
           threadId: currentThreadId,
           organizationId,
           message: sanitizedContent,
+          modelId: modelId || undefined,
           attachments: mutationAttachments,
           userContext: userContext
             ? {
@@ -181,6 +184,7 @@ export function useSendMessage({
       updateThread,
       chatWithAgent,
       selectedAgent,
+      modelId,
       userContext,
       navigate,
       t,

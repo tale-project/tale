@@ -1,14 +1,8 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 
 import type { AgentJsonConfig } from './file_utils';
 
 import { toSerializableConfig } from './config';
-
-beforeAll(() => {
-  process.env.OPENAI_MODEL = 'gpt-4o';
-  process.env.OPENAI_FAST_MODEL = 'gpt-4o-mini';
-  process.env.OPENAI_CODING_MODEL = 'o3';
-});
 
 function createMockConfig(
   overrides: Partial<AgentJsonConfig> = {},
@@ -19,7 +13,7 @@ function createMockConfig(
     systemInstructions: 'You are a helpful test agent.',
     toolNames: ['web', 'rag_search'],
     integrationBindings: ['integration_1'],
-    modelPreset: 'standard',
+    supportedModels: ['moonshotai/kimi-k2.5', 'deepseek/deepseek-v3.2'],
     includeOrgKnowledge: true,
     maxSteps: 10,
     timeoutMs: 60000,
@@ -37,36 +31,18 @@ describe('toSerializableConfig', () => {
     expect(result.instructions).toBe('You are a helpful test agent.');
     expect(result.convexToolNames).toEqual(['web', 'rag_search']);
     expect(result.integrationBindings).toEqual(['integration_1']);
-    expect(result.model).toBe('gpt-4o');
+    expect(result.model).toBe('moonshotai/kimi-k2.5');
     expect(result.maxSteps).toBe(10);
     expect(result.timeoutMs).toBe(60000);
     expect(result.outputReserve).toBe(2048);
   });
 
-  it('should resolve model presets correctly', () => {
-    expect(
-      toSerializableConfig('a', createMockConfig({ modelPreset: 'fast' }))
-        .model,
-    ).toBe('gpt-4o-mini');
-
-    expect(
-      toSerializableConfig('a', createMockConfig({ modelPreset: 'advanced' }))
-        .model,
-    ).toBe('o3');
-
-    expect(
-      toSerializableConfig('a', createMockConfig({ modelPreset: 'standard' }))
-        .model,
-    ).toBe('gpt-4o');
-  });
-
-  it('should prefer modelId over modelPreset', () => {
+  it('should use first supportedModels entry as model', () => {
     const config = createMockConfig({
-      modelPreset: 'fast',
-      modelId: 'custom-model',
+      supportedModels: ['anthropic/claude-opus-4.6', 'openai/gpt-5.2'],
     });
     const result = toSerializableConfig('a', config);
-    expect(result.model).toBe('custom-model');
+    expect(result.model).toBe('anthropic/claude-opus-4.6');
   });
 
   it('should merge knowledge files from binding', () => {

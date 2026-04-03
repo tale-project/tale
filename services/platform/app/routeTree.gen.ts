@@ -32,6 +32,7 @@ import { Route as DashboardIdChatIndexRouteImport } from './routes/dashboard/$id
 import { Route as DashboardIdAutomationsIndexRouteImport } from './routes/dashboard/$id/automations/index'
 import { Route as DashboardIdAgentsIndexRouteImport } from './routes/dashboard/$id/agents/index'
 import { Route as DashboardIdSettingsTeamsRouteImport } from './routes/dashboard/$id/settings/teams'
+import { Route as DashboardIdSettingsProvidersRouteImport } from './routes/dashboard/$id/settings/providers'
 import { Route as DashboardIdSettingsOrganizationRouteImport } from './routes/dashboard/$id/settings/organization'
 import { Route as DashboardIdSettingsLogsRouteImport } from './routes/dashboard/$id/settings/logs'
 import { Route as DashboardIdSettingsIntegrationsRouteImport } from './routes/dashboard/$id/settings/integrations'
@@ -48,7 +49,9 @@ import { Route as DashboardIdKnowledgeVendorsRouteImport } from './routes/dashbo
 import { Route as DashboardIdKnowledgeProductsRouteImport } from './routes/dashboard/$id/_knowledge/products'
 import { Route as DashboardIdKnowledgeDocumentsRouteImport } from './routes/dashboard/$id/_knowledge/documents'
 import { Route as DashboardIdKnowledgeCustomersRouteImport } from './routes/dashboard/$id/_knowledge/customers'
+import { Route as DashboardIdSettingsProvidersIndexRouteImport } from './routes/dashboard/$id/settings/providers/index'
 import { Route as DashboardIdAgentsAgentIdIndexRouteImport } from './routes/dashboard/$id/agents/$agentId/index'
+import { Route as DashboardIdSettingsProvidersProviderNameRouteImport } from './routes/dashboard/$id/settings/providers/$providerName'
 import { Route as DashboardIdAutomationsAmIdTriggersRouteImport } from './routes/dashboard/$id/automations/$amId/triggers'
 import { Route as DashboardIdAutomationsAmIdExecutionsRouteImport } from './routes/dashboard/$id/automations/$amId/executions'
 import { Route as DashboardIdAutomationsAmIdConfigurationRouteImport } from './routes/dashboard/$id/automations/$amId/configuration'
@@ -177,6 +180,12 @@ const DashboardIdSettingsTeamsRoute =
     path: '/teams',
     getParentRoute: () => DashboardIdSettingsRoute,
   } as any)
+const DashboardIdSettingsProvidersRoute =
+  DashboardIdSettingsProvidersRouteImport.update({
+    id: '/providers',
+    path: '/providers',
+    getParentRoute: () => DashboardIdSettingsRoute,
+  } as any)
 const DashboardIdSettingsOrganizationRoute =
   DashboardIdSettingsOrganizationRouteImport.update({
     id: '/organization',
@@ -271,11 +280,23 @@ const DashboardIdKnowledgeCustomersRoute =
     path: '/customers',
     getParentRoute: () => DashboardIdKnowledgeRoute,
   } as any)
+const DashboardIdSettingsProvidersIndexRoute =
+  DashboardIdSettingsProvidersIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => DashboardIdSettingsProvidersRoute,
+  } as any)
 const DashboardIdAgentsAgentIdIndexRoute =
   DashboardIdAgentsAgentIdIndexRouteImport.update({
     id: '/',
     path: '/',
     getParentRoute: () => DashboardIdAgentsAgentIdRoute,
+  } as any)
+const DashboardIdSettingsProvidersProviderNameRoute =
+  DashboardIdSettingsProvidersProviderNameRouteImport.update({
+    id: '/$providerName',
+    path: '/$providerName',
+    getParentRoute: () => DashboardIdSettingsProvidersRoute,
   } as any)
 const DashboardIdAutomationsAmIdTriggersRoute =
   DashboardIdAutomationsAmIdTriggersRouteImport.update({
@@ -365,6 +386,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/settings/integrations': typeof DashboardIdSettingsIntegrationsRoute
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute
   '/dashboard/$id/settings/organization': typeof DashboardIdSettingsOrganizationRoute
+  '/dashboard/$id/settings/providers': typeof DashboardIdSettingsProvidersRouteWithChildren
   '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute
   '/dashboard/$id/agents/': typeof DashboardIdAgentsIndexRoute
   '/dashboard/$id/automations/': typeof DashboardIdAutomationsIndexRoute
@@ -379,7 +401,9 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/automations/$amId/configuration': typeof DashboardIdAutomationsAmIdConfigurationRoute
   '/dashboard/$id/automations/$amId/executions': typeof DashboardIdAutomationsAmIdExecutionsRoute
   '/dashboard/$id/automations/$amId/triggers': typeof DashboardIdAutomationsAmIdTriggersRoute
+  '/dashboard/$id/settings/providers/$providerName': typeof DashboardIdSettingsProvidersProviderNameRoute
   '/dashboard/$id/agents/$agentId/': typeof DashboardIdAgentsAgentIdIndexRoute
+  '/dashboard/$id/settings/providers/': typeof DashboardIdSettingsProvidersIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -421,7 +445,9 @@ export interface FileRoutesByTo {
   '/dashboard/$id/automations/$amId/configuration': typeof DashboardIdAutomationsAmIdConfigurationRoute
   '/dashboard/$id/automations/$amId/executions': typeof DashboardIdAutomationsAmIdExecutionsRoute
   '/dashboard/$id/automations/$amId/triggers': typeof DashboardIdAutomationsAmIdTriggersRoute
+  '/dashboard/$id/settings/providers/$providerName': typeof DashboardIdSettingsProvidersProviderNameRoute
   '/dashboard/$id/agents/$agentId': typeof DashboardIdAgentsAgentIdIndexRoute
+  '/dashboard/$id/settings/providers': typeof DashboardIdSettingsProvidersIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -459,6 +485,7 @@ export interface FileRoutesById {
   '/dashboard/$id/settings/integrations': typeof DashboardIdSettingsIntegrationsRoute
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute
   '/dashboard/$id/settings/organization': typeof DashboardIdSettingsOrganizationRoute
+  '/dashboard/$id/settings/providers': typeof DashboardIdSettingsProvidersRouteWithChildren
   '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute
   '/dashboard/$id/agents/': typeof DashboardIdAgentsIndexRoute
   '/dashboard/$id/automations/': typeof DashboardIdAutomationsIndexRoute
@@ -473,7 +500,9 @@ export interface FileRoutesById {
   '/dashboard/$id/automations/$amId/configuration': typeof DashboardIdAutomationsAmIdConfigurationRoute
   '/dashboard/$id/automations/$amId/executions': typeof DashboardIdAutomationsAmIdExecutionsRoute
   '/dashboard/$id/automations/$amId/triggers': typeof DashboardIdAutomationsAmIdTriggersRoute
+  '/dashboard/$id/settings/providers/$providerName': typeof DashboardIdSettingsProvidersProviderNameRoute
   '/dashboard/$id/agents/$agentId/': typeof DashboardIdAgentsAgentIdIndexRoute
+  '/dashboard/$id/settings/providers/': typeof DashboardIdSettingsProvidersIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -510,6 +539,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/integrations'
     | '/dashboard/$id/settings/logs'
     | '/dashboard/$id/settings/organization'
+    | '/dashboard/$id/settings/providers'
     | '/dashboard/$id/settings/teams'
     | '/dashboard/$id/agents/'
     | '/dashboard/$id/automations/'
@@ -524,7 +554,9 @@ export interface FileRouteTypes {
     | '/dashboard/$id/automations/$amId/configuration'
     | '/dashboard/$id/automations/$amId/executions'
     | '/dashboard/$id/automations/$amId/triggers'
+    | '/dashboard/$id/settings/providers/$providerName'
     | '/dashboard/$id/agents/$agentId/'
+    | '/dashboard/$id/settings/providers/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -566,7 +598,9 @@ export interface FileRouteTypes {
     | '/dashboard/$id/automations/$amId/configuration'
     | '/dashboard/$id/automations/$amId/executions'
     | '/dashboard/$id/automations/$amId/triggers'
+    | '/dashboard/$id/settings/providers/$providerName'
     | '/dashboard/$id/agents/$agentId'
+    | '/dashboard/$id/settings/providers'
   id:
     | '__root__'
     | '/'
@@ -603,6 +637,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/integrations'
     | '/dashboard/$id/settings/logs'
     | '/dashboard/$id/settings/organization'
+    | '/dashboard/$id/settings/providers'
     | '/dashboard/$id/settings/teams'
     | '/dashboard/$id/agents/'
     | '/dashboard/$id/automations/'
@@ -617,7 +652,9 @@ export interface FileRouteTypes {
     | '/dashboard/$id/automations/$amId/configuration'
     | '/dashboard/$id/automations/$amId/executions'
     | '/dashboard/$id/automations/$amId/triggers'
+    | '/dashboard/$id/settings/providers/$providerName'
     | '/dashboard/$id/agents/$agentId/'
+    | '/dashboard/$id/settings/providers/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -791,6 +828,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdSettingsTeamsRouteImport
       parentRoute: typeof DashboardIdSettingsRoute
     }
+    '/dashboard/$id/settings/providers': {
+      id: '/dashboard/$id/settings/providers'
+      path: '/providers'
+      fullPath: '/dashboard/$id/settings/providers'
+      preLoaderRoute: typeof DashboardIdSettingsProvidersRouteImport
+      parentRoute: typeof DashboardIdSettingsRoute
+    }
     '/dashboard/$id/settings/organization': {
       id: '/dashboard/$id/settings/organization'
       path: '/organization'
@@ -903,12 +947,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdKnowledgeCustomersRouteImport
       parentRoute: typeof DashboardIdKnowledgeRoute
     }
+    '/dashboard/$id/settings/providers/': {
+      id: '/dashboard/$id/settings/providers/'
+      path: '/'
+      fullPath: '/dashboard/$id/settings/providers/'
+      preLoaderRoute: typeof DashboardIdSettingsProvidersIndexRouteImport
+      parentRoute: typeof DashboardIdSettingsProvidersRoute
+    }
     '/dashboard/$id/agents/$agentId/': {
       id: '/dashboard/$id/agents/$agentId/'
       path: '/'
       fullPath: '/dashboard/$id/agents/$agentId/'
       preLoaderRoute: typeof DashboardIdAgentsAgentIdIndexRouteImport
       parentRoute: typeof DashboardIdAgentsAgentIdRoute
+    }
+    '/dashboard/$id/settings/providers/$providerName': {
+      id: '/dashboard/$id/settings/providers/$providerName'
+      path: '/$providerName'
+      fullPath: '/dashboard/$id/settings/providers/$providerName'
+      preLoaderRoute: typeof DashboardIdSettingsProvidersProviderNameRouteImport
+      parentRoute: typeof DashboardIdSettingsProvidersRoute
     }
     '/dashboard/$id/automations/$amId/triggers': {
       id: '/dashboard/$id/automations/$amId/triggers'
@@ -1116,6 +1174,24 @@ const DashboardIdConversationsRouteWithChildren =
     DashboardIdConversationsRouteChildren,
   )
 
+interface DashboardIdSettingsProvidersRouteChildren {
+  DashboardIdSettingsProvidersProviderNameRoute: typeof DashboardIdSettingsProvidersProviderNameRoute
+  DashboardIdSettingsProvidersIndexRoute: typeof DashboardIdSettingsProvidersIndexRoute
+}
+
+const DashboardIdSettingsProvidersRouteChildren: DashboardIdSettingsProvidersRouteChildren =
+  {
+    DashboardIdSettingsProvidersProviderNameRoute:
+      DashboardIdSettingsProvidersProviderNameRoute,
+    DashboardIdSettingsProvidersIndexRoute:
+      DashboardIdSettingsProvidersIndexRoute,
+  }
+
+const DashboardIdSettingsProvidersRouteWithChildren =
+  DashboardIdSettingsProvidersRoute._addFileChildren(
+    DashboardIdSettingsProvidersRouteChildren,
+  )
+
 interface DashboardIdSettingsRouteChildren {
   DashboardIdSettingsAccountRoute: typeof DashboardIdSettingsAccountRoute
   DashboardIdSettingsAgentsRoute: typeof DashboardIdSettingsAgentsRoute
@@ -1124,6 +1200,7 @@ interface DashboardIdSettingsRouteChildren {
   DashboardIdSettingsIntegrationsRoute: typeof DashboardIdSettingsIntegrationsRoute
   DashboardIdSettingsLogsRoute: typeof DashboardIdSettingsLogsRoute
   DashboardIdSettingsOrganizationRoute: typeof DashboardIdSettingsOrganizationRoute
+  DashboardIdSettingsProvidersRoute: typeof DashboardIdSettingsProvidersRouteWithChildren
   DashboardIdSettingsTeamsRoute: typeof DashboardIdSettingsTeamsRoute
   DashboardIdSettingsIndexRoute: typeof DashboardIdSettingsIndexRoute
 }
@@ -1136,6 +1213,8 @@ const DashboardIdSettingsRouteChildren: DashboardIdSettingsRouteChildren = {
   DashboardIdSettingsIntegrationsRoute: DashboardIdSettingsIntegrationsRoute,
   DashboardIdSettingsLogsRoute: DashboardIdSettingsLogsRoute,
   DashboardIdSettingsOrganizationRoute: DashboardIdSettingsOrganizationRoute,
+  DashboardIdSettingsProvidersRoute:
+    DashboardIdSettingsProvidersRouteWithChildren,
   DashboardIdSettingsTeamsRoute: DashboardIdSettingsTeamsRoute,
   DashboardIdSettingsIndexRoute: DashboardIdSettingsIndexRoute,
 }

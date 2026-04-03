@@ -80,6 +80,17 @@ export async function init(options: InitOptions): Promise<void> {
   await writeFile(join(target, 'branding', 'branding.json'), '{}\n');
   await writeFile(join(target, 'branding', 'images', '.gitkeep'), '');
 
+  // Copy provider configs (public JSON only, not encrypted secrets)
+  logger.step('Copying provider configurations...');
+  const providerFiles = getEmbeddedExamples('providers');
+  const providerConfigFiles = new Map<string, string>();
+  for (const [relPath, content] of providerFiles) {
+    if (!relPath.endsWith('.secrets.json')) {
+      providerConfigFiles.set(relPath, content);
+    }
+  }
+  await writeEmbeddedFiles(providerConfigFiles, join(target, 'providers'));
+
   // Compute checksums
   logger.step('Computing file checksums...');
   const allFiles = new Map<string, string>();
@@ -92,6 +103,9 @@ export async function init(options: InitOptions): Promise<void> {
   }
   for (const [relPath, content] of integrationFiles) {
     allFiles.set(join('integrations', relPath), computeContentHash(content));
+  }
+  for (const [relPath, content] of providerConfigFiles) {
+    allFiles.set(join('providers', relPath), computeContentHash(content));
   }
   allFiles.set(join('branding', 'branding.json'), computeContentHash('{}\n'));
 
@@ -138,6 +152,7 @@ export async function init(options: InitOptions): Promise<void> {
     ['Agents', `${agentFiles.size} files`],
     ['Workflows', `${workflowFiles.size} files`],
     ['Integrations', `${integrationFiles.size} files`],
+    ['Providers', `${providerConfigFiles.size} files`],
     ['Branding', '1 file'],
   ]);
   logger.blank();
@@ -150,6 +165,9 @@ export async function init(options: InitOptions): Promise<void> {
   }
   logger.info(
     `  ${step++}. Edit agents/, workflows/, integrations/, and branding/ to customize your setup`,
+  );
+  logger.info(
+    `  ${step++}. Configure provider API keys in the management UI after starting`,
   );
   logger.info(
     `  ${step++}. Open the project in an AI-powered editor (Claude Code, Cursor, Copilot, or Windsurf) for guided config creation`,

@@ -1,9 +1,5 @@
 import { z } from 'zod/v4';
 
-const modelPresetLiterals = ['fast', 'standard', 'advanced'] as const;
-export const modelPresetSchema = z.enum(modelPresetLiterals);
-export type ModelPreset = z.infer<typeof modelPresetSchema>;
-
 const retrievalModeLiterals = ['off', 'tool', 'context', 'both'] as const;
 type RetrievalMode = (typeof retrievalModeLiterals)[number];
 
@@ -35,8 +31,13 @@ export const agentJsonSchema = z.object({
   integrationBindings: z.array(z.string()).optional(),
   delegates: z.array(z.string()).optional(),
   workflows: z.array(z.string()).optional(),
-  modelPreset: modelPresetSchema.optional(),
-  modelId: z.string().optional(),
+  supportedModels: z.array(z.string().min(1)).min(1),
+  provider: z
+    .string()
+    .min(1)
+    .max(100)
+    .regex(/^[a-z0-9][a-z0-9_-]*$/)
+    .optional(),
   knowledgeMode: retrievalModeSchema.optional(),
   webSearchMode: retrievalModeSchema.optional(),
   includeOrgKnowledge: z.boolean().optional(),

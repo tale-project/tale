@@ -4,11 +4,19 @@ Provides a common base for pydantic-settings-based configuration with
 shared patterns across crawler and RAG services.
 """
 
+import logging
 import os
 
 from pydantic_settings import BaseSettings
 
+from tale_shared.config.providers import (
+    get_chat_model as _provider_chat_model,
+    get_embedding_model as _provider_embedding_model,
+    get_vision_model as _provider_vision_model,
+)
 from tale_shared.utils.model_list import get_first_model
+
+logger = logging.getLogger(__name__)
 
 
 class BaseServiceSettings(BaseSettings):
@@ -50,14 +58,26 @@ class BaseServiceSettings(BaseSettings):
         return self.openai_base_url or os.environ.get("OPENAI_BASE_URL")
 
     def get_fast_model(self) -> str:
-        """Get fast LLM model from service-prefixed or generic env var."""
-        model = get_first_model(self.openai_fast_model) or get_first_model(os.environ.get("OPENAI_FAST_MODEL"))
+        """Get fast LLM model from provider files, then env var fallback."""
+        try:
+            _base_url, _api_key, model_id = _provider_chat_model()
+            return model_id
+        except (ValueError, FileNotFoundError):
+            logger.debug("No provider chat model found, falling back to env vars")
+        model = get_first_model(self.openai_fast_model) or get_first_model(
+            os.environ.get("OPENAI_FAST_MODEL")
+        )
         if not model:
             raise ValueError("OPENAI_FAST_MODEL must be set in environment.")
         return model
 
     def get_embedding_model(self) -> str:
-        """Get embedding model from service-prefixed or generic env var."""
+        """Get embedding model from provider files, then env var fallback."""
+        try:
+            _base_url, _api_key, model_id, _dims = _provider_embedding_model()
+            return model_id
+        except (ValueError, FileNotFoundError):
+            logger.debug("No provider embedding model found, falling back to env vars")
         model = get_first_model(self.openai_embedding_model) or get_first_model(
             os.environ.get("OPENAI_EMBEDDING_MODEL")
         )
@@ -66,14 +86,65 @@ class BaseServiceSettings(BaseSettings):
         return model
 
     def get_vision_model(self) -> str:
-        """Get vision model from service-prefixed or generic env var."""
-        model = get_first_model(self.openai_vision_model) or get_first_model(os.environ.get("OPENAI_VISION_MODEL"))
+        """Get vision model from provider files, then env var fallback."""
+        try:
+            _base_url, _api_key, model_id = _provider_vision_model()
+            return model_id
+        except (ValueError, FileNotFoundError):
+            logger.debug("No provider vision model found, falling back to env vars")
+        model = get_first_model(self.openai_vision_model) or get_first_model(
+            os.environ.get("OPENAI_VISION_MODEL")
+        )
         if not model:
             raise ValueError("OPENAI_VISION_MODEL must be set in environment.")
         return model
 
+    def get_chat_config(self) -> tuple[str, str, str]:
+        """Return (base_url, api_key, model_id) for chat model from provider files, then env var fallback."""
+        try:
+            return _provider_chat_model()
+        except (ValueError, FileNotFoundError):
+            logger.debug("No provider chat config found, falling back to env vars")
+            return (
+                self.get_openai_base_url(),
+                self.get_openai_api_key(),
+                self.get_fast_model(),
+            )
+
+    def get_embedding_config(self) -> tuple[str, str, str, int]:
+        """Return (base_url, api_key, model_id, dimensions) for embedding model."""
+        try:
+            return _provider_embedding_model()
+        except (ValueError, FileNotFoundError):
+            logger.debug("No provider embedding config found, falling back to env vars")
+            return (
+                self.get_openai_base_url(),
+                self.get_openai_api_key(),
+                self.get_embedding_model(),
+                self.get_embedding_dimensions(),
+            )
+
+    def get_vision_config(self) -> tuple[str, str, str]:
+        """Return (base_url, api_key, model_id) for vision model."""
+        try:
+            return _provider_vision_model()
+        except (ValueError, FileNotFoundError):
+            logger.debug("No provider vision config found, falling back to env vars")
+            return (
+                self.get_openai_base_url(),
+                self.get_openai_api_key(),
+                self.get_vision_model(),
+            )
+
     def get_embedding_dimensions(self) -> int:
-        """Get embedding dimensions from service-prefixed or generic env var."""
+        """Get embedding dimensions from provider files, then env var fallback."""
+        try:
+            _base_url, _api_key, _model_id, dims = _provider_embedding_model()
+            return dims
+        except (ValueError, FileNotFoundError):
+            logger.debug(
+                "No provider embedding dimensions found, falling back to env vars"
+            )
         dims = self.embedding_dimensions
         if dims is None:
             raw = os.environ.get("EMBEDDING_DIMENSIONS")
@@ -81,7 +152,9 @@ class BaseServiceSettings(BaseSettings):
                 try:
                     dims = int(raw)
                 except ValueError:
-                    raise ValueError(f"EMBEDDING_DIMENSIONS must be a valid positive integer, got: {raw!r}") from None
+                    raise ValueError(
+                        f"EMBEDDING_DIMENSIONS must be a valid positive integer, got: {raw!r}"
+                    ) from None
 
         if dims is None:
             raise ValueError(
@@ -92,7 +165,9 @@ class BaseServiceSettings(BaseSettings):
             )
 
         if dims <= 0:
-            raise ValueError(f"EMBEDDING_DIMENSIONS must be a positive integer, got: {dims}")
+            raise ValueError(
+                f"EMBEDDING_DIMENSIONS must be a positive integer, got: {dims}"
+            )
 
         return dims
 
@@ -100,4 +175,8 @@ class BaseServiceSettings(BaseSettings):
         """Parse allowed origins from comma-separated string."""
         if self.allowed_origins == "*":
             return ["*"]
-        return [o for o in (origin.strip() for origin in self.allowed_origins.split(",")) if o]
+        return [
+            o
+            for o in (origin.strip() for origin in self.allowed_origins.split(","))
+            if o
+        ]

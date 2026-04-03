@@ -17,6 +17,8 @@
   },
   "dependencies": {
     "@inquirer/prompts": "^8.0.0",
+    "@noble/curves": "^1.8.0",
+    "@scure/base": "^1.2.0",
     "commander": "^14.0.0",
     "yaml": "^2.7.0"
   },

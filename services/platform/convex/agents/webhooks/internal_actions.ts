@@ -1,17 +1,8 @@
-'use node';
-
 import { v } from 'convex/values';
-import { stat, readFile } from 'node:fs/promises';
 
 import { isRecord, getString } from '../../../lib/utils/type-guards';
 import { components, internal } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
-import { toSerializableConfig } from '../config';
-import {
-  MAX_FILE_SIZE_BYTES,
-  parseAgentJson,
-  resolveAgentFilePath,
-} from '../file_utils';
 
 export const chatViaWebhook = internalAction({
   args: {
@@ -51,39 +42,13 @@ export const chatViaWebhook = internalAction({
       throw new Error('Organization not found');
     }
 
-    const filePath = resolveAgentFilePath(orgSlug, args.agentSlug);
-    let content: string;
-    try {
-      const fileStat = await stat(filePath);
-      if (fileStat.size > MAX_FILE_SIZE_BYTES) {
-        throw new Error('Agent file too large');
-      }
-      content = await readFile(filePath, 'utf-8');
-    } catch (err) {
-      const detail = err instanceof Error ? err.message : 'unknown error';
-      throw new Error(`Agent not found: ${args.agentSlug} — ${detail}`, {
-        cause: err,
-      });
-    }
-    const config = parseAgentJson(content);
-
-    const binding = await ctx.runQuery(
-      internal.agents.internal_queries.getBindingByAgent,
+    const agentConfig = await ctx.runAction(
+      internal.agents.file_actions.resolveAgentConfig,
       {
-        organizationId: args.organizationId,
+        orgSlug,
         agentSlug: args.agentSlug,
+        organizationId: args.organizationId,
       },
-    );
-
-    const agentConfig = toSerializableConfig(
-      args.agentSlug,
-      config,
-      binding
-        ? {
-            teamId: binding.teamId ?? undefined,
-            knowledgeFiles: binding.knowledgeFiles ?? undefined,
-          }
-        : undefined,
     );
 
     return ctx.runMutation(

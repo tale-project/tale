@@ -14,6 +14,8 @@
  * This ensures the model always has a coherent view of the conversation.
  */
 
+import type { LanguageModelV3 } from '@ai-sdk/provider';
+
 import { listMessages, type MessageDoc } from '@convex-dev/agent';
 
 import type { ActionCtx } from '../../_generated/server';
@@ -69,6 +71,7 @@ interface ThreadSummaryData {
 
 export interface AutoSummarizeIfNeededArgs {
   threadId: string;
+  languageModel: LanguageModelV3;
 }
 
 export interface AutoSummarizeIfNeededResult {
@@ -247,10 +250,17 @@ export async function autoSummarizeIfNeededModel(
       ctx,
       existingSummary,
       newMessagesForSummary,
+      undefined,
+      args.languageModel,
     );
   } else {
     // First summary: summarize all new messages
-    newSummary = await summarizeMessages(ctx, newMessagesForSummary);
+    newSummary = await summarizeMessages(
+      ctx,
+      newMessagesForSummary,
+      undefined,
+      args.languageModel,
+    );
   }
 
   // Update thread metadata

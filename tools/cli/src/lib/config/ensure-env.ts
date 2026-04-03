@@ -5,6 +5,7 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import * as logger from '../../utils/logger';
+import { generateAgeKeypair } from '../crypto/age-keygen';
 
 function listTaleVolumes(): string[] {
   try {
@@ -38,15 +39,22 @@ interface EnvSetupOptions {
   skipIfExists?: boolean;
 }
 
-export async function ensureEnv(options: EnvSetupOptions): Promise<boolean> {
+interface EnvSetupResult {
+  success: boolean;
+  agePublicKey?: string;
+}
+
+export async function ensureEnv(
+  options: EnvSetupOptions,
+): Promise<EnvSetupResult> {
   const envPath = join(options.deployDir, '.env');
 
   if (existsSync(envPath)) {
     if (options.skipIfExists) {
-      return true;
+      return { success: true };
     }
     logger.debug(`Environment file already exists at ${envPath}`);
-    return true;
+    return { success: true };
   }
 
   if (!isTTY) {
@@ -58,13 +66,13 @@ export async function ensureEnv(options: EnvSetupOptions): Promise<boolean> {
     logger.info('or create the .env file manually.');
     logger.blank();
     logger.info('You can copy from .env.example in the project root.');
-    return false;
+    return { success: false };
   }
 
   return await runEnvSetup(envPath);
 }
 
-async function runEnvSetup(envPath: string): Promise<boolean> {
+async function runEnvSetup(envPath: string): Promise<EnvSetupResult> {
   const { input, password, select } = await import('@inquirer/prompts');
 
   const existingVolumes = listTaleVolumes();
@@ -85,7 +93,7 @@ async function runEnvSetup(envPath: string): Promise<boolean> {
         'Cannot continue with existing volumes. Run "tale init" again after removing manually:',
       );
       logger.info('  docker volume rm ' + existingVolumes.join(' '));
-      return false;
+      return { success: false };
     }
     logger.step('Stopping Tale containers...');
     try {
@@ -183,11 +191,15 @@ async function runEnvSetup(envPath: string): Promise<boolean> {
   const dbPassword = generatePassword();
   logger.info('Generated new database password.');
 
+  const ageKeypair = generateAgeKeypair();
+  logger.info('Generated age encryption keypair for provider secrets.');
+
   const secrets = {
     betterAuthSecret: generateBase64Secret(),
     encryptionSecretHex: generateHexSecret(),
     instanceSecret: generateHexSecret(),
     dbPassword,
+    sopsAgeKey: ageKeypair.secretKey,
   };
 
   const envContent = generateEnvContent({
@@ -209,7 +221,7 @@ async function runEnvSetup(envPath: string): Promise<boolean> {
   logger.info('You can modify the .env file later to customize settings.');
   logger.blank();
 
-  return true;
+  return { success: true, agePublicKey: ageKeypair.publicKey };
 }
 
 interface EnvConfig {
@@ -222,6 +234,7 @@ interface EnvConfig {
   encryptionSecretHex: string;
   instanceSecret: string;
   dbPassword: string;
+  sopsAgeKey: string;
 }
 
 function generateEnvContent(config: EnvConfig): string {
@@ -274,6 +287,11 @@ function generateEnvContent(config: EnvConfig): string {
     'OPENAI_EMBEDDING_MODEL=qwen/qwen3-embedding-4b',
     'OPENAI_VISION_MODEL=qwen/qwen3-vl-32b-instruct',
     'EMBEDDING_DIMENSIONS=1536',
+    '',
+    '# ============================================================================',
+    '# Provider Secrets Encryption (age/SOPS)',
+    '# ============================================================================',
+    `SOPS_AGE_KEY=${config.sopsAgeKey}`,
     '',
   );
 

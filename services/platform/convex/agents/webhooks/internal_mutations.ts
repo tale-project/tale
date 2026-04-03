@@ -2,7 +2,6 @@ import { v } from 'convex/values';
 
 import { internalMutation } from '../../_generated/server';
 import { startAgentChat } from '../../lib/agent_chat';
-import { getDefaultAgentRuntimeConfig } from '../../lib/agent_runtime_config';
 import { createChatThread } from '../../threads/create_chat_thread';
 
 export const updateWebhookLastTriggered = internalMutation({
@@ -50,8 +49,6 @@ export const startWebhookChat = internalMutation({
       args.threadId ??
       (await createChatThread(ctx, userId, undefined, 'general'));
 
-    const { model, provider } = getDefaultAgentRuntimeConfig();
-
     const result = await startAgentChat({
       ctx,
       agentType: 'custom',
@@ -60,8 +57,8 @@ export const startWebhookChat = internalMutation({
       message: args.message,
       attachments: args.attachments,
       agentConfig: args.agentConfig,
-      model: args.agentConfig.model ?? model,
-      provider,
+      model: args.agentConfig.model ?? 'default',
+      provider: args.agentConfig.provider,
       agentSlug: args.agentSlug,
       debugTag: `[${args.agentSlug}:webhook]`,
       enableStreaming: args.enableStreaming ?? true,

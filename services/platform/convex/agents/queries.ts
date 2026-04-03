@@ -7,7 +7,6 @@
 
 import { v } from 'convex/values';
 
-import { parseModelList } from '../../lib/shared/utils/model-list';
 import { query } from '../_generated/server';
 import { TOOL_NAMES } from '../agent_tools/tool_names';
 import { authComponent } from '../auth';
@@ -103,20 +102,5 @@ export const getAvailableIntegrations = query({
     }
 
     return integrations;
-  },
-});
-
-export const getModelPresets = query({
-  args: {},
-  handler: async (): Promise<{
-    fast: string[];
-    standard: string[];
-    advanced: string[];
-  }> => {
-    return {
-      fast: parseModelList(process.env.OPENAI_FAST_MODEL),
-      standard: parseModelList(process.env.OPENAI_MODEL),
-      advanced: parseModelList(process.env.OPENAI_CODING_MODEL),
-    };
   },
 });

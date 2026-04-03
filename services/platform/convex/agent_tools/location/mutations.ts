@@ -8,10 +8,6 @@ import type { LocationRequestMetadata } from '../../../lib/shared/schemas/approv
 
 import { components, internal } from '../../_generated/api';
 import { mutation } from '../../_generated/server';
-import {
-  getDefaultAgentRuntimeConfig,
-  getDefaultModel,
-} from '../../lib/agent_runtime_config';
 import { getOrganizationMember } from '../../lib/rls';
 import { persistentStreaming } from '../../streaming/helpers';
 import { workflowManagers } from '../../workflow_engine/engine';
@@ -152,13 +148,11 @@ export const submitLocationResponse = mutation({
       threadId,
     });
 
-    const { model, provider } = getDefaultAgentRuntimeConfig();
     const agentConfig = {
       name: 'chat-agent',
       instructions: '',
       convexToolNames: [],
-      model: getDefaultModel(),
-      enableVectorSearch: false,
+      model: 'default',
       knowledgeMode: 'off' as const,
       webSearchMode: 'off' as const,
       includeTeamKnowledge: false,
@@ -176,8 +170,7 @@ export const submitLocationResponse = mutation({
       {
         agentType: 'custom',
         agentConfig,
-        model: agentConfig.model ?? model,
-        provider,
+        model: agentConfig.model,
         debugTag: '[ChatAgent:Location]',
         enableStreaming: true,
         hooks: { beforeGenerate },

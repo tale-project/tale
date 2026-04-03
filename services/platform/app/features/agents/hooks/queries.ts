@@ -101,10 +101,6 @@ export function useAvailableWorkflows(organizationId: string) {
   };
 }
 
-export function useModelPresets() {
-  return useConvexQuery(api.agents.queries.getModelPresets);
-}
-
 export type AgentWebhook = ConvexItemOf<
   typeof api.agents.webhooks.queries.getWebhooks
 >;

@@ -2,7 +2,7 @@ import chokidar from 'chokidar';
 import { relative } from 'node:path';
 
 interface ConfigChangeEvent {
-  type: 'agents' | 'workflows' | 'integrations' | 'branding';
+  type: 'agents' | 'workflows' | 'integrations' | 'providers' | 'branding';
   orgSlug?: string;
   slug?: string;
 }
@@ -35,6 +35,7 @@ function parseConfigChange(relativePath: string): ConfigChangeEvent | null {
     agents: 'agents',
     workflows: 'workflows',
     integrations: 'integrations',
+    providers: 'providers',
   };
 
   const type = typeMap[topDir];
@@ -69,6 +70,12 @@ function parseConfigChange(relativePath: string): ConfigChangeEvent | null {
     return { type, orgSlug, slug };
   }
 
+  if (type === 'providers') {
+    // providers/[@org/]name.json
+    const filename = rest[0];
+    return { type, orgSlug, slug: filename.replace(/\.json$/, '') };
+  }
+
   return null;
 }
 
@@ -91,8 +98,9 @@ export function createConfigWatcher(configDir: string): ConfigWatcher {
   watcher.on('all', (_eventName, filePath) => {
     const rel = relative(configDir, filePath);
 
-    // Only react to JSON file changes
+    // Only react to JSON file changes; ignore secret sidecar files
     if (!rel.endsWith('.json')) return;
+    if (rel.endsWith('.secrets.json')) return;
 
     const event = parseConfigChange(rel);
     if (!event) return;

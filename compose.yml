@@ -281,6 +281,8 @@ services:
       - caddy-data:/caddy-data:ro
       # Development: mount local agents directory to override defaults
       # - ./examples/agents:/app/data/agents
+      # Development: mount local provider configs
+      # - ./examples/providers:/app/data/providers
 
     # Environment file
     # Create a .env file in the project root with your configuration
