@@ -69,7 +69,7 @@
         "@radix-ui/react-toast": "1.2.15",
         "@radix-ui/react-tooltip": "1.2.8",
         "@radix-ui/react-visually-hidden": "1.2.4",
-        "@scure/base": "^1.2.0",
+        "@scure/base": "^2.0.0",
         "@sentry/tanstackstart-react": "^10.37.0",
         "@tailwindcss/postcss": "4.2.2",
         "@tanstack/react-query": "5.96.2",
@@ -192,7 +192,7 @@
       "dependencies": {
         "@inquirer/prompts": "^8.0.0",
         "@noble/curves": "^1.8.0",
-        "@scure/base": "^1.2.0",
+        "@scure/base": "^2.0.0",
         "commander": "^14.0.0",
         "yaml": "^2.7.0",
       },
@@ -1085,7 +1085,7 @@
 
     "@scarf/scarf": ["@scarf/scarf@1.4.0", "", {}, "sha512-xxeapPiUXdZAE3che6f3xogoJPeZgig6omHEy1rIY5WVsB3H2BHNnZH+gHG6x91SCWyQCzWGsuL2Hh3ClO5/qQ=="],
 
-    "@scure/base": ["@scure/base@1.2.6", "", {}, "sha512-g/nm5FgUa//MCj1gV09zTJTaM6KBAHqLN907YVQqf7zC49+DcO4B1so4ZX07Ef10Twr6nuqYEH9GEggFXA4Fmg=="],
+    "@scure/base": ["@scure/base@2.0.0", "", {}, "sha512-3E1kpuZginKkek01ovG8krQ0Z44E3DHPjc5S2rjJw9lZn3KSQOs8S7wqikF/AH7iRanHypj85uGyxk0XAyC37w=="],
 
     "@sentry-internal/browser-utils": ["@sentry-internal/browser-utils@10.40.0", "", { "dependencies": { "@sentry/core": "10.40.0" } }, "sha512-3CDeVNBXYOIvBVdT0SOdMZx5LzYDLuhGK/z7A14sYZz4Cd2+f4mSeFDaEOoH/g2SaY2CKR5KGkAADy8IyjZ21w=="],
 
