@@ -7,7 +7,7 @@
  */
 
 import { Encrypter } from 'age-encryption';
-import { randomBytes, createCipheriv, createHmac } from 'node:crypto';
+import { randomBytes, createCipheriv, createHash } from 'node:crypto';
 
 // ---------------------------------------------------------------------------
 // age encryption (via official library)
@@ -44,7 +44,7 @@ function aes256gcmEncrypt(
   key: Buffer,
   aad?: Buffer,
 ): { ciphertext: Buffer; iv: Buffer; tag: Buffer } {
-  const iv = randomBytes(12);
+  const iv = randomBytes(32);
   const cipher = createCipheriv('aes-256-gcm', key, iv);
   if (aad) cipher.setAAD(aad);
   const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
@@ -80,18 +80,28 @@ function sopsEncryptValue(
 // SOPS MAC computation
 // ---------------------------------------------------------------------------
 
+/**
+ * SOPS MAC = SHA-512(plaintext values in tree order), then AES-256-GCM encrypt
+ * the hex digest with lastmodified timestamp as AAD.
+ */
 function sopsComputeMac(
-  encryptedValues: Record<string, string>,
+  plaintextValues: Record<string, string>,
   dataKey: Buffer,
+  lastModified: string,
 ): string {
-  const sortedKeys = Object.keys(encryptedValues).sort();
-  const hmac = createHmac('sha256', dataKey);
-  for (const key of sortedKeys) {
-    hmac.update(encryptedValues[key]);
+  const hash = createHash('sha512');
+  for (const key of Object.keys(plaintextValues).sort()) {
+    hash.update(plaintextValues[key]);
   }
-  const macPlaintext = hmac.digest();
+  // SOPS stores the hash as uppercase hex
+  const macHex = hash.digest('hex').toUpperCase();
 
-  const { ciphertext, iv, tag } = aes256gcmEncrypt(macPlaintext, dataKey);
+  // AAD is the lastmodified timestamp (RFC3339 format)
+  const { ciphertext, iv, tag } = aes256gcmEncrypt(
+    Buffer.from(macHex, 'utf-8'),
+    dataKey,
+    Buffer.from(lastModified, 'utf-8'),
+  );
   return (
     `ENC[AES256_GCM,` +
     `data:${ciphertext.toString('base64')},` +
@@ -127,8 +137,11 @@ export async function sopsEncryptJson(
   // Wrap data key using age encryption
   const ageEncryptedKey = await ageEncrypt(dataKey, agePublicKey);
 
-  // Compute SOPS MAC
-  const mac = sopsComputeMac(encryptedValues, dataKey);
+  // lastmodified in RFC3339 format (used as AAD for MAC encryption)
+  const lastModified = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
+
+  // Compute SOPS MAC over plaintext values
+  const mac = sopsComputeMac(plainObj, dataKey, lastModified);
 
   const result: Record<string, unknown> = {
     ...encryptedValues,
@@ -143,7 +156,7 @@ export async function sopsEncryptJson(
           enc: ageEncryptedKey,
         },
       ],
-      lastmodified: new Date().toISOString().replace(/\.\d+Z$/, 'Z'),
+      lastmodified: lastModified,
       mac,
       pgp: null,
       unencrypted_suffix: '_unencrypted',
