@@ -18,6 +18,7 @@
     "document_write"
   ],
   "supportedModels": ["moonshotai/kimi-k2.5", "deepseek/deepseek-v3.2"],
+  "provider": "openrouter",
   "knowledgeMode": "tool",
   "includeOrgKnowledge": true,
   "structuredResponsesEnabled": true,

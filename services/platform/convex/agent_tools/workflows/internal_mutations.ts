@@ -122,7 +122,7 @@ export const triggerWorkflowCompletionResponse = internalMutation({
         agentType: 'custom',
         agentConfig,
         model: agentConfig.model ?? 'default',
-        provider: 'file',
+        provider: agentConfig.provider,
         debugTag: `[${agentSlug}:WorkflowComplete]`,
         enableStreaming: true,
         threadId,

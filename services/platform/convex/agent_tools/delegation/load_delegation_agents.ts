@@ -46,7 +46,7 @@ export async function loadDelegateAgents(
         description: config.description ?? '',
         agentConfig,
         model: agentConfig.model ?? '',
-        provider: 'openai',
+        provider: agentConfig.provider,
         roleRestriction: config.roleRestriction,
       });
     } catch {

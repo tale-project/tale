@@ -58,7 +58,7 @@ export const startWebhookChat = internalMutation({
       attachments: args.attachments,
       agentConfig: args.agentConfig,
       model: args.agentConfig.model ?? 'default',
-      provider: 'file',
+      provider: args.agentConfig.provider,
       agentSlug: args.agentSlug,
       debugTag: `[${args.agentSlug}:webhook]`,
       enableStreaming: args.enableStreaming ?? true,

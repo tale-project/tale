@@ -69,8 +69,8 @@ export interface StartAgentChatArgs {
   agentConfig: SerializableAgentConfig;
   /** Model to use for generation */
   model: string;
-  /** Model provider (e.g., 'openai') */
-  provider: string;
+  /** Model provider name (e.g., 'openrouter'). Omit to search all providers. */
+  provider?: string;
   /** Debug tag for logging */
   debugTag: string;
   /** Enable streaming response */

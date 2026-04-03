@@ -209,7 +209,6 @@ export const submitHumanInputResponse = mutation({
         agentType: 'custom',
         agentConfig,
         model: agentConfig.model,
-        provider: 'file',
         debugTag: '[ChatAgent:HumanInput]',
         enableStreaming: true,
         hooks: { beforeGenerate },

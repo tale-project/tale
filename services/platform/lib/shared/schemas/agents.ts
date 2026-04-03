@@ -32,6 +32,12 @@ export const agentJsonSchema = z.object({
   delegates: z.array(z.string()).optional(),
   workflows: z.array(z.string()).optional(),
   supportedModels: z.array(z.string().min(1)).min(1),
+  provider: z
+    .string()
+    .min(1)
+    .max(100)
+    .regex(/^[a-z0-9][a-z0-9_-]*$/)
+    .optional(),
   knowledgeMode: retrievalModeSchema.optional(),
   webSearchMode: retrievalModeSchema.optional(),
   includeOrgKnowledge: z.boolean().optional(),

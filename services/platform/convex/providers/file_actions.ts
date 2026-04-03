@@ -233,13 +233,25 @@ export const resolveModelData = internalAction({
   args: {
     modelId: v.string(),
     orgSlug: v.optional(v.string()),
+    providerName: v.optional(v.string()),
   },
   returns: v.any(),
   handler: async (_ctx, args) => {
     const orgSlug = args.orgSlug ?? 'default';
     const providers = await loadAllProviders(orgSlug);
 
-    for (const provider of providers) {
+    const candidates = args.providerName
+      ? providers.filter((p) => p.name === args.providerName)
+      : providers;
+
+    if (args.providerName && candidates.length === 0) {
+      const available = providers.map((p) => p.name);
+      throw new Error(
+        `Provider "${args.providerName}" not found. Available: ${available.join(', ')}`,
+      );
+    }
+
+    for (const provider of candidates) {
       const definition = provider.config.models.find(
         (m) => m.id === args.modelId,
       );
@@ -255,11 +267,11 @@ export const resolveModelData = internalAction({
       }
     }
 
-    const allModelIds = providers.flatMap((p) =>
+    const allModelIds = candidates.flatMap((p) =>
       p.config.models.map((m) => m.id),
     );
     throw new Error(
-      `Model "${args.modelId}" not found in any provider. Available: ${allModelIds.join(', ')}`,
+      `Model "${args.modelId}" not found${args.providerName ? ` in provider "${args.providerName}"` : ' in any provider'}. Available: ${allModelIds.join(', ')}`,
     );
   },
 });
@@ -271,12 +283,25 @@ export const resolveModelByTag = internalAction({
   args: {
     tag: v.string(),
     orgSlug: v.optional(v.string()),
+    providerName: v.optional(v.string()),
   },
   returns: v.any(),
   handler: async (_ctx, args) => {
     const orgSlug = args.orgSlug ?? 'default';
     const providers = await loadAllProviders(orgSlug);
-    for (const provider of providers) {
+
+    const candidates = args.providerName
+      ? providers.filter((p) => p.name === args.providerName)
+      : providers;
+
+    if (args.providerName && candidates.length === 0) {
+      const available = providers.map((p) => p.name);
+      throw new Error(
+        `Provider "${args.providerName}" not found. Available: ${available.join(', ')}`,
+      );
+    }
+
+    for (const provider of candidates) {
       const definition = provider.config.models.find((m) =>
         (m.tags as readonly string[]).includes(args.tag),
       );
@@ -293,7 +318,9 @@ export const resolveModelByTag = internalAction({
       }
     }
 
-    throw new Error(`No model with tag "${args.tag}" found in any provider.`);
+    throw new Error(
+      `No model with tag "${args.tag}" found${args.providerName ? ` in provider "${args.providerName}"` : ' in any provider'}.`,
+    );
   },
 });
 

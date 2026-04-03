@@ -25,6 +25,7 @@ import type { FileAttachment } from '../hooks/use-convex-file-upload';
 
 import { AgentSelector } from './agent-selector';
 import { ImagePreviewDialog } from './message-bubble';
+import { ModelSelector } from './model-selector';
 
 interface ChatInputProps extends Omit<
   ComponentPropsWithoutRef<'div'>,
@@ -301,17 +302,20 @@ export function ChatInput({
           </div>
 
           <HStack justify="between" align="center" className="pb-3">
-            <Tooltip content={tDialogs('attach')} side="top">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={inputDisabled}
-                aria-label={tDialogs('attach')}
-              >
-                <Paperclip className="size-4" />
-              </Button>
-            </Tooltip>
+            <HStack gap={2} align="center">
+              <Tooltip content={tDialogs('attach')} side="top">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={inputDisabled}
+                  aria-label={tDialogs('attach')}
+                >
+                  <Paperclip className="size-4" />
+                </Button>
+              </Tooltip>
+              <ModelSelector organizationId={organizationId} />
+            </HStack>
             <HStack gap={2} align="center">
               <AgentSelector organizationId={organizationId} />
               <Button

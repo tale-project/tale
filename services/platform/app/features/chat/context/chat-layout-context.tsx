@@ -44,6 +44,8 @@ interface ChatLayoutContextType {
   setIsHistoryOpen: (open: boolean) => void;
   selectedAgent: SelectedAgent | null;
   setSelectedAgent: (agent: SelectedAgent | null) => void;
+  selectedModelOverrides: Record<string, string>;
+  setSelectedModelOverride: (agentName: string, modelId: string | null) => void;
 }
 
 const ChatLayoutContext = createContext<ChatLayoutContextType | null>(null);
@@ -78,6 +80,26 @@ export function ChatLayoutProvider({
   const [selectedAgent, setSelectedAgent] =
     usePersistedState<SelectedAgent | null>(agentKey, null);
 
+  const modelOverridesKey = user?.userId
+    ? `selected-models-${user.userId}-${organizationId}`
+    : `selected-models-${organizationId}`;
+  const [selectedModelOverrides, setSelectedModelOverrides] = usePersistedState<
+    Record<string, string>
+  >(modelOverridesKey, {});
+
+  const setSelectedModelOverride = useCallback(
+    (agentName: string, modelId: string | null) => {
+      setSelectedModelOverrides((prev) => {
+        if (modelId === null) {
+          const { [agentName]: _, ...rest } = prev;
+          return rest;
+        }
+        return { ...prev, [agentName]: modelId };
+      });
+    },
+    [setSelectedModelOverrides],
+  );
+
   const clearChatState = useCallback(() => {
     setIsPending(false);
     setPendingThreadId(null);
@@ -97,6 +119,8 @@ export function ChatLayoutProvider({
       setIsHistoryOpen,
       selectedAgent,
       setSelectedAgent,
+      selectedModelOverrides,
+      setSelectedModelOverride,
     }),
     [
       isPending,
@@ -106,6 +130,8 @@ export function ChatLayoutProvider({
       isHistoryOpen,
       selectedAgent,
       setSelectedAgent,
+      selectedModelOverrides,
+      setSelectedModelOverride,
     ],
   );
 

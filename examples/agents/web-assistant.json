@@ -6,6 +6,7 @@
     "web"
   ],
   "supportedModels": ["qwen/qwen3-next-80b-a3b-instruct", "qwen/qwen3.5-35b-a3b"],
+  "provider": "openrouter",
   "structuredResponsesEnabled": false,
   "maxSteps": 5,
   "timeoutMs": 300000,

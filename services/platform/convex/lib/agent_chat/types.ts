@@ -25,6 +25,8 @@ export interface SerializableAgentConfig {
   workflowBindings?: string[];
   /** Explicit model override */
   model?: string;
+  /** Explicit provider name (matches provider filename, e.g. 'openrouter') */
+  provider?: string;
   /** Maximum number of steps for tool calls */
   maxSteps?: number;
   /** Output format (text or json) */
@@ -77,8 +79,8 @@ export interface AgentRuntimeConfig {
   agentConfig: SerializableAgentConfig;
   /** Model to use for response generation */
   model: string;
-  /** Model provider (e.g., 'openai', 'anthropic') */
-  provider: string;
+  /** Model provider name (e.g., 'openrouter'). Omit to search all providers. */
+  provider?: string;
   /** Debug tag for logging */
   debugTag: string;
   /** Enable streaming response */
@@ -95,7 +97,7 @@ export interface RunAgentGenerationArgs {
   agentType: string;
   agentConfig: SerializableAgentConfig;
   model: string;
-  provider: string;
+  provider?: string;
   debugTag: string;
   enableStreaming?: boolean;
   hooks?: AgentHooksConfig;

@@ -32,6 +32,7 @@ export function toSerializableConfig(
       (() => {
         throw new Error('supportedModels must not be empty');
       })(),
+    provider: config.provider,
     maxSteps: config.maxSteps,
     enableVectorSearch: false,
     knowledgeMode,

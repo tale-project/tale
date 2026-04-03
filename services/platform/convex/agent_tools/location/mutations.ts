@@ -172,7 +172,6 @@ export const submitLocationResponse = mutation({
         agentType: 'custom',
         agentConfig,
         model: agentConfig.model,
-        provider: 'file',
         debugTag: '[ChatAgent:Location]',
         enableStreaming: true,
         hooks: { beforeGenerate },

@@ -72,7 +72,7 @@ export const startChat = internalMutation({
       userContext: args.userContext,
       agentConfig: args.agentConfig,
       model: args.agentConfig.model ?? 'default',
-      provider: 'file',
+      provider: args.agentConfig.provider,
       agentSlug: args.agentSlug,
       debugTag: `[${args.agentSlug}]`,
       enableStreaming: true,

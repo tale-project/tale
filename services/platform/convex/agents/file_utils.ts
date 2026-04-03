@@ -34,6 +34,7 @@ export interface AgentJsonConfig {
   delegates?: string[];
   workflows?: string[];
   supportedModels: string[];
+  provider?: string;
   knowledgeMode?: 'off' | 'tool' | 'context' | 'both';
   webSearchMode?: 'off' | 'tool' | 'context' | 'both';
   includeOrgKnowledge?: boolean;

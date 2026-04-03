@@ -63,6 +63,7 @@ const serializableAgentConfigValidator = v.object({
   integrationBindings: v.optional(v.array(v.string())),
   workflowBindings: v.optional(v.array(v.string())),
   model: v.optional(v.string()),
+  provider: v.optional(v.string()),
   maxSteps: v.optional(v.number()),
   outputFormat: v.optional(v.union(v.literal('text'), v.literal('json'))),
   enableVectorSearch: v.optional(v.boolean()),
@@ -103,7 +104,7 @@ export const runAgentGeneration = internalAction({
     agentType: v.string(),
     agentConfig: serializableAgentConfigValidator,
     model: v.string(),
-    provider: v.string(),
+    provider: v.optional(v.string()),
     debugTag: v.string(),
     enableStreaming: v.optional(v.boolean()),
     hooks: v.optional(hooksConfigValidator),
@@ -284,7 +285,7 @@ export const runAgentGeneration = internalAction({
     const modelData = modelId
       ? ((await ctx.runAction(
           internal.providers.file_actions.resolveModelData,
-          { modelId },
+          { modelId, providerName: agentConfig.provider },
         )) as {
           providerName: string;
           baseUrl: string;
@@ -294,7 +295,7 @@ export const runAgentGeneration = internalAction({
         })
       : ((await ctx.runAction(
           internal.providers.file_actions.resolveModelByTag,
-          { tag: 'chat' },
+          { tag: 'chat', providerName: agentConfig.provider },
         )) as {
           providerName: string;
           baseUrl: string;

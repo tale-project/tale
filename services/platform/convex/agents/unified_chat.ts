@@ -1,25 +1,16 @@
-'use node';
-
 /**
  * Unified Chat Action
  *
  * Single entry point for chatting with any agent.
- * Reads agent config from JSON file, then delegates to startAgentChat
- * via an internal mutation for transactional stream/message creation.
+ * Delegates filesystem I/O to resolveAgentConfig (Node action),
+ * then starts the chat via an internal mutation.
  */
 
 import { v } from 'convex/values';
-import { readFile, stat } from 'node:fs/promises';
 
 import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
 import { authComponent } from '../auth';
-import { toSerializableConfig } from './config';
-import {
-  MAX_FILE_SIZE_BYTES,
-  parseAgentJson,
-  resolveAgentFilePath,
-} from './file_utils';
 
 export const chatWithAgent = action({
   args: {
@@ -39,6 +30,7 @@ export const chatWithAgent = action({
         }),
       ),
     ),
+    modelId: v.optional(v.string()),
     additionalContext: v.optional(v.record(v.string(), v.string())),
     userContext: v.optional(
       v.object({
@@ -58,53 +50,14 @@ export const chatWithAgent = action({
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
-    // Read agent config from filesystem
-    const filePath = resolveAgentFilePath(args.orgSlug, args.agentSlug);
-    let content: string;
-    try {
-      const fileStat = await stat(filePath);
-      if (fileStat.size > MAX_FILE_SIZE_BYTES) {
-        throw new Error('Agent file too large');
-      }
-      content = await readFile(filePath, 'utf-8');
-    } catch (err) {
-      throw new Error(
-        `Agent not found: ${args.agentSlug} — ${err instanceof Error ? err.message : String(err)}`,
-        { cause: err },
-      );
-    }
-    const config = parseAgentJson(content);
-
-    // Check role restriction
-    if (config.roleRestriction === 'admin_developer') {
-      // Role check would go here — for now, allow all authenticated users
-      // TODO: implement role check via ctx.runQuery
-    }
-
-    // Read optional DB binding for knowledge files
-    const binding = await ctx.runQuery(
-      internal.agents.internal_queries.getBindingByAgent,
+    const agentConfig = await ctx.runAction(
+      internal.agents.file_actions.resolveAgentConfig,
       {
-        organizationId: args.organizationId,
+        orgSlug: args.orgSlug,
         agentSlug: args.agentSlug,
+        organizationId: args.organizationId,
+        modelId: args.modelId,
       },
-    );
-
-    // Check team access if binding has a teamId
-    if (binding?.teamId) {
-      // Team access check would go here
-      // TODO: implement team access check via ctx.runQuery
-    }
-
-    const agentConfig = toSerializableConfig(
-      args.agentSlug,
-      config,
-      binding
-        ? {
-            teamId: binding.teamId ?? undefined,
-            knowledgeFiles: binding.knowledgeFiles ?? undefined,
-          }
-        : undefined,
     );
 
     // Delegate to the internal mutation for transactional chat start

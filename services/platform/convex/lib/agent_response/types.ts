@@ -17,7 +17,7 @@ export interface GenerateResponseConfig {
   agentType: AgentType;
   createAgent: (options?: Record<string, unknown>) => Agent;
   model: string;
-  provider: string;
+  provider?: string;
   debugTag: string;
   enableStreaming?: boolean;
   hooks?: GenerateResponseHooks;
