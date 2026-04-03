@@ -24,7 +24,6 @@ See compose.yml for the canonical list. Notable ones:
 - CONVEX_URL, CONVEX_DASHBOARD_URL (internal HTTP URLs)
 - DB_URL, RAG_URL, CRAWLER_URL (internal DNS to services)
 
-
 ## Running
 
 With Compose (recommended):
