@@ -283,7 +283,7 @@ export const runAgentGeneration = internalAction({
 
     // Resolve model from provider files
     const modelId = model === 'default' ? undefined : model;
-    const { languageModel } = modelId
+    const { languageModel, modelData } = modelId
       ? await resolveLanguageModelById(ctx, {
           modelId,
           providerName: agentConfig.provider,
@@ -292,6 +292,7 @@ export const runAgentGeneration = internalAction({
           tag: 'chat',
           providerName: agentConfig.provider,
         });
+    const resolvedProvider = modelData.providerName;
 
     // Create agent factory function from serializable config
     const createAgent = () => {
@@ -328,7 +329,7 @@ export const runAgentGeneration = internalAction({
           agentType,
           createAgent,
           model,
-          provider,
+          provider: resolvedProvider,
           debugTag,
           enableStreaming,
           hooks,
