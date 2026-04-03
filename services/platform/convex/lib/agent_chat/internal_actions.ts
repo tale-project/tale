@@ -150,7 +150,7 @@ export const runAgentGeneration = internalAction({
       agentType: agentTypeStr,
       agentConfig,
       model,
-      provider,
+      provider: _provider,
       debugTag,
       enableStreaming,
       hooks: hooksConfig,

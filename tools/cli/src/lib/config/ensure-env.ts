@@ -39,7 +39,7 @@ interface EnvSetupOptions {
   skipIfExists?: boolean;
 }
 
-export interface EnvSetupResult {
+interface EnvSetupResult {
   success: boolean;
   agePublicKey?: string;
 }

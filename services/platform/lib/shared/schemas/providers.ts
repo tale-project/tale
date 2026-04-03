@@ -1,8 +1,8 @@
 import { z } from 'zod/v4';
 
 const modelTagLiterals = ['chat', 'vision', 'embedding'] as const;
-export const modelTagSchema = z.enum(modelTagLiterals);
-export type ModelTag = z.infer<typeof modelTagSchema>;
+const modelTagSchema = z.enum(modelTagLiterals);
+type ModelTag = z.infer<typeof modelTagSchema>;
 
 const modelDefinitionSchema = z.object({
   id: z.string().min(1).max(200),
@@ -13,7 +13,7 @@ const modelDefinitionSchema = z.object({
   dimensions: z.number().int().positive().optional(),
 });
 
-export type ModelDefinition = z.infer<typeof modelDefinitionSchema>;
+type ModelDefinition = z.infer<typeof modelDefinitionSchema>;
 
 const translatableModelFieldsSchema = z.object({
   displayName: z.string().min(1).max(200).optional(),

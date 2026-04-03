@@ -8,7 +8,7 @@
 import { x25519 } from '@noble/curves/ed25519';
 import { bech32 } from '@scure/base';
 
-export interface AgeKeypair {
+interface AgeKeypair {
   secretKey: string; // "AGE-SECRET-KEY-1..."
   publicKey: string; // "age1..."
 }
@@ -37,7 +37,7 @@ export function generateAgeKeypair(): AgeKeypair {
  * @param secretKey - The "AGE-SECRET-KEY-1..." string
  * @returns The corresponding "age1..." public key
  */
-export function deriveAgePublicKey(secretKey: string): string {
+function deriveAgePublicKey(secretKey: string): string {
   const lowercase = secretKey.toLowerCase();
   if (!lowercase.includes('1')) {
     throw new Error('Invalid age secret key: missing bech32 separator');

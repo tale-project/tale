@@ -38,6 +38,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@ai-sdk/openai-compatible": "^2.0.37",
+        "@ai-sdk/provider": "^3.0.0",
         "@ai-sdk/provider-utils": "^4.0.6",
         "@casl/ability": "^6.8.0",
         "@convex-dev/action-cache": "0.3.0",
