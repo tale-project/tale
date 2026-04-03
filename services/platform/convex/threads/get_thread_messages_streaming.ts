@@ -15,7 +15,7 @@
  * by loading more when visible user messages are too few.
  */
 
-import { listMessages, syncStreams, toUIMessages } from '@convex-dev/agent';
+import { listUIMessages, syncStreams } from '@convex-dev/agent';
 
 import type {
   GetThreadMessagesStreamingArgs,
@@ -33,7 +33,7 @@ export async function getThreadMessagesStreaming(
   // duplicate messages because listUIMessages and syncStreams use different stepOrder
   // values, so dedupeMessages treats them as distinct entries.
   const [result, streams] = await Promise.all([
-    listMessages(ctx, components.agent, {
+    listUIMessages(ctx, components.agent, {
       threadId: args.threadId,
       paginationOpts: args.paginationOpts,
     }),
@@ -43,19 +43,8 @@ export async function getThreadMessagesStreaming(
     }),
   ]);
 
-  // Attach error field from MessageDoc to UIMessage so the frontend can
-  // display the raw error reason for failed messages.
-  const errorsByDocId = new Map<string, string>();
-  for (const doc of result.page) {
-    if (doc.error) errorsByDocId.set(doc._id, doc.error);
-  }
-  const uiMessages = toUIMessages(result.page).map((m) => ({
-    ...m,
-    error: errorsByDocId.get(m.id),
-  }));
-
   return {
-    page: uiMessages,
+    page: result.page,
     isDone: result.isDone,
     continueCursor: result.continueCursor,
     streams,
