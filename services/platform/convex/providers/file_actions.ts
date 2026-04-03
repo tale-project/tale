@@ -20,6 +20,7 @@ import type { ProviderJson, ProviderReadResult } from './file_utils';
 import { providerJsonSchema } from '../../lib/shared/schemas/providers';
 import { action, internalAction } from '../_generated/server';
 import { authComponent } from '../auth';
+import { deriveAgePublicKey } from '../lib/age_keygen';
 import { atomicWrite, readJsonFile, sha256 } from '../lib/file_io';
 import { decryptSecretsFile } from '../lib/sops';
 import {
@@ -389,13 +390,22 @@ export const saveProviderSecret = action({
       args.providerName,
     );
 
+    const sopsAgeKey = process.env.SOPS_AGE_KEY;
+    if (!sopsAgeKey) {
+      throw new Error(
+        'SOPS_AGE_KEY environment variable is not set. ' +
+          'Set it in .env to enable provider secret encryption.',
+      );
+    }
+    const agePublicKey = deriveAgePublicKey(sopsAgeKey);
+
     const plaintext = JSON.stringify({ apiKey: args.apiKey }, null, 2) + '\n';
     const { execSync } = await import('node:child_process');
 
     await atomicWrite(secretsPath, plaintext);
 
     try {
-      execSync(`sops -e -i "${secretsPath}"`, {
+      execSync(`sops -e --age "${agePublicKey}" -i "${secretsPath}"`, {
         encoding: 'utf-8',
         timeout: 10_000,
         stdio: ['pipe', 'pipe', 'pipe'],

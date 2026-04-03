@@ -35,6 +35,8 @@
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^2.0.37",
+    "@noble/curves": "^1.8.0",
+    "@scure/base": "^1.2.0",
     "@ai-sdk/provider-utils": "^4.0.6",
     "@casl/ability": "^6.8.0",
     "@convex-dev/action-cache": "0.3.0",

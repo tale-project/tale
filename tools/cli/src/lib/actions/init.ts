@@ -1,7 +1,6 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
-import { stringify } from 'yaml';
 
 import pkg from '../../../package.json';
 import * as logger from '../../utils/logger';
@@ -135,22 +134,10 @@ export async function init(options: InitOptions): Promise<void> {
   await writeEmbeddedFiles(providerConfigFiles, join(target, 'providers'));
 
   // .env setup
-  let agePublicKey: string | undefined;
   if (!options.noEnv) {
     const { ensureEnv } = await import('../config/ensure-env');
     logger.blank();
-    const result = await ensureEnv({ deployDir: target, skipIfExists: true });
-    agePublicKey = result.agePublicKey;
-  }
-
-  // Write .sops.yaml if age keypair was generated
-  if (agePublicKey) {
-    logger.step('Writing SOPS encryption config...');
-    const sopsConfig = stringify({
-      creation_rules: [{ path_regex: '\\.secrets\\.json$', age: agePublicKey }],
-    });
-    await writeFile(join(target, '.sops.yaml'), sopsConfig);
-    await writeFile(join(target, 'providers', '.sops.yaml'), sopsConfig);
+    await ensureEnv({ deployDir: target, skipIfExists: true });
   }
 
   logger.blank();

@@ -10,10 +10,6 @@
 import { execSync } from 'node:child_process';
 import { stat } from 'node:fs/promises';
 
-/** Dev-only fallback key — matches the public key in the repo's .sops.yaml. */
-const DEV_AGE_KEY =
-  'AGE-SECRET-KEY-17FH890V3A765GWGYA3E83UEFZNRZL3T4GJ0Q7WSS5GRGEDE9G83SCV3UTH';
-
 interface CacheEntry {
   data: Record<string, unknown>;
   mtimeMs: number;
@@ -28,11 +24,6 @@ export async function decryptSecretsFile(
   const cached = cache.get(filePath);
   if (cached && cached.mtimeMs === fileStat.mtimeMs) {
     return cached.data;
-  }
-
-  // Auto-set dev fallback key if no key is configured
-  if (!process.env.SOPS_AGE_KEY && !process.env.SOPS_AGE_KEY_FILE) {
-    process.env.SOPS_AGE_KEY = DEV_AGE_KEY;
   }
 
   let stdout: string;

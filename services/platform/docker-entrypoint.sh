@@ -515,10 +515,6 @@ if [ -d "$providers_builtin_dir" ] && [ "$(ls -A "$providers_builtin_dir" 2>/dev
       cp "$src" "$dest"
     fi
   done
-  # Also seed .sops.yaml if not present
-  if [ -f "$providers_builtin_dir/.sops.yaml" ] && [ ! -f "$providers_dir/.sops.yaml" ]; then
-    cp "$providers_builtin_dir/.sops.yaml" "$providers_dir/.sops.yaml"
-  fi
 fi
 
 # Clean up derived data that is safe to rebuild.

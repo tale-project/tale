@@ -308,6 +308,7 @@ import type * as integrations_update_sync_stats from "../integrations/update_syn
 import type * as integrations_utils_get_integration_type from "../integrations/utils/get_integration_type.js";
 import type * as integrations_validators from "../integrations/validators.js";
 import type * as lib_action_cache_index from "../lib/action_cache/index.js";
+import type * as lib_age_keygen from "../lib/age_keygen.js";
 import type * as lib_agent_chat_index from "../lib/agent_chat/index.js";
 import type * as lib_agent_chat_internal_actions from "../lib/agent_chat/internal_actions.js";
 import type * as lib_agent_chat_start_agent_chat from "../lib/agent_chat/start_agent_chat.js";
@@ -1144,6 +1145,7 @@ declare const fullApi: ApiFromModules<{
   "integrations/utils/get_integration_type": typeof integrations_utils_get_integration_type;
   "integrations/validators": typeof integrations_validators;
   "lib/action_cache/index": typeof lib_action_cache_index;
+  "lib/age_keygen": typeof lib_age_keygen;
   "lib/agent_chat/index": typeof lib_agent_chat_index;
   "lib/agent_chat/internal_actions": typeof lib_agent_chat_internal_actions;
   "lib/agent_chat/start_agent_chat": typeof lib_agent_chat_start_agent_chat;

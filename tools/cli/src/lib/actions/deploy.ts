@@ -1,6 +1,5 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { parse as parseYaml } from 'yaml';
 
 import { PROJECT_NAME, type DeploymentEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
@@ -15,7 +14,6 @@ import {
   isRotatableService,
   isStatefulService,
 } from '../compose/types';
-import { deriveAgePublicKey } from '../crypto/age-keygen';
 import { dockerCompose } from '../docker/docker-compose';
 import { ensureNetwork } from '../docker/ensure-network';
 import { ensureVolumes } from '../docker/ensure-volumes';
@@ -445,9 +443,6 @@ async function syncProjectFiles(
     return;
   }
 
-  // Check SOPS key consistency before syncing
-  checkSopsKeyConsistency(projectDir);
-
   logger.blank();
   logger.step(`${prefix}Syncing project files to ${containerName}...`);
 
@@ -477,32 +472,5 @@ async function syncProjectFiles(
 
   if (!dryRun) {
     logger.success('Project files synced');
-  }
-}
-
-function checkSopsKeyConsistency(projectDir: string): void {
-  const sopsAgeKey = process.env.SOPS_AGE_KEY;
-  const sopsYamlPath = join(projectDir, 'providers', '.sops.yaml');
-
-  if (!sopsAgeKey || !existsSync(sopsYamlPath)) return;
-
-  try {
-    const sopsYaml = parseYaml(readFileSync(sopsYamlPath, 'utf-8'));
-    const configuredPublicKey = sopsYaml?.creation_rules?.[0]?.age as
-      | string
-      | undefined;
-    if (!configuredPublicKey) return;
-
-    const derivedPublicKey = deriveAgePublicKey(sopsAgeKey);
-    if (derivedPublicKey !== configuredPublicKey) {
-      logger.warn(
-        'SOPS_AGE_KEY in .env does not match the public key in providers/.sops.yaml.',
-      );
-      logger.warn(
-        'Encrypted provider secrets may not decrypt. Reconfigure API keys via the management UI if needed.',
-      );
-    }
-  } catch {
-    // Non-critical check — don't block deployment
   }
 }
