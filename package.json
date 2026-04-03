@@ -60,6 +60,10 @@
   "optionalDependencies": {
     "@tailwindcss/oxide-linux-x64-gnu": "^4.2.0"
   },
+  "trustedDependencies": [
+    "core-js-pure",
+    "esbuild"
+  ],
   "patchedDependencies": {
     "convex-helpers@0.1.113": "patches/convex-helpers@0.1.113.patch"
   },
