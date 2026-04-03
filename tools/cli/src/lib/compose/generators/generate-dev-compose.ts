@@ -45,9 +45,17 @@ export function generateDevCompose(
   const rag = createRagService(config, DEV_COLOR);
   rag.container_name = `${PROJECT_NAME}-rag`;
   rag.depends_on = { db: { condition: 'service_healthy' } };
+  rag.volumes = [
+    'rag-data:/app/data',
+    './providers:/app/platform-config/providers:ro',
+  ];
 
   const crawler = createCrawlerService(config, DEV_COLOR);
   crawler.container_name = `${PROJECT_NAME}-crawler`;
+  crawler.volumes = [
+    'crawler-data:/app/data',
+    './providers:/app/platform-config/providers:ro',
+  ];
 
   const proxy = createProxyService(config, hostAlias);
   proxy.ports = [`${port}:443`];

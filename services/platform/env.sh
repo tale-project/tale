@@ -60,9 +60,6 @@ env_normalize_common() {
   export WORKFLOWS_DIR="${WORKFLOWS_DIR:-${TALE_CONFIG_DIR}/workflows}"
   export INTEGRATIONS_DIR="${INTEGRATIONS_DIR:-${TALE_CONFIG_DIR}/integrations}"
 
-  # AI provider keys
-  export OPENAI_API_KEY="${OPENAI_API_KEY}"
-
   # Site URL - the canonical base URL for the platform (required)
   # All other URLs (Convex HTTP API, WebSocket API, etc.) are derived from this in code
   if [ -z "${SITE_URL:-}" ]; then

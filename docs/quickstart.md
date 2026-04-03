@@ -120,7 +120,6 @@ Edit `.env` and fill in the required values:
 
 | Variable | How to fill it in |
 | --- | --- |
-| `OPENAI_API_KEY` | Your OpenRouter (or other provider) API key |
 | `BETTER_AUTH_SECRET` | Generate with: `openssl rand -base64 32` |
 | `ENCRYPTION_SECRET_HEX` | Generate with: `openssl rand -hex 32` |
 | `DB_PASSWORD` | Choose any password for the local database |

@@ -84,9 +84,10 @@ class VisionClient:
     def _get_client(self) -> AsyncOpenAI:
         """Get or create the OpenAI client."""
         if self._client is None:
+            base_url, api_key, _model = settings.get_vision_config()
             self._client = AsyncOpenAI(
-                api_key=settings.get_openai_api_key(),
-                base_url=settings.get_openai_base_url(),
+                api_key=api_key,
+                base_url=base_url,
                 timeout=120.0,
             )
         return self._client
@@ -330,12 +331,13 @@ async def process_pages_with_llm(
 
     logger.info(f"LLM processing: {total_chars} chars total, chunking at {max_chars_per_chunk} chars")
 
+    base_url, api_key, chat_model = settings.get_chat_config()
     client = AsyncOpenAI(
-        api_key=settings.get_openai_api_key(),
-        base_url=settings.get_openai_base_url(),
+        api_key=api_key,
+        base_url=base_url,
         timeout=300.0,
     )
-    resolved_model = model or settings.get_fast_model()
+    resolved_model = model or chat_model
     semaphore = asyncio.Semaphore(max_concurrent)
 
     chunks = _chunk_by_chars(full_text, max_chars_per_chunk)

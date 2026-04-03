@@ -1,11 +1,8 @@
 """Configuration management for Tale RAG service.
 
 Configuration is loaded from environment variables with the RAG_ prefix.
-LLM settings prefer generic OPENAI_* env vars (OPENAI_API_KEY, OPENAI_BASE_URL,
-OPENAI_FAST_MODEL, OPENAI_EMBEDDING_MODEL) with RAG_* overrides available.
+LLM settings are read from provider configuration files.
 """
-
-import os
 
 from pydantic_settings import SettingsConfigDict
 from tale_shared.config import BaseServiceSettings
@@ -61,31 +58,9 @@ class Settings(BaseServiceSettings):
         raise ValueError("RAG_DATABASE_URL must be set in environment")
 
     def get_llm_config(self) -> dict:
-        """Get LLM configuration.
-
-        Each setting checks RAG_* prefixed field first, then falls back to
-        the shared OPENAI_* env var.
-        """
-        api_key = self.get_openai_api_key()
-
-        base_url = self.get_openai_base_url()
-        if not base_url:
-            raise ValueError("OPENAI_BASE_URL must be set in environment. No default base URL is provided.")
-
-        model = self.get_fast_model()
-        embedding_model = self.get_embedding_model()
-
-        max_tokens = self.openai_max_tokens
-        if max_tokens is None:
-            max_tokens_env = os.environ.get("OPENAI_MAX_TOKENS")
-            if max_tokens_env is not None:
-                max_tokens = int(max_tokens_env)
-
-        temperature = self.openai_temperature
-        if temperature is None:
-            temperature_env = os.environ.get("OPENAI_TEMPERATURE")
-            if temperature_env is not None:
-                temperature = float(temperature_env)
+        """Get LLM configuration from provider files."""
+        base_url, api_key, model = self.get_chat_config()
+        _emb_base_url, _emb_api_key, embedding_model, _dims = self.get_embedding_config()
 
         config: dict = {
             "provider": "openai",
@@ -95,11 +70,11 @@ class Settings(BaseServiceSettings):
             "base_url": base_url,
         }
 
-        if max_tokens is not None:
-            config["max_tokens"] = max_tokens
+        if self.openai_max_tokens is not None:
+            config["max_tokens"] = self.openai_max_tokens
 
-        if temperature is not None:
-            config["temperature"] = temperature
+        if self.openai_temperature is not None:
+            config["temperature"] = self.openai_temperature
 
         return config
 

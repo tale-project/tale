@@ -14,7 +14,7 @@ export function useFileEvents() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    const es = new EventSource('/api/file-events');
+    const es = new EventSource('/events/file');
 
     es.addEventListener('message', (e) => {
       let data: { type: string; orgSlug?: string };

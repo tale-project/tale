@@ -140,7 +140,26 @@ export async function init(options: InitOptions): Promise<void> {
   if (!options.noEnv) {
     const { ensureEnv } = await import('../config/ensure-env');
     logger.blank();
-    await ensureEnv({ deployDir: target, skipIfExists: true });
+    const envResult = await ensureEnv({
+      deployDir: target,
+      skipIfExists: true,
+    });
+
+    // Generate encrypted provider secrets from the API key collected during env setup
+    if (envResult.agePublicKey && envResult.openrouterKey) {
+      const { sopsEncryptJson } = await import('../crypto/sops-encrypt');
+      const encrypted = await sopsEncryptJson(
+        { apiKey: envResult.openrouterKey },
+        envResult.agePublicKey,
+      );
+      await writeFile(
+        join(target, 'providers', 'openrouter.secrets.json'),
+        encrypted,
+      );
+      logger.success(
+        'Encrypted provider API key into providers/openrouter.secrets.json',
+      );
+    }
   }
 
   logger.blank();
@@ -165,9 +184,6 @@ export async function init(options: InitOptions): Promise<void> {
   }
   logger.info(
     `  ${step++}. Edit agents/, workflows/, integrations/, and branding/ to customize your setup`,
-  );
-  logger.info(
-    `  ${step++}. Configure provider API keys in the management UI after starting`,
   );
   logger.info(
     `  ${step++}. Open the project in an AI-powered editor (Claude Code, Cursor, Copilot, or Windsurf) for guided config creation`,

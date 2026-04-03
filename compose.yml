@@ -169,6 +169,7 @@ services:
     # Persist crawler data (website registry + per-site URL databases)
     volumes:
       - crawler-data:/app/data
+      - platform-data:/app/platform-config:ro
 
     # Logging configuration
     logging:
@@ -207,6 +208,7 @@ services:
     # Volume mounts
     volumes:
       - rag-data:/app/data
+      - platform-data:/app/platform-config:ro
 
     # Environment file
     # Create a .env file in the project root with your API keys

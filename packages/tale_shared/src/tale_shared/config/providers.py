@@ -45,11 +45,15 @@ def load_providers(config_dir: str | None = None) -> list[ProviderConfig]:
     Reads *.json (excluding *.secrets.json) and decrypts matching
     *.secrets.json files via SOPS.
     """
-    base = Path(
-        config_dir
-        or os.environ.get("TALE_CONFIG_DIR")
-        or os.environ.get("CONFIG_DIR", DEFAULT_CONFIG_DIR)
-    )
+    shared_config = os.environ.get("TALE_PLATFORM_SHARED_CONFIG_DIR")
+    if shared_config:
+        base = Path(shared_config)
+    else:
+        base = Path(
+            config_dir
+            or os.environ.get("TALE_CONFIG_DIR")
+            or os.environ.get("CONFIG_DIR", DEFAULT_CONFIG_DIR)
+        )
     providers_dir = base / "providers"
 
     if not providers_dir.is_dir():

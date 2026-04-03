@@ -19,6 +19,7 @@
     "@inquirer/prompts": "^8.0.0",
     "@noble/curves": "^1.8.0",
     "@scure/base": "^2.0.0",
+    "age-encryption": "^0.3.0",
     "commander": "^14.0.0",
     "yaml": "^2.7.0"
   },
