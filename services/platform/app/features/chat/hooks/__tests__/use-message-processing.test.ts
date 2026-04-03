@@ -15,6 +15,10 @@ vi.mock('@convex-dev/agent/react', () => ({
 
 vi.mock('../use-stream-buffer', () => ({}));
 
+vi.mock('convex/react', () => ({
+  useQuery: vi.fn(() => undefined),
+}));
+
 import { useUIMessages } from '@convex-dev/agent/react';
 
 import {

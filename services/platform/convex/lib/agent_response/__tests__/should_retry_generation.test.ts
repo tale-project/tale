@@ -94,9 +94,12 @@ describe('shouldRetryGeneration', () => {
       });
     });
 
-    it('retries for finishReason "error"', () => {
+    it('does not retry for finishReason "error"', () => {
       const result = shouldRetryGeneration('error', '', [], false);
-      expect(result).toEqual({ retry: true, reason: 'finish-reason-error' });
+      expect(result).toEqual({
+        retry: false,
+        reason: 'non-retryable-finish-reason',
+      });
     });
 
     it('retries for finishReason "unknown"', () => {
