@@ -67,6 +67,8 @@ export interface ChatMessage {
   _creationTime?: number;
   isStreaming?: boolean;
   isAborted?: boolean;
+  isFailed?: boolean;
+  error?: string;
   systemMessageDisplay?: SystemMessageDisplay;
   systemMessageBody?: string;
 }
@@ -259,6 +261,8 @@ export function useMessageProcessing(
             m.role === 'assistant' && m.status === 'failed' && !m.text?.trim(),
           isFailed:
             m.role === 'assistant' && m.status === 'failed' && !!m.text?.trim(),
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- error field is added by getThreadMessagesStreaming but not in UIMessage type
+          error: (m as unknown as { error?: string }).error,
           systemMessageDisplay,
           systemMessageBody,
         };

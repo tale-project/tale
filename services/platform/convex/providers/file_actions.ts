@@ -438,9 +438,15 @@ export const saveProviderSecret = action({
 
     const plaintext = JSON.stringify({ apiKey: args.apiKey }, null, 2) + '\n';
     const { execFileSync } = await import('node:child_process');
+    const { writeFileSync, unlinkSync, mkdtempSync, rmdirSync } =
+      await import('node:fs');
+    const { tmpdir } = await import('node:os');
 
+    const tmpDir = mkdtempSync(path.join(tmpdir(), 'sops-'));
+    const tmpFile = path.join(tmpDir, 'plain.json');
     let encrypted: string;
     try {
+      writeFileSync(tmpFile, plaintext, 'utf-8');
       encrypted = execFileSync(
         'sops',
         [
@@ -451,10 +457,9 @@ export const saveProviderSecret = action({
           'json',
           '--age',
           agePublicKey,
-          '/dev/stdin',
+          tmpFile,
         ],
         {
-          input: plaintext,
           encoding: 'utf-8',
           timeout: 10_000,
           stdio: ['pipe', 'pipe', 'pipe'],
@@ -467,6 +472,13 @@ export const saveProviderSecret = action({
           'Ensure sops is installed and SOPS_AGE_KEY is set.',
         { cause: err },
       );
+    } finally {
+      try {
+        unlinkSync(tmpFile);
+        rmdirSync(tmpDir);
+      } catch {
+        // best-effort cleanup
+      }
     }
 
     await atomicWrite(secretsPath, encrypted);
