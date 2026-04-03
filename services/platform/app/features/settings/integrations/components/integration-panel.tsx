@@ -40,12 +40,6 @@ export function IntegrationPanel({
   const manage = useIntegrationManage(integration, onOpenChange, open);
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
 
-  const isCustom =
-    typeof integration.metadata === 'object' &&
-    integration.metadata !== null &&
-    'source' in integration.metadata &&
-    (integration.metadata as Record<string, unknown>).source === 'custom';
-
   // Lazy-load connector code from disk when panel opens
   const readIntegrationFn = useAction(
     api.integrations.file_actions.readIntegration,
@@ -258,17 +252,15 @@ export function IntegrationPanel({
                   : t('integrations.manageDialog.testConnection')}
               </Button>
             </HStack>
-            {isCustom && (
-              <button
-                type="button"
-                onClick={() => manage.setConfirmDelete(true)}
-                disabled={manage.busy}
-                className="text-destructive hover:text-destructive/80 flex items-center gap-1.5 text-sm font-medium transition-colors disabled:opacity-50"
-              >
-                <Trash2 className="size-3.5" />
-                {t('integrations.panel.deleteIntegration')}
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => manage.setConfirmDelete(true)}
+              disabled={manage.busy}
+              className="text-destructive hover:text-destructive/80 flex items-center gap-1.5 text-sm font-medium transition-colors disabled:opacity-50"
+            >
+              <Trash2 className="size-3.5" />
+              {t('integrations.panel.deleteIntegration')}
+            </button>
           </Stack>
         ) : (
           <HStack justify="end" align="center">

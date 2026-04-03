@@ -14,7 +14,6 @@ interface IntegrationCardProps {
   title: string;
   description?: string;
   isActive?: boolean;
-  isCustom?: boolean;
   disabled?: boolean;
   iconUrl?: string;
   icon?: LucideIcon;
@@ -25,7 +24,6 @@ export function IntegrationCard({
   title,
   description,
   isActive,
-  isCustom,
   disabled,
   iconUrl,
   icon: Icon = Puzzle,
@@ -59,9 +57,7 @@ export function IntegrationCard({
             </Center>
             {isActive ? (
               <Badge variant="green" dot>
-                {isCustom
-                  ? t('integrations.badge.active')
-                  : t('integrations.badge.connected')}
+                {t('integrations.badge.connected')}
               </Badge>
             ) : (
               <Badge variant="outline">{t('integrations.badge.connect')}</Badge>

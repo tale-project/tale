@@ -1,6 +1,6 @@
 'use client';
 
-import { Puzzle, Search, Unplug } from 'lucide-react';
+import { Search, Unplug } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import type { SsoProvider } from '@/lib/shared/schemas/sso_providers';
@@ -32,16 +32,6 @@ export interface IntegrationListItem {
   [key: string]: unknown;
 }
 
-function isCustomIntegration(integration: IntegrationListItem) {
-  const meta = integration.metadata;
-  return (
-    typeof meta === 'object' &&
-    meta !== null &&
-    'source' in meta &&
-    (meta as Record<string, unknown>).source === 'custom'
-  );
-}
-
 interface IntegrationsProps {
   organizationId: string;
   integrations: IntegrationListItem[];
@@ -67,7 +57,6 @@ export function Integrations({
     () => [
       { value: 'all', label: t('integrations.tabs.all') },
       { value: 'connected', label: t('integrations.tabs.connected') },
-      { value: 'custom', label: t('integrations.tabs.custom') },
     ],
     [t],
   );
@@ -77,8 +66,6 @@ export function Integrations({
 
     if (tab === 'connected') {
       filtered = filtered.filter((i) => i.isActive === true);
-    } else if (tab === 'custom') {
-      filtered = filtered.filter(isCustomIntegration);
     }
 
     if (searchQuery.trim()) {
@@ -115,24 +102,11 @@ export function Integrations({
         />
       );
     }
-    if (tab === 'custom') {
-      return (
-        <EmptyState
-          icon={Puzzle}
-          title={t('integrations.empty.customTitle')}
-          description={t('integrations.empty.customDescription')}
-        />
-      );
-    }
     return null;
   };
 
   const handleCardClick = useCallback((integration: IntegrationListItem) => {
-    if (isCustomIntegration(integration)) {
-      setUploadDialogOpen(true);
-    } else {
-      setManagingIntegration(integration);
-    }
+    setManagingIntegration(integration);
   }, []);
 
   return (
@@ -173,7 +147,6 @@ export function Integrations({
               title={integration.title}
               description={integration.description}
               isActive={integration.isActive === true}
-              isCustom={isCustomIntegration(integration)}
               iconUrl={
                 typeof integration.iconUrl === 'string'
                   ? integration.iconUrl

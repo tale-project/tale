@@ -939,23 +939,19 @@
       "accessDenied": "You need Admin or Developer permissions to access integrations settings.",
       "manage": "Manage",
       "pageSubtitle": "Connect third-party services to your workspace.",
-      "addCustomIntegration": "Custom integration",
+      "addCustomIntegration": "Add integration",
       "tabs": {
         "all": "All integrations",
-        "connected": "Connected",
-        "custom": "Custom integrations"
+        "connected": "Connected"
       },
       "searchPlaceholder": "Search integrations...",
       "badge": {
         "connected": "Connected",
-        "connect": "Connect",
-        "active": "Active"
+        "connect": "Connect"
       },
       "empty": {
         "connectedTitle": "No connected integrations",
         "connectedDescription": "Integrations you connect will appear here.",
-        "customTitle": "No custom integrations",
-        "customDescription": "Custom integrations you create will appear here.",
         "searchTitle": "No results found",
         "searchDescription": "Try adjusting your search or request a new integration."
       },

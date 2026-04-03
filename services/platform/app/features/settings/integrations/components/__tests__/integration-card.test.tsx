@@ -30,25 +30,13 @@ describe('IntegrationCard', () => {
     expect(screen.getByText('Sync products from Shopify.')).toBeInTheDocument();
   });
 
-  it('shows "Connected" badge when active and not custom', () => {
+  it('shows "Connected" badge when active', () => {
     render(
       <IntegrationCard title="Shopify" description="Sync products." isActive />,
     );
     expect(
       screen.getByText('integrations.badge.connected'),
     ).toBeInTheDocument();
-  });
-
-  it('shows "Active" badge when active and custom', () => {
-    render(
-      <IntegrationCard
-        title="Custom API"
-        description="Custom integration."
-        isActive
-        isCustom
-      />,
-    );
-    expect(screen.getByText('integrations.badge.active')).toBeInTheDocument();
   });
 
   it('shows "Connect" badge when not active', () => {

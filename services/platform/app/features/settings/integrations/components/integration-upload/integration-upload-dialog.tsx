@@ -55,7 +55,7 @@ export function IntegrationUploadDialog({
       await writeFilesFn({
         orgSlug: 'default',
         slug,
-        config: { ...config, metadata: { source: 'custom' } },
+        config,
         connectorCode:
           connectorCode.trim().length > 0 ? connectorCode : undefined,
       });
