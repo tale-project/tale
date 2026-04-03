@@ -51,6 +51,7 @@ export function SettingsNavigation({
       label: t('providers'),
       href: `/dashboard/${organizationId}/settings/providers`,
       can: ['read', 'developerSettings'],
+      matchMode: 'startsWith',
     },
     {
       labelKey: 'apiKeys',

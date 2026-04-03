@@ -57,8 +57,9 @@ export function ProvidersTable({ organizationId }: ProvidersTableProps) {
     void queryClient.invalidateQueries({ queryKey: ['config', 'providers'] });
   }, [queryClient]);
 
-  const { columns, searchPlaceholder, stickyLayout, pageSize } =
-    useProvidersTableConfig({ onDeleted: invalidateProviders });
+  const { columns, stickyLayout, pageSize } = useProvidersTableConfig({
+    onDeleted: invalidateProviders,
+  });
 
   const handleRowClick = useCallback(
     (row: Row<ProviderRow>) => {
@@ -73,10 +74,6 @@ export function ProvidersTable({ organizationId }: ProvidersTableProps) {
   const list = useListPage<ProviderRow>({
     dataSource: { type: 'query', data: isLoading ? undefined : providers },
     pageSize,
-    search: {
-      fields: ['displayName', 'name'],
-      placeholder: searchPlaceholder,
-    },
   });
 
   return (

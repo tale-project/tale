@@ -73,7 +73,8 @@ export function ProviderEditPanel({
     'default',
     providerName,
   );
-  const { data: hasSecret } = useHasProviderSecret('default', providerName);
+  const { data: maskedKey } = useHasProviderSecret('default', providerName);
+  const hasSecret = maskedKey != null;
   const { mutateAsync: saveProvider, isPending: isSaving } = useSaveProvider();
   const { mutateAsync: deleteProvider, isPending: isDeleting } =
     useDeleteProvider();
@@ -245,21 +246,38 @@ export function ProviderEditPanel({
 
             {/* API Key section */}
             <Stack gap={3}>
-              <SectionHeader title={t('providers.apiKey')} as="h3" size="sm" />
-              <HStack gap={2}>
-                <KeyRound className="text-muted-foreground size-4" />
+              <HStack gap={2} justify="between" align="center">
+                <SectionHeader
+                  title={t('providers.apiKey')}
+                  as="h3"
+                  size="sm"
+                />
                 <Badge variant={hasSecret ? 'green' : 'orange'} dot>
                   {hasSecret
                     ? t('providers.apiKeyConfigured')
                     : t('providers.apiKeyNotConfigured')}
                 </Badge>
               </HStack>
+              {maskedKey && (
+                <HStack gap={2} align="center">
+                  <KeyRound className="text-muted-foreground size-4" />
+                  <Text className="text-muted-foreground font-mono text-sm">
+                    {maskedKey}
+                  </Text>
+                </HStack>
+              )}
               <HStack gap={2} align="end">
                 <Input
-                  type="password"
+                  type={apiKey ? 'password' : 'text'}
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
-                  placeholder={t('providers.apiKeyPlaceholder')}
+                  placeholder={
+                    hasSecret
+                      ? t('providers.apiKeyReplacePlaceholder', {
+                          maskedKey: maskedKey ?? '',
+                        })
+                      : t('providers.apiKeyPlaceholder')
+                  }
                   wrapperClassName="flex-1"
                 />
                 <Button

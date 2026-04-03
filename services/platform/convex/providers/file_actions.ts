@@ -38,6 +38,12 @@ import {
 // Internal helpers
 // ---------------------------------------------------------------------------
 
+/** Mask an API key showing the first 6 and last 3 characters. */
+function maskApiKey(key: string): string {
+  if (key.length <= 9) return '••••••••••';
+  return key.slice(0, 6) + '••••••' + key.slice(-3);
+}
+
 async function readProviderFile(
   orgSlug: string,
   providerName: string,
@@ -415,14 +421,15 @@ export const saveProviderSecret = action({
 
 /**
  * Check if a provider has a secrets file configured.
+ * Returns a masked API key (e.g. "sk-or-••••••abc") if configured, or null.
  */
 export const hasProviderSecret = action({
   args: {
     orgSlug: v.string(),
     providerName: v.string(),
   },
-  returns: v.boolean(),
-  handler: async (ctx, args): Promise<boolean> => {
+  returns: v.union(v.string(), v.null()),
+  handler: async (ctx, args): Promise<string | null> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
@@ -434,9 +441,19 @@ export const hasProviderSecret = action({
     const { stat: statFile } = await import('node:fs/promises');
     try {
       await statFile(secretsPath);
-      return true;
     } catch {
-      return false;
+      return null;
+    }
+
+    try {
+      const secrets = await decryptSecretsFile(secretsPath);
+      const parsed = parseProviderSecrets(secrets);
+      const key = parsed.apiKey;
+      if (!key) return null;
+      return maskApiKey(key);
+    } catch {
+      // File exists but can't be decrypted — still report as configured
+      return '••••••••••';
     }
   },
 });
