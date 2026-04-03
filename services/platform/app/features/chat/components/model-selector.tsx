@@ -90,6 +90,7 @@ export function ModelSelector({ organizationId }: ModelSelectorProps) {
 
   const currentLabel = getDisplayName(currentModelId);
 
+  // Single model — show as read-only text
   if (supportedModels.length <= 1) {
     return (
       <span className="text-muted-foreground flex items-center gap-1.5 text-xs">

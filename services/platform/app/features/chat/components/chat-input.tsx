@@ -302,22 +302,20 @@ export function ChatInput({
           </div>
 
           <HStack justify="between" align="center" className="pb-3">
-            <HStack gap={2} align="center">
-              <Tooltip content={tDialogs('attach')} side="top">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={inputDisabled}
-                  aria-label={tDialogs('attach')}
-                >
-                  <Paperclip className="size-4" />
-                </Button>
-              </Tooltip>
-              <ModelSelector organizationId={organizationId} />
-            </HStack>
-            <HStack gap={2} align="center">
+            <Tooltip content={tDialogs('attach')} side="top">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={inputDisabled}
+                aria-label={tDialogs('attach')}
+              >
+                <Paperclip className="size-4" />
+              </Button>
+            </Tooltip>
+            <HStack gap={3} align="center">
               <AgentSelector organizationId={organizationId} />
+              <ModelSelector organizationId={organizationId} />
               <Button
                 type="button"
                 onClick={isLoading ? onStopGenerating : handleSendMessage}
