@@ -2,6 +2,7 @@ import { v } from 'convex/values';
 
 import { action } from '../_generated/server';
 import { authComponent } from '../auth';
+import { resolveLanguageModel } from '../providers/resolve_model';
 import { improveMessage as improveMessageHandler } from './improve_message';
 
 export const improveMessage = action({
@@ -22,6 +23,12 @@ export const improveMessage = action({
       throw new Error('Unauthenticated');
     }
 
-    return improveMessageHandler(ctx, args);
+    // Resolve fast/chat model from provider files
+    const { languageModel } = await resolveLanguageModel(ctx, { tag: 'chat' });
+
+    return improveMessageHandler(ctx, {
+      ...args,
+      languageModel,
+    });
   },
 });

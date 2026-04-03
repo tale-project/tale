@@ -1,0 +1,68 @@
+{
+  "displayName": "OpenRouter",
+  "description": "Multi-model AI gateway with access to leading LLM providers",
+  "baseUrl": "https://openrouter.ai/api/v1",
+  "supportsStructuredOutputs": true,
+  "models": [
+    {
+      "id": "moonshotai/kimi-k2.5",
+      "displayName": "Kimi K2.5",
+      "description": "High-performance general-purpose model",
+      "tags": ["chat"],
+      "default": true
+    },
+    {
+      "id": "deepseek/deepseek-v3.2",
+      "displayName": "DeepSeek V3.2",
+      "description": "Strong reasoning and general capabilities",
+      "tags": ["chat"]
+    },
+    {
+      "id": "qwen/qwen3-next-80b-a3b-instruct",
+      "displayName": "Qwen3 Next 80B",
+      "description": "Fast and efficient instruction-following model",
+      "tags": ["chat"]
+    },
+    {
+      "id": "qwen/qwen3.5-35b-a3b",
+      "displayName": "Qwen3.5 35B",
+      "description": "Compact and fast model",
+      "tags": ["chat"]
+    },
+    {
+      "id": "anthropic/claude-opus-4.6",
+      "displayName": "Claude Opus 4.6",
+      "description": "Most capable model for complex reasoning and coding",
+      "tags": ["chat", "vision"]
+    },
+    {
+      "id": "openai/gpt-5.2",
+      "displayName": "GPT-5.2",
+      "description": "OpenAI's latest flagship model",
+      "tags": ["chat", "vision"]
+    },
+    {
+      "id": "qwen/qwen3-vl-32b-instruct",
+      "displayName": "Qwen3 VL 32B",
+      "description": "Vision-language model for image understanding",
+      "tags": ["chat", "vision"]
+    },
+    {
+      "id": "qwen/qwen3-embedding-4b",
+      "displayName": "Qwen3 Embedding 4B",
+      "description": "Text embedding model for semantic search",
+      "tags": ["embedding"],
+      "dimensions": 1536
+    }
+  ],
+  "i18n": {
+    "de": {
+      "description": "Multi-Modell-KI-Gateway mit Zugang zu fuhrenden LLM-Anbietern",
+      "models": {
+        "anthropic/claude-opus-4.6": {
+          "description": "Leistungsstarkstes Modell fur komplexe Aufgaben und Programmierung"
+        }
+      }
+    }
+  }
+}

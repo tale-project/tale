@@ -272,7 +272,8 @@ export function MessageInfoDialog({
           <>
             <Field label={t('messageInfo.model')}>
               <Text as="div">
-                {metadata.model} ({metadata.provider})
+                {metadata.model}
+                {metadata.provider ? ` (${metadata.provider})` : ''}
               </Text>
             </Field>
 

@@ -5,6 +5,8 @@
  * including document parsing and image metadata extraction.
  */
 
+import type { LanguageModelV3 } from '@ai-sdk/provider';
+
 import type { Id } from '../../_generated/dataModel';
 import type { ActionCtx } from '../../_generated/server';
 import type { FileAttachment, MessageContentPart } from './types';
@@ -13,6 +15,7 @@ import { isImage, isTextFile } from '../../../lib/shared/file-types';
 import { analyzeImageCached } from '../../agent_tools/files/helpers/analyze_image';
 import { analyzeTextContent } from '../../agent_tools/files/helpers/analyze_text';
 import { parseFile } from '../../agent_tools/files/helpers/parse_file';
+import { resolveLanguageModel } from '../../providers/resolve_model';
 import { registerFilesWithAgent } from './register_files';
 
 /**
@@ -62,6 +65,7 @@ export interface ProcessAttachmentsConfig {
   debugLog?: (message: string, data?: Record<string, unknown>) => void;
   toolName?: string;
   model?: string;
+  languageModel?: LanguageModelV3;
 }
 
 const DEFAULT_MAX_DOCUMENT_LENGTH = 50000;
@@ -192,6 +196,13 @@ export async function processAttachments(
     (r): r is { fileName: string; analysis: string } => r !== null,
   );
 
+  // Resolve language model for text analysis if not provided
+  let resolvedLanguageModelV3 = config.languageModel;
+  if (!resolvedLanguageModelV3 && textFileAttachments.length > 0) {
+    const resolved = await resolveLanguageModel(ctx, { tag: 'chat' });
+    resolvedLanguageModelV3 = resolved.languageModel;
+  }
+
   // Analyze text files with LLM (in parallel)
   const textAnalysisResults = await Promise.all(
     textFileAttachments.map(async (attachment) => {
@@ -201,6 +212,9 @@ export async function processAttachments(
           filename: attachment.fileName,
           userInput: userText || 'Analyze this file',
           model: config.model,
+          // resolvedLanguageModelV3 is guaranteed set: either from config or resolved above
+          // oxlint-disable-next-line typescript/no-non-null-assertion -- guard above ensures non-null
+          languageModel: resolvedLanguageModelV3!,
         });
 
         if (result.success) {

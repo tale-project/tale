@@ -417,7 +417,13 @@ export async function deploy(options: DeployOptions): Promise<void> {
   });
 }
 
-const SYNC_DIRS = ['agents', 'workflows', 'integrations', 'branding'];
+const SYNC_DIRS = [
+  'agents',
+  'workflows',
+  'integrations',
+  'branding',
+  'providers',
+];
 
 async function syncProjectFiles(
   containerName: string,

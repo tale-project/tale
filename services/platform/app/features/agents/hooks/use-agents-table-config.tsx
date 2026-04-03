@@ -8,7 +8,6 @@ import { Badge } from '@/app/components/ui/feedback/badge';
 import { HStack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
-import { isKeyOf } from '@/lib/utils/type-guards';
 
 import type { AgentRow } from '../components/agents-table';
 
@@ -23,13 +22,11 @@ interface AgentsTableConfig {
 
 interface AgentsTableConfigOptions {
   teamNameMap: Map<string, string>;
-  modelPresets: Record<string, string[]> | undefined;
   onDuplicated?: () => void;
   onDeleted?: () => void;
 }
 
 export function useAgentsTableConfig({
-  modelPresets,
   onDuplicated,
   onDeleted,
 }: AgentsTableConfigOptions): AgentsTableConfig {
@@ -49,26 +46,13 @@ export function useAgentsTableConfig({
         size: 250,
       },
       {
-        id: 'modelPreset',
-        header: t('agents.columns.modelPreset'),
+        id: 'model',
+        header: t('agents.columns.model'),
         meta: { skeleton: { type: 'badge' } },
         cell: ({ row }) => {
-          const preset = row.original.modelPreset ?? 'standard';
-          const presetLabel = t(`agents.form.modelPresets.${preset}`);
-          const modelName =
-            modelPresets && isKeyOf(preset, modelPresets)
-              ? modelPresets[preset]?.[0]
-              : undefined;
-          return (
-            <Badge variant="outline">
-              {presetLabel}
-              {modelName && (
-                <span className="text-muted-foreground/60 ml-1">
-                  {modelName}
-                </span>
-              )}
-            </Badge>
-          );
+          const model = row.original.supportedModels?.[0];
+          if (!model) return null;
+          return <Badge variant="outline">{model}</Badge>;
         },
         size: 200,
       },
@@ -103,7 +87,7 @@ export function useAgentsTableConfig({
         size: 80,
       },
     ],
-    [t, modelPresets, onDuplicated, onDeleted],
+    [t, onDuplicated, onDeleted],
   );
 
   return {

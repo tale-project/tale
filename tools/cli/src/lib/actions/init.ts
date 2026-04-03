@@ -80,6 +80,17 @@ export async function init(options: InitOptions): Promise<void> {
   await writeFile(join(target, 'branding', 'branding.json'), '{}\n');
   await writeFile(join(target, 'branding', 'images', '.gitkeep'), '');
 
+  // Copy provider configs (public JSON only, not encrypted secrets)
+  logger.step('Copying provider configurations...');
+  const providerFiles = getEmbeddedExamples('providers');
+  const providerConfigFiles = new Map<string, string>();
+  for (const [relPath, content] of providerFiles) {
+    if (!relPath.endsWith('.secrets.json')) {
+      providerConfigFiles.set(relPath, content);
+    }
+  }
+  await writeEmbeddedFiles(providerConfigFiles, join(target, 'providers'));
+
   // Compute checksums
   logger.step('Computing file checksums...');
   const allFiles = new Map<string, string>();
@@ -92,6 +103,9 @@ export async function init(options: InitOptions): Promise<void> {
   }
   for (const [relPath, content] of integrationFiles) {
     allFiles.set(join('integrations', relPath), computeContentHash(content));
+  }
+  for (const [relPath, content] of providerConfigFiles) {
+    allFiles.set(join('providers', relPath), computeContentHash(content));
   }
   allFiles.set(join('branding', 'branding.json'), computeContentHash('{}\n'));
 
@@ -126,7 +140,26 @@ export async function init(options: InitOptions): Promise<void> {
   if (!options.noEnv) {
     const { ensureEnv } = await import('../config/ensure-env');
     logger.blank();
-    await ensureEnv({ deployDir: target, skipIfExists: true });
+    const envResult = await ensureEnv({
+      deployDir: target,
+      skipIfExists: true,
+    });
+
+    // Generate encrypted provider secrets from the API key collected during env setup
+    if (envResult.agePublicKey && envResult.openrouterKey) {
+      const { sopsEncryptJson } = await import('../crypto/sops-encrypt');
+      const encrypted = await sopsEncryptJson(
+        { apiKey: envResult.openrouterKey },
+        envResult.agePublicKey,
+      );
+      await writeFile(
+        join(target, 'providers', 'openrouter.secrets.json'),
+        encrypted,
+      );
+      logger.success(
+        'Encrypted provider API key into providers/openrouter.secrets.json',
+      );
+    }
   }
 
   logger.blank();
@@ -138,6 +171,7 @@ export async function init(options: InitOptions): Promise<void> {
     ['Agents', `${agentFiles.size} files`],
     ['Workflows', `${workflowFiles.size} files`],
     ['Integrations', `${integrationFiles.size} files`],
+    ['Providers', `${providerConfigFiles.size} files`],
     ['Branding', '1 file'],
   ]);
   logger.blank();

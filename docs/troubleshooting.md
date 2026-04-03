@@ -25,11 +25,11 @@ Wait for the platform ready message in the logs. This can take up to two minutes
 
 ### AI responses are slow or failing
 
-Check your `OPENAI_API_KEY` in `.env`. Common causes:
+Check your provider API key in Settings > Providers. Common causes:
 
-- Expired or revoked API key. Regenerate it at openrouter.ai.
+- Expired or revoked API key. Regenerate it at openrouter.ai and update in Settings > Providers.
 - Insufficient credits on your OpenRouter account.
-- The model set in `OPENAI_MODEL` is not available on your account tier.
+- The model configured in your provider file is not available on your account tier.
 - Network issue between the Tale server and the OpenRouter API.
 
 ### Documents are not searchable after upload

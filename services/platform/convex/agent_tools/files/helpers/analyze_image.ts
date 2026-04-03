@@ -16,7 +16,8 @@ import type { ActionCtx } from '../../../_generated/server';
 import { components } from '../../../_generated/api';
 import { imageAnalysisCache } from '../../../lib/action_cache';
 import { createDebugLog } from '../../../lib/debug_log';
-import { getVisionModel, createVisionAgent } from './vision_agent';
+import { resolveLanguageModel } from '../../../providers/resolve_model';
+import { createVisionAgent } from './vision_agent';
 
 const debugLog = createDebugLog('DEBUG_IMAGE_ANALYSIS', '[ImageAnalysis]');
 
@@ -49,9 +50,14 @@ export async function analyzeImage(
   params: AnalyzeImageParams,
 ): Promise<AnalyzeImageResult> {
   const { fileId, question, fileName } = params;
-  const visionModelId = getVisionModel();
 
   debugLog('analyzeImage starting', { fileId, question, fileName });
+
+  // Resolve vision model from provider files
+  const { languageModel, modelData } = await resolveLanguageModel(ctx, {
+    tag: 'vision',
+  });
+  const visionModelId = modelData.modelId;
 
   try {
     // Get the image blob from storage
@@ -88,7 +94,7 @@ export async function analyzeImage(
       mimeType,
     });
 
-    const visionAgent = createVisionAgent();
+    const visionAgent = createVisionAgent(languageModel);
 
     // Create a temporary thread for this analysis
     const thread = await ctx.runMutation(

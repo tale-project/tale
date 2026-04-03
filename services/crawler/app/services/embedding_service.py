@@ -15,13 +15,12 @@ _embedding_service: EmbeddingService | None = None
 def get_embedding_service() -> EmbeddingService:
     global _embedding_service
     if _embedding_service is None:
+        base_url, api_key, model, dims = settings.get_embedding_config()
         _embedding_service = EmbeddingService(
-            api_key=settings.get_openai_api_key(),
-            base_url=settings.get_openai_base_url(),
-            model=settings.get_embedding_model(),
-            dimensions=settings.get_embedding_dimensions(),
+            api_key=api_key,
+            base_url=base_url,
+            model=model,
+            dimensions=dims,
         )
-        logger.info(
-            f"Embedding service: model={settings.get_embedding_model()}, dims={settings.get_embedding_dimensions()}"
-        )
+        logger.info(f"Embedding service: model={model}, dims={dims}")
     return _embedding_service

@@ -3,36 +3,12 @@
  *
  * This is the thin mapping layer between the agent JSON file format
  * and the existing agent pipeline.
- *
- * Model preset resolution:
- * - 'fast' → OPENAI_FAST_MODEL
- * - 'standard' → OPENAI_MODEL (default)
- * - 'advanced' → OPENAI_CODING_MODEL
  */
 
 import type { ToolName } from '../agent_tools/tool_names';
 import type { SerializableAgentConfig } from '../lib/agent_chat/types';
 import type { AgentJsonConfig } from './file_utils';
 import type { KnowledgeFile } from './schema';
-
-import {
-  getCodingModelOrThrow,
-  getDefaultModel,
-  getFastModel,
-} from '../lib/agent_runtime_config';
-
-function resolveModel(config: AgentJsonConfig): string {
-  if (config.modelId) return config.modelId;
-
-  switch (config.modelPreset) {
-    case 'fast':
-      return getFastModel();
-    case 'advanced':
-      return getCodingModelOrThrow();
-    default:
-      return getDefaultModel();
-  }
-}
 
 export function toSerializableConfig(
   agentName: string,
@@ -51,9 +27,13 @@ export function toSerializableConfig(
     convexToolNames: config.toolNames as ToolName[],
     integrationBindings: config.integrationBindings,
     workflowBindings: config.workflows,
-    model: resolveModel(config),
+    model:
+      config.supportedModels[0] ??
+      (() => {
+        throw new Error('supportedModels must not be empty');
+      })(),
+    provider: config.provider,
     maxSteps: config.maxSteps,
-    enableVectorSearch: false,
     knowledgeMode,
     webSearchMode,
     includeTeamKnowledge: config.includeTeamKnowledge ?? true,

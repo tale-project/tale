@@ -5,40 +5,24 @@
  * Provides vision model configuration and agent creation.
  */
 
+import type { LanguageModelV3 } from '@ai-sdk/provider';
+
 import { Agent } from '@convex-dev/agent';
 
-import { getFirstModel } from '../../../../lib/shared/utils/model-list';
 import { components } from '../../../_generated/api';
-import { getDefaultModel } from '../../../lib/agent_runtime_config';
 import { createDebugLog } from '../../../lib/debug_log';
-import { getEnvOptional } from '../../../lib/get_or_throw';
-import { openai } from '../../../lib/openai_provider';
 
 const debugLog = createDebugLog('DEBUG_IMAGE_ANALYSIS', '[VisionAgent]');
 
 /**
- * Get the vision model ID from environment variables
+ * Creates a vision agent for image analysis.
+ * The caller must resolve the language model via ctx.runAction before calling this.
  */
-export function getVisionModel(): string {
-  const visionModel = getFirstModel(process.env.OPENAI_VISION_MODEL);
-  if (visionModel) {
-    return visionModel;
-  }
-  return getDefaultModel();
-}
-
-/**
- * Creates a vision agent for image analysis
- */
-export function createVisionAgent(): Agent {
-  const visionModelId = getVisionModel();
-  debugLog('Creating vision agent', {
-    model: visionModelId,
-    baseUrl: getEnvOptional('OPENAI_BASE_URL'),
-  });
+export function createVisionAgent(languageModel: LanguageModelV3): Agent {
+  debugLog('Creating vision agent');
   return new Agent(components.agent, {
     name: 'vision-analyzer',
-    languageModel: openai.chatModel(visionModelId),
+    languageModel,
     instructions: `You are a vision AI that analyzes images and extracts information from them.
 
 Extract and transcribe visible text content accurately. Be specific - provide actual information visible, not just general descriptions.

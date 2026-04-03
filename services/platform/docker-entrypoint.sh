@@ -207,10 +207,6 @@ export BETTER_AUTH_URL="${BETTER_AUTH_URL}"
 # Encryption configuration
 export ENCRYPTION_SECRET_HEX="${ENCRYPTION_SECRET_HEX}"
 
-# LLM provider configuration
-export OPENAI_API_KEY="${OPENAI_API_KEY}"
-export OPENAI_BASE_URL="${OPENAI_BASE_URL}"
-
 # RAG database configuration
 # RAG and Crawler share the tale_knowledge database with separate schemas
 if [ -z "${RAG_DATABASE_URL:-}" ]; then
@@ -497,6 +493,32 @@ if [ -d "$integrations_builtin_dir" ] && [ "$(ls -A "$integrations_builtin_dir" 
   done
 fi
 
+# Seed builtin provider config files — skip providers the user has configured
+providers_dir="${PROVIDERS_DIR:-${data_dir}/providers}"
+providers_builtin_dir="/app/providers-builtin"
+mkdir -p "$providers_dir"
+if [ -d "$providers_builtin_dir" ] && [ "$(ls -A "$providers_builtin_dir" 2>/dev/null)" ]; then
+  for src in "$providers_builtin_dir"/*.json; do
+    [ -f "$src" ] || continue
+    name="$(basename "$src")"
+    # Skip encrypted secrets files
+    [[ "$name" == *.secrets.json ]] && continue
+    slug="$(basename "$src" .json)"
+    dest="$providers_dir/$name"
+    history_dir="$providers_dir/.history/$slug"
+    if [ "$FORCE_SEED" = "true" ]; then
+      cp "$src" "$dest"
+      echo "   ✓ Seeded provider $name (forced)"
+    elif [ -f "$dest" ]; then
+      echo "   ⏭ Skipping provider $name (already exists)"
+    elif [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
+      echo "   ⏭ Skipping provider $name (user has modifications in .history)"
+    else
+      cp "$src" "$dest"
+    fi
+  done
+fi
+
 # Clean up derived data that is safe to rebuild.
 # Search indexes and compiled modules are rebuilt automatically from the database.
 # User uploads (files/) are NEVER touched — they contain permanent user data.
@@ -589,14 +611,6 @@ deploy_convex_functions() {
     "SITE_URL"
     "BASE_PATH"
     "ENCRYPTION_SECRET_HEX"
-    "OPENAI_API_KEY"
-    "OPENAI_BASE_URL"
-    "OPENAI_MODEL"
-    "OPENAI_FAST_MODEL"
-    "OPENAI_VISION_MODEL"
-    "OPENAI_CODING_MODEL"
-    "OPENAI_EMBEDDING_MODEL"
-    "EMBEDDING_DIMENSIONS"
     "BETTER_AUTH_SECRET"
     "AUTH_MICROSOFT_ENTRA_ID_ID"
     "AUTH_MICROSOFT_ENTRA_ID_SECRET"
@@ -621,6 +635,8 @@ deploy_convex_functions() {
     "INTEGRATIONS_DIR"
     # Debug flag (enables all debug loggers when set to "true")
     "DEBUG_MODE"
+    # Age secret key for SOPS provider secret encryption/decryption
+    "SOPS_AGE_KEY"
   )
 
   # Fetch current env vars from Convex (output format: KEY=value per line)

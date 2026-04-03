@@ -9,7 +9,8 @@ import type { AnalyzeImageResult } from './analyze_image';
 
 import { components } from '../../../_generated/api';
 import { createDebugLog } from '../../../lib/debug_log';
-import { getVisionModel, createVisionAgent } from './vision_agent';
+import { resolveLanguageModel } from '../../../providers/resolve_model';
+import { createVisionAgent } from './vision_agent';
 
 const debugLog = createDebugLog('DEBUG_IMAGE_ANALYSIS', '[ImageAnalysis]');
 
@@ -30,16 +31,21 @@ export async function analyzeImageByUrl(
   params: AnalyzeImageByUrlParams,
 ): Promise<AnalyzeImageResult> {
   const { imageUrl, question } = params;
-  const visionModelId = getVisionModel();
 
   debugLog('analyzeImageByUrl starting', {
     imageUrl: imageUrl.slice(0, 100),
     question,
   });
 
+  // Resolve vision model from provider files
+  const { languageModel, modelData } = await resolveLanguageModel(ctx, {
+    tag: 'vision',
+  });
+  const visionModelId = modelData.modelId;
+
   try {
     // Create a vision agent
-    const visionAgent = createVisionAgent();
+    const visionAgent = createVisionAgent(languageModel);
 
     // Create a temporary thread for this analysis
     const thread = await ctx.runMutation(

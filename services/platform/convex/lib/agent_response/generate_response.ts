@@ -633,6 +633,20 @@ export async function generateAgentResponse(
           response: streamResponse,
         };
 
+        // Detect stream-level provider errors: the stream completed "successfully"
+        // at the transport level but produced no output and no steps — the error
+        // is only recorded in the stream deltas. Throw so the catch block can
+        // save a proper failed message for the user.
+        if (
+          !streamText?.trim() &&
+          (!streamSteps || streamSteps.length === 0) &&
+          streamFinishReason !== 'stop'
+        ) {
+          throw new Error(
+            `Generation produced no output (finishReason: ${streamFinishReason ?? 'undefined'})`,
+          );
+        }
+
         // Post-success abort check: direct DB query closes the 200ms
         // polling gap that the watcher flag alone can miss.
         const cancelCheck = await checkCancelled();
@@ -1312,29 +1326,11 @@ export async function generateAgentResponse(
     // State-driven cleanup: check DB state and act only if needed.
     // No heuristic error-message parsing — works regardless of cause.
 
-    // Single query for both aborted and streaming SDK streams, then
-    // partition locally to check cancellation and clean up zombies.
+    // Check cancelledAt on threadMetadata FIRST — this is the authoritative
+    // signal for user cancellation. Aborted SDK streams alone are NOT
+    // reliable: the SDK also aborts streams on provider errors (e.g. 403),
+    // which would be misidentified as user cancellation.
     let userCancelled = false;
-    let stuckStreams: StreamMessage[] = [];
-    try {
-      const allStreams = await listStreams(ctx, components.agent, {
-        threadId,
-        includeStatuses: ['aborted', 'streaming'],
-      });
-      userCancelled = allStreams.some(
-        (s) => s.status === 'aborted' && !baselineAbortedIds.has(s.streamId),
-      );
-      if (!userCancelled) {
-        stuckStreams = allStreams.filter((s) => s.status === 'streaming');
-      }
-    } catch (streamQueryError) {
-      console.error(
-        '[generateAgentResponse] Failed to query stream statuses:',
-        streamQueryError,
-      );
-    }
-
-    // Check cancelledAt on threadMetadata and resolve cancelledMessageId
     let cancelMeta: {
       cancelledAt?: number;
       cancelledMessageId?: string;
@@ -1344,17 +1340,42 @@ export async function generateAgentResponse(
         internal.threads.internal_queries.getThreadMetadata,
         { threadId },
       );
-      if (
-        !userCancelled &&
-        cancelMeta?.cancelledAt &&
-        cancelMeta.cancelledAt >= startTime
-      ) {
+      if (cancelMeta?.cancelledAt && cancelMeta.cancelledAt >= startTime) {
         userCancelled = true;
       }
     } catch (metaError) {
       console.error(
         '[generateAgentResponse] Failed to check cancelledAt:',
         metaError,
+      );
+    }
+
+    // Secondary check: new aborted SDK streams confirm cancellation only
+    // when thread metadata also indicates it, OR detect stuck streaming
+    // streams for cleanup.
+    let stuckStreams: StreamMessage[] = [];
+    try {
+      const allStreams = await listStreams(ctx, components.agent, {
+        threadId,
+        includeStatuses: ['aborted', 'streaming'],
+      });
+      if (
+        !userCancelled &&
+        allStreams.some(
+          (s) => s.status === 'aborted' && !baselineAbortedIds.has(s.streamId),
+        )
+      ) {
+        // Aborted stream found but no cancelledAt — this is an
+        // error-abort (e.g. provider 403), NOT user cancellation.
+        // Collect any still-streaming streams for cleanup.
+        stuckStreams = allStreams.filter((s) => s.status === 'streaming');
+      } else if (!userCancelled) {
+        stuckStreams = allStreams.filter((s) => s.status === 'streaming');
+      }
+    } catch (streamQueryError) {
+      console.error(
+        '[generateAgentResponse] Failed to query stream statuses:',
+        streamQueryError,
       );
     }
 
@@ -1450,8 +1471,30 @@ export async function generateAgentResponse(
         const newestAssistant = msgs.page.find(
           (m: MessageDoc) => m.message?.role === 'assistant',
         );
-        const hasFailedAssistant = newestAssistant?.status === 'failed';
-        if (!hasFailedAssistant) {
+        const failedContent =
+          'I was unable to complete your request. Please try again.';
+
+        if (newestAssistant?.status === 'failed') {
+          // Already marked as failed (e.g. by SDK's call.fail())
+          failedMessageId = newestAssistant._id;
+        } else if (newestAssistant?.status === 'pending') {
+          // Zombie pending message — the SDK created it but finalizeMessage
+          // crashed (e.g. provider 403 inside stream processing). Update it
+          // in-place to "failed" so the user sees the error.
+          await ctx.runMutation(components.agent.messages.updateMessage, {
+            messageId: newestAssistant._id,
+            patch: {
+              status: 'failed',
+              error: errorMessage || 'Unknown error',
+              message: {
+                role: 'assistant' as const,
+                content: failedContent,
+              },
+            },
+          });
+          failedMessageId = newestAssistant._id;
+        } else {
+          // No existing assistant message to update — create a new one
           const { messageId: failedMsgId } = await saveMessage(
             ctx,
             components.agent,
@@ -1459,8 +1502,7 @@ export async function generateAgentResponse(
               threadId,
               message: {
                 role: 'assistant',
-                content:
-                  'I was unable to complete your request. Please try again.',
+                content: failedContent,
               },
               metadata: {
                 status: 'failed',
@@ -1469,8 +1511,6 @@ export async function generateAgentResponse(
             },
           );
           failedMessageId = failedMsgId;
-        } else {
-          failedMessageId = newestAssistant._id;
         }
       } catch (saveError) {
         console.error(
@@ -1806,6 +1846,7 @@ const NON_RETRYABLE_FINISH_REASONS = new Set([
   'stop',
   'cancelled',
   'content-filter',
+  'error',
   'timeout-recovery',
   'timeout-recovery-failed',
 ]);

@@ -10,110 +10,88 @@ from app.config import Settings
 
 
 def _base_env():
-    """Minimum environment variables for a valid Settings."""
-    return {
-        "OPENAI_API_KEY": "sk-test",
-        "OPENAI_BASE_URL": "https://api.openai.com/v1",
-    }
+    """Minimum environment variables for a valid Settings (no OPENAI_* needed)."""
+    return {}
 
 
-class TestGetFastModelParsing:
-    def test_single_model_returned_as_is(self):
-        env = _base_env()
-        env["OPENAI_FAST_MODEL"] = "gpt-4o-mini"
-        with patch.dict(os.environ, env, clear=True):
+def _mock_chat_model():
+    return ("https://openrouter.ai/api/v1", "sk-test", "gpt-4o-mini")
+
+
+def _mock_embedding_model():
+    return ("https://openrouter.ai/api/v1", "sk-test", "text-embedding-3-small", 1536)
+
+
+def _mock_vision_model():
+    return ("https://openrouter.ai/api/v1", "sk-test", "gpt-4o")
+
+
+class TestGetFastModel:
+    @patch("tale_shared.config.base._provider_chat_model", return_value=_mock_chat_model())
+    def test_returns_model_from_provider(self, mock_provider):
+        with patch.dict(os.environ, _base_env(), clear=True):
             s = Settings()
             assert s.get_fast_model() == "gpt-4o-mini"
 
-    def test_comma_separated_returns_first_model(self):
-        env = _base_env()
-        env["OPENAI_FAST_MODEL"] = "gpt-4o-mini, gpt-4o, o1-mini"
-        with patch.dict(os.environ, env, clear=True):
+    @patch(
+        "tale_shared.config.base._provider_chat_model",
+        side_effect=ValueError("No chat model"),
+    )
+    def test_missing_provider_raises(self, mock_provider):
+        with patch.dict(os.environ, _base_env(), clear=True):
             s = Settings()
-            assert s.get_fast_model() == "gpt-4o-mini"
-
-    def test_crawler_prefixed_takes_priority(self):
-        env = _base_env()
-        env["CRAWLER_OPENAI_FAST_MODEL"] = "crawler-model, fallback"
-        env["OPENAI_FAST_MODEL"] = "generic-model"
-        with patch.dict(os.environ, env, clear=True):
-            s = Settings()
-            assert s.get_fast_model() == "crawler-model"
-
-    def test_falls_back_to_generic_env(self):
-        env = _base_env()
-        env["OPENAI_FAST_MODEL"] = "generic-fast, other"
-        with patch.dict(os.environ, env, clear=True):
-            s = Settings()
-            assert s.get_fast_model() == "generic-fast"
-
-    def test_missing_model_raises(self):
-        env = _base_env()
-        with patch.dict(os.environ, env, clear=True):
-            s = Settings()
-            with pytest.raises(ValueError, match="OPENAI_FAST_MODEL"):
+            with pytest.raises(ValueError, match="No chat model"):
                 s.get_fast_model()
 
 
-class TestGetVisionModelParsing:
-    def test_single_vision_model(self):
-        env = _base_env()
-        env["OPENAI_VISION_MODEL"] = "gpt-4o"
-        with patch.dict(os.environ, env, clear=True):
+class TestGetVisionModel:
+    @patch("tale_shared.config.base._provider_vision_model", return_value=_mock_vision_model())
+    def test_returns_model_from_provider(self, mock_provider):
+        with patch.dict(os.environ, _base_env(), clear=True):
             s = Settings()
             assert s.get_vision_model() == "gpt-4o"
 
-    def test_comma_separated_vision_model_returns_first(self):
-        env = _base_env()
-        env["OPENAI_VISION_MODEL"] = "gpt-4o, gpt-4o-mini"
-        with patch.dict(os.environ, env, clear=True):
+    @patch(
+        "tale_shared.config.base._provider_vision_model",
+        side_effect=ValueError("No vision model"),
+    )
+    def test_missing_provider_raises(self, mock_provider):
+        with patch.dict(os.environ, _base_env(), clear=True):
             s = Settings()
-            assert s.get_vision_model() == "gpt-4o"
-
-    def test_crawler_prefixed_vision_model_takes_priority(self):
-        env = _base_env()
-        env["CRAWLER_OPENAI_VISION_MODEL"] = "crawler-vision, fallback"
-        env["OPENAI_VISION_MODEL"] = "generic-vision"
-        with patch.dict(os.environ, env, clear=True):
-            s = Settings()
-            assert s.get_vision_model() == "crawler-vision"
-
-    def test_missing_vision_model_raises(self):
-        env = _base_env()
-        with patch.dict(os.environ, env, clear=True):
-            s = Settings()
-            with pytest.raises(ValueError, match="OPENAI_VISION_MODEL"):
+            with pytest.raises(ValueError, match="No vision model"):
                 s.get_vision_model()
 
 
 class TestGetEmbeddingDimensions:
-    def test_crawler_prefixed_takes_priority(self):
-        env = _base_env()
-        env["CRAWLER_EMBEDDING_DIMENSIONS"] = "768"
-        env["EMBEDDING_DIMENSIONS"] = "1536"
-        with patch.dict(os.environ, env, clear=True):
-            s = Settings()
-            assert s.get_embedding_dimensions() == 768
-
-    def test_falls_back_to_generic_env(self):
-        env = _base_env()
-        env["EMBEDDING_DIMENSIONS"] = "1536"
-        with patch.dict(os.environ, env, clear=True):
+    @patch("tale_shared.config.base._provider_embedding_model", return_value=_mock_embedding_model())
+    def test_returns_dimensions_from_provider(self, mock_provider):
+        with patch.dict(os.environ, _base_env(), clear=True):
             s = Settings()
             assert s.get_embedding_dimensions() == 1536
 
-    def test_missing_dimensions_raises(self):
-        env = _base_env()
-        with patch.dict(os.environ, env, clear=True):
+    @patch(
+        "tale_shared.config.base._provider_embedding_model",
+        return_value=("https://openrouter.ai/api/v1", "sk-test", "embed-model", 3072),
+    )
+    def test_large_dimensions(self, mock_provider):
+        with patch.dict(os.environ, _base_env(), clear=True):
             s = Settings()
-            with pytest.raises(ValueError, match="EMBEDDING_DIMENSIONS"):
+            assert s.get_embedding_dimensions() == 3072
+
+    @patch(
+        "tale_shared.config.base._provider_embedding_model",
+        side_effect=ValueError("No embedding model"),
+    )
+    def test_missing_provider_raises(self, mock_provider):
+        with patch.dict(os.environ, _base_env(), clear=True):
+            s = Settings()
+            with pytest.raises(ValueError, match="No embedding model"):
                 s.get_embedding_dimensions()
 
 
 class TestFrequencyDefaults:
     def test_conservative_defaults(self):
-        env = _base_env()
-        with patch.dict(os.environ, env, clear=True):
+        with patch.dict(os.environ, _base_env(), clear=True):
             s = Settings()
             assert s.poll_interval == 300
             assert s.max_concurrent_scans == 1
@@ -155,8 +133,7 @@ class TestFrequencyDefaults:
             Settings()
 
     def test_dead_settings_removed(self):
-        env = _base_env()
-        with patch.dict(os.environ, env, clear=True):
+        with patch.dict(os.environ, _base_env(), clear=True):
             s = Settings()
             assert not hasattr(s, "max_concurrent_crawls")
             assert not hasattr(s, "default_max_pages")

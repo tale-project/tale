@@ -87,6 +87,11 @@ export async function update(options: UpdateOptions): Promise<void> {
   for (const [relPath, content] of getEmbeddedExamples('branding')) {
     newExampleFiles.set(join('branding', relPath), content);
   }
+  for (const [relPath, content] of getEmbeddedExamples('providers')) {
+    if (!relPath.endsWith('.secrets.json')) {
+      newExampleFiles.set(join('providers', relPath), content);
+    }
+  }
 
   // Classify and apply changes
   const summary: UpdateSummary = {

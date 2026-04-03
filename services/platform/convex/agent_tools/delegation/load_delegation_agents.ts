@@ -46,11 +46,14 @@ export async function loadDelegateAgents(
         description: config.description ?? '',
         agentConfig,
         model: agentConfig.model ?? '',
-        provider: 'openai',
+        provider: agentConfig.provider,
         roleRestriction: config.roleRestriction,
       });
-    } catch {
-      // Skip unavailable delegate agents gracefully
+    } catch (err) {
+      console.warn(
+        `Delegate agent "${name}" unavailable, skipping.`,
+        err instanceof Error ? err.message : err,
+      );
     }
   }
 

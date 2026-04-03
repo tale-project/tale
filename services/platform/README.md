@@ -23,7 +23,6 @@ See compose.yml for the canonical list. Notable ones:
 - INSTANCE_SECRET (used by Convex)
 - CONVEX_URL, CONVEX_DASHBOARD_URL (internal HTTP URLs)
 - DB_URL, RAG_URL, CRAWLER_URL (internal DNS to services)
-- OPENAI_API_KEY (optional; surfaced to app logic where used)
 
 ## Running
 

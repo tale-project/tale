@@ -89,7 +89,7 @@ Bun.serve({
       return Response.json({ status: 'ok' });
     }
 
-    if (pathname === '/api/file-events') {
+    if (pathname === '/events/file') {
       const stream = new ReadableStream({
         start(controller) {
           sseClients.add(controller);

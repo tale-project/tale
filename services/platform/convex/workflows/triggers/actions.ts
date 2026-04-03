@@ -7,8 +7,7 @@ import { z } from 'zod/v4';
 
 import { action } from '../../_generated/server';
 import { authComponent } from '../../auth';
-import { getFastModel } from '../../lib/agent_runtime_config';
-import { openai } from '../../lib/openai_provider';
+import { resolveLanguageModel } from '../../providers/resolve_model';
 
 export const generateCronExpression = action({
   args: {
@@ -32,10 +31,11 @@ export const generateCronExpression = action({
       throw new Error('Please enter a schedule description.');
     }
 
-    const model = getFastModel();
+    // Resolve chat model from provider files
+    const { languageModel } = await resolveLanguageModel(ctx, { tag: 'chat' });
 
     const result = await generateObject({
-      model: openai.chatModel(model),
+      model: languageModel,
       temperature: 0.1,
       schema: z.object({
         cronExpression: z

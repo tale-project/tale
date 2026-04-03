@@ -23,6 +23,7 @@ export interface Message {
   isStreaming?: boolean;
   isAborted?: boolean;
   isFailed?: boolean;
+  error?: string;
   attachments?: FileAttachment[];
   fileParts?: FilePart[];
   threadId?: string;

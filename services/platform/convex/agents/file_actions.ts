@@ -12,9 +12,11 @@ import { v } from 'convex/values';
 import { mkdir, readdir, rm, unlink } from 'node:fs/promises';
 import path from 'node:path';
 
+import type { SerializableAgentConfig } from '../lib/agent_chat/types';
 import type { AgentJsonConfig, AgentReadResult } from './file_utils';
 
 import { agentJsonSchema } from '../../lib/shared/schemas/agents';
+import { internal } from '../_generated/api';
 import { action, internalAction } from '../_generated/server';
 import { authComponent } from '../auth';
 import {
@@ -102,7 +104,7 @@ export const listAgents = action({
             displayName: result.config.displayName,
             description: result.config.description,
             visibleInChat: result.config.visibleInChat,
-            modelPreset: result.config.modelPreset,
+            supportedModels: result.config.supportedModels,
             toolNames: result.config.toolNames,
             roleRestriction: result.config.roleRestriction,
             conversationStarters: result.config.conversationStarters,
@@ -379,6 +381,56 @@ export const readAgentForChat = internalAction({
   returns: v.any(),
   handler: async (_ctx, args): Promise<AgentReadResult> => {
     return readAgentFile(args.orgSlug, args.agentName);
+  },
+});
+
+/**
+ * Read agent config from filesystem, fetch DB binding, and return
+ * a fully resolved SerializableAgentConfig ready for the agent pipeline.
+ *
+ * This centralizes the read-parse-convert pattern so callers don't need
+ * Node.js filesystem access.
+ */
+export const resolveAgentConfig = internalAction({
+  args: {
+    orgSlug: v.string(),
+    agentSlug: v.string(),
+    organizationId: v.string(),
+    modelId: v.optional(v.string()),
+  },
+  returns: v.any(),
+  handler: async (ctx, args): Promise<SerializableAgentConfig> => {
+    const result = await readAgentFile(args.orgSlug, args.agentSlug);
+    if (!result.ok) {
+      throw new Error(`Agent not found: ${args.agentSlug} — ${result.message}`);
+    }
+
+    const binding = await ctx.runQuery(
+      internal.agents.internal_queries.getBindingByAgent,
+      {
+        organizationId: args.organizationId,
+        agentSlug: args.agentSlug,
+      },
+    );
+
+    const { toSerializableConfig } = await import('./config');
+    const config = toSerializableConfig(
+      args.agentSlug,
+      result.config,
+      binding
+        ? {
+            teamId: binding.teamId ?? undefined,
+            knowledgeFiles: binding.knowledgeFiles ?? undefined,
+          }
+        : undefined,
+    );
+
+    // Apply model override if requested and allowed by agent's supportedModels
+    if (args.modelId && result.config.supportedModels.includes(args.modelId)) {
+      config.model = args.modelId;
+    }
+
+    return config;
   },
 });
 

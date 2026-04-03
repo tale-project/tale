@@ -7,13 +7,15 @@
 import type { LLMNodeConfig } from '../../../../types/nodes';
 import type { NormalizedConfig } from '../types';
 
-import { getDefaultModel } from '../../../../../lib/agent_runtime_config';
-
 /**
- * Validates and normalizes the LLM node configuration
+ * Validates and normalizes the LLM node configuration.
+ *
+ * Model resolution is deferred to the action layer: the caller passes a
+ * `defaultModel` string that was resolved via the provider file_actions.
  */
 export function validateAndNormalizeConfig(
   rawConfig: LLMNodeConfig | { llmNode: LLMNodeConfig },
+  defaultModel?: string,
 ): NormalizedConfig {
   // Support both shapes: config.llmNode or config itself
   const llmConfig: LLMNodeConfig =
@@ -23,7 +25,13 @@ export function validateAndNormalizeConfig(
     throw new Error('Invalid LLM node configuration: systemPrompt is required');
   }
 
-  const envModel = getDefaultModel();
+  if (!defaultModel) {
+    throw new Error(
+      'Invalid LLM node configuration: defaultModel must be provided by the caller',
+    );
+  }
+
+  const envModel = defaultModel;
 
   // Validate outputSchema if provided
   if (llmConfig.outputSchema) {
@@ -66,9 +74,9 @@ export function validateAndNormalizeConfig(
     name: llmConfig.name || 'Workflow LLM',
     systemPrompt: llmConfig.systemPrompt,
     userPrompt: llmConfig.userPrompt || '',
-    // Model is controlled via the OPENAI_MODEL environment variable. We do not
-    // provide a fallback model: OPENAI_MODEL must be set explicitly in the
-    // Convex environment or LLM workflow steps will fail to run.
+    // Model is resolved from provider configuration files. We do not provide a
+    // fallback model: a valid provider config must exist or LLM workflow steps
+    // will fail to run.
     model: envModel,
     // Note: The following are intentionally not configurable in workflow definitions:
     // - maxTokens: uses model's default value

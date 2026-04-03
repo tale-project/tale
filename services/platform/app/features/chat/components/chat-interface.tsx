@@ -72,6 +72,7 @@ export function ChatInterface({
     clearChatState,
     pendingMessage,
     setPendingMessage,
+    selectedModelOverrides,
   } = useChatLayout();
 
   const effectiveAgent = useEffectiveAgent(organizationId);
@@ -305,6 +306,9 @@ export function ChatInterface({
       resetCancelled();
     },
     selectedAgent: effectiveAgent,
+    modelId: effectiveAgent?.name
+      ? selectedModelOverrides[effectiveAgent.name]
+      : undefined,
     userContext,
   });
 

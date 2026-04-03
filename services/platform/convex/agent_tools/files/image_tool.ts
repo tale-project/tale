@@ -15,7 +15,6 @@ import { createDebugLog } from '../../lib/debug_log';
 import { toId } from '../../lib/type_cast_helpers';
 import { analyzeImage } from './helpers/analyze_image';
 import { appendFilePart } from './helpers/append_file_part';
-import { getVisionModel } from './helpers/vision_agent';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 
@@ -192,7 +191,7 @@ To also save the file to a folder in the documents hub, call document_write with
             operation: 'analyze',
             success: false,
             analysis: '',
-            model: getVisionModel(),
+            model: 'unknown',
             error: errorMessage,
           };
         }

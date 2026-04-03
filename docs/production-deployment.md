@@ -46,7 +46,6 @@ HOST=yourdomain.com
 SITE_URL=https://yourdomain.com
 TLS_MODE=letsencrypt
 TLS_EMAIL=admin@yourdomain.com
-OPENAI_API_KEY=your-api-key
 DB_PASSWORD=a-strong-database-password
 ```
 

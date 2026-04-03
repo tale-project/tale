@@ -40,7 +40,7 @@ export interface DelegateAgentMeta {
   description: string;
   agentConfig: SerializableAgentConfig;
   model: string;
-  provider: string;
+  provider?: string;
   roleRestriction?: 'admin_developer';
 }
 

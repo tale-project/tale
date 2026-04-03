@@ -25,6 +25,7 @@ import type { FileAttachment } from '../hooks/use-convex-file-upload';
 
 import { AgentSelector } from './agent-selector';
 import { ImagePreviewDialog } from './message-bubble';
+import { ModelSelector } from './model-selector';
 
 interface ChatInputProps extends Omit<
   ComponentPropsWithoutRef<'div'>,
@@ -312,8 +313,9 @@ export function ChatInput({
                 <Paperclip className="size-4" />
               </Button>
             </Tooltip>
-            <HStack gap={2} align="center">
+            <HStack gap={3} align="center">
               <AgentSelector organizationId={organizationId} />
+              <ModelSelector organizationId={organizationId} />
               <Button
                 type="button"
                 onClick={isLoading ? onStopGenerating : handleSendMessage}

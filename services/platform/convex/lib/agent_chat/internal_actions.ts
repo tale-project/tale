@@ -37,6 +37,10 @@ import {
   sanitizeWorkflowName,
 } from '../../agent_tools/workflows/create_bound_workflow_tool';
 import { extractInputSchema } from '../../agent_tools/workflows/helpers/extract_input_schema';
+import {
+  resolveLanguageModel,
+  resolveLanguageModelById,
+} from '../../providers/resolve_model';
 import { generateAgentResponse } from '../agent_response';
 import {
   estimateTokens,
@@ -62,9 +66,9 @@ const serializableAgentConfigValidator = v.object({
   integrationBindings: v.optional(v.array(v.string())),
   workflowBindings: v.optional(v.array(v.string())),
   model: v.optional(v.string()),
+  provider: v.optional(v.string()),
   maxSteps: v.optional(v.number()),
   outputFormat: v.optional(v.union(v.literal('text'), v.literal('json'))),
-  enableVectorSearch: v.optional(v.boolean()),
   knowledgeMode: v.optional(
     v.union(
       v.literal('off'),
@@ -102,7 +106,7 @@ export const runAgentGeneration = internalAction({
     agentType: v.string(),
     agentConfig: serializableAgentConfigValidator,
     model: v.string(),
-    provider: v.string(),
+    provider: v.optional(v.string()),
     debugTag: v.string(),
     enableStreaming: v.optional(v.boolean()),
     hooks: v.optional(hooksConfigValidator),
@@ -146,7 +150,7 @@ export const runAgentGeneration = internalAction({
       agentType: agentTypeStr,
       agentConfig,
       model,
-      provider,
+      provider: _provider,
       debugTag,
       enableStreaming,
       hooks: hooksConfig,
@@ -277,26 +281,33 @@ export const runAgentGeneration = internalAction({
       ? agentConfig.instructions + delegationInstructionsAppend
       : agentConfig.instructions;
 
+    // Resolve model from provider files
+    const modelId = model === 'default' ? undefined : model;
+    const { languageModel, modelData } = modelId
+      ? await resolveLanguageModelById(ctx, {
+          modelId,
+          providerName: agentConfig.provider,
+        })
+      : await resolveLanguageModel(ctx, {
+          tag: 'chat',
+          providerName: agentConfig.provider,
+        });
+    const resolvedProvider = modelData.providerName;
+
     // Create agent factory function from serializable config
-    const createAgent = (options?: Record<string, unknown>) => {
+    const createAgent = () => {
       const config = createAgentConfig({
         name: agentConfig.name,
         instructions: finalInstructions,
+        languageModel,
         convexToolNames: agentConfig.convexToolNames
           ? agentConfig.convexToolNames.filter((n): n is ToolName =>
               (TOOL_NAMES as readonly string[]).includes(n),
             )
           : undefined,
         extraTools: allExtraTools,
-        model:
-          (typeof options?.model === 'string' ? options.model : undefined) ??
-          agentConfig.model,
-        maxSteps:
-          (typeof options?.maxSteps === 'number'
-            ? options.maxSteps
-            : undefined) ?? agentConfig.maxSteps,
+        maxSteps: agentConfig.maxSteps,
         outputFormat: agentConfig.outputFormat,
-        enableVectorSearch: agentConfig.enableVectorSearch,
       });
       return new Agent(components.agent, config);
     };
@@ -318,7 +329,7 @@ export const runAgentGeneration = internalAction({
           agentType,
           createAgent,
           model,
-          provider,
+          provider: resolvedProvider,
           debugTag,
           enableStreaming,
           hooks,

@@ -12,7 +12,6 @@ import { jsonRecordValidator } from '../../../lib/shared/schemas/utils/json-valu
 import { components, internal } from '../../_generated/api';
 import { internalMutation } from '../../_generated/server';
 import { createApproval } from '../../approvals/helpers';
-import { getDefaultAgentRuntimeConfig } from '../../lib/agent_runtime_config';
 import { checkOrganizationRateLimit } from '../../lib/rate_limiter/helpers';
 import { persistentStreaming } from '../../streaming/helpers';
 import { stepConfigValidator } from '../../workflow_engine/types/nodes';
@@ -107,7 +106,6 @@ export const triggerWorkflowCompletionResponse = internalMutation({
       },
     );
 
-    const { model, provider } = getDefaultAgentRuntimeConfig();
     const streamId = await persistentStreaming.createStream(ctx);
 
     if (threadMeta) {
@@ -123,8 +121,8 @@ export const triggerWorkflowCompletionResponse = internalMutation({
       {
         agentType: 'custom',
         agentConfig,
-        model: agentConfig.model ?? model,
-        provider,
+        model: agentConfig.model ?? 'default',
+        provider: agentConfig.provider,
         debugTag: `[${agentSlug}:WorkflowComplete]`,
         enableStreaming: true,
         threadId,
