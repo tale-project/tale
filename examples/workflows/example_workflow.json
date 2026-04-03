@@ -1,0 +1,44 @@
+{
+  "name": "Example Workflow",
+  "description": "A simple example workflow that generates a friendly greeting using AI",
+  "installed": true,
+  "enabled": true,
+  "steps": [
+    {
+      "stepSlug": "start",
+      "name": "Start",
+      "stepType": "start",
+      "order": 0,
+      "config": {},
+      "nextSteps": {
+        "success": "greet"
+      }
+    },
+    {
+      "stepSlug": "greet",
+      "name": "Generate Greeting",
+      "stepType": "llm",
+      "order": 1,
+      "config": {
+        "name": "Greeter",
+        "outputFormat": "text",
+        "systemPrompt": "You are a friendly assistant. Greet the user warmly and wish them a productive day. Keep it brief and cheerful."
+      },
+      "nextSteps": {
+        "success": "finish"
+      }
+    },
+    {
+      "stepSlug": "finish",
+      "name": "Return Greeting",
+      "stepType": "output",
+      "order": 2,
+      "config": {
+        "mapping": {
+          "greeting": "{{steps.greet.output.data}}"
+        }
+      },
+      "nextSteps": {}
+    }
+  ]
+}

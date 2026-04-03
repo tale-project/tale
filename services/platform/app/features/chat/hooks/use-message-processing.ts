@@ -1,4 +1,5 @@
 import { useUIMessages, type UIMessage } from '@convex-dev/agent/react';
+import { useQuery } from 'convex/react';
 import { useEffect, useMemo, useRef } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
@@ -67,6 +68,8 @@ export interface ChatMessage {
   _creationTime?: number;
   isStreaming?: boolean;
   isAborted?: boolean;
+  isFailed?: boolean;
+  error?: string;
   systemMessageDisplay?: SystemMessageDisplay;
   systemMessageBody?: string;
 }
@@ -105,6 +108,14 @@ export function useMessageProcessing(
     // @ts-expect-error -- Convex agent SDK StreamQuery conditional type doesn't resolve correctly with generated API types; stream: true is valid at runtime
     stream: true,
   });
+
+  // Separate lightweight query for error strings of failed messages.
+  // Kept out of the streaming query to avoid .map()-ing UIMessages (which
+  // creates new object references and breaks React/SDK dedup).
+  const messageErrors = useQuery(
+    api.threads.queries.getFailedMessageErrors,
+    threadId ? { threadId } : 'skip',
+  );
 
   const isLoadingMore = paginationStatus === 'LoadingMore';
 
@@ -259,6 +270,7 @@ export function useMessageProcessing(
             m.role === 'assistant' && m.status === 'failed' && !m.text?.trim(),
           isFailed:
             m.role === 'assistant' && m.status === 'failed' && !!m.text?.trim(),
+          error: messageErrors?.[m.id],
           systemMessageDisplay,
           systemMessageBody,
         };
@@ -316,7 +328,7 @@ export function useMessageProcessing(
         if (!extra) return msg;
         return { ...msg, fileParts: [...(msg.fileParts ?? []), ...extra] };
       });
-  }, [uiMessages]);
+  }, [uiMessages, messageErrors]);
 
   // Find active assistant message (streaming or pending tool execution).
   // Unified lookup ensures ThinkingAnimation receives tool parts during both phases.
