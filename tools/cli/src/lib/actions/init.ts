@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
+import { stringify } from 'yaml';
 
 import pkg from '../../../package.json';
 import * as logger from '../../utils/logger';
@@ -122,11 +123,34 @@ export async function init(options: InitOptions): Promise<void> {
   // Ensure .gitignore
   await ensureGitignore(target);
 
+  // Copy provider configs (public JSON only, not encrypted secrets)
+  logger.step('Copying provider configurations...');
+  const providerFiles = getEmbeddedExamples('providers');
+  const providerConfigFiles = new Map<string, string>();
+  for (const [relPath, content] of providerFiles) {
+    if (!relPath.endsWith('.secrets.json')) {
+      providerConfigFiles.set(relPath, content);
+    }
+  }
+  await writeEmbeddedFiles(providerConfigFiles, join(target, 'providers'));
+
   // .env setup
+  let agePublicKey: string | undefined;
   if (!options.noEnv) {
     const { ensureEnv } = await import('../config/ensure-env');
     logger.blank();
-    await ensureEnv({ deployDir: target, skipIfExists: true });
+    const result = await ensureEnv({ deployDir: target, skipIfExists: true });
+    agePublicKey = result.agePublicKey;
+  }
+
+  // Write .sops.yaml if age keypair was generated
+  if (agePublicKey) {
+    logger.step('Writing SOPS encryption config...');
+    const sopsConfig = stringify({
+      creation_rules: [{ path_regex: '\\.secrets\\.json$', age: agePublicKey }],
+    });
+    await writeFile(join(target, '.sops.yaml'), sopsConfig);
+    await writeFile(join(target, 'providers', '.sops.yaml'), sopsConfig);
   }
 
   logger.blank();
@@ -138,6 +162,7 @@ export async function init(options: InitOptions): Promise<void> {
     ['Agents', `${agentFiles.size} files`],
     ['Workflows', `${workflowFiles.size} files`],
     ['Integrations', `${integrationFiles.size} files`],
+    ['Providers', `${providerConfigFiles.size} files`],
     ['Branding', '1 file'],
   ]);
   logger.blank();
@@ -150,6 +175,9 @@ export async function init(options: InitOptions): Promise<void> {
   }
   logger.info(
     `  ${step++}. Edit agents/, workflows/, integrations/, and branding/ to customize your setup`,
+  );
+  logger.info(
+    `  ${step++}. Configure provider API keys in the management UI after starting`,
   );
   logger.info(
     `  ${step++}. Open the project in an AI-powered editor (Claude Code, Cursor, Copilot, or Windsurf) for guided config creation`,

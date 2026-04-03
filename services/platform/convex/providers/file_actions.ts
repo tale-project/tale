@@ -109,18 +109,14 @@ async function loadAllProviders(
     try {
       const raw = await decryptSecretsFile(secretsPath);
       secrets = parseProviderSecrets(raw);
-    } catch (err) {
-      throw new Error(
-        `Failed to load secrets for provider "${providerName}": ${err instanceof Error ? err.message : String(err)}`,
-        { cause: err },
+    } catch {
+      console.warn(
+        `Provider "${providerName}": secrets not available, skipping. Configure the API key in the management UI.`,
       );
+      continue;
     }
 
     providers.push({ name: providerName, config: result.data, secrets });
-  }
-
-  if (providers.length === 0) {
-    throw new Error('No valid providers could be loaded.');
   }
 
   return providers;

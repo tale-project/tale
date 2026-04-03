@@ -111,7 +111,7 @@ async function runFirstRunSetup(): Promise<string> {
   logger.info(`Deployment directory: ${deployDir}`);
   logger.info(`Config file: ${getConfigFilePath()}`);
 
-  const envSetupSuccess = await ensureEnv({ deployDir });
+  const { success: envSetupSuccess } = await ensureEnv({ deployDir });
   if (!envSetupSuccess) {
     process.exit(1);
   }
