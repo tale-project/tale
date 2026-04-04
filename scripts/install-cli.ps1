@@ -52,7 +52,7 @@ try {
     $httpClient.DefaultRequestHeaders.Add("User-Agent", "tale-installer/1.0")
     $httpClient.Timeout = [timespan]::FromMinutes(10)
     $response = $httpClient.GetAsync($url, [System.Net.Http.HttpCompletionOption]::ResponseHeadersRead).GetAwaiter().GetResult()
-    $response.EnsureSuccessStatusCode()
+    [void]$response.EnsureSuccessStatusCode()
 
     $totalBytes = $response.Content.Headers.ContentLength
     $stream = $response.Content.ReadAsStreamAsync().GetAwaiter().GetResult()
