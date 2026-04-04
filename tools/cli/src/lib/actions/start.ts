@@ -172,8 +172,11 @@ export async function start(options: StartOptions): Promise<void> {
 
     if (!result.success) {
       abortController.abort();
-      logger.error('Failed to start services');
-      throw new Error('Start failed');
+      if (result.exitCode !== 130) {
+        logger.error('Failed to start services');
+        throw new Error('Start failed');
+      }
+      return;
     }
 
     const healthy = await browserTask;
@@ -265,7 +268,8 @@ export async function start(options: StartOptions): Promise<void> {
   await browserTask;
   header.cleanup();
 
-  if (!result.success) {
+  // Exit code 130 = SIGINT (Ctrl+C) — normal user-initiated shutdown
+  if (!result.success && result.exitCode !== 130) {
     logger.error('Failed to start services');
     if (result.stderr) logger.error(result.stderr);
     throw new Error('Start failed');

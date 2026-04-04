@@ -9,7 +9,7 @@ import { deriveAgePublicKey, generateAgeKeypair } from '../crypto/age-keygen';
 
 function listTaleVolumes(): string[] {
   try {
-    const result = execSync('docker volume ls --filter name=tale -q', {
+    const result = execSync('docker volume ls --filter name=tale-dev -q', {
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'ignore'],
     });
@@ -260,7 +260,7 @@ async function runEnvSetup(envPath: string): Promise<EnvSetupResult> {
   if (existingVolumes.length > 0) {
     const { confirm } = await import('@inquirer/prompts');
     logger.blank();
-    logger.warn(`Found ${existingVolumes.length} existing Tale volume(s):`);
+    logger.warn(`Found ${existingVolumes.length} existing Tale dev volume(s):`);
     for (const v of existingVolumes) {
       logger.info(`  - ${v}`);
     }
@@ -276,13 +276,6 @@ async function runEnvSetup(envPath: string): Promise<EnvSetupResult> {
       return { success: false };
     }
     logger.step('Stopping Tale containers...');
-    try {
-      execSync('docker compose -p tale down --remove-orphans', {
-        stdio: 'ignore',
-      });
-    } catch (err) {
-      logger.debug(`Failed to stop tale containers: ${err}`);
-    }
     try {
       execSync('docker compose -p tale-dev down --remove-orphans', {
         stdio: 'ignore',
