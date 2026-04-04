@@ -1,4 +1,5 @@
 import { mkdir, unlink, writeFile } from 'node:fs/promises';
+import { dirname } from 'node:path';
 
 import * as logger from '../../utils/logger';
 import { getLockFilePath } from './get-lock-file-path';
@@ -46,7 +47,7 @@ export async function acquireLock(
   };
 
   try {
-    await mkdir(deployDir, { recursive: true });
+    await mkdir(dirname(lockPath), { recursive: true });
     await writeFile(lockPath, JSON.stringify(lockInfo, null, 2), {
       flag: 'wx',
     });

@@ -92,11 +92,13 @@ async function loadAllProviders(
   }
 
   const providers: ProviderWithSecrets[] = [];
+  const skippedReasons: string[] = [];
 
   for (const fileName of jsonFiles) {
     const providerName = path.basename(fileName, '.json');
     if (!validateProviderName(providerName)) {
       console.warn(`Provider "${providerName}": invalid name, skipping.`);
+      skippedReasons.push(`${providerName}: invalid name`);
       continue;
     }
 
@@ -108,6 +110,7 @@ async function loadAllProviders(
     );
     if (!result.ok) {
       console.warn(`Provider "${providerName}": ${result.message}, skipping.`);
+      skippedReasons.push(`${providerName}: ${result.message}`);
       continue;
     }
 
@@ -117,14 +120,24 @@ async function loadAllProviders(
       const raw = await decryptSecretsFile(secretsPath);
       secrets = parseProviderSecrets(raw);
     } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
       console.warn(
         `Provider "${providerName}": secrets not available, skipping.`,
-        err instanceof Error ? err.message : err,
+        reason,
       );
+      skippedReasons.push(`${providerName}: ${reason}`);
       continue;
     }
 
     providers.push({ name: providerName, config: result.data, secrets });
+  }
+
+  if (providers.length === 0 && skippedReasons.length > 0) {
+    throw new Error(
+      `All ${skippedReasons.length} provider(s) failed to load:\n` +
+        skippedReasons.join('\n') +
+        '\nEnsure API keys are configured and SOPS_AGE_KEY is set.',
+    );
   }
 
   return providers;

@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 
 import { cleanup } from '../lib/actions/cleanup';
-import { ensureConfig } from '../lib/config/ensure-config';
+import { requireProject } from '../lib/project/find-project';
 import { loadEnv } from '../utils/load-env';
 import * as logger from '../utils/logger';
 
@@ -10,8 +10,8 @@ export function createCleanupCommand(): Command {
     .description('Remove inactive (non-current) color containers')
     .action(async () => {
       try {
-        const deployDir = await ensureConfig();
-        const env = loadEnv(deployDir);
+        const projectDir = requireProject();
+        const env = loadEnv(projectDir);
         await cleanup({ env });
       } catch (err) {
         logger.error(err instanceof Error ? err.message : String(err));

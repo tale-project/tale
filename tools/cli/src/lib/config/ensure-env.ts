@@ -1,11 +1,11 @@
 import { execSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { readFile, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 
 import * as logger from '../../utils/logger';
-import { generateAgeKeypair } from '../crypto/age-keygen';
+import { deriveAgePublicKey, generateAgeKeypair } from '../crypto/age-keygen';
 
 function listTaleVolumes(): string[] {
   try {
@@ -34,9 +34,23 @@ function generatePassword(): string {
   return randomBytes(16).toString('base64url');
 }
 
+/** Parse a .env file into a key-value map (ignores comments and blank lines). */
+function parseEnvFile(content: string): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const line of content.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eqIdx = trimmed.indexOf('=');
+    if (eqIdx === -1) continue;
+    const key = trimmed.slice(0, eqIdx).trim();
+    const value = trimmed.slice(eqIdx + 1).trim();
+    if (key) env[key] = value;
+  }
+  return env;
+}
+
 interface EnvSetupOptions {
   deployDir: string;
-  skipIfExists?: boolean;
 }
 
 interface EnvSetupResult {
@@ -51,11 +65,38 @@ export async function ensureEnv(
   const envPath = join(options.deployDir, '.env');
 
   if (existsSync(envPath)) {
-    if (options.skipIfExists) {
-      return { success: true };
+    // Parse existing .env and check for missing required variables
+    const content = await readFile(envPath, 'utf-8');
+    const existing = parseEnvFile(content);
+
+    const requiredVars = [
+      'HOST',
+      'SITE_URL',
+      'TLS_MODE',
+      'BETTER_AUTH_SECRET',
+      'ENCRYPTION_SECRET_HEX',
+      'INSTANCE_SECRET',
+      'DB_PASSWORD',
+      'SOPS_AGE_KEY',
+    ];
+    const missing = requiredVars.filter((v) => !existing[v]);
+
+    if (missing.length === 0) {
+      // All required vars present — derive public key for caller
+      const agePublicKey = deriveAgePublicKey(existing.SOPS_AGE_KEY);
+      return { success: true, agePublicKey };
     }
-    logger.debug(`Environment file already exists at ${envPath}`);
-    return { success: true };
+
+    if (!isTTY) {
+      logger.warn(
+        `Existing .env is missing required variables: ${missing.join(', ')}`,
+      );
+      logger.info('Run the CLI interactively to complete environment setup.');
+      return { success: false };
+    }
+
+    // Fill in only the missing variables
+    return await runPartialEnvSetup(envPath, existing, missing);
   }
 
   if (!isTTY) {
@@ -65,12 +106,150 @@ export async function ensureEnv(
     logger.blank();
     logger.info('Run the CLI interactively to set up your environment,');
     logger.info('or create the .env file manually.');
-    logger.blank();
-    logger.info('You can copy from .env.example in the project root.');
     return { success: false };
   }
 
   return await runEnvSetup(envPath);
+}
+
+/**
+ * Fill in missing variables in an existing .env file.
+ */
+async function runPartialEnvSetup(
+  envPath: string,
+  existing: Record<string, string>,
+  missing: string[],
+): Promise<EnvSetupResult> {
+  const { input, password, select } = await import('@inquirer/prompts');
+
+  logger.blank();
+  logger.header('Environment Setup (partial)');
+  logger.info('Existing .env found — filling in missing variables.');
+  logger.blank();
+
+  const updates: Record<string, string> = {};
+  let openrouterKey: string | undefined;
+
+  // Domain configuration
+  if (missing.includes('HOST')) {
+    updates.HOST = await input({
+      message: 'Enter your domain (without protocol):',
+      default: 'localhost',
+      validate: (v) => {
+        if (!v.trim()) return 'Domain cannot be empty';
+        if (v.includes('://'))
+          return 'Enter domain only, without protocol (e.g., demo.tale.dev)';
+        return true;
+      },
+    });
+    updates.SITE_URL = `https://${updates.HOST}`;
+  } else {
+    logger.info(`Using existing HOST=${existing.HOST}`);
+    if (missing.includes('SITE_URL')) {
+      updates.SITE_URL = `https://${existing.HOST}`;
+    }
+  }
+
+  // TLS configuration
+  if (missing.includes('TLS_MODE')) {
+    updates.TLS_MODE = await select({
+      message: 'Select TLS/SSL mode:',
+      choices: [
+        {
+          name: 'selfsigned (development)',
+          value: 'selfsigned',
+          description: 'Self-signed certificates, browser will show warning',
+        },
+        {
+          name: 'letsencrypt (production)',
+          value: 'letsencrypt',
+          description: 'Free trusted certificates, requires public domain',
+        },
+      ],
+      default: 'selfsigned',
+    });
+    if (updates.TLS_MODE === 'letsencrypt' && !existing.TLS_EMAIL) {
+      updates.TLS_EMAIL = await input({
+        message: "Enter email for Let's Encrypt notifications:",
+        validate: (v) => {
+          if (!v.trim()) return "Email is required for Let's Encrypt";
+          if (!v.includes('@')) return 'Please enter a valid email address';
+          return true;
+        },
+      });
+    }
+  } else {
+    logger.info(`Using existing TLS_MODE=${existing.TLS_MODE}`);
+  }
+
+  // Auto-generate missing secrets
+  const secretDefaults: Record<string, () => string> = {
+    BETTER_AUTH_SECRET: generateBase64Secret,
+    ENCRYPTION_SECRET_HEX: generateHexSecret,
+    INSTANCE_SECRET: generateHexSecret,
+    DB_PASSWORD: generatePassword,
+  };
+
+  let generatedCount = 0;
+  for (const [key, generator] of Object.entries(secretDefaults)) {
+    if (missing.includes(key)) {
+      updates[key] = generator();
+      generatedCount++;
+    }
+  }
+  if (generatedCount > 0) {
+    logger.info(`Generated ${generatedCount} missing secret(s).`);
+  }
+
+  // SOPS age key
+  let sopsAgeKey = existing.SOPS_AGE_KEY;
+  if (missing.includes('SOPS_AGE_KEY')) {
+    const keypair = generateAgeKeypair();
+    updates.SOPS_AGE_KEY = keypair.secretKey;
+    sopsAgeKey = keypair.secretKey;
+    logger.info('Generated age encryption keypair for provider secrets.');
+  }
+
+  // OpenRouter API key (prompt if no secrets file exists)
+  const secretsPath = join(
+    dirname(envPath),
+    'providers',
+    'openrouter.secrets.json',
+  );
+  if (!existsSync(secretsPath)) {
+    logger.blank();
+    logger.header('API Configuration');
+    openrouterKey = await password({
+      message: 'Enter your OpenRouter API key (from https://openrouter.ai):',
+      mask: '*',
+      validate: (v) => {
+        if (!v.trim()) return 'OpenRouter API key is required';
+        return true;
+      },
+    });
+  }
+
+  // Surgically append missing variables to the existing .env (preserves all original content)
+  const existingContent = await readFile(envPath, 'utf-8');
+  const appendLines: string[] = [];
+  for (const [key, value] of Object.entries(updates)) {
+    appendLines.push(`${key}=${value}`);
+  }
+  if (appendLines.length > 0) {
+    const separator = existingContent.endsWith('\n') ? '' : '\n';
+    await writeFile(
+      envPath,
+      existingContent + separator + appendLines.join('\n') + '\n',
+      'utf-8',
+    );
+  }
+
+  logger.blank();
+  logger.success('Environment file updated!');
+  logger.blank();
+
+  const agePublicKey = deriveAgePublicKey(sopsAgeKey);
+  return { success: true, agePublicKey, openrouterKey };
 }
 
 async function runEnvSetup(envPath: string): Promise<EnvSetupResult> {

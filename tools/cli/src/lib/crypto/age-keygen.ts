@@ -30,3 +30,18 @@ export function generateAgeKeypair(): AgeKeypair {
 
   return { secretKey, publicKey };
 }
+
+/**
+ * Derive the age public key from an existing secret key string.
+ */
+export function deriveAgePublicKey(secretKey: string): string {
+  const lowercase = secretKey.toLowerCase();
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- The age secret key format always contains a bech32 separator
+  const decoded = bech32.decode(lowercase as `${string}1${string}`, false);
+  if (decoded.prefix !== SECRET_HRP) {
+    throw new Error(`Invalid age secret key prefix: "${decoded.prefix}"`);
+  }
+  const secretBytes = bech32.fromWords(decoded.words);
+  const publicBytes = x25519.getPublicKey(new Uint8Array(secretBytes));
+  return bech32.encode(PUBLIC_HRP, bech32.toWords(publicBytes));
+}
