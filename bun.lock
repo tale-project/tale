@@ -50,7 +50,7 @@
         "@convex-dev/workflow": "0.3.9",
         "@convex-dev/workpool": "0.4.6",
         "@hookform/resolvers": "5.2.2",
-        "@microlink/react-json-view": "1.31.15",
+        "@microlink/react-json-view": "1.31.16",
         "@milkdown/crepe": "7.18.0",
         "@milkdown/react": "7.18.0",
         "@noble/curves": "^1.8.0",
@@ -203,6 +203,10 @@
       },
     },
   },
+  "trustedDependencies": [
+    "esbuild",
+    "core-js-pure",
+  ],
   "overrides": {
     "magic-string": "^0.30.17",
     "react-is": "^19.2.4",
@@ -614,7 +618,7 @@
 
     "@mdx-js/react": ["@mdx-js/react@3.1.1", "", { "dependencies": { "@types/mdx": "^2.0.0" }, "peerDependencies": { "@types/react": ">=16", "react": ">=16" } }, "sha512-f++rKLQgUVYDAtECQ6fn/is15GkEH9+nZPM3MS0RcxVqoTfawHvDlSCH7JbMhAM6uJ32v3eXLvLmLvjGu7PTQw=="],
 
-    "@microlink/react-json-view": ["@microlink/react-json-view@1.31.15", "", { "dependencies": { "react-base16-styling": "~0.10.0", "react-lifecycles-compat": "~3.0.4", "react-textarea-autosize": "~8.5.9" }, "peerDependencies": { "react": ">= 15", "react-dom": ">= 15" } }, "sha512-HSgO8uzwPICgQuU5C9/pV8hhKa4EeQCOlSOWnICR9t1WlJpFXvOiJfWZljbZQvWsTYZdhbHbnkRySMNLXuT0Lg=="],
+    "@microlink/react-json-view": ["@microlink/react-json-view@1.31.16", "", { "dependencies": { "react-base16-styling": "~0.10.0", "react-lifecycles-compat": "~3.0.4", "react-textarea-autosize": "~8.5.9" }, "peerDependencies": { "react": ">= 15", "react-dom": ">= 15" } }, "sha512-kdNBn9u1mCBnO4DY7GPHSzHqzNKnRmO/85KFEscU/xxPA0FFNfSgCtqtKk/j/FOk8EkRpAdotj2MMDBRrs774w=="],
 
     "@milkdown/components": ["@milkdown/components@7.18.0", "", { "dependencies": { "@floating-ui/dom": "^1.5.1", "@milkdown/core": "7.18.0", "@milkdown/ctx": "7.18.0", "@milkdown/exception": "7.18.0", "@milkdown/plugin-tooltip": "7.18.0", "@milkdown/preset-commonmark": "7.18.0", "@milkdown/preset-gfm": "7.18.0", "@milkdown/prose": "7.18.0", "@milkdown/transformer": "7.18.0", "@milkdown/utils": "7.18.0", "@types/lodash-es": "^4.17.12", "clsx": "^2.0.0", "dompurify": "^3.2.5", "lodash-es": "^4.17.21", "nanoid": "^5.0.9", "unist-util-visit": "^5.0.0", "vue": "^3.5.20" }, "peerDependencies": { "@codemirror/language": "^6", "@codemirror/state": "^6", "@codemirror/view": "^6" } }, "sha512-Zu/GMqy1byyxul/+/RWcpe02b7luhtW1SfTYNFZnaWPvIap5M9vG7pFeQNRqJe5cbfKI+bvW8Ubyb5BG2kb9Ug=="],
 
