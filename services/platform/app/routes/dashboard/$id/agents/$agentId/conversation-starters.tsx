@@ -1,20 +1,13 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { Reorder } from 'framer-motion';
-import {
-  ChevronDown,
-  ChevronUp,
-  GripVertical,
-  Languages,
-  Loader2,
-  Plus,
-  X,
-} from 'lucide-react';
+import { Languages, Loader2, Plus } from 'lucide-react';
 import { useState, useCallback, useEffect, useMemo } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
+import { ReorderList } from '@/app/components/ui/forms/reorder-list';
 import { StickySectionHeader } from '@/app/components/ui/layout/sticky-section-header';
+import { LocaleTabs } from '@/app/components/ui/navigation/locale-tabs';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useTranslateAgentFields } from '@/app/features/agents/hooks/mutations';
 import { useAgentConfig } from '@/app/features/agents/hooks/use-agent-config-context';
@@ -26,7 +19,7 @@ import {
   MAX_CONVERSATION_STARTERS,
   SUPPORTED_AGENT_LOCALES,
 } from '@/lib/shared/constants/agents';
-import { cn } from '@/lib/utils/cn';
+import { getOrganizationDefaultLocale } from '@/lib/shared/utils/get-organization-default-locale';
 import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute(
@@ -51,11 +44,8 @@ function toStrings(items: StarterItem[]): string[] {
   return items.map((item) => item.text);
 }
 
-import { getOrganizationDefaultLocale } from '@/lib/shared/utils/get-organization-default-locale';
-
 function ConversationStartersTab() {
   const { t } = useT('settings');
-  const { t: tGlobal } = useT('global');
   const { id: organizationId } = Route.useParams();
   const { config, updateConfig } = useAgentConfig();
   const { data: organization } = useOrganization(organizationId);
@@ -64,7 +54,6 @@ function ConversationStartersTab() {
 
   const defaultLocale = getOrganizationDefaultLocale(organization?.metadata);
 
-  // null = editing the default locale (top-level conversationStarters)
   const [editingLocale, setEditingLocale] = useState<string | null>(null);
 
   const localeTabs = useMemo(() => {
@@ -78,11 +67,23 @@ function ConversationStartersTab() {
     return tabs;
   }, [defaultLocale]);
 
+  const sourceStarters = config.conversationStarters ?? [];
+
   function getStarters(): string[] {
     if (editingLocale === null) {
-      return config.conversationStarters ?? [];
+      return sourceStarters;
     }
-    return config.i18n?.[editingLocale]?.conversationStarters ?? [];
+    const overrides = config.i18n?.[editingLocale]?.conversationStarters ?? [];
+    // Sync slot count with default locale: pad with empty strings or trim to match
+    if (overrides.length < sourceStarters.length) {
+      return [
+        ...overrides,
+        ...Array.from<string>({
+          length: sourceStarters.length - overrides.length,
+        }).fill(''),
+      ];
+    }
+    return overrides.slice(0, sourceStarters.length);
   }
 
   const [items, setItems] = useState<StarterItem[]>(() =>
@@ -97,14 +98,17 @@ function ConversationStartersTab() {
 
   const syncToConfig = useCallback(
     (newItems: StarterItem[]) => {
-      const filtered = toStrings(newItems)
-        .map((s) => s.trim())
-        .filter(Boolean);
-      const value = filtered.length ? filtered : undefined;
-
       if (editingLocale === null) {
-        updateConfig({ conversationStarters: value });
+        const filtered = toStrings(newItems)
+          .map((s) => s.trim())
+          .filter(Boolean);
+        updateConfig({
+          conversationStarters: filtered.length ? filtered : undefined,
+        });
       } else {
+        // For override locales, preserve slot positions (keep empty strings)
+        const strings = toStrings(newItems).map((s) => s.trim());
+        const hasAny = strings.some(Boolean);
         const existingI18n = config.i18n ?? {};
         const existingOverrides = existingI18n[editingLocale] ?? {};
         updateConfig({
@@ -112,7 +116,7 @@ function ConversationStartersTab() {
             ...existingI18n,
             [editingLocale]: {
               ...existingOverrides,
-              conversationStarters: value,
+              conversationStarters: hasAny ? strings : undefined,
             },
           },
         });
@@ -182,11 +186,11 @@ function ConversationStartersTab() {
 
   function hasLocaleContent(locale: string) {
     const starters = config.i18n?.[locale]?.conversationStarters;
-    return starters && starters.length > 0;
+    return !!starters && starters.length > 0;
   }
 
-  const sourceStarters = config.conversationStarters ?? [];
   const canAutoTranslate = editingLocale !== null && sourceStarters.length > 0;
+  const isEditingOverride = editingLocale !== null;
 
   async function handleAutoTranslate() {
     if (!editingLocale || sourceStarters.length === 0) return;
@@ -212,7 +216,6 @@ function ConversationStartersTab() {
 
       const newItems = toItems(translated);
 
-      // Guard against locale tab switch during in-flight translation
       if (editingLocale !== targetLocale) return;
 
       setItems(newItems);
@@ -233,87 +236,50 @@ function ConversationStartersTab() {
         description={t('agents.conversationStarters.description')}
       />
 
-      <div className="scrollbar-hide border-border flex items-center gap-4 overflow-x-auto border-b">
-        {localeTabs.map(({ locale, isDefault }) => {
-          const active = isDefault
-            ? editingLocale === null
-            : editingLocale === locale;
-          return (
+      <LocaleTabs
+        tabs={localeTabs}
+        activeLocale={editingLocale}
+        onLocaleChange={setEditingLocale}
+        disabled={translateMutation.isPending}
+        hasContent={hasLocaleContent}
+        defaultLabel={t('agents.conversationStarters.default')}
+        untranslatedLabel={t('agents.conversationStarters.untranslated')}
+        actions={
+          canAutoTranslate ? (
             <button
-              key={locale}
               type="button"
+              onClick={handleAutoTranslate}
               disabled={translateMutation.isPending}
-              onClick={() => setEditingLocale(isDefault ? null : locale)}
-              className={cn(
-                'relative flex shrink-0 items-center gap-1.5 whitespace-nowrap pb-2 text-sm font-medium transition-colors',
-                active
-                  ? 'text-foreground'
-                  : 'text-muted-foreground hover:text-foreground',
-              )}
+              className="text-muted-foreground hover:text-foreground ml-auto flex shrink-0 items-center gap-1 pb-2 text-sm transition-colors disabled:opacity-50"
             >
-              {tGlobal(`languages.${locale}`)}
-              {isDefault && (
-                <span className="text-muted-foreground text-xs">
-                  ({t('agents.conversationStarters.default')})
-                </span>
+              {translateMutation.isPending ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Languages className="size-3.5" />
               )}
-              {!isDefault && !hasLocaleContent(locale) && (
-                <span className="bg-muted text-muted-foreground rounded px-1 py-0.5 text-[10px] leading-none">
-                  {t('agents.conversationStarters.untranslated')}
-                </span>
-              )}
-              {active && (
-                <span className="bg-foreground absolute bottom-0 left-0 h-0.5 w-full" />
-              )}
+              {t('agents.conversationStarters.autoTranslate')}
             </button>
-          );
-        })}
-
-        {canAutoTranslate && (
-          <button
-            type="button"
-            onClick={handleAutoTranslate}
-            disabled={translateMutation.isPending}
-            className="text-muted-foreground hover:text-foreground ml-auto flex shrink-0 items-center gap-1 pb-2 text-sm transition-colors disabled:opacity-50"
-          >
-            {translateMutation.isPending ? (
-              <Loader2 className="size-3.5 animate-spin" />
-            ) : (
-              <Languages className="size-3.5" />
-            )}
-            {t('agents.conversationStarters.autoTranslate')}
-          </button>
-        )}
-      </div>
+          ) : undefined
+        }
+      />
 
       <FormSection>
-        <Reorder.Group
-          axis="y"
-          values={items}
+        <ReorderList
+          items={items}
           onReorder={handleReorder}
-          className="flex flex-col gap-3"
-        >
-          {items.map((item, index) => (
-            <Reorder.Item
-              key={item.id}
-              value={item}
-              className="flex items-start gap-2"
-              dragListener={false}
-            >
-              <Reorder.Item
-                as="button"
-                value={item}
-                type="button"
-                className="text-muted-foreground hover:text-foreground mt-2 shrink-0 cursor-grab active:cursor-grabbing"
-                aria-label={t('agents.conversationStarters.dragHandle')}
-              >
-                <GripVertical className="h-4 w-4" />
-              </Reorder.Item>
-
-              <span className="text-muted-foreground mt-2 text-sm">
+          onMoveUp={handleMoveUp}
+          onMoveDown={handleMoveDown}
+          onRemove={handleRemove}
+          readonlyOrder={isEditingOverride}
+          moveUpLabel={t('agents.conversationStarters.moveUp')}
+          moveDownLabel={t('agents.conversationStarters.moveDown')}
+          dragHandleLabel={t('agents.conversationStarters.dragHandle')}
+          removeLabel={t('agents.conversationStarters.remove')}
+          renderItem={({ item, index }) => (
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground text-sm">
                 {index + 1}.
               </span>
-
               <Input
                 value={item.text}
                 onChange={(e) => handleChange(item.id, e.target.value)}
@@ -322,47 +288,11 @@ function ConversationStartersTab() {
                 maxLength={MAX_CONVERSATION_STARTER_LENGTH}
                 wrapperClassName="min-w-0 flex-1"
               />
+            </div>
+          )}
+        />
 
-              <div className="mt-0.5 flex shrink-0 flex-col">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-5 w-5"
-                  onClick={() => handleMoveUp(index)}
-                  disabled={index === 0}
-                  aria-label={t('agents.conversationStarters.moveUp')}
-                >
-                  <ChevronUp className="h-3 w-3" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-5 w-5"
-                  onClick={() => handleMoveDown(index)}
-                  disabled={index === items.length - 1}
-                  aria-label={t('agents.conversationStarters.moveDown')}
-                >
-                  <ChevronDown className="h-3 w-3" />
-                </Button>
-              </div>
-
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="mt-1.5 shrink-0"
-                onClick={() => handleRemove(item.id)}
-                aria-label={t('agents.conversationStarters.remove')}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </Reorder.Item>
-          ))}
-        </Reorder.Group>
-
-        {items.length < MAX_CONVERSATION_STARTERS && (
+        {!isEditingOverride && items.length < MAX_CONVERSATION_STARTERS && (
           <Button
             type="button"
             variant="secondary"
