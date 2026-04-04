@@ -1,5 +1,6 @@
 import type { DeploymentColor } from '../compose/types';
 
+import { isUserInterrupt } from '../../utils/exit-codes';
 import { PROJECT_NAME } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import {
@@ -9,11 +10,6 @@ import {
 } from '../compose/types';
 import { containerExists } from '../docker/container-exists';
 import { getCurrentColor } from '../state/get-current-color';
-
-// 130 = SIGINT (Unix), 143 = SIGTERM (Unix), 3221225786 = STATUS_CONTROL_C_EXIT (Windows)
-function isUserInterrupt(code: number): boolean {
-  return code === 130 || code === 143 || code === 3221225786;
-}
 
 interface LogsOptions {
   service: string;

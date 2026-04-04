@@ -265,7 +265,7 @@ async function runEnvSetup(envPath: string): Promise<EnvSetupResult> {
       logger.info(`  - ${v}`);
     }
     const shouldRemove = await confirm({
-      message: 'Remove all Tale volumes and start fresh?',
+      message: 'Remove all Tale dev volumes and start fresh?',
       default: true,
     });
     if (!shouldRemove) {
@@ -287,7 +287,7 @@ async function runEnvSetup(envPath: string): Promise<EnvSetupResult> {
     for (const v of existingVolumes) {
       execSync(`docker volume rm ${v}`, { stdio: 'ignore' });
     }
-    logger.success(`Removed ${existingVolumes.length} Tale volume(s).`);
+    logger.success(`Removed ${existingVolumes.length} Tale dev volume(s).`);
   }
 
   logger.blank();

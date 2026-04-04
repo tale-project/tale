@@ -21,10 +21,13 @@ interface InitOptions {
 const GITIGNORE_ENTRIES = ['.tale/', '.env', '.history/'];
 
 export async function init(options: InitOptions): Promise<void> {
+  let directory = options.directory;
+  let force = options.force ?? false;
+
   // Check if cwd is already a Tale project before prompting for project name
   const cwdTaleJson = join(process.cwd(), 'tale.json');
-  if (!options.directory && existsSync(cwdTaleJson)) {
-    if (!options.force) {
+  if (!directory && existsSync(cwdTaleJson)) {
+    if (!force) {
       if (process.stdin.isTTY && process.stdout.isTTY) {
         const { confirm } = await import('@inquirer/prompts');
         const shouldReinit = await confirm({
@@ -41,11 +44,11 @@ export async function init(options: InitOptions): Promise<void> {
         );
       }
     }
-    options.directory = process.cwd();
-    options.force = true;
+    directory = process.cwd();
+    force = true;
   }
 
-  if (!options.directory && process.stdin.isTTY && process.stdout.isTTY) {
+  if (!directory && process.stdin.isTTY && process.stdout.isTTY) {
     const { input } = await import('@inquirer/prompts');
     const projectName = await input({
       message: 'Project name:',
@@ -58,14 +61,14 @@ export async function init(options: InitOptions): Promise<void> {
         return true;
       },
     });
-    options.directory = join(process.cwd(), projectName.trim());
+    directory = join(process.cwd(), projectName.trim());
   }
 
-  const target = resolve(options.directory ?? process.cwd());
+  const target = resolve(directory ?? process.cwd());
   const taleJsonPath = join(target, 'tale.json');
 
   // Guard for explicit directory argument pointing to an existing project
-  if (existsSync(taleJsonPath) && !options.force) {
+  if (existsSync(taleJsonPath) && !force) {
     throw new Error(
       `tale.json already exists in ${target}. Use --force to overwrite.`,
     );
