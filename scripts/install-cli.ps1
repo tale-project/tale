@@ -22,13 +22,17 @@ if ($existing) {
 
 # Fetch latest release tag
 Write-Info "Fetching latest version..."
-$release = Invoke-RestMethod "https://api.github.com/repos/$Repo/releases/latest" -Headers @{ "User-Agent" = "tale-installer/1.0" }
+try {
+    $release = Invoke-RestMethod "https://api.github.com/repos/$Repo/releases/latest" -Headers @{ "User-Agent" = "tale-installer/1.0" }
+} catch {
+    Write-Err "Failed to fetch latest release. $_"
+}
 $tag = $release.tag_name
 Write-Info "Latest version: $tag"
 
 # Download binary
 $url = "https://github.com/$Repo/releases/download/$tag/tale_windows.exe"
-$tempFile = Join-Path $env:TEMP "tale_download_$([guid]::NewGuid()).exe"
+$tempFile = Join-Path $env:TEMP "tale_download_$([guid]::NewGuid()).tmp"
 
 function Format-FileSize {
     param([long]$bytes)
@@ -76,6 +80,14 @@ try {
         }
     }
 
+    # Validate download integrity
+    if ($totalBytes -and $totalRead -ne $totalBytes) {
+        throw "Download incomplete: received $(Format-FileSize $totalRead) of $(Format-FileSize $totalBytes)"
+    }
+    if ($totalRead -eq 0) {
+        throw "Download failed: received 0 bytes"
+    }
+
     # Final progress line
     $received = Format-FileSize $totalRead
     if ($totalBytes) {
@@ -84,14 +96,18 @@ try {
     }
     Write-Host ""
     Write-Ok "Download complete"
+    $downloadOk = $true
 } catch {
-    if (Test-Path $tempFile) { Remove-Item $tempFile -Force -ErrorAction SilentlyContinue }
-    Write-Err "Failed to download: $_"
+    $errMsg = if ($_.Exception.InnerException) { $_.Exception.InnerException.Message } else { "$_" }
+    Write-Err "Failed to download: $errMsg"
 } finally {
     if ($null -ne $fileStream) { $fileStream.Dispose() }
     if ($null -ne $stream) { $stream.Dispose() }
     if ($null -ne $response) { $response.Dispose() }
     if ($null -ne $httpClient) { $httpClient.Dispose() }
+    if (-not $downloadOk -and (Test-Path $tempFile)) {
+        Remove-Item $tempFile -Force -ErrorAction SilentlyContinue
+    }
 }
 
 # Ensure install directory exists
