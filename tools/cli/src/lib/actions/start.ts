@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 import pkg from '../../../package.json';
+import { isUserInterrupt } from '../../utils/exit-codes';
 import { loadEnv, PROJECT_NAME } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import { StatusHeader, isHealthCheckLog } from '../../utils/terminal';
@@ -172,8 +173,11 @@ export async function start(options: StartOptions): Promise<void> {
 
     if (!result.success) {
       abortController.abort();
-      logger.error('Failed to start services');
-      throw new Error('Start failed');
+      if (!isUserInterrupt(result.exitCode)) {
+        logger.error('Failed to start services');
+        throw new Error('Start failed');
+      }
+      return;
     }
 
     const healthy = await browserTask;
@@ -265,7 +269,7 @@ export async function start(options: StartOptions): Promise<void> {
   await browserTask;
   header.cleanup();
 
-  if (!result.success) {
+  if (!result.success && !isUserInterrupt(result.exitCode)) {
     logger.error('Failed to start services');
     if (result.stderr) logger.error(result.stderr);
     throw new Error('Start failed');

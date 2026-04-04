@@ -11,6 +11,13 @@ function Write-Info { param($msg) Write-Host $msg -ForegroundColor Cyan }
 function Write-Ok { param($msg) Write-Host $msg -ForegroundColor Green }
 function Write-Err { param($msg) Write-Host "Error: $msg" -ForegroundColor Red; exit 1 }
 
+function Format-FileSize {
+    param([long]$bytes)
+    if ($bytes -ge 1MB) { return "{0:N1} MB" -f ($bytes / 1MB) }
+    if ($bytes -ge 1KB) { return "{0:N1} KB" -f ($bytes / 1KB) }
+    return "$bytes B"
+}
+
 # Detect existing installation
 $existing = Get-Command tale -ErrorAction SilentlyContinue
 if ($existing) {
@@ -31,7 +38,17 @@ $tempFile = Join-Path $env:TEMP "tale_download_$([guid]::NewGuid()).exe"
 
 try {
     Write-Info "Downloading from $url"
-    Invoke-WebRequest -Uri $url -OutFile $tempFile -UseBasicParsing
+    $ProgressPreference = 'SilentlyContinue'
+    $webClient = New-Object System.Net.WebClient
+    $null = Register-ObjectEvent -InputObject $webClient -EventName DownloadProgressChanged -Action {
+        $received = Format-FileSize $EventArgs.BytesReceived
+        $total = Format-FileSize $EventArgs.TotalBytesToReceive
+        $pct = $EventArgs.ProgressPercentage
+        Write-Host "`r  $received / $total ($pct%)" -NoNewline -ForegroundColor Cyan
+    }
+    $webClient.DownloadFileTaskAsync($url, $tempFile).GetAwaiter().GetResult()
+    Write-Host ""
+    $webClient.Dispose()
 } catch {
     Write-Err "Failed to download: $_"
 }

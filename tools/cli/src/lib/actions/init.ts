@@ -21,7 +21,34 @@ interface InitOptions {
 const GITIGNORE_ENTRIES = ['.tale/', '.env', '.history/'];
 
 export async function init(options: InitOptions): Promise<void> {
-  if (!options.directory && process.stdin.isTTY && process.stdout.isTTY) {
+  let directory = options.directory;
+  let force = options.force ?? false;
+
+  // Check if cwd is already a Tale project before prompting for project name
+  const cwdTaleJson = join(process.cwd(), 'tale.json');
+  if (!directory && existsSync(cwdTaleJson)) {
+    if (!force) {
+      if (process.stdin.isTTY && process.stdout.isTTY) {
+        const { confirm } = await import('@inquirer/prompts');
+        const shouldReinit = await confirm({
+          message: 'This directory is already a Tale project. Reinitialize?',
+          default: false,
+        });
+        if (!shouldReinit) {
+          logger.info('Aborted.');
+          return;
+        }
+      } else {
+        throw new Error(
+          `tale.json already exists in ${process.cwd()}. Use --force to overwrite.`,
+        );
+      }
+    }
+    directory = process.cwd();
+    force = true;
+  }
+
+  if (!directory && process.stdin.isTTY && process.stdout.isTTY) {
     const { input } = await import('@inquirer/prompts');
     const projectName = await input({
       message: 'Project name:',
@@ -34,20 +61,20 @@ export async function init(options: InitOptions): Promise<void> {
         return true;
       },
     });
-    options.directory = join(process.cwd(), projectName.trim());
+    directory = join(process.cwd(), projectName.trim());
   }
 
-  const target = resolve(options.directory ?? process.cwd());
+  const target = resolve(directory ?? process.cwd());
   const taleJsonPath = join(target, 'tale.json');
 
-  logger.header('Initializing Tale Project');
-
-  // Check for existing project
-  if (existsSync(taleJsonPath) && !options.force) {
+  // Guard for explicit directory argument pointing to an existing project
+  if (existsSync(taleJsonPath) && !force) {
     throw new Error(
       `tale.json already exists in ${target}. Use --force to overwrite.`,
     );
   }
+
+  logger.header('Initializing Tale Project');
 
   logger.info(`Project directory: ${target}`);
 
