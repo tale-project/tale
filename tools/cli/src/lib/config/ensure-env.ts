@@ -229,20 +229,20 @@ async function runPartialEnvSetup(
     });
   }
 
-  // Merge: rebuild .env with existing + updates
-  const merged = { ...existing, ...updates };
-  const envContent = generateEnvContent({
-    host: merged.HOST,
-    siteUrl: merged.SITE_URL,
-    tlsMode: merged.TLS_MODE,
-    tlsEmail: merged.TLS_EMAIL ?? '',
-    betterAuthSecret: merged.BETTER_AUTH_SECRET,
-    encryptionSecretHex: merged.ENCRYPTION_SECRET_HEX,
-    instanceSecret: merged.INSTANCE_SECRET,
-    dbPassword: merged.DB_PASSWORD,
-    sopsAgeKey: merged.SOPS_AGE_KEY,
-  });
-  await writeFile(envPath, envContent, 'utf-8');
+  // Surgically append missing variables to the existing .env (preserves all original content)
+  const existingContent = await readFile(envPath, 'utf-8');
+  const appendLines: string[] = [];
+  for (const [key, value] of Object.entries(updates)) {
+    appendLines.push(`${key}=${value}`);
+  }
+  if (appendLines.length > 0) {
+    const separator = existingContent.endsWith('\n') ? '' : '\n';
+    await writeFile(
+      envPath,
+      existingContent + separator + appendLines.join('\n') + '\n',
+      'utf-8',
+    );
+  }
 
   logger.blank();
   logger.success('Environment file updated!');

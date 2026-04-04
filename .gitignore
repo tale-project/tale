@@ -54,8 +54,7 @@ services/platform/.env.local
 compose.override.yml
 
 # deployment state files
-.deployment-lock
-.deployment-color
+.tale/
 
 # Claude
 .claude/*

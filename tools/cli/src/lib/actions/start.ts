@@ -262,6 +262,7 @@ export async function start(options: StartOptions): Promise<void> {
 
   // Stop health polling now that docker compose has exited
   abortController.abort();
+  await browserTask;
   header.cleanup();
 
   if (!result.success) {
