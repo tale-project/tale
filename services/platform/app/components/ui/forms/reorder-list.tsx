@@ -91,7 +91,7 @@ function ReorderListRow<T extends ReorderItem>({
 
       {!readonlyOrder && (
         <>
-          <div className="flex shrink-0 flex-col">
+          <div className="flex shrink-0 flex-row">
             <IconButton
               icon={ChevronUp}
               aria-label={moveUpLabel}
