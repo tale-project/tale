@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 
 import { logs } from '../lib/actions/logs';
-import { ensureConfig } from '../lib/config/ensure-config';
+import { requireProject } from '../lib/project/find-project';
 import { loadEnv } from '../utils/load-env';
 import * as logger from '../utils/logger';
 
@@ -18,8 +18,8 @@ export function createLogsCommand(): Command {
     .option('-n, --tail <lines>', 'Number of lines to show from end')
     .action(async (service: string, options) => {
       try {
-        const deployDir = await ensureConfig();
-        const env = loadEnv(deployDir);
+        const projectDir = requireProject();
+        const env = loadEnv(projectDir);
 
         if (
           options.color &&

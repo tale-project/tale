@@ -140,10 +140,7 @@ export async function init(options: InitOptions): Promise<void> {
   if (!options.noEnv) {
     const { ensureEnv } = await import('../config/ensure-env');
     logger.blank();
-    const envResult = await ensureEnv({
-      deployDir: target,
-      skipIfExists: true,
-    });
+    const envResult = await ensureEnv({ deployDir: target });
 
     // Generate encrypted provider secrets from the API key collected during env setup
     if (envResult.agePublicKey && envResult.openrouterKey) {

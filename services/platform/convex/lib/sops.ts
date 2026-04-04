@@ -20,6 +20,12 @@ const cache = new Map<string, CacheEntry>();
 export async function decryptSecretsFile(
   filePath: string,
 ): Promise<Record<string, unknown>> {
+  if (!process.env.SOPS_AGE_KEY && !process.env.SOPS_AGE_KEY_FILE) {
+    throw new Error(
+      'Neither SOPS_AGE_KEY nor SOPS_AGE_KEY_FILE is set. Cannot decrypt provider secrets.',
+    );
+  }
+
   const fileStat = await stat(filePath);
   const cached = cache.get(filePath);
   if (cached && cached.mtimeMs === fileStat.mtimeMs) {
@@ -32,6 +38,7 @@ export async function decryptSecretsFile(
       encoding: 'utf-8',
       timeout: 10_000,
       stdio: ['pipe', 'pipe', 'pipe'],
+      env: { ...process.env },
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

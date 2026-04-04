@@ -16,3 +16,13 @@ export function findProject(startDir?: string): string | null {
     dir = parent;
   }
 }
+
+export function requireProject(startDir?: string): string {
+  const dir = findProject(startDir);
+  if (!dir) {
+    throw new Error(
+      'No Tale project found. Run "tale init" first, then run commands from the project directory.',
+    );
+  }
+  return dir;
+}

@@ -24,7 +24,6 @@ import { pullImage } from '../docker/pull-image';
 import { removeContainer } from '../docker/remove-container';
 import { stopContainer } from '../docker/stop-container';
 import { waitForHealthy } from '../docker/wait-for-healthy';
-import { findProject } from '../project/find-project';
 import { getCurrentColor } from '../state/get-current-color';
 import { getNextColor } from '../state/get-next-color';
 import { setCurrentColor } from '../state/set-current-color';
@@ -406,10 +405,11 @@ export async function deploy(options: DeployOptions): Promise<void> {
       logger.success(`Deployment complete! Version ${version} is now live`);
     }
 
-    // Sync project files if running from a Tale project directory
+    // Sync project files to the active container
     if (activeColor) {
       await syncProjectFiles(
         `${PROJECT_NAME}-platform-${activeColor}`,
+        env.DEPLOY_DIR,
         dryRun,
         prefix,
       );
@@ -427,14 +427,10 @@ const SYNC_DIRS = [
 
 async function syncProjectFiles(
   containerName: string,
+  projectDir: string,
   dryRun: boolean,
   prefix: string,
 ): Promise<void> {
-  const projectDir = findProject(process.cwd());
-  if (!projectDir) {
-    return;
-  }
-
   const dirsToSync = SYNC_DIRS.filter((dir) =>
     existsSync(join(projectDir, dir)),
   );

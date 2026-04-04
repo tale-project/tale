@@ -13,6 +13,17 @@ import { createRollbackCommand } from './commands/rollback';
 import { createStartCommand } from './commands/start';
 import { createStatusCommand } from './commands/status';
 import { createUpdateCommand } from './commands/update';
+import * as logger from './utils/logger';
+
+process.on('uncaughtException', (err) => {
+  logger.error(`Unexpected error: ${err.message}`);
+  process.exit(1);
+});
+process.on('unhandledRejection', (reason) => {
+  const msg = reason instanceof Error ? reason.message : String(reason);
+  logger.error(`Unexpected error: ${msg}`);
+  process.exit(1);
+});
 
 program
   .name('tale')

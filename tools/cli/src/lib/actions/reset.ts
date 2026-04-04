@@ -67,8 +67,8 @@ export async function reset(options: ResetOptions): Promise<void> {
     // Clean up state files
     logger.step(`${prefix}Cleaning up state files...`);
     const stateFiles = [
-      join(env.DEPLOY_DIR, '.deployment-color'),
-      join(env.DEPLOY_DIR, '.deployment-previous-version'),
+      join(env.DEPLOY_DIR, '.tale', 'deployment-color'),
+      join(env.DEPLOY_DIR, '.tale', 'deployment-previous-version'),
     ];
 
     for (const file of stateFiles) {
