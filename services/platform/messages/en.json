@@ -824,6 +824,10 @@
         "sectionStructuredResponsesDescription": "Configure whether the agent can use structured response markers (conclusion, key points, details, etc.) to format substantial answers",
         "structuredResponsesEnabled": "Enable structured response markers",
         "structuredResponsesEnabledHelp": "When enabled, the agent can use markers like [[CONCLUSION]], [[KEY_POINTS]], [[DETAILS]] to structure long responses. These are rendered as rich UI sections in the chat. When disabled, the agent responds with plain text only.",
+        "addModel": "Add model",
+        "searchModels": "Search models…",
+        "noModelsFound": "No models found",
+        "removeModel": "Remove",
         "structuredResponsesInjectedPrompt": "The following instructions will be automatically appended to the system prompt:"
       },
       "delegation": {
