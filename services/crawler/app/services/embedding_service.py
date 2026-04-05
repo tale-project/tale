@@ -7,6 +7,7 @@ is automatically rebuilt on the next access after the TTL expires.
 """
 
 import asyncio
+import contextlib
 import time
 
 from loguru import logger
@@ -75,10 +76,8 @@ def get_embedding_service() -> EmbeddingService:
 
     if old is not None:
         logger.info("Embedding service rebuilt: model={}", model)
-        try:
+        with contextlib.suppress(RuntimeError):
             asyncio.get_running_loop().create_task(_close_old(old))
-        except RuntimeError:
-            pass
     else:
         logger.info("Embedding service created: model={}, dims={}", model, dims)
 

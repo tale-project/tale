@@ -10,6 +10,7 @@ Results are cached based on image content hash to avoid redundant API calls.
 
 import asyncio
 import base64
+import contextlib
 import imghdr
 import time
 from dataclasses import dataclass
@@ -125,10 +126,8 @@ class VisionClient:
 
         if old is not None:
             logger.info("Vision client rebuilt: model={}", _model)
-            try:
+            with contextlib.suppress(RuntimeError):
                 asyncio.get_running_loop().create_task(_safe_close_client(old))
-            except RuntimeError:
-                pass
         return self._client
 
     async def ocr_image(
