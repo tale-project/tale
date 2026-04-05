@@ -421,6 +421,22 @@ export const runAgentGeneration = internalAction({
       // Stream cleanup (persistent text stream + agent SDK streams) is handled
       // by generateAgentResponse's catch block. This outer catch only ensures
       // a failed assistant message exists for the frontend.
+
+      // Clear generation status so the UI stops showing "Thinking..."
+      if (streamId) {
+        try {
+          await ctx.runMutation(
+            internal.threads.internal_mutations.clearGenerationStatus,
+            { threadId, streamId },
+          );
+        } catch (clearError) {
+          console.error(
+            '[runAgentGeneration] Failed to clear generation status:',
+            clearError,
+          );
+        }
+      }
+
       try {
         const msgs = await listMessages(ctx, components.agent, {
           threadId,
