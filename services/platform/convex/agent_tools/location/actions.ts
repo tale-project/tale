@@ -2,6 +2,8 @@
 
 import { v } from 'convex/values';
 
+import type { SerializableAgentConfig } from '../../lib/agent_chat/types';
+
 import { internal } from '../../_generated/api';
 import { action } from '../../_generated/server';
 import { authComponent } from '../../auth';
@@ -40,7 +42,7 @@ export const submitLocationResponse = action({
     );
 
     // Resolve the agent config from the thread's agent slug
-    let resolvedAgentConfig: Record<string, unknown> | undefined;
+    let resolvedAgentConfig: SerializableAgentConfig | undefined;
     if (approvalInfo.agentSlug) {
       try {
         resolvedAgentConfig = await ctx.runAction(

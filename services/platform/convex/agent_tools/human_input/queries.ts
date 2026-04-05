@@ -14,15 +14,16 @@ export const getApprovalContext = internalQuery({
   handler: async (ctx, args) => {
     const approval = await ctx.db.get(args.approvalId);
     if (!approval) throw new Error('Approval not found');
-    if (!approval.threadId) throw new Error('Approval has no threadId');
+    const threadId = approval.threadId;
+    if (!threadId) throw new Error('Approval has no threadId');
 
     const threadMeta = await ctx.db
       .query('threadMetadata')
-      .withIndex('by_threadId', (q) => q.eq('threadId', approval.threadId!))
+      .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
       .first();
 
     return {
-      threadId: approval.threadId,
+      threadId,
       organizationId: approval.organizationId,
       agentSlug: threadMeta?.agentSlug,
     };

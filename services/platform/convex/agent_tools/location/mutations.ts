@@ -7,6 +7,7 @@ import { v } from 'convex/values';
 import type { LocationRequestMetadata } from '../../../lib/shared/schemas/approvals';
 import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
+import type { SerializableAgentConfig } from '../../lib/agent_chat/types';
 
 import { components, internal } from '../../_generated/api';
 import { internalMutation, mutation } from '../../_generated/server';
@@ -46,7 +47,7 @@ interface HandleArgs {
   denied?: boolean;
   respondedBy: string;
   approvedBy: string;
-  agentConfig?: Record<string, unknown>;
+  agentConfig?: SerializableAgentConfig;
 }
 
 async function handleSubmission({
@@ -169,8 +170,8 @@ async function handleSubmission({
 
   // Use resolved agent config if provided (from action), otherwise fall back to default
   const agentConfig = externalAgentConfig ?? DEFAULT_AGENT_CONFIG;
-  const model = (agentConfig.model as string) ?? 'default';
-  const timeoutMs = (agentConfig.timeoutMs as number) ?? 1_200_000;
+  const model = agentConfig.model ?? 'default';
+  const timeoutMs = agentConfig.timeoutMs ?? 1_200_000;
 
   const beforeGenerate = await createFunctionHandle(beforeGenerateHookRef);
 
@@ -260,7 +261,8 @@ export const submitLocationResponseInternal = internalMutation({
       denied: args.denied,
       respondedBy: identity.email ?? identity.subject,
       approvedBy: identity.subject,
-      agentConfig: args.agentConfig,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- v.any() from Convex validator, shape guaranteed by the action caller
+      agentConfig: args.agentConfig as SerializableAgentConfig | undefined,
     });
   },
 });
