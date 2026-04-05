@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
+import { AutomationsActionMenu } from '@/app/features/automations/components/automations-action-menu';
 import { AutomationsTable } from '@/app/features/automations/components/automations-table';
 import { useAutomationsTableConfig } from '@/app/features/automations/hooks/use-automations-table-config';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
@@ -38,6 +39,7 @@ function AutomationsPage() {
           rows={5}
           searchPlaceholder={searchPlaceholder}
           noFirstColumnAvatar
+          actionMenu={<AutomationsActionMenu organizationId={organizationId} />}
         />
       </div>
     );
