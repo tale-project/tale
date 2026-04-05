@@ -191,6 +191,7 @@ export const listProviders = action({
             description: result.config.description,
             baseUrl: result.config.baseUrl,
             modelCount: result.config.models.length,
+            defaults: result.config.defaults,
             models: result.config.models.map((m) => ({
               id: m.id,
               displayName: m.displayName,
@@ -341,6 +342,31 @@ export const resolveModelByTag = internalAction({
       );
     }
 
+    // First pass: check for explicit per-tag default
+    for (const provider of candidates) {
+      const defaults = provider.config.defaults;
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- defaults keys are 'chat' | 'vision' | 'embedding'; tag may not match but undefined access is handled below
+      const tagKey = args.tag as keyof NonNullable<typeof defaults>;
+      const defaultModelId = defaults?.[tagKey];
+      if (defaultModelId) {
+        const definition = provider.config.models.find(
+          (m) => m.id === defaultModelId,
+        );
+        if (definition) {
+          return {
+            providerName: provider.name,
+            baseUrl: provider.config.baseUrl,
+            apiKey: provider.secrets.apiKey,
+            modelId: definition.id,
+            dimensions: definition.dimensions,
+            supportsStructuredOutputs:
+              provider.config.supportsStructuredOutputs ?? false,
+          };
+        }
+      }
+    }
+
+    // Fallback: first model with matching tag
     for (const provider of candidates) {
       const definition = provider.config.models.find((m) =>
         (m.tags as readonly string[]).includes(args.tag),
@@ -399,6 +425,7 @@ export const getAllProviderConfigs = action({
           providerName: name,
           displayName: result.config.displayName,
           description: result.config.description,
+          defaults: result.config.defaults,
           models: result.config.models.map((m) => ({
             id: m.id,
             displayName: m.displayName,

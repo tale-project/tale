@@ -15,6 +15,7 @@ import { Badge } from '@/app/components/ui/feedback/badge';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Input } from '@/app/components/ui/forms/input';
+import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Card } from '@/app/components/ui/layout/card';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
@@ -22,7 +23,6 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import {
   useDeleteProvider,
-  useSaveProvider,
   useSaveProviderSecret,
 } from '@/app/features/settings/providers/hooks/mutations';
 import {
@@ -94,25 +94,17 @@ function ProviderDetailContent({
 }) {
   const { t } = useT('settings');
   const navigate = useNavigate();
-  const { config, isDirty, isSaving, resetConfig, markSaving } =
+  const { config, isDirty, isSaving, resetConfig, saveConfig } =
     useProviderConfig();
-  const saveProvider = useSaveProvider();
   const deleteProvider = useDeleteProvider();
 
   const handleSave = useCallback(async () => {
-    markSaving(true);
     try {
-      await saveProvider.mutateAsync({
-        orgSlug: 'default',
-        providerName,
-        config,
-      });
+      await saveConfig();
     } catch {
       toast({ title: t('providers.saveFailed'), variant: 'destructive' });
-    } finally {
-      markSaving(false);
     }
-  }, [config, providerName, saveProvider, markSaving, t]);
+  }, [saveConfig, t]);
 
   const handleDelete = useCallback(async () => {
     try {
@@ -164,6 +156,7 @@ function ProviderDetailContent({
 
       <GeneralSection />
       <ApiKeySection providerName={providerName} />
+      <DefaultModelsSection />
       <ModelsSection />
     </Stack>
   );
@@ -398,7 +391,6 @@ interface ModelFormState {
   displayName: string;
   description: string;
   tags: string[];
-  isDefault: boolean;
   dimensions: string;
 }
 
@@ -407,7 +399,6 @@ const EMPTY_MODEL_FORM: ModelFormState = {
   displayName: '',
   description: '',
   tags: ['chat'],
-  isDefault: false,
   dimensions: '',
 };
 
@@ -435,7 +426,6 @@ function ModelsSection() {
         displayName: model.displayName,
         description: model.description ?? '',
         tags: [...model.tags],
-        isDefault: model.default ?? false,
         dimensions: model.dimensions != null ? String(model.dimensions) : '',
       });
       setDialogOpen(true);
@@ -452,7 +442,6 @@ function ModelsSection() {
         description: form.description || undefined,
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- tags are constrained to checkbox values
         tags: form.tags as Array<'chat' | 'vision' | 'embedding'>,
-        default: form.isDefault || undefined,
         dimensions: form.dimensions ? Number(form.dimensions) : undefined,
       };
       if (editingIndex != null) {
@@ -508,14 +497,7 @@ function ModelsSection() {
                   <Text className="font-mono text-sm">{model.id}</Text>
                 </TableCell>
                 <TableCell>
-                  <HStack gap={2} align="center">
-                    <Text className="text-sm">{model.displayName}</Text>
-                    {model.default && (
-                      <Badge variant="blue" className="text-xs">
-                        {t('providers.default')}
-                      </Badge>
-                    )}
-                  </HStack>
+                  <Text className="text-sm">{model.displayName}</Text>
                 </TableCell>
                 <TableCell className="max-w-48">
                   <Text
@@ -638,15 +620,6 @@ function ModelsSection() {
               placeholder="e.g., 1536"
             />
           )}
-          <label className="flex items-center gap-2 text-sm">
-            <Checkbox
-              checked={form.isDefault}
-              onCheckedChange={(checked) =>
-                setForm((f) => ({ ...f, isDefault: checked === true }))
-              }
-            />
-            {t('providers.defaultModel')}
-          </label>
         </Stack>
       </FormDialog>
 
@@ -671,6 +644,129 @@ function ModelsSection() {
         submitText={t('providers.deleteModel')}
       >
         <span />
+      </FormDialog>
+    </>
+  );
+}
+
+const NONE_VALUE = '__none__';
+
+function DefaultModelsSection() {
+  const { t } = useT('settings');
+  const { config, saveConfig } = useProviderConfig();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [form, setForm] = useState<Record<string, string>>({});
+
+  const modelDisplayName = useCallback(
+    (modelId: string | undefined) => {
+      if (!modelId) return '—';
+      return (
+        config.models.find((m) => m.id === modelId)?.displayName ?? modelId
+      );
+    },
+    [config.models],
+  );
+
+  const openDialog = useCallback(() => {
+    setForm({ ...config.defaults });
+    setDialogOpen(true);
+  }, [config.defaults]);
+
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      const cleaned = Object.fromEntries(
+        Object.entries(form).filter(([, v]) => v && v !== NONE_VALUE),
+      );
+      try {
+        await saveConfig({
+          defaults: Object.keys(cleaned).length > 0 ? cleaned : undefined,
+        });
+        setDialogOpen(false);
+      } catch {
+        toast({ title: t('providers.saveFailed'), variant: 'destructive' });
+      }
+    },
+    [form, saveConfig, t],
+  );
+
+  return (
+    <>
+      <Card contentClassName="px-5 py-2">
+        <HStack justify="between" align="center" className="border-b py-2.5">
+          <Stack gap={1}>
+            <Text variant="muted" className="text-sm">
+              {t('providers.defaultModels')}
+            </Text>
+            <Text className="text-muted-foreground text-xs">
+              {t('providers.defaultModelsDescription')}
+            </Text>
+          </Stack>
+          <Button variant="ghost" size="sm" onClick={openDialog}>
+            <Pencil className="mr-1.5 size-3.5" />
+            {t('providers.editGeneral')}
+          </Button>
+        </HStack>
+        <Stack className="divide-y">
+          <InfoRow label={t('providers.tagChat')}>
+            <Text className="text-sm">
+              {modelDisplayName(config.defaults?.chat)}
+            </Text>
+          </InfoRow>
+          <InfoRow label={t('providers.tagVision')}>
+            <Text className="text-sm">
+              {modelDisplayName(config.defaults?.vision)}
+            </Text>
+          </InfoRow>
+          <InfoRow label={t('providers.tagEmbedding')}>
+            <Text className="text-sm">
+              {modelDisplayName(config.defaults?.embedding)}
+            </Text>
+          </InfoRow>
+        </Stack>
+      </Card>
+
+      <FormDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        title={t('providers.defaultModels')}
+        onSubmit={handleSubmit}
+        isDirty={
+          form.chat !== (config.defaults?.chat ?? NONE_VALUE) ||
+          form.vision !== (config.defaults?.vision ?? NONE_VALUE) ||
+          form.embedding !== (config.defaults?.embedding ?? NONE_VALUE)
+        }
+      >
+        <Stack gap={4}>
+          {(['chat', 'vision', 'embedding'] as const).map((tag) => {
+            const modelsWithTag = config.models.filter((m) =>
+              (m.tags as readonly string[]).includes(tag),
+            );
+            return (
+              <Select
+                key={tag}
+                label={
+                  tag === 'chat'
+                    ? t('providers.tagChat')
+                    : tag === 'vision'
+                      ? t('providers.tagVision')
+                      : t('providers.tagEmbedding')
+                }
+                options={[
+                  { value: NONE_VALUE, label: t('providers.defaultNone') },
+                  ...modelsWithTag.map((m) => ({
+                    value: m.id,
+                    label: m.displayName,
+                  })),
+                ]}
+                value={form[tag] ?? NONE_VALUE}
+                onValueChange={(value) =>
+                  setForm((f) => ({ ...f, [tag]: value }))
+                }
+              />
+            );
+          })}
+        </Stack>
       </FormDialog>
     </>
   );

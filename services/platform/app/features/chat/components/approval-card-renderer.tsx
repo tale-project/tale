@@ -68,6 +68,7 @@ export function ApprovalCardRenderer({
       {item.type === 'human_input_request' && (
         <HumanInputRequestCard
           approvalId={item.data._id}
+          organizationId={organizationId}
           status={item.data.status}
           metadata={item.data.metadata}
           isWorkflowContext={!!item.data.wfExecutionId}
@@ -78,6 +79,7 @@ export function ApprovalCardRenderer({
       {item.type === 'location_request' && (
         <LocationRequestCard
           approvalId={item.data._id}
+          organizationId={organizationId}
           status={item.data.status}
           metadata={item.data.metadata}
           isWorkflowContext={!!item.data.wfExecutionId}

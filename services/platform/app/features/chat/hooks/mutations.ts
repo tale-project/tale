@@ -7,14 +7,14 @@ export function useUnifiedChatWithAgent() {
 }
 
 export function useSubmitHumanInputResponse() {
-  return useConvexMutation(
-    api.agent_tools.human_input.mutations.submitHumanInputResponse,
+  return useConvexAction(
+    api.agent_tools.human_input.actions.submitHumanInputResponse,
   );
 }
 
 export function useSubmitLocationResponse() {
-  return useConvexMutation(
-    api.agent_tools.location.mutations.submitLocationResponse,
+  return useConvexAction(
+    api.agent_tools.location.actions.submitLocationResponse,
   );
 }
 

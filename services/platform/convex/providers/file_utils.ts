@@ -40,8 +40,42 @@ export function serializeProviderJson(config: ProviderJson): string {
   return serializeJson(config);
 }
 
+/**
+ * Migrate legacy per-model `default: boolean` to provider-level `defaults` map.
+ * Mutates the raw JSON object in place before Zod validation.
+ */
+// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- operating on raw JSON before Zod validation
+function migrateModelDefaults(data: Record<string, unknown>): void {
+  const models = data.models;
+  if (!Array.isArray(models)) return;
+  if (data.defaults !== undefined) return;
+
+  const defaults: Record<string, string> = {};
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- raw JSON models before validation
+  for (const model of models as Record<string, unknown>[]) {
+    if (model.default === true) {
+      const tags = model.tags;
+      const id = model.id;
+      if (Array.isArray(tags) && typeof id === 'string') {
+        for (const tag of tags) {
+          if (typeof tag === 'string' && !(tag in defaults)) {
+            defaults[tag] = id;
+          }
+        }
+      }
+    }
+    delete model.default;
+  }
+
+  if (Object.keys(defaults).length > 0) {
+    data.defaults = defaults;
+  }
+}
+
 export function parseProviderJson(content: string): ProviderJson {
-  const parsed: unknown = JSON.parse(content);
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- raw JSON before Zod validation
+  const parsed = JSON.parse(content) as Record<string, unknown>;
+  migrateModelDefaults(parsed);
   const result = providerJsonSchema.safeParse(parsed);
   if (!result.success) {
     throw new Error(`Invalid provider JSON: ${result.error.message}`);
