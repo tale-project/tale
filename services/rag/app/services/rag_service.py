@@ -47,7 +47,10 @@ SYSTEM_PROMPT = (
 _CONFIG_CHECK_INTERVAL = 15  # seconds
 
 
-async def _safe_close(coro) -> None:  # noqa: ANN001
+_background_tasks: set[asyncio.Task[None]] = set()
+
+
+async def _safe_close(coro) -> None:
     """Close an old client after a grace period for in-flight requests."""
     await asyncio.sleep(30)
     try:
@@ -186,9 +189,13 @@ class RagService:
                     # Close old clients (fire-and-forget with grace period)
                     loop = asyncio.get_running_loop()
                     if old_emb:
-                        loop.create_task(_safe_close(old_emb.close()))
+                        task = loop.create_task(_safe_close(old_emb.close()))
+                        _background_tasks.add(task)
+                        task.add_done_callback(_background_tasks.discard)
                     if old_oai:
-                        loop.create_task(_safe_close(old_oai.close()))
+                        task = loop.create_task(_safe_close(old_oai.close()))
+                        _background_tasks.add(task)
+                        task.add_done_callback(_background_tasks.discard)
 
         # Check vision config
         try:
@@ -210,7 +217,9 @@ class RagService:
                 logger.info("RAG vision client refreshed: model={}", v_model)
                 if old_vision:
                     loop = asyncio.get_running_loop()
-                    loop.create_task(_safe_close(old_vision.close()))
+                    task = loop.create_task(_safe_close(old_vision.close()))
+                    _background_tasks.add(task)
+                    task.add_done_callback(_background_tasks.discard)
         except ValueError:
             logger.debug("No vision model in provider config, skipping vision refresh")
 
