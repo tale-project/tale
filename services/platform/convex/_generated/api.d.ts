@@ -49,8 +49,10 @@ import type * as agent_tools_files_internal_mutations from "../agent_tools/files
 import type * as agent_tools_files_pdf_tool from "../agent_tools/files/pdf_tool.js";
 import type * as agent_tools_files_pptx_tool from "../agent_tools/files/pptx_tool.js";
 import type * as agent_tools_files_text_tool from "../agent_tools/files/text_tool.js";
+import type * as agent_tools_human_input_actions from "../agent_tools/human_input/actions.js";
 import type * as agent_tools_human_input_internal_mutations from "../agent_tools/human_input/internal_mutations.js";
 import type * as agent_tools_human_input_mutations from "../agent_tools/human_input/mutations.js";
+import type * as agent_tools_human_input_queries from "../agent_tools/human_input/queries.js";
 import type * as agent_tools_human_input_request_human_input_tool from "../agent_tools/human_input/request_human_input_tool.js";
 import type * as agent_tools_integrations_create_bound_integration_tool from "../agent_tools/integrations/create_bound_integration_tool.js";
 import type * as agent_tools_integrations_fetch_operations_summary from "../agent_tools/integrations/fetch_operations_summary.js";
@@ -61,8 +63,10 @@ import type * as agent_tools_integrations_internal_actions from "../agent_tools/
 import type * as agent_tools_integrations_internal_mutations from "../agent_tools/integrations/internal_mutations.js";
 import type * as agent_tools_integrations_types from "../agent_tools/integrations/types.js";
 import type * as agent_tools_load_convex_tools_as_object from "../agent_tools/load_convex_tools_as_object.js";
+import type * as agent_tools_location_actions from "../agent_tools/location/actions.js";
 import type * as agent_tools_location_internal_mutations from "../agent_tools/location/internal_mutations.js";
 import type * as agent_tools_location_mutations from "../agent_tools/location/mutations.js";
+import type * as agent_tools_location_queries from "../agent_tools/location/queries.js";
 import type * as agent_tools_location_request_user_location_tool from "../agent_tools/location/request_user_location_tool.js";
 import type * as agent_tools_products_helpers_count_products from "../agent_tools/products/helpers/count_products.js";
 import type * as agent_tools_products_helpers_read_product_by_id from "../agent_tools/products/helpers/read_product_by_id.js";
@@ -885,8 +889,10 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/files/pdf_tool": typeof agent_tools_files_pdf_tool;
   "agent_tools/files/pptx_tool": typeof agent_tools_files_pptx_tool;
   "agent_tools/files/text_tool": typeof agent_tools_files_text_tool;
+  "agent_tools/human_input/actions": typeof agent_tools_human_input_actions;
   "agent_tools/human_input/internal_mutations": typeof agent_tools_human_input_internal_mutations;
   "agent_tools/human_input/mutations": typeof agent_tools_human_input_mutations;
+  "agent_tools/human_input/queries": typeof agent_tools_human_input_queries;
   "agent_tools/human_input/request_human_input_tool": typeof agent_tools_human_input_request_human_input_tool;
   "agent_tools/integrations/create_bound_integration_tool": typeof agent_tools_integrations_create_bound_integration_tool;
   "agent_tools/integrations/fetch_operations_summary": typeof agent_tools_integrations_fetch_operations_summary;
@@ -897,8 +903,10 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/integrations/internal_mutations": typeof agent_tools_integrations_internal_mutations;
   "agent_tools/integrations/types": typeof agent_tools_integrations_types;
   "agent_tools/load_convex_tools_as_object": typeof agent_tools_load_convex_tools_as_object;
+  "agent_tools/location/actions": typeof agent_tools_location_actions;
   "agent_tools/location/internal_mutations": typeof agent_tools_location_internal_mutations;
   "agent_tools/location/mutations": typeof agent_tools_location_mutations;
+  "agent_tools/location/queries": typeof agent_tools_location_queries;
   "agent_tools/location/request_user_location_tool": typeof agent_tools_location_request_user_location_tool;
   "agent_tools/products/helpers/count_products": typeof agent_tools_products_helpers_count_products;
   "agent_tools/products/helpers/read_product_by_id": typeof agent_tools_products_helpers_read_product_by_id;

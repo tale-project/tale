@@ -22,7 +22,6 @@ class ModelConfig:
     display_name: str
     tags: list[str]
     description: str = ""
-    default: bool = False
     dimensions: int | None = None
 
 
@@ -37,6 +36,7 @@ class ProviderConfig:
     description: str = ""
     supports_structured_outputs: bool = False
     api_key: str | None = None
+    defaults: dict[str, str] = field(default_factory=dict)
 
 
 def load_providers(config_dir: str | None = None) -> list[ProviderConfig]:
@@ -93,10 +93,25 @@ def load_providers(config_dir: str | None = None) -> list[ProviderConfig]:
                     display_name=m.get("displayName", m["id"]),
                     tags=m.get("tags", []),
                     description=m.get("description", ""),
-                    default=m.get("default", False),
                     dimensions=m.get("dimensions"),
                 )
             )
+
+        # Read defaults map, migrating legacy per-model default if needed
+        defaults: dict[str, str] = {}
+        if "defaults" in data and isinstance(data["defaults"], dict):
+            defaults = {
+                k: v
+                for k, v in data["defaults"].items()
+                if isinstance(k, str) and isinstance(v, str)
+            }
+        else:
+            # Migrate legacy format: model-level default: true
+            for m in data.get("models", []):
+                if m.get("default") is True:
+                    for tag in m.get("tags", []):
+                        if tag not in defaults:
+                            defaults[tag] = m["id"]
 
         providers.append(
             ProviderConfig(
@@ -109,6 +124,7 @@ def load_providers(config_dir: str | None = None) -> list[ProviderConfig]:
                     "supportsStructuredOutputs", False
                 ),
                 api_key=api_key,
+                defaults=defaults,
             )
         )
 
@@ -120,22 +136,23 @@ def _find_model(
 ) -> tuple[ProviderConfig, ModelConfig] | None:
     """Find a model by tag across all providers.
 
-    If prefer_default is True, return the first model marked default that
-    also has the given tag, falling back to the first model with the tag.
+    If prefer_default is True, check the provider-level defaults map first,
+    falling back to the first model with the tag.
     """
-    first_match: tuple[ProviderConfig, ModelConfig] | None = None
+    if prefer_default:
+        for provider in providers:
+            default_model_id = provider.defaults.get(tag)
+            if default_model_id:
+                for model in provider.models:
+                    if model.id == default_model_id:
+                        return (provider, model)
 
     for provider in providers:
         for model in provider.models:
             if tag in model.tags:
-                if first_match is None:
-                    first_match = (provider, model)
-                if prefer_default and model.default:
-                    return (provider, model)
-                if not prefer_default and first_match is not None:
-                    return first_match
+                return (provider, model)
 
-    return first_match
+    return None
 
 
 def get_chat_model(
@@ -161,7 +178,7 @@ def get_embedding_model(
 ) -> tuple[str, str, str, int]:
     """Return (base_url, api_key, model_id, dimensions) for the embedding model."""
     providers = load_providers(config_dir)
-    match = _find_model(providers, "embedding")
+    match = _find_model(providers, "embedding", prefer_default=True)
     if match is None:
         raise ValueError("No embedding model found in provider configuration files.")
 
@@ -181,7 +198,7 @@ def get_vision_model(
 ) -> tuple[str, str, str]:
     """Return (base_url, api_key, model_id) for the vision model."""
     providers = load_providers(config_dir)
-    match = _find_model(providers, "vision")
+    match = _find_model(providers, "vision", prefer_default=True)
     if match is None:
         raise ValueError("No vision model found in provider configuration files.")
 

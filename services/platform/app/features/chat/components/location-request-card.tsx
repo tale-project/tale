@@ -14,7 +14,9 @@ import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
+import { useChatLayout } from '../context/chat-layout-context';
 import { useSubmitLocationResponse } from '../hooks/mutations';
+import { useEffectiveAgent } from '../hooks/use-effective-agent';
 
 const LOCATION_CACHE_KEY = 'tale:user-location';
 const COORD_THRESHOLD = 0.01;
@@ -72,6 +74,7 @@ async function reverseGeocode(
 
 interface LocationRequestCardProps {
   approvalId: Id<'approvals'>;
+  organizationId: string;
   status: 'pending' | 'executing' | 'completed' | 'rejected';
   metadata: LocationRequestMetadata;
   isWorkflowContext?: boolean;
@@ -81,6 +84,7 @@ interface LocationRequestCardProps {
 
 function LocationRequestCardComponent({
   approvalId,
+  organizationId,
   status,
   metadata,
   isWorkflowContext,
@@ -93,6 +97,12 @@ function LocationRequestCardComponent({
   const [error, setError] = useState<string | null>(null);
   const [isAcquiring, setIsAcquiring] = useState(false);
 
+  const { selectedModelOverrides } = useChatLayout();
+  const { agent: effectiveAgent } = useEffectiveAgent(organizationId);
+  const modelId = effectiveAgent?.name
+    ? selectedModelOverrides[effectiveAgent.name]
+    : undefined;
+
   const { mutate: submitResponse, isPending: isSubmitting } =
     useSubmitLocationResponse();
 
@@ -101,7 +111,7 @@ function LocationRequestCardComponent({
   const handleDeny = useCallback(() => {
     setError(null);
     submitResponse(
-      { approvalId, denied: true },
+      { approvalId, denied: true, modelId },
       {
         onSuccess: () => {
           if (!isWorkflowContext) {
@@ -118,6 +128,7 @@ function LocationRequestCardComponent({
     );
   }, [
     approvalId,
+    modelId,
     isWorkflowContext,
     submitResponse,
     onResponseSubmitted,
@@ -159,7 +170,7 @@ function LocationRequestCardComponent({
         const location = address ?? `${lat.toFixed(2)}, ${lng.toFixed(2)}`;
 
         submitResponse(
-          { approvalId, location },
+          { approvalId, location, modelId },
           {
             onSuccess: () => {
               if (!isWorkflowContext) {
@@ -193,6 +204,7 @@ function LocationRequestCardComponent({
   }, [
     handleDeny,
     approvalId,
+    modelId,
     isWorkflowContext,
     submitResponse,
     onResponseSubmitted,
@@ -315,6 +327,7 @@ export const LocationRequestCard = memo(
   LocationRequestCardComponent,
   (prevProps, nextProps) =>
     prevProps.approvalId === nextProps.approvalId &&
+    prevProps.organizationId === nextProps.organizationId &&
     prevProps.status === nextProps.status &&
     prevProps.metadata === nextProps.metadata &&
     prevProps.isWorkflowContext === nextProps.isWorkflowContext &&

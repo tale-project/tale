@@ -6,7 +6,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
-import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { CheckboxGroup } from '@/app/components/ui/forms/checkbox-group';
 import { Input } from '@/app/components/ui/forms/input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
@@ -39,7 +38,6 @@ interface ModelFormData {
   displayName: string;
   description: string;
   tags: string[];
-  default: boolean;
   dimensions: string;
 }
 
@@ -51,7 +49,6 @@ function emptyModel(): ModelFormData {
     displayName: '',
     description: '',
     tags: ['chat'],
-    default: false,
     dimensions: '',
   };
 }
@@ -81,6 +78,7 @@ export function ProviderEditPanel({
   const [description, setDescription] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
   const [models, setModels] = useState<ModelFormData[]>([]);
+  const [defaults, setDefaults] = useState<Record<string, string>>({});
   const [apiKey, setApiKey] = useState('');
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
@@ -91,25 +89,25 @@ export function ProviderEditPanel({
         displayName: string;
         description?: string;
         baseUrl: string;
+        defaults?: Record<string, string>;
         models: Array<{
           id: string;
           displayName: string;
           description?: string;
           tags: string[];
-          default?: boolean;
           dimensions?: number;
         }>;
       };
       setDisplayName(config.displayName);
       setDescription(config.description ?? '');
       setBaseUrl(config.baseUrl);
+      setDefaults(config.defaults ?? {});
       setModels(
         config.models.map((m) => ({
           id: m.id,
           displayName: m.displayName,
           description: m.description ?? '',
           tags: [...m.tags],
-          default: m.default ?? false,
           dimensions: m.dimensions != null ? String(m.dimensions) : '',
         })),
       );
@@ -142,12 +140,12 @@ export function ProviderEditPanel({
         displayName,
         description: description || undefined,
         baseUrl,
+        defaults: Object.keys(defaults).length > 0 ? defaults : undefined,
         models: models.map((m) => ({
           id: m.id,
           displayName: m.displayName,
           description: m.description || undefined,
           tags: m.tags,
-          default: m.default || undefined,
           dimensions:
             m.tags.includes('embedding') && m.dimensions
               ? Number(m.dimensions)
@@ -168,6 +166,7 @@ export function ProviderEditPanel({
     displayName,
     description,
     baseUrl,
+    defaults,
     models,
     saveProvider,
     providerName,
@@ -377,13 +376,6 @@ export function ProviderEditPanel({
                     value={model.tags}
                     onValueChange={(tags) => updateModel(index, { tags })}
                     columns={2}
-                  />
-                  <Checkbox
-                    label={t('providers.defaultModel')}
-                    checked={model.default}
-                    onCheckedChange={(checked) =>
-                      updateModel(index, { default: checked === true })
-                    }
                   />
                   {model.tags.includes('embedding') && (
                     <Input
