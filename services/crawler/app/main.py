@@ -69,7 +69,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
 
     # Initialize PostgreSQL connection pool + search services
     from app.services.database import close_pool, init_pool
-    from app.services.embedding_service import get_embedding_service
     from app.services.indexing_service import IndexingService
     from app.services.pg_website_store import PgWebsiteStoreManager
     from app.services.scheduler import run_scheduler
@@ -82,9 +81,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     await check_and_repair_chunks_index(pool)
 
     pg_store_manager = PgWebsiteStoreManager(pool)
-    embedding_service = get_embedding_service()
-    indexing_service = IndexingService(pool, embedding_service)
-    search_service = SearchService(pool, embedding_service)
+    indexing_service = IndexingService(pool)
+    search_service = SearchService(pool)
 
     # Wire services into routers
     from app.routers.index import set_indexing_service

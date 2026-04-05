@@ -10,6 +10,7 @@ Covers:
 
 from __future__ import annotations
 
+import time
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -32,6 +33,9 @@ def _make_service():
     service._vision_client = MagicMock()
     service._search_service = AsyncMock()
     service._openai_client = AsyncMock()
+    service._llm_config = {}
+    service._vision_config = None
+    service._last_config_check = time.monotonic()
     return service
 
 
@@ -110,7 +114,14 @@ class TestAddDocument:
         assert service.initialized is False
 
         with patch.object(service, "initialize", new_callable=AsyncMock) as mock_init:
-            mock_init.side_effect = lambda: setattr(service, "initialized", True) or None
+
+            def _fake_init():
+                service.initialized = True
+                service._last_config_check = time.monotonic()
+                service._llm_config = {}
+                service._vision_config = None
+
+            mock_init.side_effect = _fake_init
             service._pool = MagicMock()
             service._embedding_service = AsyncMock()
 

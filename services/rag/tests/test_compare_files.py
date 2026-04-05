@@ -7,6 +7,7 @@ Covers:
 
 from __future__ import annotations
 
+import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -26,6 +27,9 @@ def _make_service():
     service._vision_client = MagicMock()
     service._search_service = AsyncMock()
     service._openai_client = AsyncMock()
+    service._llm_config = {}
+    service._vision_config = None
+    service._last_config_check = time.monotonic()
     return service
 
 

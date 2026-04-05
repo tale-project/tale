@@ -9,7 +9,7 @@ _cache: dict[str, tuple[dict, float]] = {}
 
 def decrypt_secrets_file(file_path: str | Path) -> dict:
     """Decrypt a SOPS-encrypted JSON file. Caches by mtime."""
-    path = Path(file_path)
+    path = Path(file_path).resolve()
     mtime = path.stat().st_mtime
     cached = _cache.get(str(path))
     if cached and cached[1] == mtime:

@@ -70,7 +70,8 @@ def mock_embedding():
 
 @pytest.fixture
 def indexing_service(mock_pool, mock_embedding):
-    return IndexingService(mock_pool, mock_embedding)
+    with patch("app.services.indexing_service.get_embedding_service", return_value=mock_embedding):
+        yield IndexingService(mock_pool)
 
 
 class TestIndexPage:
