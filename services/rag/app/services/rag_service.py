@@ -48,10 +48,12 @@ _CONFIG_CHECK_INTERVAL = 15  # seconds
 
 
 async def _safe_close(coro) -> None:  # noqa: ANN001
+    """Close an old client after a grace period for in-flight requests."""
+    await asyncio.sleep(30)
     try:
         await coro
     except Exception:
-        pass
+        logger.warning("Failed to close old client", exc_info=True)
 
 
 class RagService:
@@ -102,10 +104,11 @@ class RagService:
         # Vision client (optional — only if model is configured)
         try:
             vision_config = settings.get_vision_config()
+            v_base_url, v_api_key, v_model = vision_config
             self._vision_client = VisionClient(
-                api_key=vision_config[1],
-                model=vision_config[2],
-                base_url=vision_config[0],
+                api_key=v_api_key,
+                model=v_model,
+                base_url=v_base_url,
                 timeout=120.0,
                 request_timeout=float(settings.vision_request_timeout),
                 max_concurrent_pages=settings.vision_max_concurrent_pages,
@@ -113,7 +116,7 @@ class RagService:
                 ocr_prompt=settings.vision_extraction_prompt,
             )
             self._vision_config = vision_config
-            logger.info("Vision client initialized with model: {}", vision_config[2])
+            logger.info("Vision client initialized with model: {}", v_model)
         except ValueError:
             logger.info("No vision model configured, Vision features disabled")
             self._vision_client = None
@@ -158,25 +161,29 @@ class RagService:
                         new_dims,
                     )
                 else:
-                    old_emb = self._embedding_service
-                    old_oai = self._openai_client
-
-                    self._embedding_service = EmbeddingService(
+                    # Prepare new clients before swapping any state
+                    new_emb = EmbeddingService(
                         api_key=new_llm_config["api_key"],
                         base_url=new_llm_config["base_url"],
                         model=new_llm_config["embedding_model"],
                         dimensions=new_dims,
                     )
-                    self._openai_client = AsyncOpenAI(
+                    new_oai = AsyncOpenAI(
                         api_key=new_llm_config["api_key"],
                         base_url=new_llm_config["base_url"],
                     )
-                    if self._search_service:
-                        self._search_service._embedding = self._embedding_service
-                    self._llm_config = new_llm_config
-                    logger.info("RAG LLM clients refreshed")
 
-                    # Close old clients (fire-and-forget)
+                    # Swap all at once (atomic from asyncio's cooperative perspective)
+                    old_emb = self._embedding_service
+                    old_oai = self._openai_client
+                    self._embedding_service = new_emb
+                    self._openai_client = new_oai
+                    if self._pool:
+                        self._search_service = RagSearchService(self._pool, new_emb)
+                    self._llm_config = new_llm_config
+                    logger.info("RAG LLM clients refreshed: model={}", new_llm_config.get("embedding_model"))
+
+                    # Close old clients (fire-and-forget with grace period)
                     loop = asyncio.get_running_loop()
                     if old_emb:
                         loop.create_task(_safe_close(old_emb.close()))
@@ -186,11 +193,13 @@ class RagService:
         # Check vision config
         try:
             new_vision_config = settings.get_vision_config()
-            if new_vision_config != self._vision_config and new_vision_config[1]:
+            v_base_url, v_api_key, v_model = new_vision_config
+            if new_vision_config != self._vision_config and v_api_key:
+                old_vision = self._vision_client
                 self._vision_client = VisionClient(
-                    api_key=new_vision_config[1],
-                    model=new_vision_config[2],
-                    base_url=new_vision_config[0],
+                    api_key=v_api_key,
+                    model=v_model,
+                    base_url=v_base_url,
                     timeout=120.0,
                     request_timeout=float(settings.vision_request_timeout),
                     max_concurrent_pages=settings.vision_max_concurrent_pages,
@@ -198,9 +207,12 @@ class RagService:
                     ocr_prompt=settings.vision_extraction_prompt,
                 )
                 self._vision_config = new_vision_config
-                logger.info("RAG vision client refreshed")
+                logger.info("RAG vision client refreshed: model={}", v_model)
+                if old_vision:
+                    loop = asyncio.get_running_loop()
+                    loop.create_task(_safe_close(old_vision.close()))
         except ValueError:
-            pass  # no vision model configured
+            logger.debug("No vision model in provider config, skipping vision refresh")
 
     async def add_document(
         self,

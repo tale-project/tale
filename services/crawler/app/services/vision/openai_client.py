@@ -75,6 +75,15 @@ Focus on: image type (photo/chart/diagram), main subject, and key visible text.
 Be extremely concise - omit minor details."""
 
 
+async def _safe_close_client(client: AsyncOpenAI) -> None:
+    """Close an old client after a grace period for in-flight requests."""
+    await asyncio.sleep(30)
+    try:
+        await client.close()
+    except Exception:
+        logger.opt(exception=True).warning("Failed to close old vision client")
+
+
 class VisionClient:
     """Async client for OpenAI Vision API calls."""
 
@@ -92,7 +101,13 @@ class VisionClient:
             return self._client
 
         self._last_config_check = now
-        config = settings.get_vision_config()  # (base_url, api_key, model)
+        try:
+            config = settings.get_vision_config()  # (base_url, api_key, model)
+        except (ValueError, OSError):
+            if self._client is not None:
+                logger.opt(exception=True).warning("Config read failed, keeping current vision client")
+                return self._client
+            raise
 
         if config == self._client_config and self._client is not None:
             return self._client
@@ -100,15 +115,20 @@ class VisionClient:
         base_url, api_key, _model = config
 
         # Never downgrade to empty key
-        if not api_key and self._client_config is not None:
+        if not api_key and self._client is not None:
             logger.warning("Skipping vision client reload: new config has empty API key")
-            return self._client  # type: ignore[return-value]
+            return self._client
 
-        if self._client is not None:
-            logger.info("Vision client rebuilt with updated config")
-
+        old = self._client
         self._client = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=120.0)
         self._client_config = config
+
+        if old is not None:
+            logger.info("Vision client rebuilt: model={}", _model)
+            try:
+                asyncio.get_running_loop().create_task(_safe_close_client(old))
+            except RuntimeError:
+                pass
         return self._client
 
     async def ocr_image(

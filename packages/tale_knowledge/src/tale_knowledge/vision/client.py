@@ -73,6 +73,10 @@ class VisionClient:
         self._describe_prompt = describe_prompt or DESCRIBE_PROMPT
         self._cache = cache or VisionCache()
 
+    async def close(self) -> None:
+        """Close the underlying OpenAI client and release connections."""
+        await self._client.close()
+
     @property
     def cache(self) -> VisionCache:
         return self._cache
