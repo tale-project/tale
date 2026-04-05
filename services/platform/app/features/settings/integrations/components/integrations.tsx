@@ -55,8 +55,8 @@ export function Integrations({
     useState<IntegrationListItem | null>(null);
   const tabItems = useMemo(
     () => [
-      { value: 'all', label: t('integrations.tabs.all') },
       { value: 'connected', label: t('integrations.tabs.connected') },
+      { value: 'all', label: t('integrations.tabs.all') },
     ],
     [t],
   );

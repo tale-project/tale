@@ -18,7 +18,7 @@ import {
   useIntegrations,
   useSsoProvider,
 } from '@/app/features/settings/integrations/hooks/queries';
-import { useAbility } from '@/app/hooks/use-ability';
+import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
@@ -101,6 +101,7 @@ function IntegrationsPage() {
   const { t: tSettings } = useT('settings');
 
   const ability = useAbility();
+  const abilityLoading = useAbilityLoading();
 
   const { integrations: fileIntegrations, isLoading: isIntegrationsLoading } =
     useIntegrations('default');
@@ -151,12 +152,12 @@ function IntegrationsPage() {
     }
   }, [search.integration_oauth2, search.integration_oauth2_error]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (ability.cannot('read', 'developerSettings')) {
-    return <AccessDenied message={t('integrations')} />;
+  if (abilityLoading || isIntegrationsLoading || isSsoLoading) {
+    return <IntegrationsSkeleton />;
   }
 
-  if (isIntegrationsLoading || isSsoLoading) {
-    return <IntegrationsSkeleton />;
+  if (ability.cannot('read', 'developerSettings')) {
+    return <AccessDenied message={t('integrations')} />;
   }
 
   // Merge file-based integration config with DB credential records
@@ -226,7 +227,7 @@ function IntegrationsPage() {
       organizationId={organizationId}
       integrations={allIntegrations}
       ssoProvider={ssoProvider ?? null}
-      tab={search.tab ?? 'all'}
+      tab={search.tab ?? 'connected'}
       onTabChange={handleTabChange}
     />
   );
