@@ -38,10 +38,10 @@ export function useEffectiveAgent(organizationId: string): {
   const defaultLocale = getOrganizationDefaultLocale(organization?.metadata);
 
   const agent = useMemo(() => {
-    function resolve(agent: NonNullable<typeof agents>[number]) {
-      const resolved = resolveAgentLocale(agent, locale, defaultLocale);
+    function resolve(entry: NonNullable<typeof agents>[number]) {
+      const resolved = resolveAgentLocale(entry, locale, defaultLocale);
       return {
-        name: agent.name,
+        name: entry.name,
         displayName: resolved.displayName,
         conversationStarters: resolved.conversationStarters,
       };
