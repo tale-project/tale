@@ -40,9 +40,16 @@ function ChatInputSkeleton() {
 function ChatSkeleton() {
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto">
-      <div className="flex flex-1 flex-col items-center justify-end overflow-y-visible p-4 sm:p-8">
-        <div className="flex size-full flex-1 items-center justify-center">
+      <div className="flex flex-1 flex-col items-center justify-center overflow-y-visible p-4 sm:p-8">
+        <div className="flex w-full max-w-(--chat-max-width) flex-col gap-6">
           <Skeleton className="h-9 w-80" />
+          <div className="divide-border flex flex-col divide-y">
+            {Array.from({ length: 4 }, (_, i) => (
+              <div key={i} className="py-4">
+                <Skeleton className="h-4 w-64" />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
       <ChatInputSkeleton />

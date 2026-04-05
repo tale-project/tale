@@ -6,6 +6,7 @@ import { Workflow } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
+import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { slugToUrlParam } from '@/lib/utils/workflow-slug';
@@ -72,7 +73,7 @@ export function AutomationsTable({
     'default',
     'installed',
   );
-  const { columns } = useAutomationsTableConfig();
+  const { columns, searchPlaceholder } = useAutomationsTableConfig();
 
   useEffect(() => {
     const handleWorkflowUpdated = () => void refetch();
@@ -158,10 +159,14 @@ export function AutomationsTable({
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center p-12">
-        <Text as="span" variant="caption">
-          {tCommon('actions.loading')}
-        </Text>
+      <div className="flex flex-col gap-4 p-4">
+        <DataTableSkeleton
+          columns={columns}
+          rows={5}
+          searchPlaceholder={searchPlaceholder}
+          noFirstColumnAvatar
+          actionMenu={<AutomationsActionMenu organizationId={organizationId} />}
+        />
       </div>
     );
   }

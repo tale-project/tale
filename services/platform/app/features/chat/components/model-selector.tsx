@@ -22,7 +22,7 @@ function getModelShortName(modelId: string): string {
 
 export function ModelSelector({ organizationId }: ModelSelectorProps) {
   const { t } = useT('chat');
-  const effectiveAgent = useEffectiveAgent(organizationId);
+  const { agent: effectiveAgent } = useEffectiveAgent(organizationId);
   const { agents } = useChatAgents(organizationId);
   const { providers } = useListProviders('default');
   const { selectedModelOverrides, setSelectedModelOverride } = useChatLayout();

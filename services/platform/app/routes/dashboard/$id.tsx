@@ -6,10 +6,12 @@ import {
   AdaptiveHeaderProvider,
   AdaptiveHeaderSlot,
 } from '@/app/components/layout/adaptive-header';
-import { Spinner } from '@/app/components/ui/feedback/spinner';
 import { MobileNavigation } from '@/app/components/ui/navigation/mobile-navigation';
 import { Navigation } from '@/app/components/ui/navigation/navigation';
-import { AbilityContext } from '@/app/context/ability-context';
+import {
+  AbilityContext,
+  AbilityLoadingContext,
+} from '@/app/context/ability-context';
 import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { TeamFilterProvider } from '@/app/hooks/use-team-filter';
@@ -58,34 +60,32 @@ function DashboardLayout() {
 
   return (
     <AbilityContext.Provider value={ability}>
-      <TeamFilterProvider organizationId={organizationId}>
-        <AdaptiveHeaderProvider>
-          <div className="flex size-full flex-col overflow-hidden md:flex-row">
-            <div className="bg-sidebar flex h-[--nav-size] items-center gap-2 p-2 md:hidden">
-              <MobileNavigation organizationId={organizationId} />
-              <AdaptiveHeaderSlot />
-            </div>
+      <AbilityLoadingContext.Provider value={isLoading}>
+        <TeamFilterProvider organizationId={organizationId}>
+          <AdaptiveHeaderProvider>
+            <div className="flex size-full flex-col overflow-hidden md:flex-row">
+              <div className="bg-sidebar flex h-[--nav-size] items-center gap-2 p-2 md:hidden">
+                <MobileNavigation organizationId={organizationId} />
+                <AdaptiveHeaderSlot />
+              </div>
 
-            <div className="bg-sidebar hidden h-full px-2 md:flex md:flex-[0_0_var(--nav-size)]">
-              <Navigation organizationId={organizationId} />
-            </div>
+              <div className="bg-sidebar hidden h-full px-2 md:flex md:flex-[0_0_var(--nav-size)]">
+                <Navigation organizationId={organizationId} />
+              </div>
 
-            <div className="border-border bg-background flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:border-l">
-              {hasRole ? (
-                <Outlet />
-              ) : isLoading ? (
-                <div className="flex flex-1 items-center justify-center">
-                  <Spinner size="md" />
-                </div>
-              ) : (
-                <AccessDenied
-                  message={t(isDisabled ? 'disabled' : 'noMembership')}
-                />
-              )}
+              <div className="border-border bg-background flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:border-l">
+                {hasRole || isLoading ? (
+                  <Outlet />
+                ) : (
+                  <AccessDenied
+                    message={t(isDisabled ? 'disabled' : 'noMembership')}
+                  />
+                )}
+              </div>
             </div>
-          </div>
-        </AdaptiveHeaderProvider>
-      </TeamFilterProvider>
+          </AdaptiveHeaderProvider>
+        </TeamFilterProvider>
+      </AbilityLoadingContext.Provider>
     </AbilityContext.Provider>
   );
 }

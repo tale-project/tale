@@ -25,18 +25,19 @@ const DEFAULT_CHAT_AGENT_NAME = 'chat-agent';
  * Translatable fields (displayName, conversationStarters) are resolved
  * based on the user's current locale and the organization's default locale.
  */
-export function useEffectiveAgent(
-  organizationId: string,
-): EffectiveAgent | null {
+export function useEffectiveAgent(organizationId: string): {
+  agent: EffectiveAgent | null;
+  isLoading: boolean;
+} {
   const { selectedAgent } = useChatLayout();
-  const { agents } = useChatAgents(organizationId);
+  const { agents, isLoading } = useChatAgents(organizationId);
   const { i18n } = useTranslation();
   const { data: organization } = useOrganization(organizationId);
 
   const locale = i18n.language;
   const defaultLocale = getOrganizationDefaultLocale(organization?.metadata);
 
-  return useMemo(() => {
+  const agent = useMemo(() => {
     function resolve(agent: NonNullable<typeof agents>[number]) {
       const resolved = resolveAgentLocale(agent, locale, defaultLocale);
       return {
@@ -63,4 +64,6 @@ export function useEffectiveAgent(
 
     return resolve(firstAgent);
   }, [selectedAgent, agents, locale, defaultLocale]);
+
+  return { agent, isLoading };
 }
