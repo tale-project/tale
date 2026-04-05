@@ -268,8 +268,9 @@ describe('generateAgentResponse — user cancellation (state-driven)', () => {
   it('does NOT save a failed message when user cancelled', async () => {
     const ctx = createMockCtx();
 
-    // Thread metadata indicates user cancelled (authoritative signal)
-    ctx.runQuery.mockResolvedValueOnce({ cancelledAt: Date.now() });
+    // cancelledAt must be >= startTime captured inside generateAgentResponse,
+    // so use a future timestamp to avoid flaky failures on slow CI.
+    ctx.runQuery.mockResolvedValueOnce({ cancelledAt: Date.now() + 5_000 });
     mockListStreams.mockResolvedValue([
       { streamId: 'stream_sdk_1', status: 'aborted' },
     ]);
@@ -287,8 +288,7 @@ describe('generateAgentResponse — user cancellation (state-driven)', () => {
   it('does NOT mark stream as errored when stream is already aborted', async () => {
     const ctx = createMockCtx();
 
-    // Thread metadata indicates user cancelled (authoritative signal)
-    ctx.runQuery.mockResolvedValueOnce({ cancelledAt: Date.now() });
+    ctx.runQuery.mockResolvedValueOnce({ cancelledAt: Date.now() + 5_000 });
     // listStreams with 'aborted' → confirms cancellation
     mockListStreams.mockResolvedValue([
       { streamId: 'stream_sdk_1', status: 'aborted' },
@@ -310,8 +310,7 @@ describe('generateAgentResponse — user cancellation (state-driven)', () => {
   it('skips both errorStream and saveMessage when stream is aborted', async () => {
     const ctx = createMockCtx();
 
-    // Thread metadata indicates user cancelled (authoritative signal)
-    ctx.runQuery.mockResolvedValueOnce({ cancelledAt: Date.now() });
+    ctx.runQuery.mockResolvedValueOnce({ cancelledAt: Date.now() + 5_000 });
     // listStreams with 'aborted' → confirms cancellation
     mockListStreams.mockResolvedValue([
       { streamId: 'stream_sdk_1', status: 'aborted' },
@@ -336,8 +335,7 @@ describe('generateAgentResponse — user cancellation (state-driven)', () => {
   it('returns cancelled result instead of re-throwing on user cancellation', async () => {
     const ctx = createMockCtx();
 
-    // Thread metadata indicates user cancelled (authoritative signal)
-    ctx.runQuery.mockResolvedValueOnce({ cancelledAt: Date.now() });
+    ctx.runQuery.mockResolvedValueOnce({ cancelledAt: Date.now() + 5_000 });
     mockListStreams.mockResolvedValue([
       { streamId: 'stream_sdk_1', status: 'aborted' },
     ]);
@@ -390,7 +388,7 @@ describe('generateAgentResponse — user cancellation (state-driven)', () => {
     const error = new Error('Something unexpected happened');
 
     // Thread metadata indicates user cancelled (authoritative signal)
-    ctx.runQuery.mockResolvedValueOnce({ cancelledAt: Date.now() });
+    ctx.runQuery.mockResolvedValueOnce({ cancelledAt: Date.now() + 5_000 });
     // listStreams with 'aborted' → confirms cancellation
     mockListStreams.mockResolvedValue([
       { streamId: 'stream_sdk_1', status: 'aborted' },
@@ -521,7 +519,7 @@ describe('generateAgentResponse — abort watcher', () => {
           return Promise.resolve([]);
         }
         if (query === 'mock-getThreadMetadata') {
-          return Promise.resolve({ cancelledAt: Date.now() });
+          return Promise.resolve({ cancelledAt: Date.now() + 5_000 });
         }
         return Promise.resolve([]);
       },
@@ -583,7 +581,7 @@ describe('generateAgentResponse — abort watcher', () => {
           return Promise.resolve([]);
         }
         if (query === 'mock-getThreadMetadata') {
-          return Promise.resolve({ cancelledAt: Date.now() });
+          return Promise.resolve({ cancelledAt: Date.now() + 5_000 });
         }
         return Promise.resolve([]);
       },
@@ -636,7 +634,7 @@ describe('generateAgentResponse — abort watcher', () => {
           return Promise.resolve([]);
         }
         if (query === 'mock-getThreadMetadata') {
-          return Promise.resolve({ cancelledAt: Date.now() });
+          return Promise.resolve({ cancelledAt: Date.now() + 5_000 });
         }
         return Promise.resolve([]);
       },
@@ -686,7 +684,7 @@ describe('generateAgentResponse — abort watcher', () => {
         return Promise.resolve([]);
       }
       if (query === 'mock-getThreadMetadata') {
-        return Promise.resolve({ cancelledAt: Date.now() });
+        return Promise.resolve({ cancelledAt: Date.now() + 5_000 });
       }
       return Promise.resolve([]);
     });
@@ -982,7 +980,7 @@ describe('generateAgentResponse — agent SDK stream cleanup', () => {
     const ctx = createMockCtx();
 
     // Thread metadata indicates user cancelled (authoritative signal)
-    ctx.runQuery.mockResolvedValueOnce({ cancelledAt: Date.now() });
+    ctx.runQuery.mockResolvedValueOnce({ cancelledAt: Date.now() + 5_000 });
     // listStreams with 'aborted' → confirms cancellation
     mockListStreams.mockResolvedValue([
       { streamId: 'stream_cancelled', status: 'aborted' },
