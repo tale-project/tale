@@ -694,7 +694,7 @@ function DefaultModelsSection() {
     <>
       <Card contentClassName="px-5 py-2">
         <HStack justify="between" align="center" className="border-b py-2.5">
-          <Stack gap={0.5}>
+          <Stack gap={1}>
             <Text variant="muted" className="text-sm">
               {t('providers.defaultModels')}
             </Text>
