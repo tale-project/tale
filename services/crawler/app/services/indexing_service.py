@@ -11,11 +11,11 @@ import hashlib
 import logging
 
 import asyncpg
-from tale_knowledge.embedding import EmbeddingService
 from tale_shared.db import transact_with_retry
 
 from app.services.chunking_service import chunk_content
 from app.services.database import acquire_with_retry
+from app.services.embedding_service import get_embedding_service
 from app.services.index_health import reindex_chunks
 from app.utils.paragraph_dedup import (
     BOILERPLATE_PAGE_THRESHOLD,
@@ -44,9 +44,8 @@ def _sha256(content: str) -> str:
 
 
 class IndexingService:
-    def __init__(self, pool: asyncpg.Pool, embedding_service: EmbeddingService):
+    def __init__(self, pool: asyncpg.Pool):
         self._pool = pool
-        self._embedding = embedding_service
         self._hnsw_ensured = False
 
     async def index_page(self, domain: str, url: str, title: str | None, content: str) -> dict:
@@ -118,7 +117,7 @@ class IndexingService:
         # Generate embeddings
         texts = [c.content for c in chunks]
         try:
-            embeddings = await self._embedding.embed_texts(texts)
+            embeddings = await get_embedding_service().embed_texts(texts)
         except Exception:
             logger.exception(f"Embedding failed for {url}")
             return {"url": url, "status": "error", "chunks_indexed": 0, "error": "embedding_failed"}

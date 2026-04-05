@@ -78,18 +78,37 @@ Be extremely concise - omit minor details."""
 class VisionClient:
     """Async client for OpenAI Vision API calls."""
 
+    _CONFIG_CHECK_INTERVAL = 15  # seconds
+
     def __init__(self) -> None:
         self._client: AsyncOpenAI | None = None
+        self._client_config: tuple | None = None
+        self._last_config_check: float = 0
 
     def _get_client(self) -> AsyncOpenAI:
-        """Get or create the OpenAI client."""
-        if self._client is None:
-            base_url, api_key, _model = settings.get_vision_config()
-            self._client = AsyncOpenAI(
-                api_key=api_key,
-                base_url=base_url,
-                timeout=120.0,
-            )
+        """Get or create the OpenAI client, rebuilding if config changed."""
+        now = time.monotonic()
+        if self._client is not None and (now - self._last_config_check) < self._CONFIG_CHECK_INTERVAL:
+            return self._client
+
+        self._last_config_check = now
+        config = settings.get_vision_config()  # (base_url, api_key, model)
+
+        if config == self._client_config and self._client is not None:
+            return self._client
+
+        base_url, api_key, _model = config
+
+        # Never downgrade to empty key
+        if not api_key and self._client_config is not None:
+            logger.warning("Skipping vision client reload: new config has empty API key")
+            return self._client  # type: ignore[return-value]
+
+        if self._client is not None:
+            logger.info("Vision client rebuilt with updated config")
+
+        self._client = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=120.0)
+        self._client_config = config
         return self._client
 
     async def ocr_image(
