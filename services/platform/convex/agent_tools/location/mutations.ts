@@ -10,35 +10,18 @@ import type { MutationCtx } from '../../_generated/server';
 import type { SerializableAgentConfig } from '../../lib/agent_chat/types';
 
 import { components, internal } from '../../_generated/api';
-import { internalMutation, mutation } from '../../_generated/server';
-import { getOrganizationMember } from '../../lib/rls';
+import { internalMutation } from '../../_generated/server';
 import { persistentStreaming } from '../../streaming/helpers';
 import { workflowManagers } from '../../workflow_engine/engine';
 import { safeShardIndex } from '../../workflow_engine/helpers/engine/shard';
+import {
+  approvalReturnValidator,
+  DEFAULT_AGENT_CONFIG,
+} from '../approval_shared';
 
 const beforeGenerateHookRef = makeFunctionReference<'action'>(
   'lib/agent_chat/internal_actions:beforeGenerateHook',
 );
-
-const DEFAULT_AGENT_CONFIG = {
-  name: 'chat-agent',
-  instructions: '',
-  convexToolNames: [],
-  model: 'default',
-  knowledgeMode: 'off' as const,
-  webSearchMode: 'off' as const,
-  includeTeamKnowledge: false,
-  includeOrgKnowledge: false,
-  knowledgeFileIds: [],
-  structuredResponsesEnabled: true,
-  timeoutMs: 1_200_000,
-};
-
-const returnValidator = v.object({
-  success: v.boolean(),
-  threadId: v.optional(v.string()),
-  streamId: v.optional(v.string()),
-});
 
 interface HandleArgs {
   ctx: MutationCtx;
@@ -204,63 +187,27 @@ async function handleSubmission({
 }
 
 /**
- * Public mutation — called directly from the frontend when the action wrapper is not used.
- * @deprecated Prefer the action in actions.ts which resolves the agent config.
- */
-export const submitLocationResponse = mutation({
-  args: {
-    approvalId: v.id('approvals'),
-    location: v.optional(v.string()),
-    denied: v.optional(v.boolean()),
-  },
-  returns: returnValidator,
-  handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error('Unauthenticated');
-    }
-
-    await getOrganizationMember(
-      ctx,
-      (await ctx.db.get(args.approvalId))?.organizationId ?? '',
-    );
-
-    return handleSubmission({
-      ctx,
-      approvalId: args.approvalId,
-      location: args.location,
-      denied: args.denied,
-      respondedBy: identity.email ?? identity.subject,
-      approvedBy: identity.subject,
-    });
-  },
-});
-
-/**
  * Internal mutation — called from the action wrapper which resolves agent config first.
+ * Auth and org membership are verified in the action layer before calling this.
  */
 export const submitLocationResponseInternal = internalMutation({
   args: {
     approvalId: v.id('approvals'),
     location: v.optional(v.string()),
     denied: v.optional(v.boolean()),
-    userId: v.string(),
+    respondedBy: v.string(),
+    approvedBy: v.string(),
     agentConfig: v.optional(v.any()),
   },
-  returns: returnValidator,
+  returns: approvalReturnValidator,
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error('Unauthenticated');
-    }
-
     return handleSubmission({
       ctx,
       approvalId: args.approvalId,
       location: args.location,
       denied: args.denied,
-      respondedBy: identity.email ?? identity.subject,
-      approvedBy: identity.subject,
+      respondedBy: args.respondedBy,
+      approvedBy: args.approvedBy,
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- v.any() from Convex validator, shape guaranteed by the action caller
       agentConfig: args.agentConfig as SerializableAgentConfig | undefined,
     });

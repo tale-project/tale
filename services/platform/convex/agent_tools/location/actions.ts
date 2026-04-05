@@ -37,8 +37,19 @@ export const submitLocationResponse = action({
       organizationId: string;
       agentSlug?: string;
     } = await ctx.runQuery(
-      internal.agent_tools.location.queries.getApprovalContext,
+      internal.approvals.internal_queries.getApprovalContext,
       { approvalId: args.approvalId },
+    );
+
+    // Verify user belongs to the approval's organization
+    await ctx.runQuery(
+      internal.approvals.internal_queries.verifyOrganizationMembership,
+      {
+        organizationId: approvalInfo.organizationId,
+        userId: String(authUser._id),
+        email: authUser.email,
+        name: authUser.name,
+      },
     );
 
     // Resolve the agent config from the thread's agent slug
@@ -54,8 +65,11 @@ export const submitLocationResponse = action({
             modelId: args.modelId,
           },
         );
-      } catch {
-        // Agent may have been deleted — fall back to default config in the mutation
+      } catch (error) {
+        console.warn(
+          `Agent config resolution failed for ${approvalInfo.agentSlug}, using default`,
+          error,
+        );
       }
     }
 
@@ -65,7 +79,8 @@ export const submitLocationResponse = action({
         approvalId: args.approvalId,
         location: args.location,
         denied: args.denied,
-        userId: String(authUser._id),
+        respondedBy: authUser.email ?? String(authUser._id),
+        approvedBy: String(authUser._id),
         agentConfig: resolvedAgentConfig,
       },
     );

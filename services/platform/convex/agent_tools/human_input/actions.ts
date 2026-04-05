@@ -36,8 +36,19 @@ export const submitHumanInputResponse = action({
       organizationId: string;
       agentSlug?: string;
     } = await ctx.runQuery(
-      internal.agent_tools.human_input.queries.getApprovalContext,
+      internal.approvals.internal_queries.getApprovalContext,
       { approvalId: args.approvalId },
+    );
+
+    // Verify user belongs to the approval's organization
+    await ctx.runQuery(
+      internal.approvals.internal_queries.verifyOrganizationMembership,
+      {
+        organizationId: approvalInfo.organizationId,
+        userId: String(authUser._id),
+        email: authUser.email,
+        name: authUser.name,
+      },
     );
 
     // Resolve the agent config from the thread's agent slug
@@ -53,8 +64,11 @@ export const submitHumanInputResponse = action({
             modelId: args.modelId,
           },
         );
-      } catch {
-        // Agent may have been deleted — fall back to default config in the mutation
+      } catch (error) {
+        console.warn(
+          `Agent config resolution failed for ${approvalInfo.agentSlug}, using default`,
+          error,
+        );
       }
     }
 
@@ -64,7 +78,8 @@ export const submitHumanInputResponse = action({
       {
         approvalId: args.approvalId,
         response: args.response,
-        userId: String(authUser._id),
+        respondedBy: authUser.email ?? String(authUser._id),
+        approvedBy: String(authUser._id),
         agentConfig: resolvedAgentConfig,
       },
     );

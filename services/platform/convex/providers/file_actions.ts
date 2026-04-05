@@ -345,7 +345,8 @@ export const resolveModelByTag = internalAction({
     // First pass: check for explicit per-tag default
     for (const provider of candidates) {
       const defaults = provider.config.defaults;
-      const tagKey = args.tag as keyof NonNullable<typeof defaults>; // oxlint-disable-line typescript/no-unsafe-type-assertion -- tag is validated at call site
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- defaults keys are 'chat' | 'vision' | 'embedding'; tag may not match but undefined access is handled below
+      const tagKey = args.tag as keyof NonNullable<typeof defaults>;
       const defaultModelId = defaults?.[tagKey];
       if (defaultModelId) {
         const definition = provider.config.models.find(

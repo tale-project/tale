@@ -70,9 +70,13 @@ function HumanInputRequestCardComponent({
 
   const { selectedModelOverrides } = useChatLayout();
   const { agent: effectiveAgent } = useEffectiveAgent(organizationId);
-  const modelId = effectiveAgent?.name
-    ? selectedModelOverrides[effectiveAgent.name]
-    : undefined;
+  const modelId = useMemo(
+    () =>
+      effectiveAgent?.name
+        ? selectedModelOverrides[effectiveAgent.name]
+        : undefined,
+    [effectiveAgent?.name, selectedModelOverrides],
+  );
 
   const { mutate: submitResponse, isPending: isSubmitting } =
     useSubmitHumanInputResponse();

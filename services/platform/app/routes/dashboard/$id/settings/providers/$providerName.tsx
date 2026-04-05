@@ -731,7 +731,11 @@ function DefaultModelsSection() {
         onOpenChange={setDialogOpen}
         title={t('providers.defaultModels')}
         onSubmit={handleSubmit}
-        isDirty={JSON.stringify(form) !== JSON.stringify(config.defaults ?? {})}
+        isDirty={
+          form.chat !== (config.defaults?.chat ?? NONE_VALUE) ||
+          form.vision !== (config.defaults?.vision ?? NONE_VALUE) ||
+          form.embedding !== (config.defaults?.embedding ?? NONE_VALUE)
+        }
       >
         <Stack gap={4}>
           {(['chat', 'vision', 'embedding'] as const).map((tag) => {

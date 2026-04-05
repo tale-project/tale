@@ -12,6 +12,7 @@ import type * as accounts_helpers from "../accounts/helpers.js";
 import type * as accounts_queries from "../accounts/queries.js";
 import type * as accounts_types from "../accounts/types.js";
 import type * as accounts_validators from "../accounts/validators.js";
+import type * as agent_tools_approval_shared from "../agent_tools/approval_shared.js";
 import type * as agent_tools_create_json_output_tool from "../agent_tools/create_json_output_tool.js";
 import type * as agent_tools_customers_customer_read_tool from "../agent_tools/customers/customer_read_tool.js";
 import type * as agent_tools_customers_helpers_count_customers from "../agent_tools/customers/helpers/count_customers.js";
@@ -52,7 +53,6 @@ import type * as agent_tools_files_text_tool from "../agent_tools/files/text_too
 import type * as agent_tools_human_input_actions from "../agent_tools/human_input/actions.js";
 import type * as agent_tools_human_input_internal_mutations from "../agent_tools/human_input/internal_mutations.js";
 import type * as agent_tools_human_input_mutations from "../agent_tools/human_input/mutations.js";
-import type * as agent_tools_human_input_queries from "../agent_tools/human_input/queries.js";
 import type * as agent_tools_human_input_request_human_input_tool from "../agent_tools/human_input/request_human_input_tool.js";
 import type * as agent_tools_integrations_create_bound_integration_tool from "../agent_tools/integrations/create_bound_integration_tool.js";
 import type * as agent_tools_integrations_fetch_operations_summary from "../agent_tools/integrations/fetch_operations_summary.js";
@@ -66,7 +66,6 @@ import type * as agent_tools_load_convex_tools_as_object from "../agent_tools/lo
 import type * as agent_tools_location_actions from "../agent_tools/location/actions.js";
 import type * as agent_tools_location_internal_mutations from "../agent_tools/location/internal_mutations.js";
 import type * as agent_tools_location_mutations from "../agent_tools/location/mutations.js";
-import type * as agent_tools_location_queries from "../agent_tools/location/queries.js";
 import type * as agent_tools_location_request_user_location_tool from "../agent_tools/location/request_user_location_tool.js";
 import type * as agent_tools_products_helpers_count_products from "../agent_tools/products/helpers/count_products.js";
 import type * as agent_tools_products_helpers_read_product_by_id from "../agent_tools/products/helpers/read_product_by_id.js";
@@ -852,6 +851,7 @@ declare const fullApi: ApiFromModules<{
   "accounts/queries": typeof accounts_queries;
   "accounts/types": typeof accounts_types;
   "accounts/validators": typeof accounts_validators;
+  "agent_tools/approval_shared": typeof agent_tools_approval_shared;
   "agent_tools/create_json_output_tool": typeof agent_tools_create_json_output_tool;
   "agent_tools/customers/customer_read_tool": typeof agent_tools_customers_customer_read_tool;
   "agent_tools/customers/helpers/count_customers": typeof agent_tools_customers_helpers_count_customers;
@@ -892,7 +892,6 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/human_input/actions": typeof agent_tools_human_input_actions;
   "agent_tools/human_input/internal_mutations": typeof agent_tools_human_input_internal_mutations;
   "agent_tools/human_input/mutations": typeof agent_tools_human_input_mutations;
-  "agent_tools/human_input/queries": typeof agent_tools_human_input_queries;
   "agent_tools/human_input/request_human_input_tool": typeof agent_tools_human_input_request_human_input_tool;
   "agent_tools/integrations/create_bound_integration_tool": typeof agent_tools_integrations_create_bound_integration_tool;
   "agent_tools/integrations/fetch_operations_summary": typeof agent_tools_integrations_fetch_operations_summary;
@@ -906,7 +905,6 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/location/actions": typeof agent_tools_location_actions;
   "agent_tools/location/internal_mutations": typeof agent_tools_location_internal_mutations;
   "agent_tools/location/mutations": typeof agent_tools_location_mutations;
-  "agent_tools/location/queries": typeof agent_tools_location_queries;
   "agent_tools/location/request_user_location_tool": typeof agent_tools_location_request_user_location_tool;
   "agent_tools/products/helpers/count_products": typeof agent_tools_products_helpers_count_products;
   "agent_tools/products/helpers/read_product_by_id": typeof agent_tools_products_helpers_read_product_by_id;

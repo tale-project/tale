@@ -1,7 +1,7 @@
 'use client';
 
 import { Check, Loader2, MapPin, X, XCircle } from 'lucide-react';
-import { memo, useCallback, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
 import type { LocationRequestMetadata } from '@/lib/shared/schemas/approvals';
@@ -99,9 +99,13 @@ function LocationRequestCardComponent({
 
   const { selectedModelOverrides } = useChatLayout();
   const { agent: effectiveAgent } = useEffectiveAgent(organizationId);
-  const modelId = effectiveAgent?.name
-    ? selectedModelOverrides[effectiveAgent.name]
-    : undefined;
+  const modelId = useMemo(
+    () =>
+      effectiveAgent?.name
+        ? selectedModelOverrides[effectiveAgent.name]
+        : undefined,
+    [effectiveAgent?.name, selectedModelOverrides],
+  );
 
   const { mutate: submitResponse, isPending: isSubmitting } =
     useSubmitLocationResponse();
