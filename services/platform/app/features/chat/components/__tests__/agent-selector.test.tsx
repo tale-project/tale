@@ -61,7 +61,7 @@ let mockEffectiveAgent: { name: string; displayName: string } | null = {
 };
 
 vi.mock('../../hooks/use-effective-agent', () => ({
-  useEffectiveAgent: () => mockEffectiveAgent,
+  useEffectiveAgent: () => ({ agent: mockEffectiveAgent, isLoading: false }),
 }));
 
 let mockCanWrite = true;

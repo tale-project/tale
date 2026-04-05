@@ -6,7 +6,7 @@ import {
   AdaptiveHeaderTitle,
 } from '@/app/components/layout/adaptive-header';
 import { PageLayout } from '@/app/components/layout/page-layout';
-import { useAbility } from '@/app/hooks/use-ability';
+import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
@@ -23,11 +23,14 @@ function AgentsLayout() {
   const { t: tAccessDenied } = useT('accessDenied');
 
   const ability = useAbility();
+  const abilityLoading = useAbilityLoading();
 
   const isDetailPage = useMatch({
     from: '/dashboard/$id/agents/$agentId',
     shouldThrow: false,
   });
+
+  if (abilityLoading) return null;
 
   if (ability.cannot('write', 'agents')) {
     return <AccessDenied message={tAccessDenied('agents')} />;

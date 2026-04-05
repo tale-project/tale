@@ -4,7 +4,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { TeamsTable } from '@/app/features/settings/teams/components/teams-table';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
-import { useAbility } from '@/app/hooks/use-ability';
+import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
@@ -28,8 +28,11 @@ function TeamsSettingsPage() {
   const { t } = useT('accessDenied');
 
   const ability = useAbility();
+  const abilityLoading = useAbilityLoading();
 
   const { teams } = useOrgTeams();
+
+  if (abilityLoading) return null;
 
   if (ability.cannot('read', 'orgSettings')) {
     return <AccessDenied message={t('teams')} />;

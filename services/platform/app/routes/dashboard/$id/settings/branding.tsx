@@ -6,7 +6,7 @@ import { FormSection } from '@/app/components/ui/forms/form-section';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { BrandingSettings } from '@/app/features/settings/branding/components/branding-settings';
 import { useBranding } from '@/app/features/settings/branding/hooks/queries';
-import { useAbility } from '@/app/hooks/use-ability';
+import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
@@ -64,6 +64,7 @@ function BrandingSettingsPage() {
   const { t } = useT('accessDenied');
 
   const ability = useAbility();
+  const abilityLoading = useAbilityLoading();
 
   const {
     data: branding,
@@ -71,12 +72,12 @@ function BrandingSettingsPage() {
     refetch,
   } = useBranding();
 
-  if (ability.cannot('read', 'orgSettings')) {
-    return <AccessDenied message={t('branding')} />;
+  if (abilityLoading || isBrandingLoading) {
+    return <BrandingSettingsSkeleton />;
   }
 
-  if (isBrandingLoading) {
-    return <BrandingSettingsSkeleton />;
+  if (ability.cannot('read', 'orgSettings')) {
+    return <AccessDenied message={t('branding')} />;
   }
 
   return (

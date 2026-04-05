@@ -22,7 +22,7 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
   const { t } = useT('chat');
   const ability = useAbility();
   const { setSelectedAgent } = useChatLayout();
-  const effectiveAgent = useEffectiveAgent(organizationId);
+  const { agent: effectiveAgent } = useEffectiveAgent(organizationId);
   const { agents: allAgents } = useChatAgents(organizationId);
   const canManageAgents = ability.can('write', 'agents');
   const [open, setOpen] = useState(false);

@@ -33,9 +33,12 @@ vi.mock('../../context/chat-layout-context', () => ({
   }),
 }));
 
+let mockIsLoading = false;
+
 vi.mock('../queries', () => ({
   useChatAgents: () => ({
     agents: mockAgents,
+    isLoading: mockIsLoading,
   }),
 }));
 
@@ -67,28 +70,31 @@ const AGENTS: MockAgent[] = [
 beforeEach(() => {
   mockSelectedAgent = null;
   mockAgents = undefined;
+  mockIsLoading = false;
   mockLocale = 'en';
   mockOrgMetadata = undefined;
 });
 
 describe('useEffectiveAgent', () => {
   describe('when agents are loading', () => {
-    it('returns null when no selected agent', () => {
+    it('returns null agent with isLoading true when no selected agent', () => {
       mockAgents = undefined;
+      mockIsLoading = true;
       mockSelectedAgent = null;
 
       const { result } = renderHook(() => useEffectiveAgent(ORG_ID));
 
-      expect(result.current).toBeNull();
+      expect(result.current).toEqual({ agent: null, isLoading: true });
     });
 
-    it('returns null even when selected agent exists in localStorage', () => {
+    it('returns null agent even when selected agent exists in localStorage', () => {
       mockAgents = undefined;
+      mockIsLoading = true;
       mockSelectedAgent = { name: 'chat-agent', displayName: 'Default Chat' };
 
       const { result } = renderHook(() => useEffectiveAgent(ORG_ID));
 
-      expect(result.current).toBeNull();
+      expect(result.current).toEqual({ agent: null, isLoading: true });
     });
   });
 
@@ -100,18 +106,18 @@ describe('useEffectiveAgent', () => {
       const { result } = renderHook(() => useEffectiveAgent(ORG_ID));
 
       expect(result.current).toEqual({
-        name: 'chat-agent',
-        displayName: 'Default Chat',
+        agent: { name: 'chat-agent', displayName: 'Default Chat' },
+        isLoading: false,
       });
     });
 
-    it('returns null when no agents exist', () => {
+    it('returns null agent when no agents exist', () => {
       mockAgents = [];
       mockSelectedAgent = null;
 
       const { result } = renderHook(() => useEffectiveAgent(ORG_ID));
 
-      expect(result.current).toBeNull();
+      expect(result.current).toEqual({ agent: null, isLoading: false });
     });
 
     it('returns validated selected agent when it exists in list', () => {
@@ -121,8 +127,8 @@ describe('useEffectiveAgent', () => {
       const { result } = renderHook(() => useEffectiveAgent(ORG_ID));
 
       expect(result.current).toEqual({
-        name: 'custom-agent',
-        displayName: 'Custom Agent',
+        agent: { name: 'custom-agent', displayName: 'Custom Agent' },
+        isLoading: false,
       });
     });
 
@@ -136,8 +142,8 @@ describe('useEffectiveAgent', () => {
       const { result } = renderHook(() => useEffectiveAgent(ORG_ID));
 
       expect(result.current).toEqual({
-        name: 'chat-agent',
-        displayName: 'Default Chat',
+        agent: { name: 'chat-agent', displayName: 'Default Chat' },
+        isLoading: false,
       });
     });
 
@@ -148,8 +154,8 @@ describe('useEffectiveAgent', () => {
       const { result } = renderHook(() => useEffectiveAgent(ORG_ID));
 
       expect(result.current).toEqual({
-        name: 'custom-agent',
-        displayName: 'Custom Agent',
+        agent: { name: 'custom-agent', displayName: 'Custom Agent' },
+        isLoading: false,
       });
     });
 
@@ -168,9 +174,12 @@ describe('useEffectiveAgent', () => {
       const { result } = renderHook(() => useEffectiveAgent(ORG_ID));
 
       expect(result.current).toEqual({
-        name: 'chat-agent',
-        displayName: 'Default Chat',
-        conversationStarters: starters,
+        agent: {
+          name: 'chat-agent',
+          displayName: 'Default Chat',
+          conversationStarters: starters,
+        },
+        isLoading: false,
       });
     });
 
@@ -187,8 +196,8 @@ describe('useEffectiveAgent', () => {
       const { result } = renderHook(() => useEffectiveAgent(ORG_ID));
 
       expect(result.current).toEqual({
-        name: 'other-agent',
-        displayName: 'Other Agent',
+        agent: { name: 'other-agent', displayName: 'Other Agent' },
+        isLoading: false,
       });
     });
   });
@@ -217,9 +226,12 @@ describe('useEffectiveAgent', () => {
       const { result } = renderHook(() => useEffectiveAgent(ORG_ID));
 
       expect(result.current).toEqual({
-        name: 'chat-agent',
-        displayName: 'Chat Agent',
-        conversationStarters: ['Hello', 'Help me'],
+        agent: {
+          name: 'chat-agent',
+          displayName: 'Chat Agent',
+          conversationStarters: ['Hello', 'Help me'],
+        },
+        isLoading: false,
       });
     });
 
@@ -231,9 +243,12 @@ describe('useEffectiveAgent', () => {
       const { result } = renderHook(() => useEffectiveAgent(ORG_ID));
 
       expect(result.current).toEqual({
-        name: 'chat-agent',
-        displayName: 'Chat-Assistent',
-        conversationStarters: ['Hallo', 'Hilf mir'],
+        agent: {
+          name: 'chat-agent',
+          displayName: 'Chat-Assistent',
+          conversationStarters: ['Hallo', 'Hilf mir'],
+        },
+        isLoading: false,
       });
     });
 
@@ -245,9 +260,12 @@ describe('useEffectiveAgent', () => {
       const { result } = renderHook(() => useEffectiveAgent(ORG_ID));
 
       expect(result.current).toEqual({
-        name: 'chat-agent',
-        displayName: 'Chat Agent',
-        conversationStarters: ['Hello', 'Help me'],
+        agent: {
+          name: 'chat-agent',
+          displayName: 'Chat Agent',
+          conversationStarters: ['Hello', 'Help me'],
+        },
+        isLoading: false,
       });
     });
 
@@ -259,9 +277,12 @@ describe('useEffectiveAgent', () => {
       const { result } = renderHook(() => useEffectiveAgent(ORG_ID));
 
       expect(result.current).toEqual({
-        name: 'chat-agent',
-        displayName: 'Chat Agent',
-        conversationStarters: ['Hello', 'Help me'],
+        agent: {
+          name: 'chat-agent',
+          displayName: 'Chat Agent',
+          conversationStarters: ['Hello', 'Help me'],
+        },
+        isLoading: false,
       });
     });
   });

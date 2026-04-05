@@ -3,7 +3,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { ApiKeysTable } from '@/app/features/settings/api-keys/components/api-keys-table';
 import { useApiKeys } from '@/app/features/settings/api-keys/hooks/use-api-keys';
-import { useAbility } from '@/app/hooks/use-ability';
+import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
@@ -19,8 +19,11 @@ function ApiKeysSettingsPage() {
   const { t } = useT('accessDenied');
 
   const ability = useAbility();
+  const abilityLoading = useAbilityLoading();
 
   const { data: apiKeys } = useApiKeys(organizationId);
+
+  if (abilityLoading) return null;
 
   if (ability.cannot('read', 'developerSettings')) {
     return <AccessDenied message={t('apiKeys')} />;

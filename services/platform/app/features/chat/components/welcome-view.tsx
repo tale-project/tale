@@ -4,9 +4,11 @@ import { Heading } from '@/app/components/ui/typography/heading';
 import { useT } from '@/lib/i18n/client';
 
 import { LoadingDots } from './thinking-animation';
+import { WelcomeContentSkeleton } from './welcome-content-skeleton';
 
 interface WelcomeViewProps {
   isPending: boolean;
+  isAgentLoading: boolean;
   agentName: string | undefined;
   conversationStarters?: string[];
   onSuggestionClick: (suggestion: string) => void;
@@ -14,6 +16,7 @@ interface WelcomeViewProps {
 
 export function WelcomeView({
   isPending,
+  isAgentLoading,
   agentName,
   conversationStarters,
   onSuggestionClick,
@@ -29,6 +32,10 @@ export function WelcomeView({
   }
 
   const hasStarters = conversationStarters && conversationStarters.length > 0;
+
+  if (isAgentLoading && !hasStarters) {
+    return <WelcomeContentSkeleton />;
+  }
 
   if (!hasStarters) {
     return (

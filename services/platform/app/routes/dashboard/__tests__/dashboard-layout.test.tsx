@@ -101,7 +101,7 @@ afterEach(() => {
 });
 
 describe('DashboardLayout', () => {
-  it('shows spinner when Convex auth is loading', () => {
+  it('renders outlet when Convex auth is loading', () => {
     mockUseConvexAuth.mockReturnValue({
       isLoading: true,
       isAuthenticated: false,
@@ -114,11 +114,10 @@ describe('DashboardLayout', () => {
 
     render(<DashboardLayout />);
 
-    expect(screen.getByRole('status')).toBeInTheDocument();
-    expect(screen.queryByTestId('outlet')).not.toBeInTheDocument();
+    expect(screen.getByTestId('outlet')).toBeInTheDocument();
   });
 
-  it('shows spinner when member context query is loading', () => {
+  it('renders outlet when member context query is loading', () => {
     mockUseConvexAuth.mockReturnValue({
       isLoading: false,
       isAuthenticated: true,
@@ -131,11 +130,10 @@ describe('DashboardLayout', () => {
 
     render(<DashboardLayout />);
 
-    expect(screen.getByRole('status')).toBeInTheDocument();
-    expect(screen.queryByTestId('outlet')).not.toBeInTheDocument();
+    expect(screen.getByTestId('outlet')).toBeInTheDocument();
   });
 
-  it('shows spinner when both auth and query are loading', () => {
+  it('renders outlet when both auth and query are loading', () => {
     mockUseConvexAuth.mockReturnValue({
       isLoading: true,
       isAuthenticated: false,
@@ -148,8 +146,7 @@ describe('DashboardLayout', () => {
 
     render(<DashboardLayout />);
 
-    expect(screen.getByRole('status')).toBeInTheDocument();
-    expect(screen.queryByTestId('outlet')).not.toBeInTheDocument();
+    expect(screen.getByTestId('outlet')).toBeInTheDocument();
   });
 
   it('renders child routes when auth complete and member has role', () => {
@@ -236,7 +233,7 @@ describe('DashboardLayout', () => {
     expect(mockUseCurrentMemberContext.mock.calls[0]?.[1]).toBe(false);
   });
 
-  it('shows spinner when query errors (not access denied)', () => {
+  it('renders outlet when query errors (treats error as loading)', () => {
     mockUseConvexAuth.mockReturnValue({
       isLoading: false,
       isAuthenticated: true,
@@ -249,8 +246,7 @@ describe('DashboardLayout', () => {
 
     render(<DashboardLayout />);
 
-    expect(screen.getByRole('status')).toBeInTheDocument();
-    expect(screen.queryByTestId('outlet')).not.toBeInTheDocument();
+    expect(screen.getByTestId('outlet')).toBeInTheDocument();
     expect(
       screen.queryByText('accessDenied.noMembership'),
     ).not.toBeInTheDocument();
