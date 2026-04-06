@@ -80,6 +80,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
   let interrupted = false;
 
   const onInterrupt = () => {
+    if (interrupted) return;
     interrupted = true;
     logger.blank();
     logger.warn('Deployment interrupted, cleaning up started containers...');
@@ -420,12 +421,11 @@ export async function deploy(options: DeployOptions): Promise<void> {
               }
             }
 
-            // Switch traffic to new color
+            // Switch traffic to new color — clear tracking first so an
+            // interrupt during the async write won't kill live containers.
+            startedContainers.length = 0;
             logger.step(`Switching traffic to ${nextColor}...`);
             await setCurrentColor(env.DEPLOY_DIR, nextColor);
-
-            // Traffic is live — don't tear down these containers on interrupt
-            startedContainers.length = 0;
 
             // Drain old color (if exists)
             if (currentColor) {
