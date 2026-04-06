@@ -872,4 +872,4 @@ monitor_convex &
 MONITOR_PID=$!
 
 # Wait for all background processes
-wait "$CONVEX_PID" "$VITE_PID" "$DASHBOARD_PID"
+wait "$CONVEX_PID" "$VITE_PID" "$DASHBOARD_PID" "$MONITOR_PID"

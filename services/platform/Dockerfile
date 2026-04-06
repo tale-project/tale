@@ -138,7 +138,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && groupadd --system --gid 1001 app || true \
     && useradd --system --uid 1001 --gid app app || true \
     && mkdir -p /home/app && chmod 777 /home/app \
-    && mkdir -p /app/data/convex /app/data/agents /app/data/workflows /app/data/integrations /dashboard /app/agents-builtin /app/workflows-builtin /app/integrations-builtin /app/providers-builtin \
+    && mkdir -p /app/data/convex /app/data/agents /app/data/workflows /app/data/integrations /app/data/providers /dashboard /app/agents-builtin /app/workflows-builtin /app/integrations-builtin /app/providers-builtin \
     && chown -R app:app /app/data /dashboard /app/agents-builtin /app/workflows-builtin /app/integrations-builtin /app/providers-builtin
 
 # Re-declare VERSION arg (ARGs don't persist after FROM)
@@ -183,7 +183,9 @@ ENV NODE_ENV=production \
     # Workflow template JSON files directory
     WORKFLOWS_DIR=/app/data/workflows \
     # Integration template files directory
-    INTEGRATIONS_DIR=/app/data/integrations
+    INTEGRATIONS_DIR=/app/data/integrations \
+    # Provider config files directory
+    PROVIDERS_DIR=/app/data/providers
 
 COPY --from=convex-dashboard --chown=app:app /app /dashboard
 
