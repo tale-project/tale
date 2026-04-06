@@ -10,6 +10,20 @@ set -e
 # 3. Convex Dashboard (admin UI on port 6791)
 # ============================================================================
 
+# ----------------------------------------------------------------------------
+# Privilege handling: fix data directory ownership, then drop to app user.
+# When /app/data is a Docker volume, it may be mounted with root ownership.
+# We fix that here (as root) and re-exec as the unprivileged app user.
+# ----------------------------------------------------------------------------
+if [ "$(id -u)" = '0' ]; then
+  data_dir="${TALE_CONFIG_DIR:-/app/data}"
+  # Ensure all data directories exist and are owned by app
+  mkdir -p "$data_dir/convex" "$data_dir/agents" "$data_dir/workflows" "$data_dir/integrations" "$data_dir/providers"
+  chown -R app:app "$data_dir"
+  # Re-exec this script as the app user
+  exec gosu app "$0" "$@"
+fi
+
 echo "🚀 Starting Tale Platform with integrated Convex backend..."
 
 # ============================================================================
@@ -858,4 +872,4 @@ monitor_convex &
 MONITOR_PID=$!
 
 # Wait for all background processes
-wait "$CONVEX_PID" "$VITE_PID" "$DASHBOARD_PID"
+wait "$CONVEX_PID" "$VITE_PID" "$DASHBOARD_PID" "$MONITOR_PID"

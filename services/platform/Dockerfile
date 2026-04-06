@@ -127,7 +127,7 @@ WORKDIR /app
 
 ARG SOPS_VERSION=3.9.4
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl tini postgresql-client ca-certificates \
+    curl tini gosu postgresql-client ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && curl -fsSL "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.$(dpkg --print-architecture)" -o /usr/local/bin/sops && chmod +x /usr/local/bin/sops \
     && mkdir -p /usr/local/share/ca-certificates \
@@ -138,7 +138,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && groupadd --system --gid 1001 app || true \
     && useradd --system --uid 1001 --gid app app || true \
     && mkdir -p /home/app && chmod 777 /home/app \
-    && mkdir -p /app/data/convex /app/data/agents /app/data/workflows /app/data/integrations /dashboard /app/agents-builtin /app/workflows-builtin /app/integrations-builtin /app/providers-builtin \
+    && mkdir -p /app/data/convex /app/data/agents /app/data/workflows /app/data/integrations /app/data/providers /dashboard /app/agents-builtin /app/workflows-builtin /app/integrations-builtin /app/providers-builtin \
     && chown -R app:app /app/data /dashboard /app/agents-builtin /app/workflows-builtin /app/integrations-builtin /app/providers-builtin
 
 # Re-declare VERSION arg (ARGs don't persist after FROM)
@@ -183,7 +183,9 @@ ENV NODE_ENV=production \
     # Workflow template JSON files directory
     WORKFLOWS_DIR=/app/data/workflows \
     # Integration template files directory
-    INTEGRATIONS_DIR=/app/data/integrations
+    INTEGRATIONS_DIR=/app/data/integrations \
+    # Provider config files directory
+    PROVIDERS_DIR=/app/data/providers
 
 COPY --from=convex-dashboard --chown=app:app /app /dashboard
 
@@ -212,8 +214,6 @@ COPY --from=pruner --chown=app:app /app/services/platform/package.json ./
 COPY --from=pruner --chown=app:app /app/services/platform/docker-entrypoint.sh /app/services/platform/generate-admin-key.sh /app/services/platform/env.sh ./
 
 RUN chmod +x ./docker-entrypoint.sh ./generate-admin-key.sh
-
-USER app
 
 EXPOSE 3000 3210 3211 6791
 
