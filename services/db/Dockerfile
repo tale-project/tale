@@ -23,17 +23,13 @@ RUN apt-get update \
         ca-certificates \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
-    && mkdir -p /docker-entrypoint-initdb.d \
-                /etc/postgresql/conf.d \
+    && mkdir -p /etc/postgresql/conf.d \
                 /var/lib/postgresql/backup
 
 # Install dbmate for database migrations
 COPY --from=ghcr.io/amacneil/dbmate:2 /usr/local/bin/dbmate /usr/local/bin/dbmate
 
-# Copy initialization scripts
-# - /docker-entrypoint-initdb.d/ : PostgreSQL runs these on first init only
-# - /etc/postgresql/init-scripts/ : Entrypoint wrapper runs these on every startup
-COPY services/db/init-scripts/ /docker-entrypoint-initdb.d/
+# Copy initialization scripts (run on every startup by the entrypoint wrapper)
 COPY services/db/init-scripts/ /etc/postgresql/init-scripts/
 
 # Copy database migrations (tale_knowledge)
@@ -45,8 +41,7 @@ COPY services/db/postgresql.conf /etc/postgresql/postgresql.conf
 # Copy entrypoint wrapper script and set permissions
 COPY services/db/docker-entrypoint-wrapper.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint-wrapper.sh \
-    && chown -R postgres:postgres /docker-entrypoint-initdb.d \
-                                   /etc/postgresql \
+    && chown -R postgres:postgres /etc/postgresql \
                                    /var/lib/postgresql/backup
 
 # Run as root — the standard docker-entrypoint.sh detects root,
