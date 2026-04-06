@@ -94,17 +94,8 @@ function ProviderDetailContent({
 }) {
   const { t } = useT('settings');
   const navigate = useNavigate();
-  const { config, isDirty, isSaving, resetConfig, saveConfig } =
-    useProviderConfig();
+  const { config } = useProviderConfig();
   const deleteProvider = useDeleteProvider();
-
-  const handleSave = useCallback(async () => {
-    try {
-      await saveConfig();
-    } catch {
-      toast({ title: t('providers.saveFailed'), variant: 'destructive' });
-    }
-  }, [saveConfig, t]);
 
   const handleDelete = useCallback(async () => {
     try {
@@ -137,21 +128,9 @@ function ProviderDetailContent({
             {config.displayName}
           </Text>
         </HStack>
-        <HStack gap={2}>
-          {isDirty && (
-            <>
-              <Button variant="secondary" size="sm" onClick={resetConfig}>
-                {t('providers.discard')}
-              </Button>
-              <Button size="sm" onClick={handleSave} disabled={isSaving}>
-                {isSaving ? t('providers.saving') : t('providers.save')}
-              </Button>
-            </>
-          )}
-          <Button variant="destructive" size="sm" onClick={handleDelete}>
-            {t('providers.deleteProvider')}
-          </Button>
-        </HStack>
+        <Button variant="destructive" size="sm" onClick={handleDelete}>
+          {t('providers.deleteProvider')}
+        </Button>
       </HStack>
 
       <GeneralSection />
@@ -181,7 +160,7 @@ function InfoRow({
 
 function GeneralSection() {
   const { t } = useT('settings');
-  const { config, updateConfig } = useProviderConfig();
+  const { config, saveConfig, isSaving } = useProviderConfig();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({
     displayName: '',
@@ -199,16 +178,20 @@ function GeneralSection() {
   }, [config]);
 
   const handleSubmit = useCallback(
-    (e: React.FormEvent) => {
+    async (e: React.FormEvent) => {
       e.preventDefault();
-      updateConfig({
-        displayName: form.displayName,
-        description: form.description || undefined,
-        baseUrl: form.baseUrl,
-      });
-      setDialogOpen(false);
+      try {
+        await saveConfig({
+          displayName: form.displayName,
+          description: form.description || undefined,
+          baseUrl: form.baseUrl,
+        });
+        setDialogOpen(false);
+      } catch {
+        toast({ title: t('providers.saveFailed'), variant: 'destructive' });
+      }
     },
-    [form, updateConfig],
+    [form, saveConfig, t],
   );
 
   return (
@@ -243,6 +226,7 @@ function GeneralSection() {
         onOpenChange={setDialogOpen}
         title={t('providers.editGeneral')}
         onSubmit={handleSubmit}
+        isSubmitting={isSaving}
         isDirty={
           form.displayName !== config.displayName ||
           form.description !== (config.description ?? '') ||
@@ -404,7 +388,7 @@ const EMPTY_MODEL_FORM: ModelFormState = {
 
 function ModelsSection() {
   const { t } = useT('settings');
-  const { config, updateConfig } = useProviderConfig();
+  const { config, saveConfig, isSaving } = useProviderConfig();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [form, setForm] = useState<ModelFormState>(EMPTY_MODEL_FORM);
@@ -434,7 +418,7 @@ function ModelsSection() {
   );
 
   const handleSubmitModel = useCallback(
-    (e: React.FormEvent) => {
+    async (e: React.FormEvent) => {
       e.preventDefault();
       const model = {
         id: form.id,
@@ -444,24 +428,31 @@ function ModelsSection() {
         tags: form.tags as Array<'chat' | 'vision' | 'embedding'>,
         dimensions: form.dimensions ? Number(form.dimensions) : undefined,
       };
-      if (editingIndex != null) {
-        const updated = config.models.map((m, i) =>
-          i === editingIndex ? model : m,
-        );
-        updateConfig({ models: updated });
-      } else {
-        updateConfig({ models: [...config.models, model] });
+      const updatedModels =
+        editingIndex != null
+          ? config.models.map((m, i) => (i === editingIndex ? model : m))
+          : [...config.models, model];
+      try {
+        await saveConfig({ models: updatedModels });
+        setDialogOpen(false);
+      } catch {
+        toast({ title: t('providers.saveFailed'), variant: 'destructive' });
       }
-      setDialogOpen(false);
     },
-    [form, editingIndex, config.models, updateConfig],
+    [form, editingIndex, config.models, saveConfig, t],
   );
 
-  const handleDeleteModel = useCallback(() => {
+  const handleDeleteModel = useCallback(async () => {
     if (deleteIndex == null) return;
-    updateConfig({ models: config.models.filter((_, i) => i !== deleteIndex) });
-    setDeleteIndex(null);
-  }, [deleteIndex, config.models, updateConfig]);
+    try {
+      await saveConfig({
+        models: config.models.filter((_, i) => i !== deleteIndex),
+      });
+      setDeleteIndex(null);
+    } catch {
+      toast({ title: t('providers.saveFailed'), variant: 'destructive' });
+    }
+  }, [deleteIndex, config.models, saveConfig, t]);
 
   return (
     <>
@@ -553,6 +544,7 @@ function ModelsSection() {
             : t('providers.addModel')
         }
         onSubmit={handleSubmitModel}
+        isSubmitting={isSaving}
         isDirty={
           form.id.trim().length > 0 && form.displayName.trim().length > 0
         }
@@ -639,8 +631,9 @@ function ModelsSection() {
         }
         onSubmit={(e) => {
           e.preventDefault();
-          handleDeleteModel();
+          void handleDeleteModel();
         }}
+        isSubmitting={isSaving}
         submitText={t('providers.deleteModel')}
       >
         <span />
