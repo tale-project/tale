@@ -76,6 +76,90 @@
         "embedding"
       ],
       "dimensions": 1536
+    },
+    {
+      "id": "openai/gpt-5.2-chat",
+      "displayName": "GPT-5.2 Instant",
+      "description": "Fast, low-latency variant of GPT-5.2 optimized for chat",
+      "tags": [
+        "chat"
+      ]
+    },
+    {
+      "id": "openai/gpt-5.2-pro",
+      "displayName": "GPT-5.2 Pro",
+      "description": "Most advanced GPT-5.2 variant for complex reasoning tasks",
+      "tags": [
+        "chat",
+        "vision"
+      ]
+    },
+    {
+      "id": "anthropic/claude-sonnet-4.6",
+      "displayName": "Claude Sonnet 4.6",
+      "description": "Balanced performance and speed for everyday tasks",
+      "tags": [
+        "chat",
+        "vision"
+      ]
+    },
+    {
+      "id": "anthropic/claude-haiku-4.5",
+      "displayName": "Claude Haiku 4.5",
+      "description": "Fast and compact model for lightweight tasks",
+      "tags": [
+        "chat"
+      ]
+    },
+    {
+      "id": "google/gemini-3.1-pro-preview",
+      "displayName": "Gemini 3 Pro",
+      "description": "Google's most capable Gemini model",
+      "tags": [
+        "chat",
+        "vision"
+      ]
+    },
+    {
+      "id": "google/gemini-3-flash-preview",
+      "displayName": "Gemini 3 Flash",
+      "description": "Fast and efficient Gemini model",
+      "tags": [
+        "chat",
+        "vision"
+      ]
+    },
+    {
+      "id": "mistralai/mistral-large-2512",
+      "displayName": "Mistral Large 3",
+      "description": "Mistral AI's flagship large language model",
+      "tags": [
+        "chat"
+      ]
+    },
+    {
+      "id": "mistralai/mistral-medium-3",
+      "displayName": "Mistral Medium 3",
+      "description": "Balanced Mistral model for general tasks",
+      "tags": [
+        "chat"
+      ]
+    },
+    {
+      "id": "meta-llama/llama-4-maverick",
+      "displayName": "LLaMA 4 Maverick",
+      "description": "Meta's powerful open-source large language model",
+      "tags": [
+        "chat"
+      ]
+    },
+    {
+      "id": "meta-llama/llama-4-scout",
+      "displayName": "LLaMA 4 Scout",
+      "description": "Meta's efficient open-source language model",
+      "tags": [
+        "chat"
+      ]
     }
   ],
   "i18n": {
