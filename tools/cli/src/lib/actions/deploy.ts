@@ -528,6 +528,15 @@ async function syncProjectFiles(
     ]);
 
     if (result.success) {
+      // docker cp copies files as root — fix ownership so the app user can write
+      await exec('docker', [
+        'exec',
+        containerName,
+        'chown',
+        '-R',
+        'app:app',
+        `/app/data/${dir}/`,
+      ]);
       logger.info(`Synced ${dir}/`);
     } else {
       logger.warn(`Failed to sync ${dir}/: ${result.stderr}`);
