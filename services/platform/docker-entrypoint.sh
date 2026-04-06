@@ -10,6 +10,20 @@ set -e
 # 3. Convex Dashboard (admin UI on port 6791)
 # ============================================================================
 
+# ----------------------------------------------------------------------------
+# Privilege handling: fix data directory ownership, then drop to app user.
+# When /app/data is a Docker volume, it may be mounted with root ownership.
+# We fix that here (as root) and re-exec as the unprivileged app user.
+# ----------------------------------------------------------------------------
+if [ "$(id -u)" = '0' ]; then
+  data_dir="${TALE_CONFIG_DIR:-/app/data}"
+  # Ensure all data directories exist and are owned by app
+  mkdir -p "$data_dir/convex" "$data_dir/agents" "$data_dir/workflows" "$data_dir/integrations" "$data_dir/providers"
+  chown -R app:app "$data_dir"
+  # Re-exec this script as the app user
+  exec gosu app "$0" "$@"
+fi
+
 echo "🚀 Starting Tale Platform with integrated Convex backend..."
 
 # ============================================================================
@@ -29,11 +43,11 @@ SHUTDOWN_MARKER="/tmp/shutting_down"
 rm -f "$SHUTDOWN_MARKER"
 
 # PID file for Convex process (shared between main script and monitor subshell)
-CONVEX_PID_FILE="/app/convex-data/convex.pid"
+CONVEX_PID_FILE="/app/data/convex/convex.pid"
 
 # Lock file for blue-green deployment coordination
 # Prevents restart loops when both blue and green containers are running
-CONVEX_LOCK_FILE="/app/convex-data/convex.lock"
+CONVEX_LOCK_FILE="/app/data/convex/convex.lock"
 CONTAINER_NAME=$(hostname)
 
 # Gracefully shutdown all services with connection draining
@@ -207,10 +221,6 @@ export BETTER_AUTH_URL="${BETTER_AUTH_URL}"
 # Encryption configuration
 export ENCRYPTION_SECRET_HEX="${ENCRYPTION_SECRET_HEX}"
 
-# LLM provider configuration
-export OPENAI_API_KEY="${OPENAI_API_KEY}"
-export OPENAI_BASE_URL="${OPENAI_BASE_URL}"
-
 # RAG database configuration
 # RAG and Crawler share the tale_knowledge database with separate schemas
 if [ -z "${RAG_DATABASE_URL:-}" ]; then
@@ -342,7 +352,7 @@ configure_database() {
     echo "-d mysql-v5 $db_url"
   else
     echo "   ✓ Using local SQLite database" >&2
-    echo "/app/convex-data/convex_local_backend.sqlite3"
+    echo "/app/data/convex/convex_local_backend.sqlite3"
   fi
 }
 
@@ -399,17 +409,135 @@ echo "📦 Starting Convex backend on port ${CONVEX_BACKEND_PORT}..."
 export RUST_LOG="${RUST_LOG:-info,common::errors=off,isolate::client=off,application::scheduled_jobs=off}"
 
 # Prepare working directory
-mkdir -p /app/convex-data
+mkdir -p /app/data/convex
 # Ensure temp dir on same filesystem as local storage to avoid cross-device rename (EXDEV)
-export TMPDIR=/app/convex-data/tmp
+export TMPDIR=/app/data/convex/tmp
 mkdir -p "$TMPDIR"
 cd /app
+
+# Ensure TALE_CONFIG_DIR is set for derived paths
+data_dir="${TALE_CONFIG_DIR:-/app/data}"
+
+# Seed default agent JSON files — skip agents the user already has or has modified
+agents_dir="${AGENTS_DIR:-${data_dir}/agents}"
+builtin_dir="/app/agents-builtin"
+mkdir -p "$agents_dir"
+if [ -d "$builtin_dir" ] && [ "$(ls -A "$builtin_dir" 2>/dev/null)" ]; then
+  for src in "$builtin_dir"/*.json; do
+    [ -f "$src" ] || continue
+    name="$(basename "$src")"
+    slug="$(basename "$src" .json)"
+    dest="$agents_dir/$name"
+    history_dir="$agents_dir/.history/$slug"
+    if [ "$FORCE_SEED" = "true" ]; then
+      cp "$src" "$dest"
+      echo "   ✓ Seeded $name (forced)"
+    elif [ -f "$dest" ]; then
+      echo "   ⏭ Skipping $name (already exists)"
+    elif [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
+      echo "   ⏭ Skipping $name (user has modifications in .history)"
+    else
+      cp "$src" "$dest"
+    fi
+  done
+fi
+
+# Seed default workflow template JSON files — skip workflows the user has modified or installed
+workflows_dir="${WORKFLOWS_DIR:-${data_dir}/workflows}"
+workflows_builtin_dir="/app/workflows-builtin"
+mkdir -p "$workflows_dir"
+if [ -d "$workflows_builtin_dir" ] && [ "$(ls -A "$workflows_builtin_dir" 2>/dev/null)" ]; then
+  find "$workflows_builtin_dir" -name '*.json' -type f | while read -r src; do
+    rel_path="${src#$workflows_builtin_dir/}"
+    dest="$workflows_dir/$rel_path"
+    dest_dir="$(dirname "$dest")"
+
+    # Derive the flat slug for history check (general/foo → general__foo)
+    slug="${rel_path%.json}"
+    flat_slug="$(echo "$slug" | sed 's|/|__|g')"
+    history_dir="$workflows_dir/.history/$flat_slug"
+
+    if [ "$FORCE_SEED" = "true" ]; then
+      mkdir -p "$dest_dir"
+      cp "$src" "$dest"
+      echo "   ✓ Seeded workflow $rel_path (forced)"
+      continue
+    fi
+
+    # Skip if file already exists (user-provided config takes priority)
+    if [ -f "$dest" ]; then
+      echo "   ⏭ Skipping workflow $rel_path (already exists)"
+      continue
+    fi
+
+    # Skip if user has history entries (manual edits to a now-deleted file)
+    if [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
+      echo "   ⏭ Skipping workflow $rel_path (user has modifications in .history)"
+      continue
+    fi
+
+    mkdir -p "$dest_dir"
+    cp "$src" "$dest"
+  done
+fi
+
+# Seed builtin integration template directories — skip integrations the user has installed
+integrations_dir="${INTEGRATIONS_DIR:-${data_dir}/integrations}"
+integrations_builtin_dir="/app/integrations-builtin"
+mkdir -p "$integrations_dir"
+if [ -d "$integrations_builtin_dir" ] && [ "$(ls -A "$integrations_builtin_dir" 2>/dev/null)" ]; then
+  for src_dir in "$integrations_builtin_dir"/*/; do
+    [ -d "$src_dir" ] || continue
+    name="$(basename "$src_dir")"
+    dest_dir="$integrations_dir/$name"
+
+    if [ "$FORCE_SEED" = "true" ]; then
+      cp -r "$src_dir" "$dest_dir"
+      echo "   ✓ Seeded integration $name (forced)"
+      continue
+    fi
+
+    # Skip if directory already exists (user-provided config takes priority)
+    if [ -d "$dest_dir" ]; then
+      echo "   ⏭ Skipping integration $name (already exists)"
+      continue
+    fi
+
+    cp -r "$src_dir" "$dest_dir"
+  done
+fi
+
+# Seed builtin provider config files — skip providers the user has configured
+providers_dir="${PROVIDERS_DIR:-${data_dir}/providers}"
+providers_builtin_dir="/app/providers-builtin"
+mkdir -p "$providers_dir"
+if [ -d "$providers_builtin_dir" ] && [ "$(ls -A "$providers_builtin_dir" 2>/dev/null)" ]; then
+  for src in "$providers_builtin_dir"/*.json; do
+    [ -f "$src" ] || continue
+    name="$(basename "$src")"
+    # Skip encrypted secrets files
+    [[ "$name" == *.secrets.json ]] && continue
+    slug="$(basename "$src" .json)"
+    dest="$providers_dir/$name"
+    history_dir="$providers_dir/.history/$slug"
+    if [ "$FORCE_SEED" = "true" ]; then
+      cp "$src" "$dest"
+      echo "   ✓ Seeded provider $name (forced)"
+    elif [ -f "$dest" ]; then
+      echo "   ⏭ Skipping provider $name (already exists)"
+    elif [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
+      echo "   ⏭ Skipping provider $name (user has modifications in .history)"
+    else
+      cp "$src" "$dest"
+    fi
+  done
+fi
 
 # Clean up derived data that is safe to rebuild.
 # Search indexes and compiled modules are rebuilt automatically from the database.
 # User uploads (files/) are NEVER touched — they contain permanent user data.
 clean_convex_derived_data() {
-  local data_dir="/app/convex-data"
+  local data_dir="/app/data/convex"
 
   # Search indexes: rebuilt automatically from document data on startup
   if [ -d "$data_dir/search" ]; then
@@ -433,14 +561,14 @@ clean_convex_derived_data() {
 # This prevents crash loops where the backend repeatedly hits corrupted search
 # index segments left behind by an unclean shutdown (e.g. VectorCompactor killed
 # mid-compaction, leaving segment metadata pointing to files that don't exist).
-if [ -f "/app/convex-data/crash.log" ]; then
+if [ -f "/app/data/convex/crash.log" ]; then
   echo "⚠️  Previous crash detected, cleaning derived data to prevent crash loop..."
   clean_convex_derived_data
-  rm -f /app/convex-data/crash.log
+  rm -f /app/data/convex/crash.log
 fi
 
 # Clean stale process state from previous container runs
-rm -f /app/convex-data/convex.pid /app/convex-data/convex.lock
+rm -f /app/data/convex/convex.pid /app/data/convex/convex.lock
 
 # Configure database
 DB_ARGS=$(configure_database)
@@ -457,7 +585,7 @@ ensure_instance_secret
 SITE_ARGS="$SITE_ARGS --instance-name $INSTANCE_NAME --instance-secret $INSTANCE_SECRET"
 
 # Start Convex backend
-convex-local-backend ${DB_ARGS} --local-storage /app/convex-data ${SITE_ARGS} &
+convex-local-backend ${DB_ARGS} --local-storage /app/data/convex ${SITE_ARGS} &
 CONVEX_PID=$!
 # Write initial PID to file for cross-subshell visibility (used by monitor and shutdown)
 echo "$CONVEX_PID" > "$CONVEX_PID_FILE"
@@ -497,21 +625,12 @@ deploy_convex_functions() {
     "SITE_URL"
     "BASE_PATH"
     "ENCRYPTION_SECRET_HEX"
-    "OPENAI_API_KEY"
-    "OPENAI_BASE_URL"
-    "OPENAI_MODEL"
-    "OPENAI_FAST_MODEL"
-    "OPENAI_VISION_MODEL"
-    "OPENAI_CODING_MODEL"
-    "OPENAI_EMBEDDING_MODEL"
-    "EMBEDDING_DIMENSIONS"
     "BETTER_AUTH_SECRET"
     "AUTH_MICROSOFT_ENTRA_ID_ID"
     "AUTH_MICROSOFT_ENTRA_ID_SECRET"
     "AUTH_MICROSOFT_ENTRA_ID_TENANT_ID"
     "AUTH_MICROSOFT_ENTRA_ID_ISSUER"
     "CRAWLER_URL"
-    "OPERATOR_URL"
     "RAG_URL"
     "SEARCH_SERVICE_URL"
     "POSTGRES_URL"
@@ -520,8 +639,18 @@ deploy_convex_functions() {
     "TRUSTED_EMAIL_HEADER"
     "TRUSTED_NAME_HEADER"
     "TRUSTED_ROLE_HEADER"
+    # Root directory for file-based configs (agents, workflows, integrations, branding)
+    "TALE_CONFIG_DIR"
+    # Agents directory (filesystem path for agent JSON configs)
+    "AGENTS_DIR"
+    # Workflows directory (filesystem path for workflow template JSON configs)
+    "WORKFLOWS_DIR"
+    # Integrations directory (filesystem path for integration template files)
+    "INTEGRATIONS_DIR"
     # Debug flag (enables all debug loggers when set to "true")
     "DEBUG_MODE"
+    # Age secret key for SOPS provider secret encryption/decryption
+    "SOPS_AGE_KEY"
   )
 
   # Fetch current env vars from Convex (output format: KEY=value per line)
@@ -632,7 +761,7 @@ sed -i "s|\"assetPrefix\":\"\"|\"assetPrefix\":\"${DASHBOARD_BASE_PATH}\"|g" ser
 NEXT_PUBLIC_DEPLOYMENT_URL="${SITE_URL}" \
   PORT=${CONVEX_DASHBOARD_PORT} \
   HOSTNAME=0.0.0.0 \
-  node server.js &
+  node server.js > /dev/null &
 DASHBOARD_PID=$!
 cd /app
 
@@ -660,7 +789,7 @@ echo ""
 # Process Supervisor - Monitor and restart Convex if it crashes
 # ============================================================================
 
-CRASH_LOG="/app/convex-data/crash.log"
+CRASH_LOG="/app/data/convex/crash.log"
 
 monitor_convex() {
   local max_restarts=10
@@ -713,15 +842,15 @@ monitor_convex() {
       # VectorCompactor killed mid-compaction). Compiled modules are left
       # intact — they are written atomically during deploy and don't corrupt.
       echo "[$(date -Iseconds)] Cleaning search indexes before restart..." | tee -a "$CRASH_LOG"
-      if [ -d "/app/convex-data/search" ]; then
-        rm -rf "/app/convex-data/search"
+      if [ -d "/app/data/convex/search" ]; then
+        rm -rf "/app/data/convex/search"
         echo "   ✓ Cleaned search indexes (will rebuild from database)"
       fi
-      rm -rf /app/convex-data/tmp/*
+      rm -rf /app/data/convex/tmp/*
 
       # Restart Convex backend
       echo "[$(date -Iseconds)] Restarting Convex backend..." | tee -a "$CRASH_LOG"
-      convex-local-backend ${DB_ARGS} --local-storage /app/convex-data ${SITE_ARGS} &
+      convex-local-backend ${DB_ARGS} --local-storage /app/data/convex ${SITE_ARGS} &
       echo $! > "$CONVEX_PID_FILE"
       # Update lock after restart
       echo "$CONTAINER_NAME" > "$CONVEX_LOCK_FILE"
@@ -743,4 +872,4 @@ monitor_convex &
 MONITOR_PID=$!
 
 # Wait for all background processes
-wait "$CONVEX_PID" "$VITE_PID" "$DASHBOARD_PID"
+wait "$CONVEX_PID" "$VITE_PID" "$DASHBOARD_PID" "$MONITOR_PID"

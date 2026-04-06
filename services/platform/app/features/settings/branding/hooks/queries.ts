@@ -1,8 +1,11 @@
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { configKeys } from '@/app/hooks/config-query-keys';
+import { useActionQuery } from '@/app/hooks/use-action-query';
 import { api } from '@/convex/_generated/api';
 
-export function useBranding(organizationId: string) {
-  return useConvexQuery(api.branding.queries.getBranding, {
-    organizationId,
-  });
+export function useBranding() {
+  return useActionQuery(
+    configKeys.type('branding'),
+    api.branding.file_actions.readBranding,
+    {},
+  );
 }

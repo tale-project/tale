@@ -32,13 +32,16 @@ import { cn } from '@/lib/utils/cn';
 import { stripLeadingPunctuation } from '@/lib/utils/text';
 import { getString, isRecord } from '@/lib/utils/type-guards';
 
+import { useChatLayout } from '../context/chat-layout-context';
 import { useSubmitHumanInputResponse } from '../hooks/mutations';
+import { useEffectiveAgent } from '../hooks/use-effective-agent';
 import { useCancelExecution } from '../hooks/use-execution-status';
 import { HumanInputFields } from './human-input-fields';
 import { markdownWrapperStyles } from './message-bubble/markdown-renderer';
 
 interface HumanInputRequestCardProps {
   approvalId: Id<'approvals'>;
+  organizationId: string;
   status: 'pending' | 'executing' | 'completed' | 'rejected';
   metadata: HumanInputRequestMetadata;
   isWorkflowContext?: boolean;
@@ -49,6 +52,7 @@ interface HumanInputRequestCardProps {
 
 function HumanInputRequestCardComponent({
   approvalId,
+  organizationId,
   status,
   metadata,
   isWorkflowContext,
@@ -63,6 +67,16 @@ function HumanInputRequestCardComponent({
   const [formValues, setFormValues] = useState<
     Record<string, string | string[]>
   >({});
+
+  const { selectedModelOverrides } = useChatLayout();
+  const { agent: effectiveAgent } = useEffectiveAgent(organizationId);
+  const modelId = useMemo(
+    () =>
+      effectiveAgent?.name
+        ? selectedModelOverrides[effectiveAgent.name]
+        : undefined,
+    [effectiveAgent?.name, selectedModelOverrides],
+  );
 
   const { mutate: submitResponse, isPending: isSubmitting } =
     useSubmitHumanInputResponse();
@@ -98,7 +112,7 @@ function HumanInputRequestCardComponent({
     setError(null);
     const response = JSON.stringify({ [FEEDBACK_KEY]: feedbackText.trim() });
     submitResponse(
-      { approvalId, response },
+      { approvalId, response, modelId },
       {
         onSuccess: () => {
           if (!isWorkflowContext) {
@@ -119,6 +133,7 @@ function HumanInputRequestCardComponent({
     feedbackText,
     isWorkflowContext,
     approvalId,
+    modelId,
     submitResponse,
     onResponseSubmitted,
   ]);
@@ -176,7 +191,7 @@ function HumanInputRequestCardComponent({
     const response = JSON.stringify(formValues);
 
     submitResponse(
-      { approvalId, response },
+      { approvalId, response, modelId },
       {
         onSuccess: () => {
           if (!isWorkflowContext) {
@@ -198,6 +213,7 @@ function HumanInputRequestCardComponent({
     formValues,
     isWorkflowContext,
     approvalId,
+    modelId,
     submitResponse,
     onResponseSubmitted,
   ]);
@@ -461,6 +477,7 @@ export const HumanInputRequestCard = memo(
   (prevProps, nextProps) => {
     return (
       prevProps.approvalId === nextProps.approvalId &&
+      prevProps.organizationId === nextProps.organizationId &&
       prevProps.status === nextProps.status &&
       prevProps.metadata === nextProps.metadata &&
       prevProps.isWorkflowContext === nextProps.isWorkflowContext &&

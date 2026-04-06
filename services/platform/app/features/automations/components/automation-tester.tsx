@@ -16,16 +16,14 @@ import { HStack, Stack, VStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { toast } from '@/app/hooks/use-toast';
-import { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import { useStartWorkflow } from '../hooks/mutations';
-import { useDryRunWorkflow } from '../hooks/queries';
+import { useStartWorkflowFromFile } from '../hooks/file-mutations';
 
 interface AutomationTesterProps {
   organizationId: string;
-  automationId: Id<'wfDefinitions'>;
+  workflowSlug: string;
   onTestComplete?: () => void;
 }
 
@@ -50,7 +48,7 @@ interface DryRunResult {
 
 export function AutomationTester({
   organizationId,
-  automationId,
+  workflowSlug,
   onTestComplete,
 }: AutomationTesterProps) {
   const { t } = useT('automations');
@@ -59,7 +57,7 @@ export function AutomationTester({
   const [dryRunResult, setDryRunResult] = useState<DryRunResult | null>(null);
 
   const { mutateAsync: startWorkflow, isPending: isExecuting } =
-    useStartWorkflow();
+    useStartWorkflowFromFile();
 
   const parsedInput = (() => {
     try {
@@ -69,12 +67,7 @@ export function AutomationTester({
     }
   })();
 
-  const { data: dryRunQuery } = useDryRunWorkflow(
-    automationId,
-    parsedInput,
-    isDryRunning,
-  );
-
+  // TODO: Migrate dry run to file-based workflow system
   const handleDryRun = async () => {
     if (!parsedInput) {
       toast({
@@ -87,12 +80,14 @@ export function AutomationTester({
 
     setIsDryRunning(true);
     setDryRunResult(null);
-  };
 
-  if (isDryRunning && dryRunQuery && !dryRunResult) {
-    setDryRunResult(dryRunQuery);
+    toast({
+      title: t('tester.dryRun.button'),
+      description: 'Dry run is not yet supported for file-based workflows.',
+      variant: 'destructive',
+    });
     setIsDryRunning(false);
-  }
+  };
 
   const handleExecute = async () => {
     let input = {};
@@ -110,7 +105,7 @@ export function AutomationTester({
     try {
       const executionId = await startWorkflow({
         organizationId,
-        wfDefinitionId: automationId,
+        workflowSlug,
         input,
         triggeredBy: 'test',
         triggerData: {
@@ -119,6 +114,15 @@ export function AutomationTester({
           timestamp: Date.now(),
         },
       });
+
+      if (!executionId) {
+        toast({
+          title: t('tester.toast.testFailed'),
+          description: t('tester.toast.startFailed'),
+          variant: 'destructive',
+        });
+        return;
+      }
 
       toast({
         title: t('tester.toast.executionStarted'),

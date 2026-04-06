@@ -1,27 +1,30 @@
 {
-  "workflowConfig": {
-    "name": "Circuly Products Sync",
-    "description": "Synchronize products from Circuly to local database with pagination",
-    "version": "1.0.0",
-    "workflowType": "predefined",
-    "config": {
-      "timeout": 300000,
-      "retryPolicy": { "maxRetries": 3, "backoffMs": 2000 },
-      "variables": {
-        "organizationId": "org_demo",
-        "pageSize": 50,
-        "maxPages": 20,
-        "currentPage": 1
-      }
+  "name": "Circuly Products Sync",
+  "description": "Synchronize products from Circuly to local database with pagination",
+  "version": "1.0.0",
+  "enabled": true,
+  "config": {
+    "timeout": 300000,
+    "retryPolicy": {
+      "maxRetries": 3,
+      "backoffMs": 2000
+    },
+    "variables": {
+      "organizationId": "org_demo",
+      "pageSize": 50,
+      "maxPages": 20,
+      "currentPage": 1
     }
   },
-  "stepsConfig": [
+  "steps": [
     {
       "stepSlug": "start",
       "name": "start",
       "stepType": "start",
       "config": {},
-      "nextSteps": { "success": "fetch_products" }
+      "nextSteps": {
+        "success": "fetch_products"
+      }
     },
     {
       "stepSlug": "fetch_products",
@@ -40,7 +43,9 @@
           }
         }
       },
-      "nextSteps": { "success": "loop_products" }
+      "nextSteps": {
+        "success": "loop_products"
+      }
     },
     {
       "stepSlug": "loop_products",
@@ -50,7 +55,10 @@
         "items": "{{steps.fetch_products.output.data.result.data}}",
         "itemVariable": "product"
       },
-      "nextSteps": { "loop": "query_existing_product", "done": "check_has_next_page" }
+      "nextSteps": {
+        "loop": "query_existing_product",
+        "done": "check_has_next_page"
+      }
     },
     {
       "stepSlug": "query_existing_product",
@@ -61,10 +69,15 @@
         "parameters": {
           "operation": "query",
           "externalId": "{{loop.item.id}}",
-          "paginationOpts": { "numItems": 1, "cursor": null }
+          "paginationOpts": {
+            "numItems": 1,
+            "cursor": null
+          }
         }
       },
-      "nextSteps": { "success": "check_product_exists" }
+      "nextSteps": {
+        "success": "check_product_exists"
+      }
     },
     {
       "stepSlug": "check_product_exists",
@@ -74,7 +87,10 @@
         "expression": "steps.query_existing_product.output.data.page|length > 0",
         "description": "Check if product already exists in database"
       },
-      "nextSteps": { "true": "update_existing_product", "false": "insert_new_product" }
+      "nextSteps": {
+        "true": "update_existing_product",
+        "false": "insert_new_product"
+      }
     },
     {
       "stepSlug": "update_existing_product",
@@ -106,7 +122,9 @@
           }
         }
       },
-      "nextSteps": { "success": "loop_products" }
+      "nextSteps": {
+        "success": "loop_products"
+      }
     },
     {
       "stepSlug": "insert_new_product",
@@ -136,7 +154,9 @@
           }
         }
       },
-      "nextSteps": { "success": "loop_products" }
+      "nextSteps": {
+        "success": "loop_products"
+      }
     },
     {
       "stepSlug": "check_has_next_page",
@@ -146,7 +166,10 @@
         "expression": "steps.fetch_products.output.data.result.pagination.hasNextPage == true && currentPage < maxPages",
         "description": "Check if Circuly has more pages and we have not exceeded max page limit"
       },
-      "nextSteps": { "true": "prepare_next_page", "false": "noop" }
+      "nextSteps": {
+        "true": "prepare_next_page",
+        "false": "noop"
+      }
     },
     {
       "stepSlug": "prepare_next_page",
@@ -155,10 +178,17 @@
       "config": {
         "type": "set_variables",
         "parameters": {
-          "variables": [{ "name": "currentPage", "value": "{{currentPage + 1}}" }]
+          "variables": [
+            {
+              "name": "currentPage",
+              "value": "{{currentPage + 1}}"
+            }
+          ]
         }
       },
-      "nextSteps": { "success": "fetch_products" }
+      "nextSteps": {
+        "success": "fetch_products"
+      }
     }
   ]
 }

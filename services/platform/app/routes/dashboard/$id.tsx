@@ -1,16 +1,17 @@
 import { Outlet, createFileRoute } from '@tanstack/react-router';
 import { useEffect, useRef } from 'react';
 
-import { BrandingProvider } from '@/app/components/branding/branding-provider';
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import {
   AdaptiveHeaderProvider,
   AdaptiveHeaderSlot,
 } from '@/app/components/layout/adaptive-header';
-import { Spinner } from '@/app/components/ui/feedback/spinner';
 import { MobileNavigation } from '@/app/components/ui/navigation/mobile-navigation';
 import { Navigation } from '@/app/components/ui/navigation/navigation';
-import { AbilityContext } from '@/app/context/ability-context';
+import {
+  AbilityContext,
+  AbilityLoadingContext,
+} from '@/app/context/ability-context';
 import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { TeamFilterProvider } from '@/app/hooks/use-team-filter';
@@ -59,7 +60,7 @@ function DashboardLayout() {
 
   return (
     <AbilityContext.Provider value={ability}>
-      <BrandingProvider organizationId={organizationId}>
+      <AbilityLoadingContext.Provider value={isLoading}>
         <TeamFilterProvider organizationId={organizationId}>
           <AdaptiveHeaderProvider>
             <div className="flex size-full flex-col overflow-hidden md:flex-row">
@@ -73,12 +74,8 @@ function DashboardLayout() {
               </div>
 
               <div className="border-border bg-background flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:border-l">
-                {hasRole ? (
+                {hasRole || isLoading ? (
                   <Outlet />
-                ) : isLoading ? (
-                  <div className="flex flex-1 items-center justify-center">
-                    <Spinner size="md" />
-                  </div>
                 ) : (
                   <AccessDenied
                     message={t(isDisabled ? 'disabled' : 'noMembership')}
@@ -88,7 +85,7 @@ function DashboardLayout() {
             </div>
           </AdaptiveHeaderProvider>
         </TeamFilterProvider>
-      </BrandingProvider>
+      </AbilityLoadingContext.Provider>
     </AbilityContext.Provider>
   );
 }

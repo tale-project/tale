@@ -15,6 +15,7 @@ type SettingsLabelKey =
   | 'organization'
   | 'teams'
   | 'integrations'
+  | 'providers'
   | 'apiKeys'
   | 'branding'
   | 'account';
@@ -44,6 +45,13 @@ export function SettingsNavigation({
       label: t('integrations'),
       href: `/dashboard/${organizationId}/settings/integrations`,
       can: ['read', 'developerSettings'],
+    },
+    {
+      labelKey: 'providers',
+      label: t('providers'),
+      href: `/dashboard/${organizationId}/settings/providers`,
+      can: ['read', 'developerSettings'],
+      matchMode: 'startsWith',
     },
     {
       labelKey: 'apiKeys',

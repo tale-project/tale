@@ -49,6 +49,7 @@
       "showInfo": "Show info",
       "clearAll": "Clear all",
       "reset": "Reset",
+      "discard": "Discard",
       "upload": "Upload",
       "import": "Import",
       "select": "Select",
@@ -146,7 +147,7 @@
       "confidence": "{value} percent confidence",
       "settingsNavigation": "Settings navigation",
       "automationsNavigation": "Automations navigation",
-      "customAgentsNavigation": "Custom agents navigation",
+      "agentsNavigation": "Agents navigation",
       "knowledgeNavigation": "Knowledge navigation",
       "actionsMenu": "Actions menu",
       "conversationsNavigation": "Conversations navigation",
@@ -227,12 +228,13 @@
     "organization": "Organization",
     "teams": "Teams",
     "integrations": "Integrations",
+    "providers": "AI providers",
     "apiKeys": "API keys",
     "branding": "Branding",
     "apiDocs": "API docs",
     "account": "Account",
     "logs": "Logs",
-    "customAgents": "Custom agents",
+    "agents": "Agents",
     "teamFilter": {
       "allTeams": "All teams",
       "label": "Team"
@@ -247,6 +249,10 @@
     "vendors": "Vendors"
   },
   "emptyStates": {
+    "providers": {
+      "title": "No providers configured",
+      "description": "Add an LLM provider to get started with AI features"
+    },
     "customers": {
       "title": "No customers yet",
       "description": "Upload your first customer to get started"
@@ -271,9 +277,9 @@
       "title": "No automations yet",
       "description": "Describe your workflow and let your AI automate it"
     },
-    "customAgents": {
-      "title": "No custom agents yet",
-      "description": "Create your first custom agent to specialize AI behavior for your team"
+    "agents": {
+      "title": "No agents yet",
+      "description": "Create your first agent to specialize AI behavior for your team"
     },
     "examples": {
       "title": "No examples yet",
@@ -568,6 +574,7 @@
       "organizationId": "Organization ID",
       "membersTitle": "Organization members",
       "manageAccess": "Manage access to the organization",
+      "defaultLocale": "Default language",
       "searchMember": "Search member",
       "addMember": "Add member",
       "members": {
@@ -628,6 +635,7 @@
       "teamCreateFailed": "Failed to create team",
       "teamUpdated": "Team updated",
       "teamUpdateFailed": "Failed to update team",
+      "teamHasAgentsWarning": "This team has agents assigned to it. Reassign or remove agents from this team before deleting.",
       "teamNameRequired": "Team name is required",
       "manageMembers": "Members",
       "addMember": "Add member",
@@ -641,18 +649,18 @@
       "noTeamMembers": "No members in this team yet",
       "cannotRemoveLastMember": "Cannot remove the last member. Delete the team instead."
     },
-    "customAgents": {
-      "title": "Custom agents",
-      "description": "Create and manage custom AI agents with specialized instructions and tools",
+    "agents": {
+      "title": "Agents",
+      "description": "Create and manage AI agents with specialized instructions and tools",
       "createAgent": "Create agent",
-      "createAgentDescription": "Configure a custom AI agent with specialized instructions, tools, and model settings.",
+      "createAgentDescription": "Configure an AI agent with specialized instructions, tools, and model settings.",
       "searchAgent": "Search agents",
-      "noAgents": "No custom agents yet",
-      "noAgentsDescription": "Create your first custom agent to specialize AI behavior for your team.",
+      "noAgents": "No agents yet",
+      "noAgentsDescription": "Create your first agent to specialize AI behavior for your team.",
       "columns": {
         "displayName": "Name",
         "active": "Active",
-        "modelPreset": "Model",
+        "model": "Model",
         "tools": "Tools",
         "version": "Version",
         "team": "Team",
@@ -678,6 +686,11 @@
       "agentPublishFailed": "Failed to publish agent",
       "agentDeactivated": "Agent deactivated",
       "agentDeactivateFailed": "Failed to deactivate agent",
+      "agentSaved": "Agent saved",
+      "agentSaveFailed": "Failed to save agent",
+      "historyLoadFailed": "Failed to load history",
+      "historyRestored": "Agent restored from history",
+      "historyRestoreFailed": "Failed to restore from history",
       "activeToggle": {
         "ariaLabel": "Toggle agent active state"
       },
@@ -697,7 +710,17 @@
         "webhook": "Webhook",
         "delegation": "Delegation",
         "conversationStarters": "Starters",
-        "test": "Test"
+        "test": "Test",
+        "history": "History"
+      },
+      "history": {
+        "empty": "No history entries",
+        "diffTitle": "Compare changes",
+        "diffDescription": "Review differences before restoring snapshot from {date}",
+        "noDifferences": "No differences found",
+        "restore": "Restore this version",
+        "currentVersion": "Current version",
+        "snapshotVersion": "Snapshot version"
       },
       "testChat": {
         "title": "Test agent",
@@ -739,7 +762,11 @@
         "remove": "Remove conversation starter",
         "dragHandle": "Drag to reorder",
         "moveUp": "Move up",
-        "moveDown": "Move down"
+        "moveDown": "Move down",
+        "default": "default",
+        "untranslated": "untranslated",
+        "autoTranslate": "Auto-translate",
+        "translateError": "Failed to auto-translate"
       },
       "form": {
         "sectionGeneral": "General",
@@ -788,6 +815,8 @@
         "team": "Team",
         "teamHelp": "Assign this agent to a team. Leave empty for organization-wide access.",
         "teamNone": "Organization-wide",
+        "teamUpdateSuccess": "Agent team updated",
+        "teamUpdateFailed": "Failed to update agent team",
         "sharedWithTeams": "Share with additional teams",
         "sharedWithTeamsHelp": "Select additional teams that can access this agent",
         "copyPrompt": "Copy prompt",
@@ -795,6 +824,10 @@
         "sectionStructuredResponsesDescription": "Configure whether the agent can use structured response markers (conclusion, key points, details, etc.) to format substantial answers",
         "structuredResponsesEnabled": "Enable structured response markers",
         "structuredResponsesEnabledHelp": "When enabled, the agent can use markers like [[CONCLUSION]], [[KEY_POINTS]], [[DETAILS]] to structure long responses. These are rendered as rich UI sections in the chat. When disabled, the agent responds with plain text only.",
+        "addModel": "Add model",
+        "searchModels": "Search models…",
+        "noModelsFound": "No models found",
+        "removeModel": "Remove",
         "structuredResponsesInjectedPrompt": "The following instructions will be automatically appended to the system prompt:"
       },
       "delegation": {
@@ -906,8 +939,26 @@
       }
     },
     "integrations": {
+      "title": "Integrations",
       "accessDenied": "You need Admin or Developer permissions to access integrations settings.",
       "manage": "Manage",
+      "pageSubtitle": "Connect third-party services to your workspace.",
+      "addCustomIntegration": "Add integration",
+      "tabs": {
+        "all": "All integrations",
+        "connected": "Connected"
+      },
+      "searchPlaceholder": "Search integrations...",
+      "badge": {
+        "connected": "Connected",
+        "connect": "Connect"
+      },
+      "empty": {
+        "connectedTitle": "No connected integrations",
+        "connectedDescription": "Integrations you connect will appear here.",
+        "searchTitle": "No results found",
+        "searchDescription": "Try adjusting your search or request a new integration."
+      },
       "errors": {
         "organizationRequired": "Organization ID is required"
       },
@@ -1093,7 +1144,7 @@
         "stepUpload": "Upload",
         "stepPreview": "Preview",
         "creating": "Creating...",
-        "createIntegration": "Create integration",
+        "createIntegration": "Install integration",
         "createSuccess": "Integration created",
         "createFailed": "Failed to create integration",
         "iconUploadFailed": "Failed to upload icon",
@@ -1119,6 +1170,8 @@
         "saveSettings": "Save settings",
         "deleteIntegration": "Delete integration",
         "deleteDescription": "Permanently remove this integration and all its configuration.",
+        "uninstallIntegration": "Uninstall integration",
+        "uninstallDescription": "Uninstall this integration. You can reinstall it later from the templates.",
         "confirmDelete": "Confirm delete",
         "cancelDelete": "Cancel",
         "deleted": "Integration deleted",
@@ -1178,6 +1231,20 @@
         "noRelatedAutomations": "No automations use this integration yet",
         "createAutomation": "Create automation",
         "loadingAutomations": "Loading automations"
+      },
+      "panel": {
+        "addIntegration": "Add integration",
+        "integrationDetails": "Integration details",
+        "connectName": "Connect {name}",
+        "saveChanges": "Save changes",
+        "disconnectConfirmTitle": "Disconnect integration",
+        "disconnectConfirmDescription": "Are you sure you want to disconnect this integration? You can reconnect it later.",
+        "deleteConfirmTitle": "Delete integration",
+        "deleteConfirmDescription": "Are you sure you want to delete this integration? This action cannot be undone.",
+        "deleteIntegration": "Delete integration",
+        "connectedAccount": "Connected account",
+        "connectedVia": "Connected via {provider}",
+        "reconnect": "Reconnect"
       },
       "authMethods": {
         "api_key": "API key",
@@ -1330,6 +1397,81 @@
         "roleDisabled": "Disabled"
       }
     },
+    "providers": {
+      "title": "Providers",
+      "description": "Manage LLM providers and their models",
+      "addProvider": "Add provider",
+      "editProvider": "Edit provider",
+      "deleteProvider": "Delete provider",
+      "deleteConfirm": "Are you sure you want to delete this provider? This action cannot be undone.",
+      "apiKey": "API Key",
+      "apiKeyConfigured": "API key configured",
+      "apiKeyNotConfigured": "API key not configured",
+      "models": "Models",
+      "addModel": "Add model",
+      "editModel": "Edit model",
+      "deleteModel": "Delete model",
+      "deleteModelConfirm": "Are you sure you want to delete \"{model}\"?",
+      "default": "Default",
+      "modelId": "Model ID",
+      "displayName": "Display name",
+      "description_field": "Description",
+      "baseUrl": "Base URL",
+      "tags": "Tags",
+      "defaultModel": "Default",
+      "defaultModels": "Default Models",
+      "defaultModelsDescription": "Default models used by crawler, RAG, and other services for each capability.",
+      "defaultNone": "None",
+      "dimensions": "Dimensions",
+      "saved": "Provider saved",
+      "deleted": "Provider deleted",
+      "secretSaved": "API key saved",
+      "name": "Provider name",
+      "namePlaceholder": "e.g., openai",
+      "nameHelp": "Lowercase letters, numbers, and hyphens only.",
+      "namePatternError": "Must start with a letter and contain only lowercase letters, numbers, and hyphens.",
+      "displayNamePlaceholder": "e.g., OpenAI",
+      "descriptionPlaceholder": "e.g., OpenAI GPT models",
+      "baseUrlPlaceholder": "e.g., https://api.openai.com/v1",
+      "modelIdPlaceholder": "e.g., gpt-4o",
+      "modelDisplayNamePlaceholder": "e.g., GPT-4o",
+      "modelDescriptionPlaceholder": "e.g., Multimodal model with vision capabilities",
+      "dimensionsPlaceholder": "e.g., 1536",
+      "noProviders": "No providers configured",
+      "noProvidersDescription": "Add an LLM provider to get started with AI features.",
+      "general": "General",
+      "saveFailed": "Failed to save provider",
+      "deleteFailed": "Failed to delete provider",
+      "secretSaveFailed": "Failed to save API key",
+      "createFailed": "Failed to create provider",
+      "discard": "Discard",
+      "save": "Save",
+      "saving": "Saving...",
+      "saveKey": "Save key",
+      "editGeneral": "Edit details",
+      "editKey": "Edit",
+      "addKey": "Add API key",
+      "addApiKey": "Add API Key",
+      "replaceApiKey": "Replace API Key",
+      "replaceApiKeyDescription": "Current key: {maskedKey}",
+      "apiKeyReplace": "Enter new API key to replace ({maskedKey})",
+      "apiKeyEnter": "Enter API key",
+      "searchProvider": "Search providers...",
+      "description": "Description",
+      "created": "Provider created",
+      "modelCount": "{count, plural, one {# model} other {# models}}",
+      "removeModel": "Remove model",
+      "apiKeyPlaceholder": "Enter API key",
+      "apiKeyReplacePlaceholder": "Enter new API key to replace ({maskedKey})",
+      "providerNotFound": "Provider not found: {name}",
+      "backToProviders": "Back to providers",
+      "tagChat": "Chat",
+      "tagVision": "Vision",
+      "tagEmbedding": "Embedding",
+      "displayNameRequired": "Display name is required",
+      "invalidBaseUrl": "Base URL must be a valid URL",
+      "modelIdRequired": "All models must have an ID"
+    },
     "form": {
       "name": "Name",
       "namePlaceholder": "Enter full name",
@@ -1471,8 +1613,15 @@
       "noSteps": "No automation steps to display",
       "createStepsHint": "Create steps to see the automation overview, or use the AI assistant to help you get started."
     },
+    "breadcrumb": {
+      "back": "Back to automations"
+    },
+    "search": {
+      "placeholder": "Search automations"
+    },
     "columns": {
       "automation": "Automation",
+      "category": "Category",
       "status": "Status",
       "active": "Active",
       "version": "Version",
@@ -1495,6 +1644,7 @@
     "navigation": {
       "editor": "Editor",
       "archived": "Archived",
+      "history": "History",
       "publish": "Publish",
       "publishing": "Publishing...",
       "rollback": "Activate",
@@ -1512,6 +1662,16 @@
         "navigatingToExisting": "Navigating to existing draft",
         "draftFailed": "Failed to create draft"
       }
+    },
+    "history": {
+      "empty": "No history entries",
+      "diffTitle": "Compare changes",
+      "diffDescription": "Review differences before restoring snapshot from {date}",
+      "restore": "Restore",
+      "noDifferences": "No differences found",
+      "loadFailed": "Failed to load history",
+      "restoreSuccess": "Version restored successfully",
+      "restoreFailed": "Failed to restore version"
     },
     "form": {
       "name": "Name"
@@ -2169,7 +2329,7 @@
     "badgeMultiStep": "Update {count} steps",
     "badgeStepPatch": "Update step",
     "versionLabel": "Version:",
-    "idLabel": "ID:",
+    "slugLabel": "Slug:",
     "copyAriaLabel": "Copy update configuration",
     "updatedSuccessfully": "Workflow updated successfully",
     "statusExecuting": "Applying update...",
@@ -2354,6 +2514,11 @@
           "description": "Creates automated workflows"
         }
       }
+    },
+    "modelSelector": {
+      "label": "Select model",
+      "searchPlaceholder": "Search models...",
+      "noResults": "No models found"
     },
     "searchChat": "Search chat",
     "hideSearch": "Hide search",
@@ -3078,7 +3243,7 @@
     "apiDocs": "You need Admin or Developer permissions to access API documentation.",
     "organization": "You need Admin permissions to access organization settings.",
     "teams": "You need Admin permissions to access team settings.",
-    "customAgents": "You need Admin or Developer permissions to manage custom agents.",
+    "agents": "You need Admin or Developer permissions to manage agents.",
     "branding": "You need Admin permissions to access branding settings.",
     "knowledge": "Your account does not have permission to access knowledge.",
     "noMembership": "You are not a member of this workspace. Please contact an administrator for access.",
@@ -3151,13 +3316,17 @@
       "title": "Teams",
       "description": "Manage teams within your organization."
     },
-    "customAgents": {
-      "title": "Custom agents",
+    "agents": {
+      "title": "Agents",
       "description": "Create and manage AI agents for customer service."
     },
     "integrations": {
       "title": "Integrations",
       "description": "Connect third-party services."
+    },
+    "providers": {
+      "title": "Providers",
+      "description": "Manage LLM providers and their models."
     },
     "logs": {
       "title": "Logs",
@@ -3191,13 +3360,13 @@
       "title": "Knowledge",
       "description": "Manage your knowledge base for AI agents."
     },
-    "customAgent": {
-      "title": "Custom agent",
-      "description": "Configure and test your custom AI agent."
+    "agent": {
+      "title": "Agent",
+      "description": "Configure and test your AI agent."
     },
     "agentSettings": {
       "title": "Agent settings",
-      "description": "Configure custom agent general settings."
+      "description": "Configure agent general settings."
     },
     "agentInstructions": {
       "title": "Instructions",
@@ -3213,7 +3382,7 @@
     },
     "agentWebhook": {
       "title": "Agent webhook",
-      "description": "Manage webhook URLs for your custom agent."
+      "description": "Manage webhook URLs for your agent."
     },
     "agentDelegation": {
       "title": "Agent delegation",

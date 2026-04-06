@@ -1,6 +1,6 @@
 {
-  "name": "teams",
   "title": "Microsoft Teams",
+  "installed": false,
   "description": "Microsoft Graph API integration for Teams channels, messages, and chats",
   "version": 1,
   "authMethod": "oauth2",

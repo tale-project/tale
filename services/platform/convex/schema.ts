@@ -1,18 +1,26 @@
 import { defineSchema } from 'convex/server';
 
+import {
+  customAgentsTable,
+  customAgentWebhooksTable,
+} from './agents/legacy_schema';
+import { agentBindingsTable } from './agents/schema';
+import { agentWebhooksTable } from './agents/webhooks/schema';
 import { approvalsTable } from './approvals/schema';
 import { auditLogsTable } from './audit_logs/schema';
-import { brandingSettingsTable } from './branding/schema';
+import {
+  brandingBindingsTable,
+  brandingSettingsLegacyTable,
+} from './branding/schema';
 import {
   conversationsTable,
   conversationMessagesTable,
 } from './conversations/schema';
-import { customAgentsTable } from './custom_agents/schema';
-import { customAgentWebhooksTable } from './custom_agents/webhooks/schema';
 import { customersTable } from './customers/schema';
 import { documentsTable } from './documents/schema';
 import { fileMetadataTable } from './file_metadata/schema';
 import { foldersTable } from './folders/schema';
+import { integrationCredentialsTable } from './integrations/credentials_schema';
 import { integrationsTable } from './integrations/schema';
 import { onedriveSyncConfigsTable } from './onedrive/schema';
 import { productsTable } from './products/schema';
@@ -39,15 +47,23 @@ import {
 export default defineSchema({
   approvals: approvalsTable,
   auditLogs: auditLogsTable,
-  brandingSettings: brandingSettingsTable,
+  brandingBindings: brandingBindingsTable,
+  /** @deprecated Retained for backward compatibility with existing data. */
+  brandingSettings: brandingSettingsLegacyTable,
   conversationMessages: conversationMessagesTable,
   conversations: conversationsTable,
+  agentBindings: agentBindingsTable,
+  agentWebhooks: agentWebhooksTable,
+  /** @deprecated Retained for backward compatibility with existing data. */
   customAgents: customAgentsTable,
+  /** @deprecated Retained for backward compatibility with existing data. */
   customAgentWebhooks: customAgentWebhooksTable,
   customers: customersTable,
   documents: documentsTable,
   fileMetadata: fileMetadataTable,
   folders: foldersTable,
+  integrationCredentials: integrationCredentialsTable,
+  /** @deprecated Retained for backward compatibility with existing data. Use integrationCredentials + file-based config. */
   integrations: integrationsTable,
   messageMetadata: messageMetadataTable,
   onedriveSyncConfigs: onedriveSyncConfigsTable,

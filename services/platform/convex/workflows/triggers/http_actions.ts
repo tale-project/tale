@@ -80,28 +80,6 @@ export const webhookHandler = httpAction(async (ctx, req) => {
     }
   }
 
-  const activeVersionId = await ctx.runQuery(
-    internal.workflows.triggers.internal_queries.getActiveVersion,
-    { workflowRootId: webhook.workflowRootId },
-  );
-
-  if (!activeVersionId) {
-    await ctx.runMutation(
-      internal.workflows.triggers.internal_mutations.createTriggerLog,
-      {
-        organizationId: webhook.organizationId,
-        workflowRootId: webhook.workflowRootId,
-        wfDefinitionId: webhook.workflowRootId,
-        triggerType: 'webhook',
-        status: 'rejected',
-        idempotencyKey: idempotencyKey ?? undefined,
-        ipAddress: ip,
-        errorMessage: 'No active workflow version',
-      },
-    );
-    return jsonResponse({ error: 'No active workflow version' }, 404);
-  }
-
   let payload: Record<string, unknown> = {};
   if (bodyText.trim()) {
     try {
@@ -111,49 +89,56 @@ export const webhookHandler = httpAction(async (ctx, req) => {
     }
   }
 
-  const executionId = await ctx.runMutation(
-    internal.wf_executions.internal_mutations.startWorkflow,
-    {
-      organizationId: webhook.organizationId,
-      wfDefinitionId: activeVersionId,
-      input: payload,
-      triggeredBy: 'webhook',
-      triggerData: {
-        triggerType: 'webhook',
-        webhookId: webhook._id,
-        token: webhook.token,
-        timestamp: Date.now(),
+  if (webhook.workflowSlug) {
+    await ctx.scheduler.runAfter(
+      0,
+      internal.workflow_engine.helpers.engine.start_workflow_from_file
+        .startWorkflowFromFile,
+      {
+        organizationId: webhook.organizationId,
+        orgSlug: 'default',
+        workflowSlug: webhook.workflowSlug,
+        input: payload,
+        triggeredBy: 'webhook',
+        triggerData: {
+          triggerType: 'webhook',
+          webhookId: webhook._id,
+          token: webhook.token,
+          timestamp: Date.now(),
+        },
       },
-    },
-  );
+    );
 
-  await ctx.runMutation(
-    internal.workflows.triggers.internal_mutations.createTriggerLog,
-    {
-      organizationId: webhook.organizationId,
-      workflowRootId: webhook.workflowRootId,
-      wfDefinitionId: activeVersionId,
-      wfExecutionId: executionId,
-      triggerType: 'webhook',
-      status: 'accepted',
-      idempotencyKey: idempotencyKey ?? undefined,
-      ipAddress: ip,
-    },
-  );
+    await ctx.runMutation(
+      internal.workflows.triggers.internal_mutations.createTriggerLog,
+      {
+        organizationId: webhook.organizationId,
+        workflowRootId: webhook.workflowRootId,
+        workflowSlug: webhook.workflowSlug,
+        triggerType: 'webhook',
+        status: 'accepted',
+        idempotencyKey: idempotencyKey ?? undefined,
+        ipAddress: ip,
+      },
+    );
 
-  await ctx.runMutation(
-    internal.workflows.triggers.internal_mutations.updateWebhookLastTriggered,
-    { webhookId: webhook._id, lastTriggeredAt: Date.now() },
-  );
+    await ctx.runMutation(
+      internal.workflows.triggers.internal_mutations.updateWebhookLastTriggered,
+      { webhookId: webhook._id, lastTriggeredAt: Date.now() },
+    );
+
+    return jsonResponse(
+      {
+        status: 'accepted',
+        workflowSlug: webhook.workflowSlug,
+      },
+      200,
+    );
+  }
 
   return jsonResponse(
-    {
-      status: 'accepted',
-      executionId,
-      workflowRootId: webhook.workflowRootId,
-      versionId: activeVersionId,
-    },
-    200,
+    { error: 'No workflow slug configured for this webhook' },
+    404,
   );
 });
 

@@ -10,9 +10,9 @@ vi.mock('../../../_generated/api', () => ({
         },
       },
     },
-    wf_step_defs: {
-      internal_queries: {
-        getStepWithWorkflowInfo: 'mock-getStepWithWorkflowInfo',
+    workflows: {
+      file_actions: {
+        readWorkflowForExecution: 'mock-readWorkflowForExecution',
       },
     },
   },
@@ -36,14 +36,28 @@ vi.mock('@convex-dev/agent', () => ({
   createTool: vi.fn((def) => ({ _handler: def.execute })),
 }));
 
-function createMockStepInfo() {
-  return {
-    step: { name: 'Send Email', stepType: 'action' },
-    workflowId: 'wf-def-1',
-    workflowName: 'My Workflow',
-    workflowVersionNumber: 2,
-  };
-}
+const MOCK_WORKFLOW_CONFIG = {
+  name: 'My Workflow',
+  description: 'A test workflow',
+  version: '2.0.0',
+  enabled: true,
+  steps: [
+    {
+      stepSlug: 'start',
+      name: 'Start',
+      stepType: 'start',
+      config: {},
+      nextSteps: { success: 'send_email' },
+    },
+    {
+      stepSlug: 'send_email',
+      name: 'Send Email',
+      stepType: 'action',
+      config: { type: 'send_email', to: 'old@example.com' },
+      nextSteps: { success: 'noop' },
+    },
+  ],
+};
 
 function createMockCtx(overrides?: Record<string, unknown>) {
   return {
@@ -51,7 +65,12 @@ function createMockCtx(overrides?: Record<string, unknown>) {
     userId: 'user1',
     threadId: 'thread-current',
     messageId: 'msg-123',
-    runQuery: vi.fn().mockResolvedValue(createMockStepInfo()),
+    runAction: vi.fn().mockImplementation((ref: string) => {
+      if (ref === 'mock-readWorkflowForExecution') {
+        return { ok: true, config: structuredClone(MOCK_WORKFLOW_CONFIG) };
+      }
+      return null;
+    }),
     runMutation: vi.fn().mockResolvedValue('approval-id-1'),
     ...overrides,
   };
@@ -59,7 +78,8 @@ function createMockCtx(overrides?: Record<string, unknown>) {
 
 function createValidArgs() {
   return {
-    stepRecordId: 'step-record-1',
+    workflowSlug: 'my-workflow',
+    stepSlug: 'send_email',
     updates: {
       config: { type: 'send_email', to: '{{email}}' },
       stepType: 'action' as const,
@@ -93,9 +113,11 @@ describe('update_workflow_step tool handler', () => {
       'mock-createWorkflowStepUpdateApproval',
       expect.objectContaining({
         organizationId: 'org1',
+        workflowSlug: 'my-workflow',
         workflowName: 'My Workflow',
-        workflowVersionNumber: 2,
+        workflowVersion: '2.0.0',
         updateSummary: 'Updated email template',
+        stepSlug: 'send_email',
         stepName: 'Send Email',
       }),
     );
@@ -111,10 +133,31 @@ describe('update_workflow_step tool handler', () => {
     expect(result.message).toContain('organizationId is required');
   });
 
-  it('returns failure when step not found', async () => {
+  it('returns failure when step not found in workflow file', async () => {
+    const handler = await getHandler();
+    const ctx = createMockCtx();
+
+    const args = {
+      ...createValidArgs(),
+      stepSlug: 'nonexistent_step',
+    };
+
+    const result = await handler(ctx, args);
+
+    expect(result.success).toBe(false);
+    expect(result.message).toContain('not found');
+    expect(result.message).toContain('nonexistent_step');
+  });
+
+  it('returns failure when workflow file not found', async () => {
     const handler = await getHandler();
     const ctx = createMockCtx({
-      runQuery: vi.fn().mockResolvedValue(null),
+      runAction: vi.fn().mockImplementation((ref: string) => {
+        if (ref === 'mock-readWorkflowForExecution') {
+          return { ok: false, error: 'not_found', message: 'File not found' };
+        }
+        return null;
+      }),
     });
 
     const result = await handler(ctx, createValidArgs());
@@ -145,7 +188,6 @@ describe('update_workflow_step tool handler', () => {
   it('returns failure when approval creation throws', async () => {
     const handler = await getHandler();
     const ctx = createMockCtx({
-      runQuery: vi.fn().mockResolvedValue(createMockStepInfo()),
       runMutation: vi.fn().mockRejectedValue(new Error('DB error')),
     });
 
@@ -179,7 +221,8 @@ describe('update_workflow_step tool handler', () => {
     const ctx = createMockCtx();
 
     const args = {
-      stepRecordId: 'step-record-1',
+      workflowSlug: 'my-workflow',
+      stepSlug: 'send_email',
       updates: {
         config: { 'bad\nfield': 'value' },
       },

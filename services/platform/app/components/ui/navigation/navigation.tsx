@@ -2,6 +2,7 @@
 
 import { Link, useLocation } from '@tanstack/react-router';
 
+import { useBrandingContext } from '@/app/components/branding/branding-provider';
 import { TaleLogo } from '@/app/components/ui/logo/tale-logo';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { UserButton } from '@/app/components/user-button';
@@ -29,6 +30,7 @@ function NavigationItem({ item }: { item: NavItem }) {
   const location = useLocation();
   const pathname = location.pathname;
   const ability = useAbility();
+  const { accentColor } = useBrandingContext();
 
   const isActive =
     isPathMatch(item.href, pathname) ||
@@ -39,6 +41,14 @@ function NavigationItem({ item }: { item: NavItem }) {
   }
 
   const Icon = item.icon;
+
+  const activeStyle =
+    isActive && accentColor
+      ? { backgroundColor: `${accentColor}26`, color: accentColor }
+      : undefined;
+
+  const iconActiveStyle =
+    isActive && accentColor ? { color: accentColor } : undefined;
 
   if (item.external) {
     return (
@@ -53,16 +63,18 @@ function NavigationItem({ item }: { item: NavItem }) {
             <div
               className={cn(
                 'relative flex items-center justify-center p-2 rounded-lg transition-colors',
-                isActive ? 'bg-muted' : 'hover:bg-muted',
+                isActive ? (accentColor ? '' : 'bg-muted') : 'hover:bg-muted',
               )}
+              style={activeStyle}
               data-active={isActive}
             >
               {Icon && (
                 <Icon
                   className={cn(
                     'size-5 shrink-0 text-muted-foreground',
-                    isActive && 'text-foreground',
+                    isActive && !accentColor && 'text-foreground',
                   )}
+                  style={iconActiveStyle}
                 />
               )}
             </div>
@@ -84,16 +96,18 @@ function NavigationItem({ item }: { item: NavItem }) {
           <div
             className={cn(
               'relative flex items-center justify-center p-2 rounded-lg transition-colors',
-              isActive ? 'bg-muted' : 'hover:bg-muted',
+              isActive ? (accentColor ? '' : 'bg-muted') : 'hover:bg-muted',
             )}
+            style={activeStyle}
             data-active={isActive}
           >
             {Icon && (
               <Icon
                 className={cn(
                   'size-5 shrink-0 text-muted-foreground',
-                  isActive && 'text-foreground',
+                  isActive && !accentColor && 'text-foreground',
                 )}
+                style={iconActiveStyle}
               />
             )}
           </div>

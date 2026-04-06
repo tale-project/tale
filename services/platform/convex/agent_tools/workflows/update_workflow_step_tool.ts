@@ -9,12 +9,12 @@
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
+import type { WorkflowJsonConfig } from '../../../lib/shared/schemas/workflows';
 import type { ToolDefinition } from '../types';
 
 import { isRecord } from '../../../lib/utils/type-guards';
 import { internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
-import { toId } from '../../lib/type_cast_helpers';
 import { getApprovalThreadId } from '../../threads/get_parent_thread_id';
 import {
   validateStepConfig,
@@ -22,6 +22,8 @@ import {
 } from '../../workflow_engine/helpers/validation/validate_step_config';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
+
+const DEFAULT_ORG_SLUG = 'default';
 
 const stepUpdatesSchema = z.object({
   name: z.string().optional().describe('New step name'),
@@ -195,13 +197,13 @@ export const updateWorkflowStepTool = {
     description: `Update one or more workflow steps. Requires user approval — an approval card will be created.
 
 **SINGLE STEP:**
-{ stepRecordId: "...", updates: { stepType: "...", config: {...}, nextSteps: {...} }, updateSummary: "..." }
+{ workflowSlug: "...", stepSlug: "...", updates: { stepType: "...", config: {...}, nextSteps: {...} }, updateSummary: "..." }
 
 **BATCH (multiple steps in same workflow):**
-{ steps: [{ stepRecordId: "...", updates: {...} }, ...], updateSummary: "..." }
+{ workflowSlug: "...", steps: [{ stepSlug: "...", updates: {...} }, ...], updateSummary: "..." }
 
 **REQUIRED STEPS:**
-1. Call workflow_read(operation='get_step', stepId='...') to get current config for each step
+1. Call workflow_read(operation='get_structure', workflowSlug='...') to get the workflow and all its steps
 2. Modify config based on current values (keep ALL required fields)
 3. Call this tool with the updates
 
@@ -209,11 +211,16 @@ export const updateWorkflowStepTool = {
 When this tool returns { requiresApproval: true }, do NOT call this tool again.
 Inform the user the update is ready for review in the chat UI.`,
     inputSchema: z.object({
-      stepRecordId: z
+      workflowSlug: z
+        .string()
+        .describe(
+          'Slug of the workflow containing the step(s) to update (e.g., "conversation-sync", "circuly/sync-customers"). Required.',
+        ),
+      stepSlug: z
         .string()
         .optional()
         .describe(
-          'The step record ID for single-step update. Omit when using batch mode.',
+          'The step slug for single-step update. Omit when using batch mode.',
         ),
       updates: stepUpdatesSchema
         .optional()
@@ -221,9 +228,9 @@ Inform the user the update is ready for review in the chat UI.`,
       steps: z
         .array(
           z.object({
-            stepRecordId: z
+            stepSlug: z
               .string()
-              .describe('The step record ID (Convex Id<"wfStepDefs">)'),
+              .describe('The step slug (e.g., "fetch_customers")'),
             updates: stepUpdatesSchema.describe('Fields to update'),
           }),
         )
@@ -267,11 +274,11 @@ Inform the user the update is ready for review in the chat UI.`,
       // Determine mode: batch vs single
       const isBatch = Array.isArray(args.steps) && args.steps.length > 0;
 
-      if (!isBatch && !args.stepRecordId) {
+      if (!isBatch && !args.stepSlug) {
         return {
           success: false,
           message:
-            'Either stepRecordId (single mode) or steps array (batch mode) is required.',
+            'Either stepSlug (single mode) or steps array (batch mode) is required.',
           step: null,
         };
       }
@@ -287,19 +294,19 @@ Inform the user the update is ready for review in the chat UI.`,
       // Normalize to array of step entries (guards above ensure values exist)
       const stepEntries = isBatch
         ? (args.steps ?? []).map((s) => ({
-            stepRecordId: s.stepRecordId,
+            stepSlug: s.stepSlug,
             updates: s.updates,
           }))
         : [
             {
-              stepRecordId: args.stepRecordId ?? '',
+              stepSlug: args.stepSlug ?? '',
               updates: args.updates ?? {},
             },
           ];
 
       // Sanitize and validate each step's updates
       const sanitizedEntries: Array<{
-        stepRecordId: string;
+        stepSlug: string;
         updates: z.infer<typeof stepUpdatesSchema>;
       }> = [];
 
@@ -307,7 +314,7 @@ Inform the user the update is ready for review in the chat UI.`,
         try {
           const sanitized = sanitizeUpdates(entry.updates);
           sanitizedEntries.push({
-            stepRecordId: entry.stepRecordId,
+            stepSlug: entry.stepSlug,
             updates: sanitized,
           });
         } catch (error) {
@@ -315,7 +322,7 @@ Inform the user the update is ready for review in the chat UI.`,
             error instanceof Error ? error.message : String(error);
           return {
             success: false,
-            message: `Failed to parse tool arguments for step "${entry.stepRecordId}": ${errorMsg}\n\nPlease try again with properly structured JSON.`,
+            message: `Failed to parse tool arguments for step "${entry.stepSlug}": ${errorMsg}\n\nPlease try again with properly structured JSON.`,
             step: null,
             validationErrors: [errorMsg],
           };
@@ -341,50 +348,44 @@ Inform the user the update is ready for review in the chat UI.`,
         };
       }
 
-      // Look up all steps and verify they belong to the same workflow
-      const stepInfos = await Promise.all(
-        sanitizedEntries.map(async (entry) => {
-          const info = await ctx.runQuery(
-            internal.wf_step_defs.internal_queries.getStepWithWorkflowInfo,
-            { stepId: toId<'wfStepDefs'>(entry.stepRecordId) },
-          );
-          return { entry, info };
-        }),
+      // Read workflow file to verify steps exist
+      const readResult: { ok: boolean; config?: WorkflowJsonConfig } =
+        await ctx.runAction(
+          internal.workflows.file_actions.readWorkflowForExecution,
+          {
+            orgSlug: DEFAULT_ORG_SLUG,
+            workflowSlug: args.workflowSlug,
+          },
+        );
+
+      if (!readResult.ok || !readResult.config) {
+        return {
+          success: false,
+          message: `Workflow "${args.workflowSlug}" not found. The file may have been deleted or moved.`,
+          step: null,
+        };
+      }
+
+      const currentConfig = readResult.config;
+      const stepSlugsInFile = new Set(
+        currentConfig.steps.map((s) => s.stepSlug),
       );
 
-      // Check all steps exist and build verified list
-      const verifiedSteps: Array<{
-        entry: (typeof sanitizedEntries)[number];
-        info: NonNullable<(typeof stepInfos)[number]['info']>;
-      }> = [];
-
-      for (const { entry, info } of stepInfos) {
-        if (!info) {
+      // Verify all referenced steps exist in the workflow
+      for (const entry of sanitizedEntries) {
+        if (!stepSlugsInFile.has(entry.stepSlug)) {
           return {
             success: false,
-            message: `Step "${entry.stepRecordId}" not found or its parent workflow was deleted.`,
-            step: null,
-          };
-        }
-        verifiedSteps.push({ entry, info });
-      }
-
-      // Verify all steps belong to the same workflow (for batch)
-      if (verifiedSteps.length > 1) {
-        const workflowIds = new Set(
-          verifiedSteps.map((s) => s.info.workflowId),
-        );
-        if (workflowIds.size > 1) {
-          return {
-            success: false,
-            message:
-              'All steps in a batch update must belong to the same workflow.',
+            message: `Step "${entry.stepSlug}" not found in workflow "${args.workflowSlug}". Available steps: ${[...stepSlugsInFile].join(', ')}`,
             step: null,
           };
         }
       }
 
-      const firstInfo = verifiedSteps[0].info;
+      // Get step names from the workflow file
+      const stepNameMap = new Map(
+        currentConfig.steps.map((s) => [s.stepSlug, s.name]),
+      );
 
       try {
         if (isBatch) {
@@ -394,13 +395,13 @@ Inform the user the update is ready for review in the chat UI.`,
               .createBatchWorkflowStepUpdateApproval,
             {
               organizationId,
-              workflowId: firstInfo.workflowId,
-              workflowName: firstInfo.workflowName,
-              workflowVersionNumber: firstInfo.workflowVersionNumber,
+              workflowSlug: args.workflowSlug,
+              workflowName: currentConfig.name,
+              workflowVersion: currentConfig.version ?? '1.0.0',
               updateSummary: args.updateSummary,
-              steps: verifiedSteps.map(({ entry, info }) => ({
-                stepRecordId: toId<'wfStepDefs'>(entry.stepRecordId),
-                stepName: info.step.name,
+              steps: sanitizedEntries.map((entry) => ({
+                stepSlug: entry.stepSlug,
+                stepName: stepNameMap.get(entry.stepSlug) ?? entry.stepSlug,
                 stepUpdates: entry.updates,
               })),
               threadId,
@@ -409,12 +410,15 @@ Inform the user the update is ready for review in the chat UI.`,
           );
 
           debugLog('batch update_workflow_step approval created', {
-            stepCount: verifiedSteps.length,
+            stepCount: sanitizedEntries.length,
             approvalId,
           });
 
-          const stepNames = verifiedSteps
-            .map(({ info }) => `"${info.step.name}"`)
+          const stepNames = sanitizedEntries
+            .map(
+              (entry) =>
+                `"${stepNameMap.get(entry.stepSlug) ?? entry.stepSlug}"`,
+            )
             .join(', ');
 
           return {
@@ -422,23 +426,25 @@ Inform the user the update is ready for review in the chat UI.`,
             requiresApproval: true,
             approvalId,
             approvalCreated: true,
-            approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created for updating ${stepInfos.length} steps (${stepNames}) in workflow "${firstInfo.workflowName}".`,
-            message: `Batch step update for ${stepInfos.length} steps is ready for approval. An approval card has been created.`,
+            approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created for updating ${sanitizedEntries.length} steps (${stepNames}) in workflow "${currentConfig.name}".`,
+            message: `Batch step update for ${sanitizedEntries.length} steps is ready for approval. An approval card has been created.`,
           };
         } else {
-          // Single step mode: existing behavior
+          // Single step mode
           const entry = sanitizedEntries[0];
+          const stepName = stepNameMap.get(entry.stepSlug) ?? entry.stepSlug;
+
           const approvalId = await ctx.runMutation(
             internal.agent_tools.workflows.internal_mutations
               .createWorkflowStepUpdateApproval,
             {
               organizationId,
-              workflowId: firstInfo.workflowId,
-              workflowName: firstInfo.workflowName,
-              workflowVersionNumber: firstInfo.workflowVersionNumber,
+              workflowSlug: args.workflowSlug,
+              workflowName: currentConfig.name,
+              workflowVersion: currentConfig.version ?? '1.0.0',
               updateSummary: args.updateSummary,
-              stepRecordId: toId<'wfStepDefs'>(entry.stepRecordId),
-              stepName: firstInfo.step.name,
+              stepSlug: entry.stepSlug,
+              stepName,
               stepUpdates: entry.updates,
               threadId,
               messageId,
@@ -446,7 +452,7 @@ Inform the user the update is ready for review in the chat UI.`,
           );
 
           debugLog('update_workflow_step approval created', {
-            stepRecordId: entry.stepRecordId,
+            stepSlug: entry.stepSlug,
             approvalId,
           });
 
@@ -455,8 +461,8 @@ Inform the user the update is ready for review in the chat UI.`,
             requiresApproval: true,
             approvalId,
             approvalCreated: true,
-            approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created for updating step "${firstInfo.step.name}" in workflow "${firstInfo.workflowName}". The user must approve this update before changes will be applied.`,
-            message: `Step update for "${firstInfo.step.name}" is ready for approval. An approval card has been created. Changes will be applied once the user approves it.`,
+            approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created for updating step "${stepName}" in workflow "${currentConfig.name}". The user must approve this update before changes will be applied.`,
+            message: `Step update for "${stepName}" is ready for approval. An approval card has been created. Changes will be applied once the user approves it.`,
           };
         }
       } catch (error) {

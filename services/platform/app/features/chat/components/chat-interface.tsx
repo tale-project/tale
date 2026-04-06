@@ -72,9 +72,11 @@ export function ChatInterface({
     clearChatState,
     pendingMessage,
     setPendingMessage,
+    selectedModelOverrides,
   } = useChatLayout();
 
-  const effectiveAgent = useEffectiveAgent(organizationId);
+  const { agent: effectiveAgent, isLoading: isAgentLoading } =
+    useEffectiveAgent(organizationId);
 
   const [inputValue, setInputValue, clearInputValue] = usePersistedState(
     chatDraftKey(user?.userId, organizationId, threadId),
@@ -305,6 +307,9 @@ export function ChatInterface({
       resetCancelled();
     },
     selectedAgent: effectiveAgent,
+    modelId: effectiveAgent?.name
+      ? selectedModelOverrides[effectiveAgent.name]
+      : undefined,
     userContext,
   });
 
@@ -348,6 +353,7 @@ export function ChatInterface({
         {showWelcome && (
           <WelcomeView
             isPending={isLoading}
+            isAgentLoading={isAgentLoading}
             agentName={effectiveAgent?.displayName}
             conversationStarters={effectiveAgent?.conversationStarters}
             onSuggestionClick={setInputValue}

@@ -67,6 +67,21 @@ function envNormalizeCommon() {
   if (!process.env.SITE_URL) {
     process.env.SITE_URL = `http://${host}${host === 'localhost' ? `:${port}` : ''}`;
   }
+
+  if (!process.env.TALE_CONFIG_DIR) {
+    process.env.TALE_CONFIG_DIR = join(repoRoot, 'examples');
+  }
+  const configDir = process.env.TALE_CONFIG_DIR;
+
+  if (!process.env.AGENTS_DIR) {
+    process.env.AGENTS_DIR = join(configDir, 'agents');
+  }
+  if (!process.env.WORKFLOWS_DIR) {
+    process.env.WORKFLOWS_DIR = join(configDir, 'workflows');
+  }
+  if (!process.env.INTEGRATIONS_DIR) {
+    process.env.INTEGRATIONS_DIR = join(configDir, 'integrations');
+  }
 }
 
 function ensureInstanceSecret() {
@@ -388,6 +403,52 @@ async function main() {
     console.log('[dev] 🔄 Syncing environment variables...');
     try {
       await runCommand('bun', ['scripts/sync-convex-env-from-dotenv.ts']);
+
+      // Sync TALE_CONFIG_DIR and derived dirs explicitly (set dynamically, not in .env files)
+      const taleConfigDir = process.env.TALE_CONFIG_DIR;
+      if (taleConfigDir) {
+        await runCommand('bunx', [
+          'convex',
+          'env',
+          'set',
+          `TALE_CONFIG_DIR=${taleConfigDir}`,
+        ]);
+        console.log(`[dev] ✅ TALE_CONFIG_DIR=${taleConfigDir}`);
+      }
+
+      const agentsDir = process.env.AGENTS_DIR;
+      if (agentsDir) {
+        await runCommand('bunx', [
+          'convex',
+          'env',
+          'set',
+          `AGENTS_DIR=${agentsDir}`,
+        ]);
+        console.log(`[dev] ✅ AGENTS_DIR=${agentsDir}`);
+      }
+
+      const workflowsDir = process.env.WORKFLOWS_DIR;
+      if (workflowsDir) {
+        await runCommand('bunx', [
+          'convex',
+          'env',
+          'set',
+          `WORKFLOWS_DIR=${workflowsDir}`,
+        ]);
+        console.log(`[dev] ✅ WORKFLOWS_DIR=${workflowsDir}`);
+      }
+
+      const integrationsDir = process.env.INTEGRATIONS_DIR;
+      if (integrationsDir) {
+        await runCommand('bunx', [
+          'convex',
+          'env',
+          'set',
+          `INTEGRATIONS_DIR=${integrationsDir}`,
+        ]);
+        console.log(`[dev] ✅ INTEGRATIONS_DIR=${integrationsDir}`);
+      }
+
       console.log('[dev] ✅ Environment variables synced successfully');
     } catch (err) {
       console.warn(

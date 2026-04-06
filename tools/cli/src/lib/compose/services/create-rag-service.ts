@@ -10,7 +10,7 @@ export function createRagService(
   return {
     image: `${config.registry}/tale-rag:${config.version}`,
     container_name: `${PROJECT_NAME}-rag-${color}`,
-    volumes: ['rag-data:/app/data'],
+    volumes: ['rag-data:/app/data', 'platform-data:/app/platform-config:ro'],
     env_file: ['.env'],
     restart: 'unless-stopped',
     healthcheck: {

@@ -7,6 +7,7 @@ export const PROJECT_NAME = 'tale';
 
 export interface DeploymentEnv {
   GHCR_REGISTRY: string;
+  SITE_URL: string;
   HEALTH_CHECK_TIMEOUT: number;
   DRAIN_TIMEOUT: number;
   DEPLOY_DIR: string;
@@ -54,6 +55,7 @@ export function loadEnv(deployDir: string): DeploymentEnv {
 
   return {
     GHCR_REGISTRY: process.env.GHCR_REGISTRY ?? DEFAULT_REGISTRY,
+    SITE_URL: process.env.SITE_URL ?? 'https://localhost',
     HEALTH_CHECK_TIMEOUT: parseIntSafe(
       process.env.HEALTH_CHECK_TIMEOUT,
       DEFAULT_HEALTH_CHECK_TIMEOUT,

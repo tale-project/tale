@@ -12,8 +12,6 @@ import { jsonRecordValidator } from '../../../lib/shared/schemas/utils/json-valu
 import { components, internal } from '../../_generated/api';
 import { internalMutation } from '../../_generated/server';
 import { createApproval } from '../../approvals/helpers';
-import { toSerializableConfig } from '../../custom_agents/config';
-import { getDefaultAgentRuntimeConfig } from '../../lib/agent_runtime_config';
 import { checkOrganizationRateLimit } from '../../lib/rate_limiter/helpers';
 import { persistentStreaming } from '../../streaming/helpers';
 import { stepConfigValidator } from '../../workflow_engine/types/nodes';
@@ -37,7 +35,7 @@ export const claimWorkflowApprovalForExecution = internalMutation({
 export const updateWorkflowApprovalWithResult = internalMutation({
   args: {
     approvalId: v.id('approvals'),
-    createdWorkflowId: v.union(v.id('wfDefinitions'), v.null()),
+    createdWorkflowSlug: v.union(v.string(), v.null()),
     executionError: v.union(v.string(), v.null()),
   },
   handler: async (ctx, args): Promise<void> => {
@@ -56,8 +54,8 @@ export const updateWorkflowApprovalWithResult = internalMutation({
       metadata: {
         ...metadata,
         executedAt: now,
-        ...(args.createdWorkflowId
-          ? { createdWorkflowId: args.createdWorkflowId }
+        ...(args.createdWorkflowSlug
+          ? { createdWorkflowSlug: args.createdWorkflowSlug }
           : {}),
         ...(args.executionError ? { executionError: args.executionError } : {}),
       } as ApprovalMetadata,
@@ -82,37 +80,18 @@ export const triggerWorkflowCompletionResponse = internalMutation({
   args: {
     threadId: v.string(),
     organizationId: v.string(),
+    agentSlug: v.string(),
     messageContent: v.string(),
+    agentConfig: v.any(),
   },
   handler: async (ctx, args): Promise<void> => {
-    const { threadId, organizationId, messageContent } = args;
+    const { threadId, organizationId, agentSlug, messageContent, agentConfig } =
+      args;
 
-    // Resolve the agent from thread metadata
     const threadMeta = await ctx.db
       .query('threadMetadata')
       .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
       .first();
-
-    const customAgentId = threadMeta?.customAgentId;
-    if (!customAgentId) {
-      throw new Error(
-        `[triggerWorkflowCompletionResponse] Thread ${threadId} has no customAgentId`,
-      );
-    }
-
-    const chatAgent = await ctx.db
-      .query('customAgents')
-      .withIndex('by_root_status', (q) =>
-        q.eq('rootVersionId', customAgentId).eq('status', 'active'),
-      )
-      .filter((q) => q.eq(q.field('organizationId'), organizationId))
-      .first();
-
-    if (!chatAgent) {
-      throw new Error(
-        `[triggerWorkflowCompletionResponse] Active agent not found for rootVersionId: ${customAgentId}`,
-      );
-    }
 
     const thread = await ctx.runQuery(components.agent.threads.getThread, {
       threadId,
@@ -127,8 +106,6 @@ export const triggerWorkflowCompletionResponse = internalMutation({
       },
     );
 
-    const agentConfig = toSerializableConfig(chatAgent);
-    const { model, provider } = getDefaultAgentRuntimeConfig();
     const streamId = await persistentStreaming.createStream(ctx);
 
     if (threadMeta) {
@@ -144,9 +121,9 @@ export const triggerWorkflowCompletionResponse = internalMutation({
       {
         agentType: 'custom',
         agentConfig,
-        model: agentConfig.model ?? model,
-        provider,
-        debugTag: `[Agent:${chatAgent.name}:WorkflowComplete]`,
+        model: agentConfig.model ?? 'default',
+        provider: agentConfig.provider,
+        debugTag: `[${agentSlug}:WorkflowComplete]`,
         enableStreaming: true,
         threadId,
         organizationId,
@@ -236,7 +213,7 @@ export const createWorkflowCreationApproval = internalMutation({
 export const createWorkflowRunApproval = internalMutation({
   args: {
     organizationId: v.string(),
-    workflowId: v.id('wfDefinitions'),
+    workflowSlug: v.string(),
     workflowName: v.string(),
     workflowDescription: v.optional(v.string()),
     parameters: v.optional(jsonRecordValidator),
@@ -247,7 +224,7 @@ export const createWorkflowRunApproval = internalMutation({
     await checkOrganizationRateLimit(ctx, 'workflow:run', args.organizationId);
 
     const metadata: WorkflowRunMetadata = {
-      workflowId: args.workflowId,
+      workflowSlug: args.workflowSlug,
       workflowName: args.workflowName,
       workflowDescription: args.workflowDescription,
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex jsonRecordValidator returns broader type; parameters is always Record<string, unknown>
@@ -258,7 +235,7 @@ export const createWorkflowRunApproval = internalMutation({
     const approvalId = await createApproval(ctx, {
       organizationId: args.organizationId,
       resourceType: 'workflow_run',
-      resourceId: `workflow_run:${args.workflowId}`,
+      resourceId: `workflow_run:${args.workflowSlug}`,
       priority: 'high',
       description: `Run workflow: ${args.workflowName}${args.workflowDescription ? ` - ${args.workflowDescription}` : ''}`,
       threadId: args.threadId,
@@ -304,9 +281,9 @@ export const updateWorkflowRunApprovalWithResult = internalMutation({
 export const createWorkflowUpdateApproval = internalMutation({
   args: {
     organizationId: v.string(),
-    workflowId: v.id('wfDefinitions'),
+    workflowSlug: v.string(),
     workflowName: v.string(),
-    workflowVersionNumber: v.number(),
+    workflowVersion: v.string(),
     updateSummary: v.string(),
     workflowConfig: v.object({
       name: v.string(),
@@ -339,9 +316,9 @@ export const createWorkflowUpdateApproval = internalMutation({
     const metadata: WorkflowUpdateMetadata = {
       updateType: 'full_save',
       updateSummary: args.updateSummary,
-      workflowId: args.workflowId,
+      workflowSlug: args.workflowSlug,
       workflowName: args.workflowName,
-      workflowVersionNumber: args.workflowVersionNumber,
+      workflowVersion: args.workflowVersion,
       workflowConfig: {
         name: args.workflowConfig.name,
         description: args.workflowConfig.description,
@@ -366,7 +343,7 @@ export const createWorkflowUpdateApproval = internalMutation({
     return await createApproval(ctx, {
       organizationId: args.organizationId,
       resourceType: 'workflow_update',
-      resourceId: `workflow_update:${args.workflowId}`,
+      resourceId: `workflow_update:${args.workflowSlug}`,
       priority: 'high',
       description: `Update workflow: ${args.workflowName} — ${args.updateSummary}`,
       threadId: args.threadId,
@@ -379,11 +356,11 @@ export const createWorkflowUpdateApproval = internalMutation({
 export const createWorkflowStepUpdateApproval = internalMutation({
   args: {
     organizationId: v.string(),
-    workflowId: v.id('wfDefinitions'),
+    workflowSlug: v.string(),
     workflowName: v.string(),
-    workflowVersionNumber: v.number(),
+    workflowVersion: v.string(),
     updateSummary: v.string(),
-    stepRecordId: v.id('wfStepDefs'),
+    stepSlug: v.string(),
     stepName: v.string(),
     stepUpdates: jsonRecordValidator,
     threadId: v.optional(v.string()),
@@ -393,10 +370,10 @@ export const createWorkflowStepUpdateApproval = internalMutation({
     const metadata: WorkflowUpdateMetadata = {
       updateType: 'step_patch',
       updateSummary: args.updateSummary,
-      workflowId: args.workflowId,
+      workflowSlug: args.workflowSlug,
       workflowName: args.workflowName,
-      workflowVersionNumber: args.workflowVersionNumber,
-      stepRecordId: args.stepRecordId,
+      workflowVersion: args.workflowVersion,
+      stepSlug: args.stepSlug,
       stepName: args.stepName,
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex jsonRecordValidator returns broader type; stepUpdates is always Record<string, unknown>
       stepUpdates: args.stepUpdates as Record<string, unknown>,
@@ -406,7 +383,7 @@ export const createWorkflowStepUpdateApproval = internalMutation({
     return await createApproval(ctx, {
       organizationId: args.organizationId,
       resourceType: 'workflow_update',
-      resourceId: `workflow_update:${args.workflowId}:${args.stepRecordId}`,
+      resourceId: `workflow_update:${args.workflowSlug}:${args.stepSlug}`,
       priority: 'high',
       description: `Update step "${args.stepName}" in workflow "${args.workflowName}" — ${args.updateSummary}`,
       threadId: args.threadId,
@@ -419,13 +396,13 @@ export const createWorkflowStepUpdateApproval = internalMutation({
 export const createBatchWorkflowStepUpdateApproval = internalMutation({
   args: {
     organizationId: v.string(),
-    workflowId: v.id('wfDefinitions'),
+    workflowSlug: v.string(),
     workflowName: v.string(),
-    workflowVersionNumber: v.number(),
+    workflowVersion: v.string(),
     updateSummary: v.string(),
     steps: v.array(
       v.object({
-        stepRecordId: v.id('wfStepDefs'),
+        stepSlug: v.string(),
         stepName: v.string(),
         stepUpdates: jsonRecordValidator,
       }),
@@ -437,11 +414,11 @@ export const createBatchWorkflowStepUpdateApproval = internalMutation({
     const metadata: WorkflowUpdateMetadata = {
       updateType: 'multi_step_patch',
       updateSummary: args.updateSummary,
-      workflowId: args.workflowId,
+      workflowSlug: args.workflowSlug,
       workflowName: args.workflowName,
-      workflowVersionNumber: args.workflowVersionNumber,
+      workflowVersion: args.workflowVersion,
       steps: args.steps.map((s) => ({
-        stepRecordId: s.stepRecordId,
+        stepSlug: s.stepSlug,
         stepName: s.stepName,
         stepUpdates: Object.fromEntries(Object.entries(s.stepUpdates)),
       })),
@@ -452,7 +429,7 @@ export const createBatchWorkflowStepUpdateApproval = internalMutation({
     return await createApproval(ctx, {
       organizationId: args.organizationId,
       resourceType: 'workflow_update',
-      resourceId: `workflow_update:${args.workflowId}:batch:${Date.now()}`,
+      resourceId: `workflow_update:${args.workflowSlug}:batch:${Date.now()}`,
       priority: 'high',
       description: `Update ${args.steps.length} steps (${stepNames}) in workflow "${args.workflowName}" — ${args.updateSummary}`,
       threadId: args.threadId,

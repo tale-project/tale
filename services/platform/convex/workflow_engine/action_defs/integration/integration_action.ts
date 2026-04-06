@@ -74,10 +74,10 @@ export const integrationAction: ActionDefinition<{
       );
     }
 
-    // 1. Load the integration from database by name
-    const integration = await ctx.runQuery(
-      internal.integrations.internal_queries.getByName,
-      { organizationId, name },
+    // 1. Load integration config (file) + credentials (DB) via unified loader
+    const integration = await ctx.runAction(
+      internal.integrations.load_integration.loadIntegration,
+      { orgSlug: 'default', organizationId, slug: name },
     );
 
     if (!integration) {

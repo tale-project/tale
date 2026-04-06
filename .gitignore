@@ -54,8 +54,7 @@ services/platform/.env.local
 compose.override.yml
 
 # deployment state files
-.deployment-lock
-.deployment-color
+.tale/
 
 # Claude
 .claude/*
@@ -83,3 +82,6 @@ build/
 
 # Local ARM64 Dockerfile for operator
 services/operator/Dockerfile.arm64
+
+# Examples
+examples/**/.history/

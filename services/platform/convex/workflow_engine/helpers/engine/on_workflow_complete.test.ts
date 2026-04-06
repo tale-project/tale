@@ -46,10 +46,19 @@ function createMockCtx(overrides: {
   const ctx = {
     db: {
       get: dbGet,
-      query: vi.fn().mockReturnValue({
-        withIndex: vi.fn().mockReturnValue({
-          first: vi.fn().mockResolvedValue(null),
-        }),
+      query: vi.fn().mockImplementation((table: string) => {
+        if (table === 'threadMetadata') {
+          return {
+            withIndex: vi.fn().mockReturnValue({
+              first: vi.fn().mockResolvedValue({ agentSlug: 'test-agent' }),
+            }),
+          };
+        }
+        return {
+          withIndex: vi.fn().mockReturnValue({
+            first: vi.fn().mockResolvedValue(null),
+          }),
+        };
       }),
     },
     runMutation,

@@ -11,11 +11,10 @@ import type {
   HumanInputRequestMetadata,
   LocationRequestMetadata,
 } from '@/lib/shared/schemas/approvals';
-import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 
+import { useListAgents } from '@/app/features/agents/hooks/queries';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { api } from '@/convex/_generated/api';
 import {
   normalizeDocumentWriteMetadata,
@@ -59,32 +58,55 @@ export function useThreads({ skip = false } = {}) {
   };
 }
 
-export type CustomAgent = ConvexItemOf<
-  typeof api.custom_agents.queries.listCustomAgents
->;
+export interface ChatAgent {
+  name: string;
+  displayName: string;
+  description?: string;
+  visibleInChat?: boolean;
+  supportedModels?: string[];
+  toolNames?: string[];
+  roleRestriction?: string;
+  conversationStarters?: string[];
+  i18n?: Record<
+    string,
+    {
+      displayName?: string;
+      description?: string;
+      conversationStarters?: string[];
+    }
+  >;
+}
 
-export function useChatAgents(organizationId: string) {
-  const { selectedTeamId } = useTeamFilter();
-  const { data } = useConvexQuery(api.custom_agents.queries.listCustomAgents, {
-    organizationId,
-    filterPublished: true,
-  });
+export function useChatAgents(_organizationId: string) {
+  const { agents: rawAgents, isLoading } = useListAgents('default');
 
   const agents = useMemo(() => {
-    if (!data) return undefined;
-    if (!selectedTeamId) return data;
-    return data.filter((agent) => {
-      // Org-wide agents (no teamId) are always visible, matching backend hasTeamAccess logic
-      if (!agent.teamId) return true;
-      return (
-        agent.teamId === selectedTeamId ||
-        (agent.sharedWithTeamIds?.includes(selectedTeamId) ?? false)
-      );
-    });
-  }, [data, selectedTeamId]);
+    if (!rawAgents) return undefined;
+    const chatAgents: ChatAgent[] = [];
+    for (const a of rawAgents) {
+      if (
+        a &&
+        'displayName' in a &&
+        typeof a.displayName === 'string' &&
+        a.visibleInChat === true
+      ) {
+        chatAgents.push({
+          name: a.name,
+          displayName: a.displayName,
+          description: a.description,
+          visibleInChat: a.visibleInChat,
+          supportedModels: a.supportedModels,
+          conversationStarters: a.conversationStarters,
+          i18n: a.i18n,
+        });
+      }
+    }
+    return chatAgents;
+  }, [rawAgents]);
 
   return {
     agents,
+    isLoading,
   };
 }
 

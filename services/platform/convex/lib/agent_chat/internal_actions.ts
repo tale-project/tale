@@ -37,7 +37,10 @@ import {
   sanitizeWorkflowName,
 } from '../../agent_tools/workflows/create_bound_workflow_tool';
 import { extractInputSchema } from '../../agent_tools/workflows/helpers/extract_input_schema';
-import { toId } from '../../lib/type_cast_helpers';
+import {
+  resolveLanguageModel,
+  resolveLanguageModelById,
+} from '../../providers/resolve_model';
 import { generateAgentResponse } from '../agent_response';
 import {
   estimateTokens,
@@ -63,9 +66,9 @@ const serializableAgentConfigValidator = v.object({
   integrationBindings: v.optional(v.array(v.string())),
   workflowBindings: v.optional(v.array(v.string())),
   model: v.optional(v.string()),
+  provider: v.optional(v.string()),
   maxSteps: v.optional(v.number()),
   outputFormat: v.optional(v.union(v.literal('text'), v.literal('json'))),
-  enableVectorSearch: v.optional(v.boolean()),
   knowledgeMode: v.optional(
     v.union(
       v.literal('off'),
@@ -103,13 +106,14 @@ export const runAgentGeneration = internalAction({
     agentType: v.string(),
     agentConfig: serializableAgentConfigValidator,
     model: v.string(),
-    provider: v.string(),
+    provider: v.optional(v.string()),
     debugTag: v.string(),
     enableStreaming: v.optional(v.boolean()),
     hooks: v.optional(hooksConfigValidator),
     threadId: v.string(),
     organizationId: v.string(),
     userId: v.optional(v.string()),
+    agentSlug: v.optional(v.string()),
     promptMessage: v.string(),
     additionalContext: v.optional(v.record(v.string(), v.string())),
     userContext: v.optional(
@@ -146,7 +150,7 @@ export const runAgentGeneration = internalAction({
       agentType: agentTypeStr,
       agentConfig,
       model,
-      provider,
+      provider: _provider,
       debugTag,
       enableStreaming,
       hooks: hooksConfig,
@@ -174,141 +178,162 @@ export const runAgentGeneration = internalAction({
       throw new Error(`Invalid agent type: ${agentTypeStr}`);
     }
 
-    // Build bound integration tools eagerly (before synchronous createAgent closure)
-    let integrationExtraTools: Record<string, unknown> | undefined;
-    if (agentConfig.integrationBindings?.length) {
-      integrationExtraTools = {};
-      for (const name of agentConfig.integrationBindings) {
-        const summary = await fetchOperationsSummary(ctx, organizationId, name);
-        integrationExtraTools[`integration_${name}`] =
-          createBoundIntegrationTool(name, summary);
-      }
-      debugLog('Built bound integration tools', {
-        names: Object.keys(integrationExtraTools),
-      });
-    }
-
-    // Build delegation tools dynamically
-    let delegationExtraTools: Record<string, unknown> | undefined;
-    let delegationInstructionsAppend = '';
-    if (agentConfig.delegateAgentIds?.length) {
-      const delegates = await loadDelegateAgents(
-        ctx,
-        agentConfig.delegateAgentIds,
-        organizationId,
-      );
-
-      if (delegates.length > 0) {
-        delegationExtraTools = {};
-        for (const delegate of delegates) {
-          const delegationTool = createDelegationTool(delegate);
-          delegationExtraTools[delegationTool.name] = delegationTool.tool;
+    try {
+      // Build bound integration tools eagerly (before synchronous createAgent closure)
+      let integrationExtraTools: Record<string, unknown> | undefined;
+      if (agentConfig.integrationBindings?.length) {
+        integrationExtraTools = {};
+        for (const name of agentConfig.integrationBindings) {
+          const summary = await fetchOperationsSummary(
+            ctx,
+            organizationId,
+            name,
+          );
+          integrationExtraTools[`integration_${name}`] =
+            createBoundIntegrationTool(name, summary);
         }
-        delegationInstructionsAppend =
-          buildDelegationInstructionsSection(delegates);
-        debugLog('Built delegation tools', {
-          names: Object.keys(delegationExtraTools),
+        debugLog('Built bound integration tools', {
+          names: Object.keys(integrationExtraTools),
         });
       }
-    }
 
-    // Build bound workflow tools eagerly
-    let workflowExtraTools: Record<string, unknown> | undefined;
-    if (agentConfig.workflowBindings?.length) {
-      workflowExtraTools = {};
-      for (const rootId of agentConfig.workflowBindings) {
-        const activeVersion = await ctx.runQuery(
-          internal.wf_definitions.internal_queries.getActiveVersionByRoot,
-          { rootVersionId: toId<'wfDefinitions'>(rootId) },
+      // Build delegation tools dynamically
+      let delegationExtraTools: Record<string, unknown> | undefined;
+      let delegationInstructionsAppend = '';
+      if (agentConfig.delegateAgentIds?.length) {
+        const delegates = await loadDelegateAgents(
+          ctx,
+          agentConfig.delegateAgentIds,
+          organizationId,
+          'default',
         );
 
-        if (!activeVersion) {
-          debugLog('Skipping bound workflow (no active version)', { rootId });
-          continue;
-        }
-
-        if (activeVersion.organizationId !== organizationId) {
-          debugLog('Skipping bound workflow (wrong org)', { rootId });
-          continue;
-        }
-
-        const startStepConfig = await ctx.runQuery(
-          internal.wf_definitions.internal_queries.getStartStepConfig,
-          { wfDefinitionId: activeVersion._id },
-        );
-        const inputSchema = extractInputSchema(startStepConfig);
-
-        const toolKey = `workflow_${sanitizeWorkflowName(activeVersion.name)}_${rootId.slice(0, 6)}`;
-        workflowExtraTools[toolKey] = createBoundWorkflowTool(
-          activeVersion,
-          inputSchema,
-        );
-      }
-
-      if (Object.keys(workflowExtraTools).length > 0) {
-        debugLog('Built bound workflow tools', {
-          names: Object.keys(workflowExtraTools),
-        });
-      }
-    }
-
-    // Merge all extra tools
-    const allExtraTools: Record<string, unknown> | undefined =
-      integrationExtraTools || delegationExtraTools || workflowExtraTools
-        ? {
-            ...integrationExtraTools,
-            ...delegationExtraTools,
-            ...workflowExtraTools,
+        if (delegates.length > 0) {
+          delegationExtraTools = {};
+          for (const delegate of delegates) {
+            const delegationTool = createDelegationTool(delegate);
+            delegationExtraTools[delegationTool.name] = delegationTool.tool;
           }
+          delegationInstructionsAppend =
+            buildDelegationInstructionsSection(delegates);
+          debugLog('Built delegation tools', {
+            names: Object.keys(delegationExtraTools),
+          });
+        }
+      }
+
+      // Build bound workflow tools eagerly (file-based)
+      let workflowExtraTools: Record<string, unknown> | undefined;
+      if (agentConfig.workflowBindings?.length) {
+        workflowExtraTools = {};
+        for (const slug of agentConfig.workflowBindings) {
+          const result: unknown = await ctx.runAction(
+            internal.workflows.file_actions.readWorkflowForExecution,
+            { orgSlug: 'default', workflowSlug: slug },
+          );
+
+          if (!isRecord(result) || result.ok !== true) {
+            debugLog('Skipping bound workflow (not found)', { slug });
+            continue;
+          }
+
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- readWorkflowForExecution returns v.any() but ok=true guarantees WorkflowJsonConfig shape
+          const config = result.config as {
+            name: string;
+            description?: string;
+            enabled?: boolean;
+            steps: Array<{ stepType: string; config?: unknown }>;
+          };
+
+          if (!config.enabled) {
+            debugLog('Skipping bound workflow (disabled)', { slug });
+            continue;
+          }
+
+          const startStep = config.steps.find((s) => s.stepType === 'start');
+          const inputSchema = extractInputSchema(startStep?.config);
+
+          const toolKey = `workflow_${sanitizeWorkflowName(config.name)}_${slug}`;
+          workflowExtraTools[toolKey] = createBoundWorkflowTool(
+            {
+              workflowSlug: slug,
+              name: config.name,
+              description: config.description,
+            },
+            inputSchema,
+          );
+        }
+
+        if (Object.keys(workflowExtraTools).length > 0) {
+          debugLog('Built bound workflow tools', {
+            names: Object.keys(workflowExtraTools),
+          });
+        }
+      }
+
+      // Merge all extra tools
+      const allExtraTools: Record<string, unknown> | undefined =
+        integrationExtraTools || delegationExtraTools || workflowExtraTools
+          ? {
+              ...integrationExtraTools,
+              ...delegationExtraTools,
+              ...workflowExtraTools,
+            }
+          : undefined;
+
+      // Combine instructions with delegation agent descriptions
+      const finalInstructions = delegationInstructionsAppend
+        ? agentConfig.instructions + delegationInstructionsAppend
+        : agentConfig.instructions;
+
+      // Resolve model from provider files
+      const modelId = model === 'default' ? undefined : model;
+      const { languageModel, modelData } = modelId
+        ? await resolveLanguageModelById(ctx, {
+            modelId,
+            providerName: agentConfig.provider,
+          })
+        : await resolveLanguageModel(ctx, {
+            tag: 'chat',
+            providerName: agentConfig.provider,
+          });
+      const resolvedProvider = modelData.providerName;
+
+      // Create agent factory function from serializable config
+      const createAgent = () => {
+        const config = createAgentConfig({
+          name: agentConfig.name,
+          instructions: finalInstructions,
+          languageModel,
+          convexToolNames: agentConfig.convexToolNames
+            ? agentConfig.convexToolNames.filter((n): n is ToolName =>
+                (TOOL_NAMES as readonly string[]).includes(n),
+              )
+            : undefined,
+          extraTools: allExtraTools,
+          maxSteps: agentConfig.maxSteps,
+          outputFormat: agentConfig.outputFormat,
+        });
+        return new Agent(components.agent, config);
+      };
+
+      // Build hooks object from FunctionHandle strings
+      const hooks: GenerateResponseHooks | undefined = hooksConfig
+        ? buildHooksFromConfig(hooksConfig)
         : undefined;
 
-    // Combine instructions with delegation agent descriptions
-    const finalInstructions = delegationInstructionsAppend
-      ? agentConfig.instructions + delegationInstructionsAppend
-      : agentConfig.instructions;
+      // Build tools summary for context window display
+      const toolsSummary = buildToolsSummary(
+        agentConfig.convexToolNames,
+        allExtraTools,
+      );
 
-    // Create agent factory function from serializable config
-    const createAgent = (options?: Record<string, unknown>) => {
-      const config = createAgentConfig({
-        name: agentConfig.name,
-        instructions: finalInstructions,
-        convexToolNames: agentConfig.convexToolNames
-          ? agentConfig.convexToolNames.filter((n): n is ToolName =>
-              (TOOL_NAMES as readonly string[]).includes(n),
-            )
-          : undefined,
-        extraTools: allExtraTools,
-        model:
-          (typeof options?.model === 'string' ? options.model : undefined) ??
-          agentConfig.model,
-        maxSteps:
-          (typeof options?.maxSteps === 'number'
-            ? options.maxSteps
-            : undefined) ?? agentConfig.maxSteps,
-        outputFormat: agentConfig.outputFormat,
-        enableVectorSearch: agentConfig.enableVectorSearch,
-      });
-      return new Agent(components.agent, config);
-    };
-
-    // Build hooks object from FunctionHandle strings
-    const hooks: GenerateResponseHooks | undefined = hooksConfig
-      ? buildHooksFromConfig(hooksConfig)
-      : undefined;
-
-    // Build tools summary for context window display
-    const toolsSummary = buildToolsSummary(
-      agentConfig.convexToolNames,
-      allExtraTools,
-    );
-
-    try {
       const result = await generateAgentResponse(
         {
           agentType,
           createAgent,
           model,
-          provider,
+          provider: resolvedProvider,
           debugTag,
           enableStreaming,
           hooks,
@@ -396,6 +421,22 @@ export const runAgentGeneration = internalAction({
       // Stream cleanup (persistent text stream + agent SDK streams) is handled
       // by generateAgentResponse's catch block. This outer catch only ensures
       // a failed assistant message exists for the frontend.
+
+      // Clear generation status so the UI stops showing "Thinking..."
+      if (streamId) {
+        try {
+          await ctx.runMutation(
+            internal.threads.internal_mutations.clearGenerationStatus,
+            { threadId, streamId },
+          );
+        } catch (clearError) {
+          console.error(
+            '[runAgentGeneration] Failed to clear generation status:',
+            clearError,
+          );
+        }
+      }
+
       try {
         const msgs = await listMessages(ctx, components.agent, {
           threadId,

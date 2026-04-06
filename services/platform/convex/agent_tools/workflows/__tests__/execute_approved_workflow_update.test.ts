@@ -7,17 +7,10 @@ vi.mock('../../../_generated/api', () => ({
         getApprovalById: 'mock-getApprovalById',
       },
     },
-    wf_definitions: {
-      internal_queries: {
-        resolveWorkflow: 'mock-resolveWorkflow',
-      },
-      internal_mutations: {
-        saveWorkflowWithSteps: 'mock-saveWorkflowWithSteps',
-      },
-    },
-    wf_step_defs: {
-      internal_mutations: {
-        patchStep: 'mock-patchStep',
+    workflows: {
+      file_actions: {
+        readWorkflowForExecution: 'mock-readWorkflowForExecution',
+        saveWorkflowForExecution: 'mock-saveWorkflowForExecution',
       },
     },
     agent_tools: {
@@ -38,6 +31,29 @@ vi.mock('../../../_generated/server', () => ({
   internalAction: vi.fn((def) => ({ _handler: def.handler })),
 }));
 
+const MOCK_WORKFLOW_CONFIG = {
+  name: 'Test Workflow',
+  description: 'test',
+  version: '1.0.0',
+  enabled: true,
+  steps: [
+    {
+      stepSlug: 'start',
+      name: 'Start',
+      stepType: 'start',
+      config: {},
+      nextSteps: { success: 'send_email' },
+    },
+    {
+      stepSlug: 'send_email',
+      name: 'Send Email',
+      stepType: 'action',
+      config: { type: 'send_email' },
+      nextSteps: { success: 'noop' },
+    },
+  ],
+};
+
 function createMockApproval(overrides?: Record<string, unknown>) {
   return {
     _id: 'approval-1',
@@ -49,9 +65,9 @@ function createMockApproval(overrides?: Record<string, unknown>) {
     metadata: {
       updateType: 'full_save',
       updateSummary: 'Added error handling',
-      workflowId: 'wf-def-1',
+      workflowSlug: 'test-workflow',
       workflowName: 'Test Workflow',
-      workflowVersionNumber: 3,
+      workflowVersion: '1.0.0',
       workflowConfig: { name: 'Test Workflow', description: 'test' },
       stepsConfig: [
         {
@@ -59,7 +75,7 @@ function createMockApproval(overrides?: Record<string, unknown>) {
           name: 'Start',
           stepType: 'start',
           config: {},
-          nextSteps: { default: 'end' },
+          nextSteps: { success: 'end' },
         },
       ],
     },
@@ -72,35 +88,57 @@ function createStepPatchApproval(overrides?: Record<string, unknown>) {
     metadata: {
       updateType: 'step_patch',
       updateSummary: 'Updated email template',
-      workflowId: 'wf-def-1',
+      workflowSlug: 'test-workflow',
       workflowName: 'Test Workflow',
-      workflowVersionNumber: 3,
-      stepRecordId: 'step-1',
+      workflowVersion: '1.0.0',
+      stepSlug: 'send_email',
       stepName: 'Send Email',
-      stepUpdates: { config: { type: 'send_email' } },
+      stepUpdates: { config: { type: 'send_email', template: 'new' } },
     },
     ...overrides,
   });
 }
 
-function createMockCtx(approval: ReturnType<typeof createMockApproval> | null) {
-  const workflow = approval
-    ? {
-        _id: 'wf-def-1',
-        versionNumber:
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test-only: accessing mock metadata
-          (approval.metadata as Record<string, unknown>).workflowVersionNumber,
-        name: 'Test Workflow',
-      }
-    : null;
+function createMultiStepPatchApproval() {
+  return createMockApproval({
+    metadata: {
+      updateType: 'multi_step_patch',
+      updateSummary: 'Updated multiple steps',
+      workflowSlug: 'test-workflow',
+      workflowName: 'Test Workflow',
+      workflowVersion: '1.0.0',
+      steps: [
+        {
+          stepSlug: 'start',
+          stepName: 'Start',
+          stepUpdates: { name: 'Begin' },
+        },
+        {
+          stepSlug: 'send_email',
+          stepName: 'Send Email',
+          stepUpdates: { config: { type: 'send_email', template: 'v2' } },
+        },
+      ],
+    },
+  });
+}
 
+function createMockCtx(approval: ReturnType<typeof createMockApproval> | null) {
   return {
     runQuery: vi.fn().mockImplementation((ref: string) => {
       if (ref === 'mock-getApprovalById') return approval;
-      if (ref === 'mock-resolveWorkflow') return workflow;
       return null;
     }),
     runMutation: vi.fn().mockResolvedValue('result-1'),
+    runAction: vi.fn().mockImplementation((ref: string) => {
+      if (ref === 'mock-readWorkflowForExecution') {
+        return { ok: true, config: structuredClone(MOCK_WORKFLOW_CONFIG) };
+      }
+      if (ref === 'mock-saveWorkflowForExecution') {
+        return { hash: 'new-hash' };
+      }
+      return null;
+    }),
   };
 }
 
@@ -118,7 +156,7 @@ async function getHandler() {
 }
 
 describe('executeApprovedWorkflowUpdate', () => {
-  it('calls saveWorkflowWithSteps on full_save happy path', async () => {
+  it('saves workflow file on full_save happy path', async () => {
     const handler = await getHandler();
     const approval = createMockApproval();
     const ctx = createMockCtx(approval);
@@ -129,10 +167,10 @@ describe('executeApprovedWorkflowUpdate', () => {
     });
 
     expect(result.success).toBe(true);
-    expect(ctx.runMutation).toHaveBeenCalledWith(
-      'mock-saveWorkflowWithSteps',
+    expect(ctx.runAction).toHaveBeenCalledWith(
+      'mock-saveWorkflowForExecution',
       expect.objectContaining({
-        organizationId: 'org-1',
+        workflowSlug: 'test-workflow',
       }),
     );
     expect(ctx.runMutation).toHaveBeenCalledWith(
@@ -144,7 +182,7 @@ describe('executeApprovedWorkflowUpdate', () => {
     );
   });
 
-  it('calls patchStep on step_patch happy path', async () => {
+  it('applies step_patch to correct step in file', async () => {
     const handler = await getHandler();
     const approval = createStepPatchApproval();
     const ctx = createMockCtx(approval);
@@ -155,12 +193,54 @@ describe('executeApprovedWorkflowUpdate', () => {
     });
 
     expect(result.success).toBe(true);
-    expect(ctx.runMutation).toHaveBeenCalledWith(
-      'mock-patchStep',
-      expect.objectContaining({
-        updates: { config: { type: 'send_email' } },
-      }),
+
+    // Verify the saved config has the patched step
+    const saveCall = ctx.runAction.mock.calls.find(
+      (call) => call[0] === 'mock-saveWorkflowForExecution',
     );
+    expect(saveCall).toBeDefined();
+    if (!saveCall) throw new Error('Expected saveCall to be defined');
+    const savedConfig = saveCall[1].config;
+    const patchedStep = savedConfig.steps.find(
+      (s: { stepSlug: string }) => s.stepSlug === 'send_email',
+    );
+    expect(patchedStep.config).toEqual({
+      type: 'send_email',
+      template: 'new',
+    });
+  });
+
+  it('applies multi_step_patch to all steps in file', async () => {
+    const handler = await getHandler();
+    const approval = createMultiStepPatchApproval();
+    const ctx = createMockCtx(approval);
+
+    const result = await handler(ctx, {
+      approvalId: 'approval-1',
+      approvedBy: 'user-1',
+    });
+
+    expect(result.success).toBe(true);
+
+    const saveCall = ctx.runAction.mock.calls.find(
+      (call) => call[0] === 'mock-saveWorkflowForExecution',
+    );
+    expect(saveCall).toBeDefined();
+    if (!saveCall) throw new Error('Expected saveCall to be defined');
+    const savedConfig = saveCall[1].config;
+
+    const startStep = savedConfig.steps.find(
+      (s: { stepSlug: string }) => s.stepSlug === 'start',
+    );
+    expect(startStep.name).toBe('Begin');
+
+    const emailStep = savedConfig.steps.find(
+      (s: { stepSlug: string }) => s.stepSlug === 'send_email',
+    );
+    expect(emailStep.config).toEqual({
+      type: 'send_email',
+      template: 'v2',
+    });
   });
 
   it('throws when approval not found', async () => {
@@ -172,7 +252,7 @@ describe('executeApprovedWorkflowUpdate', () => {
     ).rejects.toThrow('Approval not found');
   });
 
-  it('throws when approval status is not approved', async () => {
+  it('throws when approval status is not executing', async () => {
     const handler = await getHandler();
     const approval = createMockApproval({ status: 'pending' });
     const ctx = createMockCtx(approval);
@@ -208,7 +288,7 @@ describe('executeApprovedWorkflowUpdate', () => {
     ).rejects.toThrow('already been executed');
   });
 
-  it('throws when metadata is missing workflowId', async () => {
+  it('throws when metadata is missing workflowSlug', async () => {
     const handler = await getHandler();
     const approval = createMockApproval({
       metadata: { updateType: 'full_save', updateSummary: 'test' },
@@ -217,57 +297,40 @@ describe('executeApprovedWorkflowUpdate', () => {
 
     await expect(
       handler(ctx, { approvalId: 'approval-1', approvedBy: 'user-1' }),
-    ).rejects.toThrow('missing workflow ID');
+    ).rejects.toThrow('missing workflow slug');
   });
 
-  it('throws on stale data (version mismatch)', async () => {
+  it('throws when workflow file is not found', async () => {
     const handler = await getHandler();
     const approval = createMockApproval();
     const ctx = createMockCtx(approval);
-    // Override resolveWorkflow to return a different version
-    ctx.runQuery = vi.fn().mockImplementation((ref: string) => {
-      if (ref === 'mock-getApprovalById') return approval;
-      if (ref === 'mock-resolveWorkflow')
-        return { _id: 'wf-def-1', versionNumber: 999, name: 'Test' };
+    ctx.runAction = vi.fn().mockImplementation((ref: string) => {
+      if (ref === 'mock-readWorkflowForExecution') {
+        return { ok: false, error: 'not_found', message: 'File not found' };
+      }
       return null;
     });
 
     await expect(
       handler(ctx, { approvalId: 'approval-1', approvedBy: 'user-1' }),
-    ).rejects.toThrow('modified after this update was proposed');
-
-    expect(ctx.runMutation).toHaveBeenCalledWith(
-      'mock-updateWorkflowUpdateApprovalWithResult',
-      expect.objectContaining({
-        executionError: expect.stringContaining('modified after'),
-      }),
-    );
+    ).rejects.toThrow('file may have been deleted');
   });
 
-  it('throws when workflow is deleted', async () => {
+  it('throws when step_patch step not found in file', async () => {
     const handler = await getHandler();
-    const approval = createMockApproval();
-    const ctx = createMockCtx(approval);
-    ctx.runQuery = vi.fn().mockImplementation((ref: string) => {
-      if (ref === 'mock-getApprovalById') return approval;
-      if (ref === 'mock-resolveWorkflow') return null;
-      return null;
+    const approval = createStepPatchApproval({
+      metadata: {
+        updateType: 'step_patch',
+        updateSummary: 'test',
+        workflowSlug: 'test-workflow',
+        workflowName: 'Test Workflow',
+        workflowVersion: '1.0.0',
+        stepSlug: 'nonexistent_step',
+        stepName: 'Missing Step',
+        stepUpdates: { name: 'Updated' },
+      },
     });
-
-    await expect(
-      handler(ctx, { approvalId: 'approval-1', approvedBy: 'user-1' }),
-    ).rejects.toThrow('not found');
-  });
-
-  it('throws when step_patch step not found (patchStep returns null)', async () => {
-    const handler = await getHandler();
-    const approval = createStepPatchApproval();
     const ctx = createMockCtx(approval);
-    ctx.runMutation = vi.fn().mockImplementation((ref: string) => {
-      if (ref === 'mock-claimWorkflowApprovalForExecution') return true;
-      if (ref === 'mock-patchStep') return null;
-      return undefined;
-    });
 
     await expect(
       handler(ctx, { approvalId: 'approval-1', approvedBy: 'user-1' }),
@@ -278,10 +341,13 @@ describe('executeApprovedWorkflowUpdate', () => {
     const handler = await getHandler();
     const approval = createMockApproval();
     const ctx = createMockCtx(approval);
-    ctx.runMutation = vi.fn().mockImplementation((ref: string) => {
-      if (ref === 'mock-claimWorkflowApprovalForExecution') return true;
-      if (ref === 'mock-saveWorkflowWithSteps') throw new Error('Save failed');
-      return undefined;
+    ctx.runAction = vi.fn().mockImplementation((ref: string) => {
+      if (ref === 'mock-readWorkflowForExecution') {
+        return { ok: true, config: structuredClone(MOCK_WORKFLOW_CONFIG) };
+      }
+      if (ref === 'mock-saveWorkflowForExecution')
+        throw new Error('Save failed');
+      return null;
     });
 
     await expect(
@@ -330,12 +396,12 @@ describe('executeApprovedWorkflowUpdate', () => {
     const approval = createMockApproval();
     const ctx = createMockCtx(approval);
 
-    ctx.runMutation = vi.fn().mockImplementation((ref: string) => {
-      if (ref === 'mock-claimWorkflowApprovalForExecution') return true;
+    const originalRunMutation = ctx.runMutation;
+    ctx.runMutation = vi.fn().mockImplementation((ref: string, ...rest) => {
       if (ref === 'mock-saveSystemMessage') {
         throw new Error('Message save failed');
       }
-      return undefined;
+      return originalRunMutation(ref, ...rest);
     });
 
     const result = await handler(ctx, {

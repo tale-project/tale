@@ -8,7 +8,7 @@ import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { PageSection } from '@/app/components/ui/layout/page-section';
 import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { OrganizationSettings } from '@/app/features/settings/organization/components/organization-settings';
-import { useAbility } from '@/app/hooks/use-ability';
+import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
@@ -75,16 +75,17 @@ function OrganizationSettingsPage() {
   const { t } = useT('accessDenied');
 
   const ability = useAbility();
+  const abilityLoading = useAbilityLoading();
   const { data: memberContext } = useCurrentMemberContext(organizationId);
   const { data: organization, isLoading: isOrgLoading } =
     useOrganization(organizationId);
 
-  if (ability.cannot('read', 'orgSettings')) {
-    return <AccessDenied message={t('organization')} />;
+  if (abilityLoading || isOrgLoading || !memberContext) {
+    return <OrganizationSettingsSkeleton />;
   }
 
-  if (isOrgLoading || !memberContext) {
-    return <OrganizationSettingsSkeleton />;
+  if (ability.cannot('read', 'orgSettings')) {
+    return <AccessDenied message={t('organization')} />;
   }
 
   if (!organization) {

@@ -1,3 +1,6 @@
+import { mkdir } from 'node:fs/promises';
+import { dirname } from 'node:path';
+
 import type { DeploymentColor } from '../compose/types';
 
 import * as logger from '../../utils/logger';
@@ -8,6 +11,7 @@ export async function setCurrentColor(
   color: DeploymentColor,
 ): Promise<void> {
   const statePath = getStateFilePath(deployDir);
+  await mkdir(dirname(statePath), { recursive: true });
   await Bun.write(statePath, color);
   logger.debug(`Set deployment color to: ${color}`);
 }

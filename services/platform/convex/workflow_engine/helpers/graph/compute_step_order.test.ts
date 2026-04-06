@@ -348,6 +348,82 @@ describe('computeStepOrder', () => {
     expect(result.get('output')).toBe(12);
   });
 
+  it('handles pagination loop through non-loop steps (sync-customers pattern)', () => {
+    const result = computeStepOrder([
+      step('start', 'start', { success: 'fetch_customers' }),
+      step('fetch_customers', 'action', { success: 'loop_customers' }),
+      step('loop_customers', 'loop', {
+        loop: 'query_existing_customer',
+        done: 'check_has_next_page',
+      }),
+      step('query_existing_customer', 'action', {
+        success: 'check_customer_exists',
+      }),
+      step('check_customer_exists', 'condition', {
+        true: 'update_existing_customer',
+        false: 'insert_new_customer',
+      }),
+      step('update_existing_customer', 'action', {
+        success: 'loop_customers',
+      }),
+      step('insert_new_customer', 'action', { success: 'loop_customers' }),
+      step('check_has_next_page', 'condition', {
+        true: 'prepare_next_page',
+        false: 'noop',
+      }),
+      step('prepare_next_page', 'action', { success: 'fetch_customers' }),
+    ]);
+
+    expect(result.get('start')).toBe(1);
+    expect(result.get('fetch_customers')).toBe(2);
+    expect(result.get('loop_customers')).toBe(3);
+
+    // Loop body steps should be ordered after the loop
+    const queryOrder = getOrder(result, 'query_existing_customer');
+    const checkExistsOrder = getOrder(result, 'check_customer_exists');
+    const updateOrder = getOrder(result, 'update_existing_customer');
+    const insertOrder = getOrder(result, 'insert_new_customer');
+    expect(queryOrder).toBeGreaterThan(3);
+    expect(checkExistsOrder).toBeGreaterThan(queryOrder);
+    expect(updateOrder).toBeGreaterThan(checkExistsOrder);
+    expect(insertOrder).toBeGreaterThan(checkExistsOrder);
+
+    // After-loop steps come after loop body
+    const checkNextPage = getOrder(result, 'check_has_next_page');
+    const prepareNext = getOrder(result, 'prepare_next_page');
+    expect(checkNextPage).toBeGreaterThan(updateOrder);
+    expect(checkNextPage).toBeGreaterThan(insertOrder);
+    expect(prepareNext).toBeGreaterThan(checkNextPage);
+
+    // All orders should be unique
+    const orders = [...result.values()];
+    expect(new Set(orders).size).toBe(orders.length);
+  });
+
+  it('handles simple non-loop cycle (action → action back-edge)', () => {
+    const result = computeStepOrder([
+      step('start', 'start', { success: 'a' }),
+      step('a', 'action', { success: 'b' }),
+      step('b', 'action', { success: 'a' }),
+    ]);
+
+    expect(result.get('start')).toBe(1);
+    expect(result.get('a')).toBe(2);
+    expect(result.get('b')).toBe(3);
+  });
+
+  it('handles cycle through condition step (not loop type)', () => {
+    const result = computeStepOrder([
+      step('start', 'start', { success: 'check' }),
+      step('check', 'condition', { true: 'process', false: 'noop' }),
+      step('process', 'action', { success: 'check' }),
+    ]);
+
+    expect(result.get('start')).toBe(1);
+    expect(result.get('check')).toBe(2);
+    expect(result.get('process')).toBe(3);
+  });
+
   it('produces unique order values for reachable steps', () => {
     const result = computeStepOrder([
       step('start', 'start', { success: 'a' }),

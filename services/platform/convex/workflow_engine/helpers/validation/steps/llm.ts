@@ -209,7 +209,7 @@ export function validateLlmStep(
     }
   }
 
-  // Model is now resolved from environment (OPENAI_MODEL) and cannot be
+  // Model is resolved from provider configuration files and cannot be
   // customized per step, so we intentionally do not validate a model field.
   // Any provided model value will be ignored at execution time.
 

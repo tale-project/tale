@@ -1,5 +1,6 @@
 import type { DeploymentColor } from '../compose/types';
 
+import { isUserInterrupt } from '../../utils/exit-codes';
 import { PROJECT_NAME } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import {
@@ -95,8 +96,7 @@ export async function logs(options: LogsOptions): Promise<void> {
   });
 
   const exitCode = await proc.exited;
-  // 130 = SIGINT (Ctrl+C), 143 = SIGTERM - expected when user stops following
-  if (exitCode !== 0 && exitCode !== 130 && exitCode !== 143) {
+  if (exitCode !== 0 && !isUserInterrupt(exitCode)) {
     throw new Error(`docker logs exited with code ${exitCode}`);
   }
 }

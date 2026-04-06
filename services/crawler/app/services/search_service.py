@@ -8,9 +8,9 @@ import logging
 from dataclasses import dataclass
 
 import asyncpg
-from tale_knowledge.embedding import EmbeddingService
 
 from app.services.database import acquire_with_retry
+from app.services.embedding_service import get_embedding_service
 
 logger = logging.getLogger(__name__)
 
@@ -27,9 +27,8 @@ class SearchResult:
 
 
 class SearchService:
-    def __init__(self, pool: asyncpg.Pool, embedding_service: EmbeddingService):
+    def __init__(self, pool: asyncpg.Pool):
         self._pool = pool
-        self._embedding = embedding_service
 
     async def search(
         self,
@@ -38,7 +37,7 @@ class SearchService:
         limit: int = 10,
     ) -> list[SearchResult]:
         # Generate query embedding and run both searches in parallel
-        embedding_task = asyncio.create_task(self._embedding.embed_query(query))
+        embedding_task = asyncio.create_task(get_embedding_service().embed_query(query))
         fts_task = asyncio.create_task(self._fts_search(query, domain, limit * 3))
 
         query_embedding = await embedding_task

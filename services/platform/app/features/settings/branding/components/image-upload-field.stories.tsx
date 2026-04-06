@@ -29,6 +29,7 @@ const meta: Meta<typeof ImageUploadField> = {
   args: {
     onUpload: fn(),
     onRemove: fn(),
+    imageType: 'logo',
     ariaLabel: 'Upload image',
   },
 };
@@ -67,12 +68,14 @@ export const FaviconPair: Story = {
   render: () => (
     <div className="flex gap-2">
       <ImageUploadField
+        imageType="favicon-light"
         onUpload={fn()}
         onRemove={fn()}
         label="Light"
         ariaLabel="Upload favicon (light)"
       />
       <ImageUploadField
+        imageType="favicon-dark"
         onUpload={fn()}
         onRemove={fn()}
         label="Dark"

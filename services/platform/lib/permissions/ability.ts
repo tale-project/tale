@@ -12,7 +12,7 @@ export type PlatformResource =
   | 'auditLogs'
   | 'conversationMessages'
   | 'conversations'
-  | 'customAgents'
+  | 'agents'
   | 'customers'
   | 'documents'
   | 'integrations'
@@ -20,10 +20,10 @@ export type PlatformResource =
   | 'products'
   | 'vendors'
   | 'websites'
-  | 'wfDefinitions'
+  | 'wfDefinitions' // @deprecated — DB table deprecated; kept as permission subject
   | 'wfExecutions'
-  | 'wfStepAuditLogs'
-  | 'wfStepDefs'
+  | 'wfStepAuditLogs' // @deprecated — DB table deprecated; kept as permission subject
+  | 'wfStepDefs' // @deprecated — DB table deprecated; kept as permission subject
   | 'workflowProcessingRecords';
 
 /**
@@ -80,7 +80,7 @@ export function defineAbilityFor(role: string | null): AppAbility {
         'approvals',
         'conversationMessages',
         'conversations',
-        'customAgents',
+        'agents',
         'customers',
         'documents',
         'products',

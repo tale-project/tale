@@ -80,27 +80,6 @@ export const apiTriggerHandler = httpAction(async (ctx, req) => {
     return jsonResponse({ error: 'Invalid JSON body' }, 400);
   }
 
-  // Validate workflowRootId matches the API key
-  const workflowRootId = body.workflowRootId || apiKeyRecord.workflowRootId;
-  if (workflowRootId !== apiKeyRecord.workflowRootId) {
-    await ctx.runMutation(
-      internal.workflows.triggers.internal_mutations.createTriggerLog,
-      {
-        organizationId: apiKeyRecord.organizationId,
-        workflowRootId: apiKeyRecord.workflowRootId,
-        wfDefinitionId: apiKeyRecord.workflowRootId,
-        triggerType: 'api',
-        status: 'rejected',
-        ipAddress: ip,
-        errorMessage: 'API key does not match specified workflowRootId',
-      },
-    );
-    return jsonResponse(
-      { error: 'API key does not belong to the specified workflow' },
-      403,
-    );
-  }
-
   // Check idempotency
   const idempotencyKey =
     body.idempotencyKey || extractIdempotencyKey(req.headers);
@@ -120,69 +99,51 @@ export const apiTriggerHandler = httpAction(async (ctx, req) => {
     }
   }
 
-  // Resolve active workflow version
-  const activeVersionId = await ctx.runQuery(
-    internal.workflows.triggers.internal_queries.getActiveVersion,
-    { workflowRootId: apiKeyRecord.workflowRootId },
-  );
+  if (apiKeyRecord.workflowSlug) {
+    await ctx.scheduler.runAfter(
+      0,
+      internal.workflow_engine.helpers.engine.start_workflow_from_file
+        .startWorkflowFromFile,
+      {
+        organizationId: apiKeyRecord.organizationId,
+        orgSlug: 'default',
+        workflowSlug: apiKeyRecord.workflowSlug,
+        input: body.input ?? {},
+        triggeredBy: 'api',
+        triggerData: {
+          triggerType: 'api',
+          apiKeyId: apiKeyRecord._id,
+          apiKeyName: apiKeyRecord.name,
+          timestamp: Date.now(),
+        },
+      },
+    );
 
-  if (!activeVersionId) {
     await ctx.runMutation(
       internal.workflows.triggers.internal_mutations.createTriggerLog,
       {
         organizationId: apiKeyRecord.organizationId,
         workflowRootId: apiKeyRecord.workflowRootId,
-        wfDefinitionId: apiKeyRecord.workflowRootId,
+        workflowSlug: apiKeyRecord.workflowSlug,
         triggerType: 'api',
-        status: 'rejected',
+        status: 'accepted',
         idempotencyKey: idempotencyKey ?? undefined,
         ipAddress: ip,
-        errorMessage: 'No active workflow version',
       },
     );
-    return jsonResponse({ error: 'No active workflow version' }, 404);
+
+    return jsonResponse(
+      {
+        status: 'accepted',
+        workflowSlug: apiKeyRecord.workflowSlug,
+      },
+      202,
+    );
   }
 
-  // Start workflow execution
-  const executionId = await ctx.runMutation(
-    internal.wf_executions.internal_mutations.startWorkflow,
-    {
-      organizationId: apiKeyRecord.organizationId,
-      wfDefinitionId: activeVersionId,
-      input: body.input ?? {},
-      triggeredBy: 'api',
-      triggerData: {
-        triggerType: 'api',
-        apiKeyId: apiKeyRecord._id,
-        apiKeyName: apiKeyRecord.name,
-        timestamp: Date.now(),
-      },
-    },
-  );
-
-  // Log successful trigger
-  await ctx.runMutation(
-    internal.workflows.triggers.internal_mutations.createTriggerLog,
-    {
-      organizationId: apiKeyRecord.organizationId,
-      workflowRootId: apiKeyRecord.workflowRootId,
-      wfDefinitionId: activeVersionId,
-      wfExecutionId: executionId,
-      triggerType: 'api',
-      status: 'accepted',
-      idempotencyKey: idempotencyKey ?? undefined,
-      ipAddress: ip,
-    },
-  );
-
   return jsonResponse(
-    {
-      status: 'accepted',
-      executionId,
-      workflowRootId: apiKeyRecord.workflowRootId,
-      versionId: activeVersionId,
-    },
-    202,
+    { error: 'API key has no workflow slug configured' },
+    404,
   );
 });
 

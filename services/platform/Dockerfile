@@ -21,7 +21,6 @@ COPY package.json bun.lock bunfig.toml ./
 COPY services/platform/package.json ./services/platform/
 COPY services/crawler/package.json ./services/crawler/
 COPY services/rag/package.json ./services/rag/
-COPY services/operator/package.json ./services/operator/
 COPY services/db/package.json ./services/db/
 COPY services/proxy/package.json ./services/proxy/
 COPY tools/cli/package.json ./tools/cli/
@@ -89,7 +88,6 @@ COPY --from=workspace-deps /app/package.json /app/bun.lock /app/bunfig.toml /tmp
 COPY --from=workspace-deps /app/services/platform/package.json /tmp/workspace/services/platform/
 COPY --from=workspace-deps /app/services/crawler/package.json /tmp/workspace/services/crawler/
 COPY --from=workspace-deps /app/services/rag/package.json /tmp/workspace/services/rag/
-COPY --from=workspace-deps /app/services/operator/package.json /tmp/workspace/services/operator/
 COPY --from=workspace-deps /app/services/db/package.json /tmp/workspace/services/db/
 COPY --from=workspace-deps /app/services/proxy/package.json /tmp/workspace/services/proxy/
 COPY --from=workspace-deps /app/tools/cli/package.json /tmp/workspace/tools/cli/
@@ -127,9 +125,11 @@ RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
 
 WORKDIR /app
 
+ARG SOPS_VERSION=3.9.4
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl tini postgresql-client ca-certificates \
+    curl tini gosu postgresql-client ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
+    && curl -fsSL "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.$(dpkg --print-architecture)" -o /usr/local/bin/sops && chmod +x /usr/local/bin/sops \
     && mkdir -p /usr/local/share/ca-certificates \
     && chmod 755 /usr/local/share/ca-certificates \
     && chmod +x /convex/convex-local-backend /convex/generate_key \
@@ -138,8 +138,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && groupadd --system --gid 1001 app || true \
     && useradd --system --uid 1001 --gid app app || true \
     && mkdir -p /home/app && chmod 777 /home/app \
-    && mkdir -p /app/convex-data /dashboard \
-    && chown -R app:app /app/convex-data /dashboard
+    && mkdir -p /app/data/convex /app/data/agents /app/data/workflows /app/data/integrations /app/data/providers /dashboard /app/agents-builtin /app/workflows-builtin /app/integrations-builtin /app/providers-builtin \
+    && chown -R app:app /app/data /dashboard /app/agents-builtin /app/workflows-builtin /app/integrations-builtin /app/providers-builtin
 
 # Re-declare VERSION arg (ARGs don't persist after FROM)
 ARG VERSION=dev
@@ -177,9 +177,29 @@ ENV NODE_ENV=production \
     APPLICATION_MAX_CONCURRENT_QUERIES=32 \
     APPLICATION_MAX_CONCURRENT_MUTATIONS=32 \
     APPLICATION_MAX_CONCURRENT_V8_ACTIONS=32 \
-    APPLICATION_MAX_CONCURRENT_NODE_ACTIONS=32
+    APPLICATION_MAX_CONCURRENT_NODE_ACTIONS=32 \
+    # Custom agent JSON files directory
+    AGENTS_DIR=/app/data/agents \
+    # Workflow template JSON files directory
+    WORKFLOWS_DIR=/app/data/workflows \
+    # Integration template files directory
+    INTEGRATIONS_DIR=/app/data/integrations \
+    # Provider config files directory
+    PROVIDERS_DIR=/app/data/providers
 
 COPY --from=convex-dashboard --chown=app:app /app /dashboard
+
+# Copy builtin agent JSON files (used to seed /app/agents on first run)
+COPY --chown=app:app examples/agents/ /app/agents-builtin/
+
+# Copy builtin workflow template JSON files (used to seed /app/data/workflows on first run)
+COPY --chown=app:app examples/workflows/ /app/workflows-builtin/
+
+# Copy builtin integration template files (used to seed /app/data/integrations on first run)
+COPY --chown=app:app examples/integrations/ /app/integrations-builtin/
+
+# Copy builtin provider config files (used to seed /app/data/providers on first run)
+COPY --chown=app:app examples/providers/ /app/providers-builtin/
 
 COPY --from=pruner --chown=app:app /app/services/platform/dist ./dist
 COPY --from=pruner --chown=app:app \
@@ -194,8 +214,6 @@ COPY --from=pruner --chown=app:app /app/services/platform/package.json ./
 COPY --from=pruner --chown=app:app /app/services/platform/docker-entrypoint.sh /app/services/platform/generate-admin-key.sh /app/services/platform/env.sh ./
 
 RUN chmod +x ./docker-entrypoint.sh ./generate-admin-key.sh
-
-USER app
 
 EXPOSE 3000 3210 3211 6791
 

@@ -96,11 +96,10 @@ function TypewriterTextComponent({
   const stableText = useStableStreamText(text, isStreaming);
 
   // Use the stream buffer hook for animation management
-  const { displayLength, anchorPosition, progress, isTyping, isDraining } =
-    useStreamBuffer({
-      text: stableText,
-      isStreaming,
-    });
+  const { displayLength, progress, isTyping, isDraining } = useStreamBuffer({
+    text: stableText,
+    isStreaming,
+  });
 
   // Track completion to fire onComplete callback
   const hasCompletedRef = useRef(false);
@@ -130,16 +129,14 @@ function TypewriterTextComponent({
     (isStreaming || isDraining) && isTyping && !isStreamFrozen();
 
   return (
-    <div className={className}>
-      {/* Render text with incremental markdown parsing */}
-      <IncrementalMarkdown
-        content={stableText}
-        revealPosition={displayLength}
-        anchorPosition={anchorPosition}
-        components={components}
-        showCursor={showCursor}
-      />
-    </div>
+    <IncrementalMarkdown
+      content={stableText}
+      revealPosition={displayLength}
+      components={components}
+      className={className}
+      showCursor={showCursor}
+      aria-busy={isStreaming || isDraining}
+    />
   );
 }
 
@@ -155,7 +152,9 @@ export const TypewriterText = memo(
     return (
       prevProps.text === nextProps.text &&
       prevProps.isStreaming === nextProps.isStreaming &&
-      prevProps.className === nextProps.className
+      prevProps.className === nextProps.className &&
+      prevProps.components === nextProps.components &&
+      prevProps.onComplete === nextProps.onComplete
     );
   },
 );

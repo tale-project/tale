@@ -1,73 +1,128 @@
 'use client';
 
+import type { ColumnDef } from '@tanstack/react-table';
+
+import { Folder, Workflow } from 'lucide-react';
+import { useMemo } from 'react';
+
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Text } from '@/app/components/ui/typography/text';
-import { createTableConfigHook } from '@/app/hooks/use-table-config-factory';
+import { useT } from '@/lib/i18n/client';
 
-import { AutomationActiveToggle } from '../components/automation-active-toggle';
+import type { AutomationTableItem } from '../components/automations-table';
+
 import { AutomationRowActions } from '../components/automation-row-actions';
 
-export const useAutomationsTableConfig = createTableConfigHook<'wfDefinitions'>(
-  {
-    entityNamespace: 'automations',
-    additionalNamespaces: ['common'],
-    defaultSort: '_creationTime',
-  },
-  ({ tTables, tEntity, t, builders }) => [
-    {
-      accessorKey: 'name',
-      header: tTables('headers.automation'),
-      size: 328,
-      meta: { hasAvatar: false },
-      cell: ({ row }) => (
-        <Text as="span" variant="label" truncate>
-          {row.original.name}
-        </Text>
-      ),
-    },
-    {
-      accessorKey: 'status',
-      header: tTables('headers.status'),
-      size: 140,
-      meta: { skeleton: { type: 'badge' } },
-      cell: ({ row }) => {
-        const status = row.original.status;
-        return (
-          <Badge dot variant={status === 'active' ? 'green' : 'outline'}>
-            {status === 'active'
-              ? t.common('status.published')
-              : status === 'archived'
-                ? t.common('status.archived')
-                : t.common('status.draft')}
-          </Badge>
-        );
+export function useAutomationsTableConfig() {
+  const { t: tTables } = useT('tables');
+  const { t: tCommon } = useT('common');
+  const { t: tAutomations } = useT('automations');
+
+  const columns = useMemo<ColumnDef<AutomationTableItem>[]>(
+    () => [
+      {
+        id: 'name',
+        header: tTables('headers.automation'),
+        size: 300,
+        meta: { hasAvatar: false },
+        cell: ({ row }) => {
+          if (row.original.type === 'folder') {
+            return (
+              <div className="flex items-center gap-3">
+                <Folder className="text-muted-foreground size-4 shrink-0" />
+                <Text as="span" variant="label" truncate>
+                  {row.original.name}
+                </Text>
+                <Badge variant="outline">{row.original.workflowCount}</Badge>
+              </div>
+            );
+          }
+          return (
+            <div className="flex items-center gap-3">
+              <Workflow className="text-muted-foreground size-4 shrink-0" />
+              <Text as="span" variant="label" truncate>
+                {row.original.name}
+              </Text>
+            </div>
+          );
+        },
       },
-    },
-    {
-      id: 'active',
-      header: tEntity('columns.active'),
-      size: 80,
-      meta: { skeleton: { type: 'switch' } },
-      cell: ({ row }) => <AutomationActiveToggle automation={row.original} />,
-    },
-    {
-      accessorKey: 'version',
-      header: () => (
-        <span className="block w-full text-right">
-          {tTables('headers.version')}
-        </span>
-      ),
-      size: 100,
-      meta: { headerLabel: tTables('headers.version'), align: 'right' },
-      cell: ({ row }) => (
-        <Text as="span" variant="caption" className="block text-right">
-          {row.original.version}
-        </Text>
-      ),
-    },
-    builders.createCreationTimeColumn(tTables),
-    builders.createActionsColumn(AutomationRowActions, 'automation', {
-      size: 80,
-    }),
-  ],
-);
+      {
+        id: 'status',
+        header: tTables('headers.status'),
+        size: 120,
+        meta: { skeleton: { type: 'badge' } },
+        cell: ({ row }) => {
+          if (row.original.type === 'folder') {
+            return (
+              <Text as="span" variant="muted">
+                —
+              </Text>
+            );
+          }
+          return (
+            <Badge dot variant={row.original.enabled ? 'green' : 'outline'}>
+              {row.original.enabled
+                ? tCommon('status.published')
+                : tCommon('status.draft')}
+            </Badge>
+          );
+        },
+      },
+      {
+        id: 'version',
+        header: () => (
+          <span className="block w-full text-right">
+            {tTables('headers.version')}
+          </span>
+        ),
+        size: 100,
+        meta: { headerLabel: tTables('headers.version'), align: 'right' },
+        cell: ({ row }) => {
+          if (row.original.type === 'folder') {
+            return (
+              <Text as="span" variant="muted" className="block text-right">
+                —
+              </Text>
+            );
+          }
+          return (
+            <Text as="span" variant="caption" className="block text-right">
+              {row.original.version}
+            </Text>
+          );
+        },
+      },
+      {
+        id: 'actions',
+        size: 50,
+        meta: { noTruncate: true },
+        cell: ({ row }) => {
+          if (row.original.type === 'folder') return null;
+          return (
+            <div
+              className="flex justify-end"
+              role="presentation"
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+            >
+              <AutomationRowActions
+                automation={{
+                  _id: row.original.slug,
+                  name: row.original.name,
+                  status: row.original.enabled ? 'active' : 'archived',
+                }}
+              />
+            </div>
+          );
+        },
+      },
+    ],
+    [tTables, tCommon],
+  );
+
+  return {
+    columns,
+    searchPlaceholder: tAutomations('search.placeholder'),
+  };
+}

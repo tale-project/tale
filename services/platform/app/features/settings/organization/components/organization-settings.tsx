@@ -9,6 +9,7 @@ import { Field } from '@/app/components/ui/forms/field';
 import { Form } from '@/app/components/ui/forms/form';
 import { Input } from '@/app/components/ui/forms/input';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
+import { Select } from '@/app/components/ui/forms/select';
 import { ActionRow } from '@/app/components/ui/layout/action-row';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { PageSection } from '@/app/components/ui/layout/page-section';
@@ -17,6 +18,8 @@ import { useDebounce } from '@/app/hooks/use-debounce';
 import { useToast } from '@/app/hooks/use-toast';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
+import { SUPPORTED_AGENT_LOCALES } from '@/lib/shared/constants/agents';
+import { getOrganizationDefaultLocale } from '@/lib/shared/utils/get-organization-default-locale';
 
 import { useMembers } from '../hooks/queries';
 import { AddMemberDialog } from './member-add-dialog';
@@ -35,12 +38,22 @@ type MemberContext = {
 };
 
 interface OrganizationSettingsProps {
-  organization: { _id: string; name: string } | null;
+  organization: { _id: string; name: string; metadata?: unknown } | null;
   memberContext: MemberContext | null;
 }
 
 interface OrganizationFormData {
   name: string;
+  defaultLocale: string;
+}
+
+function parseMetadata(metadata: unknown): {
+  defaultLocale?: string;
+  [key: string]: unknown;
+} {
+  if (!metadata || typeof metadata !== 'object') return {};
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- metadata is validated above
+  return metadata as { defaultLocale?: string; [key: string]: unknown };
 }
 
 export function OrganizationSettings({
@@ -50,6 +63,7 @@ export function OrganizationSettings({
   const { t: tSettings } = useT('settings');
   const { t: tCommon } = useT('common');
   const { t: tToast } = useT('toast');
+  const { t: tGlobal } = useT('global');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [isAddMemberDialogOpen, setIsAddMemberDialogOpen] = useState(false);
@@ -57,15 +71,28 @@ export function OrganizationSettings({
 
   const debouncedSearch = useDebounce(searchQuery, 300);
 
+  const existingMetadata = parseMetadata(organization?.metadata);
+
+  const localeOptions = useMemo(
+    () =>
+      SUPPORTED_AGENT_LOCALES.map((locale) => ({
+        value: locale,
+        label: tGlobal(`languages.${locale}`),
+      })),
+    [tGlobal],
+  );
+
   const form = useForm<OrganizationFormData>({
     mode: 'onChange',
     defaultValues: {
       name: organization?.name || '',
+      defaultLocale: getOrganizationDefaultLocale(organization?.metadata),
     },
   });
 
-  const { formState, handleSubmit, register, reset } = form;
+  const { formState, handleSubmit, register, reset, setValue, watch } = form;
   const { isSubmitting, isDirty } = formState;
+  const defaultLocale = watch('defaultLocale');
 
   const { members: allMembers, isLoading: isMembersLoading } = useMembers(
     organization?._id ?? '',
@@ -95,9 +122,16 @@ export function OrganizationSettings({
     if (!organization) return;
 
     try {
+      const updatedMetadata = {
+        ...existingMetadata,
+        defaultLocale: data.defaultLocale,
+      };
       await authClient.organization.update({
         organizationId: organization._id,
-        data: { name: data.name.trim() || undefined },
+        data: {
+          name: data.name.trim() || undefined,
+          metadata: updatedMetadata,
+        },
       });
 
       reset(data);
@@ -131,6 +165,19 @@ export function OrganizationSettings({
               : tCommon('actions.saveChanges')}
           </Button>
         </HStack>
+
+        <div className="mt-4 max-w-sm">
+          <Select
+            id="default-locale"
+            label={tSettings('organization.defaultLocale')}
+            value={defaultLocale}
+            onValueChange={(value) =>
+              setValue('defaultLocale', value, { shouldDirty: true })
+            }
+            disabled={isSubmitting}
+            options={localeOptions}
+          />
+        </div>
       </Form>
 
       {organization && (

@@ -2,10 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../../_generated/api', () => ({
   internal: {
-    wf_definitions: {
-      internal_queries: {
-        resolveWorkflow: 'mock-resolveWorkflow',
-        getStartStepConfig: 'mock-getStartStepConfig',
+    workflows: {
+      file_actions: {
+        readWorkflowForExecution: 'mock-readWorkflowForExecution',
       },
     },
     agent_tools: {
@@ -41,19 +40,22 @@ function createMockCtx(overrides?: Record<string, unknown>) {
     threadId: 'thread-current',
     messageId: 'msg-123',
     runQuery: vi.fn(),
+    runAction: vi.fn(),
     runMutation: vi.fn(),
     ...overrides,
   };
 }
 
-function createMockWorkflow(overrides?: Record<string, unknown>) {
+function createMockFileConfig(overrides?: Record<string, unknown>) {
   return {
-    _id: 'wf-def-123',
-    organizationId: 'org1',
-    name: 'Test Workflow',
-    description: 'A test workflow',
-    status: 'active',
-    ...overrides,
+    ok: true,
+    config: {
+      name: 'Test Workflow',
+      description: 'A test workflow',
+      enabled: true,
+      steps: [{ stepType: 'start', config: {} }],
+      ...overrides,
+    },
   };
 }
 
@@ -61,7 +63,7 @@ describe('createBoundWorkflowTool', () => {
   it('creates a tool with workflow name in description', () => {
     const tool = createBoundWorkflowTool(
       {
-        _id: 'wf-123' as never,
+        workflowSlug: 'test-workflow',
         name: 'My Workflow',
         description: 'Does things',
       },
@@ -78,7 +80,7 @@ describe('createBoundWorkflowTool', () => {
 
   it('includes input schema in description', () => {
     const tool = createBoundWorkflowTool(
-      { _id: 'wf-123' as never, name: 'My Workflow' },
+      { workflowSlug: 'test-workflow', name: 'My Workflow' },
       {
         properties: {
           targetFolder: {
@@ -103,7 +105,7 @@ describe('createBoundWorkflowTool', () => {
 
   it('includes raw JSON schema in description', () => {
     const tool = createBoundWorkflowTool(
-      { _id: 'wf-123' as never, name: 'My Workflow' },
+      { workflowSlug: 'test-workflow', name: 'My Workflow' },
       {
         properties: {
           count: { type: 'number' },
@@ -121,16 +123,16 @@ describe('createBoundWorkflowTool', () => {
 
   it('creates approval on happy path', async () => {
     const tool = createBoundWorkflowTool(
-      { _id: 'wf-def-123' as never, name: 'Test Workflow' },
+      { workflowSlug: 'test-workflow', name: 'Test Workflow' },
       undefined,
     );
 
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test-only
     const handler = (tool as unknown as { _handler: Function })._handler;
 
-    const workflow = createMockWorkflow();
+    const fileConfig = createMockFileConfig();
     const ctx = createMockCtx({
-      runQuery: vi.fn().mockResolvedValue(workflow),
+      runAction: vi.fn().mockResolvedValue(fileConfig),
       runMutation: vi.fn().mockResolvedValue('approval-id-1'),
     });
 
@@ -143,7 +145,7 @@ describe('createBoundWorkflowTool', () => {
 
   it('returns failure when organizationId is missing', async () => {
     const tool = createBoundWorkflowTool(
-      { _id: 'wf-def-123' as never, name: 'Test Workflow' },
+      { workflowSlug: 'test-workflow', name: 'Test Workflow' },
       undefined,
     );
 
@@ -159,72 +161,53 @@ describe('createBoundWorkflowTool', () => {
 
   it('returns failure when workflow is no longer available', async () => {
     const tool = createBoundWorkflowTool(
-      { _id: 'wf-def-123' as never, name: 'Test Workflow' },
+      { workflowSlug: 'test-workflow', name: 'Test Workflow' },
       undefined,
     );
 
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test-only
     const handler = (tool as unknown as { _handler: Function })._handler;
     const ctx = createMockCtx({
-      runQuery: vi.fn().mockResolvedValue(null),
+      runAction: vi.fn().mockResolvedValue({ ok: false, message: 'Not found' }),
     });
 
     const result = await handler(ctx, {});
 
     expect(result.success).toBe(false);
-    expect(result.message).toContain('no longer available');
+    expect(result.message).toContain('Not found');
   });
 
-  it('returns failure when workflow belongs to different org', async () => {
+  it('returns failure when workflow is disabled', async () => {
     const tool = createBoundWorkflowTool(
-      { _id: 'wf-def-123' as never, name: 'Test Workflow' },
+      { workflowSlug: 'test-workflow', name: 'Test Workflow' },
       undefined,
     );
 
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test-only
     const handler = (tool as unknown as { _handler: Function })._handler;
-    const workflow = createMockWorkflow({ organizationId: 'other-org' });
+    const fileConfig = createMockFileConfig({ enabled: false });
     const ctx = createMockCtx({
-      runQuery: vi.fn().mockResolvedValue(workflow),
+      runAction: vi.fn().mockResolvedValue(fileConfig),
     });
 
     const result = await handler(ctx, {});
 
     expect(result.success).toBe(false);
-    expect(result.message).toContain('does not belong');
-  });
-
-  it('returns failure when workflow is archived', async () => {
-    const tool = createBoundWorkflowTool(
-      { _id: 'wf-def-123' as never, name: 'Test Workflow' },
-      undefined,
-    );
-
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test-only
-    const handler = (tool as unknown as { _handler: Function })._handler;
-    const workflow = createMockWorkflow({ status: 'archived' });
-    const ctx = createMockCtx({
-      runQuery: vi.fn().mockResolvedValue(workflow),
-    });
-
-    const result = await handler(ctx, {});
-
-    expect(result.success).toBe(false);
-    expect(result.message).toContain('archived');
+    expect(result.message).toContain('disabled');
   });
 
   it('forwards parameters to approval mutation', async () => {
     const tool = createBoundWorkflowTool(
-      { _id: 'wf-def-123' as never, name: 'Test Workflow' },
+      { workflowSlug: 'test-workflow', name: 'Test Workflow' },
       undefined,
     );
 
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test-only
     const handler = (tool as unknown as { _handler: Function })._handler;
-    const workflow = createMockWorkflow();
+    const fileConfig = createMockFileConfig();
     const mockRunMutation = vi.fn().mockResolvedValue('approval-id-3');
     const ctx = createMockCtx({
-      runQuery: vi.fn().mockResolvedValue(workflow),
+      runAction: vi.fn().mockResolvedValue(fileConfig),
       runMutation: mockRunMutation,
     });
 
@@ -242,15 +225,15 @@ describe('createBoundWorkflowTool', () => {
 
   it('returns failure when approval creation throws', async () => {
     const tool = createBoundWorkflowTool(
-      { _id: 'wf-def-123' as never, name: 'Test Workflow' },
+      { workflowSlug: 'test-workflow', name: 'Test Workflow' },
       undefined,
     );
 
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test-only
     const handler = (tool as unknown as { _handler: Function })._handler;
-    const workflow = createMockWorkflow();
+    const fileConfig = createMockFileConfig();
     const ctx = createMockCtx({
-      runQuery: vi.fn().mockResolvedValue(workflow),
+      runAction: vi.fn().mockResolvedValue(fileConfig),
       runMutation: vi.fn().mockRejectedValue(new Error('DB error')),
     });
 
@@ -262,7 +245,7 @@ describe('createBoundWorkflowTool', () => {
 
   it('includes raw JSON schema with nested object properties in description', () => {
     const tool = createBoundWorkflowTool(
-      { _id: 'wf-123' as never, name: 'My Workflow' },
+      { workflowSlug: 'test-workflow', name: 'My Workflow' },
       {
         properties: {
           baseFile: {
@@ -289,38 +272,36 @@ describe('createBoundWorkflowTool', () => {
   });
 
   it('normalizes stringified object args before validation', async () => {
-    const fileSchema = {
-      inputSchema: {
-        properties: {
-          baseFile: {
-            type: 'object' as const,
-            properties: {
-              fileId: { type: 'string' as const },
-              fileName: { type: 'string' as const },
-            },
-            required: ['fileId', 'fileName'],
+    const inputSchema = {
+      properties: {
+        baseFile: {
+          type: 'object' as const,
+          properties: {
+            fileId: { type: 'string' as const },
+            fileName: { type: 'string' as const },
           },
-          requirements: { type: 'string' as const },
+          required: ['fileId', 'fileName'],
         },
-        required: ['baseFile', 'requirements'],
+        requirements: { type: 'string' as const },
       },
+      required: ['baseFile', 'requirements'],
     };
 
     const tool = createBoundWorkflowTool(
-      { _id: 'wf-def-123' as never, name: 'Contract Workflow' },
-      fileSchema.inputSchema,
+      { workflowSlug: 'test-workflow', name: 'Contract Workflow' },
+      inputSchema,
     );
 
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test-only
     const handler = (tool as unknown as { _handler: Function })._handler;
-    const workflow = createMockWorkflow({ name: 'Contract Workflow' });
+    const fileConfig = createMockFileConfig({
+      name: 'Contract Workflow',
+      steps: [{ stepType: 'start', config: { inputSchema } }],
+    });
     const mockRunMutation = vi.fn().mockResolvedValue('approval-id-5');
 
     const ctx = createMockCtx({
-      runQuery: vi
-        .fn()
-        .mockResolvedValueOnce(workflow)
-        .mockResolvedValueOnce(fileSchema),
+      runAction: vi.fn().mockResolvedValue(fileConfig),
       runMutation: mockRunMutation,
     });
 
@@ -342,40 +323,37 @@ describe('createBoundWorkflowTool', () => {
   });
 
   it('normalizes stringified array items before validation', async () => {
-    const fileSchema = {
-      inputSchema: {
-        properties: {
-          knowledgeFiles: {
-            type: 'array' as const,
-            items: {
-              type: 'object' as const,
-              properties: {
-                fileId: { type: 'string' as const },
-                fileName: { type: 'string' as const },
-              },
-              required: ['fileId', 'fileName'],
+    const inputSchema = {
+      properties: {
+        knowledgeFiles: {
+          type: 'array' as const,
+          items: {
+            type: 'object' as const,
+            properties: {
+              fileId: { type: 'string' as const },
+              fileName: { type: 'string' as const },
             },
+            required: ['fileId', 'fileName'],
           },
         },
-        required: ['knowledgeFiles'],
       },
+      required: ['knowledgeFiles'],
     };
 
     const tool = createBoundWorkflowTool(
-      { _id: 'wf-def-123' as never, name: 'Test Workflow' },
-      fileSchema.inputSchema,
+      { workflowSlug: 'test-workflow', name: 'Test Workflow' },
+      inputSchema,
     );
 
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test-only
     const handler = (tool as unknown as { _handler: Function })._handler;
-    const workflow = createMockWorkflow();
+    const fileConfig = createMockFileConfig({
+      steps: [{ stepType: 'start', config: { inputSchema } }],
+    });
     const mockRunMutation = vi.fn().mockResolvedValue('approval-id-6');
 
     const ctx = createMockCtx({
-      runQuery: vi
-        .fn()
-        .mockResolvedValueOnce(workflow)
-        .mockResolvedValueOnce(fileSchema),
+      runAction: vi.fn().mockResolvedValue(fileConfig),
       runMutation: mockRunMutation,
     });
 
@@ -401,37 +379,34 @@ describe('createBoundWorkflowTool', () => {
   });
 
   it('passes native object args without modification', async () => {
-    const fileSchema = {
-      inputSchema: {
-        properties: {
-          baseFile: {
-            type: 'object' as const,
-            properties: {
-              fileId: { type: 'string' as const },
-              fileName: { type: 'string' as const },
-            },
-            required: ['fileId', 'fileName'],
+    const inputSchema = {
+      properties: {
+        baseFile: {
+          type: 'object' as const,
+          properties: {
+            fileId: { type: 'string' as const },
+            fileName: { type: 'string' as const },
           },
+          required: ['fileId', 'fileName'],
         },
-        required: ['baseFile'],
       },
+      required: ['baseFile'],
     };
 
     const tool = createBoundWorkflowTool(
-      { _id: 'wf-def-123' as never, name: 'Test Workflow' },
-      fileSchema.inputSchema,
+      { workflowSlug: 'test-workflow', name: 'Test Workflow' },
+      inputSchema,
     );
 
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test-only
     const handler = (tool as unknown as { _handler: Function })._handler;
-    const workflow = createMockWorkflow();
+    const fileConfig = createMockFileConfig({
+      steps: [{ stepType: 'start', config: { inputSchema } }],
+    });
     const mockRunMutation = vi.fn().mockResolvedValue('approval-id-7');
 
     const ctx = createMockCtx({
-      runQuery: vi
-        .fn()
-        .mockResolvedValueOnce(workflow)
-        .mockResolvedValueOnce(fileSchema),
+      runAction: vi.fn().mockResolvedValue(fileConfig),
       runMutation: mockRunMutation,
     });
 
@@ -448,30 +423,27 @@ describe('createBoundWorkflowTool', () => {
   });
 
   it('does not parse string fields that are legitimately strings', async () => {
-    const schema = {
-      inputSchema: {
-        properties: {
-          requirements: { type: 'string' as const },
-        },
-        required: ['requirements'],
+    const inputSchema = {
+      properties: {
+        requirements: { type: 'string' as const },
       },
+      required: ['requirements'],
     };
 
     const tool = createBoundWorkflowTool(
-      { _id: 'wf-def-123' as never, name: 'Test Workflow' },
-      schema.inputSchema,
+      { workflowSlug: 'test-workflow', name: 'Test Workflow' },
+      inputSchema,
     );
 
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test-only
     const handler = (tool as unknown as { _handler: Function })._handler;
-    const workflow = createMockWorkflow();
+    const fileConfig = createMockFileConfig({
+      steps: [{ stepType: 'start', config: { inputSchema } }],
+    });
     const mockRunMutation = vi.fn().mockResolvedValue('approval-id-8');
 
     const ctx = createMockCtx({
-      runQuery: vi
-        .fn()
-        .mockResolvedValueOnce(workflow)
-        .mockResolvedValueOnce(schema),
+      runAction: vi.fn().mockResolvedValue(fileConfig),
       runMutation: mockRunMutation,
     });
 

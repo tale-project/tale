@@ -12,6 +12,7 @@ import type * as accounts_helpers from "../accounts/helpers.js";
 import type * as accounts_queries from "../accounts/queries.js";
 import type * as accounts_types from "../accounts/types.js";
 import type * as accounts_validators from "../accounts/validators.js";
+import type * as agent_tools_approval_shared from "../agent_tools/approval_shared.js";
 import type * as agent_tools_create_json_output_tool from "../agent_tools/create_json_output_tool.js";
 import type * as agent_tools_customers_customer_read_tool from "../agent_tools/customers/customer_read_tool.js";
 import type * as agent_tools_customers_helpers_count_customers from "../agent_tools/customers/helpers/count_customers.js";
@@ -49,6 +50,7 @@ import type * as agent_tools_files_internal_mutations from "../agent_tools/files
 import type * as agent_tools_files_pdf_tool from "../agent_tools/files/pdf_tool.js";
 import type * as agent_tools_files_pptx_tool from "../agent_tools/files/pptx_tool.js";
 import type * as agent_tools_files_text_tool from "../agent_tools/files/text_tool.js";
+import type * as agent_tools_human_input_actions from "../agent_tools/human_input/actions.js";
 import type * as agent_tools_human_input_internal_mutations from "../agent_tools/human_input/internal_mutations.js";
 import type * as agent_tools_human_input_mutations from "../agent_tools/human_input/mutations.js";
 import type * as agent_tools_human_input_request_human_input_tool from "../agent_tools/human_input/request_human_input_tool.js";
@@ -61,6 +63,7 @@ import type * as agent_tools_integrations_internal_actions from "../agent_tools/
 import type * as agent_tools_integrations_internal_mutations from "../agent_tools/integrations/internal_mutations.js";
 import type * as agent_tools_integrations_types from "../agent_tools/integrations/types.js";
 import type * as agent_tools_load_convex_tools_as_object from "../agent_tools/load_convex_tools_as_object.js";
+import type * as agent_tools_location_actions from "../agent_tools/location/actions.js";
 import type * as agent_tools_location_internal_mutations from "../agent_tools/location/internal_mutations.js";
 import type * as agent_tools_location_mutations from "../agent_tools/location/mutations.js";
 import type * as agent_tools_location_request_user_location_tool from "../agent_tools/location/request_user_location_tool.js";
@@ -96,10 +99,7 @@ import type * as agent_tools_web_web_tool from "../agent_tools/web/web_tool.js";
 import type * as agent_tools_workflows_create_bound_workflow_tool from "../agent_tools/workflows/create_bound_workflow_tool.js";
 import type * as agent_tools_workflows_create_workflow_tool from "../agent_tools/workflows/create_workflow_tool.js";
 import type * as agent_tools_workflows_helpers_extract_input_schema from "../agent_tools/workflows/helpers/extract_input_schema.js";
-import type * as agent_tools_workflows_helpers_read_active_version_steps from "../agent_tools/workflows/helpers/read_active_version_steps.js";
 import type * as agent_tools_workflows_helpers_read_all_workflows from "../agent_tools/workflows/helpers/read_all_workflows.js";
-import type * as agent_tools_workflows_helpers_read_version_history from "../agent_tools/workflows/helpers/read_version_history.js";
-import type * as agent_tools_workflows_helpers_read_workflow_examples from "../agent_tools/workflows/helpers/read_workflow_examples.js";
 import type * as agent_tools_workflows_helpers_read_workflow_structure from "../agent_tools/workflows/helpers/read_workflow_structure.js";
 import type * as agent_tools_workflows_helpers_syntax_reference from "../agent_tools/workflows/helpers/syntax_reference.js";
 import type * as agent_tools_workflows_helpers_types from "../agent_tools/workflows/helpers/types.js";
@@ -107,14 +107,30 @@ import type * as agent_tools_workflows_internal_actions from "../agent_tools/wor
 import type * as agent_tools_workflows_internal_mutations from "../agent_tools/workflows/internal_mutations.js";
 import type * as agent_tools_workflows_run_workflow_tool from "../agent_tools/workflows/run_workflow_tool.js";
 import type * as agent_tools_workflows_save_workflow_definition_tool from "../agent_tools/workflows/save_workflow_definition_tool.js";
+import type * as agent_tools_workflows_trigger_completion_action from "../agent_tools/workflows/trigger_completion_action.js";
 import type * as agent_tools_workflows_update_workflow_step_tool from "../agent_tools/workflows/update_workflow_step_tool.js";
 import type * as agent_tools_workflows_workflow_read_tool from "../agent_tools/workflows/workflow_read_tool.js";
 import type * as agent_tools_workflows_workflow_syntax_tool from "../agent_tools/workflows/workflow_syntax_tool.js";
-import type * as agents_chat_agent from "../agents/chat/agent.js";
-import type * as agents_crm_agent from "../agents/crm/agent.js";
-import type * as agents_file_agent from "../agents/file/agent.js";
-import type * as agents_integration_agent from "../agents/integration/agent.js";
-import type * as agents_web_agent from "../agents/web/agent.js";
+import type * as agents_config from "../agents/config.js";
+import type * as agents_file_actions from "../agents/file_actions.js";
+import type * as agents_file_utils from "../agents/file_utils.js";
+import type * as agents_internal_actions from "../agents/internal_actions.js";
+import type * as agents_internal_mutations from "../agents/internal_mutations.js";
+import type * as agents_internal_queries from "../agents/internal_queries.js";
+import type * as agents_legacy_schema from "../agents/legacy_schema.js";
+import type * as agents_mutations from "../agents/mutations.js";
+import type * as agents_queries from "../agents/queries.js";
+import type * as agents_seed_system_defaults from "../agents/seed_system_defaults.js";
+import type * as agents_start_chat from "../agents/start_chat.js";
+import type * as agents_translate_fields from "../agents/translate_fields.js";
+import type * as agents_unified_chat from "../agents/unified_chat.js";
+import type * as agents_validators from "../agents/validators.js";
+import type * as agents_webhooks_http_actions from "../agents/webhooks/http_actions.js";
+import type * as agents_webhooks_internal_actions from "../agents/webhooks/internal_actions.js";
+import type * as agents_webhooks_internal_mutations from "../agents/webhooks/internal_mutations.js";
+import type * as agents_webhooks_internal_queries from "../agents/webhooks/internal_queries.js";
+import type * as agents_webhooks_mutations from "../agents/webhooks/mutations.js";
+import type * as agents_webhooks_queries from "../agents/webhooks/queries.js";
 import type * as api_gateway from "../api_gateway.js";
 import type * as approvals_actions from "../approvals/actions.js";
 import type * as approvals_helpers from "../approvals/helpers.js";
@@ -132,8 +148,10 @@ import type * as audit_logs_queries from "../audit_logs/queries.js";
 import type * as audit_logs_types from "../audit_logs/types.js";
 import type * as audit_logs_validators from "../audit_logs/validators.js";
 import type * as auth from "../auth.js";
+import type * as branding_file_actions from "../branding/file_actions.js";
+import type * as branding_file_utils from "../branding/file_utils.js";
+import type * as branding_internal_queries from "../branding/internal_queries.js";
 import type * as branding_mutations from "../branding/mutations.js";
-import type * as branding_queries from "../branding/queries.js";
 import type * as constants from "../constants.js";
 import type * as conversations_actions from "../conversations/actions.js";
 import type * as conversations_add_message_to_conversation from "../conversations/add_message_to_conversation.js";
@@ -174,22 +192,6 @@ import type * as conversations_update_conversation_message from "../conversation
 import type * as conversations_update_conversations from "../conversations/update_conversations.js";
 import type * as conversations_validators from "../conversations/validators.js";
 import type * as crons from "../crons.js";
-import type * as custom_agents_config from "../custom_agents/config.js";
-import type * as custom_agents_internal_actions from "../custom_agents/internal_actions.js";
-import type * as custom_agents_internal_mutations from "../custom_agents/internal_mutations.js";
-import type * as custom_agents_internal_queries from "../custom_agents/internal_queries.js";
-import type * as custom_agents_list_custom_agents_paginated from "../custom_agents/list_custom_agents_paginated.js";
-import type * as custom_agents_mutations from "../custom_agents/mutations.js";
-import type * as custom_agents_queries from "../custom_agents/queries.js";
-import type * as custom_agents_seed_system_defaults from "../custom_agents/seed_system_defaults.js";
-import type * as custom_agents_system_defaults from "../custom_agents/system_defaults.js";
-import type * as custom_agents_test_chat from "../custom_agents/test_chat.js";
-import type * as custom_agents_unified_chat from "../custom_agents/unified_chat.js";
-import type * as custom_agents_webhooks_http_actions from "../custom_agents/webhooks/http_actions.js";
-import type * as custom_agents_webhooks_internal_mutations from "../custom_agents/webhooks/internal_mutations.js";
-import type * as custom_agents_webhooks_internal_queries from "../custom_agents/webhooks/internal_queries.js";
-import type * as custom_agents_webhooks_mutations from "../custom_agents/webhooks/mutations.js";
-import type * as custom_agents_webhooks_queries from "../custom_agents/webhooks/queries.js";
 import type * as customers_bulk_create_customers from "../customers/bulk_create_customers.js";
 import type * as customers_create_customer from "../customers/create_customer.js";
 import type * as customers_create_customer_public from "../customers/create_customer_public.js";
@@ -274,9 +276,14 @@ import type * as integrations_actions from "../integrations/actions.js";
 import type * as integrations_build_test_secrets from "../integrations/build_test_secrets.js";
 import type * as integrations_create_integration from "../integrations/create_integration.js";
 import type * as integrations_create_integration_internal from "../integrations/create_integration_internal.js";
+import type * as integrations_credential_mutations from "../integrations/credential_mutations.js";
+import type * as integrations_credential_queries from "../integrations/credential_queries.js";
+import type * as integrations_credentials_schema from "../integrations/credentials_schema.js";
 import type * as integrations_decrypt_and_refresh_oauth2 from "../integrations/decrypt_and_refresh_oauth2.js";
 import type * as integrations_delete_integration from "../integrations/delete_integration.js";
 import type * as integrations_encrypt_credentials from "../integrations/encrypt_credentials.js";
+import type * as integrations_file_actions from "../integrations/file_actions.js";
+import type * as integrations_file_utils from "../integrations/file_utils.js";
 import type * as integrations_find_related_automations from "../integrations/find_related_automations.js";
 import type * as integrations_generate_oauth2_auth_url from "../integrations/generate_oauth2_auth_url.js";
 import type * as integrations_get_decrypted_credentials from "../integrations/get_decrypted_credentials.js";
@@ -288,12 +295,14 @@ import type * as integrations_helpers from "../integrations/helpers.js";
 import type * as integrations_internal_mutations from "../integrations/internal_mutations.js";
 import type * as integrations_internal_queries from "../integrations/internal_queries.js";
 import type * as integrations_list_integrations from "../integrations/list_integrations.js";
+import type * as integrations_load_integration from "../integrations/load_integration.js";
 import type * as integrations_mutations from "../integrations/mutations.js";
 import type * as integrations_oauth2_callback from "../integrations/oauth2_callback.js";
 import type * as integrations_oauth2_token_exchange from "../integrations/oauth2_token_exchange.js";
 import type * as integrations_queries from "../integrations/queries.js";
 import type * as integrations_run_health_check from "../integrations/run_health_check.js";
 import type * as integrations_save_oauth2_client_credentials from "../integrations/save_oauth2_client_credentials.js";
+import type * as integrations_shared_types from "../integrations/shared_types.js";
 import type * as integrations_test_connection from "../integrations/test_connection.js";
 import type * as integrations_types from "../integrations/types.js";
 import type * as integrations_update_integration from "../integrations/update_integration.js";
@@ -302,6 +311,7 @@ import type * as integrations_update_sync_stats from "../integrations/update_syn
 import type * as integrations_utils_get_integration_type from "../integrations/utils/get_integration_type.js";
 import type * as integrations_validators from "../integrations/validators.js";
 import type * as lib_action_cache_index from "../lib/action_cache/index.js";
+import type * as lib_age_keygen from "../lib/age_keygen.js";
 import type * as lib_agent_chat_index from "../lib/agent_chat/index.js";
 import type * as lib_agent_chat_internal_actions from "../lib/agent_chat/internal_actions.js";
 import type * as lib_agent_chat_start_agent_chat from "../lib/agent_chat/start_agent_chat.js";
@@ -315,7 +325,6 @@ import type * as lib_agent_response_structured_response_instructions from "../li
 import type * as lib_agent_response_types from "../lib/agent_response/types.js";
 import type * as lib_agent_response_validators from "../lib/agent_response/validators.js";
 import type * as lib_agent_response_with_timeout from "../lib/agent_response/with_timeout.js";
-import type * as lib_agent_runtime_config from "../lib/agent_runtime_config.js";
 import type * as lib_attachments_build_multi_modal_content from "../lib/attachments/build_multi_modal_content.js";
 import type * as lib_attachments_format_markdown from "../lib/attachments/format_markdown.js";
 import type * as lib_attachments_index from "../lib/attachments/index.js";
@@ -344,6 +353,7 @@ import type * as lib_crypto_hex_to_bytes from "../lib/crypto/hex_to_bytes.js";
 import type * as lib_crypto_internal_actions from "../lib/crypto/internal_actions.js";
 import type * as lib_debug_log from "../lib/debug_log.js";
 import type * as lib_error_classification from "../lib/error_classification.js";
+import type * as lib_file_io from "../lib/file_io.js";
 import type * as lib_fuzzy_match from "../lib/fuzzy_match.js";
 import type * as lib_get_or_throw from "../lib/get_or_throw.js";
 import type * as lib_get_user_teams from "../lib/get_user_teams.js";
@@ -355,7 +365,6 @@ import type * as lib_helpers_rag_config from "../lib/helpers/rag_config.js";
 import type * as lib_helpers_status_priority from "../lib/helpers/status_priority.js";
 import type * as lib_message_deduplication from "../lib/message_deduplication.js";
 import type * as lib_metadata_get_metadata_string from "../lib/metadata/get_metadata_string.js";
-import type * as lib_openai_provider from "../lib/openai_provider.js";
 import type * as lib_pagination_helpers from "../lib/pagination/helpers.js";
 import type * as lib_pagination_index from "../lib/pagination/index.js";
 import type * as lib_pagination_types from "../lib/pagination/types.js";
@@ -385,6 +394,7 @@ import type * as lib_rls_validators from "../lib/rls/validators.js";
 import type * as lib_rls_wrappers_with_organization_rls from "../lib/rls/wrappers/with_organization_rls.js";
 import type * as lib_rls_wrappers_with_resource_rls from "../lib/rls/wrappers/with_resource_rls.js";
 import type * as lib_shared_schemas_utils_json_value from "../lib/shared/schemas/utils/json_value.js";
+import type * as lib_sops from "../lib/sops.js";
 import type * as lib_summarization_auto_summarize from "../lib/summarization/auto_summarize.js";
 import type * as lib_summarization_index from "../lib/summarization/index.js";
 import type * as lib_summarization_internal_actions from "../lib/summarization/internal_actions.js";
@@ -414,6 +424,7 @@ import type * as migrations_backfill_thread_metadata from "../migrations/backfil
 import type * as migrations_backfill_workflow_schedules from "../migrations/backfill_workflow_schedules.js";
 import type * as migrations_migrate_org_creators from "../migrations/migrate_org_creators.js";
 import type * as migrations_remove_deprecated_llm_fields from "../migrations/remove_deprecated_llm_fields.js";
+import type * as migrations_rename_org_slug from "../migrations/rename_org_slug.js";
 import type * as migrations_trigger_steps_to_start from "../migrations/trigger_steps_to_start.js";
 import type * as node_only_documents_internal_actions from "../node_only/documents/internal_actions.js";
 import type * as node_only_integration_sandbox_execute_integration_impl from "../node_only/integration_sandbox/execute_integration_impl.js";
@@ -495,6 +506,10 @@ import type * as products_update_product from "../products/update_product.js";
 import type * as products_update_products from "../products/update_products.js";
 import type * as products_upsert_product_translation from "../products/upsert_product_translation.js";
 import type * as products_validators from "../products/validators.js";
+import type * as providers_file_actions from "../providers/file_actions.js";
+import type * as providers_file_utils from "../providers/file_utils.js";
+import type * as providers_resolve_model from "../providers/resolve_model.js";
+import type * as providers_validators from "../providers/validators.js";
 import type * as sso_providers_actions from "../sso_providers/actions.js";
 import type * as sso_providers_create_user_session from "../sso_providers/create_user_session.js";
 import type * as sso_providers_entra_id_adapter from "../sso_providers/entra_id/adapter.js";
@@ -591,20 +606,11 @@ import type * as websites_search_websites from "../websites/search_websites.js";
 import type * as websites_types from "../websites/types.js";
 import type * as websites_update_website from "../websites/update_website.js";
 import type * as websites_validators from "../websites/validators.js";
-import type * as wf_definitions_internal_mutations from "../wf_definitions/internal_mutations.js";
-import type * as wf_definitions_internal_queries from "../wf_definitions/internal_queries.js";
-import type * as wf_definitions_mutations from "../wf_definitions/mutations.js";
-import type * as wf_definitions_queries from "../wf_definitions/queries.js";
+import type * as wf_executions_actions from "../wf_executions/actions.js";
 import type * as wf_executions_internal_mutations from "../wf_executions/internal_mutations.js";
 import type * as wf_executions_internal_queries from "../wf_executions/internal_queries.js";
 import type * as wf_executions_mutations from "../wf_executions/mutations.js";
 import type * as wf_executions_queries from "../wf_executions/queries.js";
-import type * as wf_step_defs_actions from "../wf_step_defs/actions.js";
-import type * as wf_step_defs_audit from "../wf_step_defs/audit.js";
-import type * as wf_step_defs_internal_mutations from "../wf_step_defs/internal_mutations.js";
-import type * as wf_step_defs_internal_queries from "../wf_step_defs/internal_queries.js";
-import type * as wf_step_defs_mutations from "../wf_step_defs/mutations.js";
-import type * as wf_step_defs_queries from "../wf_step_defs/queries.js";
 import type * as workflow_engine_action_defs_action_registry from "../workflow_engine/action_defs/action_registry.js";
 import type * as workflow_engine_action_defs_approval_approval_action from "../workflow_engine/action_defs/approval/approval_action.js";
 import type * as workflow_engine_action_defs_approval_helpers_create_approval from "../workflow_engine/action_defs/approval/helpers/create_approval.js";
@@ -663,20 +669,19 @@ import type * as workflow_engine_action_defs_workflow_processing_records_helpers
 import type * as workflow_engine_action_defs_workflow_processing_records_workflow_processing_records_action from "../workflow_engine/action_defs/workflow_processing_records/workflow_processing_records_action.js";
 import type * as workflow_engine_engine from "../workflow_engine/engine.js";
 import type * as workflow_engine_execution_dry_run_executor from "../workflow_engine/execution/dry_run_executor.js";
-import type * as workflow_engine_helpers_data_source_database_workflow_data_source from "../workflow_engine/helpers/data_source/database_workflow_data_source.js";
+import type * as workflow_engine_helpers_data_source_file_workflow_data_source from "../workflow_engine/helpers/data_source/file_workflow_data_source.js";
 import type * as workflow_engine_helpers_data_source_types from "../workflow_engine/helpers/data_source/types.js";
 import type * as workflow_engine_helpers_engine_build_steps_config_map from "../workflow_engine/helpers/engine/build_steps_config_map.js";
 import type * as workflow_engine_helpers_engine_build_workflow_user_profile from "../workflow_engine/helpers/engine/build_workflow_user_profile.js";
 import type * as workflow_engine_helpers_engine_cleanup_component_workflow from "../workflow_engine/helpers/engine/cleanup_component_workflow.js";
 import type * as workflow_engine_helpers_engine_dynamic_workflow_handler from "../workflow_engine/helpers/engine/dynamic_workflow_handler.js";
 import type * as workflow_engine_helpers_engine_execute_step_handler from "../workflow_engine/helpers/engine/execute_step_handler.js";
-import type * as workflow_engine_helpers_engine_execute_workflow_start from "../workflow_engine/helpers/engine/execute_workflow_start.js";
 import type * as workflow_engine_helpers_engine_index from "../workflow_engine/helpers/engine/index.js";
-import type * as workflow_engine_helpers_engine_load_database_workflow from "../workflow_engine/helpers/engine/load_database_workflow.js";
+import type * as workflow_engine_helpers_engine_load_file_workflow from "../workflow_engine/helpers/engine/load_file_workflow.js";
 import type * as workflow_engine_helpers_engine_on_workflow_complete from "../workflow_engine/helpers/engine/on_workflow_complete.js";
 import type * as workflow_engine_helpers_engine_serialize_and_complete_execution_handler from "../workflow_engine/helpers/engine/serialize_and_complete_execution_handler.js";
 import type * as workflow_engine_helpers_engine_shard from "../workflow_engine/helpers/engine/shard.js";
-import type * as workflow_engine_helpers_engine_start_workflow_handler from "../workflow_engine/helpers/engine/start_workflow_handler.js";
+import type * as workflow_engine_helpers_engine_start_workflow_from_file from "../workflow_engine/helpers/engine/start_workflow_from_file.js";
 import type * as workflow_engine_helpers_engine_workflow_data from "../workflow_engine/helpers/engine/workflow_data.js";
 import type * as workflow_engine_helpers_formatting_stringify from "../workflow_engine/helpers/formatting/stringify.js";
 import type * as workflow_engine_helpers_graph_compute_step_order from "../workflow_engine/helpers/graph/compute_step_order.js";
@@ -756,7 +761,6 @@ import type * as workflow_engine_helpers_validation_variables_types from "../wor
 import type * as workflow_engine_helpers_validation_variables_validate from "../workflow_engine/helpers/validation/variables/validate.js";
 import type * as workflow_engine_helpers_validation_variables_validate_variable_references_known_sources from "../workflow_engine/helpers/validation/variables/validate_variable_references_known_sources.js";
 import type * as workflow_engine_helpers_variables_decrypt_inline_secrets from "../workflow_engine/helpers/variables/decrypt_inline_secrets.js";
-import type * as workflow_engine_instructions_core_instructions from "../workflow_engine/instructions/core_instructions.js";
 import type * as workflow_engine_internal_actions from "../workflow_engine/internal_actions.js";
 import type * as workflow_engine_internal_mutations from "../workflow_engine/internal_mutations.js";
 import type * as workflow_engine_internal_queries from "../workflow_engine/internal_queries.js";
@@ -765,36 +769,6 @@ import type * as workflow_engine_types_index from "../workflow_engine/types/inde
 import type * as workflow_engine_types_nodes from "../workflow_engine/types/nodes.js";
 import type * as workflow_engine_types_workflow from "../workflow_engine/types/workflow.js";
 import type * as workflow_engine_types_workflow_types from "../workflow_engine/types/workflow_types.js";
-import type * as workflows_definitions_activate_version from "../workflows/definitions/activate_version.js";
-import type * as workflows_definitions_create_draft_from_active from "../workflows/definitions/create_draft_from_active.js";
-import type * as workflows_definitions_create_workflow from "../workflows/definitions/create_workflow.js";
-import type * as workflows_definitions_create_workflow_draft from "../workflows/definitions/create_workflow_draft.js";
-import type * as workflows_definitions_create_workflow_with_steps from "../workflows/definitions/create_workflow_with_steps.js";
-import type * as workflows_definitions_delete_workflow from "../workflows/definitions/delete_workflow.js";
-import type * as workflows_definitions_duplicate_workflow from "../workflows/definitions/duplicate_workflow.js";
-import type * as workflows_definitions_get_active_version from "../workflows/definitions/get_active_version.js";
-import type * as workflows_definitions_get_automations_cursor from "../workflows/definitions/get_automations_cursor.js";
-import type * as workflows_definitions_get_draft from "../workflows/definitions/get_draft.js";
-import type * as workflows_definitions_get_version_by_number from "../workflows/definitions/get_version_by_number.js";
-import type * as workflows_definitions_get_workflow from "../workflows/definitions/get_workflow.js";
-import type * as workflows_definitions_get_workflow_by_name from "../workflows/definitions/get_workflow_by_name.js";
-import type * as workflows_definitions_get_workflow_with_first_step from "../workflows/definitions/get_workflow_with_first_step.js";
-import type * as workflows_definitions_helpers from "../workflows/definitions/helpers.js";
-import type * as workflows_definitions_list_automations from "../workflows/definitions/list_automations.js";
-import type * as workflows_definitions_list_automations_paginated from "../workflows/definitions/list_automations_paginated.js";
-import type * as workflows_definitions_list_versions from "../workflows/definitions/list_versions.js";
-import type * as workflows_definitions_list_workflows from "../workflows/definitions/list_workflows.js";
-import type * as workflows_definitions_list_workflows_with_best_version from "../workflows/definitions/list_workflows_with_best_version.js";
-import type * as workflows_definitions_publish_draft from "../workflows/definitions/publish_draft.js";
-import type * as workflows_definitions_republish_workflow from "../workflows/definitions/republish_workflow.js";
-import type * as workflows_definitions_save_manual_configuration from "../workflows/definitions/save_manual_configuration.js";
-import type * as workflows_definitions_save_workflow_with_steps from "../workflows/definitions/save_workflow_with_steps.js";
-import type * as workflows_definitions_types from "../workflows/definitions/types.js";
-import type * as workflows_definitions_unpublish_workflow from "../workflows/definitions/unpublish_workflow.js";
-import type * as workflows_definitions_update_draft from "../workflows/definitions/update_draft.js";
-import type * as workflows_definitions_update_workflow from "../workflows/definitions/update_workflow.js";
-import type * as workflows_definitions_update_workflow_status from "../workflows/definitions/update_workflow_status.js";
-import type * as workflows_definitions_validators from "../workflows/definitions/validators.js";
 import type * as workflows_executions_cleanup_execution_storage from "../workflows/executions/cleanup_execution_storage.js";
 import type * as workflows_executions_complete_execution from "../workflows/executions/complete_execution.js";
 import type * as workflows_executions_delete_storage_blob from "../workflows/executions/delete_storage_blob.js";
@@ -816,6 +790,8 @@ import type * as workflows_executions_update_execution_metadata from "../workflo
 import type * as workflows_executions_update_execution_status from "../workflows/executions/update_execution_status.js";
 import type * as workflows_executions_update_execution_variables from "../workflows/executions/update_execution_variables.js";
 import type * as workflows_executions_validators from "../workflows/executions/validators.js";
+import type * as workflows_file_actions from "../workflows/file_actions.js";
+import type * as workflows_file_utils from "../workflows/file_utils.js";
 import type * as workflows_helpers from "../workflows/helpers.js";
 import type * as workflows_processing_records_ast_helpers_extract_comparison from "../workflows/processing_records/ast_helpers/extract_comparison.js";
 import type * as workflows_processing_records_ast_helpers_extract_literal_value from "../workflows/processing_records/ast_helpers/extract_literal_value.js";
@@ -850,14 +826,6 @@ import type * as workflows_processing_records_record_claimed from "../workflows/
 import type * as workflows_processing_records_record_processed from "../workflows/processing_records/record_processed.js";
 import type * as workflows_processing_records_run_query from "../workflows/processing_records/run_query.js";
 import type * as workflows_processing_records_types from "../workflows/processing_records/types.js";
-import type * as workflows_steps_create_step from "../workflows/steps/create_step.js";
-import type * as workflows_steps_delete_step from "../workflows/steps/delete_step.js";
-import type * as workflows_steps_get_ordered_steps from "../workflows/steps/get_ordered_steps.js";
-import type * as workflows_steps_helpers from "../workflows/steps/helpers.js";
-import type * as workflows_steps_list_workflow_steps from "../workflows/steps/list_workflow_steps.js";
-import type * as workflows_steps_types from "../workflows/steps/types.js";
-import type * as workflows_steps_update_step from "../workflows/steps/update_step.js";
-import type * as workflows_steps_validators from "../workflows/steps/validators.js";
 import type * as workflows_triggers_actions from "../workflows/triggers/actions.js";
 import type * as workflows_triggers_api_http from "../workflows/triggers/api_http.js";
 import type * as workflows_triggers_emit_event from "../workflows/triggers/emit_event.js";
@@ -867,9 +835,9 @@ import type * as workflows_triggers_helpers_validate from "../workflows/triggers
 import type * as workflows_triggers_http_actions from "../workflows/triggers/http_actions.js";
 import type * as workflows_triggers_internal_mutations from "../workflows/triggers/internal_mutations.js";
 import type * as workflows_triggers_internal_queries from "../workflows/triggers/internal_queries.js";
-import type * as workflows_triggers_mutations from "../workflows/triggers/mutations.js";
 import type * as workflows_triggers_process_event from "../workflows/triggers/process_event.js";
-import type * as workflows_triggers_queries from "../workflows/triggers/queries.js";
+import type * as workflows_triggers_slug_mutations from "../workflows/triggers/slug_mutations.js";
+import type * as workflows_triggers_slug_queries from "../workflows/triggers/slug_queries.js";
 import type * as workflows_validators from "../workflows/validators.js";
 
 import type {
@@ -883,6 +851,7 @@ declare const fullApi: ApiFromModules<{
   "accounts/queries": typeof accounts_queries;
   "accounts/types": typeof accounts_types;
   "accounts/validators": typeof accounts_validators;
+  "agent_tools/approval_shared": typeof agent_tools_approval_shared;
   "agent_tools/create_json_output_tool": typeof agent_tools_create_json_output_tool;
   "agent_tools/customers/customer_read_tool": typeof agent_tools_customers_customer_read_tool;
   "agent_tools/customers/helpers/count_customers": typeof agent_tools_customers_helpers_count_customers;
@@ -920,6 +889,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/files/pdf_tool": typeof agent_tools_files_pdf_tool;
   "agent_tools/files/pptx_tool": typeof agent_tools_files_pptx_tool;
   "agent_tools/files/text_tool": typeof agent_tools_files_text_tool;
+  "agent_tools/human_input/actions": typeof agent_tools_human_input_actions;
   "agent_tools/human_input/internal_mutations": typeof agent_tools_human_input_internal_mutations;
   "agent_tools/human_input/mutations": typeof agent_tools_human_input_mutations;
   "agent_tools/human_input/request_human_input_tool": typeof agent_tools_human_input_request_human_input_tool;
@@ -932,6 +902,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/integrations/internal_mutations": typeof agent_tools_integrations_internal_mutations;
   "agent_tools/integrations/types": typeof agent_tools_integrations_types;
   "agent_tools/load_convex_tools_as_object": typeof agent_tools_load_convex_tools_as_object;
+  "agent_tools/location/actions": typeof agent_tools_location_actions;
   "agent_tools/location/internal_mutations": typeof agent_tools_location_internal_mutations;
   "agent_tools/location/mutations": typeof agent_tools_location_mutations;
   "agent_tools/location/request_user_location_tool": typeof agent_tools_location_request_user_location_tool;
@@ -967,10 +938,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/workflows/create_bound_workflow_tool": typeof agent_tools_workflows_create_bound_workflow_tool;
   "agent_tools/workflows/create_workflow_tool": typeof agent_tools_workflows_create_workflow_tool;
   "agent_tools/workflows/helpers/extract_input_schema": typeof agent_tools_workflows_helpers_extract_input_schema;
-  "agent_tools/workflows/helpers/read_active_version_steps": typeof agent_tools_workflows_helpers_read_active_version_steps;
   "agent_tools/workflows/helpers/read_all_workflows": typeof agent_tools_workflows_helpers_read_all_workflows;
-  "agent_tools/workflows/helpers/read_version_history": typeof agent_tools_workflows_helpers_read_version_history;
-  "agent_tools/workflows/helpers/read_workflow_examples": typeof agent_tools_workflows_helpers_read_workflow_examples;
   "agent_tools/workflows/helpers/read_workflow_structure": typeof agent_tools_workflows_helpers_read_workflow_structure;
   "agent_tools/workflows/helpers/syntax_reference": typeof agent_tools_workflows_helpers_syntax_reference;
   "agent_tools/workflows/helpers/types": typeof agent_tools_workflows_helpers_types;
@@ -978,14 +946,30 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/workflows/internal_mutations": typeof agent_tools_workflows_internal_mutations;
   "agent_tools/workflows/run_workflow_tool": typeof agent_tools_workflows_run_workflow_tool;
   "agent_tools/workflows/save_workflow_definition_tool": typeof agent_tools_workflows_save_workflow_definition_tool;
+  "agent_tools/workflows/trigger_completion_action": typeof agent_tools_workflows_trigger_completion_action;
   "agent_tools/workflows/update_workflow_step_tool": typeof agent_tools_workflows_update_workflow_step_tool;
   "agent_tools/workflows/workflow_read_tool": typeof agent_tools_workflows_workflow_read_tool;
   "agent_tools/workflows/workflow_syntax_tool": typeof agent_tools_workflows_workflow_syntax_tool;
-  "agents/chat/agent": typeof agents_chat_agent;
-  "agents/crm/agent": typeof agents_crm_agent;
-  "agents/file/agent": typeof agents_file_agent;
-  "agents/integration/agent": typeof agents_integration_agent;
-  "agents/web/agent": typeof agents_web_agent;
+  "agents/config": typeof agents_config;
+  "agents/file_actions": typeof agents_file_actions;
+  "agents/file_utils": typeof agents_file_utils;
+  "agents/internal_actions": typeof agents_internal_actions;
+  "agents/internal_mutations": typeof agents_internal_mutations;
+  "agents/internal_queries": typeof agents_internal_queries;
+  "agents/legacy_schema": typeof agents_legacy_schema;
+  "agents/mutations": typeof agents_mutations;
+  "agents/queries": typeof agents_queries;
+  "agents/seed_system_defaults": typeof agents_seed_system_defaults;
+  "agents/start_chat": typeof agents_start_chat;
+  "agents/translate_fields": typeof agents_translate_fields;
+  "agents/unified_chat": typeof agents_unified_chat;
+  "agents/validators": typeof agents_validators;
+  "agents/webhooks/http_actions": typeof agents_webhooks_http_actions;
+  "agents/webhooks/internal_actions": typeof agents_webhooks_internal_actions;
+  "agents/webhooks/internal_mutations": typeof agents_webhooks_internal_mutations;
+  "agents/webhooks/internal_queries": typeof agents_webhooks_internal_queries;
+  "agents/webhooks/mutations": typeof agents_webhooks_mutations;
+  "agents/webhooks/queries": typeof agents_webhooks_queries;
   api_gateway: typeof api_gateway;
   "approvals/actions": typeof approvals_actions;
   "approvals/helpers": typeof approvals_helpers;
@@ -1003,8 +987,10 @@ declare const fullApi: ApiFromModules<{
   "audit_logs/types": typeof audit_logs_types;
   "audit_logs/validators": typeof audit_logs_validators;
   auth: typeof auth;
+  "branding/file_actions": typeof branding_file_actions;
+  "branding/file_utils": typeof branding_file_utils;
+  "branding/internal_queries": typeof branding_internal_queries;
   "branding/mutations": typeof branding_mutations;
-  "branding/queries": typeof branding_queries;
   constants: typeof constants;
   "conversations/actions": typeof conversations_actions;
   "conversations/add_message_to_conversation": typeof conversations_add_message_to_conversation;
@@ -1045,22 +1031,6 @@ declare const fullApi: ApiFromModules<{
   "conversations/update_conversations": typeof conversations_update_conversations;
   "conversations/validators": typeof conversations_validators;
   crons: typeof crons;
-  "custom_agents/config": typeof custom_agents_config;
-  "custom_agents/internal_actions": typeof custom_agents_internal_actions;
-  "custom_agents/internal_mutations": typeof custom_agents_internal_mutations;
-  "custom_agents/internal_queries": typeof custom_agents_internal_queries;
-  "custom_agents/list_custom_agents_paginated": typeof custom_agents_list_custom_agents_paginated;
-  "custom_agents/mutations": typeof custom_agents_mutations;
-  "custom_agents/queries": typeof custom_agents_queries;
-  "custom_agents/seed_system_defaults": typeof custom_agents_seed_system_defaults;
-  "custom_agents/system_defaults": typeof custom_agents_system_defaults;
-  "custom_agents/test_chat": typeof custom_agents_test_chat;
-  "custom_agents/unified_chat": typeof custom_agents_unified_chat;
-  "custom_agents/webhooks/http_actions": typeof custom_agents_webhooks_http_actions;
-  "custom_agents/webhooks/internal_mutations": typeof custom_agents_webhooks_internal_mutations;
-  "custom_agents/webhooks/internal_queries": typeof custom_agents_webhooks_internal_queries;
-  "custom_agents/webhooks/mutations": typeof custom_agents_webhooks_mutations;
-  "custom_agents/webhooks/queries": typeof custom_agents_webhooks_queries;
   "customers/bulk_create_customers": typeof customers_bulk_create_customers;
   "customers/create_customer": typeof customers_create_customer;
   "customers/create_customer_public": typeof customers_create_customer_public;
@@ -1145,9 +1115,14 @@ declare const fullApi: ApiFromModules<{
   "integrations/build_test_secrets": typeof integrations_build_test_secrets;
   "integrations/create_integration": typeof integrations_create_integration;
   "integrations/create_integration_internal": typeof integrations_create_integration_internal;
+  "integrations/credential_mutations": typeof integrations_credential_mutations;
+  "integrations/credential_queries": typeof integrations_credential_queries;
+  "integrations/credentials_schema": typeof integrations_credentials_schema;
   "integrations/decrypt_and_refresh_oauth2": typeof integrations_decrypt_and_refresh_oauth2;
   "integrations/delete_integration": typeof integrations_delete_integration;
   "integrations/encrypt_credentials": typeof integrations_encrypt_credentials;
+  "integrations/file_actions": typeof integrations_file_actions;
+  "integrations/file_utils": typeof integrations_file_utils;
   "integrations/find_related_automations": typeof integrations_find_related_automations;
   "integrations/generate_oauth2_auth_url": typeof integrations_generate_oauth2_auth_url;
   "integrations/get_decrypted_credentials": typeof integrations_get_decrypted_credentials;
@@ -1159,12 +1134,14 @@ declare const fullApi: ApiFromModules<{
   "integrations/internal_mutations": typeof integrations_internal_mutations;
   "integrations/internal_queries": typeof integrations_internal_queries;
   "integrations/list_integrations": typeof integrations_list_integrations;
+  "integrations/load_integration": typeof integrations_load_integration;
   "integrations/mutations": typeof integrations_mutations;
   "integrations/oauth2_callback": typeof integrations_oauth2_callback;
   "integrations/oauth2_token_exchange": typeof integrations_oauth2_token_exchange;
   "integrations/queries": typeof integrations_queries;
   "integrations/run_health_check": typeof integrations_run_health_check;
   "integrations/save_oauth2_client_credentials": typeof integrations_save_oauth2_client_credentials;
+  "integrations/shared_types": typeof integrations_shared_types;
   "integrations/test_connection": typeof integrations_test_connection;
   "integrations/types": typeof integrations_types;
   "integrations/update_integration": typeof integrations_update_integration;
@@ -1173,6 +1150,7 @@ declare const fullApi: ApiFromModules<{
   "integrations/utils/get_integration_type": typeof integrations_utils_get_integration_type;
   "integrations/validators": typeof integrations_validators;
   "lib/action_cache/index": typeof lib_action_cache_index;
+  "lib/age_keygen": typeof lib_age_keygen;
   "lib/agent_chat/index": typeof lib_agent_chat_index;
   "lib/agent_chat/internal_actions": typeof lib_agent_chat_internal_actions;
   "lib/agent_chat/start_agent_chat": typeof lib_agent_chat_start_agent_chat;
@@ -1186,7 +1164,6 @@ declare const fullApi: ApiFromModules<{
   "lib/agent_response/types": typeof lib_agent_response_types;
   "lib/agent_response/validators": typeof lib_agent_response_validators;
   "lib/agent_response/with_timeout": typeof lib_agent_response_with_timeout;
-  "lib/agent_runtime_config": typeof lib_agent_runtime_config;
   "lib/attachments/build_multi_modal_content": typeof lib_attachments_build_multi_modal_content;
   "lib/attachments/format_markdown": typeof lib_attachments_format_markdown;
   "lib/attachments/index": typeof lib_attachments_index;
@@ -1215,6 +1192,7 @@ declare const fullApi: ApiFromModules<{
   "lib/crypto/internal_actions": typeof lib_crypto_internal_actions;
   "lib/debug_log": typeof lib_debug_log;
   "lib/error_classification": typeof lib_error_classification;
+  "lib/file_io": typeof lib_file_io;
   "lib/fuzzy_match": typeof lib_fuzzy_match;
   "lib/get_or_throw": typeof lib_get_or_throw;
   "lib/get_user_teams": typeof lib_get_user_teams;
@@ -1226,7 +1204,6 @@ declare const fullApi: ApiFromModules<{
   "lib/helpers/status_priority": typeof lib_helpers_status_priority;
   "lib/message_deduplication": typeof lib_message_deduplication;
   "lib/metadata/get_metadata_string": typeof lib_metadata_get_metadata_string;
-  "lib/openai_provider": typeof lib_openai_provider;
   "lib/pagination/helpers": typeof lib_pagination_helpers;
   "lib/pagination/index": typeof lib_pagination_index;
   "lib/pagination/types": typeof lib_pagination_types;
@@ -1256,6 +1233,7 @@ declare const fullApi: ApiFromModules<{
   "lib/rls/wrappers/with_organization_rls": typeof lib_rls_wrappers_with_organization_rls;
   "lib/rls/wrappers/with_resource_rls": typeof lib_rls_wrappers_with_resource_rls;
   "lib/shared/schemas/utils/json_value": typeof lib_shared_schemas_utils_json_value;
+  "lib/sops": typeof lib_sops;
   "lib/summarization/auto_summarize": typeof lib_summarization_auto_summarize;
   "lib/summarization/index": typeof lib_summarization_index;
   "lib/summarization/internal_actions": typeof lib_summarization_internal_actions;
@@ -1285,6 +1263,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/backfill_workflow_schedules": typeof migrations_backfill_workflow_schedules;
   "migrations/migrate_org_creators": typeof migrations_migrate_org_creators;
   "migrations/remove_deprecated_llm_fields": typeof migrations_remove_deprecated_llm_fields;
+  "migrations/rename_org_slug": typeof migrations_rename_org_slug;
   "migrations/trigger_steps_to_start": typeof migrations_trigger_steps_to_start;
   "node_only/documents/internal_actions": typeof node_only_documents_internal_actions;
   "node_only/integration_sandbox/execute_integration_impl": typeof node_only_integration_sandbox_execute_integration_impl;
@@ -1366,6 +1345,10 @@ declare const fullApi: ApiFromModules<{
   "products/update_products": typeof products_update_products;
   "products/upsert_product_translation": typeof products_upsert_product_translation;
   "products/validators": typeof products_validators;
+  "providers/file_actions": typeof providers_file_actions;
+  "providers/file_utils": typeof providers_file_utils;
+  "providers/resolve_model": typeof providers_resolve_model;
+  "providers/validators": typeof providers_validators;
   "sso_providers/actions": typeof sso_providers_actions;
   "sso_providers/create_user_session": typeof sso_providers_create_user_session;
   "sso_providers/entra_id/adapter": typeof sso_providers_entra_id_adapter;
@@ -1462,20 +1445,11 @@ declare const fullApi: ApiFromModules<{
   "websites/types": typeof websites_types;
   "websites/update_website": typeof websites_update_website;
   "websites/validators": typeof websites_validators;
-  "wf_definitions/internal_mutations": typeof wf_definitions_internal_mutations;
-  "wf_definitions/internal_queries": typeof wf_definitions_internal_queries;
-  "wf_definitions/mutations": typeof wf_definitions_mutations;
-  "wf_definitions/queries": typeof wf_definitions_queries;
+  "wf_executions/actions": typeof wf_executions_actions;
   "wf_executions/internal_mutations": typeof wf_executions_internal_mutations;
   "wf_executions/internal_queries": typeof wf_executions_internal_queries;
   "wf_executions/mutations": typeof wf_executions_mutations;
   "wf_executions/queries": typeof wf_executions_queries;
-  "wf_step_defs/actions": typeof wf_step_defs_actions;
-  "wf_step_defs/audit": typeof wf_step_defs_audit;
-  "wf_step_defs/internal_mutations": typeof wf_step_defs_internal_mutations;
-  "wf_step_defs/internal_queries": typeof wf_step_defs_internal_queries;
-  "wf_step_defs/mutations": typeof wf_step_defs_mutations;
-  "wf_step_defs/queries": typeof wf_step_defs_queries;
   "workflow_engine/action_defs/action_registry": typeof workflow_engine_action_defs_action_registry;
   "workflow_engine/action_defs/approval/approval_action": typeof workflow_engine_action_defs_approval_approval_action;
   "workflow_engine/action_defs/approval/helpers/create_approval": typeof workflow_engine_action_defs_approval_helpers_create_approval;
@@ -1534,20 +1508,19 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/action_defs/workflow_processing_records/workflow_processing_records_action": typeof workflow_engine_action_defs_workflow_processing_records_workflow_processing_records_action;
   "workflow_engine/engine": typeof workflow_engine_engine;
   "workflow_engine/execution/dry_run_executor": typeof workflow_engine_execution_dry_run_executor;
-  "workflow_engine/helpers/data_source/database_workflow_data_source": typeof workflow_engine_helpers_data_source_database_workflow_data_source;
+  "workflow_engine/helpers/data_source/file_workflow_data_source": typeof workflow_engine_helpers_data_source_file_workflow_data_source;
   "workflow_engine/helpers/data_source/types": typeof workflow_engine_helpers_data_source_types;
   "workflow_engine/helpers/engine/build_steps_config_map": typeof workflow_engine_helpers_engine_build_steps_config_map;
   "workflow_engine/helpers/engine/build_workflow_user_profile": typeof workflow_engine_helpers_engine_build_workflow_user_profile;
   "workflow_engine/helpers/engine/cleanup_component_workflow": typeof workflow_engine_helpers_engine_cleanup_component_workflow;
   "workflow_engine/helpers/engine/dynamic_workflow_handler": typeof workflow_engine_helpers_engine_dynamic_workflow_handler;
   "workflow_engine/helpers/engine/execute_step_handler": typeof workflow_engine_helpers_engine_execute_step_handler;
-  "workflow_engine/helpers/engine/execute_workflow_start": typeof workflow_engine_helpers_engine_execute_workflow_start;
   "workflow_engine/helpers/engine/index": typeof workflow_engine_helpers_engine_index;
-  "workflow_engine/helpers/engine/load_database_workflow": typeof workflow_engine_helpers_engine_load_database_workflow;
+  "workflow_engine/helpers/engine/load_file_workflow": typeof workflow_engine_helpers_engine_load_file_workflow;
   "workflow_engine/helpers/engine/on_workflow_complete": typeof workflow_engine_helpers_engine_on_workflow_complete;
   "workflow_engine/helpers/engine/serialize_and_complete_execution_handler": typeof workflow_engine_helpers_engine_serialize_and_complete_execution_handler;
   "workflow_engine/helpers/engine/shard": typeof workflow_engine_helpers_engine_shard;
-  "workflow_engine/helpers/engine/start_workflow_handler": typeof workflow_engine_helpers_engine_start_workflow_handler;
+  "workflow_engine/helpers/engine/start_workflow_from_file": typeof workflow_engine_helpers_engine_start_workflow_from_file;
   "workflow_engine/helpers/engine/workflow_data": typeof workflow_engine_helpers_engine_workflow_data;
   "workflow_engine/helpers/formatting/stringify": typeof workflow_engine_helpers_formatting_stringify;
   "workflow_engine/helpers/graph/compute_step_order": typeof workflow_engine_helpers_graph_compute_step_order;
@@ -1627,7 +1600,6 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/helpers/validation/variables/validate": typeof workflow_engine_helpers_validation_variables_validate;
   "workflow_engine/helpers/validation/variables/validate_variable_references_known_sources": typeof workflow_engine_helpers_validation_variables_validate_variable_references_known_sources;
   "workflow_engine/helpers/variables/decrypt_inline_secrets": typeof workflow_engine_helpers_variables_decrypt_inline_secrets;
-  "workflow_engine/instructions/core_instructions": typeof workflow_engine_instructions_core_instructions;
   "workflow_engine/internal_actions": typeof workflow_engine_internal_actions;
   "workflow_engine/internal_mutations": typeof workflow_engine_internal_mutations;
   "workflow_engine/internal_queries": typeof workflow_engine_internal_queries;
@@ -1636,36 +1608,6 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/types/nodes": typeof workflow_engine_types_nodes;
   "workflow_engine/types/workflow": typeof workflow_engine_types_workflow;
   "workflow_engine/types/workflow_types": typeof workflow_engine_types_workflow_types;
-  "workflows/definitions/activate_version": typeof workflows_definitions_activate_version;
-  "workflows/definitions/create_draft_from_active": typeof workflows_definitions_create_draft_from_active;
-  "workflows/definitions/create_workflow": typeof workflows_definitions_create_workflow;
-  "workflows/definitions/create_workflow_draft": typeof workflows_definitions_create_workflow_draft;
-  "workflows/definitions/create_workflow_with_steps": typeof workflows_definitions_create_workflow_with_steps;
-  "workflows/definitions/delete_workflow": typeof workflows_definitions_delete_workflow;
-  "workflows/definitions/duplicate_workflow": typeof workflows_definitions_duplicate_workflow;
-  "workflows/definitions/get_active_version": typeof workflows_definitions_get_active_version;
-  "workflows/definitions/get_automations_cursor": typeof workflows_definitions_get_automations_cursor;
-  "workflows/definitions/get_draft": typeof workflows_definitions_get_draft;
-  "workflows/definitions/get_version_by_number": typeof workflows_definitions_get_version_by_number;
-  "workflows/definitions/get_workflow": typeof workflows_definitions_get_workflow;
-  "workflows/definitions/get_workflow_by_name": typeof workflows_definitions_get_workflow_by_name;
-  "workflows/definitions/get_workflow_with_first_step": typeof workflows_definitions_get_workflow_with_first_step;
-  "workflows/definitions/helpers": typeof workflows_definitions_helpers;
-  "workflows/definitions/list_automations": typeof workflows_definitions_list_automations;
-  "workflows/definitions/list_automations_paginated": typeof workflows_definitions_list_automations_paginated;
-  "workflows/definitions/list_versions": typeof workflows_definitions_list_versions;
-  "workflows/definitions/list_workflows": typeof workflows_definitions_list_workflows;
-  "workflows/definitions/list_workflows_with_best_version": typeof workflows_definitions_list_workflows_with_best_version;
-  "workflows/definitions/publish_draft": typeof workflows_definitions_publish_draft;
-  "workflows/definitions/republish_workflow": typeof workflows_definitions_republish_workflow;
-  "workflows/definitions/save_manual_configuration": typeof workflows_definitions_save_manual_configuration;
-  "workflows/definitions/save_workflow_with_steps": typeof workflows_definitions_save_workflow_with_steps;
-  "workflows/definitions/types": typeof workflows_definitions_types;
-  "workflows/definitions/unpublish_workflow": typeof workflows_definitions_unpublish_workflow;
-  "workflows/definitions/update_draft": typeof workflows_definitions_update_draft;
-  "workflows/definitions/update_workflow": typeof workflows_definitions_update_workflow;
-  "workflows/definitions/update_workflow_status": typeof workflows_definitions_update_workflow_status;
-  "workflows/definitions/validators": typeof workflows_definitions_validators;
   "workflows/executions/cleanup_execution_storage": typeof workflows_executions_cleanup_execution_storage;
   "workflows/executions/complete_execution": typeof workflows_executions_complete_execution;
   "workflows/executions/delete_storage_blob": typeof workflows_executions_delete_storage_blob;
@@ -1687,6 +1629,8 @@ declare const fullApi: ApiFromModules<{
   "workflows/executions/update_execution_status": typeof workflows_executions_update_execution_status;
   "workflows/executions/update_execution_variables": typeof workflows_executions_update_execution_variables;
   "workflows/executions/validators": typeof workflows_executions_validators;
+  "workflows/file_actions": typeof workflows_file_actions;
+  "workflows/file_utils": typeof workflows_file_utils;
   "workflows/helpers": typeof workflows_helpers;
   "workflows/processing_records/ast_helpers/extract_comparison": typeof workflows_processing_records_ast_helpers_extract_comparison;
   "workflows/processing_records/ast_helpers/extract_literal_value": typeof workflows_processing_records_ast_helpers_extract_literal_value;
@@ -1721,14 +1665,6 @@ declare const fullApi: ApiFromModules<{
   "workflows/processing_records/record_processed": typeof workflows_processing_records_record_processed;
   "workflows/processing_records/run_query": typeof workflows_processing_records_run_query;
   "workflows/processing_records/types": typeof workflows_processing_records_types;
-  "workflows/steps/create_step": typeof workflows_steps_create_step;
-  "workflows/steps/delete_step": typeof workflows_steps_delete_step;
-  "workflows/steps/get_ordered_steps": typeof workflows_steps_get_ordered_steps;
-  "workflows/steps/helpers": typeof workflows_steps_helpers;
-  "workflows/steps/list_workflow_steps": typeof workflows_steps_list_workflow_steps;
-  "workflows/steps/types": typeof workflows_steps_types;
-  "workflows/steps/update_step": typeof workflows_steps_update_step;
-  "workflows/steps/validators": typeof workflows_steps_validators;
   "workflows/triggers/actions": typeof workflows_triggers_actions;
   "workflows/triggers/api_http": typeof workflows_triggers_api_http;
   "workflows/triggers/emit_event": typeof workflows_triggers_emit_event;
@@ -1738,9 +1674,9 @@ declare const fullApi: ApiFromModules<{
   "workflows/triggers/http_actions": typeof workflows_triggers_http_actions;
   "workflows/triggers/internal_mutations": typeof workflows_triggers_internal_mutations;
   "workflows/triggers/internal_queries": typeof workflows_triggers_internal_queries;
-  "workflows/triggers/mutations": typeof workflows_triggers_mutations;
   "workflows/triggers/process_event": typeof workflows_triggers_process_event;
-  "workflows/triggers/queries": typeof workflows_triggers_queries;
+  "workflows/triggers/slug_mutations": typeof workflows_triggers_slug_mutations;
+  "workflows/triggers/slug_queries": typeof workflows_triggers_slug_queries;
   "workflows/validators": typeof workflows_validators;
 }>;
 
@@ -3876,6 +3812,20 @@ export declare const components: {
                     | { error: string; kind: "failed" }
                     | { kind: "canceled" };
                   startedAt: number;
+                }
+              | {
+                  args: any;
+                  argsSize: number;
+                  completedAt?: number;
+                  inProgress: boolean;
+                  kind: "sleep";
+                  name: string;
+                  runResult?:
+                    | { kind: "success"; returnValue: any }
+                    | { error: string; kind: "failed" }
+                    | { kind: "canceled" };
+                  startedAt: number;
+                  workId?: string;
                 };
             stepNumber: number;
             workflowId: string;
@@ -3955,6 +3905,20 @@ export declare const components: {
                     | { error: string; kind: "failed" }
                     | { kind: "canceled" };
                   startedAt: number;
+                }
+              | {
+                  args: any;
+                  argsSize: number;
+                  completedAt?: number;
+                  inProgress: boolean;
+                  kind: "sleep";
+                  name: string;
+                  runResult?:
+                    | { kind: "success"; returnValue: any }
+                    | { error: string; kind: "failed" }
+                    | { kind: "canceled" };
+                  startedAt: number;
+                  workId?: string;
                 };
           }>;
           workflowId: string;
@@ -4017,6 +3981,20 @@ export declare const components: {
                   | { error: string; kind: "failed" }
                   | { kind: "canceled" };
                 startedAt: number;
+              }
+            | {
+                args: any;
+                argsSize: number;
+                completedAt?: number;
+                inProgress: boolean;
+                kind: "sleep";
+                name: string;
+                runResult?:
+                  | { kind: "success"; returnValue: any }
+                  | { error: string; kind: "failed" }
+                  | { kind: "canceled" };
+                startedAt: number;
+                workId?: string;
               };
           stepNumber: number;
           workflowId: string;
@@ -4115,6 +4093,20 @@ export declare const components: {
                     | { error: string; kind: "failed" }
                     | { kind: "canceled" };
                   startedAt: number;
+                }
+              | {
+                  args: any;
+                  argsSize: number;
+                  completedAt?: number;
+                  inProgress: boolean;
+                  kind: "sleep";
+                  name: string;
+                  runResult?:
+                    | { kind: "success"; returnValue: any }
+                    | { error: string; kind: "failed" }
+                    | { kind: "canceled" };
+                  startedAt: number;
+                  workId?: string;
                 };
             stepNumber: number;
             workflowId: string;
@@ -4223,7 +4215,7 @@ export declare const components: {
             args: any;
             completedAt?: number;
             eventId?: string;
-            kind: "function" | "workflow" | "event";
+            kind: "function" | "workflow" | "event" | "sleep";
             name: string;
             nestedWorkflowId?: string;
             runResult?:
@@ -4336,6 +4328,20 @@ export declare const components: {
                     | { error: string; kind: "failed" }
                     | { kind: "canceled" };
                   startedAt: number;
+                }
+              | {
+                  args: any;
+                  argsSize: number;
+                  completedAt?: number;
+                  inProgress: boolean;
+                  kind: "sleep";
+                  name: string;
+                  runResult?:
+                    | { kind: "success"; returnValue: any }
+                    | { error: string; kind: "failed" }
+                    | { kind: "canceled" };
+                  startedAt: number;
+                  workId?: string;
                 };
             stepNumber: number;
             workflowId: string;
@@ -4415,6 +4421,20 @@ export declare const components: {
                     | { error: string; kind: "failed" }
                     | { kind: "canceled" };
                   startedAt: number;
+                }
+              | {
+                  args: any;
+                  argsSize: number;
+                  completedAt?: number;
+                  inProgress: boolean;
+                  kind: "sleep";
+                  name: string;
+                  runResult?:
+                    | { kind: "success"; returnValue: any }
+                    | { error: string; kind: "failed" }
+                    | { kind: "canceled" };
+                  startedAt: number;
+                  workId?: string;
                 };
           }>;
           workflowId: string;
@@ -4477,6 +4497,20 @@ export declare const components: {
                   | { error: string; kind: "failed" }
                   | { kind: "canceled" };
                 startedAt: number;
+              }
+            | {
+                args: any;
+                argsSize: number;
+                completedAt?: number;
+                inProgress: boolean;
+                kind: "sleep";
+                name: string;
+                runResult?:
+                  | { kind: "success"; returnValue: any }
+                  | { error: string; kind: "failed" }
+                  | { kind: "canceled" };
+                startedAt: number;
+                workId?: string;
               };
           stepNumber: number;
           workflowId: string;
@@ -4575,6 +4609,20 @@ export declare const components: {
                     | { error: string; kind: "failed" }
                     | { kind: "canceled" };
                   startedAt: number;
+                }
+              | {
+                  args: any;
+                  argsSize: number;
+                  completedAt?: number;
+                  inProgress: boolean;
+                  kind: "sleep";
+                  name: string;
+                  runResult?:
+                    | { kind: "success"; returnValue: any }
+                    | { error: string; kind: "failed" }
+                    | { kind: "canceled" };
+                  startedAt: number;
+                  workId?: string;
                 };
             stepNumber: number;
             workflowId: string;
@@ -4683,7 +4731,7 @@ export declare const components: {
             args: any;
             completedAt?: number;
             eventId?: string;
-            kind: "function" | "workflow" | "event";
+            kind: "function" | "workflow" | "event" | "sleep";
             name: string;
             nestedWorkflowId?: string;
             runResult?:
@@ -4796,6 +4844,20 @@ export declare const components: {
                     | { error: string; kind: "failed" }
                     | { kind: "canceled" };
                   startedAt: number;
+                }
+              | {
+                  args: any;
+                  argsSize: number;
+                  completedAt?: number;
+                  inProgress: boolean;
+                  kind: "sleep";
+                  name: string;
+                  runResult?:
+                    | { kind: "success"; returnValue: any }
+                    | { error: string; kind: "failed" }
+                    | { kind: "canceled" };
+                  startedAt: number;
+                  workId?: string;
                 };
             stepNumber: number;
             workflowId: string;
@@ -4875,6 +4937,20 @@ export declare const components: {
                     | { error: string; kind: "failed" }
                     | { kind: "canceled" };
                   startedAt: number;
+                }
+              | {
+                  args: any;
+                  argsSize: number;
+                  completedAt?: number;
+                  inProgress: boolean;
+                  kind: "sleep";
+                  name: string;
+                  runResult?:
+                    | { kind: "success"; returnValue: any }
+                    | { error: string; kind: "failed" }
+                    | { kind: "canceled" };
+                  startedAt: number;
+                  workId?: string;
                 };
           }>;
           workflowId: string;
@@ -4937,6 +5013,20 @@ export declare const components: {
                   | { error: string; kind: "failed" }
                   | { kind: "canceled" };
                 startedAt: number;
+              }
+            | {
+                args: any;
+                argsSize: number;
+                completedAt?: number;
+                inProgress: boolean;
+                kind: "sleep";
+                name: string;
+                runResult?:
+                  | { kind: "success"; returnValue: any }
+                  | { error: string; kind: "failed" }
+                  | { kind: "canceled" };
+                startedAt: number;
+                workId?: string;
               };
           stepNumber: number;
           workflowId: string;
@@ -5035,6 +5125,20 @@ export declare const components: {
                     | { error: string; kind: "failed" }
                     | { kind: "canceled" };
                   startedAt: number;
+                }
+              | {
+                  args: any;
+                  argsSize: number;
+                  completedAt?: number;
+                  inProgress: boolean;
+                  kind: "sleep";
+                  name: string;
+                  runResult?:
+                    | { kind: "success"; returnValue: any }
+                    | { error: string; kind: "failed" }
+                    | { kind: "canceled" };
+                  startedAt: number;
+                  workId?: string;
                 };
             stepNumber: number;
             workflowId: string;
@@ -5143,7 +5247,7 @@ export declare const components: {
             args: any;
             completedAt?: number;
             eventId?: string;
-            kind: "function" | "workflow" | "event";
+            kind: "function" | "workflow" | "event" | "sleep";
             name: string;
             nestedWorkflowId?: string;
             runResult?:
@@ -5256,6 +5360,20 @@ export declare const components: {
                     | { error: string; kind: "failed" }
                     | { kind: "canceled" };
                   startedAt: number;
+                }
+              | {
+                  args: any;
+                  argsSize: number;
+                  completedAt?: number;
+                  inProgress: boolean;
+                  kind: "sleep";
+                  name: string;
+                  runResult?:
+                    | { kind: "success"; returnValue: any }
+                    | { error: string; kind: "failed" }
+                    | { kind: "canceled" };
+                  startedAt: number;
+                  workId?: string;
                 };
             stepNumber: number;
             workflowId: string;
@@ -5335,6 +5453,20 @@ export declare const components: {
                     | { error: string; kind: "failed" }
                     | { kind: "canceled" };
                   startedAt: number;
+                }
+              | {
+                  args: any;
+                  argsSize: number;
+                  completedAt?: number;
+                  inProgress: boolean;
+                  kind: "sleep";
+                  name: string;
+                  runResult?:
+                    | { kind: "success"; returnValue: any }
+                    | { error: string; kind: "failed" }
+                    | { kind: "canceled" };
+                  startedAt: number;
+                  workId?: string;
                 };
           }>;
           workflowId: string;
@@ -5397,6 +5529,20 @@ export declare const components: {
                   | { error: string; kind: "failed" }
                   | { kind: "canceled" };
                 startedAt: number;
+              }
+            | {
+                args: any;
+                argsSize: number;
+                completedAt?: number;
+                inProgress: boolean;
+                kind: "sleep";
+                name: string;
+                runResult?:
+                  | { kind: "success"; returnValue: any }
+                  | { error: string; kind: "failed" }
+                  | { kind: "canceled" };
+                startedAt: number;
+                workId?: string;
               };
           stepNumber: number;
           workflowId: string;
@@ -5495,6 +5641,20 @@ export declare const components: {
                     | { error: string; kind: "failed" }
                     | { kind: "canceled" };
                   startedAt: number;
+                }
+              | {
+                  args: any;
+                  argsSize: number;
+                  completedAt?: number;
+                  inProgress: boolean;
+                  kind: "sleep";
+                  name: string;
+                  runResult?:
+                    | { kind: "success"; returnValue: any }
+                    | { error: string; kind: "failed" }
+                    | { kind: "canceled" };
+                  startedAt: number;
+                  workId?: string;
                 };
             stepNumber: number;
             workflowId: string;
@@ -5603,7 +5763,7 @@ export declare const components: {
             args: any;
             completedAt?: number;
             eventId?: string;
-            kind: "function" | "workflow" | "event";
+            kind: "function" | "workflow" | "event" | "sleep";
             name: string;
             nestedWorkflowId?: string;
             runResult?:

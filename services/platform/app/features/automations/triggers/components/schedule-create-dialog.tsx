@@ -7,21 +7,20 @@ import { useMemo, useEffect, useCallback, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
-import type { Id } from '@/convex/_generated/dataModel';
-
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useToast } from '@/app/hooks/use-toast';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 
 import { useGenerateCron } from '../hooks/actions';
-import { useCreateSchedule, useUpdateSchedule } from '../hooks/mutations';
+import { useCreateSchedule, useUpdateSchedule } from '../hooks/slug-mutations';
 
 interface ScheduleData {
-  _id: Id<'wfSchedules'>;
+  _id: string;
   cronExpression: string;
   timezone: string;
 }
@@ -29,8 +28,10 @@ interface ScheduleData {
 interface ScheduleCreateDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  workflowRootId: Id<'wfDefinitions'>;
+  workflowRootId: string;
   organizationId: string;
+  orgSlug: string;
+  workflowSlug: string;
   schedule?: ScheduleData | null;
 }
 
@@ -49,8 +50,10 @@ const CRON_PRESETS = [
 export function ScheduleCreateDialog({
   open,
   onOpenChange,
-  workflowRootId,
+  workflowRootId: _workflowRootId,
   organizationId,
+  orgSlug: _orgSlug,
+  workflowSlug,
   schedule,
 }: ScheduleCreateDialogProps) {
   const { t } = useT('automations');
@@ -136,7 +139,7 @@ export function ScheduleCreateDialog({
     try {
       if (isEdit && schedule) {
         await updateSchedule({
-          scheduleId: schedule._id,
+          scheduleId: toId<'wfSchedules'>(schedule._id),
           cronExpression: data.cronExpression,
           timezone: 'UTC',
         });
@@ -147,7 +150,7 @@ export function ScheduleCreateDialog({
       } else {
         await createSchedule({
           organizationId,
-          workflowRootId,
+          workflowSlug,
           cronExpression: data.cronExpression,
           timezone: 'UTC',
         });

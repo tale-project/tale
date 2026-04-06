@@ -1,7 +1,36 @@
 import { join, resolve } from 'node:path';
 
 import { convexMetricsResponse } from './convex-metrics';
+import { createConfigWatcher } from './lib/config-watcher';
 import { initTelemetry, metricsResponse } from './telemetry';
+
+// ---------------------------------------------------------------------------
+// Config file events (SSE)
+//
+// Watches TALE_CONFIG_DIR for .json changes via chokidar and pushes
+// structured events to connected frontends so they can invalidate their
+// TanStack Query caches without a full page reload.
+// ---------------------------------------------------------------------------
+
+const sseClients = new Set<ReadableStreamDefaultController>();
+
+const configDir = process.env.TALE_CONFIG_DIR;
+if (configDir) {
+  const watcher = createConfigWatcher(configDir);
+  watcher.onChange((event) => {
+    const payload = `data: ${JSON.stringify(event)}\n\n`;
+    for (const controller of sseClients) {
+      try {
+        controller.enqueue(payload);
+      } catch {
+        sseClients.delete(controller);
+      }
+    }
+  });
+  console.log(`Config file watcher active: ${configDir}`);
+}
+
+// ---------------------------------------------------------------------------
 
 function escapeHtmlAttr(value: string) {
   return value
@@ -23,6 +52,9 @@ interface EnvConfig {
 
 const port = process.env.PORT || 3000;
 const distDir = join(import.meta.dir, 'dist');
+const brandingImagesDir = process.env.TALE_CONFIG_DIR
+  ? join(process.env.TALE_CONFIG_DIR, 'branding', 'images')
+  : null;
 
 function getBasePath(): string {
   const basePath = process.env.BASE_PATH ?? '';
@@ -57,12 +89,47 @@ Bun.serve({
       return Response.json({ status: 'ok' });
     }
 
+    if (pathname === '/events/file') {
+      const stream = new ReadableStream({
+        start(controller) {
+          sseClients.add(controller);
+          controller.enqueue('data: {"type":"connected"}\n\n');
+        },
+        cancel(controller) {
+          sseClients.delete(controller);
+        },
+      });
+      return new Response(stream, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+        },
+      });
+    }
+
     if (pathname === '/metrics') {
       return metricsResponse();
     }
 
     if (pathname === '/metrics/convex') {
       return convexMetricsResponse(url.searchParams.get('format'));
+    }
+
+    if (brandingImagesDir && pathname.startsWith('/branding/images/')) {
+      const filename = pathname.slice('/branding/images/'.length);
+      if (filename && !filename.includes('/') && !filename.includes('..')) {
+        const filePath = resolve(brandingImagesDir, filename);
+        if (filePath.startsWith(brandingImagesDir)) {
+          const file = Bun.file(filePath);
+          if (await file.exists()) {
+            return new Response(file, {
+              headers: {
+                'Cache-Control': 'no-cache, must-revalidate',
+              },
+            });
+          }
+        }
+      }
     }
 
     if (pathname !== '/') {
@@ -108,5 +175,3 @@ Bun.serve({
     });
   },
 });
-
-console.log(`Server running on http://0.0.0.0:${port}`);

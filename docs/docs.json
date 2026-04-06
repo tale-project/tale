@@ -36,12 +36,17 @@
   "background": {
     "color": {
       "light": "#FFFFFF",
-      "dark": "#0C1017"
+      "dark": "#0A0A0A"
     }
   },
   "styling": {
     "eyebrows": "breadcrumbs",
-    "codeblocks": "system"
+    "codeblocks": {
+      "theme": {
+        "light": "github-light",
+        "dark": "github-dark-default"
+      }
+    }
   },
   "navigation": {
     "global": {
@@ -56,12 +61,22 @@
           "icon": "code",
           "href": "/api-reference"
         }
+      ],
+      "tabs": [
+        {
+          "tab": "Documentation",
+          "href": "/"
+        },
+        {
+          "tab": "API Reference",
+          "href": "/api-reference"
+        }
       ]
     },
     "groups": [
       {
         "group": "Getting started",
-        "pages": ["overview", "quickstart", "production-deployment"]
+        "pages": ["overview", "quickstart", "ai-assisted-development", "production-deployment"]
       },
       {
         "group": "Features",
@@ -71,7 +86,7 @@
           "conversations",
           "approvals",
           "automations",
-          "custom-agents",
+          "agents",
           "settings"
         ]
       },
@@ -117,8 +132,22 @@
         "header": "Resources",
         "items": [
           { "label": "Quick start", "href": "/quickstart" },
-          { "label": "Environment reference", "href": "/environment-reference" },
+          {
+            "label": "Environment reference",
+            "href": "/environment-reference"
+          },
           { "label": "Troubleshooting", "href": "/troubleshooting" }
+        ]
+      },
+      {
+        "header": "Legal",
+        "items": [
+          { "label": "Privacy policy", "href": "/privacy-policy" },
+          { "label": "Terms of service", "href": "/terms-of-service" },
+          {
+            "label": "Data processing agreement",
+            "href": "/data-processing-agreement"
+          }
         ]
       }
     ]

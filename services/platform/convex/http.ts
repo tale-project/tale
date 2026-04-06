@@ -1,12 +1,12 @@
 import { httpRouter } from 'convex/server';
 
 import { httpAction } from './_generated/server';
-import { apiGatewayOptions, apiGatewayRun } from './api_gateway';
-import { authComponent, createAuth } from './auth';
 import {
   agentWebhookHandler,
   agentWebhookOptionsHandler,
-} from './custom_agents/webhooks/http_actions';
+} from './agents/webhooks/http_actions';
+import { apiGatewayOptions, apiGatewayRun } from './api_gateway';
+import { authComponent, createAuth } from './auth';
 import { imageProxyHandler } from './images/http_actions';
 import { integrationOAuth2CallbackHandler } from './integrations/oauth2_callback';
 import {
@@ -149,7 +149,7 @@ http.route({
   handler: ssoSetSessionHandler,
 });
 
-// Custom Agent Webhook Routes
+// Agent Webhook Routes
 http.route({
   pathPrefix: '/api/agents/wh/',
   method: 'POST',

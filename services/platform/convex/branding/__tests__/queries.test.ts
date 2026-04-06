@@ -1,193 +1,182 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
-import type { QueryCtx } from '../../_generated/server';
+import { hexToHsl, isLightColor } from '../../../lib/utils/color';
+import {
+  mimeToExtension,
+  parseBrandingJson,
+  resolveBrandingDir,
+  resolveBrandingFilePath,
+  resolveImagePath,
+  resolveImagesDir,
+  serializeBrandingJson,
+  validateImageFilename,
+  validateImageType,
+} from '../file_utils';
 
-vi.mock('../../lib/rls', () => ({
-  validateOrganizationAccess: vi.fn(),
-  getAuthUserIdentity: vi.fn(),
-}));
+vi.stubEnv('TALE_CONFIG_DIR', '/tmp/test-data');
 
-vi.mock('../../lib/helpers/public_storage_url', () => ({
-  toPublicUrl: (url: string) => url,
-}));
-
-const { getBrandingHandler } = await import('../queries');
-const { validateOrganizationAccess } = await import('../../lib/rls');
-
-const mockedValidate = vi.mocked(validateOrganizationAccess);
-
-function createMockQueryCtx(
-  brandingDoc: Record<string, unknown> | null = null,
-) {
-  const builder = {
-    withIndex: vi.fn().mockReturnThis(),
-    first: vi.fn().mockResolvedValue(brandingDoc),
-  };
-
-  const ctx = {
-    db: {
-      query: vi.fn().mockReturnValue(builder),
-    },
-    storage: {
-      getUrl: vi
-        .fn()
-        .mockImplementation((id: string) =>
-          Promise.resolve(`https://storage.example.com/${id}`),
-        ),
-    },
-  };
-
-  return { ctx, builder };
-}
-
-describe('getBrandingHandler', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it('validates organization access', async () => {
-    const { ctx } = createMockQueryCtx();
-
-    await getBrandingHandler(ctx as unknown as QueryCtx, {
-      organizationId: 'org_1',
-    });
-
-    expect(mockedValidate).toHaveBeenCalledWith(
-      ctx,
-      'org_1',
-      undefined,
-      undefined,
-    );
-  });
-
-  it('returns null when no branding exists', async () => {
-    const { ctx } = createMockQueryCtx(null);
-
-    const result = await getBrandingHandler(ctx as unknown as QueryCtx, {
-      organizationId: 'org_1',
-    });
-
-    expect(result).toBeNull();
-  });
-
-  it('queries branding by organizationId index', async () => {
-    const { ctx, builder } = createMockQueryCtx(null);
-
-    await getBrandingHandler(ctx as unknown as QueryCtx, {
-      organizationId: 'org_1',
-    });
-
-    expect(ctx.db.query).toHaveBeenCalledWith('brandingSettings');
-    expect(builder.withIndex).toHaveBeenCalledWith(
-      'by_organizationId',
-      expect.any(Function),
-    );
-  });
-
-  it('returns branding with resolved storage URLs', async () => {
-    const { ctx } = createMockQueryCtx({
-      _id: 'branding_1',
-      organizationId: 'org_1',
-      appName: 'Acme Corp',
-      textLogo: 'Acme',
-      logoStorageId: 'storage_logo',
-      faviconLightStorageId: 'storage_fav_light',
-      faviconDarkStorageId: 'storage_fav_dark',
+describe('parseBrandingJson', () => {
+  it('parses valid branding JSON', () => {
+    const input = JSON.stringify({
+      appName: 'Acme',
+      textLogo: 'A',
       brandColor: '#FF0000',
       accentColor: '#00FF00',
-      updatedAt: 1000,
     });
 
-    const result = await getBrandingHandler(ctx as unknown as QueryCtx, {
-      organizationId: 'org_1',
-    });
+    const result = parseBrandingJson(input);
 
     expect(result).toEqual({
-      appName: 'Acme Corp',
-      textLogo: 'Acme',
-      logoUrl: 'https://storage.example.com/storage_logo',
-      faviconLightUrl: 'https://storage.example.com/storage_fav_light',
-      faviconDarkUrl: 'https://storage.example.com/storage_fav_dark',
+      appName: 'Acme',
+      textLogo: 'A',
       brandColor: '#FF0000',
       accentColor: '#00FF00',
     });
   });
 
-  it('resolves null URLs when storage IDs are missing', async () => {
-    const { ctx } = createMockQueryCtx({
-      _id: 'branding_1',
-      organizationId: 'org_1',
+  it('parses branding JSON with image filenames', () => {
+    const input = JSON.stringify({
       appName: 'Acme',
-      updatedAt: 1000,
+      logoFilename: 'logo.png',
+      faviconLightFilename: 'favicon-light.ico',
+      faviconDarkFilename: 'favicon-dark.ico',
     });
 
-    const result = await getBrandingHandler(ctx as unknown as QueryCtx, {
-      organizationId: 'org_1',
-    });
+    const result = parseBrandingJson(input);
 
-    expect(result).toEqual({
-      appName: 'Acme',
-      textLogo: undefined,
-      logoUrl: null,
-      faviconLightUrl: null,
-      faviconDarkUrl: null,
-      brandColor: undefined,
-      accentColor: undefined,
-    });
-    expect(ctx.storage.getUrl).not.toHaveBeenCalled();
+    expect(result.logoFilename).toBe('logo.png');
+    expect(result.faviconLightFilename).toBe('favicon-light.ico');
+    expect(result.faviconDarkFilename).toBe('favicon-dark.ico');
   });
 
-  it('returns partial branding when only some fields are set', async () => {
-    const { ctx } = createMockQueryCtx({
-      _id: 'branding_1',
-      organizationId: 'org_1',
-      brandColor: '#3366FF',
-      updatedAt: 1000,
-    });
-
-    const result = await getBrandingHandler(ctx as unknown as QueryCtx, {
-      organizationId: 'org_1',
-    });
-
-    expect(result).toEqual({
-      appName: undefined,
-      textLogo: undefined,
-      logoUrl: null,
-      faviconLightUrl: null,
-      faviconDarkUrl: null,
-      brandColor: '#3366FF',
-      accentColor: undefined,
-    });
+  it('parses minimal branding JSON', () => {
+    const result = parseBrandingJson('{}');
+    expect(result).toEqual({});
   });
 
-  it('returns null for URLs when storage fetch fails', async () => {
-    const { ctx } = createMockQueryCtx({
-      _id: 'branding_1',
-      organizationId: 'org_1',
+  it('throws on invalid JSON', () => {
+    expect(() => parseBrandingJson('not json')).toThrow();
+  });
+});
+
+describe('serializeBrandingJson', () => {
+  it('round-trips through parse', () => {
+    const config = {
       appName: 'Acme',
-      logoStorageId: 'storage_logo',
-      faviconLightStorageId: 'storage_fav_light',
-      faviconDarkStorageId: 'storage_fav_dark',
-      updatedAt: 1000,
-    });
+      brandColor: '#FF0000',
+    };
 
-    ctx.storage.getUrl
-      .mockResolvedValueOnce('https://storage.example.com/storage_logo')
-      .mockRejectedValueOnce(new Error('Storage unavailable'))
-      .mockResolvedValueOnce('https://storage.example.com/storage_fav_dark');
+    const serialized = serializeBrandingJson(config);
+    const parsed = parseBrandingJson(serialized);
 
-    const result = await getBrandingHandler(ctx as unknown as QueryCtx, {
-      organizationId: 'org_1',
-    });
+    expect(parsed.appName).toBe('Acme');
+    expect(parsed.brandColor).toBe('#FF0000');
+  });
+});
 
-    expect(result).toEqual({
-      appName: 'Acme',
-      textLogo: undefined,
-      logoUrl: 'https://storage.example.com/storage_logo',
-      faviconLightUrl: null,
-      faviconDarkUrl: 'https://storage.example.com/storage_fav_dark',
-      brandColor: undefined,
-      accentColor: undefined,
-    });
+describe('resolveBrandingDir', () => {
+  it('returns base dir for default org', () => {
+    expect(resolveBrandingDir('default')).toBe('/tmp/test-data/branding');
+  });
+
+  it('returns subdirectory for named org', () => {
+    expect(resolveBrandingDir('acme')).toBe('/tmp/test-data/branding/acme');
+  });
+
+  it('throws for invalid org slug', () => {
+    expect(() => resolveBrandingDir('../evil')).toThrow();
+  });
+});
+
+describe('resolveBrandingFilePath', () => {
+  it('returns branding.json path', () => {
+    expect(resolveBrandingFilePath('default')).toBe(
+      '/tmp/test-data/branding/branding.json',
+    );
+  });
+});
+
+describe('validateImageType', () => {
+  it('accepts valid image types', () => {
+    expect(validateImageType('logo')).toBe(true);
+    expect(validateImageType('favicon-light')).toBe(true);
+    expect(validateImageType('favicon-dark')).toBe(true);
+  });
+
+  it('rejects invalid types', () => {
+    expect(validateImageType('banner')).toBe(false);
+    expect(validateImageType('')).toBe(false);
+  });
+});
+
+describe('validateImageFilename', () => {
+  it('accepts valid filenames', () => {
+    expect(validateImageFilename('logo.png')).toBe(true);
+    expect(validateImageFilename('favicon-light.svg')).toBe(true);
+    expect(validateImageFilename('favicon-dark.ico')).toBe(true);
+  });
+
+  it('rejects invalid filenames', () => {
+    expect(validateImageFilename('../evil.png')).toBe(false);
+    expect(validateImageFilename('logo.exe')).toBe(false);
+    expect(validateImageFilename('LOGO.PNG')).toBe(false);
+    expect(validateImageFilename('')).toBe(false);
+  });
+});
+
+describe('mimeToExtension', () => {
+  it('maps known MIME types', () => {
+    expect(mimeToExtension('image/png')).toBe('png');
+    expect(mimeToExtension('image/svg+xml')).toBe('svg');
+    expect(mimeToExtension('image/jpeg')).toBe('jpg');
+    expect(mimeToExtension('image/webp')).toBe('webp');
+    expect(mimeToExtension('image/x-icon')).toBe('ico');
+  });
+
+  it('returns null for unknown types', () => {
+    expect(mimeToExtension('application/pdf')).toBeNull();
+    expect(mimeToExtension('text/plain')).toBeNull();
+  });
+});
+
+describe('resolveImagesDir', () => {
+  it('returns images subdirectory', () => {
+    expect(resolveImagesDir('default')).toBe('/tmp/test-data/branding/images');
+  });
+});
+
+describe('resolveImagePath', () => {
+  it('resolves valid image filename', () => {
+    expect(resolveImagePath('default', 'logo.png')).toBe(
+      '/tmp/test-data/branding/images/logo.png',
+    );
+  });
+
+  it('throws for invalid filename', () => {
+    expect(() => resolveImagePath('default', '../evil.png')).toThrow();
+  });
+});
+
+describe('hexToHsl', () => {
+  it('converts pure red', () => {
+    expect(hexToHsl('#FF0000')).toBe('0 100% 50%');
+  });
+
+  it('converts black', () => {
+    expect(hexToHsl('#000000')).toBe('0 0% 0%');
+  });
+
+  it('converts white', () => {
+    expect(hexToHsl('#FFFFFF')).toBe('0 0% 100%');
+  });
+});
+
+describe('isLightColor', () => {
+  it('white is light', () => {
+    expect(isLightColor('#FFFFFF')).toBe(true);
+  });
+
+  it('black is not light', () => {
+    expect(isLightColor('#000000')).toBe(false);
   });
 });

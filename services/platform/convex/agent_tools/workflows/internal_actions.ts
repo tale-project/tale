@@ -1,6 +1,11 @@
 import { v, type Infer } from 'convex/values';
 
 import type {
+  StepType,
+  WorkflowJsonConfig,
+  WorkflowStep,
+} from '../../../lib/shared/schemas/workflows';
+import type {
   WorkflowCreationMetadata,
   WorkflowRunMetadata,
   WorkflowUpdateMetadata,
@@ -9,7 +14,46 @@ import type {
 import { jsonValueValidator } from '../../../lib/shared/schemas/utils/json-value';
 import { internal } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
-import { toId } from '../../lib/type_cast_helpers';
+import { sanitizeWorkflowName } from './create_bound_workflow_tool';
+
+const DEFAULT_ORG_SLUG = 'default';
+
+const VALID_STEP_TYPES = new Set<StepType>([
+  'start',
+  'trigger',
+  'llm',
+  'condition',
+  'action',
+  'loop',
+  'output',
+]);
+
+function isValidStepType(value: string): value is StepType {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- runtime guard narrowing string to StepType union
+  return VALID_STEP_TYPES.has(value as StepType);
+}
+
+function applyStepPatch(
+  step: WorkflowStep,
+  updates: {
+    name?: string;
+    stepType?: string;
+    config?: Record<string, unknown>;
+    nextSteps?: Record<string, string>;
+  },
+): WorkflowStep {
+  return {
+    ...step,
+    ...(updates.name !== undefined ? { name: updates.name } : {}),
+    ...(updates.stepType !== undefined && isValidStepType(updates.stepType)
+      ? { stepType: updates.stepType }
+      : {}),
+    ...(updates.config !== undefined ? { config: updates.config } : {}),
+    ...(updates.nextSteps !== undefined
+      ? { nextSteps: updates.nextSteps }
+      : {}),
+  };
+}
 
 type JsonValue = Infer<typeof jsonValueValidator>;
 
@@ -73,12 +117,32 @@ export const executeApprovedWorkflowCreation = internalAction({
     }
 
     try {
-      const result = await ctx.runMutation(
-        internal.wf_definitions.internal_mutations.provisionWorkflowWithSteps,
+      const workflowSlug =
+        metadata.workflowSlug || sanitizeWorkflowName(metadata.workflowName);
+
+      const config: WorkflowJsonConfig = {
+        name: metadata.workflowConfig.name,
+        description: metadata.workflowConfig.description,
+        version: metadata.workflowConfig.version,
+        installed: true,
+        enabled: false,
+        config: metadata.workflowConfig.config,
+        steps: metadata.stepsConfig.map((step, index) => ({
+          stepSlug: step.stepSlug,
+          name: step.name,
+          stepType: step.stepType,
+          config: step.config,
+          nextSteps: step.nextSteps,
+          order: index,
+        })),
+      };
+
+      await ctx.runAction(
+        internal.workflows.file_actions.saveWorkflowForExecution,
         {
-          organizationId: approval.organizationId,
-          workflowConfig: metadata.workflowConfig,
-          stepsConfig: metadata.stepsConfig,
+          orgSlug: DEFAULT_ORG_SLUG,
+          workflowSlug,
+          config,
         },
       );
 
@@ -87,7 +151,7 @@ export const executeApprovedWorkflowCreation = internalAction({
           .updateWorkflowApprovalWithResult,
         {
           approvalId: args.approvalId,
-          createdWorkflowId: result.workflowId,
+          createdWorkflowSlug: workflowSlug,
           executionError: null,
         },
       );
@@ -95,19 +159,19 @@ export const executeApprovedWorkflowCreation = internalAction({
       if (approval.threadId) {
         const siteUrl = process.env.SITE_URL || '';
         const basePath = process.env.BASE_PATH || '';
-        const workflowUrl = `${siteUrl}${basePath}/automations/${result.workflowId}`;
+        const workflowUrl = `${siteUrl}${basePath}/automations/${workflowSlug}`;
         const messageContent = `[WORKFLOW_CREATED]
 The user has approved the workflow creation request.
 
 Workflow Details:
-- ID: ${result.workflowId}
+- Slug: ${workflowSlug}
 - Name: ${metadata.workflowName}
 - Steps: ${metadata.stepsConfig.length}
 - Status: draft
 - URL: ${workflowUrl}
 
 Instructions:
-- Use workflow ID "${result.workflowId}" for any subsequent read/update operations on this workflow
+- Use workflow slug "${workflowSlug}" for any subsequent read/update operations on this workflow
 - The workflow is in draft status and can be edited
 - Inform the user that the workflow has been created successfully`;
 
@@ -122,9 +186,9 @@ Instructions:
 
       return {
         success: true,
-        workflowId: result.workflowId,
-        stepCount: result.stepIds.length,
-        message: `Workflow "${metadata.workflowName}" created successfully with ${result.stepIds.length} steps.`,
+        workflowSlug,
+        stepCount: metadata.stepsConfig.length,
+        message: `Workflow "${metadata.workflowName}" created successfully with ${metadata.stepsConfig.length} steps.`,
       };
     } catch (error) {
       const errorMessage =
@@ -135,7 +199,7 @@ Instructions:
           .updateWorkflowApprovalWithResult,
         {
           approvalId: args.approvalId,
-          createdWorkflowId: null,
+          createdWorkflowSlug: null,
           executionError: errorMessage,
         },
       );
@@ -196,16 +260,18 @@ export const executeApprovedWorkflowRun = internalAction({
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- approval.metadata is v.any() but always matches WorkflowRunMetadata for workflow_run approvals
     const metadata = approval.metadata as WorkflowRunMetadata;
 
-    if (!metadata?.workflowId) {
-      throw new Error('Invalid approval metadata: missing workflow ID');
+    if (!metadata?.workflowSlug) {
+      throw new Error('Invalid approval metadata: missing workflow slug');
     }
 
     try {
-      const executionId = await ctx.runMutation(
-        internal.wf_executions.internal_mutations.startWorkflow,
+      const executionId = await ctx.runAction(
+        internal.workflow_engine.helpers.engine.start_workflow_from_file
+          .startWorkflowFromFile,
         {
           organizationId: approval.organizationId,
-          wfDefinitionId: toId<'wfDefinitions'>(metadata.workflowId),
+          orgSlug: DEFAULT_ORG_SLUG,
+          workflowSlug: metadata.workflowSlug,
           input: metadata.parameters ?? {},
           triggeredBy: 'agent_tool:run_workflow',
           triggerData: {
@@ -215,6 +281,12 @@ export const executeApprovedWorkflowRun = internalAction({
           userId: args.approvedBy,
         },
       );
+
+      if (!executionId) {
+        throw new Error(
+          `Failed to start workflow "${metadata.workflowName ?? metadata.workflowSlug}". It may be disabled or the file could not be read.`,
+        );
+      }
 
       await ctx.runMutation(
         internal.agent_tools.workflows.internal_mutations
@@ -331,43 +403,33 @@ export const executeApprovedWorkflowUpdate = internalAction({
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- approval.metadata is v.any() but always matches WorkflowUpdateMetadata for workflow_update approvals
     const metadata = approval.metadata as WorkflowUpdateMetadata;
 
-    if (!metadata?.workflowId || !metadata?.updateType) {
+    const workflowSlug = metadata.workflowSlug;
+
+    if (!workflowSlug || !metadata.updateType) {
       throw new Error(
-        'Invalid approval metadata: missing workflow ID or update type',
+        'Invalid approval metadata: missing workflow slug or update type',
       );
     }
 
-    const workflow: {
-      _id: unknown;
-      versionNumber: number;
-      name: string;
-    } | null = await ctx.runQuery(
-      internal.wf_definitions.internal_queries.resolveWorkflow,
-      {
-        wfDefinitionId: toId<'wfDefinitions'>(metadata.workflowId),
-      },
-    );
-
-    if (!workflow) {
-      throw new Error('Workflow not found — it may have been deleted');
-    }
-
-    if (workflow.versionNumber !== metadata.workflowVersionNumber) {
-      await ctx.runMutation(
-        internal.agent_tools.workflows.internal_mutations
-          .updateWorkflowUpdateApprovalWithResult,
+    // Read the current workflow file
+    const readResult: { ok: boolean; config?: WorkflowJsonConfig } =
+      await ctx.runAction(
+        internal.workflows.file_actions.readWorkflowForExecution,
         {
-          approvalId: args.approvalId,
-          executionError:
-            'Workflow was modified after this update was proposed. Please re-request the update.',
+          orgSlug: DEFAULT_ORG_SLUG,
+          workflowSlug,
         },
       );
-      throw new Error(
-        'Workflow was modified after this update was proposed. Please re-request the update.',
-      );
+
+    if (!readResult.ok || !readResult.config) {
+      throw new Error('Workflow not found — the file may have been deleted');
     }
 
+    const currentConfig = readResult.config;
+
     try {
+      let updatedConfig: WorkflowJsonConfig;
+
       if (metadata.updateType === 'full_save') {
         if (!metadata.workflowConfig || !metadata.stepsConfig) {
           throw new Error(
@@ -375,40 +437,47 @@ export const executeApprovedWorkflowUpdate = internalAction({
           );
         }
 
-        await ctx.runMutation(
-          internal.wf_definitions.internal_mutations.saveWorkflowWithSteps,
-          {
-            organizationId: approval.organizationId,
-            workflowId: toId<'wfDefinitions'>(metadata.workflowId),
-            workflowConfig: {
-              description: metadata.workflowConfig.description,
-              version: metadata.workflowConfig.version,
-              workflowType: metadata.workflowConfig.workflowType,
-              config: metadata.workflowConfig.config,
-            },
-            stepsConfig: metadata.stepsConfig,
-          },
-        );
+        updatedConfig = {
+          ...currentConfig,
+          name: metadata.workflowConfig.name ?? currentConfig.name,
+          description:
+            metadata.workflowConfig.description ?? currentConfig.description,
+          version: metadata.workflowConfig.version ?? currentConfig.version,
+          config: metadata.workflowConfig.config ?? currentConfig.config,
+          steps: metadata.stepsConfig.map((step, index) => ({
+            stepSlug: step.stepSlug,
+            name: step.name,
+            stepType: step.stepType,
+            config: step.config,
+            nextSteps: step.nextSteps,
+            order: index,
+          })),
+        };
       } else if (metadata.updateType === 'step_patch') {
-        if (!metadata.stepRecordId || !metadata.stepUpdates) {
+        if (!metadata.stepSlug || !metadata.stepUpdates) {
           throw new Error(
-            'Invalid approval metadata: missing step record ID or updates for step patch',
+            'Invalid approval metadata: missing step slug or updates for step patch',
           );
         }
 
-        const result = await ctx.runMutation(
-          internal.wf_step_defs.internal_mutations.patchStep,
-          {
-            stepRecordId: toId<'wfStepDefs'>(metadata.stepRecordId),
-            updates: metadata.stepUpdates,
-          },
+        const stepSlug = metadata.stepSlug;
+        const stepIndex = currentConfig.steps.findIndex(
+          (s) => s.stepSlug === stepSlug,
         );
 
-        if (!result) {
+        if (stepIndex === -1) {
           throw new Error(
-            `Step "${metadata.stepName ?? metadata.stepRecordId}" not found — it may have been deleted`,
+            `Step "${metadata.stepName ?? stepSlug}" not found — it may have been deleted`,
           );
         }
+
+        const updatedSteps = [...currentConfig.steps];
+        updatedSteps[stepIndex] = applyStepPatch(
+          updatedSteps[stepIndex],
+          metadata.stepUpdates,
+        );
+
+        updatedConfig = { ...currentConfig, steps: updatedSteps };
       } else if (metadata.updateType === 'multi_step_patch') {
         if (!metadata.steps || metadata.steps.length === 0) {
           throw new Error(
@@ -416,28 +485,45 @@ export const executeApprovedWorkflowUpdate = internalAction({
           );
         }
 
-        const results = await ctx.runMutation(
-          internal.wf_step_defs.internal_mutations.batchPatchSteps,
-          {
-            stepPatches: metadata.steps.map((s) => ({
-              stepRecordId: toId<'wfStepDefs'>(s.stepRecordId),
-              updates: s.stepUpdates,
-            })),
-          },
-        );
+        const updatedSteps = [...currentConfig.steps];
+        const missingSteps: string[] = [];
 
-        if (results.some((r) => r === null)) {
-          const missing = metadata.steps
-            .filter((_, i) => results[i] === null)
-            .map((s) => `"${s.stepName}"`)
-            .join(', ');
-          throw new Error(
-            `Steps ${missing} not found — they may have been deleted`,
+        for (const patch of metadata.steps) {
+          const stepSlug = patch.stepSlug;
+          const stepIndex = updatedSteps.findIndex(
+            (s) => s.stepSlug === stepSlug,
+          );
+
+          if (stepIndex === -1) {
+            missingSteps.push(`"${patch.stepName}"`);
+            continue;
+          }
+
+          updatedSteps[stepIndex] = applyStepPatch(
+            updatedSteps[stepIndex],
+            patch.stepUpdates,
           );
         }
+
+        if (missingSteps.length > 0) {
+          throw new Error(
+            `Steps ${missingSteps.join(', ')} not found — they may have been deleted`,
+          );
+        }
+
+        updatedConfig = { ...currentConfig, steps: updatedSteps };
       } else {
         throw new Error(`Unknown update type: ${String(metadata.updateType)}`);
       }
+
+      await ctx.runAction(
+        internal.workflows.file_actions.saveWorkflowForExecution,
+        {
+          orgSlug: DEFAULT_ORG_SLUG,
+          workflowSlug,
+          config: updatedConfig,
+        },
+      );
 
       await ctx.runMutation(
         internal.agent_tools.workflows.internal_mutations
@@ -452,7 +538,7 @@ export const executeApprovedWorkflowUpdate = internalAction({
         try {
           const siteUrl = process.env.SITE_URL || '';
           const basePath = process.env.BASE_PATH || '';
-          const workflowUrl = `${siteUrl}${basePath}/automations/${metadata.workflowId}`;
+          const workflowUrl = `${siteUrl}${basePath}/automations/${workflowSlug}`;
           const updateDetail =
             metadata.updateType === 'full_save'
               ? `All steps replaced (${metadata.stepsConfig?.length ?? 0} steps)`
@@ -464,14 +550,14 @@ export const executeApprovedWorkflowUpdate = internalAction({
 The user has approved the workflow update request.
 
 Update Details:
-- Workflow ID: ${metadata.workflowId}
+- Workflow Slug: ${workflowSlug}
 - Workflow: ${metadata.workflowName}
 - Change: ${updateDetail}
 - Summary: ${metadata.updateSummary}
 - URL: ${workflowUrl}
 
 Instructions:
-- Use workflow ID "${metadata.workflowId}" for any subsequent operations on this workflow
+- Use workflow slug "${workflowSlug}" for any subsequent operations on this workflow
 - Inform the user that the workflow has been updated successfully`;
 
           await ctx.runMutation(
@@ -491,7 +577,7 @@ Instructions:
 
       return {
         success: true,
-        workflowId: metadata.workflowId,
+        workflowSlug,
         message: `Workflow "${metadata.workflowName}" updated successfully. ${metadata.updateSummary}`,
       };
     } catch (error) {

@@ -15,6 +15,7 @@ WORKDIR /app
 # - fonts-noto-core: Latin (English, German, French, Spanish, etc.) and Cyrillic (Russian)
 # - fonts-noto-color-emoji: Emoji support
 # - fonts-dejavu-core: Fallback fonts with broad Unicode coverage
+ARG SOPS_VERSION=3.9.4
 RUN apt-get update && apt-get install -y \
     tini \
     curl \
@@ -45,7 +46,8 @@ RUN apt-get update && apt-get install -y \
     libxrandr2 \
     xdg-utils \
     && rm -rf /var/lib/apt/lists/* \
-    && fc-cache -fv
+    && fc-cache -fv \
+    && curl -fsSL "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.$(dpkg --print-architecture)" -o /usr/local/bin/sops && chmod +x /usr/local/bin/sops
 
 # Install uv for faster package management
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
@@ -89,7 +91,8 @@ ENV TALE_VERSION=${VERSION} \
     CRAWLER_CRAWL_BATCH_SIZE=5 \
     CRAWLER_CRAWL_COUNT_BEFORE_RESTART=25 \
     CRAWLER_DB_POOL_MAX_SIZE=10 \
-    DO_NOT_TRACK=1
+    DO_NOT_TRACK=1 \
+    TALE_PLATFORM_SHARED_CONFIG_DIR=/app/platform-config
 
 # Expose port
 EXPOSE 8002

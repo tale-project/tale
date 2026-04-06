@@ -1,6 +1,6 @@
 {
-  "name": "discord",
   "title": "Discord",
+  "installed": false,
   "description": "Discord Bot API integration for guilds, channels, and messages",
   "version": 1,
   "authMethod": "bearer_token",

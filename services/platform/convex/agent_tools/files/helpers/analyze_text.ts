@@ -5,13 +5,14 @@
  * Uses Agent framework with saveMessages: 'none' to avoid creating visible thread messages.
  */
 
+import type { LanguageModelV3 } from '@ai-sdk/provider';
+
 import { Agent } from '@convex-dev/agent';
 
 import type { ActionCtx } from '../../../_generated/server';
 
 import { components } from '../../../_generated/api';
 import { createDebugLog } from '../../../lib/debug_log';
-import { openai } from '../../../lib/openai_provider';
 import { toId } from '../../../lib/type_cast_helpers';
 
 const debugLog = createDebugLog('DEBUG_TEXT_ANALYSIS', '[TextAnalysis]');
@@ -63,6 +64,7 @@ export interface AnalyzeTextParams {
   filename: string;
   userInput: string;
   model: string;
+  languageModel: LanguageModelV3;
 }
 
 export interface AnalyzeTextUsage {
@@ -155,12 +157,12 @@ Guidelines:
 - If the text doesn't contain relevant information, say so clearly
 - For large texts processed in chunks, focus on the most relevant parts`;
 
-function createTextAnalysisAgent(model: string): Agent {
+function createTextAnalysisAgent(languageModel: LanguageModelV3): Agent {
   const instructions = `${TEXT_ANALYSIS_INSTRUCTIONS}\n\nIf you use any tools, you must always conclude by producing a final assistant message with the answer.`;
 
   return new Agent(components.agent, {
     name: 'text-analyzer',
-    languageModel: openai.chatModel(model),
+    languageModel,
     instructions,
   });
 }
@@ -344,7 +346,7 @@ export async function analyzeTextContent(
 
     debugLog('analyzeTextContent decoded', { charCount, lineCount, encoding });
 
-    const agent = createTextAnalysisAgent(model);
+    const agent = createTextAnalysisAgent(params.languageModel);
 
     // For smaller content, process in one pass
     if (charCount <= LLM_CHUNK_SIZE) {

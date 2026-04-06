@@ -69,16 +69,18 @@ export interface StartAgentChatArgs {
   agentConfig: SerializableAgentConfig;
   /** Model to use for generation */
   model: string;
-  /** Model provider (e.g., 'openai') */
-  provider: string;
+  /** Model provider name (e.g., 'openrouter'). Omit to search all providers. */
+  provider?: string;
   /** Debug tag for logging */
   debugTag: string;
   /** Enable streaming response */
   enableStreaming: boolean;
   /** Optional hooks configuration (FunctionHandles) */
   hooks?: AgentHooksConfig;
-  /** Root version ID of the custom agent, persisted on thread metadata */
-  customAgentId?: Id<'customAgents'>;
+  /** Agent slug (file name without extension), persisted on thread metadata */
+  agentSlug?: string;
+  /** @deprecated Use agentSlug instead */
+  agentId?: Id<'agentBindings'>;
 }
 
 export interface StartAgentChatResult {
@@ -138,7 +140,8 @@ export async function startAgentChat(
       generationStartTime: Date.now(),
       cancelledAt: undefined,
       cancelledMessageId: undefined,
-      ...(args.customAgentId ? { customAgentId: args.customAgentId } : {}),
+      ...(args.agentSlug ? { agentSlug: args.agentSlug } : {}),
+      ...(args.agentId ? { agentId: args.agentId } : {}),
     });
   }
 
@@ -223,6 +226,7 @@ export async function startAgentChat(
       threadId,
       organizationId,
       userId: thread?.userId,
+      agentSlug: args.agentSlug,
       promptMessage: messageContent,
       attachments: actionAttachments,
       streamId: streamId || undefined,

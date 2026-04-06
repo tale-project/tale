@@ -22,7 +22,9 @@
  *    - Cursor stays visible while waiting for next chunk
  *    - Resumes at the same rate when text arrives
  *
- * 4. STREAM ENDS: Drains remaining buffer at the same constant rate
+ * 4. STREAM ENDS: Drains remaining buffer at 3× the streaming CPS
+ *    - Fast enough to clear the backlog, slow enough to stay readable
+ *    - Reduced motion: reveals immediately (no animation)
  *
  * USAGE:
  * ------
@@ -32,9 +34,15 @@
  * });
  */
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
 import { usePrefersReducedMotion } from '@/app/hooks/use-prefers-reduced-motion';
+
+import {
+  findSyntaxSkipEnd,
+  isAmbiguousPartialLine,
+  isAtTrailingEmptyMarker,
+} from '../utils/line-buffer';
 
 // ============================================================================
 // CONFIGURATION
@@ -46,7 +54,7 @@ const DEFAULT_CONFIG = {
   /** Characters to buffer before starting reveal */
   initialBufferChars: 30,
   /** Interval between React state updates (ms) */
-  stateUpdateInterval: 50,
+  stateUpdateInterval: 30,
   /** Maximum delta time (ms) to prevent jumps after tab switching */
   maxDeltaTime: 100,
 };
@@ -69,8 +77,6 @@ interface UseStreamBufferOptions {
 interface UseStreamBufferResult {
   /** Current number of characters to display */
   displayLength: number;
-  /** Safe position for markdown anchor (at a block boundary) */
-  anchorPosition: number;
   /** Progress from 0 to 1 */
   progress: number;
   /** Whether animation is currently active */
@@ -226,94 +232,6 @@ function findNextWordBoundary(text: string, startPos: number): number {
   return startPos;
 }
 
-/** Regex matching a fenced code block delimiter at line start (CommonMark). */
-const LINE_START_FENCE_RE = /^`{3,}/gm;
-
-/**
- * Find the position of the last line-start fence in `text`.
- * Returns -1 if none found.
- */
-function lastLineStartFence(text: string): number {
-  let last = -1;
-  LINE_START_FENCE_RE.lastIndex = 0;
-  let m;
-  while ((m = LINE_START_FENCE_RE.exec(text)) !== null) {
-    last = m.index;
-  }
-  return last;
-}
-
-/**
- * Find the last line-start fence followed by `\n` in `text`.
- * This detects closing fences and bare opening fences (no language tag).
- * Returns `{ pos, endPos }` where endPos is after the `\n`, or null if none.
- */
-function lastLineStartFenceWithNewline(
-  text: string,
-): { pos: number; endPos: number } | null {
-  let result: { pos: number; endPos: number } | null = null;
-  LINE_START_FENCE_RE.lastIndex = 0;
-  let m;
-  while ((m = LINE_START_FENCE_RE.exec(text)) !== null) {
-    const afterMatch = m.index + m[0].length;
-    if (afterMatch < text.length && text[afterMatch] === '\n') {
-      result = { pos: m.index, endPos: afterMatch + 1 };
-    }
-  }
-  return result;
-}
-
-export function findSafeAnchor(text: string, currentPos: number): number {
-  if (currentPos <= 0) return 0;
-
-  const searchStart = Math.max(0, currentPos - 200);
-  const searchText = text.slice(searchStart, currentPos);
-
-  const lastParagraph = searchText.lastIndexOf('\n\n');
-  const fenceMatch = lastLineStartFenceWithNewline(searchText);
-  const lastCodeBlockEndPos = fenceMatch ? fenceMatch.pos : -1;
-  const bestBoundary = Math.max(lastParagraph, lastCodeBlockEndPos);
-
-  if (bestBoundary !== -1) {
-    const absolutePos =
-      lastCodeBlockEndPos > lastParagraph && fenceMatch
-        ? searchStart + fenceMatch.endPos
-        : searchStart + bestBoundary + 2;
-
-    const textUpToAnchor = text.slice(0, absolutePos);
-    const codeBlockCount = (textUpToAnchor.match(LINE_START_FENCE_RE) || [])
-      .length;
-
-    if (codeBlockCount % 2 !== 0) {
-      // Inside a code block. The last fence is the opening fence (fences
-      // alternate open/close; odd count means the last one opened).
-      // Anchor at the paragraph break before it so everything above
-      // the code block stays in the memoized StableMarkdown.
-      const lastFence = lastLineStartFence(textUpToAnchor);
-      if (lastFence <= 0) return 0;
-      const breakBefore = text.lastIndexOf('\n\n', lastFence);
-      if (breakBefore === -1) return 0;
-      return breakBefore + 2;
-    }
-
-    // Inside an unclosed <details>? Don't split the element across
-    // StableMarkdown and StreamingMarkdown — fall back to before it.
-    const detailsOpens = (textUpToAnchor.match(/<details[\s>]/g) || []).length;
-    const detailsCloses = (textUpToAnchor.match(/<\/details>/g) || []).length;
-    if (detailsOpens > detailsCloses) {
-      const lastDetailsOpen = textUpToAnchor.lastIndexOf('<details');
-      if (lastDetailsOpen <= 0) return 0;
-      const breakBefore = text.lastIndexOf('\n\n', lastDetailsOpen);
-      if (breakBefore === -1) return 0;
-      return breakBefore + 2;
-    }
-
-    return absolutePos;
-  }
-
-  return 0;
-}
-
 // ============================================================================
 // MAIN HOOK
 // ============================================================================
@@ -346,6 +264,10 @@ export function useStreamBuffer({
   // Adaptive-rate specific refs
   const hasStartedRevealRef = useRef(false);
   const wasStreamingRef = useRef(false);
+
+  // Post-stream drain: when non-zero, overrides targetCPS to finish
+  // the remaining buffer in 1.5–3.5 seconds instead of dumping it all at once.
+  const drainCPSRef = useRef(0);
 
   // Freeze state: when true, animation stops advancing displayLength.
   // Set by freeze(), cleared when a new streaming session begins.
@@ -407,9 +329,12 @@ export function useStreamBuffer({
           animationFrameRef.current = requestAnimationFrame(animate);
           return;
         }
-        // Stream ended and buffer fully drained — done
+        // Stream ended and buffer fully drained — done.
+        // Keep wasStreamingRef true so that if new text arrives (late Convex
+        // chunks), the effect's drain branch handles it instead of the
+        // "show immediately" branch which would flash all content at once.
         setIsTyping(false);
-        wasStreamingRef.current = false;
+        drainCPSRef.current = 0;
         animationFrameRef.current = null;
         return;
       }
@@ -423,7 +348,10 @@ export function useStreamBuffer({
       const normalizedDelta = Math.min(deltaTime, DEFAULT_CONFIG.maxDeltaTime);
       const frameRatio = normalizedDelta / 16.67;
 
-      const charsPerFrame = targetCPS / 60;
+      const safeCPS = Math.max(1, targetCPS);
+      const effectiveCPS =
+        drainCPSRef.current > 0 && !streaming ? drainCPSRef.current : safeCPS;
+      const charsPerFrame = effectiveCPS / 60;
 
       accumulatedCharsRef.current += charsPerFrame * frameRatio;
 
@@ -432,10 +360,40 @@ export function useStreamBuffer({
         accumulatedCharsRef.current -= charsToAdd;
         let newDisplayed = Math.min(currentDisplayed + charsToAdd, textLength);
 
+        // Avoid splitting surrogate pairs — emoji and other supplementary
+        // characters use two UTF-16 code units. Slicing between them produces
+        // an invalid string that causes react-markdown to misparse.
+        if (newDisplayed < textLength && newDisplayed > 0) {
+          const code = targetText.charCodeAt(newDisplayed - 1);
+          if (code >= 0xd800 && code <= 0xdbff) {
+            // Last char is a high surrogate — advance past the low surrogate
+            newDisplayed = Math.min(newDisplayed + 1, textLength);
+          }
+        }
+
         // Snap to next word boundary
         const nextBoundary = findNextWordBoundary(targetText, newDisplayed);
         if (nextBoundary <= textLength && nextBoundary - newDisplayed <= 3) {
           newDisplayed = nextBoundary;
+        }
+
+        // Skip past complete link/image/checkbox syntax so these elements
+        // appear atomically instead of flickering from plain text to styled.
+        const syntaxEnd = findSyntaxSkipEnd(targetText, newDisplayed);
+        if (syntaxEnd > newDisplayed) {
+          newDisplayed = Math.min(syntaxEnd, textLength);
+        }
+
+        // Line buffering: hold at current position for ambiguous line starts
+        // or trailing empty formatting markers (**, *, ~~).
+        // Re-credit only the debited chars (not word-boundary snap's free chars)
+        // so the accumulator stays bounded and releases as a small burst.
+        if (
+          isAmbiguousPartialLine(targetText, newDisplayed, streaming) ||
+          isAtTrailingEmptyMarker(targetText, newDisplayed, streaming)
+        ) {
+          accumulatedCharsRef.current += charsToAdd;
+          newDisplayed = currentDisplayed;
         }
 
         if (newDisplayed !== displayedLengthRef.current) {
@@ -473,7 +431,13 @@ export function useStreamBuffer({
 
       if (!wasVisible && isVisibleRef.current) {
         const hiddenDuration = performance.now() - hiddenTimeRef.current;
-        const catchUpChars = Math.floor((hiddenDuration / 1000) * targetCPS);
+        const effectiveCatchUpCPS =
+          drainCPSRef.current > 0 && !isStreamingRef.current
+            ? drainCPSRef.current
+            : Math.max(1, targetCPS);
+        const catchUpChars = Math.floor(
+          (hiddenDuration / 1000) * effectiveCatchUpCPS,
+        );
 
         if (
           catchUpChars > 0 &&
@@ -546,6 +510,7 @@ export function useStreamBuffer({
           hasStartedRevealRef.current = false;
         }
         accumulatedCharsRef.current = 0;
+        drainCPSRef.current = 0;
       }
 
       if (!animationFrameRef.current && !frozenRef.current && !globalFrozen) {
@@ -558,23 +523,35 @@ export function useStreamBuffer({
       !globalFrozen &&
       displayedLengthRef.current < text.length
     ) {
-      // Stream ended — reveal all remaining content immediately
-      wasStreamingRef.current = false;
-      hasStartedRevealRef.current = false;
-      displayedLengthRef.current = text.length;
-      accumulatedCharsRef.current = 0;
-      setDisplayLength(text.length);
-      setIsTyping(false);
+      if (prefersReducedMotion) {
+        // Reduced motion: reveal immediately (no animation)
+        wasStreamingRef.current = false;
+        hasStartedRevealRef.current = false;
+        drainCPSRef.current = 0;
+        displayedLengthRef.current = text.length;
+        accumulatedCharsRef.current = 0;
+        setDisplayLength(text.length);
+        setIsTyping(false);
+      } else {
+        // Stream ended — drain remaining buffer at a moderately faster rate.
+        // Cap at 3× the streaming CPS so the speed-up is noticeable but not jarring.
+        drainCPSRef.current = Math.max(1, targetCPS) * 3;
+        if (!animationFrameRef.current) {
+          lastFrameTimeRef.current = 0;
+          animationFrameRef.current = requestAnimationFrame(animate);
+        }
+      }
     } else if (!frozenRef.current && !globalFrozen) {
       // Never was streaming or fully caught up — show immediately
       wasStreamingRef.current = false;
       hasStartedRevealRef.current = false;
+      drainCPSRef.current = 0;
       displayedLengthRef.current = text.length;
       accumulatedCharsRef.current = 0;
       setDisplayLength(text.length);
       setIsTyping(false);
     }
-  }, [text, isStreaming, animate, instanceId]);
+  }, [text, isStreaming, animate, instanceId, prefersReducedMotion, targetCPS]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -600,42 +577,6 @@ export function useStreamBuffer({
     };
   }, []);
 
-  // Monotonically advancing anchor — prevents regression when findSafeAnchor
-  // returns 0 inside long sections without \n\n boundaries (e.g., tables,
-  // long code blocks). Without this, the anchor oscillates between 0 and
-  // the correct position, causing StableMarkdown to unmount/remount the
-  // entire DOM tree on every frame.
-  const anchorRef = useRef(0);
-  // Latches true when drain begins; stays true for the rest of the message
-  // lifecycle. Reset only when streaming resumes or displayLength resets.
-  const anchorFrozenRef = useRef(false);
-
-  if (displayLength === 0) {
-    anchorRef.current = 0;
-    anchorFrozenRef.current = false;
-  }
-
-  if (isStreaming) {
-    anchorFrozenRef.current = false;
-  } else if (wasStreamingRef.current) {
-    anchorFrozenRef.current = true;
-  }
-
-  const rawAnchor = useMemo(
-    () => findSafeAnchor(text, displayLength),
-    [text, displayLength],
-  );
-
-  // Freeze anchor during and after drain to prevent StableMarkdown re-parse
-  // layout shifts. Each advance changes stableContent → full markdown re-parse
-  // → potential DOM restructuring and height oscillation during typewriter drain.
-  // See: incremental-markdown.tsx comment at line 324.
-  if (rawAnchor > anchorRef.current && !anchorFrozenRef.current) {
-    anchorRef.current = rawAnchor;
-  }
-
-  const anchorPosition = anchorRef.current;
-
   const progress = text.length > 0 ? displayLength / text.length : 1;
   const bufferSize = text.length - displayLength;
 
@@ -643,21 +584,17 @@ export function useStreamBuffer({
   // After calling freeze(), displayLength will not advance even as more text arrives.
   // The freeze is automatically cleared when the next streaming session begins.
   const freeze = useCallback(() => {
-    frozenRef.current = true;
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
+    freezeActiveStream();
     setIsTyping(false);
   }, []);
 
   return {
     displayLength,
-    anchorPosition,
     progress,
     isTyping,
     bufferSize,
-    isDraining: wasStreamingRef.current && !isStreaming,
+    isDraining:
+      wasStreamingRef.current && !isStreaming && displayLength < text.length,
     freeze,
   };
 }

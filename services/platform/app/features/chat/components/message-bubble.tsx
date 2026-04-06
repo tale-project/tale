@@ -4,9 +4,9 @@ import {
   CopyIcon,
   CheckIcon,
   Info,
-  Square,
   TriangleAlert,
   RotateCcw,
+  Square,
 } from 'lucide-react';
 import {
   ComponentPropsWithoutRef,
@@ -246,9 +246,11 @@ function MessageBubbleComponent({
                     {tChat('errorGenerating')}
                   </span>
                 </div>
-                <p className="text-muted-foreground text-[13px]">
-                  {tChat('errorGeneratingDescription')}
-                </p>
+                {message.error && (
+                  <p className="text-muted-foreground text-[13px] break-all whitespace-pre-wrap">
+                    {message.error}
+                  </p>
+                )}
                 {onRetry && (
                   <Button
                     variant="secondary"
@@ -264,12 +266,40 @@ function MessageBubbleComponent({
             )}
           </div>
         ) : (
-          message.isAborted && (
+          message.isAborted &&
+          (message.error ? (
+            <div
+              className="mt-3 flex flex-col gap-2"
+              role="alert"
+              aria-live="polite"
+            >
+              <div className="text-destructive flex items-center gap-2">
+                <TriangleAlert className="size-4 shrink-0" />
+                <span className="text-sm font-medium">
+                  {tChat('errorGenerating')}
+                </span>
+              </div>
+              <p className="text-muted-foreground text-[13px] break-all whitespace-pre-wrap">
+                {message.error}
+              </p>
+              {onRetry && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="text-foreground w-fit gap-1.5 rounded-lg border-[#E5E7EB] bg-transparent px-3 py-1.5 text-[13px] font-medium"
+                  onClick={onRetry}
+                >
+                  <RotateCcw className="size-3.5" />
+                  {tChat('retryGeneration')}
+                </Button>
+              )}
+            </div>
+          ) : (
             <div className="text-muted-foreground flex items-center gap-1.5 text-sm italic">
               <Square className="size-3" />
               {tChat('generationStopped')}
             </div>
-          )
+          ))
         )}
 
         {message.fileParts && message.fileParts.length > 0 && (

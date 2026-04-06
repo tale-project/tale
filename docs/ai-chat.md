@@ -45,10 +45,10 @@ The default chat agent can handle:
 
 | Tool category | What you can ask |
 | --- | --- |
-| Customer lookup | Find customers by email, ID, status, locale, or custom metadata fields |
-| Product catalog | Browse products by category, search by name or ID, check stock and pricing |
-| Vendor information | Look up vendor details and contact information |
-| Knowledge base search | Ask questions that are answered by your uploaded documents and crawled websites |
+| Knowledge base search | Ask questions answered by your uploaded documents and crawled websites |
+| Web search | Search the internet for current information |
+| Document handling | Parse and analyze PDF, Word, PowerPoint, Excel, and text files |
+| Image analysis | Describe, analyze, or extract information from images |
 
 ## Keyboard shortcuts
 

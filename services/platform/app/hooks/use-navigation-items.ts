@@ -11,7 +11,10 @@ export interface NavItem {
   to: string;
   params: Record<string, string>;
   href: string;
-  icon?: React.ComponentType<{ className?: string }>;
+  icon?: React.ComponentType<{
+    className?: string;
+    style?: React.CSSProperties;
+  }>;
   external?: boolean;
   /** CASL ability check required to show this item. When absent, always visible. */
   can?: [AppAction, AppSubject];
@@ -104,12 +107,12 @@ export function useNavigationItems(businessId: string): NavItem[] {
         ],
       },
       {
-        label: tNav('customAgents'),
-        to: '/dashboard/$id/custom-agents',
+        label: tNav('agents'),
+        to: '/dashboard/$id/agents',
         params: { id: businessId },
-        href: `/dashboard/${businessId}/custom-agents`,
+        href: `/dashboard/${businessId}/agents`,
         icon: Bot,
-        can: ['write', 'customAgents'],
+        can: ['write', 'agents'],
       },
       {
         label: tNav('automations'),

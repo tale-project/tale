@@ -46,7 +46,6 @@ env_normalize_common() {
 	  # They can be overridden via environment variables in .env when needed.
 	  export RAG_URL="${RAG_URL:-http://rag:8001}"
 	  export CRAWLER_URL="${CRAWLER_URL:-http://crawler:8002}"
-	  export OPERATOR_URL="${OPERATOR_URL:-http://operator:8004}"
 	  export SEARCH_SERVICE_URL="${SEARCH_SERVICE_URL:-http://search:8080}"
 
 	  # Convex instance configuration
@@ -55,8 +54,11 @@ env_normalize_common() {
 	  export INSTANCE_NAME="tale_platform"
 	  export INSTANCE_SECRET="${INSTANCE_SECRET}"
 
-  # AI provider keys
-  export OPENAI_API_KEY="${OPENAI_API_KEY}"
+  # Filesystem directories for file-based configs
+  export TALE_CONFIG_DIR="${TALE_CONFIG_DIR:-/app/data}"
+  export AGENTS_DIR="${AGENTS_DIR:-${TALE_CONFIG_DIR}/agents}"
+  export WORKFLOWS_DIR="${WORKFLOWS_DIR:-${TALE_CONFIG_DIR}/workflows}"
+  export INTEGRATIONS_DIR="${INTEGRATIONS_DIR:-${TALE_CONFIG_DIR}/integrations}"
 
   # Site URL - the canonical base URL for the platform (required)
   # All other URLs (Convex HTTP API, WebSocket API, etc.) are derived from this in code

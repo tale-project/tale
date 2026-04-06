@@ -64,9 +64,7 @@ class TestProcessPagesWithLlmCache:
 
         llm_cache.clear()
 
-        mock_settings.get_openai_api_key.return_value = "test-key"
-        mock_settings.get_openai_base_url.return_value = "http://test"
-        mock_settings.get_fast_model.return_value = "test-model"
+        mock_settings.get_chat_config.return_value = ("http://test", "test-key", "test-model")
 
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]

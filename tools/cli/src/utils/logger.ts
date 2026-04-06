@@ -46,6 +46,11 @@ export function notice(message: string) {
   );
 }
 
+export function containerLog(service: string, line: string) {
+  const truncated = line.length > 200 ? `${line.slice(0, 200)}...` : line;
+  console.log(`  ${DIM}[${service}]${RESET} ${DIM}${truncated}${RESET}`);
+}
+
 export function debug(message: string) {
   if (process.env.DEBUG) {
     console.log(`${DIM}[${timestamp()}] DEBUG ${message}${RESET}`);

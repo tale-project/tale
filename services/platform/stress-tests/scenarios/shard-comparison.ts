@@ -44,7 +44,7 @@ interface PhaseResult {
 async function runPhase(
   client: ConvexHttpClient,
   organizationId: string,
-  definitionIds: string[],
+  workflowSlugs: string[],
   label: string,
 ): Promise<PhaseResult> {
   const metrics = new MetricsCollector();
@@ -54,9 +54,9 @@ async function runPhase(
 
   console.log(`\n${'─'.repeat(50)}`);
   console.log(`Phase: ${label}`);
-  console.log(`Definitions: ${definitionIds.length} unique`);
+  console.log(`Definitions: ${workflowSlugs.length} unique`);
 
-  const shardSet = new Set(definitionIds.map(getShardIndex));
+  const shardSet = new Set(workflowSlugs.map(getShardIndex));
   console.log(
     `Shards used: ${[...shardSet].sort((a, b) => a - b).join(', ')} (${shardSet.size} distinct)`,
   );
@@ -65,17 +65,17 @@ async function runPhase(
   const phaseStart = Date.now();
 
   for (let i = 0; i < WORKFLOWS_PER_PHASE; i++) {
-    const defId = definitionIds[i % definitionIds.length];
+    const slug = workflowSlugs[i % workflowSlugs.length];
     const id = `wf_${i}`;
     metrics.track(id);
     const t0 = Date.now();
 
     try {
-      const executionId = await client.mutation(
-        api.wf_executions.mutations.startWorkflow,
+      const executionId = await client.action(
+        api.wf_executions.actions.startWorkflowFromFile,
         {
           organizationId,
-          wfDefinitionId: defId as Id<'wfDefinitions'>,
+          workflowSlug: slug,
           input: {
             stressTest: true,
             phase: label,
@@ -91,7 +91,7 @@ async function runPhase(
       metrics.update(id, 'running');
       executions.push({ id, executionId });
       console.log(
-        `  [${i + 1}/${WORKFLOWS_PER_PHASE}] Started in ${elapsed}ms (shard ${getShardIndex(defId)})`,
+        `  [${i + 1}/${WORKFLOWS_PER_PHASE}] Started in ${elapsed}ms (shard ${getShardIndex(slug)})`,
       );
     } catch (error) {
       const elapsed = Date.now() - t0;

@@ -5,8 +5,6 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { Plus, Webhook, Copy, Check, Trash2 } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 
-import type { Id } from '@/convex/_generated/dataModel';
-
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { Switch } from '@/app/components/ui/forms/switch';
@@ -14,36 +12,41 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useToast } from '@/app/hooks/use-toast';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
 import { useSiteUrl } from '@/lib/site-url-context';
 
 import type { WfWebhook } from '../hooks/queries';
 
+import { useWebhooks } from '../hooks/queries';
 import {
   useCreateWebhook,
   useDeleteWebhook,
   useToggleWebhook,
-} from '../hooks/mutations';
-import { useWebhooks } from '../hooks/queries';
+} from '../hooks/slug-mutations';
 import { CollapsibleSection } from './collapsible-section';
 import { SecretRevealDialog } from './secret-reveal-dialog';
 
 interface WebhooksSectionProps {
-  workflowRootId: Id<'wfDefinitions'>;
+  workflowRootId: string;
   organizationId: string;
+  orgSlug: string;
+  workflowSlug: string;
 }
 
 type WebhookRow = WfWebhook;
 
 export function WebhooksSection({
-  workflowRootId,
+  workflowRootId: _workflowRootId,
   organizationId,
+  orgSlug: _orgSlug,
+  workflowSlug,
 }: WebhooksSectionProps) {
   const { t } = useT('automations');
   const { toast } = useToast();
 
-  const { webhooks } = useWebhooks(workflowRootId);
+  const { webhooks } = useWebhooks(organizationId, workflowSlug);
 
   const { mutateAsync: createWebhook, isPending: isCreating } =
     useCreateWebhook();
@@ -66,7 +69,7 @@ export function WebhooksSection({
     try {
       const result = await createWebhook({
         organizationId,
-        workflowRootId,
+        workflowSlug,
       });
       setCreatedUrl(getWebhookUrl(result.token));
       toast({
@@ -79,12 +82,15 @@ export function WebhooksSection({
         variant: 'destructive',
       });
     }
-  }, [createWebhook, organizationId, workflowRootId, toast, t, getWebhookUrl]);
+  }, [createWebhook, organizationId, workflowSlug, toast, t, getWebhookUrl]);
 
   const handleToggle = useCallback(
-    async (webhookId: Id<'wfWebhooks'>, isActive: boolean) => {
+    async (webhookId: string, isActive: boolean) => {
       try {
-        await toggleWebhook({ webhookId, isActive });
+        await toggleWebhook({
+          webhookId: toId<'wfWebhooks'>(webhookId),
+          isActive,
+        });
         toast({
           title: isActive
             ? t('triggers.webhooks.toast.enabled')

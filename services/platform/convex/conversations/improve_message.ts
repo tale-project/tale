@@ -1,17 +1,18 @@
+import type { LanguageModelV3 } from '@ai-sdk/provider';
+
 import { Agent } from '@convex-dev/agent';
 
 import type { ActionCtx } from '../_generated/server';
 
 import { components } from '../_generated/api';
-import { getFastModel } from '../lib/agent_runtime_config';
-import { openai } from '../lib/openai_provider';
 
-function createImproveMessageAgent(instruction?: string) {
-  const model = getFastModel();
-
+function createImproveMessageAgent(
+  languageModel: LanguageModelV3,
+  instruction?: string,
+) {
   return new Agent(components.agent, {
     name: 'message-improver',
-    languageModel: openai.chatModel(model),
+    languageModel,
     instructions: `You are a helpful assistant that improves written messages for clarity, professionalism, and tone.
 Your task is to improve the given message while keeping its core meaning intact.
 ${instruction ? `Additional instruction: ${instruction}` : ''}
@@ -27,10 +28,17 @@ Guidelines:
 
 export async function improveMessage(
   ctx: ActionCtx,
-  args: { originalMessage: string; instruction?: string },
+  args: {
+    originalMessage: string;
+    instruction?: string;
+    languageModel: LanguageModelV3;
+  },
 ): Promise<{ improvedMessage: string; error?: string }> {
   try {
-    const agent = createImproveMessageAgent(args.instruction);
+    const agent = createImproveMessageAgent(
+      args.languageModel,
+      args.instruction,
+    );
     const userId = `improve-msg-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
     const result = await agent.generateText(

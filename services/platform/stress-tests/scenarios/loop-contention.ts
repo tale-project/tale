@@ -26,9 +26,9 @@ const config = scenarios.loop_contention;
 async function run() {
   const convexUrl = process.env.CONVEX_URL || process.env.VITE_CONVEX_URL || '';
   const organizationId = process.env.ORGANIZATION_ID || '';
-  const wfDefinitionId = process.env.WORKFLOW_DEFINITION_ID || '';
+  const workflowSlug = process.env.WORKFLOW_DEFINITION_ID || '';
 
-  if (!convexUrl || !organizationId || !wfDefinitionId) {
+  if (!convexUrl || !organizationId || !workflowSlug) {
     console.error(
       'Required env vars: CONVEX_URL, ORGANIZATION_ID, WORKFLOW_DEFINITION_ID',
     );
@@ -53,11 +53,11 @@ async function run() {
     metrics.track(id);
 
     try {
-      const executionId = await client.mutation(
-        api.wf_executions.mutations.startWorkflow,
+      const executionId = await client.action(
+        api.wf_executions.actions.startWorkflowFromFile,
         {
           organizationId,
-          wfDefinitionId: wfDefinitionId as Id<'wfDefinitions'>,
+          workflowSlug,
           input: {
             stressTest: true,
             loopIterations,
@@ -72,6 +72,7 @@ async function run() {
           },
         },
       );
+      if (!executionId) throw new Error('Workflow start returned null');
       metrics.update(id, 'running');
       executionMap.set(id, executionId);
     } catch (error) {

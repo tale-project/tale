@@ -1,6 +1,7 @@
 import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
-import { useEffect } from 'react';
+import { useAction } from 'convex/react';
+import { useEffect, useRef } from 'react';
 
 import { Spinner } from '@/app/components/ui/feedback/spinner';
 import { FullPageCenter } from '@/app/components/ui/layout/full-page-center';
@@ -26,6 +27,10 @@ export const Route = createFileRoute('/dashboard/')({
 
 function DashboardIndex() {
   const navigate = useNavigate();
+  const initializeWorkflows = useAction(
+    api.organizations.actions.initializeDefaultWorkflows,
+  );
+  const creatingRef = useRef(false);
   const {
     organizations,
     isLoading: isOrgsLoading,
@@ -41,14 +46,42 @@ function DashboardIndex() {
     const firstOrgId = organizations[0]?.organizationId;
 
     if (organizations.length === 0 || !firstOrgId) {
-      void navigate({ to: '/dashboard/create-organization' });
+      if (creatingRef.current) return;
+      creatingRef.current = true;
+      void createDefaultOrganization();
     } else {
       void navigate({
         to: '/dashboard/$id',
         params: { id: firstOrgId },
       });
     }
-  }, [isAuthLoading, isAuthenticated, isOrgsLoading, organizations, navigate]);
+
+    async function createDefaultOrganization() {
+      try {
+        const result = await authClient.organization.create({
+          name: 'Default',
+          slug: 'default',
+        });
+        const orgId = result.data?.id;
+        if (!orgId) throw new Error('Failed to create organization');
+
+        await authClient.organization.setActive({ organizationId: orgId });
+        await initializeWorkflows({ organizationId: orgId });
+
+        void navigate({ to: '/dashboard/$id', params: { id: orgId } });
+      } catch (error) {
+        console.error('Failed to create default organization:', error);
+        void navigate({ to: '/dashboard/create-organization' });
+      }
+    }
+  }, [
+    isAuthLoading,
+    isAuthenticated,
+    isOrgsLoading,
+    organizations,
+    navigate,
+    initializeWorkflows,
+  ]);
 
   return (
     <FullPageCenter>

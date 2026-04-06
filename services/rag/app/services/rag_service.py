@@ -44,6 +44,21 @@ SYSTEM_PROMPT = (
 )
 
 
+_CONFIG_CHECK_INTERVAL = 15  # seconds
+
+
+_background_tasks: set[asyncio.Task[None]] = set()
+
+
+async def _safe_close(coro) -> None:
+    """Close an old client after a grace period for in-flight requests."""
+    await asyncio.sleep(30)
+    try:
+        await coro
+    except Exception:
+        logger.warning("Failed to close old client", exc_info=True)
+
+
 class RagService:
     def __init__(self) -> None:
         self.initialized = False
@@ -53,6 +68,9 @@ class RagService:
         self._vision_client: VisionClient | None = None
         self._openai_client: AsyncOpenAI | None = None
         self._search_service: RagSearchService | None = None
+        self._llm_config: dict | None = None
+        self._vision_config: tuple | None = None
+        self._last_config_check: float = 0
 
     async def initialize(self) -> None:
         """Initialize database pool, embedding service, vision client, and LLM client."""
@@ -81,24 +99,27 @@ class RagService:
             model=embedding_model,
             dimensions=dimensions,
         )
+        self._llm_config = llm_config
 
         # Pin embedding dimensions and create HNSW index (runtime config, not a migration)
         await pin_embedding_dimensions(self._pool, dimensions)
 
         # Vision client (optional — only if model is configured)
         try:
-            vision_model = settings.get_vision_model()
+            vision_config = settings.get_vision_config()
+            v_base_url, v_api_key, v_model = vision_config
             self._vision_client = VisionClient(
-                api_key=llm_config["api_key"],
-                model=vision_model,
-                base_url=llm_config["base_url"],
+                api_key=v_api_key,
+                model=v_model,
+                base_url=v_base_url,
                 timeout=120.0,
                 request_timeout=float(settings.vision_request_timeout),
                 max_concurrent_pages=settings.vision_max_concurrent_pages,
                 pdf_dpi=settings.vision_pdf_dpi,
                 ocr_prompt=settings.vision_extraction_prompt,
             )
-            logger.info("Vision client initialized with model: {}", vision_model)
+            self._vision_config = vision_config
+            logger.info("Vision client initialized with model: {}", v_model)
         except ValueError:
             logger.info("No vision model configured, Vision features disabled")
             self._vision_client = None
@@ -112,8 +133,95 @@ class RagService:
         # Search service
         self._search_service = RagSearchService(self._pool, self._embedding_service)
 
+        self._last_config_check = time.monotonic()
         self.initialized = True
         logger.info("RagService initialized")
+
+    def _maybe_refresh_clients(self) -> None:
+        """Check provider config freshness; rebuild clients if changed.
+
+        This method is synchronous (no await) so that all attribute swaps
+        happen atomically from asyncio's cooperative-scheduling perspective.
+        """
+        if not self.initialized:
+            return
+        now = time.monotonic()
+        if (now - self._last_config_check) < _CONFIG_CHECK_INTERVAL:
+            return
+        self._last_config_check = now
+
+        # Check chat/embedding config
+        new_llm_config = settings.get_llm_config()
+        if new_llm_config != self._llm_config:
+            if not new_llm_config.get("api_key"):
+                logger.warning("Skipping LLM config reload: empty API key")
+            else:
+                new_dims = settings.get_embedding_dimensions()
+                if self._embedding_service and new_dims != self._embedding_service.dimensions:
+                    logger.error(
+                        "Embedding dimensions changed ({} -> {}). Restart required.",
+                        self._embedding_service.dimensions,
+                        new_dims,
+                    )
+                else:
+                    # Prepare new clients before swapping any state
+                    new_emb = EmbeddingService(
+                        api_key=new_llm_config["api_key"],
+                        base_url=new_llm_config["base_url"],
+                        model=new_llm_config["embedding_model"],
+                        dimensions=new_dims,
+                    )
+                    new_oai = AsyncOpenAI(
+                        api_key=new_llm_config["api_key"],
+                        base_url=new_llm_config["base_url"],
+                    )
+
+                    # Swap all at once (atomic from asyncio's cooperative perspective)
+                    old_emb = self._embedding_service
+                    old_oai = self._openai_client
+                    self._embedding_service = new_emb
+                    self._openai_client = new_oai
+                    if self._pool:
+                        self._search_service = RagSearchService(self._pool, new_emb)
+                    self._llm_config = new_llm_config
+                    logger.info("RAG LLM clients refreshed: model={}", new_llm_config.get("embedding_model"))
+
+                    # Close old clients (fire-and-forget with grace period)
+                    loop = asyncio.get_running_loop()
+                    if old_emb:
+                        task = loop.create_task(_safe_close(old_emb.close()))
+                        _background_tasks.add(task)
+                        task.add_done_callback(_background_tasks.discard)
+                    if old_oai:
+                        task = loop.create_task(_safe_close(old_oai.close()))
+                        _background_tasks.add(task)
+                        task.add_done_callback(_background_tasks.discard)
+
+        # Check vision config
+        try:
+            new_vision_config = settings.get_vision_config()
+            v_base_url, v_api_key, v_model = new_vision_config
+            if new_vision_config != self._vision_config and v_api_key:
+                old_vision = self._vision_client
+                self._vision_client = VisionClient(
+                    api_key=v_api_key,
+                    model=v_model,
+                    base_url=v_base_url,
+                    timeout=120.0,
+                    request_timeout=float(settings.vision_request_timeout),
+                    max_concurrent_pages=settings.vision_max_concurrent_pages,
+                    pdf_dpi=settings.vision_pdf_dpi,
+                    ocr_prompt=settings.vision_extraction_prompt,
+                )
+                self._vision_config = new_vision_config
+                logger.info("RAG vision client refreshed: model={}", v_model)
+                if old_vision:
+                    loop = asyncio.get_running_loop()
+                    task = loop.create_task(_safe_close(old_vision.close()))
+                    _background_tasks.add(task)
+                    task.add_done_callback(_background_tasks.discard)
+        except ValueError:
+            logger.debug("No vision model in provider config, skipping vision refresh")
 
     async def add_document(
         self,
@@ -127,6 +235,7 @@ class RagService:
         """Add a document to the knowledge base."""
         if not self.initialized:
             await self.initialize()
+        self._maybe_refresh_clients()
 
         if self._pool is None:
             raise RuntimeError("RagService not initialized: database pool is None")
@@ -157,6 +266,7 @@ class RagService:
         """Search the knowledge base using hybrid BM25 + vector search."""
         if not self.initialized:
             await self.initialize()
+        self._maybe_refresh_clients()
 
         if self._search_service is None:
             raise RuntimeError("RagService not initialized: search service is None")
@@ -183,6 +293,7 @@ class RagService:
         """Generate a response using RAG: search -> context assembly -> LLM."""
         if not self.initialized:
             await self.initialize()
+        self._maybe_refresh_clients()
 
         if self._openai_client is None:
             raise RuntimeError("RagService not initialized: OpenAI client is None")
@@ -497,6 +608,8 @@ class RagService:
 
         Extracts text directly from file bytes — no database storage or embedding.
         """
+        self._maybe_refresh_clients()
+
         from tale_knowledge.extraction import extract_text
 
         from .diff_service import compute_diff

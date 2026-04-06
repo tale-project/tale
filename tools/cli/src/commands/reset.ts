@@ -1,8 +1,8 @@
 import { Command } from 'commander';
 
 import { reset } from '../lib/actions/reset';
-import { ensureConfig } from '../lib/config/ensure-config';
 import { ensureEnv } from '../lib/config/ensure-env';
+import { requireProject } from '../lib/project/find-project';
 import { loadEnv } from '../utils/load-env';
 import * as logger from '../utils/logger';
 
@@ -14,12 +14,14 @@ export function createResetCommand(): Command {
     .option('--dry-run', 'Preview reset without making changes', false)
     .action(async (options) => {
       try {
-        const deployDir = await ensureConfig();
-        const envSetupSuccess = await ensureEnv({ deployDir });
+        const projectDir = requireProject();
+        const { success: envSetupSuccess } = await ensureEnv({
+          deployDir: projectDir,
+        });
         if (!envSetupSuccess) {
           process.exit(1);
         }
-        const env = loadEnv(deployDir);
+        const env = loadEnv(projectDir);
         await reset({
           env,
           force: options.force,

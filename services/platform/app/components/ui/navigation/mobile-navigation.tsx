@@ -4,6 +4,7 @@ import { Link, useLocation } from '@tanstack/react-router';
 import { Menu } from 'lucide-react';
 import { useState } from 'react';
 
+import { useBrandingContext } from '@/app/components/branding/branding-provider';
 import { TaleLogo } from '@/app/components/ui/logo/tale-logo';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { Button } from '@/app/components/ui/primitives/button';
@@ -38,6 +39,7 @@ function MobileNavigationItem({ item, onClose }: MobileNavigationItemProps) {
   const location = useLocation();
   const pathname = location.pathname;
   const ability = useAbility();
+  const { accentColor } = useBrandingContext();
 
   const isActive =
     isPathMatch(item.href, pathname) ||
@@ -49,6 +51,11 @@ function MobileNavigationItem({ item, onClose }: MobileNavigationItemProps) {
 
   const Icon = item.icon;
 
+  const activeStyle =
+    isActive && accentColor
+      ? { backgroundColor: `${accentColor}26`, color: accentColor }
+      : undefined;
+
   return (
     <NavigationMenuItem className="w-full">
       <Link
@@ -58,9 +65,12 @@ function MobileNavigationItem({ item, onClose }: MobileNavigationItemProps) {
         className={cn(
           'flex items-center gap-3 px-3 py-2 rounded-lg transition-colors w-full',
           isActive
-            ? 'bg-muted text-foreground'
+            ? accentColor
+              ? ''
+              : 'bg-muted text-foreground'
             : 'hover:bg-muted text-muted-foreground',
         )}
+        style={activeStyle}
       >
         {Icon && <Icon className="size-5 shrink-0" />}
         <Text as="span" variant="label">

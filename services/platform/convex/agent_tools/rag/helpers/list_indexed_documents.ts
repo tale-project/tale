@@ -17,7 +17,7 @@ export async function listIndexedDocuments(
     );
   }
 
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ToolCtx from @convex-dev/agent lacks our custom agent knowledge properties injected at runtime
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ToolCtx from @convex-dev/agent lacks our agent knowledge properties injected at runtime
   const extended = ctx as AgentKnowledgeCtx;
 
   return ctx.runQuery(internal.documents.internal_queries.listIndexedForAgent, {

@@ -2,7 +2,7 @@
  * Factory for creating workflow-bound tools.
  *
  * Creates a createTool() result scoped to a specific workflow.
- * The workflowId is captured in a closure — the agent only needs
+ * The workflowSlug is captured in a closure — the agent only needs
  * to specify parameters.
  */
 
@@ -11,17 +11,17 @@ import type { ToolCtx } from '@convex-dev/agent';
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
-import type { Id } from '../../_generated/dataModel';
+import type { WorkflowJsonConfig } from '../../../lib/shared/schemas/workflows';
 import type { WorkflowInputSchema } from '../../workflow_engine/helpers/validation/validate_workflow_input';
 
+import { isRecord } from '../../../lib/utils/type-guards';
 import { internal } from '../../_generated/api';
-import { toId } from '../../lib/type_cast_helpers';
 import { getApprovalThreadId } from '../../threads/get_parent_thread_id';
 import { validateWorkflowInput } from '../../workflow_engine/helpers/validation/validate_workflow_input';
 import { extractInputSchema } from './helpers/extract_input_schema';
 
 interface BoundWorkflowDefinition {
-  _id: Id<'wfDefinitions'>;
+  workflowSlug: string;
   name: string;
   description?: string;
 }
@@ -200,38 +200,31 @@ export function createBoundWorkflowTool(
         };
       }
 
-      const resolvedWf = await ctx.runQuery(
-        internal.wf_definitions.internal_queries.resolveWorkflow,
-        { wfDefinitionId: toId<'wfDefinitions'>(String(wfDefinition._id)) },
+      const result: unknown = await ctx.runAction(
+        internal.workflows.file_actions.readWorkflowForExecution,
+        { orgSlug: 'default', workflowSlug: wfDefinition.workflowSlug },
       );
 
-      if (!resolvedWf) {
+      if (!isRecord(result) || result.ok !== true) {
+        const msg =
+          isRecord(result) && typeof result.message === 'string'
+            ? result.message
+            : `Workflow "${wfDefinition.name}" is no longer available.`;
+        return { success: false, message: msg };
+      }
+
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- readWorkflowForExecution returns v.any() but ok=true guarantees WorkflowJsonConfig
+      const config = result.config as WorkflowJsonConfig;
+
+      if (!config.enabled) {
         return {
           success: false,
-          message: `Workflow "${wfDefinition.name}" is no longer available.`,
+          message: `Workflow "${wfDefinition.name}" is disabled and cannot be executed.`,
         };
       }
 
-      if (resolvedWf.organizationId !== organizationId) {
-        return {
-          success: false,
-          message: `Workflow "${wfDefinition.name}" does not belong to the current organization.`,
-        };
-      }
-
-      if (resolvedWf.status === 'archived') {
-        return {
-          success: false,
-          message: `Workflow "${wfDefinition.name}" is archived and cannot be executed.`,
-        };
-      }
-
-      const startStepConfig = await ctx.runQuery(
-        internal.wf_definitions.internal_queries.getStartStepConfig,
-        { wfDefinitionId: resolvedWf._id },
-      );
-
-      const runtimeInputSchema = extractInputSchema(startStepConfig);
+      const startStep = config.steps.find((s) => s.stepType === 'start');
+      const runtimeInputSchema = extractInputSchema(startStep?.config);
       const normalizedArgs = runtimeInputSchema
         ? normalizeArgs(args, runtimeInputSchema)
         : args;
@@ -255,9 +248,9 @@ export function createBoundWorkflowTool(
             .createWorkflowRunApproval,
           {
             organizationId,
-            workflowId: resolvedWf._id,
-            workflowName: resolvedWf.name,
-            workflowDescription: resolvedWf.description,
+            workflowSlug: wfDefinition.workflowSlug,
+            workflowName: config.name,
+            workflowDescription: config.description,
             parameters: normalizedArgs,
             threadId,
             messageId,
@@ -269,8 +262,8 @@ export function createBoundWorkflowTool(
           requiresApproval: true,
           approvalId,
           approvalCreated: true,
-          approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created to run workflow "${resolvedWf.name}". The user must approve this before execution begins.`,
-          message: `Workflow "${resolvedWf.name}" is ready to run. An approval card has been created. The workflow will start once the user approves it.`,
+          approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created to run workflow "${config.name}". The user must approve this before execution begins.`,
+          message: `Workflow "${config.name}" is ready to run. An approval card has been created. The workflow will start once the user approves it.`,
         };
       } catch (error) {
         return {

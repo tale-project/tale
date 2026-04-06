@@ -1,27 +1,30 @@
 {
-  "workflowConfig": {
-    "name": "Product Relationship Analysis",
-    "description": "Analyze product relationships based on customer subscription patterns using AI",
-    "version": "2.0.0",
-    "workflowType": "predefined",
-    "config": {
-      "timeout": 1800000,
-      "retryPolicy": { "maxRetries": 2, "backoffMs": 5000 },
-      "variables": {
-        "organizationId": "org_demo",
-        "workflowId": "product-relationship-analysis",
-        "backoffHours": 168,
-        "analysisVersion": "2.0"
-      }
+  "name": "Product Relationship Analysis",
+  "description": "Analyze product relationships based on customer subscription patterns using AI",
+  "version": "1.0.0",
+  "enabled": true,
+  "config": {
+    "timeout": 1800000,
+    "retryPolicy": {
+      "maxRetries": 2,
+      "backoffMs": 5000
+    },
+    "variables": {
+      "organizationId": "org_demo",
+      "workflowId": "product-relationship-analysis",
+      "backoffHours": 168,
+      "analysisVersion": "2.0"
     }
   },
-  "stepsConfig": [
+  "steps": [
     {
       "stepSlug": "start",
       "name": "start",
       "stepType": "start",
       "config": {},
-      "nextSteps": { "success": "find_unprocessed_product" }
+      "nextSteps": {
+        "success": "find_unprocessed_product"
+      }
     },
     {
       "stepSlug": "find_unprocessed_product",
@@ -204,7 +207,12 @@
                   },
                   "relationship_type": {
                     "type": "string",
-                    "enum": ["Complementary", "Substitute", "Bundle", "Upgrade"],
+                    "enum": [
+                      "Complementary",
+                      "Substitute",
+                      "Bundle",
+                      "Upgrade"
+                    ],
                     "description": "Type of relationship between products"
                   },
                   "confidence": {
@@ -229,7 +237,9 @@
               }
             }
           },
-          "required": ["relationships"],
+          "required": [
+            "relationships"
+          ],
           "additionalProperties": false
         }
       },

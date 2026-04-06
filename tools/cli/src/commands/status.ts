@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 
 import { status } from '../lib/actions/status';
-import { ensureConfig } from '../lib/config/ensure-config';
+import { requireProject } from '../lib/project/find-project';
 import { loadEnv } from '../utils/load-env';
 import * as logger from '../utils/logger';
 
@@ -10,8 +10,8 @@ export function createStatusCommand(): Command {
     .description('Show current deployment status')
     .action(async () => {
       try {
-        const deployDir = await ensureConfig();
-        const env = loadEnv(deployDir);
+        const projectDir = requireProject();
+        const env = loadEnv(projectDir);
         await status({
           deployDir: env.DEPLOY_DIR,
         });

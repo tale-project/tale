@@ -1,8 +1,8 @@
 import { Command } from 'commander';
 
 import { rollback } from '../lib/actions/rollback';
-import { ensureConfig } from '../lib/config/ensure-config';
 import { ensureEnv } from '../lib/config/ensure-env';
+import { requireProject } from '../lib/project/find-project';
 import { loadEnv } from '../utils/load-env';
 import * as logger from '../utils/logger';
 
@@ -15,12 +15,14 @@ export function createRollbackCommand(): Command {
     )
     .action(async (options) => {
       try {
-        const deployDir = await ensureConfig();
-        const envSetupSuccess = await ensureEnv({ deployDir });
+        const projectDir = requireProject();
+        const { success: envSetupSuccess } = await ensureEnv({
+          deployDir: projectDir,
+        });
         if (!envSetupSuccess) {
           process.exit(1);
         }
-        const env = loadEnv(deployDir);
+        const env = loadEnv(projectDir);
         await rollback({ env, version: options.version });
       } catch (err) {
         logger.error(err instanceof Error ? err.message : String(err));

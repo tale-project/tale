@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, it, expect, vi } from 'vitest';
 
 import { IntegrationDetails } from '../integration-details';
@@ -44,15 +45,20 @@ function makeIntegration(
   } as Parameters<typeof IntegrationDetails>[0]['integration'];
 }
 
+async function expandSection(label: string) {
+  const button = screen.getByRole('button', { name: new RegExp(label) });
+  await userEvent.click(button);
+}
+
 describe('IntegrationDetails', () => {
-  it('renders nothing when no operations or connector details exist', () => {
+  it('renders the container even with no operations (automations section always present)', () => {
     const { container } = render(
       <IntegrationDetails integration={makeIntegration()} />,
     );
-    expect(container.firstChild).toBeNull();
+    expect(container.firstChild).not.toBeNull();
   });
 
-  it('renders REST operations with names and titles', () => {
+  it('renders REST operations with names and titles', async () => {
     const integration = makeIntegration({
       connector: {
         code: 'const connector = {};',
@@ -72,6 +78,8 @@ describe('IntegrationDetails', () => {
 
     render(<IntegrationDetails integration={integration} />);
 
+    await expandSection('integrations.upload.operations');
+
     expect(screen.getByText('list_items')).toBeInTheDocument();
     expect(screen.getByText('— List items')).toBeInTheDocument();
     expect(screen.getByText('get_item')).toBeInTheDocument();
@@ -79,7 +87,7 @@ describe('IntegrationDetails', () => {
     expect(screen.getByText('Fetch a single item')).toBeInTheDocument();
   });
 
-  it('renders SQL operations with queries', () => {
+  it('renders SQL operations with queries', async () => {
     const integration = makeIntegration({
       type: 'sql',
       sqlOperations: [
@@ -101,6 +109,8 @@ describe('IntegrationDetails', () => {
 
     render(<IntegrationDetails integration={integration} />);
 
+    await expandSection('integrations.manageDialog.sqlOperations');
+
     expect(screen.getByText('get_users')).toBeInTheDocument();
     expect(screen.getByText('insert_user')).toBeInTheDocument();
     expect(screen.getByText('SELECT * FROM users')).toBeInTheDocument();
@@ -109,7 +119,7 @@ describe('IntegrationDetails', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders allowed hosts as badges', () => {
+  it('renders allowed hosts as badges', async () => {
     const integration = makeIntegration({
       connector: {
         code: 'const connector = {};',
@@ -122,11 +132,13 @@ describe('IntegrationDetails', () => {
 
     render(<IntegrationDetails integration={integration} />);
 
+    await expandSection('integrations.upload.allowedHosts');
+
     expect(screen.getByText('example.com')).toBeInTheDocument();
     expect(screen.getByText('api.test.io')).toBeInTheDocument();
   });
 
-  it('renders connector code for REST type', () => {
+  it('renders connector code for REST type', async () => {
     const code = 'const connector = { test: true };';
     const integration = makeIntegration({
       connector: {
@@ -140,6 +152,8 @@ describe('IntegrationDetails', () => {
     const { container } = render(
       <IntegrationDetails integration={integration} />,
     );
+
+    await expandSection('integrations.upload.connectorCode');
 
     const pre = container.querySelector('pre');
     expect(pre).toBeInTheDocument();
@@ -160,10 +174,14 @@ describe('IntegrationDetails', () => {
 
     render(<IntegrationDetails integration={integration} />);
 
-    expect(screen.queryByText('some code')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', {
+        name: /integrations\.upload\.connectorCode/,
+      }),
+    ).not.toBeInTheDocument();
   });
 
-  it('renders SQL config when active', () => {
+  it('renders SQL config when active', async () => {
     const integration = makeIntegration({
       type: 'sql',
       isActive: true,
@@ -180,6 +198,8 @@ describe('IntegrationDetails', () => {
     });
 
     render(<IntegrationDetails integration={integration} />);
+
+    await expandSection('integrations.upload.sqlConfig');
 
     expect(screen.getByText('postgres')).toBeInTheDocument();
     expect(screen.getByText('5432')).toBeInTheDocument();
@@ -201,11 +221,14 @@ describe('IntegrationDetails', () => {
 
     render(<IntegrationDetails integration={integration} />);
 
-    expect(screen.getByText('query1')).toBeInTheDocument();
-    expect(screen.queryByText('mssql')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', {
+        name: /integrations\.upload\.sqlConfig/,
+      }),
+    ).not.toBeInTheDocument();
   });
 
-  it('renders parametersSchema for SQL operations', () => {
+  it('renders parametersSchema for SQL operations', async () => {
     const integration = makeIntegration({
       type: 'sql',
       sqlOperations: [
@@ -229,12 +252,14 @@ describe('IntegrationDetails', () => {
 
     render(<IntegrationDetails integration={integration} />);
 
+    await expandSection('integrations.manageDialog.sqlOperations');
+
     expect(screen.getByText('roomId')).toBeInTheDocument();
     expect(screen.getByText('number')).toBeInTheDocument();
     expect(screen.getByText('Room ID')).toBeInTheDocument();
   });
 
-  it('renders parametersSchema for REST operations', () => {
+  it('renders parametersSchema for REST operations', async () => {
     const integration = makeIntegration({
       connector: {
         code: 'const c = {};',
@@ -266,13 +291,15 @@ describe('IntegrationDetails', () => {
 
     render(<IntegrationDetails integration={integration} />);
 
+    await expandSection('integrations.upload.operations');
+
     expect(screen.getByText('query')).toBeInTheDocument();
     expect(screen.getByText('Search term')).toBeInTheDocument();
     expect(screen.getByText('limit')).toBeInTheDocument();
     expect(screen.getByText('Max results')).toBeInTheDocument();
   });
 
-  it('does not render parameters when no parametersSchema exists', () => {
+  it('does not render parameters when no parametersSchema exists', async () => {
     const integration = makeIntegration({
       type: 'sql',
       sqlOperations: [
@@ -285,13 +312,15 @@ describe('IntegrationDetails', () => {
 
     render(<IntegrationDetails integration={integration} />);
 
+    await expandSection('integrations.manageDialog.sqlOperations');
+
     expect(screen.getByText('list_all')).toBeInTheDocument();
     expect(
       screen.queryByText('integrations.manageDialog.parameters'),
     ).not.toBeInTheDocument();
   });
 
-  it('renders correct number of operation items', () => {
+  it('renders correct number of operation items', async () => {
     const integration = makeIntegration({
       connector: {
         code: '',
@@ -302,6 +331,8 @@ describe('IntegrationDetails', () => {
     });
 
     render(<IntegrationDetails integration={integration} />);
+
+    await expandSection('integrations.upload.operations');
 
     const list = screen.getByRole('list');
     const items = within(list).getAllByRole('listitem');

@@ -1,12 +1,11 @@
+import type { LanguageModelV3 } from '@ai-sdk/provider';
+
 import { Agent } from '@convex-dev/agent';
 
 import type { ToolName } from '../agent_tools/tool_registry';
 
 import { loadConvexToolsAsObject } from '../agent_tools/load_convex_tools_as_object';
-import { getDefaultModel } from './agent_runtime_config';
 import { createDebugLog } from './debug_log';
-import { getEnvOrThrow } from './get_or_throw';
-import { openai } from './openai_provider';
 
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[AgentConfig]');
 
@@ -21,7 +20,10 @@ const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[AgentConfig]');
  */
 export function createAgentConfig(opts: {
   name: string;
-  model?: string;
+  /** Pre-resolved language model instance from the provider */
+  languageModel: LanguageModelV3;
+  /** Pre-resolved text embedding model for vector search */
+  textEmbeddingModel?: unknown;
   /** Temperature override. If not provided, auto-determined by outputFormat: json→0.2, text→0.5 */
   temperature?: number;
   maxTokens?: number;
@@ -32,8 +34,6 @@ export function createAgentConfig(opts: {
   /** Additional tools to merge (e.g., dynamic json_output tool) */
   extraTools?: Record<string, unknown>;
   maxSteps?: number;
-  /** Enable vector search for finding semantically relevant older messages (defaults to false) */
-  enableVectorSearch?: boolean;
 }): ConstructorParameters<typeof Agent>[1] {
   // Build Convex tools as an object when names are provided
   const convexToolsObject = opts.convexToolNames?.length
@@ -140,30 +140,10 @@ Example: User asks for "John's email" and you find 3 Johns:
     estimatedInstructionTokens,
   });
 
-  const getModel = (): string => {
-    if (opts.model) {
-      return opts.model;
-    }
-    return getDefaultModel();
-  };
-
-  const model = getModel();
-
   // Call settings are intentionally empty
   // temperature and frequencyPenalty are not supported by reasoning models (e.g., DeepSeek V3.2)
   // and cause empty responses when set. Let the model use its defaults.
   const callSettings: Record<string, number> = {};
-
-  // Build text embedding model for vector search if enabled
-  // Requires OPENAI_EMBEDDING_MODEL env var to be set
-  let embeddingModel: string | undefined;
-  const enableVectorSearch = opts.enableVectorSearch ?? false;
-  if (enableVectorSearch) {
-    embeddingModel = getEnvOrThrow(
-      'OPENAI_EMBEDDING_MODEL',
-      'Embedding model - required when enableVectorSearch is true',
-    );
-  }
 
   // Default maxSteps to 40 when tools are configured but maxSteps is not set.
   // Without maxSteps, AI SDK defaults to stepCountIs(1), which prevents tool call loops
@@ -175,17 +155,17 @@ Example: User asks for "John's email" and you find 3 Johns:
   return {
     name: opts.name,
     instructions: finalInstructions,
-    languageModel: openai.chatModel(model),
+    languageModel: opts.languageModel,
     callSettings,
     ...(typeof opts.maxTokens === 'number'
-      ? { providerOptions: { openai: { maxOutputTokens: opts.maxTokens } } }
+      ? { maxOutputTokens: opts.maxTokens }
       : {}),
     ...(hasAnyTools ? { tools: mergedTools } : {}),
     ...(typeof effectiveMaxSteps === 'number'
       ? { maxSteps: effectiveMaxSteps }
       : {}),
-    ...(embeddingModel
-      ? { embeddingModel: openai.textEmbeddingModel(embeddingModel) }
+    ...(opts.textEmbeddingModel
+      ? { embeddingModel: opts.textEmbeddingModel }
       : {}),
   } as ConstructorParameters<typeof Agent>[1];
 }

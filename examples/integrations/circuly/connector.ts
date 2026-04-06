@@ -2,77 +2,77 @@
 // These types describe the APIs available inside the integration sandbox.
 // They are stripped during transpilation and exist only for editor support.
 
-interface HttpResponse {
-  status: number;
-  statusText: string;
-  headers: Record<string, string>;
-  body: unknown;
-  text(): string;
-  json(): unknown;
-}
 
-interface HttpMethodOptions {
-  headers?: Record<string, string>;
-  responseType?: 'base64';
-}
 
-interface BodyMethodOptions extends HttpMethodOptions {
-  body?: string;
-  binaryBody?: string;
-}
 
-interface HttpApi {
-  get(url: string, options?: HttpMethodOptions): HttpResponse;
-  post(url: string, options?: BodyMethodOptions): HttpResponse;
-  put(url: string, options?: BodyMethodOptions): HttpResponse;
-  patch(url: string, options?: BodyMethodOptions): HttpResponse;
-  delete(url: string, options?: BodyMethodOptions): HttpResponse;
-}
 
-interface SecretsApi {
-  get(key: string): string | undefined;
-}
 
-interface FileReference {
-  fileId: string;
-  url: string;
-  fileName: string;
-  contentType: string;
-  size: number;
-}
 
-interface FilesApi {
-  download(
-    url: string,
-    options: { headers?: Record<string, string>; fileName: string },
-  ): FileReference;
-  store(
-    data: string,
-    options: {
-      encoding: 'base64' | 'utf-8';
-      contentType: string;
-      fileName: string;
-    },
-  ): FileReference;
-}
 
-interface ConnectorContext {
-  operation: string;
-  params: Record<string, unknown>;
-  http: HttpApi;
-  secrets: SecretsApi;
-  base64Encode(input: string): string;
-  base64Decode(input: string): string;
-  files?: FilesApi;
-}
 
-interface TestConnectionContext {
-  http: HttpApi;
-  secrets: SecretsApi;
-  base64Encode(input: string): string;
-  base64Decode(input: string): string;
-  files?: FilesApi;
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -84,7 +84,7 @@ const CIRCULY_API_VERSION = '2025-01';
 const connector = {
   operations: ['list_products', 'list_customers', 'list_subscriptions'],
 
-  testConnection: function (ctx: TestConnectionContext) {
+  testConnection: function (ctx) {
     const username = ctx.secrets.get('username');
     const password = ctx.secrets.get('password');
 
@@ -131,7 +131,7 @@ const connector = {
     return { status: 'ok' };
   },
 
-  execute: function (ctx: ConnectorContext) {
+  execute: function (ctx) {
     const { operation, params, http, secrets } = ctx;
 
     // Get credentials from secrets
@@ -151,24 +151,24 @@ const connector = {
     const endpoint = '/' + resource;
 
     // Build query parameters
-    const queryParts: string[] = [];
+    const queryParts = [];
     const page = params.page || 1;
-    const perPage = Math.min((params.per_page as number) || 50, 100);
+    const perPage = Math.min((params.per_page ) || 50, 100);
     queryParts.push('page=' + page);
     queryParts.push('per_page=' + perPage);
 
     if (params.sort)
-      queryParts.push('sort=' + encodeURIComponent(params.sort as string));
+      queryParts.push('sort=' + encodeURIComponent(params.sort ));
     if (params.desc !== undefined)
-      queryParts.push('desc=' + encodeURIComponent(params.desc as string));
+      queryParts.push('desc=' + encodeURIComponent(params.desc ));
     if (params.id)
-      queryParts.push('id=' + encodeURIComponent(params.id as string));
+      queryParts.push('id=' + encodeURIComponent(params.id ));
     if (params.customer_id)
       queryParts.push(
-        'customer_id=' + encodeURIComponent(params.customer_id as string),
+        'customer_id=' + encodeURIComponent(params.customer_id ),
       );
     if (params.status)
-      queryParts.push('status=' + encodeURIComponent(params.status as string));
+      queryParts.push('status=' + encodeURIComponent(params.status ));
 
     const fullUrl = baseUrl + endpoint + '?' + queryParts.join('&');
 
@@ -190,9 +190,9 @@ const connector = {
       );
     }
 
-    const responseData = response.json() as Record<string, unknown>;
-    const data = responseData.data as unknown[];
-    const meta = responseData.meta as Record<string, number> | undefined;
+    const responseData = response.json() ;
+    const data = responseData.data ;
+    const meta = responseData.meta ;
 
     // Extract pagination
     let pagination = null;

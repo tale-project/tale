@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -13,7 +13,10 @@ import { Stack } from '@/app/components/ui/layout/layout';
 import { Separator } from '@/app/components/ui/layout/separator';
 import { Button } from '@/app/components/ui/primitives/button';
 import { AuthFormLayout } from '@/app/features/auth/components/auth-form-layout';
-import { useIsSsoConfigured } from '@/app/features/auth/hooks/queries';
+import {
+  useHasAnyUsers,
+  useIsSsoConfigured,
+} from '@/app/features/auth/hooks/queries';
 import { usePasswordValidation } from '@/app/hooks/use-password-validation';
 import { toast } from '@/app/hooks/use-toast';
 import { authClient } from '@/lib/auth-client';
@@ -39,7 +42,14 @@ function SignUpPage() {
   const { t } = useT('auth');
   const { t: tCommon } = useT('common');
 
+  const { data: hasUsers, isLoading: isLoadingUsers } = useHasAnyUsers();
   const { data: ssoConfig } = useIsSsoConfigured();
+
+  useEffect(() => {
+    if (hasUsers === true) {
+      void navigate({ to: '/log-in' });
+    }
+  }, [hasUsers, navigate]);
 
   const signUpSchema = useMemo(
     () =>
@@ -116,6 +126,10 @@ function SignUpPage() {
     const callbackUri = `${siteUrl}${basePath}/http_api/api/sso/callback`;
     window.location.href = `${siteUrl}${basePath}/http_api/api/sso/authorize?redirect_uri=${encodeURIComponent(callbackUri)}`;
   }, []);
+
+  if (isLoadingUsers || hasUsers === true) {
+    return null;
+  }
 
   const showSsoButton = ssoConfig?.enabled;
 

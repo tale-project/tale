@@ -1,7 +1,7 @@
 import type { QueryCtx } from '../_generated/server';
 
 /**
- * Get RAG-indexed file storage IDs scoped to a custom agent's knowledge config.
+ * Get RAG-indexed file storage IDs scoped to a agent's knowledge config.
  *
  * Access layers (in order):
  * 1. Agent-specific files — always included (passed in directly as knowledgeFileIds)

@@ -36,8 +36,9 @@ export const updateWebhookLastTriggered = internalMutation({
 export const createTriggerLog = internalMutation({
   args: {
     organizationId: v.string(),
-    workflowRootId: v.id('wfDefinitions'),
-    wfDefinitionId: v.id('wfDefinitions'),
+    workflowRootId: v.optional(v.id('wfDefinitions')),
+    workflowSlug: v.optional(v.string()),
+    wfDefinitionId: v.optional(v.union(v.id('wfDefinitions'), v.string())),
     wfExecutionId: v.optional(v.id('wfExecutions')),
     triggerType: v.union(
       v.literal('manual'),

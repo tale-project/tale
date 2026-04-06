@@ -1,6 +1,8 @@
+import { listMessages } from '@convex-dev/agent';
 import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
+import { components } from '../_generated/api';
 import { query } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls';
 import { getThreadMessagesStreaming as getThreadMessagesStreamingHelper } from './get_thread_messages_streaming';
@@ -88,5 +90,29 @@ export const getThreadMessagesStreaming = query({
       paginationOpts: args.paginationOpts,
       streamArgs: args.streamArgs,
     });
+  },
+});
+
+/**
+ * Returns error strings for failed messages in a thread.
+ * Separate from the streaming query to avoid creating new object references
+ * on UIMessages (which breaks React/SDK dedup during streaming transitions).
+ */
+export const getFailedMessageErrors = query({
+  args: { threadId: v.string() },
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) return {};
+
+    const result = await listMessages(ctx, components.agent, {
+      threadId: args.threadId,
+      paginationOpts: { cursor: null, numItems: 10 },
+      statuses: ['failed'],
+    });
+    const errors: Record<string, string> = {};
+    for (const msg of result.page) {
+      if (msg.error) errors[msg._id] = msg.error;
+    }
+    return errors;
   },
 });

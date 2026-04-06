@@ -8,7 +8,7 @@ import { authorizeRls } from './access_control';
  */
 
 const ALL_TABLES = [
-  'customAgents',
+  'agentBindings',
   'documents',
   'products',
   'customers',
@@ -59,7 +59,7 @@ describe('authorizeRls', () => {
 
   describe('editor role', () => {
     const fullAccess: Table[] = [
-      'customAgents',
+      'agentBindings',
       'documents',
       'products',
       'customers',

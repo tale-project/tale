@@ -1,20 +1,16 @@
 'use client';
 
-import { useCallback, useMemo } from 'react';
+import { useAction } from 'convex/react';
+import { useCallback } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
-import { Tabs } from '@/app/components/ui/navigation/tabs';
 import { Button } from '@/app/components/ui/primitives/button';
 import { toast } from '@/app/hooks/use-toast';
-import { toId } from '@/convex/lib/type_cast_helpers';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
-import { fetchJson } from '@/lib/utils/type-cast-helpers';
 
-import { useCreateIntegration } from '../../hooks/actions';
-import { useGenerateUploadUrl } from '../../hooks/mutations';
 import { useUploadIntegration } from './hooks/use-upload-integration';
 import { PreviewStep } from './steps/preview-step';
-import { TemplateStep } from './steps/template-step';
 import { UploadStep } from './steps/upload-step';
 
 interface IntegrationUploadDialogProps {
@@ -30,8 +26,10 @@ export function IntegrationUploadDialog({
 }: IntegrationUploadDialogProps) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
-  const { mutateAsync: createIntegration } = useCreateIntegration();
-  const { mutateAsync: generateUploadUrl } = useGenerateUploadUrl();
+  const writeFilesFn = useAction(
+    api.integrations.file_actions.writeIntegrationFiles,
+  );
+  const installFn = useAction(api.integrations.file_actions.installIntegration);
 
   const state = useUploadIntegration();
 
@@ -48,100 +46,21 @@ export function IntegrationUploadDialog({
   const handleCreate = useCallback(async () => {
     if (!state.parsedPackage) return;
 
-    const { config, connectorCode, iconFile } = state.parsedPackage;
+    const { config, connectorCode } = state.parsedPackage;
     state.setIsCreating(true);
 
     try {
-      const isSql = config.type === 'sql';
-      const authMethod =
-        config.authMethod === 'bearer_token' ? 'api_key' : config.authMethod;
-      const supportedAuthMethods = config.supportedAuthMethods?.map((m) =>
-        m === 'bearer_token' ? 'api_key' : m,
-      );
+      const slug = config.name;
 
-      // Upload icon to Convex storage if present
-      let iconStorageId: string | undefined;
-      if (iconFile) {
-        const uploadUrl = await generateUploadUrl({});
-        const uploadResponse = await fetch(uploadUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': iconFile.type || 'image/png' },
-          body: iconFile,
-        });
-        if (!uploadResponse.ok) {
-          throw new Error(t('integrations.upload.iconUploadFailed'));
-        }
-        const { storageId } = await fetchJson<{ storageId: string }>(
-          uploadResponse,
-        );
-        iconStorageId = storageId;
-      }
+      await writeFilesFn({
+        orgSlug: 'default',
+        slug,
+        config,
+        connectorCode:
+          connectorCode.trim().length > 0 ? connectorCode : undefined,
+      });
 
-      // Build connector config
-      const connector =
-        !isSql && connectorCode.trim().length > 0
-          ? {
-              code: connectorCode,
-              version: config.version ?? 1,
-              operations: config.operations.map((op) => ({
-                name: op.name,
-                title: op.title,
-                description: op.description,
-                parametersSchema: op.parametersSchema,
-                operationType: op.operationType,
-                requiresApproval: op.requiresApproval,
-              })),
-              secretBindings: config.secretBindings,
-              allowedHosts: config.allowedHosts,
-              timeoutMs: config.connectionConfig?.timeout,
-            }
-          : undefined;
-
-      const payload: Record<string, unknown> = {
-        organizationId,
-        name: config.name,
-        title: config.title,
-        description: config.description,
-        authMethod,
-        supportedAuthMethods,
-        connectionConfig: config.connectionConfig ?? undefined,
-        capabilities: config.capabilities ?? undefined,
-        connector,
-        type: isSql ? 'sql' : undefined,
-        iconStorageId: iconStorageId
-          ? toId<'_storage'>(iconStorageId)
-          : undefined,
-      };
-
-      if (config.oauth2Config) {
-        payload.oauth2Config = config.oauth2Config;
-      }
-
-      if (isSql && config.sqlConnectionConfig) {
-        payload.sqlConnectionConfig = config.sqlConnectionConfig;
-      }
-
-      if (isSql) {
-        const sqlOps = config.operations
-          .filter((op) => op.query)
-          .map((op) => ({
-            name: op.name,
-            title: op.title,
-            description: op.description,
-            query: op.query,
-            parametersSchema: op.parametersSchema,
-            operationType: op.operationType,
-            requiresApproval: op.requiresApproval,
-          }));
-        if (sqlOps.length > 0) {
-          payload.sqlOperations = sqlOps;
-        }
-      }
-
-      await createIntegration(
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Payload is dynamically built to match the mutation's expected shape
-        payload as Parameters<typeof createIntegration>[0],
-      );
+      await installFn({ orgSlug: 'default', slug, organizationId });
 
       toast({
         title: t('integrations.upload.createSuccess'),
@@ -161,28 +80,7 @@ export function IntegrationUploadDialog({
     } finally {
       state.setIsCreating(false);
     }
-  }, [
-    state,
-    organizationId,
-    createIntegration,
-    generateUploadUrl,
-    handleOpenChange,
-    t,
-  ]);
-
-  const tabItems = useMemo(
-    () => [
-      {
-        value: 'upload' as const,
-        label: t('integrations.upload.tabUpload'),
-      },
-      {
-        value: 'template' as const,
-        label: t('integrations.upload.tabTemplate'),
-      },
-    ],
-    [t],
-  );
+  }, [state, writeFilesFn, installFn, handleOpenChange, organizationId, t]);
 
   const footer = (
     <>
@@ -230,28 +128,10 @@ export function IntegrationUploadDialog({
       className="max-h-[90vh] grid-rows-[auto_1fr_auto] overflow-hidden"
     >
       <div className="flex min-h-0 min-w-0 flex-col gap-4 overflow-hidden">
-        {/* Step 1: Tab selection (Upload / Template) */}
         {state.step === 'upload' && (
-          <>
-            <Tabs
-              items={tabItems}
-              value={state.activeTab}
-              onValueChange={(v) => {
-                if (v === 'upload' || v === 'template') {
-                  state.setActiveTab(v);
-                }
-              }}
-              listClassName="grid w-full grid-cols-2"
-            />
-            <div className="min-h-0 min-w-0 flex-1 overflow-y-auto pr-2">
-              {state.activeTab === 'upload' && (
-                <UploadStep onPackageParsed={state.setParsedPackage} />
-              )}
-              {state.activeTab === 'template' && (
-                <TemplateStep onPackageParsed={state.setParsedPackage} />
-              )}
-            </div>
-          </>
+          <div className="min-h-0 min-w-0 flex-1 overflow-y-auto pr-2">
+            <UploadStep onPackageParsed={state.setParsedPackage} />
+          </div>
         )}
 
         {/* Step 2: Preview */}

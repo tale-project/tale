@@ -10,6 +10,7 @@ Results are cached based on image content hash to avoid redundant API calls.
 
 import asyncio
 import base64
+import contextlib
 import imghdr
 import time
 from dataclasses import dataclass
@@ -75,20 +76,58 @@ Focus on: image type (photo/chart/diagram), main subject, and key visible text.
 Be extremely concise - omit minor details."""
 
 
+async def _safe_close_client(client: AsyncOpenAI) -> None:
+    """Close an old client after a grace period for in-flight requests."""
+    await asyncio.sleep(30)
+    try:
+        await client.close()
+    except Exception:
+        logger.opt(exception=True).warning("Failed to close old vision client")
+
+
 class VisionClient:
     """Async client for OpenAI Vision API calls."""
 
+    _CONFIG_CHECK_INTERVAL = 15  # seconds
+
     def __init__(self) -> None:
         self._client: AsyncOpenAI | None = None
+        self._client_config: tuple | None = None
+        self._last_config_check: float = 0
 
     def _get_client(self) -> AsyncOpenAI:
-        """Get or create the OpenAI client."""
-        if self._client is None:
-            self._client = AsyncOpenAI(
-                api_key=settings.get_openai_api_key(),
-                base_url=settings.get_openai_base_url(),
-                timeout=120.0,
-            )
+        """Get or create the OpenAI client, rebuilding if config changed."""
+        now = time.monotonic()
+        if self._client is not None and (now - self._last_config_check) < self._CONFIG_CHECK_INTERVAL:
+            return self._client
+
+        self._last_config_check = now
+        try:
+            config = settings.get_vision_config()  # (base_url, api_key, model)
+        except (ValueError, OSError):
+            if self._client is not None:
+                logger.opt(exception=True).warning("Config read failed, keeping current vision client")
+                return self._client
+            raise
+
+        if config == self._client_config and self._client is not None:
+            return self._client
+
+        base_url, api_key, _model = config
+
+        # Never downgrade to empty key
+        if not api_key and self._client is not None:
+            logger.warning("Skipping vision client reload: new config has empty API key")
+            return self._client
+
+        old = self._client
+        self._client = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=120.0)
+        self._client_config = config
+
+        if old is not None:
+            logger.info("Vision client rebuilt: model={}", _model)
+            with contextlib.suppress(RuntimeError):
+                asyncio.get_running_loop().create_task(_safe_close_client(old))
         return self._client
 
     async def ocr_image(
@@ -330,12 +369,13 @@ async def process_pages_with_llm(
 
     logger.info(f"LLM processing: {total_chars} chars total, chunking at {max_chars_per_chunk} chars")
 
+    base_url, api_key, chat_model = settings.get_chat_config()
     client = AsyncOpenAI(
-        api_key=settings.get_openai_api_key(),
-        base_url=settings.get_openai_base_url(),
+        api_key=api_key,
+        base_url=base_url,
         timeout=300.0,
     )
-    resolved_model = model or settings.get_fast_model()
+    resolved_model = model or chat_model
     semaphore = asyncio.Semaphore(max_concurrent)
 
     chunks = _chunk_by_chars(full_text, max_chars_per_chunk)

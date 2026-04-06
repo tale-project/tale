@@ -16,10 +16,10 @@ import type { ToolCtx } from '@convex-dev/agent';
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
+import type { WorkflowJsonConfig } from '../../../lib/shared/schemas/workflows';
 import type { ToolDefinition } from '../types';
 
 import { internal } from '../../_generated/api';
-import { toId } from '../../lib/type_cast_helpers';
 import { getApprovalThreadId } from '../../threads/get_parent_thread_id';
 import { validateWorkflowDefinition } from '../../workflow_engine/helpers/validation/validate_workflow_definition';
 
@@ -36,7 +36,7 @@ const workflowConfigSchema = z.object({
   version: z
     .string()
     .optional()
-    .describe('Optional version label, e.g. "v1", "v2".'),
+    .describe('Optional version label, e.g. "1.0.0", "2.0.0".'),
   workflowType: z
     .enum(['predefined'])
     .optional()
@@ -70,7 +70,7 @@ const workflowConfigSchema = z.object({
         .record(z.string(), z.unknown())
         .optional()
         .describe(
-          'Initial workflow-level variables accessible to all steps via {{variableName}}. organizationId is auto-injected.',
+          'Initial workflow-level variables accessible to all steps via {{config.variableName}}. organizationId is auto-injected.',
         ),
     })
     .optional()
@@ -99,6 +99,8 @@ const stepConfigSchema = z.object({
     ),
 });
 
+const DEFAULT_ORG_SLUG = 'default';
+
 export const saveWorkflowDefinitionTool = {
   name: 'save_workflow_definition' as const,
   tool: createTool({
@@ -123,11 +125,10 @@ Inform the user the update is ready for review in the chat UI.`,
         .describe(
           'Complete list of steps for this workflow; existing steps will be replaced.',
         ),
-      workflowId: z
+      workflowSlug: z
         .string()
-        .optional()
         .describe(
-          'ID of an existing draft workflow to update. When omitted, the tool will use the workflowId from context; if neither is available, the call will fail. This tool never creates a new workflow.',
+          'Slug of the workflow to update (e.g., "conversation-sync", "circuly/sync-customers"). Required.',
         ),
       updateSummary: z
         .string()
@@ -148,12 +149,7 @@ Inform the user the update is ready for review in the chat UI.`,
       validationErrors?: string[];
       validationWarnings?: string[];
     }> => {
-      const {
-        organizationId,
-        workflowId: workflowIdFromContext,
-        threadId: currentThreadId,
-        messageId,
-      } = ctx;
+      const { organizationId, threadId: currentThreadId, messageId } = ctx;
 
       const threadId = await getApprovalThreadId(ctx, currentThreadId);
 
@@ -162,16 +158,6 @@ Inform the user the update is ready for review in the chat UI.`,
           success: false,
           message:
             'organizationId is required in the tool context to save a workflow definition.',
-        };
-      }
-
-      const targetWorkflowId = args.workflowId ?? workflowIdFromContext;
-
-      if (!targetWorkflowId) {
-        return {
-          success: false,
-          message:
-            'workflowId is required to save a workflow definition. This tool only updates existing draft workflows. Ensure it is attached to an automation or provide workflowId explicitly.',
         };
       }
 
@@ -191,18 +177,24 @@ Inform the user the update is ready for review in the chat UI.`,
         };
       }
 
-      // Resolve workflow name and version for the approval card
-      const workflow = await ctx.runQuery(
-        internal.wf_definitions.internal_queries.resolveWorkflow,
-        { wfDefinitionId: toId<'wfDefinitions'>(targetWorkflowId) },
-      );
+      // Read workflow file to verify it exists and get current metadata
+      const readResult: { ok: boolean; config?: WorkflowJsonConfig } =
+        await ctx.runAction(
+          internal.workflows.file_actions.readWorkflowForExecution,
+          {
+            orgSlug: DEFAULT_ORG_SLUG,
+            workflowSlug: args.workflowSlug,
+          },
+        );
 
-      if (!workflow) {
+      if (!readResult.ok || !readResult.config) {
         return {
           success: false,
-          message: `Workflow "${targetWorkflowId}" not found. It may have been deleted.`,
+          message: `Workflow "${args.workflowSlug}" not found. The file may have been deleted or moved.`,
         };
       }
+
+      const currentConfig = readResult.config;
 
       try {
         const approvalId = await ctx.runMutation(
@@ -210,9 +202,9 @@ Inform the user the update is ready for review in the chat UI.`,
             .createWorkflowUpdateApproval,
           {
             organizationId,
-            workflowId: toId<'wfDefinitions'>(targetWorkflowId),
-            workflowName: workflow.name,
-            workflowVersionNumber: workflow.versionNumber,
+            workflowSlug: args.workflowSlug,
+            workflowName: currentConfig.name,
+            workflowVersion: currentConfig.version ?? '1.0.0',
             updateSummary: args.updateSummary,
             workflowConfig: {
               ...args.workflowConfig,
@@ -235,8 +227,8 @@ Inform the user the update is ready for review in the chat UI.`,
           requiresApproval: true,
           approvalId,
           approvalCreated: true,
-          approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created for updating workflow "${workflow.name}". The user must approve this update before changes will be applied.`,
-          message: `Workflow update for "${workflow.name}" is ready for approval. An approval card has been created. Changes will be applied once the user approves it.`,
+          approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created for updating workflow "${currentConfig.name}". The user must approve this update before changes will be applied.`,
+          message: `Workflow update for "${currentConfig.name}" is ready for approval. An approval card has been created. Changes will be applied once the user approves it.`,
           validationWarnings:
             validation.warnings.length > 0 ? validation.warnings : undefined,
         };

@@ -1,27 +1,30 @@
 {
-  "workflowConfig": {
-    "name": "Circuly Subscriptions Sync",
-    "description": "Synchronize subscription data from Circuly to customer metadata with pagination",
-    "version": "2.0.0",
-    "workflowType": "predefined",
-    "config": {
-      "timeout": 600000,
-      "retryPolicy": { "maxRetries": 3, "backoffMs": 2000 },
-      "variables": {
-        "organizationId": "org_demo",
-        "pageSize": 50,
-        "currentCursor": null,
-        "totalProcessed": 0
-      }
+  "name": "Circuly Subscriptions Sync",
+  "description": "Synchronize subscription data from Circuly to customer metadata with pagination",
+  "version": "1.0.0",
+  "enabled": true,
+  "config": {
+    "timeout": 600000,
+    "retryPolicy": {
+      "maxRetries": 3,
+      "backoffMs": 2000
+    },
+    "variables": {
+      "organizationId": "org_demo",
+      "pageSize": 50,
+      "currentCursor": null,
+      "totalProcessed": 0
     }
   },
-  "stepsConfig": [
+  "steps": [
     {
       "stepSlug": "start",
       "name": "start",
       "stepType": "start",
       "config": {},
-      "nextSteps": { "success": "fetch_circuly_customers" }
+      "nextSteps": {
+        "success": "fetch_circuly_customers"
+      }
     },
     {
       "stepSlug": "fetch_circuly_customers",
@@ -38,7 +41,9 @@
           }
         }
       },
-      "nextSteps": { "success": "check_customers_found" }
+      "nextSteps": {
+        "success": "check_customers_found"
+      }
     },
     {
       "stepSlug": "check_customers_found",
@@ -48,7 +53,10 @@
         "expression": "steps.fetch_circuly_customers.output.data.items|length > 0",
         "description": "Check if any Circuly customers exist in current page"
       },
-      "nextSteps": { "true": "loop_customers", "false": "noop" }
+      "nextSteps": {
+        "true": "loop_customers",
+        "false": "noop"
+      }
     },
     {
       "stepSlug": "loop_customers",
@@ -58,7 +66,10 @@
         "items": "{{steps.fetch_circuly_customers.output.data.items}}",
         "itemVariable": "customer"
       },
-      "nextSteps": { "loop": "check_has_external_id", "done": "check_has_more_pages" }
+      "nextSteps": {
+        "loop": "check_has_external_id",
+        "done": "check_has_more_pages"
+      }
     },
     {
       "stepSlug": "check_has_external_id",
@@ -68,7 +79,10 @@
         "expression": "loop.item.externalId != null && loop.item.externalId != \"\"",
         "description": "Check if customer has a valid Circuly external ID"
       },
-      "nextSteps": { "true": "fetch_customer_subscriptions", "false": "loop_customers" }
+      "nextSteps": {
+        "true": "fetch_customer_subscriptions",
+        "false": "loop_customers"
+      }
     },
     {
       "stepSlug": "fetch_customer_subscriptions",
@@ -85,7 +99,9 @@
           }
         }
       },
-      "nextSteps": { "success": "update_customer_subscriptions" }
+      "nextSteps": {
+        "success": "update_customer_subscriptions"
+      }
     },
     {
       "stepSlug": "update_customer_subscriptions",
@@ -104,7 +120,9 @@
           }
         }
       },
-      "nextSteps": { "success": "loop_customers" }
+      "nextSteps": {
+        "success": "loop_customers"
+      }
     },
     {
       "stepSlug": "check_has_more_pages",
@@ -114,7 +132,10 @@
         "expression": "steps.fetch_circuly_customers.output.data.isDone == false",
         "description": "Check if there are more pages of customers to process"
       },
-      "nextSteps": { "true": "update_cursor_and_fetch_next", "false": "noop" }
+      "nextSteps": {
+        "true": "update_cursor_and_fetch_next",
+        "false": "noop"
+      }
     },
     {
       "stepSlug": "update_cursor_and_fetch_next",
@@ -135,7 +156,9 @@
           ]
         }
       },
-      "nextSteps": { "default": "fetch_circuly_customers" }
+      "nextSteps": {
+        "default": "fetch_circuly_customers"
+      }
     }
   ]
 }

@@ -1,5 +1,4 @@
 import { unlink } from 'node:fs/promises';
-import { join } from 'node:path';
 
 import type { DeploymentColor } from '../compose/types';
 
@@ -9,6 +8,8 @@ import * as logger from '../../utils/logger';
 import { ROTATABLE_SERVICES, STATEFUL_SERVICES } from '../compose/types';
 import { docker } from '../docker/docker';
 import { removeContainer } from '../docker/remove-container';
+import { getPreviousVersionFilePath } from '../state/get-previous-version-file-path';
+import { getStateFilePath } from '../state/get-state-file-path';
 import { withLock } from '../state/with-lock';
 
 interface ResetOptions {
@@ -67,8 +68,8 @@ export async function reset(options: ResetOptions): Promise<void> {
     // Clean up state files
     logger.step(`${prefix}Cleaning up state files...`);
     const stateFiles = [
-      join(env.DEPLOY_DIR, '.deployment-color'),
-      join(env.DEPLOY_DIR, '.deployment-previous-version'),
+      getStateFilePath(env.DEPLOY_DIR),
+      getPreviousVersionFilePath(env.DEPLOY_DIR),
     ];
 
     for (const file of stateFiles) {

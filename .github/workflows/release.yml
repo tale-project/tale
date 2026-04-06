@@ -86,8 +86,6 @@ jobs:
             context: '.'
           - name: proxy
             context: '.'
-          - name: operator
-            context: '.'
         arch:
           - name: amd64
             runner: ubuntu-latest
@@ -138,7 +136,7 @@ jobs:
 
     strategy:
       matrix:
-        service: [platform, rag, crawler, db, proxy, operator]
+        service: [platform, rag, crawler, db, proxy]
 
     steps:
       - name: Log in to GHCR
@@ -191,7 +189,7 @@ jobs:
         run: |
           echo "## Release ${{ needs.prepare.outputs.version }} Complete" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "All 6 service images have been built and pushed to GHCR (native amd64 + arm64)." >> $GITHUB_STEP_SUMMARY
+          echo "All 5 service images have been built and pushed to GHCR (native amd64 + arm64)." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Images" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -202,7 +200,6 @@ jobs:
           echo "| Crawler | \`${{ env.REGISTRY }}/${{ github.repository }}/tale-crawler:${{ needs.prepare.outputs.version_number }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| DB | \`${{ env.REGISTRY }}/${{ github.repository }}/tale-db:${{ needs.prepare.outputs.version_number }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Proxy | \`${{ env.REGISTRY }}/${{ github.repository }}/tale-proxy:${{ needs.prepare.outputs.version_number }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Operator | \`${{ env.REGISTRY }}/${{ github.repository }}/tale-operator:${{ needs.prepare.outputs.version_number }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### CLI" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY

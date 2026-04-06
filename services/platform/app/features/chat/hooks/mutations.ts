@@ -3,18 +3,18 @@ import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { api } from '@/convex/_generated/api';
 
 export function useUnifiedChatWithAgent() {
-  return useConvexMutation(api.custom_agents.unified_chat.chatWithAgent);
+  return useConvexAction(api.agents.unified_chat.chatWithAgent);
 }
 
 export function useSubmitHumanInputResponse() {
-  return useConvexMutation(
-    api.agent_tools.human_input.mutations.submitHumanInputResponse,
+  return useConvexAction(
+    api.agent_tools.human_input.actions.submitHumanInputResponse,
   );
 }
 
 export function useSubmitLocationResponse() {
-  return useConvexMutation(
-    api.agent_tools.location.mutations.submitLocationResponse,
+  return useConvexAction(
+    api.agent_tools.location.actions.submitLocationResponse,
   );
 }
 

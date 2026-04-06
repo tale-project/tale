@@ -9,6 +9,7 @@ import type { Id } from '../../../../_generated/dataModel';
 import type { ActionCtx } from '../../../../_generated/server';
 import type { StepExecutionResult, LLMNodeConfig } from '../../../types';
 
+import { resolveLanguageModel } from '../../../../providers/resolve_model';
 import { executeAgentWithTools } from './execute_agent_with_tools';
 import { createLLMResult } from './utils/create_llm_result';
 import { processPrompts } from './utils/process_prompts';
@@ -36,8 +37,13 @@ export async function executeLLMNode(
   threadId?: string,
   stepSlug?: string,
 ): Promise<StepExecutionResult> {
-  // 1. Validate and normalize configuration
-  const normalizedConfig = validateAndNormalizeConfig(config);
+  // 1. Resolve default model from provider files, then validate and normalize config
+  const { languageModel, modelData: chatModelData } =
+    await resolveLanguageModel(ctx, { tag: 'chat' });
+  const normalizedConfig = validateAndNormalizeConfig(
+    config,
+    chatModelData.modelId,
+  );
 
   // 2. Process prompts with variable substitution
   const prompts = processPrompts(normalizedConfig, variables);
@@ -63,6 +69,7 @@ export async function executeLLMNode(
       stepSlug,
       knowledgeFileIds,
       userId,
+      languageModel,
     },
   );
 

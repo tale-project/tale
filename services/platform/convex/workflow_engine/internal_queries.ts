@@ -4,7 +4,7 @@ import { internalQuery } from '../_generated/server';
 import * as SchedulerHelpers from './helpers/scheduler';
 
 const scheduledWorkflowValidator = v.object({
-  wfDefinitionId: v.id('wfDefinitions'),
+  workflowSlug: v.string(),
   organizationId: v.string(),
   name: v.string(),
   schedule: v.string(),
@@ -21,7 +21,7 @@ export const getScheduledWorkflows = internalQuery({
 });
 
 export const getLastExecutionTime = internalQuery({
-  args: { wfDefinitionId: v.id('wfDefinitions') },
+  args: { wfDefinitionId: v.string() },
   returns: v.union(v.number(), v.null()),
   handler: async (ctx, args) => {
     return await SchedulerHelpers.getLastExecutionTime(ctx, args);
@@ -29,7 +29,7 @@ export const getLastExecutionTime = internalQuery({
 });
 
 export const getLastExecutionTimes = internalQuery({
-  args: { wfDefinitionIds: v.array(v.id('wfDefinitions')) },
+  args: { wfDefinitionIds: v.array(v.string()) },
   returns: v.record(v.string(), v.union(v.number(), v.null())),
   handler: async (ctx, args) => {
     const result = await SchedulerHelpers.getLastExecutionTimes(ctx, args);
@@ -38,7 +38,7 @@ export const getLastExecutionTimes = internalQuery({
 });
 
 export const getRunningExecutions = internalQuery({
-  args: { wfDefinitionIds: v.array(v.id('wfDefinitions')) },
+  args: { wfDefinitionIds: v.array(v.string()) },
   returns: v.record(v.string(), v.boolean()),
   handler: async (ctx, args) => {
     const result = await SchedulerHelpers.hasRunningExecutions(ctx, args);

@@ -8,7 +8,7 @@ import {
 import { ContentArea } from '@/app/components/layout/content-area';
 import { PageLayout } from '@/app/components/layout/page-layout';
 import { KnowledgeNavigation } from '@/app/features/knowledge/components/knowledge-navigation';
-import { useAbility } from '@/app/hooks/use-ability';
+import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
@@ -25,6 +25,9 @@ function KnowledgeLayout() {
   const { t: tAccess } = useT('accessDenied');
 
   const ability = useAbility();
+  const abilityLoading = useAbilityLoading();
+
+  if (abilityLoading) return null;
 
   if (ability.cannot('read', 'knowledgeRead')) {
     return <AccessDenied message={tAccess('knowledge')} />;

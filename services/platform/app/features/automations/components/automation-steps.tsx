@@ -35,13 +35,11 @@ import '@xyflow/react/dist/style.css';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
-import { useAuth } from '@/app/hooks/use-convex-auth';
 import { toast } from '@/app/hooks/use-toast';
 import { useUrlState } from '@/app/hooks/use-url-state';
-import { Doc, Id } from '@/convex/_generated/dataModel';
+import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
-import { useCreateStep } from '../hooks/mutations';
 import { useAutomationLayout } from '../hooks/use-automation-layout';
 import { AutomationCallbacksProvider } from './automation-callbacks-context';
 import { AutomationEdge } from './automation-edge';
@@ -55,7 +53,7 @@ interface AutomationStepsProps {
   steps: Doc<'wfStepDefs'>[];
   className?: string;
   organizationId: string;
-  automationId: Id<'wfDefinitions'>;
+  automationId: string;
   status: 'draft' | 'active' | 'inactive' | 'archived';
   onStepCreated?: () => void;
   onOpenAIChat?: () => void;
@@ -114,8 +112,6 @@ function AutomationStepsInner({
   onOpenAIChat,
 }: AutomationStepsProps) {
   const { t } = useT('automations');
-  const { user } = useAuth();
-  const { mutateAsync: createStep } = useCreateStep();
   const isDraft = status === 'draft';
   const isActive = status === 'active';
   const hasSteps = steps && steps.length > 0;
@@ -154,7 +150,7 @@ function AutomationStepsInner({
   const [_parentStepForNewStep, setParentStepForNewStep] = useState<
     string | null
   >(null);
-  const [edgeToInsertStep, setEdgeToInsertStep] = useState<{
+  const [_edgeToInsertStep, setEdgeToInsertStep] = useState<{
     sourceId: string;
     targetId: string;
   } | null>(null);
@@ -323,71 +319,17 @@ function AutomationStepsInner({
     return;
   };
 
-  const handleCreateStep = async (data: {
+  const handleCreateStep = async (_data: {
     name: string;
     stepType: Doc<'wfStepDefs'>['stepType'];
     config: Doc<'wfStepDefs'>['config'];
     nextSteps?: Doc<'wfStepDefs'>['nextSteps'];
   }) => {
-    if (!user) {
-      toast({
-        title: t('steps.toast.notAuthenticated'),
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    try {
-      const stepSlug = data.name
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '_')
-        .replace(/^_|_$/g, '');
-
-      if (!stepSlug) {
-        toast({
-          title: t('steps.toast.invalidStepName'),
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      if (steps.some((s) => s.stepSlug === stepSlug)) {
-        toast({
-          title: t('steps.toast.duplicateStepSlug'),
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      let nextSteps: Record<string, string> = data.nextSteps || {};
-
-      if (edgeToInsertStep) {
-        nextSteps = {
-          ...nextSteps,
-          success: edgeToInsertStep.targetId,
-        };
-      }
-
-      await createStep({
-        wfDefinitionId: automationId,
-        stepSlug,
-        name: data.name,
-        stepType: data.stepType,
-        config: data.config,
-        nextSteps,
-        editMode: 'visual',
-      });
-
-      toast({
-        title: t('steps.toast.stepCreated'),
-      });
-    } catch (error) {
-      console.error('Failed to create step:', error);
-      toast({
-        title: t('steps.toast.createFailed'),
-        variant: 'destructive',
-      });
-    }
+    // TODO: Replace with file-based workflow save (modify workflow JSON and save via useSaveWorkflow)
+    toast({
+      title: t('steps.toast.editingNotAvailable'),
+      description: t('steps.toast.apiNotWired'),
+    });
   };
 
   return (

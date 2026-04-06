@@ -1,3 +1,9 @@
+/**
+ * @deprecated Retained for backward compatibility with existing data.
+ * New code should use integrationCredentials (credentials_schema.ts) for DB storage
+ * and file-based config.json for integration definitions.
+ */
+
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
