@@ -127,7 +127,7 @@ WORKDIR /app
 
 ARG SOPS_VERSION=3.9.4
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl tini postgresql-client ca-certificates \
+    curl tini gosu postgresql-client ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && curl -fsSL "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.$(dpkg --print-architecture)" -o /usr/local/bin/sops && chmod +x /usr/local/bin/sops \
     && mkdir -p /usr/local/share/ca-certificates \
@@ -212,8 +212,6 @@ COPY --from=pruner --chown=app:app /app/services/platform/package.json ./
 COPY --from=pruner --chown=app:app /app/services/platform/docker-entrypoint.sh /app/services/platform/generate-admin-key.sh /app/services/platform/env.sh ./
 
 RUN chmod +x ./docker-entrypoint.sh ./generate-admin-key.sh
-
-USER app
 
 EXPOSE 3000 3210 3211 6791
 
