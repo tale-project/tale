@@ -1,6 +1,6 @@
 ---
 title: Operations
-description: Monitoring, error tracking, logs, database backups, and health checks.
+description: Monitoring, error tracking, logs, database backups, health checks, and container validation.
 ---
 
 ## Monitoring
@@ -89,3 +89,33 @@ Each service has a health check endpoint:
 | `GET /api/health` | Platform is up and Convex backend is reachable |
 | `http://localhost:8001/health` | RAG service is running and database pool is connected |
 | `http://localhost:8002/health` | Crawler service and browser engine are ready |
+
+## Container health validation
+
+To validate that all containers are healthy after a deployment or configuration change, run the container smoke test:
+
+```bash
+bun run docker:test
+```
+
+This builds all images, starts them on non-conflicting ports, validates health endpoints and inter-service connectivity, then tears down. It is the same test that runs in CI on every pull request.
+
+For image-level validation (OCI labels, no secrets, size budgets):
+
+```bash
+bun run docker:test:image
+```
+
+## Image size monitoring
+
+Each container image has a size budget enforced by CI. Current sizes and budgets:
+
+| Service  | Current size | Budget |
+|----------|-------------|--------|
+| Crawler  | ~1.85 GB    | 2.1 GB |
+| RAG      | ~515 MB     | 600 MB |
+| Platform | ~2.58 GB    | 2.9 GB |
+| DB       | ~1.06 GB    | 1.2 GB |
+| Proxy    | ~88 MB      | 100 MB |
+
+If an image exceeds its budget after a change, `bun run docker:test:image` will fail. See the [container architecture](/container-architecture) page for details on multi-stage build strategies that keep images lean.

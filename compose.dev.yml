@@ -1,0 +1,55 @@
+# =============================================================================
+# LOCAL DEVELOPMENT OVERRIDES
+# =============================================================================
+# Extends compose.yml with source mounts, relaxed health checks, and
+# debug-level logging for a faster edit-reload cycle.
+#
+# Usage:
+#   docker compose -f compose.yml -f compose.dev.yml up --build
+#
+# Note: Hot-reload requires the service to support file-watching.
+#   - Platform: Vite HMR (automatic)
+#   - RAG/Crawler: uvicorn --reload (set via env var below)
+# =============================================================================
+
+services:
+  crawler:
+    volumes:
+      - ./services/crawler/app:/app/app
+      - crawler-data:/app/data
+    environment:
+      - CRAWLER_LOG_LEVEL=debug
+      # Enable uvicorn auto-reload for Python code changes
+      - UVICORN_RELOAD=true
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8002", "--reload"]
+    healthcheck:
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  rag:
+    volumes:
+      - ./services/rag/app:/app/app
+      - rag-data:/app/data
+    environment:
+      - RAG_LOG_LEVEL=debug
+
+  platform:
+    volumes:
+      - ./services/platform/app:/app/services/platform/app
+      - ./services/platform/lib:/app/services/platform/lib
+      - ./services/platform/convex:/app/services/platform/convex
+      - platform-data:/app/data
+      - caddy-data:/caddy-data:ro
+    environment:
+      - NODE_ENV=development
+
+  proxy:
+    environment:
+      - CADDY_DEBUG=true
+
+  db:
+    environment:
+      - DB_LOG_STATEMENT=all
+      - DB_LOG_MIN_DURATION_STATEMENT=0

@@ -1,0 +1,14 @@
+# =============================================================================
+# Trivy Ignore File
+# =============================================================================
+# Add CVE IDs here (one per line) to suppress known false positives
+# during vulnerability scanning.
+#
+# Format:
+#   CVE-YYYY-NNNNN    # reason for suppression
+#
+# Example:
+#   CVE-2023-12345    # false positive: not reachable in our usage
+#
+# Docs: https://aquasecurity.github.io/trivy/latest/docs/configuration/filtering/
+# =============================================================================

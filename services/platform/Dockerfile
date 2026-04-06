@@ -104,11 +104,21 @@ RUN cd /tmp/workspace && HUSKY=0 bun install --production \
               /app/node_modules/@storybook \
               /app/node_modules/storybook \
               /app/node_modules/pdfjs-dist/legacy \
+              /app/node_modules/@vitest \
+              /app/node_modules/vitest \
+              /app/node_modules/@rolldown \
+              /app/node_modules/playwright-core \
+              /app/node_modules/core-js-pure \
+               /app/node_modules/tsx \
+               /app/node_modules/jsdom \
     2>/dev/null || true \
     && find /app/node_modules -type d \( -name "*-musl*" -o -name "*linuxmusl*" \) -exec rm -rf {} + 2>/dev/null || true \
     && find /app/node_modules -type f -name "*.map" -delete 2>/dev/null || true \
     && find /app/node_modules -type d \( -name "test" -o -name "tests" -o -name "__tests__" -o -name "__mocks__" -o -name "coverage" \) -exec rm -rf {} + 2>/dev/null || true \
-    && find /app/node_modules -type f \( -name "*.md" -o -name "*.markdown" -o -name "CHANGELOG*" -o -name "LICENSE*" -o -name "README*" \) -delete 2>/dev/null || true
+    && find /app/node_modules -type f \( -name "*.md" -o -name "*.markdown" -o -name "CHANGELOG*" -o -name "LICENSE*" -o -name "README*" \) -delete 2>/dev/null || true \
+    && find /app/node_modules -type f \( -name "*.d.ts" -o -name "*.d.ts.map" -o -name "*.d.mts" \) -delete 2>/dev/null || true \
+    && find /app/node_modules -type d \( -name "docs" -o -name "doc" -o -name "example" -o -name "examples" \) -exec rm -rf {} + 2>/dev/null || true \
+    && find /app/node_modules -type d -empty -delete 2>/dev/null || true
 
 # ============================================================================
 # Stage 4: Convex Dashboard
@@ -139,11 +149,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && useradd --system --uid 1001 --gid app app || true \
     && mkdir -p /home/app && chmod 777 /home/app \
     && mkdir -p /app/data/convex /app/data/agents /app/data/workflows /app/data/integrations /app/data/providers /dashboard /app/agents-builtin /app/workflows-builtin /app/integrations-builtin /app/providers-builtin \
-    && chown -R app:app /app/data /dashboard /app/agents-builtin /app/workflows-builtin /app/integrations-builtin /app/providers-builtin
+    && chown -R app:app /app/data /dashboard /app/agents-builtin /app/workflows-builtin /app/integrations-builtin /app/providers-builtin \
+    # Strip system bloat from Convex backend base (~155 MB)
+    && ARCH_LIB="/usr/lib/$(dpkg --print-architecture | sed 's/amd64/x86_64-linux-gnu/;s/arm64/aarch64-linux-gnu/')" \
+    && rm -rf "${ARCH_LIB}"/libLLVM* "${ARCH_LIB}"/libclang* \
+    && rm -rf /usr/lib/llvm-18 \
+    && rm -rf /usr/share/doc/* /usr/share/man/* /usr/share/info/* \
+    && rm -rf /var/lib/apt/lists/* /var/cache/apt/* \
+    && apt-get clean 2>/dev/null || true
 
 # Re-declare VERSION arg (ARGs don't persist after FROM)
 ARG VERSION=dev
-LABEL org.opencontainers.image.version="${VERSION}"
+LABEL org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.title="tale-platform" \
+      org.opencontainers.image.description="Tale Platform — TanStack Start SPA + Convex Backend" \
+      org.opencontainers.image.source="https://github.com/tale-project/tale" \
+      org.opencontainers.image.vendor="Tale" \
+      org.opencontainers.image.licenses="MIT"
 
 ENV NODE_ENV=production \
     TALE_VERSION=${VERSION} \
@@ -216,6 +238,49 @@ COPY --from=pruner --chown=app:app /app/services/platform/docker-entrypoint.sh /
 RUN chmod +x ./docker-entrypoint.sh ./generate-admin-key.sh
 
 EXPOSE 3000 3210 3211 6791
+HEALTHCHECK --interval=30s --timeout=3s CMD curl -f http://localhost:3000/api/health || exit 1
+
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["/app/docker-entrypoint.sh"]
+
+# =============================================================================
+# Stage 6: SQUASH — flatten layers to eliminate Docker layer bloat
+# =============================================================================
+FROM scratch
+COPY --from=runner / /
+
+ARG VERSION=dev
+
+WORKDIR /app
+
+# Run as root so entrypoint can fix volume ownership before dropping to app user
+USER root
+
+# Re-declare all ENV vars (FROM scratch drops upstream ENV directives)
+ENV NODE_ENV=production \
+    TALE_VERSION=${VERSION} \
+    PORT=3000 \
+    HOSTNAME="0.0.0.0" \
+    CONVEX_PORT=3210 \
+    INSTANCE_NAME=tale_platform \
+    DATABASE_UDF_USER_TIMEOUT_SECONDS=5 \
+    ISOLATE_MAX_USER_HEAP_SIZE=268435456 \
+    ISOLATE_MAX_HEAP_EXTRA_SIZE=134217728 \
+    ISOLATE_IDLE_TIMEOUT_SECONDS=3600 \
+    ISOLATE_MAX_LIFETIME_SECONDS=14400 \
+    CADDY_CA_CERT_PATH=/caddy-data/caddy/pki/authorities/local/root.crt \
+    DO_NOT_TRACK=1 \
+    ACTIONS_USER_TIMEOUT_SECS=1800 \
+    APPLICATION_MAX_CONCURRENT_QUERIES=32 \
+    APPLICATION_MAX_CONCURRENT_MUTATIONS=32 \
+    APPLICATION_MAX_CONCURRENT_V8_ACTIONS=32 \
+    APPLICATION_MAX_CONCURRENT_NODE_ACTIONS=32 \
+    AGENTS_DIR=/app/data/agents \
+    WORKFLOWS_DIR=/app/data/workflows \
+    INTEGRATIONS_DIR=/app/data/integrations
+
+EXPOSE 3000 3210 3211 6791
+HEALTHCHECK --interval=30s --timeout=3s CMD curl -f http://localhost:3000/api/health || exit 1
 
 ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["/app/docker-entrypoint.sh"]

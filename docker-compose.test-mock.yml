@@ -1,0 +1,5 @@
+# Minimal test mock compose — for DB-only port testing
+services:
+  db:
+    ports:
+      - '15432:5432'

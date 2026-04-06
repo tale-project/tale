@@ -1,0 +1,28 @@
+{
+  "displayName": "Test Provider",
+  "description": "Mock provider for container smoke tests and CI",
+  "baseUrl": "http://localhost:9999/mock/v1",
+  "supportsStructuredOutputs": true,
+  "models": [
+    {
+      "id": "test-chat-model",
+      "displayName": "Test Chat Model",
+      "description": "Mock chat model for testing",
+      "tags": ["chat"],
+      "default": true
+    },
+    {
+      "id": "test-embedding-model",
+      "displayName": "Test Embedding Model",
+      "description": "Mock embedding model for testing",
+      "tags": ["embedding"],
+      "dimensions": 1536
+    },
+    {
+      "id": "test-vision-model",
+      "displayName": "Test Vision Model",
+      "description": "Mock vision model for testing",
+      "tags": ["chat", "vision"]
+    }
+  ]
+}

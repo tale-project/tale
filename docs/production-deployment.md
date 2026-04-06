@@ -10,6 +10,20 @@ description: Deploy Tale to a production server using the Tale CLI with zero-dow
 - Ports 80 and 443 open on your firewall
 - A domain name pointing to your server
 
+## Image sizes
+
+Tale pulls pre-built images from GitHub Container Registry. Here are the current image sizes:
+
+| Service | Image                                      | Size     |
+|---------|--------------------------------------------|---------|
+| Platform | `ghcr.io/tale-project/tale/tale-platform` | ~2.6 GB  |
+| Crawler  | `ghcr.io/tale-project/tale/tale-crawler`  | ~1.9 GB  |
+| RAG      | `ghcr.io/tale-project/tale/tale-rag`      | ~515 MB  |
+| DB       | `ghcr.io/tale-project/tale/tale-db`       | ~1.1 GB  |
+| Proxy    | `ghcr.io/tale-project/tale/tale-proxy`    | ~88 MB   |
+
+> **Tip:** First pull downloads ~4.2 GB total (compressed). Subsequent updates only download changed layers.
+
 ## Installing the Tale CLI
 
 The Tale CLI is the recommended way to manage production deployments. Install it with:
@@ -229,6 +243,35 @@ location /tale/ {
 
 **Known limitations:**
 - Convex Dashboard (`/convex-dashboard`) is not accessible under subpath deployments
+
+## Vulnerability scanning
+
+All Tale images are scanned for vulnerabilities during the CI/CD release pipeline using [Trivy](https://trivy.dev/). Scan results are uploaded to the GitHub Security tab for each release.
+
+To run a local vulnerability scan:
+
+```bash
+bun run docker:test:vulnerability
+```
+
+Reports are saved to the `trivy-reports/` directory. See the [container architecture](/container-architecture) page for image details.
+
+## Image versioning
+
+Images are published to GitHub Container Registry with two tags:
+
+- **Version tag** (e.g., `1.2.0`) — Immutable, points to a specific build
+- **`latest`** — Mutable, always points to the most recent release
+
+Both tags include multi-architecture manifests (amd64 + arm64).
+
+```bash
+# Pull a specific version
+docker pull ghcr.io/tale-project/tale/tale-platform:1.2.0
+
+# Pull the latest release
+docker pull ghcr.io/tale-project/tale/tale-platform:latest
+```
 
 ## Convex dashboard access
 

@@ -132,4 +132,31 @@ Then build and start:
 docker compose up --build
 ```
 
-The first build takes 3 to 5 minutes. Subsequent starts are much faster.
+Build times vary by service (all 5 services build in ~3 minutes in parallel on a modern system). Subsequent builds are much faster thanks to Docker layer caching.
+
+### Local development with hot-reload
+
+For a faster edit-reload cycle during development, use the development override:
+
+```bash
+docker compose -f compose.yml -f compose.dev.yml up --build
+```
+
+This mounts your local source directories into the containers so changes are reflected immediately without rebuilding images.
+
+### Running container tests
+
+After modifying Dockerfiles or dependencies, validate your changes:
+
+```bash
+# Smoke test: build, start, health check, tear down
+bun run docker:test
+
+# Image validation: OCI labels, secrets, size budgets
+bun run docker:test:image
+
+# Vulnerability scan (requires trivy installed)
+bun run docker:test:vulnerability
+```
+
+See [Contributing Docker guide](/contributing-docker) for more details.

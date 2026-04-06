@@ -31,6 +31,9 @@
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f",
+    "docker:test": "bash tests/container-smoke-test.sh",
+    "docker:test:image": "bash tests/container-image-test.sh",
+    "docker:test:vulnerability": "bash tests/container-vulnerability-scan.sh",
     "commit": "bunx cz",
     "storybook": "bun run --filter @tale/platform storybook",
     "prepare": "bunx husky"

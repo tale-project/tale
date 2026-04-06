@@ -1,0 +1,70 @@
+# =============================================================================
+# CONTAINER E2E TESTING ONLY
+# =============================================================================
+# Override compose.yml with non-conflicting ports for CI and local testing.
+# Avoids collisions with any existing services on the host.
+#
+# NOTE: Does NOT use !reset YAML tag (requires Docker Compose v2.24.6+)
+# because it clears the entire ports array. Instead, we add test-specific ports.
+# The original ports from compose.yml are also preserved but don't cause issues
+# in CI (where nothing else runs). For LOCAL testing, stop conflicting services
+# before running: docker stop antigravity_db nomino-ai-gateway-dev
+#
+# Usage:
+#   docker compose -f compose.yml -f compose.test.yml --env-file .env.test -p tale-test up -d --build
+#   docker compose -f compose.yml -f compose.test.yml --env-file .env.test -p tale-test down -v
+#
+# Or via the convenience script:
+#   bash tests/container-smoke-test.sh
+#   bun run docker:test
+
+services:
+  db:
+    env_file:
+      - .env.test
+    ports:
+      - '15432:5432'
+
+  crawler:
+    env_file:
+      - .env.test
+    ports:
+      - '18002:8002'
+    volumes:
+      - ./tests/fixtures/providers:/app/platform-config/providers:ro
+
+  rag:
+    env_file:
+      - .env.test
+    ports:
+      - '18001:8001'
+    volumes:
+      - ./tests/fixtures/providers:/app/platform-config/providers:ro
+
+  platform:
+    env_file:
+      - .env.test
+    # Override healthcheck for CI — only check Convex backend (port 3210).
+    # The Vite server (port 3000) requires Convex function deployment which
+    # takes 5+ minutes in CI — too slow for a health check.
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'curl -sf http://localhost:3210/version || exit 1',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 180s
+    # Expose platform ports for direct testing
+    ports:
+      - '13000:3000'
+      - '13210:3210'
+
+  proxy:
+    env_file:
+      - .env.test
+    ports:
+      - '10080:80'
+      - '10443:443'

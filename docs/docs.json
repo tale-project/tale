@@ -100,8 +100,13 @@
           "api-reference",
           "environment-reference",
           "operations",
+          "container-architecture",
           "troubleshooting"
         ]
+      },
+      {
+        "group": "Contributing",
+        "pages": ["contributing-docker"]
       }
     ]
   },
