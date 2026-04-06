@@ -27,6 +27,7 @@ export function createDeployCommand(): Command {
       '--fresh',
       'force re-seed builtin agent/workflow/integration configs',
     )
+    .option('-q, --quiet', 'Suppress container logs during deployment')
     .action(async (versionArg: string | undefined, options) => {
       try {
         const projectDir = requireProject();
@@ -70,6 +71,7 @@ export function createDeployCommand(): Command {
           dryRun: options.dryRun,
           services,
           fresh: options.fresh,
+          quiet: options.quiet,
         });
       } catch (err) {
         logger.error(err instanceof Error ? err.message : String(err));
