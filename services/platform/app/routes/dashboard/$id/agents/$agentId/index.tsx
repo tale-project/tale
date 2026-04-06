@@ -105,7 +105,7 @@ function GeneralTab() {
 
       <FormSection>
         <Switch
-          checked={config.visibleInChat !== false}
+          checked={config.visibleInChat === true}
           onCheckedChange={handleVisibilityChange}
           label={t('agents.general.visibleInChat')}
           description={t('agents.general.visibleInChatHelp')}
