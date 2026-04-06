@@ -88,7 +88,7 @@ run_init_scripts() {
     for script in "$INIT_SCRIPTS_DIR"/*.sql; do
         [ -f "$script" ] || continue
         echo "  $(basename "$script")"
-        psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f "$script" 2>&1 | grep -E "^(ERROR|NOTICE)" || true
+        psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f "$script" 2>&1 | grep -E "^(ERROR|FATAL|NOTICE)" || true
     done
     echo "Init scripts complete."
 }
@@ -107,13 +107,21 @@ run_migrations() {
     echo "Migrations complete."
 }
 
-# Run init scripts and migrations in the background after PostgreSQL starts
+# Run init scripts and migrations in the background after PostgreSQL starts.
+# We wait until the target database is actually accessible (not just pg_isready)
+# to avoid racing with docker-entrypoint.sh's first-time init which creates
+# the POSTGRES_USER and POSTGRES_DB after starting a temporary server.
 (
     trap 'exit 0' SIGTERM SIGINT
-    until pg_isready -U "$POSTGRES_USER" -q 2>/dev/null; do
+    until psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c '\q' 2>/dev/null; do
         sleep 1
     done
     run_init_scripts
+    # dbmate connects via TCP — wait for the server to accept TCP connections
+    # (the temp server during first-time init only listens on Unix socket)
+    until pg_isready -U "$POSTGRES_USER" -h localhost -q 2>/dev/null; do
+        sleep 1
+    done
     run_migrations
     touch /tmp/.db_ready
     echo "Database ready."
