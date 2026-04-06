@@ -1,10 +1,12 @@
 'use client';
 
+import { useBlocker } from '@tanstack/react-router';
 import { History, Loader2, Save, Undo2 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import type { AgentJsonConfig } from '@/convex/agents/file_utils';
 
+import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import {
   TabNavigation,
   type TabNavigationItem,
@@ -68,6 +70,12 @@ export function AgentNavigation({
   );
   const [isRestoring, setIsRestoring] = useState(false);
   const [isDiffOpen, setIsDiffOpen] = useState(false);
+
+  const blocker = useBlocker({
+    shouldBlockFn: () => isDirty,
+    enableBeforeUnload: () => isDirty,
+    withResolver: true,
+  });
 
   const basePath = `/dashboard/${organizationId}/agents/${agentId}`;
 
@@ -319,6 +327,19 @@ export function AgentNavigation({
           onRestore={() => void handleRestore()}
         />
       )}
+
+      <ConfirmDialog
+        open={blocker.status === 'blocked'}
+        onOpenChange={(open) => {
+          if (!open) blocker.reset?.();
+        }}
+        title={t('agents.unsavedChanges.title')}
+        description={t('agents.unsavedChanges.description')}
+        confirmText={t('agents.unsavedChanges.leave')}
+        cancelText={t('agents.unsavedChanges.stay')}
+        variant="destructive"
+        onConfirm={() => blocker.proceed?.()}
+      />
     </>
   );
 }

@@ -698,6 +698,12 @@
         "title": "Deactivate agent",
         "description": "Are you sure you want to deactivate \"{name}\"? The agent will no longer be available until you activate it again."
       },
+      "unsavedChanges": {
+        "title": "Unsaved changes",
+        "description": "You have unsaved changes. Are you sure you want to leave? Your changes will be lost.",
+        "leave": "Leave",
+        "stay": "Stay"
+      },
       "navigation": {
         "configuration": "Configuration",
         "general": "General",
