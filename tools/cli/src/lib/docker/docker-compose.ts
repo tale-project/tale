@@ -11,7 +11,7 @@ interface DockerComposeOptions {
   onLine?: (line: string) => void;
 }
 
-async function pipeLines(
+export async function pipeLines(
   stream: ReadableStream<Uint8Array>,
   onLine: (line: string) => void,
 ) {

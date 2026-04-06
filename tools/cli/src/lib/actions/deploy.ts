@@ -68,353 +68,421 @@ interface DeployOptions {
   dryRun: boolean;
   services?: ServiceName[];
   fresh?: boolean;
+  quiet?: boolean;
 }
 
 export async function deploy(options: DeployOptions): Promise<void> {
   const { version, updateStateful, env, hostAlias, dryRun, services } = options;
+  const streamLogs = !options.quiet && (process.stdout.isTTY ?? false);
 
-  await withLock(env.DEPLOY_DIR, `deploy ${version}`, async () => {
-    const prefix = dryRun ? '[DRY-RUN] ' : '';
-    logger.header(`${prefix}Deploying Tale ${version}`);
+  // Track containers started during this deploy for cleanup on interrupt
+  const startedContainers: string[] = [];
+  let interrupted = false;
 
-    // Check if this is a first-time deployment
-    const currentColor = await getCurrentColor(env.DEPLOY_DIR);
-    const isFirstDeploy = currentColor === null;
+  const onInterrupt = () => {
+    if (interrupted) return;
+    interrupted = true;
+    logger.blank();
+    logger.warn('Deployment interrupted, cleaning up started containers...');
+    for (const name of startedContainers) {
+      try {
+        Bun.spawnSync(['docker', 'stop', '-t', '2', name]);
+        Bun.spawnSync(['docker', 'rm', '-f', name]);
+        logger.info(`Stopped ${name}`);
+      } catch {
+        // best effort
+      }
+    }
+    process.removeListener('SIGINT', onInterrupt);
+    process.removeListener('SIGTERM', onInterrupt);
+    process.kill(process.pid, 'SIGINT');
+  };
 
-    // Determine which services to deploy
-    let rotatableToUpdate: RotatableService[];
-    let statefulToUpdate: StatefulService[];
+  if (!dryRun) {
+    process.on('SIGINT', onInterrupt);
+    process.on('SIGTERM', onInterrupt);
+  }
 
-    if (services && services.length > 0) {
-      // User specified explicit services
-      rotatableToUpdate = services.filter(isRotatableService);
-      statefulToUpdate = services.filter(isStatefulService);
-    } else {
-      // Default: all rotatable services
-      rotatableToUpdate = [...ROTATABLE_SERVICES];
+  try {
+    await withLock(env.DEPLOY_DIR, `deploy ${version}`, async () => {
+      const prefix = dryRun ? '[DRY-RUN] ' : '';
+      logger.header(`${prefix}Deploying Tale ${version}`);
 
-      if (isFirstDeploy || updateStateful) {
-        statefulToUpdate = [...STATEFUL_SERVICES];
-        if (isFirstDeploy) {
-          logger.notice(
-            'First deployment detected - including infrastructure services',
-          );
-        }
+      // Check if this is a first-time deployment
+      const currentColor = await getCurrentColor(env.DEPLOY_DIR);
+      const isFirstDeploy = currentColor === null;
+
+      // Determine which services to deploy
+      let rotatableToUpdate: RotatableService[];
+      let statefulToUpdate: StatefulService[];
+
+      if (services && services.length > 0) {
+        // User specified explicit services
+        rotatableToUpdate = services.filter(isRotatableService);
+        statefulToUpdate = services.filter(isStatefulService);
       } else {
-        // Check if any required stateful services are not running
-        const missingStateful: StatefulService[] = [];
-        for (const service of STATEFUL_SERVICES) {
-          const containerName = `${PROJECT_NAME}-${service}`;
-          const running = await isContainerRunning(containerName);
-          if (!running) {
-            missingStateful.push(service);
+        // Default: all rotatable services
+        rotatableToUpdate = [...ROTATABLE_SERVICES];
+
+        if (isFirstDeploy || updateStateful) {
+          statefulToUpdate = [...STATEFUL_SERVICES];
+          if (isFirstDeploy) {
+            logger.notice(
+              'First deployment detected - including infrastructure services',
+            );
+          }
+        } else {
+          // Check if any required stateful services are not running
+          const missingStateful: StatefulService[] = [];
+          for (const service of STATEFUL_SERVICES) {
+            const containerName = `${PROJECT_NAME}-${service}`;
+            const running = await isContainerRunning(containerName);
+            if (!running) {
+              missingStateful.push(service);
+            }
+          }
+
+          if (missingStateful.length > 0) {
+            logger.notice(
+              `Infrastructure services not running: ${missingStateful.join(', ')} - including automatically`,
+            );
+            statefulToUpdate = missingStateful;
+          } else {
+            statefulToUpdate = [];
           }
         }
-
-        if (missingStateful.length > 0) {
-          logger.notice(
-            `Infrastructure services not running: ${missingStateful.join(', ')} - including automatically`,
-          );
-          statefulToUpdate = missingStateful;
-        } else {
-          statefulToUpdate = [];
-        }
       }
-    }
 
-    if (rotatableToUpdate.length === 0 && statefulToUpdate.length === 0) {
-      logger.error('No valid services to deploy');
-      throw new Error('No services specified');
-    }
-
-    // Determine deployment mode
-    const inPlaceUpdate = services && services.length > 0;
-    if (inPlaceUpdate) {
-      logger.info('Mode: In-place update (no blue-green switching)');
-    } else {
-      logger.info('Mode: Blue-green deployment');
-    }
-    logger.info(
-      `Rotatable services: ${rotatableToUpdate.join(', ') || 'none'}`,
-    );
-    logger.info(`Stateful services: ${statefulToUpdate.join(', ') || 'none'}`);
-
-    const serviceConfig = {
-      version,
-      registry: env.GHCR_REGISTRY,
-    };
-
-    // Pull all required images first
-    logger.step(`${prefix}Pulling images...`);
-    const imagesToPull = [
-      ...rotatableToUpdate.map(
-        (s) => `${env.GHCR_REGISTRY}/tale-${s}:${version}`,
-      ),
-      ...statefulToUpdate.map(
-        (s) => `${env.GHCR_REGISTRY}/tale-${s}:${version}`,
-      ),
-    ];
-
-    if (dryRun) {
-      for (const image of imagesToPull) {
-        logger.info(`${prefix}Would pull: ${image}`);
+      if (rotatableToUpdate.length === 0 && statefulToUpdate.length === 0) {
+        logger.error('No valid services to deploy');
+        throw new Error('No services specified');
       }
-    } else {
-      for (const image of imagesToPull) {
-        const success = await pullImage(image);
-        if (!success) {
-          throw new Error(`Failed to pull image: ${image}`);
-        }
-      }
-    }
 
-    // Deploy stateful services if any
-    if (statefulToUpdate.length > 0) {
-      logger.step(`${prefix}Deploying stateful services...`);
-      const statefulCompose = generateStatefulCompose(serviceConfig, hostAlias);
+      // Determine deployment mode
+      const inPlaceUpdate = services && services.length > 0;
+      if (inPlaceUpdate) {
+        logger.info('Mode: In-place update (no blue-green switching)');
+      } else {
+        logger.info('Mode: Blue-green deployment');
+      }
+      logger.info(
+        `Rotatable services: ${rotatableToUpdate.join(', ') || 'none'}`,
+      );
+      logger.info(
+        `Stateful services: ${statefulToUpdate.join(', ') || 'none'}`,
+      );
+
+      const serviceConfig = {
+        version,
+        registry: env.GHCR_REGISTRY,
+      };
+
+      // Pull all required images first
+      logger.step(`${prefix}Pulling images...`);
+      const imagesToPull = [
+        ...rotatableToUpdate.map(
+          (s) => `${env.GHCR_REGISTRY}/tale-${s}:${version}`,
+        ),
+        ...statefulToUpdate.map(
+          (s) => `${env.GHCR_REGISTRY}/tale-${s}:${version}`,
+        ),
+      ];
 
       if (dryRun) {
-        for (const service of statefulToUpdate) {
-          logger.info(`${prefix}Would deploy stateful service: ${service}`);
+        for (const image of imagesToPull) {
+          logger.info(`${prefix}Would pull: ${image}`);
         }
       } else {
-        const result = await dockerCompose(
-          statefulCompose,
-          ['up', '-d', ...statefulToUpdate],
-          { projectName: PROJECT_NAME, cwd: env.DEPLOY_DIR },
+        for (const image of imagesToPull) {
+          const success = await pullImage(image);
+          if (!success) {
+            throw new Error(`Failed to pull image: ${image}`);
+          }
+        }
+      }
+
+      // Deploy stateful services if any
+      if (statefulToUpdate.length > 0) {
+        logger.step(`${prefix}Deploying stateful services...`);
+        const statefulCompose = generateStatefulCompose(
+          serviceConfig,
+          hostAlias,
         );
 
-        if (!result.success) {
-          logger.error('Failed to deploy stateful services');
-          logger.error(result.stderr);
-          throw new Error('Stateful deployment failed');
-        }
-
-        // Wait for stateful services to be healthy
-        for (const service of statefulToUpdate) {
-          const containerName = `${PROJECT_NAME}-${service}`;
-          const healthy = await waitForHealthy(containerName, {
-            timeout: env.HEALTH_CHECK_TIMEOUT,
-          });
-          if (!healthy) {
-            throw new Error(`Service ${service} failed health check`);
-          }
-        }
-      }
-    }
-
-    // Deploy rotatable services
-    if (rotatableToUpdate.length > 0) {
-      if (inPlaceUpdate) {
-        // In-place update: update services in current color without switching
-        if (!currentColor) {
-          logger.error('No active deployment found');
-          logger.info('Run a full deploy first (without --services)');
-          throw new Error('No active deployment for in-place update');
-        }
-
-        logger.info(`Updating in current color: ${currentColor}`);
-
-        // Save current version as previous (for rollback)
-        if (!dryRun) {
-          const currentPlatformVersion = await getContainerVersion(
-            `${PROJECT_NAME}-platform-${currentColor}`,
-          );
-          if (currentPlatformVersion) {
-            await setPreviousVersion(env.DEPLOY_DIR, currentPlatformVersion);
-            logger.info(`Previous version saved: ${currentPlatformVersion}`);
-          }
-        }
-
-        await ensureInfrastructure(prefix, dryRun);
-
-        // Update services in current color
-        logger.step(`${prefix}Updating ${currentColor} services...`);
-        const colorCompose = generateColorCompose(serviceConfig, currentColor, {
-          fresh: options.fresh,
-        });
-
         if (dryRun) {
-          for (const service of rotatableToUpdate) {
-            logger.info(
-              `${prefix}Would update: ${PROJECT_NAME}-${service}-${currentColor}`,
-            );
+          for (const service of statefulToUpdate) {
+            logger.info(`${prefix}Would deploy stateful service: ${service}`);
           }
         } else {
-          const coloredServices = rotatableToUpdate.map(
-            (s) => `${s}-${currentColor}`,
-          );
-          const deployResult = await dockerCompose(
-            colorCompose,
-            ['up', '-d', ...coloredServices],
-            {
-              projectName: `${PROJECT_NAME}-${currentColor}`,
-              cwd: env.DEPLOY_DIR,
-            },
+          const result = await dockerCompose(
+            statefulCompose,
+            ['up', '-d', ...statefulToUpdate],
+            { projectName: PROJECT_NAME, cwd: env.DEPLOY_DIR },
           );
 
-          if (!deployResult.success) {
-            logger.error(`Failed to update ${currentColor} services`);
-            logger.error(deployResult.stderr);
-            throw new Error('In-place update failed');
+          if (!result.success) {
+            logger.error('Failed to deploy stateful services');
+            logger.error(result.stderr);
+            throw new Error('Stateful deployment failed');
           }
 
-          // Wait for services to be healthy
-          logger.step('Waiting for services to be healthy...');
-          for (const service of rotatableToUpdate) {
-            const containerName = `${PROJECT_NAME}-${service}-${currentColor}`;
+          for (const service of statefulToUpdate) {
+            startedContainers.push(`${PROJECT_NAME}-${service}`);
+          }
+
+          // Wait for stateful services to be healthy
+          for (const service of statefulToUpdate) {
+            const containerName = `${PROJECT_NAME}-${service}`;
             const healthy = await waitForHealthy(containerName, {
               timeout: env.HEALTH_CHECK_TIMEOUT,
+              streamLogs,
             });
             if (!healthy) {
-              throw new Error(
-                `Service ${service}-${currentColor} failed health check`,
-              );
+              throw new Error(`Service ${service} failed health check`);
             }
           }
         }
-      } else {
-        // Full blue-green deployment
-        const nextColor = getNextColor(currentColor);
+      }
 
-        logger.info(`Current color: ${currentColor ?? 'none'}`);
-        logger.info(`Deploying to: ${nextColor}`);
+      // Deploy rotatable services
+      if (rotatableToUpdate.length > 0) {
+        if (inPlaceUpdate) {
+          // In-place update: update services in current color without switching
+          if (!currentColor) {
+            logger.error('No active deployment found');
+            logger.info('Run a full deploy first (without --services)');
+            throw new Error('No active deployment for in-place update');
+          }
 
-        // Save current version as previous (for rollback)
-        if (currentColor && !dryRun) {
-          const currentPlatformVersion = await getContainerVersion(
-            `${PROJECT_NAME}-platform-${currentColor}`,
+          logger.info(`Updating in current color: ${currentColor}`);
+
+          // Save current version as previous (for rollback)
+          if (!dryRun) {
+            const currentPlatformVersion = await getContainerVersion(
+              `${PROJECT_NAME}-platform-${currentColor}`,
+            );
+            if (currentPlatformVersion) {
+              await setPreviousVersion(env.DEPLOY_DIR, currentPlatformVersion);
+              logger.info(`Previous version saved: ${currentPlatformVersion}`);
+            }
+          }
+
+          await ensureInfrastructure(prefix, dryRun);
+
+          // Update services in current color
+          logger.step(`${prefix}Updating ${currentColor} services...`);
+          const colorCompose = generateColorCompose(
+            serviceConfig,
+            currentColor,
+            {
+              fresh: options.fresh,
+            },
           );
-          if (currentPlatformVersion) {
-            await setPreviousVersion(env.DEPLOY_DIR, currentPlatformVersion);
-            logger.info(`Previous version saved: ${currentPlatformVersion}`);
-          }
-        }
 
-        await ensureInfrastructure(prefix, dryRun);
-
-        // Deploy new color
-        logger.step(`${prefix}Deploying ${nextColor} services...`);
-        const colorCompose = generateColorCompose(serviceConfig, nextColor, {
-          fresh: options.fresh,
-        });
-
-        if (dryRun) {
-          for (const service of rotatableToUpdate) {
-            logger.info(
-              `${prefix}Would clean up stale: ${PROJECT_NAME}-${service}-${nextColor}`,
-            );
-            logger.info(
-              `${prefix}Would deploy: ${PROJECT_NAME}-${service}-${nextColor}`,
-            );
-          }
-          logger.step(`${prefix}Would switch traffic to ${nextColor}`);
-          if (currentColor) {
-            logger.step(
-              `${prefix}Would drain ${currentColor} services (${env.DRAIN_TIMEOUT}s)`,
-            );
+          if (dryRun) {
             for (const service of rotatableToUpdate) {
               logger.info(
-                `${prefix}Would stop/remove: ${PROJECT_NAME}-${service}-${currentColor}`,
+                `${prefix}Would update: ${PROJECT_NAME}-${service}-${currentColor}`,
               );
             }
-          }
-        } else {
-          // Clean up any stale next-color containers from a previous failed deployment
-          for (const service of rotatableToUpdate) {
-            const containerName = `${PROJECT_NAME}-${service}-${nextColor}`;
-            const stopped = await stopContainer(containerName);
-            if (stopped) {
-              await removeContainer(containerName);
-            }
-          }
-          logger.step(`Starting ${nextColor} services...`);
-          const coloredServices = rotatableToUpdate.map(
-            (s) => `${s}-${nextColor}`,
-          );
-          const deployResult = await dockerCompose(
-            colorCompose,
-            ['up', '-d', ...coloredServices],
-            {
-              projectName: `${PROJECT_NAME}-${nextColor}`,
-              cwd: env.DEPLOY_DIR,
-            },
-          );
-
-          if (!deployResult.success) {
-            logger.error(`Failed to deploy ${nextColor} services`);
-            logger.error(deployResult.stderr);
-            throw new Error('Color deployment failed');
-          }
-
-          // Wait for new services to be healthy
-          logger.step('Waiting for services to be healthy...');
-          for (const service of rotatableToUpdate) {
-            const containerName = `${PROJECT_NAME}-${service}-${nextColor}`;
-            const healthy = await waitForHealthy(containerName, {
-              timeout: env.HEALTH_CHECK_TIMEOUT,
-            });
-            if (!healthy) {
-              throw new Error(
-                `Service ${service}-${nextColor} failed health check`,
-              );
-            }
-          }
-
-          // Switch traffic to new color
-          logger.step(`Switching traffic to ${nextColor}...`);
-          await setCurrentColor(env.DEPLOY_DIR, nextColor);
-
-          // Drain old color (if exists)
-          if (currentColor) {
-            logger.step(
-              `Draining ${currentColor} services (${env.DRAIN_TIMEOUT}s)...`,
+          } else {
+            const coloredServices = rotatableToUpdate.map(
+              (s) => `${s}-${currentColor}`,
             );
-            await Bun.sleep(env.DRAIN_TIMEOUT * 1000);
+            const deployResult = await dockerCompose(
+              colorCompose,
+              ['up', '-d', ...coloredServices],
+              {
+                projectName: `${PROJECT_NAME}-${currentColor}`,
+                cwd: env.DEPLOY_DIR,
+              },
+            );
 
-            // Stop and remove old color containers (non-fatal - traffic already switched)
-            logger.step(`Stopping ${currentColor} services...`);
+            for (const service of rotatableToUpdate) {
+              startedContainers.push(
+                `${PROJECT_NAME}-${service}-${currentColor}`,
+              );
+            }
+
+            if (!deployResult.success) {
+              logger.error(`Failed to update ${currentColor} services`);
+              logger.error(deployResult.stderr);
+              throw new Error('In-place update failed');
+            }
+
+            // Wait for services to be healthy
+            logger.step('Waiting for services to be healthy...');
             for (const service of rotatableToUpdate) {
               const containerName = `${PROJECT_NAME}-${service}-${currentColor}`;
-              const stopped = await stopContainer(containerName);
-              if (!stopped) {
-                logger.warn(`Failed to stop ${containerName}, continuing...`);
+              const healthy = await waitForHealthy(containerName, {
+                timeout: env.HEALTH_CHECK_TIMEOUT,
+                streamLogs,
+              });
+              if (!healthy) {
+                throw new Error(
+                  `Service ${service}-${currentColor} failed health check`,
+                );
               }
-              const removed = await removeContainer(containerName);
-              if (!removed) {
-                logger.warn(`Failed to remove ${containerName}, continuing...`);
+            }
+
+            // In-place update succeeded — don't tear down on interrupt
+            startedContainers.length = 0;
+          }
+        } else {
+          // Full blue-green deployment
+          const nextColor = getNextColor(currentColor);
+
+          logger.info(`Current color: ${currentColor ?? 'none'}`);
+          logger.info(`Deploying to: ${nextColor}`);
+
+          // Save current version as previous (for rollback)
+          if (currentColor && !dryRun) {
+            const currentPlatformVersion = await getContainerVersion(
+              `${PROJECT_NAME}-platform-${currentColor}`,
+            );
+            if (currentPlatformVersion) {
+              await setPreviousVersion(env.DEPLOY_DIR, currentPlatformVersion);
+              logger.info(`Previous version saved: ${currentPlatformVersion}`);
+            }
+          }
+
+          await ensureInfrastructure(prefix, dryRun);
+
+          // Deploy new color
+          logger.step(`${prefix}Deploying ${nextColor} services...`);
+          const colorCompose = generateColorCompose(serviceConfig, nextColor, {
+            fresh: options.fresh,
+          });
+
+          if (dryRun) {
+            for (const service of rotatableToUpdate) {
+              logger.info(
+                `${prefix}Would clean up stale: ${PROJECT_NAME}-${service}-${nextColor}`,
+              );
+              logger.info(
+                `${prefix}Would deploy: ${PROJECT_NAME}-${service}-${nextColor}`,
+              );
+            }
+            logger.step(`${prefix}Would switch traffic to ${nextColor}`);
+            if (currentColor) {
+              logger.step(
+                `${prefix}Would drain ${currentColor} services (${env.DRAIN_TIMEOUT}s)`,
+              );
+              for (const service of rotatableToUpdate) {
+                logger.info(
+                  `${prefix}Would stop/remove: ${PROJECT_NAME}-${service}-${currentColor}`,
+                );
+              }
+            }
+          } else {
+            // Clean up any stale next-color containers from a previous failed deployment
+            for (const service of rotatableToUpdate) {
+              const containerName = `${PROJECT_NAME}-${service}-${nextColor}`;
+              const stopped = await stopContainer(containerName);
+              if (stopped) {
+                await removeContainer(containerName);
+              }
+            }
+            logger.step(`Starting ${nextColor} services...`);
+            const coloredServices = rotatableToUpdate.map(
+              (s) => `${s}-${nextColor}`,
+            );
+            const deployResult = await dockerCompose(
+              colorCompose,
+              ['up', '-d', ...coloredServices],
+              {
+                projectName: `${PROJECT_NAME}-${nextColor}`,
+                cwd: env.DEPLOY_DIR,
+              },
+            );
+
+            for (const service of rotatableToUpdate) {
+              startedContainers.push(`${PROJECT_NAME}-${service}-${nextColor}`);
+            }
+
+            if (!deployResult.success) {
+              logger.error(`Failed to deploy ${nextColor} services`);
+              logger.error(deployResult.stderr);
+              throw new Error('Color deployment failed');
+            }
+
+            // Wait for new services to be healthy
+            logger.step('Waiting for services to be healthy...');
+            for (const service of rotatableToUpdate) {
+              const containerName = `${PROJECT_NAME}-${service}-${nextColor}`;
+              const healthy = await waitForHealthy(containerName, {
+                timeout: env.HEALTH_CHECK_TIMEOUT,
+                streamLogs,
+              });
+              if (!healthy) {
+                throw new Error(
+                  `Service ${service}-${nextColor} failed health check`,
+                );
+              }
+            }
+
+            // Switch traffic to new color — clear tracking first so an
+            // interrupt during the async write won't kill live containers.
+            startedContainers.length = 0;
+            logger.step(`Switching traffic to ${nextColor}...`);
+            await setCurrentColor(env.DEPLOY_DIR, nextColor);
+
+            // Drain old color (if exists)
+            if (currentColor) {
+              logger.step(
+                `Draining ${currentColor} services (${env.DRAIN_TIMEOUT}s)...`,
+              );
+              await Bun.sleep(env.DRAIN_TIMEOUT * 1000);
+
+              // Stop and remove old color containers (non-fatal - traffic already switched)
+              logger.step(`Stopping ${currentColor} services...`);
+              for (const service of rotatableToUpdate) {
+                const containerName = `${PROJECT_NAME}-${service}-${currentColor}`;
+                const stopped = await stopContainer(containerName);
+                if (!stopped) {
+                  logger.warn(`Failed to stop ${containerName}, continuing...`);
+                }
+                const removed = await removeContainer(containerName);
+                if (!removed) {
+                  logger.warn(
+                    `Failed to remove ${containerName}, continuing...`,
+                  );
+                }
               }
             }
           }
         }
       }
-    }
 
-    // Determine the active platform container for project sync
-    const activeColor = inPlaceUpdate
-      ? currentColor
-      : isFirstDeploy
-        ? getNextColor(null)
-        : getNextColor(currentColor);
+      // Determine the active platform container for project sync
+      const activeColor = inPlaceUpdate
+        ? currentColor
+        : isFirstDeploy
+          ? getNextColor(null)
+          : getNextColor(currentColor);
 
-    if (dryRun) {
-      logger.success(
-        `${prefix}Dry-run complete! Would deploy version ${version}`,
-      );
-    } else {
-      logger.success(`Deployment complete! Version ${version} is now live`);
-    }
+      if (dryRun) {
+        logger.success(
+          `${prefix}Dry-run complete! Would deploy version ${version}`,
+        );
+      } else {
+        logger.success(`Deployment complete! Version ${version} is now live`);
+      }
 
-    // Sync project files to the active container
-    if (activeColor) {
-      await syncProjectFiles(
-        `${PROJECT_NAME}-platform-${activeColor}`,
-        env.DEPLOY_DIR,
-        dryRun,
-        prefix,
-      );
-    }
-  });
+      // Sync project files to the active container
+      if (activeColor) {
+        await syncProjectFiles(
+          `${PROJECT_NAME}-platform-${activeColor}`,
+          env.DEPLOY_DIR,
+          dryRun,
+          prefix,
+        );
+      }
+    });
+  } finally {
+    process.removeListener('SIGINT', onInterrupt);
+    process.removeListener('SIGTERM', onInterrupt);
+  }
 }
 
 const SYNC_DIRS = [
