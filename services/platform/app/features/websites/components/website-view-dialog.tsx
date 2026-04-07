@@ -94,8 +94,8 @@ function PageRow({
   );
 
   const summary = (
-    <div className="flex-1 space-y-1">
-      <Heading level={3} size="sm" weight="medium">
+    <div className="min-w-0 flex-1 space-y-1">
+      <Heading level={3} size="sm" weight="medium" className="break-words">
         {page.title || page.url}
       </Heading>
       {page.title && (
@@ -104,7 +104,7 @@ function PageRow({
             href={page.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="hover:underline"
+            className="break-all hover:underline"
             onClick={(e) => e.stopPropagation()}
           >
             {page.url}
@@ -161,8 +161,13 @@ function SearchResultItem({ result }: { result: CrawlerSearchResult }) {
   return (
     <BorderedSection>
       <div className="space-y-2">
-        <div className="flex items-start justify-between gap-2">
-          <Heading level={3} size="sm" weight="medium">
+        <div className="flex min-w-0 items-start justify-between gap-2">
+          <Heading
+            level={3}
+            size="sm"
+            weight="medium"
+            className="min-w-0 break-words"
+          >
             {result.title || result.url}
           </Heading>
           <Text variant="caption" className="text-muted-foreground shrink-0">
@@ -176,7 +181,7 @@ function SearchResultItem({ result }: { result: CrawlerSearchResult }) {
             href={result.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="hover:underline"
+            className="break-all hover:underline"
           >
             {result.url}
           </a>
