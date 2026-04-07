@@ -10,6 +10,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { z } from 'zod';
@@ -117,6 +118,9 @@ function AutomationStepsSkeleton() {
   );
 }
 
+const MAX_READ_RETRIES = 3;
+const READ_RETRY_DELAY_MS = 500;
+
 function AutomationDetailLayout() {
   const { id: organizationId, amId } = Route.useParams();
   const workflowSlug = urlParamToSlug(amId);
@@ -128,12 +132,35 @@ function AutomationDetailLayout() {
     refetch,
   } = useReadWorkflow('default', workflowSlug);
 
+  const retryCountRef = useRef(0);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const notFoundResult = readResult && !readResult.ok;
+  const isRetrying =
+    retryCountRef.current > 0 && retryCountRef.current < MAX_READ_RETRIES;
+
+  useEffect(() => {
+    if (notFoundResult && retryCountRef.current < MAX_READ_RETRIES) {
+      retryTimerRef.current = setTimeout(() => {
+        retryCountRef.current += 1;
+        void refetch();
+      }, READ_RETRY_DELAY_MS);
+    }
+    return () => {
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+    };
+  }, [notFoundResult, refetch, readResult]);
+
+  useEffect(() => {
+    retryCountRef.current = 0;
+  }, [workflowSlug]);
+
   const config = useMemo(() => {
     if (!readResult || !readResult.ok) return undefined;
     return readResult.config;
   }, [readResult]);
 
-  if (isLoading) {
+  if (isLoading || (notFoundResult && isRetrying)) {
     return (
       <PageLayout
         header={
