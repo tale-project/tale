@@ -204,11 +204,13 @@ function MessageBubbleComponent({
       {...restProps}
     >
       <div
-        className={`rounded-2xl px-4 py-3 ${
+        className={cn(
+          'rounded-2xl',
           isUser
             ? 'bg-muted text-foreground max-w-xs lg:max-w-md'
-            : 'text-foreground bg-background'
-        }`}
+            : 'text-foreground bg-background',
+          (displayContent || message.isAborted) && 'px-4 py-3',
+        )}
       >
         {displayContent ? (
           <div className="text-sm leading-5">
