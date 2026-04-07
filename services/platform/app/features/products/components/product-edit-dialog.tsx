@@ -7,6 +7,7 @@ import { z } from 'zod';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
+import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Grid } from '@/app/components/ui/layout/layout';
 import { toast } from '@/app/hooks/use-toast';
@@ -32,6 +33,8 @@ interface EditProductDialogProps {
   };
 }
 
+const PRODUCT_STATUSES = ['active', 'inactive', 'draft', 'archived'] as const;
+
 type ProductFormData = {
   name: string;
   description: string;
@@ -40,6 +43,7 @@ type ProductFormData = {
   price: string;
   currency: string;
   category: string;
+  status: string;
 };
 
 export function ProductEditDialog({
@@ -49,6 +53,7 @@ export function ProductEditDialog({
 }: EditProductDialogProps) {
   const { t: tProducts } = useT('products');
   const { t: tCommon } = useT('common');
+  const { t: tGlobal } = useT('global');
   const { mutate: updateProduct, isPending: isSubmitting } = useUpdateProduct();
 
   const formSchema = useMemo(
@@ -69,14 +74,26 @@ export function ProductEditDialog({
         price: z.string(),
         currency: z.string(),
         category: z.string(),
+        status: z.enum(PRODUCT_STATUSES),
       }),
     [tProducts, tCommon],
+  );
+
+  const statusOptions = useMemo(
+    () =>
+      PRODUCT_STATUSES.map((s) => ({
+        value: s,
+        label: tGlobal(`statuses.${s}`),
+      })),
+    [tGlobal],
   );
 
   const {
     register,
     handleSubmit,
     reset,
+    setValue,
+    watch,
     formState: { errors, isDirty },
   } = useForm<ProductFormData>({
     resolver: zodResolver(formSchema),
@@ -88,8 +105,11 @@ export function ProductEditDialog({
       price: product.price?.toString() || '',
       currency: product.currency || 'USD',
       category: product.category || '',
+      status: product.status || 'draft',
     },
   });
+
+  const status = watch('status');
 
   useEffect(() => {
     reset({
@@ -100,6 +120,7 @@ export function ProductEditDialog({
       price: product.price?.toString() || '',
       currency: product.currency || 'USD',
       category: product.category || '',
+      status: product.status || 'draft',
     });
   }, [product, reset]);
 
@@ -114,6 +135,7 @@ export function ProductEditDialog({
         price: data.price ? parseFloat(data.price) : undefined,
         currency: data.currency || undefined,
         category: data.category.trim() || undefined,
+        status: data.status,
       },
       {
         onSuccess: () => {
@@ -212,6 +234,18 @@ export function ProductEditDialog({
           disabled={isSubmitting}
         />
       </Grid>
+
+      <Select
+        value={status}
+        onValueChange={(value) =>
+          setValue('status', value, { shouldDirty: true })
+        }
+        disabled={isSubmitting}
+        id="status"
+        label={tProducts('edit.labels.status')}
+        error={!!errors.status}
+        options={statusOptions}
+      />
     </FormDialog>
   );
 }
