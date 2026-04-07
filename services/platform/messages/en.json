@@ -673,6 +673,7 @@
       "versionHistory": "Version history",
       "agentCreated": "Agent created",
       "agentCreateFailed": "Failed to create agent",
+      "agentAlreadyExists": "An agent with this identifier already exists",
       "agentUpdated": "Agent updated",
       "agentUpdateFailed": "Failed to update agent",
       "agentDeleted": "Agent deleted",
