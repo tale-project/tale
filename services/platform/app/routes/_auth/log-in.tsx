@@ -111,7 +111,11 @@ export function LogInPage() {
         variant: 'success',
       });
 
-      await queryClient.invalidateQueries({ queryKey: ['auth', 'session'] });
+      await queryClient
+        .invalidateQueries({ queryKey: ['auth', 'session'] })
+        .catch((error) =>
+          console.warn('Session cache invalidation failed:', error),
+        );
       void navigate({ to: redirectTo || '/dashboard' });
     } catch (error) {
       console.error('Log in error:', error);

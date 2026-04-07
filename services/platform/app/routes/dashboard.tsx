@@ -32,10 +32,16 @@ function DashboardRedirect() {
     if (!isLoading && !isAuthenticated) {
       // Convex auth may lag behind Better Auth after sign-up.
       // Re-check Better Auth before doing a hard redirect.
-      void authClient.getSession().then((session) => {
-        setHasValidSession(!!session?.data?.user);
-        setSessionVerified(true);
-      });
+      void authClient
+        .getSession()
+        .then((session) => {
+          setHasValidSession(!!session?.data?.user);
+          setSessionVerified(true);
+        })
+        .catch(() => {
+          setHasValidSession(false);
+          setSessionVerified(true);
+        });
     }
   }, [isLoading, isAuthenticated]);
 

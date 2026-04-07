@@ -166,7 +166,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
             logger.info("Background deletions finished")
 
         await pg_store_manager.close()
-        await close_pool()
+
+    # Always close pool if it was created (handles partial init failures)
+    await close_pool()
 
     try:
         crawler = get_crawler_service()

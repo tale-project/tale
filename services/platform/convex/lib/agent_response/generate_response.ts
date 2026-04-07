@@ -276,7 +276,7 @@ export async function generateAgentResponse(
         )
       : undefined;
 
-    // Direct DB check for cancellation — closes the 200ms polling gap
+    // Direct DB check for cancellation — closes the polling gap
     // that abortWatcher?.cancelled can miss. Returns the cancelledMessageId
     // when cancelled (avoids a redundant query in cancelledReturn).
     const checkCancelled = async (): Promise<
@@ -647,8 +647,8 @@ export async function generateAgentResponse(
           );
         }
 
-        // Post-success abort check: direct DB query closes the 200ms
-        // polling gap that the watcher flag alone can miss.
+        // Post-success abort check: direct DB query closes the polling
+        // gap that the watcher flag alone can miss.
         const cancelCheck = await checkCancelled();
         if (cancelCheck) {
           return cancelledReturn(cancelCheck.cancelledMessageId);

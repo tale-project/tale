@@ -116,7 +116,11 @@ function SignUpPage() {
         variant: 'success',
       });
 
-      await queryClient.invalidateQueries({ queryKey: ['auth', 'session'] });
+      await queryClient
+        .invalidateQueries({ queryKey: ['auth', 'session'] })
+        .catch((error) =>
+          console.warn('Session cache invalidation failed:', error),
+        );
       void navigate({ to: '/dashboard' });
     } catch (error) {
       signUpStartedRef.current = false;
@@ -135,7 +139,7 @@ function SignUpPage() {
     window.location.href = `${siteUrl}${basePath}/http_api/api/sso/authorize?redirect_uri=${encodeURIComponent(callbackUri)}`;
   }, []);
 
-  if (isLoadingUsers || hasUsers === true) {
+  if (isLoadingUsers || (hasUsers === true && !signUpStartedRef.current)) {
     return null;
   }
 
