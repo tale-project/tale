@@ -115,7 +115,7 @@ describe('getCurrentMemberContext handler', () => {
     expect(result).toBeNull();
   });
 
-  it('returns null when unauthorized', async () => {
+  it('returns not_found when unauthorized and org lookup fails', async () => {
     mockedGetAuthUser.mockResolvedValue({ userId: 'user_1', name: 'Alice' });
     mockedGetOrgMember.mockRejectedValue(new UnauthorizedError());
     const ctx = createMockCtx();
@@ -123,7 +123,7 @@ describe('getCurrentMemberContext handler', () => {
 
     const result = await handler(ctx, { organizationId: 'org_1' });
 
-    expect(result).toBeNull();
+    expect(result).toEqual({ status: 'not_found' });
   });
 
   it('re-throws non-authorization errors from getOrganizationMember', async () => {
@@ -152,6 +152,7 @@ describe('getCurrentMemberContext handler', () => {
     const result = await handler(ctx, { organizationId: 'org_1' });
 
     expect(result).toEqual({
+      status: 'ok',
       memberId: 'om_1',
       organizationId: 'org_1',
       userId: 'user_1',
@@ -177,6 +178,7 @@ describe('getCurrentMemberContext handler', () => {
     const result = await handler(ctx, { organizationId: 'org_1' });
 
     expect(result).toEqual({
+      status: 'ok',
       memberId: 'om_1',
       organizationId: 'org_1',
       userId: 'user_1',
@@ -202,6 +204,7 @@ describe('getCurrentMemberContext handler', () => {
     const result = await handler(ctx, { organizationId: 'org_1' });
 
     expect(result).toEqual({
+      status: 'ok',
       memberId: 'om_2',
       organizationId: 'org_1',
       userId: 'user_1',

@@ -331,7 +331,7 @@ class CrawlerService:
                 self._crawler.arun(url=homepage, config=config),
                 timeout=timeout,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning(f"BFS fallback timed out for {domain} after {timeout}s")
             return []
         except Exception:
