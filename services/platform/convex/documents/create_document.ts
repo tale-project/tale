@@ -5,6 +5,7 @@
 import type { MutationCtx } from '../_generated/server';
 import type { CreateDocumentArgs, CreateDocumentResult } from './types';
 
+import { buildFolderPath } from '../folders/queries';
 import { toConvexJsonRecord } from '../lib/type_cast_helpers';
 import { extractExtension } from './extract_extension';
 import { teamIdToFields } from './team_fields';
@@ -24,6 +25,10 @@ export async function createDocument(
 
   const teamFields = teamIdToFields(args.teamId);
 
+  const folderPath =
+    args.folderPath ??
+    (args.folderId ? await buildFolderPath(ctx, args.folderId) : undefined);
+
   const documentId = await ctx.db.insert('documents', {
     organizationId: args.organizationId,
     title: args.title,
@@ -41,6 +46,7 @@ export async function createDocument(
     sourceModifiedAt: args.sourceModifiedAt,
     createdBy: args.createdBy,
     folderId: args.folderId,
+    folderPath,
   });
 
   return {

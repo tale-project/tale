@@ -153,3 +153,16 @@ export async function buildBreadcrumb(
   chain.reverse();
   return chain;
 }
+
+/**
+ * Build a slash-separated folder path string from a folder ID.
+ * Returns undefined if the folder cannot be resolved.
+ */
+export async function buildFolderPath(
+  ctx: QueryCtx,
+  folderId: Id<'folders'>,
+): Promise<string | undefined> {
+  const breadcrumb = await buildBreadcrumb(ctx, folderId);
+  if (breadcrumb.length === 0) return undefined;
+  return breadcrumb.map((b) => b.name).join('/');
+}

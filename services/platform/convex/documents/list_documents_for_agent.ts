@@ -183,7 +183,7 @@ export async function listDocumentsForAgent(
   const page = matches.slice(startIndex, startIndex + limit);
   const hasMore = startIndex + limit < matches.length;
 
-  // Batch-resolve folder paths
+  // Resolve folder paths: prefer top-level folderPath, fall back to breadcrumb
   const folderPathMap = await resolveFolderPaths(ctx, page);
 
   // Build response — type guard narrows fileId (already filtered on line 118)
@@ -196,7 +196,9 @@ export async function listDocumentsForAgent(
     fileId: doc.fileId,
     title: getDocumentTitle(doc),
     extension: doc.extension ?? null,
-    folderPath: doc.folderId ? (folderPathMap.get(doc.folderId) ?? null) : null,
+    folderPath:
+      doc.folderPath ??
+      (doc.folderId ? (folderPathMap.get(doc.folderId) ?? null) : null),
     teamId: doc.teamId ?? null,
     createdAt: doc._creationTime,
     sizeBytes: extractSize(doc.metadata),
