@@ -185,8 +185,13 @@ async def update_website(domain: str, request: UpdateWebsiteRequest, http_reques
         website = await manager.get_website(domain)
         if not website:
             raise HTTPException(status_code=404, detail=f"Website not found: {domain}")
+        if website.get("status") == "deleting":
+            raise HTTPException(
+                status_code=409,
+                detail=f"Domain {domain} is currently being deleted. Please retry later.",
+            )
 
-        await manager.register_website(domain=domain, scan_interval=request.scan_interval)
+        await manager.update_scan_interval(domain=domain, scan_interval=request.scan_interval)
 
         return WebsiteInfoResponse(
             domain=domain,

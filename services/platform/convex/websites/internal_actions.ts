@@ -89,6 +89,9 @@ export async function updateCrawlerScanInterval(
     },
   );
   if (!res.ok) {
+    if (res.status === 404) {
+      throw new Error('CRAWLER_WEBSITE_NOT_FOUND');
+    }
     throw new Error(
       `Failed to update website scan interval: ${res.status} ${res.statusText}`,
     );
@@ -176,6 +179,21 @@ export const syncWebsiteStatuses = internalAction({
               lastScannedAt: websiteInfo.last_scanned_at
                 ? new Date(websiteInfo.last_scanned_at).getTime()
                 : undefined,
+            },
+          );
+        } else {
+          // Crawler doesn't know about this website — mark as error
+          await ctx.runMutation(
+            internal.websites.internal_mutations.patchWebsite,
+            {
+              websiteId: website._id,
+              status: 'error',
+              metadata: {
+                ...website.metadata,
+                lastStatusSyncAt: now,
+                lastSyncError:
+                  'Website not found in crawler. Please delete and re-add it.',
+              },
             },
           );
         }

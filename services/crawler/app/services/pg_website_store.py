@@ -333,6 +333,14 @@ class PgWebsiteStoreManager:
             )
             return [dict(r) for r in rows]
 
+    async def update_scan_interval(self, domain: str, scan_interval: int) -> None:
+        async with acquire_with_retry(self._pool) as conn:
+            await conn.execute(
+                "UPDATE websites SET scan_interval = $2, updated_at = NOW() WHERE domain = $1",
+                domain,
+                scan_interval,
+            )
+
     async def update_scan_status(self, domain: str, status: str, error: str | None = None) -> None:
         async with acquire_with_retry(self._pool) as conn:
             await conn.execute(
