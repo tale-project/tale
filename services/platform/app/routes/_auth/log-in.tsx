@@ -152,7 +152,6 @@ export function LogInPage() {
               placeholder={t('emailPlaceholder')}
               disabled={isSubmitting}
               autoComplete="email"
-              isInvalid={!!loginError}
               className="shadow-xs"
               {...form.register('email', {
                 onChange: () => setLoginError(null),
@@ -167,7 +166,6 @@ export function LogInPage() {
               placeholder={t('passwordPlaceholder')}
               disabled={isSubmitting}
               autoComplete="current-password"
-              isInvalid={!!loginError}
               className="shadow-xs"
               {...form.register('password', {
                 onChange: () => setLoginError(null),

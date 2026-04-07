@@ -87,8 +87,7 @@ function SignUpPage() {
   const passwordValidationItems = usePasswordValidation(password);
 
   const handleSubmit = async (data: SignUpFormData) => {
-    form.setError('password', { message: '' });
-    form.clearErrors('password');
+    form.clearErrors(['email', 'password']);
     signUpStartedRef.current = true;
 
     try {
@@ -98,15 +97,25 @@ function SignUpPage() {
           onError: (ctx) => {
             const errorMessage =
               ctx.error.message || t('signup.wrongCredentials');
-            form.setError('password', { message: errorMessage });
+            const isUserExists =
+              ctx.error.code === 'USER_ALREADY_EXISTS' ||
+              errorMessage.toLowerCase().includes('already exists');
+            form.setError(isUserExists ? 'email' : 'password', {
+              message: errorMessage,
+            });
           },
         },
       );
 
       if (result.error) {
         signUpStartedRef.current = false;
-        form.setError('password', {
-          message: result.error.message || t('signup.wrongCredentials'),
+        const errorMessage =
+          result.error.message || t('signup.wrongCredentials');
+        const isUserExists =
+          result.error.code === 'USER_ALREADY_EXISTS' ||
+          errorMessage.toLowerCase().includes('already exists');
+        form.setError(isUserExists ? 'email' : 'password', {
+          message: errorMessage,
         });
         return;
       }
