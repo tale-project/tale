@@ -6,6 +6,7 @@ import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 
 import { internal } from '../_generated/api';
+import { buildFolderPath } from '../folders/queries';
 
 export type UpdateDocumentInternalArgs = {
   documentId: Id<'documents'>;
@@ -20,6 +21,7 @@ export type UpdateDocumentInternalArgs = {
   contentHash?: string;
   teamId?: string;
   folderId?: Id<'folders'>;
+  folderPath?: string;
 };
 
 export async function updateDocumentInternal(
@@ -48,6 +50,13 @@ export async function updateDocumentInternal(
   let historyFiles = document.historyFiles ?? [];
   if (hashChanged && hasNewFile && document.fileId) {
     historyFiles = [...historyFiles, document.fileId];
+  }
+
+  // Sync folderPath when folderId changes
+  if (updateData.folderId !== undefined) {
+    updateData.folderPath = updateData.folderId
+      ? await buildFolderPath(ctx, updateData.folderId)
+      : undefined;
   }
 
   // Build update data

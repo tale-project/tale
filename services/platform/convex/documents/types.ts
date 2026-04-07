@@ -73,6 +73,7 @@ export interface CreateDocumentArgs {
   teamId?: string;
   createdBy?: string;
   folderId?: Id<'folders'>;
+  folderPath?: string;
   sourceCreatedAt?: number;
   sourceModifiedAt?: number;
 }
