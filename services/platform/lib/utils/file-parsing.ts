@@ -174,7 +174,15 @@ async function parseExcelFile(
   const workbook = XLSX.read(buffer, { type: 'array' });
   const sheetName = workbook.SheetNames[0];
   const worksheet = workbook.Sheets[sheetName];
-  return XLSX.utils.sheet_to_json(worksheet);
+  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet);
+  return rows.map((row) =>
+    Object.fromEntries(
+      Object.entries(row).map(([key, value]) => [
+        key.trim().toLowerCase(),
+        value,
+      ]),
+    ),
+  );
 }
 
 function isCSVFile(file: File): boolean {
