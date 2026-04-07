@@ -220,9 +220,4 @@
 		Referrer-Policy "strict-origin-when-cross-origin"
 	}
 
-	# Only set HSTS for HTTPS connections
-	@https {
-		protocol https
-	}
-	header @https Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
 }
