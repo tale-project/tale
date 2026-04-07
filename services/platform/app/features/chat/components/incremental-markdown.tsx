@@ -35,6 +35,7 @@ import type {
 } from '@/lib/utils/markdown-types';
 
 import { findBlockSplitPoint } from '../utils/find-block-split';
+import { remarkCjkAttention } from '../utils/micromark-cjk-attention';
 import { remendMarkdown } from '../utils/remend-markdown';
 
 const chatSanitizeSchema = {
@@ -56,7 +57,11 @@ const remarkDisableIndentedCode = function (this: {
 
 type PluginList = NonNullable<MarkdownOptions['remarkPlugins']>;
 
-const REMARK_PLUGINS: PluginList = [remarkDisableIndentedCode, remarkGfm];
+const REMARK_PLUGINS: PluginList = [
+  remarkDisableIndentedCode,
+  remarkCjkAttention,
+  remarkGfm,
+];
 const REHYPE_PLUGINS: PluginList = [
   rehypeRaw,
   [rehypeSanitize, chatSanitizeSchema],
