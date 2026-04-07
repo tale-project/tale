@@ -25,6 +25,7 @@ dependencies = [
     "tale-telemetry",
     "tale-knowledge",
     "tale-shared",
+    "ultimate-sitemap-parser>=1.8.0",
 ]
 
 [project.optional-dependencies]
