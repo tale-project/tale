@@ -3,7 +3,6 @@ import { useCallback, startTransition } from 'react';
 
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import { sanitizeChatMessage } from '@/lib/utils/sanitize-chat';
 
 import type {
   PendingMessage,
@@ -67,8 +66,6 @@ export function useSendMessage({
         return;
       }
 
-      const sanitizedContent = sanitizeChatMessage(message);
-
       // Set pending state scoped to this thread (null for new-chat page)
       setPendingThreadId(threadId ?? null);
       setIsPending(true);
@@ -93,7 +90,7 @@ export function useSendMessage({
         if (!currentThreadId) {
           const pendingTimestamp = new Date();
           setPendingMessage({
-            content: sanitizedContent,
+            content: message,
             threadId: 'pending',
             attachments: mutationAttachments,
             timestamp: pendingTimestamp,
@@ -112,7 +109,7 @@ export function useSendMessage({
 
           // Update pending message with real threadId
           setPendingMessage({
-            content: sanitizedContent,
+            content: message,
             threadId: newThreadId,
             attachments: mutationAttachments,
             timestamp: pendingTimestamp,
@@ -131,7 +128,7 @@ export function useSendMessage({
           });
         } else {
           setPendingMessage({
-            content: sanitizedContent,
+            content: message,
             threadId: currentThreadId,
             attachments: mutationAttachments,
             timestamp: new Date(),
@@ -152,7 +149,7 @@ export function useSendMessage({
           orgSlug: 'default',
           threadId: currentThreadId,
           organizationId,
-          message: sanitizedContent,
+          message: message,
           modelId: modelId || undefined,
           attachments: mutationAttachments,
           userContext: userContext
