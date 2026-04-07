@@ -162,24 +162,29 @@ export function ApiKeyCreateDialog({
           <Text variant="muted">
             {tSettings('apiKeys.keyCreatedDescription')}
           </Text>
-          <div className="relative">
-            <code className="bg-muted block w-full rounded-md p-3 pr-12 font-mono text-sm break-all">
-              {createdKey}
-            </code>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={handleCopyKey}
-              className="absolute top-1/2 right-2 -translate-y-1/2"
-              aria-label={tCommon('actions.copy')}
-            >
-              {copied ? (
-                <Check className="size-4 text-green-500" />
-              ) : (
-                <Copy className="size-4" />
-              )}
-            </Button>
+          <div className="space-y-2">
+            <Text as="label" variant="label">
+              {tSettings('apiKeys.yourApiKey')}
+            </Text>
+            <div className="relative">
+              <code className="bg-muted block w-full rounded-md p-3 pr-12 font-mono text-sm break-all">
+                {createdKey}
+              </code>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleCopyKey}
+                className="absolute top-1/2 right-2 -translate-y-1/2"
+                aria-label={tCommon('actions.copy')}
+              >
+                {copied ? (
+                  <Check className="size-4 text-green-500" />
+                ) : (
+                  <Copy className="size-4" />
+                )}
+              </Button>
+            </div>
           </div>
         </FormSection>
       </FormDialog>
@@ -191,7 +196,7 @@ export function ApiKeyCreateDialog({
       open={open}
       onOpenChange={handleOpenChange}
       title={tSettings('apiKeys.createKey')}
-      submitText={tCommon('actions.create')}
+      submitText={tSettings('apiKeys.createKeySubmit')}
       submittingText={tCommon('actions.loading')}
       isSubmitting={isSubmitting}
       onSubmit={handleSubmit(onSubmit)}

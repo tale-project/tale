@@ -18,6 +18,7 @@ interface TeamsTableProps {
 
 export function TeamsTable({ teams, organizationId }: TeamsTableProps) {
   const { t: tEmpty } = useT('emptyStates');
+  const { t: tSettings } = useT('settings');
   const { columns, searchPlaceholder, stickyLayout, pageSize } =
     useTeamsTableConfig(organizationId);
 
@@ -26,19 +27,30 @@ export function TeamsTable({ teams, organizationId }: TeamsTableProps) {
     pageSize,
     search: { fields: ['name'], placeholder: searchPlaceholder },
     getRowId: (row) => row.id,
+    entityLabel: tSettings('teams.entityLabel'),
   });
 
   return (
-    <DataTable
-      columns={columns}
-      stickyLayout={stickyLayout}
-      actionMenu={<TeamsActionMenu organizationId={organizationId} />}
-      emptyState={{
-        icon: Users,
-        title: tEmpty('teams.title'),
-        description: tEmpty('teams.description'),
-      }}
-      {...list.tableProps}
-    />
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-1">
+        <h2 className="text-foreground text-base font-semibold">
+          {tSettings('teams.title')}
+        </h2>
+        <p className="text-muted-foreground text-sm">
+          {tSettings('teams.sectionDescription')}
+        </p>
+      </div>
+      <DataTable
+        columns={columns}
+        stickyLayout={stickyLayout}
+        actionMenu={<TeamsActionMenu organizationId={organizationId} />}
+        emptyState={{
+          icon: Users,
+          title: tEmpty('teams.title'),
+          description: tEmpty('teams.description'),
+        }}
+        {...list.tableProps}
+      />
+    </div>
   );
 }

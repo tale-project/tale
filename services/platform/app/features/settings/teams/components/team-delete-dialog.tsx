@@ -3,7 +3,6 @@
 import { useState } from 'react';
 
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
-import { useHasAgentsByTeam } from '@/app/features/agents/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
@@ -26,11 +25,10 @@ export function TeamDeleteDialog({
   onSuccess,
 }: TeamDeleteDialogProps) {
   const { t: tSettings } = useT('settings');
+  const { t: tCommon } = useT('common');
   const [isDeleting, setIsDeleting] = useState(false);
-  const { data: hasAgents } = useHasAgentsByTeam(team.id);
 
   const handleConfirm = async () => {
-    if (hasAgents) return;
     if (isDeleting) return;
     setIsDeleting(true);
     try {
@@ -65,11 +63,11 @@ export function TeamDeleteDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={tSettings('teams.deleteTeam')}
-      description={tSettings('teams.deleteConfirmation')}
-      warning={hasAgents ? tSettings('teams.teamHasAgentsWarning') : undefined}
-      deleteText={tSettings('teams.deleteTeam')}
+      description={tSettings('teams.deleteConfirmation', {
+        name: team.name,
+      })}
+      deleteText={tCommon('actions.delete')}
       isDeleting={isDeleting}
-      disableDelete={!!hasAgents}
       onDelete={handleConfirm}
     />
   );

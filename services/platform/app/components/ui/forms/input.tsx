@@ -23,13 +23,13 @@ const inputVariants = cva(
     variants: {
       variant: {
         default:
-          'rounded-lg border border-transparent bg-background px-3 py-2 ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-1 ring-border focus-visible:ring-primary',
+          'rounded-lg border border-transparent bg-input px-3 py-2 ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-1 ring-border focus-visible:ring-primary',
         unstyled: 'bg-transparent border-0 ring-0 ring-offset-0',
       },
       size: {
-        default: 'h-9',
+        default: 'h-10',
         sm: 'h-8',
-        lg: 'h-10',
+        lg: 'h-12',
       },
     },
     defaultVariants: {

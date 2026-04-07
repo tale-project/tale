@@ -29,7 +29,7 @@ function ChatInputSkeleton() {
   return (
     <PanelFooter>
       <div className="mx-auto w-full max-w-(--chat-max-width)">
-        <div className="bg-background border-muted-foreground/50 relative flex flex-col gap-2 rounded-t-2xl border border-b-0 px-4 pt-3">
+        <div className="bg-background border-muted-foreground/50 relative flex flex-col gap-2 rounded-t-2xl border border-b-0 px-5 pt-4">
           <Skeleton className="h-[100px] w-full bg-transparent" />
           <div className="flex items-center pb-3">
             <Skeleton className="h-5 w-5 rounded" />

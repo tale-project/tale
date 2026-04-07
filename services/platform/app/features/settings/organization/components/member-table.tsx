@@ -149,6 +149,12 @@ export function MemberTable({
       getRowId={(row) => row._id}
       isLoading={isLoading}
       approxRowCount={approxRowCount}
+      infiniteScroll={{
+        hasMore: false,
+        onLoadMore: () => {},
+        entityLabel: tSettings('organization.membersEntityLabel'),
+        totalCount: members.length,
+      }}
       emptyState={{
         icon: Users,
         title: tEmpty('members.title'),

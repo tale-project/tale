@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useState, useMemo } from 'react';
+import { useCallback, useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
@@ -12,6 +12,7 @@ import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 
 import { useCreateTeamMember } from '../hooks/mutations';
+import { TeamMemberChecklist } from './team-member-checklist';
 
 interface TeamCreateDialogProps {
   organizationId: string;
@@ -45,6 +46,9 @@ export function TeamCreateDialog({
   );
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(
+    new Set(),
+  );
 
   const form = useForm<TeamFormData>({
     resolver: zodResolver(schema),
@@ -54,6 +58,18 @@ export function TeamCreateDialog({
   });
 
   const { handleSubmit, register, reset, formState } = form;
+
+  const handleToggleMember = useCallback((userId: string) => {
+    setSelectedMemberIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(userId)) {
+        next.delete(userId);
+      } else {
+        next.add(userId);
+      }
+      return next;
+    });
+  }, []);
 
   const onSubmit = async (data: TeamFormData) => {
     setIsSubmitting(true);
@@ -72,24 +88,44 @@ export function TeamCreateDialog({
         throw new Error('Team ID not returned');
       }
 
-      const session = await authClient.getSession();
-      const userId = session.data?.user?.id;
-      if (!userId) {
-        throw new Error('User not authenticated');
+      // Add selected members to the team
+      const memberIds = Array.from(selectedMemberIds);
+      if (memberIds.length === 0) {
+        // If no members selected, add the current user as default
+        const session = await authClient.getSession();
+        const userId = session.data?.user?.id;
+        if (userId) {
+          await addMember({ teamId, userId, organizationId });
+        }
+      } else {
+        const results = await Promise.allSettled(
+          memberIds.map((userId) =>
+            addMember({ teamId, userId, organizationId }),
+          ),
+        );
+        const failedCount = results.filter(
+          (r) => r.status === 'rejected',
+        ).length;
+        if (failedCount > 0) {
+          console.warn(
+            `Failed to add ${failedCount} of ${memberIds.length} members`,
+          );
+        }
       }
 
-      await addMember({
-        teamId,
-        userId,
-        organizationId,
-      });
+      const memberCount = memberIds.length > 0 ? memberIds.length : 1;
 
       toast({
         title: tSettings('teams.teamCreated'),
+        description: tSettings('teams.teamCreatedDescription', {
+          name: data.name,
+          count: memberCount,
+        }),
         variant: 'success',
       });
 
       reset();
+      setSelectedMemberIds(new Set());
       onOpenChange(false);
       onSuccess?.();
     } catch (error) {
@@ -106,6 +142,7 @@ export function TeamCreateDialog({
   const handleOpenChange = (isOpen: boolean) => {
     if (!isOpen) {
       reset();
+      setSelectedMemberIds(new Set());
     }
     onOpenChange(isOpen);
   };
@@ -115,19 +152,24 @@ export function TeamCreateDialog({
       open={open}
       onOpenChange={handleOpenChange}
       title={tSettings('teams.createTeam')}
-      submitText={tCommon('actions.create')}
+      submitText={tSettings('teams.createTeam')}
       submittingText={tCommon('actions.loading')}
       isSubmitting={isSubmitting}
       onSubmit={handleSubmit(onSubmit)}
     >
       <Input
         id="name"
-        label={tCommon('labels.name')}
-        placeholder={tSettings('teams.title')}
+        label={tSettings('teams.teamName')}
+        placeholder={tSettings('teams.teamNamePlaceholder')}
         {...register('name')}
         className="w-full"
         required
         errorMessage={formState.errors.name?.message}
+      />
+      <TeamMemberChecklist
+        organizationId={organizationId}
+        selectedMemberIds={selectedMemberIds}
+        onToggleMember={handleToggleMember}
       />
     </FormDialog>
   );

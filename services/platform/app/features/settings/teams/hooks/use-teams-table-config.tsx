@@ -4,7 +4,6 @@ import type { ColumnDef } from '@tanstack/react-table';
 
 import { useMemo } from 'react';
 
-import { ActionRow } from '@/app/components/ui/layout/action-row';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
@@ -37,15 +36,10 @@ export function useTeamsTableConfig(organizationId: string): TeamsTableConfig {
       },
       {
         id: 'actions',
-        size: 140,
+        size: 44,
         meta: { isAction: true },
         cell: ({ row }) => (
-          <ActionRow justify="end">
-            <TeamRowActions
-              team={row.original}
-              organizationId={organizationId}
-            />
-          </ActionRow>
+          <TeamRowActions team={row.original} organizationId={organizationId} />
         ),
       },
     ],

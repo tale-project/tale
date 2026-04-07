@@ -56,7 +56,7 @@ export function MessageImprovementDialog({
           title={t('improvement.improved')}
           gap={3}
         >
-          <div className="border-border bg-secondary/20 overflow-y-auto rounded-md border p-4">
+          <div className="border-border bg-muted overflow-y-auto rounded-md border p-4">
             <div className="prose prose-sm max-h-[12rem] text-xs">
               <ReactMarkdown>{improvedMessage}</ReactMarkdown>
             </div>

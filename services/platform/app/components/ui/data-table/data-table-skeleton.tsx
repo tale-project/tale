@@ -142,7 +142,7 @@ export function DataTableSkeleton<TData = unknown, TValue = unknown>({
     <Table stickyLayout={stickyLayout}>
       {showHeader && (
         <TableHeader sticky={stickyLayout}>
-          <TableRow className="bg-secondary/20">
+          <TableRow className="bg-muted">
             {normalizedColumns.map((col, i) => (
               <TableHead
                 key={i}

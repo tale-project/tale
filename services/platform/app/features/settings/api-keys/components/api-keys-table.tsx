@@ -21,11 +21,14 @@ export function ApiKeysTable({ apiKeys, organizationId }: ApiKeysTableProps) {
   const { columns, searchPlaceholder, stickyLayout, pageSize } =
     useApiKeysTableConfig(organizationId);
 
+  const { t: tSettings } = useT('settings');
+
   const list = useListPage<ApiKey>({
     dataSource: { type: 'query', data: apiKeys },
     pageSize,
     search: { fields: ['name'], placeholder: searchPlaceholder },
     getRowId: (row) => row.id,
+    entityLabel: tSettings('apiKeys.entityLabel'),
   });
 
   return (

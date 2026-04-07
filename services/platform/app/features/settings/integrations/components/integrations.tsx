@@ -111,7 +111,7 @@ export function Integrations({
 
   return (
     <Stack gap={0} className="pb-8">
-      <HStack justify="between" align="start" className="pb-3">
+      <HStack wrap justify="between" align="start" className="pb-3">
         <Stack gap={1}>
           <Heading level={2} size="lg" tracking="tight">
             {t('integrations.title')}
@@ -123,7 +123,7 @@ export function Integrations({
         </Button>
       </HStack>
 
-      <HStack justify="between" align="center" className="mb-4">
+      <HStack wrap justify="between" align="center" className="mb-4">
         <Tabs items={tabItems} value={tab} onValueChange={onTabChange} />
         <SearchInput
           value={searchQuery}

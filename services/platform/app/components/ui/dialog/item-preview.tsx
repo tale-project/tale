@@ -23,7 +23,7 @@ export function ItemPreview({
   className,
 }: ItemPreviewProps) {
   return (
-    <Stack gap={1} className={cn('bg-secondary/20 rounded-lg p-4', className)}>
+    <Stack gap={1} className={cn('bg-muted rounded-lg p-4', className)}>
       <Text as="div" variant="label">
         {primary}
       </Text>

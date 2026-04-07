@@ -79,7 +79,7 @@ export function ChatInput({
       >
         <FileUpload.Overlay className="mx-2 rounded-t-3xl" />
 
-        <div className="bg-background border-muted-foreground/50 relative flex flex-col gap-2 rounded-t-2xl border border-b-0 px-4 pt-3">
+        <div className="bg-background border-muted-foreground/50 relative flex flex-col gap-2 rounded-t-2xl border border-b-0 px-5 pt-4">
           {(attachments.length > 0 || uploadingFiles.length > 0) && (
             <HStack gap={1} wrap className="mb-2">
               {imageAttachments.map((attachment) => (
@@ -87,7 +87,7 @@ export function ChatInput({
                   key={attachment.fileId}
                   className="group relative size-11 overflow-hidden rounded-lg shadow-sm"
                 >
-                  <div className="bg-secondary/20 size-full">
+                  <div className="bg-muted size-full">
                     {attachment.previewUrl ? (
                       <img
                         src={attachment.previewUrl}
@@ -112,7 +112,7 @@ export function ChatInput({
               {fileAttachments.map((attachment) => (
                 <div
                   key={attachment.fileId}
-                  className="bg-secondary/20 group relative flex max-w-[216px] items-center gap-2 rounded-lg px-2 py-1"
+                  className="bg-muted group relative flex max-w-[216px] items-center gap-2 rounded-lg px-2 py-1"
                 >
                   <DocumentIcon fileName={attachment.fileName} />
                   <VStack className="min-w-0 flex-1">
@@ -134,7 +134,7 @@ export function ChatInput({
               {uploadingFiles.map((fileId) => (
                 <div
                   key={fileId}
-                  className="bg-secondary/20 grid size-[2.75rem] place-content-center rounded-lg p-2"
+                  className="bg-muted grid size-[2.75rem] place-content-center rounded-lg p-2"
                 >
                   <LoaderCircle className="size-4 animate-spin" />
                 </div>

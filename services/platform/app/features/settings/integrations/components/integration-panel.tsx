@@ -113,7 +113,7 @@ export function IntegrationPanel({
       <HStack
         justify="between"
         align="center"
-        className="border-border shrink-0 border-b px-6 py-4"
+        className="border-border shrink-0 border-b p-4 sm:px-6 sm:py-4"
       >
         <Text variant="label" className="text-base font-semibold">
           {panelTitle}
@@ -126,7 +126,7 @@ export function IntegrationPanel({
         />
       </HStack>
 
-      <div className="flex-1 overflow-y-auto px-6 py-5">
+      <div className="flex-1 overflow-y-auto p-4 sm:px-6 sm:py-5">
         <Stack gap={6}>
           <Stack gap={3}>
             <IntegrationIconUpload
@@ -224,7 +224,7 @@ export function IntegrationPanel({
         </Stack>
       </div>
 
-      <div className="border-border shrink-0 border-t px-6 py-4">
+      <div className="border-border shrink-0 border-t p-4 sm:px-6 sm:py-4">
         {isDetailsMode ? (
           <Stack gap={3}>
             <HStack justify="between" align="center">

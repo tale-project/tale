@@ -1,7 +1,6 @@
 'use client';
 
-import { X, Paperclip, ArrowUp, CircleStop } from 'lucide-react';
-import { LoaderCircleIcon } from 'lucide-react';
+import { X, Paperclip, ArrowUp, CircleStop, Loader } from 'lucide-react';
 import { ComponentPropsWithoutRef, useRef, useMemo, useState } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
@@ -169,7 +168,7 @@ export function ChatInput({
           style={{ display: 'none' }}
         />
 
-        <div className="bg-background border-muted-foreground/50 relative flex flex-col gap-2 rounded-t-2xl border border-b-0 px-4 pt-3">
+        <div className="bg-background border-muted-foreground/50 relative flex flex-col gap-2 rounded-t-2xl border border-b-0 px-5 pt-4">
           {(attachments.length > 0 || uploadingFiles.length > 0) && (
             <HStack gap={1} wrap className="mb-2">
               {imageAttachments.map((attachment) => (
@@ -187,7 +186,7 @@ export function ChatInput({
                         alt: attachment.fileName,
                       })
                     }
-                    className="bg-secondary/20 focus:ring-ring size-full cursor-pointer transition-opacity hover:opacity-90 focus:ring-2 focus:ring-offset-2 focus:outline-none"
+                    className="bg-muted focus:ring-ring size-full cursor-pointer transition-opacity hover:opacity-90 focus:ring-2 focus:ring-offset-2 focus:outline-none"
                   >
                     {attachment.previewUrl ? (
                       <img
@@ -217,7 +216,7 @@ export function ChatInput({
               {fileAttachments.map((attachment) => (
                 <div
                   key={attachment.fileId}
-                  className="bg-secondary/20 group relative flex max-w-[216px] items-center gap-2 rounded-lg px-2 py-1"
+                  className="bg-muted group relative flex max-w-[216px] items-center gap-2 rounded-lg px-2 py-1"
                 >
                   <DocumentIcon fileName={attachment.fileName} />
                   <VStack className="min-w-0 flex-1">
@@ -255,9 +254,9 @@ export function ChatInput({
                   key={fileId}
                   role="status"
                   aria-label={tChat('uploadingFile')}
-                  className="bg-secondary/20 grid size-9 place-content-center rounded-lg p-2"
+                  className="border-border bg-muted flex size-9 items-center justify-center overflow-hidden rounded-lg border"
                 >
-                  <LoaderCircleIcon className="size-4 animate-spin" />
+                  <Loader className="text-muted-foreground size-4 animate-spin" />
                 </div>
               ))}
             </HStack>

@@ -41,7 +41,7 @@ export function ConversationsListSkeleton({
 export function ConversationHeaderSkeleton() {
   return (
     <div className="bg-background border-border sticky top-0 z-20 border-b">
-      <div className="flex flex-col gap-3 px-6 py-4">
+      <div className="flex flex-col gap-3 p-4 sm:px-6 sm:py-4">
         <Skeleton className="h-5 w-72" />
         <HStack gap={3}>
           <Skeleton className="size-8 shrink-0 rounded-full" />
