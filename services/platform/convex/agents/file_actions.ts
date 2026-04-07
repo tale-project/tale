@@ -142,7 +142,11 @@ export const saveAgent = action({
     const content = serializeAgentJson(config);
     const filePath = resolveAgentFilePath(args.orgSlug, args.agentName);
 
-    // Write new data FIRST (critical path)
+    const existing = await readFileSafe(filePath);
+    if (existing !== null) {
+      throw new Error(`Agent '${args.agentName}' already exists`);
+    }
+
     await atomicWrite(filePath, content);
 
     // Snapshot previous state to history SECOND (best-effort)
@@ -250,6 +254,11 @@ export const deleteAgent = action({
   handler: async (ctx, args): Promise<null> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
+
+    const protectedAgents = ['chat-agent', 'workflow-assistant'];
+    if (protectedAgents.includes(args.agentName)) {
+      throw new Error(`Agent '${args.agentName}' cannot be deleted`);
+    }
 
     const filePath = resolveAgentFilePath(args.orgSlug, args.agentName);
     const historyDir = resolveHistoryDir(args.orgSlug, args.agentName);

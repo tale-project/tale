@@ -54,6 +54,9 @@ export function AgentRowActions({
     }
   }, [isDuplicating, duplicateAgent, agentName, t, onDuplicated]);
 
+  const isProtected =
+    agentName === 'chat-agent' || agentName === 'workflow-assistant';
+
   const actions = [
     {
       key: 'duplicate',
@@ -66,6 +69,7 @@ export function AgentRowActions({
       label: tCommon('delete'),
       icon: Trash2,
       destructive: true,
+      visible: !isProtected,
       onClick: () => dialogs.open.delete(),
     },
   ];

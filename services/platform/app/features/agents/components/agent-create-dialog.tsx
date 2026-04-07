@@ -95,8 +95,12 @@ export function CreateAgentDialog({
       });
     } catch (error) {
       console.error(error);
+      const message =
+        error instanceof Error && error.message.includes('already exists')
+          ? t('agents.agentAlreadyExists')
+          : t('agents.agentCreateFailed');
       toast({
-        title: t('agents.agentCreateFailed'),
+        title: message,
         variant: 'destructive',
       });
     }
