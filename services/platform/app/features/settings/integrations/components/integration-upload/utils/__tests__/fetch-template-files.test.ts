@@ -31,6 +31,13 @@ const validConfig = JSON.stringify({
   operations: [{ name: 'list_repos', title: 'List repositories' }],
 });
 
+const validConfigWithoutName = JSON.stringify({
+  title: 'GitHub',
+  authMethod: 'bearer_token',
+  secretBindings: ['accessToken'],
+  operations: [{ name: 'list_repos', title: 'List repositories' }],
+});
+
 const validConnector = `
 const connector = {
   operations: ['list_repos'],
@@ -195,6 +202,46 @@ describe('fetchTemplateFiles', () => {
     const result = await fetchTemplateFiles(restTemplate);
     expect(result.success).toBe(true);
     expect(result.data?.iconFile).toBeUndefined();
+  });
+
+  it('injects template name when config.json omits it', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation((url) => {
+      const urlStr = toUrlString(url);
+      if (urlStr.includes('config.json'))
+        return mockResponse(validConfigWithoutName);
+      if (urlStr.includes('connector.ts')) return mockResponse(validConnector);
+      if (urlStr.includes('icon.svg'))
+        return mockResponse(new Blob(['<svg/>'], { type: 'image/svg+xml' }));
+      return mockResponse('', false);
+    });
+
+    const result = await fetchTemplateFiles(restTemplate);
+    expect(result.success).toBe(true);
+    expect(result.data?.config.name).toBe('github');
+  });
+
+  it('preserves existing name in config.json', async () => {
+    const configWithCustomName = JSON.stringify({
+      name: 'custom-github',
+      title: 'GitHub',
+      authMethod: 'bearer_token',
+      secretBindings: ['accessToken'],
+      operations: [{ name: 'list_repos', title: 'List repositories' }],
+    });
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation((url) => {
+      const urlStr = toUrlString(url);
+      if (urlStr.includes('config.json'))
+        return mockResponse(configWithCustomName);
+      if (urlStr.includes('connector.ts')) return mockResponse(validConnector);
+      if (urlStr.includes('icon.svg'))
+        return mockResponse(new Blob(['<svg/>'], { type: 'image/svg+xml' }));
+      return mockResponse('', false);
+    });
+
+    const result = await fetchTemplateFiles(restTemplate);
+    expect(result.success).toBe(true);
+    expect(result.data?.config.name).toBe('custom-github');
   });
 
   it('handles network errors gracefully', async () => {
