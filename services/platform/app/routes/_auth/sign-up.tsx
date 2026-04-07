@@ -18,6 +18,7 @@ import {
   useIsSsoConfigured,
 } from '@/app/features/auth/hooks/queries';
 import { usePasswordValidation } from '@/app/hooks/use-password-validation';
+import { useReactQueryClient } from '@/app/hooks/use-react-query-client';
 import { toast } from '@/app/hooks/use-toast';
 import { authClient } from '@/lib/auth-client';
 import { getEnv } from '@/lib/env';
@@ -39,6 +40,7 @@ type SignUpFormData = {
 
 function SignUpPage() {
   const navigate = useNavigate();
+  const queryClient = useReactQueryClient();
   const { t } = useT('auth');
   const { t: tCommon } = useT('common');
 
@@ -110,6 +112,7 @@ function SignUpPage() {
         variant: 'success',
       });
 
+      await queryClient.invalidateQueries({ queryKey: ['auth', 'session'] });
       void navigate({ to: '/dashboard' });
     } catch (error) {
       console.error('Sign up error:', error);

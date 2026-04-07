@@ -62,7 +62,7 @@ const PLATFORM_HARD_LIMIT_MS = 540_000;
 /**
  * How often the abort watcher polls the stream status (ms).
  */
-const ABORT_POLL_INTERVAL_MS = 200;
+const ABORT_POLL_INTERVAL_MS = 1500;
 
 interface AbortWatcher {
   stop: () => void;
