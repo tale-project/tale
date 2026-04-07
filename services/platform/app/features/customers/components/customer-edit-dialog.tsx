@@ -20,7 +20,7 @@ type CustomerFormData = {
   name: string;
   email: string;
   locale: string;
-  status: string;
+  status: (typeof CUSTOMER_STATUSES)[number];
 };
 
 interface CustomerEditDialogProps {
@@ -184,8 +184,10 @@ export function CustomerEditDialog({
 
       <Select
         value={status}
-        onValueChange={(value) =>
-          setValue('status', value, { shouldDirty: true })
+        onValueChange={(value: string) =>
+          setValue('status', value as (typeof CUSTOMER_STATUSES)[number], {
+            shouldDirty: true,
+          })
         }
         disabled={isSubmitting}
         id="status"

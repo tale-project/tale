@@ -79,5 +79,8 @@ export async function getUserOrganizations(
         member,
       };
     })
-    .filter((entry) => entry.role !== 'disabled');
+    .filter(
+      (entry: { organizationId: string; role: string; member: unknown }) =>
+        entry.role !== 'disabled',
+    );
 }

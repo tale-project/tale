@@ -29,10 +29,8 @@ export async function readConversationList(
     {
       organizationId,
       status: args.status,
-      customerId: args.customerId
-        ? // @ts-expect-error -- Convex Id<"customers"> branded type from plain string
-          args.customerId
-        : undefined,
+      // @ts-expect-error -- Convex Id<"customers"> branded type from plain string
+      customerId: args.customerId ?? undefined,
       paginationOpts: {
         numItems,
         cursor,

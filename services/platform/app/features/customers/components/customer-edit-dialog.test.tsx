@@ -79,6 +79,7 @@ describe('CustomerEditDialog', () => {
         name: undefined,
         email: 'new@example.com',
         locale: 'en',
+        status: 'active',
       });
     });
 
@@ -110,6 +111,7 @@ describe('CustomerEditDialog', () => {
         name: 'Jane',
         email: 'test@example.com',
         locale: 'en',
+        status: 'active',
       });
     });
   });

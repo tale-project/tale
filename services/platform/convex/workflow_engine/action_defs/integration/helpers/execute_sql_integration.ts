@@ -267,7 +267,7 @@ export async function executeSqlIntegration(
     operation,
     engine: sqlConnectionConfig.engine,
     data: result.data,
-    rowCount: result.rowCount,
-    duration: result.duration,
+    rowCount: result.rowCount ?? 0,
+    duration: result.duration ?? 0,
   };
 }

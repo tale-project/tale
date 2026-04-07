@@ -29,7 +29,7 @@ interface EditProductDialogProps {
     price?: number;
     currency?: string;
     category?: string;
-    status?: string;
+    status?: (typeof PRODUCT_STATUSES)[number];
   };
 }
 
@@ -43,7 +43,7 @@ type ProductFormData = {
   price: string;
   currency: string;
   category: string;
-  status: string;
+  status: (typeof PRODUCT_STATUSES)[number];
 };
 
 export function ProductEditDialog({
@@ -237,8 +237,10 @@ export function ProductEditDialog({
 
       <Select
         value={status}
-        onValueChange={(value) =>
-          setValue('status', value, { shouldDirty: true })
+        onValueChange={(value: string) =>
+          setValue('status', value as (typeof PRODUCT_STATUSES)[number], {
+            shouldDirty: true,
+          })
         }
         disabled={isSubmitting}
         id="status"

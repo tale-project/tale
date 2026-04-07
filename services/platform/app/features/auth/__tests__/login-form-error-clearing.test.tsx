@@ -12,6 +12,10 @@ vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => () => ({ component: null }),
   useNavigate: () => mockNavigate,
   useSearch: () => ({ redirectTo: undefined }),
+  Link: ({ children, ...props }: Record<string, unknown>) => {
+    const { createElement } = require('react');
+    return createElement('a', props, children);
+  },
 }));
 
 // ── i18n ─────────────────────────────────────────────────────────────────────
