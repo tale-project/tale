@@ -130,6 +130,7 @@ export const saveAgent = action({
     agentName: v.string(),
     config: v.any(),
     isNew: v.optional(v.boolean()),
+    oldAgentName: v.optional(v.string()),
   },
   returns: v.object({ hash: v.string() }),
   handler: async (ctx, args): Promise<{ hash: string }> => {
@@ -152,6 +153,22 @@ export const saveAgent = action({
           message: `Agent '${args.agentName}' already exists`,
         });
       }
+    }
+
+    if (
+      !args.isNew &&
+      args.oldAgentName &&
+      args.oldAgentName !== args.agentName
+    ) {
+      const existing = await readFileSafe(filePath);
+      if (existing !== null) {
+        throw new ConvexError({
+          code: 'DUPLICATE_NAME',
+          message: `Agent '${args.agentName}' already exists`,
+        });
+      }
+      const oldFilePath = resolveAgentFilePath(args.orgSlug, args.oldAgentName);
+      await unlink(oldFilePath).catch(() => {});
     }
 
     await atomicWrite(filePath, content);
