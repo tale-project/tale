@@ -295,6 +295,40 @@ describe('updateMemberRole handler', () => {
     ).rejects.toThrow('The owner role cannot be assigned manually');
   });
 
+  it('throws when target is the organization creator', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    const ctx = createMockCtx();
+    // target member is admin (not owner, but is the creator)
+    ctx.runQuery.mockResolvedValueOnce({
+      page: [
+        {
+          _id: 'm_creator',
+          organizationId: 'org_1',
+          userId: 'user_creator',
+          role: 'admin',
+        },
+      ],
+    });
+    // caller is admin
+    ctx.runQuery.mockResolvedValueOnce({
+      page: [{ _id: 'm_caller', role: 'admin' }],
+    });
+    // org lookup — metadata contains creatorId matching target
+    ctx.runQuery.mockResolvedValueOnce({
+      page: [
+        {
+          _id: 'org_1',
+          metadata: JSON.stringify({ creatorId: 'user_creator' }),
+        },
+      ],
+    });
+    const handler = await getHandler();
+
+    await expect(
+      handler(ctx, { memberId: 'm_creator', role: 'member' }),
+    ).rejects.toThrow('The organization creator role cannot be changed');
+  });
+
   it('throws when demoting the last admin', async () => {
     mockGetAuthUser.mockResolvedValue(AUTH_USER);
     const ctx = createMockCtx();
@@ -312,6 +346,15 @@ describe('updateMemberRole handler', () => {
     // caller is the same admin (self-demotion scenario)
     ctx.runQuery.mockResolvedValueOnce({
       page: [{ _id: 'm_target', role: 'admin' }],
+    });
+    // org lookup — no matching creatorId
+    ctx.runQuery.mockResolvedValueOnce({
+      page: [
+        {
+          _id: 'org_1',
+          metadata: JSON.stringify({ creatorId: 'user_other' }),
+        },
+      ],
     });
     // user lookup for target
     ctx.runQuery.mockResolvedValueOnce({
@@ -350,6 +393,15 @@ describe('updateMemberRole handler', () => {
     // caller is owner
     ctx.runQuery.mockResolvedValueOnce({
       page: [{ _id: 'm_caller', role: 'owner' }],
+    });
+    // org lookup — no matching creatorId
+    ctx.runQuery.mockResolvedValueOnce({
+      page: [
+        {
+          _id: 'org_1',
+          metadata: JSON.stringify({ creatorId: 'user_other' }),
+        },
+      ],
     });
     // user lookup for target
     ctx.runQuery.mockResolvedValueOnce({
@@ -402,6 +454,15 @@ describe('updateMemberRole handler', () => {
     ctx.runQuery.mockResolvedValueOnce({
       page: [{ _id: 'm_caller', role: 'admin' }],
     });
+    // org lookup — no matching creatorId
+    ctx.runQuery.mockResolvedValueOnce({
+      page: [
+        {
+          _id: 'org_1',
+          metadata: JSON.stringify({ creatorId: 'user_other' }),
+        },
+      ],
+    });
     // user lookup for target
     ctx.runQuery.mockResolvedValueOnce({
       page: [{ _id: 'user_target', email: 'target@example.com' }],
@@ -416,8 +477,8 @@ describe('updateMemberRole handler', () => {
     });
 
     expect(result).toBeNull();
-    // Should only have 3 runQuery calls (member, caller, user) — no admin count query
-    expect(ctx.runQuery).toHaveBeenCalledTimes(3);
+    // Should only have 4 runQuery calls (member, caller, org, user) — no admin count query
+    expect(ctx.runQuery).toHaveBeenCalledTimes(4);
   });
 });
 
