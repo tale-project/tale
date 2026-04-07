@@ -104,9 +104,10 @@ function MessageBubbleComponent({
   const isAssistantStreaming =
     message.role === 'assistant' && message.isStreaming;
 
-  const sanitizedContent = message.content
-    ? message.content.replace(/\|\|+/g, '|')
-    : '';
+  const displayContent = message.content ?? '';
+  // Only normalize pipes for assistant messages (markdown table rendering);
+  // user messages must be rendered verbatim to preserve content integrity.
+  const assistantContent = displayContent.replace(/\|\|+/g, '|');
 
   const [isCopied, setIsCopied] = useState(false);
   const [isInfoDialogOpen, setIsInfoDialogOpen] = useState(false);
@@ -149,7 +150,7 @@ function MessageBubbleComponent({
     setIsOverflowing(
       contentRef.current.scrollHeight > contentRef.current.clientHeight,
     );
-  }, [isUser, isExpanded, sanitizedContent]);
+  }, [isUser, isExpanded, displayContent]);
 
   // Debounced ResizeObserver for subsequent resize events (e.g. window resize).
   useEffect(() => {
@@ -167,7 +168,7 @@ function MessageBubbleComponent({
       cancelAnimationFrame(frameId);
       observer.disconnect();
     };
-  }, [isUser, isExpanded, sanitizedContent]);
+  }, [isUser, isExpanded, displayContent]);
 
   useEffect(() => {
     return () => {
@@ -209,7 +210,7 @@ function MessageBubbleComponent({
             : 'text-foreground bg-background'
         }`}
       >
-        {sanitizedContent ? (
+        {displayContent ? (
           <div className="text-sm leading-5">
             <div
               ref={isUser ? contentRef : undefined}
@@ -219,11 +220,11 @@ function MessageBubbleComponent({
             >
               {isUser ? (
                 <p className="break-words whitespace-pre-wrap">
-                  {sanitizedContent}
+                  {displayContent}
                 </p>
               ) : (
                 <StructuredMessage
-                  text={sanitizedContent}
+                  text={assistantContent}
                   isStreaming={!!isAssistantStreaming}
                   onSendFollowUp={onSendFollowUp}
                 />
@@ -341,7 +342,7 @@ function MessageBubbleComponent({
             })}
           </div>
         )}
-        {!isUser && !isAssistantStreaming && !!sanitizedContent && (
+        {!isUser && !isAssistantStreaming && !!displayContent && (
           <div className="flex items-center pt-2">
             <Tooltip
               content={isCopied ? t('actions.copied') : t('actions.copy')}
