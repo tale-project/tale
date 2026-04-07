@@ -68,7 +68,7 @@ export function CustomerInfoCard({ customer }: { customer: CustomerData }) {
             <CustomerStatusBadge status={customer.status} />
           )}
         </div>
-        <Text variant="muted" className="text-xs tracking-tight">
+        <Text variant="muted" className="text-xs tracking-tight break-all">
           {customer.email || t('labels.notAvailable')}
         </Text>
       </div>
