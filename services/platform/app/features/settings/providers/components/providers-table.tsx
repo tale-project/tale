@@ -74,12 +74,15 @@ export function ProvidersTable({ organizationId }: ProvidersTableProps) {
   const list = useListPage<ProviderRow>({
     dataSource: { type: 'query', data: isLoading ? undefined : providers },
     pageSize,
+    search: {
+      fields: ['displayName', 'baseUrl'],
+      placeholder: t('providers.searchProvider'),
+    },
   });
 
   return (
     <>
       <DataTable
-        className="p-4"
         {...list.tableProps}
         columns={columns}
         stickyLayout={stickyLayout}

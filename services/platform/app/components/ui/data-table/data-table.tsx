@@ -423,7 +423,7 @@ export function DataTable<TData, TValue = unknown>({
       {caption && <TableCaption className="sr-only">{caption}</TableCaption>}
       <TableHeader sticky={stickyLayout}>
         {table.getHeaderGroups().map((headerGroup) => (
-          <TableRow key={headerGroup.id} className="bg-secondary/20">
+          <TableRow key={headerGroup.id} className="bg-muted">
             {enableExpanding && <TableHead className="w-[3rem]" />}
             {headerGroup.headers.map((headerCell) => (
               <TableHead

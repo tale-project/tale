@@ -1,6 +1,6 @@
 'use client';
 
-import { Pencil, Trash2, Users } from 'lucide-react';
+import { Pencil, Trash2 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import {
@@ -13,7 +13,6 @@ import type { Team } from '../hooks/queries';
 
 import { TeamDeleteDialog } from './team-delete-dialog';
 import { TeamEditDialog } from './team-edit-dialog';
-import { TeamMembersDialog } from './team-members-dialog';
 
 interface TeamRowActionsProps {
   team: Team;
@@ -22,21 +21,13 @@ interface TeamRowActionsProps {
 
 export function TeamRowActions({ team, organizationId }: TeamRowActionsProps) {
   const { t: tCommon } = useT('common');
-  const { t: tSettings } = useT('settings');
-  const dialogs = useEntityRowDialogs(['edit', 'delete', 'members']);
+  const dialogs = useEntityRowDialogs(['edit', 'delete']);
   const [isDeleted, setIsDeleted] = useState(false);
 
   const handleDeleteSuccess = useCallback(() => setIsDeleted(true), []);
 
   const actions = useMemo(
     () => [
-      {
-        key: 'members',
-        label: tSettings('teams.manageMembers'),
-        icon: Users,
-        onClick: dialogs.open.members,
-        disabled: isDeleted,
-      },
       {
         key: 'edit',
         label: tCommon('actions.edit'),
@@ -53,24 +44,18 @@ export function TeamRowActions({ team, organizationId }: TeamRowActionsProps) {
         disabled: isDeleted,
       },
     ],
-    [tCommon, tSettings, dialogs.open, isDeleted],
+    [tCommon, dialogs.open, isDeleted],
   );
 
   return (
     <>
       <EntityRowActions actions={actions} disabled={isDeleted} />
 
-      <TeamMembersDialog
-        open={dialogs.isOpen.members}
-        onOpenChange={dialogs.setOpen.members}
-        team={team}
-        organizationId={organizationId}
-      />
-
       <TeamEditDialog
         open={dialogs.isOpen.edit}
         onOpenChange={dialogs.setOpen.edit}
         team={team}
+        organizationId={organizationId}
       />
 
       <TeamDeleteDialog

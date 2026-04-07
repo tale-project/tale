@@ -38,7 +38,7 @@ const TableHeader = forwardRef<HTMLTableSectionElement, TableHeaderProps>(
     <thead
       ref={ref}
       className={cn(
-        '[&_tr]:bg-muted [&_tr]:border-0',
+        '[&_tr]:bg-muted [&_tr]:border-0 border-b',
         sticky && 'sticky top-0 z-10 [&_tr]:bg-muted',
         className,
       )}
@@ -54,7 +54,7 @@ const TableBody = forwardRef<
 >(({ className, ...props }, ref) => (
   <tbody
     ref={ref}
-    className={cn('[&_tr:hover]:bg-secondary/20', className)}
+    className={cn('[&_tr:hover]:bg-muted', className)}
     {...props}
   />
 ));
@@ -83,7 +83,7 @@ const TableHead = forwardRef<
     ref={ref}
     scope={scope}
     className={cn(
-      'h-8 px-3 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 last:rounded-rt-xl first:rounded-lt-xl text-nowrap',
+      'h-10 px-3 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 last:rounded-tr-xl first:rounded-tl-xl text-nowrap',
       className,
     )}
     {...props}

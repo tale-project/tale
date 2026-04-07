@@ -55,8 +55,10 @@ export function ApiKeyRevokeDialog({
     <DeleteDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={tSettings('apiKeys.revokeKey')}
-      description={tSettings('apiKeys.revokeConfirmation')}
+      title={tSettings('apiKeys.revokeKeyTitle')}
+      description={tSettings('apiKeys.revokeConfirmation', {
+        keyName: apiKey.name || '-',
+      })}
       deleteText={tSettings('apiKeys.revokeKey')}
       isDeleting={isRevoking}
       onDelete={handleConfirm}

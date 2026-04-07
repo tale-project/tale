@@ -406,6 +406,7 @@ export function ChatInterface({
         <FileUpload.Root>
           <ChatInput
             className="mx-auto w-full max-w-(--chat-max-width)"
+            placeholder={t('placeholder')}
             value={inputValue}
             onChange={setInputValue}
             onSendMessage={handleSendMessage}

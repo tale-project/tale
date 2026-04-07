@@ -172,7 +172,7 @@ export function UserButton({
       {
         type: 'custom',
         content: (
-          <div className="bg-secondary/20 flex items-center justify-between gap-2 rounded-lg p-1">
+          <div className="bg-muted flex items-center justify-between gap-2 rounded-lg p-1">
             <Button
               variant={theme === 'system' ? 'secondary' : 'ghost'}
               size="sm"

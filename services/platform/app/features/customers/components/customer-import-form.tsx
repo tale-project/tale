@@ -85,7 +85,7 @@ export function CustomerImportForm({
           to="/dashboard/$id/settings/integrations"
           params={{ id: organizationId }}
           search={{ tab: 'shopify' }}
-          className="bg-background hover:bg-secondary/20 relative box-border flex size-full cursor-pointer content-stretch items-center justify-start gap-[12px] rounded-[8px] p-[12px] text-left transition-colors"
+          className="bg-background hover:bg-muted relative box-border flex size-full cursor-pointer content-stretch items-center justify-start gap-[12px] rounded-[8px] p-[12px] text-left transition-colors"
         >
           <div
             aria-hidden="true"
