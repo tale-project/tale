@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { useMemo, useCallback, useEffect } from 'react';
+import { useMemo, useCallback, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -44,11 +44,13 @@ function SignUpPage() {
   const { t } = useT('auth');
   const { t: tCommon } = useT('common');
 
+  const signUpStartedRef = useRef(false);
+
   const { data: hasUsers, isLoading: isLoadingUsers } = useHasAnyUsers();
   const { data: ssoConfig } = useIsSsoConfigured();
 
   useEffect(() => {
-    if (hasUsers === true) {
+    if (hasUsers === true && !signUpStartedRef.current) {
       void navigate({ to: '/log-in' });
     }
   }, [hasUsers, navigate]);
@@ -87,6 +89,7 @@ function SignUpPage() {
   const handleSubmit = async (data: SignUpFormData) => {
     form.setError('password', { message: '' });
     form.clearErrors('password');
+    signUpStartedRef.current = true;
 
     try {
       const result = await authClient.signUp.email(
@@ -101,6 +104,7 @@ function SignUpPage() {
       );
 
       if (result.error) {
+        signUpStartedRef.current = false;
         form.setError('password', {
           message: result.error.message || t('signup.wrongCredentials'),
         });
@@ -115,6 +119,7 @@ function SignUpPage() {
       await queryClient.invalidateQueries({ queryKey: ['auth', 'session'] });
       void navigate({ to: '/dashboard' });
     } catch (error) {
+      signUpStartedRef.current = false;
       console.error('Sign up error:', error);
       toast({
         title: tCommon('errors.somethingWentWrong'),
