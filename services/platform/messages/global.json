@@ -20,6 +20,14 @@
       "pt": "PT",
       "zh": "ZH"
     },
+    "statuses": {
+      "active": "Active",
+      "inactive": "Inactive",
+      "draft": "Draft",
+      "archived": "Archived",
+      "churned": "Churned",
+      "potential": "Potential"
+    },
     "providers": {
       "gmail": "Gmail",
       "outlook": "Outlook",
