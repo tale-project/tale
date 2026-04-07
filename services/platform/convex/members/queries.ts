@@ -45,6 +45,7 @@ export const getCurrentMemberContext = query({
   args: { organizationId: v.string() },
   returns: v.union(
     v.object({
+      status: v.literal('ok'),
       memberId: v.string(),
       organizationId: v.string(),
       userId: v.string(),
@@ -53,6 +54,8 @@ export const getCurrentMemberContext = query({
       displayName: v.optional(v.string()),
       isAdmin: v.boolean(),
     }),
+    v.object({ status: v.literal('not_found') }),
+    v.object({ status: v.literal('not_member') }),
     v.null(),
   ),
   handler: async (ctx, args) => {
@@ -71,6 +74,7 @@ export const getCurrentMemberContext = query({
       const role = isValidRole(member.role) ? member.role : 'member';
 
       return {
+        status: 'ok' as const,
         memberId: member._id,
         organizationId: member.organizationId,
         userId: member.userId,
@@ -81,7 +85,22 @@ export const getCurrentMemberContext = query({
       };
     } catch (error) {
       if (error instanceof UnauthorizedError) {
-        return null;
+        try {
+          const org = await ctx.runQuery(
+            components.betterAuth.adapter.findOne,
+            {
+              model: 'organization',
+              where: [
+                { field: '_id', value: args.organizationId, operator: 'eq' },
+              ],
+            },
+          );
+          return org
+            ? { status: 'not_member' as const }
+            : { status: 'not_found' as const };
+        } catch {
+          return { status: 'not_found' as const };
+        }
       }
       throw error;
     }
