@@ -105,8 +105,12 @@ export function AddWebsiteDialog({
         },
         onError: (error) => {
           console.error('Failed to add website:', error);
+          const isDuplicate =
+            error instanceof Error && error.message.includes('already exists');
           toast({
-            title: tWebsites('toast.addError'),
+            title: isDuplicate
+              ? tWebsites('toast.addErrorDuplicate')
+              : tWebsites('toast.addError'),
             variant: 'destructive',
           });
         },
