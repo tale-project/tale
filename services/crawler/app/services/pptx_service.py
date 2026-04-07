@@ -616,6 +616,22 @@ class PptxService:
 
         return None
 
+    def _get_content_bottom(self, slide, margin: float = 0.3) -> float:
+        """Return the vertical position (in inches) just below existing slide content.
+
+        Iterates over all shapes on the slide and finds the lowest bottom edge,
+        then adds *margin* inches of spacing.  Falls back to 0.5 inches so
+        tables placed at the returned position never overlap the slide top.
+        """
+        bottom_emu = 0
+        for shape in slide.shapes:
+            shape_bottom = shape.top + shape.height
+            if shape_bottom > bottom_emu:
+                bottom_emu = shape_bottom
+        if bottom_emu == 0:
+            return 0.5 + margin
+        return bottom_emu / 914400 + margin
+
     def _get_best_layout_for_content(self, prs: Presentation, content: dict[str, Any]) -> Any:
         """
         Get the best layout from the presentation's slide layouts based on content.
@@ -764,9 +780,9 @@ class PptxService:
                 )
                 current_top += 0.3 * len(bullet_points) + 0.3
 
-        # Add tables (always added manually below placeholders)
+        # Add tables below existing content
         if tables:
-            current_top = 4.0
+            current_top = self._get_content_bottom(slide)
             for table_data in tables:
                 self._add_table_to_slide(slide, table_data, current_top, slide_width, body_font, primary_color)
                 row_count = len(table_data.get("rows", [])) + (1 if table_data.get("headers") else 0)
@@ -978,9 +994,9 @@ class PptxService:
                         # Set empty string to clear default placeholder text
                         tf.paragraphs[0].text = ""
 
-        # Add tables below placeholders
+        # Add tables below existing content
         if tables:
-            current_top = 4.0  # Start below typical placeholder area
+            current_top = self._get_content_bottom(slide)
             for table_data in tables:
                 self._add_table_to_slide(slide, table_data, current_top, slide_width, body_font, primary_color)
                 row_count = len(table_data.get("rows", [])) + (1 if table_data.get("headers") else 0)
