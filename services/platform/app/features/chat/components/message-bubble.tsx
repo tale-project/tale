@@ -217,11 +217,17 @@ function MessageBubbleComponent({
                 isUser && !isExpanded && 'max-h-96 overflow-hidden',
               )}
             >
-              <StructuredMessage
-                text={sanitizedContent}
-                isStreaming={!!isAssistantStreaming}
-                onSendFollowUp={!isUser ? onSendFollowUp : undefined}
-              />
+              {isUser ? (
+                <p className="break-words whitespace-pre-wrap">
+                  {sanitizedContent}
+                </p>
+              ) : (
+                <StructuredMessage
+                  text={sanitizedContent}
+                  isStreaming={!!isAssistantStreaming}
+                  onSendFollowUp={onSendFollowUp}
+                />
+              )}
             </div>
             {isUser && (isOverflowing || isExpanded) && (
               <div className="flex justify-end">
