@@ -255,9 +255,12 @@ export const productMappers = {
 
     return {
       name,
-      sku: row[1]?.trim() || undefined,
-      description: row[2]?.trim() || undefined,
-      price: row[3] ? parseFloat(row[3]) : undefined,
+      description: row[1]?.trim() || undefined,
+      imageUrl: row[2]?.trim() || undefined,
+      stock: row[3] ? parseInt(row[3], 10) : 0,
+      price: row[4] ? parseFloat(row[4]) : 0,
+      currency: row[5]?.trim() || 'USD',
+      category: row[6]?.trim() || undefined,
       source: 'manual_import' as const,
     };
   },

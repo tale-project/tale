@@ -19,14 +19,60 @@ type CSVParseOptions = {
   skipEmptyLines?: boolean;
 };
 
+const COMMON_HEADER_NAMES = new Set([
+  'name',
+  'email',
+  'description',
+  'price',
+  'sku',
+  'currency',
+  'category',
+  'stock',
+  'status',
+  'locale',
+  'source',
+  'id',
+  'title',
+  'brand',
+  'type',
+  'phone',
+  'address',
+  'country',
+  'city',
+  'image',
+  'imageurl',
+  'image_url',
+  'first name',
+  'last name',
+  'firstname',
+  'lastname',
+  'customer id',
+  'product',
+  'quantity',
+  'amount',
+  'unit',
+  'vendor',
+  'supplier',
+]);
+
+function isHeaderRow(values: string[]): boolean {
+  const nonEmpty = values.filter((v) => v.length > 0);
+  if (nonEmpty.length === 0) return false;
+  const matches = nonEmpty.filter((v) =>
+    COMMON_HEADER_NAMES.has(v.toLowerCase()),
+  );
+  return matches.length >= Math.ceil(nonEmpty.length / 2);
+}
+
 /**
  * Parse CSV text into rows of string arrays.
+ * Automatically detects and skips header rows unless disabled.
  */
 function parseCSVText(
   csvText: string,
   options: CSVParseOptions = {},
 ): string[][] {
-  const { delimiter = ',', skipEmptyLines = true } = options;
+  const { delimiter = ',', skipEmptyLines = true, hasHeaders } = options;
 
   const lines = csvText.trim().split('\n');
   const rows: string[][] = [];
@@ -37,6 +83,10 @@ function parseCSVText(
 
     const values = trimmedLine.split(delimiter).map((item) => item.trim());
     rows.push(values);
+  }
+
+  if (hasHeaders !== false && rows.length >= 2 && isHeaderRow(rows[0])) {
+    rows.shift();
   }
 
   return rows;
