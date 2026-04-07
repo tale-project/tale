@@ -20,14 +20,18 @@ export function StatItem({
 }: StatItemProps) {
   return (
     <div
-      className={cn('flex flex-col', colSpan === 2 && 'col-span-2', className)}
+      className={cn(
+        'flex min-w-0 flex-col',
+        colSpan === 2 && 'col-span-2',
+        className,
+      )}
     >
       <dt>
         <Text variant="caption" as="span">
           {label}
         </Text>
       </dt>
-      <dd>{children}</dd>
+      <dd className="break-all">{children}</dd>
     </div>
   );
 }
