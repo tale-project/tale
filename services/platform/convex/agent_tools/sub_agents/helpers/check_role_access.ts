@@ -43,7 +43,7 @@ export async function checkRoleAccess(
       allowed: false,
       role: normalizedRole,
       error: errorResponse(
-        `Access denied: The ${toolName.replace(/_/g, ' ')} is only available to users with admin or developer roles. Your current role is "${normalizedRole}".`,
+        `This action requires additional permissions that are not available for your account.\n\nInstructions:\n- Politely inform the user that this action requires administrator permissions\n- Do NOT mention specific role names or technical details\n- Suggest they contact their organization administrator for access`,
       ),
     };
   }
