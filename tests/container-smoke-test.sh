@@ -61,6 +61,12 @@ cleanup() {
 
 trap cleanup EXIT
 
+# Clean up any stale containers/volumes from previous runs (e.g. killed CI jobs
+# on reused runners) to avoid "file exists" errors when Docker tries to
+# initialise volume mount-points.
+cd "${PROJECT_ROOT}"
+${COMPOSE_CMD} down -v --remove-orphans 2>/dev/null || true
+
 # Ensure dummy .env exists to satisfy compose.yml env_file declarations
 if [ ! -f "${PROJECT_ROOT}/.env" ]; then
     echo -e "  ${YELLOW}⚠ No .env file found — creating placeholder with defaults${NC}"
