@@ -43,8 +43,8 @@ export interface SerializableAgentConfig {
   agentTeamId?: string;
   /** Pre-resolved completed file IDs from agent-specific knowledge files */
   knowledgeFileIds?: string[];
-  /** Root version IDs of delegate agents */
-  delegateAgentIds?: string[];
+  /** Agent slugs of delegate agents (file-based agent names) */
+  delegateSlugs?: string[];
   /** Whether to inject structured response markers into the system prompt (default true) */
   structuredResponsesEnabled?: boolean;
   /** Per-agent timeout in milliseconds */

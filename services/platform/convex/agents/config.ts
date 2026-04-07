@@ -42,7 +42,7 @@ export function toSerializableConfig(
     knowledgeFileIds: (binding?.knowledgeFiles ?? [])
       .filter((f) => f.ragStatus === 'completed')
       .map((f) => String(f.fileId)),
-    delegateAgentIds: config.delegates,
+    delegateSlugs: config.delegates,
     structuredResponsesEnabled: config.structuredResponsesEnabled ?? true,
     timeoutMs: config.timeoutMs,
     outputReserve: config.outputReserve,
