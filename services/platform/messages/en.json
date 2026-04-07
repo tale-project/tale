@@ -3198,6 +3198,7 @@
     "toast": {
       "addSuccess": "Website added successfully",
       "addError": "Failed to add website",
+      "addErrorDuplicate": "This website has already been added",
       "updateSuccess": "Website updated successfully",
       "updateError": "Failed to update website",
       "deleteError": "Failed to delete website",
