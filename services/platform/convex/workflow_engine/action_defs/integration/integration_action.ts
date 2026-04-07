@@ -23,7 +23,10 @@ import {
   requiresApproval,
   getOperationType,
 } from './helpers/detect_write_operation';
-import { executeSqlIntegration } from './helpers/execute_sql_integration';
+import {
+  executeSqlIntegration,
+  type SqlIntegrationResult,
+} from './helpers/execute_sql_integration';
 import { validateOperationScopes } from './helpers/validate_operation_scopes';
 import { validateRequiredParameters } from './helpers/validate_required_parameters';
 
