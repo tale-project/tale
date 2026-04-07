@@ -67,7 +67,16 @@
       "logIn": "Log in",
       "saved": "Saved",
       "saveFailed": "Save failed",
-      "remove": "Remove"
+      "remove": "Remove",
+      "deleteSelected": "Delete selected"
+    },
+    "bulkActions": {
+      "itemsSelected": "{count, plural, one {# item selected} other {# items selected}}",
+      "confirmDeleteTitle": "Delete {count, plural, one {# item} other {# items}}",
+      "confirmDeleteDescription": "Are you sure you want to delete {count, plural, one {this item} other {these {count} items}}? This action cannot be undone.",
+      "deleteSuccess": "Successfully deleted {count, plural, one {# item} other {# items}}",
+      "deleteFailed": "Failed to delete some items",
+      "deleting": "Deleting..."
     },
     "upload": {
       "clickToUpload": "Click to upload",
