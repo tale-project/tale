@@ -140,6 +140,54 @@ interface WebsiteForSync {
   metadata?: Record<string, unknown>;
 }
 
+async function fetchHomepageMetadata(
+  domain: string,
+): Promise<{ title?: string; description?: string } | null> {
+  const crawlerUrl = getCrawlerUrl();
+  const res = await fetchWithTimeout(
+    `${crawlerUrl}/api/v1/urls/fetch`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        urls: [`https://${domain}/`],
+        word_count_threshold: 0,
+      }),
+    },
+    30_000,
+  );
+
+  if (!res.ok) return null;
+
+  const data = await res.json();
+  const page = data.pages?.[0];
+  if (!page) return null;
+
+  const title = page.title || undefined;
+  const sd = page.structured_data;
+  const description =
+    sd?.meta?.description || sd?.opengraph?.['og:description'] || undefined;
+
+  return { title, description };
+}
+
+export const fetchAndPatchHomepage = internalAction({
+  args: {
+    websiteId: v.id('websites'),
+    domain: v.string(),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    const info = await fetchHomepageMetadata(args.domain);
+    if (!info) return;
+
+    await ctx.runMutation(internal.websites.internal_mutations.patchWebsite, {
+      websiteId: args.websiteId,
+      title: info.title,
+      description: info.description,
+    });
+  },
+});
+
 export const syncWebsiteStatuses = internalAction({
   args: {
     organizationId: v.string(),
@@ -236,6 +284,13 @@ export const registerAndSync = internalAction({
       });
       return;
     }
+
+    // Async: fetch homepage title & description (non-blocking, independent of scan)
+    await ctx.scheduler.runAfter(
+      0,
+      internal.websites.internal_actions.fetchAndPatchHomepage,
+      { websiteId: args.websiteId, domain: args.domain },
+    );
 
     // Schedule a delayed sync to pick up scan results
     await ctx.scheduler.runAfter(
