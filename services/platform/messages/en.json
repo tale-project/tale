@@ -2940,6 +2940,7 @@
     "importMenu": {
       "importProducts": "Import products",
       "fromDevice": "From your device",
+      "manualEntry": "Manual entry",
       "fromShopify": "From Shopify",
       "fromCirculy": "From Circuly"
     },
@@ -2979,6 +2980,17 @@
       "toast": {
         "success": "Product updated successfully",
         "error": "Failed to update product"
+      }
+    },
+    "create": {
+      "title": "Add product",
+      "description": "Add a new product. Required fields are marked with *",
+      "labels": {
+        "status": "Status"
+      },
+      "toast": {
+        "success": "Product created successfully",
+        "error": "Failed to create product"
       }
     },
     "translations": {
