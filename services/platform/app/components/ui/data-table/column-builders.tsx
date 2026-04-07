@@ -8,6 +8,7 @@ import {
   TableTimestampCell,
   TableDateCell,
 } from '@/app/components/ui/data-display/table-date-cell';
+import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { HStack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
 import { startCase } from '@/lib/utils/string';
@@ -268,5 +269,42 @@ export function createTextColumn<TData, K extends keyof TData>(
         </Text>
       );
     },
+  };
+}
+
+/**
+ * Creates a checkbox column for row selection.
+ *
+ * @example
+ * ```tsx
+ * createSelectColumn<Product>()
+ * ```
+ */
+export function createSelectColumn<TData>(): ColumnDef<TData> {
+  return {
+    id: 'select',
+    size: 40,
+    header: ({ table }) => (
+      <Checkbox
+        checked={
+          table.getIsAllPageRowsSelected()
+            ? true
+            : table.getIsSomePageRowsSelected()
+              ? 'indeterminate'
+              : false
+        }
+        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+        aria-label="Select all"
+      />
+    ),
+    cell: ({ row }) => (
+      <Checkbox
+        checked={row.getIsSelected()}
+        onCheckedChange={(value) => row.toggleSelected(!!value)}
+        onClick={(e) => e.stopPropagation()}
+        aria-label="Select row"
+      />
+    ),
+    meta: { skeleton: { type: 'action' } },
   };
 }

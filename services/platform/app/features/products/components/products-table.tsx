@@ -1,6 +1,6 @@
 'use client';
 
-import type { Row } from '@tanstack/react-table';
+import type { Row, RowSelectionState } from '@tanstack/react-table';
 
 import { useNavigate } from '@tanstack/react-router';
 import { Package } from 'lucide-react';
@@ -9,9 +9,11 @@ import { useCallback, useMemo, useState } from 'react';
 import type { Doc } from '@/convex/_generated/dataModel';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
+import { BulkDeleteBar } from '@/app/components/ui/data-table/data-table-bulk-actions';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
 
+import { useDeleteProduct } from '../hooks/mutations';
 import {
   useApproxProductCount,
   useListProductsPaginated,
@@ -90,10 +92,25 @@ export function ProductsTable({
   );
 
   const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const deleteProduct = useDeleteProduct();
 
   const handleRowClick = useCallback((row: Row<Product>) => {
     setViewingProduct(row.original);
   }, []);
+
+  const handleClearSelection = useCallback(() => {
+    setRowSelection({});
+  }, []);
+
+  const handleDeleteItem = useCallback(
+    async (id: string) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex Id type from row selection key
+      const productId = id as Doc<'products'>['_id'];
+      await deleteProduct.mutateAsync({ productId });
+    },
+    [deleteProduct],
+  );
 
   const list = useListPage<Product>({
     dataSource: {
@@ -122,12 +139,23 @@ export function ProductsTable({
         columns={columns}
         stickyLayout={stickyLayout}
         onRowClick={handleRowClick}
+        enableRowSelection
+        rowSelection={rowSelection}
+        onRowSelectionChange={setRowSelection}
         actionMenu={<ProductsActionMenu organizationId={organizationId} />}
         emptyState={{
           icon: Package,
           title: tEmpty('products.title'),
           description: tEmpty('products.description'),
         }}
+        footer={
+          <BulkDeleteBar
+            rowSelection={rowSelection}
+            onClearSelection={handleClearSelection}
+            onDeleteItem={handleDeleteItem}
+            onDeleteComplete={handleClearSelection}
+          />
+        }
         {...list.tableProps}
       />
 
