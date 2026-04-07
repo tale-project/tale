@@ -155,7 +155,12 @@ describe('DashboardLayout', () => {
       isAuthenticated: true,
     });
     mockUseCurrentMemberContext.mockReturnValue({
-      data: { role: 'admin', memberId: 'm1', organizationId: 'org-1' },
+      data: {
+        status: 'ok',
+        role: 'admin',
+        memberId: 'm1',
+        organizationId: 'org-1',
+      },
       isLoading: false,
       isError: false,
     });
@@ -166,13 +171,13 @@ describe('DashboardLayout', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
-  it('shows access denied when auth complete but no role', () => {
+  it('shows access denied when user is not a member', () => {
     mockUseConvexAuth.mockReturnValue({
       isLoading: false,
       isAuthenticated: true,
     });
     mockUseCurrentMemberContext.mockReturnValue({
-      data: null,
+      data: { status: 'not_member' },
       isLoading: false,
       isError: false,
     });
@@ -181,7 +186,26 @@ describe('DashboardLayout', () => {
 
     expect(screen.getByText('accessDenied.noMembership')).toBeInTheDocument();
     expect(screen.queryByTestId('outlet')).not.toBeInTheDocument();
-    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('shows not-found when organization does not exist', () => {
+    mockUseConvexAuth.mockReturnValue({
+      isLoading: false,
+      isAuthenticated: true,
+    });
+    mockUseCurrentMemberContext.mockReturnValue({
+      data: { status: 'not_found' },
+      isLoading: false,
+      isError: false,
+    });
+
+    render(<DashboardLayout />);
+
+    expect(screen.getByText('common.notFound.title')).toBeInTheDocument();
+    expect(
+      screen.getByText('accessDenied.workspaceNotFound'),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId('outlet')).not.toBeInTheDocument();
   });
 
   it('passes organizationId from route params to useCurrentMemberContext', () => {
@@ -258,7 +282,12 @@ describe('DashboardLayout', () => {
       isAuthenticated: true,
     });
     mockUseCurrentMemberContext.mockReturnValue({
-      data: { role: 'admin', memberId: 'm1', organizationId: 'org-1' },
+      data: {
+        status: 'ok',
+        role: 'admin',
+        memberId: 'm1',
+        organizationId: 'org-1',
+      },
       isLoading: false,
       isError: true,
     });

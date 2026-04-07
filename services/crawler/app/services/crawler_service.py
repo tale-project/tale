@@ -18,6 +18,10 @@ from urllib.parse import urlparse
 logger = logging.getLogger(__name__)
 
 
+_BFS_FALLBACK_THRESHOLD = 10
+_BFS_FALLBACK_MAX_PAGES = 1000
+
+
 def _cleanup_memory():
     """Force Python garbage collection to free memory after crawl tasks."""
     collected = gc.collect()
@@ -270,6 +274,84 @@ class CrawlerService:
 
         logger.info(f"Discovered {len(urls)} URLs from {domain}")
         _cleanup_memory()
+
+        if len(urls) < _BFS_FALLBACK_THRESHOLD:
+            logger.warning(f"Sitemap found only {len(urls)} URLs for {domain}, falling back to BFS crawl")
+            try:
+                bfs_urls = await self._discover_urls_bfs(domain, max_urls, pattern, timeout)
+            except Exception:
+                logger.exception(f"BFS fallback failed for {domain}")
+                bfs_urls = []
+            logger.info(f"BFS fallback discovered {len(bfs_urls)} URLs from {domain}")
+            seen = {u["url"] for u in urls}
+            for u in bfs_urls:
+                if u["url"] not in seen:
+                    seen.add(u["url"])
+                    urls.append(u)
+
+        return urls
+
+    async def _discover_urls_bfs(
+        self,
+        domain: str,
+        max_urls: int,
+        pattern: str | None,
+        timeout: float,
+    ) -> list[dict[str, Any]]:
+        """Discover URLs via BFS link crawling when sitemap is unavailable or incomplete."""
+        if not self.initialized:
+            await self.initialize()
+
+        from crawl4ai import CrawlerRunConfig
+        from crawl4ai.deep_crawling import BFSDeepCrawlStrategy, DomainFilter, FilterChain
+
+        max_pages = max_urls if max_urls > 0 else _BFS_FALLBACK_MAX_PAGES
+        bfs = BFSDeepCrawlStrategy(
+            max_depth=2,
+            filter_chain=FilterChain([DomainFilter(allowed_domains=domain)]),
+            max_pages=max_pages,
+            include_external=False,
+        )
+        config = CrawlerRunConfig(
+            deep_crawl_strategy=bfs,
+            stream=False,
+            cache_mode="bypass",
+            screenshot=False,
+            pdf=False,
+            only_text=True,
+            word_count_threshold=0,
+        )
+
+        homepage = f"https://{domain}/"
+        logger.info(f"Starting BFS crawl for {domain} (max_depth=2, max_pages={max_pages})")
+
+        results = []
+        try:
+            results = await asyncio.wait_for(
+                self._crawler.arun(url=homepage, config=config),
+                timeout=timeout,
+            )
+        except TimeoutError:
+            logger.warning(f"BFS fallback timed out for {domain} after {timeout}s")
+            return []
+        except Exception:
+            logger.exception(f"BFS fallback failed for {domain}")
+            return []
+        finally:
+            _cleanup_memory()
+            self._increment_crawl_count(len(results))
+            await self._maybe_restart_browser()
+
+        urls = []
+        seen = set()
+        for result in results:
+            if not result.success or result.url in seen:
+                continue
+            if pattern and not fnmatch.fnmatch(result.url, pattern):
+                continue
+            seen.add(result.url)
+            urls.append({"url": result.url})
+
         return urls
 
     async def crawl_urls(

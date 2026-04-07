@@ -21,7 +21,7 @@ export const CollapsibleDetails = forwardRef<
   <details ref={ref} className={cn('group', className)} {...props}>
     <summary
       className={cn(
-        'flex cursor-pointer items-center gap-1 font-medium select-none',
+        'flex min-w-0 cursor-pointer items-center gap-1 font-medium select-none',
         variant === 'default' ? 'text-sm' : 'text-muted-foreground text-xs',
       )}
     >

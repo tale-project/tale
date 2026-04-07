@@ -32,10 +32,13 @@ function DashboardLayout() {
     isError,
   } = useCurrentMemberContext(organizationId, isAuthLoading);
   const { t } = useT('accessDenied');
+  const { t: tNotFound } = useT('common');
 
   const abilityRef = useRef<{ role: string | null; ability: AppAbility }>(null);
 
-  const currentRole = memberContext?.role ?? null;
+  const status = memberContext?.status;
+  const currentRole =
+    memberContext?.status === 'ok' ? memberContext.role : null;
 
   if (!abilityRef.current || abilityRef.current.role !== currentRole) {
     abilityRef.current = {
@@ -76,6 +79,11 @@ function DashboardLayout() {
               <div className="border-border bg-background flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:border-l">
                 {hasRole || isLoading ? (
                   <Outlet />
+                ) : status === 'not_found' ? (
+                  <AccessDenied
+                    title={tNotFound('notFound.title')}
+                    message={t('workspaceNotFound')}
+                  />
                 ) : (
                   <AccessDenied
                     message={t(isDisabled ? 'disabled' : 'noMembership')}

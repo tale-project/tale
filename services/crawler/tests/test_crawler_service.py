@@ -2,6 +2,8 @@
 Tests for CrawlerService content extraction and configuration.
 """
 
+import asyncio
+import sys
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -308,3 +310,199 @@ class TestExtractStructuredData:
         """
         data = service._extract_structured_data_from_html(html)
         assert "json_ld" not in data
+
+
+def _make_bfs_result(url: str, success: bool = True):
+    """Build a fake CrawlResult for BFS discovery tests."""
+    return SimpleNamespace(url=url, success=success)
+
+
+def _make_sitemap_page(url: str):
+    """Build a fake sitemap page object."""
+    return SimpleNamespace(url=url)
+
+
+def _mock_sitemap(mock_tree):
+    """Mock the usp.tree module since it's not installed in the test environment."""
+    mock_usp_tree = MagicMock()
+    mock_usp_tree.sitemap_tree_for_homepage = MagicMock(return_value=mock_tree)
+    return patch.dict(sys.modules, {"usp": MagicMock(), "usp.tree": mock_usp_tree})
+
+
+class TestDiscoverUrlsBfsFallback:
+    """Verify BFS fallback triggers when sitemap finds fewer than 10 URLs."""
+
+    async def test_no_bfs_when_sitemap_returns_enough_urls(self):
+        """Sitemap returns ≥10 URLs → BFS fallback should not be called."""
+        service = CrawlerService()
+        service.initialized = True
+
+        pages = [_make_sitemap_page(f"https://example.com/page{i}") for i in range(10)]
+        mock_tree = MagicMock()
+        mock_tree.all_pages.return_value = pages
+
+        with patch(
+            "app.services.crawler_service.CrawlerService._discover_urls_bfs",
+            new_callable=AsyncMock,
+        ) as mock_bfs:
+            with _mock_sitemap(mock_tree):
+                urls = await service.discover_urls(domain="example.com")
+
+            mock_bfs.assert_not_called()
+            assert len(urls) == 10
+
+    async def test_bfs_triggered_when_sitemap_returns_zero(self):
+        """Sitemap returns 0 URLs → BFS fallback should run."""
+        service = CrawlerService()
+        service.initialized = True
+        service._crawl_count = 0
+        service._crawler = MagicMock()
+
+        bfs_results = [
+            _make_bfs_result("https://example.com/"),
+            _make_bfs_result("https://example.com/about"),
+            _make_bfs_result("https://example.com/contact"),
+        ]
+        service._crawler.arun = AsyncMock(return_value=bfs_results)
+
+        mock_tree = MagicMock()
+        mock_tree.all_pages.return_value = []
+
+        with _mock_sitemap(mock_tree):
+            urls = await service.discover_urls(domain="example.com")
+
+        assert len(urls) == 3
+        assert {u["url"] for u in urls} == {
+            "https://example.com/",
+            "https://example.com/about",
+            "https://example.com/contact",
+        }
+
+    async def test_bfs_results_merged_with_sitemap(self):
+        """BFS results are merged with sitemap results, deduplicated."""
+        service = CrawlerService()
+        service.initialized = True
+        service._crawl_count = 0
+        service._crawler = MagicMock()
+
+        # Sitemap finds 2 URLs (below threshold)
+        pages = [
+            _make_sitemap_page("https://example.com/"),
+            _make_sitemap_page("https://example.com/about"),
+        ]
+        mock_tree = MagicMock()
+        mock_tree.all_pages.return_value = pages
+
+        # BFS finds 3 URLs, one overlapping with sitemap
+        bfs_results = [
+            _make_bfs_result("https://example.com/"),
+            _make_bfs_result("https://example.com/about"),
+            _make_bfs_result("https://example.com/products"),
+        ]
+        service._crawler.arun = AsyncMock(return_value=bfs_results)
+
+        with _mock_sitemap(mock_tree):
+            urls = await service.discover_urls(domain="example.com")
+
+        assert len(urls) == 3
+        assert {u["url"] for u in urls} == {
+            "https://example.com/",
+            "https://example.com/about",
+            "https://example.com/products",
+        }
+
+    async def test_bfs_applies_pattern_filter(self):
+        """BFS fallback respects the fnmatch pattern filter."""
+        service = CrawlerService()
+        service.initialized = True
+        service._crawl_count = 0
+        service._crawler = MagicMock()
+
+        bfs_results = [
+            _make_bfs_result("https://example.com/docs/intro"),
+            _make_bfs_result("https://example.com/blog/post1"),
+            _make_bfs_result("https://example.com/docs/guide"),
+        ]
+        service._crawler.arun = AsyncMock(return_value=bfs_results)
+
+        mock_tree = MagicMock()
+        mock_tree.all_pages.return_value = []
+
+        with _mock_sitemap(mock_tree):
+            urls = await service.discover_urls(domain="example.com", pattern="*/docs/*")
+
+        assert len(urls) == 2
+        assert all("/docs/" in u["url"] for u in urls)
+
+    async def test_bfs_handles_timeout(self):
+        """BFS fallback returns empty list on timeout."""
+        service = CrawlerService()
+        service.initialized = True
+        service._crawl_count = 0
+        service._crawler = MagicMock()
+
+        async def slow_arun(**kwargs):
+            await asyncio.sleep(10)
+
+        service._crawler.arun = slow_arun
+
+        mock_tree = MagicMock()
+        mock_tree.all_pages.return_value = []
+
+        with _mock_sitemap(mock_tree):
+            urls = await service.discover_urls(domain="example.com", timeout=0.1)
+
+        assert urls == []
+
+    async def test_bfs_skips_failed_results(self):
+        """BFS fallback skips CrawlResults with success=False."""
+        service = CrawlerService()
+        service.initialized = True
+        service._crawl_count = 0
+        service._crawler = MagicMock()
+
+        bfs_results = [
+            _make_bfs_result("https://example.com/", success=True),
+            _make_bfs_result("https://example.com/broken", success=False),
+            _make_bfs_result("https://example.com/ok", success=True),
+        ]
+        service._crawler.arun = AsyncMock(return_value=bfs_results)
+
+        mock_tree = MagicMock()
+        mock_tree.all_pages.return_value = []
+
+        with _mock_sitemap(mock_tree):
+            urls = await service.discover_urls(domain="example.com")
+
+        assert len(urls) == 2
+        assert "https://example.com/broken" not in {u["url"] for u in urls}
+
+    async def test_bfs_exception_preserves_sitemap_urls(self):
+        """BFS failure should not discard already-collected sitemap URLs."""
+        service = CrawlerService()
+        service.initialized = True
+        service._crawl_count = 0
+        service._crawler = MagicMock()
+
+        # BFS will raise a non-timeout exception
+        service._crawler.arun = AsyncMock(side_effect=RuntimeError("browser crashed"))
+
+        # Sitemap returns 3 URLs (below threshold, triggers BFS)
+        pages = [
+            _make_sitemap_page("https://example.com/"),
+            _make_sitemap_page("https://example.com/about"),
+            _make_sitemap_page("https://example.com/contact"),
+        ]
+        mock_tree = MagicMock()
+        mock_tree.all_pages.return_value = pages
+
+        with _mock_sitemap(mock_tree):
+            urls = await service.discover_urls(domain="example.com")
+
+        # Sitemap URLs must be preserved despite BFS failure
+        assert len(urls) == 3
+        assert {u["url"] for u in urls} == {
+            "https://example.com/",
+            "https://example.com/about",
+            "https://example.com/contact",
+        }
