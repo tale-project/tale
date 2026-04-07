@@ -12,7 +12,7 @@ from semantic_text_splitter import MarkdownSplitter
 
 CHUNK_SIZE = 2048
 CHUNK_OVERLAP = 200
-MIN_CHUNK_LENGTH = 50
+MIN_CHUNK_LENGTH = 100
 
 
 @dataclass

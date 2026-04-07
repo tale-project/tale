@@ -33,16 +33,28 @@ class EmbeddingService:
     def dimensions(self) -> int:
         return self._dimensions
 
+    def _zero_vector(self) -> list[float]:
+        return [0.0] * self._dimensions
+
     async def _embed_batch(self, batch: list[str]) -> list[list[float]]:
+        valid = [(i, text) for i, text in enumerate(batch) if text.strip()]
+        if not valid:
+            return [self._zero_vector() for _ in batch]
+
+        valid_indices, valid_texts = zip(*valid)
+
         async with self._semaphore:
             for attempt in range(MAX_RETRIES):
                 try:
                     response = await self._client.embeddings.create(
                         model=self._model,
-                        input=batch,
+                        input=list(valid_texts),
                         dimensions=self._dimensions,
                     )
-                    return [item.embedding for item in response.data]
+                    if not response.data:
+                        raise ValueError("No embedding data received")
+                    embeddings = [item.embedding for item in response.data]
+                    break
                 except (
                     RateLimitError,
                     APITimeoutError,
@@ -59,7 +71,17 @@ class EmbeddingService:
                         delay,
                     )
                     await asyncio.sleep(delay)
-            raise RuntimeError("unreachable")
+                except ValueError:
+                    logger.warning(
+                        "Embedding returned empty data for batch of {} texts, filling with zero vectors",
+                        len(valid_texts),
+                    )
+                    return [self._zero_vector() for _ in batch]
+
+        results: list[list[float]] = [self._zero_vector() for _ in batch]
+        for idx, emb in zip(valid_indices, embeddings):
+            results[idx] = emb
+        return results
 
     async def embed_texts(self, texts: list[str]) -> list[list[float]]:
         if not texts:
