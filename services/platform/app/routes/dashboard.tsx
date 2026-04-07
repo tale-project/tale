@@ -1,5 +1,5 @@
 import { Outlet, createFileRoute, redirect } from '@tanstack/react-router';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { authClient } from '@/lib/auth-client';
@@ -25,9 +25,28 @@ export const Route = createFileRoute('/dashboard')({
 
 function DashboardRedirect() {
   const { isAuthenticated, isLoading } = useConvexAuth();
+  const [sessionVerified, setSessionVerified] = useState(false);
+  const [hasValidSession, setHasValidSession] = useState(true);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
+      // Convex auth may lag behind Better Auth after sign-up.
+      // Re-check Better Auth before doing a hard redirect.
+      void authClient
+        .getSession()
+        .then((session) => {
+          setHasValidSession(!!session?.data?.user);
+          setSessionVerified(true);
+        })
+        .catch(() => {
+          setHasValidSession(false);
+          setSessionVerified(true);
+        });
+    }
+  }, [isLoading, isAuthenticated]);
+
+  useEffect(() => {
+    if (sessionVerified && !hasValidSession) {
       const basePath = getEnv('BASE_PATH');
       const pathname = window.location.pathname;
       const routePath = basePath
@@ -36,9 +55,13 @@ function DashboardRedirect() {
       const returnTo = routePath + window.location.search;
       window.location.href = `${basePath}/log-in?redirectTo=${encodeURIComponent(returnTo)}`;
     }
-  }, [isLoading, isAuthenticated]);
+  }, [sessionVerified, hasValidSession]);
 
-  if (!isLoading && !isAuthenticated) {
+  if (isLoading || (!isAuthenticated && !sessionVerified)) {
+    return null;
+  }
+
+  if (sessionVerified && !hasValidSession) {
     return null;
   }
 

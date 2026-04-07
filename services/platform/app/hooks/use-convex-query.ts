@@ -1,4 +1,9 @@
-import type { FunctionArgs, FunctionReference } from 'convex/server';
+import type { UseQueryResult } from '@tanstack/react-query';
+import type {
+  FunctionArgs,
+  FunctionReference,
+  FunctionReturnType,
+} from 'convex/server';
 
 import { convexQuery } from '@convex-dev/react-query';
 import { useQuery } from '@tanstack/react-query';
@@ -21,11 +26,11 @@ type QueryArgs<Func extends FunctionReference<'query'>> =
 export function useConvexQuery<Func extends FunctionReference<'query'>>(
   func: Func,
   ...[args, options]: QueryArgs<Func>
-) {
-  return useQuery({
-    ...convexQuery(func, args ?? {}),
-    ...options,
-  });
+): UseQueryResult<FunctionReturnType<Func>> {
+  // convexQuery returns a conditional type that useQuery can't resolve in generic context
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const queryOptions: any = { ...convexQuery(func, args ?? {}), ...options };
+  return useQuery(queryOptions);
 }
 
 export type { ConvexQueryOptions };

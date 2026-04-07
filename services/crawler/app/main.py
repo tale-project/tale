@@ -67,79 +67,107 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     except Exception:
         logger.exception("Failed to initialize crawler service")
 
-    # Initialize PostgreSQL connection pool + search services
+    # Initialize PostgreSQL connection pool + search services.
+    # Retries with backoff because the platform service (which seeds provider
+    # config files into the shared volume) may not have started yet.
     from app.services.database import close_pool, init_pool
     from app.services.indexing_service import IndexingService
     from app.services.pg_website_store import PgWebsiteStoreManager
     from app.services.scheduler import run_scheduler
     from app.services.search_service import SearchService
 
-    pool = await init_pool(max_size=settings.db_pool_max_size)
+    scheduler_task = None
+    db_initialized = False
+    max_attempts = 5
+    for attempt in range(1, max_attempts + 1):
+        try:
+            pool = await init_pool(max_size=settings.db_pool_max_size)
 
-    from app.services.index_health import check_and_repair_chunks_index
+            from app.services.index_health import check_and_repair_chunks_index
 
-    await check_and_repair_chunks_index(pool)
+            await check_and_repair_chunks_index(pool)
 
-    pg_store_manager = PgWebsiteStoreManager(pool)
-    indexing_service = IndexingService(pool)
-    search_service = SearchService(pool)
+            pg_store_manager = PgWebsiteStoreManager(pool)
+            indexing_service = IndexingService(pool)
+            search_service = SearchService(pool)
 
-    # Wire services into routers
-    from app.routers.index import set_indexing_service
-    from app.routers.search import set_search_service
+            # Wire services into routers
+            from app.routers.index import set_indexing_service
+            from app.routers.search import set_search_service
 
-    set_search_service(search_service)
-    set_indexing_service(indexing_service)
+            set_search_service(search_service)
+            set_indexing_service(indexing_service)
 
-    # Store references for scheduler and other routers
-    app.state.pg_store_manager = pg_store_manager
-    app.state.indexing_service = indexing_service
+            # Store references for scheduler and other routers
+            app.state.pg_store_manager = pg_store_manager
+            app.state.indexing_service = indexing_service
 
-    logger.info("PostgreSQL pool + search services initialized")
+            logger.info("PostgreSQL pool + search services initialized")
 
-    # Resume any deletions interrupted by a previous crash
-    from app.routers.websites import _spawn_delete_task
+            # Resume any deletions interrupted by a previous crash
+            from app.routers.websites import _spawn_delete_task
 
-    stuck = await pg_store_manager.recover_stuck_deletes()
-    for domain in stuck:
-        logger.warning(f"Resuming stuck deletion for {domain}")
-        _spawn_delete_task(pg_store_manager, domain)
-    if stuck:
-        logger.info(f"Re-enqueued {len(stuck)} stuck deletion(s)")
+            stuck = await pg_store_manager.recover_stuck_deletes()
+            for domain in stuck:
+                logger.warning(f"Resuming stuck deletion for {domain}")
+                _spawn_delete_task(pg_store_manager, domain)
+            if stuck:
+                logger.info(f"Re-enqueued {len(stuck)} stuck deletion(s)")
 
-    # Start background scheduler
-    scheduler_task = asyncio.create_task(
-        run_scheduler(
-            pg_store_manager,
-            get_crawler_service(),
-            indexing_service,
-            max_concurrent_scans=settings.max_concurrent_scans,
-            poll_interval=settings.poll_interval,
-            crawl_batch_size=settings.crawl_batch_size,
-        )
-    )
-    logger.info("Background scheduler started")
+            # Start background scheduler
+            scheduler_task = asyncio.create_task(
+                run_scheduler(
+                    pg_store_manager,
+                    get_crawler_service(),
+                    indexing_service,
+                    max_concurrent_scans=settings.max_concurrent_scans,
+                    poll_interval=settings.poll_interval,
+                    crawl_batch_size=settings.crawl_batch_size,
+                )
+            )
+            logger.info("Background scheduler started")
+            db_initialized = True
+            break
+        except Exception:
+            if attempt == max_attempts:
+                logger.exception(
+                    "Failed to initialize DB services after %d attempts — crawler will run without indexing/search",
+                    max_attempts,
+                )
+            else:
+                delay = min(3 * (2 ** (attempt - 1)), 30)
+                logger.warning(
+                    "DB init attempt %d/%d failed, retrying in %ds...",
+                    attempt,
+                    max_attempts,
+                    delay,
+                )
+                await asyncio.sleep(delay)
 
     yield
 
     # Shutdown
     logger.info("Shutting down Tale Crawler service...")
 
-    scheduler_task.cancel()
-    with suppress(asyncio.CancelledError):
-        await scheduler_task
-    logger.info("Scheduler stopped")
+    if scheduler_task is not None:
+        scheduler_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await scheduler_task
+        logger.info("Scheduler stopped")
 
-    # Wait for any in-flight background deletions to finish
-    from app.routers.websites import get_delete_tasks
+    if db_initialized:
+        # Wait for any in-flight background deletions to finish
+        from app.routers.websites import get_delete_tasks
 
-    delete_tasks = get_delete_tasks()
-    if delete_tasks:
-        logger.info(f"Waiting for {len(delete_tasks)} background deletion(s)...")
-        await asyncio.gather(*delete_tasks, return_exceptions=True)
-        logger.info("Background deletions finished")
+        delete_tasks = get_delete_tasks()
+        if delete_tasks:
+            logger.info(f"Waiting for {len(delete_tasks)} background deletion(s)...")
+            await asyncio.gather(*delete_tasks, return_exceptions=True)
+            logger.info("Background deletions finished")
 
-    await pg_store_manager.close()
+        await pg_store_manager.close()
+
+    # Always close pool if it was created (handles partial init failures)
     await close_pool()
 
     try:
