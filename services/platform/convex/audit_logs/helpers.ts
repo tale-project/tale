@@ -433,14 +433,13 @@ export async function getResourceAuditTrail(
 
   for await (const log of ctx.db
     .query('auditLogs')
-    .withIndex('by_resourceType_and_resourceId', (q) =>
-      q.eq('resourceType', args.resourceType).eq('resourceId', args.resourceId),
+    .withIndex('by_org_resourceType_resourceId', (q) =>
+      q
+        .eq('organizationId', args.organizationId)
+        .eq('resourceType', args.resourceType)
+        .eq('resourceId', args.resourceId),
     )
     .order('desc')) {
-    if (log.organizationId !== args.organizationId) {
-      continue;
-    }
-
     logs.push(log as AuditLogItem);
 
     if (logs.length >= limit) {
