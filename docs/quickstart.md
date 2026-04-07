@@ -87,10 +87,12 @@ tale start --detach     # Start in background
 To stop all services while keeping your data:
 
 ```bash
-docker compose down
+docker compose -p tale-dev down
 ```
 
-> **Important:** Never run `docker compose down -v`. The `-v` flag deletes all Docker volumes, which permanently erases your database, uploaded documents, crawler state, and all platform data. There is no recovery from this.
+The `-p tale-dev` flag is required because `tale start` creates a compose project named `tale-dev` rather than using a standard `docker-compose.yml` file.
+
+> **Important:** Never run `docker compose -p tale-dev down -v`. The `-v` flag deletes all Docker volumes, which permanently erases your database, uploaded documents, crawler state, and all platform data. There is no recovery from this.
 
 ### Updating
 
