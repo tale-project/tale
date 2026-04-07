@@ -17,6 +17,7 @@ export const useProductsTableConfig = createTableConfigHook<'products'>(
     defaultSort: 'lastUpdated',
   },
   ({ tTables, builders }) => [
+    builders.createSelectColumn(),
     {
       accessorKey: 'name',
       header: tTables('headers.product'),
