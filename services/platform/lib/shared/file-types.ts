@@ -222,6 +222,41 @@ export const CHAT_UPLOAD_ALLOWED_TYPES: readonly string[] = [
   MIME_TYPES.PPTX,
 ];
 
+/** Allowed MIME types for document uploads (used for client + server validation) */
+export const DOCUMENT_UPLOAD_ALLOWED_TYPES: ReadonlySet<string> = new Set([
+  MIME_TYPES.PDF,
+  MIME_TYPES.DOC,
+  MIME_TYPES.DOCX,
+  MIME_TYPES.PPT,
+  MIME_TYPES.PPTX,
+  MIME_TYPES.XLS,
+  MIME_TYPES.XLSX,
+  MIME_TYPES.CSV,
+  MIME_TYPES.PLAIN,
+  MIME_TYPES.JPEG,
+  MIME_TYPES.PNG,
+  MIME_TYPES.GIF,
+  MIME_TYPES.WEBP,
+]);
+
+/** Allowed extensions for document uploads (fallback when MIME is unreliable) */
+export const DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS: ReadonlySet<string> = new Set([
+  'pdf',
+  'doc',
+  'docx',
+  'ppt',
+  'pptx',
+  'xls',
+  'xlsx',
+  'csv',
+  'txt',
+  'jpg',
+  'jpeg',
+  'png',
+  'gif',
+  'webp',
+]);
+
 /** Document upload dialog: all supported document types + images */
 export const DOCUMENT_UPLOAD_ACCEPT = [
   MIME_TYPES.PDF,
@@ -233,8 +268,11 @@ export const DOCUMENT_UPLOAD_ACCEPT = [
   MIME_TYPES.XLSX,
   MIME_TYPES.CSV,
   MIME_TYPES.PLAIN,
-  'image/*',
-  '.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.txt',
+  MIME_TYPES.JPEG,
+  MIME_TYPES.PNG,
+  MIME_TYPES.GIF,
+  MIME_TYPES.WEBP,
+  '.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.txt,.jpg,.jpeg,.png,.gif,.webp',
 ].join(',');
 
 /** Data import forms: spreadsheets only */
@@ -427,6 +465,20 @@ export function getFileTypeLabelKey(mimeType: string): string {
     return 'xlsx';
   if (mimeType === MIME_TYPES.CSV) return 'csv';
   return 'file';
+}
+
+/**
+ * Check whether a file is allowed for document upload based on its resolved
+ * MIME type and extension. Returns `true` when either the MIME type or the
+ * file extension matches the allowlist.
+ */
+export function isAllowedDocumentUpload(
+  resolvedMimeType: string,
+  fileName: string,
+): boolean {
+  if (DOCUMENT_UPLOAD_ALLOWED_TYPES.has(resolvedMimeType)) return true;
+  const ext = extractExtension(fileName);
+  return ext ? DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS.has(ext) : false;
 }
 
 /**
