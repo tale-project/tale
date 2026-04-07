@@ -10,7 +10,13 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from loguru import logger
 
-from app.models import RegisterWebsiteRequest, WebsiteInfoResponse, WebsiteUrl, WebsiteUrlsResponse
+from app.models import (
+    RegisterWebsiteRequest,
+    UpdateWebsiteRequest,
+    WebsiteInfoResponse,
+    WebsiteUrl,
+    WebsiteUrlsResponse,
+)
 from app.services.crawler_service import get_crawler_service
 from app.services.pg_website_store import PgWebsiteStoreManager
 from app.services.scheduler import cancel_scan, trigger_scan
@@ -170,6 +176,41 @@ async def register_website(request: RegisterWebsiteRequest, http_request: Reques
     except Exception:
         logger.exception("Error registering website")
         raise HTTPException(status_code=500, detail="Failed to register website") from None
+
+
+@router.patch("/{domain}", response_model=WebsiteInfoResponse)
+async def update_website(domain: str, request: UpdateWebsiteRequest, http_request: Request):
+    try:
+        manager = _get_manager(http_request)
+        website = await manager.get_website(domain)
+        if not website:
+            raise HTTPException(status_code=404, detail=f"Website not found: {domain}")
+        if website.get("status") == "deleting":
+            raise HTTPException(
+                status_code=409,
+                detail=f"Domain {domain} is currently being deleted. Please retry later.",
+            )
+
+        await manager.update_scan_interval(domain=domain, scan_interval=request.scan_interval)
+
+        return WebsiteInfoResponse(
+            domain=domain,
+            title=website.get("title"),
+            description=website.get("description"),
+            page_count=website.get("total_urls", 0),
+            crawled_count=website.get("crawled_count", 0),
+            status=website.get("status", "idle"),
+            scan_interval=request.scan_interval,
+            last_scanned_at=_format_timestamp(website.get("last_scanned_at")),
+            error=website.get("error"),
+            created_at=_format_timestamp(website.get("created_at")),
+            updated_at=_format_timestamp(website.get("updated_at")),
+        )
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Error updating website")
+        raise HTTPException(status_code=500, detail="Failed to update website") from None
 
 
 @router.get("/{domain}", response_model=WebsiteInfoResponse)

@@ -37,6 +37,12 @@ class RegisterWebsiteRequest(BaseModel):
         return v
 
 
+class UpdateWebsiteRequest(BaseModel):
+    """Request to update a website's scan interval."""
+
+    scan_interval: int = Field(..., description="Scan interval in seconds", ge=60)
+
+
 class WebsiteInfoResponse(BaseModel):
     """Full website information."""
 

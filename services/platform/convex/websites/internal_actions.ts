@@ -73,6 +73,31 @@ export async function registerDomainWithCrawler(
   return await res.json();
 }
 
+export async function updateCrawlerScanInterval(
+  domain: string,
+  scanInterval: string,
+): Promise<void> {
+  const crawlerUrl = getCrawlerUrl();
+  const res = await fetchWithTimeout(
+    `${crawlerUrl}/api/v1/websites/${encodeURIComponent(domain)}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        scan_interval: scanIntervalToSeconds(scanInterval),
+      }),
+    },
+  );
+  if (!res.ok) {
+    if (res.status === 404) {
+      throw new Error('CRAWLER_WEBSITE_NOT_FOUND');
+    }
+    throw new Error(
+      `Failed to update website scan interval: ${res.status} ${res.statusText}`,
+    );
+  }
+}
+
 export async function deregisterDomainFromCrawler(
   domain: string,
 ): Promise<void> {
@@ -154,6 +179,21 @@ export const syncWebsiteStatuses = internalAction({
               lastScannedAt: websiteInfo.last_scanned_at
                 ? new Date(websiteInfo.last_scanned_at).getTime()
                 : undefined,
+            },
+          );
+        } else {
+          // Crawler doesn't know about this website — mark as error
+          await ctx.runMutation(
+            internal.websites.internal_mutations.patchWebsite,
+            {
+              websiteId: website._id,
+              status: 'error',
+              metadata: {
+                ...website.metadata,
+                lastStatusSyncAt: now,
+                lastSyncError:
+                  'Website not found in crawler. Please delete and re-add it.',
+              },
             },
           );
         }

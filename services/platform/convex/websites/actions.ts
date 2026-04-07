@@ -13,7 +13,7 @@ import { authComponent } from '../auth';
 import { toWebsiteDomain } from './create_website';
 import {
   deregisterDomainFromCrawler,
-  registerDomainWithCrawler,
+  updateCrawlerScanInterval,
 } from './internal_actions';
 
 export const createWebsite = action({
@@ -129,9 +129,26 @@ export const updateWebsite = action({
       },
     );
 
-    // Sync scan interval to crawler first
+    // Sync scan interval to crawler
     if (args.scanInterval && args.scanInterval !== website.scanInterval) {
-      await registerDomainWithCrawler(website.domain, args.scanInterval);
+      try {
+        await updateCrawlerScanInterval(website.domain, args.scanInterval);
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          error.message === 'CRAWLER_WEBSITE_NOT_FOUND'
+        ) {
+          await ctx.runMutation(
+            internal.websites.internal_mutations.patchWebsite,
+            { websiteId: args.websiteId, status: 'error' as const },
+          );
+          throw new Error(
+            'Website not found in crawler. Please delete and re-add it.',
+            { cause: error },
+          );
+        }
+        throw error;
+      }
     }
 
     await ctx.runMutation(internal.websites.internal_mutations.patchWebsite, {

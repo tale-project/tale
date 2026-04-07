@@ -173,6 +173,67 @@ class TestRegisterWebsite:
         assert response.json()["detail"] == "Failed to register website"
 
 
+class TestUpdateWebsite:
+    async def test_success(self, mock_manager):
+        mock_manager.get_website.return_value = _website_row(status="active", scan_interval=21600)
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.patch(
+                "/api/v1/websites/example.com",
+                json={"scan_interval": 3600},
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["domain"] == "example.com"
+        assert data["scan_interval"] == 3600
+        assert data["status"] == "active"
+        mock_manager.get_website.assert_awaited_once_with("example.com")
+        mock_manager.update_scan_interval.assert_awaited_once_with(
+            domain="example.com",
+            scan_interval=3600,
+        )
+
+    async def test_404_when_not_found(self, mock_manager):
+        mock_manager.get_website.return_value = None
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.patch(
+                "/api/v1/websites/unknown.com",
+                json={"scan_interval": 3600},
+            )
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Website not found: unknown.com"
+        mock_manager.update_scan_interval.assert_not_awaited()
+
+    async def test_409_when_domain_is_deleting(self, mock_manager):
+        mock_manager.get_website.return_value = _website_row(status="deleting")
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.patch(
+                "/api/v1/websites/example.com",
+                json={"scan_interval": 3600},
+            )
+
+        assert response.status_code == 409
+        assert "currently being deleted" in response.json()["detail"]
+        mock_manager.update_scan_interval.assert_not_awaited()
+
+    async def test_500_on_error(self, mock_manager):
+        mock_manager.get_website.return_value = _website_row()
+        mock_manager.update_scan_interval.side_effect = RuntimeError("db error")
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.patch(
+                "/api/v1/websites/example.com",
+                json={"scan_interval": 3600},
+            )
+
+        assert response.status_code == 500
+        assert response.json()["detail"] == "Failed to update website"
+
+
 class TestGetWebsiteInfo:
     async def test_success(self, mock_manager):
         mock_manager.get_website.return_value = {
