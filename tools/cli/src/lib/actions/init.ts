@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 
 import pkg from '../../../package.json';
@@ -72,6 +72,34 @@ export async function init(options: InitOptions): Promise<void> {
     throw new Error(
       `tale.json already exists in ${target}. Use --force to overwrite.`,
     );
+  }
+
+  // Check if directory exists and contains Tale project files
+  if (!force && existsSync(target)) {
+    const hasTaleFiles = await detectTaleProjectFiles(target);
+    if (hasTaleFiles.length > 0) {
+      if (process.stdin.isTTY && process.stdout.isTTY) {
+        const { confirm } = await import('@inquirer/prompts');
+        logger.warn(
+          `Directory "${target}" already contains Tale project files:`,
+        );
+        for (const file of hasTaleFiles) {
+          logger.info(`  - ${file}`);
+        }
+        const shouldOverwrite = await confirm({
+          message: 'Overwrite existing project files?',
+          default: false,
+        });
+        if (!shouldOverwrite) {
+          logger.info('Aborted.');
+          return;
+        }
+      } else {
+        throw new Error(
+          `Directory "${target}" already contains Tale project files (${hasTaleFiles.join(', ')}). Use --force to overwrite.`,
+        );
+      }
+    }
   }
 
   logger.header('Initializing Tale Project');
@@ -213,6 +241,26 @@ export async function init(options: InitOptions): Promise<void> {
     `  ${step++}. Open the project in an AI-powered editor (Claude Code, Cursor, Copilot, or Windsurf) for guided config creation`,
   );
   logger.info(`  ${step++}. Run "tale start" to launch the platform locally`);
+}
+
+const TALE_PROJECT_MARKERS = new Set([
+  '.env',
+  'tale.json',
+  'providers',
+  'agents',
+  'workflows',
+  'integrations',
+  '.tale',
+  'branding',
+]);
+
+async function detectTaleProjectFiles(dir: string): Promise<string[]> {
+  try {
+    const entries = await readdir(dir);
+    return entries.filter((entry) => TALE_PROJECT_MARKERS.has(entry));
+  } catch {
+    return [];
+  }
 }
 
 async function writeEmbeddedFiles(
