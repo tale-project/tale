@@ -73,6 +73,28 @@ export async function registerDomainWithCrawler(
   return await res.json();
 }
 
+export async function updateCrawlerScanInterval(
+  domain: string,
+  scanInterval: string,
+): Promise<void> {
+  const crawlerUrl = getCrawlerUrl();
+  const res = await fetchWithTimeout(
+    `${crawlerUrl}/api/v1/websites/${encodeURIComponent(domain)}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        scan_interval: scanIntervalToSeconds(scanInterval),
+      }),
+    },
+  );
+  if (!res.ok) {
+    throw new Error(
+      `Failed to update website scan interval: ${res.status} ${res.statusText}`,
+    );
+  }
+}
+
 export async function deregisterDomainFromCrawler(
   domain: string,
 ): Promise<void> {

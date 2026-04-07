@@ -13,7 +13,7 @@ import { authComponent } from '../auth';
 import { toWebsiteDomain } from './create_website';
 import {
   deregisterDomainFromCrawler,
-  registerDomainWithCrawler,
+  updateCrawlerScanInterval,
 } from './internal_actions';
 
 export const createWebsite = action({
@@ -129,9 +129,9 @@ export const updateWebsite = action({
       },
     );
 
-    // Sync scan interval to crawler first
+    // Sync scan interval to crawler
     if (args.scanInterval && args.scanInterval !== website.scanInterval) {
-      await registerDomainWithCrawler(website.domain, args.scanInterval);
+      await updateCrawlerScanInterval(website.domain, args.scanInterval);
     }
 
     await ctx.runMutation(internal.websites.internal_mutations.patchWebsite, {
