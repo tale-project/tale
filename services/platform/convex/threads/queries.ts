@@ -29,6 +29,13 @@ export const listThreads = query({
   },
 });
 
+/**
+ * Maximum time (ms) a generation is considered active before it's treated as
+ * stale. If the server-side action crashed without resetting generationStatus,
+ * this prevents the client from being permanently blocked.
+ */
+const GENERATION_STALE_THRESHOLD_MS = 10 * 60 * 1000;
+
 export const isThreadGenerating = query({
   args: { threadId: v.string() },
   returns: v.boolean(),
@@ -41,7 +48,17 @@ export const isThreadGenerating = query({
       .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
       .first();
 
-    return metadata?.generationStatus === 'generating';
+    if (metadata?.generationStatus !== 'generating') return false;
+
+    // Guard against stuck generationStatus: if the action crashed without
+    // cleanup, the generation start time lets us detect staleness and
+    // unblock the client instead of requiring a page refresh.
+    if (metadata.generationStartTime) {
+      const elapsed = Date.now() - metadata.generationStartTime;
+      if (elapsed > GENERATION_STALE_THRESHOLD_MS) return false;
+    }
+
+    return true;
   },
 });
 

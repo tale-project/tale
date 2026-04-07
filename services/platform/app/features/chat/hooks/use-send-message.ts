@@ -17,6 +17,7 @@ import {
   useCreateThread,
   useUpdateThread,
 } from './mutations';
+import { resetGlobalFreeze } from './use-stream-buffer';
 
 interface UseSendMessageParams {
   organizationId: string;
@@ -161,7 +162,11 @@ export function useSendMessage({
         });
       } catch (error) {
         console.error('Failed to send message:', error);
+        // Reset all client-side pending/loading state so the chat returns
+        // to an idle, sendable state. Includes the stream freeze flag which
+        // could otherwise block text rendering on the next response.
         clearChatState();
+        resetGlobalFreeze();
         toast({
           title: t('toast.sendFailed'),
           variant: 'destructive',
