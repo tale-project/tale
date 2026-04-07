@@ -266,6 +266,7 @@ export const installWorkflow = action({
     const updatedConfig: WorkflowJsonConfig = {
       ...result.config,
       installed: true,
+      enabled: false,
     };
 
     const newContent = serializeWorkflowJson(updatedConfig);
