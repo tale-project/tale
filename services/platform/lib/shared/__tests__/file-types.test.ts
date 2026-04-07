@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   extractExtension,
+  isAllowedDocumentUpload,
   mimeToExtension,
   resolveFileType,
 } from '../file-types';
@@ -107,6 +108,56 @@ describe('resolveFileType', () => {
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     );
     expect(resolveFileType('data.csv', '')).toBe('text/csv');
+  });
+});
+
+describe('isAllowedDocumentUpload', () => {
+  it.each([
+    ['application/pdf', 'report.pdf'],
+    ['application/msword', 'file.doc'],
+    [
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'file.docx',
+    ],
+    [
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'slides.pptx',
+    ],
+    [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'data.xlsx',
+    ],
+    ['text/csv', 'data.csv'],
+    ['text/plain', 'notes.txt'],
+    ['image/jpeg', 'photo.jpg'],
+    ['image/png', 'screenshot.png'],
+    ['image/gif', 'animation.gif'],
+    ['image/webp', 'image.webp'],
+  ])('allows %s (%s)', (mime, fileName) => {
+    expect(isAllowedDocumentUpload(mime, fileName)).toBe(true);
+  });
+
+  it.each([
+    ['audio/mpeg', 'song.mp3'],
+    ['video/mp4', 'video.mp4'],
+    ['application/x-msdownload', 'program.exe'],
+    ['application/zip', 'archive.zip'],
+    ['application/octet-stream', 'unknown.bin'],
+    ['', 'file.mp3'],
+  ])('rejects %s (%s)', (mime, fileName) => {
+    expect(isAllowedDocumentUpload(mime, fileName)).toBe(false);
+  });
+
+  it('allows by extension when MIME is generic', () => {
+    expect(isAllowedDocumentUpload('application/octet-stream', 'doc.pdf')).toBe(
+      true,
+    );
+    expect(isAllowedDocumentUpload('', 'photo.jpg')).toBe(true);
+  });
+
+  it('rejects unknown extensions even with empty MIME', () => {
+    expect(isAllowedDocumentUpload('', 'malware.exe')).toBe(false);
+    expect(isAllowedDocumentUpload('', 'song.mp3')).toBe(false);
   });
 });
 
