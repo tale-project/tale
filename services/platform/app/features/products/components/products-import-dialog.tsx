@@ -91,18 +91,12 @@ export function ProductsImportDialog({
   );
 
   const csvMapper = useCallback(
-    (row: string[], _index: number): ParsedProduct | null => {
-      const name = row[0]?.trim();
-      if (!name) return null;
+    (row: string[], index: number): ParsedProduct | null => {
+      const result = productMappers.csv(row, index);
+      if (!result) return null;
 
       return {
-        name,
-        description: row[1]?.trim() || undefined,
-        imageUrl: row[2]?.trim() || undefined,
-        stock: row[3] ? parseInt(row[3], 10) : 0,
-        price: row[4] ? parseFloat(row[4]) : 0,
-        currency: row[5]?.trim() || 'USD',
-        category: row[6]?.trim() || undefined,
+        ...result,
         status: validateStatus(row[7]),
       };
     },
