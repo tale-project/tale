@@ -79,13 +79,19 @@ interface UseListPageOptions<TData> {
   approxRowCount?: number;
   /** Lowercase plural entity label (e.g., "websites"). Enables "Showing all X {entity}" footer. */
   entityLabel?: string;
+  /**
+   * Display mode for the table.
+   * - `'infiniteScroll'` (default): renders an infinite-scroll list that loads more as the user scrolls.
+   * - `'pagination'`: renders client-side pagination controls with next/previous navigation.
+   */
+  displayMode?: 'infiniteScroll' | 'pagination';
 }
 
 // ---------------------------------------------------------------------------
 // Hook Return Type
 // ---------------------------------------------------------------------------
 
-interface ListPageTableProps<TData> {
+interface ListPageInfiniteScrollTableProps<TData> {
   data: TData[];
   search?: DataTableSearchConfig;
   filters?: FilterConfig[];
@@ -102,6 +108,26 @@ interface ListPageTableProps<TData> {
   };
   approxRowCount?: number;
 }
+
+interface ListPagePaginationTableProps<TData> {
+  data: TData[];
+  search?: DataTableSearchConfig;
+  filters?: FilterConfig[];
+  onClearFilters?: () => void;
+  getRowId: (row: TData) => string;
+  pagination: {
+    clientSide: true;
+    pageSize: number;
+    total: number;
+    showPageSizeSelector: boolean;
+  };
+  isLoading: boolean;
+  approxRowCount?: number;
+}
+
+type ListPageTableProps<TData> =
+  | ListPageInfiniteScrollTableProps<TData>
+  | ListPagePaginationTableProps<TData>;
 
 interface UseListPageReturn<TData> {
   tableProps: ListPageTableProps<TData>;
@@ -142,6 +168,7 @@ export function useListPage<TData>(
     getRowId,
     approxRowCount,
     entityLabel,
+    displayMode = 'infiniteScroll',
   } = options;
 
   // 1. Normalize data source
@@ -310,13 +337,46 @@ export function useListPage<TData>(
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex documents always have _id; TData generic doesn't enforce it
   const rowIdFn = getRowId ?? ((row: TData) => (row as { _id: string })._id);
 
+  const sharedTableProps = {
+    search: searchConfig,
+    filters: filterConfigs,
+    onClearFilters,
+    getRowId: rowIdFn,
+    approxRowCount,
+  };
+
+  if (displayMode === 'pagination') {
+    // In pagination mode, eagerly load all backend pages and let TanStack Table paginate client-side
+    if (
+      dataSource.type === 'paginated' &&
+      dataSource.status === 'CanLoadMore'
+    ) {
+      dataSource.loadMore(pageSize * 3);
+    }
+
+    return {
+      tableProps: {
+        ...sharedTableProps,
+        data: processed,
+        pagination: {
+          clientSide: true,
+          pageSize,
+          total: processed.length,
+          showPageSizeSelector: false,
+        },
+        isLoading,
+      },
+      processedData: processed,
+      totalCount: rawData.length,
+      filteredCount: processed.length,
+      isLoading,
+    };
+  }
+
   return {
     tableProps: {
+      ...sharedTableProps,
       data: displayed,
-      search: searchConfig,
-      filters: filterConfigs,
-      onClearFilters,
-      getRowId: rowIdFn,
       infiniteScroll: {
         hasMore,
         onLoadMore: handleLoadMore,
@@ -332,7 +392,6 @@ export function useListPage<TData>(
         entityLabel,
         totalCount: entityLabel ? rawData.length : undefined,
       },
-      approxRowCount,
     },
     processedData: processed,
     totalCount: rawData.length,

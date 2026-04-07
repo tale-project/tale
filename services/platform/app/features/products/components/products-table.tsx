@@ -104,6 +104,7 @@ export function ProductsTable({
       isLoading: paginatedResult.isLoading,
     },
     pageSize,
+    displayMode: 'pagination',
     search: {
       fields: ['name', 'description', 'category'],
       placeholder: searchPlaceholder,
