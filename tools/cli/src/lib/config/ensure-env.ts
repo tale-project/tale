@@ -34,6 +34,28 @@ function generatePassword(): string {
   return randomBytes(16).toString('base64url');
 }
 
+const OPENROUTER_KEY_PREFIX = 'sk-or-';
+
+async function warnIfInvalidKeyFormat(key: string): Promise<boolean> {
+  if (key.startsWith(OPENROUTER_KEY_PREFIX)) return true;
+
+  if (process.stdin.isTTY && process.stdout.isTTY) {
+    const { confirm } = await import('@inquirer/prompts');
+    logger.warn(
+      `This key does not start with "${OPENROUTER_KEY_PREFIX}", which is the expected format for OpenRouter API keys.`,
+    );
+    return await confirm({
+      message: 'Continue with this key anyway?',
+      default: true,
+    });
+  }
+
+  logger.warn(
+    `API key does not match expected OpenRouter format (prefix "${OPENROUTER_KEY_PREFIX}"). Proceeding anyway.`,
+  );
+  return true;
+}
+
 /** Parse a .env file into a key-value map (ignores comments and blank lines). */
 function parseEnvFile(content: string): Record<string, string> {
   const env: Record<string, string> = {};
@@ -227,6 +249,11 @@ async function runPartialEnvSetup(
         return true;
       },
     });
+    const shouldContinue = await warnIfInvalidKeyFormat(openrouterKey);
+    if (!shouldContinue) {
+      logger.info('Aborted. Please re-run with a valid API key.');
+      return { success: false };
+    }
   }
 
   // Surgically append missing variables to the existing .env (preserves all original content)
@@ -357,6 +384,11 @@ async function runEnvSetup(envPath: string): Promise<EnvSetupResult> {
       return true;
     },
   });
+  const shouldContinue = await warnIfInvalidKeyFormat(openrouterKey);
+  if (!shouldContinue) {
+    logger.info('Aborted. Please re-run with a valid API key.');
+    return { success: false };
+  }
 
   logger.blank();
   logger.step('Generating security secrets...');
