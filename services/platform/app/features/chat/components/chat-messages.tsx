@@ -234,8 +234,15 @@ export function ChatMessages({
       );
     }
 
+    const hasContent = message.content !== '';
+    const hasAttachments =
+      (message.attachments && message.attachments.length > 0) ||
+      (message.fileParts && message.fileParts.length > 0);
     const shouldShow =
-      message.role === 'user' || message.content !== '' || message.isAborted;
+      message.role === 'user' ||
+      hasContent ||
+      hasAttachments ||
+      message.isAborted;
 
     if (!shouldShow) return null;
 
