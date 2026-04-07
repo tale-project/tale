@@ -9,7 +9,7 @@
  * 1. Validates context (orgId, threadId, userId)
  * 2. Checks time budget
  * 3. Optionally checks role access
- * 4. Gets/creates a sub-thread keyed by delegate rootVersionId
+ * 4. Gets/creates a sub-thread keyed by delegate agentSlug
  * 5. Runs the delegate agent via the generic runAgentGeneration action
  * 6. Returns a structured ToolResponse
  */
@@ -34,7 +34,7 @@ import {
 import { validateToolContext } from '../sub_agents/helpers/validate_context';
 
 export interface DelegateAgentMeta {
-  rootVersionId: string;
+  agentSlug: string;
   name: string;
   displayName: string;
   description: string;
@@ -89,7 +89,7 @@ Pass the user's request in natural language. The agent will handle it and return
             ctx,
             {
               parentThreadId: threadId,
-              subAgentType: delegate.rootVersionId,
+              subAgentType: delegate.agentSlug,
               userId,
             },
           );

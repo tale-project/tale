@@ -76,10 +76,7 @@ describe('toSerializableConfig', () => {
       delegates: ['web-assistant', 'file-assistant'],
     });
     const result = toSerializableConfig('a', config);
-    expect(result.delegateAgentIds).toEqual([
-      'web-assistant',
-      'file-assistant',
-    ]);
+    expect(result.delegateSlugs).toEqual(['web-assistant', 'file-assistant']);
   });
 
   it('should default knowledgeMode to off', () => {

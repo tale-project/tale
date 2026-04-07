@@ -40,7 +40,7 @@ export async function loadDelegateAgents(
       const agentConfig = toSerializableConfig(name, config);
 
       delegates.push({
-        rootVersionId: name,
+        agentSlug: name,
         name,
         displayName: config.displayName,
         description: config.description ?? '',

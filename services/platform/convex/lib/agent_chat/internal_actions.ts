@@ -89,7 +89,7 @@ const serializableAgentConfigValidator = v.object({
   includeOrgKnowledge: v.optional(v.boolean()),
   agentTeamId: v.optional(v.string()),
   knowledgeFileIds: v.optional(v.array(v.string())),
-  delegateAgentIds: v.optional(v.array(v.string())),
+  delegateSlugs: v.optional(v.array(v.string())),
   structuredResponsesEnabled: v.optional(v.boolean()),
   timeoutMs: v.optional(v.number()),
   outputReserve: v.optional(v.number()),
@@ -200,10 +200,10 @@ export const runAgentGeneration = internalAction({
       // Build delegation tools dynamically
       let delegationExtraTools: Record<string, unknown> | undefined;
       let delegationInstructionsAppend = '';
-      if (agentConfig.delegateAgentIds?.length) {
+      if (agentConfig.delegateSlugs?.length) {
         const delegates = await loadDelegateAgents(
           ctx,
-          agentConfig.delegateAgentIds,
+          agentConfig.delegateSlugs,
           organizationId,
           'default',
         );
