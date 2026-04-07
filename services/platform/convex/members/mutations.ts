@@ -7,6 +7,7 @@ import type {
   BetterAuthFindManyResult,
 } from './types';
 
+import { isRecord, getString } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import { mutation } from '../_generated/server';
 import * as AuditLogHelpers from '../audit_logs/helpers';
@@ -247,6 +248,35 @@ export const updateMemberRole = mutation({
 
     if (args.role.toLowerCase() === 'owner') {
       throw new Error('The owner role cannot be assigned manually');
+    }
+
+    const orgResult = await ctx.runQuery(
+      components.betterAuth.adapter.findMany,
+      {
+        model: 'organization',
+        paginationOpts: { cursor: null, numItems: 1 },
+        where: [
+          {
+            field: '_id',
+            value: member.organizationId,
+            operator: 'eq',
+          },
+        ],
+      },
+    );
+    const orgRaw = orgResult?.page?.[0];
+    if (isRecord(orgRaw)) {
+      const rawMetadata = getString(orgRaw, 'metadata');
+      if (rawMetadata) {
+        try {
+          const parsed: unknown = JSON.parse(rawMetadata);
+          if (isRecord(parsed) && parsed.creatorId === member.userId) {
+            throw new Error('The organization creator role cannot be changed');
+          }
+        } catch (e) {
+          if (e instanceof Error && e.message.includes('creator')) throw e;
+        }
+      }
     }
 
     const targetUser = member.userId
