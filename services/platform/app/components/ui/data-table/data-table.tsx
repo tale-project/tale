@@ -738,7 +738,7 @@ export function DataTable<TData, TValue = unknown>({
         />
       )}
     >
-      <div className={cn('flex flex-col flex-1 min-h-0', className)}>
+      <div className={cn('flex flex-col flex-1 min-h-0 min-w-0', className)}>
         {headerContent && (
           <div className="flex-shrink-0 pb-4">{headerContent}</div>
         )}
