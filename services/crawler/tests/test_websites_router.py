@@ -48,10 +48,7 @@ class TestRegisterWebsite:
             "scan_interval": 21600,
         }
 
-        with (
-            patch("app.routers.websites.trigger_scan") as mock_trigger,
-            patch("app.routers.websites._initialize_website"),
-        ):
+        with patch("app.routers.websites.trigger_scan") as mock_trigger:
             async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                 response = await client.post(
                     "/api/v1/websites",
@@ -77,10 +74,7 @@ class TestRegisterWebsite:
         }
         mock_manager.get_website.return_value = _website_row(domain="www.wisekey.com")
 
-        with (
-            patch("app.routers.websites.trigger_scan"),
-            patch("app.routers.websites._initialize_website"),
-        ):
+        with patch("app.routers.websites.trigger_scan"):
             async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                 response = await client.post(
                     "/api/v1/websites",
@@ -101,10 +95,7 @@ class TestRegisterWebsite:
         }
         mock_manager.get_website.return_value = _website_row()
 
-        with (
-            patch("app.routers.websites.trigger_scan"),
-            patch("app.routers.websites._initialize_website"),
-        ):
+        with patch("app.routers.websites.trigger_scan"):
             async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                 response = await client.post(
                     "/api/v1/websites",
@@ -125,10 +116,7 @@ class TestRegisterWebsite:
             "scan_interval": 21600,
         }
 
-        with (
-            patch("app.routers.websites.trigger_scan"),
-            patch("app.routers.websites._initialize_website"),
-        ):
+        with patch("app.routers.websites.trigger_scan"):
             async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                 response = await client.post(
                     "/api/v1/websites",
@@ -159,10 +147,7 @@ class TestRegisterWebsite:
         mock_manager.get_website.return_value = None
         mock_manager.register_website.side_effect = RuntimeError("db error")
 
-        with (
-            patch("app.routers.websites.trigger_scan"),
-            patch("app.routers.websites._initialize_website"),
-        ):
+        with patch("app.routers.websites.trigger_scan"):
             async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                 response = await client.post(
                     "/api/v1/websites",

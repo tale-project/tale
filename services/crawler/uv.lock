@@ -2278,6 +2278,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/36/47/ab65fc1d682befc318c439940f81a0de1026048479f732e84fe714cd69c0/pytest-watch-4.2.0.tar.gz", hash = "sha256:06136f03d5b361718b8d0d234042f7b2f203910d8568f63df2f866b547b3d4b9", size = 16340, upload-time = "2018-05-20T19:52:16.194Z" }
 
 [[package]]
+name = "python-dateutil"
+version = "2.9.0.post0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "six" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/66/c0/0c8b6ad9f17a802ee498c46e004a0eb49bc148f2fd230864601a86dcf6db/python-dateutil-2.9.0.post0.tar.gz", hash = "sha256:37dd54208da7e1cd875388217d5e00ebd4179249f90fb72437e91a35459a0ad3", size = 342432, upload-time = "2024-03-01T18:36:20.211Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ec/57/56b9bcc3c9c6a792fcbaf139543cee77261f3651ca9da0c93f5c1221264b/python_dateutil-2.9.0.post0-py2.py3-none-any.whl", hash = "sha256:a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427", size = 229892, upload-time = "2024-03-01T18:36:18.57Z" },
+]
+
+[[package]]
 name = "python-docx"
 version = "1.2.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2830,6 +2842,15 @@ wheels = [
 ]
 
 [[package]]
+name = "six"
+version = "1.17.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/94/e7/b2c673351809dca68a0e064b6af791aa332cf192da575fd474ed7d6f16a2/six-1.17.0.tar.gz", hash = "sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81", size = 34031, upload-time = "2024-12-04T17:35:28.174Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl", hash = "sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274", size = 11050, upload-time = "2024-12-04T17:35:26.475Z" },
+]
+
+[[package]]
 name = "sniffio"
 version = "1.3.1"
 source = { registry = "https://pypi.org/simple" }
@@ -2907,6 +2928,7 @@ dependencies = [
     { name = "tale-shared" },
     { name = "tale-telemetry" },
     { name = "tiktoken" },
+    { name = "ultimate-sitemap-parser" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -2947,6 +2969,7 @@ requires-dist = [
     { name = "tale-shared", directory = "../../packages/tale_shared" },
     { name = "tale-telemetry", directory = "../../packages/tale_telemetry" },
     { name = "tiktoken", specifier = ">=0.9.0" },
+    { name = "ultimate-sitemap-parser", specifier = ">=1.8.0" },
     { name = "uvicorn", extras = ["standard"], specifier = "==0.44.0" },
 ]
 provides-extras = ["dev"]
@@ -3211,6 +3234,19 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/55/e3/70399cb7dd41c10ac53367ae42139cf4b1ca5f36bb3dc6c9d33acdb43655/typing_inspection-0.4.2.tar.gz", hash = "sha256:ba561c48a67c5958007083d386c3295464928b01faa735ab8547c5692e87f464", size = 75949, upload-time = "2025-10-01T02:14:41.687Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/dc/9b/47798a6c91d8bdb567fe2698fe81e0c6b7cb7ef4d13da4114b41d239f65d/typing_inspection-0.4.2-py3-none-any.whl", hash = "sha256:4ed1cacbdc298c220f1bd249ed5287caa16f34d44ef4e9c3d0cbad5b521545e7", size = 14611, upload-time = "2025-10-01T02:14:40.154Z" },
+]
+
+[[package]]
+name = "ultimate-sitemap-parser"
+version = "1.8.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "python-dateutil" },
+    { name = "requests" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8e/87/b4767b5181b0a6b7aafa5021b6b37b3eea104ba8ad80d3b527e8f423c85c/ultimate_sitemap_parser-1.8.0.tar.gz", hash = "sha256:b89e173a7a30ae8d3fbf5c51e8b72985f2f1240e338064a315f35652c89442bc", size = 39440, upload-time = "2026-01-25T12:35:48.862Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/43/96/6d3eee0013dfebd45b2e3650d4db96c27471f30115dbfcb9e0a002406c1a/ultimate_sitemap_parser-1.8.0-py3-none-any.whl", hash = "sha256:438dcfe8aa8efc4e587b567a4abc8b1d2486c52b5ca52d5c81520f08e0434449", size = 44219, upload-time = "2026-01-25T12:35:47.699Z" },
 ]
 
 [[package]]

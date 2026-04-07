@@ -226,11 +226,9 @@ class TestBrowserConfig:
 
         with (
             patch("crawl4ai.BrowserConfig") as mock_bc,
-            patch("crawl4ai.AsyncUrlSeeder") as mock_seeder,
             patch("crawl4ai.AsyncWebCrawler") as mock_crawler,
         ):
             mock_bc.side_effect = lambda **kwargs: captured_config.update(kwargs) or MagicMock()
-            mock_seeder.return_value.__aenter__ = AsyncMock()
             mock_crawler.return_value.__aenter__ = AsyncMock()
 
             service = CrawlerService()

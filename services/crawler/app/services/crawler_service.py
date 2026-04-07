@@ -9,6 +9,7 @@ This service uses Crawl4AI to:
 """
 
 import asyncio
+import fnmatch
 import gc
 import logging
 from typing import Any
@@ -28,7 +29,6 @@ class CrawlerService:
 
     def __init__(self, crawl_count_before_restart: int = 25):
         self.initialized = False
-        self._seeder = None
         self._crawler = None
         self._crawl_count = 0
         self._crawl_count_before_restart = crawl_count_before_restart
@@ -41,7 +41,7 @@ class CrawlerService:
 
         # Import here to avoid issues if crawl4ai is not installed
         try:
-            from crawl4ai import AsyncUrlSeeder, AsyncWebCrawler, BrowserConfig
+            from crawl4ai import AsyncWebCrawler, BrowserConfig
         except ImportError as e:
             logger.error(f"Failed to import crawl4ai: {e}")
             raise RuntimeError("crawl4ai is not installed. Install with: pip install crawl4ai") from e
@@ -55,11 +55,7 @@ class CrawlerService:
                 "--disable-crash-reporter",
             ],
         )
-        self._seeder = AsyncUrlSeeder()
         self._crawler = AsyncWebCrawler(config=browser_config)
-
-        # Initialize the seeder and crawler
-        await self._seeder.__aenter__()
         await self._crawler.__aenter__()
 
         self.initialized = True
@@ -89,8 +85,6 @@ class CrawlerService:
             return
 
         try:
-            if self._seeder:
-                await self._seeder.__aexit__(None, None, None)
             if self._crawler:
                 await self._crawler.__aexit__(None, None, None)
             logger.info("Crawl4AI service cleaned up successfully")
@@ -98,7 +92,6 @@ class CrawlerService:
             logger.error(f"Error during Crawl4AI cleanup: {e}")
         finally:
             self.initialized = False
-            self._seeder = None
             self._crawler = None
 
     def is_website_url(self, url: str) -> bool:
@@ -224,84 +217,60 @@ class CrawlerService:
         extract_head: bool = False,
     ) -> list[dict[str, Any]]:
         """
-        Discover all URLs on a website using sitemaps and Common Crawl.
+        Discover all URLs on a website using sitemap parsing.
+
+        Uses ultimate-sitemap-parser instead of crawl4ai's AsyncUrlSeeder because
+        the latter has two bugs that cause silent failures on many real-world sites:
+
+        1. HEAD/GET inconsistency: AsyncUrlSeeder probes sitemap existence with HEAD
+           requests, but some servers (e.g. legacy CMS) return different status codes
+           for HEAD vs GET on the same URL (HEAD -> 301 -> 404, GET -> 301 -> 200).
+           This causes sitemap detection to fail even when the sitemap is accessible.
+
+        2. Double gzip decompression: When a .xml.gz sitemap is served with
+           Content-Encoding: gzip, httpx auto-decompresses the transport layer.
+           AsyncUrlSeeder then tries gzip.decompress() again based on the .gz file
+           extension, which fails silently and returns 0 URLs.
+
+        ultimate-sitemap-parser handles both cases gracefully — it uses GET requests
+        throughout and falls back to raw XML parsing when gunzip fails.
 
         Args:
             domain: The domain to discover URLs from (e.g., "docs.example.com")
             max_urls: Maximum number of URLs to discover (-1 for unlimited)
             pattern: Optional URL pattern filter (e.g., "*/docs/*")
-            query: Optional search query for BM25 scoring
+            query: Unused, kept for API compatibility
             timeout: Timeout in seconds for URL discovery (default: 1800 seconds / 30 minutes)
-            extract_head: Whether to fetch and parse <head> for each URL (slower but richer metadata)
+            extract_head: Unused, kept for API compatibility
 
         Returns:
             List of discovered URLs with metadata
         """
-        if not self.initialized:
-            await self.initialize()
+        from usp.tree import sitemap_tree_for_homepage
 
-        from crawl4ai import AsyncUrlSeeder, SeedingConfig
+        homepage = f"https://{domain}/"
+        logger.info(f"Discovering URLs from {domain} using ultimate-sitemap-parser...")
 
-        # Try sitemap first (fastest, most reliable), then fall back to Common Crawl
-        # (covers sites without sitemaps). Re-initialize seeder between retries to
-        # avoid stale httpx client state from crawl4ai's async generator cleanup bug.
-        sources_to_try = ["sitemap", "cc"]
+        def _discover():
+            tree = sitemap_tree_for_homepage(homepage)
+            urls = []
+            for page in tree.all_pages():
+                if 0 < max_urls <= len(urls):
+                    break
+                url = page.url
+                if pattern and not fnmatch.fnmatch(url, pattern):
+                    continue
+                urls.append({"url": url})
+            return urls
 
-        for source in sources_to_try:
-            try:
-                config = SeedingConfig(
-                    source=source,
-                    extract_head=extract_head,
-                    max_urls=max_urls if max_urls > 0 else -1,
-                    filter_nonsense_urls=True,
-                    pattern=pattern,
-                    query=query,
-                    scoring_method="bm25" if query else None,
-                    score_threshold=0.3 if query else None,
-                    concurrency=3,
-                    hits_per_sec=1,
-                    verbose=True,
-                )
+        urls = await asyncio.wait_for(
+            asyncio.to_thread(_discover),
+            timeout=timeout,
+        )
 
-                logger.info(f"Discovering URLs from {domain} using source: {source} with timeout: {timeout}s...")
-
-                urls = await asyncio.wait_for(
-                    self._seeder.urls(domain, config),
-                    timeout=timeout,
-                )
-
-                logger.info(f"Seeder returned {len(urls)} URLs for {domain} from source {source}")
-
-                if urls:
-                    logger.info(
-                        "Discovered %s URLs from %s (source: %s)",
-                        len(urls),
-                        domain,
-                        source,
-                    )
-                    _cleanup_memory()
-                    return urls
-
-                logger.info(f"Source '{source}' returned 0 URLs for {domain}, trying next source...")
-
-            except TimeoutError:
-                logger.warning(f"Timeout discovering URLs with source '{source}', trying next source...")
-
-            except Exception as e:
-                logger.warning(f"Error discovering URLs with source '{source}': {e}")
-
-            # Re-initialize seeder before next retry to get a fresh httpx client
-            _cleanup_memory()
-            if source != sources_to_try[-1]:
-                try:
-                    if self._seeder:
-                        await self._seeder.__aexit__(None, None, None)
-                except Exception:
-                    pass
-                self._seeder = AsyncUrlSeeder()
-                await self._seeder.__aenter__()
-
-        raise Exception(f"Failed to discover URLs from {domain}: all sources exhausted")
+        logger.info(f"Discovered {len(urls)} URLs from {domain}")
+        _cleanup_memory()
+        return urls
 
     async def crawl_urls(
         self,

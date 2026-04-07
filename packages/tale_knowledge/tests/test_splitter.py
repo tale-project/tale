@@ -65,7 +65,7 @@ class TestChunkContent:
     def test_default_values(self):
         assert CHUNK_SIZE == 2048
         assert CHUNK_OVERLAP == 200
-        assert MIN_CHUNK_LENGTH == 50
+        assert MIN_CHUNK_LENGTH == 100
 
     def test_long_content_multiple_chunks(self):
         # Generate content that's definitely larger than one chunk

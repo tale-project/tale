@@ -23,25 +23,25 @@ class TestChunkContentEmptyInput:
 
 class TestChunkContentSingleChunk:
     def test_short_content_returns_one_chunk(self):
-        text = "Hello world, this is a test of the chunking service module."
+        text = "Hello world, this is a test of the chunking service module that needs to be long enough to pass the minimum chunk length filter."
         result = chunk_content(text)
         assert len(result) == 1
         assert result[0].content == text
         assert result[0].index == 0
 
     def test_content_is_stripped(self):
-        text = "Hello world, this is a test of the chunking service module."
+        text = "Hello world, this is a test of the chunking service module that needs to be long enough to pass the minimum chunk length filter."
         result = chunk_content(f"  {text}  \n\n")
         assert result[0].content == text
 
     def test_returns_content_chunk_dataclass(self):
-        text = "Hello world, this is a test of the chunking service module."
+        text = "Hello world, this is a test of the chunking service module that needs to be long enough to pass the minimum chunk length filter."
         result = chunk_content(text)
         assert isinstance(result[0], ContentChunk)
 
 
 class TestChunkContentWithTitle:
-    BODY = "Some body text here that is long enough to pass the minimum chunk length filter."
+    BODY = "Some body text here that is long enough to pass the minimum chunk length filter for the chunking service test suite."
 
     def test_title_prepended_to_single_chunk(self):
         result = chunk_content(self.BODY, title="My Title")
@@ -73,7 +73,7 @@ class TestChunkContentWithTitle:
 
 
 class TestChunkContentWithUrl:
-    BODY = "Some body text here that is long enough to pass the minimum chunk length filter."
+    BODY = "Some body text here that is long enough to pass the minimum chunk length filter for the chunking service test suite."
 
     def test_url_prepended_to_single_chunk(self):
         result = chunk_content(self.BODY, url="https://example.com/page")
@@ -159,7 +159,7 @@ class TestChunkContentLargeParagraphSentenceSplitting:
     def test_sentences_distributed_across_chunks(self):
         sentences = [f"This is a fairly long sentence number {i} here." for i in range(30)]
         large_para = " ".join(sentences)
-        result = chunk_content(large_para, chunk_size=200, chunk_overlap=20)
+        result = chunk_content(large_para, chunk_size=300, chunk_overlap=20, min_chunk_length=50)
         combined = " ".join(c.content for c in result)
         for s in sentences:
             assert s in combined
@@ -205,19 +205,19 @@ class TestChunkContentMinChunkLength:
 class TestChunkContentCustomParams:
     def test_custom_chunk_size(self):
         content = "Word " * 200
-        result_small = chunk_content(content, chunk_size=100, chunk_overlap=10)
+        result_small = chunk_content(content, chunk_size=200, chunk_overlap=10)
         result_large = chunk_content(content, chunk_size=2000, chunk_overlap=10)
         assert len(result_small) > len(result_large)
 
     def test_defaults_match_constants(self):
         assert CHUNK_SIZE == 2048
         assert CHUNK_OVERLAP == 200
-        assert MIN_CHUNK_LENGTH == 50
+        assert MIN_CHUNK_LENGTH == 100
 
 
 class TestChunkContentIndexNumbering:
     def test_single_chunk_has_index_zero(self):
-        text = "Hello world, this is a test of the chunking service module."
+        text = "Hello world, this is a test of the chunking service module that needs to be long enough to pass the minimum chunk length filter."
         result = chunk_content(text)
         assert result[0].index == 0
 
@@ -272,7 +272,9 @@ class TestMarkdownAwareChunking:
 
     def test_nested_headers_produce_chunks(self):
         content = (
-            "# Top Level\n\nIntro text here.\n\n## Sub Section\n\nSub text here.\n\n### Deep Section\n\nDeep text here."
+            "# Top Level\n\nIntro text here with enough content to pass the minimum length filter.\n\n"
+            "## Sub Section\n\nSub text here with additional words to ensure it is long enough.\n\n"
+            "### Deep Section\n\nDeep text here with more words to reach the required minimum length."
         )
         result = chunk_content(content, chunk_size=2048)
         combined = "\n".join(c.content for c in result)
@@ -287,7 +289,11 @@ class TestMarkdownAwareChunking:
         assert len(result) > 1
 
     def test_short_sections_merged_into_one_chunk(self):
-        content = "## A\n\nShort text.\n\n## B\n\nAnother short text.\n\n## C\n\nYet another."
+        content = (
+            "## Section A\n\nThis section has enough text to contribute to the merged chunk.\n\n"
+            "## Section B\n\nAnother section with sufficient content for the minimum length.\n\n"
+            "## Section C\n\nYet another section that adds words to reach the required threshold."
+        )
         result = chunk_content(content, chunk_size=2048)
         assert len(result) == 1
 
