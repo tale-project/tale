@@ -11,6 +11,23 @@ export function clearTemplateCache() {
   cache.clear();
 }
 
+/**
+ * Ensures the fetched config JSON contains a `name` field.
+ * Remote template configs omit `name` because the directory name serves as the
+ * identifier, but the validation schema requires it.
+ */
+function injectTemplateName(configText: string, name: string): string {
+  try {
+    const parsed: unknown = JSON.parse(configText);
+    if (typeof parsed === 'object' && parsed !== null && !('name' in parsed)) {
+      return JSON.stringify(Object.assign({ name }, parsed));
+    }
+    return configText;
+  } catch {
+    return configText;
+  }
+}
+
 export async function fetchTemplateFiles(
   template: IntegrationTemplate,
 ): Promise<ParseResult> {
@@ -42,8 +59,9 @@ export async function fetchTemplateFiles(
   const files: File[] = [];
 
   const configText = await configResp.text();
+  const configWithName = injectTemplateName(configText, template.name);
   files.push(
-    new File([configText], 'config.json', { type: 'application/json' }),
+    new File([configWithName], 'config.json', { type: 'application/json' }),
   );
 
   if (connectorResp?.ok) {
