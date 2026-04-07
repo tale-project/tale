@@ -49,6 +49,7 @@ export const documentsTable = defineTable({
   sourceModifiedAt: v.optional(v.number()),
   createdBy: v.optional(v.string()),
   folderId: v.optional(v.id('folders')),
+  folderPath: v.optional(v.string()),
   metadata: v.optional(jsonRecordValidator),
 })
   .index('by_organizationId', ['organizationId'])
@@ -65,4 +66,5 @@ export const documentsTable = defineTable({
   .index('by_organizationId_and_extension', ['organizationId', 'extension'])
   .index('by_organizationId_and_title', ['organizationId', 'title'])
   .index('by_organizationId_and_fileId', ['organizationId', 'fileId'])
-  .index('by_organizationId_and_indexed', ['organizationId', 'indexed']);
+  .index('by_organizationId_and_indexed', ['organizationId', 'indexed'])
+  .index('by_organizationId_and_folderPath', ['organizationId', 'folderPath']);

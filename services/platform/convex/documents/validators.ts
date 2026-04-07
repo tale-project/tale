@@ -128,6 +128,7 @@ export const documentRecordValidator = v.object({
   mimeType: v.optional(v.string()),
   extension: v.optional(v.string()),
   folderId: v.optional(v.string()),
+  folderPath: v.optional(v.string()),
   metadata: v.optional(jsonRecordValidator),
   sourceProvider: v.optional(sourceProviderValidator),
   externalItemId: v.optional(v.string()),
