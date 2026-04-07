@@ -3,14 +3,16 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate } from '@tanstack/react-router';
 import { ConvexError } from 'convex/values';
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod/v4';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
+import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Text } from '@/app/components/ui/typography/text';
+import { useListProviders } from '@/app/features/settings/providers/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
@@ -37,6 +39,46 @@ export function CreateAgentDialog({
   const { t: tCommon } = useT('common');
   const navigate = useNavigate();
   const { mutateAsync: saveAgent } = useSaveAgent();
+  const { providers } = useListProviders('default');
+
+  const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
+  const [modelSelectOpen, setModelSelectOpen] = useState(false);
+
+  const modelOptions = useMemo(() => {
+    const allModels: { id: string; displayName: string }[] = [];
+    for (const provider of providers) {
+      if (
+        !provider ||
+        !('models' in provider) ||
+        !Array.isArray(provider.models)
+      )
+        continue;
+      for (const model of provider.models) {
+        allModels.push({ id: model.id, displayName: model.displayName });
+      }
+    }
+    return allModels.map((m) => ({ value: m.id, label: m.displayName }));
+  }, [providers]);
+
+  // Auto-select first model when providers load and no selection exists
+  useEffect(() => {
+    if (!selectedModelId && modelOptions.length > 0) {
+      setSelectedModelId(modelOptions[0].value);
+    }
+  }, [selectedModelId, modelOptions]);
+
+  const selectedModelLabel = useMemo(
+    () =>
+      modelOptions.find((o) => o.value === selectedModelId)?.label ??
+      selectedModelId?.split('/').pop() ??
+      t('agents.createDialog.modelPlaceholder'),
+    [modelOptions, selectedModelId, t],
+  );
+
+  const handleModelChange = useCallback((value: string) => {
+    setSelectedModelId(value);
+    setModelSelectOpen(false);
+  }, []);
 
   const formSchema = useMemo(
     () =>
@@ -77,10 +119,16 @@ export function CreateAgentDialog({
   });
 
   useEffect(() => {
-    if (!open) reset();
+    if (!open) {
+      reset();
+      setSelectedModelId(null);
+    }
   }, [open, reset]);
 
   const onSubmit = async (data: FormData) => {
+    const modelId = selectedModelId ?? modelOptions[0]?.value;
+    if (!modelId) return;
+
     try {
       await saveAgent({
         orgSlug: 'default',
@@ -90,7 +138,7 @@ export function CreateAgentDialog({
           displayName: data.displayName,
           description: data.description,
           systemInstructions: 'You are a helpful assistant.',
-          supportedModels: ['moonshotai/kimi-k2.5'],
+          supportedModels: [modelId],
         },
       });
       toast({
@@ -153,6 +201,36 @@ export function CreateAgentDialog({
         placeholder={t('agents.form.descriptionPlaceholder')}
         rows={3}
       />
+
+      <div>
+        <label
+          htmlFor="model-select"
+          className="text-foreground mb-1.5 block text-sm font-medium"
+        >
+          {t('agents.createDialog.model')}
+        </label>
+        <SearchableSelect
+          value={selectedModelId}
+          onValueChange={handleModelChange}
+          options={modelOptions}
+          open={modelSelectOpen}
+          onOpenChange={setModelSelectOpen}
+          searchPlaceholder={t('agents.createDialog.modelSearch')}
+          emptyText={t('agents.createDialog.modelEmpty')}
+          aria-label={t('agents.createDialog.model')}
+          trigger={
+            <button
+              id="model-select"
+              type="button"
+              className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus:ring-ring flex h-9 w-full items-center justify-between rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-none"
+            >
+              <span className={selectedModelId ? '' : 'text-muted-foreground'}>
+                {selectedModelLabel}
+              </span>
+            </button>
+          }
+        />
+      </div>
     </FormDialog>
   );
 }
