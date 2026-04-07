@@ -1,9 +1,16 @@
-import { Outlet, createFileRoute } from '@tanstack/react-router';
+import { Outlet, createFileRoute, redirect } from '@tanstack/react-router';
 
 import { VStack, Spacer } from '@/app/components/ui/layout/layout';
 import { LogoLink } from '@/app/components/ui/logo/logo-link';
+import { authClient } from '@/lib/auth-client';
 
 export const Route = createFileRoute('/_auth')({
+  beforeLoad: async () => {
+    const session = await authClient.getSession();
+    if (session?.data?.user) {
+      throw redirect({ to: '/dashboard' });
+    }
+  },
   component: AuthLayout,
 });
 
