@@ -492,6 +492,11 @@
       "settings": "Settings",
       "helpFeedback": "Help & feedback",
       "logOut": "Log out",
+      "logOutConfirm": {
+        "title": "Log out",
+        "description": "Are you sure you want to log out?",
+        "confirm": "Log out"
+      },
       "toast": {
         "signedOut": "Signed out",
         "signedOutDescription": "You have been signed out successfully",
