@@ -28,7 +28,9 @@ export function TeamMemberChecklist({
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-4">
-        <p className="text-muted-foreground text-sm">Loading...</p>
+        <p className="text-muted-foreground text-sm">
+          {tSettings('teams.loadingMembers')}
+        </p>
       </div>
     );
   }
@@ -66,7 +68,9 @@ export function TeamMemberChecklist({
               />
               <span className="flex items-center gap-2">
                 <span className="text-foreground text-sm">
-                  {member.displayName || member.email || 'Unknown'}
+                  {member.displayName ||
+                    member.email ||
+                    tSettings('teams.unknownMember')}
                 </span>
                 {member.displayName &&
                   member.email &&

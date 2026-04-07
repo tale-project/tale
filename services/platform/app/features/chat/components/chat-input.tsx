@@ -254,9 +254,9 @@ export function ChatInput({
                   key={fileId}
                   role="status"
                   aria-label={tChat('uploadingFile')}
-                  className="flex size-9 items-center justify-center overflow-hidden rounded-lg border border-[#E5E7EB] bg-[#F3F4F6]"
+                  className="border-border bg-muted flex size-9 items-center justify-center overflow-hidden rounded-lg border"
                 >
-                  <Loader className="size-4 animate-spin text-[#9CA3AF]" />
+                  <Loader className="text-muted-foreground size-4 animate-spin" />
                 </div>
               ))}
             </HStack>

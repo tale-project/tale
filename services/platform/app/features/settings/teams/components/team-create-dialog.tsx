@@ -98,11 +98,19 @@ export function TeamCreateDialog({
           await addMember({ teamId, userId, organizationId });
         }
       } else {
-        await Promise.all(
+        const results = await Promise.allSettled(
           memberIds.map((userId) =>
             addMember({ teamId, userId, organizationId }),
           ),
         );
+        const failedCount = results.filter(
+          (r) => r.status === 'rejected',
+        ).length;
+        if (failedCount > 0) {
+          console.warn(
+            `Failed to add ${failedCount} of ${memberIds.length} members`,
+          );
+        }
       }
 
       const memberCount = memberIds.length > 0 ? memberIds.length : 1;

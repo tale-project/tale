@@ -656,7 +656,9 @@
       "showingAllTeams": "Showing all {count} {count, plural, one {team} other {teams}}",
       "teamName": "Team name",
       "teamNamePlaceholder": "Enter team name...",
-      "saveChanges": "Save changes"
+      "saveChanges": "Save changes",
+      "loadingMembers": "Loading...",
+      "unknownMember": "Unknown"
     },
     "agents": {
       "title": "Agents",

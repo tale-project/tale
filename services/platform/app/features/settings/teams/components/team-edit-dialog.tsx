@@ -88,6 +88,7 @@ export function TeamEditDialog({
     setSelectedMemberIds((prev) => {
       const next = new Set(prev);
       if (next.has(userId)) {
+        if (next.size <= 1) return prev; // Prevent removing last member
         next.delete(userId);
       } else {
         next.add(userId);
@@ -130,7 +131,7 @@ export function TeamEditDialog({
           (m) => !selectedMemberIds.has(m.userId),
         );
 
-        await Promise.all([
+        const results = await Promise.allSettled([
           ...toAdd.map((userId) =>
             addTeamMember.mutateAsync({
               teamId: team.id,
@@ -145,6 +146,10 @@ export function TeamEditDialog({
             }),
           ),
         ]);
+        const failures = results.filter((r) => r.status === 'rejected');
+        if (failures.length > 0) {
+          console.warn('Some membership changes failed:', failures);
+        }
       }
 
       toast({

@@ -83,7 +83,7 @@ const TableHead = forwardRef<
     ref={ref}
     scope={scope}
     className={cn(
-      'h-10 px-3 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 last:rounded-rt-xl first:rounded-lt-xl text-nowrap',
+      'h-10 px-3 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 last:rounded-tr-xl first:rounded-tl-xl text-nowrap',
       className,
     )}
     {...props}
