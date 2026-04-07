@@ -1,6 +1,10 @@
 import { v } from 'convex/values';
 
 import {
+  isAllowedDocumentUpload,
+  resolveFileType,
+} from '../../lib/shared/file-types';
+import {
   jsonValueValidator,
   jsonRecordValidator,
 } from '../../lib/shared/schemas/utils/json-value';
@@ -114,6 +118,16 @@ export const createDocumentFromUpload = mutation({
       email: authUser.email,
       name: authUser.name,
     });
+
+    const resolvedContentType = resolveFileType(
+      args.fileName,
+      args.contentType ?? '',
+    );
+    if (!isAllowedDocumentUpload(resolvedContentType, args.fileName)) {
+      throw new Error(
+        'Unsupported file type. Supported formats: PDF, DOCX, XLSX, CSV, TXT, PPTX, images (JPEG, PNG, GIF, WEBP).',
+      );
+    }
 
     let effectiveTeamId = args.teamId;
 

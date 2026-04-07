@@ -14,6 +14,8 @@ import { useT } from '@/lib/i18n/client';
 import {
   DOCUMENT_UPLOAD_ACCEPT,
   DOCUMENT_MAX_FILE_SIZE,
+  isAllowedDocumentUpload,
+  resolveFileType,
 } from '@/lib/shared/file-types';
 import { cn } from '@/lib/utils/cn';
 import { formatBytes } from '@/lib/utils/format/number';
@@ -105,9 +107,19 @@ export function DocumentUploadDialog({
       const validFiles: File[] = [];
 
       for (const file of files) {
-        if (file.size <= DOCUMENT_MAX_FILE_SIZE) {
-          validFiles.push(file);
-        } else {
+        const resolved = resolveFileType(file.name, file.type);
+        if (!isAllowedDocumentUpload(resolved, file.name)) {
+          toast({
+            title: tDocuments('upload.unsupportedFileType'),
+            description: tDocuments('upload.unsupportedFileTypeDescription', {
+              name: file.name,
+            }),
+            variant: 'destructive',
+          });
+          continue;
+        }
+
+        if (file.size > DOCUMENT_MAX_FILE_SIZE) {
           const currentSizeMB = (file.size / (1024 * 1024)).toFixed(1);
           toast({
             title: tDocuments('upload.fileTooLarge'),
@@ -118,7 +130,10 @@ export function DocumentUploadDialog({
             }),
             variant: 'destructive',
           });
+          continue;
         }
+
+        validFiles.push(file);
       }
 
       if (validFiles.length > 0) {
