@@ -190,6 +190,7 @@ export function CustomersTable({
       isLoading: paginatedResult.isLoading,
     },
     pageSize,
+    displayMode: 'pagination',
     search: {
       fields: ['name', 'email', 'externalId'],
       placeholder: searchPlaceholder,
