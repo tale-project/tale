@@ -223,7 +223,7 @@ export const CHAT_UPLOAD_ALLOWED_TYPES: readonly string[] = [
 ];
 
 /** Allowed MIME types for document uploads (used for client + server validation) */
-export const DOCUMENT_UPLOAD_ALLOWED_TYPES: ReadonlySet<string> = new Set([
+const DOCUMENT_UPLOAD_ALLOWED_TYPES: ReadonlySet<string> = new Set([
   MIME_TYPES.PDF,
   MIME_TYPES.DOC,
   MIME_TYPES.DOCX,
@@ -240,7 +240,7 @@ export const DOCUMENT_UPLOAD_ALLOWED_TYPES: ReadonlySet<string> = new Set([
 ]);
 
 /** Allowed extensions for document uploads (fallback when MIME is unreliable) */
-export const DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS: ReadonlySet<string> = new Set([
+const DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS: ReadonlySet<string> = new Set([
   'pdf',
   'doc',
   'docx',

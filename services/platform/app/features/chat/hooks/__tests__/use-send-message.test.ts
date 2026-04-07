@@ -146,7 +146,7 @@ describe('useSendMessage — error handling', () => {
 
     expect(params.clearChatState).toHaveBeenCalledOnce();
 
-    params.clearChatState.mockClear();
+    vi.mocked(params.clearChatState).mockClear();
     mockResetGlobalFreeze.mockClear();
 
     await act(async () => {
