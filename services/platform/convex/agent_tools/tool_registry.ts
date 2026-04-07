@@ -8,6 +8,7 @@
 import type { ToolName } from './tool_names';
 import type { ToolDefinition } from './types';
 
+import { conversationReadTool } from './conversations/conversation_read_tool';
 import { customerReadTool } from './customers/customer_read_tool';
 import { databaseSchemaTool } from './database/database_schema_tool';
 import { documentFindTool } from './documents/document_find_tool';
@@ -66,6 +67,7 @@ export const TOOL_REGISTRY = [
   documentRetrieveTool,
   documentWriteTool,
   requestUserLocationTool,
+  conversationReadTool,
 ] as const;
 
 /**
