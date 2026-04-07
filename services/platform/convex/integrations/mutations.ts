@@ -69,9 +69,8 @@ export const deleteIntegration = mutation({
 
     await deleteIntegrationHelper(ctx, args.integrationId);
 
-    await AuditLogHelpers.logSuccess(
-      ctx,
-      {
+    await AuditLogHelpers.logSuccess(ctx, {
+      auditCtx: {
         organizationId: integration.organizationId,
         actor: {
           id: String(authUser._id),
@@ -80,19 +79,18 @@ export const deleteIntegration = mutation({
           type: 'user',
         },
       },
-      'delete_integration',
-      'integration',
-      'integration',
-      String(args.integrationId),
-      integration.name ?? integration.title,
-      {
+      action: 'delete_integration',
+      category: 'integration',
+      resourceType: 'integration',
+      resourceId: String(args.integrationId),
+      resourceName: integration.name ?? integration.title,
+      previousState: {
         name: integration.name,
         title: integration.title,
         type: integration.type,
         authMethod: integration.authMethod,
       },
-      undefined,
-    );
+    });
 
     return null;
   },

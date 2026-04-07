@@ -23,15 +23,14 @@ export async function reopenConversation(
     metadata: restMetadata,
   });
 
-  await AuditLogHelpers.logSuccess(
-    ctx,
-    await buildAuditContext(ctx, conversation.organizationId),
-    'reopen_conversation',
-    'data',
-    'conversation',
-    String(args.conversationId),
-    conversation.subject,
-    { status: previousStatus },
-    { status: 'open' },
-  );
+  await AuditLogHelpers.logSuccess(ctx, {
+    auditCtx: await buildAuditContext(ctx, conversation.organizationId),
+    action: 'reopen_conversation',
+    category: 'data',
+    resourceType: 'conversation',
+    resourceId: String(args.conversationId),
+    resourceName: conversation.subject,
+    previousState: { status: previousStatus },
+    newState: { status: 'open' },
+  });
 }

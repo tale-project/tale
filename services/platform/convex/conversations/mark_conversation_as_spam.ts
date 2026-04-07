@@ -17,15 +17,14 @@ export async function markConversationAsSpam(
 
   await ctx.db.patch(args.conversationId, { status: 'spam' });
 
-  await AuditLogHelpers.logSuccess(
-    ctx,
-    await buildAuditContext(ctx, conversation.organizationId),
-    'mark_conversation_as_spam',
-    'data',
-    'conversation',
-    String(args.conversationId),
-    conversation.subject,
-    { status: previousStatus },
-    { status: 'spam' },
-  );
+  await AuditLogHelpers.logSuccess(ctx, {
+    auditCtx: await buildAuditContext(ctx, conversation.organizationId),
+    action: 'mark_conversation_as_spam',
+    category: 'data',
+    resourceType: 'conversation',
+    resourceId: String(args.conversationId),
+    resourceName: conversation.subject,
+    previousState: { status: previousStatus },
+    newState: { status: 'spam' },
+  });
 }

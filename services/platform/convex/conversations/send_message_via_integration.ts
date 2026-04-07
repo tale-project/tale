@@ -166,22 +166,20 @@ export async function sendMessageViaIntegration(
     });
   }
 
-  await AuditLogHelpers.logSuccess(
-    ctx,
-    await buildAuditContext(ctx, args.organizationId),
-    'send_message_via_integration',
-    'data',
-    'conversationMessage',
-    String(messageId),
-    args.subject,
-    undefined,
-    {
+  await AuditLogHelpers.logSuccess(ctx, {
+    auditCtx: await buildAuditContext(ctx, args.organizationId),
+    action: 'send_message_via_integration',
+    category: 'data',
+    resourceType: 'conversationMessage',
+    resourceId: String(messageId),
+    resourceName: args.subject,
+    newState: {
       conversationId: String(args.conversationId),
       integrationName: args.integrationName,
       to: args.to,
       subject: args.subject,
     },
-  );
+  });
 
   return messageId;
 }

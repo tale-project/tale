@@ -27,25 +27,23 @@ export async function createConversation(
     metadata: toConvexJsonRecord(args.metadata),
   });
 
-  await AuditLogHelpers.logSuccess(
-    ctx,
-    {
+  await AuditLogHelpers.logSuccess(ctx, {
+    auditCtx: {
       organizationId: args.organizationId,
       actor: { id: 'system', type: 'system' as const },
     },
-    'create_conversation',
-    'data',
-    'conversation',
-    String(conversationId),
-    args.subject,
-    undefined,
-    {
+    action: 'create_conversation',
+    category: 'data',
+    resourceType: 'conversation',
+    resourceId: String(conversationId),
+    resourceName: args.subject,
+    newState: {
       channel: args.channel,
       direction: args.direction,
       status: args.status ?? 'open',
       priority: args.priority ?? 'medium',
     },
-  );
+  });
 
   const conversation = await ctx.db.get(conversationId);
   if (conversation) {

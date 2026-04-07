@@ -167,101 +167,113 @@ export async function createAuditLog(
   return auditLogId;
 }
 
+interface LogSuccessOptions {
+  auditCtx: AuditContext;
+  action: string;
+  category: AuditLogCategory;
+  resourceType: string;
+  resourceId?: string;
+  resourceName?: string;
+  previousState?: Record<string, unknown>;
+  newState?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+}
+
 export async function logSuccess(
   ctx: MutationCtx,
-  auditCtx: AuditContext,
-  action: string,
-  category: AuditLogCategory,
-  resourceType: string,
-  resourceId?: string,
-  resourceName?: string,
-  previousState?: Record<string, unknown>,
-  newState?: Record<string, unknown>,
-  metadata?: Record<string, unknown>,
+  options: LogSuccessOptions,
 ): Promise<Id<'auditLogs'>> {
   return createAuditLog(ctx, {
-    organizationId: auditCtx.organizationId,
-    actorId: auditCtx.actor.id,
-    actorEmail: auditCtx.actor.email,
-    actorRole: auditCtx.actor.role,
-    actorType: auditCtx.actor.type,
-    action,
-    category,
-    resourceType,
-    resourceId,
-    resourceName,
-    previousState,
-    newState,
-    sessionId: auditCtx.sessionId,
-    ipAddress: auditCtx.ipAddress,
-    userAgent: auditCtx.userAgent,
-    requestId: auditCtx.requestId,
+    organizationId: options.auditCtx.organizationId,
+    actorId: options.auditCtx.actor.id,
+    actorEmail: options.auditCtx.actor.email,
+    actorRole: options.auditCtx.actor.role,
+    actorType: options.auditCtx.actor.type,
+    action: options.action,
+    category: options.category,
+    resourceType: options.resourceType,
+    resourceId: options.resourceId,
+    resourceName: options.resourceName,
+    previousState: options.previousState,
+    newState: options.newState,
+    sessionId: options.auditCtx.sessionId,
+    ipAddress: options.auditCtx.ipAddress,
+    userAgent: options.auditCtx.userAgent,
+    requestId: options.auditCtx.requestId,
     status: 'success',
-    metadata,
+    metadata: options.metadata,
   });
+}
+
+interface LogFailureOptions {
+  auditCtx: AuditContext;
+  action: string;
+  category: AuditLogCategory;
+  resourceType: string;
+  errorMessage: string;
+  resourceId?: string;
+  resourceName?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export async function logFailure(
   ctx: MutationCtx,
-  auditCtx: AuditContext,
-  action: string,
-  category: AuditLogCategory,
-  resourceType: string,
-  errorMessage: string,
-  resourceId?: string,
-  resourceName?: string,
-  metadata?: Record<string, unknown>,
+  options: LogFailureOptions,
 ): Promise<Id<'auditLogs'>> {
   return createAuditLog(ctx, {
-    organizationId: auditCtx.organizationId,
-    actorId: auditCtx.actor.id,
-    actorEmail: auditCtx.actor.email,
-    actorRole: auditCtx.actor.role,
-    actorType: auditCtx.actor.type,
-    action,
-    category,
-    resourceType,
-    resourceId,
-    resourceName,
-    sessionId: auditCtx.sessionId,
-    ipAddress: auditCtx.ipAddress,
-    userAgent: auditCtx.userAgent,
-    requestId: auditCtx.requestId,
+    organizationId: options.auditCtx.organizationId,
+    actorId: options.auditCtx.actor.id,
+    actorEmail: options.auditCtx.actor.email,
+    actorRole: options.auditCtx.actor.role,
+    actorType: options.auditCtx.actor.type,
+    action: options.action,
+    category: options.category,
+    resourceType: options.resourceType,
+    resourceId: options.resourceId,
+    resourceName: options.resourceName,
+    sessionId: options.auditCtx.sessionId,
+    ipAddress: options.auditCtx.ipAddress,
+    userAgent: options.auditCtx.userAgent,
+    requestId: options.auditCtx.requestId,
     status: 'failure',
-    errorMessage,
-    metadata,
+    errorMessage: options.errorMessage,
+    metadata: options.metadata,
   });
+}
+
+interface LogDeniedOptions {
+  auditCtx: AuditContext;
+  action: string;
+  category: AuditLogCategory;
+  resourceType: string;
+  reason: string;
+  resourceId?: string;
+  resourceName?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export async function logDenied(
   ctx: MutationCtx,
-  auditCtx: AuditContext,
-  action: string,
-  category: AuditLogCategory,
-  resourceType: string,
-  reason: string,
-  resourceId?: string,
-  resourceName?: string,
-  metadata?: Record<string, unknown>,
+  options: LogDeniedOptions,
 ): Promise<Id<'auditLogs'>> {
   return createAuditLog(ctx, {
-    organizationId: auditCtx.organizationId,
-    actorId: auditCtx.actor.id,
-    actorEmail: auditCtx.actor.email,
-    actorRole: auditCtx.actor.role,
-    actorType: auditCtx.actor.type,
-    action,
-    category,
-    resourceType,
-    resourceId,
-    resourceName,
-    sessionId: auditCtx.sessionId,
-    ipAddress: auditCtx.ipAddress,
-    userAgent: auditCtx.userAgent,
-    requestId: auditCtx.requestId,
+    organizationId: options.auditCtx.organizationId,
+    actorId: options.auditCtx.actor.id,
+    actorEmail: options.auditCtx.actor.email,
+    actorRole: options.auditCtx.actor.role,
+    actorType: options.auditCtx.actor.type,
+    action: options.action,
+    category: options.category,
+    resourceType: options.resourceType,
+    resourceId: options.resourceId,
+    resourceName: options.resourceName,
+    sessionId: options.auditCtx.sessionId,
+    ipAddress: options.auditCtx.ipAddress,
+    userAgent: options.auditCtx.userAgent,
+    requestId: options.auditCtx.requestId,
     status: 'denied',
-    errorMessage: reason,
-    metadata,
+    errorMessage: options.reason,
+    metadata: options.metadata,
   });
 }
 

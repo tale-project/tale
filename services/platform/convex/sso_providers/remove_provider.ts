@@ -27,9 +27,8 @@ export async function removeProvider(
 
   await ctx.db.delete(existing._id);
 
-  await AuditLogHelpers.logSuccess(
-    ctx,
-    {
+  await AuditLogHelpers.logSuccess(ctx, {
+    auditCtx: {
       organizationId: args.organizationId,
       actor: {
         id: args.actorId,
@@ -38,16 +37,15 @@ export async function removeProvider(
         type: 'user',
       },
     },
-    'sso_provider_deleted',
-    'integration',
-    'ssoProvider',
-    existing._id,
-    existing.providerId,
-    {
+    action: 'sso_provider_deleted',
+    category: 'integration',
+    resourceType: 'ssoProvider',
+    resourceId: existing._id,
+    resourceName: existing.providerId,
+    previousState: {
       providerId: existing.providerId,
     },
-    undefined,
-  );
+  });
 
   return null;
 }
