@@ -8,7 +8,10 @@ import type { ActionCtx } from '../../../../_generated/server';
 import type { LoadedIntegration } from '../../../../integrations/load_integration';
 
 import { internal } from '../../../../_generated/api';
-import { type SqlOperation } from '../../../../integrations/types';
+import {
+  type SqlEngine,
+  type SqlOperation,
+} from '../../../../integrations/types';
 import { createDebugLog } from '../../../../lib/debug_log';
 import { toConvexJsonRecord } from '../../../../lib/type_cast_helpers';
 import { decryptSqlCredentials } from './decrypt_sql_credentials';
@@ -36,6 +39,23 @@ export interface ApprovalRequiredResult {
 }
 
 /**
+ * Successful SQL query execution result
+ */
+export interface SqlExecutionSuccessResult {
+  requiresApproval: false;
+  name: string;
+  operation: string;
+  engine: SqlEngine;
+  data: unknown;
+  rowCount: number;
+  duration: number;
+}
+
+export type SqlIntegrationResult =
+  | ApprovalRequiredResult
+  | SqlExecutionSuccessResult;
+
+/**
  * SQL-narrowed LoadedIntegration with guaranteed SQL fields.
  */
 interface SqlLoadedIntegration extends LoadedIntegration {
@@ -55,7 +75,7 @@ export async function executeSqlIntegration(
   skipApprovalCheck: boolean = false,
   threadId?: string,
   messageId?: string,
-): Promise<unknown> {
+): Promise<SqlIntegrationResult> {
   // Debug: Log context received by SQL integration executor
   debugLog('Received context:', {
     hasThreadId: threadId !== undefined,
@@ -242,6 +262,7 @@ export async function executeSqlIntegration(
   );
 
   return {
+    requiresApproval: false,
     name: integration.name,
     operation,
     engine: sqlConnectionConfig.engine,
