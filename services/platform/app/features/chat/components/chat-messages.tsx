@@ -168,16 +168,24 @@ export function ChatMessages({
 
   // Keep min-height updated on window/footer resize.
   // Guards against feedback loops by skipping when the value is unchanged.
+  // Uses a rAF guard to coalesce rapid-fire ResizeObserver callbacks into
+  // a single layout recalculation per frame, preventing scrolling jitter.
   useEffect(() => {
     const container = containerRef.current;
     const responseArea = responseAreaRef.current;
     if (!container || !responseArea) return;
 
+    let rafId: number | null = null;
+
     const update = () => {
-      const next = `${computeResponseMinHeight(container, responseArea, lastUserMessageRef.current)}px`;
-      if (prevMinHeightRef.current === next) return;
-      prevMinHeightRef.current = next;
-      responseArea.style.minHeight = next;
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        const next = `${computeResponseMinHeight(container, responseArea, lastUserMessageRef.current)}px`;
+        if (prevMinHeightRef.current === next) return;
+        prevMinHeightRef.current = next;
+        responseArea.style.minHeight = next;
+      });
     };
 
     const ro = new ResizeObserver(update);
@@ -185,7 +193,10 @@ export function ChatMessages({
     const footer = container.querySelector('[class*="sticky"]');
     if (footer instanceof HTMLElement) ro.observe(footer);
 
-    return () => ro.disconnect();
+    return () => {
+      ro.disconnect();
+      if (rafId !== null) cancelAnimationFrame(rafId);
+    };
   }, [containerRef, lastUserMessageRef]);
 
   const renderMessage = (item: ChatItem) => {
@@ -303,8 +314,11 @@ export function ChatMessages({
           </div>
         )}
 
-        {/* Messages before the last user message */}
-        {beforeItems.map(renderMessage)}
+        {/* Messages before the last user message — content-visibility skips
+            rendering work for messages scrolled offscreen. */}
+        <div className="flex flex-col gap-4 [contain-intrinsic-size:auto_none] [content-visibility:auto]">
+          {beforeItems.map(renderMessage)}
+        </div>
 
         {/* Last user message */}
         {lastUserItem && renderMessage(lastUserItem)}
