@@ -13,8 +13,6 @@ import { useT } from '@/lib/i18n/client';
 
 import { useAddTeamMember, useRemoveTeamMember } from '../hooks/mutations';
 import { useTeamMembers, type Team } from '../hooks/queries';
-
-type TeamMemberItem = { _id: string; userId: string };
 import { TeamMemberChecklist } from './team-member-checklist';
 
 interface TeamEditDialogProps {
@@ -61,8 +59,7 @@ export function TeamEditDialog({
   // Sync selected members when team members data loads or dialog opens
   useEffect(() => {
     if (teamMembers && open) {
-      const members = teamMembers as TeamMemberItem[];
-      const memberIds = new Set(members.map((m) => m.userId));
+      const memberIds = new Set(teamMembers.map((m) => m.userId));
       setSelectedMemberIds(memberIds);
       initialMemberIdsRef.current = memberIds;
     }
@@ -119,12 +116,11 @@ export function TeamEditDialog({
 
       // Handle member changes
       if (hasMemberChanges && teamMembers) {
-        const members = teamMembers as TeamMemberItem[];
         const initial = initialMemberIdsRef.current;
         const toAdd = Array.from(selectedMemberIds).filter(
           (id) => !initial.has(id),
         );
-        const toRemove = members.filter(
+        const toRemove = teamMembers.filter(
           (m) => !selectedMemberIds.has(m.userId),
         );
 
@@ -167,8 +163,7 @@ export function TeamEditDialog({
     if (!isOpen) {
       reset({ name: team.name });
       if (teamMembers) {
-        const members = teamMembers as TeamMemberItem[];
-        const memberIds = new Set(members.map((m) => m.userId));
+        const memberIds = new Set(teamMembers.map((m) => m.userId));
         setSelectedMemberIds(memberIds);
         initialMemberIdsRef.current = memberIds;
       }
