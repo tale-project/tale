@@ -1,6 +1,5 @@
 'use client';
 
-import { Stack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
 import { createTableConfigHook } from '@/app/hooks/use-table-config-factory';
 
@@ -16,16 +15,21 @@ export const useCustomersTableConfig = createTableConfigHook<'customers'>(
     {
       accessorKey: 'name',
       header: tTables('headers.name'),
-      size: 278,
+      size: 200,
       cell: ({ row }) => (
-        <Stack gap={1}>
-          <Text as="span" variant="label">
-            {row.original.name || ''}
-          </Text>
-          <Text as="span" variant="caption">
-            {row.original.email || tTables('cells.noEmail')}
-          </Text>
-        </Stack>
+        <Text as="span" variant="label">
+          {row.original.name || ''}
+        </Text>
+      ),
+    },
+    {
+      accessorKey: 'email',
+      header: tTables('headers.email'),
+      size: 240,
+      cell: ({ row }) => (
+        <Text as="span" variant="body">
+          {row.original.email || tTables('cells.noEmail')}
+        </Text>
       ),
     },
     {
