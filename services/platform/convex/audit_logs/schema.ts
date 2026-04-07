@@ -76,4 +76,9 @@ export const auditLogsTable = defineTable({
     'timestamp',
   ])
   .index('by_resourceType_and_resourceId', ['resourceType', 'resourceId'])
+  .index('by_org_resourceType_resourceId', [
+    'organizationId',
+    'resourceType',
+    'resourceId',
+  ])
   .index('by_timestamp', ['timestamp']);
