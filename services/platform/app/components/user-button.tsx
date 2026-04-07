@@ -12,9 +12,10 @@ import {
   UserCircle,
   Building2,
 } from 'lucide-react';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { useTheme } from '@/app/components/theme/theme-provider';
+import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import {
   DropdownMenu,
@@ -66,6 +67,8 @@ export function UserButton({
     !user,
   );
 
+  const [signOutDialogOpen, setSignOutDialogOpen] = useState(false);
+
   const handleSignOut = useCallback(async () => {
     try {
       await signOut();
@@ -82,6 +85,10 @@ export function UserButton({
       });
     }
   }, [signOut, t]);
+
+  const handleSignOutClick = useCallback(() => {
+    setSignOutDialogOpen(true);
+  }, []);
 
   const displayName =
     memberContext?.displayName || user?.name || t('userButton.defaultName');
@@ -215,7 +222,7 @@ export function UserButton({
         type: 'item',
         label: t('userButton.logOut'),
         icon: LogOut,
-        onClick: handleSignOut,
+        onClick: handleSignOutClick,
         disabled: loading || !user,
         className: 'py-2.5',
       },
@@ -237,7 +244,7 @@ export function UserButton({
     onNavigate,
     setTheme,
     setSelectedTeamId,
-    handleSignOut,
+    handleSignOutClick,
   ]);
 
   const triggerContent = (
@@ -268,40 +275,57 @@ export function UserButton({
     [router, organizationId],
   );
 
+  const signOutConfirmDialog = (
+    <ConfirmDialog
+      open={signOutDialogOpen}
+      onOpenChange={setSignOutDialogOpen}
+      title={t('userButton.logOutConfirm.title')}
+      description={t('userButton.logOutConfirm.description')}
+      confirmText={t('userButton.logOutConfirm.confirm')}
+      onConfirm={handleSignOut}
+    />
+  );
+
   if (label) {
     return (
-      <DropdownMenu
-        trigger={triggerContent}
-        items={menuItems}
-        align={align}
-        contentClassName="w-64"
-        onOpenChange={handleOpenChange}
-      />
-    );
-  }
-
-  return (
-    <TooltipPrimitive.Provider delayDuration={300}>
-      <TooltipPrimitive.Root>
+      <>
         <DropdownMenu
-          trigger={
-            <TooltipPrimitive.Trigger asChild>
-              {triggerContent}
-            </TooltipPrimitive.Trigger>
-          }
+          trigger={triggerContent}
           items={menuItems}
           align={align}
           contentClassName="w-64"
           onOpenChange={handleOpenChange}
         />
-        <TooltipPrimitive.Content
-          side="right"
-          sideOffset={4}
-          className="bg-foreground text-background animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 z-[60] overflow-hidden rounded-lg border p-2 py-1 text-xs shadow-md"
-        >
-          {tooltipText ?? t('userButton.manageAccount')}
-        </TooltipPrimitive.Content>
-      </TooltipPrimitive.Root>
-    </TooltipPrimitive.Provider>
+        {signOutConfirmDialog}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <TooltipPrimitive.Provider delayDuration={300}>
+        <TooltipPrimitive.Root>
+          <DropdownMenu
+            trigger={
+              <TooltipPrimitive.Trigger asChild>
+                {triggerContent}
+              </TooltipPrimitive.Trigger>
+            }
+            items={menuItems}
+            align={align}
+            contentClassName="w-64"
+            onOpenChange={handleOpenChange}
+          />
+          <TooltipPrimitive.Content
+            side="right"
+            sideOffset={4}
+            className="bg-foreground text-background animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 z-[60] overflow-hidden rounded-lg border p-2 py-1 text-xs shadow-md"
+          >
+            {tooltipText ?? t('userButton.manageAccount')}
+          </TooltipPrimitive.Content>
+        </TooltipPrimitive.Root>
+      </TooltipPrimitive.Provider>
+      {signOutConfirmDialog}
+    </>
   );
 }
