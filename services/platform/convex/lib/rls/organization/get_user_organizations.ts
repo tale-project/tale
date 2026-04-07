@@ -64,8 +64,8 @@ export async function getUserOrganizations(
     return [];
   }
 
-  return result.page.map(
-    (member: { organizationId: string; role?: string }) => {
+  return result.page
+    .map((member: { organizationId: string; role?: string }) => {
       // Get role from trusted headers if available, otherwise from database
       const rawRole = trustedData?.trustedRole || member.role || 'member';
       const normalizedRole = rawRole.toLowerCase();
@@ -78,6 +78,6 @@ export async function getUserOrganizations(
         role,
         member,
       };
-    },
-  );
+    })
+    .filter((entry) => entry.role !== 'disabled');
 }
