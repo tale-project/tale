@@ -92,9 +92,8 @@ export const addMember = mutation({
       isBetterAuthCreateResult(created) ? created._id : created,
     );
 
-    await AuditLogHelpers.logSuccess(
-      ctx,
-      {
+    await AuditLogHelpers.logSuccess(ctx, {
+      auditCtx: {
         organizationId: args.organizationId,
         actor: {
           id: String(authUser._id),
@@ -103,14 +102,13 @@ export const addMember = mutation({
           type: 'user',
         },
       },
-      'add_member',
-      'member',
-      'member',
-      memberId,
-      targetUser?.email ?? targetUser?.name ?? args.userId,
-      undefined,
-      { userId: args.userId, role },
-    );
+      action: 'add_member',
+      category: 'member',
+      resourceType: 'member',
+      resourceId: memberId,
+      resourceName: targetUser?.email ?? targetUser?.name ?? args.userId,
+      newState: { userId: args.userId, role },
+    });
 
     return memberId;
   },
@@ -177,9 +175,8 @@ export const removeMember = mutation({
       },
     });
 
-    await AuditLogHelpers.logSuccess(
-      ctx,
-      {
+    await AuditLogHelpers.logSuccess(ctx, {
+      auditCtx: {
         organizationId: member.organizationId,
         actor: {
           id: String(authUser._id),
@@ -188,14 +185,13 @@ export const removeMember = mutation({
           type: 'user',
         },
       },
-      'remove_member',
-      'member',
-      'member',
-      args.memberId,
-      targetUser?.email ?? member.userId,
-      { userId: member.userId, role: member.role },
-      undefined,
-    );
+      action: 'remove_member',
+      category: 'member',
+      resourceType: 'member',
+      resourceId: args.memberId,
+      resourceName: targetUser?.email ?? member.userId,
+      previousState: { userId: member.userId, role: member.role },
+    });
 
     return null;
   },
@@ -326,9 +322,8 @@ export const updateMemberRole = mutation({
       paginationOpts: { cursor: null, numItems: 1 },
     });
 
-    await AuditLogHelpers.logSuccess(
-      ctx,
-      {
+    await AuditLogHelpers.logSuccess(ctx, {
+      auditCtx: {
         organizationId: member.organizationId,
         actor: {
           id: String(authUser._id),
@@ -337,14 +332,14 @@ export const updateMemberRole = mutation({
           type: 'user',
         },
       },
-      'update_member_role',
-      'member',
-      'member',
-      args.memberId,
-      targetUser?.email ?? member.userId,
-      { role: previousRole },
-      { role: newRole },
-    );
+      action: 'update_member_role',
+      category: 'member',
+      resourceType: 'member',
+      resourceId: args.memberId,
+      resourceName: targetUser?.email ?? member.userId,
+      previousState: { role: previousRole },
+      newState: { role: newRole },
+    });
 
     return null;
   },
@@ -426,9 +421,8 @@ export const transferOwnership = mutation({
         )
       : undefined;
 
-    await AuditLogHelpers.logSuccess(
-      ctx,
-      {
+    await AuditLogHelpers.logSuccess(ctx, {
+      auditCtx: {
         organizationId: targetMember.organizationId,
         actor: {
           id: String(authUser._id),
@@ -437,14 +431,14 @@ export const transferOwnership = mutation({
           type: 'user',
         },
       },
-      'transfer_ownership',
-      'member',
-      'member',
-      args.targetMemberId,
-      targetUser?.email ?? targetMember.userId,
-      { previousOwner: String(authUser._id) },
-      { newOwner: targetMember.userId },
-    );
+      action: 'transfer_ownership',
+      category: 'member',
+      resourceType: 'member',
+      resourceId: args.targetMemberId,
+      resourceName: targetUser?.email ?? targetMember.userId,
+      previousState: { previousOwner: String(authUser._id) },
+      newState: { newOwner: targetMember.userId },
+    });
 
     return null;
   },
@@ -514,9 +508,8 @@ export const updateMemberDisplayName = mutation({
       paginationOpts: { cursor: null, numItems: 1 },
     });
 
-    await AuditLogHelpers.logSuccess(
-      ctx,
-      {
+    await AuditLogHelpers.logSuccess(ctx, {
+      auditCtx: {
         organizationId: member.organizationId,
         actor: {
           id: String(authUser._id),
@@ -525,14 +518,14 @@ export const updateMemberDisplayName = mutation({
           type: 'user',
         },
       },
-      'update_member_name',
-      'member',
-      'member',
-      args.memberId,
-      targetUser?.email ?? member.userId,
-      { name: previousName },
-      { name: args.displayName },
-    );
+      action: 'update_member_name',
+      category: 'member',
+      resourceType: 'member',
+      resourceId: args.memberId,
+      resourceName: targetUser?.email ?? member.userId,
+      previousState: { name: previousName },
+      newState: { name: args.displayName },
+    });
 
     return null;
   },

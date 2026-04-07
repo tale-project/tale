@@ -49,15 +49,14 @@ export async function updateConversation(
 
   await ctx.db.patch(args.conversationId, updateData);
 
-  await AuditLogHelpers.logSuccess(
-    ctx,
-    await buildAuditContext(ctx, conversation.organizationId),
-    'update_conversation',
-    'data',
-    'conversation',
-    String(args.conversationId),
-    conversation.subject,
+  await AuditLogHelpers.logSuccess(ctx, {
+    auditCtx: await buildAuditContext(ctx, conversation.organizationId),
+    action: 'update_conversation',
+    category: 'data',
+    resourceType: 'conversation',
+    resourceId: String(args.conversationId),
+    resourceName: conversation.subject,
     previousState,
     newState,
-  );
+  });
 }

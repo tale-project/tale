@@ -97,9 +97,8 @@ export const updateCredentials = mutation({
     );
     await ctx.db.patch(credentialId, cleanUpdates);
 
-    await AuditLogHelpers.logSuccess(
-      ctx,
-      {
+    await AuditLogHelpers.logSuccess(ctx, {
+      auditCtx: {
         organizationId: cred.organizationId,
         actor: {
           id: String(authUser._id),
@@ -108,20 +107,20 @@ export const updateCredentials = mutation({
           type: 'user',
         },
       },
-      'update_credential',
-      'integration',
-      'integrationCredentials',
-      String(credentialId),
-      cred.slug,
-      AuditLogHelpers.redactSensitiveFields({
+      action: 'update_credential',
+      category: 'integration',
+      resourceType: 'integrationCredentials',
+      resourceId: String(credentialId),
+      resourceName: cred.slug,
+      previousState: AuditLogHelpers.redactSensitiveFields({
         status: cred.status,
         authMethod: cred.authMethod,
         isActive: cred.isActive,
       }),
-      AuditLogHelpers.redactSensitiveFields({
+      newState: AuditLogHelpers.redactSensitiveFields({
         ...cleanUpdates,
       }),
-    );
+    });
 
     return null;
   },
@@ -162,9 +161,8 @@ export const deleteCredentials = mutation({
 
     await ctx.db.delete(args.credentialId);
 
-    await AuditLogHelpers.logSuccess(
-      ctx,
-      {
+    await AuditLogHelpers.logSuccess(ctx, {
+      auditCtx: {
         organizationId: cred.organizationId,
         actor: {
           id: String(authUser._id),
@@ -173,18 +171,17 @@ export const deleteCredentials = mutation({
           type: 'user',
         },
       },
-      'delete_credential',
-      'integration',
-      'integrationCredentials',
-      String(args.credentialId),
-      cred.slug,
-      AuditLogHelpers.redactSensitiveFields({
+      action: 'delete_credential',
+      category: 'integration',
+      resourceType: 'integrationCredentials',
+      resourceId: String(args.credentialId),
+      resourceName: cred.slug,
+      previousState: AuditLogHelpers.redactSensitiveFields({
         slug: cred.slug,
         status: cred.status,
         authMethod: cred.authMethod,
       }),
-      undefined,
-    );
+    });
 
     return null;
   },

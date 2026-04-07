@@ -130,25 +130,22 @@ export async function createConversationWithMessage(
     },
   });
 
-  await AuditLogHelpers.logSuccess(
-    ctx,
-    {
+  await AuditLogHelpers.logSuccess(ctx, {
+    auditCtx: {
       organizationId: args.organizationId,
       actor: { id: 'system', type: 'system' as const },
     },
-    'add_message_to_conversation',
-    'data',
-    'conversationMessage',
-    String(messageId),
-    undefined,
-    undefined,
-    {
+    action: 'add_message_to_conversation',
+    category: 'data',
+    resourceType: 'conversationMessage',
+    resourceId: String(messageId),
+    newState: {
       conversationId: String(conversationId),
       direction,
       isCustomer: args.initialMessage.isCustomer,
       sender: args.initialMessage.sender,
     },
-  );
+  });
 
   return {
     success: true,

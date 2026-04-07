@@ -41,9 +41,8 @@ export const updateApprovalStatus = mutation({
     const action =
       args.status === 'executing' ? 'approve_request' : 'reject_request';
 
-    await AuditLogHelpers.logSuccess(
-      ctx,
-      {
+    await AuditLogHelpers.logSuccess(ctx, {
+      auditCtx: {
         organizationId: approval.organizationId,
         actor: {
           id: String(authUser._id),
@@ -52,13 +51,13 @@ export const updateApprovalStatus = mutation({
         },
       },
       action,
-      'workflow',
-      'approval',
-      String(args.approvalId),
-      approval.resourceType,
-      { status: previousStatus },
-      { status: args.status, comments: args.comments },
-    );
+      category: 'workflow',
+      resourceType: 'approval',
+      resourceId: String(args.approvalId),
+      resourceName: approval.resourceType,
+      previousState: { status: previousStatus },
+      newState: { status: args.status, comments: args.comments },
+    });
 
     // Write system message to thread on rejection so the AI knows it was user-initiated
     if (args.status === 'rejected' && approval.threadId) {
@@ -102,9 +101,8 @@ export const removeRecommendedProduct = mutation({
       productId: args.productId,
     });
 
-    await AuditLogHelpers.logSuccess(
-      ctx,
-      {
+    await AuditLogHelpers.logSuccess(ctx, {
+      auditCtx: {
         organizationId: approval.organizationId,
         actor: {
           id: String(authUser._id),
@@ -112,15 +110,13 @@ export const removeRecommendedProduct = mutation({
           type: 'user',
         },
       },
-      'remove_recommended_product',
-      'workflow',
-      'approval',
-      String(args.approvalId),
-      approval.resourceType,
-      undefined,
-      undefined,
-      { productId: args.productId },
-    );
+      action: 'remove_recommended_product',
+      category: 'workflow',
+      resourceType: 'approval',
+      resourceId: String(args.approvalId),
+      resourceName: approval.resourceType,
+      metadata: { productId: args.productId },
+    });
 
     return null;
   },

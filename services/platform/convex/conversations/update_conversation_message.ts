@@ -56,18 +56,16 @@ export async function updateConversationMessage(
   if (args.deliveryState !== undefined)
     newState.deliveryState = args.deliveryState;
 
-  await AuditLogHelpers.logSuccess(
-    ctx,
-    {
+  await AuditLogHelpers.logSuccess(ctx, {
+    auditCtx: {
       organizationId: message.organizationId,
       actor: { id: 'system', type: 'system' as const },
     },
-    'update_conversation_message',
-    'data',
-    'conversationMessage',
-    String(args.messageId),
-    undefined,
+    action: 'update_conversation_message',
+    category: 'data',
+    resourceType: 'conversationMessage',
+    resourceId: String(args.messageId),
     previousState,
     newState,
-  );
+  });
 }

@@ -29,17 +29,16 @@ export async function closeConversation(
     },
   });
 
-  await AuditLogHelpers.logSuccess(
-    ctx,
-    await buildAuditContext(ctx, conversation.organizationId),
-    'close_conversation',
-    'data',
-    'conversation',
-    String(args.conversationId),
-    conversation.subject,
-    { status: previousStatus },
-    { status: 'closed', resolvedBy: args.resolvedBy },
-  );
+  await AuditLogHelpers.logSuccess(ctx, {
+    auditCtx: await buildAuditContext(ctx, conversation.organizationId),
+    action: 'close_conversation',
+    category: 'data',
+    resourceType: 'conversation',
+    resourceId: String(args.conversationId),
+    resourceName: conversation.subject,
+    previousState: { status: previousStatus },
+    newState: { status: 'closed', resolvedBy: args.resolvedBy },
+  });
 
   const updatedConversation = await ctx.db.get(args.conversationId);
   if (updatedConversation) {
