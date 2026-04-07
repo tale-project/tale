@@ -2971,7 +2971,8 @@
         "price": "Price",
         "currency": "Currency",
         "stock": "Stock",
-        "category": "Category"
+        "category": "Category",
+        "status": "Status"
       },
       "validation": {
         "nameRequired": "Product name is required"
@@ -3087,6 +3088,7 @@
     "emailPlaceholder": "Enter email address",
     "locale": "Locale",
     "localePlaceholder": "e.g., en-US",
+    "status": "Status",
     "import": {
       "selectDataSource": "Please select a data source",
       "syncFeature": "Sync feature",

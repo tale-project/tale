@@ -14,10 +14,13 @@ import { useT } from '@/lib/i18n/client';
 
 import { useUpdateCustomer } from '../hooks/mutations';
 
+const CUSTOMER_STATUSES = ['active', 'churned', 'potential'] as const;
+
 type CustomerFormData = {
   name: string;
   email: string;
   locale: string;
+  status: string;
 };
 
 interface CustomerEditDialogProps {
@@ -36,6 +39,15 @@ export function CustomerEditDialog({
   const { t: tCommon } = useT('common');
   const { t: tGlobal } = useT('global');
   const updateCustomer = useUpdateCustomer();
+
+  const statusOptions = useMemo(
+    () =>
+      CUSTOMER_STATUSES.map((s) => ({
+        value: s,
+        label: tGlobal(`statuses.${s}`),
+      })),
+    [tGlobal],
+  );
 
   const localeOptions = useMemo(
     () => [
@@ -62,6 +74,7 @@ export function CustomerEditDialog({
             1,
             tCommon('validation.required', { field: tCustomers('locale') }),
           ),
+        status: z.enum(CUSTOMER_STATUSES),
       }),
     [tCustomers, tCommon],
   );
@@ -79,16 +92,19 @@ export function CustomerEditDialog({
       name: customer.name || '',
       email: customer.email || '',
       locale: customer.locale || 'en',
+      status: customer.status || 'active',
     },
   });
 
   const locale = watch('locale');
+  const status = watch('status');
 
   useEffect(() => {
     reset({
       name: customer.name || '',
       email: customer.email || '',
       locale: customer.locale || 'en',
+      status: customer.status || 'active',
     });
   }, [customer, reset]);
 
@@ -100,6 +116,7 @@ export function CustomerEditDialog({
         name: trimmedName || undefined,
         email: data.email.trim(),
         locale: data.locale,
+        status: data.status,
       });
 
       toast({
@@ -163,6 +180,18 @@ export function CustomerEditDialog({
         label={tCustomers('locale')}
         error={!!errors.locale}
         options={localeOptions}
+      />
+
+      <Select
+        value={status}
+        onValueChange={(value) =>
+          setValue('status', value, { shouldDirty: true })
+        }
+        disabled={isSubmitting}
+        id="status"
+        label={tCustomers('status')}
+        error={!!errors.status}
+        options={statusOptions}
       />
     </FormDialog>
   );
