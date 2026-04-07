@@ -83,5 +83,11 @@ export async function getOrganizationMember(
     );
   }
 
+  if (member.role === 'disabled') {
+    throw new UnauthorizedError(
+      `Member account is disabled in organization ${organizationId}`,
+    );
+  }
+
   return member;
 }
