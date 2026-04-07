@@ -66,10 +66,10 @@ tale start
 Wait for the ready message:
 
 ```text
-🎉 Tale Platform is running!
+Tale Dev v0.x.x  Ready.
 ```
 
-> **Note:** You will see a stream of health check messages while services are starting. Those are normal. Wait for the ready message before opening your browser.
+> **Note:** The version number will vary. You will see a stream of health check messages while services are starting. Those are normal. Wait for the "Ready" message before opening your browser.
 
 ### Step 4: Open the app
 
