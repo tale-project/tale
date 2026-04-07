@@ -115,6 +115,42 @@ describe('Select', () => {
     });
   });
 
+  describe('controlled value', () => {
+    it('shows controlled value', () => {
+      render(
+        <Select
+          options={options}
+          placeholder="Select fruit"
+          value="cherry"
+          onValueChange={() => {}}
+        />,
+      );
+      expect(screen.getByRole('combobox')).toHaveTextContent('Cherry');
+    });
+
+    it('updates displayed value when controlled value changes', () => {
+      const { rerender } = render(
+        <Select
+          options={options}
+          placeholder="Select fruit"
+          value="apple"
+          onValueChange={() => {}}
+        />,
+      );
+      expect(screen.getByRole('combobox')).toHaveTextContent('Apple');
+
+      rerender(
+        <Select
+          options={options}
+          placeholder="Select fruit"
+          value="banana"
+          onValueChange={() => {}}
+        />,
+      );
+      expect(screen.getByRole('combobox')).toHaveTextContent('Banana');
+    });
+  });
+
   describe('disabled options', () => {
     it('renders disabled option', async () => {
       const optionsWithDisabled = [

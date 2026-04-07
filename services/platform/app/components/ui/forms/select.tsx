@@ -91,6 +91,9 @@ export const Select = forwardRef<
       position = 'popper',
       sideOffset,
       disabled,
+      value,
+      defaultValue,
+      onValueChange,
       ...props
     },
     ref,
@@ -100,7 +103,13 @@ export const Select = forwardRef<
     const descriptionId = `${id}-description`;
 
     const trigger = (
-      <SelectPrimitive.Root disabled={disabled} {...props}>
+      <SelectPrimitive.Root
+        disabled={disabled}
+        value={value}
+        defaultValue={defaultValue}
+        onValueChange={onValueChange}
+        {...props}
+      >
         <SelectPrimitive.Trigger
           ref={ref}
           id={id}
