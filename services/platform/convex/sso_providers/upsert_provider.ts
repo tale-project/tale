@@ -74,9 +74,8 @@ export async function upsertProvider(
 
   const entraFeatures = args.providerFeatures?.entraId;
 
-  await AuditLogHelpers.logSuccess(
-    ctx,
-    {
+  await AuditLogHelpers.logSuccess(ctx, {
+    auditCtx: {
       organizationId: args.organizationId,
       actor: {
         id: args.actorId,
@@ -85,18 +84,17 @@ export async function upsertProvider(
         type: 'user',
       },
     },
-    isNew ? 'sso_provider_created' : 'sso_provider_updated',
-    'integration',
-    'ssoProvider',
-    providerId,
-    args.providerId,
-    undefined,
-    {
+    action: isNew ? 'sso_provider_created' : 'sso_provider_updated',
+    category: 'integration',
+    resourceType: 'ssoProvider',
+    resourceId: providerId,
+    resourceName: args.providerId,
+    newState: {
       providerId: args.providerId,
       autoProvisionTeam: entraFeatures?.autoProvisionTeam,
       autoProvisionRole: args.autoProvisionRole,
     },
-  );
+  });
 
   return providerId;
 }

@@ -27,15 +27,14 @@ export async function markConversationAsRead(
     },
   });
 
-  await AuditLogHelpers.logSuccess(
-    ctx,
-    await buildAuditContext(ctx, conversation.organizationId),
-    'mark_conversation_as_read',
-    'data',
-    'conversation',
-    String(args.conversationId),
-    conversation.subject,
-    { unreadCount: previousUnreadCount },
-    { unreadCount: 0 },
-  );
+  await AuditLogHelpers.logSuccess(ctx, {
+    auditCtx: await buildAuditContext(ctx, conversation.organizationId),
+    action: 'mark_conversation_as_read',
+    category: 'data',
+    resourceType: 'conversation',
+    resourceId: String(args.conversationId),
+    resourceName: conversation.subject,
+    previousState: { unreadCount: previousUnreadCount },
+    newState: { unreadCount: 0 },
+  });
 }

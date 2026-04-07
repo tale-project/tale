@@ -112,25 +112,20 @@ export async function updateConversations(
     const organizationId =
       args.organizationId || conversationsToUpdate[0]?.organizationId;
     if (organizationId) {
-      await AuditLogHelpers.logSuccess(
-        ctx,
-        {
+      await AuditLogHelpers.logSuccess(ctx, {
+        auditCtx: {
           organizationId,
           actor: { id: 'system', type: 'system' as const },
         },
-        'update_conversations',
-        'data',
-        'conversation',
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        {
+        action: 'update_conversations',
+        category: 'data',
+        resourceType: 'conversation',
+        metadata: {
           conversationIds: updatedIds.map(String),
           count: updatedIds.length,
           updates: args.updates,
         },
-      );
+      });
     }
   }
 

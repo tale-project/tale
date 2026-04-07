@@ -110,22 +110,19 @@ export async function addMessageToConversation(
     },
   });
 
-  await AuditLogHelpers.logSuccess(
-    ctx,
-    await buildAuditContext(ctx, args.organizationId),
-    'add_message_to_conversation',
-    'data',
-    'conversationMessage',
-    String(messageId),
-    undefined,
-    undefined,
-    {
+  await AuditLogHelpers.logSuccess(ctx, {
+    auditCtx: await buildAuditContext(ctx, args.organizationId),
+    action: 'add_message_to_conversation',
+    category: 'data',
+    resourceType: 'conversationMessage',
+    resourceId: String(messageId),
+    newState: {
       conversationId: String(args.conversationId),
       direction,
       isCustomer: args.isCustomer,
       sender: args.sender,
     },
-  );
+  });
 
   const message = await ctx.db.get(messageId);
   if (message) {

@@ -61,23 +61,21 @@ export async function bulkReopenConversations(
 
   const firstValidConversation = conversations.find((c) => c !== null);
   if (firstValidConversation) {
-    await AuditLogHelpers.logSuccess(
-      ctx,
-      await buildAuditContext(ctx, firstValidConversation.organizationId),
-      'bulk_reopen_conversations',
-      'data',
-      'conversation',
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      {
+    await AuditLogHelpers.logSuccess(ctx, {
+      auditCtx: await buildAuditContext(
+        ctx,
+        firstValidConversation.organizationId,
+      ),
+      action: 'bulk_reopen_conversations',
+      category: 'data',
+      resourceType: 'conversation',
+      metadata: {
         conversationIds: args.conversationIds.map(String),
         count: args.conversationIds.length,
         successCount,
         failedCount,
       },
-    );
+    });
   }
 
   return { successCount, failedCount, errors };
