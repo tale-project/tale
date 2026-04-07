@@ -12,7 +12,7 @@ import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 
 import { useAddTeamMember, useRemoveTeamMember } from '../hooks/mutations';
-import { useTeamMembers, type Team } from '../hooks/queries';
+import { useTeamMembers, type Team, type TeamMember } from '../hooks/queries';
 import { TeamMemberChecklist } from './team-member-checklist';
 
 interface TeamEditDialogProps {
@@ -52,7 +52,8 @@ export function TeamEditDialog({
   );
   const initialMemberIdsRef = useRef<Set<string>>(new Set());
 
-  const { teamMembers } = useTeamMembers(team.id);
+  const { teamMembers }: { teamMembers: TeamMember[] | undefined } =
+    useTeamMembers(team.id);
   const addTeamMember = useAddTeamMember();
   const removeTeamMember = useRemoveTeamMember();
 
