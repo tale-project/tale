@@ -476,3 +476,33 @@ class TestDiscoverUrlsBfsFallback:
 
         assert len(urls) == 2
         assert "https://example.com/broken" not in {u["url"] for u in urls}
+
+    async def test_bfs_exception_preserves_sitemap_urls(self):
+        """BFS failure should not discard already-collected sitemap URLs."""
+        service = CrawlerService()
+        service.initialized = True
+        service._crawl_count = 0
+        service._crawler = MagicMock()
+
+        # BFS will raise a non-timeout exception
+        service._crawler.arun = AsyncMock(side_effect=RuntimeError("browser crashed"))
+
+        # Sitemap returns 3 URLs (below threshold, triggers BFS)
+        pages = [
+            _make_sitemap_page("https://example.com/"),
+            _make_sitemap_page("https://example.com/about"),
+            _make_sitemap_page("https://example.com/contact"),
+        ]
+        mock_tree = MagicMock()
+        mock_tree.all_pages.return_value = pages
+
+        with _mock_sitemap(mock_tree):
+            urls = await service.discover_urls(domain="example.com")
+
+        # Sitemap URLs must be preserved despite BFS failure
+        assert len(urls) == 3
+        assert {u["url"] for u in urls} == {
+            "https://example.com/",
+            "https://example.com/about",
+            "https://example.com/contact",
+        }

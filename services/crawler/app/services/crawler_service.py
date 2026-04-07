@@ -277,7 +277,11 @@ class CrawlerService:
 
         if len(urls) < _BFS_FALLBACK_THRESHOLD:
             logger.warning(f"Sitemap found only {len(urls)} URLs for {domain}, falling back to BFS crawl")
-            bfs_urls = await self._discover_urls_bfs(domain, max_urls, pattern, timeout)
+            try:
+                bfs_urls = await self._discover_urls_bfs(domain, max_urls, pattern, timeout)
+            except Exception:
+                logger.exception(f"BFS fallback failed for {domain}")
+                bfs_urls = []
             logger.info(f"BFS fallback discovered {len(bfs_urls)} URLs from {domain}")
             seen = {u["url"] for u in urls}
             for u in bfs_urls:
@@ -321,6 +325,7 @@ class CrawlerService:
         homepage = f"https://{domain}/"
         logger.info(f"Starting BFS crawl for {domain} (max_depth=2, max_pages={max_pages})")
 
+        results = []
         try:
             results = await asyncio.wait_for(
                 self._crawler.arun(url=homepage, config=config),
@@ -329,9 +334,12 @@ class CrawlerService:
         except asyncio.TimeoutError:
             logger.warning(f"BFS fallback timed out for {domain} after {timeout}s")
             return []
+        except Exception:
+            logger.exception(f"BFS fallback failed for {domain}")
+            return []
         finally:
             _cleanup_memory()
-            self._increment_crawl_count(1)
+            self._increment_crawl_count(len(results))
             await self._maybe_restart_browser()
 
         urls = []
