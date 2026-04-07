@@ -160,24 +160,13 @@ export const customerMappers = {
     };
   },
   excel: (record: Record<string, unknown>) => {
-    const email =
-      getString(record.email) ||
-      getString(record.Email) ||
-      getString(record.EMAIL);
+    const email = getString(record.email);
     if (!email) return null;
 
     return {
       email,
-      name:
-        getString(record.name) ||
-        getString(record.Name) ||
-        getString(record.NAME) ||
-        undefined,
-      locale:
-        getString(record.locale) ||
-        getString(record.Locale) ||
-        getString(record.LOCALE) ||
-        'en',
+      name: getString(record.name) || undefined,
+      locale: getString(record.locale) || 'en',
       status: 'churned' as const,
       source: 'file_upload' as const,
     };
@@ -209,24 +198,13 @@ export const vendorMappers = {
     };
   },
   excel: (record: Record<string, unknown>) => {
-    const email =
-      getString(record.email) ||
-      getString(record.Email) ||
-      getString(record.EMAIL);
+    const email = getString(record.email);
     if (!email) return null;
 
     return {
       email,
-      name:
-        getString(record.name) ||
-        getString(record.Name) ||
-        getString(record.NAME) ||
-        undefined,
-      locale:
-        getString(record.locale) ||
-        getString(record.Locale) ||
-        getString(record.LOCALE) ||
-        'en',
+      name: getString(record.name) || undefined,
+      locale: getString(record.locale) || 'en',
       source: 'file_upload' as const,
     };
   },
@@ -265,29 +243,21 @@ export const productMappers = {
     };
   },
   excel: (record: Record<string, unknown>) => {
-    const name =
-      getString(record.name) ||
-      getString(record.Name) ||
-      getString(record.NAME) ||
-      getString(record.title) ||
-      getString(record.Title);
+    const name = getString(record.name) || getString(record.title);
     if (!name) return null;
 
     return {
       name,
-      description:
-        getString(record.description) || getString(record.Description),
+      description: getString(record.description),
       imageUrl:
-        getString(record.imageUrl) ||
-        getString(record.ImageUrl) ||
+        getString(record.imageurl) ||
         getString(record.image_url) ||
         getString(record['image url']),
-      stock: getNumber(record.stock) ?? getNumber(record.Stock) ?? 0,
-      price: getNumber(record.price) ?? getNumber(record.Price) ?? 0,
-      currency:
-        getString(record.currency) || getString(record.Currency) || 'USD',
-      category: getString(record.category) || getString(record.Category),
-      status: record.status ?? record.Status,
+      stock: getNumber(record.stock) ?? 0,
+      price: getNumber(record.price) ?? 0,
+      currency: getString(record.currency) || 'USD',
+      category: getString(record.category),
+      status: record.status,
     };
   },
 };
