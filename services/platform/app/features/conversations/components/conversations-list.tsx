@@ -229,7 +229,7 @@ const ConversationRow = memo(function ConversationRow({
     <button
       type="button"
       className={cn(
-        'w-full text-left px-4 py-2.5 hover:bg-secondary/20 cursor-pointer transition-colors relative',
+        'w-full text-left px-4 py-2.5 hover:bg-muted cursor-pointer transition-colors relative',
         isSelected && 'bg-muted',
       )}
       onClick={handleClick}

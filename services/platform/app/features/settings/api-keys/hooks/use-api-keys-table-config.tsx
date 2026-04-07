@@ -31,7 +31,6 @@ export function useApiKeysTableConfig(
       {
         accessorKey: 'name',
         header: tSettings('apiKeys.columns.name'),
-        size: 200,
         cell: ({ row }) => (
           <Text as="span" variant="label">
             {row.original.name || '-'}
@@ -39,71 +38,37 @@ export function useApiKeysTableConfig(
         ),
       },
       {
-        id: 'prefix',
-        header: tSettings('apiKeys.columns.prefix'),
-        size: 150,
+        id: 'key',
+        header: tSettings('apiKeys.columns.key'),
         cell: ({ row }) => (
-          <code className="bg-muted rounded px-2 py-1 font-mono text-sm">
-            {row.original.start || row.original.prefix || '-'}...
-          </code>
+          <Text as="span" variant="muted" className="font-mono text-sm">
+            {row.original.start || row.original.prefix || '-'}
+          </Text>
         ),
       },
       {
         id: 'created',
-        header: () => (
-          <span className="block w-full text-right">
-            {tSettings('apiKeys.columns.created')}
-          </span>
-        ),
-        size: 150,
-        meta: { headerLabel: tSettings('apiKeys.columns.created') },
+        header: tSettings('apiKeys.columns.created'),
+        size: 140,
         cell: ({ row }) => (
-          <TableDateCell
-            date={row.original.createdAt}
-            preset="short"
-            alignRight
-          />
+          <TableDateCell date={row.original.createdAt} preset="short" />
         ),
       },
       {
         id: 'lastUsed',
-        header: () => (
-          <span className="block w-full text-right">
-            {tSettings('apiKeys.columns.lastUsed')}
-          </span>
-        ),
-        size: 150,
-        meta: { headerLabel: tSettings('apiKeys.columns.lastUsed') },
+        header: tSettings('apiKeys.columns.lastUsed'),
+        size: 140,
         cell: ({ row }) => (
           <TableDateCell
             date={row.original.lastRequest}
             preset="short"
-            alignRight
             emptyText={tSettings('apiKeys.neverUsed')}
           />
         ),
       },
       {
-        id: 'expires',
-        header: () => (
-          <span className="block w-full text-right">
-            {tSettings('apiKeys.columns.expires')}
-          </span>
-        ),
-        size: 150,
-        meta: { headerLabel: tSettings('apiKeys.columns.expires') },
-        cell: ({ row }) => (
-          <TableDateCell
-            date={row.original.expiresAt}
-            preset="short"
-            alignRight
-            emptyText={tSettings('apiKeys.never')}
-          />
-        ),
-      },
-      {
         id: 'actions',
-        size: 140,
+        size: 44,
         meta: { isAction: true },
         cell: ({ row }) => (
           <ActionRow justify="end">

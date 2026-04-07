@@ -58,7 +58,7 @@ export function UploadStep({ onPackageParsed }: UploadStepProps) {
           inputId="integration-package-upload"
           aria-label={t('integrations.upload.dropZoneLabel')}
           className={cn(
-            'border-border hover:border-primary/50 relative flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-8 transition-colors',
+            'border-border hover:border-primary/50 relative flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-8 transition-colors outline-none focus-visible:border-solid focus-visible:border-ring',
             isParsing && 'pointer-events-none opacity-50',
           )}
         >

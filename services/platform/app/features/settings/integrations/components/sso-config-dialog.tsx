@@ -104,7 +104,7 @@ export function SSOConfigDialog({
       <HStack
         justify="between"
         align="center"
-        className="border-border shrink-0 border-b px-6 py-4"
+        className="border-border shrink-0 border-b p-4 sm:px-6 sm:py-4"
       >
         <Text variant="label" className="text-base font-semibold">
           {panelTitle}
@@ -117,7 +117,7 @@ export function SSOConfigDialog({
         />
       </HStack>
 
-      <div className="flex-1 overflow-y-auto px-6 py-5">
+      <div className="flex-1 overflow-y-auto p-4 sm:px-6 sm:py-5">
         <Stack gap={4}>
           <HStack gap={3} align="center">
             <Center className="border-border size-10 rounded-md border">
@@ -301,7 +301,7 @@ export function SSOConfigDialog({
         </Stack>
       </div>
 
-      <div className="border-border shrink-0 border-t px-6 py-4">
+      <div className="border-border shrink-0 border-t p-4 sm:px-6 sm:py-4">
         {isConnected ? (
           <HStack justify="between" align="center">
             <button

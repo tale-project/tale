@@ -212,7 +212,7 @@ export function ConversationHeader({
     : null;
 
   return (
-    <div className="border-border flex flex-col gap-3 border-b px-6 py-4">
+    <div className="border-border flex flex-col gap-3 border-b p-4 sm:px-6 sm:py-4">
       {/* Back button - visible only on mobile */}
       {onBack && (
         <Button
