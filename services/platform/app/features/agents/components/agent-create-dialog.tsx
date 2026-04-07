@@ -2,7 +2,8 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate } from '@tanstack/react-router';
-import { useMemo } from 'react';
+import { ConvexError } from 'convex/values';
+import { useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod/v4';
 
@@ -63,6 +64,8 @@ export function CreateAgentDialog({
   const {
     register,
     handleSubmit,
+    reset,
+    setError,
     formState: { isSubmitting, errors },
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -73,11 +76,16 @@ export function CreateAgentDialog({
     },
   });
 
+  useEffect(() => {
+    if (!open) reset();
+  }, [open, reset]);
+
   const onSubmit = async (data: FormData) => {
     try {
       await saveAgent({
         orgSlug: 'default',
         agentName: data.name,
+        isNew: true,
         config: {
           displayName: data.displayName,
           description: data.description,
@@ -94,13 +102,16 @@ export function CreateAgentDialog({
         params: { id: organizationId, agentId: data.name },
       });
     } catch (error) {
+      if (
+        error instanceof ConvexError &&
+        error.data?.code === 'DUPLICATE_NAME'
+      ) {
+        setError('name', { message: t('agents.agentAlreadyExists') });
+        return;
+      }
       console.error(error);
-      const message =
-        error instanceof Error && error.message.includes('already exists')
-          ? t('agents.agentAlreadyExists')
-          : t('agents.agentCreateFailed');
       toast({
-        title: message,
+        title: t('agents.agentCreateFailed'),
         variant: 'destructive',
       });
     }

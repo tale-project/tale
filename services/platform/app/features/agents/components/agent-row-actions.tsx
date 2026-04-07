@@ -9,6 +9,7 @@ import {
 } from '@/app/components/ui/entity/entity-row-actions';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import { PROTECTED_AGENT_NAMES } from '@/lib/shared/constants/agents';
 
 import { useDuplicateAgent } from '../hooks/mutations';
 import { AgentDeleteDialog } from './agent-delete-dialog';
@@ -54,8 +55,9 @@ export function AgentRowActions({
     }
   }, [isDuplicating, duplicateAgent, agentName, t, onDuplicated]);
 
-  const isProtected =
-    agentName === 'chat-agent' || agentName === 'workflow-assistant';
+  const isProtected = (PROTECTED_AGENT_NAMES as readonly string[]).includes(
+    agentName,
+  );
 
   const actions = [
     {
