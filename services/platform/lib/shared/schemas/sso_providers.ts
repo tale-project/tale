@@ -45,6 +45,13 @@ export type SsoProviderCapabilities = z.infer<
   typeof ssoProviderCapabilitiesSchema
 >;
 
+export const ssoAuthContextSchema = z.object({
+  authContextClassRef: z.string().optional(),
+  authMethodsRef: z.array(z.string()).optional(),
+  mfaCompleted: z.boolean().optional(),
+});
+export type SsoAuthContext = z.infer<typeof ssoAuthContextSchema>;
+
 export const ssoUserInfoSchema = z.object({
   externalId: z.string(),
   email: z.string(),
@@ -53,6 +60,7 @@ export const ssoUserInfoSchema = z.object({
   groups: z.array(z.string()).optional(),
   appRoles: z.array(z.string()).optional(),
   rawClaims: z.record(z.string(), z.unknown()).optional(),
+  authContext: ssoAuthContextSchema.optional(),
 });
 export type SsoUserInfo = z.infer<typeof ssoUserInfoSchema>;
 
@@ -74,6 +82,8 @@ const entraIdFeaturesSchema = z.object({
   enableOneDriveAccess: z.boolean().optional(),
   autoProvisionTeam: z.boolean().optional(),
   excludeGroups: z.array(z.string()).optional(),
+  seamlessSsoEnabled: z.boolean().optional(),
+  domainHint: z.string().optional(),
 });
 type EntraIdFeatures = z.infer<typeof entraIdFeaturesSchema>;
 

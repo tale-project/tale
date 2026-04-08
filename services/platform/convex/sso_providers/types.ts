@@ -5,6 +5,7 @@ export type {
   SsoGroup,
   PlatformRole,
   RoleMappingRule,
+  SsoAuthContext,
 } from '../../lib/shared/schemas/sso_providers';
 
 import type {
@@ -24,11 +25,16 @@ export interface SsoProviderConfig {
   scopes: string[];
 }
 
+export type SsoPromptMode = 'none' | 'login' | 'consent' | 'select_account';
+
 export interface AuthorizeUrlParams {
   redirectUri: string;
   state: string;
   loginHint?: string;
   additionalScopes?: string[];
+  prompt?: SsoPromptMode;
+  domainHint?: string;
+  claims?: string;
 }
 
 export interface TokenExchangeParams {

@@ -200,6 +200,8 @@ class SearchResult(BaseModel):
         default=None, description="Original file modification date (from file metadata)"
     )
     metadata: dict[str, Any] | None = Field(default=None, description="Result metadata")
+    reranking_score: float | None = Field(default=None, description="Cross-encoder re-ranking score")
+    cached: bool = Field(default=False, description="Whether this result was served from cache")
 
 
 class QueryResponse(BaseModel):
@@ -210,6 +212,7 @@ class QueryResponse(BaseModel):
     results: list[SearchResult] = Field(..., description="Search results")
     total_results: int = Field(..., description="Total number of results")
     processing_time_ms: float = Field(..., description="Query processing time in milliseconds")
+    cached: bool = Field(default=False, description="Whether results were served from semantic cache")
 
 
 # ============================================================================

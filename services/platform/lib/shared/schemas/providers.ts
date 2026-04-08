@@ -10,6 +10,7 @@ const modelDefinitionSchema = z.object({
   description: z.string().max(1000).optional(),
   tags: z.array(modelTagSchema).min(1),
   dimensions: z.number().int().positive().optional(),
+  fallbackModelId: z.string().min(1).max(200).optional(),
 });
 
 type ModelDefinition = z.infer<typeof modelDefinitionSchema>;
@@ -18,6 +19,8 @@ const providerDefaultsSchema = z.object({
   chat: z.string().min(1).max(200).optional(),
   vision: z.string().min(1).max(200).optional(),
   embedding: z.string().min(1).max(200).optional(),
+  fallbackProviderName: z.string().min(1).max(200).optional(),
+  fallbackModelId: z.string().min(1).max(200).optional(),
 });
 
 type ProviderDefaults = z.infer<typeof providerDefaultsSchema>;

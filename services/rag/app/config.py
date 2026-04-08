@@ -47,6 +47,17 @@ class Settings(BaseServiceSettings):
     recency_decay_base: float = 0.85
     recency_max_age_days: int = 730
 
+    # Semantic cache
+    semantic_cache_enabled: bool = False
+    semantic_cache_similarity_threshold: float = 0.95
+    semantic_cache_ttl_hours: int = 24
+
+    # Re-ranking (cross-encoder)
+    reranking_enabled: bool = False
+    reranking_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    reranking_top_k: int = 10
+    reranking_provider: str = "local"
+
     # Feature Flags
     enable_metrics: bool = True
     enable_query_logging: bool = False

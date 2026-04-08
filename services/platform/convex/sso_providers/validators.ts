@@ -25,6 +25,8 @@ export const entraIdFeaturesValidator = v.object({
   enableOneDriveAccess: v.optional(v.boolean()),
   autoProvisionTeam: v.optional(v.boolean()),
   excludeGroups: v.optional(v.array(v.string())),
+  seamlessSsoEnabled: v.optional(v.boolean()),
+  domainHint: v.optional(v.string()),
 });
 
 export const googleWorkspaceFeaturesValidator = v.object({

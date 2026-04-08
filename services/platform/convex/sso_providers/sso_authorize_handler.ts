@@ -4,6 +4,18 @@ import { decryptString } from '../lib/crypto/decrypt_string';
 import { ONEDRIVE_SCOPES } from './entra_id/adapter';
 import { getAdapter } from './registry';
 import { signValue } from './sign_cookie_value';
+import type { SsoPromptMode } from './types';
+
+const VALID_PROMPTS: Record<string, SsoPromptMode> = {
+  none: 'none',
+  login: 'login',
+  consent: 'consent',
+  select_account: 'select_account',
+};
+
+function parsePrompt(value: string): SsoPromptMode | undefined {
+  return VALID_PROMPTS[value];
+}
 
 function normalizeOrigin(origin: string): string {
   return origin.replace('127.0.0.1', 'localhost');
@@ -16,6 +28,9 @@ export async function ssoAuthorizeHandler(
   try {
     const url = new URL(req.url);
     const email = url.searchParams.get('email');
+    const promptParam = url.searchParams.get('prompt');
+    const seamlessParam = url.searchParams.get('seamless');
+    const claimsParam = url.searchParams.get('claims');
     const normalizedOrigin = normalizeOrigin(url.origin);
     const redirectUri =
       url.searchParams.get('redirect_uri') ||
@@ -44,12 +59,27 @@ export async function ssoAuthorizeHandler(
     }
 
     const loginHint = email || undefined;
+    const entraFeatures = provider.providerFeatures?.entraId;
+
+    let prompt: SsoPromptMode | undefined;
+    if (promptParam) {
+      prompt = parsePrompt(promptParam);
+    }
+    if (
+      !prompt &&
+      (seamlessParam === 'true' || entraFeatures?.seamlessSsoEnabled)
+    ) {
+      prompt = 'none';
+    }
+
+    const domainHint = entraFeatures?.domainHint;
 
     const clientId = await decryptString(provider.clientIdEncrypted);
 
     const statePayload = JSON.stringify({
       redirectUri,
       timestamp: Date.now(),
+      seamless: prompt === 'none',
     });
     const base64Payload = btoa(statePayload)
       .replace(/\+/g, '-')
@@ -58,7 +88,6 @@ export async function ssoAuthorizeHandler(
     const state = await signValue(base64Payload, secret);
 
     const scopes = [...provider.scopes];
-    const entraFeatures = provider.providerFeatures?.entraId;
     const additionalScopes: string[] = [];
 
     if (entraFeatures?.enableOneDriveAccess) {
@@ -82,6 +111,9 @@ export async function ssoAuthorizeHandler(
         state,
         loginHint,
         additionalScopes,
+        prompt,
+        domainHint,
+        claims: claimsParam || undefined,
       },
     );
 

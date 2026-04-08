@@ -30,10 +30,7 @@ import {
   sanitizeWorkflowName,
 } from '../../agent_tools/workflows/create_bound_workflow_tool';
 import { extractInputSchema } from '../../agent_tools/workflows/helpers/extract_input_schema';
-import {
-  resolveLanguageModel,
-  resolveLanguageModelById,
-} from '../../providers/resolve_model';
+import { resolveLanguageModelWithFallback } from '../../providers/failover';
 import { generateAgentResponse } from '../agent_response';
 import type {
   GenerateResponseHooks,
@@ -289,17 +286,14 @@ export const runAgentGeneration = internalAction({
         ? agentConfig.instructions + delegationInstructionsAppend
         : agentConfig.instructions;
 
-      // Resolve model from provider files
+      // Resolve model from provider files with automatic failover
       const modelId = model === 'default' ? undefined : model;
-      const { languageModel, modelData } = modelId
-        ? await resolveLanguageModelById(ctx, {
-            modelId,
-            providerName: agentConfig.provider,
-          })
-        : await resolveLanguageModel(ctx, {
-            tag: 'chat',
-            providerName: agentConfig.provider,
-          });
+      const { languageModel, modelData } =
+        await resolveLanguageModelWithFallback(ctx, {
+          modelId,
+          providerName: agentConfig.provider,
+          tag: modelId ? undefined : 'chat',
+        });
       const resolvedProvider = modelData.providerName;
 
       // Create agent factory function from serializable config

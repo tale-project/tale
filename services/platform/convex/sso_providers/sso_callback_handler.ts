@@ -2,20 +2,55 @@ import { internal } from '../_generated/api';
 import { ActionCtx } from '../_generated/server';
 import { createAuth } from '../auth';
 import { decryptString } from '../lib/crypto/decrypt_string';
+import { parseIdTokenAuthContext } from './entra_id/adapter';
+import {
+  parseEntraErrorCode,
+  getEntraErrorInfo,
+  isSilentAuthError,
+  extractClaimsChallenge,
+} from './entra_id/error_codes';
 import { getAdapter } from './registry';
 import { signCookieValue, verifySignedValue } from './sign_cookie_value';
 
 const SESSION_COOKIE_NAME = 'better-auth.session_token';
 const SESSION_MAX_AGE = 60 * 60 * 24 * 7;
 
-function redirectWithError(origin: string, message: string): Response {
+function redirectWithError(
+  origin: string,
+  message: string,
+  errorCode?: string,
+  recoveryKey?: string,
+): Response {
   const basePath = process.env.BASE_PATH || '';
   const errorUrl = new URL(`${basePath}/log-in`, origin);
   errorUrl.searchParams.set('error', message);
+  if (errorCode) {
+    errorUrl.searchParams.set('error_code', errorCode);
+  }
+  if (recoveryKey) {
+    errorUrl.searchParams.set('recovery', recoveryKey);
+  }
   return new Response(null, {
     status: 302,
     headers: { Location: errorUrl.toString() },
   });
+}
+
+function buildAuthorizeRedirectUrl(
+  origin: string,
+  redirectUri: string,
+  params: Record<string, string>,
+): string {
+  const basePath = process.env.BASE_PATH || '';
+  const authorizeUrl = new URL(
+    `${basePath}/http_api/api/sso/authorize`,
+    origin,
+  );
+  authorizeUrl.searchParams.set('redirect_uri', redirectUri);
+  for (const [key, value] of Object.entries(params)) {
+    authorizeUrl.searchParams.set(key, value);
+  }
+  return authorizeUrl.toString();
 }
 
 export async function ssoCallbackHandler(
@@ -31,6 +66,73 @@ export async function ssoCallbackHandler(
 
     if (error) {
       console.error('[SSO] OAuth error:', error, errorDescription);
+
+      if (stateParam) {
+        const secret = process.env.BETTER_AUTH_SECRET;
+        if (secret) {
+          const verifiedPayload = await verifySignedValue(stateParam, secret);
+          if (verifiedPayload) {
+            try {
+              const base64 = verifiedPayload
+                .replace(/-/g, '+')
+                .replace(/_/g, '/');
+              const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+              const stateData = JSON.parse(atob(padded));
+
+              if (isSilentAuthError(error) && stateData.seamless) {
+                const authorizeUrl = buildAuthorizeRedirectUrl(
+                  url.origin,
+                  stateData.redirectUri,
+                  { prompt: 'login' },
+                );
+                return new Response(null, {
+                  status: 302,
+                  headers: { Location: authorizeUrl },
+                });
+              }
+
+              if (errorDescription) {
+                const errorCode = parseEntraErrorCode(errorDescription);
+                if (errorCode) {
+                  const errorInfo = getEntraErrorInfo(errorCode);
+
+                  if (errorInfo?.requiresStepUp) {
+                    const claimsChallenge =
+                      extractClaimsChallenge(errorDescription);
+                    const params: Record<string, string> = {
+                      prompt: 'login',
+                    };
+                    if (claimsChallenge) {
+                      params['claims'] = claimsChallenge;
+                    }
+                    const authorizeUrl = buildAuthorizeRedirectUrl(
+                      url.origin,
+                      stateData.redirectUri,
+                      params,
+                    );
+                    return new Response(null, {
+                      status: 302,
+                      headers: { Location: authorizeUrl },
+                    });
+                  }
+
+                  if (errorInfo) {
+                    return redirectWithError(
+                      url.origin,
+                      errorInfo.messageKey,
+                      errorCode,
+                      errorInfo.recoveryKey,
+                    );
+                  }
+                }
+              }
+            } catch {
+              // State parsing failed, fall through to generic error
+            }
+          }
+        }
+      }
+
       return redirectWithError(
         url.origin,
         `SSO login failed: ${errorDescription || error}`,
@@ -105,6 +207,13 @@ export async function ssoCallbackHandler(
     );
 
     const userInfo = await adapter.getUserInfo(tokens.accessToken);
+
+    if (tokens.idToken) {
+      const authContext = parseIdTokenAuthContext(tokens.idToken);
+      if (authContext) {
+        userInfo.authContext = authContext;
+      }
+    }
 
     let appRoles: string[] = [];
     if (provider.autoProvisionRole && adapter.getAppRoles) {

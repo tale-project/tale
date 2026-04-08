@@ -28,6 +28,11 @@ import { isRecord, getString } from '../../../lib/utils/type-guards';
 import { components, internal } from '../../_generated/api';
 import { queryRagContext } from '../../agent_tools/rag/query_rag_context';
 import { queryWebContext } from '../../agent_tools/web/helpers/query_web_context';
+import { recordFailure, recordSuccess } from '../../providers/circuit_breaker';
+import {
+  ProviderUnavailableError,
+  isTransientProviderError,
+} from '../../providers/errors';
 import { onAgentComplete } from '../agent_completion';
 import {
   buildStructuredContext,
@@ -1155,6 +1160,11 @@ export async function generateAgentResponse(
       }
     }
 
+    // Record success in circuit breaker so it resets failure counts
+    if (provider) {
+      recordSuccess(provider, model);
+    }
+
     const durationMs = Date.now() - startTime;
     const timeToFirstTokenMs = firstTokenTime
       ? firstTokenTime - startTime
@@ -1340,6 +1350,32 @@ export async function generateAgentResponse(
     return responseResult;
   } catch (error) {
     abortWatcher?.stop();
+
+    // Record transient provider failures in the circuit breaker
+    if (provider) {
+      const transientInfo = isTransientProviderError(error);
+      if (transientInfo) {
+        recordFailure(provider, model);
+        debugLog('Circuit breaker: recorded failure', {
+          provider,
+          model,
+          statusCode: transientInfo.statusCode,
+          isTimeout: transientInfo.isTimeout,
+        });
+
+        if (
+          error instanceof ProviderUnavailableError ||
+          transientInfo.statusCode
+        ) {
+          throw new ProviderUnavailableError(
+            `Provider ${provider} model ${model} unavailable`,
+            provider,
+            model,
+            transientInfo.statusCode,
+          );
+        }
+      }
+    }
 
     const err = isRecord(error) ? error : { message: String(error) };
     const errorName = getString(err, 'name') ?? '';

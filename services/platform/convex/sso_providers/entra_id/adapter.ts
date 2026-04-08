@@ -9,6 +9,7 @@ import type {
   SsoProviderCapabilities,
   PlatformRole,
   RoleMappingRule,
+  SsoAuthContext,
 } from '../types';
 import {
   MICROSOFT_LOGIN_BASE,
@@ -50,8 +51,20 @@ function buildAuthorizeUrl(
   authUrl.searchParams.set('state', params.state);
   authUrl.searchParams.set('response_mode', 'query');
 
+  if (params.prompt) {
+    authUrl.searchParams.set('prompt', params.prompt);
+  }
+
   if (params.loginHint) {
     authUrl.searchParams.set('login_hint', params.loginHint);
+  }
+
+  if (params.domainHint) {
+    authUrl.searchParams.set('domain_hint', params.domainHint);
+  }
+
+  if (params.claims) {
+    authUrl.searchParams.set('claims', params.claims);
   }
 
   return authUrl;
@@ -90,6 +103,39 @@ async function exchangeCodeForTokens(
       : undefined,
     idToken: data.id_token,
   };
+}
+
+function extractStringArray(values: unknown[]): string[] {
+  const result: string[] = [];
+  for (const v of values) {
+    if (typeof v === 'string') {
+      result.push(v);
+    }
+  }
+  return result;
+}
+
+function parseIdTokenAuthContext(idToken: string): SsoAuthContext | undefined {
+  try {
+    const parts = idToken.split('.');
+    if (parts.length !== 3 || !parts[1]) {
+      return undefined;
+    }
+    const payload = JSON.parse(atob(parts[1]));
+    const acrs = typeof payload.acrs === 'string' ? payload.acrs : undefined;
+    const amr = Array.isArray(payload.amr)
+      ? extractStringArray(payload.amr)
+      : undefined;
+    const mfaCompleted = amr ? amr.includes('mfa') : undefined;
+
+    if (!acrs && !amr) {
+      return undefined;
+    }
+
+    return { authContextClassRef: acrs, authMethodsRef: amr, mfaCompleted };
+  } catch {
+    return undefined;
+  }
 }
 
 async function getUserInfo(accessToken: string): Promise<SsoUserInfo> {
@@ -239,4 +285,4 @@ export const entraIdAdapter: SsoProviderAdapter = {
   mapToRole,
 };
 
-export { ONEDRIVE_SCOPES };
+export { ONEDRIVE_SCOPES, parseIdTokenAuthContext };

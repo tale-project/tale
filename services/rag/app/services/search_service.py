@@ -1,7 +1,7 @@
 """Hybrid search service for the RAG pipeline.
 
 BM25 full-text (pg_search) + pgvector similarity with RRF fusion.
-Scoping via file_ids.
+Scoping via file_ids. Optional semantic caching and cross-encoder re-ranking.
 """
 
 from __future__ import annotations
@@ -14,9 +14,11 @@ import asyncpg
 from loguru import logger
 from tale_knowledge.embedding import EmbeddingService
 from tale_knowledge.retrieval import merge_rrf
+from tale_knowledge.retrieval.reranker import Reranker
 from tale_shared.db import acquire_with_retry
 
 from ..config import settings
+from .semantic_cache import SemanticCache
 
 SCHEMA = "private_knowledge"
 
@@ -27,6 +29,15 @@ class RagSearchService:
     def __init__(self, pool: asyncpg.Pool, embedding_service: EmbeddingService):
         self._pool = pool
         self._embedding = embedding_service
+        self._semantic_cache: SemanticCache | None = SemanticCache(pool) if settings.semantic_cache_enabled else None
+        self._reranker: Reranker | None = (
+            Reranker(
+                model_name=settings.reranking_model,
+                provider=settings.reranking_provider,
+            )
+            if settings.reranking_enabled
+            else None
+        )
 
     async def search(
         self,
@@ -51,6 +62,23 @@ class RagSearchService:
             fts_task = asyncio.create_task(self._fts_search(query, file_ids, top_k * 3))
 
             query_embedding, fts_results = await asyncio.gather(embedding_task, fts_task)
+
+            # Semantic cache: check for a cached result before vector search
+            if self._semantic_cache and query_embedding:
+                cached = await self._semantic_cache.lookup(
+                    query_embedding,
+                    threshold=settings.semantic_cache_similarity_threshold,
+                )
+                if cached:
+                    logger.debug("Semantic cache hit for query: {}", query[:80])
+                    try:
+                        cached_results = json.loads(cached.response_text)
+                        for r in cached_results:
+                            r["cached"] = True
+                        return cached_results
+                    except (json.JSONDecodeError, TypeError):
+                        logger.warning("Invalid cached response format, performing fresh search")
+
             vector_results = await self._vector_search(query_embedding, file_ids, top_k * 3)
 
             if not fts_results and not vector_results:
@@ -65,10 +93,19 @@ class RagSearchService:
                     max_age_days=settings.recency_max_age_days,
                 )
 
-            return [
+            # Re-rank merged results with cross-encoder if enabled
+            if self._reranker and merged:
+                rerank_input = [{"content": item.get("chunk_content", ""), **item} for item in merged]
+                merged = await self._reranker.rerank(
+                    query,
+                    rerank_input,
+                    top_k=settings.reranking_top_k,
+                )
+
+            results = [
                 {
                     "content": item["chunk_content"],
-                    "score": item["rrf_score"],
+                    "score": item.get("reranking_score", item["rrf_score"]),
                     "file_id": str(item["file_id"]) if item.get("file_id") else None,
                     "filename": item.get("filename"),
                     "source_created_at": item.get("source_created_at"),
@@ -76,6 +113,19 @@ class RagSearchService:
                 }
                 for item in merged
             ]
+
+            # Semantic cache: store results for future lookups
+            if self._semantic_cache and query_embedding and results:
+                result_file_ids = [r["file_id"] for r in results if r.get("file_id")]
+                await self._semantic_cache.store(
+                    query,
+                    query_embedding,
+                    json.dumps(results, default=str),
+                    ttl_hours=settings.semantic_cache_ttl_hours,
+                    file_ids=result_file_ids,
+                )
+
+            return results
 
         except asyncpg.UndefinedTableError:
             logger.info("Tables not yet created, returning empty results")
