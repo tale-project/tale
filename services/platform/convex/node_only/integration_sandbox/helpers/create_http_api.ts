@@ -8,7 +8,6 @@ import type {
   HttpResponse,
   PendingHttpRequest,
 } from '../types';
-
 import { PendingOperationError } from '../types';
 
 export interface HttpApiState {

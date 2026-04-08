@@ -2,9 +2,8 @@
  * Execute HTTP requests collected during integration execution
  */
 
-import type { FormField, HttpRequest, HttpResponse } from '../types';
-
 import { base64ToBytes } from '../../../lib/crypto/base64_to_bytes';
+import type { FormField, HttpRequest, HttpResponse } from '../types';
 import { resolveAndValidateUrl } from './url_rewrite';
 
 /**

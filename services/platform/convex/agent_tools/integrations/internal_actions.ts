@@ -1,9 +1,5 @@
 import { v, Infer } from 'convex/values';
 
-import type { LoadedIntegration } from '../../integrations/load_integration';
-import type { SqlOperation } from '../../integrations/types';
-import type { IntegrationOperationMetadataLocal } from './types';
-
 import {
   jsonValueValidator,
   jsonRecordValidator,
@@ -11,6 +7,8 @@ import {
 import { internal } from '../../_generated/api';
 import { internalAction, type ActionCtx } from '../../_generated/server';
 import { isSqlIntegration } from '../../integrations/helpers';
+import type { LoadedIntegration } from '../../integrations/load_integration';
+import type { SqlOperation } from '../../integrations/types';
 import {
   toConvexJsonRecord,
   toConvexJsonValue,
@@ -27,6 +25,7 @@ import { isIntrospectionOperation } from '../../workflow_engine/action_defs/inte
 import { validateRequiredParameters } from '../../workflow_engine/action_defs/integration/helpers/validate_required_parameters';
 import { integrationAction } from '../../workflow_engine/action_defs/integration/integration_action';
 import { sanitizeDepth } from '../../workflow_engine/helpers/serialization/sanitize_depth';
+import type { IntegrationOperationMetadataLocal } from './types';
 
 type ConvexJsonValue = Infer<typeof jsonValueValidator>;
 

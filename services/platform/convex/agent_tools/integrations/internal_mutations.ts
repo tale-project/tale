@@ -1,9 +1,6 @@
 import { saveMessage } from '@convex-dev/agent';
 import { v } from 'convex/values';
 
-import type { IntegrationOperationMetadata } from '../../approvals/types';
-import type { IntegrationOperationMetadataLocal } from './types';
-
 import {
   jsonValueValidator,
   jsonRecordValidator,
@@ -11,8 +8,10 @@ import {
 import { components } from '../../_generated/api';
 import { internalMutation } from '../../_generated/server';
 import { createApproval } from '../../approvals/helpers';
+import type { IntegrationOperationMetadata } from '../../approvals/types';
 import { toConvexJsonRecord } from '../../lib/type_cast_helpers';
 import { triggerCompletionResponseHandler } from '../approval_shared';
+import type { IntegrationOperationMetadataLocal } from './types';
 
 export const updateApprovalWithResult = internalMutation({
   args: {

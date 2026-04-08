@@ -1,10 +1,9 @@
 import { saveMessage } from '@convex-dev/agent';
 import { v } from 'convex/values';
 
+import { components, internal } from '../_generated/api';
 import type { MutationCtx } from '../_generated/server';
 import type { SerializableAgentConfig } from '../lib/agent_chat/types';
-
-import { components, internal } from '../_generated/api';
 import { persistentStreaming } from '../streaming/helpers';
 
 export const DEFAULT_AGENT_CONFIG: SerializableAgentConfig = {

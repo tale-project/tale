@@ -7,16 +7,14 @@
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
-
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
-
-import type { OperationInfo } from './fetch_operations_summary';
-import type { IntegrationExecutionResult } from './types';
 
 import { getBoolean, isRecord } from '../../../lib/utils/type-guards';
 import { internal } from '../../_generated/api';
 import { getApprovalThreadId } from '../../threads/get_parent_thread_id';
+import type { OperationInfo } from './fetch_operations_summary';
+import type { IntegrationExecutionResult } from './types';
 
 interface ApprovalResult {
   requiresApproval: true;
