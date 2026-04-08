@@ -54,7 +54,7 @@
     "knip": "^6.0.0",
     "oxfmt": "^0.44.0",
     "oxlint": "^1.43.0",
-    "oxlint-tsgolint": "^0.18.0",
+    "oxlint-tsgolint": "^0.20.0",
     "postcss": "8.5.9",
     "turbo": "2.9.5",
     "typescript": "5.9.3",
