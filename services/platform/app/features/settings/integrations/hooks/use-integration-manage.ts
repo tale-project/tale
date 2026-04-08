@@ -273,7 +273,8 @@ export function useIntegrationManage(
       .filter(([key]) => !bindingSet.has(key))
       .map(([key, value]) => ({
         key,
-        type: typeof value === 'number' ? 'number' : 'string',
+        type:
+          typeof value === 'number' ? ('number' as const) : ('string' as const),
         defaultValue:
           typeof value === 'number'
             ? value
