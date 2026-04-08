@@ -65,8 +65,56 @@ function isHeaderRow(values: string[]): boolean {
 }
 
 /**
+ * Parse a single CSV line respecting quoted fields (RFC 4180).
+ * Handles commas, newlines, and escaped quotes inside quoted values.
+ */
+function parseCSVLine(line: string, delimiter: string): string[] {
+  const fields: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  let i = 0;
+
+  while (i < line.length) {
+    const char = line[i];
+
+    if (inQuotes) {
+      if (char === '"') {
+        // Check for escaped quote ("")
+        if (i + 1 < line.length && line[i + 1] === '"') {
+          current += '"';
+          i += 2;
+        } else {
+          // End of quoted field
+          inQuotes = false;
+          i++;
+        }
+      } else {
+        current += char;
+        i++;
+      }
+    } else {
+      if (char === '"') {
+        inQuotes = true;
+        i++;
+      } else if (char === delimiter) {
+        fields.push(current.trim());
+        current = '';
+        i++;
+      } else {
+        current += char;
+        i++;
+      }
+    }
+  }
+
+  fields.push(current.trim());
+  return fields;
+}
+
+/**
  * Parse CSV text into rows of string arrays.
  * Automatically detects and skips header rows unless disabled.
+ * Handles quoted fields per RFC 4180.
  */
 function parseCSVText(
   csvText: string,
@@ -81,7 +129,7 @@ function parseCSVText(
     const trimmedLine = line.trim();
     if (skipEmptyLines && !trimmedLine) continue;
 
-    const values = trimmedLine.split(delimiter).map((item) => item.trim());
+    const values = parseCSVLine(trimmedLine, delimiter);
     rows.push(values);
   }
 
@@ -171,7 +219,8 @@ async function parseExcelFile(
 ): Promise<Array<Record<string, unknown>>> {
   const XLSX = await import('xlsx');
   const buffer = await readFileAsArrayBuffer(file);
-  const workbook = XLSX.read(buffer, { type: 'array' });
+  const data = new Uint8Array(buffer);
+  const workbook = XLSX.read(data, { type: 'array' });
   const sheetName = workbook.SheetNames[0];
   const worksheet = workbook.Sheets[sheetName];
   const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet);
