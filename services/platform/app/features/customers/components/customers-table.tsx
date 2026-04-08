@@ -111,7 +111,6 @@ export function CustomersTable({
           { value: 'active', label: tCustomers('filter.status.active') },
           { value: 'potential', label: tCustomers('filter.status.potential') },
           { value: 'churned', label: tCustomers('filter.status.churned') },
-          { value: 'lost', label: tCustomers('filter.status.lost') },
         ],
         selectedValues: status ? [status] : [],
         onChange: handleStatusChange,
@@ -130,7 +129,7 @@ export function CustomersTable({
       {
         key: 'locale',
         title: tTables('headers.locale'),
-        grid: true,
+        columns: 2 as const,
         options: [
           { value: 'en', label: tGlobal('languageCodes.en') },
           { value: 'es', label: tGlobal('languageCodes.es') },
