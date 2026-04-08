@@ -56,7 +56,8 @@ export function EventsSection({
     if (workflows) {
       for (const w of workflows) {
         if (w !== null && 'slug' in w && 'name' in w) {
-          map.set(w.slug, w.name);
+          // oxlint-disable-next-line typescript/no-unnecessary-type-assertion, typescript/no-unsafe-type-assertion -- narrowed by 'in' check
+          map.set(w.slug as string, w.name as string);
         }
       }
     }

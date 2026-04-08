@@ -81,8 +81,10 @@ const getPresetDateRange = (preset: DatePreset): DateRange => {
       return { from: startOfYear(today), to: today };
     case 'allTime':
       return { from: new Date(0), to: today };
-    default:
-      return undefined;
+    default: {
+      const _exhaustive: never = preset;
+      throw new Error('Unknown preset: ' + String(_exhaustive));
+    }
   }
 };
 

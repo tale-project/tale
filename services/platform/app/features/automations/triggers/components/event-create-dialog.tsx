@@ -84,7 +84,8 @@ export function EventCreateDialog({
     const result: { _id: string; name: string }[] = [];
     for (const w of rawWorkflows ?? []) {
       if (w !== null && 'slug' in w && 'name' in w) {
-        result.push({ _id: w.slug, name: w.name });
+        // oxlint-disable-next-line typescript/no-unnecessary-type-assertion, typescript/no-unsafe-type-assertion -- narrowed by 'in' check
+        result.push({ _id: w.slug as string, name: w.name as string });
       }
     }
     return result;
