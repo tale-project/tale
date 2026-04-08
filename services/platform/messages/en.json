@@ -2671,7 +2671,58 @@
     "structured": {
       "nextSteps": "Suggested follow-ups"
     },
-    "welcomeSuffix": "here, what are we working on?"
+    "welcomeSuffix": "here, what are we working on?",
+    "dictation": {
+      "start": "Start dictation",
+      "stop": "Stop dictation",
+      "notSupported": "Speech recognition is not supported in this browser"
+    },
+    "citations": {
+      "source": "Source {number}",
+      "page": "Page {page}",
+      "relevance": "Relevance: {score}%",
+      "viewDocument": "View in document"
+    },
+    "feedback": {
+      "helpful": "Helpful",
+      "notHelpful": "Not helpful",
+      "commentPlaceholder": "What could be improved?",
+      "submit": "Submit feedback",
+      "submitted": "Feedback submitted",
+      "removed": "Feedback removed"
+    },
+    "share": {
+      "title": "Share chat",
+      "enable": "Share this chat",
+      "disable": "Stop sharing",
+      "copyLink": "Copy link",
+      "copied": "Link copied",
+      "sharedBy": "Shared by {name}",
+      "forkChat": "Fork this chat",
+      "forked": "Chat forked successfully",
+      "readOnly": "This is a shared chat (read-only)"
+    },
+    "arena": {
+      "title": "Arena Mode",
+      "enable": "Enable Arena Mode",
+      "disable": "Disable Arena Mode",
+      "modelA": "Model A",
+      "modelB": "Model B",
+      "selectModels": "Select two models to compare",
+      "aBetter": "A is better",
+      "bBetter": "B is better",
+      "tie": "Tie",
+      "bothBad": "Both bad"
+    },
+    "canvas": {
+      "title": "Canvas",
+      "openInCanvas": "Open in Canvas",
+      "close": "Close canvas",
+      "edit": "Edit",
+      "preview": "Preview",
+      "copy": "Copy",
+      "download": "Download"
+    }
   },
   "documents": {
     "title": "Documents",
@@ -3463,5 +3514,188 @@
       "title": "API keys",
       "description": "Create and manage API keys for integrations."
     }
+  },
+  "governance": {
+    "title": "Governance",
+    "description": "Configure organization-wide policies and controls.",
+    "systemPrompt": {
+      "title": "System Prompt",
+      "description": "Set a mandatory system prompt that is applied to all agents and cannot be overridden by users.",
+      "prefix": "Prefix (prepended before agent instructions)",
+      "suffix": "Suffix (appended after agent instructions)",
+      "prefixPlaceholder": "Enter the mandatory prompt prefix...",
+      "suffixPlaceholder": "Enter the mandatory prompt suffix...",
+      "charCount": "{count} characters",
+      "saved": "System prompt saved"
+    },
+    "budgets": {
+      "title": "Budgets & Limits",
+      "description": "Configure token budgets, cost limits, and rate limits per user or group.",
+      "addRule": "Add budget rule",
+      "scope": "Scope",
+      "period": "Period",
+      "tokenLimit": "Token limit",
+      "costLimitEur": "Cost limit (EUR)",
+      "costLimitUsd": "Cost limit (USD)",
+      "requestsPerMinute": "Requests per minute",
+      "daily": "Daily",
+      "weekly": "Weekly",
+      "monthly": "Monthly",
+      "saved": "Budget rules saved"
+    },
+    "defaultModels": {
+      "title": "Default Models",
+      "description": "Set default models for specific user groups or roles.",
+      "addMapping": "Add model mapping",
+      "saved": "Default model configuration saved"
+    },
+    "uploadPolicy": {
+      "title": "Upload Policy",
+      "description": "Configure allowed file types, maximum file size, and volume limits.",
+      "allowedExtensions": "Allowed file extensions",
+      "maxFileSize": "Maximum file size",
+      "maxVolumePerUser": "Maximum total volume per user",
+      "saved": "Upload policy saved"
+    },
+    "retentionPolicy": {
+      "title": "Retention Policy",
+      "description": "Configure automatic deletion of uploaded files after a specified period.",
+      "retentionDays": "Retention period (days)",
+      "scope": "Apply to",
+      "saved": "Retention policy saved"
+    },
+    "featureFlags": {
+      "title": "Feature Controls",
+      "description": "Enable or disable features per user, team, or role.",
+      "webSearch": "Web search",
+      "codeExecution": "Code execution",
+      "maxContextTokens": "Max context tokens",
+      "saved": "Feature controls saved"
+    },
+    "pii": {
+      "title": "PII Protection",
+      "description": "Detect and mask or block personal data before sending to AI models.",
+      "enabled": "Enable PII protection",
+      "mode": "Mode",
+      "mask": "Mask (replace with placeholders)",
+      "block": "Block (reject message)",
+      "patterns": "Detection patterns",
+      "iban": "IBAN numbers",
+      "email": "Email addresses",
+      "phone": "Phone numbers",
+      "creditCard": "Credit card numbers",
+      "germanId": "German ID numbers",
+      "ssn": "Social security numbers",
+      "customRules": "Custom regex rules",
+      "testArea": "Test detection",
+      "testPlaceholder": "Paste text here to test PII detection...",
+      "saved": "PII configuration saved",
+      "blocked": "Message blocked: personal data detected",
+      "detectedTypes": "Detected: {types}"
+    }
+  },
+  "prompts": {
+    "title": "Prompt Library",
+    "description": "Browse, save, and share prompt templates.",
+    "search": "Search prompts...",
+    "all": "All",
+    "team": "Team",
+    "myPrompts": "My Prompts",
+    "create": "Create prompt",
+    "edit": "Edit prompt",
+    "delete": "Delete prompt",
+    "deleteConfirmation": "Are you sure you want to delete this prompt?",
+    "use": "Use prompt",
+    "saveAsPrompt": "Save as prompt",
+    "form": {
+      "title": "Title",
+      "titlePlaceholder": "Enter prompt title...",
+      "content": "Content",
+      "contentPlaceholder": "Enter prompt content...",
+      "description": "Description",
+      "descriptionPlaceholder": "Brief description of what this prompt does...",
+      "scope": "Visibility",
+      "category": "Category",
+      "categoryPlaceholder": "e.g., writing, analysis, coding",
+      "tags": "Tags",
+      "tagsPlaceholder": "Add tags...",
+      "save": "Save prompt",
+      "saved": "Prompt saved"
+    },
+    "scopeLabels": {
+      "global": "Global (everyone)",
+      "team": "Team",
+      "personal": "Personal"
+    },
+    "usageCount": "{count} uses",
+    "noResults": "No prompts found",
+    "emptyState": "No prompts yet. Create your first prompt template."
+  },
+  "mcpServers": {
+    "title": "MCP Servers",
+    "description": "Connect to internal data sources and tools via the Model Context Protocol.",
+    "addServer": "Add MCP server",
+    "editServer": "Edit MCP server",
+    "deleteServer": "Delete MCP server",
+    "deleteConfirmation": "Are you sure you want to delete this MCP server connection?",
+    "testConnection": "Test connection",
+    "testing": "Testing connection...",
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "error": "Error",
+    "form": {
+      "name": "Name",
+      "displayName": "Display name",
+      "description": "Description",
+      "transportType": "Transport type",
+      "url": "URL",
+      "command": "Command",
+      "args": "Arguments",
+      "authType": "Authentication",
+      "none": "None",
+      "apiKey": "API Key",
+      "oauth2": "OAuth 2.0",
+      "save": "Save server"
+    },
+    "oauth2": {
+      "title": "OAuth 2.0 Configuration",
+      "tokenUrl": "Token URL",
+      "authorizationUrl": "Authorization URL",
+      "clientId": "Client ID",
+      "clientSecret": "Client secret",
+      "scopes": "Scopes",
+      "grantType": "Grant type",
+      "clientCredentials": "Client credentials",
+      "authorizationCode": "Authorization code",
+      "authorize": "Authorize",
+      "authorized": "Authorized"
+    },
+    "tools": {
+      "title": "Discovered Tools",
+      "noTools": "No tools discovered. Test the connection first.",
+      "requiresApproval": "Requires approval"
+    },
+    "saved": "MCP server saved",
+    "deleted": "MCP server deleted"
+  },
+  "documentComparison": {
+    "title": "Compare Documents",
+    "description": "Upload or select two documents to compare their content.",
+    "baseDocument": "Base Document",
+    "comparisonDocument": "Comparison Document",
+    "compare": "Compare",
+    "comparing": "Comparing documents...",
+    "upload": "Upload",
+    "existing": "Existing",
+    "selectDocument": "Select a document",
+    "results": {
+      "title": "Comparison Results",
+      "added": "Added",
+      "deleted": "Deleted",
+      "modified": "Modified",
+      "unchanged": "Unchanged",
+      "similarityScore": "Similarity: {score}%"
+    },
+    "noResults": "No comparison results yet."
   }
 }

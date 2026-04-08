@@ -12,6 +12,7 @@ export interface SearchResult {
   filename?: string;
   source_created_at?: string | null;
   source_modified_at?: string | null;
+  page_number?: number | null;
   metadata?: Record<string, unknown>;
 }
 
@@ -49,12 +50,14 @@ export function formatSearchResults(
       const score = (r.score * 100).toFixed(1);
       const sourceAnnotation = r.filename ? ` [Source: ${r.filename}]` : '';
       const fileIdAnnotation = r.file_id ? ` [FileID: ${r.file_id}]` : '';
+      const pageAnnotation =
+        r.page_number != null ? ` [Page: ${r.page_number}]` : '';
       const dateAnnotation = r.source_modified_at
         ? ` [Modified: ${r.source_modified_at.slice(0, 10)}]`
         : r.source_created_at
           ? ` [Created: ${r.source_created_at.slice(0, 10)}]`
           : '';
-      return `[${idx + 1}] (Relevance: ${score}%)${sourceAnnotation}${dateAnnotation}${fileIdAnnotation}\n${r.content}`;
+      return `[${idx + 1}] (Relevance: ${score}%)${sourceAnnotation}${pageAnnotation}${dateAnnotation}${fileIdAnnotation}\n${r.content}`;
     })
     .join('\n\n---\n\n');
 }
