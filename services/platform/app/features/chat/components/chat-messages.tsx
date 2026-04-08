@@ -146,7 +146,7 @@ export function ChatMessages({
   useLayoutEffect(() => {
     const container = containerRef.current;
     const responseArea = responseAreaRef.current;
-    if (!container || !responseArea) return;
+    if (!container || !responseArea) return undefined;
 
     const next = `${computeResponseMinHeight(container, responseArea, lastUserMessageRef.current)}px`;
     prevMinHeightRef.current = next;
@@ -173,7 +173,7 @@ export function ChatMessages({
   useEffect(() => {
     const container = containerRef.current;
     const responseArea = responseAreaRef.current;
-    if (!container || !responseArea) return;
+    if (!container || !responseArea) return undefined;
 
     let rafId: number | null = null;
 

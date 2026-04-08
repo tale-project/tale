@@ -125,6 +125,7 @@ export const ragAction: ActionDefinition<RagActionParams> = {
         }
       }
     }
+    return undefined;
   },
 };
 

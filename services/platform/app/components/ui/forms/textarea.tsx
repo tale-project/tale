@@ -45,6 +45,7 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
         const timer = setTimeout(() => setShowShake(false), 400);
         return () => clearTimeout(timer);
       }
+      return undefined;
     }, [hasError, errorMessage]);
 
     return (

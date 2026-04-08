@@ -233,21 +233,22 @@ Every request is a form with one or more fields. Each field has a type that dete
             threadId,
             question: args.question,
             context: args.context,
-            fields: fields.map((f) => ({
-              label: f.label,
-              description: f.description,
-              required: f.required,
-              type: f.type,
-              ...('options' in f && f.options
-                ? {
-                    options: f.options.map((opt) => ({
-                      label: opt.label,
-                      description: opt.description,
-                      value: opt.value,
-                    })),
-                  }
-                : {}),
-            })),
+            fields: fields.map((f) => {
+              const base: Record<string, unknown> = {
+                label: f.label,
+                description: f.description,
+                required: f.required,
+                type: f.type,
+              };
+              if ('options' in f && f.options) {
+                base.options = f.options.map((opt) => ({
+                  label: opt.label,
+                  description: opt.description,
+                  value: opt.value,
+                }));
+              }
+              return base;
+            }),
             wfExecutionId,
             stepSlug,
           },

@@ -50,7 +50,7 @@ export function TeamMultiSelect({
 
   // Close on outside click
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) return undefined;
 
     function handleClickOutside(e: MouseEvent) {
       if (

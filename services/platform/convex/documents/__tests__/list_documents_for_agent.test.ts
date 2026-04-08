@@ -83,7 +83,7 @@ function createMockCtx(
           if (table === 'folders') {
             matches = Object.entries(folders)
               .filter(([, f]) => f.organizationId === orgFilter)
-              .map(([id, f]) => ({ _id: id, ...f }));
+              .map(([id, f]) => Object.assign({ _id: id }, f));
           } else {
             matches = documents.filter((d) => {
               if (d.organizationId !== orgFilter) return false;

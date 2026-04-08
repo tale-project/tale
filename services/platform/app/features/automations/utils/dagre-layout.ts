@@ -142,6 +142,7 @@ export function getLayoutedElements(
 
   // Apply positions to parent nodes
   // Shift dagre position (center-center anchor) to top-left (React Flow anchor)
+  // oxlint-disable-next-line oxc/no-map-spread -- immutable update required
   const layoutedParentNodes = parentNodes.map((node) => {
     const nodeWithPosition = dagreGraph.node(node.id);
     const { width, height } = getNodeDimensions(node);

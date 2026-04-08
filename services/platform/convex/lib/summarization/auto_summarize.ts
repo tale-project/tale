@@ -215,11 +215,11 @@ export async function autoSummarizeIfNeededModel(
         }
       }
 
-      return {
-        role,
-        content,
-        ...(toolName ? { toolName } : {}),
-      };
+      const msg: MessageForSummary = { role, content };
+      if (toolName) {
+        msg.toolName = toolName;
+      }
+      return msg;
     });
 
   // Skip if no meaningful content to summarize

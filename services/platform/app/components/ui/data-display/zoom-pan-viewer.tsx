@@ -129,6 +129,8 @@ export const ZoomPanViewer = memo(function ZoomPanViewer({
         return null;
       case 'inline':
         return <div className="mb-2 flex justify-end">{toolbar}</div>;
+      default:
+        return undefined;
     }
   };
 

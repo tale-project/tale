@@ -72,7 +72,7 @@ export function useZoomPan(options?: UseZoomPanOptions): UseZoomPanReturn {
   // Cache container dimensions via ResizeObserver for pan clamping
   useEffect(() => {
     const el = containerRef.current;
-    if (!el) return;
+    if (!el) return undefined;
     const observer = new ResizeObserver(([entry]) => {
       containerDimsRef.current = {
         width: entry.contentRect.width,
@@ -141,7 +141,7 @@ export function useZoomPan(options?: UseZoomPanOptions): UseZoomPanReturn {
   // Wheel zoom on the container (throttled)
   useEffect(() => {
     const container = containerRef.current;
-    if (!container) return;
+    if (!container) return undefined;
 
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
@@ -167,7 +167,7 @@ export function useZoomPan(options?: UseZoomPanOptions): UseZoomPanReturn {
   // Keyboard shortcuts on the container
   useEffect(() => {
     const container = containerRef.current;
-    if (!container) return;
+    if (!container) return undefined;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       switch (e.key) {

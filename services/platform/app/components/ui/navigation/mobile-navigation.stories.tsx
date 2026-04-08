@@ -282,9 +282,11 @@ export const MemberRole: Story = {
 
 export const NoActiveItem: Story = {
   render: () => {
+    // oxlint-disable-next-line oxc/no-map-spread -- immutable update required
     const items: NavItemData[] = sampleItems.map((item) => ({
       ...item,
       isActive: false,
+      // oxlint-disable-next-line oxc/no-map-spread -- immutable update required
       subItems: item.subItems?.map((sub) => ({ ...sub, isActive: false })),
     }));
     return <MobileNavigationVisual items={items} defaultOpen />;

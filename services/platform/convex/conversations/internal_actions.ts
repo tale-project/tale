@@ -449,12 +449,14 @@ export const downloadAttachmentsAction = internalAction({
           const matchingRef = fileRefs[matchIdx];
           usedRefIndices.add(matchIdx);
           const contentId = getContentIdForRef(matchIdx);
-          return {
-            ...a,
+          const updated = Object.assign({}, a, {
             storageId: matchingRef.fileId,
             url: matchingRef.url,
-            ...(contentId && !a.contentId ? { contentId } : {}),
-          };
+          });
+          if (contentId && !a.contentId) {
+            updated.contentId = contentId;
+          }
+          return updated;
         }
         return att;
       });

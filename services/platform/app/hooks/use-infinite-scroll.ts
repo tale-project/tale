@@ -91,7 +91,7 @@ export function useInfiniteScroll({
   useEffect(() => {
     const sentinel = sentinelRef.current;
     if (!sentinel || !enabled || !hasMore) {
-      return;
+      return undefined;
     }
 
     const observer = new IntersectionObserver(

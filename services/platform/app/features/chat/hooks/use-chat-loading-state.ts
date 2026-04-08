@@ -96,7 +96,7 @@ export function useChatLoadingState({
   // Safety valve: clear isPending after a max lifetime to prevent stuck states
   // (e.g. silent mutation failure, network partition).
   useEffect(() => {
-    if (!isPending) return;
+    if (!isPending) return undefined;
 
     const timeout = setTimeout(() => {
       setIsPending(false);

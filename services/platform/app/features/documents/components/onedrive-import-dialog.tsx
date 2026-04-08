@@ -370,21 +370,24 @@ export function OneDriveImportDialog({
         sourceTab === 'sharepoint' && selectedSite && selectedDrive;
 
       const result = await importFilesAction({
-        items: allFiles.map((file) => ({
-          id: file.id,
-          name: file.name,
-          size: file.size,
-          relativePath: file.relativePath,
-          isDirectlySelected: file.isDirectlySelected,
-          selectedParentId: file.selectedParentId,
-          selectedParentName: file.selectedParentName,
-          selectedParentPath: file.selectedParentPath,
-          ...(isSharePoint && {
-            siteId: selectedSite.id,
-            driveId: selectedDrive.id,
-            sourceType: 'sharepoint' as const,
-          }),
-        })),
+        items: allFiles.map((file) => {
+          const item: Record<string, unknown> = {
+            id: file.id,
+            name: file.name,
+            size: file.size,
+            relativePath: file.relativePath,
+            isDirectlySelected: file.isDirectlySelected,
+            selectedParentId: file.selectedParentId,
+            selectedParentName: file.selectedParentName,
+            selectedParentPath: file.selectedParentPath,
+          };
+          if (isSharePoint) {
+            item.siteId = selectedSite.id;
+            item.driveId = selectedDrive.id;
+            item.sourceType = 'sharepoint' as const;
+          }
+          return item;
+        }),
         organizationId,
         importType,
         teamId: selectedTeamId_local,
@@ -544,4 +547,6 @@ export function OneDriveImportDialog({
       </Dialog>
     );
   }
+
+  return undefined;
 }

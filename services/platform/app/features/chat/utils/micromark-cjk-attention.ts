@@ -109,8 +109,10 @@ export function micromarkCjkAttention() {
  * Usage:
  *   const REMARK_PLUGINS = [remarkCjkAttention, remarkGfm];
  */
+// oxlint-disable oxc/no-this-in-exported-function -- remark plugin API requires this binding
 export function remarkCjkAttention(this: PluginThis) {
   const data = this.data();
+  // oxlint-enable oxc/no-this-in-exported-function
   if (!data.micromarkExtensions) data.micromarkExtensions = [];
   data.micromarkExtensions.push(micromarkCjkAttention());
 }

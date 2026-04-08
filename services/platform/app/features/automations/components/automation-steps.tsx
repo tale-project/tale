@@ -180,7 +180,7 @@ function AutomationStepsInner({
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container) return;
+    if (!container) return undefined;
 
     const MINIMAP_BASE_WIDTH = 144;
     const MINIMAP_MAX_WIDTH = 192;
@@ -280,7 +280,7 @@ function AutomationStepsInner({
         stepType: s.stepType,
         actionType:
           s.stepType === 'action' && 'type' in s.config
-            ? String(s.config.type)
+            ? s.config.type
             : undefined,
       })),
     [steps],

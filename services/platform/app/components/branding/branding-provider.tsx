@@ -114,7 +114,7 @@ export function BrandingProvider({ children }: BrandingProviderProps) {
     const lightUrl = branding?.faviconLightUrl;
     const darkUrl = branding?.faviconDarkUrl;
 
-    if (!lightUrl && !darkUrl) return;
+    if (!lightUrl && !darkUrl) return undefined;
 
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
 

@@ -58,7 +58,7 @@ export const ImagePreviewDialog = memo(function ImagePreviewDialog({
   }, [images, activeIndex, onActiveIndexChange]);
 
   useEffect(() => {
-    if (!isOpen || !isGallery) return;
+    if (!isOpen || !isGallery) return undefined;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'ArrowLeft') {

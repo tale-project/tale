@@ -317,7 +317,7 @@ function WorkflowUpdateApprovalCardComponent({
                     as="span"
                     className="min-w-0 font-mono text-[10px] break-all"
                   >
-                    {isRecord(value) ? JSON.stringify(value) : String(value)}
+                    {isRecord(value) ? JSON.stringify(value) : (value ?? '')}
                   </Text>
                 </div>
               ))}

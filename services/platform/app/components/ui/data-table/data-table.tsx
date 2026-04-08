@@ -266,6 +266,7 @@ export function DataTable<TData, TValue = unknown>({
       return () => clearTimeout(timer);
     }
     prevRowCountRef.current = currentCount;
+    return undefined;
   }, [data, getRowId]);
 
   // Initialize infinite scroll hook for automatic loading

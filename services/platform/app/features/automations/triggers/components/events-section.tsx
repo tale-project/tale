@@ -56,7 +56,7 @@ export function EventsSection({
     if (workflows) {
       for (const w of workflows) {
         if (w !== null && 'slug' in w && 'name' in w) {
-          map.set(String(w.slug), String(w.name));
+          map.set(w.slug, w.name);
         }
       }
     }
@@ -175,7 +175,7 @@ export function EventsSection({
                 <HStack gap={1} wrap>
                   {filterEntries.map(([key, value]) => (
                     <Badge key={key} variant="outline" className="text-xs">
-                      {resolveFilterLabel(eventType, key, String(value))}
+                      {resolveFilterLabel(eventType, key, value)}
                     </Badge>
                   ))}
                 </HStack>

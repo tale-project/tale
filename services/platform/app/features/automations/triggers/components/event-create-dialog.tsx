@@ -84,7 +84,7 @@ export function EventCreateDialog({
     const result: { _id: string; name: string }[] = [];
     for (const w of rawWorkflows ?? []) {
       if (w !== null && 'slug' in w && 'name' in w) {
-        result.push({ _id: String(w.slug), name: String(w.name) });
+        result.push({ _id: w.slug, name: w.name });
       }
     }
     return result;

@@ -95,6 +95,7 @@ export const Input = forwardRef<HTMLInputElement, BaseProps>(
         const timer = setTimeout(() => setShowShake(false), 400);
         return () => clearTimeout(timer);
       }
+      return undefined;
     }, [showInvalid, errorMessage]);
 
     if (isPassword && passwordToggle) {

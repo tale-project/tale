@@ -135,7 +135,7 @@ function WorkflowRunApprovalCardComponent({
   >({});
 
   useEffect(() => {
-    if (!isRunning || !executionStatus?.startedAt) return;
+    if (!isRunning || !executionStatus?.startedAt) return undefined;
     setElapsed(formatElapsed(executionStatus.startedAt));
     const interval = setInterval(() => {
       setElapsed(formatElapsed(executionStatus.startedAt));
