@@ -55,7 +55,7 @@
     "oxfmt": "^0.32.0",
     "oxlint": "^1.43.0",
     "oxlint-tsgolint": "^0.18.0",
-    "postcss": "8.5.8",
+    "postcss": "8.5.9",
     "turbo": "2.9.5",
     "typescript": "5.9.3",
     "vitest": "4.1.3"
