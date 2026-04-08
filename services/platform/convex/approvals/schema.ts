@@ -24,6 +24,7 @@ export const approvalsTable = defineTable({
     v.literal('human_input_request'),
     v.literal('document_write'),
     v.literal('location_request'),
+    v.literal('mcp_tool_call'),
   ),
   resourceId: v.string(),
   threadId: v.optional(v.string()),

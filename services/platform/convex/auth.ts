@@ -37,6 +37,10 @@ const platformResourceStatements = {
   websites: ['read', 'write'],
   workflowProcessingRecords: ['read', 'write'],
   auditLogs: ['read', 'write'],
+  governancePolicies: ['read', 'write'],
+  promptTemplates: ['read', 'write'],
+  messageFeedback: ['read', 'write'],
+  mcpServers: ['read', 'write'],
 } as const;
 
 const platformStatements = {
@@ -66,6 +70,10 @@ const admin = ac.newRole({
   approvals: ['read', 'write'],
   websites: ['read', 'write'],
   auditLogs: ['read', 'write'],
+  governancePolicies: ['read', 'write'],
+  promptTemplates: ['read', 'write'],
+  messageFeedback: ['read', 'write'],
+  mcpServers: ['read', 'write'],
 });
 
 const developer = ac.newRole({
@@ -86,6 +94,10 @@ const developer = ac.newRole({
   approvals: ['read', 'write'],
   websites: ['read', 'write'],
   auditLogs: ['read', 'write'],
+  governancePolicies: ['read'],
+  promptTemplates: ['read', 'write'],
+  messageFeedback: ['read', 'write'],
+  mcpServers: ['read', 'write'],
 });
 
 const editor = ac.newRole({
@@ -107,6 +119,10 @@ const editor = ac.newRole({
   approvals: ['read', 'write'],
   websites: ['read', 'write'],
   auditLogs: ['read', 'write'],
+  governancePolicies: ['read'],
+  promptTemplates: ['read', 'write'],
+  messageFeedback: ['read', 'write'],
+  mcpServers: ['read'],
   // No access to: settings, automations (frontend menu restricted)
 });
 
@@ -128,6 +144,10 @@ const member = ac.newRole({
   approvals: ['read'],
   websites: ['read'],
   auditLogs: ['read'],
+  governancePolicies: ['read'],
+  promptTemplates: ['read'],
+  messageFeedback: ['read', 'write'],
+  mcpServers: ['read'],
   // No access to: settings, automations (frontend menu restricted)
 });
 
@@ -149,6 +169,10 @@ const disabled = ac.newRole({
   approvals: [],
   websites: [],
   auditLogs: [],
+  governancePolicies: [],
+  promptTemplates: [],
+  messageFeedback: [],
+  mcpServers: [],
 });
 
 const owner = admin;

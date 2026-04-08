@@ -22,6 +22,15 @@ export const threadMetadataTable = defineTable({
   agentId: v.optional(v.id('agentBindings')),
   /** @deprecated Retained for backward compatibility with existing documents. */
   customAgentId: v.optional(v.id('customAgents')),
+  // Sharing fields
+  shareToken: v.optional(v.string()),
+  sharedAt: v.optional(v.number()),
+  sharedBy: v.optional(v.string()),
+  isShared: v.optional(v.boolean()),
+  forkedFrom: v.optional(v.string()),
+  // Arena mode fields
+  arenaGroupId: v.optional(v.string()),
+  arenaModelId: v.optional(v.string()),
 })
   .index('by_threadId', ['threadId'])
   .index('by_userId_chatType_status', [
@@ -29,4 +38,6 @@ export const threadMetadataTable = defineTable({
     'chatType',
     'status',
     'createdAt',
-  ]);
+  ])
+  .index('by_shareToken', ['shareToken'])
+  .index('by_arenaGroupId', ['arenaGroupId']);

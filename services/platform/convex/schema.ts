@@ -18,12 +18,16 @@ import {
 } from './conversations/schema';
 import { customersTable } from './customers/schema';
 import { documentsTable } from './documents/schema';
+import { messageFeedbackTable } from './feedback/schema';
 import { fileMetadataTable } from './file_metadata/schema';
 import { foldersTable } from './folders/schema';
+import { governancePoliciesTable, usageLedgerTable } from './governance/schema';
 import { integrationCredentialsTable } from './integrations/credentials_schema';
 import { integrationsTable } from './integrations/schema';
+import { mcpServersTable } from './mcp_servers/schema';
 import { onedriveSyncConfigsTable } from './onedrive/schema';
 import { productsTable } from './products/schema';
+import { promptTemplatesTable } from './prompts/schema';
 import { ssoProvidersTable } from './sso_providers/schema';
 import { messageMetadataTable } from './streaming/schema';
 import { threadMetadataTable } from './threads/schema';
@@ -47,6 +51,11 @@ import {
 export default defineSchema({
   approvals: approvalsTable,
   auditLogs: auditLogsTable,
+  governancePolicies: governancePoliciesTable,
+  usageLedger: usageLedgerTable,
+  promptTemplates: promptTemplatesTable,
+  messageFeedback: messageFeedbackTable,
+  mcpServers: mcpServersTable,
   brandingBindings: brandingBindingsTable,
   /** @deprecated Retained for backward compatibility with existing data. */
   brandingSettings: brandingSettingsLegacyTable,
