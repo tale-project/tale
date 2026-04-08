@@ -1,33 +1,18 @@
 import { saveMessage } from '@convex-dev/agent';
-import { v, type Infer } from 'convex/values';
+import { v } from 'convex/values';
+
+import type { IntegrationOperationMetadata } from '../../approvals/types';
+import type { IntegrationOperationMetadataLocal } from './types';
 
 import {
   jsonValueValidator,
   jsonRecordValidator,
 } from '../../../lib/shared/schemas/utils/json-value';
-import { components, internal } from '../../_generated/api';
+import { components } from '../../_generated/api';
 import { internalMutation } from '../../_generated/server';
 import { createApproval } from '../../approvals/helpers';
-import type { IntegrationOperationMetadata } from '../../approvals/types';
 import { toConvexJsonRecord } from '../../lib/type_cast_helpers';
-import { persistentStreaming } from '../../streaming/helpers';
-
-type ConvexJsonValue = Infer<typeof jsonValueValidator>;
-
-interface IntegrationOperationMetadataLocal {
-  integrationId: string;
-  integrationName: string;
-  integrationType: string;
-  operationName: string;
-  operationDescription?: string;
-  operationCategory?: string;
-  parameters?: Record<string, ConvexJsonValue>;
-  requiresApproval: boolean;
-  requestedAt?: number;
-  executedAt?: number;
-  executionResult?: ConvexJsonValue;
-  executionError?: string | null;
-}
+import { triggerCompletionResponseHandler } from '../approval_shared';
 
 export const updateApprovalWithResult = internalMutation({
   args: {
@@ -121,55 +106,6 @@ export const triggerIntegrationCompletionResponse = internalMutation({
     agentConfig: v.any(),
   },
   handler: async (ctx, args): Promise<void> => {
-    const { threadId, organizationId, agentSlug, messageContent, agentConfig } =
-      args;
-
-    const threadMeta = await ctx.db
-      .query('threadMetadata')
-      .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
-      .first();
-
-    const thread = await ctx.runQuery(components.agent.threads.getThread, {
-      threadId,
-    });
-
-    const { messageId: promptMessageId } = await saveMessage(
-      ctx,
-      components.agent,
-      {
-        threadId,
-        message: { role: 'system', content: messageContent },
-      },
-    );
-
-    const streamId = await persistentStreaming.createStream(ctx);
-
-    if (threadMeta) {
-      await ctx.db.patch(threadMeta._id, {
-        generationStatus: 'generating' as const,
-        streamId,
-      });
-    }
-
-    await ctx.scheduler.runAfter(
-      0,
-      internal.lib.agent_chat.internal_actions.runAgentGeneration,
-      {
-        agentType: 'custom',
-        agentConfig,
-        model: agentConfig.model ?? 'default',
-        provider: agentConfig.provider,
-        debugTag: `[${agentSlug}:IntegrationComplete]`,
-        enableStreaming: true,
-        threadId,
-        organizationId,
-        promptMessage: messageContent,
-        streamId,
-        promptMessageId,
-        maxSteps: 20,
-        userId: thread?.userId,
-        deadlineMs: Date.now() + (agentConfig.timeoutMs ?? 420_000),
-      },
-    );
+    await triggerCompletionResponseHandler(ctx, args, 'IntegrationComplete');
   },
 });

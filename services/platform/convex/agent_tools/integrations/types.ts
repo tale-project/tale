@@ -2,10 +2,34 @@
  * Integration Tool Type Definitions
  */
 
+import type { Infer } from 'convex/values';
+
+import type { jsonValueValidator } from '../../../lib/shared/schemas/utils/json-value';
 import type {
   ConnectorOperation,
   SqlOperation,
 } from '../../integrations/types';
+
+type ConvexJsonValue = Infer<typeof jsonValueValidator>;
+
+/**
+ * Local representation of integration operation metadata stored on approvals.
+ * Used by both internal_actions.ts and internal_mutations.ts.
+ */
+export interface IntegrationOperationMetadataLocal {
+  integrationId: string;
+  integrationName: string;
+  integrationType: string;
+  operationName: string;
+  operationDescription?: string;
+  operationCategory?: string;
+  parameters?: Record<string, ConvexJsonValue>;
+  requiresApproval: boolean;
+  requestedAt?: number;
+  executedAt?: number;
+  executionResult?: ConvexJsonValue;
+  executionError?: string | null;
+}
 
 // =============================================================================
 // INTEGRATION TOOL RESULT TYPES

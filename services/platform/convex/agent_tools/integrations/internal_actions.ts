@@ -1,5 +1,9 @@
 import { v, Infer } from 'convex/values';
 
+import type { LoadedIntegration } from '../../integrations/load_integration';
+import type { SqlOperation } from '../../integrations/types';
+import type { IntegrationOperationMetadataLocal } from './types';
+
 import {
   jsonValueValidator,
   jsonRecordValidator,
@@ -7,8 +11,6 @@ import {
 import { internal } from '../../_generated/api';
 import { internalAction, type ActionCtx } from '../../_generated/server';
 import { isSqlIntegration } from '../../integrations/helpers';
-import type { LoadedIntegration } from '../../integrations/load_integration';
-import type { SqlOperation } from '../../integrations/types';
 import {
   toConvexJsonRecord,
   toConvexJsonValue,
@@ -88,21 +90,6 @@ export const executeIntegration = internalAction({
 // EXECUTE APPROVED OPERATION
 // =============================================================================
 
-interface IntegrationOperationMetadataLocal {
-  integrationId: string;
-  integrationName: string;
-  integrationType: string;
-  operationName: string;
-  operationDescription?: string;
-  operationCategory?: string;
-  parameters?: Record<string, ConvexJsonValue>;
-  requiresApproval: boolean;
-  requestedAt?: number;
-  executedAt?: number;
-  executionResult?: ConvexJsonValue;
-  executionError?: string | null;
-}
-
 async function notifyThread(
   ctx: ActionCtx,
   approval: { threadId?: string; organizationId: string },
@@ -151,8 +138,7 @@ function buildCompletionMessage(
     `Integration "${metadata.integrationName}" operation "${metadata.operationName}" completed successfully.\n\n` +
     `Execution result:\n${truncated}\n\n` +
     `Instructions:\n` +
-    `- Present the operation result to the user\n` +
-    `- If the result contains images or file references (fileReferences with url), display them to the user\n` +
+    `- Present the operation result to the user in the most appropriate format\n` +
     `- If the result contains data, summarize it clearly`
   );
 }

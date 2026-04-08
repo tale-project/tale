@@ -14,8 +14,7 @@ import type { StorageProvider } from '../types';
 import { internal } from '../../../_generated/api';
 import { base64ToBytes } from '../../../lib/crypto/base64_to_bytes';
 import { toPublicUrl } from '../../../lib/helpers/public_storage_url';
-import { isStorageUrl, toInternalStorageUrl } from './url_rewrite';
-import { validateHost } from './validate_host';
+import { resolveAndValidateUrl } from './url_rewrite';
 
 export function createConvexStorageProvider(
   ctx: ActionCtx,
@@ -23,15 +22,7 @@ export function createConvexStorageProvider(
 ): StorageProvider {
   return {
     async download({ url, headers, fileName, allowedHosts }) {
-      const resolvedUrl = toInternalStorageUrl(url);
-
-      if (
-        !isStorageUrl(resolvedUrl) &&
-        allowedHosts &&
-        allowedHosts.length > 0
-      ) {
-        validateHost(resolvedUrl, allowedHosts);
-      }
+      const resolvedUrl = resolveAndValidateUrl(url, allowedHosts);
 
       const response = await globalThis.fetch(resolvedUrl, {
         headers,

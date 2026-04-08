@@ -88,6 +88,7 @@ export async function fetchOperationsWithSchema(
           title: getString(op, 'title'),
           operationType:
             getString(op, 'operationType') === 'write' ? 'write' : 'read',
+          requiresApproval: op.requiresApproval === true,
           parametersSchema: isRecord(op.parametersSchema)
             ? op.parametersSchema
             : undefined,

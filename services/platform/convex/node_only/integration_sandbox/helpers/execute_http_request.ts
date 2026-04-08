@@ -5,8 +5,7 @@
 import type { FormField, HttpRequest, HttpResponse } from '../types';
 
 import { base64ToBytes } from '../../../lib/crypto/base64_to_bytes';
-import { isStorageUrl, toInternalStorageUrl } from './url_rewrite';
-import { validateHost } from './validate_host';
+import { resolveAndValidateUrl } from './url_rewrite';
 
 /**
  * Build a multipart/form-data body from structured form fields.
@@ -25,13 +24,15 @@ function buildFormData(fields: FormField[]): {
 
   for (const field of fields) {
     let header = `--${boundary}\r\n`;
+    const safeName = field.name.replace(/"/g, '\\"');
 
     if (field.fileName) {
+      const safeFileName = field.fileName.replace(/"/g, '\\"');
       header +=
-        `Content-Disposition: form-data; name="${field.name}"; filename="${field.fileName}"\r\n` +
+        `Content-Disposition: form-data; name="${safeName}"; filename="${safeFileName}"\r\n` +
         `Content-Type: ${field.contentType || 'application/octet-stream'}\r\n\r\n`;
     } else {
-      header += `Content-Disposition: form-data; name="${field.name}"\r\n\r\n`;
+      header += `Content-Disposition: form-data; name="${safeName}"\r\n\r\n`;
     }
 
     parts.push(new Blob([encoder.encode(header)]));
@@ -59,18 +60,9 @@ export async function executeHttpRequest(
   req: HttpRequest,
   allowedHosts?: string[],
 ): Promise<HttpResponse> {
-  const resolvedUrl = toInternalStorageUrl(req.url);
+  const resolvedUrl = resolveAndValidateUrl(req.url, allowedHosts);
   const effectiveReq =
     resolvedUrl !== req.url ? { ...req, url: resolvedUrl } : req;
-
-  // Skip host validation for internal storage URLs
-  if (
-    !isStorageUrl(effectiveReq.url) &&
-    allowedHosts &&
-    allowedHosts.length > 0
-  ) {
-    validateHost(effectiveReq.url, allowedHosts);
-  }
 
   let fetchOptions = effectiveReq.options;
 

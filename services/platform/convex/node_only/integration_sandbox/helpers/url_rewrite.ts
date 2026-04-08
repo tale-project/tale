@@ -1,38 +1,34 @@
 /**
- * Rewrite public storage URLs to internal Convex storage URLs.
+ * URL rewrite helpers for the integration sandbox.
  *
- * The Convex backend runs behind a proxy. Public URLs like
- * `https://example.com/api/storage/...` are unreachable from inside
- * the backend. This utility rewrites them to the internal origin
- * (e.g. `http://127.0.0.1:3210/api/storage/...`).
- *
- * Idempotent: URLs that are already internal or non-storage are returned unchanged.
+ * Re-exports the shared storage URL utilities from lib/helpers/public_storage_url
+ * and adds sandbox-specific host validation logic.
  */
 
-const STORAGE_PATH = '/api/storage/';
+export {
+  toInternalStorageUrl,
+  isStorageUrl,
+} from '../../../lib/helpers/public_storage_url';
+
+import {
+  toInternalStorageUrl,
+  isStorageUrl,
+} from '../../../lib/helpers/public_storage_url';
+import { validateHost } from './validate_host';
 
 /**
- * Convert a public storage URL to an internal one.
- * Non-storage URLs and already-internal URLs pass through unchanged.
+ * Resolve a URL (rewriting storage URLs to internal) and validate
+ * the host against the allowlist if applicable.
+ *
+ * Returns the resolved URL. Throws if host validation fails.
  */
-export function toInternalStorageUrl(url: string): string {
-  const storageIdx = url.indexOf(STORAGE_PATH);
-  if (storageIdx === -1) return url;
-
-  const internalOrigin =
-    process.env.CONVEX_CLOUD_URL ?? 'http://127.0.0.1:3210';
-  const internalPrefix = internalOrigin.replace(/\/+$/, '');
-
-  // Already internal — return as-is
-  if (url.startsWith(internalPrefix)) return url;
-
-  // Rewrite: keep everything from /api/storage/... onwards
-  return `${internalPrefix}${url.slice(storageIdx)}`;
-}
-
-/**
- * Check whether a URL points to Convex storage (public or internal).
- */
-export function isStorageUrl(url: string): boolean {
-  return url.includes(STORAGE_PATH);
+export function resolveAndValidateUrl(
+  url: string,
+  allowedHosts?: string[],
+): string {
+  const resolved = toInternalStorageUrl(url);
+  if (!isStorageUrl(resolved) && allowedHosts && allowedHosts.length > 0) {
+    validateHost(resolved, allowedHosts);
+  }
+  return resolved;
 }

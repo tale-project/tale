@@ -452,7 +452,9 @@ export const IntegrationApprovalCard = memo(
       prevProps.className === nextProps.className &&
       prevProps.executedAt === nextProps.executedAt &&
       prevProps.executionError === nextProps.executionError &&
-      prevProps.onSendMessage === nextProps.onSendMessage
+      prevProps.onSendMessage === nextProps.onSendMessage &&
+      prevProps.metadata === nextProps.metadata &&
+      prevProps.organizationId === nextProps.organizationId
     );
   },
 );

@@ -149,7 +149,7 @@ const connector = {
     const apiBase = getApiBase(ctx.secrets);
     const headers = buildHeaders(ctx.secrets);
     const configuredModel = ctx.secrets.get('model') || 'gpt-image-1';
-    console.log('Configured model from secrets: ' + configuredModel);
+    console.log('Configured model: ' + configuredModel);
 
     if (operation === 'create') {
       return generateImage(
@@ -283,6 +283,68 @@ function validateSize(
   );
 }
 
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+function safeParseJson(response: HttpResponse, operation: string): any {
+  try {
+    return response.json();
+  } catch (e) {
+    throw new Error(
+      'Invalid JSON response from API during ' +
+        operation +
+        '. Response may be HTML or malformed.',
+    );
+  }
+}
+
+function processImageItems(
+  imageItems: any[],
+  files: FilesApi | undefined,
+  prefix: string,
+): FileReference[] {
+  const imageRefs: FileReference[] = [];
+  for (let i = 0; i < imageItems.length; i++) {
+    const item = imageItems[i];
+    const timestamp = Date.now();
+    const fileName = prefix + '_' + timestamp + '_' + i + '.png';
+
+    if (item.b64_json && files) {
+      const ref = files.store(item.b64_json, {
+        encoding: 'base64',
+        contentType: 'image/png',
+        fileName: fileName,
+      });
+      imageRefs.push(ref);
+    } else if (item.url && files) {
+      // All supported models should return b64_json; URL responses are unexpected
+      console.warn(
+        'Unexpected URL response from API, expected b64_json. Downloading: ' +
+          fileName,
+      );
+      const ref = files.download(item.url, {
+        fileName: fileName,
+      });
+      imageRefs.push(ref);
+    }
+  }
+  return imageRefs;
+}
+
+function validateN(model: string, n: unknown): number | undefined {
+  if (!n) return undefined;
+  var numN = Number(n);
+  if (isNaN(numN) || numN < 1) {
+    throw new Error('n must be a positive number.');
+  }
+  var caps = MODEL_CAPS[model];
+  if (caps && numN > caps.maxN) {
+    throw new Error(
+      'n cannot exceed ' + caps.maxN + ' for model "' + model + '".',
+    );
+  }
+  return numN;
+}
+
 // ─── Operations ─────────────────────────────────────────────────────────────
 
 function generateImage(
@@ -309,7 +371,8 @@ function generateImage(
     payload.response_format = 'b64_json';
   }
   if (size) payload.size = size;
-  if (params.n) payload.n = params.n;
+  var validatedN = validateN(model, params.n);
+  if (validatedN) payload.n = validatedN;
 
   console.log(
     'Generating image with model: ' + model + ', size: ' + (size || 'default'),
@@ -321,33 +384,14 @@ function generateImage(
   });
   handleError(response, 'create');
 
-  const data = response.json();
+  const data = safeParseJson(response, 'create');
   const imageItems = data.data || [];
 
   if (imageItems.length === 0) {
     throw new Error('No images were returned by the API.');
   }
 
-  const imageRefs: FileReference[] = [];
-  for (let i = 0; i < imageItems.length; i++) {
-    const item = imageItems[i];
-    const timestamp = Date.now();
-    const fileName = 'generated_' + timestamp + '_' + i + '.png';
-
-    if (item.b64_json && files) {
-      const ref = files.store(item.b64_json, {
-        encoding: 'base64',
-        contentType: 'image/png',
-        fileName: fileName,
-      });
-      imageRefs.push(ref);
-    } else if (item.url && files) {
-      const ref = files.download(item.url, {
-        fileName: fileName,
-      });
-      imageRefs.push(ref);
-    }
-  }
+  const imageRefs = processImageItems(imageItems, files, 'generated');
 
   return {
     success: true,
@@ -427,7 +471,9 @@ function editImage(
       isBase64: true,
     },
   ];
-  if (params.n) formFields.push({ name: 'n', value: String(params.n) });
+  var validatedEditN = validateN(model, params.n);
+  if (validatedEditN)
+    formFields.push({ name: 'n', value: String(validatedEditN) });
   if (params.size)
     formFields.push({ name: 'size', value: params.size as string });
 
@@ -442,33 +488,14 @@ function editImage(
   });
   handleError(response, 'edit');
 
-  const data = response.json();
+  const data = safeParseJson(response, 'edit');
   const imageItems = data.data || [];
 
   if (imageItems.length === 0) {
     throw new Error('No images were returned by the API.');
   }
 
-  const imageRefs: FileReference[] = [];
-  for (let i = 0; i < imageItems.length; i++) {
-    const item = imageItems[i];
-    const timestamp = Date.now();
-    const fileName = 'edited_' + timestamp + '_' + i + '.png';
-
-    if (item.b64_json && files) {
-      const ref = files.store(item.b64_json, {
-        encoding: 'base64',
-        contentType: 'image/png',
-        fileName: fileName,
-      });
-      imageRefs.push(ref);
-    } else if (item.url && files) {
-      const ref = files.download(item.url, {
-        fileName: fileName,
-      });
-      imageRefs.push(ref);
-    }
-  }
+  const imageRefs = processImageItems(imageItems, files, 'edited');
 
   return {
     success: true,

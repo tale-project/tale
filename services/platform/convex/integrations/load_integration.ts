@@ -255,7 +255,12 @@ export const loadIntegration = internalAction({
       basicAuth: credentials.basicAuth,
       oauth2Auth: credentials.oauth2Auth,
       oauth2Config,
-      connectionConfig: credentials.connectionConfig ?? config.connectionConfig,
+      connectionConfig: {
+        ...(config.connectionConfig as Record<string, unknown> | undefined),
+        ...(credentials.connectionConfig as
+          | Record<string, unknown>
+          | undefined),
+      },
       connector,
       sqlConnectionConfig,
       sqlOperations: config.sqlOperations,

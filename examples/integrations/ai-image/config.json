@@ -10,13 +10,11 @@
   ],
   "secretBindings": [
     "domain",
-    "accessToken",
-    "model"
+    "accessToken"
   ],
   "allowedHosts": [
     "api.together.xyz",
-    "api.openai.com",
-    "blob.core.windows.net"
+    "api.openai.com"
   ],
   "operations": [
     {
@@ -80,7 +78,8 @@
     }
   ],
   "connectionConfig": {
-    "timeout": 120000
+    "timeout": 120000,
+    "model": "gpt-image-1"
   },
   "metadata": {
     "modelCapabilities": "Configured model: {{model}}\nModel capabilities:\n- gpt-image-1: sizes [1024x1024, 1024x1536, 1536x1024, auto], supports edit\n- dall-e-3: sizes [1024x1024, 1024x1792, 1792x1024], does NOT support edit\n- dall-e-2: sizes [256x256, 512x512, 1024x1024], supports edit\nIMPORTANT: Only use sizes supported by the configured model. Invalid sizes will cause an error."
