@@ -11,6 +11,5 @@
   "structuredResponsesEnabled": false,
   "maxSteps": 10,
   "timeoutMs": 180000,
-  "outputReserve": 2048,
-  "visibleInChat": true
+  "outputReserve": 2048
 }
