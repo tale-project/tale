@@ -7,12 +7,13 @@ import * as z from 'zod';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
-import { Select } from '@/app/components/ui/forms/select';
 import { toast } from '@/app/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useUpdateVendor } from '../hooks/mutations';
+
+const LOCALE_PATTERN = /^[a-z]{2}(?:[-_][A-Za-z]{2,})?$/;
 
 type VendorFormData = {
   name: string;
@@ -34,22 +35,7 @@ export function VendorEditDialog({
 }: VendorEditDialogProps) {
   const { t: tVendors } = useT('vendors');
   const { t: tCommon } = useT('common');
-  const { t: tGlobal } = useT('global');
   const { mutateAsync: updateVendor } = useUpdateVendor();
-
-  const localeOptions = useMemo(
-    () => [
-      { value: 'en', label: tGlobal('languages.en') },
-      { value: 'de', label: tGlobal('languages.de') },
-      { value: 'es', label: tGlobal('languages.es') },
-      { value: 'fr', label: tGlobal('languages.fr') },
-      { value: 'it', label: tGlobal('languages.it') },
-      { value: 'nl', label: tGlobal('languages.nl') },
-      { value: 'pt', label: tGlobal('languages.pt') },
-      { value: 'zh', label: tGlobal('languages.zh') },
-    ],
-    [tGlobal],
-  );
 
   const formSchema = useMemo(
     () =>
@@ -61,8 +47,9 @@ export function VendorEditDialog({
         email: z.string().email(tCommon('validation.email')),
         locale: z
           .string()
-          .min(
-            1,
+          .min(1, tCommon('validation.required', { field: tVendors('locale') }))
+          .regex(
+            LOCALE_PATTERN,
             tCommon('validation.required', { field: tVendors('locale') }),
           ),
       }),
@@ -74,8 +61,6 @@ export function VendorEditDialog({
     handleSubmit,
     formState: { errors, isSubmitting, isDirty },
     reset,
-    setValue,
-    watch,
   } = useForm<VendorFormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -84,8 +69,6 @@ export function VendorEditDialog({
       locale: vendor.locale || 'en',
     },
   });
-
-  const locale = watch('locale');
 
   // Reset form when vendor changes
   useEffect(() => {
@@ -157,16 +140,14 @@ export function VendorEditDialog({
         required
       />
 
-      <Select
-        value={locale}
-        onValueChange={(value) =>
-          setValue('locale', value, { shouldDirty: true })
-        }
-        disabled={isSubmitting}
+      <Input
         id="locale"
         label={tVendors('locale')}
-        error={!!errors.locale}
-        options={localeOptions}
+        placeholder={tVendors('localePlaceholder')}
+        {...register('locale')}
+        disabled={isSubmitting}
+        errorMessage={errors.locale?.message}
+        required
       />
     </FormDialog>
   );
