@@ -2,23 +2,23 @@
 name = "tale-knowledge"
 version = "0.1.0"
 description = "Knowledge pipeline primitives for Tale Python services"
-requires-python = ">=3.11"
+requires-python = "==3.14.3"
 dependencies = [
     "tale-shared",
-    "openai>=1.0.0",
-    "semantic-text-splitter>=0.18.0",
-    "pymupdf>=1.27.0",
-    "python-docx>=1.0.0",
-    "python-pptx>=1.0.0",
-    "openpyxl>=3.1.0",
-    "loguru>=0.7.0",
+    "openai==2.24.0",
+    "semantic-text-splitter==0.29.0",
+    "pymupdf==1.27.1",
+    "python-docx==1.2.0",
+    "python-pptx==1.0.2",
+    "openpyxl==3.1.5",
+    "loguru==0.7.3",
 ]
 
 [tool.uv.sources]
 tale-shared = { path = "../tale_shared" }
 
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools==82.0.1"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
