@@ -1,0 +1,51 @@
+'use client';
+
+import { Swords } from 'lucide-react';
+
+import { Tooltip } from '@/app/components/ui/overlays/tooltip';
+import { Button } from '@/app/components/ui/primitives/button';
+import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
+
+import { useArenaModeOptional } from './arena-mode-context';
+
+export function ArenaModeToggle() {
+  const { t } = useT('chat');
+  const arenaContext = useArenaModeOptional();
+
+  if (!arenaContext) return null;
+
+  const { isArenaMode, enableArenaMode, disableArenaMode } = arenaContext;
+
+  const handleToggle = () => {
+    if (isArenaMode) {
+      disableArenaMode();
+    } else {
+      enableArenaMode();
+    }
+  };
+
+  return (
+    <Tooltip
+      content={isArenaMode ? t('arena.disable') : t('arena.enable')}
+      side="bottom"
+      contentClassName="py-1.5"
+    >
+      <Button
+        size="icon"
+        variant="ghost"
+        onClick={handleToggle}
+        aria-label={t('arena.label')}
+        aria-pressed={isArenaMode}
+        className={cn(isArenaMode && 'bg-accent text-accent-foreground')}
+      >
+        <Swords
+          className={cn(
+            'size-5 p-0.25',
+            isArenaMode ? 'text-accent-foreground' : 'text-muted-foreground',
+          )}
+        />
+      </Button>
+    </Tooltip>
+  );
+}

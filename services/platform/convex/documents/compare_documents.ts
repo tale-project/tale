@@ -1,0 +1,63 @@
+'use node';
+
+import { v } from 'convex/values';
+
+import { internal } from '../_generated/api';
+import { action } from '../_generated/server';
+import { fetchDocumentComparisonByUrls } from '../agent_tools/documents/helpers/fetch_document_comparison';
+import { authComponent } from '../auth';
+import { getRagConfig } from '../lib/helpers/rag_config';
+import { toId } from '../lib/type_cast_helpers';
+
+export const compareDocuments = action({
+  args: {
+    organizationId: v.string(),
+    baseStorageId: v.string(),
+    baseFileName: v.string(),
+    comparisonStorageId: v.string(),
+    comparisonFileName: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) {
+      throw new Error('Unauthenticated');
+    }
+
+    const isMember = await ctx.runQuery(
+      internal.documents.internal_queries.verifyOrganizationMembership,
+      {
+        organizationId: args.organizationId,
+        userId: String(authUser._id),
+      },
+    );
+    if (!isMember) {
+      throw new Error('Unauthorized: not a member of this organization');
+    }
+
+    const { serviceUrl } = getRagConfig();
+
+    const [baseFileUrl, compFileUrl] = await Promise.all([
+      resolveStorageUrl(ctx, args.baseStorageId),
+      resolveStorageUrl(ctx, args.comparisonStorageId),
+    ]);
+
+    return await fetchDocumentComparisonByUrls(
+      serviceUrl,
+      baseFileUrl,
+      args.baseFileName,
+      compFileUrl,
+      args.comparisonFileName,
+    );
+  },
+});
+
+async function resolveStorageUrl(
+  ctx: { storage: { getUrl: (id: string) => Promise<string | null> } },
+  storageId: string,
+): Promise<string> {
+  const fileUrl = await ctx.storage.getUrl(toId<'_storage'>(storageId));
+  if (!fileUrl) {
+    throw new Error(`File URL not available for storage ID: ${storageId}`);
+  }
+  return fileUrl;
+}
