@@ -93,6 +93,7 @@ function buildDynamicInputSchema(
       const paramEntries: [string, z.ZodTypeAny][] = [];
       for (const [name, rawProp] of Object.entries(properties)) {
         if (!rawProp || typeof rawProp !== 'object') continue;
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed by typeof check above
         const prop = rawProp as Record<string, unknown>;
         const type = typeof prop.type === 'string' ? prop.type : 'string';
         const required = prop.required === true;
@@ -120,6 +121,7 @@ function buildDynamicInputSchema(
   // z.discriminatedUnion requires at least 2 variants
   return z.discriminatedUnion(
     'operation',
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- guarded by length checks above
     variants as [
       z.ZodObject<z.ZodRawShape>,
       z.ZodObject<z.ZodRawShape>,

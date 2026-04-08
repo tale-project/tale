@@ -15,7 +15,6 @@ import { Text } from '@/app/components/ui/typography/text';
 import { markdownWrapperStyles } from '@/app/features/chat/components/message-bubble/markdown-renderer';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
-import { isRecord } from '@/lib/utils/type-guards';
 
 import type { Integration } from '../../hooks/use-integration-manage';
 import { SENSITIVE_KEYS, maskValue } from '../../hooks/use-integration-manage';
@@ -109,7 +108,7 @@ export function IntegrationCredentialsForm({
             )}
           >
             <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {integration.setupGuide as string}
+              {integration.setupGuide}
             </ReactMarkdown>
           </div>
         </details>

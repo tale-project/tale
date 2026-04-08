@@ -103,9 +103,7 @@ export async function fetchOperationsWithSchema(
 
   // Resolve {{variable}} placeholders in metadata string values
   // using connectionConfig as the variable source
-  const rawMetadata = integration.metadata as
-    | Record<string, unknown>
-    | undefined;
+  const rawMetadata = integration.metadata;
   const metadata = rawMetadata
     ? resolveMetadataVariables(rawMetadata, integration.connectionConfig)
     : undefined;
@@ -125,9 +123,11 @@ function resolveMetadataVariables(
   metadata: Record<string, unknown>,
   connectionConfig: unknown,
 ): Record<string, unknown> {
-  const vars =
-    connectionConfig && typeof connectionConfig === 'object'
-      ? (connectionConfig as Record<string, unknown>)
+  const vars: Record<string, unknown> =
+    connectionConfig &&
+    typeof connectionConfig === 'object' &&
+    !Array.isArray(connectionConfig)
+      ? Object.fromEntries(Object.entries(connectionConfig))
       : {};
 
   const resolved: Record<string, unknown> = {};

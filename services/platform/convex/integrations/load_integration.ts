@@ -255,8 +255,10 @@ export const loadIntegration = internalAction({
       basicAuth: credentials.basicAuth,
       oauth2Auth: credentials.oauth2Auth,
       oauth2Config,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- connectionConfig is v.any() in schema
       connectionConfig: {
         ...(config.connectionConfig as Record<string, unknown> | undefined),
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- connectionConfig is v.any() in schema
         ...(credentials.connectionConfig as
           | Record<string, unknown>
           | undefined),
@@ -274,11 +276,11 @@ export const loadIntegration = internalAction({
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex Id type stored as string at runtime
       iconStorageId: credentials.iconStorageId as string | undefined,
       // Merge config.json metadata (base) with DB credentials metadata (overrides)
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex jsonRecordValidator returns any at type level
       metadata: {
-        ...(config.metadata as Record<string, unknown> | undefined),
+        ...config.metadata,
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- metadata is v.any() in schema
         ...(credentials.metadata as Record<string, unknown> | undefined),
-      } as Record<string, unknown> | undefined,
+      },
     };
   },
 });

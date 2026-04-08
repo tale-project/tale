@@ -22,19 +22,11 @@ type HttpMethodOptions = {
   responseType?: 'base64';
 };
 
-type FormFieldInput = {
-  name: string;
-  value: string;
-  fileName?: string;
-  contentType?: string;
-  isBase64?: boolean;
-};
-
 type BodyMethodOptions = HttpMethodOptions & {
   body?: string;
   binaryBody?: string;
   /** Send as multipart/form-data */
-  formFields?: FormFieldInput[];
+  formFields?: FormField[];
 };
 
 export interface HttpApi {
@@ -65,7 +57,7 @@ function createBodyMethod(state: HttpApiState, method: string) {
         body: isForm || options.binaryBody ? undefined : options.body,
       },
       binaryBody: options.binaryBody,
-      formFields: isForm ? (options.formFields as FormField[]) : undefined,
+      formFields: isForm ? options.formFields : undefined,
       responseType: options.responseType,
     };
 

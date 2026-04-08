@@ -145,7 +145,7 @@ function IntegrationApprovalCardComponent({
   const [isExpanded, setIsExpanded] = useState(false);
 
   // Check if a value looks like an image URL (storage URL or common image extensions)
-  const isImageUrl = (key: string, value: unknown): boolean => {
+  const isImageUrl = (key: string, value: unknown): value is string => {
     if (typeof value !== 'string') return false;
     const lowerKey = key.toLowerCase();
     const lowerVal = value.toLowerCase();
@@ -174,7 +174,7 @@ function IntegrationApprovalCardComponent({
           {key}:
         </Text>{' '}
         {isImageUrl(key, value) ? (
-          <ParameterImagePreview src={value as string} alt={key} />
+          <ParameterImagePreview src={value} alt={key} />
         ) : (
           <span>
             {typeof value === 'string'

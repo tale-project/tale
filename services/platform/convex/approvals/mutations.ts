@@ -1,8 +1,7 @@
 import { saveMessage } from '@convex-dev/agent';
 import { v } from 'convex/values';
 
-import { isRecord } from '../../lib/utils/type-guards';
-import { components, internal } from '../_generated/api';
+import { components } from '../_generated/api';
 import { mutation } from '../_generated/server';
 import * as AuditLogHelpers from '../audit_logs/helpers';
 import { authComponent } from '../auth';

@@ -68,10 +68,17 @@ export async function executeHttpRequest(
 
   if (effectiveReq.formFields && effectiveReq.formFields.length > 0) {
     const { body, contentType } = buildFormData(effectiveReq.formFields);
-    const headers = { ...effectiveReq.options.headers } as Record<
-      string,
-      string
-    >;
+    const existingHeaders = effectiveReq.options.headers;
+    const headers: Record<string, string> = {};
+    if (
+      existingHeaders &&
+      typeof existingHeaders === 'object' &&
+      !Array.isArray(existingHeaders)
+    ) {
+      for (const [k, v] of Object.entries(existingHeaders)) {
+        if (typeof v === 'string') headers[k] = v;
+      }
+    }
     headers['Content-Type'] = contentType;
     fetchOptions = { ...effectiveReq.options, headers, body };
   } else if (effectiveReq.binaryBody) {
