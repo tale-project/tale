@@ -140,7 +140,7 @@ function parseCSVText(
 
   let headers: string[] | null = null;
   if (hasHeaders !== false && rows.length >= 2 && isHeaderRow(rows[0])) {
-    headers = rows.shift()!.map((h) => h.toLowerCase());
+    headers = rows.shift()?.map((h) => h.toLowerCase()) ?? null;
   }
 
   return { headers, rows };
