@@ -64,14 +64,19 @@ function isHeaderRow(values: string[]): boolean {
   return matches.length >= Math.ceil(nonEmpty.length / 2);
 }
 
+type CSVParseOutput = {
+  headers: string[] | null;
+  rows: string[][];
+};
+
 /**
  * Parse CSV text into rows of string arrays.
- * Automatically detects and skips header rows unless disabled.
+ * Automatically detects header rows and returns them separately.
  */
 function parseCSVText(
   csvText: string,
   options: CSVParseOptions = {},
-): string[][] {
+): CSVParseOutput {
   const { delimiter = ',', skipEmptyLines = true, hasHeaders } = options;
 
   const lines = csvText.trim().split('\n');
@@ -85,28 +90,43 @@ function parseCSVText(
     rows.push(values);
   }
 
+  let headers: string[] | null = null;
   if (hasHeaders !== false && rows.length >= 2 && isHeaderRow(rows[0])) {
-    rows.shift();
+    headers = rows.shift()!.map((h) => h.toLowerCase());
   }
 
-  return rows;
+  return { headers, rows };
 }
 
 /**
  * Parse CSV text with a mapper function to transform rows into typed objects.
+ * When headers are detected, rows are converted to named records and passed
+ * through the optional recordMapper for accurate column mapping.
  */
 export function parseCSVWithMapper<T>(
   csvText: string,
   mapper: (row: string[], index: number) => T | null,
-  options: CSVParseOptions = {},
+  options: CSVParseOptions & {
+    recordMapper?: (record: Record<string, unknown>) => T | null;
+  } = {},
 ): FileParseResult<T> {
-  const rows = parseCSVText(csvText, options);
+  const { recordMapper, ...csvOptions } = options;
+  const { headers, rows } = parseCSVText(csvText, csvOptions);
   const data: T[] = [];
   const errors: string[] = [];
 
   rows.forEach((row, index) => {
     try {
-      const mapped = mapper(row, index);
+      let mapped: T | null;
+      if (headers && recordMapper) {
+        const record: Record<string, unknown> = {};
+        headers.forEach((header, i) => {
+          record[header] = row[i] ?? '';
+        });
+        mapped = recordMapper(record);
+      } else {
+        mapped = mapper(row, index);
+      }
       if (mapped !== null) {
         data.push(mapped);
       }
@@ -210,7 +230,9 @@ export async function parseImportFile<T>(
   try {
     if (isCSVFile(file)) {
       const text = await readFileAsText(file);
-      const result = parseCSVWithMapper(text, csvMapper);
+      const result = parseCSVWithMapper(text, csvMapper, {
+        recordMapper: excelMapper,
+      });
       return result;
     } else if (isExcelFile(file)) {
       const records = await parseExcelFile(file);
