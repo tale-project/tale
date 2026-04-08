@@ -7,6 +7,7 @@
     "module": "esnext",
     "jsx": "react-jsx",
     "incremental": true,
+    "types": ["bun"],
     "paths": {
       "@/*": ["./*"]
     }
