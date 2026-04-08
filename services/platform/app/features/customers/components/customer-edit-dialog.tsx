@@ -184,7 +184,7 @@ export function CustomerEditDialog({
 
       <Select
         value={status}
-        onValueChange={(value: string) =>
+        onValueChange={(value) =>
           setValue('status', value as (typeof CUSTOMER_STATUSES)[number], {
             shouldDirty: true,
           })
