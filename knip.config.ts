@@ -3,6 +3,10 @@ export default {
   ignore: ['examples/**'],
   workspaces: {
     'services/platform': {
+      vite: {
+        config: [],
+        entry: ['vite.config.ts', 'vite-plugins/**/*.ts'],
+      },
       entry: [
         'app/routes/**/*.tsx',
         'app/hooks/**/*.{ts,tsx}',
@@ -18,7 +22,11 @@ export default {
         'server.ts',
       ],
       project: ['**/*.{ts,tsx}'],
-      ignoreDependencies: ['convex-test'],
+      ignoreDependencies: [
+        'convex-test',
+        'mermaid',
+        '@modelcontextprotocol/sdk',
+      ],
     },
     'tools/cli': {
       project: ['**/*.ts'],

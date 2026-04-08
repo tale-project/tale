@@ -63,3 +63,15 @@ export function useUpdateThread() {
 export function useCancelGeneration() {
   return useConvexMutation(api.threads.mutations.cancelGeneration);
 }
+
+export function useShareThread() {
+  return useConvexMutation(api.threads.mutations.shareThread);
+}
+
+export function useUnshareThread() {
+  return useConvexMutation(api.threads.mutations.unshareThread);
+}
+
+export function useForkThread() {
+  return useConvexMutation(api.threads.mutations.forkThread);
+}

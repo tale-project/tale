@@ -9,10 +9,29 @@
 import { v } from 'convex/values';
 
 import { internal } from '../_generated/api';
+import type { Doc } from '../_generated/dataModel';
 import { action } from '../_generated/server';
 import { authComponent } from '../auth';
 import { jsonRecordValidator } from '../lib/validators/json';
+import type { McpServerConfig } from './client_factory';
 import { discoverTools, executeTool } from './client_factory';
+
+/** Map flat schema fields to the McpServerConfig expected by client_factory. */
+function toClientConfig(server: Doc<'mcpServers'>): McpServerConfig {
+  return {
+    transportType: server.transportType === 'stdio' ? 'stdio' : 'http',
+    httpConfig: server.url ? { url: server.url } : undefined,
+    stdioConfig: server.command
+      ? { command: server.command, args: server.args, env: server.env }
+      : undefined,
+    authType: server.authType === 'api_key' ? 'bearer' : server.authType,
+    bearerToken: server.apiKeyEncrypted
+      ? { tokenEncrypted: server.apiKeyEncrypted }
+      : undefined,
+    oauth2Config: server.oauth2Config,
+    oauth2Tokens: server.oauth2Tokens,
+  };
+}
 
 export const testConnection = action({
   args: {
@@ -44,15 +63,9 @@ export const testConnection = action({
     );
 
     try {
-      const { tools, tokenUpdate } = await discoverTools({
-        transportType: server.transportType,
-        httpConfig: server.httpConfig,
-        stdioConfig: server.stdioConfig,
-        authType: server.authType,
-        bearerToken: server.bearerToken,
-        oauth2Config: server.oauth2Config,
-        oauth2Tokens: server.oauth2Tokens,
-      });
+      const { tools, tokenUpdate } = await discoverTools(
+        toClientConfig(server),
+      );
 
       // Persist refreshed tokens if updated
       if (tokenUpdate) {
@@ -125,15 +138,7 @@ export const executeMcpTool = action({
     const toolArgs = (args.toolArgs ?? {}) as Record<string, unknown>;
 
     const { result, tokenUpdate } = await executeTool(
-      {
-        transportType: server.transportType,
-        httpConfig: server.httpConfig,
-        stdioConfig: server.stdioConfig,
-        authType: server.authType,
-        bearerToken: server.bearerToken,
-        oauth2Config: server.oauth2Config,
-        oauth2Tokens: server.oauth2Tokens,
-      },
+      toClientConfig(server),
       args.toolName,
       toolArgs,
     );

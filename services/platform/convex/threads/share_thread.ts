@@ -43,3 +43,38 @@ export const shareThread = mutation({
     return shareToken;
   },
 });
+
+export const unshareThread = mutation({
+  args: {
+    threadId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) {
+      throw new Error('Unauthenticated');
+    }
+
+    const metadata = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
+      .first();
+
+    if (!metadata) {
+      throw new Error('Thread not found');
+    }
+
+    if (metadata.userId !== String(authUser._id)) {
+      throw new Error('Not authorized to unshare this thread');
+    }
+
+    await ctx.db.patch(metadata._id, {
+      shareToken: undefined,
+      isShared: false,
+      sharedAt: undefined,
+      sharedBy: undefined,
+    });
+
+    return null;
+  },
+});

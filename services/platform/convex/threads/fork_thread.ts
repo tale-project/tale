@@ -1,4 +1,4 @@
-import { createThread, writeMessage } from '@convex-dev/agent';
+import { createThread, saveMessage } from '@convex-dev/agent';
 import { v } from 'convex/values';
 
 import { components } from '../_generated/api';
@@ -51,11 +51,13 @@ export const forkThread = mutation({
     });
 
     for (const msg of messages) {
-      await writeMessage(ctx, components.agent, {
+      await saveMessage(ctx, components.agent, {
         threadId: newThreadId,
         userId,
-        role: msg.role,
-        content: msg.content,
+        message: {
+          role: msg.role,
+          content: msg.content,
+        },
       });
     }
 

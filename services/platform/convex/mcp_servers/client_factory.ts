@@ -47,7 +47,7 @@ interface OAuth2Tokens {
   tokenExpiry?: number;
 }
 
-interface McpServerConfig {
+export interface McpServerConfig {
   transportType: 'http' | 'stdio';
   httpConfig?: HttpConfig;
   stdioConfig?: StdioConfig;
@@ -155,7 +155,10 @@ async function withMcpClient<T>(
       await client.connect(transport);
     }
   } else if (config.transportType === 'stdio' && config.stdioConfig) {
-    const env: Record<string, string> = { ...process.env };
+    const env: Record<string, string> = {};
+    for (const [k, v] of Object.entries(process.env)) {
+      if (v !== undefined) env[k] = v;
+    }
     if (config.stdioConfig.env) {
       for (const [key, value] of Object.entries(config.stdioConfig.env)) {
         if (typeof value === 'string') {

@@ -8,6 +8,13 @@ export const messageFeedbackTable = defineTable({
   userId: v.string(),
   rating: v.union(v.literal('positive'), v.literal('negative')),
   comment: v.optional(v.string()),
+  metadata: v.optional(
+    v.object({
+      arenaVerdict: v.optional(v.string()),
+      modelA: v.optional(v.string()),
+      modelB: v.optional(v.string()),
+    }),
+  ),
   createdAt: v.number(),
 })
   .index('by_messageId_userId', ['messageId', 'userId'])

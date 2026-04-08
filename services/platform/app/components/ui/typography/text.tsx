@@ -37,7 +37,7 @@ const textVariants = cva('', {
 
 type TextVariant = NonNullable<VariantProps<typeof textVariants>['variant']>;
 
-type TextElement = 'p' | 'span' | 'div' | 'label';
+type TextElement = 'p' | 'span' | 'div' | 'label' | 'h3';
 
 interface TextProps extends React.HTMLAttributes<HTMLElement> {
   /** Semantic text style preset */

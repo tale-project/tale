@@ -36,6 +36,7 @@ import { Route as DashboardIdSettingsProvidersRouteImport } from './routes/dashb
 import { Route as DashboardIdSettingsOrganizationRouteImport } from './routes/dashboard/$id/settings/organization'
 import { Route as DashboardIdSettingsLogsRouteImport } from './routes/dashboard/$id/settings/logs'
 import { Route as DashboardIdSettingsIntegrationsRouteImport } from './routes/dashboard/$id/settings/integrations'
+import { Route as DashboardIdSettingsGovernanceRouteImport } from './routes/dashboard/$id/settings/governance'
 import { Route as DashboardIdSettingsBrandingRouteImport } from './routes/dashboard/$id/settings/branding'
 import { Route as DashboardIdSettingsApiKeysRouteImport } from './routes/dashboard/$id/settings/api-keys'
 import { Route as DashboardIdSettingsAgentsRouteImport } from './routes/dashboard/$id/settings/agents'
@@ -52,6 +53,7 @@ import { Route as DashboardIdKnowledgeCustomersRouteImport } from './routes/dash
 import { Route as DashboardIdSettingsProvidersIndexRouteImport } from './routes/dashboard/$id/settings/providers/index'
 import { Route as DashboardIdAgentsAgentIdIndexRouteImport } from './routes/dashboard/$id/agents/$agentId/index'
 import { Route as DashboardIdSettingsProvidersProviderNameRouteImport } from './routes/dashboard/$id/settings/providers/$providerName'
+import { Route as DashboardIdChatSharedShareTokenRouteImport } from './routes/dashboard/$id/chat/shared/$shareToken'
 import { Route as DashboardIdAutomationsAmIdTriggersRouteImport } from './routes/dashboard/$id/automations/$amId/triggers'
 import { Route as DashboardIdAutomationsAmIdExecutionsRouteImport } from './routes/dashboard/$id/automations/$amId/executions'
 import { Route as DashboardIdAutomationsAmIdConfigurationRouteImport } from './routes/dashboard/$id/automations/$amId/configuration'
@@ -203,6 +205,12 @@ const DashboardIdSettingsIntegrationsRoute =
     path: '/integrations',
     getParentRoute: () => DashboardIdSettingsRoute,
   } as any)
+const DashboardIdSettingsGovernanceRoute =
+  DashboardIdSettingsGovernanceRouteImport.update({
+    id: '/governance',
+    path: '/governance',
+    getParentRoute: () => DashboardIdSettingsRoute,
+  } as any)
 const DashboardIdSettingsBrandingRoute =
   DashboardIdSettingsBrandingRouteImport.update({
     id: '/branding',
@@ -298,6 +306,12 @@ const DashboardIdSettingsProvidersProviderNameRoute =
     path: '/$providerName',
     getParentRoute: () => DashboardIdSettingsProvidersRoute,
   } as any)
+const DashboardIdChatSharedShareTokenRoute =
+  DashboardIdChatSharedShareTokenRouteImport.update({
+    id: '/shared/$shareToken',
+    path: '/shared/$shareToken',
+    getParentRoute: () => DashboardIdChatRoute,
+  } as any)
 const DashboardIdAutomationsAmIdTriggersRoute =
   DashboardIdAutomationsAmIdTriggersRouteImport.update({
     id: '/triggers',
@@ -383,6 +397,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/settings/agents': typeof DashboardIdSettingsAgentsRoute
   '/dashboard/$id/settings/api-keys': typeof DashboardIdSettingsApiKeysRoute
   '/dashboard/$id/settings/branding': typeof DashboardIdSettingsBrandingRoute
+  '/dashboard/$id/settings/governance': typeof DashboardIdSettingsGovernanceRoute
   '/dashboard/$id/settings/integrations': typeof DashboardIdSettingsIntegrationsRoute
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute
   '/dashboard/$id/settings/organization': typeof DashboardIdSettingsOrganizationRoute
@@ -401,6 +416,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/automations/$amId/configuration': typeof DashboardIdAutomationsAmIdConfigurationRoute
   '/dashboard/$id/automations/$amId/executions': typeof DashboardIdAutomationsAmIdExecutionsRoute
   '/dashboard/$id/automations/$amId/triggers': typeof DashboardIdAutomationsAmIdTriggersRoute
+  '/dashboard/$id/chat/shared/$shareToken': typeof DashboardIdChatSharedShareTokenRoute
   '/dashboard/$id/settings/providers/$providerName': typeof DashboardIdSettingsProvidersProviderNameRoute
   '/dashboard/$id/agents/$agentId/': typeof DashboardIdAgentsAgentIdIndexRoute
   '/dashboard/$id/settings/providers/': typeof DashboardIdSettingsProvidersIndexRoute
@@ -428,6 +444,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id/settings/agents': typeof DashboardIdSettingsAgentsRoute
   '/dashboard/$id/settings/api-keys': typeof DashboardIdSettingsApiKeysRoute
   '/dashboard/$id/settings/branding': typeof DashboardIdSettingsBrandingRoute
+  '/dashboard/$id/settings/governance': typeof DashboardIdSettingsGovernanceRoute
   '/dashboard/$id/settings/integrations': typeof DashboardIdSettingsIntegrationsRoute
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute
   '/dashboard/$id/settings/organization': typeof DashboardIdSettingsOrganizationRoute
@@ -445,6 +462,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id/automations/$amId/configuration': typeof DashboardIdAutomationsAmIdConfigurationRoute
   '/dashboard/$id/automations/$amId/executions': typeof DashboardIdAutomationsAmIdExecutionsRoute
   '/dashboard/$id/automations/$amId/triggers': typeof DashboardIdAutomationsAmIdTriggersRoute
+  '/dashboard/$id/chat/shared/$shareToken': typeof DashboardIdChatSharedShareTokenRoute
   '/dashboard/$id/settings/providers/$providerName': typeof DashboardIdSettingsProvidersProviderNameRoute
   '/dashboard/$id/agents/$agentId': typeof DashboardIdAgentsAgentIdIndexRoute
   '/dashboard/$id/settings/providers': typeof DashboardIdSettingsProvidersIndexRoute
@@ -482,6 +500,7 @@ export interface FileRoutesById {
   '/dashboard/$id/settings/agents': typeof DashboardIdSettingsAgentsRoute
   '/dashboard/$id/settings/api-keys': typeof DashboardIdSettingsApiKeysRoute
   '/dashboard/$id/settings/branding': typeof DashboardIdSettingsBrandingRoute
+  '/dashboard/$id/settings/governance': typeof DashboardIdSettingsGovernanceRoute
   '/dashboard/$id/settings/integrations': typeof DashboardIdSettingsIntegrationsRoute
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute
   '/dashboard/$id/settings/organization': typeof DashboardIdSettingsOrganizationRoute
@@ -500,6 +519,7 @@ export interface FileRoutesById {
   '/dashboard/$id/automations/$amId/configuration': typeof DashboardIdAutomationsAmIdConfigurationRoute
   '/dashboard/$id/automations/$amId/executions': typeof DashboardIdAutomationsAmIdExecutionsRoute
   '/dashboard/$id/automations/$amId/triggers': typeof DashboardIdAutomationsAmIdTriggersRoute
+  '/dashboard/$id/chat/shared/$shareToken': typeof DashboardIdChatSharedShareTokenRoute
   '/dashboard/$id/settings/providers/$providerName': typeof DashboardIdSettingsProvidersProviderNameRoute
   '/dashboard/$id/agents/$agentId/': typeof DashboardIdAgentsAgentIdIndexRoute
   '/dashboard/$id/settings/providers/': typeof DashboardIdSettingsProvidersIndexRoute
@@ -536,6 +556,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/agents'
     | '/dashboard/$id/settings/api-keys'
     | '/dashboard/$id/settings/branding'
+    | '/dashboard/$id/settings/governance'
     | '/dashboard/$id/settings/integrations'
     | '/dashboard/$id/settings/logs'
     | '/dashboard/$id/settings/organization'
@@ -554,6 +575,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/automations/$amId/configuration'
     | '/dashboard/$id/automations/$amId/executions'
     | '/dashboard/$id/automations/$amId/triggers'
+    | '/dashboard/$id/chat/shared/$shareToken'
     | '/dashboard/$id/settings/providers/$providerName'
     | '/dashboard/$id/agents/$agentId/'
     | '/dashboard/$id/settings/providers/'
@@ -581,6 +603,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/agents'
     | '/dashboard/$id/settings/api-keys'
     | '/dashboard/$id/settings/branding'
+    | '/dashboard/$id/settings/governance'
     | '/dashboard/$id/settings/integrations'
     | '/dashboard/$id/settings/logs'
     | '/dashboard/$id/settings/organization'
@@ -598,6 +621,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/automations/$amId/configuration'
     | '/dashboard/$id/automations/$amId/executions'
     | '/dashboard/$id/automations/$amId/triggers'
+    | '/dashboard/$id/chat/shared/$shareToken'
     | '/dashboard/$id/settings/providers/$providerName'
     | '/dashboard/$id/agents/$agentId'
     | '/dashboard/$id/settings/providers'
@@ -634,6 +658,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/agents'
     | '/dashboard/$id/settings/api-keys'
     | '/dashboard/$id/settings/branding'
+    | '/dashboard/$id/settings/governance'
     | '/dashboard/$id/settings/integrations'
     | '/dashboard/$id/settings/logs'
     | '/dashboard/$id/settings/organization'
@@ -652,6 +677,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/automations/$amId/configuration'
     | '/dashboard/$id/automations/$amId/executions'
     | '/dashboard/$id/automations/$amId/triggers'
+    | '/dashboard/$id/chat/shared/$shareToken'
     | '/dashboard/$id/settings/providers/$providerName'
     | '/dashboard/$id/agents/$agentId/'
     | '/dashboard/$id/settings/providers/'
@@ -856,6 +882,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdSettingsIntegrationsRouteImport
       parentRoute: typeof DashboardIdSettingsRoute
     }
+    '/dashboard/$id/settings/governance': {
+      id: '/dashboard/$id/settings/governance'
+      path: '/governance'
+      fullPath: '/dashboard/$id/settings/governance'
+      preLoaderRoute: typeof DashboardIdSettingsGovernanceRouteImport
+      parentRoute: typeof DashboardIdSettingsRoute
+    }
     '/dashboard/$id/settings/branding': {
       id: '/dashboard/$id/settings/branding'
       path: '/branding'
@@ -967,6 +1000,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard/$id/settings/providers/$providerName'
       preLoaderRoute: typeof DashboardIdSettingsProvidersProviderNameRouteImport
       parentRoute: typeof DashboardIdSettingsProvidersRoute
+    }
+    '/dashboard/$id/chat/shared/$shareToken': {
+      id: '/dashboard/$id/chat/shared/$shareToken'
+      path: '/shared/$shareToken'
+      fullPath: '/dashboard/$id/chat/shared/$shareToken'
+      preLoaderRoute: typeof DashboardIdChatSharedShareTokenRouteImport
+      parentRoute: typeof DashboardIdChatRoute
     }
     '/dashboard/$id/automations/$amId/triggers': {
       id: '/dashboard/$id/automations/$amId/triggers'
@@ -1149,11 +1189,13 @@ const DashboardIdAutomationsRouteWithChildren =
 interface DashboardIdChatRouteChildren {
   DashboardIdChatThreadIdRoute: typeof DashboardIdChatThreadIdRoute
   DashboardIdChatIndexRoute: typeof DashboardIdChatIndexRoute
+  DashboardIdChatSharedShareTokenRoute: typeof DashboardIdChatSharedShareTokenRoute
 }
 
 const DashboardIdChatRouteChildren: DashboardIdChatRouteChildren = {
   DashboardIdChatThreadIdRoute: DashboardIdChatThreadIdRoute,
   DashboardIdChatIndexRoute: DashboardIdChatIndexRoute,
+  DashboardIdChatSharedShareTokenRoute: DashboardIdChatSharedShareTokenRoute,
 }
 
 const DashboardIdChatRouteWithChildren = DashboardIdChatRoute._addFileChildren(
@@ -1197,6 +1239,7 @@ interface DashboardIdSettingsRouteChildren {
   DashboardIdSettingsAgentsRoute: typeof DashboardIdSettingsAgentsRoute
   DashboardIdSettingsApiKeysRoute: typeof DashboardIdSettingsApiKeysRoute
   DashboardIdSettingsBrandingRoute: typeof DashboardIdSettingsBrandingRoute
+  DashboardIdSettingsGovernanceRoute: typeof DashboardIdSettingsGovernanceRoute
   DashboardIdSettingsIntegrationsRoute: typeof DashboardIdSettingsIntegrationsRoute
   DashboardIdSettingsLogsRoute: typeof DashboardIdSettingsLogsRoute
   DashboardIdSettingsOrganizationRoute: typeof DashboardIdSettingsOrganizationRoute
@@ -1210,6 +1253,7 @@ const DashboardIdSettingsRouteChildren: DashboardIdSettingsRouteChildren = {
   DashboardIdSettingsAgentsRoute: DashboardIdSettingsAgentsRoute,
   DashboardIdSettingsApiKeysRoute: DashboardIdSettingsApiKeysRoute,
   DashboardIdSettingsBrandingRoute: DashboardIdSettingsBrandingRoute,
+  DashboardIdSettingsGovernanceRoute: DashboardIdSettingsGovernanceRoute,
   DashboardIdSettingsIntegrationsRoute: DashboardIdSettingsIntegrationsRoute,
   DashboardIdSettingsLogsRoute: DashboardIdSettingsLogsRoute,
   DashboardIdSettingsOrganizationRoute: DashboardIdSettingsOrganizationRoute,

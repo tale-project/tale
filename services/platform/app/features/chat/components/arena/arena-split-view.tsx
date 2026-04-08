@@ -18,12 +18,10 @@ interface ArenaSplitViewProps {
 function ArenaColumn({
   label,
   threadId,
-  organizationId,
   isLoading,
 }: {
   label: string;
   threadId: string | null;
-  organizationId: string;
   isLoading: boolean;
 }) {
   const { messages, activeMessage } = useMessageProcessing(
@@ -59,7 +57,6 @@ function ArenaColumn({
               isStreaming: message.isStreaming,
               threadId: threadId ?? undefined,
             }}
-            organizationId={organizationId}
           />
         ))}
         {isLoading && !hasStreamingMessage && (
@@ -83,14 +80,12 @@ export function ArenaSplitView({
         <ArenaColumn
           label={t('arena.modelALabel')}
           threadId={arenaThreadIdA}
-          organizationId={organizationId}
           isLoading={isLoading}
         />
         <div className="bg-border w-px shrink-0" />
         <ArenaColumn
           label={t('arena.modelBLabel')}
           threadId={arenaThreadIdB}
-          organizationId={organizationId}
           isLoading={isLoading}
         />
       </div>

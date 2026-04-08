@@ -399,6 +399,7 @@ export async function linkApprovalsToMessage(
     'human_input_request',
     'document_write',
     'location_request',
+    'mcp_tool_call',
   ] as const;
 
   const approvalIds: Array<Id<'approvals'>> = [];

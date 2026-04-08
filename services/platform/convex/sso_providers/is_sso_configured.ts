@@ -5,6 +5,7 @@ import { DataModel } from '../_generated/dataModel';
 type IsSsoConfiguredResult = {
   enabled: boolean;
   providerType?: string;
+  seamlessSsoEnabled?: boolean;
 };
 
 export async function isSsoConfigured(
@@ -19,5 +20,7 @@ export async function isSsoConfigured(
   return {
     enabled: true,
     providerType: provider.providerId,
+    seamlessSsoEnabled:
+      provider.providerFeatures?.entraId?.seamlessSsoEnabled ?? false,
   };
 }

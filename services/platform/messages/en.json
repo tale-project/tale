@@ -3513,6 +3513,14 @@
     "apiKeys": {
       "title": "API keys",
       "description": "Create and manage API keys for integrations."
+    },
+    "governance": {
+      "title": "Governance",
+      "description": "Manage governance policies and system prompts."
+    },
+    "shared-chat": {
+      "title": "Shared chat",
+      "description": "View a shared chat conversation."
     }
   },
   "governance": {

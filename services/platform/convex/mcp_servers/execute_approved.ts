@@ -10,7 +10,7 @@
 import { v } from 'convex/values';
 
 import { isRecord } from '../../lib/utils/type-guards';
-import { internal } from '../_generated/api';
+import { api, internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
 import { toId } from '../lib/type_cast_helpers';
 import { toConvexJsonRecord } from '../lib/type_cast_helpers';
@@ -20,8 +20,9 @@ export const executeApprovedMcpToolCall = internalAction({
     approvalId: v.id('approvals'),
     approvedBy: v.string(),
   },
-  handler: async (ctx, args) => {
-    const approval = await ctx.runQuery(
+  returns: v.any(),
+  handler: async (ctx, args): Promise<unknown> => {
+    const approval: Record<string, unknown> | null = await ctx.runQuery(
       internal.approvals.internal_queries.getApprovalById,
       { approvalId: args.approvalId },
     );
@@ -34,12 +35,12 @@ export const executeApprovedMcpToolCall = internalAction({
       throw new Error('Approval is not an MCP tool call');
     }
 
-    const metadata = approval.metadata;
+    const metadata: unknown = approval.metadata;
     if (!isRecord(metadata)) {
       throw new Error('Approval metadata is missing');
     }
 
-    const serverId =
+    const serverId: string | undefined =
       typeof metadata.serverId === 'string' ? metadata.serverId : undefined;
     const toolName =
       typeof metadata.toolName === 'string' ? metadata.toolName : undefined;
@@ -50,8 +51,8 @@ export const executeApprovedMcpToolCall = internalAction({
     }
 
     try {
-      const result = await ctx.runAction(
-        internal.mcp_servers.actions.executeMcpTool,
+      const result: unknown = await ctx.runAction(
+        api.mcp_servers.actions.executeMcpTool,
         {
           serverId: toId<'mcpServers'>(serverId),
           toolName,
@@ -63,9 +64,9 @@ export const executeApprovedMcpToolCall = internalAction({
       await ctx.runMutation(
         internal.approvals.internal_mutations.createApproval,
         {
-          organizationId: approval.organizationId,
+          organizationId: String(approval.organizationId),
           resourceType: 'mcp_tool_call',
-          resourceId: approval.resourceId,
+          resourceId: String(approval.resourceId),
           priority: 'medium',
           metadata: toConvexJsonRecord({
             ...(isRecord(metadata) ? metadata : {}),

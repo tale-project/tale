@@ -21,11 +21,13 @@ export const governancePoliciesTable = defineTable({
   organizationId: v.string(),
   policyType: policyTypeValidator,
   config: jsonRecordValidator,
+  enabled: v.optional(v.boolean()),
   updatedBy: v.optional(v.string()),
   updatedAt: v.optional(v.number()),
 })
   .index('by_organizationId', ['organizationId'])
-  .index('by_org_policyType', ['organizationId', 'policyType']);
+  .index('by_org_policyType', ['organizationId', 'policyType'])
+  .index('by_org_and_type', ['organizationId', 'policyType']);
 
 export const usageLedgerTable = defineTable({
   organizationId: v.string(),
@@ -34,6 +36,8 @@ export const usageLedgerTable = defineTable({
   periodKey: v.string(),
   inputTokens: v.number(),
   outputTokens: v.number(),
+  totalTokens: v.number(),
+  costEstimate: v.number(),
   estimatedCostEur: v.number(),
   estimatedCostUsd: v.number(),
   requestCount: v.number(),

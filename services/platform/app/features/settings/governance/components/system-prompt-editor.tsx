@@ -29,7 +29,7 @@ export function SystemPromptEditor({
 
   const { data: policy, isLoading } = useGovernancePolicy(
     organizationId,
-    'global_system_prompt',
+    'system_prompt',
   );
   const upsertMutation = useUpsertGovernancePolicy();
 
@@ -73,7 +73,7 @@ export function SystemPromptEditor({
     try {
       await upsertMutation.mutateAsync({
         organizationId,
-        policyType: 'global_system_prompt',
+        policyType: 'system_prompt',
         config: {
           mandatoryPrefixPrompt: prefix.trim(),
           mandatorySuffixPrompt: suffix.trim(),

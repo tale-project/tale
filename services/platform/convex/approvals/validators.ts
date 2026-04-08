@@ -30,6 +30,7 @@ export const approvalResourceTypeValidator = v.union(
   v.literal('human_input_request'),
   v.literal('document_write'),
   v.literal('location_request'),
+  v.literal('mcp_tool_call'),
 );
 
 export const approvalItemValidator = v.object({

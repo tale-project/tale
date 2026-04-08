@@ -36,6 +36,7 @@ export const isSsoConfigured = query({
   returns: v.object({
     enabled: v.boolean(),
     providerType: v.optional(v.string()),
+    seamlessSsoEnabled: v.optional(v.boolean()),
   }),
   handler: async (ctx) => isSsoConfiguredFn(ctx),
 });

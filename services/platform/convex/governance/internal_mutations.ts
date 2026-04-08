@@ -45,6 +45,8 @@ export const incrementUsageLedger = internalMutation({
         outputTokens: args.outputTokens,
         totalTokens,
         costEstimate: args.costEstimateCents,
+        estimatedCostEur: args.costEstimateCents,
+        estimatedCostUsd: args.costEstimateCents,
         requestCount: 1,
       });
     }

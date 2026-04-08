@@ -11,12 +11,14 @@ interface CanvasMermaidRendererProps {
   code: string;
 }
 
-let mermaidDefault: {
+type MermaidApi = {
   initialize: (config: Record<string, unknown>) => void;
   render: (id: string, code: string) => Promise<{ svg: string }>;
-} | null = null;
+};
 
-async function getMermaid() {
+let mermaidDefault: MermaidApi | null = null;
+
+async function getMermaid(): Promise<MermaidApi> {
   if (!mermaidDefault) {
     const mod = await import('mermaid');
     mermaidDefault = mod.default;

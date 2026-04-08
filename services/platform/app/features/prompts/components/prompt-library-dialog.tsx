@@ -103,7 +103,7 @@ function PromptLibraryDialogContent({
     (prompt: PromptTemplate) => {
       if (!currentUser) return false;
       if (isAdmin) return true;
-      return prompt.createdBy === currentUser._id;
+      return prompt.createdBy === currentUser.userId;
     },
     [currentUser, isAdmin],
   );

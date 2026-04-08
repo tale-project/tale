@@ -10,7 +10,7 @@ import type { ToolCtx } from '@convex-dev/agent';
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
-import { internal } from '../../_generated/api';
+import { api, internal } from '../../_generated/api';
 import { toId } from '../../lib/type_cast_helpers';
 import { toConvexJsonRecord } from '../../lib/type_cast_helpers';
 import { getApprovalThreadId } from '../../threads/get_parent_thread_id';
@@ -175,7 +175,7 @@ export function createBoundMcpTool(
       // Execute directly
       try {
         const result = await ctx.runAction(
-          internal.mcp_servers.actions.executeMcpTool,
+          api.mcp_servers.actions.executeMcpTool,
           {
             serverId: toId<'mcpServers'>(serverId),
             toolName: mcpTool.name,

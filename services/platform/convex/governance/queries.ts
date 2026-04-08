@@ -3,11 +3,16 @@ import { v } from 'convex/values';
 import { query } from '../_generated/server';
 import { authComponent } from '../auth';
 import { getOrganizationMember } from '../lib/rls';
+import { GOVERNANCE_POLICY_TYPES } from './schema';
+
+const policyTypeValidator = v.union(
+  ...GOVERNANCE_POLICY_TYPES.map((t) => v.literal(t)),
+);
 
 export const getPolicy = query({
   args: {
     organizationId: v.string(),
-    policyType: v.string(),
+    policyType: policyTypeValidator,
   },
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);

@@ -1,15 +1,13 @@
 'use client';
 
 import { Hash, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { HStack, VStack } from '@/app/components/ui/layout/layout';
 import {
   DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
+  type DropdownMenuGroup,
 } from '@/app/components/ui/overlays/dropdown-menu';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
@@ -40,6 +38,28 @@ export function PromptCard({
     onUse(prompt);
   }, [onUse, prompt]);
 
+  const menuItems: DropdownMenuGroup[] = useMemo(() => {
+    const group: DropdownMenuGroup = [];
+    if (onEdit) {
+      group.push({
+        type: 'item',
+        label: t('actions.edit'),
+        icon: Pencil,
+        onClick: () => onEdit(prompt),
+      });
+    }
+    if (onDelete) {
+      group.push({
+        type: 'item',
+        label: t('actions.delete'),
+        icon: Trash2,
+        onClick: () => onDelete(prompt),
+        destructive: true,
+      });
+    }
+    return [group];
+  }, [onEdit, onDelete, prompt, t]);
+
   const scopeVariant =
     prompt.scope === 'personal'
       ? 'blue'
@@ -65,8 +85,8 @@ export function PromptCard({
           )}
         </VStack>
         {canModify && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+          <DropdownMenu
+            trigger={
               <Button
                 variant="ghost"
                 size="icon"
@@ -75,25 +95,10 @@ export function PromptCard({
               >
                 <MoreHorizontal className="size-4" />
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {onEdit && (
-                <DropdownMenuItem onClick={() => onEdit(prompt)}>
-                  <Pencil className="mr-2 size-4" />
-                  {t('actions.edit')}
-                </DropdownMenuItem>
-              )}
-              {onDelete && (
-                <DropdownMenuItem
-                  onClick={() => onDelete(prompt)}
-                  className="text-destructive focus:text-destructive"
-                >
-                  <Trash2 className="mr-2 size-4" />
-                  {t('actions.delete')}
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+            }
+            items={menuItems}
+            align="end"
+          />
         )}
       </HStack>
 

@@ -133,3 +133,29 @@ export const getFailedMessageErrors = query({
     return errors;
   },
 });
+
+export { getSharedThread } from './get_shared_thread';
+
+export const getThreadShareStatus = query({
+  args: { threadId: v.string() },
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) {
+      return { isShared: false, shareToken: null };
+    }
+
+    const metadata = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
+      .first();
+
+    if (!metadata) {
+      return { isShared: false, shareToken: null };
+    }
+
+    return {
+      isShared: metadata.isShared ?? false,
+      shareToken: metadata.shareToken ?? null,
+    };
+  },
+});

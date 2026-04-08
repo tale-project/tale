@@ -3,6 +3,72 @@ import { v } from 'convex/values';
 import { mutation } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
 import { authComponent } from '../auth';
+import { GOVERNANCE_POLICY_TYPES } from './schema';
+
+const policyTypeValidator = v.union(
+  ...GOVERNANCE_POLICY_TYPES.map((t) => v.literal(t)),
+);
+
+export const upsertPolicy = mutation({
+  args: {
+    organizationId: v.string(),
+    policyType: policyTypeValidator,
+    config: v.any(),
+  },
+  returns: v.id('governancePolicies'),
+  handler: async (ctx, args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) throw new Error('Unauthenticated');
+
+    const existing = await ctx.db
+      .query('governancePolicies')
+      .withIndex('by_org_policyType', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('policyType', args.policyType),
+      )
+      .first();
+
+    let policyId;
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        config: args.config,
+        updatedAt: Date.now(),
+        updatedBy: String(authUser._id),
+      });
+      policyId = existing._id;
+    } else {
+      policyId = await ctx.db.insert('governancePolicies', {
+        organizationId: args.organizationId,
+        policyType: args.policyType,
+        enabled: true,
+        config: args.config,
+        updatedAt: Date.now(),
+        updatedBy: String(authUser._id),
+      });
+    }
+
+    await createAuditLog(ctx, {
+      organizationId: args.organizationId,
+      actorId: String(authUser._id),
+      actorEmail: authUser.email,
+      actorType: 'user',
+      action: existing ? 'policy.updated' : 'policy.created',
+      category: 'security',
+      resourceType: 'governance_policy',
+      resourceId: String(policyId),
+      resourceName: `Policy: ${args.policyType}`,
+      newState: { policyType: args.policyType, config: args.config },
+      previousState: existing
+        ? { policyType: existing.policyType, config: existing.config }
+        : undefined,
+      status: 'success',
+    });
+
+    return policyId;
+  },
+});
 
 export const upsertPiiConfig = mutation({
   args: {
