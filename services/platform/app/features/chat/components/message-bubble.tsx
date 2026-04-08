@@ -25,6 +25,7 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import { useMessageMetadata, useFileUrls } from '../hooks/queries';
+import { sanitizeChatError } from '../utils/sanitize-chat-error';
 import {
   FileAttachmentDisplay,
   FilePartDisplay,
@@ -254,11 +255,9 @@ function MessageBubbleComponent({
                     {tChat('errorGenerating')}
                   </span>
                 </div>
-                {message.error && (
-                  <p className="text-muted-foreground text-[13px] break-all whitespace-pre-wrap">
-                    {message.error}
-                  </p>
-                )}
+                <p className="text-muted-foreground text-[13px]">
+                  {tChat(sanitizeChatError(message.error).i18nKey)}
+                </p>
                 {onRetry && (
                   <Button
                     variant="secondary"
@@ -287,8 +286,8 @@ function MessageBubbleComponent({
                   {tChat('errorGenerating')}
                 </span>
               </div>
-              <p className="text-muted-foreground text-[13px] break-all whitespace-pre-wrap">
-                {message.error}
+              <p className="text-muted-foreground text-[13px]">
+                {tChat(sanitizeChatError(message.error).i18nKey)}
               </p>
               {onRetry && (
                 <Button
