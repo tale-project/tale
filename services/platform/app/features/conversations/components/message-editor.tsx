@@ -1,7 +1,6 @@
 'use client';
 
 import { Crepe } from '@milkdown/crepe';
-import type { CrepeBuilder } from '@milkdown/crepe/builder';
 import {
   Milkdown,
   MilkdownProvider,
@@ -23,11 +22,12 @@ import { cn } from '@/lib/utils/cn';
 
 import '@milkdown/crepe/theme/common/style.css';
 import '@milkdown/crepe/theme/frame.css';
+import type { AttachedFile, MessageEditorProps } from './message-editor/types';
+
 import { useImproveMessage } from '../hooks/actions';
 import { EditorActionBar } from './message-editor/editor-action-bar';
 import { FileAttachmentsList } from './message-editor/file-attachments-list';
 import { ImproveMode } from './message-editor/improve-mode';
-import type { AttachedFile, MessageEditorProps } from './message-editor/types';
 import { MessageImprovementDialog } from './message-improvement-dialog';
 
 function markdownToHtml(md: string): string {
