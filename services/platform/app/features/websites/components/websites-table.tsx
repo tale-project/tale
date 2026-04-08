@@ -53,6 +53,7 @@ export function WebsitesTable({
   const paginatedResult = useListWebsitesPaginated({
     organizationId,
     status,
+    scanInterval: interval,
     initialNumItems: pageSize,
   });
 
