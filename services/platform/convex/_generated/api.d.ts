@@ -10817,14 +10817,29 @@ export declare const components: {
         "mutation",
         "internal",
         { final: boolean; streamId: string; text: string },
-        any
+        null,
+        string | undefined
       >;
-      createStream: FunctionReference<"mutation", "internal", {}, any>;
+      createStream: FunctionReference<
+        "mutation",
+        "internal",
+        {},
+        string,
+        string | undefined
+      >;
+      deleteStream: FunctionReference<
+        "mutation",
+        "internal",
+        { streamId: string },
+        null,
+        string | undefined
+      >;
       getStreamStatus: FunctionReference<
         "query",
         "internal",
         { streamId: string },
-        "pending" | "streaming" | "done" | "error" | "timeout"
+        "pending" | "streaming" | "done" | "error" | "timeout",
+        string | undefined
       >;
       getStreamText: FunctionReference<
         "query",
@@ -10833,7 +10848,8 @@ export declare const components: {
         {
           status: "pending" | "streaming" | "done" | "error" | "timeout";
           text: string;
-        }
+        },
+        string | undefined
       >;
       setStreamStatus: FunctionReference<
         "mutation",
@@ -10842,7 +10858,8 @@ export declare const components: {
           status: "pending" | "streaming" | "done" | "error" | "timeout";
           streamId: string;
         },
-        any
+        null,
+        string | undefined
       >;
     };
   };
