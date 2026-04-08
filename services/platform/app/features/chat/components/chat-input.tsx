@@ -166,7 +166,7 @@ export function ChatInput({
           style={{ display: 'none' }}
         />
 
-        <div className="bg-background border-muted-foreground/50 relative flex flex-col gap-2 rounded-t-2xl border border-b-0 px-5 pt-4">
+        <div className="bg-background border-muted-foreground/50 relative mb-3 flex flex-col gap-2 rounded-2xl border px-5 pt-4">
           {(attachments.length > 0 || uploadingFiles.length > 0) && (
             <HStack gap={1} wrap className="mb-2">
               {imageAttachments.map((attachment) => (
