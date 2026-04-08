@@ -1,7 +1,6 @@
 'use client';
 
 import { Crepe } from '@milkdown/crepe';
-import type { CrepeBuilder } from '@milkdown/crepe/builder';
 import {
   Milkdown,
   MilkdownProvider,
