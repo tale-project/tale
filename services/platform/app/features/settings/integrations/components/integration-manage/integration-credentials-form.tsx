@@ -41,10 +41,17 @@ interface IntegrationCredentialsFormProps {
   isEditingOAuth2: boolean;
   credentials: Record<string, string>;
   displayBindings: string[];
+  editableConfigFields: Array<{
+    key: string;
+    type: 'string' | 'number';
+    defaultValue: string | number;
+  }>;
+  configValues: Record<string, string>;
   sqlConfig: Record<string, string>;
   testResult: { success: boolean; message: string } | null;
   onAuthMethodChange: (method: string) => void;
   onCredentialChange: (key: string, value: string) => void;
+  onConfigValueChange: (key: string, value: string) => void;
   onSqlConfigChange: (key: string, value: string) => void;
   onOAuth2FieldChange: (
     field: keyof IntegrationCredentialsFormProps['oauth2Fields'],
@@ -70,10 +77,13 @@ export function IntegrationCredentialsForm({
   isEditingOAuth2,
   credentials,
   displayBindings,
+  editableConfigFields,
+  configValues,
   sqlConfig,
   testResult,
   onAuthMethodChange,
   onCredentialChange,
+  onConfigValueChange,
   onSqlConfigChange,
   onOAuth2FieldChange,
   onEditOAuth2,
@@ -229,6 +239,26 @@ export function IntegrationCredentialsForm({
             />
           );
         })}
+
+        {editableConfigFields.length > 0 && (
+          <>
+            <Text variant="label">
+              {t('integrations.manageDialog.configuration')}
+            </Text>
+            {editableConfigFields.map((field) => (
+              <Input
+                key={field.key}
+                id={`manage-config-${field.key}`}
+                label={field.key}
+                type={field.type === 'number' ? 'number' : 'text'}
+                placeholder={String(field.defaultValue)}
+                value={configValues[field.key] ?? ''}
+                onChange={(e) => onConfigValueChange(field.key, e.target.value)}
+                disabled={busy}
+              />
+            ))}
+          </>
+        )}
 
         {testResult && (
           <TestResultFeedback

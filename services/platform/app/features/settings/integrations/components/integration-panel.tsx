@@ -176,6 +176,7 @@ export function IntegrationPanel({
               hasOAuth2Config={manage.hasOAuth2Config}
               testResult={manage.testResult}
               secretBindings={manage.secretBindings}
+              editableConfigFields={manage.editableConfigFields}
               onReauthorize={manage.handleReauthorize}
               onDismissTestResult={() => manage.setTestResult(null)}
             />
@@ -197,6 +198,8 @@ export function IntegrationPanel({
               isEditingOAuth2={manage.isEditingOAuth2}
               credentials={manage.credentials}
               displayBindings={manage.displayBindings}
+              editableConfigFields={manage.editableConfigFields}
+              configValues={manage.configValues}
               sqlConfig={manage.sqlConfig}
               testResult={manage.testResult}
               onAuthMethodChange={(value) => {
@@ -209,6 +212,9 @@ export function IntegrationPanel({
               }}
               onCredentialChange={(key, value) =>
                 manage.setCredentials((prev) => ({ ...prev, [key]: value }))
+              }
+              onConfigValueChange={(key, value) =>
+                manage.setConfigValues((prev) => ({ ...prev, [key]: value }))
               }
               onSqlConfigChange={(key, value) =>
                 manage.setSqlConfig((prev) => ({ ...prev, [key]: value }))

@@ -144,6 +144,7 @@ export function useIntegrationManage(
     message: string;
   } | null>(null);
   const [credentials, setCredentials] = useState<Record<string, string>>({});
+  const [configValues, setConfigValues] = useState<Record<string, string>>({});
   const [sqlConfig, setSqlConfig] = useState<Record<string, string>>({});
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [optimisticActive, setOptimisticActive] = useState<boolean | null>(
@@ -264,13 +265,35 @@ export function useIntegrationManage(
     return secretBindings;
   }, [isSql, selectedAuthMethod, secretBindings]);
 
+  const editableConfigFields = useMemo(() => {
+    const config = integration.connectionConfig;
+    if (!config || typeof config !== 'object') return [];
+    const bindingSet = new Set(secretBindings);
+    return Object.entries(config)
+      .filter(([key]) => !bindingSet.has(key))
+      .map(([key, value]) => ({
+        key,
+        type: typeof value === 'number' ? 'number' : 'string',
+        defaultValue:
+          typeof value === 'number'
+            ? value
+            : typeof value === 'string'
+              ? value
+              : '',
+      }));
+  }, [integration.connectionConfig, secretBindings]);
+
   const hasCredentialChanges = Object.values(credentials).some(
+    (v) => v.trim().length > 0,
+  );
+  const hasConfigChanges = Object.values(configValues).some(
     (v) => v.trim().length > 0,
   );
   const hasSqlConfigChanges = Object.values(sqlConfig).some(
     (v) => v.trim().length > 0,
   );
-  const hasChanges = hasCredentialChanges || hasSqlConfigChanges;
+  const hasChanges =
+    hasCredentialChanges || hasConfigChanges || hasSqlConfigChanges;
 
   const busy = isSubmitting || isTesting || isSavingOAuth2 || isApplyingUpdate;
 
@@ -524,7 +547,7 @@ export function useIntegrationManage(
       }
     }
 
-    const connectionUpdates: Record<string, string> = {};
+    const connectionUpdates: Record<string, unknown> = {};
     const authHandledKeys = new Set(
       authMethod ? (AUTH_HANDLED_KEYS[authMethod] ?? []) : [],
     );
@@ -537,6 +560,13 @@ export function useIntegrationManage(
         connectionUpdates[binding] = credentials[binding];
       }
     }
+    for (const field of editableConfigFields) {
+      const raw = configValues[field.key]?.trim();
+      if (raw) {
+        connectionUpdates[field.key] =
+          field.type === 'number' ? Number(raw) : raw;
+      }
+    }
     if (Object.keys(connectionUpdates).length > 0) {
       payload.connectionConfig = {
         ...integration.connectionConfig,
@@ -545,7 +575,14 @@ export function useIntegrationManage(
     }
 
     return payload;
-  }, [credentials, selectedAuthMethod, integration, secretBindings]);
+  }, [
+    credentials,
+    configValues,
+    selectedAuthMethod,
+    integration,
+    secretBindings,
+    editableConfigFields,
+  ]);
 
   const buildSqlConnectionPayload = useCallback(() => {
     const existing = integration.sqlConnectionConfig;
@@ -627,6 +664,7 @@ export function useIntegrationManage(
         );
         setOptimisticActive(true);
         setCredentials({});
+        setConfigValues({});
         setSqlConfig({});
       } else if (result.success) {
         setOptimisticActive(true);
@@ -678,6 +716,7 @@ export function useIntegrationManage(
         }),
       });
       setCredentials({});
+      setConfigValues({});
       setSqlConfig({});
       setTestResult(null);
     } catch (error) {
@@ -830,6 +869,9 @@ export function useIntegrationManage(
     hasMultipleAuthMethods,
     secretBindings,
     displayBindings,
+    editableConfigFields,
+    configValues,
+    setConfigValues,
     credentials,
     setCredentials,
     hasChanges,

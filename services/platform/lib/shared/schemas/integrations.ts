@@ -19,13 +19,15 @@ const operationSchema = z.object({
   parametersSchema: z.record(z.string(), z.unknown()).optional(),
 });
 
-const connectionConfigSchema = z.object({
-  domain: z.string().optional(),
-  apiVersion: z.string().optional(),
-  apiEndpoint: z.string().optional(),
-  timeout: z.number().optional(),
-  rateLimit: z.number().optional(),
-});
+const connectionConfigSchema = z
+  .object({
+    domain: z.string().optional(),
+    apiVersion: z.string().optional(),
+    apiEndpoint: z.string().optional(),
+    timeout: z.number().optional(),
+    rateLimit: z.number().optional(),
+  })
+  .catchall(z.unknown());
 
 const capabilitiesSchema = z.object({
   canSync: z.boolean().optional(),
