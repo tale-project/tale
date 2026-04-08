@@ -3132,8 +3132,7 @@
       "status": {
         "active": "Active",
         "potential": "Potential",
-        "churned": "Churned",
-        "lost": "Lost"
+        "churned": "Churned"
       }
     },
     "addButton": "Add customer",
@@ -3147,7 +3146,7 @@
       "syncBusinessData": "Sync business data",
       "formatHint": "Format: email, name (optional), locale (optional). One customer per line.",
       "localeHint": "Supported locales: en, fr, de, zh, as well as extended formats like en-US, de-DE, and de-CH.",
-      "churnedNote": "Imported customers are tagged as (Churned)"
+      "statusNote": "Imported customers are tagged as (Active)"
     },
     "editCustomer": "Edit customer",
     "deleteCustomer": "Delete customer",

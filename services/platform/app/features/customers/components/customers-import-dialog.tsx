@@ -18,7 +18,7 @@ export interface ParsedCustomer {
   email: string;
   name?: string;
   locale: string;
-  status: 'churned';
+  status: 'active';
   source: Doc<'customers'>['source'];
 }
 

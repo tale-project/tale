@@ -133,7 +133,7 @@ describe('customerMappers.excel', () => {
       email: 'user@example.com',
       name: 'John Doe',
       locale: 'es',
-      status: 'churned',
+      status: 'active',
       source: 'file_upload',
     });
   });
@@ -144,7 +144,7 @@ describe('customerMappers.excel', () => {
       email: 'user@example.com',
       name: undefined,
       locale: 'en',
-      status: 'churned',
+      status: 'active',
       source: 'file_upload',
     });
   });
@@ -214,7 +214,7 @@ describe('customerMappers.csv', () => {
       email: 'user@example.com',
       name: undefined,
       locale: 'fr',
-      status: 'churned',
+      status: 'active',
       source: 'manual_import',
     });
   });
@@ -225,7 +225,7 @@ describe('customerMappers.csv', () => {
       email: 'user@example.com',
       name: 'John Doe',
       locale: 'en',
-      status: 'churned',
+      status: 'active',
       source: 'manual_import',
     });
   });
@@ -239,7 +239,7 @@ describe('customerMappers.csv', () => {
       email: 'user@example.com',
       name: 'John Doe',
       locale: 'es',
-      status: 'churned',
+      status: 'active',
       source: 'manual_import',
     });
   });

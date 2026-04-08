@@ -3079,8 +3079,7 @@
       "status": {
         "active": "Aktiv",
         "potential": "Potenziell",
-        "churned": "Abgewandert",
-        "lost": "Verloren"
+        "churned": "Abgewandert"
       }
     },
     "addButton": "Kunde hinzufügen",
@@ -3094,7 +3093,7 @@
       "syncBusinessData": "Geschäftsdaten synchronisieren",
       "formatHint": "Format: E-Mail, Name (optional), Sprache (optional). Ein Kunde pro Zeile.",
       "localeHint": "Unterstützte Sprachen: en, fr, de, zh, sowie erweiterte Formate wie en-US, de-DE und de-CH.",
-      "churnedNote": "Importierte Kunden werden als (Abgewandert) markiert"
+      "statusNote": "Importierte Kunden werden als (Aktiv) markiert"
     },
     "editCustomer": "Kunde bearbeiten",
     "deleteCustomer": "Kunde löschen",

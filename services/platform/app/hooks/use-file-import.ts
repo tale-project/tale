@@ -155,7 +155,7 @@ export const customerMappers = {
           ? undefined
           : second || undefined,
       locale: third || (isLocale(second) ? second : undefined) || 'en',
-      status: 'churned' as const,
+      status: 'active' as const,
       source: 'manual_import' as const,
     };
   },
@@ -167,7 +167,7 @@ export const customerMappers = {
       email,
       name: getString(record.name) || undefined,
       locale: getString(record.locale) || 'en',
-      status: 'churned' as const,
+      status: 'active' as const,
       source: 'file_upload' as const,
     };
   },
