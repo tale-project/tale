@@ -31,11 +31,6 @@
             "description": "Text description of the image to create",
             "required": true
           },
-          "n": {
-            "type": "number",
-            "description": "Number of images to create (default 1)",
-            "required": false
-          },
           "size": {
             "type": "string",
             "description": "Image size (model-dependent, see tool description for supported sizes)",
@@ -62,11 +57,6 @@
             "type": "string",
             "description": "URL or base64-encoded input image. You can pass a file URL from a previous create result.",
             "required": true
-          },
-          "n": {
-            "type": "number",
-            "description": "Number of edited images to create (default 1)",
-            "required": false
           },
           "size": {
             "type": "string",
