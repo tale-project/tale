@@ -7,7 +7,7 @@
  * eliminating the need for .sops.yaml files.
  */
 
-import { x25519 } from '@noble/curves/ed25519';
+import { x25519 } from '@noble/curves/ed25519.js';
 import { bech32 } from '@scure/base';
 
 const SECRET_HRP = 'age-secret-key-';
