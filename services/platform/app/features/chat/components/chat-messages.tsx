@@ -299,7 +299,7 @@ export function ChatMessages({
       aria-live="polite"
       aria-label={t('aria.messageHistory')}
     >
-      <div className="flex flex-col gap-4 pt-10">
+      <div className="flex flex-col gap-3 pt-6">
         {(canLoadMore || isLoadingMore) && (
           <div className="flex justify-center py-2">
             <Button
@@ -323,7 +323,7 @@ export function ChatMessages({
 
         {/* Messages before the last user message — content-visibility skips
             rendering work for messages scrolled offscreen. */}
-        <div className="flex flex-col gap-4 [contain-intrinsic-size:auto_none] [content-visibility:auto]">
+        <div className="flex flex-col gap-3 [contain-intrinsic-size:auto_none] [content-visibility:auto]">
           {beforeItems.map(renderMessage)}
         </div>
 
@@ -335,7 +335,7 @@ export function ChatMessages({
             viewport height, min-height becomes irrelevant. */}
         <div
           ref={responseAreaRef}
-          className="flex shrink-0 flex-col gap-4 [overflow-anchor:none]"
+          className="flex shrink-0 flex-col gap-3 [overflow-anchor:none]"
         >
           {afterItems.map(renderMessage)}
 
