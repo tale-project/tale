@@ -81,7 +81,8 @@ function ConversationsStatusPage() {
   const allCounts = Object.values(counts);
   const totalConversationCount = allCounts.some((c) => c === undefined)
     ? undefined
-    : allCounts.reduce((sum, c) => sum + (c ?? 0), 0);
+    : // oxlint-disable-next-line typescript/no-unnecessary-type-arguments -- required: array has undefined elements, accumulator needs explicit number type
+      allCounts.reduce<number>((sum, c) => sum + (c ?? 0), 0);
 
   const paginatedResult = useListConversationsPaginated({
     organizationId,

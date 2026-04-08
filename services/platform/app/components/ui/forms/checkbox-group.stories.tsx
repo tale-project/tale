@@ -74,7 +74,7 @@ export const Default: Story = {
 };
 
 function WithLabelRender() {
-  const [value, setValue] = useState([]);
+  const [value, setValue] = useState<string[]>([]);
   return (
     <CheckboxGroup
       label="Permissions"

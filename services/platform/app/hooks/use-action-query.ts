@@ -1,6 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAction, useConvexAuth } from 'convex/react';
-import type { FunctionArgs, FunctionReference } from 'convex/server';
+import type {
+  FunctionArgs,
+  FunctionReference,
+  FunctionReturnType,
+} from 'convex/server';
 
 interface ActionQueryOptions {
   enabled?: boolean;
@@ -16,7 +20,8 @@ export function useActionQuery<Func extends FunctionReference<'action'>>(
 ) {
   const action = useAction(func);
   const { isAuthenticated } = useConvexAuth();
-  return useQuery({
+  // oxlint-disable-next-line typescript/no-unnecessary-type-arguments -- required: removing loses return-type inference for callers
+  return useQuery<FunctionReturnType<Func>>({
     queryKey,
     queryFn: () => action(args),
     staleTime: Infinity,

@@ -1,11 +1,19 @@
 import { useConvexMutation as useMutationFn } from '@convex-dev/react-query';
 import type { UseMutationOptions } from '@tanstack/react-query';
 import { useMutation } from '@tanstack/react-query';
-import type { FunctionArgs, FunctionReference } from 'convex/server';
+import type {
+  FunctionArgs,
+  FunctionReference,
+  FunctionReturnType,
+} from 'convex/server';
 
 export function useConvexMutation<Func extends FunctionReference<'mutation'>>(
   func: Func,
-  options?: Omit<UseMutationOptions, 'mutationFn'>,
+  options?: Omit<
+    // oxlint-disable-next-line typescript/no-unnecessary-type-arguments -- required: removing loses type inference for callers
+    UseMutationOptions<FunctionReturnType<Func>, Error, FunctionArgs<Func>>,
+    'mutationFn'
+  >,
 ) {
   const mutate = useMutationFn(func);
   return useMutation({
