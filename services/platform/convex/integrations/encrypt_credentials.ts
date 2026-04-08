@@ -2,6 +2,7 @@
  * Helper to encrypt credentials for integrations.
  */
 
+import { encryptString } from '../lib/crypto/encrypt_string';
 import type {
   ApiKeyAuth,
   BasicAuth,
@@ -10,8 +11,6 @@ import type {
   BasicAuthEncrypted,
   OAuth2AuthEncrypted,
 } from './types';
-
-import { encryptString } from '../lib/crypto/encrypt_string';
 
 export interface EncryptableCredentials {
   apiKeyAuth?: ApiKeyAuth;

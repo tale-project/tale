@@ -1,7 +1,6 @@
 'use client';
 
 import type { ColumnDef } from '@tanstack/react-table';
-
 import { useMemo } from 'react';
 
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
@@ -13,9 +12,8 @@ import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 import { formatBytes } from '@/lib/utils/format/number';
 
-import type { OneDriveApiItem, OneDriveSelectedItem } from './types';
-
 import { MicrosoftReauthButton } from '../microsoft-reauth-button';
+import type { OneDriveApiItem, OneDriveSelectedItem } from './types';
 import { isFolder } from './types';
 
 interface OneDriveFileTableProps {

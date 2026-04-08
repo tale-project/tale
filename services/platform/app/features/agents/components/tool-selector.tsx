@@ -2,14 +2,13 @@
 
 import { useCallback, useMemo } from 'react';
 
-import type { ToolName } from '@/convex/agent_tools/tool_names';
-
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { CheckboxGroup } from '@/app/components/ui/forms/checkbox-group';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Grid, Stack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
+import type { ToolName } from '@/convex/agent_tools/tool_names';
 import { useT } from '@/lib/i18n/client';
 
 import {

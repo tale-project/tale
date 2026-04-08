@@ -5,8 +5,9 @@
  * Usage: bun scripts/generate-admin-password.ts [password]
  */
 
-import bcrypt from 'bcryptjs';
 import { randomBytes } from 'crypto';
+
+import bcrypt from 'bcryptjs';
 
 function generateSecurePassword(length = 16) {
   const charset =

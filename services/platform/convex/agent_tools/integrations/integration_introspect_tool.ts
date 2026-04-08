@@ -8,20 +8,18 @@
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
-
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
-
-import type { ToolDefinition } from '../types';
-import type {
-  IntrospectionSummaryResult,
-  OperationDetailResult,
-} from './types';
 
 import { isRecord } from '../../../lib/utils/type-guards';
 import { internal } from '../../_generated/api';
 import { isSqlIntegration } from '../../integrations/helpers';
 import { getIntrospectionOperations } from '../../workflow_engine/action_defs/integration/helpers/get_introspection_operations';
+import type { ToolDefinition } from '../types';
+import type {
+  IntrospectionSummaryResult,
+  OperationDetailResult,
+} from './types';
 
 const integrationIntrospectArgs = z.object({
   integrationName: z.string().describe('Integration name to introspect'),

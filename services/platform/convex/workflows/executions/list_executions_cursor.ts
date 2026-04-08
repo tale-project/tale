@@ -6,13 +6,12 @@
  */
 
 import type { QueryCtx } from '../../_generated/server';
+import { paginateWithFilter, DEFAULT_PAGE_SIZE } from '../../lib/pagination';
 import type {
   ListExecutionsCursorArgs,
   CursorPaginatedExecutionsResult,
   WorkflowExecution,
 } from './types';
-
-import { paginateWithFilter, DEFAULT_PAGE_SIZE } from '../../lib/pagination';
 
 export async function listExecutionsCursor(
   ctx: QueryCtx,

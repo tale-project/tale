@@ -2,8 +2,6 @@ import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
-import type { Checksums } from '../project/types';
-
 import pkg from '../../../package.json';
 import * as logger from '../../utils/logger';
 import {
@@ -18,6 +16,7 @@ import {
 } from '../project/fetch-reference';
 import { findProject } from '../project/find-project';
 import { readProject } from '../project/read-project';
+import type { Checksums } from '../project/types';
 import { generateAllRules } from '../rules/generators';
 
 interface UpdateOptions {

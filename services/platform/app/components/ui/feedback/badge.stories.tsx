@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from '@storybook/react';
-
 import { Check, Clock, AlertCircle, Star } from 'lucide-react';
 
 import { Badge } from './badge';

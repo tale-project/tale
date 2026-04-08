@@ -6,8 +6,9 @@
  * library for age encryption and Node/Bun `crypto` for AES-GCM.
  */
 
-import { Encrypter } from 'age-encryption';
 import { randomBytes, createCipheriv, createHash } from 'node:crypto';
+
+import { Encrypter } from 'age-encryption';
 
 // ---------------------------------------------------------------------------
 // age encryption (via official library)

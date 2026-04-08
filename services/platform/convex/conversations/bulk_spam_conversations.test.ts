@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
-
 import { bulkSpamConversations } from './bulk_spam_conversations';
 
 vi.mock('../audit_logs/helpers', () => ({

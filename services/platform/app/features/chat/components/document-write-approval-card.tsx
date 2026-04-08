@@ -9,9 +9,6 @@ import {
 } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 
-import type { Id } from '@/convex/_generated/dataModel';
-import type { DocumentWriteMetadata } from '@/convex/approvals/types';
-
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { ActionRow } from '@/app/components/ui/layout/action-row';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
@@ -23,6 +20,8 @@ import {
   useUpdateApprovalStatus,
 } from '@/app/features/chat/hooks/mutations';
 import { useAuth } from '@/app/hooks/use-convex-auth';
+import type { Id } from '@/convex/_generated/dataModel';
+import type { DocumentWriteMetadata } from '@/convex/approvals/types';
 import { normalizeDocumentWriteMetadata } from '@/convex/approvals/types';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';

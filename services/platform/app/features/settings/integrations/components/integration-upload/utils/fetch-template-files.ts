@@ -1,7 +1,6 @@
 import type { IntegrationTemplate } from '../constants/integration-templates';
-import type { ParseResult } from './parse-integration-package';
-
 import { getTemplateFileUrl } from '../constants/integration-templates';
+import type { ParseResult } from './parse-integration-package';
 import { parseIntegrationFiles } from './parse-integration-package';
 
 const cache = new Map<string, ParseResult>();

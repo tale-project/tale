@@ -3,12 +3,11 @@
  */
 
 import type { MutationCtx } from '../_generated/server';
-import type { CreateDocumentArgs, CreateDocumentResult } from './types';
-
 import { buildFolderPath } from '../folders/queries';
 import { toConvexJsonRecord } from '../lib/type_cast_helpers';
 import { extractExtension } from './extract_extension';
 import { teamIdToFields } from './team_fields';
+import type { CreateDocumentArgs, CreateDocumentResult } from './types';
 
 export async function createDocument(
   ctx: MutationCtx,

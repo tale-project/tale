@@ -10,8 +10,6 @@ import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
 import type { WorkflowJsonConfig } from '../../../lib/shared/schemas/workflows';
-import type { ToolDefinition } from '../types';
-
 import { isRecord } from '../../../lib/utils/type-guards';
 import { internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
@@ -20,6 +18,7 @@ import {
   validateStepConfig,
   isValidStepType,
 } from '../../workflow_engine/helpers/validation/validate_step_config';
+import type { ToolDefinition } from '../types';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 

@@ -24,8 +24,6 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import type { Message } from './message-bubble/types';
-
 import { useMessageMetadata, useFileUrls } from '../hooks/queries';
 import {
   FileAttachmentDisplay,
@@ -35,6 +33,7 @@ import {
   ImagePreviewDialog,
   type GalleryImage,
 } from './message-bubble/image-preview-dialog';
+import type { Message } from './message-bubble/types';
 import { MessageInfoDialog } from './message-info-dialog';
 import { StructuredMessage } from './structured-message/structured-message';
 

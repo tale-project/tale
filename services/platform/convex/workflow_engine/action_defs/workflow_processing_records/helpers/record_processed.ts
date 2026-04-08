@@ -1,9 +1,8 @@
+import { internal } from '../../../../_generated/api';
 import type { Id } from '../../../../_generated/dataModel';
 import type { ActionCtx } from '../../../../_generated/server';
 import type { ConvexJsonRecord } from '../../../../lib/validators/json';
 import type { TableName, RecordProcessedResult } from './types';
-
-import { internal } from '../../../../_generated/api';
 
 export async function recordProcessed(
   ctx: ActionCtx,

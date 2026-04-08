@@ -8,13 +8,12 @@
  * Supports compare-and-swap via expectedHash to prevent lost updates.
  */
 
-import { v } from 'convex/values';
 import { readdir } from 'node:fs/promises';
 import path from 'node:path';
 
-import type { IntegrationJsonConfig } from '../../lib/shared/schemas/integrations';
-import type { IntegrationReadResult } from './file_utils';
+import { v } from 'convex/values';
 
+import type { IntegrationJsonConfig } from '../../lib/shared/schemas/integrations';
 import { internal } from '../_generated/api';
 import { action, internalAction } from '../_generated/server';
 import { authComponent } from '../auth';
@@ -24,6 +23,7 @@ import {
   readJsonFile,
   sha256,
 } from '../lib/file_io';
+import type { IntegrationReadResult } from './file_utils';
 import {
   MAX_FILE_SIZE_BYTES,
   parseIntegrationJson,

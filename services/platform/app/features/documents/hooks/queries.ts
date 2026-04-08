@@ -1,11 +1,10 @@
-import type { ConvexItemOf } from '@/lib/types/convex-helpers';
-
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useReactQuery } from '@/app/hooks/use-react-query';
 import { api } from '@/convex/_generated/api';
 import { toId } from '@/convex/lib/type_cast_helpers';
+import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 
 export type Document = ConvexItemOf<typeof api.documents.queries.listDocuments>;
 

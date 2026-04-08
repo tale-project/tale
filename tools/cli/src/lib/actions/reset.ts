@@ -1,10 +1,9 @@
 import { unlink } from 'node:fs/promises';
 
-import type { DeploymentColor } from '../compose/types';
-
 import { confirm } from '../../utils/confirm';
 import { PROJECT_NAME, type DeploymentEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
+import type { DeploymentColor } from '../compose/types';
 import { ROTATABLE_SERVICES, STATEFUL_SERVICES } from '../compose/types';
 import { docker } from '../docker/docker';
 import { removeContainer } from '../docker/remove-container';

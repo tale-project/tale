@@ -1,9 +1,8 @@
+import { internal } from '../../../../_generated/api';
 import type { Id } from '../../../../_generated/dataModel';
 import type { ActionCtx } from '../../../../_generated/server';
-import type { EmailType } from './types';
-
-import { internal } from '../../../../_generated/api';
 import { buildEmailMetadata } from './build_email_metadata';
+import type { EmailType } from './types';
 
 /**
  * Update an existing message with delivered state and metadata

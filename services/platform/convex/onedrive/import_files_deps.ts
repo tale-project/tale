@@ -2,12 +2,11 @@
  * Import Files Dependencies - Factory for creating importFiles dependencies
  */
 
-import type { ActionCtx } from '../_generated/server';
-import type { ImportFilesDependencies } from './import_files';
-
 import { internal } from '../_generated/api';
+import type { ActionCtx } from '../_generated/server';
 import { downloadFile } from './download_file';
 import { getFileMetadata } from './get_file_metadata';
+import type { ImportFilesDependencies } from './import_files';
 
 /**
  * Create dependencies for the importFiles function.

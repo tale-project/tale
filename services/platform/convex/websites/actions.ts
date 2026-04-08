@@ -1,13 +1,7 @@
 import { v } from 'convex/values';
 
-import type { Id } from '../_generated/dataModel';
-import type {
-  FetchChunksResult,
-  FetchPagesResult,
-  SearchContentResult,
-} from './types';
-
 import { internal } from '../_generated/api';
+import type { Id } from '../_generated/dataModel';
 import { action } from '../_generated/server';
 import { authComponent } from '../auth';
 import { toWebsiteDomain } from './create_website';
@@ -15,6 +9,11 @@ import {
   deregisterDomainFromCrawler,
   updateCrawlerScanInterval,
 } from './internal_actions';
+import type {
+  FetchChunksResult,
+  FetchPagesResult,
+  SearchContentResult,
+} from './types';
 
 export const createWebsite = action({
   args: {

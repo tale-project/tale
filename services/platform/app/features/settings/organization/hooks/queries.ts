@@ -1,7 +1,6 @@
-import type { ConvexItemOf } from '@/lib/types/convex-helpers';
-
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
+import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 
 export type Member = ConvexItemOf<
   typeof api.members.queries.listByOrganization

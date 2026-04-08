@@ -7,7 +7,6 @@ import { EntityRowActions } from '@/app/components/ui/entity/entity-row-actions'
 import { useT } from '@/lib/i18n/client';
 
 import type { ApiKey } from '../types';
-
 import { ApiKeyRevokeDialog } from './api-key-revoke-dialog';
 
 interface ApiKeyRowActionsProps {

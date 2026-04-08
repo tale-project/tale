@@ -1,7 +1,6 @@
 'use client';
 
 import type { ColumnDef } from '@tanstack/react-table';
-
 import { useMemo } from 'react';
 
 import { Badge } from '@/app/components/ui/feedback/badge';

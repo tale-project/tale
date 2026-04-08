@@ -1,11 +1,9 @@
-import type { Preview, ReactRenderer } from '@storybook/react';
-import type { DecoratorFunction } from 'storybook/internal/types';
-
 import {
   DocsContainer,
   type DocsContainerProps,
 } from '@storybook/addon-docs/blocks';
 import { withThemeByClassName } from '@storybook/addon-themes';
+import type { Preview, ReactRenderer } from '@storybook/react';
 import {
   RouterProvider,
   createMemoryHistory,
@@ -14,10 +12,12 @@ import {
   createRouter,
 } from '@tanstack/react-router';
 import { useEffect, useMemo, useState } from 'react';
+import type { DecoratorFunction } from 'storybook/internal/types';
 
 import { ThemeContext } from '../app/components/theme/theme-provider';
 import { I18nProvider } from '../lib/i18n/i18n-provider';
 import { taleDarkTheme, taleLightTheme } from './theme';
+
 import '../app/globals.css';
 
 const rootRoute = createRootRoute();

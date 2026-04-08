@@ -3,8 +3,6 @@
 import { History } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
-import type { WorkflowJsonConfig } from '@/lib/shared/schemas/workflows';
-
 import {
   TabNavigation,
   type TabNavigationItem,
@@ -19,6 +17,7 @@ import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
+import type { WorkflowJsonConfig } from '@/lib/shared/schemas/workflows';
 import { workflowJsonSchema } from '@/lib/shared/schemas/workflows';
 
 import { useWorkflowConfig } from '../hooks/use-workflow-config-context';

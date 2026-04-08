@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from '@storybook/react';
-
 import { FileText, Inbox, Search, Upload } from 'lucide-react';
 
 import { EmptyPlaceholder } from './empty-placeholder';

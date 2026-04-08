@@ -1,11 +1,10 @@
 import type { ToolCtx } from '@convex-dev/agent';
 import type { z } from 'zod/v4';
 
-import type { documentRetrieveArgs } from '../document_retrieve_tool';
-
 import { internal } from '../../../_generated/api';
 import { createDebugLog } from '../../../lib/debug_log';
 import { getRagConfig } from '../../../lib/helpers/rag_config';
+import type { documentRetrieveArgs } from '../document_retrieve_tool';
 import {
   fetchDocumentContent,
   type DocumentContentResult,

@@ -6,8 +6,6 @@ import { parseISO, formatISO } from 'date-fns';
 import { Copy, Check } from 'lucide-react';
 import { useState, useMemo, useCallback, memo } from 'react';
 
-import type { Doc } from '@/convex/_generated/dataModel';
-
 import { JsonViewer } from '@/app/components/ui/data-display/json-viewer';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Badge } from '@/app/components/ui/feedback/badge';
@@ -16,6 +14,7 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useLocale } from '@/app/hooks/use-locale';
+import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { formatDuration } from '@/lib/utils/format/number';
 

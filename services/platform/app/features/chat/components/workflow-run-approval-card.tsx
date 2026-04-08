@@ -21,10 +21,6 @@ import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-import type { Id } from '@/convex/_generated/dataModel';
-import type { WorkflowRunMetadata } from '@/convex/approvals/types';
-import type { HumanInputField } from '@/lib/shared/schemas/approvals';
-
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { ActionRow } from '@/app/components/ui/layout/action-row';
@@ -44,7 +40,10 @@ import {
 } from '@/app/features/chat/hooks/use-execution-status';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useCopyButton } from '@/app/hooks/use-copy';
+import type { Id } from '@/convex/_generated/dataModel';
+import type { WorkflowRunMetadata } from '@/convex/approvals/types';
 import { useT } from '@/lib/i18n/client';
+import type { HumanInputField } from '@/lib/shared/schemas/approvals';
 import { FEEDBACK_KEY } from '@/lib/shared/schemas/approvals';
 import { cn } from '@/lib/utils/cn';
 import { stripLeadingPunctuation } from '@/lib/utils/text';

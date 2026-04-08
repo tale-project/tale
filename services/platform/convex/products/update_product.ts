@@ -1,8 +1,7 @@
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
-import type { ProductStatus, ProductTranslation } from './types';
-
 import { toConvexJsonRecord } from '../lib/type_cast_helpers';
+import type { ProductStatus, ProductTranslation } from './types';
 
 export interface UpdateProductArgs {
   productId: Id<'products'>;

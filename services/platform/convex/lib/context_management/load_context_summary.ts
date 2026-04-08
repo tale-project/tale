@@ -5,10 +5,9 @@
  * an existing conversation summary from the thread.
  */
 
-import type { ActionCtx } from '../../_generated/server';
-
 import { parseJson } from '../../../lib/utils/type-cast-helpers';
 import { components } from '../../_generated/api';
+import type { ActionCtx } from '../../_generated/server';
 
 export async function loadContextSummary(
   ctx: ActionCtx,

@@ -20,7 +20,6 @@ import { useT } from '@/lib/i18n/client';
 import { formatBytes } from '@/lib/utils/format/number';
 
 import type { Document } from '../hooks/queries';
-
 import { useDocuments } from '../hooks/queries';
 import { DocumentPreview } from './document-preview';
 import { RagStatusBadge } from './rag-status-badge';

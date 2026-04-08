@@ -21,9 +21,8 @@
  * typically ~10x faster for long responses.
  */
 
-import type { Components, Options as MarkdownOptions } from 'react-markdown';
-
 import { memo, useLayoutEffect, useMemo, useRef, type ReactNode } from 'react';
+import type { Components, Options as MarkdownOptions } from 'react-markdown';
 import Markdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';

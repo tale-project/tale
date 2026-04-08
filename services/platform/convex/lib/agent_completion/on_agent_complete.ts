@@ -7,9 +7,8 @@
  * This function runs in action context and calls mutations as needed.
  */
 
-import type { ActionCtx } from '../../_generated/server';
-
 import { internal } from '../../_generated/api';
+import type { ActionCtx } from '../../_generated/server';
 import { createDebugLog } from '../debug_log';
 
 const debugLog = createDebugLog('DEBUG_AGENT_COMPLETION', '[AgentCompletion]');

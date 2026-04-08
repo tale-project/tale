@@ -1,9 +1,8 @@
 'use client';
 
-import type { Row } from '@tanstack/react-table';
-
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
+import type { Row } from '@tanstack/react-table';
 import { Plus, Server } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 

@@ -10,7 +10,6 @@ import {
 import { useT } from '@/lib/i18n/client';
 
 import type { Team } from '../hooks/queries';
-
 import { TeamDeleteDialog } from './team-delete-dialog';
 import { TeamEditDialog } from './team-edit-dialog';
 

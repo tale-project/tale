@@ -7,16 +7,14 @@
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
-
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
 import type { WorkflowJsonConfig } from '../../../lib/shared/schemas/workflows';
-import type { WorkflowInputSchema } from '../../workflow_engine/helpers/validation/validate_workflow_input';
-
 import { isRecord } from '../../../lib/utils/type-guards';
 import { internal } from '../../_generated/api';
 import { getApprovalThreadId } from '../../threads/get_parent_thread_id';
+import type { WorkflowInputSchema } from '../../workflow_engine/helpers/validation/validate_workflow_input';
 import { validateWorkflowInput } from '../../workflow_engine/helpers/validation/validate_workflow_input';
 import { extractInputSchema } from './helpers/extract_input_schema';
 

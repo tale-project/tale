@@ -8,12 +8,10 @@ import type {
   WorkflowUpdateApproval,
 } from '@/app/features/chat/hooks/queries';
 import type { Id } from '@/convex/_generated/dataModel';
-
 import { render, screen } from '@/test/utils/render';
 
-import type { Message } from './types';
-
 import { MessageList } from './message-list';
+import type { Message } from './types';
 
 vi.mock('@/lib/i18n/client', () => ({
   useT: () => ({ t: (key: string) => key }),

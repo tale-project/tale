@@ -4,9 +4,8 @@
 
 import type { DataSource } from '../../lib/shared/schemas/common';
 import type { MutationCtx } from '../_generated/server';
-import type { BulkCreateResult } from './types';
-
 import { toConvexJsonRecord } from '../lib/type_cast_helpers';
+import type { BulkCreateResult } from './types';
 
 export interface BulkCreateCustomerData {
   name?: string;

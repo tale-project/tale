@@ -1,7 +1,5 @@
 'use client';
 
-import type { DateRange } from 'react-day-picker';
-
 import {
   flexRender,
   getCoreRowModel,
@@ -27,8 +25,7 @@ import {
   useCallback,
   type ReactNode,
 } from 'react';
-
-import type { DatePreset } from '@/app/components/ui/forms/date-range-picker';
+import type { DateRange } from 'react-day-picker';
 
 import { ErrorBoundaryBase } from '@/app/components/error-boundaries/core/error-boundary-base';
 import { ErrorDisplayCompact } from '@/app/components/error-boundaries/displays/error-display-compact';
@@ -43,6 +40,7 @@ import {
 } from '@/app/components/ui/data-display/table';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Spinner } from '@/app/components/ui/feedback/spinner';
+import type { DatePreset } from '@/app/components/ui/forms/date-range-picker';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
@@ -50,11 +48,6 @@ import { useInfiniteScroll } from '@/app/hooks/use-infinite-scroll';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
-
-import type {
-  DataTableSearchConfig,
-  DataTableSortingConfig,
-} from './data-table-types';
 
 import {
   DataTableEmptyState,
@@ -65,6 +58,10 @@ import {
   DataTablePagination,
   type DataTablePaginationProps,
 } from './data-table-pagination';
+import type {
+  DataTableSearchConfig,
+  DataTableSortingConfig,
+} from './data-table-types';
 
 interface ColumnMeta {
   isAction?: boolean;

@@ -1,16 +1,15 @@
 import { v } from 'convex/values';
 
+import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
+import { internalAction } from '../_generated/server';
+import { getCrawlerUrl } from '../documents/generate_document_helpers';
 import type {
   CrawlerChunksResponse,
   CrawlerPagesResponse,
   CrawlerSearchResponse,
   CrawlerWebsiteInfo,
 } from './types';
-
-import { internal } from '../_generated/api';
-import { internalAction } from '../_generated/server';
-import { getCrawlerUrl } from '../documents/generate_document_helpers';
 
 const CRAWLER_TIMEOUT_MS = 15_000;
 const SYNC_INTERVAL_MS = 60 * 60 * 1000; // 1 hour

@@ -4,11 +4,10 @@
 
 import type { Id, TableNames } from '../../../_generated/dataModel';
 import type { MutationCtx } from '../../../_generated/server';
-import type { OrgRole } from '../organization/validate_organization_access';
-import type { RLSContext } from '../types';
-
 import { RLSError } from '../errors';
+import type { OrgRole } from '../organization/validate_organization_access';
 import { validateOrganizationAccess } from '../organization/validate_organization_access';
+import type { RLSContext } from '../types';
 
 /**
  * Higher-order function to wrap mutations with RLS

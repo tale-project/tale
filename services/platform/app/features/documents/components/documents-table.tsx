@@ -5,15 +5,14 @@ import { type Row } from '@tanstack/react-table';
 import { FileText } from 'lucide-react';
 import { useMemo, useState, useCallback } from 'react';
 
-import type { FilterConfig } from '@/app/components/ui/data-table/data-table-filters';
-import type { DocumentItem, RagStatus } from '@/types/documents';
-
 import { DataTable } from '@/app/components/ui/data-table/data-table';
+import type { FilterConfig } from '@/app/components/ui/data-table/data-table-filters';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useDebounce } from '@/app/hooks/use-debounce';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { useT } from '@/lib/i18n/client';
+import type { DocumentItem, RagStatus } from '@/types/documents';
 
 import {
   useApproxDocumentCount,

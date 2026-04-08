@@ -21,13 +21,12 @@
  */
 
 import type { MutationCtx } from '../../../_generated/server';
-import type { FindUnprocessedArgs, FindUnprocessedResult } from './types';
-
 import { calculateCutoffTimestamp } from '../calculate_cutoff_timestamp';
 import { findAndClaimUnprocessed } from '../find_and_claim_unprocessed';
 import { selectOptimalIndex } from '../index_selection';
 import { createExpressionFilter } from './create_expression_filter';
 import { createQueryBuilder } from './create_query_builder';
+import type { FindUnprocessedArgs, FindUnprocessedResult } from './types';
 
 export async function findUnprocessed(
   ctx: MutationCtx,

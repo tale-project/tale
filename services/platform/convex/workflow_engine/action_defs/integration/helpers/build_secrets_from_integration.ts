@@ -4,9 +4,8 @@
  */
 
 import type { ActionCtx } from '../../../../_generated/server';
-import type { LoadedIntegration } from '../../../../integrations/load_integration';
-
 import { buildIntegrationSecrets } from '../../../../integrations/build_test_secrets';
+import type { LoadedIntegration } from '../../../../integrations/load_integration';
 
 export async function buildSecretsFromIntegration(
   ctx: ActionCtx,

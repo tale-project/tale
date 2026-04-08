@@ -6,9 +6,8 @@
  * Trigger sources (schedule, webhook, API) are configured separately.
  */
 
-import type { ValidationResult } from '../types';
-
 import { isRecord } from '../../../../../lib/utils/type-guards';
+import type { ValidationResult } from '../types';
 
 const VALID_SCHEMA_TYPES = new Set([
   'string',

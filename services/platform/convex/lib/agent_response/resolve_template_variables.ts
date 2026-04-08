@@ -6,10 +6,9 @@
  * variables are actually present in the instructions string.
  */
 
-import type { ActionCtx } from '../../_generated/server';
-
 import { isRecord, getString } from '../../../lib/utils/type-guards';
 import { components } from '../../_generated/api';
+import type { ActionCtx } from '../../_generated/server';
 
 const VARIABLE_PATTERN = /\{\{([^}]+)\}\}/g;
 const VARIABLE_MARKER = '{{';

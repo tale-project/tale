@@ -2,11 +2,10 @@
  * Check organization membership
  */
 
-import type { QueryCtx } from '../_generated/server';
-import type { CheckMembershipArgs, MembershipResult } from './types';
-
 import { isRecord, getString } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
+import type { QueryCtx } from '../_generated/server';
+import type { CheckMembershipArgs, MembershipResult } from './types';
 
 export async function checkMembership(
   ctx: QueryCtx,

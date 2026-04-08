@@ -1,10 +1,8 @@
 import type { LanguageModelV3 } from '@ai-sdk/provider';
-
 import { Agent } from '@convex-dev/agent';
 
-import type { ToolName } from '../agent_tools/tool_registry';
-
 import { loadConvexToolsAsObject } from '../agent_tools/load_convex_tools_as_object';
+import type { ToolName } from '../agent_tools/tool_registry';
 import { createDebugLog } from './debug_log';
 
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[AgentConfig]');

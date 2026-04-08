@@ -5,9 +5,6 @@
  * Array-based registry for type inference, with derived object for O(1) lookups.
  */
 
-import type { ToolName } from './tool_names';
-import type { ToolDefinition } from './types';
-
 import { conversationReadTool } from './conversations/conversation_read_tool';
 import { customerReadTool } from './customers/customer_read_tool';
 import { databaseSchemaTool } from './database/database_schema_tool';
@@ -27,6 +24,8 @@ import { integrationTool } from './integrations/integration_tool';
 import { requestUserLocationTool } from './location/request_user_location_tool';
 import { productReadTool } from './products/product_read_tool';
 import { ragSearchTool } from './rag/rag_search_tool';
+import type { ToolName } from './tool_names';
+import type { ToolDefinition } from './types';
 import { webTool } from './web/web_tool';
 import { createWorkflowTool } from './workflows/create_workflow_tool';
 import { runWorkflowTool } from './workflows/run_workflow_tool';

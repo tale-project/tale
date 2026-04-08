@@ -8,12 +8,11 @@
 import { v } from 'convex/values';
 
 import type { Id } from '../../../_generated/dataModel';
-import type { ActionDefinition } from '../../helpers/nodes/action/types';
-
 import {
   jsonRecordValidator,
   type ConvexJsonRecord,
 } from '../../../lib/validators/json';
+import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import { createApproval } from './helpers/create_approval';
 
 // Common field validators

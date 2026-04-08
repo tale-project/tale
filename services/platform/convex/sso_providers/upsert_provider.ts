@@ -5,7 +5,6 @@ import type {
   ProviderFeatures,
   RoleMappingRule,
 } from '../../lib/shared/schemas/sso_providers';
-
 import { DataModel } from '../_generated/dataModel';
 import * as AuditLogHelpers from '../audit_logs/helpers';
 

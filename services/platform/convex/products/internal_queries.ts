@@ -1,9 +1,8 @@
 import { v } from 'convex/values';
 
 import type { Doc } from '../_generated/dataModel';
-import type { CursorPaginatedResult } from '../lib/pagination';
-
 import { internalQuery } from '../_generated/server';
+import type { CursorPaginatedResult } from '../lib/pagination';
 import { cursorPaginationOptsValidator } from '../lib/pagination';
 import * as ProductsHelpers from './helpers';
 import { productStatusValidator, productDocValidator } from './validators';

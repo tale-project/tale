@@ -18,9 +18,8 @@
  * - 'status == "closed" && daysAgo(metadata.resolved_at) > 30' => [{ field: 'status', operator: '==', value: 'closed' }] + hasComplexConditions
  */
 
-import type { ASTNode, ParsedFilterExpression } from './ast_helpers';
-
 import { jexlInstance } from '../../lib/variables/jexl_instance';
+import type { ASTNode, ParsedFilterExpression } from './ast_helpers';
 import { traverseAST } from './ast_helpers';
 
 export * from './ast_helpers';

@@ -4,7 +4,6 @@
 
 import type { Id, Doc } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
-
 import { ensureUrl } from './create_website';
 
 export interface UpdateWebsiteArgs {

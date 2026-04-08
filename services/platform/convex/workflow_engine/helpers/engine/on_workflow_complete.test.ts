@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { MutationCtx } from '../../../_generated/server';
-
 import { handleWorkflowComplete } from './on_workflow_complete';
 
 function createMockCtx(overrides: {

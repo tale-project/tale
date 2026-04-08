@@ -4,7 +4,6 @@ import { type ColumnDef } from '@tanstack/react-table';
 import { useMemo } from 'react';
 
 import type { Doc } from '@/convex/_generated/dataModel';
-
 import { useT } from '@/lib/i18n/client';
 
 /** Shared table configuration for executions - used by both table and skeleton */

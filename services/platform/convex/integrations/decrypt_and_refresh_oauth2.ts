@@ -5,14 +5,13 @@
  * Returns decrypted accessToken, refreshing first if the token is expired or expiring soon.
  */
 
-import type { Id } from '../_generated/dataModel';
-import type { ActionCtx } from '../_generated/server';
-import type { IntegrationWithCredentials } from './shared_types';
-
 import { fetchJson } from '../../lib/utils/type-cast-helpers';
 import { internal } from '../_generated/api';
+import type { Id } from '../_generated/dataModel';
+import type { ActionCtx } from '../_generated/server';
 import { encryptString } from '../lib/crypto/encrypt_string';
 import { createDebugLog } from '../lib/debug_log';
+import type { IntegrationWithCredentials } from './shared_types';
 
 const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations OAuth2]');
 

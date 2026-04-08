@@ -4,9 +4,6 @@ import { Link } from '@tanstack/react-router';
 import { FileText, Trash2, Upload } from 'lucide-react';
 import { useState, useCallback, useMemo } from 'react';
 
-import type { KnowledgeFile } from '@/convex/agents/schema';
-import type { RagStatus } from '@/types/documents';
-
 import { ContentArea } from '@/app/components/layout/content-area';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { EmptyPlaceholder } from '@/app/components/ui/feedback/empty-placeholder';
@@ -20,9 +17,11 @@ import { Text } from '@/app/components/ui/typography/text';
 import { RagStatusBadge } from '@/app/features/documents/components/rag-status-badge';
 import { useDocuments } from '@/app/features/documents/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
+import type { KnowledgeFile } from '@/convex/agents/schema';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { isRetrievalMode } from '@/lib/shared/schemas/agents';
+import type { RagStatus } from '@/types/documents';
 
 import { useRemoveKnowledgeFile } from '../hooks/mutations';
 import { useAgentBinding } from '../hooks/queries';

@@ -11,9 +11,8 @@ import { useAbility } from '@/app/hooks/use-ability';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
-import type { Product } from '../hooks/use-products-table-config';
-
 import { useDeleteProduct } from '../hooks/mutations';
+import type { Product } from '../hooks/use-products-table-config';
 import { ProductDeleteDialog } from './product-delete-dialog';
 import { ProductEditDialog } from './product-edit-dialog';
 

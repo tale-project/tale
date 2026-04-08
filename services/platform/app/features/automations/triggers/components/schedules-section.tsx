@@ -1,7 +1,6 @@
 'use client';
 
 import type { ColumnDef } from '@tanstack/react-table';
-
 import { Plus, Calendar, Pencil, Trash2 } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 
@@ -16,7 +15,6 @@ import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 
 import type { WfSchedule } from '../hooks/queries';
-
 import { useSchedules } from '../hooks/queries';
 import { useDeleteSchedule, useToggleSchedule } from '../hooks/slug-mutations';
 import { CollapsibleSection } from './collapsible-section';

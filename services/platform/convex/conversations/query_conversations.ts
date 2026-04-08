@@ -12,12 +12,11 @@
 
 import type { Doc } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
-import type { QueryConversationsArgs } from './types';
-
 import {
   paginateWithFilter,
   type CursorPaginatedResult,
 } from '../lib/pagination';
+import type { QueryConversationsArgs } from './types';
 
 /**
  * Build a query ordered by lastMessageAt descending.

@@ -1,8 +1,7 @@
-import type { ConvexItemOf } from '@/lib/types/convex-helpers';
-
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
+import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 
 export type Vendor = ConvexItemOf<typeof api.vendors.queries.listVendors>;
 

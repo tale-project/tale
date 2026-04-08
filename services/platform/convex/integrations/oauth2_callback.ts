@@ -5,9 +5,8 @@
  * Parses the callback parameters and delegates to an internal action for token exchange.
  */
 
-import type { Id } from '../_generated/dataModel';
-
 import { internal } from '../_generated/api';
+import type { Id } from '../_generated/dataModel';
 import { httpAction } from '../_generated/server';
 import { toId } from '../lib/type_cast_helpers';
 

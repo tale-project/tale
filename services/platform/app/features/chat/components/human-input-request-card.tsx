@@ -15,9 +15,6 @@ import { memo, useCallback, useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-import type { Id } from '@/convex/_generated/dataModel';
-import type { HumanInputRequestMetadata } from '@/lib/shared/schemas/approvals';
-
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
@@ -26,7 +23,9 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useCopyButton } from '@/app/hooks/use-copy';
 import { useFormatDate } from '@/app/hooks/use-format-date';
+import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+import type { HumanInputRequestMetadata } from '@/lib/shared/schemas/approvals';
 import { FEEDBACK_KEY } from '@/lib/shared/schemas/approvals';
 import { cn } from '@/lib/utils/cn';
 import { stripLeadingPunctuation } from '@/lib/utils/text';

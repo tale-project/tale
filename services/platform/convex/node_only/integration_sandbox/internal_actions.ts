@@ -8,8 +8,6 @@
 
 import { v } from 'convex/values';
 
-import type { IntegrationExecutionResult } from './types';
-
 import {
   jsonRecordValidator,
   jsonValueValidator,
@@ -17,6 +15,7 @@ import {
 import { internalAction } from '../../_generated/server';
 import { executeIntegrationImpl } from './execute_integration_impl';
 import { createConvexStorageProvider } from './helpers';
+import type { IntegrationExecutionResult } from './types';
 
 /**
  * Execute an integration connector in a sandboxed Node.js VM environment.

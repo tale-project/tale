@@ -7,15 +7,13 @@
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
-
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
-
-import type { ToolDefinition } from '../types';
 
 import { internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
 import { buildDownloadUrl } from '../../lib/helpers/public_storage_url';
+import type { ToolDefinition } from '../types';
 import { analyzeTextContent } from './helpers/analyze_text';
 import { appendFilePart } from './helpers/append_file_part';
 import { getAgentModelId } from './helpers/get_agent_model';

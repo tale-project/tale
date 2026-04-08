@@ -1,7 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 
 import type { MutationCtx } from '../_generated/server';
-
 import { cleanupOrphanedSubThreads } from './cleanup_orphaned_sub_threads';
 
 type ThreadStatus = 'active' | 'archived';

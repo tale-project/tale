@@ -10,19 +10,19 @@
  * provider instances locally with @ai-sdk/openai-compatible.
  */
 
-import { v } from 'convex/values';
 import { readdir, unlink } from 'node:fs/promises';
 import path from 'node:path';
 
-import type { ProviderSecrets } from '../../lib/shared/schemas/providers';
-import type { ProviderJson, ProviderReadResult } from './file_utils';
+import { v } from 'convex/values';
 
+import type { ProviderSecrets } from '../../lib/shared/schemas/providers';
 import { providerJsonSchema } from '../../lib/shared/schemas/providers';
 import { action, internalAction } from '../_generated/server';
 import { authComponent } from '../auth';
 import { deriveAgePublicKey } from '../lib/age_keygen';
 import { atomicWrite, readJsonFile, sha256 } from '../lib/file_io';
 import { decryptSecretsFile } from '../lib/sops';
+import type { ProviderJson, ProviderReadResult } from './file_utils';
 import {
   MAX_FILE_SIZE_BYTES,
   parseProviderJson,

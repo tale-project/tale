@@ -2,9 +2,8 @@
  * Build steps map from execution and result
  */
 
-import type { Id } from '../../../_generated/dataModel';
-
 import { internal } from '../../../_generated/api';
+import type { Id } from '../../../_generated/dataModel';
 import { ActionCtx } from '../../../_generated/server';
 import { toId } from '../../../lib/type_cast_helpers';
 import { deserializeVariablesInAction } from '../serialization/deserialize_variables';

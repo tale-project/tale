@@ -4,10 +4,9 @@
  * Validates LLM step configurations.
  */
 
-import type { ValidationResult } from '../types';
-
 import { isRecord } from '../../../../../lib/utils/type-guards';
 import { TOOL_NAMES } from '../../../../agent_tools/tool_names';
+import type { ValidationResult } from '../types';
 
 const VALID_JSON_SCHEMA_TYPES = new Set([
   'string',

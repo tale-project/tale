@@ -6,7 +6,6 @@
  */
 
 import type { LanguageModelV3 } from '@ai-sdk/provider';
-
 import { Agent } from '@convex-dev/agent';
 
 import { components } from '../../../_generated/api';

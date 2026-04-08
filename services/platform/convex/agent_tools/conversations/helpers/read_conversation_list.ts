@@ -1,8 +1,7 @@
 import type { ToolCtx } from '@convex-dev/agent';
 
-import type { ConversationReadListResult } from './types';
-
 import { internal } from '../../../_generated/api';
+import type { ConversationReadListResult } from './types';
 
 export async function readConversationList(
   ctx: ToolCtx,

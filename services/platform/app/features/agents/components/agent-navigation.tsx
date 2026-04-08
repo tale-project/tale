@@ -4,8 +4,6 @@ import { useBlocker } from '@tanstack/react-router';
 import { History, Loader2, Save, Undo2 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
-import type { AgentJsonConfig } from '@/convex/agents/file_utils';
-
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import {
   TabNavigation,
@@ -20,6 +18,7 @@ import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
+import type { AgentJsonConfig } from '@/convex/agents/file_utils';
 import { useT } from '@/lib/i18n/client';
 import { agentJsonSchema } from '@/lib/shared/schemas/agents';
 

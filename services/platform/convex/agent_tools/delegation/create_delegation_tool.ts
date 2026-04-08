@@ -15,13 +15,11 @@
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
-
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
-import type { SerializableAgentConfig } from '../../lib/agent_chat/types';
-
 import { internal } from '../../_generated/api';
+import type { SerializableAgentConfig } from '../../lib/agent_chat/types';
 import { checkBudget } from '../sub_agents/helpers/check_budget';
 import { checkRoleAccess } from '../sub_agents/helpers/check_role_access';
 import { getOrCreateSubThread } from '../sub_agents/helpers/get_or_create_sub_thread';

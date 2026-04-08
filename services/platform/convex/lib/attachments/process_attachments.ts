@@ -7,16 +7,15 @@
 
 import type { LanguageModelV3 } from '@ai-sdk/provider';
 
+import { isImage, isTextFile } from '../../../lib/shared/file-types';
 import type { Id } from '../../_generated/dataModel';
 import type { ActionCtx } from '../../_generated/server';
-import type { FileAttachment, MessageContentPart } from './types';
-
-import { isImage, isTextFile } from '../../../lib/shared/file-types';
 import { analyzeImageCached } from '../../agent_tools/files/helpers/analyze_image';
 import { analyzeTextContent } from '../../agent_tools/files/helpers/analyze_text';
 import { parseFile } from '../../agent_tools/files/helpers/parse_file';
 import { resolveLanguageModel } from '../../providers/resolve_model';
 import { registerFilesWithAgent } from './register_files';
+import type { FileAttachment, MessageContentPart } from './types';
 
 /**
  * Parsed document with extracted text content

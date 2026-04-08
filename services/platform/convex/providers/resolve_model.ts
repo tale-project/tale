@@ -7,13 +7,11 @@
  * the codebase, eliminating the repeated type assertions and boilerplate.
  */
 
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import type { LanguageModelV3 } from '@ai-sdk/provider';
 
-import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
-
-import type { ActionCtx } from '../_generated/server';
-
 import { internal } from '../_generated/api';
+import type { ActionCtx } from '../_generated/server';
 
 export interface ResolvedModelData {
   providerName: string;

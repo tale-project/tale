@@ -11,15 +11,14 @@
 
 import { v } from 'convex/values';
 
-import type { ActionDefinition } from '../../helpers/nodes/action/types';
-import type { TableName } from './helpers/types';
-
 import {
   jsonRecordValidator,
   type ConvexJsonRecord,
 } from '../../../lib/validators/json';
+import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import { findUnprocessed } from './helpers/find_unprocessed';
 import { recordProcessed } from './helpers/record_processed';
+import type { TableName } from './helpers/types';
 
 // Common field validators
 // Note: tableNameValidator mirrors the TableName type from helpers/types.ts

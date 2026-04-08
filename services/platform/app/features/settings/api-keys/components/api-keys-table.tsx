@@ -6,9 +6,8 @@ import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
 
-import type { ApiKey } from '../types';
-
 import { useApiKeysTableConfig } from '../hooks/use-api-keys-table-config';
+import type { ApiKey } from '../types';
 import { ApiKeysActionMenu } from './api-keys-action-menu';
 
 interface ApiKeysTableProps {

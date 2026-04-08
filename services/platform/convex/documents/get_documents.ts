@@ -5,12 +5,11 @@
  * Filters are applied during iteration instead of using .filter() which still scans all records.
  */
 
+import { isRecord, getString } from '../../lib/utils/type-guards';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
-import type { DocumentFindResponse } from './types';
-
-import { isRecord, getString } from '../../lib/utils/type-guards';
 import { transformDocumentsBatch } from './transform_to_document_item';
+import type { DocumentFindResponse } from './types';
 
 export async function getDocuments(
   ctx: QueryCtx,

@@ -1,5 +1,4 @@
 import type { DeploymentColor } from '../compose/types';
-
 import { getCurrentColor } from './get-current-color';
 import { getPreviousVersion } from './get-previous-version';
 

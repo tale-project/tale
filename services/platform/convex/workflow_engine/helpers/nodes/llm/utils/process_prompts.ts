@@ -4,10 +4,9 @@
  * Validates templates and processes prompts with variable substitution.
  */
 
-import type { NormalizedConfig, ProcessedPrompts } from '../types';
-
 import { replaceVariables } from '../../../../../lib/variables/replace_variables';
 import { validateTemplate } from '../../../../../lib/variables/validate_template';
+import type { NormalizedConfig, ProcessedPrompts } from '../types';
 
 /**
  * Validates templates and processes prompts with variable substitution

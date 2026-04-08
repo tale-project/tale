@@ -14,7 +14,6 @@ import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
 import type { Integration } from '../../hooks/use-integration-manage';
-
 import { SENSITIVE_KEYS, maskValue } from '../../hooks/use-integration-manage';
 import { TestResultFeedback } from './test-result-feedback';
 

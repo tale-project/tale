@@ -8,12 +8,11 @@
 
 import type { Doc } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
-import type { CustomerStatus, CustomerSource } from './types';
-
 import {
   paginateWithFilter,
   type CursorPaginatedResult,
 } from '../lib/pagination';
+import type { CustomerStatus, CustomerSource } from './types';
 
 export interface QueryCustomersArgs {
   organizationId: string;

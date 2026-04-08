@@ -1,8 +1,5 @@
 import { v, Infer } from 'convex/values';
 
-import type { LoadedIntegration } from '../../integrations/load_integration';
-import type { SqlOperation } from '../../integrations/types';
-
 import {
   jsonValueValidator,
   jsonRecordValidator,
@@ -10,6 +7,8 @@ import {
 import { internal } from '../../_generated/api';
 import { internalAction, type ActionCtx } from '../../_generated/server';
 import { isSqlIntegration } from '../../integrations/helpers';
+import type { LoadedIntegration } from '../../integrations/load_integration';
+import type { SqlOperation } from '../../integrations/types';
 import {
   toConvexJsonRecord,
   toConvexJsonValue,

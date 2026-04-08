@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from '@storybook/react';
-
 import { Mail, Trash2, Check, ArrowRight, Plus } from 'lucide-react';
 import { fn } from 'storybook/test';
 

@@ -5,10 +5,9 @@
  * URL with a state parameter for CSRF protection.
  */
 
+import { internal } from '../_generated/api';
 import type { Doc } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
-
-import { internal } from '../_generated/api';
 import { createDebugLog } from '../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations OAuth2]');

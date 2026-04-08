@@ -1,6 +1,5 @@
 import type { Doc } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
-
 import {
   paginateWithFilter,
   type CursorPaginatedResult,

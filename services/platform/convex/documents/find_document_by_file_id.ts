@@ -4,7 +4,6 @@
 
 import type { Doc } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
-
 import { toId } from '../lib/type_cast_helpers';
 
 export async function findDocumentByFileId(

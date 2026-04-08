@@ -2,8 +2,6 @@
  * Business logic for loading a Better Auth user by internal ID.
  */
 
-import type { QueryCtx } from '../../_generated/server';
-
 import {
   isRecord,
   getString,
@@ -11,6 +9,7 @@ import {
   getBoolean,
 } from '../../../lib/utils/type-guards';
 import { components } from '../../_generated/api';
+import type { QueryCtx } from '../../_generated/server';
 
 export interface BetterAuthUser {
   _id: string;

@@ -2,9 +2,8 @@ import { renderHook } from '@testing-library/react';
 import { describe, it, expect } from 'vitest';
 
 import type { ChatItem } from '../use-merged-chat-items';
-import type { ChatMessage } from '../use-message-processing';
-
 import { useMergedChatItems } from '../use-merged-chat-items';
+import type { ChatMessage } from '../use-message-processing';
 
 function makeMessage(
   id: string,

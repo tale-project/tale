@@ -1,10 +1,9 @@
 import type { ToolCtx } from '@convex-dev/agent';
 import type { z } from 'zod/v4';
 
+import { internal } from '../../../_generated/api';
 import type { AgentDocumentFindResult as DocumentFindResult } from '../../../documents/list_documents_for_agent';
 import type { documentFindArgs } from '../document_find_tool';
-
-import { internal } from '../../../_generated/api';
 
 export type ListDocumentsArgs = z.infer<typeof documentFindArgs>;
 

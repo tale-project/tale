@@ -3,9 +3,8 @@
 import { Agent } from '@convex-dev/agent';
 import { z } from 'zod';
 
-import type { ActionCtx } from '../_generated/server';
-
 import { components } from '../_generated/api';
+import type { ActionCtx } from '../_generated/server';
 import { resolveLanguageModel } from '../providers/resolve_model';
 
 const MAX_RETRIES = 3;

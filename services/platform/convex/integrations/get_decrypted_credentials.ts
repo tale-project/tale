@@ -2,11 +2,10 @@
  * Decrypt and return integration credentials
  */
 
+import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 import type { DecryptedCredentials } from './types';
-
-import { internal } from '../_generated/api';
 
 export interface GetDecryptedCredentialsArgs {
   credentialId: Id<'integrationCredentials'>;

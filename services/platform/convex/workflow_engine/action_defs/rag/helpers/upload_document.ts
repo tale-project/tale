@@ -1,12 +1,11 @@
-import type { ActionCtx } from '../../../../_generated/server';
-import type { RagUploadResult } from './types';
-
 import {
   extractExtension,
   mimeToExtension,
 } from '../../../../../lib/shared/file-types';
 import { internal } from '../../../../_generated/api';
+import type { ActionCtx } from '../../../../_generated/server';
 import { toId } from '../../../../lib/type_cast_helpers';
+import type { RagUploadResult } from './types';
 import { uploadFile } from './upload_file_direct';
 
 function ensureExtension(fileName: string, contentType: string): string {

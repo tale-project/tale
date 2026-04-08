@@ -4,9 +4,8 @@
  * Validates action step configurations.
  */
 
-import type { ValidationResult } from '../types';
-
 import { getString } from '../../../../../lib/utils/type-guards';
+import type { ValidationResult } from '../types';
 import { validateActionParameters } from '../validate_action_parameters';
 
 /**

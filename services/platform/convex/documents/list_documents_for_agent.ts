@@ -6,10 +6,9 @@
  * Applies team-based access control and returns a lightweight response.
  */
 
+import { getNumber } from '../../lib/utils/type-guards';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
-
-import { getNumber } from '../../lib/utils/type-guards';
 import { buildBreadcrumb } from '../folders/queries';
 import {
   fuzzyMatchFolder,

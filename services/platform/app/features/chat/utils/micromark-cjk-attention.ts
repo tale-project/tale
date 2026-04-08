@@ -18,6 +18,8 @@
  * results when non-ASCII punctuation is reclassified.
  */
 
+import { attention } from 'micromark-core-commonmark';
+import { classifyCharacter } from 'micromark-util-classify-character';
 import type {
   Code,
   Construct,
@@ -25,9 +27,6 @@ import type {
   State,
   TokenizeContext,
 } from 'micromark-util-types';
-
-import { attention } from 'micromark-core-commonmark';
-import { classifyCharacter } from 'micromark-util-classify-character';
 
 // oxlint-disable-next-line typescript/no-explicit-any -- remark plugin `this` context uses loose types
 type PluginThis = { data: () => { micromarkExtensions?: any[] } };

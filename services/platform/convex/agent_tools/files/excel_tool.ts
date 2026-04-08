@@ -4,16 +4,14 @@
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
-
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
-
-import type { ToolDefinition } from '../types';
 
 import { internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
 import { buildDownloadUrl } from '../../lib/helpers/public_storage_url';
 import { toId } from '../../lib/type_cast_helpers';
+import type { ToolDefinition } from '../types';
 import { appendFilePart } from './helpers/append_file_part';
 import { resolveFileName } from './helpers/resolve_file_name';
 

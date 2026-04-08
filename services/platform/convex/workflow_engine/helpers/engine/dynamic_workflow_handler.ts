@@ -4,13 +4,11 @@
 
 import type { WorkflowCtx } from '@convex-dev/workflow';
 import type { RetryBehavior } from '@convex-dev/workpool';
-
 import { Infer, v } from 'convex/values';
-
-import type { Doc, Id } from '../../../_generated/dataModel';
 
 import { isRecord } from '../../../../lib/utils/type-guards';
 import { internal } from '../../../_generated/api';
+import type { Doc, Id } from '../../../_generated/dataModel';
 import { jsonValueValidator } from '../../../lib/validators/json';
 
 type ConvexJsonValue = Infer<typeof jsonValueValidator>;

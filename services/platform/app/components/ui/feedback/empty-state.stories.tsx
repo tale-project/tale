@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from '@storybook/react';
-
 import { Inbox, Search, Users } from 'lucide-react';
 
 import { Button } from '../primitives/button';

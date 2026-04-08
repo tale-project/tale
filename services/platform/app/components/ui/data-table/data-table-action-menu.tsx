@@ -1,9 +1,8 @@
 'use client';
 
-import type { ComponentType, ReactNode } from 'react';
-
 import { Link } from '@tanstack/react-router';
 import { ChevronDown } from 'lucide-react';
+import type { ComponentType, ReactNode } from 'react';
 
 import {
   DropdownMenu,

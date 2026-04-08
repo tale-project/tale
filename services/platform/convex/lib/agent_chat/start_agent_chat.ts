@@ -13,20 +13,19 @@
 
 import { listMessages, saveMessage } from '@convex-dev/agent';
 
+import { components, internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
+import { persistentStreaming } from '../../streaming/helpers';
 import type { FileAttachment } from '../attachments';
 import type { AgentType } from '../context_management/constants';
-import type { SerializableAgentConfig, AgentHooksConfig } from './types';
-
-import { components, internal } from '../../_generated/api';
-import { persistentStreaming } from '../../streaming/helpers';
 import { AGENT_CONTEXT_CONFIGS } from '../context_management/constants';
 import { createDebugLog } from '../debug_log';
 import {
   computeDeduplicationState,
   type AgentListMessagesResult,
 } from '../message_deduplication';
+import type { SerializableAgentConfig, AgentHooksConfig } from './types';
 
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[startAgentChat]');
 

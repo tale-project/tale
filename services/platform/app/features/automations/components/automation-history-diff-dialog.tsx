@@ -4,12 +4,11 @@ import 'json-diff-kit/viewer.css';
 import { Differ, Viewer } from 'json-diff-kit';
 import { useMemo } from 'react';
 
-import type { WorkflowJsonConfig } from '@/lib/shared/schemas/workflows';
-
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
+import type { WorkflowJsonConfig } from '@/lib/shared/schemas/workflows';
 
 interface AutomationHistoryDiffDialogProps {
   open: boolean;

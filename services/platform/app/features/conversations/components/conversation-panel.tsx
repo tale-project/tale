@@ -11,8 +11,6 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
-import type { Id } from '@/convex/_generated/dataModel';
-
 import { PanelFooter } from '@/app/components/layout/panel-footer';
 import { EmptyState } from '@/app/components/ui/feedback/empty-state';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
@@ -21,6 +19,7 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useThrottledScroll } from '@/app/hooks/use-throttled-scroll';
 import { toast } from '@/app/hooks/use-toast';
+import type { Id } from '@/convex/_generated/dataModel';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { lazyComponent } from '@/lib/utils/lazy-component';

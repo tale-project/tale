@@ -5,15 +5,14 @@
  * For SQL integrations, pass sqlConnectionConfig with the database connection details.
  */
 
+import { api, internal } from '../_generated/api';
+import { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 import type {
   AuditLogActorType,
   AuditLogCategory,
   AuditLogStatus,
 } from '../audit_logs/types';
-
-import { api, internal } from '../_generated/api';
-import { Id } from '../_generated/dataModel';
 import { createDebugLog } from '../lib/debug_log';
 import { encryptCredentials } from './encrypt_credentials';
 import { runHealthCheck } from './run_health_check';

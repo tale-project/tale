@@ -2,12 +2,11 @@
  * Build userAnswers string from responded approvals for prompt injection.
  */
 
-import type { Id } from '../../../../../_generated/dataModel';
-import type { ActionCtx } from '../../../../../_generated/server';
-
 import { FEEDBACK_KEY } from '../../../../../../lib/shared/schemas/approvals';
 import { getString, isRecord } from '../../../../../../lib/utils/type-guards';
 import { internal } from '../../../../../_generated/api';
+import type { Id } from '../../../../../_generated/dataModel';
+import type { ActionCtx } from '../../../../../_generated/server';
 import { createDebugLog } from '../../../../../lib/debug_log';
 import { toId } from '../../../../../lib/type_cast_helpers';
 

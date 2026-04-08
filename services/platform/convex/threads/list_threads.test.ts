@@ -1,7 +1,6 @@
 import { beforeEach, describe, it, expect } from 'vitest';
 
 import type { QueryCtx } from '../_generated/server';
-
 import { isGeneralThread, listThreads } from './list_threads';
 
 // --- isGeneralThread ---

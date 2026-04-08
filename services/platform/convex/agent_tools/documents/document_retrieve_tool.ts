@@ -10,7 +10,6 @@ import { z } from 'zod/v4';
 
 import type { ToolDefinition } from '../types';
 import type { DocumentRetrieveResult } from './helpers/retrieve_document';
-
 import { retrieveDocument } from './helpers/retrieve_document';
 
 export const documentRetrieveArgs = z

@@ -11,7 +11,6 @@ import {
 import { memo, useCallback, useState } from 'react';
 
 import type { SystemMessageDisplay } from '@/lib/shared/constants/system-message-tags';
-
 import { cn } from '@/lib/utils/cn';
 
 type CollapsibleVariant = Exclude<SystemMessageDisplay, 'pill'>;
