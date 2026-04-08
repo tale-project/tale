@@ -33,6 +33,15 @@ const columns: ColumnDef<TestRow>[] = [
   },
 ];
 
+const columnsWithSize: ColumnDef<TestRow>[] = [
+  { accessorKey: 'name', header: 'Name', size: 200 },
+  {
+    accessorKey: 'status',
+    header: 'Status',
+    meta: { skeleton: { type: 'badge' } },
+  },
+];
+
 const sampleRows: TestRow[] = [
   { _id: '1', name: 'Alice', status: 'active' },
   { _id: '2', name: 'Bob', status: 'inactive' },
@@ -173,6 +182,39 @@ describe('DataTable loading states', () => {
       expect(screen.getByText('Bob')).toBeInTheDocument();
       expect(screen.getByText('Charlie')).toBeInTheDocument();
       expect(getSkeletonRows().length).toBe(0);
+    });
+  });
+
+  describe('column width styling', () => {
+    it('applies explicit column size to data row cells', () => {
+      render(
+        <DataTable
+          columns={columnsWithSize}
+          data={sampleRows}
+          approxRowCount={3}
+        />,
+      );
+
+      const tbody = getTbody();
+      const firstDataRow = within(tbody).getAllByRole('row')[0]!;
+      const cells = within(firstDataRow).getAllByRole('cell');
+      expect(cells[0]).toHaveStyle({ width: '200px' });
+      expect(cells[1]).not.toHaveStyle({ width: '150px' });
+    });
+
+    it('applies explicit column size to skeleton row cells', () => {
+      render(
+        <DataTable
+          columns={columnsWithSize}
+          data={[]}
+          approxRowCount={2}
+          isLoading
+        />,
+      );
+
+      const skeletons = getSkeletonRows();
+      const cells = within(skeletons[0]!).getAllByRole('cell');
+      expect(cells[0]).toHaveStyle({ width: '200px' });
     });
   });
 

@@ -516,7 +516,19 @@ export function DataTable<TData, TValue = unknown>({
                   );
                 }
 
-                return <TableCell key={colIndex}>{cellContent}</TableCell>;
+                return (
+                  <TableCell
+                    key={colIndex}
+                    style={{
+                      width:
+                        col.size !== undefined && col.size !== 150
+                          ? col.size
+                          : undefined,
+                    }}
+                  >
+                    {cellContent}
+                  </TableCell>
+                );
               })}
             </TableRow>
           ))
@@ -580,7 +592,15 @@ export function DataTable<TData, TValue = unknown>({
                     </TableCell>
                   )}
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
+                    <TableCell
+                      key={cell.id}
+                      style={{
+                        width:
+                          cell.column.getSize() !== 150
+                            ? cell.column.getSize()
+                            : undefined,
+                      }}
+                    >
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext(),
