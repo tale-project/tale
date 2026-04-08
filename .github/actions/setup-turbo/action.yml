@@ -22,7 +22,7 @@ runs:
 
     - name: Install dependencies
       shell: bash
-      run: bun install
+      run: bun install --frozen-lockfile
 
     - name: Setup Python
       uses: actions/setup-python@v6

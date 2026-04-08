@@ -20,6 +20,7 @@ jobs:
   prepare:
     name: Prepare release
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 5
     outputs:
       version: ${{ steps.version.outputs.version }}
       version_number: ${{ steps.version.outputs.version_number }}
@@ -48,6 +49,7 @@ jobs:
     name: Create release
     needs: prepare
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 5
     permissions:
       contents: write
 
@@ -68,6 +70,7 @@ jobs:
     name: Build ${{ matrix.service.name }} (${{ matrix.arch.name }})
     needs: prepare
     runs-on: ${{ matrix.arch.runner }}
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: write
@@ -203,6 +206,7 @@ jobs:
     name: Manifest ${{ matrix.service }}
     needs: [prepare, build, container-test]
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 10
     permissions:
       packages: write
 
@@ -245,6 +249,7 @@ jobs:
     name: Trigger CLI build
     needs: [prepare, create-release]
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 5
     permissions:
       actions: write
       contents: read
@@ -262,6 +267,7 @@ jobs:
     name: Release summary
     needs: [prepare, create-release, manifest, trigger-cli]
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 5
 
     steps:
       - name: Generate summary

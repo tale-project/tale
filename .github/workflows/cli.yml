@@ -21,6 +21,7 @@ jobs:
   prepare:
     name: Prepare
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 5
     outputs:
       version: ${{ steps.version.outputs.version }}
 
@@ -40,6 +41,7 @@ jobs:
     name: Build (${{ matrix.platform }})
     needs: prepare
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     strategy:
       matrix:
         include:
@@ -74,7 +76,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: tools/cli
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: Generate embedded files
         working-directory: tools/cli
@@ -119,6 +121,7 @@ jobs:
     needs: build
     if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 10
 
     steps:
       - name: Download all artifacts
