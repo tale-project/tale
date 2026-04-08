@@ -10,7 +10,7 @@ export const getPiiConfigInternal = internalQuery({
   handler: async (ctx, args) => {
     return ctx.db
       .query('governancePolicies')
-      .withIndex('by_org_and_type', (q) =>
+      .withIndex('by_org_policyType', (q) =>
         q
           .eq('organizationId', args.organizationId)
           .eq('policyType', 'pii_config'),

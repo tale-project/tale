@@ -73,6 +73,8 @@ import type * as agent_tools_location_actions from "../agent_tools/location/acti
 import type * as agent_tools_location_internal_mutations from "../agent_tools/location/internal_mutations.js";
 import type * as agent_tools_location_mutations from "../agent_tools/location/mutations.js";
 import type * as agent_tools_location_request_user_location_tool from "../agent_tools/location/request_user_location_tool.js";
+import type * as agent_tools_mcp_create_bound_mcp_tool from "../agent_tools/mcp/create_bound_mcp_tool.js";
+import type * as agent_tools_mcp_mcp_call_tool from "../agent_tools/mcp/mcp_call_tool.js";
 import type * as agent_tools_products_helpers_count_products from "../agent_tools/products/helpers/count_products.js";
 import type * as agent_tools_products_helpers_read_product_by_id from "../agent_tools/products/helpers/read_product_by_id.js";
 import type * as agent_tools_products_helpers_read_product_list from "../agent_tools/products/helpers/read_product_list.js";
@@ -117,6 +119,7 @@ import type * as agent_tools_workflows_trigger_completion_action from "../agent_
 import type * as agent_tools_workflows_update_workflow_step_tool from "../agent_tools/workflows/update_workflow_step_tool.js";
 import type * as agent_tools_workflows_workflow_read_tool from "../agent_tools/workflows/workflow_read_tool.js";
 import type * as agent_tools_workflows_workflow_syntax_tool from "../agent_tools/workflows/workflow_syntax_tool.js";
+import type * as agents_arena_chat from "../agents/arena_chat.js";
 import type * as agents_config from "../agents/config.js";
 import type * as agents_file_actions from "../agents/file_actions.js";
 import type * as agents_file_utils from "../agents/file_utils.js";
@@ -290,6 +293,8 @@ import type * as governance_internal_queries from "../governance/internal_querie
 import type * as governance_mutations from "../governance/mutations.js";
 import type * as governance_pii_index from "../governance/pii/index.js";
 import type * as governance_pii_pii_detector from "../governance/pii/pii_detector.js";
+import type * as governance_pii_pii_masker from "../governance/pii/pii_masker.js";
+import type * as governance_pii_pii_patterns from "../governance/pii/pii_patterns.js";
 import type * as governance_queries from "../governance/queries.js";
 import type * as governance_resolve_default_model from "../governance/resolve_default_model.js";
 import type * as governance_retention_cleanup from "../governance/retention_cleanup.js";
@@ -541,6 +546,9 @@ import type * as products_validators from "../products/validators.js";
 import type * as prompts_mutations from "../prompts/mutations.js";
 import type * as prompts_queries from "../prompts/queries.js";
 import type * as prompts_validators from "../prompts/validators.js";
+import type * as providers_circuit_breaker from "../providers/circuit_breaker.js";
+import type * as providers_errors from "../providers/errors.js";
+import type * as providers_failover from "../providers/failover.js";
 import type * as providers_file_actions from "../providers/file_actions.js";
 import type * as providers_file_utils from "../providers/file_utils.js";
 import type * as providers_resolve_model from "../providers/resolve_model.js";
@@ -549,6 +557,7 @@ import type * as sso_providers_actions from "../sso_providers/actions.js";
 import type * as sso_providers_create_user_session from "../sso_providers/create_user_session.js";
 import type * as sso_providers_entra_id_adapter from "../sso_providers/entra_id/adapter.js";
 import type * as sso_providers_entra_id_constants from "../sso_providers/entra_id/constants.js";
+import type * as sso_providers_entra_id_error_codes from "../sso_providers/entra_id/error_codes.js";
 import type * as sso_providers_entra_id_role_mapping from "../sso_providers/entra_id/role_mapping.js";
 import type * as sso_providers_entra_id_team_sync from "../sso_providers/entra_id/team_sync.js";
 import type * as sso_providers_find_or_create_sso_user from "../sso_providers/find_or_create_sso_user.js";
@@ -950,6 +959,8 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/location/internal_mutations": typeof agent_tools_location_internal_mutations;
   "agent_tools/location/mutations": typeof agent_tools_location_mutations;
   "agent_tools/location/request_user_location_tool": typeof agent_tools_location_request_user_location_tool;
+  "agent_tools/mcp/create_bound_mcp_tool": typeof agent_tools_mcp_create_bound_mcp_tool;
+  "agent_tools/mcp/mcp_call_tool": typeof agent_tools_mcp_mcp_call_tool;
   "agent_tools/products/helpers/count_products": typeof agent_tools_products_helpers_count_products;
   "agent_tools/products/helpers/read_product_by_id": typeof agent_tools_products_helpers_read_product_by_id;
   "agent_tools/products/helpers/read_product_list": typeof agent_tools_products_helpers_read_product_list;
@@ -994,6 +1005,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/workflows/update_workflow_step_tool": typeof agent_tools_workflows_update_workflow_step_tool;
   "agent_tools/workflows/workflow_read_tool": typeof agent_tools_workflows_workflow_read_tool;
   "agent_tools/workflows/workflow_syntax_tool": typeof agent_tools_workflows_workflow_syntax_tool;
+  "agents/arena_chat": typeof agents_arena_chat;
   "agents/config": typeof agents_config;
   "agents/file_actions": typeof agents_file_actions;
   "agents/file_utils": typeof agents_file_utils;
@@ -1167,6 +1179,8 @@ declare const fullApi: ApiFromModules<{
   "governance/mutations": typeof governance_mutations;
   "governance/pii/index": typeof governance_pii_index;
   "governance/pii/pii_detector": typeof governance_pii_pii_detector;
+  "governance/pii/pii_masker": typeof governance_pii_pii_masker;
+  "governance/pii/pii_patterns": typeof governance_pii_pii_patterns;
   "governance/queries": typeof governance_queries;
   "governance/resolve_default_model": typeof governance_resolve_default_model;
   "governance/retention_cleanup": typeof governance_retention_cleanup;
@@ -1418,6 +1432,9 @@ declare const fullApi: ApiFromModules<{
   "prompts/mutations": typeof prompts_mutations;
   "prompts/queries": typeof prompts_queries;
   "prompts/validators": typeof prompts_validators;
+  "providers/circuit_breaker": typeof providers_circuit_breaker;
+  "providers/errors": typeof providers_errors;
+  "providers/failover": typeof providers_failover;
   "providers/file_actions": typeof providers_file_actions;
   "providers/file_utils": typeof providers_file_utils;
   "providers/resolve_model": typeof providers_resolve_model;
@@ -1426,6 +1443,7 @@ declare const fullApi: ApiFromModules<{
   "sso_providers/create_user_session": typeof sso_providers_create_user_session;
   "sso_providers/entra_id/adapter": typeof sso_providers_entra_id_adapter;
   "sso_providers/entra_id/constants": typeof sso_providers_entra_id_constants;
+  "sso_providers/entra_id/error_codes": typeof sso_providers_entra_id_error_codes;
   "sso_providers/entra_id/role_mapping": typeof sso_providers_entra_id_role_mapping;
   "sso_providers/entra_id/team_sync": typeof sso_providers_entra_id_team_sync;
   "sso_providers/find_or_create_sso_user": typeof sso_providers_find_or_create_sso_user;
