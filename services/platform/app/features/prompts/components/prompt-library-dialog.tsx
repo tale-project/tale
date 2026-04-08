@@ -51,7 +51,7 @@ function PromptLibraryDialogContent({
   const deletePrompt = useDeletePrompt();
   const incrementUsage = useIncrementPromptUsage();
 
-  const [activeTab, setActiveTab] = useState<TabValue>('all');
+  const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [editingPrompt, setEditingPrompt] = useState<PromptTemplate | null>(

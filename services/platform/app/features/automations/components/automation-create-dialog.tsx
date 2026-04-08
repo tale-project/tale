@@ -30,7 +30,7 @@ type FormData = {
 
 type TabValue = 'blank' | 'template';
 
-const TAB_VALUES = new Set<string>(['blank', 'template']);
+const TAB_VALUES = new Set(['blank', 'template']);
 
 function isTabValue(value: string): value is TabValue {
   return TAB_VALUES.has(value);

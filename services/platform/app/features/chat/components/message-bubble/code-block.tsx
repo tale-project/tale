@@ -38,7 +38,7 @@ export const HighlightedCode = memo(function HighlightedCode({
   lang: string;
   code: string;
 }) {
-  const [html, setHtml] = useState<string>('');
+  const [html, setHtml] = useState('');
   const highlightedForRef = useRef('');
   const { resolvedTheme } = useTheme();
   const shikiTheme = resolvedTheme === 'dark' ? 'github-dark' : 'github-light';

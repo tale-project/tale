@@ -37,7 +37,7 @@ export function ArenaModelSelector({
   }, [agents, effectiveAgent?.name]);
 
   const modelDisplayNames = useMemo(() => {
-    const map = new Map<string, string>();
+    const map = new Map();
     for (const provider of providers) {
       if (
         !provider ||

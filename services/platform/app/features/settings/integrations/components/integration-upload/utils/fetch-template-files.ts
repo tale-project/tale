@@ -3,7 +3,7 @@ import { getTemplateFileUrl } from '../constants/integration-templates';
 import type { ParseResult } from './parse-integration-package';
 import { parseIntegrationFiles } from './parse-integration-package';
 
-const cache = new Map<string, ParseResult>();
+const cache = new Map();
 
 /** @internal Clear the cache — only for testing. */
 export function clearTemplateCache() {

@@ -19,7 +19,7 @@ import { CustomerStatusBadge } from './customer-status-badge';
 type CustomerData = Doc<'customers'> | CustomerInfo;
 
 type CustomerStatus = Doc<'customers'>['status'];
-const VALID_STATUSES = new Set<string>(['active', 'churned', 'potential']);
+const VALID_STATUSES = new Set(['active', 'churned', 'potential']);
 
 function isValidStatus(status: string | undefined): status is CustomerStatus {
   return status !== undefined && VALID_STATUSES.has(status);

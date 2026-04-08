@@ -99,7 +99,7 @@ interface UseStreamBufferResult {
 
 const CACHE_PREFIX_LEN = 50;
 const MAX_CACHE_ENTRIES = 20;
-const displayPositionCache = new Map<string, number>();
+const displayPositionCache = new Map();
 
 function getCacheKey(text: string): string | null {
   return text.length >= CACHE_PREFIX_LEN

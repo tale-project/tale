@@ -70,8 +70,8 @@ export function ChatHistorySidebar({
   const { approvals } = useActiveApprovals(organizationId);
 
   const { executingThreadIds, pendingThreadIds } = useMemo(() => {
-    const executing = new Set<string>();
-    const pending = new Set<string>();
+    const executing = new Set();
+    const pending = new Set();
 
     // ── Cross-thread human input detection ──
     //
@@ -85,7 +85,7 @@ export function ChatHistorySidebar({
     //
     // We cross-reference them so the main thread shows "awaiting input" (yellow dot)
     // instead of "running" (spinner) when the workflow is paused for user input.
-    const executionToMainThread = new Map<string, string>();
+    const executionToMainThread = new Map();
 
     for (const approval of approvals) {
       if (!approval.threadId) continue;

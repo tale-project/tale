@@ -52,7 +52,7 @@ export function EventsSection({
   const { workflows } = useListWorkflows('default');
 
   const workflowNameMap = useMemo(() => {
-    const map = new Map<string, string>();
+    const map = new Map();
     if (workflows) {
       for (const w of workflows) {
         if (w !== null && 'slug' in w && 'name' in w) {

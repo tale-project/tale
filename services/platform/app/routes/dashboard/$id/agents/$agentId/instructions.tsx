@@ -35,7 +35,7 @@ function InstructionsTab() {
   const selectedModels = config.supportedModels;
 
   const modelDisplayNames = useMemo(() => {
-    const map = new Map<string, string>();
+    const map = new Map();
     for (const provider of providers) {
       if (
         !provider ||

@@ -63,7 +63,7 @@ const LOCALE_IMPORTS: Record<string, () => Promise<unknown>> = {
 };
 
 const loadedLocales = new Set<string>(['en']);
-const pendingLoads = new Map<string, Promise<void>>();
+const pendingLoads = new Map();
 
 /**
  * Dynamically load a dayjs locale. Returns a promise that resolves once the

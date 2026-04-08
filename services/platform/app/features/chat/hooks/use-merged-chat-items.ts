@@ -60,7 +60,7 @@ export function useMergedChatItems({
 }: UseMergedChatItemsParams): MergedChatItemsResult {
   return useMemo((): MergedChatItemsResult => {
     // Build message items
-    const loadedMessageIds = new Set<string>();
+    const loadedMessageIds = new Set();
     for (const message of messages || []) {
       loadedMessageIds.add(message.id);
     }

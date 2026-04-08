@@ -55,7 +55,7 @@ export default meta;
 type Story = StoryObj<typeof CheckboxGroup>;
 
 function DefaultRender() {
-  const [value, setValue] = useState<string[]>(['read']);
+  const [value, setValue] = useState(['read']);
   return (
     <CheckboxGroup
       value={value}
@@ -94,7 +94,7 @@ export const WithLabel: Story = {
 };
 
 function WithDescriptionRender() {
-  const [value, setValue] = useState<string[]>(['email']);
+  const [value, setValue] = useState(['email']);
   return (
     <CheckboxGroup
       label="Notifications"
@@ -115,7 +115,7 @@ export const WithDescription: Story = {
 };
 
 function WithOptionDescriptionsRender() {
-  const [value, setValue] = useState<string[]>(['web']);
+  const [value, setValue] = useState(['web']);
   return (
     <CheckboxGroup
       label="Tools"
@@ -148,7 +148,7 @@ export const WithOptionDescriptions: Story = {
 };
 
 function WithDisabledOptionRender() {
-  const [value, setValue] = useState<string[]>(['free']);
+  const [value, setValue] = useState(['free']);
   return (
     <CheckboxGroup
       label="Features"
@@ -181,7 +181,7 @@ export const Disabled: Story = {
 };
 
 function SingleColumnRender() {
-  const [value, setValue] = useState<string[]>(['read']);
+  const [value, setValue] = useState(['read']);
   return (
     <CheckboxGroup
       label="Permissions"

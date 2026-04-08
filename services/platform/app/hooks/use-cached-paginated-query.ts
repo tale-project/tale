@@ -7,13 +7,8 @@ import {
   type UsePaginatedQueryReturnType,
 } from '@/app/hooks/use-convex-paginated-query';
 
-interface CacheEntry {
-  results: unknown[];
-  wasExhausted: boolean;
-}
-
 const MAX_CACHE_ENTRIES = 50;
-const paginatedQueryCache = new Map<string, CacheEntry>();
+const paginatedQueryCache = new Map();
 
 function buildCacheKey(query: PaginatedQueryReference, args: unknown): string {
   return `${getFunctionName(query)}:${JSON.stringify(args)}`;

@@ -15,7 +15,7 @@ export interface CitationInfo {
  * `[N] (Relevance: X%) [Source: filename] [Page: Y] [FileID: id]`
  */
 export function parseCitations(contextText: string): Map<number, CitationInfo> {
-  const citations = new Map<number, CitationInfo>();
+  const citations = new Map();
   const pattern =
     /\[(\d+)\]\s*\(Relevance:\s*([\d.]+)%\)(?:\s*\[Source:\s*([^\]]+)\])?(?:\s*\[Page:\s*(\d+)\])?(?:\s*\[(?:Modified|Created):\s*[^\]]+\])?(?:\s*\[FileID:\s*([^\]]+)\])?/g;
 

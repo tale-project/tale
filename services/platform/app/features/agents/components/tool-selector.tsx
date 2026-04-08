@@ -54,7 +54,7 @@ const TOOL_CATEGORIES: Record<string, ToolName[]> = {
 
 function categorizeTools(toolNames: string[]) {
   const categorized = new Map<string, string[]>();
-  const assigned = new Set<string>();
+  const assigned = new Set();
 
   for (const [category, tools] of Object.entries(TOOL_CATEGORIES)) {
     const matched = tools.filter((t) => toolNames.includes(t));

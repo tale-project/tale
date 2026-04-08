@@ -24,7 +24,7 @@ function CanvasCodeRendererComponent({
   isEditing,
   onContentChange,
 }: CanvasCodeRendererProps) {
-  const [html, setHtml] = useState<string>('');
+  const [html, setHtml] = useState('');
   const { resolvedTheme } = useTheme();
   const shikiTheme = resolvedTheme === 'dark' ? 'github-dark' : 'github-light';
   const textareaRef = useRef<HTMLTextAreaElement>(null);

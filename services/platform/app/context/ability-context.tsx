@@ -9,4 +9,4 @@ export const AbilityContext = createContext<AppAbility>(
 );
 
 /** Whether the role query is still loading (ability may not reflect the real role yet). */
-export const AbilityLoadingContext = createContext<boolean>(true);
+export const AbilityLoadingContext = createContext(true);

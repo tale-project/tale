@@ -151,7 +151,7 @@ export function usePersistedAttachments({
   useEffect(() => {
     if (!fileUrls || fileUrls.length === 0) return;
 
-    const urlMap = new Map<string, string>();
+    const urlMap = new Map();
     for (const { fileId, url } of fileUrls) {
       if (url) urlMap.set(fileId, url);
     }

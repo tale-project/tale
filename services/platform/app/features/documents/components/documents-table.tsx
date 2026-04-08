@@ -51,7 +51,7 @@ export function DocumentsTable({
   const { teams, isLoading: isLoadingTeams } = useTeams();
 
   const teamMap = useMemo(() => {
-    if (!teams) return new Map<string, string>();
+    if (!teams) return new Map();
     return new Map(
       teams.map((team: { id: string; name: string }) => [team.id, team.name]),
     );

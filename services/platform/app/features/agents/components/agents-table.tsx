@@ -62,7 +62,7 @@ export function AgentsTable({ organizationId }: AgentsTableProps) {
   }, [queryClient]);
 
   const teamNameMap = useMemo(() => {
-    const map = new Map<string, string>();
+    const map = new Map();
     if (teams) {
       for (const team of teams) {
         map.set(team.id, team.name);

@@ -110,7 +110,7 @@ export function AutomationsTable({
         .sort((a, b) => a.name.localeCompare(b.name));
     }
 
-    const folderMap = new Map<string, number>();
+    const folderMap = new Map();
     const rootWorkflows: WorkflowItem[] = [];
 
     for (const w of filtered) {
