@@ -202,7 +202,7 @@ export function createBoundIntegrationTool(
             requiresApproval: true,
             approvalId: result.approvalId,
             approvalCreated: true,
-            approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${result.approvalId}) has been created for "${result.operationTitle || args.operation}" on ${integrationName}. The user must approve or reject this operation before it will be executed.`,
+            approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${result.approvalId}) has been created for "${result.operationTitle || args.operation}" on ${integrationName}. The user must approve or reject this operation before it will be executed. Do NOT include suggested follow-ups or next steps — the user needs to act on the approval card first.`,
             data: {
               approvalId: result.approvalId,
               operationName: result.operationName,

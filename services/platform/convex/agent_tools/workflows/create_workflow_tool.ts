@@ -171,7 +171,7 @@ Map the JSON to this tool's schema: top-level fields → workflowConfig, steps a
           requiresApproval: true,
           approvalId,
           approvalCreated: true,
-          approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created for workflow "${args.workflowConfig.name}". The user must approve this workflow creation before it will be created.`,
+          approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created for workflow "${args.workflowConfig.name}". The user must approve this workflow creation before it will be created. Do NOT include suggested follow-ups or next steps — the user needs to act on the approval card first.`,
           message: `Workflow "${args.workflowConfig.name}" is ready for approval. An approval card has been created. The workflow will be created once the user approves it.`,
           validationWarnings:
             validation.warnings.length > 0 ? validation.warnings : undefined,
