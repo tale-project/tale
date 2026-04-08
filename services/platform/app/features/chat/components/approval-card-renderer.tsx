@@ -13,12 +13,14 @@ interface ApprovalCardRendererProps {
   item: ChatItem;
   organizationId: string;
   onHumanInputResponseSubmitted?: () => void;
+  onSendMessage?: (message: string) => void;
 }
 
 export function ApprovalCardRenderer({
   item,
   organizationId,
   onHumanInputResponseSubmitted,
+  onSendMessage,
 }: ApprovalCardRendererProps) {
   if (item.type === 'message') return null;
 
@@ -32,6 +34,7 @@ export function ApprovalCardRenderer({
           metadata={item.data.metadata}
           executedAt={item.data.executedAt}
           executionError={item.data.executionError}
+          onSendMessage={onSendMessage}
         />
       )}
       {item.type === 'workflow_approval' && (

@@ -87,7 +87,7 @@ export function useChatAgents(_organizationId: string) {
         a &&
         'displayName' in a &&
         typeof a.displayName === 'string' &&
-        a.visibleInChat !== false
+        a.visibleInChat === true
       ) {
         chatAgents.push({
           name: a.name,

@@ -16,11 +16,20 @@ export async function buildIntegrationSecrets(
 ): Promise<Record<string, string>> {
   const secrets: Record<string, string> = {};
 
-  if (integration.connectionConfig?.domain) {
-    secrets['domain'] = integration.connectionConfig.domain;
+  // Pass all string connectionConfig values as secrets (domain, model, apiEndpoint, etc.)
+  if (integration.connectionConfig) {
+    for (const [key, value] of Object.entries(integration.connectionConfig)) {
+      if (typeof value === 'string' && value) {
+        secrets[key] = value;
+      }
+    }
   }
 
-  if (integration.authMethod === 'api_key' && integration.apiKeyAuth) {
+  if (
+    (integration.authMethod === 'api_key' ||
+      integration.authMethod === 'bearer_token') &&
+    integration.apiKeyAuth
+  ) {
     const decrypted = await ctx.runAction(
       internal.lib.crypto.internal_actions.decryptString,
       { jwe: integration.apiKeyAuth.keyEncrypted },

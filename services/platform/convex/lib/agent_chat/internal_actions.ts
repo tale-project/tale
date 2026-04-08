@@ -22,7 +22,7 @@ import {
 } from '../../agent_tools/delegation/create_delegation_tool';
 import { loadDelegateAgents } from '../../agent_tools/delegation/load_delegation_agents';
 import { createBoundIntegrationTool } from '../../agent_tools/integrations/create_bound_integration_tool';
-import { fetchOperationsSummary } from '../../agent_tools/integrations/fetch_operations_summary';
+import { fetchOperationsWithSchema } from '../../agent_tools/integrations/fetch_operations_summary';
 import { TOOL_NAMES, type ToolName } from '../../agent_tools/tool_names';
 import { getToolRegistryMap } from '../../agent_tools/tool_registry';
 import {
@@ -182,13 +182,18 @@ export const runAgentGeneration = internalAction({
       if (agentConfig.integrationBindings?.length) {
         integrationExtraTools = {};
         for (const name of agentConfig.integrationBindings) {
-          const summary = await fetchOperationsSummary(
+          const fetched = await fetchOperationsWithSchema(
             ctx,
             organizationId,
             name,
           );
           integrationExtraTools[`integration_${name}`] =
-            createBoundIntegrationTool(name, summary);
+            createBoundIntegrationTool(
+              name,
+              fetched?.summary,
+              fetched?.operations,
+              fetched?.metadata,
+            );
         }
         debugLog('Built bound integration tools', {
           names: Object.keys(integrationExtraTools),

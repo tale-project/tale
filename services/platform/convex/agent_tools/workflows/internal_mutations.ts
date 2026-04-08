@@ -2,7 +2,7 @@ import { saveMessage } from '@convex-dev/agent';
 import { v } from 'convex/values';
 
 import { jsonRecordValidator } from '../../../lib/shared/schemas/utils/json-value';
-import { components, internal } from '../../_generated/api';
+import { components } from '../../_generated/api';
 import type { Doc, Id } from '../../_generated/dataModel';
 import { internalMutation } from '../../_generated/server';
 import { createApproval } from '../../approvals/helpers';
@@ -12,8 +12,8 @@ import type {
   WorkflowUpdateMetadata,
 } from '../../approvals/types';
 import { checkOrganizationRateLimit } from '../../lib/rate_limiter/helpers';
-import { persistentStreaming } from '../../streaming/helpers';
 import { stepConfigValidator } from '../../workflow_engine/types/nodes';
+import { triggerCompletionResponseHandler } from '../approval_shared';
 
 type ApprovalMetadata = Doc<'approvals'>['metadata'];
 
@@ -84,56 +84,7 @@ export const triggerWorkflowCompletionResponse = internalMutation({
     agentConfig: v.any(),
   },
   handler: async (ctx, args): Promise<void> => {
-    const { threadId, organizationId, agentSlug, messageContent, agentConfig } =
-      args;
-
-    const threadMeta = await ctx.db
-      .query('threadMetadata')
-      .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
-      .first();
-
-    const thread = await ctx.runQuery(components.agent.threads.getThread, {
-      threadId,
-    });
-
-    const { messageId: promptMessageId } = await saveMessage(
-      ctx,
-      components.agent,
-      {
-        threadId,
-        message: { role: 'system', content: messageContent },
-      },
-    );
-
-    const streamId = await persistentStreaming.createStream(ctx);
-
-    if (threadMeta) {
-      await ctx.db.patch(threadMeta._id, {
-        generationStatus: 'generating' as const,
-        streamId,
-      });
-    }
-
-    await ctx.scheduler.runAfter(
-      0,
-      internal.lib.agent_chat.internal_actions.runAgentGeneration,
-      {
-        agentType: 'custom',
-        agentConfig,
-        model: agentConfig.model ?? 'default',
-        provider: agentConfig.provider,
-        debugTag: `[${agentSlug}:WorkflowComplete]`,
-        enableStreaming: true,
-        threadId,
-        organizationId,
-        promptMessage: messageContent,
-        streamId,
-        promptMessageId,
-        maxSteps: 20,
-        userId: thread?.userId,
-        deadlineMs: Date.now() + (agentConfig.timeoutMs ?? 420_000),
-      },
-    );
+    await triggerCompletionResponseHandler(ctx, args, 'WorkflowComplete');
   },
 });
 

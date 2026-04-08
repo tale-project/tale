@@ -19,13 +19,15 @@ const operationSchema = z.object({
   parametersSchema: z.record(z.string(), z.unknown()).optional(),
 });
 
-const connectionConfigSchema = z.object({
-  domain: z.string().optional(),
-  apiVersion: z.string().optional(),
-  apiEndpoint: z.string().optional(),
-  timeout: z.number().optional(),
-  rateLimit: z.number().optional(),
-});
+const connectionConfigSchema = z
+  .object({
+    domain: z.string().optional(),
+    apiVersion: z.string().optional(),
+    apiEndpoint: z.string().optional(),
+    timeout: z.number().optional(),
+    rateLimit: z.number().optional(),
+  })
+  .catchall(z.unknown());
 
 const capabilitiesSchema = z.object({
   canSync: z.boolean().optional(),
@@ -89,6 +91,8 @@ export const integrationJsonSchema = z.object({
   sqlConnectionConfig: sqlConnectionConfigTemplateSchema.optional(),
   sqlOperations: z.array(sqlOperationSchema).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
+  /** Markdown setup guide displayed in the integration config UI (not sent to LLM) */
+  setupGuide: z.string().max(5000).optional(),
 });
 
 export type IntegrationJsonConfig = z.infer<typeof integrationJsonSchema>;

@@ -120,7 +120,7 @@ Write operations create approval cards. Use integration_batch for multiple paral
             requiresApproval: true,
             approvalId: approvalResult.approvalId,
             approvalCreated: true,
-            approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalResult.approvalId}) has been created for "${approvalResult.operationTitle || args.operation}" on ${args.integrationName}. The user must approve or reject this operation before it will be executed.`,
+            approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalResult.approvalId}) has been created for "${approvalResult.operationTitle || args.operation}" on ${args.integrationName}. The user must approve or reject this operation before it will be executed. Do NOT include suggested follow-ups or next steps — the user needs to act on the approval card first.`,
             data: {
               approvalId: approvalResult.approvalId,
               operationName: approvalResult.operationName,

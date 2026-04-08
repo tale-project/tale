@@ -255,7 +255,14 @@ export const loadIntegration = internalAction({
       basicAuth: credentials.basicAuth,
       oauth2Auth: credentials.oauth2Auth,
       oauth2Config,
-      connectionConfig: credentials.connectionConfig ?? config.connectionConfig,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- connectionConfig is v.any() in schema
+      connectionConfig: {
+        ...(config.connectionConfig as Record<string, unknown> | undefined),
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- connectionConfig is v.any() in schema
+        ...(credentials.connectionConfig as
+          | Record<string, unknown>
+          | undefined),
+      },
       connector,
       sqlConnectionConfig,
       sqlOperations: config.sqlOperations,
@@ -268,8 +275,12 @@ export const loadIntegration = internalAction({
       syncStats: credentials.syncStats,
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex Id type stored as string at runtime
       iconStorageId: credentials.iconStorageId as string | undefined,
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex jsonRecordValidator returns any at type level
-      metadata: credentials.metadata as Record<string, unknown> | undefined,
+      // Merge config.json metadata (base) with DB credentials metadata (overrides)
+      metadata: {
+        ...config.metadata,
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- metadata is v.any() in schema
+        ...(credentials.metadata as Record<string, unknown> | undefined),
+      },
     };
   },
 });

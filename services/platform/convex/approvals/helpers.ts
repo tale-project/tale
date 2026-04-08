@@ -255,11 +255,33 @@ export async function createApproval(
   ctx: MutationCtx,
   args: CreateApprovalArgs,
 ): Promise<Id<'approvals'>> {
-  // Guard: only one active approval per thread
+  // Upsert: if a pending approval exists for the same thread + resourceType + resourceId,
+  // update its metadata instead of creating a duplicate.
   if (args.threadId) {
     for await (const existing of ctx.db
       .query('approvals')
-      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))) {
+      .withIndex('by_threadId_status_resourceType', (q) =>
+        q
+          .eq('threadId', args.threadId)
+          .eq('status', 'pending')
+          .eq('resourceType', args.resourceType),
+      )) {
+      if (existing.resourceId === args.resourceId) {
+        // Update the existing pending approval with new metadata
+        const updatedMetadata = {
+          ...(isRecord(existing.metadata) ? existing.metadata : {}),
+          updatedAt: Date.now(),
+          ...(args.description ? { description: args.description } : {}),
+          ...(isRecord(args.metadata) ? args.metadata : {}),
+        };
+        await ctx.db.patch(existing._id, {
+          metadata: updatedMetadata,
+          messageId: args.messageId ?? existing.messageId,
+        });
+        return existing._id;
+      }
+
+      // A different pending approval exists on this thread — block creation
       if (existing.status === 'pending' || existing.status === 'executing') {
         throw new Error(
           'Cannot create approval: another approval is already pending on this thread. Wait for the existing approval to be resolved before creating a new one.',

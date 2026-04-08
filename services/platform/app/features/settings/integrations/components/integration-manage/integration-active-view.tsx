@@ -25,6 +25,11 @@ interface IntegrationActiveViewProps {
   hasOAuth2Config: boolean;
   testResult: { success: boolean; message: string } | null;
   secretBindings: string[];
+  editableConfigFields: Array<{
+    key: string;
+    type: 'string' | 'number';
+    defaultValue: string | number;
+  }>;
   onReauthorize: () => void;
   onDismissTestResult: () => void;
 }
@@ -37,6 +42,7 @@ export function IntegrationActiveView({
   hasOAuth2Config,
   testResult,
   secretBindings,
+  editableConfigFields,
   onReauthorize,
   onDismissTestResult,
 }: IntegrationActiveViewProps) {
@@ -117,8 +123,26 @@ export function IntegrationActiveView({
             },
           ]
         : []),
+      ...editableConfigFields
+        .filter((f) => f.key !== 'domain' && f.key !== 'apiEndpoint')
+        .filter((f) => integration.connectionConfig?.[f.key] != null)
+        .map((f) => ({
+          label: f.key,
+          value: (
+            <Text variant="code" truncate>
+              {String(integration.connectionConfig?.[f.key])}
+            </Text>
+          ),
+        })),
     ],
-    [integration, isSql, secretBindings, hasOAuth2Config, t],
+    [
+      integration,
+      isSql,
+      secretBindings,
+      hasOAuth2Config,
+      editableConfigFields,
+      t,
+    ],
   );
 
   return (
