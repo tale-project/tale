@@ -103,7 +103,6 @@ function MilkdownEditorInner({
   const crepeRef = useRef<Crepe | null>(null);
 
   useEditor(
-    // @ts-expect-error — Crepe extends CrepeBuilder but duplicate @milkdown/crepe copies cause nominal mismatch
     (root) => {
       const defaultValue =
         programmaticContent ?? (message || (pendingMessage?.content ?? ''));
