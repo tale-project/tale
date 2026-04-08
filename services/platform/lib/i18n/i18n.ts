@@ -2,6 +2,9 @@ import i18n from 'i18next';
 import ICU from 'i18next-icu';
 import { initReactI18next } from 'react-i18next';
 
+import deAtMessages from '@/messages/de-AT.json';
+import deChMessages from '@/messages/de-CH.json';
+import deMessages from '@/messages/de.json';
 import enMessages from '@/messages/en.json';
 import globalMessages from '@/messages/global.json';
 
@@ -12,13 +15,27 @@ void i18n
   .use(initReactI18next)
   .init({
     resources: {
+      de: {
+        ...deMessages,
+        ...globalMessages,
+      },
+      'de-AT': {
+        ...deAtMessages,
+      },
+      'de-CH': {
+        ...deChMessages,
+      },
       en: {
         ...enMessages,
         ...globalMessages,
       },
     },
     lng: defaultLocale,
-    fallbackLng: defaultLocale,
+    fallbackLng: {
+      'de-CH': ['de', defaultLocale],
+      'de-AT': ['de', defaultLocale],
+      default: [defaultLocale],
+    },
     interpolation: {
       escapeValue: false,
       prefix: '{',

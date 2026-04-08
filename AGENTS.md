@@ -112,6 +112,37 @@ for await (const product of products) {
 // const products = await ctx.db.query("products").collect();
 ```
 
+## Internationalization (i18n)
+
+- KEEP all translation files in sync — every key in `en.json` MUST exist in all locale files (`de.json`, etc.).
+- WHEN adding, changing, or removing a translation key, update ALL locale files in the same commit.
+- WHEN removing code that references translation keys, also remove the unused keys from ALL locale files.
+- USE sentence case in all translations.
+- PRESERVE ICU placeholders exactly (`{count, plural, ...}`, `{field}`, `{error, select, ...}`).
+- DO NOT translate brand names (Tale, Gmail, Outlook, Shopify, etc.).
+- USE informal form (e.g. "du" not "Sie"). This applies to all languages (e.g., "tu" in French, not "vous").
+
+### German (de) terminology
+
+| English                        | German                           | Notes                  |
+| ------------------------------ | -------------------------------- | ---------------------- |
+| AI                             | KI                               | Künstliche Intelligenz |
+| Agent                          | Agent                            | Established tech term  |
+| Workflow / Dashboard / Webhook | Keep English                     | Established loanwords  |
+| API / LLM / Token / Prompt     | Keep English                     | Universal tech terms   |
+| Provider                       | Anbieter                         |                        |
+| Settings                       | Einstellungen                    |                        |
+| Knowledge                      | Wissen                           |                        |
+| Automation(s)                  | Automatisierung(en)              |                        |
+| Team / Branding                | Keep English                     | Loanwords              |
+| Integration(s)                 | Integration(en)                  | Same in German         |
+| Save / Delete / Edit           | Speichern / Löschen / Bearbeiten |                        |
+| Log in                         | Anmelden                         |                        |
+
+- KEEP translations roughly the same length as English — use shorter synonyms or abbreviations when German is notably longer.
+- USE standard German compounding for compound nouns (e.g., "API-Schlüssel", "E-Mail-Anbieter").
+- USE ICU `one`/`other` for German plurals (same structure as English).
+
 ## Python
 
 - USE snake_case for files, functions, and variables.
