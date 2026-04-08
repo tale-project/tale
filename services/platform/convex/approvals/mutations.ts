@@ -1,7 +1,8 @@
 import { saveMessage } from '@convex-dev/agent';
 import { v } from 'convex/values';
 
-import { components } from '../_generated/api';
+import { isRecord } from '../../lib/utils/type-guards';
+import { components, internal } from '../_generated/api';
 import { mutation } from '../_generated/server';
 import * as AuditLogHelpers from '../audit_logs/helpers';
 import { authComponent } from '../auth';
@@ -14,6 +15,8 @@ export const updateApprovalStatus = mutation({
     approvalId: v.id('approvals'),
     status: approvalStatusValidator,
     comments: v.optional(v.string()),
+    /** When true (reject + comments), triggers agent to respond with updated parameters */
+    triggerAgentResponse: v.optional(v.boolean()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -59,8 +62,13 @@ export const updateApprovalStatus = mutation({
       newState: { status: args.status, comments: args.comments },
     });
 
-    // Write system message to thread on rejection so the AI knows it was user-initiated
-    if (args.status === 'rejected' && approval.threadId) {
+    // Write system message to thread on rejection (skip for feedback — the frontend
+    // sends the user's feedback as a regular chat message instead)
+    if (
+      args.status === 'rejected' &&
+      approval.threadId &&
+      !args.triggerAgentResponse
+    ) {
       const reason = args.comments
         ? `Reason: ${args.comments}`
         : 'No reason provided.';

@@ -187,6 +187,7 @@ export function useIntegrationManage(
   const uninstallFn = useAction(
     api.integrations.file_actions.uninstallIntegration,
   );
+  const installFn = useAction(api.integrations.file_actions.installIntegration);
   const { mutateAsync: generateUploadUrl } = useGenerateUploadUrl();
   const { mutateAsync: generateOAuth2Url } = useGenerateIntegrationOAuth2Url();
   const { mutateAsync: saveOAuth2Credentials } = useSaveOAuth2Credentials();
@@ -590,8 +591,20 @@ export function useIntegrationManage(
     setTestResult(null);
 
     try {
+      // If no credential record exists yet (uninstalled integration), install first
+      let credentialId = integration._id;
+      const slug = integration.name ?? '';
+      if (credentialId === slug && slug && integration.organizationId) {
+        const installResult = await installFn({
+          orgSlug: 'default',
+          slug,
+          organizationId: integration.organizationId,
+        });
+        credentialId = installResult.credentialId;
+      }
+
       const testArgs: Parameters<typeof testConnection>[0] = {
-        credentialId: toId<'integrationCredentials'>(integration._id),
+        credentialId: toId<'integrationCredentials'>(credentialId),
       };
 
       if (hasChanges) {
@@ -606,6 +619,8 @@ export function useIntegrationManage(
 
       if (result.success && hasChanges) {
         const updateArgs = buildUpdateArgs();
+        // Use the resolved credential ID for the update
+        updateArgs.credentialId = toId<'integrationCredentials'>(credentialId);
         await updateCredentials(
           // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Payload is dynamically built to match the mutation's expected shape
           updateArgs as Parameters<typeof updateCredentials>[0],
@@ -644,6 +659,7 @@ export function useIntegrationManage(
     buildUpdateArgs,
     updateCredentials,
     testConnection,
+    installFn,
     t,
   ]);
 

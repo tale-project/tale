@@ -2,7 +2,13 @@
  * Create synchronous HTTP API for integration connectors
  */
 
-import type { HttpRequest, HttpResponse, PendingHttpRequest } from '../types';
+import type {
+  FormField,
+  HttpRequest,
+  HttpResponse,
+  PendingHttpRequest,
+} from '../types';
+
 import { PendingOperationError } from '../types';
 
 export interface HttpApiState {
@@ -16,9 +22,19 @@ type HttpMethodOptions = {
   responseType?: 'base64';
 };
 
+type FormFieldInput = {
+  name: string;
+  value: string;
+  fileName?: string;
+  contentType?: string;
+  isBase64?: boolean;
+};
+
 type BodyMethodOptions = HttpMethodOptions & {
   body?: string;
   binaryBody?: string;
+  /** Send as multipart/form-data */
+  formFields?: FormFieldInput[];
 };
 
 export interface HttpApi {
@@ -32,16 +48,24 @@ export interface HttpApi {
 function createBodyMethod(state: HttpApiState, method: string) {
   return (url: string, options: BodyMethodOptions = {}): HttpResponse => {
     const requestId = state.pendingHttpCount++;
+
+    const isForm = options.formFields && options.formFields.length > 0;
+
     const request: HttpRequest = {
       url,
       options: {
         method,
-        headers: options.binaryBody
-          ? { ...options.headers }
-          : { 'Content-Type': 'application/json', ...options.headers },
-        body: options.binaryBody ? undefined : options.body,
+        // For formFields: Content-Type is set by execute_http_request (needs boundary)
+        // For binaryBody: use caller-provided headers
+        // For regular body: default to application/json
+        headers:
+          isForm || options.binaryBody
+            ? { ...options.headers }
+            : { 'Content-Type': 'application/json', ...options.headers },
+        body: isForm || options.binaryBody ? undefined : options.body,
       },
       binaryBody: options.binaryBody,
+      formFields: isForm ? (options.formFields as FormField[]) : undefined,
       responseType: options.responseType,
     };
 

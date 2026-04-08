@@ -10,7 +10,7 @@ import { internal } from '../../_generated/api';
 import type { ActionCtx } from '../../_generated/server';
 import { isSqlIntegration } from '../../integrations/helpers';
 
-interface OperationInfo {
+export interface OperationInfo {
   name: string;
   title?: string;
   operationType?: 'read' | 'write';
@@ -19,15 +19,38 @@ interface OperationInfo {
 }
 
 /**
- * Fetch integration operations and return a concise summary string.
- *
- * Returns undefined if the integration is not found.
+ * Fetch a concise operations summary string only (legacy wrapper).
  */
 export async function fetchOperationsSummary(
   ctx: ActionCtx,
   organizationId: string,
   integrationName: string,
 ): Promise<string | undefined> {
+  const result = await fetchOperationsWithSchema(
+    ctx,
+    organizationId,
+    integrationName,
+  );
+  return result?.summary;
+}
+
+export interface FetchedOperations {
+  summary: string;
+  operations: OperationInfo[];
+  /** Merged metadata: static config.json metadata + runtime connectionConfig values */
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Fetch integration operations and return a concise summary string + raw operations.
+ *
+ * Returns undefined if the integration is not found.
+ */
+export async function fetchOperationsWithSchema(
+  ctx: ActionCtx,
+  organizationId: string,
+  integrationName: string,
+): Promise<FetchedOperations | undefined> {
   const integration = await ctx.runAction(
     internal.integrations.load_integration.loadIntegration,
     { orgSlug: 'default', organizationId, slug: integrationName },
@@ -77,7 +100,47 @@ export async function fetchOperationsSummary(
     return undefined;
   }
 
-  return formatOperationsSummary(operations);
+  // Resolve {{variable}} placeholders in metadata string values
+  // using connectionConfig as the variable source
+  const rawMetadata = integration.metadata as
+    | Record<string, unknown>
+    | undefined;
+  const metadata = rawMetadata
+    ? resolveMetadataVariables(rawMetadata, integration.connectionConfig)
+    : undefined;
+
+  return {
+    summary: formatOperationsSummary(operations),
+    operations,
+    metadata,
+  };
+}
+
+/**
+ * Replace `{{key}}` placeholders in metadata string values with
+ * values from connectionConfig (e.g. `{{model}}` → `gpt-image-1`).
+ */
+function resolveMetadataVariables(
+  metadata: Record<string, unknown>,
+  connectionConfig: unknown,
+): Record<string, unknown> {
+  const vars =
+    connectionConfig && typeof connectionConfig === 'object'
+      ? (connectionConfig as Record<string, unknown>)
+      : {};
+
+  const resolved: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(metadata)) {
+    if (typeof value === 'string') {
+      resolved[key] = value.replace(/\{\{(\w+)\}\}/g, (_, varName: string) => {
+        const v = vars[varName];
+        return typeof v === 'string' ? v : `{{${varName}}}`;
+      });
+    } else {
+      resolved[key] = value;
+    }
+  }
+  return resolved;
 }
 
 function formatOperationsSummary(operations: OperationInfo[]): string {

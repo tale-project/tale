@@ -1,6 +1,8 @@
 'use client';
 
-import { Loader2, Pencil, Save } from 'lucide-react';
+import { Info, Loader2, Pencil, Save } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Input } from '@/app/components/ui/forms/input';
@@ -10,7 +12,10 @@ import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { Text } from '@/app/components/ui/typography/text';
+import { markdownWrapperStyles } from '@/app/features/chat/components/message-bubble/markdown-renderer';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
+import { isRecord } from '@/lib/utils/type-guards';
 
 import type { Integration } from '../../hooks/use-integration-manage';
 import { SENSITIVE_KEYS, maskValue } from '../../hooks/use-integration-manage';
@@ -88,6 +93,26 @@ export function IntegrationCredentialsForm({
           busy={busy}
           onSqlConfigChange={onSqlConfigChange}
         />
+      )}
+
+      {/* Setup Guide */}
+      {typeof integration.setupGuide === 'string' && (
+        <details className="bg-muted/30 border-border rounded-lg border">
+          <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm font-medium">
+            <Info className="text-muted-foreground size-3.5 shrink-0" />
+            {t('integrations.manageDialog.setupGuide')}
+          </summary>
+          <div
+            className={cn(
+              markdownWrapperStyles,
+              'max-w-none border-t border-border px-3 py-2 text-xs leading-relaxed',
+            )}
+          >
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {integration.setupGuide as string}
+            </ReactMarkdown>
+          </div>
+        </details>
       )}
 
       <Stack gap={3}>

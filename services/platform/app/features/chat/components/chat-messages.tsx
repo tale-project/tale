@@ -84,6 +84,7 @@ interface ChatMessagesProps {
   activeApproval: ChatItem | null;
   onHumanInputResponseSubmitted?: () => void;
   onSendFollowUp?: (message: string) => void;
+  onSendMessage?: (message: string) => void;
 }
 
 /**
@@ -114,6 +115,7 @@ export function ChatMessages({
   activeApproval,
   onHumanInputResponseSubmitted,
   onSendFollowUp,
+  onSendMessage,
 }: ChatMessagesProps) {
   const { t } = useT('chat');
   const responseAreaRef = useRef<HTMLDivElement>(null);
@@ -348,6 +350,7 @@ export function ChatMessages({
               item={activeApproval}
               organizationId={organizationId}
               onHumanInputResponseSubmitted={onHumanInputResponseSubmitted}
+              onSendMessage={onSendMessage}
             />
           )}
         </div>

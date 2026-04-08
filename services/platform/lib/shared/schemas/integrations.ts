@@ -89,6 +89,8 @@ export const integrationJsonSchema = z.object({
   sqlConnectionConfig: sqlConnectionConfigTemplateSchema.optional(),
   sqlOperations: z.array(sqlOperationSchema).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
+  /** Markdown setup guide displayed in the integration config UI (not sent to LLM) */
+  setupGuide: z.string().max(5000).optional(),
 });
 
 export type IntegrationJsonConfig = z.infer<typeof integrationJsonSchema>;

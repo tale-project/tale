@@ -84,13 +84,12 @@ export const oauth2ConfigStoredValidator = v.object({
   clientSecretEncrypted: v.optional(v.string()),
 });
 
-export const connectionConfigValidator = v.object({
-  domain: v.optional(v.string()),
-  apiVersion: v.optional(v.string()),
-  apiEndpoint: v.optional(v.string()),
-  timeout: v.optional(v.number()),
-  rateLimit: v.optional(v.number()),
-});
+/**
+ * Connection config is integration-specific — each integration may store
+ * custom fields (e.g. model, region) alongside standard ones (domain, timeout).
+ * Use a flexible record validator to avoid rejecting unknown fields.
+ */
+export const connectionConfigValidator = v.any();
 
 export const capabilitiesValidator = v.object({
   canSync: v.optional(v.boolean()),

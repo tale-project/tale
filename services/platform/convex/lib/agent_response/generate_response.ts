@@ -339,10 +339,40 @@ export async function generateAgentResponse(
       const durationMs = Date.now() - startTime;
       const actualModel = result.response?.modelId ?? model;
 
-      // Save partial metadata (model, duration) even on cancel — usage may be
-      // undefined if the stream was aborted before the SDK could report it
+      // Save metadata even on cancel — include context if it was built before cancellation
       if (savedMessageId) {
         try {
+          let cancelContextWindow: string | undefined;
+          let cancelContextStats: typeof structuredThreadContext extends undefined
+            ? undefined
+            :
+                | (NonNullable<typeof structuredThreadContext>['stats'] & {
+                    totalTokens: number;
+                  })
+                | undefined;
+
+          if (structuredThreadContext) {
+            const parts = [];
+            if (agentInstructions) {
+              parts.push(wrapInDetails('📋 System Prompt', agentInstructions));
+            }
+            if (toolsSummary) {
+              parts.push(wrapInDetails('🔧 Tools', toolsSummary));
+            }
+            parts.push(structuredThreadContext.threadContext);
+            cancelContextWindow = parts.join('\n\n');
+
+            const sysTokens = instructions ? estimateTokens(instructions) : 0;
+            const toolTokens = toolsSummary ? estimateTokens(toolsSummary) : 0;
+            cancelContextStats = {
+              ...structuredThreadContext.stats,
+              totalTokens:
+                structuredThreadContext.stats.totalTokens +
+                sysTokens +
+                toolTokens,
+            };
+          }
+
           await onAgentComplete(ctx, {
             threadId,
             agentType,
@@ -354,6 +384,8 @@ export async function generateAgentResponse(
               provider,
               usage: result.usage,
               durationMs,
+              contextWindow: cancelContextWindow,
+              contextStats: cancelContextStats,
             },
           });
         } catch (metaError) {

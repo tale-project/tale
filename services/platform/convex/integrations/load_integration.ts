@@ -268,8 +268,12 @@ export const loadIntegration = internalAction({
       syncStats: credentials.syncStats,
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex Id type stored as string at runtime
       iconStorageId: credentials.iconStorageId as string | undefined,
+      // Merge config.json metadata (base) with DB credentials metadata (overrides)
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex jsonRecordValidator returns any at type level
-      metadata: credentials.metadata as Record<string, unknown> | undefined,
+      metadata: {
+        ...(config.metadata as Record<string, unknown> | undefined),
+        ...(credentials.metadata as Record<string, unknown> | undefined),
+      } as Record<string, unknown> | undefined,
     };
   },
 });
