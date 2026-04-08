@@ -104,6 +104,7 @@ function MilkdownEditorInner({
   const crepeRef = useRef<Crepe | null>(null);
 
   useEditor(
+    // @ts-expect-error — Crepe extends CrepeBuilder but duplicate @milkdown/crepe copies cause nominal mismatch
     (root) => {
       const defaultValue =
         programmaticContent ?? (message || (pendingMessage?.content ?? ''));
@@ -129,9 +130,7 @@ function MilkdownEditorInner({
         listener.blur(() => setIsFocused(false));
       });
 
-      // Crepe extends CrepeBuilder, but TypeScript's private field checking
-      // can cause compatibility issues in some build environments
-      return editor as CrepeBuilder;
+      return editor;
     },
     [programmaticContent],
   );
