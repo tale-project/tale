@@ -214,7 +214,7 @@ export function ChatInput({
               {fileAttachments.map((attachment) => (
                 <div
                   key={attachment.fileId}
-                  className="bg-muted group relative flex max-w-[216px] items-center gap-2 rounded-lg px-2 py-1"
+                  className="bg-muted group relative flex max-w-[280px] items-center gap-3 rounded-lg px-3 py-2"
                 >
                   <DocumentIcon fileName={attachment.fileName} />
                   <VStack className="min-w-0 flex-1">
@@ -223,6 +223,7 @@ export function ChatInput({
                       variant="label"
                       truncate
                       className="ellipsis"
+                      title={attachment.fileName}
                     >
                       {attachment.fileName}
                     </Text>

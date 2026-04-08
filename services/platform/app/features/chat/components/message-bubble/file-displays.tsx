@@ -174,13 +174,13 @@ export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
 
   if (!displayUrl) {
     return (
-      <div className="bg-muted flex max-w-[216px] items-center gap-2 rounded-lg px-2 py-1.5">
+      <div className="bg-muted flex max-w-[280px] items-center gap-3 rounded-lg px-3 py-2">
         <FileTypeIcon
           fileType={attachment.fileType}
           fileName={attachment.fileName}
         />
         <VStack className="min-w-0 flex-1">
-          <Text as="div" variant="label" truncate>
+          <Text as="div" variant="label" truncate title={attachment.fileName}>
             {attachment.fileName}
           </Text>
           <Text as="div" variant="caption">
@@ -196,14 +196,14 @@ export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
       href={displayUrl}
       target="_blank"
       rel="noopener noreferrer"
-      className="bg-muted hover:bg-muted/80 flex max-w-[216px] items-center gap-2 rounded-lg px-2 py-1.5 transition-colors"
+      className="bg-muted hover:bg-muted/80 flex max-w-[280px] items-center gap-3 rounded-lg px-3 py-2 transition-colors"
     >
       <FileTypeIcon
         fileType={attachment.fileType}
         fileName={attachment.fileName}
       />
       <VStack className="min-w-0 flex-1">
-        <Text as="div" variant="label" truncate>
+        <Text as="div" variant="label" truncate title={attachment.fileName}>
           {attachment.fileName}
         </Text>
         <Text as="div" variant="caption">
@@ -248,7 +248,10 @@ export const FilePartDisplay = memo(function FilePartDisplay({
     <div className="bg-background border-border flex w-full items-center gap-3 rounded-xl border px-4 py-3 shadow-xs">
       <FileTypeIcon fileType={filePart.mediaType} fileName={fileName} />
       <VStack gap={1} className="min-w-0 flex-1">
-        <p className="text-foreground truncate text-[13px] leading-tight font-medium">
+        <p
+          className="text-foreground truncate text-[13px] leading-tight font-medium"
+          title={fileName}
+        >
           {fileName}
         </p>
         <p className="text-muted-foreground text-[11px] leading-tight">
