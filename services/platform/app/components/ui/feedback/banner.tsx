@@ -1,9 +1,8 @@
 'use client';
 
-import type { ComponentPropsWithoutRef, FC } from 'react';
-
 import { cva, type VariantProps } from 'class-variance-authority';
 import { X } from 'lucide-react';
+import type { ComponentPropsWithoutRef, FC } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';

@@ -8,7 +8,6 @@ import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
 import type { Doc } from '../_generated/dataModel';
-
 import { DEFAULT_COUNT_CAP } from '../lib/helpers/count_items_in_org';
 import { queryWithRLS } from '../lib/rls';
 import { getConversationWithMessages as getConversationWithMessagesHelper } from './get_conversation_with_messages';

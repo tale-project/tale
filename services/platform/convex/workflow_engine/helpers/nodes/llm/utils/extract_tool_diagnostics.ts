@@ -4,13 +4,12 @@
  * Extracts tool diagnostics from agent steps.
  */
 
-import type { ToolDiagnostics } from '../types';
-
 import {
   isRecord,
   getString,
   getArray,
 } from '../../../../../../lib/utils/type-guards';
+import type { ToolDiagnostics } from '../types';
 
 function toRecord(val: unknown): Record<string, unknown> | undefined {
   return isRecord(val) ? val : undefined;

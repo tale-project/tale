@@ -6,9 +6,8 @@
 
 import sql from 'mssql';
 
-import type { SqlExecutionParams, SqlExecutionResult } from '../types';
-
 import { toConvexJsonValue } from '../../../lib/type_cast_helpers';
+import type { SqlExecutionParams, SqlExecutionResult } from '../types';
 
 /**
  * Extract all parameter names referenced in a SQL query (e.g., @paramName)

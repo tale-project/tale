@@ -10,22 +10,20 @@
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
-
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
 import type { ToolDefinition } from '../types';
+import { countCustomers } from './helpers/count_customers';
+import { readCustomerByEmail } from './helpers/read_customer_by_email';
+import { readCustomerById } from './helpers/read_customer_by_id';
+import { readCustomerList } from './helpers/read_customer_list';
 import type {
   CustomerReadGetByIdResult,
   CustomerReadGetByEmailResult,
   CustomerReadListResult,
   CustomerReadCountResult,
 } from './helpers/types';
-
-import { countCustomers } from './helpers/count_customers';
-import { readCustomerByEmail } from './helpers/read_customer_by_email';
-import { readCustomerById } from './helpers/read_customer_by_id';
-import { readCustomerList } from './helpers/read_customer_list';
 
 const customerReadArgs = z.discriminatedUnion('operation', [
   z.object({

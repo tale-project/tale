@@ -6,16 +6,14 @@
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
-
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
-
-import type { ToolDefinition } from '../types';
-import type { IntegrationExecutionResult } from './types';
 
 import { getBoolean, isRecord } from '../../../lib/utils/type-guards';
 import { internal } from '../../_generated/api';
 import { getApprovalThreadId } from '../../threads/get_parent_thread_id';
+import type { ToolDefinition } from '../types';
+import type { IntegrationExecutionResult } from './types';
 
 const integrationArgs = z.object({
   integrationName: z

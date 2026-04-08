@@ -2,11 +2,6 @@
 
 import { v } from 'convex/values';
 
-import type { GenerateDocxResult } from './generate_docx';
-import type { GenerateDocxFromTemplateResult } from './generate_docx_from_template';
-import type { GeneratePptxResult } from './generate_pptx';
-import type { GenerateDocumentResult } from './types';
-
 import { extractExtension } from '../../lib/shared/file-types';
 import {
   isRecord,
@@ -19,7 +14,11 @@ import { internalAction } from '../_generated/server';
 import { getRagConfig } from '../lib/helpers/rag_config';
 import { ragAction } from '../workflow_engine/action_defs/rag/rag_action';
 import { getCrawlerUrl } from './generate_document_helpers';
+import type { GenerateDocxResult } from './generate_docx';
+import type { GenerateDocxFromTemplateResult } from './generate_docx_from_template';
+import type { GeneratePptxResult } from './generate_pptx';
 import * as DocumentsHelpers from './helpers';
+import type { GenerateDocumentResult } from './types';
 
 const INITIAL_POLLING_DELAY_MS = 10_000;
 

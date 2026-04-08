@@ -4,7 +4,6 @@
  */
 
 import type { Id } from '../../../_generated/dataModel';
-
 import { QueryCtx } from '../../../_generated/server';
 
 export interface ScheduledWorkflow {

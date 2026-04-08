@@ -1,6 +1,5 @@
-import type { ComposeService, ServiceConfig } from '../types';
-
 import { PROJECT_NAME } from '../../../utils/load-env';
+import type { ComposeService, ServiceConfig } from '../types';
 import { DEFAULT_LOGGING } from '../types';
 
 export function createDbService(config: ServiceConfig): ComposeService {

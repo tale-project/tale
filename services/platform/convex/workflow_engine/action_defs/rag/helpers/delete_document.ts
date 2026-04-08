@@ -1,5 +1,3 @@
-import type { RagDeleteResult } from './types';
-
 import {
   getString,
   getNumber,
@@ -7,6 +5,7 @@ import {
   getArray,
   isRecord,
 } from '../../../../../lib/utils/type-guards';
+import type { RagDeleteResult } from './types';
 
 export interface DeleteDocumentByIdArgs {
   ragServiceUrl: string;

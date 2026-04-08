@@ -1,7 +1,6 @@
 'use client';
 
 import type { DefaultExtensionType } from 'react-file-icon';
-
 import { FileIcon, defaultStyles } from 'react-file-icon';
 
 import { extractExtension } from '@/lib/shared/file-types';

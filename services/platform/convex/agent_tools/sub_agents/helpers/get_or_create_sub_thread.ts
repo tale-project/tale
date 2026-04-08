@@ -9,10 +9,9 @@
  * when concurrent requests attempt to create sub-threads for the same parent.
  */
 
+import { internal } from '../../../_generated/api';
 import type { ActionCtx } from '../../../_generated/server';
 import type { SubAgentKey } from './types';
-
-import { internal } from '../../../_generated/api';
 
 interface GetOrCreateSubThreadArgs {
   parentThreadId: string;

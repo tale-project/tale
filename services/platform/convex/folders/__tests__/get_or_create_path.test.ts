@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { MutationCtx } from '../../_generated/server';
-
 import { getOrCreateFolderPath } from '../get_or_create_path';
 
 function createMockCtx() {

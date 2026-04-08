@@ -13,9 +13,8 @@ import { Text } from '@/app/components/ui/typography/text';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
-import type { ParsedPackage } from '../utils/parse-integration-package';
-
 import { ACCEPTED_ICON_TYPES, MAX_ICON_SIZE } from '../../../constants';
+import type { ParsedPackage } from '../utils/parse-integration-package';
 
 interface PreviewStepProps {
   parsedPackage: ParsedPackage;

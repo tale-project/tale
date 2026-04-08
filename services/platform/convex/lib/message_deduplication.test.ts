@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import type { AgentListMessagesResult } from './message_deduplication';
-
 import { computeDeduplicationState } from './message_deduplication';
 
 function createMessages(

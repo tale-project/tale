@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ActionCtx } from '../../../_generated/server';
-
 import { buildWorkflowUserProfile } from './build_workflow_user_profile';
 
 interface MockCtx {

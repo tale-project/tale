@@ -3,11 +3,10 @@
  * Uses sandbox testConnection for REST, SELECT 1 for SQL.
  */
 
-import type { ActionCtx } from '../_generated/server';
-import type { ConnectorConfig, SqlConnectionConfig } from './types';
-
 import { internal } from '../_generated/api';
+import type { ActionCtx } from '../_generated/server';
 import { createDebugLog } from '../lib/debug_log';
+import type { ConnectorConfig, SqlConnectionConfig } from './types';
 const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations]');
 
 interface HealthCheckArgs {

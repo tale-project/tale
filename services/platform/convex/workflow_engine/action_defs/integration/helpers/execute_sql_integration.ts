@@ -4,10 +4,9 @@
  * Handles execution of SQL-based integrations
  */
 
+import { internal } from '../../../../_generated/api';
 import type { ActionCtx } from '../../../../_generated/server';
 import type { LoadedIntegration } from '../../../../integrations/load_integration';
-
-import { internal } from '../../../../_generated/api';
 import {
   type SqlEngine,
   type SqlOperation,

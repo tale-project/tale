@@ -1,15 +1,13 @@
 'use client';
 
-import type { Row } from '@tanstack/react-table';
-
 import { useNavigate } from '@tanstack/react-router';
+import type { Row } from '@tanstack/react-table';
 import { Store } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
-import type { Doc } from '@/convex/_generated/dataModel';
-
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { useListPage } from '@/app/hooks/use-list-page';
+import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import {

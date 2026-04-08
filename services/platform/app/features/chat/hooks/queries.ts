@@ -1,27 +1,26 @@
 import { useUIMessages } from '@convex-dev/agent/react';
 import { useMemo } from 'react';
 
+import { useListAgents } from '@/app/features/agents/hooks/queries';
+import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import type {
   WorkflowCreationMetadata,
   WorkflowRunMetadata,
   WorkflowUpdateMetadata,
 } from '@/convex/approvals/types';
-import type {
-  HumanInputRequestMetadata,
-  LocationRequestMetadata,
-} from '@/lib/shared/schemas/approvals';
-
-import { useListAgents } from '@/app/features/agents/hooks/queries';
-import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { api } from '@/convex/_generated/api';
 import {
   normalizeDocumentWriteMetadata,
   type DocumentWriteMetadata,
 } from '@/convex/approvals/types';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { MAX_BATCH_FILE_IDS } from '@/lib/shared/file-types';
+import type {
+  HumanInputRequestMetadata,
+  LocationRequestMetadata,
+} from '@/lib/shared/schemas/approvals';
 
 export interface Thread {
   _id: string;

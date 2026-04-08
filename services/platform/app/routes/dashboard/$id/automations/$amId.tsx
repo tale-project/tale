@@ -15,8 +15,6 @@ import {
 } from 'react';
 import { z } from 'zod';
 
-import type { Doc } from '@/convex/_generated/dataModel';
-
 import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
 import { PageLayout } from '@/app/components/layout/page-layout';
 import { Badge } from '@/app/components/ui/feedback/badge';
@@ -30,6 +28,7 @@ import {
   WorkflowConfigProvider,
   useWorkflowConfig,
 } from '@/app/features/automations/hooks/use-workflow-config-context';
+import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { seo } from '@/lib/utils/seo';

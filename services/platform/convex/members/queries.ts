@@ -1,8 +1,6 @@
 import { v } from 'convex/values';
 
 import type { MemberRole } from '../../lib/shared/schemas/organizations';
-import type { BetterAuthFindManyResult, BetterAuthMember } from './types';
-
 import { components } from '../_generated/api';
 import { query, QueryCtx } from '../_generated/server';
 import {
@@ -12,6 +10,7 @@ import {
 } from '../lib/rls';
 import { UnauthorizedError } from '../lib/rls/errors';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
+import type { BetterAuthFindManyResult, BetterAuthMember } from './types';
 import { memberRoleValidator } from './validators';
 
 interface BetterAuthTeam {

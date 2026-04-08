@@ -18,13 +18,12 @@
 
 import { v } from 'convex/values';
 
-import type { ActionDefinition } from '../helpers/nodes/action/types';
-
 import { isRecord } from '../../../lib/utils/type-guards';
 import { createDebugLog } from '../../lib/debug_log';
 import { jsonValueValidator } from '../../lib/validators/json';
 import { replaceVariables } from '../../lib/variables/replace_variables';
 import { sanitizeConvexValue } from '../../lib/variables/sanitize_convex_value';
+import type { ActionDefinition } from '../helpers/nodes/action/types';
 
 const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
 

@@ -3,12 +3,11 @@
  * Maps auth method to decrypted credential values (accessToken, password, etc.).
  */
 
+import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
-import type { IntegrationWithCredentials } from './shared_types';
-
-import { internal } from '../_generated/api';
 import { decryptAndRefreshIntegrationOAuth2 } from './decrypt_and_refresh_oauth2';
+import type { IntegrationWithCredentials } from './shared_types';
 
 export async function buildIntegrationSecrets(
   ctx: ActionCtx,

@@ -13,19 +13,18 @@
 
 import { v } from 'convex/values';
 
+import { internal } from '../../../_generated/api';
 import type { Id } from '../../../_generated/dataModel';
 import type {
   DocumentRecord,
   DocumentMetadata,
 } from '../../../documents/types';
-import type { ActionDefinition } from '../../helpers/nodes/action/types';
-
-import { internal } from '../../../_generated/api';
 import { toConvexJsonRecord, toId } from '../../../lib/type_cast_helpers';
 import {
   jsonRecordValidator,
   jsonValueValidator,
 } from '../../../lib/validators/json';
+import type { ActionDefinition } from '../../helpers/nodes/action/types';
 
 // Common field validators
 const filesValidator = v.array(

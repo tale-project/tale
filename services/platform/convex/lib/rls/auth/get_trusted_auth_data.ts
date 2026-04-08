@@ -5,13 +5,12 @@
  * and included in the JWT claims. This helper extracts and parses that data.
  */
 
+import { isRecord, getString } from '../../../../lib/utils/type-guards';
 import type {
   QueryCtx,
   MutationCtx,
   ActionCtx,
 } from '../../../_generated/server';
-
-import { isRecord, getString } from '../../../../lib/utils/type-guards';
 
 export interface TrustedAuthData {
   trustedRole: string;

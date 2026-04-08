@@ -7,7 +7,6 @@ import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { cn } from '@/lib/utils/cn';
 
 import type { DialogSize } from './dialog';
-
 import { Dialog } from './dialog';
 
 export interface ViewDialogProps {

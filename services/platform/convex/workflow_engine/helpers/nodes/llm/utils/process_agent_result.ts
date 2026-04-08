@@ -4,9 +4,8 @@
  * Handles processing of agent results, extracting steps and tool diagnostics.
  */
 
-import type { ProcessedAgentResult } from '../types';
-
 import { isRecord, getArray } from '../../../../../../lib/utils/type-guards';
+import type { ProcessedAgentResult } from '../types';
 import { buildAgentStepsSummary } from './build_agent_steps_summary';
 import { extractToolDiagnostics } from './extract_tool_diagnostics';
 

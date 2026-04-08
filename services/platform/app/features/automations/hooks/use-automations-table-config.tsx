@@ -1,7 +1,6 @@
 'use client';
 
 import type { ColumnDef } from '@tanstack/react-table';
-
 import { Folder, Workflow } from 'lucide-react';
 import { useMemo } from 'react';
 
@@ -9,9 +8,8 @@ import { Badge } from '@/app/components/ui/feedback/badge';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
-import type { AutomationTableItem } from '../components/automations-table';
-
 import { AutomationRowActions } from '../components/automation-row-actions';
+import type { AutomationTableItem } from '../components/automations-table';
 
 export function useAutomationsTableConfig() {
   const { t: tTables } = useT('tables');

@@ -1,11 +1,10 @@
 import { v } from 'convex/values';
 
 import type { Doc } from '../_generated/dataModel';
-import type { ApprovalItem } from './types';
-
 import { internalQuery } from '../_generated/server';
 import { getOrganizationMember } from '../lib/rls';
 import * as ApprovalsHelpers from './helpers';
+import type { ApprovalItem } from './types';
 import { approvalItemValidator } from './validators';
 
 export const getApprovalById = internalQuery({

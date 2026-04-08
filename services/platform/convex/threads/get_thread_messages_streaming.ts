@@ -17,13 +17,12 @@
 
 import { listUIMessages, syncStreams } from '@convex-dev/agent';
 
+import { components } from '../_generated/api';
+import { QueryCtx } from '../_generated/server';
 import type {
   GetThreadMessagesStreamingArgs,
   StreamingMessagesResult,
 } from './types';
-
-import { components } from '../_generated/api';
-import { QueryCtx } from '../_generated/server';
 
 export async function getThreadMessagesStreaming(
   ctx: QueryCtx,

@@ -5,12 +5,10 @@
  * wrapper in `convex/documents.ts`.
  */
 
-import type { Id } from '../_generated/dataModel';
-import type { ActionCtx } from '../_generated/server';
-import type { GenerateDocumentArgs, GenerateDocumentResult } from './types';
-
 import { fetchJson } from '../../lib/utils/type-cast-helpers';
 import { internal } from '../_generated/api';
+import type { Id } from '../_generated/dataModel';
+import type { ActionCtx } from '../_generated/server';
 import { createDebugLog } from '../lib/debug_log';
 import {
   buildDownloadUrl,
@@ -19,6 +17,7 @@ import {
   getEndpointPath,
   getOutputInfo,
 } from './generate_document_helpers';
+import type { GenerateDocumentArgs, GenerateDocumentResult } from './types';
 
 const debugLog = createDebugLog('DEBUG_DOCUMENTS', '[Documents]');
 

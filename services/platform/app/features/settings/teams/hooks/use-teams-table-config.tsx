@@ -1,15 +1,13 @@
 'use client';
 
 import type { ColumnDef } from '@tanstack/react-table';
-
 import { useMemo } from 'react';
 
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
-import type { Team } from './queries';
-
 import { TeamRowActions } from '../components/team-row-actions';
+import type { Team } from './queries';
 
 interface TeamsTableConfig {
   columns: ColumnDef<Team>[];

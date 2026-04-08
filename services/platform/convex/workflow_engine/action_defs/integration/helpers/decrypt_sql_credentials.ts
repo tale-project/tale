@@ -2,10 +2,9 @@
  * Decrypt credentials for SQL integration
  */
 
+import { internal } from '../../../../_generated/api';
 import type { ActionCtx } from '../../../../_generated/server';
 import type { IntegrationWithCredentials } from '../../../../integrations/shared_types';
-
-import { internal } from '../../../../_generated/api';
 
 export async function decryptSqlCredentials(
   ctx: ActionCtx,

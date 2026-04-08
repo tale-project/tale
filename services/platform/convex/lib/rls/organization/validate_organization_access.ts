@@ -4,10 +4,9 @@
 
 import type { MemberRole } from '../../../../lib/shared/schemas/organizations';
 import type { QueryCtx, MutationCtx } from '../../../_generated/server';
-import type { AuthenticatedUser, RLSContext } from '../types';
-
 import { createRLSContext } from '../context/create_rls_context';
 import { UnauthorizedError } from '../errors';
+import type { AuthenticatedUser, RLSContext } from '../types';
 
 export type OrgRole = MemberRole;
 

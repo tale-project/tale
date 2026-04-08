@@ -1,5 +1,4 @@
 import type { QueryCtx } from '../_generated/server';
-
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { hasTeamAccess } from '../lib/team_access';
 

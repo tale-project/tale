@@ -3,7 +3,6 @@
  */
 
 import type { MutationCtx } from '../_generated/server';
-
 import { authComponent } from '../auth';
 
 export interface CreateOrganizationArgs {

@@ -15,8 +15,6 @@ import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import type { FileAttachment } from '../types';
-
 import { useChatLayout } from '../context/chat-layout-context';
 import {
   useChatAgents,
@@ -38,6 +36,7 @@ import { usePersistedAttachments } from '../hooks/use-persisted-attachments';
 import { useSendMessage } from '../hooks/use-send-message';
 import { useStopGenerating } from '../hooks/use-stop-generating';
 import { useUserContext } from '../hooks/use-user-context';
+import type { FileAttachment } from '../types';
 import { ChatInput } from './chat-input';
 import { ChatMessages } from './chat-messages';
 import { WelcomeView } from './welcome-view';

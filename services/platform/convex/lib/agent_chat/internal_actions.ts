@@ -1,20 +1,13 @@
 'use node';
 
-import type { FunctionHandle } from 'convex/server';
-
 import {
   Agent,
   listMessages,
   saveMessage,
   type MessageDoc,
 } from '@convex-dev/agent';
+import type { FunctionHandle } from 'convex/server';
 import { v } from 'convex/values';
-
-import type {
-  GenerateResponseHooks,
-  BeforeContextResult,
-  BeforeGenerateResult,
-} from '../agent_response/types';
 
 import {
   isRecord,
@@ -42,6 +35,11 @@ import {
   resolveLanguageModelById,
 } from '../../providers/resolve_model';
 import { generateAgentResponse } from '../agent_response';
+import type {
+  GenerateResponseHooks,
+  BeforeContextResult,
+  BeforeGenerateResult,
+} from '../agent_response/types';
 import {
   estimateTokens,
   DEFAULT_MODEL_CONTEXT_LIMIT,

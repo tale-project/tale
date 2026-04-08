@@ -6,9 +6,8 @@
 
 import mysql from 'mysql2/promise';
 
-import type { SqlExecutionParams, SqlExecutionResult } from '../types';
-
 import { toConvexJsonValue } from '../../../lib/type_cast_helpers';
+import type { SqlExecutionParams, SqlExecutionResult } from '../types';
 
 export async function executeMySqlQuery(
   params: SqlExecutionParams,

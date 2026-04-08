@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { QueryCtx } from '../_generated/server';
-
 import { listCustomersPaginated } from './list_customers_paginated';
 
 function createMockQueryBuilder(

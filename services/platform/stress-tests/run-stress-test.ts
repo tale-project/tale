@@ -15,10 +15,9 @@
 
 import { ConvexHttpClient } from 'convex/browser';
 
+import { api } from '../convex/_generated/api';
 import type { Id } from '../convex/_generated/dataModel';
 import type { ExecutionStatus } from './metrics';
-
-import { api } from '../convex/_generated/api';
 import { MetricsCollector } from './metrics';
 
 interface StressTestConfig {

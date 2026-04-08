@@ -9,20 +9,18 @@
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
-
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
 import type { ToolDefinition } from '../types';
+import { countProducts } from './helpers/count_products';
+import { readProductsByIds } from './helpers/read_product_by_id';
+import { readProductList } from './helpers/read_product_list';
 import type {
   ProductReadGetByIdResult,
   ProductReadListResult,
   ProductReadCountResult,
 } from './helpers/types';
-
-import { countProducts } from './helpers/count_products';
-import { readProductsByIds } from './helpers/read_product_by_id';
-import { readProductList } from './helpers/read_product_list';
 
 const productReadArgs = z.discriminatedUnion('operation', [
   z.object({

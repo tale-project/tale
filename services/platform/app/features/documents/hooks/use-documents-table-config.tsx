@@ -1,10 +1,7 @@
 'use client';
 
 import type { ColumnDef } from '@tanstack/react-table';
-
 import { useMemo } from 'react';
-
-import type { DocumentItem } from '@/types/documents';
 
 import { CopyableTimestamp } from '@/app/components/ui/data-display/copyable-timestamp';
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
@@ -13,6 +10,7 @@ import { HStack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { formatBytes } from '@/lib/utils/format/number';
+import type { DocumentItem } from '@/types/documents';
 
 import { DocumentRowActions } from '../components/document-row-actions';
 import { RagStatusBadge } from '../components/rag-status-badge';

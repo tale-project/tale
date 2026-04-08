@@ -10,14 +10,13 @@
 import { readFile, stat } from 'node:fs/promises';
 
 import type { ActionCtx } from '../../_generated/server';
-import type { DelegateAgentMeta } from './create_delegation_tool';
-
 import { toSerializableConfig } from '../../agents/config';
 import {
   MAX_FILE_SIZE_BYTES,
   parseAgentJson,
   resolveAgentFilePath,
 } from '../../agents/file_utils';
+import type { DelegateAgentMeta } from './create_delegation_tool';
 
 export async function loadDelegateAgents(
   ctx: ActionCtx,

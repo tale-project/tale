@@ -10,21 +10,13 @@
  */
 
 import type { LanguageModelV3 } from '@ai-sdk/provider';
-
 import { Agent } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
-import type { ActionCtx } from '../../../../_generated/server';
-import type { ToolName } from '../../../../agent_tools/tool_names';
-import type {
-  NormalizedConfig,
-  ProcessedPrompts,
-  LLMExecutionResult,
-  ToolDiagnostics,
-} from './types';
-
 import { isRecord } from '../../../../../lib/utils/type-guards';
 import { components } from '../../../../_generated/api';
+import type { ActionCtx } from '../../../../_generated/server';
+import type { ToolName } from '../../../../agent_tools/tool_names';
 import {
   estimateTokens,
   AGENT_CONTEXT_CONFIGS,
@@ -32,6 +24,12 @@ import {
 } from '../../../../lib/context_management';
 import { createAgentConfig } from '../../../../lib/create_agent_config';
 import { createDebugLog } from '../../../../lib/debug_log';
+import type {
+  NormalizedConfig,
+  ProcessedPrompts,
+  LLMExecutionResult,
+  ToolDiagnostics,
+} from './types';
 import { processAgentResult } from './utils/process_agent_result';
 
 const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');

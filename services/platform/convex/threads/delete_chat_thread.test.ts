@@ -1,7 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 
 import type { MutationCtx } from '../_generated/server';
-
 import { deleteChatThread, parseSubThreadIds } from './delete_chat_thread';
 
 describe('parseSubThreadIds', () => {

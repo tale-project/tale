@@ -4,7 +4,6 @@
 
 import type { Doc } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
-
 import { ensureUrl } from './create_website';
 
 export interface GetWebsiteByDomainArgs {

@@ -5,9 +5,8 @@
  * Each cache has an action reference, name (for versioning), and optional TTL.
  */
 
-import type { FunctionReference } from 'convex/server';
-
 import { ActionCache } from '@convex-dev/action-cache';
+import type { FunctionReference } from 'convex/server';
 
 import { components, internal } from '../../_generated/api';
 

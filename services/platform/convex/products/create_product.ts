@@ -1,7 +1,6 @@
 import type { MutationCtx } from '../_generated/server';
-import type { CreateProductResult, ProductStatus } from './types';
-
 import { toConvexJsonRecord } from '../lib/type_cast_helpers';
+import type { CreateProductResult, ProductStatus } from './types';
 
 export interface CreateProductArgs {
   organizationId: string;

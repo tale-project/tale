@@ -13,7 +13,6 @@ import type {
   FileStoreRequest,
   PendingFileOperation,
 } from '../types';
-
 import { PendingOperationError } from '../types';
 
 export interface FilesApiState {

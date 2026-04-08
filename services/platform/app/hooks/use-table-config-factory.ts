@@ -1,14 +1,12 @@
 'use client';
 
 import type { ColumnDef } from '@tanstack/react-table';
-
 import { useMemo } from 'react';
 
-import type { Doc, TableNames } from '@/convex/_generated/dataModel';
-import type { Namespace } from '@/lib/i18n/types';
-
 import * as columnBuilders from '@/app/components/ui/data-table/column-builders';
+import type { Doc, TableNames } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+import type { Namespace } from '@/lib/i18n/types';
 
 type TranslationFn = (key: string) => string;
 

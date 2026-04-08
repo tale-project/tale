@@ -1,10 +1,9 @@
 import { v } from 'convex/values';
 
 import type { Doc, Id } from '../../_generated/dataModel';
-import type { DocumentWriteMetadata } from '../../approvals/types';
-
 import { internalMutation } from '../../_generated/server';
 import { createApproval } from '../../approvals/helpers';
+import type { DocumentWriteMetadata } from '../../approvals/types';
 import { normalizeDocumentWriteMetadata } from '../../approvals/types';
 
 type ApprovalMetadata = Doc<'approvals'>['metadata'];

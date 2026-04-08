@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from '@storybook/react';
-
 import { Plus } from 'lucide-react';
 
 import { DataTableActionMenu } from './data-table-action-menu';

@@ -2,7 +2,6 @@ import { v } from 'convex/values';
 
 import type { Doc, Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
-
 import { query } from '../_generated/server';
 import { authComponent } from '../auth';
 import { getUserTeamIds } from '../lib/get_user_teams';

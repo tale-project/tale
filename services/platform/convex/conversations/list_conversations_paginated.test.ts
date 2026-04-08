@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { QueryCtx } from '../_generated/server';
-
 import { listConversationsPaginated } from './list_conversations_paginated';
 
 vi.mock('./transform_conversation', () => ({

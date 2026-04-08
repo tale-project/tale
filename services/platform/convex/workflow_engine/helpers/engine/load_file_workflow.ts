@@ -10,10 +10,9 @@ import type {
   WorkflowStep,
 } from '../../../../lib/shared/schemas/workflows';
 import type { WorkflowDefinition, StepDefinition } from '../data_source/types';
-import type { WorkflowData } from './workflow_data';
-
 import { validateWorkflowSteps } from '../validation/validate_workflow_steps';
 import { buildStepsConfigMap } from './build_steps_config_map';
+import type { WorkflowData } from './workflow_data';
 
 /**
  * Convert a file-based workflow JSON config into WorkflowData for the engine.

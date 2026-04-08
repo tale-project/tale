@@ -10,7 +10,6 @@ import { z } from 'zod/v4';
 
 import type { AgentDocumentFindResult as DocumentFindResult } from '../../documents/list_documents_for_agent';
 import type { ToolDefinition } from '../types';
-
 import { listDocuments } from './helpers/list_documents';
 
 export const documentFindArgs = z.object({

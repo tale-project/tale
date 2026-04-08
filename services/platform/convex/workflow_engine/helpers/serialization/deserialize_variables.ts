@@ -6,7 +6,6 @@
  */
 
 import type { Id } from '../../../_generated/dataModel';
-
 import { createDebugLog } from '../../../lib/debug_log';
 import { toId } from '../../../lib/type_cast_helpers';
 

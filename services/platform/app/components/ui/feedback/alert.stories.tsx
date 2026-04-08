@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from '@storybook/react';
-
 import { AlertCircle, CheckCircle2, Info, AlertTriangle } from 'lucide-react';
 
 import { Alert } from './alert';

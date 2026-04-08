@@ -14,9 +14,6 @@
  * - Context window building and token estimation
  */
 
-import type { StreamMessage } from '@convex-dev/agent/validators';
-import type { ModelMessage } from 'ai';
-
 import {
   abortStream,
   listMessages,
@@ -24,13 +21,8 @@ import {
   saveMessage,
   type MessageDoc,
 } from '@convex-dev/agent';
-
-import type {
-  GenerateResponseConfig,
-  GenerateResponseArgs,
-  GenerateResponseResult,
-  BeforeContextResult,
-} from './types';
+import type { StreamMessage } from '@convex-dev/agent/validators';
+import type { ModelMessage } from 'ai';
 
 import { isRecord, getString } from '../../../lib/utils/type-guards';
 import { components, internal } from '../../_generated/api';
@@ -47,6 +39,12 @@ import { wrapInDetails } from '../context_management/message_formatter';
 import { createDebugLog } from '../debug_log';
 import { resolveTemplateVariables } from './resolve_template_variables';
 import { STRUCTURED_RESPONSE_INSTRUCTIONS } from './structured_response_instructions';
+import type {
+  GenerateResponseConfig,
+  GenerateResponseArgs,
+  GenerateResponseResult,
+  BeforeContextResult,
+} from './types';
 import { AgentTimeoutError, withTimeout } from './with_timeout';
 
 /**

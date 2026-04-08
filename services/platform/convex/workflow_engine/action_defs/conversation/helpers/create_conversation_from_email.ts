@@ -1,13 +1,7 @@
-import type { Id } from '../../../../_generated/dataModel';
-import type { ActionCtx } from '../../../../_generated/server';
-import type {
-  EmailType,
-  ConversationStatus,
-  ConversationPriority,
-} from './types';
-
 import { isRecord, getString } from '../../../../../lib/utils/type-guards';
 import { internal } from '../../../../_generated/api';
+import type { Id } from '../../../../_generated/dataModel';
+import type { ActionCtx } from '../../../../_generated/server';
 import { createDebugLog } from '../../../../lib/debug_log';
 import { addMessageToConversation } from './add_message_to_conversation';
 import { buildConversationMetadata } from './build_conversation_metadata';
@@ -17,6 +11,11 @@ import { checkMessageExists } from './check_message_exists';
 import { MAX_EMAILS_PER_BATCH } from './constants';
 import { findOrCreateCustomerFromEmail } from './find_or_create_customer_from_email';
 import { normalizeEmails } from './normalize_email';
+import type {
+  EmailType,
+  ConversationStatus,
+  ConversationPriority,
+} from './types';
 import { updateMessage } from './update_message';
 
 const debugLog = createDebugLog('DEBUG_CONVERSATIONS', '[Conversations]');

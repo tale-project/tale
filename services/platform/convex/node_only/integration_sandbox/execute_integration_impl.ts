@@ -7,17 +7,9 @@
  * Provides isolated execution with controlled HTTP access.
  */
 
-import { transform } from 'sucrase';
 import * as vm from 'vm';
 
-import type {
-  FileReference,
-  HttpResponse,
-  IntegrationExecutionParams,
-  IntegrationExecutionResult,
-  PendingFileOperation,
-  PendingHttpRequest,
-} from './types';
+import { transform } from 'sucrase';
 
 import { toConvexJsonValue } from '../../lib/type_cast_helpers';
 import {
@@ -29,6 +21,14 @@ import {
   createSecretsApi,
   runWithPasses,
 } from './helpers';
+import type {
+  FileReference,
+  HttpResponse,
+  IntegrationExecutionParams,
+  IntegrationExecutionResult,
+  PendingFileOperation,
+  PendingHttpRequest,
+} from './types';
 
 /**
  * Execute an integration connector in Node.js VM sandbox

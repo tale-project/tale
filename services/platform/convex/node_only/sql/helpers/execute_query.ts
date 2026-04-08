@@ -5,7 +5,6 @@
  */
 
 import type { SqlExecutionParams, SqlExecutionResult } from '../types';
-
 import { executeMsSqlQuery } from './execute_mssql_query';
 import { executeMySqlQuery } from './execute_mysql_query';
 import { executePostgresQuery } from './execute_postgres_query';

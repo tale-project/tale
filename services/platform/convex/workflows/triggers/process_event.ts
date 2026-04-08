@@ -1,6 +1,5 @@
-import type { MutationCtx } from '../../_generated/server';
-
 import { internal } from '../../_generated/api';
+import type { MutationCtx } from '../../_generated/server';
 
 function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
   let current: unknown = obj;

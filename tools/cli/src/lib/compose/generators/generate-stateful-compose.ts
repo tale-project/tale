@@ -1,9 +1,8 @@
 import { stringify } from 'yaml';
 
-import type { ComposeConfig, ServiceConfig } from '../types';
-
 import { createDbService } from '../services/create-db-service';
 import { createProxyService } from '../services/create-proxy-service';
+import type { ComposeConfig, ServiceConfig } from '../types';
 import { NETWORKS, VOLUMES } from './constants';
 
 export function generateStatefulCompose(

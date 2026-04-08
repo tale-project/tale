@@ -1,5 +1,6 @@
-import chokidar from 'chokidar';
 import { relative } from 'node:path';
+
+import chokidar from 'chokidar';
 
 interface ConfigChangeEvent {
   type: 'agents' | 'workflows' | 'integrations' | 'providers' | 'branding';

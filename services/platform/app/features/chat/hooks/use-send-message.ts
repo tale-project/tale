@@ -9,15 +9,14 @@ import type {
   SelectedAgent,
 } from '../context/chat-layout-context';
 import type { FileAttachment } from '../types';
-import type { ChatMessage } from './use-message-processing';
-import type { UserContext } from './use-user-context';
-
 import {
   useUnifiedChatWithAgent,
   useCreateThread,
   useUpdateThread,
 } from './mutations';
+import type { ChatMessage } from './use-message-processing';
 import { resetGlobalFreeze } from './use-stream-buffer';
+import type { UserContext } from './use-user-context';
 
 interface UseSendMessageParams {
   organizationId: string;

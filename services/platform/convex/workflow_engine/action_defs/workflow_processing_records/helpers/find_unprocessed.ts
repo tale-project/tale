@@ -1,7 +1,6 @@
+import { internal } from '../../../../_generated/api';
 import type { ActionCtx } from '../../../../_generated/server';
 import type { TableName, FindUnprocessedResult } from './types';
-
-import { internal } from '../../../../_generated/api';
 
 export async function findUnprocessed(
   ctx: ActionCtx,

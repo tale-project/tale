@@ -7,9 +7,8 @@
 
 import type { Doc } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
-import type { ProductStatus } from './types';
-
 import { paginateWithFilter, DEFAULT_PAGE_SIZE } from '../lib/pagination';
+import type { ProductStatus } from './types';
 
 export interface GetProductsCursorArgs {
   organizationId: string;

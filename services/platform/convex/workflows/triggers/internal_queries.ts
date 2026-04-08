@@ -1,7 +1,6 @@
 import { v } from 'convex/values';
 
 import type { Doc, Id } from '../../_generated/dataModel';
-
 import { internalQuery } from '../../_generated/server';
 
 export const checkIdempotencyQuery = internalQuery({

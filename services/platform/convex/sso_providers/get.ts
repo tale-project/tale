@@ -5,7 +5,6 @@ import type {
   ProviderFeatures,
   RoleMappingRule,
 } from '../../lib/shared/schemas/sso_providers';
-
 import { components } from '../_generated/api';
 import { DataModel, Id } from '../_generated/dataModel';
 import { getAuthUserIdentity } from '../lib/rls';

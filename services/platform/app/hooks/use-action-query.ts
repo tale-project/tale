@@ -1,11 +1,10 @@
+import { useQuery } from '@tanstack/react-query';
+import { useAction, useConvexAuth } from 'convex/react';
 import type {
   FunctionArgs,
   FunctionReference,
   FunctionReturnType,
 } from 'convex/server';
-
-import { useQuery } from '@tanstack/react-query';
-import { useAction, useConvexAuth } from 'convex/react';
 
 interface ActionQueryOptions {
   enabled?: boolean;

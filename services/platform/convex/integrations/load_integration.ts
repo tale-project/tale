@@ -13,9 +13,8 @@
 
 import { v } from 'convex/values';
 
-import type { Doc } from '../_generated/dataModel';
-
 import { internal } from '../_generated/api';
+import type { Doc } from '../_generated/dataModel';
 import { internalAction } from '../_generated/server';
 
 export interface LoadedIntegration {

@@ -7,15 +7,6 @@
  * 3. Access valid paths in the step output structure
  */
 
-import type {
-  ParsedVariableReference,
-  VariableReferenceValidationResult,
-  StepSchemaContext,
-  OutputSchema,
-  FieldSchema,
-  StepType,
-} from './types';
-
 import { isRecord } from '../../../../../lib/utils/type-guards';
 import { computeStepOrder } from '../../graph/compute_step_order';
 import { getActionOutputSchema } from './action_schemas';
@@ -29,6 +20,14 @@ import {
   llmTextOutputSchema,
   llmOutputSchema,
 } from './step_schemas';
+import type {
+  ParsedVariableReference,
+  VariableReferenceValidationResult,
+  StepSchemaContext,
+  OutputSchema,
+  FieldSchema,
+  StepType,
+} from './types';
 import { validateVariableReferencesKnownSources } from './validate_variable_references_known_sources';
 
 // =============================================================================

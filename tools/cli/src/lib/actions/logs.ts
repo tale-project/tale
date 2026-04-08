@@ -1,8 +1,7 @@
-import type { DeploymentColor } from '../compose/types';
-
 import { isUserInterrupt } from '../../utils/exit-codes';
 import { PROJECT_NAME } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
+import type { DeploymentColor } from '../compose/types';
 import {
   ALL_SERVICES,
   isRotatableService,

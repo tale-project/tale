@@ -3,8 +3,6 @@
 import { Search, Unplug } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
-import type { SsoProvider } from '@/lib/shared/schemas/sso_providers';
-
 import { EmptyState } from '@/app/components/ui/feedback/empty-state';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { Grid, HStack, Stack } from '@/app/components/ui/layout/layout';
@@ -13,6 +11,7 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { Heading } from '@/app/components/ui/typography/heading';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
+import type { SsoProvider } from '@/lib/shared/schemas/sso_providers';
 
 import { IntegrationCard } from './integration-card';
 import { IntegrationPanel } from './integration-panel';

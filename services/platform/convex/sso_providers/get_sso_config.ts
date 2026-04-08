@@ -5,7 +5,6 @@ import type {
   RoleMappingRule,
   ProviderFeatures,
 } from '../../lib/shared/schemas/sso_providers';
-
 import { DataModel, Id } from '../_generated/dataModel';
 
 type SsoConfig = {

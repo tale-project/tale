@@ -5,10 +5,9 @@
  * executions working on the same underlying record concurrently.
  */
 
-import type { ConvexJsonRecord } from '../../lib/validators/json';
-
 import { Id } from '../../_generated/dataModel';
 import { MutationCtx } from '../../_generated/server';
+import type { ConvexJsonRecord } from '../../lib/validators/json';
 import { TableName } from './types';
 
 export interface RecordClaimedArgs {

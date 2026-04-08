@@ -5,9 +5,8 @@
  * Output steps define the output mapping for a workflow.
  */
 
-import type { ValidationResult } from '../types';
-
 import { isRecord } from '../../../../../lib/utils/type-guards';
+import type { ValidationResult } from '../types';
 
 const SECRETS_PATTERN = /\{\{\s*secrets\./;
 

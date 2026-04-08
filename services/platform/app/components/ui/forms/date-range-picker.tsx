@@ -40,9 +40,10 @@ import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import styles from './date-range-picker.module.css';
 import { Description } from './description';
 import { Label } from './label';
+
+import styles from './date-range-picker.module.css';
 
 export type DatePreset =
   | 'today'

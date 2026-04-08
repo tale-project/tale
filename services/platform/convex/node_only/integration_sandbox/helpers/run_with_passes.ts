@@ -11,11 +11,10 @@ import type {
   PendingHttpRequest,
   StorageProvider,
 } from '../types';
-import type { FilesApiState } from './create_files_api';
-import type { HttpApiState } from './create_http_api';
-
 import { PendingOperationError } from '../types';
+import type { FilesApiState } from './create_files_api';
 import { createFilesApi } from './create_files_api';
+import type { HttpApiState } from './create_http_api';
 import { createHttpApi } from './create_http_api';
 import { executeFileOperation } from './execute_file_operation';
 import { executeHttpRequest } from './execute_http_request';

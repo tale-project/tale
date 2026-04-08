@@ -1,13 +1,12 @@
 import { v, type Infer } from 'convex/values';
 
-import type { IntegrationOperationMetadata } from '../../approvals/types';
-
 import {
   jsonValueValidator,
   jsonRecordValidator,
 } from '../../../lib/shared/schemas/utils/json-value';
 import { internalMutation } from '../../_generated/server';
 import { createApproval } from '../../approvals/helpers';
+import type { IntegrationOperationMetadata } from '../../approvals/types';
 import { toConvexJsonRecord } from '../../lib/type_cast_helpers';
 
 type ConvexJsonValue = Infer<typeof jsonValueValidator>;

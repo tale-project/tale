@@ -14,7 +14,6 @@ import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-guards';
 
 import type { Integration } from '../hooks/use-integration-manage';
-
 import { IntegrationRelatedAutomations } from './integration-manage/integration-related-automations';
 
 interface IntegrationDetailsProps {

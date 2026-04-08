@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from '@storybook/react';
-
 import { AlertCircle } from 'lucide-react';
 import { useState } from 'react';
 import { fn } from 'storybook/test';

@@ -7,9 +7,8 @@ import type {
   MutationCtx,
   ActionCtx,
 } from '../../../_generated/server';
-import type { AuthenticatedUser } from '../types';
-
 import { UnauthenticatedError } from '../errors';
+import type { AuthenticatedUser } from '../types';
 import { requireAuthenticatedUser } from './require_authenticated_user';
 
 /**

@@ -10,13 +10,12 @@
 
 import { listMessages, type MessageDoc } from '@convex-dev/agent';
 
-import type { ActionCtx } from '../../_generated/server';
-import type { ToolOutputAge } from './message_formatter';
-
 import { isRecord } from '../../../lib/utils/type-guards';
 import { components, internal } from '../../_generated/api';
+import type { ActionCtx } from '../../_generated/server';
 import { DEFAULT_MAX_HISTORY_TOKENS } from './constants';
 import { estimateMessageDocTokens, estimateTokens } from './estimate_tokens';
+import type { ToolOutputAge } from './message_formatter';
 import * as fmt from './message_formatter';
 
 /**

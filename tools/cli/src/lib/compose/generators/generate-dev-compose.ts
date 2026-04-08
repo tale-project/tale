@@ -1,13 +1,12 @@
 import { stringify } from 'yaml';
 
-import type { ComposeConfig, ServiceConfig } from '../types';
-
 import { PROJECT_NAME } from '../../../utils/load-env';
 import { createCrawlerService } from '../services/create-crawler-service';
 import { createDbService } from '../services/create-db-service';
 import { createPlatformService } from '../services/create-platform-service';
 import { createProxyService } from '../services/create-proxy-service';
 import { createRagService } from '../services/create-rag-service';
+import type { ComposeConfig, ServiceConfig } from '../types';
 import { NETWORKS, VOLUMES } from './constants';
 
 const DEV_COLOR = 'blue' as const;

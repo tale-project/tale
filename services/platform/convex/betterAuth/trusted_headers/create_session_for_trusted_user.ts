@@ -3,14 +3,13 @@
  * a trusted-headers user, including account switching semantics.
  */
 
+import { isRecord, getString } from '../../../lib/utils/type-guards';
+import { components } from '../../_generated/api';
 import type { MutationCtx } from '../../_generated/server';
 import type {
   BetterAuthFindManyResult,
   BetterAuthSession,
 } from '../../members/types';
-
-import { isRecord, getString } from '../../../lib/utils/type-guards';
-import { components } from '../../_generated/api';
 
 export interface CreateSessionForTrustedUserArgs {
   userId: string;

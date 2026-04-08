@@ -1,6 +1,6 @@
 import type { ServerResponse } from 'node:http';
-
 import path from 'node:path';
+
 import { type Plugin } from 'vite';
 
 import { createConfigWatcher } from '../lib/config-watcher';

@@ -1,6 +1,5 @@
-import type { DeploymentColor } from '../compose/types';
-
 import * as logger from '../../utils/logger';
+import type { DeploymentColor } from '../compose/types';
 import { getStateFilePath } from './get-state-file-path';
 
 export async function getCurrentColor(

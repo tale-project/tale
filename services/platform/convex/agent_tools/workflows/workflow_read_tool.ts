@@ -8,18 +8,16 @@
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
-
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
 import type { ToolDefinition } from '../types';
+import { readAllWorkflows } from './helpers/read_all_workflows';
+import { readWorkflowStructure } from './helpers/read_workflow_structure';
 import type {
   WorkflowReadGetStructureResult,
   WorkflowReadListAllResult,
 } from './helpers/types';
-
-import { readAllWorkflows } from './helpers/read_all_workflows';
-import { readWorkflowStructure } from './helpers/read_workflow_structure';
 
 const workflowReadArgs = z.discriminatedUnion('operation', [
   z.object({

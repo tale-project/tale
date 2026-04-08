@@ -12,7 +12,6 @@ import {
 } from 'convex-helpers/server/rowLevelSecurity';
 
 import type { DataModel } from '../../../_generated/dataModel';
-
 import { mutation, type MutationCtx } from '../../../_generated/server';
 import { getUserTeamIds } from '../../get_user_teams';
 import { getAuthUserIdentity } from '../auth/get_auth_user_identity';

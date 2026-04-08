@@ -1,9 +1,8 @@
 import type { ToolCtx } from '@convex-dev/agent';
 
+import { internal } from '../../../_generated/api';
 import type { ProductStatus } from '../../../products/types';
 import type { ProductReadListResult } from './types';
-
-import { internal } from '../../../_generated/api';
 import { defaultListFields } from './types';
 
 export interface ReadProductListArgs {

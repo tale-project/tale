@@ -11,17 +11,16 @@
 
 import { v } from 'convex/values';
 
-import type { ActionCtx } from '../../../_generated/server';
-import type { DocumentMetadata } from '../../../documents/types';
-import type { ActionDefinition } from '../../helpers/nodes/action/types';
-
 import { internal } from '../../../_generated/api';
+import type { ActionCtx } from '../../../_generated/server';
 import { fetchDocumentComparisonByUrls } from '../../../agent_tools/documents/helpers/fetch_document_comparison';
 import { fetchDocumentContent } from '../../../agent_tools/documents/helpers/fetch_document_content';
 import { getDocumentEffectiveDate } from '../../../documents/transform_to_document_item';
+import type { DocumentMetadata } from '../../../documents/types';
 import { getRagConfig } from '../../../lib/helpers/rag_config';
 import { toConvexJsonRecord, toId } from '../../../lib/type_cast_helpers';
 import { jsonRecordValidator } from '../../../lib/validators/json';
+import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import { applyDocxStructured } from './helpers/apply_docx_structured';
 import { extractDocxStructured } from './helpers/extract_docx_structured';
 

@@ -2,10 +2,9 @@ import { useUIMessages, type UIMessage } from '@convex-dev/agent/react';
 import { useQuery } from 'convex/react';
 import { useEffect, useMemo, useRef } from 'react';
 
+import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import type { SystemMessageDisplay } from '@/lib/shared/constants/system-message-tags';
-
-import { api } from '@/convex/_generated/api';
 import {
   getSystemMessageDisplay,
   parseSystemMessageTag,

@@ -1,10 +1,9 @@
 'use client';
 
-import type { ComponentPropsWithoutRef, ComponentRef, ReactNode } from 'react';
-
 import * as SelectPrimitive from '@radix-ui/react-select';
 import { cva } from 'class-variance-authority';
 import { Check, ChevronDown, ChevronUp } from 'lucide-react';
+import type { ComponentPropsWithoutRef, ComponentRef, ReactNode } from 'react';
 import { forwardRef, useId } from 'react';
 
 import { cn } from '@/lib/utils/cn';

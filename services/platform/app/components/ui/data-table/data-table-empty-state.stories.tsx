@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from '@storybook/react';
-
 import { Package, Users, FileText } from 'lucide-react';
 
 import { DataTableEmptyState } from './data-table-empty-state';

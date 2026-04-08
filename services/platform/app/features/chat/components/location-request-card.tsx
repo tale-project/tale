@@ -3,15 +3,14 @@
 import { Check, Loader2, MapPin, X, XCircle } from 'lucide-react';
 import { memo, useCallback, useMemo, useState } from 'react';
 
-import type { Id } from '@/convex/_generated/dataModel';
-import type { LocationRequestMetadata } from '@/lib/shared/schemas/approvals';
-
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
+import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+import type { LocationRequestMetadata } from '@/lib/shared/schemas/approvals';
 import { cn } from '@/lib/utils/cn';
 
 import { useChatLayout } from '../context/chat-layout-context';

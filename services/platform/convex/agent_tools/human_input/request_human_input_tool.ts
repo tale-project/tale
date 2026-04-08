@@ -10,14 +10,12 @@
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
-
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
-import type { ToolDefinition } from '../types';
-
 import { internal } from '../../_generated/api';
 import { getApprovalThreadId } from '../../threads/get_parent_thread_id';
+import type { ToolDefinition } from '../types';
 
 const optionSchema = z.object({
   label: z.string().describe('Display label for the option.'),

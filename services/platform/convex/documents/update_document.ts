@@ -4,10 +4,9 @@
 
 import _ from 'lodash';
 
+import { isRecord } from '../../lib/utils/type-guards';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
-
-import { isRecord } from '../../lib/utils/type-guards';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { extractExtension } from './extract_extension';
 import { teamIdsToFields } from './team_fields';

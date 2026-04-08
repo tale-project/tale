@@ -9,14 +9,12 @@
  */
 
 import type { GenericQueryCtx } from 'convex/server';
-
 import { v } from 'convex/values';
-
-import type { DataModel } from '../_generated/dataModel';
 
 import { parseJson } from '../../lib/utils/type-cast-helpers';
 import { isRecord, getString } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
+import type { DataModel } from '../_generated/dataModel';
 import { internalQuery } from '../_generated/server';
 
 // Type for Better Auth teamMember record
@@ -67,9 +65,8 @@ export async function getUserTeamIds(
       // Trusted headers mode: parse team IDs from JWT claim
       // Format: [{id: "...", name: "..."}, ...]
       try {
-        const teams = parseJson<Array<{ id: string; name: string }>>(
-          trustedTeamsRaw,
-        );
+        const teams =
+          parseJson<Array<{ id: string; name: string }>>(trustedTeamsRaw);
         return Array.isArray(teams)
           ? teams
               .filter(

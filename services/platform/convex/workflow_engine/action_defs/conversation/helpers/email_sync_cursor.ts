@@ -1,6 +1,5 @@
-import type { ActionCtx } from '../../../../_generated/server';
-
 import { internal } from '../../../../_generated/api';
+import type { ActionCtx } from '../../../../_generated/server';
 
 /**
  * Read the email sync cursor from integration credentials metadata.

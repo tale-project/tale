@@ -1,9 +1,8 @@
 import type { ToolCtx } from '@convex-dev/agent';
 
+import { internal } from '../../../_generated/api';
 import type { AgentIndexedDocumentListResult } from '../../../documents/list_indexed_documents_for_agent';
 import type { AgentKnowledgeCtx } from '../rag_search_tool';
-
-import { internal } from '../../../_generated/api';
 
 export async function listIndexedDocuments(
   ctx: ToolCtx,

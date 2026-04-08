@@ -31,7 +31,6 @@
  */
 
 import type { MutationCtx } from '../../_generated/server';
-
 import { getLatestProcessedCreationTime } from './get_latest_processed_creation_time';
 import { recordClaimed } from './record_claimed';
 import { runQuery } from './run_query';

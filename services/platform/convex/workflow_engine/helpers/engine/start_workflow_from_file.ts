@@ -12,9 +12,8 @@
 
 import { v } from 'convex/values';
 
-import type { Id } from '../../../_generated/dataModel';
-
 import { internal } from '../../../_generated/api';
+import type { Id } from '../../../_generated/dataModel';
 import { internalAction } from '../../../_generated/server';
 import { createDebugLog } from '../../../lib/debug_log';
 import { jsonValueValidator } from '../../../lib/validators/json';

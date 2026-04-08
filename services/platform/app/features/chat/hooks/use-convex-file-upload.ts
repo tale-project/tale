@@ -2,11 +2,10 @@
 
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 
-import type { Id } from '@/convex/_generated/dataModel';
-
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
+import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import {
   CHAT_UPLOAD_ALLOWED_TYPES,

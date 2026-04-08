@@ -6,6 +6,12 @@ import { useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
+import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
+import { Image } from '@/app/components/ui/data-display/image';
+import { Text } from '@/app/components/ui/typography/text';
+import { ApprovalCardRenderer } from '@/app/features/chat/components/approval-card-renderer';
+import { CollapsibleSystemMessage } from '@/app/features/chat/components/collapsible-system-message';
+import { FileAttachmentDisplay } from '@/app/features/chat/components/message-bubble/file-displays';
 import type {
   DocumentWriteApproval,
   HumanInputRequest,
@@ -15,20 +21,12 @@ import type {
   WorkflowUpdateApproval,
 } from '@/app/features/chat/hooks/queries';
 import type { ChatItem } from '@/app/features/chat/hooks/use-merged-chat-items';
-
-import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
-import { Image } from '@/app/components/ui/data-display/image';
-import { Text } from '@/app/components/ui/typography/text';
-import { ApprovalCardRenderer } from '@/app/features/chat/components/approval-card-renderer';
-import { CollapsibleSystemMessage } from '@/app/features/chat/components/collapsible-system-message';
-import { FileAttachmentDisplay } from '@/app/features/chat/components/message-bubble/file-displays';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import type { Message } from './types';
-
 import { AutomationDetailsCollapse } from './automation-details-collapse';
 import { ThinkingAnimation } from './thinking-animation';
+import type { Message } from './types';
 
 interface MessageListProps {
   displayMessages: Message[];

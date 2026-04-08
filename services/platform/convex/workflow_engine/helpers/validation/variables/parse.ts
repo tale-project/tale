@@ -10,9 +10,8 @@
  * - {{input.fieldName}}
  */
 
-import type { ParsedVariableReference } from './types';
-
 import { isRecord } from '../../../../../lib/utils/type-guards';
+import type { ParsedVariableReference } from './types';
 
 // Regex pattern to match mustache-style template expressions
 // Note: The 'g' flag is added when creating the RegExp instance inside functions

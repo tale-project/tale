@@ -31,12 +31,9 @@
 import { v } from 'convex/values';
 
 import type { DataSource } from '../../../../lib/shared/schemas/common';
-import type { Id } from '../../../_generated/dataModel';
-import type { ActionDefinition } from '../../helpers/nodes/action/types';
-import type { QueryResult } from '../conversation/helpers/types';
-
 import { narrowStringUnion } from '../../../../lib/utils/type-guards';
 import { internal } from '../../../_generated/api';
+import type { Id } from '../../../_generated/dataModel';
 import {
   customerStatusValidator,
   customerSourceValidator,
@@ -44,6 +41,8 @@ import {
 } from '../../../customers/validators';
 import { toConvexJsonRecord, toId } from '../../../lib/type_cast_helpers';
 import { jsonRecordValidator } from '../../../lib/validators/json';
+import type { ActionDefinition } from '../../helpers/nodes/action/types';
+import type { QueryResult } from '../conversation/helpers/types';
 
 // Type definitions for customer operations
 type CreateCustomerResult = {

@@ -6,7 +6,6 @@ import { getOrganizationDefaultLocale } from '@/lib/shared/utils/get-organizatio
 import { resolveAgentLocale } from '@/lib/shared/utils/resolve-agent-locale';
 
 import type { SelectedAgent } from '../context/chat-layout-context';
-
 import { useChatLayout } from '../context/chat-layout-context';
 import { useChatAgents } from './queries';
 

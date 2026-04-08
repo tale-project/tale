@@ -4,7 +4,6 @@ import { checkAccessibility } from '@/test/utils/a11y';
 import { render, screen } from '@/test/utils/render';
 
 import type { FilterConfig } from './data-table-filters';
-
 import { DataTableFilters } from './data-table-filters';
 
 function createFilter(overrides?: Partial<FilterConfig>): FilterConfig {

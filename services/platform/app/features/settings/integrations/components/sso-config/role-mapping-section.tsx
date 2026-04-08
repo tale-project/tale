@@ -2,17 +2,16 @@
 
 import { Plus, Trash2 } from 'lucide-react';
 
-import type {
-  PlatformRole,
-  RoleMappingRule,
-} from '@/lib/shared/schemas/sso_providers';
-
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
+import type {
+  PlatformRole,
+  RoleMappingRule,
+} from '@/lib/shared/schemas/sso_providers';
 import { narrowStringUnion } from '@/lib/utils/type-guards';
 
 interface RoleMappingSectionProps {

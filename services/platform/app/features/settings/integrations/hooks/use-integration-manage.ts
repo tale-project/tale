@@ -11,7 +11,6 @@ import { useT } from '@/lib/i18n/client';
 import { fetchJson } from '@/lib/utils/type-cast-helpers';
 
 import type { ParsedPackage } from '../components/integration-upload/utils/parse-integration-package';
-
 import { parseIntegrationFiles } from '../components/integration-upload/utils/parse-integration-package';
 import { ACCEPTED_ICON_TYPES, MAX_ICON_SIZE } from '../constants';
 import {

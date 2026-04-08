@@ -4,9 +4,8 @@ import { useEffect, useMemo, useRef } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
 
-import type { FileAttachment } from './use-convex-file-upload';
-
 import { useFileUrls } from './queries';
+import type { FileAttachment } from './use-convex-file-upload';
 
 const STORAGE_KEY_PREFIX = 'chat-attachments-';
 

@@ -11,15 +11,14 @@
  * History snapshots use epoch-ms filenames with 10-entry retention.
  */
 
-import { v } from 'convex/values';
 import { mkdir, readdir, unlink } from 'node:fs/promises';
 import path from 'node:path';
 
-import type { ActionCtx } from '../_generated/server';
-import type { BrandingJsonConfig, BrandingReadResult } from './file_utils';
+import { v } from 'convex/values';
 
 import { brandingJsonSchema } from '../../lib/shared/schemas/branding';
 import { internal } from '../_generated/api';
+import type { ActionCtx } from '../_generated/server';
 import { action } from '../_generated/server';
 import { authComponent } from '../auth';
 import {
@@ -33,6 +32,7 @@ import {
 } from '../lib/file_io';
 import { getTrustedAuthData } from '../lib/rls/auth/get_trusted_auth_data';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
+import type { BrandingJsonConfig, BrandingReadResult } from './file_utils';
 import {
   MAX_FILE_SIZE_BYTES,
   MAX_HISTORY_ENTRIES,

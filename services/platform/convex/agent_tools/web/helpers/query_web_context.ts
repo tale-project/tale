@@ -9,7 +9,6 @@
  */
 
 import type { ActionCtx } from '../../../_generated/server';
-
 import { createDebugLog } from '../../../lib/debug_log';
 import { getCrawlerServiceUrl } from './get_crawler_service_url';
 

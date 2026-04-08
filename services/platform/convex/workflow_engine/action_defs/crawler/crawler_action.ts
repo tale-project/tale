@@ -1,5 +1,6 @@
 import { v } from 'convex/values';
 
+import { createDebugLog } from '../../../lib/debug_log';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import type {
   CrawlerActionParams,
@@ -10,8 +11,6 @@ import type {
   QueryUrlsRawData,
   QueryUrlsResult,
 } from './helpers/types';
-
-import { createDebugLog } from '../../../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_CRAWLER', '[Crawler]');
 

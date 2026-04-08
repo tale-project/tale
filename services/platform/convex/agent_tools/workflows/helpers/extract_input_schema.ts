@@ -6,9 +6,8 @@
  * extracts it using runtime checks.
  */
 
-import type { WorkflowInputSchema } from '../../../workflow_engine/helpers/validation/validate_workflow_input';
-
 import { isRecord } from '../../../../lib/utils/type-guards';
+import type { WorkflowInputSchema } from '../../../workflow_engine/helpers/validation/validate_workflow_input';
 
 export function extractInputSchema(
   stepConfig: unknown,

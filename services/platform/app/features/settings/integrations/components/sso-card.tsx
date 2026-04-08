@@ -3,9 +3,8 @@
 import { KeyRound } from 'lucide-react';
 import { useState } from 'react';
 
-import type { SsoProvider } from '@/lib/shared/schemas/sso_providers';
-
 import { useT } from '@/lib/i18n/client';
+import type { SsoProvider } from '@/lib/shared/schemas/sso_providers';
 
 import { IntegrationCard } from './integration-card';
 import { SSOConfigDialog } from './sso-config-dialog';

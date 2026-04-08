@@ -1,6 +1,5 @@
-import type { EmailType } from './types';
-
 import { buildEmailMetadata } from './build_email_metadata';
+import type { EmailType } from './types';
 
 /**
  * Build initial message object for conversation creation

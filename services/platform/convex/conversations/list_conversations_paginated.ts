@@ -9,9 +9,8 @@
 import type { PaginationOptions } from 'convex/server';
 
 import type { QueryCtx } from '../_generated/server';
-import type { ConversationItem, ConversationStatus } from './types';
-
 import { transformConversation } from './transform_conversation';
+import type { ConversationItem, ConversationStatus } from './types';
 
 interface ListConversationsPaginatedArgs {
   paginationOpts: PaginationOptions;

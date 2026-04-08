@@ -4,9 +4,8 @@
 
 import type { Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
-import type { ConversationItem } from './types';
-
 import { transformConversation } from './transform_conversation';
+import type { ConversationItem } from './types';
 
 export async function getConversationWithMessages(
   ctx: QueryCtx,

@@ -1,12 +1,11 @@
+import { convexQuery } from '@convex-dev/react-query';
 import type { UseQueryResult } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import type {
   FunctionArgs,
   FunctionReference,
   FunctionReturnType,
 } from 'convex/server';
-
-import { convexQuery } from '@convex-dev/react-query';
-import { useQuery } from '@tanstack/react-query';
 
 type EmptyObject = Record<string, never>;
 

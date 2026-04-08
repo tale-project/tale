@@ -1,5 +1,4 @@
 import type { ToolCtx } from '@convex-dev/agent';
-
 import { describe, it, expect, vi } from 'vitest';
 
 import { resolveFileIds } from '../rag_search_tool';

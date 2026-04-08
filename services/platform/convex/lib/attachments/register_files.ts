@@ -6,11 +6,10 @@
 
 import { getFile } from '@convex-dev/agent';
 
-import type { ActionCtx } from '../../_generated/server';
-import type { FileAttachment, RegisteredFile } from './types';
-
 import { components } from '../../_generated/api';
+import type { ActionCtx } from '../../_generated/server';
 import { createDebugLog } from '../debug_log';
+import type { FileAttachment, RegisteredFile } from './types';
 
 const debugLog = createDebugLog('DEBUG_ATTACHMENTS', '[Attachments]');
 

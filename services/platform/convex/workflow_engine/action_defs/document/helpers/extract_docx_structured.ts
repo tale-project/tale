@@ -7,9 +7,8 @@
  * endpoint, and returns the lightweight paragraph list with stable keys.
  */
 
-import type { ActionCtx } from '../../../../_generated/server';
-
 import { fetchJson } from '../../../../../lib/utils/type-cast-helpers';
+import type { ActionCtx } from '../../../../_generated/server';
 import { getCrawlerUrl } from '../../../../documents/generate_document_helpers';
 import { createDebugLog } from '../../../../lib/debug_log';
 import { toId } from '../../../../lib/type_cast_helpers';

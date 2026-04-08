@@ -1,3 +1,4 @@
+import { isRecord } from '../../lib/utils/type-guards';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
 import type {
@@ -10,8 +11,6 @@ import type {
   AuditLogCategory,
   AuditContext,
 } from './types';
-
-import { isRecord } from '../../lib/utils/type-guards';
 
 const SENSITIVE_FIELDS = new Set([
   'password',

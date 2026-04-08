@@ -1,18 +1,17 @@
 import { v } from 'convex/values';
 
-import type {
-  BetterAuthMember,
-  BetterAuthUser,
-  BetterAuthCreateResult,
-  BetterAuthFindManyResult,
-} from './types';
-
 import { isRecord, getString } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import { mutation } from '../_generated/server';
 import * as AuditLogHelpers from '../audit_logs/helpers';
 import { authComponent } from '../auth';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
+import type {
+  BetterAuthMember,
+  BetterAuthUser,
+  BetterAuthCreateResult,
+  BetterAuthFindManyResult,
+} from './types';
 import { memberRoleValidator } from './validators';
 
 function findOneMember(

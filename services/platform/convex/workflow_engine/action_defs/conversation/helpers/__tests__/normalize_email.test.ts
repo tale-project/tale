@@ -1,8 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
-import type { EmailType } from '../types';
-
 import { normalizeEmail, normalizeEmails } from '../normalize_email';
+import type { EmailType } from '../types';
 
 const RAW_GMAIL_MESSAGE = {
   id: 'msg123',

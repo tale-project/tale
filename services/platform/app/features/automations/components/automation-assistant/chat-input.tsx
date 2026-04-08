@@ -2,8 +2,6 @@
 
 import { ArrowUp, LoaderCircle, Paperclip, X } from 'lucide-react';
 
-import type { Id } from '@/convex/_generated/dataModel';
-
 import { EnterKeyIcon } from '@/app/components/icons/enter-key-icon';
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
@@ -12,6 +10,7 @@ import { HStack, VStack } from '@/app/components/ui/layout/layout';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
+import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 interface ChatAttachment {

@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from '@storybook/react';
-
 import { Trash2, AlertTriangle, Archive, Send } from 'lucide-react';
 import { useState } from 'react';
 

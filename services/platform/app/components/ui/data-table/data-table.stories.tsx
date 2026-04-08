@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import type { ColumnDef } from '@tanstack/react-table';
-
 import { Plus, Download, Filter } from 'lucide-react';
 import { useState } from 'react';
 

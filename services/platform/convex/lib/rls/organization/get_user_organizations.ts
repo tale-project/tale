@@ -3,12 +3,11 @@
  */
 
 import type { MemberRole } from '../../../../lib/shared/schemas/organizations';
-import type { QueryCtx } from '../../../_generated/server';
-import type { AuthenticatedUser, OrganizationMember } from '../types';
-
 import { components } from '../../../_generated/api';
+import type { QueryCtx } from '../../../_generated/server';
 import { getTrustedAuthData } from '../auth/get_trusted_auth_data';
 import { requireAuthenticatedUser } from '../auth/require_authenticated_user';
+import type { AuthenticatedUser, OrganizationMember } from '../types';
 
 const VALID_ROLES: ReadonlySet<string> = new Set([
   'owner',

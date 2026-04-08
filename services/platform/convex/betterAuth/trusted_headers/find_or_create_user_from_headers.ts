@@ -10,6 +10,7 @@
  *   role is stored in the session and included in JWT claims.
  */
 
+import { components } from '../../_generated/api';
 import type { MutationCtx } from '../../_generated/server';
 import type {
   BetterAuthCreateResult,
@@ -17,8 +18,6 @@ import type {
   BetterAuthMember,
   BetterAuthUser,
 } from '../../members/types';
-
-import { components } from '../../_generated/api';
 
 export interface FindOrCreateUserFromHeadersArgs {
   email: string;
