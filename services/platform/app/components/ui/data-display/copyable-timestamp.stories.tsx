@@ -15,9 +15,8 @@ const meta: Meta<typeof CopyableTimestamp> = {
     docs: {
       description: {
         component: `
-Displays a formatted date with a copy-to-clipboard button that copies the raw
-Unix millisecond timestamp. Intended for power users who need the exact value
-for debugging or querying.
+Displays a formatted date with a copy-to-clipboard button that copies the
+human-readable formatted date string.
 
 The copy button is hidden by default and appears on hover/focus.
 
