@@ -238,6 +238,7 @@ export function ProductEditDialog({
       <Select
         value={status}
         onValueChange={(value) =>
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- value is constrained by Select options
           setValue('status', value as (typeof PRODUCT_STATUSES)[number], {
             shouldDirty: true,
           })
