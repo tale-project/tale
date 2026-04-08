@@ -10820,6 +10820,12 @@ export declare const components: {
         any
       >;
       createStream: FunctionReference<"mutation", "internal", {}, any>;
+      deleteStream: FunctionReference<
+        "mutation",
+        "internal",
+        { streamId: string },
+        null
+      >;
       getStreamStatus: FunctionReference<
         "query",
         "internal",
