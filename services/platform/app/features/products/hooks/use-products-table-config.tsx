@@ -28,7 +28,7 @@ export const useProductsTableConfig = createTableConfigHook<'products'>(
             productName={row.original.name}
             className="size-8 shrink-0 rounded"
           />
-          <Text as="span" variant="label">
+          <Text as="span" variant="label" className="break-words">
             {row.original.name}
           </Text>
         </HStack>
