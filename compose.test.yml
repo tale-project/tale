@@ -31,7 +31,7 @@ services:
     ports:
       - '18002:8002'
     volumes:
-      - ./tests/fixtures/providers:/app/platform-config/providers:ro
+      - ./tests/fixtures/platform-config:/app/platform-config:ro
 
   rag:
     env_file:
@@ -39,7 +39,7 @@ services:
     ports:
       - '18001:8001'
     volumes:
-      - ./tests/fixtures/providers:/app/platform-config/providers:ro
+      - ./tests/fixtures/platform-config:/app/platform-config:ro
 
   platform:
     env_file:
