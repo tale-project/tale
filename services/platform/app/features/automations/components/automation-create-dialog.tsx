@@ -17,7 +17,10 @@ import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { slugToUrlParam } from '@/lib/utils/workflow-slug';
 
-import { useSaveWorkflow } from '../hooks/file-mutations';
+import {
+  useInvalidateWorkflows,
+  useSaveWorkflow,
+} from '../hooks/file-mutations';
 import { WorkflowTemplateGrid } from './workflow-template-grid';
 
 type FormData = {
@@ -61,6 +64,7 @@ function BlankTabContent({
   const { t: tCommon } = useT('common');
   const navigate = useNavigate();
   const { mutateAsync: saveWorkflow } = useSaveWorkflow();
+  const invalidateWorkflows = useInvalidateWorkflows();
 
   const formSchema = useMemo(
     () =>
@@ -103,6 +107,7 @@ function BlankTabContent({
           },
         });
 
+        await invalidateWorkflows('default');
         window.dispatchEvent(new Event('workflow-updated'));
         toast({
           title: t('toast.created'),
@@ -127,7 +132,7 @@ function BlankTabContent({
         });
       }
     },
-    [saveWorkflow, organizationId, t, navigate, setError],
+    [saveWorkflow, invalidateWorkflows, organizationId, t, navigate, setError],
   );
 
   return (

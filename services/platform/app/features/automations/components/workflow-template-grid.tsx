@@ -9,7 +9,10 @@ import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import { useInstallWorkflow } from '../hooks/file-mutations';
+import {
+  useInstallWorkflow,
+  useInvalidateWorkflows,
+} from '../hooks/file-mutations';
 import { useListWorkflows } from '../hooks/file-queries';
 
 interface WorkflowTemplateGridProps {
@@ -27,6 +30,7 @@ export function WorkflowTemplateGrid({
     'templates',
   );
   const { mutateAsync: installWorkflow } = useInstallWorkflow();
+  const invalidateWorkflows = useInvalidateWorkflows();
   const [installingSlug, setInstallingSlug] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,6 +55,7 @@ export function WorkflowTemplateGrid({
 
       try {
         await installWorkflow({ orgSlug: 'default', workflowSlug: slug });
+        await invalidateWorkflows('default');
         window.dispatchEvent(new Event('workflow-updated'));
         onTemplateInstalled(slug);
       } catch (err) {
@@ -61,7 +66,7 @@ export function WorkflowTemplateGrid({
         setInstallingSlug(null);
       }
     },
-    [installWorkflow, onTemplateInstalled, t],
+    [installWorkflow, invalidateWorkflows, onTemplateInstalled, t],
   );
 
   if (isLoadingTemplates) {
