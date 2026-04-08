@@ -77,7 +77,7 @@ export function ThemeProvider({
   }, [updateResolvedTheme]);
 
   useEffect(() => {
-    if (!mounted) return;
+    if (!mounted) return undefined;
 
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const handleChange = () => {

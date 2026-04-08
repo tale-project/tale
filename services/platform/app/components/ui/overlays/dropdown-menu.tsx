@@ -216,6 +216,8 @@ function renderItem(item: DropdownMenuItem, key: number) {
 
       return <Fragment key={key}>{menuItem}</Fragment>;
     }
+    default:
+      return undefined;
   }
 }
 

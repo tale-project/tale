@@ -1717,7 +1717,7 @@ wheels = [
 
 [[package]]
 name = "openai"
-version = "2.15.0"
+version = "2.24.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -1729,9 +1729,9 @@ dependencies = [
     { name = "tqdm" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/94/f4/4690ecb5d70023ce6bfcfeabfe717020f654bde59a775058ec6ac4692463/openai-2.15.0.tar.gz", hash = "sha256:42eb8cbb407d84770633f31bf727d4ffb4138711c670565a41663d9439174fba", size = 627383, upload-time = "2026-01-09T22:10:08.603Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/55/13/17e87641b89b74552ed408a92b231283786523edddc95f3545809fab673c/openai-2.24.0.tar.gz", hash = "sha256:1e5769f540dbd01cb33bc4716a23e67b9d695161a734aff9c5f925e2bf99a673", size = 658717, upload-time = "2026-02-24T20:02:07.958Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b5/df/c306f7375d42bafb379934c2df4c2fa3964656c8c782bac75ee10c102818/openai-2.15.0-py3-none-any.whl", hash = "sha256:6ae23b932cd7230f7244e52954daa6602716d6b9bf235401a107af731baea6c3", size = 1067879, upload-time = "2026-01-09T22:10:06.446Z" },
+    { url = "https://files.pythonhosted.org/packages/c9/30/844dc675ee6902579b8eef01ed23917cc9319a1c9c0c14ec6e39340c96d0/openai-2.24.0-py3-none-any.whl", hash = "sha256:fed30480d7d6c884303287bde864980a4b137b60553ffbcf9ab4a233b7a73d94", size = 1120122, upload-time = "2026-02-24T20:02:05.669Z" },
 ]
 
 [[package]]
@@ -2943,19 +2943,19 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "asyncpg", specifier = ">=0.30.0" },
+    { name = "asyncpg", specifier = "==0.31.0" },
     { name = "beautifulsoup4", specifier = "==4.14.3" },
     { name = "crawl4ai", specifier = "==0.8.6" },
     { name = "fastapi", specifier = "==0.135.3" },
     { name = "httpx", specifier = "==0.28.1" },
     { name = "loguru", specifier = "==0.7.3" },
-    { name = "markdown-it-py", specifier = ">=3.0.0" },
-    { name = "openai", specifier = ">=1.0.0" },
+    { name = "markdown-it-py", specifier = "==4.0.0" },
+    { name = "openai", specifier = "==2.24.0" },
     { name = "pydantic", specifier = "==2.12.5" },
     { name = "pydantic-settings", specifier = "==2.13.1" },
     { name = "pymupdf", specifier = "==1.27.2.2" },
     { name = "pytest", marker = "extra == 'dev'", specifier = "==9.0.3" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23.0" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = "==1.3.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = "==7.1.0" },
     { name = "pytest-watch", marker = "extra == 'dev'", specifier = "==4.2.0" },
     { name = "python-docx", specifier = "==1.2.0" },
@@ -2963,13 +2963,13 @@ requires-dist = [
     { name = "python-multipart", specifier = "==0.0.24" },
     { name = "python-pptx", specifier = "==1.0.2" },
     { name = "ruff", marker = "extra == 'dev'", specifier = "==0.15.9" },
-    { name = "semantic-text-splitter", specifier = ">=0.18.0" },
-    { name = "stamina", specifier = ">=25.0.0" },
+    { name = "semantic-text-splitter", specifier = "==0.29.0" },
+    { name = "stamina", specifier = "==25.2.0" },
     { name = "tale-knowledge", directory = "../../packages/tale_knowledge" },
     { name = "tale-shared", directory = "../../packages/tale_shared" },
     { name = "tale-telemetry", directory = "../../packages/tale_telemetry" },
-    { name = "tiktoken", specifier = ">=0.9.0" },
-    { name = "ultimate-sitemap-parser", specifier = ">=1.8.0" },
+    { name = "tiktoken", specifier = "==0.12.0" },
+    { name = "ultimate-sitemap-parser", specifier = "==1.8.0" },
     { name = "uvicorn", extras = ["standard"], specifier = "==0.44.0" },
 ]
 provides-extras = ["dev"]
@@ -2991,13 +2991,13 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "loguru", specifier = ">=0.7.0" },
-    { name = "openai", specifier = ">=1.0.0" },
-    { name = "openpyxl", specifier = ">=3.1.0" },
-    { name = "pymupdf", specifier = ">=1.27.0" },
-    { name = "python-docx", specifier = ">=1.0.0" },
-    { name = "python-pptx", specifier = ">=1.0.0" },
-    { name = "semantic-text-splitter", specifier = ">=0.18.0" },
+    { name = "loguru", specifier = "==0.7.3" },
+    { name = "openai", specifier = "==2.24.0" },
+    { name = "openpyxl", specifier = "==3.1.5" },
+    { name = "pymupdf", specifier = "==1.27.2.2" },
+    { name = "python-docx", specifier = "==1.2.0" },
+    { name = "python-pptx", specifier = "==1.0.2" },
+    { name = "semantic-text-splitter", specifier = "==0.29.0" },
     { name = "tale-shared", directory = "../../packages/tale_shared" },
 ]
 
@@ -3014,10 +3014,10 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "asyncpg", specifier = ">=0.30.0" },
-    { name = "loguru", specifier = ">=0.7.0" },
-    { name = "pydantic-settings", specifier = ">=2.0.0" },
-    { name = "stamina", specifier = ">=25.0.0" },
+    { name = "asyncpg", specifier = "==0.31.0" },
+    { name = "loguru", specifier = "==0.7.3" },
+    { name = "pydantic-settings", specifier = "==2.13.1" },
+    { name = "stamina", specifier = "==25.2.0" },
 ]
 
 [[package]]
@@ -3031,8 +3031,8 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "fastapi", specifier = ">=0.100.0" },
-    { name = "prometheus-client", specifier = ">=0.21.0,<1.0.0" },
+    { name = "fastapi", specifier = "==0.135.3" },
+    { name = "prometheus-client", specifier = "==0.24.1" },
 ]
 
 [[package]]

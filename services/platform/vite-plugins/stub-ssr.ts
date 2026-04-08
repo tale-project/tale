@@ -27,11 +27,13 @@ export function stubSSRImports(): Plugin {
       if (ssrModules.has(id) || ssrSpecifiers.some((s) => id.includes(s))) {
         return '\0stub:' + id;
       }
+      return undefined;
     },
     load(id) {
       if (id.startsWith('\0stub:')) {
         return 'export default {};';
       }
+      return undefined;
     },
   };
 }

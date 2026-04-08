@@ -103,6 +103,7 @@ export function WorkflowConfigProvider({
       ...prev,
       steps: prev.steps
         .filter((s) => s.stepSlug !== stepSlug)
+        // oxlint-disable-next-line oxc/no-map-spread -- immutable update required
         .map((s) => {
           const nextSteps = s.nextSteps;
           const hasRef = Object.values(nextSteps).some((v) => v === stepSlug);

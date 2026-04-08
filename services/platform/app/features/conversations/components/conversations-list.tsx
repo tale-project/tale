@@ -369,7 +369,7 @@ export function ConversationsList({
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
-    if (!sentinel) return;
+    if (!sentinel) return undefined;
 
     const observer = new IntersectionObserver(handleIntersect, {
       rootMargin: '200px',

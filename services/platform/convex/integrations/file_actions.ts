@@ -143,7 +143,7 @@ export const listIntegrations = action({
             ? `data:image/svg+xml;base64,${Buffer.from(iconContent).toString('base64')}`
             : undefined;
 
-          return {
+          const entry: Record<string, unknown> = {
             slug,
             title: result.config.title,
             description: result.config.description,
@@ -163,8 +163,11 @@ export const listIntegrations = action({
             metadata: result.config.metadata,
             setupGuide: result.config.setupGuide,
             hash: result.hash,
-            ...(iconUrl ? { iconUrl } : {}),
           };
+          if (iconUrl) {
+            entry.iconUrl = iconUrl;
+          }
+          return entry;
         }
         return {
           slug,

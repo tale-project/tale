@@ -193,7 +193,7 @@ export function useAutomationLayout(steps: Doc<'wfStepDefs'>[]) {
           stepSlug: step.stepSlug,
           actionType:
             step.stepType === 'action' && 'type' in step.config
-              ? String(step.config.type)
+              ? step.config.type
               : undefined,
           isLeafNode: leafStepSlugs.has(step.stepSlug),
           isTerminalNode: leafStepSlugs.has(step.stepSlug),
@@ -467,6 +467,7 @@ export function useAutomationLayout(steps: Doc<'wfStepDefs'>[]) {
       );
     });
 
+    // oxlint-disable-next-line oxc/no-map-spread -- immutable update required
     const nodesWithFullConnectionData = nodes.map((node: Node) => ({
       ...node,
       data: {

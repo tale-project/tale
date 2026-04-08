@@ -73,9 +73,7 @@ export async function listExecutions(
 
     if (
       triggeredByLower &&
-      !String(execution.triggeredBy ?? '')
-        .toLowerCase()
-        .includes(triggeredByLower)
+      !(execution.triggeredBy ?? '').toLowerCase().includes(triggeredByLower)
     ) {
       continue;
     }

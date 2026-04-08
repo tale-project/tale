@@ -69,6 +69,7 @@ function Root({
       const timer = setTimeout(() => setShowShake(false), 400);
       return () => clearTimeout(timer);
     }
+    return undefined;
   }, [hasError, errorMessage]);
 
   const value = useMemo(

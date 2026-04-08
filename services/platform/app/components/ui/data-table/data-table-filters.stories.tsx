@@ -238,6 +238,7 @@ export const Loading: Story = {
   render: function Render() {
     const [search, setSearch] = useState('');
 
+    // oxlint-disable-next-line oxc/no-map-spread -- immutable update required
     const filters: FilterConfig[] = sampleFilters.map((f) => ({
       ...f,
       onChange: () => {},

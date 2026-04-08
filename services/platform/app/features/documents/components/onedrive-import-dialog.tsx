@@ -370,6 +370,7 @@ export function OneDriveImportDialog({
         sourceTab === 'sharepoint' && selectedSite && selectedDrive;
 
       const result = await importFilesAction({
+        // oxlint-disable-next-line oxc/no-map-spread -- immutable transform
         items: allFiles.map((file) => ({
           id: file.id,
           name: file.name,
@@ -544,4 +545,6 @@ export function OneDriveImportDialog({
       </Dialog>
     );
   }
+
+  return undefined;
 }

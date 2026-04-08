@@ -204,7 +204,7 @@ export function ChatInterface({
   useEffect(() => {
     const container = containerRef.current;
     const content = contentRef.current;
-    if (!container || !content) return;
+    if (!container || !content) return undefined;
 
     const onContentChange = () => {
       const scrollBehavior = scrollingToBottomBehaviorRef.current;

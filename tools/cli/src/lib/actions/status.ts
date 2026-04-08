@@ -95,7 +95,7 @@ export async function status(options: StatusOptions): Promise<void> {
     STATEFUL_SERVICES.map(async (service) => {
       const containerName = `${PROJECT_NAME}-${service}`;
       const info = await getContainerStatus(containerName);
-      return { service, ...info };
+      return Object.assign({ service }, info);
     }),
   );
   for (const { service, exists, running, health, version } of statefulResults) {
@@ -119,7 +119,7 @@ export async function status(options: StatusOptions): Promise<void> {
       ROTATABLE_SERVICES.map(async (service) => {
         const containerName = `${PROJECT_NAME}-${service}-${color}`;
         const info = await getContainerStatus(containerName);
-        return { service, ...info };
+        return Object.assign({ service }, info);
       }),
     );
 

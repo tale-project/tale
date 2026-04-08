@@ -64,6 +64,7 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
         const timer = setTimeout(() => setShowShake(false), 400);
         return () => clearTimeout(timer);
       }
+      return undefined;
     }, [hasError, errorMessage]);
 
     return (

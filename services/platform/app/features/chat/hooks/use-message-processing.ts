@@ -320,13 +320,16 @@ export function useMessageProcessing(
     }
 
     // Pass 2: rebuild without file-only messages, merging extra parts immutably
-    return result
-      .filter((msg) => !fileOnlyKeys.has(msg.key))
-      .map((msg) => {
-        const extra = extraFileParts.get(msg.key);
-        if (!extra) return msg;
-        return { ...msg, fileParts: [...(msg.fileParts ?? []), ...extra] };
-      });
+    return (
+      result
+        .filter((msg) => !fileOnlyKeys.has(msg.key))
+        // oxlint-disable-next-line oxc/no-map-spread -- immutable update required
+        .map((msg) => {
+          const extra = extraFileParts.get(msg.key);
+          if (!extra) return msg;
+          return { ...msg, fileParts: [...(msg.fileParts ?? []), ...extra] };
+        })
+    );
   }, [uiMessages, messageErrors]);
 
   // Find active assistant message (streaming or pending tool execution).

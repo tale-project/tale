@@ -153,9 +153,9 @@ const StreamingMarkdown = memo(
     const containerRef = useRef<HTMLDivElement>(null);
     useLayoutEffect(() => {
       const el = containerRef.current;
-      if (!el) return;
+      if (!el) return undefined;
       const cursors = el.querySelectorAll<HTMLElement>('.animate-cursor-blink');
-      if (cursors.length <= 1) return;
+      if (cursors.length <= 1) return undefined;
       for (let i = 0; i < cursors.length - 1; i++) {
         cursors[i].style.display = 'none';
       }

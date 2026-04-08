@@ -329,6 +329,7 @@ function SearchableSelectOptionItem({
   action?: ReactNode;
 }) {
   return (
+    // oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- keyboard handled via aria-activedescendant
     <div
       role="option"
       id={id}
@@ -336,7 +337,6 @@ function SearchableSelectOptionItem({
       aria-selected={isSelected}
       aria-disabled={option.disabled || undefined}
       data-highlighted={isHighlighted || undefined}
-      // oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- keyboard handled on the combobox input via aria-activedescendant
       onClick={() => !option.disabled && onSelect(option.value)}
       onMouseEnter={() => onMouseEnter(index)}
       className={cn(

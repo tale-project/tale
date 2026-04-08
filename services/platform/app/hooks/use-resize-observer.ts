@@ -41,7 +41,7 @@ export function useResizeObserver(
 
   // Window resize listener
   useEffect(() => {
-    if (!listenToWindow) return;
+    if (!listenToWindow) return undefined;
 
     const handler = () => callbackRef.current();
     window.addEventListener('resize', handler);
@@ -76,7 +76,7 @@ export function useResizeObserver(
       validElements = [refs.current];
     }
 
-    if (validElements.length === 0) return;
+    if (validElements.length === 0) return undefined;
 
     const resizeObserver = new ResizeObserver(() => {
       callbackRef.current();

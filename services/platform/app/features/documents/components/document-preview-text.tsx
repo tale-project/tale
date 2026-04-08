@@ -39,7 +39,7 @@ export function DocumentPreviewText({
 
   useEffect(() => {
     setHighlightedHtml(null);
-    if (!content || !isCodeFile || !ext) return;
+    if (!content || !isCodeFile || !ext) return undefined;
 
     let cancelled = false;
     const lang = resolveLanguage(ext);

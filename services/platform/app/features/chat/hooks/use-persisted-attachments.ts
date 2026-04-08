@@ -165,6 +165,7 @@ export function usePersistedAttachments({
 
     isRestoringRef.current = true;
     setAttachments(
+      // oxlint-disable-next-line oxc/no-map-spread -- immutable update required
       currentAtts.map((att) => {
         if (att.previewUrl) return att;
         const url = urlMap.get(att.fileId);

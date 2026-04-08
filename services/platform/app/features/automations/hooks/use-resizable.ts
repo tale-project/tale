@@ -67,7 +67,7 @@ export function useResizable(
   );
 
   useEffect(() => {
-    if (!isResizing) return;
+    if (!isResizing) return undefined;
 
     const handleMouseMove = (e: MouseEvent) => {
       if (!panelRef.current) return;

@@ -153,7 +153,7 @@ function MessageBubbleComponent({
 
   // Debounced ResizeObserver for subsequent resize events (e.g. window resize).
   useEffect(() => {
-    if (!isUser || !contentRef.current || isExpanded) return;
+    if (!isUser || !contentRef.current || isExpanded) return undefined;
     const el = contentRef.current;
     let frameId: number;
     const observer = new ResizeObserver(() => {

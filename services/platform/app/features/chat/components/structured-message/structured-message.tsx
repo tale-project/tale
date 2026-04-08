@@ -76,6 +76,8 @@ function StructuredMessageComponent({
                 className={markdownWrapperStyles}
               />
             );
+          default:
+            return undefined;
         }
       })}
     </>

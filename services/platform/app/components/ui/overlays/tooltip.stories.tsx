@@ -111,6 +111,7 @@ export const DisabledTrigger: Story = {
   },
   render: (args) => (
     <Tooltip {...args}>
+      {/* oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- tooltip trigger needs focus */}
       <span tabIndex={0}>
         <Button variant="secondary" disabled>
           Disabled button

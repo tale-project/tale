@@ -82,7 +82,7 @@ export function ChatSearchDialog({
   }, [isOpen]);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) return undefined;
 
     const onKeyDown = (e: KeyboardEvent) => {
       const isMac = navigator.platform.toLowerCase().includes('mac');

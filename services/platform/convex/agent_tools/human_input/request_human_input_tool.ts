@@ -233,6 +233,7 @@ Every request is a form with one or more fields. Each field has a type that dete
             threadId,
             question: args.question,
             context: args.context,
+            // oxlint-disable-next-line oxc/no-map-spread -- immutable transform
             fields: fields.map((f) => ({
               label: f.label,
               description: f.description,

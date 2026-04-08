@@ -334,7 +334,7 @@ export function AutomationSidePanel({
               >
                 {getStepIcon(
                   step.stepType,
-                  'type' in step.config ? String(step.config.type) : undefined,
+                  'type' in step.config ? step.config.type : undefined,
                 )}
               </div>
             </Tooltip>

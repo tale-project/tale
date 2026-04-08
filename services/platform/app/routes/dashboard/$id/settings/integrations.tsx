@@ -165,9 +165,7 @@ function IntegrationsPage() {
     (credentials ?? []).map((c) => [c.slug, c]),
   );
 
-  const validIntegrations = (
-    fileIntegrations as (Record<string, unknown> | null)[]
-  ).filter(
+  const validIntegrations = (fileIntegrations ?? []).filter(
     (item): item is Record<string, unknown> =>
       item != null && 'title' in item && 'slug' in item,
   );
@@ -181,6 +179,7 @@ function IntegrationsPage() {
     return credVal ?? fileVal;
   };
 
+  // oxlint-disable-next-line oxc/no-map-spread, typescript/no-unsafe-type-assertion -- immutable update, type verified by filter
   const allIntegrations: IntegrationListItem[] = validIntegrations.map(
     (item) => {
       const slug = String(item.slug);

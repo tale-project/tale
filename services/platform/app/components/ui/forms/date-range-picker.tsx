@@ -81,6 +81,10 @@ const getPresetDateRange = (preset: DatePreset): DateRange => {
       return { from: startOfYear(today), to: today };
     case 'allTime':
       return { from: new Date(0), to: today };
+    default: {
+      const _exhaustive: never = preset;
+      throw new Error('Unknown preset: ' + String(_exhaustive));
+    }
   }
 };
 
@@ -286,6 +290,7 @@ export function DatePickerWithRange({
       const timer = setTimeout(() => setShowShake(false), 400);
       return () => clearTimeout(timer);
     }
+    return undefined;
   }, [hasError, errorMessage]);
 
   const [startDate, setStartDate] = useState<Date | null>(() =>

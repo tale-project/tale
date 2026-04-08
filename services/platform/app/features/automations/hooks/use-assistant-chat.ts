@@ -157,7 +157,7 @@ export function useAssistantChat({
 
   // Safety timeout: clear isPending after max lifetime
   useEffect(() => {
-    if (!isPending) return;
+    if (!isPending) return undefined;
     const timeout = setTimeout(() => setIsPending(false), SAFETY_TIMEOUT_MS);
     return () => clearTimeout(timeout);
   }, [isPending]);
