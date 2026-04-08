@@ -10,12 +10,6 @@ import {
   useState,
 } from 'react';
 
-import type {
-  CrawlerChunk,
-  CrawlerPage,
-  CrawlerSearchResult,
-} from '@/convex/websites/types';
-
 import { CopyableTimestamp } from '@/app/components/ui/data-display/copyable-timestamp';
 import {
   type StatGridItem,
@@ -38,6 +32,11 @@ import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { Doc } from '@/convex/_generated/dataModel';
+import type {
+  CrawlerChunk,
+  CrawlerPage,
+  CrawlerSearchResult,
+} from '@/convex/websites/types';
 import { useT } from '@/lib/i18n/client';
 
 const PAGE_SIZE = 20;

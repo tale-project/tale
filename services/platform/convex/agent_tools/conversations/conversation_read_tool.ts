@@ -9,20 +9,18 @@
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
-
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
 import type { ToolDefinition } from '../types';
+import { readConversationById } from './helpers/read_conversation_by_id';
+import { readConversationList } from './helpers/read_conversation_list';
+import { readConversationMessages } from './helpers/read_conversation_messages';
 import type {
   ConversationReadGetByIdResult,
   ConversationReadListResult,
   ConversationReadMessagesResult,
 } from './helpers/types';
-
-import { readConversationById } from './helpers/read_conversation_by_id';
-import { readConversationList } from './helpers/read_conversation_list';
-import { readConversationMessages } from './helpers/read_conversation_messages';
 
 const conversationReadArgs = z.discriminatedUnion('operation', [
   z.object({

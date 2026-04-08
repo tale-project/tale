@@ -1,7 +1,6 @@
 'use client';
 
 import type { ColumnDef } from '@tanstack/react-table';
-
 import { Plus, Zap, Trash2, Pencil } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 
@@ -21,9 +20,8 @@ import {
 } from '@/convex/workflows/triggers/event_types';
 import { useT } from '@/lib/i18n/client';
 
-import type { WfEventSubscription } from '../hooks/queries';
-
 import { useListWorkflows } from '../../hooks/file-queries';
+import type { WfEventSubscription } from '../hooks/queries';
 import { useEventSubscriptions } from '../hooks/queries';
 import {
   useDeleteEventSubscription,

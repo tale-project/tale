@@ -7,7 +7,6 @@
  */
 
 import type { ActionCtx } from '../../../_generated/server';
-
 import {
   buildUserProfile,
   fetchMemberRole,

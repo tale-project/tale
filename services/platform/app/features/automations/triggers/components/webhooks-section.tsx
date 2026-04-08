@@ -1,7 +1,6 @@
 'use client';
 
 import type { ColumnDef } from '@tanstack/react-table';
-
 import { Plus, Webhook, Copy, Check, Trash2 } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 
@@ -18,7 +17,6 @@ import { useT } from '@/lib/i18n/client';
 import { useSiteUrl } from '@/lib/site-url-context';
 
 import type { WfWebhook } from '../hooks/queries';
-
 import { useWebhooks } from '../hooks/queries';
 import {
   useCreateWebhook,

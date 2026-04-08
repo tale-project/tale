@@ -2,8 +2,6 @@
 
 import { memo, useCallback } from 'react';
 
-import type { HumanInputField } from '@/lib/shared/schemas/approvals';
-
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Description } from '@/app/components/ui/forms/description';
 import { Input } from '@/app/components/ui/forms/input';
@@ -14,6 +12,7 @@ import {
 } from '@/app/components/ui/forms/radio-group';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Stack } from '@/app/components/ui/layout/layout';
+import type { HumanInputField } from '@/lib/shared/schemas/approvals';
 import { cn } from '@/lib/utils/cn';
 
 interface HumanInputFieldsProps {

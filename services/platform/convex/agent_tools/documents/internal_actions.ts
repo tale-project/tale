@@ -2,11 +2,10 @@
 
 import { v, type Infer } from 'convex/values';
 
-import type { DocumentWriteMetadata } from '../../approvals/types';
-
 import { jsonValueValidator } from '../../../lib/shared/schemas/utils/json-value';
 import { internal } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
+import type { DocumentWriteMetadata } from '../../approvals/types';
 import { normalizeDocumentWriteMetadata } from '../../approvals/types';
 import { toId } from '../../lib/type_cast_helpers';
 

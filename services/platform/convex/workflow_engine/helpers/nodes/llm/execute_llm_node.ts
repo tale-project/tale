@@ -7,9 +7,8 @@
 
 import type { Id } from '../../../../_generated/dataModel';
 import type { ActionCtx } from '../../../../_generated/server';
-import type { StepExecutionResult, LLMNodeConfig } from '../../../types';
-
 import { resolveLanguageModel } from '../../../../providers/resolve_model';
+import type { StepExecutionResult, LLMNodeConfig } from '../../../types';
 import { executeAgentWithTools } from './execute_agent_with_tools';
 import { createLLMResult } from './utils/create_llm_result';
 import { processPrompts } from './utils/process_prompts';

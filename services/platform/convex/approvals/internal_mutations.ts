@@ -1,8 +1,7 @@
 import { v } from 'convex/values';
 
-import type { Id } from '../_generated/dataModel';
-
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
+import type { Id } from '../_generated/dataModel';
 import { internalMutation } from '../_generated/server';
 import * as ApprovalsHelpers from './helpers';
 import {

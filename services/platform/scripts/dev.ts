@@ -27,6 +27,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import { join } from 'node:path';
 import process from 'node:process';
+
 import kill from 'tree-kill';
 
 const platformRoot = join(import.meta.dir, '..');

@@ -1,11 +1,10 @@
 import { stringify } from 'yaml';
 
-import type { ComposeConfig, DeploymentColor, ServiceConfig } from '../types';
-
 import { PROJECT_NAME } from '../../../utils/load-env';
 import { createCrawlerService } from '../services/create-crawler-service';
 import { createPlatformService } from '../services/create-platform-service';
 import { createRagService } from '../services/create-rag-service';
+import type { ComposeConfig, DeploymentColor, ServiceConfig } from '../types';
 
 interface ColorComposeOptions {
   fresh?: boolean;

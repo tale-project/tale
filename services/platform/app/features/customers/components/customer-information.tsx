@@ -2,9 +2,6 @@
 
 import { useMemo } from 'react';
 
-import type { Doc } from '@/convex/_generated/dataModel';
-import type { CustomerInfo } from '@/convex/conversations/types';
-
 import {
   type StatGridItem,
   StatGrid,
@@ -13,6 +10,8 @@ import { Stack } from '@/app/components/ui/layout/layout';
 import { Heading } from '@/app/components/ui/typography/heading';
 import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
+import type { Doc } from '@/convex/_generated/dataModel';
+import type { CustomerInfo } from '@/convex/conversations/types';
 import { useT } from '@/lib/i18n/client';
 
 import { CustomerStatusBadge } from './customer-status-badge';

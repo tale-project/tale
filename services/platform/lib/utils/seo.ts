@@ -1,6 +1,5 @@
-import type { Messages } from '@/lib/i18n/types';
-
 import { i18n } from '@/lib/i18n/i18n';
+import type { Messages } from '@/lib/i18n/types';
 
 /**
  * Extracts keys from the `metadata` i18n namespace that have a `title` field.

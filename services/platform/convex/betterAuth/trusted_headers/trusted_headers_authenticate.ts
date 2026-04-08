@@ -8,7 +8,6 @@
  */
 
 import type { MutationCtx } from '../../_generated/server';
-
 import { createSessionForTrustedUser } from './create_session_for_trusted_user';
 import { findOrCreateUserFromHeaders } from './find_or_create_user_from_headers';
 import { resolveTeams } from './resolve_team_names';

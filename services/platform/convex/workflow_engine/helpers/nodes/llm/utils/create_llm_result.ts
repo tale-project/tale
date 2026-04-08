@@ -7,7 +7,6 @@
 
 import type { StepExecutionResult } from '../../../../types';
 import type { NormalizedConfig, LLMExecutionResult } from '../types';
-
 import { isTerminationSignal } from '../types/workflow_termination';
 
 /**

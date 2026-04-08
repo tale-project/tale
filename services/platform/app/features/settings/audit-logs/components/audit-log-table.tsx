@@ -1,11 +1,8 @@
 'use client';
 
-import type { UsePaginatedQueryResult } from 'convex/react';
-
 import { useNavigate } from '@tanstack/react-router';
+import type { UsePaginatedQueryResult } from 'convex/react';
 import { useCallback, useMemo, useState } from 'react';
-
-import type { Doc } from '@/convex/_generated/dataModel';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
@@ -13,6 +10,7 @@ import { Stack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useListPage } from '@/app/hooks/use-list-page';
+import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 

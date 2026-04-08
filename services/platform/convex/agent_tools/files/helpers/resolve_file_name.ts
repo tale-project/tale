@@ -4,9 +4,8 @@
  * Otherwise, looks up the filename from the fileMetadata table.
  */
 
-import type { ActionCtx } from '../../../_generated/server';
-
 import { internal } from '../../../_generated/api';
+import type { ActionCtx } from '../../../_generated/server';
 import { toId } from '../../../lib/type_cast_helpers';
 
 export async function resolveFileName(

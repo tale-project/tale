@@ -1,8 +1,7 @@
-import type { Id } from '@/convex/_generated/dataModel';
-
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
+import type { Id } from '@/convex/_generated/dataModel';
 
 export function useExecutionJournal(
   executionId: Id<'wfExecutions'> | undefined,

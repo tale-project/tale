@@ -3,11 +3,10 @@
  */
 
 import type { MutationCtx } from '../_generated/server';
-import type { CreateConversationArgs } from './types';
-
 import * as AuditLogHelpers from '../audit_logs/helpers';
 import { toConvexJsonRecord } from '../lib/type_cast_helpers';
 import { emitEvent } from '../workflows/triggers/emit_event';
+import type { CreateConversationArgs } from './types';
 
 export async function createConversation(
   ctx: MutationCtx,

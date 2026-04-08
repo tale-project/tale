@@ -3,7 +3,6 @@
  */
 
 import type { GenericValidator } from 'convex/values';
-
 import { v } from 'convex/values';
 
 export const DEFAULT_PAGE_SIZE = 20;

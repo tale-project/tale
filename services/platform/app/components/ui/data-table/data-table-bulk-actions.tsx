@@ -1,7 +1,6 @@
 'use client';
 
 import type { RowSelectionState } from '@tanstack/react-table';
-
 import { Trash2, X } from 'lucide-react';
 import { useCallback, useState } from 'react';
 

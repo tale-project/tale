@@ -7,7 +7,6 @@ import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
 
 import type { Team } from '../hooks/queries';
-
 import { useTeamsTableConfig } from '../hooks/use-teams-table-config';
 import { TeamsActionMenu } from './teams-action-menu';
 

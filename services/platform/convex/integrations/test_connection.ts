@@ -5,8 +5,12 @@
  * SQL integrations use SELECT 1 database ping.
  */
 
+import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
+import { createDebugLog } from '../lib/debug_log';
+import { buildIntegrationSecrets } from './build_test_secrets';
+import { isSqlIntegration } from './guards/is_sql_integration';
 import type { LoadedIntegration } from './load_integration';
 import type {
   ApiKeyAuth,
@@ -16,11 +20,6 @@ import type {
   SqlConnectionConfig,
   TestConnectionResult,
 } from './types';
-
-import { internal } from '../_generated/api';
-import { createDebugLog } from '../lib/debug_log';
-import { buildIntegrationSecrets } from './build_test_secrets';
-import { isSqlIntegration } from './guards/is_sql_integration';
 
 const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations]');
 

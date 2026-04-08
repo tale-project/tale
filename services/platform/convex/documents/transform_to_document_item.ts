@@ -4,11 +4,10 @@
 
 import type { Doc } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
-import type { DocumentItemResponse, DocumentMetadata } from './types';
-
 import { toPublicUrl } from '../lib/helpers/public_storage_url';
 import { extractExtension } from './extract_extension';
 import { getUserNamesBatch } from './get_user_names_batch';
+import type { DocumentItemResponse, DocumentMetadata } from './types';
 
 /**
  * Resolve the best available source modification date:

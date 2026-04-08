@@ -1,9 +1,8 @@
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
-import type { ConversationStatus, ConversationPriority } from './types';
-
 import * as AuditLogHelpers from '../audit_logs/helpers';
 import { buildAuditContext } from '../lib/helpers/build_audit_context';
+import type { ConversationStatus, ConversationPriority } from './types';
 
 const UPDATABLE_FIELDS = ['subject', 'status', 'priority', 'type'] as const;
 

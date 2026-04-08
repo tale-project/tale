@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from '@storybook/react';
-
 import { useSearch } from '@tanstack/react-router';
 
 import { Pagination } from './pagination';

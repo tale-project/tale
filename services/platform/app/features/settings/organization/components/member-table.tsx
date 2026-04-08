@@ -1,7 +1,6 @@
 'use client';
 
 import type { ColumnDef } from '@tanstack/react-table';
-
 import { ChevronDownIcon, Users } from 'lucide-react';
 import { useMemo, useCallback } from 'react';
 

@@ -1,8 +1,7 @@
-import type { AuditLogFilter } from '@/convex/audit_logs/types';
-
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
+import type { AuditLogFilter } from '@/convex/audit_logs/types';
 
 export function useListAuditLogs(
   organizationId: string,

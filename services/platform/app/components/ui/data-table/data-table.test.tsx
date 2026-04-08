@@ -1,5 +1,4 @@
 import type { ColumnDef } from '@tanstack/react-table';
-
 import { describe, it, expect, vi } from 'vitest';
 
 import { render, screen, within } from '@/test/utils/render';

@@ -2,9 +2,8 @@
  * Execute HTTP requests collected during integration execution
  */
 
-import type { HttpRequest, HttpResponse } from '../types';
-
 import { base64ToBytes } from '../../../lib/crypto/base64_to_bytes';
+import type { HttpRequest, HttpResponse } from '../types';
 import { validateHost } from './validate_host';
 
 export async function executeHttpRequest(

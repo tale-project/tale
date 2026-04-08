@@ -1,6 +1,5 @@
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
-
 import { validateFolderName } from './mutations';
 
 export async function getOrCreateFolderPath(

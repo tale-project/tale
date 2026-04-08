@@ -5,7 +5,6 @@ import type {
   ProviderFeatures,
   RoleMappingRule,
 } from '../../lib/shared/schemas/sso_providers';
-
 import { internal } from '../_generated/api';
 import { DataModel, Id } from '../_generated/dataModel';
 import { decryptString } from '../lib/crypto/decrypt_string';

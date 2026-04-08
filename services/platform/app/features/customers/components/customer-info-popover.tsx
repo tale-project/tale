@@ -2,13 +2,12 @@
 
 import { useMemo } from 'react';
 
-import type { Doc } from '@/convex/_generated/dataModel';
-import type { CustomerInfo } from '@/convex/conversations/types';
-
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Popover } from '@/app/components/ui/overlays/popover';
 import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
+import type { Doc } from '@/convex/_generated/dataModel';
+import type { CustomerInfo } from '@/convex/conversations/types';
 import { useT } from '@/lib/i18n/client';
 
 import { CustomerStatusBadge } from './customer-status-badge';

@@ -1,7 +1,6 @@
 import { v } from 'convex/values';
 
 import type { Id } from '../../_generated/dataModel';
-
 import { internalMutation } from '../../_generated/server';
 import { processEventHandler } from './process_event';
 

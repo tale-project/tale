@@ -2,10 +2,9 @@
  * Upload and Create Document Dependencies - Factory for creating dependencies
  */
 
+import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import type { UploadAndCreateDocDependencies } from './upload_and_create_document';
-
-import { internal } from '../_generated/api';
 
 /**
  * Create dependencies for the uploadAndCreateDocument function.

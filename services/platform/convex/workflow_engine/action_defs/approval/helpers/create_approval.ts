@@ -1,3 +1,4 @@
+import { internal } from '../../../../_generated/api';
 import type { Id } from '../../../../_generated/dataModel';
 import type { ActionCtx } from '../../../../_generated/server';
 import type { ApprovalResourceType } from '../../../../approvals/types';
@@ -7,8 +8,6 @@ import type {
   ApprovalPriority,
   ApprovalData,
 } from './types';
-
-import { internal } from '../../../../_generated/api';
 
 export async function createApproval(
   ctx: ActionCtx,

@@ -1,9 +1,8 @@
 import { v } from 'convex/values';
 
+import { components } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
-
-import { components } from '../_generated/api';
 import { mutation } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls';
 import { getTrustedAuthData } from '../lib/rls/auth/get_trusted_auth_data';

@@ -2,9 +2,8 @@
 
 import { Component } from 'react';
 
-import type { ErrorBoundaryBaseProps, ErrorBoundaryState } from './types';
-
 import { ErrorBoundaryContext } from './error-context';
+import type { ErrorBoundaryBaseProps, ErrorBoundaryState } from './types';
 
 const RETRY_BASE_DELAY_MS = 1000;
 const RETRY_MAX_DELAY_MS = 4000;

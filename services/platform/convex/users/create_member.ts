@@ -2,13 +2,12 @@
  * Create member - Business logic
  */
 
-import type { Role } from './types';
-
 import { isRecord, getString } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import { MutationCtx } from '../_generated/server';
 import { createAuth, authComponent } from '../auth';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
+import type { Role } from './types';
 
 export interface CreateMemberArgs {
   organizationId: string;

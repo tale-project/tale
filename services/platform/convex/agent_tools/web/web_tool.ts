@@ -12,7 +12,6 @@ import { createTool, type ToolCtx } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
 import type { ToolDefinition } from '../types';
-
 import { fetchAndExtract } from './helpers/fetch_and_extract';
 import { searchPages } from './helpers/search_pages';
 

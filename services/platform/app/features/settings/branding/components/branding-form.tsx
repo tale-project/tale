@@ -18,13 +18,12 @@ import {
   type BrandingFormData,
 } from '@/lib/shared/schemas/branding';
 
-import type { BrandingPreviewData } from './branding-preview';
-
 import {
   useDeleteImage,
   useSaveBranding,
   useSnapshotBrandingHistory,
 } from '../hooks/mutations';
+import type { BrandingPreviewData } from './branding-preview';
 import { ColorPickerInput } from './color-picker-input';
 import { ImageUploadField } from './image-upload-field';
 

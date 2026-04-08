@@ -5,7 +5,6 @@ import type {
   ProviderFeatures,
   RoleMappingRule,
 } from '../../lib/shared/schemas/sso_providers';
-
 import { internal } from '../_generated/api';
 import { DataModel } from '../_generated/dataModel';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';

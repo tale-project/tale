@@ -7,14 +7,13 @@
  * before this callback fires.
  */
 
-import type { Doc } from '../../../_generated/dataModel';
-import type { MutationCtx } from '../../../_generated/server';
-import type { ComponentRunResult } from '../../types';
-
 import { isRecord, getString } from '../../../../lib/utils/type-guards';
 import { internal } from '../../../_generated/api';
+import type { Doc } from '../../../_generated/dataModel';
+import type { MutationCtx } from '../../../_generated/server';
 import { toId } from '../../../lib/type_cast_helpers';
 import { emitEvent } from '../../../workflows/triggers/emit_event';
+import type { ComponentRunResult } from '../../types';
 
 export async function handleWorkflowComplete(
   ctx: MutationCtx,

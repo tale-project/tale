@@ -1,6 +1,5 @@
-import type { SsoProviderAdapter } from './types';
-
 import { entraIdAdapter } from './entra_id/adapter';
+import type { SsoProviderAdapter } from './types';
 
 const adapters: Record<string, SsoProviderAdapter> = {
   'entra-id': entraIdAdapter,

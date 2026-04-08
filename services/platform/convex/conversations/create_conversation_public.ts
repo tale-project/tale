@@ -4,9 +4,8 @@
 
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
-import type { ConversationStatus, ConversationPriority } from './types';
-
 import { toConvexJsonRecord } from '../lib/type_cast_helpers';
+import type { ConversationStatus, ConversationPriority } from './types';
 
 export async function createConversationPublic(
   ctx: MutationCtx,

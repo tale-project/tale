@@ -1,19 +1,18 @@
 import { v, type Infer } from 'convex/values';
 
+import { jsonValueValidator } from '../../../lib/shared/schemas/utils/json-value';
 import type {
   StepType,
   WorkflowJsonConfig,
   WorkflowStep,
 } from '../../../lib/shared/schemas/workflows';
+import { internal } from '../../_generated/api';
+import { internalAction } from '../../_generated/server';
 import type {
   WorkflowCreationMetadata,
   WorkflowRunMetadata,
   WorkflowUpdateMetadata,
 } from '../../approvals/types';
-
-import { jsonValueValidator } from '../../../lib/shared/schemas/utils/json-value';
-import { internal } from '../../_generated/api';
-import { internalAction } from '../../_generated/server';
 import { sanitizeWorkflowName } from './create_bound_workflow_tool';
 
 const DEFAULT_ORG_SLUG = 'default';

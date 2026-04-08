@@ -1,7 +1,6 @@
 import { v } from 'convex/values';
 
 import type { Doc } from '../../_generated/dataModel';
-
 import { query } from '../../_generated/server';
 import { authComponent } from '../../auth';
 import { getOrganizationMember } from '../../lib/rls';

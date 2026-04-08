@@ -1,7 +1,6 @@
+import { toConvexJsonRecord } from '../../../../lib/type_cast_helpers';
 import type { ConvexJsonRecord } from '../../../../lib/validators/json';
 import type { EmailType } from './types';
-
-import { toConvexJsonRecord } from '../../../../lib/type_cast_helpers';
 
 /**
  * Build rich metadata object for email message

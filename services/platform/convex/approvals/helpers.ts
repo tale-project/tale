@@ -1,3 +1,5 @@
+import { getString, isRecord } from '../../lib/utils/type-guards';
+import { components } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { QueryCtx, MutationCtx } from '../_generated/server';
 import type {
@@ -12,9 +14,6 @@ import type {
   RemoveRecommendedProductArgs,
   LinkApprovalsToMessageArgs,
 } from './types';
-
-import { getString, isRecord } from '../../lib/utils/type-guards';
-import { components } from '../_generated/api';
 
 export async function getApproval(
   ctx: QueryCtx,

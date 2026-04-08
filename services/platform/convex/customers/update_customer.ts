@@ -5,7 +5,6 @@
 import type { DataSource } from '../../lib/shared/schemas/common';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
-
 import { emitEvent } from '../workflows/triggers/emit_event';
 
 export interface UpdateCustomerArgs {

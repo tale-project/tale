@@ -1,7 +1,6 @@
 'use client';
 
 import type { UIMessage } from '@convex-dev/agent/react';
-
 import { AlertTriangle, Loader2, CheckCircle2 } from 'lucide-react';
 import {
   useMemo,
@@ -15,7 +14,6 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
 
 import type { ChatItem } from '../hooks/use-merged-chat-items';
-
 import { ApprovalCardRenderer } from './approval-card-renderer';
 import { CollapsibleSystemMessage } from './collapsible-system-message';
 import { MessageBubble } from './message-bubble';

@@ -6,14 +6,12 @@
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
-
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
-import type { ToolDefinition } from '../types';
-
 import { internal } from '../../_generated/api';
 import { formatIntegrationsForContext } from '../sub_agents/helpers/format_integrations';
+import type { ToolDefinition } from '../types';
 import { getAllSyntax, getSyntaxReference } from './helpers/syntax_reference';
 
 const workflowSyntaxArgs = z.object({

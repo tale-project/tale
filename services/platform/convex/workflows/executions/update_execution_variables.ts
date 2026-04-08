@@ -2,12 +2,11 @@
  * Update execution variables
  */
 
+import { internal } from '../../_generated/api';
 import type { MutationCtx } from '../../_generated/server';
+import { INTERMEDIATE_STORAGE_RETENTION_MS } from './cleanup_execution_storage';
 // Inline serialization removed. Always pre-serialize in an action before calling this mutation.
 import type { UpdateExecutionVariablesArgs } from './types';
-
-import { internal } from '../../_generated/api';
-import { INTERMEDIATE_STORAGE_RETENTION_MS } from './cleanup_execution_storage';
 
 export async function updateExecutionVariables(
   ctx: MutationCtx,

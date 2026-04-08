@@ -1,7 +1,6 @@
-import type { QueryCtx } from '../_generated/server';
-
 import { isRecord, getString, getNumber } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
+import type { QueryCtx } from '../_generated/server';
 import { validateOrganizationAccess } from '../lib/rls';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 

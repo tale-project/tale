@@ -1,7 +1,6 @@
 'use client';
 
 import type { ColumnDef } from '@tanstack/react-table';
-
 import { useMemo } from 'react';
 
 import { SharePointIcon } from '@/app/components/icons/sharepoint-icon';
@@ -12,7 +11,6 @@ import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
 import type { SharePointSite } from './types';
-
 import { getPathFromUrl } from './types';
 
 interface SharePointSitesTableProps {

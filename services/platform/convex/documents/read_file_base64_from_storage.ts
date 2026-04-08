@@ -7,7 +7,6 @@
 
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
-
 import { bytesToBase64 } from '../lib/crypto/base64_to_bytes';
 import { createDebugLog } from '../lib/debug_log';
 

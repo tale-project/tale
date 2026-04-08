@@ -1,7 +1,6 @@
+import { components } from '../../_generated/api';
 import type { MutationCtx } from '../../_generated/server';
 import type { SsoProviderAdapter } from '../types';
-
-import { components } from '../../_generated/api';
 
 interface Team {
   _id: string;

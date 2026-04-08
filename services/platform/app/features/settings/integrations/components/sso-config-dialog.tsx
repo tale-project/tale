@@ -2,11 +2,6 @@
 
 import { CheckCircle, Loader2, X, XCircle } from 'lucide-react';
 
-import type {
-  PlatformRole,
-  SsoProvider,
-} from '@/lib/shared/schemas/sso_providers';
-
 import { MicrosoftIcon } from '@/app/components/icons/microsoft-icon';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { StatusIndicator } from '@/app/components/ui/feedback/status-indicator';
@@ -20,6 +15,10 @@ import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { Button } from '@/app/components/ui/primitives/button';
 import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { Text } from '@/app/components/ui/typography/text';
+import type {
+  PlatformRole,
+  SsoProvider,
+} from '@/lib/shared/schemas/sso_providers';
 import { narrowStringUnion } from '@/lib/utils/type-guards';
 
 import { useSsoConfigForm } from '../hooks/use-sso-config-form';

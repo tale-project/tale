@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import type { IntegrationTemplate } from '../../constants/integration-templates';
-
 import {
   fetchTemplateFiles,
   clearTemplateCache,

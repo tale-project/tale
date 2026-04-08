@@ -7,16 +7,15 @@ import type { Rules } from 'convex-helpers/server/rowLevelSecurity';
 import type { MemberRole } from '../../../../lib/shared/schemas/organizations';
 import type { DataModel } from '../../../_generated/dataModel';
 import type { QueryCtx } from '../../../_generated/server';
+import { getUserTeamIds } from '../../get_user_teams';
+import { hasTeamAccess } from '../../team_access';
+import { getAuthUserIdentity } from '../auth/get_auth_user_identity';
+import { getUserOrganizations } from '../organization/get_user_organizations';
 import type {
   AuthenticatedUser,
   OrganizationMember,
   RLSRuleContext,
 } from '../types';
-
-import { getUserTeamIds } from '../../get_user_teams';
-import { hasTeamAccess } from '../../team_access';
-import { getAuthUserIdentity } from '../auth/get_auth_user_identity';
-import { getUserOrganizations } from '../organization/get_user_organizations';
 import { authorizeRls } from './access_control';
 
 /**

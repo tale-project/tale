@@ -1,8 +1,7 @@
 import { abortStream, listMessages, listStreams } from '@convex-dev/agent';
 
-import type { MutationCtx } from '../_generated/server';
-
 import { components } from '../_generated/api';
+import type { MutationCtx } from '../_generated/server';
 
 /**
  * Cancel an active AI generation for a thread.

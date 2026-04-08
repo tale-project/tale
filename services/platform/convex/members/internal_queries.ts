@@ -1,9 +1,8 @@
 import { v } from 'convex/values';
 
-import type { BetterAuthFindManyResult, BetterAuthMember } from './types';
-
 import { components } from '../_generated/api';
 import { internalQuery } from '../_generated/server';
+import type { BetterAuthFindManyResult, BetterAuthMember } from './types';
 
 export const getMemberRole = internalQuery({
   args: {

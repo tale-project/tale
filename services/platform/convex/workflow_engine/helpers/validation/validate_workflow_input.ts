@@ -8,10 +8,9 @@
 
 import type { Infer } from 'convex/values';
 
+import { isRecord } from '../../../../lib/utils/type-guards';
 import type { startNodeConfigValidator } from '../../types/nodes';
 import type { ValidationResult } from './types';
-
-import { isRecord } from '../../../../lib/utils/type-guards';
 
 export type WorkflowInputSchema = NonNullable<
   Infer<typeof startNodeConfigValidator>['inputSchema']

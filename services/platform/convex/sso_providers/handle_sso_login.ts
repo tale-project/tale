@@ -1,7 +1,5 @@
 import { GenericActionCtx } from 'convex/server';
 
-import type { PlatformRole, SsoUserInfo } from './types';
-
 import { internal } from '../_generated/api';
 import { DataModel } from '../_generated/dataModel';
 import {
@@ -9,6 +7,7 @@ import {
   type SyncTeamsFromGroupsArgs,
 } from './entra_id/team_sync';
 import { getAdapter } from './registry';
+import type { PlatformRole, SsoUserInfo } from './types';
 
 type HandleSsoLoginArgs = {
   email: string;

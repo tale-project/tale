@@ -1,7 +1,6 @@
 'use client';
 
 import type { ColumnDef } from '@tanstack/react-table';
-
 import { Database } from 'lucide-react';
 import { useMemo } from 'react';
 

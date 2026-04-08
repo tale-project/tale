@@ -1,7 +1,5 @@
 import { Infer, v } from 'convex/values';
 
-import type { LLMNodeConfig } from './types';
-
 import { internalAction } from '../_generated/server';
 import {
   jsonValueValidator,
@@ -13,6 +11,7 @@ import * as ConditionNodeHelpers from './helpers/nodes/condition/execute_conditi
 import * as LLMNodeHelpers from './helpers/nodes/llm/execute_llm_node';
 import * as LoopNodeHelpers from './helpers/nodes/loop/execute_loop_node';
 import * as SchedulerHelpers from './helpers/scheduler';
+import type { LLMNodeConfig } from './types';
 import {
   llmStepConfigValidator,
   actionNodeConfigValidator,

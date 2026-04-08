@@ -14,11 +14,10 @@
 
 import { ConvexHttpClient } from 'convex/browser';
 
-import type { Id } from '../../convex/_generated/dataModel';
-import type { ExecutionStatus } from '../metrics';
-
 import { api } from '../../convex/_generated/api';
+import type { Id } from '../../convex/_generated/dataModel';
 import { scenarios } from '../fixtures/stress-workflows';
+import type { ExecutionStatus } from '../metrics';
 import { MetricsCollector } from '../metrics';
 
 const config = scenarios.loop_contention;

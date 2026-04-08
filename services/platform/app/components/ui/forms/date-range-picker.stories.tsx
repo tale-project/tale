@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import type { DateRange } from 'react-day-picker';
-
 import { useState } from 'react';
+import type { DateRange } from 'react-day-picker';
 import { fn } from 'storybook/test';
 
 import { DatePickerWithRange } from './date-range-picker';

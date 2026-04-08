@@ -1,13 +1,12 @@
 import JSZip from 'jszip';
 
-import type { IntegrationConfig } from './validate-config';
-
 import {
   ICON_FILE_NAMES,
   ICON_MIME_TYPES,
   MAX_ICON_SIZE,
 } from '../../../constants';
 import { transpileConnectorCode } from './transpile-connector';
+import type { IntegrationConfig } from './validate-config';
 import { validateConfig } from './validate-config';
 
 const MAX_FILE_SIZE = 1024 * 1024; // 1MB

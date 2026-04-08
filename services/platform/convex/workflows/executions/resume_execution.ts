@@ -2,13 +2,12 @@
  * Resume execution
  */
 
+import { internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
+import { INTERMEDIATE_STORAGE_RETENTION_MS } from './cleanup_execution_storage';
 // Inline serialization removed. Always pre-serialize in an action before calling this mutation.
 import type { ResumeExecutionArgs, WorkflowExecution } from './types';
-
-import { internal } from '../../_generated/api';
-import { INTERMEDIATE_STORAGE_RETENTION_MS } from './cleanup_execution_storage';
 
 type ResumeExecutionData = Partial<
   Pick<WorkflowExecution, 'variables' | 'metadata'>

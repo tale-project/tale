@@ -10,7 +10,6 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import type { ParsedPackage } from '../utils/parse-integration-package';
-
 import { parseIntegrationFiles } from '../utils/parse-integration-package';
 
 interface UploadStepProps {

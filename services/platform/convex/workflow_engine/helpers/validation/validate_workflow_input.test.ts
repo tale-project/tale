@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import type { WorkflowInputSchema } from './validate_workflow_input';
-
 import { validateWorkflowInput } from './validate_workflow_input';
 
 describe('validateWorkflowInput', () => {

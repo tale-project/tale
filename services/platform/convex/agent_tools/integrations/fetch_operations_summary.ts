@@ -5,10 +5,9 @@
  * and returns a compact multi-line string for embedding in a tool description.
  */
 
-import type { ActionCtx } from '../../_generated/server';
-
 import { isRecord, getString } from '../../../lib/utils/type-guards';
 import { internal } from '../../_generated/api';
+import type { ActionCtx } from '../../_generated/server';
 import { isSqlIntegration } from '../../integrations/helpers';
 
 interface OperationInfo {

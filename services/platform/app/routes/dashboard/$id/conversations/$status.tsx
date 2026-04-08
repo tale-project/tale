@@ -2,14 +2,13 @@ import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute, notFound } from '@tanstack/react-router';
 import { z } from 'zod';
 
-import type { Doc } from '@/convex/_generated/dataModel';
-
 import { Conversations } from '@/app/features/conversations/components/conversations';
 import {
   useApproxConversationCountByStatus,
   useListConversationsPaginated,
 } from '@/app/features/conversations/hooks/queries';
 import { api } from '@/convex/_generated/api';
+import type { Doc } from '@/convex/_generated/dataModel';
 
 const VALID_STATUSES = ['open', 'closed', 'archived', 'spam'] as const;
 type ValidStatus = (typeof VALID_STATUSES)[number];

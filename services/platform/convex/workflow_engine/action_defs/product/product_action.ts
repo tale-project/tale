@@ -31,18 +31,17 @@
 
 import { v } from 'convex/values';
 
-import type { Id } from '../../../_generated/dataModel';
-import type { ActionDefinition } from '../../helpers/nodes/action/types';
-import type { QueryResult } from '../conversation/helpers/types';
-
 import { isRecord } from '../../../../lib/utils/type-guards';
 import { internal } from '../../../_generated/api';
+import type { Id } from '../../../_generated/dataModel';
 import { toConvexJsonRecord, toId } from '../../../lib/type_cast_helpers';
 import {
   jsonRecordValidator,
   jsonValueValidator,
 } from '../../../lib/validators/json';
 import { productStatusValidator } from '../../../products/validators';
+import type { ActionDefinition } from '../../helpers/nodes/action/types';
+import type { QueryResult } from '../conversation/helpers/types';
 
 type CreateProductResult = {
   success: boolean;

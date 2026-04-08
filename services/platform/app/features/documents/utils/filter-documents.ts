@@ -1,6 +1,5 @@
-import type { DocumentItem, RagStatus } from '@/types/documents';
-
 import { filterByTextSearch } from '@/lib/utils/filtering';
+import type { DocumentItem, RagStatus } from '@/types/documents';
 
 export interface DocumentFilterOptions {
   selectedTeamId?: string | null;

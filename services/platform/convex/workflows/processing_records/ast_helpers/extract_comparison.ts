@@ -8,15 +8,14 @@
  * @returns Extracted condition or complexity flag if non-indexable
  */
 
+import { extractLiteralValue } from './extract_literal_value';
+import { getFullFieldPath } from './get_full_field_path';
 import type {
   BinaryExpression,
   ComparisonOperator,
   FilterCondition,
   ParsedFilterExpression,
 } from './types';
-
-import { extractLiteralValue } from './extract_literal_value';
-import { getFullFieldPath } from './get_full_field_path';
 import { isIdentifier } from './types';
 
 export function extractComparison(

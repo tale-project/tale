@@ -7,12 +7,11 @@
 
 import type { Doc, Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
-import type { DocumentItemResponse } from './types';
-
 import { getMetadataString } from '../lib/metadata/get_metadata_string';
 import { paginateWithFilter, DEFAULT_PAGE_SIZE } from '../lib/pagination';
 import { hasTeamAccess } from '../lib/team_access';
 import { transformDocumentsBatch } from './transform_to_document_item';
+import type { DocumentItemResponse } from './types';
 
 export interface GetDocumentsCursorArgs {
   organizationId: string;

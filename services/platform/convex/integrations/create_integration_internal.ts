@@ -5,9 +5,8 @@
  */
 
 import type { ConvexJsonValue } from '../../lib/shared/schemas/utils/json-value';
-import type { MutationCtx } from '../_generated/server';
-
 import { Id } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
 import {
   AuthMethod,
   Status,

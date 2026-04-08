@@ -6,7 +6,6 @@ import type {
   ProviderJson,
   ProviderSecrets,
 } from '../../lib/shared/schemas/providers';
-
 import {
   providerJsonSchema,
   providerSecretsSchema,

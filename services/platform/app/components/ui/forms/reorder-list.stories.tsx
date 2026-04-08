@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from '@storybook/react';
-
 import { useState, useCallback } from 'react';
 
 import { Input } from './input';

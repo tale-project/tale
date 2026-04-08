@@ -8,7 +8,6 @@
 import { describe, it, expect } from 'vitest';
 
 import type { ParsedVariableReference } from './types';
-
 import { validateVariableReferencesKnownSources } from './validate_variable_references_known_sources';
 
 function makeRef(

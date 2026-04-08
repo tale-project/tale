@@ -4,7 +4,6 @@
 
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
-
 import { emitEvent } from '../workflows/triggers/emit_event';
 
 export async function deleteCustomer(

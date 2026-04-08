@@ -7,11 +7,10 @@
 
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
-import type { CreateConversationArgs } from './types';
-
 import * as AuditLogHelpers from '../audit_logs/helpers';
 import { toConvexJsonRecord } from '../lib/type_cast_helpers';
 import { createConversation } from './create_conversation';
+import type { CreateConversationArgs } from './types';
 
 export interface CreateConversationWithMessageArgs extends CreateConversationArgs {
   // Initial message fields

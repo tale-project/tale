@@ -7,11 +7,10 @@
 
 import type { ToolCtx } from '@convex-dev/agent';
 
-import type { WebFetchUrlResult, WebFetchExtractApiResponse } from './types';
-
 import { fetchJson } from '../../../../lib/utils/type-cast-helpers';
 import { createDebugLog } from '../../../lib/debug_log';
 import { getCrawlerServiceUrl } from './get_crawler_service_url';
+import type { WebFetchUrlResult, WebFetchExtractApiResponse } from './types';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 

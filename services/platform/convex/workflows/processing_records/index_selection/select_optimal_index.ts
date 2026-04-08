@@ -24,13 +24,12 @@
  */
 
 import type { IndexConfig } from '../get_table_indexes';
-import type { TableName } from '../types';
-import type { IndexSelectionResult, ScoringResult } from './types';
-
 import { getTableIndexes } from '../get_table_indexes';
 import { parseFilterExpression } from '../parse_filter_expression';
+import type { TableName } from '../types';
 import { groupConditionsByField } from './group_conditions_by_field';
 import { scoreIndex } from './score_index';
+import type { IndexSelectionResult, ScoringResult } from './types';
 
 export function selectOptimalIndex(
   tableName: TableName,

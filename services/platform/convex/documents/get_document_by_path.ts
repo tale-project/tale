@@ -9,9 +9,8 @@
 
 import type { Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
-import type { DocumentItemResponse } from './types';
-
 import { transformDocumentsBatch } from './transform_to_document_item';
+import type { DocumentItemResponse } from './types';
 
 export async function getDocumentByPath(
   ctx: QueryCtx,

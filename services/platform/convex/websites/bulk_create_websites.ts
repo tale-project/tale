@@ -3,9 +3,8 @@
  */
 
 import type { MutationCtx } from '../_generated/server';
-import type { BulkCreateWebsitesResult, BulkWebsiteData } from './types';
-
 import { ensureUrl } from './create_website';
+import type { BulkCreateWebsitesResult, BulkWebsiteData } from './types';
 
 export interface BulkCreateWebsitesArgs {
   organizationId: string;

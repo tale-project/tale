@@ -1,8 +1,7 @@
 import type { Id } from '../../../../_generated/dataModel';
 import type { ActionCtx } from '../../../../_generated/server';
-import type { EmailType } from './types';
-
 import { checkMessageExists } from './check_message_exists';
+import type { EmailType } from './types';
 
 /**
  * Find related conversation by In-Reply-To or References headers

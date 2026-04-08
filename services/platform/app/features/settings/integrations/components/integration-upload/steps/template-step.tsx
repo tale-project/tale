@@ -12,13 +12,12 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import type { IntegrationTemplate } from '../constants/integration-templates';
-import type { ParsedPackage } from '../utils/parse-integration-package';
-
 import {
   INTEGRATION_TEMPLATES,
   getTemplateIconUrl,
 } from '../constants/integration-templates';
 import { fetchTemplateFiles } from '../utils/fetch-template-files';
+import type { ParsedPackage } from '../utils/parse-integration-package';
 
 interface TemplateStepProps {
   onPackageParsed: (pkg: ParsedPackage) => void;

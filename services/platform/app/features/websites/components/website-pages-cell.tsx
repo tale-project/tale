@@ -2,9 +2,8 @@
 
 import { useCallback, useState } from 'react';
 
-import type { Doc } from '@/convex/_generated/dataModel';
-
 import { ProgressBar } from '@/app/components/ui/feedback/progress-bar';
+import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { WebsitePagesDialog } from './website-pages-dialog';

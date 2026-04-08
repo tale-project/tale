@@ -12,16 +12,14 @@
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
-
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
 import type { WorkflowJsonConfig } from '../../../lib/shared/schemas/workflows';
-import type { ToolDefinition } from '../types';
-
 import { internal } from '../../_generated/api';
 import { getApprovalThreadId } from '../../threads/get_parent_thread_id';
 import { validateWorkflowDefinition } from '../../workflow_engine/helpers/validation/validate_workflow_definition';
+import type { ToolDefinition } from '../types';
 
 const workflowConfigSchema = z.object({
   name: z

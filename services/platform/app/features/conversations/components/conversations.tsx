@@ -1,7 +1,6 @@
 'use client';
 
 import type { UsePaginatedQueryResult } from 'convex/react';
-
 import {
   ArchiveIcon,
   ArchiveRestoreIcon,
@@ -13,8 +12,6 @@ import {
 } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 
-import type { ConversationItem } from '@/convex/conversations/types';
-
 import { LoadingOverlay } from '@/app/components/ui/feedback/loading-overlay';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
@@ -24,14 +21,14 @@ import {
 } from '@/app/components/ui/overlays/dropdown-menu';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
+import type { ConversationItem } from '@/convex/conversations/types';
 import { useT } from '@/lib/i18n/client';
 import { filterByTextSearch } from '@/lib/utils/client-utils';
 import { cn } from '@/lib/utils/cn';
 
-import type { Conversation } from '../types';
-
 import { useBulkActions } from '../hooks/use-bulk-actions';
 import { useConversationSelection } from '../hooks/use-conversation-selection';
+import type { Conversation } from '../types';
 import { ActivateConversationsEmptyState } from './activate-conversations-empty-state';
 import { BulkSendDialog } from './bulk-send-dialog';
 import { ConversationListPanel } from './conversation-list-panel';

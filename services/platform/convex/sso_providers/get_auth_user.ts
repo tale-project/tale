@@ -1,7 +1,6 @@
 import type { GenericQueryCtx } from 'convex/server';
 
 import type { DataModel } from '../_generated/dataModel';
-
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 
 type AuthUserResult = {

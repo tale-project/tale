@@ -15,11 +15,10 @@
 
 import { set, merge } from 'lodash';
 
+import { isRecord } from '../../lib/utils/type-guards';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import type { UpdateCustomersResult } from './types';
-
-import { isRecord } from '../../lib/utils/type-guards';
 
 export interface UpdateCustomersArgs {
   customerId?: Id<'customers'>;

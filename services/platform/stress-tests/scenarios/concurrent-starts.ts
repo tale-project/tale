@@ -16,9 +16,8 @@
 
 import { ConvexHttpClient } from 'convex/browser';
 
-import type { Id } from '../../convex/_generated/dataModel';
-
 import { api } from '../../convex/_generated/api';
+import type { Id } from '../../convex/_generated/dataModel';
 import { scenarios } from '../fixtures/stress-workflows';
 import { MetricsCollector } from '../metrics';
 import { pollExecutionViaConvexRun } from '../poll';

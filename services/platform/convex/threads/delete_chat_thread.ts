@@ -1,8 +1,7 @@
-import type { MutationCtx } from '../_generated/server';
-import type { ThreadSummaryWithSubThreads } from '../agent_tools/sub_agents/helpers/types';
-
 import { parseJson } from '../../lib/utils/type-cast-helpers';
 import { components, internal } from '../_generated/api';
+import type { MutationCtx } from '../_generated/server';
+import type { ThreadSummaryWithSubThreads } from '../agent_tools/sub_agents/helpers/types';
 
 export async function deleteChatThread(
   ctx: MutationCtx,

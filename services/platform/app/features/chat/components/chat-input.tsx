@@ -3,8 +3,6 @@
 import { X, Paperclip, ArrowUp, CircleStop, Loader } from 'lucide-react';
 import { ComponentPropsWithoutRef, useRef, useMemo, useState } from 'react';
 
-import type { Id } from '@/convex/_generated/dataModel';
-
 import { EnterKeyIcon } from '@/app/components/icons/enter-key-icon';
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
@@ -13,6 +11,7 @@ import { HStack, VStack } from '@/app/components/ui/layout/layout';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
+import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import {
   CHAT_UPLOAD_ACCEPT,
@@ -21,7 +20,6 @@ import {
 import { cn } from '@/lib/utils/cn';
 
 import type { FileAttachment } from '../hooks/use-convex-file-upload';
-
 import { AgentSelector } from './agent-selector';
 import { ImagePreviewDialog } from './message-bubble';
 import { ModelSelector } from './model-selector';

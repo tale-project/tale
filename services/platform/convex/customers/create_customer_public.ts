@@ -5,7 +5,6 @@
 import type { DataSource } from '../../lib/shared/schemas/common';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
-
 import { toConvexJsonRecord } from '../lib/type_cast_helpers';
 
 interface CreateCustomerPublicArgs {

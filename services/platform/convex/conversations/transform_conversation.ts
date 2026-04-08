@@ -4,10 +4,9 @@
 
 import type { Doc } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
-import type { ConversationItem, CustomerInfo, MessageInfo } from './types';
-
 import { getPendingApprovalForResource } from '../approvals/helpers';
 import { createDebugLog } from '../lib/debug_log';
+import type { ConversationItem, CustomerInfo, MessageInfo } from './types';
 
 const debugLog = createDebugLog('DEBUG_CONVERSATIONS', '[Conversations]');
 

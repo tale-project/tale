@@ -1,6 +1,5 @@
-import type { ActionCtx } from '../_generated/server';
-
 import { internal } from '../_generated/api';
+import type { ActionCtx } from '../_generated/server';
 import { authComponent } from '../auth';
 
 export type TokenResult =

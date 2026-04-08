@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { QueryCtx } from '../../_generated/server';
-
 import { listDocumentsForAgent } from '../list_documents_for_agent';
 
 vi.mock('../../folders/queries', () => ({

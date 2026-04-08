@@ -1,10 +1,9 @@
 'use client';
 
-import type { Doc } from '@/convex/_generated/dataModel';
-
 import { HStack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
 import { createTableConfigHook } from '@/app/hooks/use-table-config-factory';
+import type { Doc } from '@/convex/_generated/dataModel';
 
 import { ProductImage } from '../components/product-image';
 import { ProductRowActions } from '../components/product-row-actions';

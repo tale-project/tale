@@ -33,7 +33,6 @@ import type {
   FilePart,
   Message,
 } from '../components/automation-assistant/types';
-
 import { useReadWorkflow } from './file-queries';
 
 // Module-level guard to prevent duplicate sends (survives component remounts)

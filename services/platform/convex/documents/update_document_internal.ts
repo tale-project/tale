@@ -2,10 +2,9 @@
  * Update a document (internal helper)
  */
 
+import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
-
-import { internal } from '../_generated/api';
 import { buildFolderPath } from '../folders/queries';
 
 export type UpdateDocumentInternalArgs = {

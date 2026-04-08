@@ -1,10 +1,9 @@
 import { v } from 'convex/values';
 
-import type { CreateProductResult, UpdateProductsResult } from './types';
-
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 import { internalMutation } from '../_generated/server';
 import * as ProductsHelpers from './helpers';
+import type { CreateProductResult, UpdateProductsResult } from './types';
 import { productStatusValidator } from './validators';
 
 export const ingestProduct = internalMutation({

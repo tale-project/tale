@@ -14,7 +14,6 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
 
 import type { AttachedFile } from './types';
-
 import { getFileType } from './types';
 
 interface EditorActionBarProps {

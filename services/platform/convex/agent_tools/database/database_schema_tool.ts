@@ -13,7 +13,6 @@ import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
 import type { ToolDefinition } from '../types';
-
 import {
   getSupportedTables,
   getTableSchema,

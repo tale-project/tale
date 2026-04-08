@@ -2,10 +2,9 @@
 
 import { v } from 'convex/values';
 
-import type { Id } from '../_generated/dataModel';
-
 import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
 import { internal } from '../_generated/api';
+import type { Id } from '../_generated/dataModel';
 import { action } from '../_generated/server';
 import { authComponent } from '../auth';
 

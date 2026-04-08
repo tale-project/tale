@@ -1,8 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
-import type { AgentJsonConfig } from './file_utils';
-
 import { toSerializableConfig } from './config';
+import type { AgentJsonConfig } from './file_utils';
 
 function createMockConfig(
   overrides: Partial<AgentJsonConfig> = {},

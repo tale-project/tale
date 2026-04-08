@@ -1,8 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-import type { StorageProvider } from '../types';
-
 import { executeIntegrationImpl } from '../execute_integration_impl';
+import type { StorageProvider } from '../types';
 
 function createMockStorageProvider(): StorageProvider {
   let fileCounter = 0;

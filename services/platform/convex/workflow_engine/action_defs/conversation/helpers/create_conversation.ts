@@ -1,9 +1,8 @@
+import { internal } from '../../../../_generated/api';
 import type { Id } from '../../../../_generated/dataModel';
 import type { ActionCtx } from '../../../../_generated/server';
-import type { ConversationStatus, ConversationPriority } from './types';
-
-import { internal } from '../../../../_generated/api';
 import { toConvexJsonRecord, toId } from '../../../../lib/type_cast_helpers';
+import type { ConversationStatus, ConversationPriority } from './types';
 
 export async function createConversation(
   ctx: ActionCtx,

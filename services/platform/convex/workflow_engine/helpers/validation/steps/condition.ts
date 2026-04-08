@@ -4,9 +4,8 @@
  * Validates condition step configurations.
  */
 
-import type { ValidationResult } from '../types';
-
 import { validateJexlExpression } from '../../../../lib/variables/validate_template';
+import type { ValidationResult } from '../types';
 
 /**
  * Validate a condition step configuration

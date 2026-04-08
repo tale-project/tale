@@ -1,7 +1,6 @@
 'use client';
 
 import type { UIMessage } from '@convex-dev/agent/react';
-
 import { m } from 'framer-motion';
 
 import { useT } from '@/lib/i18n/client';

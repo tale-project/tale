@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { QueryCtx } from '../../_generated/server';
-
 import { getDocumentByPath } from '../get_document_by_path';
 
 vi.mock('../transform_to_document_item', () => ({

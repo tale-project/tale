@@ -3,8 +3,6 @@
 import { Loader2, RotateCw } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
-import type { RagStatus } from '@/types/documents';
-
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { Badge, type BadgeProps } from '@/app/components/ui/feedback/badge';
 import { Button } from '@/app/components/ui/primitives/button';
@@ -14,6 +12,7 @@ import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
+import type { RagStatus } from '@/types/documents';
 
 import { useRetryRagIndexing } from '../hooks/actions';
 

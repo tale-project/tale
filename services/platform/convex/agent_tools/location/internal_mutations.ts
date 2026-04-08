@@ -1,7 +1,6 @@
 import { v } from 'convex/values';
 
 import type { LocationRequestMetadata } from '../../../lib/shared/schemas/approvals';
-
 import { internalMutation } from '../../_generated/server';
 import {
   createApproval,

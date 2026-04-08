@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { Id } from '../../_generated/dataModel';
 import type { QueryCtx } from '../../_generated/server';
-
 import { getExecutionStepJournal } from './get_execution_step_journal';
 
 function createMockCtx(

@@ -1,9 +1,8 @@
 import type { ToolCtx } from '@convex-dev/agent';
 
-import type { Doc, Id } from '../../../_generated/dataModel';
-
 import { isKeyOf } from '../../../../lib/utils/type-guards';
 import { internal } from '../../../_generated/api';
+import type { Doc, Id } from '../../../_generated/dataModel';
 import { createDebugLog } from '../../../lib/debug_log';
 import { toId } from '../../../lib/type_cast_helpers';
 import { defaultGetFields, type ProductReadGetByIdResult } from './types';

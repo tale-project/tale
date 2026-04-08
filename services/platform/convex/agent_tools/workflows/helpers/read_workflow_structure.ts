@@ -1,10 +1,9 @@
 import type { ToolCtx } from '@convex-dev/agent';
 
 import type { WorkflowJsonConfig } from '../../../../lib/shared/schemas/workflows';
-import type { WorkflowReadGetStructureResult } from './types';
-
 import { isRecord } from '../../../../lib/utils/type-guards';
 import { internal } from '../../../_generated/api';
+import type { WorkflowReadGetStructureResult } from './types';
 
 const DEFAULT_ORG_SLUG = 'default';
 

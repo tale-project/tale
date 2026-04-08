@@ -14,17 +14,15 @@
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
-
 import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
-import type { AgentIndexedDocumentListResult } from '../../documents/list_indexed_documents_for_agent';
-import type { ToolDefinition } from '../types';
-
 import { fetchJson } from '../../../lib/utils/type-cast-helpers';
 import { internal } from '../../_generated/api';
+import type { AgentIndexedDocumentListResult } from '../../documents/list_indexed_documents_for_agent';
 import { createDebugLog } from '../../lib/debug_log';
 import { getRagConfig } from '../../lib/helpers/rag_config';
+import type { ToolDefinition } from '../types';
 import {
   formatSearchResults,
   type SearchResponse,

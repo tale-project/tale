@@ -10,7 +10,6 @@ import type {
   PlatformRole,
   RoleMappingRule,
 } from '../types';
-
 import {
   MICROSOFT_LOGIN_BASE,
   MICROSOFT_GRAPH_BASE,
