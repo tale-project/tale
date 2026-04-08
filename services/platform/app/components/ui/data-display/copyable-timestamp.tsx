@@ -25,9 +25,8 @@ interface CopyableTimestampProps {
 }
 
 /**
- * Displays a formatted timestamp with a copy button that copies the raw
- * Unix millisecond value to the clipboard — useful for power users who need
- * the exact timestamp for debugging or querying.
+ * Displays a formatted timestamp with a copy button that copies the
+ * human-readable formatted date string to the clipboard.
  *
  * @example
  * ```tsx
@@ -64,7 +63,6 @@ export const CopyableTimestamp = React.memo(function CopyableTimestamp({
       ? new Date(date)
       : date;
 
-  const timestampMs = String(dateObj.valueOf());
   const showTimezone = preset === 'long' || preset === 'time';
   const baseFormatted = customFormat
     ? formatDate(dateObj, preset, { customFormat })
@@ -76,7 +74,6 @@ export const CopyableTimestamp = React.memo(function CopyableTimestamp({
 
   return (
     <CopyableTimestampInner
-      timestampMs={timestampMs}
       formatted={formatted}
       titleText={titleText}
       alignRight={alignRight}
@@ -87,7 +84,6 @@ export const CopyableTimestamp = React.memo(function CopyableTimestamp({
 });
 
 interface CopyableTimestampInnerProps {
-  timestampMs: string;
   formatted: string;
   titleText: string;
   alignRight: boolean;
@@ -96,14 +92,13 @@ interface CopyableTimestampInnerProps {
 }
 
 function CopyableTimestampInner({
-  timestampMs,
   formatted,
   titleText,
   alignRight,
   className,
   tCommon,
 }: CopyableTimestampInnerProps) {
-  const { copied, onClick } = useCopyButton(timestampMs);
+  const { copied, onClick } = useCopyButton(formatted);
 
   return (
     <span
