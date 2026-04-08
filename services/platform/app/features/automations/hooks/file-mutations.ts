@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { api } from '@/convex/_generated/api';
 
-function useInvalidateWorkflows() {
+export function useInvalidateWorkflows() {
   const queryClient = useQueryClient();
   return (orgSlug: string) =>
     queryClient.invalidateQueries({
