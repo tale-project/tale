@@ -9,7 +9,7 @@ import type {
 } from '../../approvals/types';
 
 import { jsonRecordValidator } from '../../../lib/shared/schemas/utils/json-value';
-import { components, internal } from '../../_generated/api';
+import { components } from '../../_generated/api';
 import { internalMutation } from '../../_generated/server';
 import { createApproval } from '../../approvals/helpers';
 import { checkOrganizationRateLimit } from '../../lib/rate_limiter/helpers';
