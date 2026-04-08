@@ -15,6 +15,7 @@ import { useT } from '@/lib/i18n/client';
 import { useUpdateCustomer } from '../hooks/mutations';
 
 const CUSTOMER_STATUSES = ['active', 'churned', 'potential'] as const;
+const LOCALE_PATTERN = /^[a-z]{2}(?:[-_][A-Za-z]{2,})?$/;
 
 type CustomerFormData = {
   name: string;
@@ -49,20 +50,6 @@ export function CustomerEditDialog({
     [tGlobal],
   );
 
-  const localeOptions = useMemo(
-    () => [
-      { value: 'en', label: tGlobal('languages.en') },
-      { value: 'de', label: tGlobal('languages.de') },
-      { value: 'es', label: tGlobal('languages.es') },
-      { value: 'fr', label: tGlobal('languages.fr') },
-      { value: 'it', label: tGlobal('languages.it') },
-      { value: 'nl', label: tGlobal('languages.nl') },
-      { value: 'pt', label: tGlobal('languages.pt') },
-      { value: 'zh', label: tGlobal('languages.zh') },
-    ],
-    [tGlobal],
-  );
-
   const formSchema = useMemo(
     () =>
       z.object({
@@ -72,6 +59,10 @@ export function CustomerEditDialog({
           .string()
           .min(
             1,
+            tCommon('validation.required', { field: tCustomers('locale') }),
+          )
+          .regex(
+            LOCALE_PATTERN,
             tCommon('validation.required', { field: tCustomers('locale') }),
           ),
         status: z.enum(CUSTOMER_STATUSES),
@@ -96,7 +87,6 @@ export function CustomerEditDialog({
     },
   });
 
-  const locale = watch('locale');
   const status = watch('status');
 
   useEffect(() => {
@@ -170,16 +160,14 @@ export function CustomerEditDialog({
         required
       />
 
-      <Select
-        value={locale}
-        onValueChange={(value) =>
-          setValue('locale', value, { shouldDirty: true })
-        }
-        disabled={isSubmitting}
+      <Input
         id="locale"
         label={tCustomers('locale')}
-        error={!!errors.locale}
-        options={localeOptions}
+        placeholder={tCustomers('localePlaceholder')}
+        {...register('locale')}
+        disabled={isSubmitting}
+        errorMessage={errors.locale?.message}
+        required
       />
 
       <Select

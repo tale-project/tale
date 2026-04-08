@@ -119,7 +119,7 @@ export function ProductViewDialog({
             className="size-20 shrink-0 rounded-lg"
           />
           <div className="min-w-0 flex-1">
-            <Heading level={3} truncate>
+            <Heading level={3} className="break-words">
               {product.name}
             </Heading>
             {product.description && (

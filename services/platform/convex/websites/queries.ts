@@ -39,6 +39,7 @@ export const listWebsitesPaginated = queryWithRLS({
     paginationOpts: paginationOptsValidator,
     organizationId: v.string(),
     status: v.optional(v.string()),
+    scanInterval: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     return await listWebsitesPaginatedHelper(ctx, args);
