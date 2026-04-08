@@ -138,8 +138,10 @@ function buildCompletionMessage(
     `Integration "${metadata.integrationName}" operation "${metadata.operationName}" completed successfully.\n\n` +
     `Execution result:\n${truncated}\n\n` +
     `Instructions:\n` +
-    `- Present the operation result to the user in the most appropriate format\n` +
-    `- If the result contains data, summarize it clearly`
+    `- Present the operation result to the user in markdown format\n` +
+    `- If the result contains data, summarize it clearly\n` +
+    `- If the result contains fileReferences with images, you MUST display each image inline using markdown image syntax: ![description](url)\n` +
+    `- Never omit images from the response — the user expects to see them directly`
   );
 }
 
