@@ -52,7 +52,7 @@ export function ProviderConfigProvider({
   initialConfig,
   children,
 }: ProviderConfigProviderProps) {
-  const [config, setConfig] = useState<ProviderJson>(initialConfig);
+  const [config, setConfig] = useState(initialConfig);
   const [isSaving, setIsSaving] = useState(false);
   const initialRef = useRef(initialConfig);
   const configRef = useRef(config);

@@ -254,12 +254,12 @@ export function useStreamBuffer({
 
   // Refs for animation state (no re-renders during animation)
   const animationFrameRef = useRef<number | null>(null);
-  const lastFrameTimeRef = useRef<number>(0);
+  const lastFrameTimeRef = useRef(0);
   const displayedLengthRef = useRef(cachedPosition);
   const targetTextRef = useRef('');
   const isStreamingRef = useRef(false);
   const accumulatedCharsRef = useRef(0);
-  const lastStateUpdateRef = useRef<number>(0);
+  const lastStateUpdateRef = useRef(0);
 
   // Adaptive-rate specific refs
   const hasStartedRevealRef = useRef(false);

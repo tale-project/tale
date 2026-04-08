@@ -9,11 +9,9 @@ import {
   useReactTable,
   type ColumnDef,
   type Row,
-  type SortingState,
   type ExpandedState,
   type RowSelectionState,
   type OnChangeFn,
-  type PaginationState,
 } from '@tanstack/react-table';
 import { ChevronRight } from 'lucide-react';
 import {
@@ -228,24 +226,23 @@ export function DataTable<TData, TValue = unknown>({
   const onSortingChange = sortingConfig?.onSortingChange;
 
   // Internal state for uncontrolled modes - must be called before any early returns
-  const [internalSorting, setInternalSorting] =
-    useState<SortingState>(initialSorting);
+  const [internalSorting, setInternalSorting] = useState(initialSorting);
   const [internalRowSelection, setInternalRowSelection] =
     useState<RowSelectionState>({});
+
   const [expanded, setExpanded] = useState<ExpandedState>({});
-  const [internalPagination, setInternalPagination] = useState<PaginationState>(
-    {
-      pageIndex: currentPage - 1,
-      pageSize: pagination?.pageSize ?? 20,
-    },
-  );
+
+  const [internalPagination, setInternalPagination] = useState({
+    pageIndex: currentPage - 1,
+    pageSize: pagination?.pageSize ?? 20,
+  });
 
   // Ref to the scroll container for sticky layout (needed for IntersectionObserver root)
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Track previous row count for animation on load more
   const prevRowCountRef = useRef(0);
-  const [animatingRows, setAnimatingRows] = useState<Set<string>>(new Set());
+  const [animatingRows, setAnimatingRows] = useState(new Set<string>());
 
   // Stable noop callback for when infiniteScroll is not provided
   const noop = useCallback(() => {}, []);

@@ -146,7 +146,7 @@ export function Message({ message, onDownloadAttachments }: MessageProps) {
   >(null);
 
   // Track which attachment filenames had no URL when download was triggered
-  const pendingDownloadFiles = useRef<Set<string>>(new Set());
+  const pendingDownloadFiles = useRef(new Set<string>());
 
   const handleDownload = useCallback(
     (messageId: string) => {

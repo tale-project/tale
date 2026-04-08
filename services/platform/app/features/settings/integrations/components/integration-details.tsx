@@ -319,7 +319,7 @@ export function IntegrationDetails({
   sections.push('automations');
   if (children) sections.push('update');
 
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [expanded, setExpanded] = useState(new Set<string>());
   const toggle = (key: string) =>
     setExpanded((prev) => {
       const next = new Set(prev);

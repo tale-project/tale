@@ -52,10 +52,8 @@ export function TeamEditDialog({
   );
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(
-    new Set(),
-  );
-  const initialMemberIdsRef = useRef<Set<string>>(new Set());
+  const [selectedMemberIds, setSelectedMemberIds] = useState(new Set<string>());
+  const initialMemberIdsRef = useRef(new Set<string>());
 
   const { teamMembers }: { teamMembers: TeamMemberItem[] | undefined } =
     useTeamMembers(team.id);

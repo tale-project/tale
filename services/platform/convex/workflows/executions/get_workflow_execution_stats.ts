@@ -15,14 +15,6 @@ export type WorkflowExecutionStats = {
   lastExecution: number | null;
 };
 
-interface ExecutionCounts {
-  completed: number;
-  failed: number;
-  running: number;
-  completedExecutionTimeSum: number;
-  completedWithTimeCount: number;
-}
-
 export async function getWorkflowExecutionStats(
   ctx: QueryCtx,
   args: GetWorkflowExecutionStatsArgs,
@@ -38,7 +30,7 @@ export async function getWorkflowExecutionStats(
   const total = executions.length;
 
   // Single pass to count all statuses and compute execution time sum
-  const counts = executions.reduce<ExecutionCounts>(
+  const counts = executions.reduce(
     (acc, e) => {
       switch (e.status) {
         case 'completed':

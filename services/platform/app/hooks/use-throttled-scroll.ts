@@ -9,7 +9,7 @@ interface UseThrottledScrollOptions {
 export function useThrottledScroll({
   delay = 16,
 }: UseThrottledScrollOptions = {}) {
-  const lastScrollTime = useRef<number>(0);
+  const lastScrollTime = useRef(0);
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const throttledScrollToBottom = useCallback(

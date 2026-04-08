@@ -211,7 +211,7 @@ export function AutomationSidePanel({
   const { width, minWidth, maxWidth, handleMouseDown, handleKeyDown } =
     useResizable(panelRef);
 
-  const [editState, setEditState] = useState<EditState>({
+  const [editState, setEditState] = useState({
     config: '',
     nextSteps: {},
   });

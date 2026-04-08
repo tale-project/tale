@@ -169,8 +169,8 @@ export const FiltersOnly: Story = {
 export const WithActiveFilters: Story = {
   render: function Render() {
     const [search, setSearch] = useState('John');
-    const [statusValues, setStatusValues] = useState<string[]>(['active']);
-    const [roleValues, setRoleValues] = useState<string[]>(['admin', 'member']);
+    const [statusValues, setStatusValues] = useState(['active']);
+    const [roleValues, setRoleValues] = useState(['admin', 'member']);
 
     const filters: FilterConfig[] = [
       {

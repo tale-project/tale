@@ -81,7 +81,7 @@ function ConversationsStatusPage() {
   const allCounts = Object.values(counts);
   const totalConversationCount = allCounts.some((c) => c === undefined)
     ? undefined
-    : allCounts.reduce<number>((sum, c) => sum + (c ?? 0), 0);
+    : allCounts.reduce((sum, c) => sum + (c ?? 0), 0);
 
   const paginatedResult = useListConversationsPaginated({
     organizationId,

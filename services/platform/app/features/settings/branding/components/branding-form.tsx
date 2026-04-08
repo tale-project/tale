@@ -60,7 +60,7 @@ export function BrandingForm({
   const snapshotHistory = useSnapshotBrandingHistory();
   const deleteImage = useDeleteImage();
 
-  const form = useForm<BrandingFormData>({
+  const form = useForm({
     resolver: zodResolver(brandingFormSchema),
     defaultValues: {
       appName: branding?.appName ?? '',

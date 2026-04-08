@@ -58,7 +58,7 @@ export function EventCreateDialog({
 
   const isEditMode = !!editing;
 
-  const [selectedEventType, setSelectedEventType] = useState<string>('');
+  const [selectedEventType, setSelectedEventType] = useState('');
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 

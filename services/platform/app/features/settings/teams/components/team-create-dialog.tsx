@@ -46,9 +46,7 @@ export function TeamCreateDialog({
   );
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(
-    new Set(),
-  );
+  const [selectedMemberIds, setSelectedMemberIds] = useState(new Set<string>());
 
   const form = useForm<TeamFormData>({
     resolver: zodResolver(schema),
