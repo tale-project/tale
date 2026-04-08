@@ -17,12 +17,14 @@ interface FilterIndex {
 
 const FILTER_INDEXES: FilterIndex[] = [
   { field: 'status', index: 'by_organizationId_and_status' },
+  { field: 'scanInterval', index: 'by_organizationId_and_scanInterval' },
 ];
 
 interface ListWebsitesPaginatedArgs {
   paginationOpts: PaginationOptions;
   organizationId: string;
   status?: string;
+  scanInterval?: string;
 }
 
 type FilterArgs = Record<string, string | undefined>;
@@ -61,6 +63,7 @@ export async function listWebsitesPaginated(
 ): Promise<PaginationResult<Doc<'websites'>>> {
   const filterArgs: FilterArgs = {
     status: args.status,
+    scanInterval: args.scanInterval,
   };
 
   const primary = FILTER_INDEXES.find(({ field }) => filterArgs[field]);

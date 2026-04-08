@@ -26,6 +26,7 @@ export function useWebsites(organizationId: string) {
 interface ListWebsitesPaginatedArgs {
   organizationId: string;
   status?: string;
+  scanInterval?: string;
   initialNumItems: number;
 }
 
