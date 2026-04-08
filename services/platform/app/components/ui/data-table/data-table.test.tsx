@@ -196,7 +196,7 @@ describe('DataTable loading states', () => {
       );
 
       const tbody = getTbody();
-      const firstDataRow = within(tbody).getAllByRole('row')[0]!;
+      const firstDataRow = within(tbody).getAllByRole('row')[0];
       const cells = within(firstDataRow).getAllByRole('cell');
       expect(cells[0]).toHaveStyle({ width: '200px' });
       expect(cells[1]).not.toHaveStyle({ width: '150px' });
@@ -213,7 +213,7 @@ describe('DataTable loading states', () => {
       );
 
       const skeletons = getSkeletonRows();
-      const cells = within(skeletons[0]!).getAllByRole('cell');
+      const cells = within(skeletons[0]).getAllByRole('cell');
       expect(cells[0]).toHaveStyle({ width: '200px' });
     });
   });
