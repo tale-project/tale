@@ -31,6 +31,7 @@ export const threadMetadataTable = defineTable({
   // Arena mode fields
   arenaGroupId: v.optional(v.string()),
   arenaModelId: v.optional(v.string()),
+  updatedAt: v.optional(v.number()),
 })
   .index('by_threadId', ['threadId'])
   .index('by_userId_chatType_status', [
@@ -38,6 +39,12 @@ export const threadMetadataTable = defineTable({
     'chatType',
     'status',
     'createdAt',
+  ])
+  .index('by_userId_chatType_status_updated', [
+    'userId',
+    'chatType',
+    'status',
+    'updatedAt',
   ])
   .index('by_shareToken', ['shareToken'])
   .index('by_arenaGroupId', ['arenaGroupId']);

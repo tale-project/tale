@@ -40,13 +40,15 @@ export const forkThread = mutation({
       threadId: newThreadId,
     });
 
+    const createdAt = thread?._creationTime ?? Date.now();
     await ctx.db.insert('threadMetadata', {
       threadId: newThreadId,
       userId,
       chatType: 'general',
       status: 'active',
       title,
-      createdAt: thread?._creationTime ?? Date.now(),
+      createdAt,
+      updatedAt: createdAt,
       forkedFrom: metadata.threadId,
     });
 

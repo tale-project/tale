@@ -139,6 +139,7 @@ describe('startAgentChat — concurrent generation guard', () => {
       cancelledAt: undefined,
       cancelledMessageId: undefined,
       generationStartTime: expect.any(Number),
+      updatedAt: expect.any(Number),
       generationStatus: 'generating',
       streamId: 'new-stream-id',
     });

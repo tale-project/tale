@@ -33,7 +33,7 @@ export async function listThreads(
 ): Promise<ListThreadsPaginatedResult> {
   const result = await ctx.db
     .query('threadMetadata')
-    .withIndex('by_userId_chatType_status', (q) =>
+    .withIndex('by_userId_chatType_status_updated', (q) =>
       q
         .eq('userId', args.userId)
         .eq('chatType', 'general')
@@ -45,7 +45,7 @@ export async function listThreads(
   return {
     page: result.page.map((row) => ({
       _id: row.threadId,
-      _creationTime: row.createdAt,
+      _creationTime: row.updatedAt ?? row.createdAt,
       title: row.title,
       status: row.status,
       userId: row.userId,

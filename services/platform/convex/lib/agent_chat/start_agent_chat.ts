@@ -137,6 +137,7 @@ export async function startAgentChat(
       generationStatus: 'generating' as const,
       streamId,
       generationStartTime: Date.now(),
+      updatedAt: Date.now(),
       cancelledAt: undefined,
       cancelledMessageId: undefined,
       ...(args.agentSlug ? { agentSlug: args.agentSlug } : {}),
