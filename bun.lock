@@ -18,7 +18,7 @@
         "oxlint-tsgolint": "^0.18.0",
         "postcss": "8.5.9",
         "turbo": "2.9.5",
-        "typescript": "5.9.3",
+        "typescript": "6.0.2",
         "vitest": "4.1.3",
       },
       "optionalDependencies": {
@@ -128,7 +128,7 @@
         "swagger-ui-react": "^5.31.0",
         "tailwind-merge": "3.5.0",
         "tailwindcss": "4.2.2",
-        "typescript": "5.9.3",
+        "typescript": "6.0.2",
         "vite": "^8.0.0",
         "xlsx": "0.18.5",
         "zod": "4.3.6",
@@ -203,7 +203,7 @@
       },
       "devDependencies": {
         "@types/bun": "^1.3.6",
-        "typescript": "^5.8.3",
+        "typescript": "^6.0.0",
       },
     },
   },
@@ -2964,7 +2964,7 @@
 
     "types-ramda": ["types-ramda@0.30.1", "", { "dependencies": { "ts-toolbelt": "^9.6.0" } }, "sha512-1HTsf5/QVRmLzcGfldPFvkVsAdi1db1BBKzi7iW3KBUlOICg/nKnFS+jGqDJS3YD8VsWbAh7JiHeBvbsw8RPxA=="],
 
-    "typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
+    "typescript": ["typescript@6.0.2", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-bGdAIrZ0wiGDo5l8c++HWtbaNCWTS4UTv7RaTH/ThVIgjkveJt83m74bBHMJkuCbslY8ixgLBVZJIOiQlQTjfQ=="],
 
     "unbash": ["unbash@2.2.0", "", {}, "sha512-X2wH19RAPZE3+ldGicOkoj/SIA83OIxcJ6Cuaw23hf8Xc6fQpvZXY0SftE2JgS0QhYLUG4uwodSI3R53keyh7w=="],
 

@@ -125,7 +125,7 @@
     "swagger-ui-react": "^5.31.0",
     "tailwind-merge": "3.5.0",
     "tailwindcss": "4.2.2",
-    "typescript": "5.9.3",
+    "typescript": "6.0.2",
     "vite": "^8.0.0",
     "xlsx": "0.18.5",
     "zod": "4.3.6"
