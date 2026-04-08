@@ -5,7 +5,7 @@
  * Uses @noble/curves for X25519 and @scure/base for Bech32 encoding.
  */
 
-import { x25519 } from '@noble/curves/ed25519';
+import { x25519 } from '@noble/curves/ed25519.js';
 import { bech32 } from '@scure/base';
 
 interface AgeKeypair {
