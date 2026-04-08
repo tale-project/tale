@@ -237,7 +237,7 @@ export function ProductEditDialog({
 
       <Select
         value={status}
-        onValueChange={(value: string) =>
+        onValueChange={(value) =>
           setValue('status', value as (typeof PRODUCT_STATUSES)[number], {
             shouldDirty: true,
           })
