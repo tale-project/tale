@@ -1201,6 +1201,7 @@
       },
       "manageDialog": {
         "authentication": "Authentication",
+        "setupGuide": "Configuration guide",
         "connect": "Connect",
         "connecting": "Connecting...",
         "testAndConnect": "Test and connect",
@@ -2449,7 +2450,11 @@
     "statusRejected": "This operation was rejected.",
     "errorApproveFailed": "Failed to approve operation",
     "moreParameters": "+{count} more",
-    "showLess": "Show less"
+    "showLess": "Show less",
+    "feedbackPlaceholder": "Describe what you'd like to change...",
+    "suggestChanges": "Suggest changes",
+    "sendFeedback": "Send",
+    "backToActions": "Back"
   },
   "chat": {
     "title": "Chat",

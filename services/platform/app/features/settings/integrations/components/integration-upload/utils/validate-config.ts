@@ -19,6 +19,7 @@ const connectionConfigSchema = z
     timeout: z.number().optional(),
     rateLimit: z.number().optional(),
   })
+  .passthrough()
   .optional();
 
 const sqlConnectionConfigSchema = z

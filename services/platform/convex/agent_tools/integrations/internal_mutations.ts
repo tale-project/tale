@@ -1,30 +1,17 @@
-import { v, type Infer } from 'convex/values';
+import { saveMessage } from '@convex-dev/agent';
+import { v } from 'convex/values';
 
 import {
   jsonValueValidator,
   jsonRecordValidator,
 } from '../../../lib/shared/schemas/utils/json-value';
+import { components } from '../../_generated/api';
 import { internalMutation } from '../../_generated/server';
 import { createApproval } from '../../approvals/helpers';
 import type { IntegrationOperationMetadata } from '../../approvals/types';
 import { toConvexJsonRecord } from '../../lib/type_cast_helpers';
-
-type ConvexJsonValue = Infer<typeof jsonValueValidator>;
-
-interface IntegrationOperationMetadataLocal {
-  integrationId: string;
-  integrationName: string;
-  integrationType: string;
-  operationName: string;
-  operationDescription?: string;
-  operationCategory?: string;
-  parameters?: Record<string, ConvexJsonValue>;
-  requiresApproval: boolean;
-  requestedAt?: number;
-  executedAt?: number;
-  executionResult?: ConvexJsonValue;
-  executionError?: string | null;
-}
+import { triggerCompletionResponseHandler } from '../approval_shared';
+import type { IntegrationOperationMetadataLocal } from './types';
 
 export const updateApprovalWithResult = internalMutation({
   args: {
@@ -93,5 +80,31 @@ export const createIntegrationApproval = internalMutation({
     });
 
     return approvalId;
+  },
+});
+
+export const saveSystemMessage = internalMutation({
+  args: {
+    threadId: v.string(),
+    content: v.string(),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    await saveMessage(ctx, components.agent, {
+      threadId: args.threadId,
+      message: { role: 'system', content: args.content },
+    });
+  },
+});
+
+export const triggerIntegrationCompletionResponse = internalMutation({
+  args: {
+    threadId: v.string(),
+    organizationId: v.string(),
+    agentSlug: v.string(),
+    messageContent: v.string(),
+    agentConfig: v.any(),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    await triggerCompletionResponseHandler(ctx, args, 'IntegrationComplete');
   },
 });

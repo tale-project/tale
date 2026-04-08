@@ -332,6 +332,14 @@ export function ChatInterface({
     [setInputValue],
   );
 
+  const handleSendMessageDirect = useCallback(
+    (message: string) => {
+      scrollingToBottomBehaviorRef.current = 'smooth';
+      void sendMessage(message);
+    },
+    [sendMessage],
+  );
+
   // Show messages view when we have content or are loading (to show ThinkingAnimation)
   const showMessages =
     threadId || messages.length > 0 || pendingMessage || isLoading;
@@ -374,6 +382,7 @@ export function ChatInterface({
             activeApproval={activeApproval}
             onHumanInputResponseSubmitted={handleHumanInputResponseSubmitted}
             onSendFollowUp={handleSendFollowUp}
+            onSendMessage={handleSendMessageDirect}
           />
         )}
       </div>

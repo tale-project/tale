@@ -54,10 +54,23 @@ export interface IntegrationExecutionResult {
 // HTTP
 // =============================================================================
 
+export interface FormField {
+  name: string;
+  value: string;
+  /** If set, the field is treated as a file upload with this filename */
+  fileName?: string;
+  /** Content type for file fields (default: application/octet-stream) */
+  contentType?: string;
+  /** If true, `value` is base64-encoded binary data */
+  isBase64?: boolean;
+}
+
 export interface HttpRequest {
   url: string;
   options: RequestInit;
   binaryBody?: string;
+  /** If set, sends as multipart/form-data instead of JSON */
+  formFields?: FormField[];
   responseType?: 'base64';
 }
 

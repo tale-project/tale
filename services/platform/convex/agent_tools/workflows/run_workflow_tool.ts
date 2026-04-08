@@ -160,7 +160,7 @@ This tool creates an approval card. The user must click "Run Workflow" to confir
           requiresApproval: true,
           approvalId,
           approvalCreated: true,
-          approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created to run workflow "${config.name}". The user must approve this before execution begins.`,
+          approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created to run workflow "${config.name}". The user must approve this before execution begins. Do NOT include suggested follow-ups or next steps — the user needs to act on the approval card first.`,
           message: `Workflow "${config.name}" is ready to run. An approval card has been created. The workflow will start once the user approves it.`,
         };
       } catch (error) {

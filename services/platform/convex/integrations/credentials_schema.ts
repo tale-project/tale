@@ -67,15 +67,9 @@ export const integrationCredentialsTable = defineTable({
       clientSecretEncrypted: v.optional(v.string()),
     }),
   ),
-  connectionConfig: v.optional(
-    v.object({
-      domain: v.optional(v.string()),
-      apiVersion: v.optional(v.string()),
-      apiEndpoint: v.optional(v.string()),
-      timeout: v.optional(v.number()),
-      rateLimit: v.optional(v.number()),
-    }),
-  ),
+  // connectionConfig is integration-specific — each integration may store
+  // custom fields (e.g. model, region) alongside standard ones (domain, timeout).
+  connectionConfig: v.optional(v.any()),
   sqlConnectionConfig: v.optional(
     v.object({
       engine: v.union(

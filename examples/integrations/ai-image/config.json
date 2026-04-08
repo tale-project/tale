@@ -1,0 +1,78 @@
+{
+  "title": "AI Image",
+  "description": "Create and edit images with AI. Supports OpenAI (GPT Image, DALL-E), Together AI, and other compatible providers.",
+  "version": 1,
+  "installed": true,
+  "type": "rest_api",
+  "authMethod": "bearer_token",
+  "supportedAuthMethods": [
+    "bearer_token"
+  ],
+  "secretBindings": [
+    "domain",
+    "accessToken"
+  ],
+  "allowedHosts": [
+    "api.together.xyz",
+    "api.openai.com"
+  ],
+  "operations": [
+    {
+      "name": "create",
+      "title": "Create Image",
+      "description": "Create an image from a text prompt. Returns the generated image as a file.",
+      "operationType": "write",
+      "requiresApproval": true,
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "description": "Text description of the image to create",
+            "required": true
+          },
+          "size": {
+            "type": "string",
+            "description": "Image size (model-dependent, see tool description for supported sizes)",
+            "required": false
+          }
+        }
+      }
+    },
+    {
+      "name": "edit",
+      "title": "Edit Image",
+      "description": "Edit an existing image based on a text prompt.",
+      "operationType": "write",
+      "requiresApproval": true,
+      "parametersSchema": {
+        "type": "object",
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "description": "Text description of the desired edit",
+            "required": true
+          },
+          "image": {
+            "type": "string",
+            "description": "URL or base64-encoded input image. You can pass a file URL from a previous create result.",
+            "required": true
+          },
+          "size": {
+            "type": "string",
+            "description": "Output image size (model-dependent, see tool description for supported sizes)",
+            "required": false
+          }
+        }
+      }
+    }
+  ],
+  "connectionConfig": {
+    "timeout": 120000,
+    "model": "gpt-image-1"
+  },
+  "metadata": {
+    "modelCapabilities": "Configured model: {{model}}\nModel capabilities:\n- gpt-image-1: sizes [1024x1024, 1024x1536, 1536x1024, auto], supports edit\n- dall-e-3: sizes [1024x1024, 1024x1792, 1792x1024], does NOT support edit\n- dall-e-2: sizes [256x256, 512x512, 1024x1024], supports edit\nIMPORTANT: Only use sizes supported by the configured model. Invalid sizes will cause an error."
+  },
+  "setupGuide": "### Configuration Guide\n\n1. **domain** — Your API provider's base URL:\n   - OpenAI: `https://api.openai.com`\n   - Together AI: `https://api.together.xyz`\n\n2. **accessToken** — Your API key from the provider\n\n3. **model** — The image generation model ID:\n   - `gpt-image-1` — OpenAI's latest image model (sizes: 1024x1024, 1024x1536, 1536x1024, auto)\n   - `dall-e-3` — DALL-E 3 (sizes: 1024x1024, 1024x1792, 1792x1024, no edit support)\n   - `dall-e-2` — DALL-E 2 (sizes: 256x256, 512x512, 1024x1024)"
+}

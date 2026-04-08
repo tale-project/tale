@@ -25,6 +25,7 @@ import { isIntrospectionOperation } from '../../workflow_engine/action_defs/inte
 import { validateRequiredParameters } from '../../workflow_engine/action_defs/integration/helpers/validate_required_parameters';
 import { integrationAction } from '../../workflow_engine/action_defs/integration/integration_action';
 import { sanitizeDepth } from '../../workflow_engine/helpers/serialization/sanitize_depth';
+import type { IntegrationOperationMetadataLocal } from './types';
 
 type ConvexJsonValue = Infer<typeof jsonValueValidator>;
 
@@ -62,6 +63,7 @@ export const executeIntegration = internalAction({
       messageId: messageId,
       operation,
       integrationName,
+      paramsKeys: params ? Object.keys(params) : 'undefined',
     });
 
     const result = await integrationAction.execute(
@@ -87,19 +89,73 @@ export const executeIntegration = internalAction({
 // EXECUTE APPROVED OPERATION
 // =============================================================================
 
-interface IntegrationOperationMetadataLocal {
-  integrationId: string;
-  integrationName: string;
-  integrationType: string;
-  operationName: string;
-  operationDescription?: string;
-  operationCategory?: string;
-  parameters?: Record<string, ConvexJsonValue>;
-  requiresApproval: boolean;
-  requestedAt?: number;
-  executedAt?: number;
-  executionResult?: ConvexJsonValue;
-  executionError?: string | null;
+async function notifyThread(
+  ctx: ActionCtx,
+  approval: { threadId?: string; organizationId: string },
+  messageContent: string,
+): Promise<void> {
+  if (!approval.threadId) return;
+
+  const threadMeta = await ctx.runQuery(
+    internal.threads.internal_queries.getThreadMetadata,
+    { threadId: approval.threadId },
+  );
+
+  if (threadMeta?.agentSlug) {
+    await ctx.scheduler.runAfter(
+      0,
+      internal.agent_tools.integrations.trigger_completion_action
+        .triggerCompletionWithAgent,
+      {
+        threadId: approval.threadId,
+        organizationId: approval.organizationId,
+        agentSlug: threadMeta.agentSlug,
+        messageContent,
+      },
+    );
+  } else {
+    await ctx.runMutation(
+      internal.agent_tools.integrations.internal_mutations.saveSystemMessage,
+      { threadId: approval.threadId, content: messageContent },
+    );
+  }
+}
+
+function buildCompletionMessage(
+  metadata: IntegrationOperationMetadataLocal,
+  result: unknown,
+): string {
+  const resultSummary = JSON.stringify(result, null, 2);
+  // Truncate large results to avoid bloating the system message
+  const truncated =
+    resultSummary.length > 2000
+      ? resultSummary.slice(0, 2000) + '\n... (truncated)'
+      : resultSummary;
+
+  return (
+    `[INTEGRATION_OPERATION_COMPLETED]\n` +
+    `Integration "${metadata.integrationName}" operation "${metadata.operationName}" completed successfully.\n\n` +
+    `Execution result:\n${truncated}\n\n` +
+    `Instructions:\n` +
+    `- Present the operation result to the user in markdown format\n` +
+    `- If the result contains data, summarize it clearly\n` +
+    `- If the result contains fileReferences with images, you MUST display each image inline using markdown image syntax: ![description](url)\n` +
+    `- Never omit images from the response — the user expects to see them directly`
+  );
+}
+
+function buildErrorMessage(
+  metadata: IntegrationOperationMetadataLocal,
+  errorMessage: string,
+): string {
+  return (
+    `[INTEGRATION_OPERATION_FAILED]\n` +
+    `Integration "${metadata.integrationName}" operation "${metadata.operationName}" failed.\n\n` +
+    `Error: ${errorMessage}\n\n` +
+    `Instructions:\n` +
+    `- Inform the user that the operation failed and explain the error\n` +
+    `- Suggest possible fixes or alternative approaches`
+  );
 }
 
 export const executeApprovedOperation = internalAction({
@@ -114,6 +170,7 @@ export const executeApprovedOperation = internalAction({
       status: string;
       resourceType: string;
       organizationId: string;
+      threadId?: string;
       metadata?: Record<string, ConvexJsonValue>;
     } | null = await ctx.runQuery(
       internal.approvals.internal_queries.getApprovalById,
@@ -171,6 +228,13 @@ export const executeApprovedOperation = internalAction({
         },
       );
 
+      // Post completion message to chat and trigger agent response
+      await notifyThread(
+        ctx,
+        approval,
+        buildCompletionMessage(metadata, result),
+      );
+
       return toConvexJsonValue(result);
     } catch (error) {
       const errorMessage =
@@ -184,6 +248,13 @@ export const executeApprovedOperation = internalAction({
           executionResult: null,
           executionError: errorMessage,
         },
+      );
+
+      // Post error message to chat so the agent can inform the user
+      await notifyThread(
+        ctx,
+        approval,
+        buildErrorMessage(metadata, errorMessage),
       );
 
       throw error;

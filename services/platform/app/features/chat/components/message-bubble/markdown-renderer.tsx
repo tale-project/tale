@@ -106,14 +106,11 @@ const MarkdownImage = memo(function MarkdownImage({
 
 const markdownImageComponent = ({
   node: _node,
+  width: _width,
+  height: _height,
   ...props
 }: { node?: unknown } & React.ImgHTMLAttributes<HTMLImageElement>) => (
-  <MarkdownImage
-    {...props}
-    width={36}
-    height={36}
-    className="size-9 object-cover"
-  />
+  <MarkdownImage {...props} />
 );
 
 function MarkdownParagraph({ children }: { children?: ReactNode }) {

@@ -115,6 +115,7 @@ export async function createIntegration(
           }
         : undefined,
       oauth2Auth,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- connectionConfig is v.any() in schema
       connectionConfig: args.connectionConfig as
         | Record<string, unknown>
         | undefined,

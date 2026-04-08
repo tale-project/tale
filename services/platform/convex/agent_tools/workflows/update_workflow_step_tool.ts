@@ -425,7 +425,7 @@ Inform the user the update is ready for review in the chat UI.`,
             requiresApproval: true,
             approvalId,
             approvalCreated: true,
-            approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created for updating ${sanitizedEntries.length} steps (${stepNames}) in workflow "${currentConfig.name}".`,
+            approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created for updating ${sanitizedEntries.length} steps (${stepNames}) in workflow "${currentConfig.name}". Do NOT include suggested follow-ups or next steps — the user needs to act on the approval card first.`,
             message: `Batch step update for ${sanitizedEntries.length} steps is ready for approval. An approval card has been created.`,
           };
         } else {
@@ -460,7 +460,7 @@ Inform the user the update is ready for review in the chat UI.`,
             requiresApproval: true,
             approvalId,
             approvalCreated: true,
-            approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created for updating step "${stepName}" in workflow "${currentConfig.name}". The user must approve this update before changes will be applied.`,
+            approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created for updating step "${stepName}" in workflow "${currentConfig.name}". The user must approve this update before changes will be applied. Do NOT include suggested follow-ups or next steps — the user needs to act on the approval card first.`,
             message: `Step update for "${stepName}" is ready for approval. An approval card has been created. Changes will be applied once the user approves it.`,
           };
         }

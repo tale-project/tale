@@ -177,7 +177,7 @@ PARAMETERS:
           requiresApproval: true,
           approvalId: String(approvalId),
           approvalCreated: true,
-          approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created for saving ${filesMetadata.length} file(s) to the documents hub. The user must approve before the documents will be saved.`,
+          approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalId}) has been created for saving ${filesMetadata.length} file(s) to the documents hub. The user must approve before the documents will be saved. Do NOT include suggested follow-ups or next steps — the user needs to act on the approval card first.`,
           message: `${fileListStr} ${filesMetadata.length === 1 ? 'is' : 'are'} ready to be saved to the documents hub${args.folderPath ? ` in folder "${args.folderPath}"` : ''}. An approval card has been created. The documents will be saved once the user approves.`,
         };
       } catch (error) {

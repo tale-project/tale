@@ -15,6 +15,7 @@ import { v } from 'convex/values';
 
 import type { IntegrationJsonConfig } from '../../lib/shared/schemas/integrations';
 import { internal } from '../_generated/api';
+import type { Id } from '../_generated/dataModel';
 import { action, internalAction } from '../_generated/server';
 import { authComponent } from '../auth';
 import {
@@ -132,6 +133,16 @@ export const listIntegrations = action({
           if (filterMode === 'installed' && !installed) return null;
           if (filterMode === 'templates' && installed) return null;
 
+          // Read icon.svg as data URI if it exists
+          const iconPath = path.join(
+            resolveIntegrationDir(args.orgSlug, slug),
+            'icon.svg',
+          );
+          const iconContent = await readFileSafe(iconPath);
+          const iconUrl = iconContent
+            ? `data:image/svg+xml;base64,${Buffer.from(iconContent).toString('base64')}`
+            : undefined;
+
           return {
             slug,
             title: result.config.title,
@@ -150,7 +161,9 @@ export const listIntegrations = action({
             sqlOperations: result.config.sqlOperations,
             operationCount: result.config.operations?.length ?? 0,
             metadata: result.config.metadata,
+            setupGuide: result.config.setupGuide,
             hash: result.hash,
+            ...(iconUrl ? { iconUrl } : {}),
           };
         }
         return {
@@ -213,8 +226,14 @@ export const installIntegration = action({
     slug: v.string(),
     organizationId: v.string(),
   },
-  returns: v.object({ hash: v.string() }),
-  handler: async (ctx, args): Promise<{ hash: string }> => {
+  returns: v.object({
+    hash: v.string(),
+    credentialId: v.id('integrationCredentials'),
+  }),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ hash: string; credentialId: Id<'integrationCredentials'> }> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
@@ -233,8 +252,10 @@ export const installIntegration = action({
       { organizationId: args.organizationId, slug: args.slug },
     );
 
+    let credentialId: Id<'integrationCredentials'>;
+
     if (!existing) {
-      await ctx.runMutation(
+      credentialId = await ctx.runMutation(
         internal.integrations.credential_mutations.createCredentials,
         {
           organizationId: args.organizationId,
@@ -246,10 +267,12 @@ export const installIntegration = action({
           capabilities: result.config.capabilities,
         },
       );
+    } else {
+      credentialId = existing._id;
     }
 
     if (result.config.installed) {
-      return { hash: result.hash };
+      return { hash: result.hash, credentialId };
     }
 
     // Set installed: true in config.json
@@ -262,7 +285,7 @@ export const installIntegration = action({
     const filePath = resolveConfigPath(args.orgSlug, args.slug);
     await atomicWrite(filePath, newContent);
 
-    return { hash: sha256(newContent) };
+    return { hash: sha256(newContent), credentialId };
   },
 });
 
