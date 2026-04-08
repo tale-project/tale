@@ -142,6 +142,7 @@ async function handleSubmission({
     await ctx.db.patch(threadMeta._id, {
       generationStatus: 'generating' as const,
       streamId,
+      updatedAt: Date.now(),
     });
   }
 

@@ -17,6 +17,6 @@ export async function updateChatThread(
     .first();
 
   if (existing) {
-    await ctx.db.patch(existing._id, { title });
+    await ctx.db.patch(existing._id, { title, updatedAt: Date.now() });
   }
 }

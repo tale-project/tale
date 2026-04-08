@@ -58,6 +58,7 @@ interface ThreadMetadataRow {
   status: 'active' | 'archived';
   title?: string;
   createdAt: number;
+  updatedAt?: number;
 }
 
 let idCounter = 0;
@@ -66,6 +67,7 @@ function makeRow(overrides: {
   threadId: string;
   title?: string;
   createdAt?: number;
+  updatedAt?: number;
 }): ThreadMetadataRow {
   idCounter++;
   const createdAt = overrides.createdAt ?? Date.now() - idCounter * 1000;
@@ -78,6 +80,7 @@ function makeRow(overrides: {
     status: 'active',
     title: overrides.title ?? `Thread ${overrides.threadId}`,
     createdAt,
+    updatedAt: overrides.updatedAt,
   };
 }
 
@@ -128,7 +131,7 @@ describe('listThreads', () => {
     expect(result.isDone).toBe(true);
   });
 
-  it('should map threadId to _id and createdAt to _creationTime', async () => {
+  it('should map threadId to _id and fall back to createdAt for _creationTime', async () => {
     const ctx = makeMockCtx([
       makeRow({ threadId: 't1', title: 'Test Thread', createdAt: 1000 }),
     ]);
@@ -144,6 +147,26 @@ describe('listThreads', () => {
     expect(thread.title).toBe('Test Thread');
     expect(thread.status).toBe('active');
     expect(thread.userId).toBe('user1');
+  });
+
+  it('should use updatedAt as _creationTime when present', async () => {
+    const ctx = makeMockCtx([
+      makeRow({
+        threadId: 't1',
+        title: 'Updated Thread',
+        createdAt: 1000,
+        updatedAt: 5000,
+      }),
+    ]);
+
+    const result = await listThreads(ctx, {
+      userId: 'user1',
+      paginationOpts: { cursor: null, numItems: 10 },
+    });
+
+    const thread = result.page[0];
+    expect(thread._id).toBe('t1');
+    expect(thread._creationTime).toBe(5000);
   });
 
   it('should only include _id, _creationTime, title, status, userId, generationStatus in results', async () => {

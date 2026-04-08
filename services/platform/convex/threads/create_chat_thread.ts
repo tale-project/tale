@@ -23,13 +23,15 @@ export async function createChatThread(
     threadId,
   });
 
+  const createdAt = thread?._creationTime ?? Date.now();
   await ctx.db.insert('threadMetadata', {
     threadId,
     userId,
     chatType,
     status: 'active',
     title: resolvedTitle,
-    createdAt: thread?._creationTime ?? Date.now(),
+    createdAt,
+    updatedAt: createdAt,
   });
 
   return threadId;
