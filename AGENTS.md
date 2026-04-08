@@ -23,9 +23,12 @@
 
 ## Git
 
-- Write clear, descriptive commit messages.
-- Use conventional commit format when appropriate.
+- Refer to `commitlint.config.mjs` for allowed types and scopes.
+- KEEP the first line (header) under 72 characters so it fits as a PR title without truncation.
+- USE lowercase for the description after the colon. Do not end with a period.
+- USE imperative mood in the description (e.g., "add feature" not "added feature").
 - Keep commits focused and atomic.
+- Use the body for additional context when needed (separate from header with a blank line).
 
 ## Testing
 
@@ -77,11 +80,13 @@ const buttonVariants = cva('base-button', {
   },
 });
 
-<button className={cn(
-  buttonVariants({ variant, size }),
-  isActive && 'ring-2 ring-blue-500',
-  error && 'border-red-500'
-)} />
+<button
+  className={cn(
+    buttonVariants({ variant, size }),
+    isActive && 'ring-2 ring-blue-500',
+    error && 'border-red-500',
+  )}
+/>;
 ```
 
 ## Convex
@@ -98,7 +103,7 @@ const buttonVariants = cva('base-button', {
 
 ```typescript
 // Good: async iteration
-const products = ctx.db.query("products");
+const products = ctx.db.query('products');
 for await (const product of products) {
   // process product
 }
