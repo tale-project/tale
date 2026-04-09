@@ -13,7 +13,7 @@ ARG VERSION=dev
 # =============================================================================
 # Stage 1: CLEANUP — strip bloat from ParadeDB base
 # =============================================================================
-FROM paradedb/paradedb:0.22.5-pg16 AS cleanup
+FROM paradedb/paradedb:0.22.6-pg16 AS cleanup
 
 USER root
 
