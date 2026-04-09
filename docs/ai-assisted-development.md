@@ -19,7 +19,7 @@ The rules files contain the same core content: project structure, configuration 
 
 ## How to use it
 
-1. Create a project with `tale init my-project` (or run `tale update` on an existing project to regenerate files).
+1. Create a project with `tale init my-project` (or run `tale upgrade` on an existing project to regenerate files).
 2. Open the project directory in your AI-powered editor.
 3. The editor automatically reads its rules file and gains full platform context.
 4. Ask the AI to create or modify configurations. For example:
@@ -36,11 +36,10 @@ Tale generates configuration files for Claude Code, Cursor, GitHub Copilot, and 
 
 ## Keeping rules up to date
 
-Rules files and the reference directory are bundled into the CLI binary. To get the latest version, first update the CLI itself, then run `tale update` to regenerate the files in your project:
+Rules files and the reference directory are bundled into the CLI binary. Run `tale upgrade` to download the latest CLI and regenerate all project files:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.sh | bash
-tale update
+tale upgrade
 ```
 
-Do not edit these files manually as they are overwritten on update.
+Do not edit these files manually as they are overwritten on upgrade.

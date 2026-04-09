@@ -22,6 +22,7 @@ import { generateAllRules } from '../rules/generators';
 interface UpdateOptions {
   force?: boolean;
   dryRun?: boolean;
+  skipVersionCheck?: boolean;
 }
 
 interface UpdateSummary {
@@ -42,7 +43,11 @@ export async function update(options: UpdateOptions): Promise<void> {
 
   logger.header(`${prefix}Updating Tale Project`);
 
-  if (project.cliVersion === pkg.version && !options.force) {
+  if (
+    project.cliVersion === pkg.version &&
+    !options.force &&
+    !options.skipVersionCheck
+  ) {
     logger.success(`Already up to date (v${pkg.version})`);
     return;
   }

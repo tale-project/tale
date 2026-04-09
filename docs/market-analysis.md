@@ -288,7 +288,7 @@ Each integration includes: `config.json` (schema + operations), `connector.ts` (
 | `tale rollback`      | Switch traffic to previous version               |
 | `tale cleanup`       | Remove inactive containers                       |
 | `tale reset --force` | Full teardown                                    |
-| `tale update`        | Sync project files with CLI version              |
+| `tale upgrade`       | Upgrade CLI and sync project files               |
 | `tale convex admin`  | Generate Convex Dashboard admin key              |
 
 **Deployment features:**
