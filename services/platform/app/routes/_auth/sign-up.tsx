@@ -26,6 +26,10 @@ import { useT } from '@/lib/i18n/client';
 import { createPasswordSchema } from '@/lib/shared/schemas/password';
 import { seo } from '@/lib/utils/seo';
 
+// Sign-up is restricted to the very first user (the owner account).
+// Tale is offline-first — there is no self-service registration or password reset.
+// All subsequent users are created by an admin via Settings → Members.
+// If users already exist, this page redirects to /log-in.
 export const Route = createFileRoute('/_auth/sign-up')({
   head: () => ({
     meta: seo('signup'),

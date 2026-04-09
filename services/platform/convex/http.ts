@@ -24,6 +24,7 @@ import {
   streamChatHttp,
   streamChatHttpOptions,
 } from './streaming/http_actions';
+import { trustedHeadersAuthHandler } from './trusted_headers_auth/http_handlers';
 import {
   apiTriggerHandler,
   apiTriggerOptionsHandler,
@@ -147,6 +148,15 @@ http.route({
   path: '/api/sso/set-session',
   method: 'GET',
   handler: ssoSetSessionHandler,
+});
+
+// Trusted Headers Authentication
+// For deployments behind an authenticating reverse proxy (Authelia, Authentik, oauth2-proxy).
+// The proxy sets identity headers; this endpoint reads them and creates a session.
+http.route({
+  path: '/api/trusted-headers/authenticate',
+  method: 'GET',
+  handler: trustedHeadersAuthHandler,
 });
 
 // Agent Webhook Routes

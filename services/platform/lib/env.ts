@@ -4,6 +4,7 @@ declare global {
       SITE_URL?: string;
       BASE_PATH?: string;
       MICROSOFT_AUTH_ENABLED?: boolean;
+      TRUSTED_HEADERS_ENABLED?: boolean;
       SENTRY_DSN?: string;
       SENTRY_TRACES_SAMPLE_RATE?: number;
       TALE_VERSION?: string;
@@ -15,6 +16,7 @@ declare global {
 export function getEnv(key: 'SITE_URL'): string;
 export function getEnv(key: 'BASE_PATH'): string;
 export function getEnv(key: 'MICROSOFT_AUTH_ENABLED'): boolean;
+export function getEnv(key: 'TRUSTED_HEADERS_ENABLED'): boolean;
 export function getEnv(key: 'SENTRY_DSN'): string | undefined;
 export function getEnv(key: 'SENTRY_TRACES_SAMPLE_RATE'): number;
 export function getEnv(key: 'TALE_VERSION'): string | undefined;
@@ -23,6 +25,7 @@ export function getEnv(
     | 'SITE_URL'
     | 'BASE_PATH'
     | 'MICROSOFT_AUTH_ENABLED'
+    | 'TRUSTED_HEADERS_ENABLED'
     | 'SENTRY_DSN'
     | 'SENTRY_TRACES_SAMPLE_RATE'
     | 'TALE_VERSION',
@@ -32,7 +35,7 @@ export function getEnv(
     if (key === 'BASE_PATH') {
       return '';
     }
-    if (key === 'MICROSOFT_AUTH_ENABLED') {
+    if (key === 'MICROSOFT_AUTH_ENABLED' || key === 'TRUSTED_HEADERS_ENABLED') {
       return false;
     }
     if (key === 'SENTRY_DSN' || key === 'TALE_VERSION') {

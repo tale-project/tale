@@ -639,6 +639,7 @@ deploy_convex_functions() {
     "TRUSTED_EMAIL_HEADER"
     "TRUSTED_NAME_HEADER"
     "TRUSTED_ROLE_HEADER"
+    "TRUSTED_TEAMS_HEADER"
     # Root directory for file-based configs (agents, workflows, integrations, branding)
     "TALE_CONFIG_DIR"
     # Agents directory (filesystem path for agent JSON configs)

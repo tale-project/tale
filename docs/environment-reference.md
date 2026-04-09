@@ -94,9 +94,13 @@ These variables are only needed if you configure SSO through environment variabl
 
 ## Trusted headers authentication
 
-| Variable                          | Required | Description                                                    |
-| --------------------------------- | -------- | -------------------------------------------------------------- |
-| `TRUSTED_HEADERS_ENABLED`         | No       | Set to `true` to enable trusted headers authentication         |
-| `TRUSTED_HEADERS_INTERNAL_SECRET` | No       | Shared secret for validating trusted header requests           |
+| Variable                          | Required | Description                                                                |
+| --------------------------------- | -------- | -------------------------------------------------------------------------- |
+| `TRUSTED_HEADERS_ENABLED`         | No       | Set to `true` to enable trusted headers authentication                     |
+| `TRUSTED_HEADERS_INTERNAL_SECRET` | No       | Shared secret for validating trusted header requests (defense-in-depth)    |
+| `TRUSTED_EMAIL_HEADER`            | No       | Header name for the user's email (default: `Remote-Email`)                 |
+| `TRUSTED_NAME_HEADER`             | No       | Header name for the user's display name (default: `Remote-Name`)           |
+| `TRUSTED_ROLE_HEADER`             | No       | Header name for the user's role (default: `Remote-Role`)                   |
+| `TRUSTED_TEAMS_HEADER`            | No       | Header name for the user's teams (default: `Remote-Teams`)                 |
 
 See the [Authentication guide](/authentication) for details on configuring trusted headers.

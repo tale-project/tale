@@ -100,9 +100,9 @@ The CLI handles blue-green zero-downtime deployments with automatic health check
 
 ## Authentication options
 
-Tale supports multiple authentication methods. By default, users sign up with email/password. See the [Authentication guide](docs/authentication.md) for full details.
+Tale uses password-based authentication by default. The first user creates the owner account; all other users are created by an admin. To enable self-service login, connect SSO or trusted headers. See the [Authentication guide](docs/authentication.md) for full details.
 
-- **Microsoft Entra ID (SSO):** Single sign-on with Microsoft 365 / Azure AD
+- **Microsoft Entra ID (SSO):** Single sign-on with Microsoft 365 / Azure AD with automatic provisioning
 - **Trusted headers:** For deployments behind an authenticating reverse proxy (Authelia, Authentik, oauth2-proxy)
 
 ## Development

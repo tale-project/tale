@@ -45,6 +45,7 @@ interface EnvConfig {
   SITE_URL: string | undefined;
   BASE_PATH: string;
   MICROSOFT_AUTH_ENABLED: boolean;
+  TRUSTED_HEADERS_ENABLED: boolean;
   SENTRY_DSN: string | undefined;
   SENTRY_TRACES_SAMPLE_RATE: number;
   TALE_VERSION: string | undefined;
@@ -68,6 +69,7 @@ function getEnvConfig(): EnvConfig {
     SITE_URL: process.env.SITE_URL,
     BASE_PATH: getBasePath(),
     MICROSOFT_AUTH_ENABLED: !!process.env.AUTH_MICROSOFT_ENTRA_ID_ID,
+    TRUSTED_HEADERS_ENABLED: process.env.TRUSTED_HEADERS_ENABLED === 'true',
     SENTRY_DSN: process.env.SENTRY_DSN,
     SENTRY_TRACES_SAMPLE_RATE: parseFloat(
       process.env.SENTRY_TRACES_SAMPLE_RATE || '1.0',
