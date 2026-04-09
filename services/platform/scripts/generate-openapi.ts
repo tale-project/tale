@@ -448,11 +448,116 @@ All endpoints accept POST requests with JSON body containing an \`args\` object:
     mkdirSync(outputDir, { recursive: true });
   }
 
-  writeFileSync(outputPath, JSON.stringify(spec, null, 2), 'utf-8');
+  // Output only the public-facing spec (curated endpoints for external use)
+  const publicSpec = generatePublicSpec(spec);
+  writeFileSync(outputPath, JSON.stringify(publicSpec, null, 2), 'utf-8');
 
   rmSync(tempYamlPath, { force: true });
 
   console.log(`OpenAPI spec written to ${outputPath}`);
+}
+
+/**
+ * Generate a lightweight public-facing OpenAPI spec for the Swagger UI.
+ *
+ * Only includes curated endpoints that external integrators need:
+ * - OpenAI-compatible chat completions
+ * - Model listing
+ *
+ * The full spec (openapi.json) is still available for internal use.
+ */
+function generatePublicSpec(fullSpec: OpenApiSpec): OpenApiSpec {
+  const publicPaths: Record<string, unknown> = {};
+
+  // Pick only /api/v1/* paths (public API)
+  for (const [path, def] of Object.entries(fullSpec.paths)) {
+    if (path.startsWith('/api/v1/')) {
+      publicPaths[path] = def;
+    }
+  }
+
+  // Collect referenced schemas
+  const referencedSchemas = new Set<string>();
+  const json = JSON.stringify(publicPaths);
+  const refPattern = /#\/components\/schemas\/([^"]+)/g;
+  let match;
+  while ((match = refPattern.exec(json)) !== null) {
+    referencedSchemas.add(match[1]);
+  }
+
+  // Recursively resolve nested schema refs
+  let prevSize = 0;
+  while (referencedSchemas.size !== prevSize) {
+    prevSize = referencedSchemas.size;
+    for (const name of [...referencedSchemas]) {
+      const schema = fullSpec.components.schemas[name];
+      if (!schema) continue;
+      const schemaJson = JSON.stringify(schema);
+      let nested;
+      while ((nested = refPattern.exec(schemaJson)) !== null) {
+        referencedSchemas.add(nested[1]);
+      }
+    }
+  }
+
+  const publicSchemas: Record<string, unknown> = {};
+  for (const name of referencedSchemas) {
+    if (fullSpec.components.schemas[name]) {
+      publicSchemas[name] = fullSpec.components.schemas[name];
+    }
+  }
+
+  return {
+    openapi: fullSpec.openapi,
+    info: {
+      title: 'Tale Public API',
+      version: '1.0.0',
+      description: `
+Tale Public API — OpenAI-compatible Chat Completions interface.
+
+## Authentication
+
+Use a Bearer token with your API key:
+
+\`\`\`
+Authorization: Bearer tale_...
+\`\`\`
+
+Create API keys in **Settings > API Keys**.
+
+## Quick start
+
+\`\`\`python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://your-instance.com/api/v1",
+    api_key="tale_...",
+    default_headers={"X-Organization-Slug": "default"},
+)
+
+response = client.chat.completions.create(
+    model="chat-agent",
+    messages=[{"role": "user", "content": "Hello!"}],
+)
+\`\`\`
+`.trim(),
+    },
+    servers: fullSpec.servers,
+    security: [{ bearerAuth: [] }],
+    paths: publicPaths,
+    components: {
+      securitySchemes: {
+        bearerAuth: fullSpec.components.securitySchemes?.bearerAuth ?? {
+          type: 'http',
+          scheme: 'bearer',
+          description: 'API key as Bearer token.',
+        },
+      },
+      schemas: publicSchemas,
+    },
+    tags: (fullSpec.tags ?? []).filter((t) => t.name === 'OpenAI Compatible'),
+  };
 }
 
 main();
