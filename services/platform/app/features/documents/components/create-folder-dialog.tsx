@@ -85,9 +85,12 @@ export function CreateFolderDialog({
       onSuccess?.();
     } catch (error) {
       console.error('Failed to create folder:', error);
+      const isDuplicate =
+        error instanceof Error && error.message.includes('already exists');
       toast({
-        title: tDocuments('folder.createFailed'),
-        description: error instanceof Error ? error.message : undefined,
+        title: isDuplicate
+          ? tDocuments('folder.duplicateName')
+          : tDocuments('folder.createFailed'),
         variant: 'destructive',
       });
     } finally {

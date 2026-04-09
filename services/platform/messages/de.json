@@ -2749,7 +2749,8 @@
       "nameRequired": "Ordnername ist erforderlich",
       "creating": "Wird erstellt...",
       "created": "Ordner erstellt",
-      "createFailed": "Ordner konnte nicht erstellt werden"
+      "createFailed": "Ordner konnte nicht erstellt werden",
+      "duplicateName": "Ein Ordner mit diesem Namen existiert bereits"
     },
     "teamTags": {
       "title": "Teams verwalten",
