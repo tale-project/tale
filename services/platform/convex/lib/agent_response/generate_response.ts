@@ -42,6 +42,8 @@ import {
 } from '../context_management';
 import { wrapInDetails } from '../context_management/message_formatter';
 import { createDebugLog } from '../debug_log';
+import { computeCacheKey } from '../response_cache/cache_key';
+import { areAllToolsCacheable } from '../response_cache/tool_cacheability';
 import { resolveTemplateVariables } from './resolve_template_variables';
 import { STRUCTURED_RESPONSE_INSTRUCTIONS } from './structured_response_instructions';
 import type {
@@ -175,6 +177,9 @@ export async function generateAgentResponse(
     agentTeamId,
     knowledgeFileIds,
     structuredResponsesEnabled,
+    responseCacheEnabled,
+    responseCacheTtlMs,
+    noCacheToolNames,
     instructions,
     toolsSummary,
   } = config;
@@ -592,6 +597,84 @@ export async function generateAgentResponse(
     const systemPrompt = agentInstructions
       ? `${agentInstructions}\n\n${structuredThreadContext.threadContext}`
       : structuredThreadContext.threadContext;
+
+    // ── Response cache lookup ──
+    // Use raw instructions (before template variable resolution) + threadContext
+    // so that time-varying variables like {{current_time}} don't bust the cache.
+    const cacheEnabled = responseCacheEnabled !== false;
+    const cacheKey = cacheEnabled
+      ? computeCacheKey({
+          agentName: agentType,
+          model,
+          instructions: instructions ?? '',
+          threadContext: structuredThreadContext.threadContext,
+          userMessage: typeof promptToSend === 'string' ? promptToSend : '',
+          generationParams,
+        })
+      : undefined;
+
+    if (cacheKey) {
+      const cached = await ctx.runQuery(
+        internal.lib.response_cache.internal_queries.lookupCache,
+        { cacheKey },
+      );
+      if (cached) {
+        debugLog('CACHE_HIT', { cacheKey, threadId });
+
+        // Save assistant message via Agent SDK
+        const { messageId } = await saveMessage(ctx, components.agent, {
+          threadId,
+          message: { role: 'assistant', content: cached.responseText },
+        });
+
+        // Write to persistent stream so frontend receives the response
+        if (streamId) {
+          await ctx.runMutation(
+            internal.streaming.internal_mutations.appendToStream,
+            { streamId, text: cached.responseText },
+          );
+          await ctx.runMutation(
+            internal.streaming.internal_mutations.completeStream,
+            { streamId },
+          );
+          await ctx.runMutation(
+            internal.threads.internal_mutations.clearGenerationStatus,
+            { threadId, streamId },
+          );
+        }
+
+        const durationMs = Date.now() - startTime;
+        const cachedResult: GenerateResponseResult = {
+          threadId,
+          text: cached.responseText,
+          savedMessageId: messageId,
+          usage: cached.usage,
+          finishReason: 'cached',
+          durationMs,
+          model: cached.model,
+          provider: cached.provider,
+        };
+
+        if (hooks?.afterGenerate) {
+          await hooks.afterGenerate(ctx, args, cachedResult, hookData);
+        }
+        await onAgentComplete(ctx, {
+          threadId,
+          agentType,
+          result: {
+            threadId,
+            messageId,
+            text: cached.responseText,
+            model: cached.model,
+            provider: cached.provider,
+            usage: cached.usage,
+            durationMs,
+          },
+        });
+
+        return cachedResult;
+      }
+    }
 
     debugLog('PRE_LLM_CALL', {
       threadId,
@@ -1219,6 +1302,33 @@ export async function generateAgentResponse(
     const { toolCalls, toolsUsage } = extractToolCallsFromSteps(
       result.steps ?? [],
     );
+
+    // ── Response cache store ──
+    if (cacheKey && result.text?.trim()) {
+      const calledToolNames = toolCalls.map((tc) => tc.toolName);
+      if (areAllToolsCacheable(calledToolNames, noCacheToolNames)) {
+        await ctx.runMutation(
+          internal.lib.response_cache.internal_mutations.storeCache,
+          {
+            cacheKey,
+            responseText: result.text,
+            model: result.response?.modelId ?? model,
+            provider,
+            usage: result.usage
+              ? {
+                  inputTokens: result.usage.inputTokens,
+                  outputTokens: result.usage.outputTokens,
+                  totalTokens: result.usage.totalTokens,
+                }
+              : undefined,
+            organizationId,
+            agentSlug: agentType,
+            ttlMs: responseCacheTtlMs,
+          },
+        );
+        debugLog('CACHE_STORE', { cacheKey, threadId });
+      }
+    }
 
     // Build complete context window for metadata (uses <details> for collapsible display)
     const contextWindowParts = [];

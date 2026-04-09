@@ -1,10 +1,12 @@
 import { Link, createFileRoute } from '@tanstack/react-router';
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
+import { CheckboxGroup } from '@/app/components/ui/forms/checkbox-group';
 import { RadioGroup } from '@/app/components/ui/forms/radio-group';
 import { PageSection } from '@/app/components/ui/layout/page-section';
 import { StickySectionHeader } from '@/app/components/ui/layout/sticky-section-header';
+import { Text } from '@/app/components/ui/typography/text';
 import { ToolSelector } from '@/app/features/agents/components/tool-selector';
 import { useAgentConfig } from '@/app/features/agents/hooks/use-agent-config-context';
 import { useT } from '@/lib/i18n/client';
@@ -104,6 +106,50 @@ function ToolsTab() {
         organizationId={organizationId}
         hiddenTools={hiddenTools}
       />
+
+      <CacheExclusionsSection />
     </ContentArea>
+  );
+}
+
+function CacheExclusionsSection() {
+  const { t } = useT('settings');
+  const { config, updateConfig } = useAgentConfig();
+
+  const toolNames = config.toolNames;
+  const noCacheToolNames = config.noCacheToolNames ?? [];
+
+  const options = useMemo(
+    () => (toolNames ?? []).map((name) => ({ value: name, label: name })),
+    [toolNames],
+  );
+
+  const handleChange = useCallback(
+    (values: string[]) => {
+      updateConfig({
+        noCacheToolNames: values.length > 0 ? values : undefined,
+      });
+    },
+    [updateConfig],
+  );
+
+  return (
+    <PageSection
+      gap={3}
+      title={t('agents.tools.cacheExclusions')}
+      description={t('agents.tools.cacheExclusionsDescription')}
+    >
+      {!toolNames || toolNames.length === 0 ? (
+        <Text variant="caption" className="italic">
+          {t('agents.tools.noCacheToolsEmpty')}
+        </Text>
+      ) : (
+        <CheckboxGroup
+          options={options}
+          value={noCacheToolNames}
+          onValueChange={handleChange}
+        />
+      )}
+    </PageSection>
   );
 }

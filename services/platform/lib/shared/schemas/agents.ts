@@ -50,6 +50,9 @@ export const agentJsonSchema = z.object({
   roleRestriction: z.literal('admin_developer').optional(),
   conversationStarters: z.array(z.string().max(200)).max(4).optional(),
   visibleInChat: z.boolean().optional(),
+  responseCacheEnabled: z.boolean().optional(),
+  responseCacheTtlMs: z.number().int().min(1000).optional(),
+  noCacheToolNames: z.array(z.string()).optional(),
   i18n: z
     .record(
       z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/),
