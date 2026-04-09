@@ -45,7 +45,7 @@ export function AgentConfigProvider({
   initialConfig,
   children,
 }: AgentConfigProviderProps) {
-  const [config, setConfig] = useState<AgentJsonConfig>(initialConfig);
+  const [config, setConfig] = useState(initialConfig);
   const [isSaving, setIsSaving] = useState(false);
   const initialRef = useRef(initialConfig);
   const configRef = useRef(config);

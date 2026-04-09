@@ -10,6 +10,7 @@ import type {
 export function useConvexAction<Func extends FunctionReference<'action'>>(
   func: Func,
   options?: Omit<
+    // oxlint-disable-next-line typescript/no-unnecessary-type-arguments -- FunctionArgs<Func> is not the default (void)
     UseMutationOptions<FunctionReturnType<Func>, Error, FunctionArgs<Func>>,
     'mutationFn'
   >,

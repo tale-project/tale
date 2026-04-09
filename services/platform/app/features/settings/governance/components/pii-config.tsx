@@ -45,7 +45,7 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
 
   const [enabled, setEnabled] = useState(false);
   const [mode, setMode] = useState<'mask' | 'block'>('mask');
-  const [enabledPatterns, setEnabledPatterns] = useState<Set<string>>(
+  const [enabledPatterns, setEnabledPatterns] = useState(
     new Set(PATTERN_NAMES),
   );
   const [customPatterns, setCustomPatterns] = useState<CustomPattern[]>([]);

@@ -79,7 +79,10 @@ function useMessageGallery(message: Message) {
     for (const attachment of imageAttachments) {
       const url =
         attachment.previewUrl ||
-        resolvedUrls?.find((r) => r.fileId === attachment.fileId)?.url;
+        resolvedUrls?.find(
+          (r: { fileId: string; url: string | null }) =>
+            r.fileId === attachment.fileId,
+        )?.url;
       if (url) {
         images.push({ src: url, alt: attachment.fileName });
       }

@@ -67,7 +67,7 @@ export function TeamFilterProvider({
 
   // Validate: clear selection if stored team no longer exists
   const validatedTeamId =
-    selectedTeamId && teams && !teams.some((t) => t.id === selectedTeamId)
+    selectedTeamId && teams && !teams.some((t: Team) => t.id === selectedTeamId)
       ? null
       : selectedTeamId;
 
@@ -87,7 +87,7 @@ export function TeamFilterProvider({
     if (
       selectedTeamId &&
       teams &&
-      !teams.some((t) => t.id === selectedTeamId)
+      !teams.some((t: Team) => t.id === selectedTeamId)
     ) {
       setSelectedTeamId(null);
     }

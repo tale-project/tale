@@ -113,7 +113,9 @@ function IntegrationsPage() {
   const ensuredRef = useRef(new Set<string>());
   useEffect(() => {
     if (!credentials || !fileIntegrations.length) return;
-    const credSlugs = new Set((credentials ?? []).map((c) => c.slug));
+    const credSlugs = new Set(
+      (credentials ?? []).map((c: { slug: string }) => c.slug),
+    );
     for (const item of fileIntegrations) {
       if (!item || !('slug' in item) || !('installed' in item)) continue;
       if (!item.installed) continue;
@@ -162,12 +164,17 @@ function IntegrationsPage() {
 
   // Merge file-based integration config with DB credential records
   const credentialsBySlug = new Map(
-    (credentials ?? []).map((c) => [c.slug, c]),
+    (credentials ?? []).map(
+      (c: Record<string, unknown> & { slug: string }) => [c.slug, c] as const,
+    ),
   );
 
   const validIntegrations = (fileIntegrations ?? []).filter(
     (item): item is Record<string, unknown> =>
-      item != null && 'title' in item && 'slug' in item,
+      item != null &&
+      typeof item === 'object' &&
+      'title' in item &&
+      'slug' in item,
   );
 
   // Deep-merge object configs so DB partials don't wipe file-defined defaults

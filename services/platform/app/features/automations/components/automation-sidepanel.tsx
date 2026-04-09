@@ -211,10 +211,8 @@ export function AutomationSidePanel({
   const { width, minWidth, maxWidth, handleMouseDown, handleKeyDown } =
     useResizable(panelRef);
 
-  const [editState, setEditState] = useState<EditState>({
-    config: '',
-    nextSteps: {},
-  });
+  const initialEditState: EditState = { config: '', nextSteps: {} };
+  const [editState, setEditState] = useState(initialEditState);
   // TODO: Replace with file-based workflow save
   const isSaving = false;
 

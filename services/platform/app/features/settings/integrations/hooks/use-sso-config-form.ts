@@ -68,7 +68,7 @@ export function useSsoConfigForm({
   const [autoProvisionTeam, setAutoProvisionTeam] = useState(true);
   const [excludeGroups, setExcludeGroups] = useState('');
   const [autoProvisionRole, setAutoProvisionRole] = useState(true);
-  const [roleMappingRules, setRoleMappingRules] = useState<RoleMappingRule[]>(
+  const [roleMappingRules, setRoleMappingRules] = useState(
     DEFAULT_MAPPING_RULES,
   );
   const [defaultRole, setDefaultRole] = useState<PlatformRole>('member');

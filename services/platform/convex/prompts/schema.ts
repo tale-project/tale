@@ -15,6 +15,7 @@ export const promptTemplatesTable = defineTable({
   isPublished: v.boolean(),
 })
   .index('by_organizationId', ['organizationId'])
+  .index('by_org_scope', ['organizationId', 'scope'])
   .index('by_organizationId_and_scope', ['organizationId', 'scope'])
   .index('by_org_createdBy', ['organizationId', 'createdBy'])
   .index('by_org_teamId', ['organizationId', 'teamId'])

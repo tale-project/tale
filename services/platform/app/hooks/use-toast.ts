@@ -169,7 +169,7 @@ export function toast({ ...props }: Toast) {
 }
 
 export function useToast() {
-  const [state, setState] = useState<State>(memoryState);
+  const [state, setState] = useState(memoryState);
 
   useEffect(() => {
     listeners.push(setState);

@@ -93,7 +93,7 @@ export const upsertPiiConfig = mutation({
 
     const existing = await ctx.db
       .query('governancePolicies')
-      .withIndex('by_org_policyType', (q) =>
+      .withIndex('by_org_and_type', (q) =>
         q
           .eq('organizationId', args.organizationId)
           .eq('policyType', 'pii_config'),

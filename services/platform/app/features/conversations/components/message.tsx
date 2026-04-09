@@ -12,6 +12,8 @@ import { cn } from '@/lib/utils/cn';
 
 import type { Message as MessageType } from '../types';
 
+type Attachment = NonNullable<MessageType['attachments']>[number];
+
 interface MessageProps {
   message: MessageType;
   onDownloadAttachments?: (messageId: string) => void;
@@ -146,7 +148,7 @@ export function Message({ message, onDownloadAttachments }: MessageProps) {
   >(null);
 
   // Track which attachment filenames had no URL when download was triggered
-  const pendingDownloadFiles = useRef<Set<string>>(new Set());
+  const pendingDownloadFiles = useRef(new Set<string>());
 
   const handleDownload = useCallback(
     (messageId: string) => {
@@ -170,7 +172,8 @@ export function Message({ message, onDownloadAttachments }: MessageProps) {
       return;
 
     const readyAttachments = (message.attachments ?? []).filter(
-      (att) => att.url && pendingDownloadFiles.current.has(att.filename),
+      (att: Attachment) =>
+        att.url && pendingDownloadFiles.current.has(att.filename),
     );
 
     if (readyAttachments.length === 0) return;
@@ -210,7 +213,9 @@ export function Message({ message, onDownloadAttachments }: MessageProps) {
   // fallback so users can still see and manually download them if auto-download fails.
   const displayAttachments = useMemo(
     () =>
-      (message.attachments ?? []).filter((att) => !(att.contentId && att.url)),
+      (message.attachments ?? []).filter(
+        (att: Attachment) => !(att.contentId && att.url),
+      ),
     [message.attachments],
   );
 
@@ -224,12 +229,12 @@ export function Message({ message, onDownloadAttachments }: MessageProps) {
     if (inlineDownloadTriggered.current || !onDownloadAttachments) return;
     const attachments = message.attachments ?? [];
     const hasUnresolvedInline = attachments.some(
-      (att) => att.contentId && !att.url,
+      (att: Attachment) => att.contentId && !att.url,
     );
     const hasCidInHtml =
       !hasUnresolvedInline &&
       /src=["']cid:/i.test(message.content) &&
-      attachments.some((att) => !att.url && !att.contentId);
+      attachments.some((att: Attachment) => !att.url && !att.contentId);
     if (hasUnresolvedInline || hasCidInHtml) {
       inlineDownloadTriggered.current = true;
       onDownloadAttachments(message.id);
@@ -297,7 +302,7 @@ export function Message({ message, onDownloadAttachments }: MessageProps) {
                   </Text>
                 </div>
                 <div className="flex flex-col gap-1">
-                  {displayAttachments.map((att) => (
+                  {displayAttachments.map((att: Attachment) => (
                     <AttachmentCard
                       key={att.id}
                       attachment={att}

@@ -13,6 +13,7 @@ import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { resolveFileType } from '@/lib/shared/file-types';
 
+import type { Document } from '../../hooks/queries';
 import { useDocuments } from '../../hooks/queries';
 import { useDocumentComparison } from '../../hooks/use-document-comparison';
 import {
@@ -49,8 +50,8 @@ function DocumentComparisonDialogContent({
   );
 
   const existingDocuments = documents
-    .filter((d) => d.type === 'file' && d.url)
-    .map((d) => ({
+    .filter((d: Document) => d.type === 'file' && d.url)
+    .map((d: Document) => ({
       id: d.id,
       name: d.name,
       fileId: d.id.includes('/') ? undefined : d.url?.split('/').pop(),

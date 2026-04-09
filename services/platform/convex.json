@@ -4,7 +4,6 @@
   },
   "node": {
     "externalPackages": [
-      "@modelcontextprotocol/sdk",
       "mssql",
       "tedious",
       "mysql2",

@@ -131,7 +131,10 @@ function DocumentTeamDialogContent({
   const teamOptions = useMemo(
     () => [
       { value: ORG_WIDE_VALUE, label: tDocuments('teamTags.orgWide') },
-      ...(teams ?? []).map((team) => ({ value: team.id, label: team.name })),
+      ...(teams ?? []).map((team: { id: string; name: string }) => ({
+        value: team.id,
+        label: team.name,
+      })),
     ],
     [teams, tDocuments],
   );

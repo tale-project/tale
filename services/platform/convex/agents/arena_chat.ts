@@ -42,7 +42,10 @@ export const arenaChat = action({
     streamIdA: v.string(),
     streamIdB: v.string(),
   }),
-  handler: async (ctx, args) => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ streamIdA: string; streamIdB: string }> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 

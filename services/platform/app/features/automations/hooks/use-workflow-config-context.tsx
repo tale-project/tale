@@ -54,7 +54,7 @@ export function WorkflowConfigProvider({
   initialConfig,
   children,
 }: WorkflowConfigProviderProps) {
-  const [config, setConfig] = useState<WorkflowJsonConfig>(initialConfig);
+  const [config, setConfig] = useState(initialConfig);
   const [isSaving, setIsSaving] = useState(false);
   const initialRef = useRef(initialConfig);
   const configRef = useRef(config);

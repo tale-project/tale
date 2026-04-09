@@ -77,7 +77,7 @@ function buildDynamicInputSchema(
 ): z.ZodTypeAny | undefined {
   if (operations.length === 0) return undefined;
 
-  const variants: z.ZodObject<z.ZodRawShape>[] = [];
+  const variants: z.ZodObject[] = [];
 
   for (const op of operations) {
     const properties = op.parametersSchema?.properties;
@@ -120,11 +120,7 @@ function buildDynamicInputSchema(
   return z.discriminatedUnion(
     'operation',
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- guarded by length checks above
-    variants as [
-      z.ZodObject<z.ZodRawShape>,
-      z.ZodObject<z.ZodRawShape>,
-      ...z.ZodObject<z.ZodRawShape>[],
-    ],
+    variants as [z.ZodObject, z.ZodObject, ...z.ZodObject[]],
   );
 }
 

@@ -391,7 +391,7 @@ function ModelsSection() {
   const { config, saveConfig, isSaving } = useProviderConfig();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  const [form, setForm] = useState<ModelFormState>(EMPTY_MODEL_FORM);
+  const [form, setForm] = useState(EMPTY_MODEL_FORM);
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null);
 
   const openAddDialog = useCallback(() => {

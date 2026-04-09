@@ -77,7 +77,7 @@ export function DocumentsTable({
 
   const folderRows = useMemo<DocumentItem[]>(() => {
     if (!folders) return [];
-    return folders.map((folder) => ({
+    return folders.map((folder: (typeof folders)[number]) => ({
       id: folder._id,
       name: folder.name,
       type: 'folder' as const,
@@ -144,7 +144,7 @@ export function DocumentsTable({
       configs.push({
         key: 'teams',
         title: tTables('headers.teams'),
-        options: teams.map((team) => ({
+        options: teams.map((team: { id: string; name: string }) => ({
           value: team.id,
           label: team.name,
         })),

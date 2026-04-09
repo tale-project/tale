@@ -75,9 +75,9 @@ export function OneDriveImportDialog({
   >([]);
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedItems, setSelectedItems] = useState<
-    Map<string, OneDriveSelectedItem>
-  >(new Map());
+  const [selectedItems, setSelectedItems] = useState(
+    new Map<string, OneDriveSelectedItem>(),
+  );
   const [currentFolderId, setCurrentFolderId] = useState<string | undefined>(
     undefined,
   );
