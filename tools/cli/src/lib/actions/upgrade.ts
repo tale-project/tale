@@ -1,12 +1,20 @@
 import { chmod, rename, unlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 
 import pkg from '../../../package.json';
 import { compareVersions } from '../../utils/compare-versions';
 import * as logger from '../../utils/logger';
 import { requireProject } from '../project/find-project';
 import { update } from './update';
+
+const COMPILED_BINARY_NAMES = new Set([
+  'tale',
+  'tale.exe',
+  'tale_linux',
+  'tale_macos',
+  'tale_windows.exe',
+]);
 
 const GITHUB_REPO = 'tale-project/tale';
 
@@ -37,11 +45,18 @@ function getAuthHeaders(): Record<string, string> {
 
 async function fetchLatestRelease(): Promise<ReleaseInfo> {
   const url = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
-  const response = await fetch(url, { headers: getAuthHeaders() });
+  const response = await fetch(url, {
+    headers: {
+      ...getAuthHeaders(),
+      'User-Agent': `tale-cli/${pkg.version}`,
+    },
+    signal: AbortSignal.timeout(30_000),
+  });
 
   if (response.status === 403) {
     throw new Error(
-      'GitHub API rate limited. Set GITHUB_TOKEN or GH_TOKEN for higher limits.',
+      'GitHub API returned 403. This may be rate limiting or an auth issue. ' +
+        'Set GITHUB_TOKEN or GH_TOKEN for higher limits.',
     );
   }
   if (response.status === 404) {
@@ -55,7 +70,12 @@ async function fetchLatestRelease(): Promise<ReleaseInfo> {
     );
   }
 
-  const data = (await response.json()) as { tag_name: string };
+  const data = (await response.json()) as Record<string, unknown>;
+  if (typeof data?.tag_name !== 'string' || !data.tag_name) {
+    throw new Error(
+      'Unexpected GitHub API response: missing or invalid tag_name.',
+    );
+  }
   const tag = data.tag_name;
   const version = tag.replace(/^v/, '');
   return { tag, version };
@@ -164,8 +184,16 @@ async function replaceBinary(tmpPath: string, installPath: string) {
   }
 
   if (!succeeded) {
-    // Restore backup
-    await rename(bakPath, installPath).catch(() => {});
+    // Attempt to restore backup
+    try {
+      await rename(bakPath, installPath);
+    } catch {
+      throw new Error(
+        `Failed to install new binary to ${installPath}. ` +
+          `Restore also failed — your previous binary is at ${bakPath}. ` +
+          `Run: mv ${bakPath} ${installPath}`,
+      );
+    }
     throw new Error(
       `Failed to install new binary to ${installPath}. Previous version restored.`,
     );
@@ -187,7 +215,7 @@ function replaceBinaryWindows(tmpPath: string, installPath: string) {
 
   // Windows allows renaming a running exe
   const renameOld = Bun.spawnSync(
-    ['cmd', '/c', 'ren', installPath, `${dirname(installPath)}\\tale.old.exe`],
+    ['cmd', '/c', 'ren', installPath, 'tale.old.exe'],
     { stdout: 'pipe', stderr: 'pipe' },
   );
   if (renameOld.exitCode !== 0) {
@@ -216,9 +244,17 @@ export async function upgrade(options: UpgradeOptions): Promise<void> {
     await update({
       force: options.force,
       dryRun: options.dryRun,
-      skipVersionCheck: true,
+      skipHeader: true,
     });
     return;
+  }
+
+  // Guard against running in dev mode where process.execPath is the bun runtime
+  const execName = basename(process.execPath);
+  if (!COMPILED_BINARY_NAMES.has(execName)) {
+    throw new Error(
+      `Cannot self-upgrade when running via "${execName}". Build and install the compiled binary first.`,
+    );
   }
 
   requireProject();
@@ -255,7 +291,7 @@ export async function upgrade(options: UpgradeOptions): Promise<void> {
     await update({
       force: options.force,
       dryRun: options.dryRun,
-      skipVersionCheck: true,
+      skipHeader: true,
     });
     return;
   }
@@ -272,7 +308,7 @@ export async function upgrade(options: UpgradeOptions): Promise<void> {
     await update({
       force: options.force,
       dryRun: true,
-      skipVersionCheck: true,
+      skipHeader: true,
     });
     return;
   }
@@ -327,9 +363,9 @@ export async function upgrade(options: UpgradeOptions): Promise<void> {
   });
 
   if (syncResult.exitCode !== 0) {
-    logger.warn(
-      'Project file sync failed. Run "tale upgrade --internal-sync-only" to retry.',
+    throw new Error(
+      'Project file sync failed. The CLI binary was upgraded successfully. ' +
+        'Run "tale upgrade --internal-sync-only" to retry syncing project files.',
     );
-    process.exit(syncResult.exitCode);
   }
 }

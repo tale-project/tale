@@ -22,7 +22,7 @@ import { generateAllRules } from '../rules/generators';
 interface UpdateOptions {
   force?: boolean;
   dryRun?: boolean;
-  skipVersionCheck?: boolean;
+  skipHeader?: boolean;
 }
 
 interface UpdateSummary {
@@ -41,15 +41,8 @@ export async function update(options: UpdateOptions): Promise<void> {
   const project = await readProject(projectDir);
   const prefix = options.dryRun ? '[DRY-RUN] ' : '';
 
-  logger.header(`${prefix}Updating Tale Project`);
-
-  if (
-    project.cliVersion === pkg.version &&
-    !options.force &&
-    !options.skipVersionCheck
-  ) {
-    logger.success(`Already up to date (v${pkg.version})`);
-    return;
+  if (!options.skipHeader) {
+    logger.header(`${prefix}Updating Tale Project`);
   }
 
   logger.info(`Current version: ${project.cliVersion}`);

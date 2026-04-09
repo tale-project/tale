@@ -5,6 +5,7 @@ import * as logger from '../../utils/logger';
 
 export function createUpgradeCommand(): Command {
   return new Command('upgrade')
+    .alias('update')
     .description('Upgrade CLI to the latest version and sync project files')
     .option(
       '-f, --force',
