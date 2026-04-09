@@ -47,7 +47,7 @@
     "@convex-dev/workflow": "0.3.9",
     "@convex-dev/workpool": "0.4.6",
     "@hookform/resolvers": "5.2.2",
-    "@microlink/react-json-view": "1.31.16",
+    "@microlink/react-json-view": "1.31.17",
     "@milkdown/crepe": "7.20.0",
     "@milkdown/react": "7.20.0",
     "@noble/curves": "1.9.7",
