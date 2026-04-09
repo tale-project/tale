@@ -467,9 +467,7 @@
         "success": "Signed in successfully",
         "microsoftFailed": "Microsoft sign-in failed. Please try again.",
         "ssoFailed": "SSO login failed. Please try again."
-      },
-      "noAccount": "Don't have an account?",
-      "signUpLink": "Sign up"
+      }
     },
     "signup": {
       "title": "Create account",
@@ -478,8 +476,6 @@
       "creating": "Creating...",
       "createButton": "Create",
       "accountCreated": "Account created successfully!",
-      "hasAccount": "Already have an account?",
-      "logInLink": "Log in",
       "wrongCredentials": "Wrong email or password",
       "microsoftSignInFailed": "Microsoft sign-in failed. Please try again."
     },
