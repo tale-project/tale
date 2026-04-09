@@ -220,6 +220,9 @@ export const CHAT_UPLOAD_ALLOWED_TYPES: readonly string[] = [
   MIME_TYPES.DOCX,
   MIME_TYPES.PPT,
   MIME_TYPES.PPTX,
+  MIME_TYPES.XLS,
+  MIME_TYPES.XLSX,
+  MIME_TYPES.CSV,
 ];
 
 /** Allowed MIME types for document uploads (used for client + server validation) */
@@ -284,6 +287,12 @@ export const SPREADSHEET_IMPORT_ACCEPT = '.xlsx,.xls,.csv';
 
 /** Chat attachment max (10 MB) */
 export const CHAT_MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+/** Max attachments per chat message */
+export const CHAT_MAX_FILE_COUNT = 10;
+
+/** Max total attachment size per chat message (25 MB) */
+export const CHAT_MAX_TOTAL_SIZE = 25 * 1024 * 1024;
 
 /** Document upload max (100 MB) */
 export const DOCUMENT_MAX_FILE_SIZE = 100 * 1024 * 1024;

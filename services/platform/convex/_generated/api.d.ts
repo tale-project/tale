@@ -594,6 +594,7 @@ import type * as streaming_internal_mutations from "../streaming/internal_mutati
 import type * as streaming_validators from "../streaming/validators.js";
 import type * as team_members_mutations from "../team_members/mutations.js";
 import type * as team_members_queries from "../team_members/queries.js";
+import type * as threads_archive_chat_thread from "../threads/archive_chat_thread.js";
 import type * as threads_cancel_generation from "../threads/cancel_generation.js";
 import type * as threads_cleanup_orphaned_sub_threads from "../threads/cleanup_orphaned_sub_threads.js";
 import type * as threads_create_chat_thread from "../threads/create_chat_thread.js";
@@ -610,6 +611,7 @@ import type * as threads_get_thread_messages_streaming from "../threads/get_thre
 import type * as threads_helpers from "../threads/helpers.js";
 import type * as threads_internal_mutations from "../threads/internal_mutations.js";
 import type * as threads_internal_queries from "../threads/internal_queries.js";
+import type * as threads_list_archived_threads from "../threads/list_archived_threads.js";
 import type * as threads_list_threads from "../threads/list_threads.js";
 import type * as threads_mutations from "../threads/mutations.js";
 import type * as threads_queries from "../threads/queries.js";
@@ -1480,6 +1482,7 @@ declare const fullApi: ApiFromModules<{
   "streaming/validators": typeof streaming_validators;
   "team_members/mutations": typeof team_members_mutations;
   "team_members/queries": typeof team_members_queries;
+  "threads/archive_chat_thread": typeof threads_archive_chat_thread;
   "threads/cancel_generation": typeof threads_cancel_generation;
   "threads/cleanup_orphaned_sub_threads": typeof threads_cleanup_orphaned_sub_threads;
   "threads/create_chat_thread": typeof threads_create_chat_thread;
@@ -1496,6 +1499,7 @@ declare const fullApi: ApiFromModules<{
   "threads/helpers": typeof threads_helpers;
   "threads/internal_mutations": typeof threads_internal_mutations;
   "threads/internal_queries": typeof threads_internal_queries;
+  "threads/list_archived_threads": typeof threads_list_archived_threads;
   "threads/list_threads": typeof threads_list_threads;
   "threads/mutations": typeof threads_mutations;
   "threads/queries": typeof threads_queries;

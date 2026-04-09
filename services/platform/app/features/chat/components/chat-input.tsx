@@ -13,15 +13,13 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
-import {
-  CHAT_UPLOAD_ACCEPT,
-  getFileTypeLabelKey,
-} from '@/lib/shared/file-types';
+import { CHAT_UPLOAD_ACCEPT } from '@/lib/shared/file-types';
 import { cn } from '@/lib/utils/cn';
 
 import type { FileAttachment } from '../hooks/use-convex-file-upload';
 import { AgentSelector } from './agent-selector';
 import { ImagePreviewDialog } from './message-bubble';
+import { formatFileSize, middleEllipsis } from './message-bubble/file-displays';
 import { ModelSelector } from './model-selector';
 
 interface ChatInputProps extends Omit<
@@ -32,7 +30,7 @@ interface ChatInputProps extends Omit<
   onStopGenerating?: () => void;
   isLoading?: boolean;
   disabled?: boolean;
-  disabledReason?: 'no-agents' | 'pending-approval';
+  disabledReason?: 'no-agents' | 'pending-approval' | 'archived';
   placeholder?: string;
   value?: string;
   onChange?: (value: string) => void;
@@ -214,27 +212,19 @@ export function ChatInput({
               {fileAttachments.map((attachment) => (
                 <div
                   key={attachment.fileId}
-                  className="bg-muted group relative flex max-w-[280px] items-center gap-3 rounded-lg px-3 py-2"
+                  className="bg-muted group relative flex items-center max-w-[280px] gap-3 rounded-lg px-3 py-2"
                 >
                   <DocumentIcon fileName={attachment.fileName} />
-                  <VStack className="min-w-0 flex-1">
-                    <Text
-                      as="div"
-                      variant="label"
-                      truncate
-                      className="ellipsis"
-                      title={attachment.fileName}
-                    >
-                      {attachment.fileName}
+                  <VStack className="min-w-0 flex-1 gap-1">
+                    <Text as="div" variant="label" title={attachment.fileName}>
+                      {middleEllipsis(attachment.fileName, 28)}
                     </Text>
                     <Text
                       as="div"
                       variant="caption"
                       className="text-muted-foreground/50"
                     >
-                      {tChat(
-                        `fileTypes.${getFileTypeLabelKey(attachment.fileType)}`,
-                      )}
+                      {formatFileSize(attachment.fileSize)}
                     </Text>
                   </VStack>
                   <button
@@ -292,49 +282,52 @@ export function ChatInput({
                 variant="muted"
                 className="pointer-events-none absolute top-0 left-0"
               >
-                {disabledReason === 'pending-approval'
-                  ? tChat('pendingApprovalDisabled')
-                  : tChat('noAgentsAvailable')}
+                {disabledReason === 'archived'
+                  ? tChat('archivedDisabled')
+                  : disabledReason === 'pending-approval'
+                    ? tChat('pendingApprovalDisabled')
+                    : tChat('noAgentsAvailable')}
               </Text>
             )}
           </div>
 
           <HStack justify="between" align="center" className="pb-3">
-            <Tooltip content={tDialogs('attach')} side="top">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={inputDisabled}
-                aria-label={tDialogs('attach')}
-              >
-                <Paperclip className="size-4" />
-              </Button>
-            </Tooltip>
             <HStack gap={3} align="center">
+              <Tooltip content={tDialogs('attach')} side="top">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={inputDisabled}
+                  aria-label={tDialogs('attach')}
+                >
+                  <Paperclip className="size-4" />
+                </Button>
+              </Tooltip>
               <AgentSelector organizationId={organizationId} />
               <ModelSelector organizationId={organizationId} />
-              <Button
-                type="button"
-                onClick={isLoading ? onStopGenerating : handleSendMessage}
-                disabled={
-                  isLoading
-                    ? !onStopGenerating
-                    : (!value.trim() && attachments.length === 0) ||
-                      inputDisabled ||
-                      isUploading
-                }
-                size="icon"
-                className="rounded-full"
-                aria-label={isLoading ? tChat('stopGenerating') : tChat('send')}
-              >
-                {isLoading ? (
-                  <CircleStop className="size-4" />
-                ) : (
-                  <ArrowUp className="size-4" />
-                )}
-              </Button>
             </HStack>
+
+            <Button
+              type="button"
+              onClick={isLoading ? onStopGenerating : handleSendMessage}
+              disabled={
+                isLoading
+                  ? !onStopGenerating
+                  : (!value.trim() && attachments.length === 0) ||
+                    inputDisabled ||
+                    isUploading
+              }
+              size="icon"
+              className="rounded-full"
+              aria-label={isLoading ? tChat('stopGenerating') : tChat('send')}
+            >
+              {isLoading ? (
+                <CircleStop className="size-4" />
+              ) : (
+                <ArrowUp className="size-4" />
+              )}
+            </Button>
           </HStack>
         </div>
       </FileUpload.DropZone>

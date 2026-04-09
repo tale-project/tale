@@ -10,6 +10,10 @@ import { HStack, VStack } from '@/app/components/ui/layout/layout';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
+import {
+  formatFileSize,
+  middleEllipsis,
+} from '@/app/features/chat/components/message-bubble/file-displays';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
@@ -114,9 +118,16 @@ export function ChatInput({
                   className="bg-muted group relative flex max-w-[216px] items-center gap-2 rounded-lg px-2 py-1"
                 >
                   <DocumentIcon fileName={attachment.fileName} />
-                  <VStack className="min-w-0 flex-1">
-                    <Text as="div" variant="label" truncate>
-                      {attachment.fileName}
+                  <VStack className="min-w-0 flex-1 gap-1">
+                    <Text as="div" variant="label" title={attachment.fileName}>
+                      {middleEllipsis(attachment.fileName, 22)}
+                    </Text>
+                    <Text
+                      as="div"
+                      variant="caption"
+                      className="text-muted-foreground/50"
+                    >
+                      {formatFileSize(attachment.fileSize)}
                     </Text>
                   </VStack>
                   <button

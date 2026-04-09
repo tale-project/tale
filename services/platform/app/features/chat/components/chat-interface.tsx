@@ -22,6 +22,7 @@ import {
   useHumanInputRequests,
   useIntegrationApprovals,
   useLocationRequests,
+  useThreadStatus,
   useWorkflowCreationApprovals,
   useWorkflowRunApprovals,
   useWorkflowUpdateApprovals,
@@ -118,6 +119,10 @@ export function ChatInterface({
   // Agent availability — disable input when no agents exist
   const { agents } = useChatAgents(organizationId);
   const hasNoAgents = agents !== undefined && agents.length === 0;
+
+  // Thread status — disable input for archived threads
+  const threadStatus = useThreadStatus(threadId);
+  const isArchived = threadStatus === 'archived';
 
   // Approvals
   const { approvals: integrationApprovals } = useIntegrationApprovals(
@@ -420,13 +425,15 @@ export function ChatInterface({
             onSendMessage={handleSendMessage}
             onStopGenerating={stopGenerating}
             isLoading={isLoading}
-            disabled={hasNoAgents || hasActiveApproval}
+            disabled={hasNoAgents || hasActiveApproval || isArchived}
             disabledReason={
-              hasNoAgents
-                ? 'no-agents'
-                : hasActiveApproval
-                  ? 'pending-approval'
-                  : undefined
+              isArchived
+                ? 'archived'
+                : hasNoAgents
+                  ? 'no-agents'
+                  : hasActiveApproval
+                    ? 'pending-approval'
+                    : undefined
             }
             organizationId={organizationId}
             attachments={attachments}

@@ -6,6 +6,7 @@ import { components } from '../_generated/api';
 import { query } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls';
 import { getThreadMessagesStreaming as getThreadMessagesStreamingHelper } from './get_thread_messages_streaming';
+import { listArchivedThreads as listArchivedThreadsHelper } from './list_archived_threads';
 import { listThreads as listThreadsHelper } from './list_threads';
 
 export const listThreads = query({
@@ -23,6 +24,27 @@ export const listThreads = query({
     }
 
     return await listThreadsHelper(ctx, {
+      userId: authUser.userId,
+      paginationOpts: args.paginationOpts ?? { cursor: null, numItems: 20 },
+    });
+  },
+});
+
+export const listArchivedThreads = query({
+  args: {
+    paginationOpts: v.optional(paginationOptsValidator),
+  },
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) {
+      return {
+        page: [],
+        isDone: true,
+        continueCursor: '',
+      };
+    }
+
+    return await listArchivedThreadsHelper(ctx, {
       userId: authUser.userId,
       paginationOpts: args.paginationOpts ?? { cursor: null, numItems: 20 },
     });
@@ -131,6 +153,23 @@ export const getFailedMessageErrors = query({
       if (msg.error) errors[msg._id] = msg.error;
     }
     return errors;
+  },
+});
+
+export const getThreadStatus = query({
+  args: { threadId: v.string() },
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) {
+      return null;
+    }
+
+    const metadata = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
+      .first();
+
+    return metadata?.status ?? null;
   },
 });
 

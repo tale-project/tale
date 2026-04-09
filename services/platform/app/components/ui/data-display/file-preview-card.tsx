@@ -4,6 +4,10 @@ import { XIcon } from 'lucide-react';
 
 import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { Text } from '@/app/components/ui/typography/text';
+import {
+  formatFileSize,
+  middleEllipsis,
+} from '@/app/features/chat/components/message-bubble/file-displays';
 import { cn } from '@/lib/utils/cn';
 
 import { DocumentIcon } from './document-icon';
@@ -13,12 +17,6 @@ interface FilePreviewCardProps {
   fileSize?: number;
   onRemove?: () => void;
   className?: string;
-}
-
-function formatFileSize(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export function FilePreviewCard({
@@ -35,16 +33,16 @@ export function FilePreviewCard({
       )}
     >
       <DocumentIcon fileName={fileName} className="size-8 shrink-0" />
-      <>
-        <Text variant="label" as="span" truncate>
-          {fileName}
+      <div className="min-w-0 flex-1">
+        <Text variant="label" as="div" title={fileName}>
+          {middleEllipsis(fileName, 32)}
         </Text>
         {fileSize != null && (
-          <Text variant="caption" as="span">
+          <Text variant="caption" as="div">
             {formatFileSize(fileSize)}
           </Text>
         )}
-      </>
+      </div>
       {onRemove && (
         <IconButton
           icon={XIcon}

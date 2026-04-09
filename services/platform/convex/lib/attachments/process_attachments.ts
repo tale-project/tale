@@ -7,12 +7,18 @@
 
 import type { LanguageModelV3 } from '@ai-sdk/provider';
 
-import { isImage, isTextFile } from '../../../lib/shared/file-types';
+import {
+  isImage,
+  isSpreadsheet,
+  isTextFile,
+} from '../../../lib/shared/file-types';
+import { internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import type { ActionCtx } from '../../_generated/server';
 import { analyzeImageCached } from '../../agent_tools/files/helpers/analyze_image';
 import { analyzeTextContent } from '../../agent_tools/files/helpers/analyze_text';
 import { parseFile } from '../../agent_tools/files/helpers/parse_file';
+import { toId } from '../../lib/type_cast_helpers';
 import { resolveLanguageModel } from '../../providers/resolve_model';
 import { registerFilesWithAgent } from './register_files';
 import type { FileAttachment, MessageContentPart } from './types';
@@ -107,13 +113,22 @@ export async function processAttachments(
     files: attachments.map((a) => ({ name: a.fileName, type: a.fileType })),
   });
 
-  // Separate images, text files, and other documents
+  // Separate images, text files, spreadsheets, and other documents
   const imageAttachments = attachments.filter((a) => isImage(a.fileType));
+  const spreadsheetAttachments = attachments.filter(
+    (a) => !isImage(a.fileType) && isSpreadsheet(a.fileName),
+  );
   const textFileAttachments = attachments.filter(
-    (a) => !isImage(a.fileType) && isTextFile(a.fileType, a.fileName),
+    (a) =>
+      !isImage(a.fileType) &&
+      !isSpreadsheet(a.fileName) &&
+      isTextFile(a.fileType, a.fileName),
   );
   const documentAttachments = attachments.filter(
-    (a) => !isImage(a.fileType) && !isTextFile(a.fileType, a.fileName),
+    (a) =>
+      !isImage(a.fileType) &&
+      !isSpreadsheet(a.fileName) &&
+      !isTextFile(a.fileType, a.fileName),
   );
 
   // Parse document files to extract their text content (in parallel)
@@ -158,6 +173,34 @@ export async function processAttachments(
       });
     }
   }
+
+  // Parse spreadsheet files using the xlsx library (in parallel)
+  const spreadsheetResults = await Promise.all(
+    spreadsheetAttachments.map(async (attachment) => {
+      try {
+        const result = await ctx.runAction(
+          internal.node_only.documents.internal_actions.parseExcel,
+          { storageId: toId<'_storage'>(attachment.fileId) },
+        );
+        debugLog('Parsed spreadsheet', {
+          fileName: attachment.fileName,
+          sheetCount: result.sheetCount,
+          totalRows: result.totalRows,
+        });
+        return { attachment, result };
+      } catch (error) {
+        debugLog('Error parsing spreadsheet', {
+          fileName: attachment.fileName,
+          error: String(error),
+        });
+        return null;
+      }
+    }),
+  );
+
+  const parsedSpreadsheets = spreadsheetResults.filter(
+    (r): r is NonNullable<typeof r> => r !== null,
+  );
 
   // Analyze images with vision model (in parallel)
   const imageAnalysisResults = await Promise.all(
@@ -251,9 +294,12 @@ export async function processAttachments(
     } => r !== null,
   );
 
-  // Register files with the agent component for tracking (documents only)
+  // Register files with the agent component for tracking (documents + spreadsheets)
   // Images and text files are handled via their respective tools, not inline
-  await registerFilesWithAgent(ctx, documentAttachments);
+  await registerFilesWithAgent(ctx, [
+    ...documentAttachments,
+    ...spreadsheetAttachments,
+  ]);
 
   // Build prompt content with attachment info
   const text = userText || 'Please analyze the attached files.';
@@ -261,6 +307,7 @@ export async function processAttachments(
 
   const hasAnalyzedContent =
     parsedDocuments.length > 0 ||
+    parsedSpreadsheets.length > 0 ||
     analyzedImages.length > 0 ||
     analyzedTextFiles.length > 0;
 
@@ -280,6 +327,26 @@ export async function processAttachments(
       contentParts.push({
         type: 'text',
         text: `\n\n---\n**Document: ${doc.fileName}** (fileId: ${doc.fileId})\n\n${truncatedContent}\n---\n`,
+      });
+    }
+
+    for (const { attachment, result } of parsedSpreadsheets) {
+      const sheetTexts = result.sheets.map((sheet) => {
+        const headerRow = sheet.headers.join(' | ');
+        const separator = sheet.headers.map(() => '---').join(' | ');
+        const dataRows = sheet.rows
+          .slice(0, 500)
+          .map((row) => row.map((cell) => String(cell ?? '')).join(' | '));
+        const truncationNote =
+          sheet.rows.length > 500
+            ? `\n\n[... ${sheet.rows.length - 500} more rows truncated ...]`
+            : '';
+        return `### Sheet: ${sheet.name} (${sheet.rowCount} rows)\n\n| ${headerRow} |\n| ${separator} |\n| ${dataRows.join(' |\n| ')} |${truncationNote}`;
+      });
+
+      contentParts.push({
+        type: 'text',
+        text: `\n\n---\n**Spreadsheet: ${attachment.fileName}** (fileId: ${attachment.fileId}, ${result.sheetCount} sheet${result.sheetCount !== 1 ? 's' : ''}, ${result.totalRows} rows)\n\n${sheetTexts.join('\n\n')}\n---\n`,
       });
     }
 
@@ -309,10 +376,15 @@ export async function processAttachments(
   const failedTextFiles = textFileAttachments.filter(
     (a) => !analyzedTextFiles.some((d) => d.fileName === a.fileName),
   );
+  const failedSpreadsheets = spreadsheetAttachments.filter(
+    (a) =>
+      !parsedSpreadsheets.some((d) => d.attachment.fileName === a.fileName),
+  );
   const unprocessedAttachments = [
     ...failedDocuments,
     ...failedImages,
     ...failedTextFiles,
+    ...failedSpreadsheets,
   ];
 
   if (unprocessedAttachments.length > 0) {

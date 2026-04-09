@@ -25,6 +25,24 @@ import {
 import { useFileUrl } from '../../hooks/queries';
 import type { FileAttachment, FilePart } from './types';
 
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+export function middleEllipsis(name: string, maxLength: number): string {
+  if (name.length <= maxLength) return name;
+  const extIndex = name.lastIndexOf('.');
+  const ext = extIndex > 0 ? name.slice(extIndex) : '';
+  const base = extIndex > 0 ? name.slice(0, extIndex) : name;
+  const available = maxLength - ext.length - 1; // 1 for the ellipsis char
+  if (available < 4) return name.slice(0, maxLength - 1) + '\u2026';
+  const front = Math.ceil(available / 2);
+  const back = Math.floor(available / 2);
+  return base.slice(0, front) + '\u2026' + base.slice(-back) + ext;
+}
+
 export function getFileTypeLabel(
   fileName: string,
   mediaType: string,
@@ -34,6 +52,13 @@ export function getFileTypeLabel(
   if (mediaType.includes('word')) return t('fileTypes.doc');
   if (mediaType.includes('presentation') || mediaType.includes('powerpoint'))
     return t('fileTypes.pptx');
+  if (
+    mediaType.includes('spreadsheet') ||
+    mediaType.includes('excel') ||
+    mediaType === 'text/csv'
+  ) {
+    return mediaType === 'text/csv' ? t('fileTypes.csv') : t('fileTypes.xlsx');
+  }
   if (mediaType === 'text/plain') return t('fileTypes.txt');
   if (isTextBasedFile(fileName, mediaType))
     return getFileExtensionLower(fileName).toUpperCase() || t('fileTypes.txt');
@@ -172,19 +197,22 @@ export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
     );
   }
 
+  const displayName = middleEllipsis(attachment.fileName, 28);
+  const sizeLabel = formatFileSize(attachment.fileSize);
+
   if (!displayUrl) {
     return (
-      <div className="bg-muted flex max-w-[280px] items-center gap-3 rounded-lg px-3 py-2">
+      <div className="bg-muted flex max-w-[280px] gap-3 rounded-lg px-3 py-2">
         <FileTypeIcon
           fileType={attachment.fileType}
           fileName={attachment.fileName}
         />
         <VStack className="min-w-0 flex-1">
-          <Text as="div" variant="label" truncate title={attachment.fileName}>
-            {attachment.fileName}
+          <Text as="div" variant="label" title={attachment.fileName}>
+            {displayName}
           </Text>
           <Text as="div" variant="caption">
-            {getFileTypeLabel(attachment.fileName, attachment.fileType, t)}
+            {sizeLabel}
           </Text>
         </VStack>
       </div>
@@ -196,18 +224,18 @@ export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
       href={displayUrl}
       target="_blank"
       rel="noopener noreferrer"
-      className="bg-muted hover:bg-muted/80 flex max-w-[280px] items-center gap-3 rounded-lg px-3 py-2 transition-colors"
+      className="bg-muted hover:bg-muted/80 flex max-w-[280px] gap-3 rounded-lg px-3 py-2 transition-colors"
     >
       <FileTypeIcon
         fileType={attachment.fileType}
         fileName={attachment.fileName}
       />
       <VStack className="min-w-0 flex-1">
-        <Text as="div" variant="label" truncate title={attachment.fileName}>
-          {attachment.fileName}
+        <Text as="div" variant="label" title={attachment.fileName}>
+          {displayName}
         </Text>
         <Text as="div" variant="caption">
-          {getFileTypeLabel(attachment.fileName, attachment.fileType, t)}
+          {sizeLabel}
         </Text>
       </VStack>
     </a>
@@ -249,10 +277,10 @@ export const FilePartDisplay = memo(function FilePartDisplay({
       <FileTypeIcon fileType={filePart.mediaType} fileName={fileName} />
       <VStack gap={1} className="min-w-0 flex-1">
         <p
-          className="text-foreground truncate text-[13px] leading-tight font-medium"
+          className="text-foreground text-[13px] leading-tight font-medium"
           title={fileName}
         >
-          {fileName}
+          {middleEllipsis(fileName, 32)}
         </p>
         <p className="text-muted-foreground text-[11px] leading-tight">
           {fileTypeLabel}

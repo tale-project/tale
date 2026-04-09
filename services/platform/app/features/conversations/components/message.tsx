@@ -6,6 +6,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EmailPreview } from '@/app/components/ui/data-display/email-preview';
 import { Image } from '@/app/components/ui/data-display/image';
 import { Text } from '@/app/components/ui/typography/text';
+import {
+  formatFileSize,
+  middleEllipsis,
+} from '@/app/features/chat/components/message-bubble/file-displays';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -28,22 +32,6 @@ function getDeliveryIcon(status: string) {
     default:
       return null;
   }
-}
-
-function formatFileSize(bytes: number, tCommon: (key: string) => string) {
-  if (bytes === 0) return `0 ${tCommon('fileSize.bytes')}`;
-  const k = 1024;
-  const units = [
-    tCommon('fileSize.bytes'),
-    tCommon('fileSize.kb'),
-    tCommon('fileSize.mb'),
-    tCommon('fileSize.gb'),
-  ];
-  const i = Math.min(
-    Math.floor(Math.log(bytes) / Math.log(k)),
-    units.length - 1,
-  );
-  return `${Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${units[i]}`;
 }
 
 function getFileIcon(contentType: string, filename: string) {
@@ -93,7 +81,6 @@ function AttachmentCard({
   onDownload,
 }: AttachmentCardProps) {
   const { t } = useT('conversations');
-  const { t: tCommon } = useT('common');
 
   const icon = getFileIcon(attachment.contentType, attachment.filename);
   const hasUrl = !!attachment.url;
@@ -104,13 +91,13 @@ function AttachmentCard({
         <span className="text-sm">{icon}</span>
       </div>
       <div className="min-w-0 flex-1">
-        <Text variant="label-sm" truncate title={attachment.filename}>
-          {attachment.filename}
+        <Text variant="label-sm" title={attachment.filename}>
+          {middleEllipsis(attachment.filename, 28)}
         </Text>
         <Text variant="caption" className="text-[10px]">
           {isDownloading
             ? t('attachment.downloading')
-            : formatFileSize(attachment.size, tCommon)}
+            : formatFileSize(attachment.size)}
         </Text>
       </div>
       {isDownloading ? (

@@ -26,7 +26,7 @@ export async function deleteChatThread(
     .first();
 
   if (existing) {
-    await ctx.db.patch(existing._id, { status: 'archived' });
+    await ctx.db.patch(existing._id, { status: 'deleted' });
   }
 
   const subThreadIds = parseSubThreadIds(thread.summary);

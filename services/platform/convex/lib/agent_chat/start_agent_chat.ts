@@ -13,6 +13,7 @@
 
 import { listMessages, saveMessage } from '@convex-dev/agent';
 
+import { isSpreadsheet } from '../../../lib/shared/file-types';
 import { components, internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
@@ -265,38 +266,54 @@ async function buildMessageWithAttachments(
   message: string,
   attachments: FileAttachment[],
 ): Promise<string> {
-  // Separate images, text files, and other documents
+  // Separate images, text files, spreadsheets, and other documents
   const imageAttachments = attachments.filter((a) =>
     a.fileType.startsWith('image/'),
   );
+  const spreadsheetAttachments = attachments.filter(
+    (a) => !a.fileType.startsWith('image/') && isSpreadsheet(a.fileName),
+  );
   const textFileAttachments = attachments.filter(
-    (a) => !a.fileType.startsWith('image/') && isTextFile(a),
+    (a) =>
+      !a.fileType.startsWith('image/') &&
+      !isSpreadsheet(a.fileName) &&
+      isTextFile(a),
   );
   const documentAttachments = attachments.filter(
-    (a) => !a.fileType.startsWith('image/') && !isTextFile(a),
+    (a) =>
+      !a.fileType.startsWith('image/') &&
+      !isSpreadsheet(a.fileName) &&
+      !isTextFile(a),
   );
 
   // Fetch all URLs in parallel
-  const [documentUrls, textFileUrls, imageUrls] = await Promise.all([
-    Promise.all(
-      documentAttachments.map(async (a) => ({
-        attachment: a,
-        url: await ctx.storage.getUrl(a.fileId),
-      })),
-    ),
-    Promise.all(
-      textFileAttachments.map(async (a) => ({
-        attachment: a,
-        url: await ctx.storage.getUrl(a.fileId),
-      })),
-    ),
-    Promise.all(
-      imageAttachments.map(async (a) => ({
-        attachment: a,
-        url: await ctx.storage.getUrl(a.fileId),
-      })),
-    ),
-  ]);
+  const [documentUrls, spreadsheetUrls, textFileUrls, imageUrls] =
+    await Promise.all([
+      Promise.all(
+        documentAttachments.map(async (a) => ({
+          attachment: a,
+          url: await ctx.storage.getUrl(a.fileId),
+        })),
+      ),
+      Promise.all(
+        spreadsheetAttachments.map(async (a) => ({
+          attachment: a,
+          url: await ctx.storage.getUrl(a.fileId),
+        })),
+      ),
+      Promise.all(
+        textFileAttachments.map(async (a) => ({
+          attachment: a,
+          url: await ctx.storage.getUrl(a.fileId),
+        })),
+      ),
+      Promise.all(
+        imageAttachments.map(async (a) => ({
+          attachment: a,
+          url: await ctx.storage.getUrl(a.fileId),
+        })),
+      ),
+    ]);
 
   let textContent = message;
 
@@ -312,6 +329,23 @@ async function buildMessageWithAttachments(
     }
     if (docMarkdown.length > 0) {
       textContent = `${message}\n\n${docMarkdown.join('\n\n')}`;
+    }
+  }
+
+  // Add spreadsheet references as markdown (XLS, XLSX, CSV)
+  if (spreadsheetUrls.length > 0) {
+    const spreadsheetMarkdown: string[] = [];
+    for (const { attachment, url } of spreadsheetUrls) {
+      if (url) {
+        spreadsheetMarkdown.push(
+          `📊 [${attachment.fileName}](${url}) (${attachment.fileType}, ${formatFileSize(attachment.fileSize)})\n*(fileId: ${attachment.fileId} | fileName: ${attachment.fileName} | fileType: ${attachment.fileType} | fileSize: ${attachment.fileSize})*`,
+        );
+      }
+    }
+    if (spreadsheetMarkdown.length > 0) {
+      textContent = textContent
+        ? `${textContent}\n\n${spreadsheetMarkdown.join('\n\n')}`
+        : spreadsheetMarkdown.join('\n\n');
     }
   }
 

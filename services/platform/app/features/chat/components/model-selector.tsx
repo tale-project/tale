@@ -1,15 +1,25 @@
 'use client';
 
 import { ChevronDown, Cpu } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 
-import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
+import {
+  SearchableSelect,
+  type SearchableSelectOption,
+} from '@/app/components/ui/forms/searchable-select';
 import { useListProviders } from '@/app/features/settings/providers/hooks/queries';
 import { useT } from '@/lib/i18n/client';
 
 import { useChatLayout } from '../context/chat-layout-context';
 import { useChatAgents } from '../hooks/queries';
 import { useEffectiveAgent } from '../hooks/use-effective-agent';
+import { ModelTagIcons } from './model-tag-icons';
 
 interface ModelSelectorProps {
   organizationId: string;
@@ -33,8 +43,11 @@ export function ModelSelector({ organizationId }: ModelSelectorProps) {
     return agent?.supportedModels ?? [];
   }, [agents, effectiveAgent?.name]);
 
-  const modelDisplayNames = useMemo(() => {
-    const map = new Map();
+  const modelInfoMap = useMemo(() => {
+    const map = new Map<
+      string,
+      { displayName: string; description?: string; tags: string[] }
+    >();
     for (const provider of providers) {
       if (
         !provider ||
@@ -43,16 +56,29 @@ export function ModelSelector({ organizationId }: ModelSelectorProps) {
       )
         continue;
       for (const model of provider.models) {
-        map.set(model.id, model.displayName);
+        map.set(model.id, {
+          displayName: model.displayName,
+          description: model.description || undefined,
+          tags: model.tags ?? [],
+        });
       }
     }
     return map;
   }, [providers]);
 
+  const renderTagIcons = useCallback(
+    (option: SearchableSelectOption): ReactNode => {
+      const info = modelInfoMap.get(option.value);
+      if (!info?.tags.length) return null;
+      return <ModelTagIcons tags={info.tags} t={t} />;
+    },
+    [modelInfoMap, t],
+  );
+
   const getDisplayName = useCallback(
     (modelId: string) =>
-      modelDisplayNames.get(modelId) ?? getModelShortName(modelId),
-    [modelDisplayNames],
+      modelInfoMap.get(modelId)?.displayName ?? getModelShortName(modelId),
+    [modelInfoMap],
   );
 
   const currentModelId =
@@ -103,6 +129,7 @@ export function ModelSelector({ organizationId }: ModelSelectorProps) {
   const options = supportedModels.map((modelId) => ({
     value: modelId,
     label: getDisplayName(modelId),
+    description: modelInfoMap.get(modelId)?.description,
   }));
 
   return (
@@ -115,10 +142,12 @@ export function ModelSelector({ organizationId }: ModelSelectorProps) {
       align="start"
       side="top"
       sideOffset={8}
-      contentClassName="w-[16.25rem]"
+      contentClassName="w-[22rem]"
       searchPlaceholder={t('modelSelector.searchPlaceholder')}
       emptyText={t('modelSelector.noResults')}
       aria-label={t('modelSelector.label')}
+      optionAction={renderTagIcons}
+      showRadio
       trigger={
         <button
           type="button"

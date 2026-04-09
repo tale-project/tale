@@ -26,7 +26,7 @@ export interface Thread {
   _id: string;
   _creationTime: number;
   title?: string;
-  status: 'active' | 'archived';
+  status: 'active' | 'archived' | 'deleted';
   userId?: string;
   generationStatus?: 'generating' | 'idle';
 }
@@ -55,6 +55,40 @@ export function useThreads({ skip = false } = {}) {
     isLoadingMore: status === 'LoadingMore',
     loadMore: () => loadMore(THREADS_PAGE_SIZE),
   };
+}
+
+export function useArchivedThreads({ skip = false } = {}) {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- paginationOpts is optional to handle Convex reconnection replays; usePaginatedQuery always provides it at runtime
+  const listArchivedThreadsQuery = api.threads.queries
+    .listArchivedThreads as unknown as Parameters<
+    typeof useCachedPaginatedQuery
+  >[0];
+  const { results, status, loadMore, isLoading } = useCachedPaginatedQuery(
+    listArchivedThreadsQuery,
+    skip ? 'skip' : {},
+    { initialNumItems: THREADS_PAGE_SIZE },
+  );
+
+  const threads = useMemo(
+    () => results?.slice().sort((a, b) => b._creationTime - a._creationTime),
+    [results],
+  );
+
+  return {
+    threads,
+    isLoading,
+    canLoadMore: status === 'CanLoadMore',
+    isLoadingMore: status === 'LoadingMore',
+    loadMore: () => loadMore(THREADS_PAGE_SIZE),
+  };
+}
+
+export function useThreadStatus(threadId: string | undefined) {
+  const { data } = useConvexQuery(
+    api.threads.queries.getThreadStatus,
+    threadId ? { threadId } : 'skip',
+  );
+  return data ?? null;
 }
 
 export interface ChatAgent {

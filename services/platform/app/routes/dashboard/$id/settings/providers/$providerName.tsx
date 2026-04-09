@@ -1,5 +1,5 @@
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { ChevronRight, KeyRound, Pencil, Plus, Trash2 } from 'lucide-react';
+import { createFileRoute, Link } from '@tanstack/react-router';
+import { ChevronRight, Pencil, Trash2 } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import {
@@ -10,6 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/app/components/ui/data-display/table';
+import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
@@ -20,11 +21,9 @@ import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Card } from '@/app/components/ui/layout/card';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
+import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { Text } from '@/app/components/ui/typography/text';
-import {
-  useDeleteProvider,
-  useSaveProviderSecret,
-} from '@/app/features/settings/providers/hooks/mutations';
+import { useSaveProviderSecret } from '@/app/features/settings/providers/hooks/mutations';
 import {
   useHasProviderSecret,
   useReadProvider,
@@ -48,12 +47,7 @@ function ProviderDetailRoute() {
   const { data, isLoading } = useReadProvider('default', providerName);
 
   if (isLoading) {
-    return (
-      <Stack gap={4} className="p-6">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-64 w-full" />
-      </Stack>
-    );
+    return <ProviderDetailSkeleton />;
   }
 
   if (!data?.ok) {
@@ -85,6 +79,60 @@ function ProviderDetailRoute() {
   );
 }
 
+function ProviderDetailSkeleton() {
+  return (
+    <Stack gap={6} className="px-4 py-6">
+      <Skeleton className="h-5 w-48" />
+      <Card contentClassName="p-5">
+        <Stack gap={4}>
+          <HStack justify="between" className="border-b pb-4">
+            <Skeleton className="h-5 w-16" />
+            <Skeleton className="h-4 w-20" />
+          </HStack>
+          <Stack gap={3} className="divide-y">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <HStack key={i} gap={4} className="pt-3 first:pt-0">
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="h-4 w-48" />
+              </HStack>
+            ))}
+          </Stack>
+        </Stack>
+      </Card>
+      <Card contentClassName="p-5">
+        <HStack gap={4}>
+          <Skeleton className="h-5 w-16" />
+          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-4 w-28" />
+        </HStack>
+      </Card>
+      <Card contentClassName="p-5">
+        <Stack gap={4}>
+          <HStack justify="between" className="border-b pb-4">
+            <Skeleton className="h-5 w-28" />
+            <Skeleton className="h-4 w-20" />
+          </HStack>
+          <Stack gap={3} className="divide-y">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <HStack key={i} gap={4} className="pt-3 first:pt-0">
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="h-4 w-32" />
+              </HStack>
+            ))}
+          </Stack>
+        </Stack>
+      </Card>
+      <Stack gap={3}>
+        <HStack justify="between">
+          <Skeleton className="h-6 w-16" />
+          <Skeleton className="h-9 w-28" />
+        </HStack>
+        <Skeleton className="h-64 w-full rounded-lg" />
+      </Stack>
+    </Stack>
+  );
+}
+
 function ProviderDetailContent({
   organizationId,
   providerName,
@@ -93,44 +141,22 @@ function ProviderDetailContent({
   providerName: string;
 }) {
   const { t } = useT('settings');
-  const navigate = useNavigate();
   const { config } = useProviderConfig();
-  const deleteProvider = useDeleteProvider();
-
-  const handleDelete = useCallback(async () => {
-    try {
-      await deleteProvider.mutateAsync({
-        orgSlug: 'default',
-        providerName,
-      });
-      void navigate({
-        to: '/dashboard/$id/settings/providers',
-        params: { id: organizationId },
-      });
-    } catch {
-      toast({ title: t('providers.deleteFailed'), variant: 'destructive' });
-    }
-  }, [providerName, organizationId, deleteProvider, navigate, t]);
 
   return (
-    <Stack gap={6} className="p-6">
-      <HStack justify="between" align="center">
-        <HStack gap={2} align="center">
-          <Link
-            to="/dashboard/$id/settings/providers"
-            params={{ id: organizationId }}
-            className="text-muted-foreground hover:text-foreground text-sm"
-          >
-            {t('providers.title')}
-          </Link>
-          <ChevronRight className="text-muted-foreground size-4" />
-          <Text as="span" variant="label">
-            {config.displayName}
-          </Text>
-        </HStack>
-        <Button variant="destructive" size="sm" onClick={handleDelete}>
-          {t('providers.deleteProvider')}
-        </Button>
+    <Stack gap={6} className="px-4 py-6">
+      <HStack gap={2} align="center">
+        <Link
+          to="/dashboard/$id/settings/providers"
+          params={{ id: organizationId }}
+          className="text-muted-foreground hover:text-foreground text-sm"
+        >
+          {t('providers.title')}
+        </Link>
+        <ChevronRight className="text-muted-foreground size-3.5" />
+        <Text as="span" className="text-sm font-medium">
+          {config.displayName}
+        </Text>
       </HStack>
 
       <GeneralSection />
@@ -144,16 +170,20 @@ function ProviderDetailContent({
 function InfoRow({
   label,
   children,
+  muted,
 }: {
   label: string;
   children: React.ReactNode;
+  muted?: boolean;
 }) {
   return (
-    <HStack gap={4} className="py-2.5">
-      <Text variant="muted" className="w-28 shrink-0 text-sm">
+    <HStack gap={4} className="py-4">
+      <Text variant="muted" className="w-40 shrink-0 text-sm">
         {label}
       </Text>
-      <div className="min-w-0 flex-1">{children}</div>
+      <div className={muted ? 'text-muted-foreground text-sm' : 'text-sm'}>
+        {children}
+      </div>
     </HStack>
   );
 }
@@ -196,28 +226,28 @@ function GeneralSection() {
 
   return (
     <>
-      <Card contentClassName="px-5 py-2">
-        <HStack justify="between" align="center" className="border-b py-2.5">
-          <Text variant="muted" className="text-sm">
+      <Card contentClassName="p-5">
+        <HStack justify="between" align="center" className="border-b pb-4">
+          <Text className="text-sm font-semibold">
             {t('providers.general')}
           </Text>
-          <Button variant="ghost" size="sm" onClick={openDialog}>
-            <Pencil className="mr-1.5 size-3.5" />
+          <button
+            type="button"
+            onClick={openDialog}
+            className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 text-[13px] font-medium"
+          >
+            <Pencil className="size-3.5" />
             {t('providers.editGeneral')}
-          </Button>
+          </button>
         </HStack>
         <Stack className="divide-y">
           <InfoRow label={t('providers.displayName')}>
-            <Text className="text-sm">{config.displayName}</Text>
+            {config.displayName}
           </InfoRow>
-          <InfoRow label={t('providers.description')}>
-            <Text className="text-muted-foreground text-sm">
-              {config.description || '—'}
-            </Text>
+          <InfoRow label={t('providers.description_field')} muted>
+            {config.description || '—'}
           </InfoRow>
-          <InfoRow label={t('providers.baseUrl')}>
-            <Text className="font-mono text-sm">{config.baseUrl}</Text>
-          </InfoRow>
+          <InfoRow label={t('providers.baseUrl')}>{config.baseUrl}</InfoRow>
         </Stack>
       </Card>
 
@@ -244,7 +274,7 @@ function GeneralSection() {
             autoFocus
           />
           <Textarea
-            label={t('providers.description')}
+            label={t('providers.description_field')}
             value={form.description}
             onChange={(e) =>
               setForm((f) => ({ ...f, description: e.target.value }))
@@ -302,38 +332,38 @@ function ApiKeySection({ providerName }: { providerName: string }) {
 
   return (
     <>
-      <Card contentClassName="px-5 py-2">
-        <InfoRow label={t('providers.apiKey')}>
-          <HStack gap={2} align="center">
-            {hasSecret ? (
-              <>
-                <Badge variant="green" dot>
-                  {t('providers.apiKeyConfigured')}
-                </Badge>
-                <Text className="text-muted-foreground font-mono text-sm">
-                  {maskedKey}
-                </Text>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setDialogOpen(true)}
-                >
-                  <Pencil className="mr-1.5 size-3.5" />
-                  {t('providers.editKey')}
-                </Button>
-              </>
-            ) : (
-              <Button
-                variant="secondary"
-                size="sm"
+      <Card contentClassName="p-5">
+        <HStack gap={4} align="center">
+          <Text className="w-40 shrink-0 text-sm font-semibold">
+            {t('providers.apiKey')}
+          </Text>
+          {hasSecret ? (
+            <>
+              <Badge variant="green" dot>
+                {t('providers.apiKeyConfigured')}
+              </Badge>
+              <Text className="text-muted-foreground font-mono text-sm">
+                {maskedKey}
+              </Text>
+              <button
+                type="button"
                 onClick={() => setDialogOpen(true)}
+                className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 text-[13px] font-medium"
               >
-                <KeyRound className="mr-1.5 size-3.5" />
-                {t('providers.addKey')}
-              </Button>
-            )}
-          </HStack>
-        </InfoRow>
+                <Pencil className="size-3.5" />
+                {t('providers.editKey')}
+              </button>
+            </>
+          ) : (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setDialogOpen(true)}
+            >
+              {t('providers.addKey')}
+            </Button>
+          )}
+        </HStack>
       </Card>
 
       <FormDialog
@@ -458,80 +488,85 @@ function ModelsSection() {
     <>
       <Stack gap={3}>
         <HStack justify="between" align="center">
-          <Text as="span" variant="label" className="text-base">
+          <Text className="text-base font-semibold">
             {t('providers.models')}
           </Text>
-          <Button variant="secondary" size="sm" onClick={openAddDialog}>
-            <Plus className="mr-1.5 size-4" />
-            {t('providers.addModel')}
+          <Button onClick={openAddDialog}>
+            {t('providers.addModelShort')}
           </Button>
         </HStack>
 
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t('providers.modelId')}</TableHead>
-              <TableHead>{t('providers.displayName')}</TableHead>
-              <TableHead>{t('providers.description')}</TableHead>
-              <TableHead>{t('providers.tags')}</TableHead>
-              <TableHead className="w-10" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {config.models.map((model, index) => (
-              <TableRow
-                key={index}
-                className="cursor-pointer"
-                onClick={() => openEditDialog(index)}
-              >
-                <TableCell>
-                  <Text className="font-mono text-sm">{model.id}</Text>
-                </TableCell>
-                <TableCell>
-                  <Text className="text-sm">{model.displayName}</Text>
-                </TableCell>
-                <TableCell className="max-w-48">
-                  <Text
-                    className="text-muted-foreground truncate text-sm"
-                    title={model.description ?? ''}
-                  >
-                    {model.description || '—'}
-                  </Text>
-                </TableCell>
-                <TableCell>
-                  <HStack gap={1}>
-                    {model.tags.map((tag) => (
-                      <Badge key={tag} variant="outline" className="text-xs">
-                        {tag === 'chat'
-                          ? t('providers.tagChat')
-                          : tag === 'vision'
-                            ? t('providers.tagVision')
-                            : tag === 'embedding'
-                              ? t('providers.tagEmbedding')
-                              : tag}
-                      </Badge>
-                    ))}
-                  </HStack>
-                </TableCell>
-                <TableCell>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setDeleteIndex(index);
-                    }}
-                  >
-                    <Trash2 className="size-3.5" />
-                  </Button>
-                </TableCell>
+        <div className="overflow-hidden rounded-lg border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t('providers.modelId')}</TableHead>
+                <TableHead className="w-[200px]">
+                  {t('providers.displayName')}
+                </TableHead>
+                <TableHead>{t('providers.description_field')}</TableHead>
+                <TableHead className="w-[200px]">
+                  {t('providers.tags')}
+                </TableHead>
+                <TableHead className="w-11" />
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {config.models.map((model, index) => (
+                <TableRow
+                  key={index}
+                  className="cursor-pointer"
+                  onClick={() => openEditDialog(index)}
+                >
+                  <TableCell>
+                    <Text className="font-mono text-[13px]">{model.id}</Text>
+                  </TableCell>
+                  <TableCell>
+                    <Text className="text-sm font-medium">
+                      {model.displayName}
+                    </Text>
+                  </TableCell>
+                  <TableCell className="max-w-48">
+                    <Text
+                      className="text-muted-foreground truncate text-sm"
+                      title={model.description ?? ''}
+                    >
+                      {model.description || '—'}
+                    </Text>
+                  </TableCell>
+                  <TableCell>
+                    <HStack gap={1}>
+                      {model.tags.map((tag) => (
+                        <Badge key={tag} variant="outline" className="text-xs">
+                          {tag === 'chat'
+                            ? t('providers.tagChat')
+                            : tag === 'vision'
+                              ? t('providers.tagVision')
+                              : tag === 'embedding'
+                                ? t('providers.tagEmbedding')
+                                : tag}
+                        </Badge>
+                      ))}
+                    </HStack>
+                  </TableCell>
+                  <TableCell>
+                    <IconButton
+                      icon={Trash2}
+                      aria-label={t('providers.removeModel')}
+                      className="text-muted-foreground hover:text-destructive size-8"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteIndex(index);
+                      }}
+                    />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </Stack>
 
-      {/* Add / Edit model dialog */}
       <FormDialog
         open={dialogOpen}
         onOpenChange={(open) => {
@@ -569,7 +604,7 @@ function ModelsSection() {
             placeholder={t('providers.modelDisplayNamePlaceholder')}
           />
           <Textarea
-            label={t('providers.description')}
+            label={t('providers.description_field')}
             value={form.description}
             onChange={(e) =>
               setForm((f) => ({ ...f, description: e.target.value }))
@@ -615,8 +650,7 @@ function ModelsSection() {
         </Stack>
       </FormDialog>
 
-      {/* Delete confirmation */}
-      <FormDialog
+      <ConfirmDialog
         open={deleteIndex != null}
         onOpenChange={(open) => {
           if (!open) setDeleteIndex(null);
@@ -629,15 +663,11 @@ function ModelsSection() {
               })
             : undefined
         }
-        onSubmit={(e) => {
-          e.preventDefault();
-          void handleDeleteModel();
-        }}
-        isSubmitting={isSaving}
-        submitText={t('providers.deleteModel')}
-      >
-        <span />
-      </FormDialog>
+        variant="destructive"
+        confirmText={t('providers.deleteModel')}
+        isLoading={isSaving}
+        onConfirm={() => void handleDeleteModel()}
+      />
     </>
   );
 }
@@ -685,34 +715,38 @@ function DefaultModelsSection() {
 
   return (
     <>
-      <Card contentClassName="px-5 py-2">
-        <HStack justify="between" align="center" className="border-b py-2.5">
+      <Card contentClassName="p-5">
+        <HStack justify="between" align="start" className="border-b pb-4">
           <Stack gap={1}>
-            <Text variant="muted" className="text-sm">
+            <Text className="text-sm font-semibold">
               {t('providers.defaultModels')}
             </Text>
-            <Text className="text-muted-foreground text-xs">
+            <Text className="text-muted-foreground text-[13px]">
               {t('providers.defaultModelsDescription')}
             </Text>
           </Stack>
-          <Button variant="ghost" size="sm" onClick={openDialog}>
-            <Pencil className="mr-1.5 size-3.5" />
+          <button
+            type="button"
+            onClick={openDialog}
+            className="text-muted-foreground hover:text-foreground flex shrink-0 items-center gap-1.5 text-[13px] font-medium"
+          >
+            <Pencil className="size-3.5" />
             {t('providers.editGeneral')}
-          </Button>
+          </button>
         </HStack>
         <Stack className="divide-y">
           <InfoRow label={t('providers.tagChat')}>
-            <Text className="text-sm">
+            <Text className="text-sm font-medium">
               {modelDisplayName(config.defaults?.chat)}
             </Text>
           </InfoRow>
           <InfoRow label={t('providers.tagVision')}>
-            <Text className="text-sm">
+            <Text className="text-sm font-medium">
               {modelDisplayName(config.defaults?.vision)}
             </Text>
           </InfoRow>
           <InfoRow label={t('providers.tagEmbedding')}>
-            <Text className="text-sm">
+            <Text className="text-sm font-medium">
               {modelDisplayName(config.defaults?.embedding)}
             </Text>
           </InfoRow>

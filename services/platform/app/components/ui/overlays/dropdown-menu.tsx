@@ -153,7 +153,7 @@ function renderItem(item: DropdownMenuItem, key: number) {
               <path d="m9 18 6-6-6-6" />
             </svg>
           </DropdownMenuPrimitive.SubTrigger>
-          <DropdownMenuPrimitive.SubContent className="bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 min-w-[8rem] overflow-hidden rounded-lg border p-1 shadow-lg">
+          <DropdownMenuPrimitive.SubContent className="bg-muted text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 min-w-[8rem] overflow-hidden rounded-lg border p-1 shadow-lg">
             {renderGroups(item.items)}
           </DropdownMenuPrimitive.SubContent>
         </DropdownMenuPrimitive.Sub>
@@ -225,7 +225,7 @@ function renderGroups(groups: DropdownMenuGroup[]) {
   return groups.map((group, groupIndex) => (
     <Fragment key={groupIndex}>
       {groupIndex > 0 && (
-        <DropdownMenuPrimitive.Separator className="bg-muted -mx-1 my-1 h-px" />
+        <DropdownMenuPrimitive.Separator className="bg-border -mx-1 my-1 h-px" />
       )}
       {group.map((item, itemIndex) => renderItem(item, itemIndex))}
     </Fragment>
@@ -254,7 +254,7 @@ export function DropdownMenu({
           align={align}
           onClick={(e) => e.stopPropagation()}
           className={cn(
-            'z-50 max-h-(--radix-dropdown-menu-content-available-height) min-w-[max(10rem,var(--radix-dropdown-menu-trigger-width))] overflow-y-auto overflow-x-hidden rounded-lg border bg-popover p-1 text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2',
+            'z-50 max-h-(--radix-dropdown-menu-content-available-height) min-w-[max(10rem,var(--radix-dropdown-menu-trigger-width))] overflow-y-auto overflow-x-hidden rounded-lg border bg-muted p-1 text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2',
             contentClassName,
           )}
         >

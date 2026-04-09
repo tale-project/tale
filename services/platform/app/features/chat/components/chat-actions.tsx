@@ -1,7 +1,7 @@
 'use client';
 
 import { useNavigate } from '@tanstack/react-router';
-import { Pencil, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, Pencil, Trash2 } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
@@ -12,7 +12,11 @@ import { Text } from '@/app/components/ui/typography/text';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
-import { useDeleteThread } from '../hooks/mutations';
+import {
+  useArchiveThread,
+  useDeleteThread,
+  useUnarchiveThread,
+} from '../hooks/mutations';
 
 interface ChatActionsProps {
   chat: {
@@ -22,6 +26,7 @@ interface ChatActionsProps {
   currentChatId?: string;
   organizationId: string;
   onRename?: () => void;
+  isArchived?: boolean;
 }
 
 export function ChatActions({
@@ -29,6 +34,7 @@ export function ChatActions({
   currentChatId,
   organizationId,
   onRename,
+  isArchived = false,
 }: ChatActionsProps) {
   const navigate = useNavigate();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -37,7 +43,10 @@ export function ChatActions({
   const { t: tCommon } = useT('common');
   const { t: tChat } = useT('chat');
 
-  const { mutate: deleteThread, isPending: isLoading } = useDeleteThread();
+  const { mutate: deleteThread, isPending: isDeleting } = useDeleteThread();
+  const { mutate: archiveThread, isPending: isArchiving } = useArchiveThread();
+  const { mutate: unarchiveThread, isPending: isUnarchiving } =
+    useUnarchiveThread();
 
   const handleDelete = useCallback(() => {
     deleteThread(
@@ -72,6 +81,126 @@ export function ChatActions({
     tChat,
   ]);
 
+  const handleArchive = useCallback(() => {
+    archiveThread(
+      { threadId: chat.id },
+      {
+        onSuccess: () => {
+          if (currentChatId === chat.id) {
+            void navigate({
+              to: '/dashboard/$id/chat',
+              params: { id: organizationId },
+            });
+          }
+          toast({
+            title: tChat('archiveSuccess'),
+          });
+        },
+        onError: (error) => {
+          console.error('Failed to archive chat:', error);
+          toast({
+            title: tChat('archiveFailed'),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
+  }, [
+    chat.id,
+    currentChatId,
+    organizationId,
+    archiveThread,
+    navigate,
+    toast,
+    tChat,
+  ]);
+
+  const handleUnarchive = useCallback(() => {
+    unarchiveThread(
+      { threadId: chat.id },
+      {
+        onSuccess: () => {
+          toast({
+            title: tChat('unarchiveSuccess'),
+          });
+        },
+        onError: (error) => {
+          console.error('Failed to unarchive chat:', error);
+          toast({
+            title: tChat('unarchiveFailed'),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
+  }, [chat.id, unarchiveThread, toast, tChat]);
+
+  if (isArchived) {
+    return (
+      <ActionRow gap={1}>
+        <Tooltip content={tChat('unarchive')} side="bottom">
+          <Button
+            variant="ghost"
+            className="p-1"
+            size="icon"
+            onClick={handleUnarchive}
+            disabled={isUnarchiving}
+            aria-label={tChat('unarchive')}
+          >
+            <ArchiveRestore className="size-4" />
+          </Button>
+        </Tooltip>
+
+        <Tooltip content={tCommon('actions.delete')} side="bottom">
+          <Button
+            variant="ghost"
+            className="p-1"
+            size="icon"
+            onClick={() => setIsDeleteDialogOpen(true)}
+            aria-label={tCommon('actions.delete')}
+          >
+            <Trash2 className="size-4" />
+          </Button>
+        </Tooltip>
+
+        <DeleteDialog
+          open={isDeleteDialogOpen}
+          onOpenChange={setIsDeleteDialogOpen}
+          title={tChat('deleteChat')}
+          description={
+            <>
+              {(() => {
+                const parts = tChat('deleteConfirmation', {
+                  title: '\x00',
+                }).split('\x00');
+                if (parts.length < 2) {
+                  return tChat('deleteConfirmation', { title: chat.title });
+                }
+                return (
+                  <>
+                    {parts[0]}
+                    <Text as="span" variant="body" className="font-semibold">
+                      {chat.title}
+                    </Text>
+                    {parts[1]}
+                  </>
+                );
+              })()}
+              <br />
+              <br />
+              <Text as="span" variant="muted">
+                {tChat('deletePermanentMessage')}
+              </Text>
+            </>
+          }
+          deleteText={tChat('deleteChat')}
+          isDeleting={isDeleting}
+          onDelete={handleDelete}
+        />
+      </ActionRow>
+    );
+  }
+
   return (
     <>
       <ActionRow gap={1}>
@@ -84,6 +213,19 @@ export function ChatActions({
             aria-label={tCommon('actions.rename')}
           >
             <Pencil className="size-4" />
+          </Button>
+        </Tooltip>
+
+        <Tooltip content={tChat('archive')} side="bottom">
+          <Button
+            variant="ghost"
+            className="p-1"
+            size="icon"
+            onClick={handleArchive}
+            disabled={isArchiving}
+            aria-label={tChat('archive')}
+          >
+            <Archive className="size-4" />
           </Button>
         </Tooltip>
 
@@ -126,12 +268,12 @@ export function ChatActions({
             <br />
             <br />
             <Text as="span" variant="muted">
-              {tChat('deleteArchiveMessage')}
+              {tChat('deletePermanentMessage')}
             </Text>
           </>
         }
         deleteText={tChat('deleteChat')}
-        isDeleting={isLoading}
+        isDeleting={isDeleting}
         onDelete={handleDelete}
       />
     </>

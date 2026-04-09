@@ -195,6 +195,7 @@ export const listProviders = action({
             models: result.config.models.map((m) => ({
               id: m.id,
               displayName: m.displayName,
+              description: m.description ?? '',
               tags: m.tags,
             })),
             i18n: result.config.i18n,

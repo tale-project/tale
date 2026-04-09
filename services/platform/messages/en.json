@@ -1511,7 +1511,11 @@
       "tagEmbedding": "Embedding",
       "displayNameRequired": "Display name is required",
       "invalidBaseUrl": "Base URL must be a valid URL",
-      "modelIdRequired": "All models must have an ID"
+      "modelIdRequired": "All models must have an ID",
+      "deleteConfirmNamed": "Are you sure you want to delete the provider \"{name}\"? This action cannot be undone. All model configurations associated with this provider will be removed.",
+      "providerActions": "Provider actions",
+      "saveChanges": "Save changes",
+      "addModelShort": "+ Add model"
     },
     "form": {
       "name": "Name",
@@ -2466,7 +2470,18 @@
     "deleteChat": "Delete chat",
     "deleteConfirmation": "Are you sure you want to delete {title}?",
     "deleteArchiveMessage": "This chat will be archived and won't appear in your chat history.",
+    "deletePermanentMessage": "This action cannot be undone. The chat will be permanently deleted.",
     "deleteFailed": "Failed to delete chat",
+    "archive": "Archive",
+    "unarchive": "Unarchive",
+    "archiveSuccess": "Chat archived",
+    "archiveFailed": "Failed to archive chat",
+    "unarchiveSuccess": "Chat unarchived",
+    "unarchiveFailed": "Failed to unarchive chat",
+    "archived": {
+      "title": "Archived",
+      "empty": "No archived chats"
+    },
     "welcome": "What are you working on?",
     "welcomeEmpty": "How can I assist you?",
     "welcomeSuffix": "here, what are we working on?",
@@ -2566,13 +2581,18 @@
     "modelSelector": {
       "label": "Select model",
       "searchPlaceholder": "Search models...",
-      "noResults": "No models found"
+      "noResults": "No models found",
+      "tags": {
+        "chat": "Chat",
+        "vision": "Vision",
+        "embedding": "Embedding"
+      }
     },
     "searchChat": "Search chat",
     "hideSearch": "Hide search",
     "showHistory": "Show history",
     "hideHistory": "Hide history",
-    "chatHistory": "Chat history",
+    "chatHistory": "History",
     "searchPlaceholder": "Search chats",
     "messagePlaceholder": "Type a message...",
     "typeMessageHere": "Type your message here…",
@@ -2590,6 +2610,7 @@
     "showLess": "Show less",
     "noAgentsAvailable": "No agents available. Please publish an agent first.",
     "pendingApprovalDisabled": "Respond to the pending request above to continue",
+    "archivedDisabled": "This chat is archived. Unarchive it to continue the conversation.",
     "placeholder": "Ask about customers, products, or documents…",
     "searchConversations": "Search conversations",
     "invalidFiles": "Invalid files",
@@ -2598,6 +2619,12 @@
     "uploadedSuccessfully": "{filename} uploaded successfully",
     "uploadFailed": "Upload failed",
     "failedToUpload": "Failed to upload {filename}",
+    "tooManyFiles": "Too many files",
+    "tooManyFilesDescription": "You can attach up to {max} files per message. {rejected} {rejected, plural, one {file was} other {files were}} not added.",
+    "totalSizeExceeded": "Attachments too large",
+    "totalSizeExceededDescription": "Total attachment size cannot exceed {maxSize}MB. Remove some files and try again.",
+    "duplicateFile": "Duplicate file",
+    "duplicateFileDescription": "{filename} is already attached.",
     "removeAttachment": "Remove attachment",
     "uploadingFile": "Uploading file",
     "viewImage": "View image",
@@ -2612,6 +2639,8 @@
       "config": "CONFIG",
       "data": "DATA",
       "markup": "MARKUP",
+      "xlsx": "XLSX",
+      "csv": "CSV",
       "file": "FILE"
     },
     "fallback": {

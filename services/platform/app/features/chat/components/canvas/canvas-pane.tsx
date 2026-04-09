@@ -188,7 +188,7 @@ function CanvasPaneComponent() {
         aria-label={t('canvas.resizeHandle')}
       />
 
-      <div className="border-border flex items-center justify-between border-b px-3 py-2">
+      <div className="border-border flex items-center justify-between border-b p-3">
         <div className="flex min-w-0 items-center gap-2">
           <TypeIcon className="text-muted-foreground size-4 shrink-0" />
           <span className="truncate text-sm font-medium">{canvasTitle}</span>
