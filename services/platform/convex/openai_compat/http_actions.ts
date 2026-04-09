@@ -6,6 +6,10 @@
  *   OPTIONS /api/v1/chat/completions
  *   GET     /api/v1/models
  *   OPTIONS /api/v1/models
+ *
+ * Two modes:
+ * - Agent mode (no `tools` param): uses server-side agent tools, async generation
+ * - Client tool mode (`tools` param present): uses client-defined tools, direct streamText
  */
 
 import type { StreamId } from '@convex-dev/persistent-text-streaming';
@@ -23,15 +27,13 @@ import { extractClientIp } from '../workflows/triggers/helpers/validate';
 import {
   buildChatCompletion,
   buildChatCompletionChunk,
+  buildChatCompletionWithToolCalls,
   formatSSEChunk,
   formatSSEDone,
   openAIErrorResponse,
+  type OpenAIToolCall,
 } from './response_format';
 
-/**
- * Maximum time (ms) to poll for agent generation results.
- * Aligns with the platform hard limit in generate_response.ts (540s / 9 min).
- */
 const MAX_POLL_MS = 540_000;
 const POLL_INTERVAL_MS = 100;
 
@@ -43,18 +45,49 @@ const CORS_HEADERS = {
 };
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Types
 // ---------------------------------------------------------------------------
 
 interface OpenAIMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
-  content: string;
+  content: string | null;
+  tool_calls?: Array<{
+    id: string;
+    type: 'function';
+    function: { name: string; arguments: string };
+  }>;
+  tool_call_id?: string;
 }
 
 interface ChatCompletionsRequestBody {
   model?: string;
   messages?: OpenAIMessage[];
   stream?: boolean;
+  temperature?: number;
+  max_tokens?: number;
+  top_p?: number;
+  frequency_penalty?: number;
+  presence_penalty?: number;
+  stop?: string | string[];
+  response_format?: { type?: string };
+  tools?: Array<{
+    type: 'function';
+    function: { name: string; description?: string; parameters?: unknown };
+  }>;
+  tool_choice?: unknown;
+  seed?: number;
+  n?: number;
+}
+
+// ---------------------------------------------------------------------------
+// Auth helper
+// ---------------------------------------------------------------------------
+
+class AuthError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AuthError';
+  }
 }
 
 async function authenticateRequest(
@@ -71,7 +104,6 @@ async function authenticateRequest(
     throw new AuthError('Empty API key');
   }
 
-  // Create synthetic headers for better-auth's apiKey plugin
   const syntheticHeaders = new Headers();
   syntheticHeaders.set('x-api-key', apiKey);
 
@@ -96,11 +128,61 @@ async function authenticateRequest(
   }
 }
 
-class AuthError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'AuthError';
+// ---------------------------------------------------------------------------
+// Build generation params from request body
+// ---------------------------------------------------------------------------
+
+function buildGenerationParams(body: ChatCompletionsRequestBody) {
+  const params: Record<string, unknown> = {};
+  if (body.temperature != null) params.temperature = body.temperature;
+  if (body.max_tokens != null) params.maxTokens = body.max_tokens;
+  if (body.top_p != null) params.topP = body.top_p;
+  if (body.frequency_penalty != null)
+    params.frequencyPenalty = body.frequency_penalty;
+  if (body.presence_penalty != null)
+    params.presencePenalty = body.presence_penalty;
+  if (body.stop != null) {
+    params.stopSequences = Array.isArray(body.stop) ? body.stop : [body.stop];
   }
+  return Object.keys(params).length > 0 ? params : undefined;
+}
+
+// ---------------------------------------------------------------------------
+// Build tool messages for continuation requests
+// ---------------------------------------------------------------------------
+
+function extractToolMessages(messages: OpenAIMessage[]) {
+  const toolMessages: Array<{ role: string; content: unknown }> = [];
+
+  for (const msg of messages) {
+    if (msg.role === 'assistant' && msg.tool_calls) {
+      // Save the assistant message with tool_calls
+      toolMessages.push({
+        role: 'assistant',
+        content: msg.tool_calls.map((tc) => ({
+          type: 'tool-call',
+          toolCallId: tc.id,
+          toolName: tc.function.name,
+          args: JSON.parse(tc.function.arguments),
+        })),
+      });
+    } else if (msg.role === 'tool' && msg.tool_call_id) {
+      // Save the tool result message
+      toolMessages.push({
+        role: 'tool',
+        content: [
+          {
+            type: 'tool-result',
+            toolCallId: msg.tool_call_id,
+            toolName: '',
+            result: msg.content,
+          },
+        ],
+      });
+    }
+  }
+
+  return toolMessages.length > 0 ? toolMessages : undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -108,7 +190,7 @@ class AuthError extends Error {
 // ---------------------------------------------------------------------------
 
 export const chatCompletionsHandler = httpAction(async (ctx, request) => {
-  // Rate limit by IP
+  // Rate limit
   const ip = extractClientIp(request.headers);
   try {
     await checkIpRateLimit(ctx, 'openai:chat', ip);
@@ -124,7 +206,7 @@ export const chatCompletionsHandler = httpAction(async (ctx, request) => {
     throw error;
   }
 
-  // Authenticate
+  // Auth
   let user: { userId: string; email: string; name: string };
   try {
     user = await authenticateRequest(ctx, request);
@@ -140,7 +222,7 @@ export const chatCompletionsHandler = httpAction(async (ctx, request) => {
     throw error;
   }
 
-  // Resolve organization
+  // Org
   const orgSlugHeader =
     request.headers.get('x-organization-slug') ??
     request.headers.get('X-Organization-Slug');
@@ -149,10 +231,7 @@ export const chatCompletionsHandler = httpAction(async (ctx, request) => {
   try {
     orgInfo = await ctx.runQuery(
       internal.openai_compat.internal_queries.resolveUserOrganization,
-      {
-        userId: user.userId,
-        orgSlug: orgSlugHeader ?? undefined,
-      },
+      { userId: user.userId, orgSlug: orgSlugHeader ?? undefined },
     );
   } catch (error) {
     const msg =
@@ -160,7 +239,7 @@ export const chatCompletionsHandler = httpAction(async (ctx, request) => {
     return openAIErrorResponse(msg, 'invalid_request_error', 400);
   }
 
-  // Parse request body
+  // Parse body
   let body: ChatCompletionsRequestBody;
   try {
     body = await request.json();
@@ -172,7 +251,7 @@ export const chatCompletionsHandler = httpAction(async (ctx, request) => {
     );
   }
 
-  // Validate required fields
+  // Validate
   const model = body.model;
   if (!model || typeof model !== 'string') {
     return openAIErrorResponse(
@@ -192,7 +271,6 @@ export const chatCompletionsHandler = httpAction(async (ctx, request) => {
     );
   }
 
-  // Extract last user message
   const lastUserMessage = messages.findLast((m) => m.role === 'user');
   if (!lastUserMessage || typeof lastUserMessage.content !== 'string') {
     return openAIErrorResponse(
@@ -207,8 +285,31 @@ export const chatCompletionsHandler = httpAction(async (ctx, request) => {
     request.headers.get('x-thread-id') ??
     request.headers.get('X-Thread-Id') ??
     undefined;
+  const generationParams = buildGenerationParams(body);
+  const responseFormat = body.response_format?.type;
+  const hasClientTools = Array.isArray(body.tools) && body.tools.length > 0;
 
-  // Start chat via internal action
+  // -----------------------------------------------------------------------
+  // Client tool mode: direct streamText with client-defined tools
+  // -----------------------------------------------------------------------
+  if (hasClientTools) {
+    return handleToolCallingMode(ctx, {
+      model,
+      messages,
+      lastUserMessage: lastUserMessage.content,
+      tools: body.tools ?? [],
+      shouldStream,
+      threadId,
+      generationParams,
+      responseFormat,
+      orgInfo,
+      user,
+    });
+  }
+
+  // -----------------------------------------------------------------------
+  // Agent mode: server-side tools, async generation via persistent stream
+  // -----------------------------------------------------------------------
   let chatResult: { threadId: string; streamId: string };
   try {
     chatResult = await ctx.runAction(
@@ -222,36 +323,303 @@ export const chatCompletionsHandler = httpAction(async (ctx, request) => {
         message: lastUserMessage.content,
         threadId,
         enableStreaming: shouldStream,
+        generationParams,
+        responseFormat,
       },
     );
   } catch (error) {
-    const msg = error instanceof Error ? error.message : 'Failed to start chat';
-
-    // Detect specific error types
-    if (msg.includes('Agent not found')) {
-      return openAIErrorResponse(
-        `Model '${model}' not found`,
-        'invalid_request_error',
-        404,
-        'model_not_found',
-      );
-    }
-    if (msg.includes('Not a member') || msg.includes('disabled')) {
-      return openAIErrorResponse(msg, 'permission_error', 403);
-    }
-
-    return openAIErrorResponse(msg, 'server_error', 500);
+    return handleChatError(error, model);
   }
 
   if (shouldStream) {
     return streamOpenAIResponse(ctx, chatResult, model);
   }
-
   return pollOpenAIResponse(ctx, chatResult, model);
 });
 
 // ---------------------------------------------------------------------------
-// Non-streaming: poll until done
+// Client tool calling mode handler
+// ---------------------------------------------------------------------------
+
+async function handleToolCallingMode(
+  ctx: ActionCtx,
+  opts: {
+    model: string;
+    messages: OpenAIMessage[];
+    lastUserMessage: string;
+    tools: ChatCompletionsRequestBody['tools'];
+    shouldStream: boolean;
+    threadId?: string;
+    generationParams?: Record<string, unknown>;
+    responseFormat?: string;
+    orgInfo: { organizationId: string; orgSlug: string };
+    user: { userId: string; email: string; name: string };
+  },
+) {
+  const toolMessages = extractToolMessages(opts.messages);
+  const created = Math.floor(Date.now() / 1000);
+
+  let result: {
+    threadId: string;
+    text: string | null;
+    toolCalls: OpenAIToolCall[] | null;
+    finishReason: string;
+  };
+
+  try {
+    result = await ctx.runAction(
+      internal.openai_compat.internal_actions.chatViaOpenAIWithTools,
+      {
+        agentSlug: opts.model,
+        organizationId: opts.orgInfo.organizationId,
+        userId: opts.user.userId,
+        userEmail: opts.user.email,
+        userName: opts.user.name,
+        message: opts.lastUserMessage,
+        threadId: opts.threadId,
+        tools: opts.tools,
+        toolMessages,
+        generationParams: opts.generationParams,
+        responseFormat: opts.responseFormat,
+      },
+    );
+  } catch (error) {
+    return handleChatError(error, opts.model);
+  }
+
+  const completionId = result.threadId;
+
+  // Tool calls returned — return them to client
+  if (result.toolCalls && result.toolCalls.length > 0) {
+    if (opts.shouldStream) {
+      return streamToolCallsResponse(
+        completionId,
+        opts.model,
+        result.toolCalls,
+        result.text,
+        result.threadId,
+        created,
+      );
+    }
+
+    const response = buildChatCompletionWithToolCalls(
+      completionId,
+      opts.model,
+      result.toolCalls,
+      created,
+      result.text,
+    );
+    return jsonResponseWithThreadId(response, result.threadId);
+  }
+
+  // No tool calls — return text
+  if (opts.shouldStream) {
+    return streamDirectTextResponse(
+      completionId,
+      opts.model,
+      result.text ?? '',
+      result.threadId,
+      created,
+    );
+  }
+
+  const response = buildChatCompletion(
+    completionId,
+    opts.model,
+    result.text ?? '',
+    created,
+  );
+  return jsonResponseWithThreadId(response, result.threadId);
+}
+
+function jsonResponseWithThreadId(body: unknown, threadId: string): Response {
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'X-Thread-Id': threadId,
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Stream tool_calls response (for client tool mode + streaming)
+// ---------------------------------------------------------------------------
+
+function streamToolCallsResponse(
+  completionId: string,
+  model: string,
+  toolCalls: OpenAIToolCall[],
+  text: string | null,
+  threadId: string,
+  created: number,
+): Response {
+  const encoder = new TextEncoder();
+  const { readable, writable } = new TransformStream();
+  const writer = writable.getWriter();
+
+  void (async () => {
+    try {
+      // Role chunk
+      const roleChunk = buildChatCompletionChunk(
+        completionId,
+        model,
+        { role: 'assistant' },
+        null,
+        created,
+      );
+      await writer.write(encoder.encode(formatSSEChunk(roleChunk)));
+
+      // Text content if any
+      if (text) {
+        const textChunk = buildChatCompletionChunk(
+          completionId,
+          model,
+          { content: text },
+          null,
+          created,
+        );
+        await writer.write(encoder.encode(formatSSEChunk(textChunk)));
+      }
+
+      // Tool calls chunk
+      const toolCallsChunk = buildChatCompletionChunk(
+        completionId,
+        model,
+        {
+          tool_calls: toolCalls.map((tc, index) => ({
+            index,
+            id: tc.id,
+            type: tc.type,
+            function: tc.function,
+          })),
+        },
+        null,
+        created,
+      );
+      await writer.write(encoder.encode(formatSSEChunk(toolCallsChunk)));
+
+      // Finish chunk
+      const finishChunk = buildChatCompletionChunk(
+        completionId,
+        model,
+        {},
+        'tool_calls',
+        created,
+      );
+      await writer.write(encoder.encode(formatSSEChunk(finishChunk)));
+
+      await writer.write(encoder.encode(formatSSEDone()));
+    } catch (error) {
+      console.error('[openai_compat] Tool calls stream error:', error);
+    } finally {
+      await writer.close();
+    }
+  })();
+
+  return new Response(readable, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+      'X-Thread-Id': threadId,
+      ...CORS_HEADERS,
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Stream direct text response (for client tool mode, text result)
+// ---------------------------------------------------------------------------
+
+function streamDirectTextResponse(
+  completionId: string,
+  model: string,
+  text: string,
+  threadId: string,
+  created: number,
+): Response {
+  const encoder = new TextEncoder();
+  const { readable, writable } = new TransformStream();
+  const writer = writable.getWriter();
+
+  void (async () => {
+    try {
+      const roleChunk = buildChatCompletionChunk(
+        completionId,
+        model,
+        { role: 'assistant' },
+        null,
+        created,
+      );
+      await writer.write(encoder.encode(formatSSEChunk(roleChunk)));
+
+      if (text) {
+        const contentChunk = buildChatCompletionChunk(
+          completionId,
+          model,
+          { content: text },
+          null,
+          created,
+        );
+        await writer.write(encoder.encode(formatSSEChunk(contentChunk)));
+      }
+
+      const finishChunk = buildChatCompletionChunk(
+        completionId,
+        model,
+        {},
+        'stop',
+        created,
+      );
+      await writer.write(encoder.encode(formatSSEChunk(finishChunk)));
+
+      await writer.write(encoder.encode(formatSSEDone()));
+    } catch (error) {
+      console.error('[openai_compat] Direct text stream error:', error);
+    } finally {
+      await writer.close();
+    }
+  })();
+
+  return new Response(readable, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+      'X-Thread-Id': threadId,
+      ...CORS_HEADERS,
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Error handler
+// ---------------------------------------------------------------------------
+
+function handleChatError(error: unknown, model: string): Response {
+  const msg = error instanceof Error ? error.message : 'Failed to start chat';
+
+  if (msg.includes('Agent not found')) {
+    return openAIErrorResponse(
+      `Model '${model}' not found`,
+      'invalid_request_error',
+      404,
+      'model_not_found',
+    );
+  }
+  if (msg.includes('Not a member') || msg.includes('disabled')) {
+    return openAIErrorResponse(msg, 'permission_error', 403);
+  }
+
+  return openAIErrorResponse(msg, 'server_error', 500);
+}
+
+// ---------------------------------------------------------------------------
+// Agent mode: poll until done (non-streaming)
 // ---------------------------------------------------------------------------
 
 async function pollOpenAIResponse(
@@ -299,7 +667,7 @@ async function pollOpenAIResponse(
 }
 
 // ---------------------------------------------------------------------------
-// Streaming: SSE with OpenAI chunk format
+// Agent mode: SSE streaming
 // ---------------------------------------------------------------------------
 
 async function streamOpenAIResponse(
@@ -319,7 +687,6 @@ async function streamOpenAIResponse(
 
   void (async () => {
     try {
-      // First chunk: role announcement
       const roleChunk = buildChatCompletionChunk(
         completionId,
         model,
@@ -360,7 +727,6 @@ async function streamOpenAIResponse(
         await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
       }
 
-      // Final chunk with finish_reason
       if (streamDone) {
         const finalChunk = buildChatCompletionChunk(
           completionId,
@@ -372,7 +738,6 @@ async function streamOpenAIResponse(
         await writer.write(encoder.encode(formatSSEChunk(finalChunk)));
       }
 
-      // Terminate SSE stream
       await writer.write(encoder.encode(formatSSEDone()));
     } catch (error) {
       console.error('[openai_compat] Stream polling error:', error);
@@ -397,7 +762,6 @@ async function streamOpenAIResponse(
 // ---------------------------------------------------------------------------
 
 export const modelsListHandler = httpAction(async (ctx, request) => {
-  // Authenticate
   let user: { userId: string; email: string; name: string };
   try {
     user = await authenticateRequest(ctx, request);
@@ -413,7 +777,6 @@ export const modelsListHandler = httpAction(async (ctx, request) => {
     throw error;
   }
 
-  // Resolve organization
   const orgSlugHeader =
     request.headers.get('x-organization-slug') ??
     request.headers.get('X-Organization-Slug');
@@ -422,10 +785,7 @@ export const modelsListHandler = httpAction(async (ctx, request) => {
   try {
     orgInfo = await ctx.runQuery(
       internal.openai_compat.internal_queries.resolveUserOrganization,
-      {
-        userId: user.userId,
-        orgSlug: orgSlugHeader ?? undefined,
-      },
+      { userId: user.userId, orgSlug: orgSlugHeader ?? undefined },
     );
   } catch (error) {
     const msg =
@@ -433,7 +793,6 @@ export const modelsListHandler = httpAction(async (ctx, request) => {
     return openAIErrorResponse(msg, 'invalid_request_error', 400);
   }
 
-  // List agents
   // oxlint-disable-next-line typescript/no-explicit-any -- listVisibleAgents returns v.any(); shape is validated at runtime
   let agents: any[];
   try {
@@ -471,19 +830,13 @@ export const modelsListHandler = httpAction(async (ctx, request) => {
 export const chatCompletionsOptionsHandler = httpAction(async () => {
   return new Response(null, {
     status: 204,
-    headers: {
-      ...CORS_HEADERS,
-      'Access-Control-Max-Age': '86400',
-    },
+    headers: { ...CORS_HEADERS, 'Access-Control-Max-Age': '86400' },
   });
 });
 
 export const modelsOptionsHandler = httpAction(async () => {
   return new Response(null, {
     status: 204,
-    headers: {
-      ...CORS_HEADERS,
-      'Access-Control-Max-Age': '86400',
-    },
+    headers: { ...CORS_HEADERS, 'Access-Control-Max-Age': '86400' },
   });
 });

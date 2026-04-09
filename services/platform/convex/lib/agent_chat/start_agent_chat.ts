@@ -26,7 +26,11 @@ import {
   computeDeduplicationState,
   type AgentListMessagesResult,
 } from '../message_deduplication';
-import type { SerializableAgentConfig, AgentHooksConfig } from './types';
+import type {
+  SerializableAgentConfig,
+  AgentHooksConfig,
+  GenerationParams,
+} from './types';
 
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[startAgentChat]');
 
@@ -81,6 +85,8 @@ export interface StartAgentChatArgs {
   agentSlug?: string;
   /** @deprecated Use agentSlug instead */
   agentId?: Id<'agentBindings'>;
+  /** Optional per-request generation parameters (temperature, etc.) */
+  generationParams?: GenerationParams;
 }
 
 export interface StartAgentChatResult {
@@ -236,6 +242,7 @@ export async function startAgentChat(
       additionalContext,
       userContext,
       deadlineMs,
+      generationParams: args.generationParams,
     },
   );
 
