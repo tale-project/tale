@@ -163,7 +163,6 @@
     "postcss-load-config": "6.0.1",
     "storybook": "10.3.5",
     "tree-kill": "1.2.2",
-    "vite-tsconfig-paths": "6.1.1",
     "vitest-axe": "1.0.0-pre.5",
     "yaml": "2.8.3"
   },

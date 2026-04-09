@@ -1,6 +1,4 @@
 import { RenderResult } from '@testing-library/react';
-import type { UserEvent } from '@testing-library/user-event';
-import { expect } from 'vitest';
 import { axe } from 'vitest-axe';
 
 /**
@@ -50,33 +48,5 @@ export function expectFocusable(element: HTMLElement) {
   element.focus();
   if (document.activeElement !== element) {
     throw new Error(`Expected element to be focusable, but it is not`);
-  }
-}
-
-/**
- * Assert an element has a specific ARIA attribute, optionally with a given value.
- */
-export function expectAriaAttribute(
-  element: HTMLElement,
-  attr: string,
-  value?: string,
-) {
-  if (value !== undefined) {
-    expect(element).toHaveAttribute(attr, value);
-  } else {
-    expect(element).toHaveAttribute(attr);
-  }
-}
-
-/**
- * Assert that tab navigation visits elements in the expected order.
- */
-export async function expectKeyboardNavigable(
-  user: UserEvent,
-  elements: HTMLElement[],
-) {
-  for (const el of elements) {
-    await user.tab();
-    expect(document.activeElement).toBe(el);
   }
 }

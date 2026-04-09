@@ -22,11 +22,7 @@ export default {
         'server.ts',
       ],
       project: ['**/*.{ts,tsx}'],
-      ignoreDependencies: [
-        'convex-test',
-        'mermaid',
-        '@modelcontextprotocol/sdk',
-      ],
+      ignoreDependencies: ['convex-test', 'mermaid'],
     },
     'tools/cli': {
       project: ['**/*.ts'],
