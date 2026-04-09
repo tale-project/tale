@@ -2783,7 +2783,8 @@
       "nameRequired": "Folder name is required",
       "creating": "Creating...",
       "created": "Folder created",
-      "createFailed": "Failed to create folder"
+      "createFailed": "Failed to create folder",
+      "duplicateName": "A folder with this name already exists"
     },
     "teamTags": {
       "title": "Manage teams",
