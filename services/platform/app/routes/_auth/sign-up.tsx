@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useMemo, useCallback, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -223,13 +223,6 @@ function SignUpPage() {
           </>
         )}
       </Stack>
-
-      <p className="text-muted-foreground text-center text-sm">
-        {t('signup.hasAccount')}{' '}
-        <Link to="/log-in" className="text-foreground hover:underline">
-          {t('signup.logInLink')}
-        </Link>
-      </p>
     </AuthFormLayout>
   );
 }

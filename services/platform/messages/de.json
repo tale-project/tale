@@ -467,9 +467,7 @@
         "success": "Erfolgreich angemeldet",
         "microsoftFailed": "Microsoft-Anmeldung fehlgeschlagen. Bitte versuche es erneut.",
         "ssoFailed": "SSO-Anmeldung fehlgeschlagen. Bitte versuche es erneut."
-      },
-      "noAccount": "Noch kein Konto?",
-      "signUpLink": "Registrieren"
+      }
     },
     "signup": {
       "title": "Konto erstellen",
@@ -478,8 +476,6 @@
       "creating": "Wird erstellt...",
       "createButton": "Erstellen",
       "accountCreated": "Konto erfolgreich erstellt!",
-      "hasAccount": "Bereits ein Konto?",
-      "logInLink": "Anmelden",
       "wrongCredentials": "Falsche E-Mail oder falsches Passwort",
       "microsoftSignInFailed": "Microsoft-Anmeldung fehlgeschlagen. Bitte versuche es erneut."
     },

@@ -1,6 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
-  Link,
   createFileRoute,
   useNavigate,
   useSearch,
@@ -213,13 +212,6 @@ export function LogInPage() {
           </>
         )}
       </Stack>
-
-      <p className="text-muted-foreground text-center text-sm">
-        {t('login.noAccount')}{' '}
-        <Link to="/sign-up" className="text-foreground hover:underline">
-          {t('login.signUpLink')}
-        </Link>
-      </p>
     </AuthFormLayout>
   );
 }
