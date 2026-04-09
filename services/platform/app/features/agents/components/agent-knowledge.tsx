@@ -315,7 +315,7 @@ export function AgentKnowledge({
           >
             {knowledgeFiles.length > 0 && (
               <div className="divide-y rounded-lg border">
-                {knowledgeFiles.map((file) => (
+                {knowledgeFiles.map((file: KnowledgeFile) => (
                   <AgentFileRow
                     key={file.fileId}
                     file={file}

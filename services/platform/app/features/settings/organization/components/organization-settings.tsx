@@ -21,6 +21,7 @@ import { useT } from '@/lib/i18n/client';
 import { SUPPORTED_AGENT_LOCALES } from '@/lib/shared/constants/agents';
 import { getOrganizationDefaultLocale } from '@/lib/shared/utils/get-organization-default-locale';
 
+import type { Member } from '../hooks/queries';
 import { useMembers } from '../hooks/queries';
 import { AddMemberDialog } from './member-add-dialog';
 import { MemberTable } from './member-table';
@@ -104,7 +105,7 @@ export function OrganizationSettings({
     let filtered = allMembers;
     if (search) {
       filtered = filtered.filter(
-        (member) =>
+        (member: Member) =>
           (member.displayName?.toLowerCase().includes(search) ?? false) ||
           (member.email?.toLowerCase().includes(search) ?? false),
       );

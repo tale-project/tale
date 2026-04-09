@@ -25,6 +25,7 @@ type QueryArgs<Func extends FunctionReference<'query'>> =
 export function useConvexQuery<Func extends FunctionReference<'query'>>(
   func: Func,
   ...[args, options]: QueryArgs<Func>
+  // oxlint-disable-next-line typescript/no-unnecessary-type-arguments -- FunctionReturnType<Func> is not the default (unknown)
 ): UseQueryResult<FunctionReturnType<Func>> {
   // convexQuery returns a conditional type that useQuery can't resolve in generic context
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

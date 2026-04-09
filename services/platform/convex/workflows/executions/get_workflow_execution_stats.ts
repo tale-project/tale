@@ -38,8 +38,8 @@ export async function getWorkflowExecutionStats(
   const total = executions.length;
 
   // Single pass to count all statuses and compute execution time sum
-  const counts = executions.reduce<ExecutionCounts>(
-    (acc, e) => {
+  const counts = executions.reduce(
+    (acc: ExecutionCounts, e) => {
       switch (e.status) {
         case 'completed':
           acc.completed++;

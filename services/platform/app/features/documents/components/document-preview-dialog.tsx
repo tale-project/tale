@@ -60,7 +60,7 @@ function DetailsSidebar({ doc }: { doc: Document }) {
     if (ids.length === 0 || !teams) return [];
     return ids
       .map(
-        (id) =>
+        (id: string) =>
           teams.find((entry: { id: string; name: string }) => entry.id === id)
             ?.name,
       )
@@ -153,7 +153,7 @@ export function DocumentPreviewDialog({
 
   const doc = useMemo(() => {
     if (!documents || !open || !documentId) return undefined;
-    return documents.find((d) => d.id === documentId);
+    return documents.find((d: Document) => d.id === documentId);
   }, [documents, open, documentId]);
 
   const displayName = fileName || doc?.name || t('preview.document');

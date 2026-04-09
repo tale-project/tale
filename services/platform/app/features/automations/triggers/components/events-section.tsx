@@ -290,7 +290,9 @@ export function EventsSection({
         organizationId={organizationId}
         orgSlug={orgSlug}
         workflowSlug={workflowSlug}
-        existingEventTypes={subscriptions?.map((s) => s.eventType) ?? []}
+        existingEventTypes={
+          subscriptions?.map((s: WfEventSubscription) => s.eventType) ?? []
+        }
         editing={
           editTarget
             ? {

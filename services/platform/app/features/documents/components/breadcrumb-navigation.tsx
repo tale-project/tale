@@ -62,7 +62,7 @@ export function BreadcrumbNavigation({
           </button>
         </li>
 
-        {segments.map((folder, index) => {
+        {segments.map((folder: (typeof segments)[number], index: number) => {
           const isLast = index === segments.length - 1;
 
           return (

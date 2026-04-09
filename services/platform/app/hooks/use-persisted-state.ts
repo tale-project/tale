@@ -38,7 +38,7 @@ function isValidType<T>(value: unknown, initialValue: T): value is T {
 }
 
 export function usePersistedState<T>(key: string, initialValue: T) {
-  const [value, setValue] = useState<T>(initialValue);
+  const [value, setValue] = useState(initialValue);
   const [isHydrated, setIsHydrated] = useState(false);
   const prevKeyRef = useRef(key);
   const clearedRef = useRef(false);

@@ -115,17 +115,24 @@ export function SharedChatView({
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-8">
         <div className="mx-auto max-w-(--chat-max-width) space-y-4">
-          {sharedThread.messages.map((message) => (
-            <MessageBubble
-              key={message._id}
-              message={{
-                id: message._id,
-                role: message.role,
-                content: message.content,
-                timestamp: new Date(message._creationTime),
-              }}
-            />
-          ))}
+          {sharedThread.messages.map(
+            (message: {
+              _id: string;
+              role: 'user' | 'assistant';
+              content: string;
+              _creationTime: number;
+            }) => (
+              <MessageBubble
+                key={message._id}
+                message={{
+                  id: message._id,
+                  role: message.role,
+                  content: message.content,
+                  timestamp: new Date(message._creationTime),
+                }}
+              />
+            ),
+          )}
         </div>
       </div>
     </div>

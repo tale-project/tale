@@ -3,7 +3,7 @@ import {
   type DocsContainerProps,
 } from '@storybook/addon-docs/blocks';
 import { withThemeByClassName } from '@storybook/addon-themes';
-import type { Preview, ReactRenderer } from '@storybook/react';
+import type { Preview } from '@storybook/react';
 import {
   RouterProvider,
   createMemoryHistory,
@@ -44,8 +44,8 @@ function WithProviders({
   Story,
   context,
 }: {
-  Story: Parameters<DecoratorFunction<ReactRenderer>>[0];
-  context: Parameters<DecoratorFunction<ReactRenderer>>[1];
+  Story: Parameters<DecoratorFunction>[0];
+  context: Parameters<DecoratorFunction>[1];
 }) {
   const [router] = useState(createStoryRouter);
   const currentTheme = context.globals.theme === 'dark' ? 'dark' : 'light';
@@ -123,7 +123,7 @@ const preview: Preview = {
   },
   decorators: [
     (Story, context) => <WithProviders Story={Story} context={context} />,
-    withThemeByClassName<ReactRenderer>({
+    withThemeByClassName({
       themes: { light: '', dark: 'dark' },
       defaultTheme: 'light',
     }),

@@ -97,7 +97,7 @@ export function AutomationsTable({
     const q = searchQuery.toLowerCase().trim();
     const filtered = q
       ? validWorkflows.filter(
-          (w) =>
+          (w: WorkflowItem) =>
             w.name.toLowerCase().includes(q) ||
             w.category.toLowerCase().includes(q) ||
             (w.description && w.description.toLowerCase().includes(q)),
@@ -106,8 +106,10 @@ export function AutomationsTable({
 
     if (currentFolder) {
       return filtered
-        .filter((w) => w.category === currentFolder)
-        .sort((a, b) => a.name.localeCompare(b.name));
+        .filter((w: WorkflowItem) => w.category === currentFolder)
+        .sort((a: WorkflowItem, b: WorkflowItem) =>
+          a.name.localeCompare(b.name),
+        );
     }
 
     const folderMap = new Map();
