@@ -139,7 +139,15 @@ export const updateWebsite = action({
         ) {
           await ctx.runMutation(
             internal.websites.internal_mutations.patchWebsite,
-            { websiteId: args.websiteId, status: 'error' as const },
+            {
+              websiteId: args.websiteId,
+              status: 'error' as const,
+              metadata: {
+                ...website.metadata,
+                lastSyncError:
+                  'Website not found in crawler. Please delete and re-add it.',
+              },
+            },
           );
           throw new Error(
             'Website not found in crawler. Please delete and re-add it.',

@@ -116,20 +116,16 @@ export async function fetchWebsiteInfo(
   domain: string,
 ): Promise<CrawlerWebsiteInfo | null> {
   const crawlerUrl = getCrawlerUrl();
-  try {
-    const res = await fetchWithTimeout(
-      `${crawlerUrl}/api/v1/websites/${encodeURIComponent(domain)}`,
-    );
-    if (res.ok) {
-      return await res.json();
-    }
-  } catch (error) {
-    console.warn(
-      `[fetchWebsiteInfo] Failed to fetch info for ${domain}:`,
-      error,
-    );
+  const res = await fetchWithTimeout(
+    `${crawlerUrl}/api/v1/websites/${encodeURIComponent(domain)}`,
+  );
+  if (res.ok) {
+    return await res.json();
   }
-  return null;
+  if (res.status === 404) {
+    return null;
+  }
+  throw new Error(`Crawler API returned ${res.status} ${res.statusText}`);
 }
 
 interface WebsiteForSync {
@@ -273,6 +269,7 @@ export const registerAndSync = internalAction({
     try {
       await registerDomainWithCrawler(args.domain, args.scanInterval);
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       console.error(
         `[registerAndSync] Failed to register domain ${args.domain}:`,
         error,
@@ -280,6 +277,7 @@ export const registerAndSync = internalAction({
       await ctx.runMutation(internal.websites.internal_mutations.patchWebsite, {
         websiteId: args.websiteId,
         status: 'error',
+        metadata: { lastSyncError: message },
       });
       return;
     }
@@ -306,20 +304,62 @@ export const syncSingleWebsite = internalAction({
     domain: v.string(),
   },
   handler: async (ctx, args): Promise<void> => {
-    const info = await fetchWebsiteInfo(args.domain);
-    if (!info) return;
+    const website = await ctx.runQuery(
+      internal.websites.internal_queries.getWebsite,
+      { websiteId: args.websiteId },
+    );
+    if (!website) return;
 
-    await ctx.runMutation(internal.websites.internal_mutations.patchWebsite, {
-      websiteId: args.websiteId,
-      status: info.status,
-      pageCount: info.page_count,
-      crawledPageCount: info.crawled_count,
-      title: info.title ?? undefined,
-      description: info.description ?? undefined,
-      lastScannedAt: info.last_scanned_at
-        ? new Date(info.last_scanned_at).getTime()
-        : undefined,
-    });
+    try {
+      const info = await fetchWebsiteInfo(args.domain);
+
+      if (info) {
+        await ctx.runMutation(
+          internal.websites.internal_mutations.patchWebsite,
+          {
+            websiteId: args.websiteId,
+            status: info.status,
+            pageCount: info.page_count,
+            crawledPageCount: info.crawled_count,
+            title: info.title ?? undefined,
+            description: info.description ?? undefined,
+            lastScannedAt: info.last_scanned_at
+              ? new Date(info.last_scanned_at).getTime()
+              : undefined,
+            metadata: {
+              ...website.metadata,
+              lastSyncError: undefined,
+            },
+          },
+        );
+      } else {
+        await ctx.runMutation(
+          internal.websites.internal_mutations.patchWebsite,
+          {
+            websiteId: args.websiteId,
+            status: 'error',
+            metadata: {
+              ...website.metadata,
+              lastSyncError:
+                'Website not found in crawler. Please delete and re-add it.',
+            },
+          },
+        );
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(
+        `[syncSingleWebsite] Failed to sync ${args.domain}: ${message}`,
+      );
+      await ctx.runMutation(internal.websites.internal_mutations.patchWebsite, {
+        websiteId: args.websiteId,
+        status: 'error',
+        metadata: {
+          ...website.metadata,
+          lastSyncError: message,
+        },
+      });
+    }
   },
 });
 

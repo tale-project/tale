@@ -133,10 +133,19 @@ export function WebsitesTable({
     ],
   );
 
-  const [viewingWebsite, setViewingWebsite] = useState<Website | null>(null);
+  const [viewingWebsiteId, setViewingWebsiteId] = useState<string | null>(null);
+
+  const viewingWebsite = useMemo(
+    () =>
+      viewingWebsiteId
+        ? (paginatedResult.results.find((w) => w._id === viewingWebsiteId) ??
+          null)
+        : null,
+    [viewingWebsiteId, paginatedResult.results],
+  );
 
   const handleRowClick = useCallback((row: Row<Website>) => {
-    setViewingWebsite(row.original);
+    setViewingWebsiteId(row.original._id);
   }, []);
 
   const list = useListPage<Website>({
@@ -178,7 +187,7 @@ export function WebsitesTable({
       {viewingWebsite && (
         <ViewWebsiteDialog
           isOpen={!!viewingWebsite}
-          onClose={() => setViewingWebsite(null)}
+          onClose={() => setViewingWebsiteId(null)}
           website={viewingWebsite}
         />
       )}
