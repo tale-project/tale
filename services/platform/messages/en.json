@@ -2609,6 +2609,8 @@
     "errorHintContentFilter": "The message was flagged by the content filter. Try rephrasing your message.",
     "showMore": "Show more",
     "showLess": "Show less",
+    "editMessage": "Edit message",
+    "editSend": "Send",
     "noAgentsAvailable": "No agents available. Please publish an agent first.",
     "pendingApprovalDisabled": "Respond to the pending request above to continue",
     "archivedDisabled": "This chat is archived. Unarchive it to continue the conversation.",

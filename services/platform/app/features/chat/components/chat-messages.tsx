@@ -13,8 +13,10 @@ import {
 import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
 
+import { useBranchContext } from '../context/branch-context';
 import type { ChatItem } from '../hooks/use-merged-chat-items';
 import { ApprovalCardRenderer } from './approval-card-renderer';
+import { BranchNavigator } from './branch-navigator';
 import { CollapsibleSystemMessage } from './collapsible-system-message';
 import { MessageBubble } from './message-bubble';
 import { ThinkingAnimation } from './thinking-animation';
@@ -85,6 +87,7 @@ interface ChatMessagesProps {
   onHumanInputResponseSubmitted?: () => void;
   onSendFollowUp?: (message: string) => void;
   onSendMessage?: (message: string) => void;
+  onEditMessage?: (messageId: string, content: string) => void;
 }
 
 /**
@@ -116,8 +119,10 @@ export function ChatMessages({
   onHumanInputResponseSubmitted,
   onSendFollowUp,
   onSendMessage,
+  onEditMessage,
 }: ChatMessagesProps) {
   const { t } = useT('chat');
+  const { branches } = useBranchContext();
   const responseAreaRef = useRef<HTMLDivElement>(null);
 
   // Split items: find the last user message index for layout purposes.
@@ -199,6 +204,15 @@ export function ChatMessages({
     };
   }, [containerRef, lastUserMessageRef]);
 
+  // Build a set of forkOrder values that have branches (for showing BranchNavigator).
+  // forkOrder is the message order of the edited user message — stable across cloned threads.
+  // Include ALL branches (not just from the current thread) so the navigator is visible
+  // even when viewing a branch thread — this allows switching back to the original.
+  const forkPointOrders = useMemo(
+    () => new Set(branches.map((b) => b.forkOrder)),
+    [branches],
+  );
+
   const renderMessage = (item: ChatItem) => {
     if (item.type !== 'message') return null;
 
@@ -270,6 +284,12 @@ export function ChatMessages({
       }
     }
 
+    const isUserMessage = message.role === 'user';
+    const hasBranches =
+      isUserMessage &&
+      message.order !== undefined &&
+      forkPointOrders.has(message.order);
+
     return (
       <div
         key={reactKey}
@@ -279,10 +299,16 @@ export function ChatMessages({
         <MessageBubble
           message={{
             ...message,
-            role: message.role === 'user' ? 'user' : 'assistant',
+            role: isUserMessage ? 'user' : 'assistant',
             threadId: threadId,
           }}
           onSendFollowUp={onSendFollowUp}
+          onEdit={isUserMessage ? onEditMessage : undefined}
+          toolbarExtra={
+            hasBranches && message.order !== undefined ? (
+              <BranchNavigator forkOrder={message.order} />
+            ) : undefined
+          }
         />
       </div>
     );

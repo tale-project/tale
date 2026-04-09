@@ -65,6 +65,7 @@ export interface ChatMessage {
   attachments?: FileAttachment[];
   fileParts?: FilePart[];
   _creationTime?: number;
+  order?: number;
   isStreaming?: boolean;
   isAborted?: boolean;
   isFailed?: boolean;
@@ -264,6 +265,7 @@ export function useMessageProcessing(
             attachments && attachments.length > 0 ? attachments : undefined,
           fileParts: fileParts.length > 0 ? fileParts : undefined,
           _creationTime: m._creationTime,
+          order: m.order,
           isStreaming,
           isAborted:
             m.role === 'assistant' && m.status === 'failed' && !m.text?.trim(),

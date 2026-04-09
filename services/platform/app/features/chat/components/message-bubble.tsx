@@ -4,6 +4,7 @@ import {
   CopyIcon,
   CheckIcon,
   Info,
+  Pencil,
   TriangleAlert,
   RotateCcw,
   Square,
@@ -44,6 +45,9 @@ interface MessageBubbleProps extends ComponentPropsWithoutRef<'div'> {
   message: Message;
   onSendFollowUp?: (message: string) => void;
   onRetry?: () => void;
+  onEdit?: (messageId: string, content: string) => void;
+  /** Extra content rendered in the user message toolbar (e.g. BranchNavigator). */
+  toolbarExtra?: React.ReactNode;
 }
 
 function useMessageGallery(message: Message) {
@@ -99,6 +103,8 @@ function MessageBubbleComponent({
   className,
   onSendFollowUp,
   onRetry,
+  onEdit,
+  toolbarExtra,
   ...restProps
 }: MessageBubbleProps) {
   const { t } = useT('common');
@@ -106,6 +112,10 @@ function MessageBubbleComponent({
   const isUser = message.role === 'user';
   const isAssistantStreaming =
     message.role === 'assistant' && message.isStreaming;
+
+  const handleEditClick = useCallback(() => {
+    if (onEdit) onEdit(message.id, message.content);
+  }, [onEdit, message.id, message.content]);
 
   const displayContent = message.content ?? '';
   // Only normalize pipes for assistant messages (markdown table rendering);
@@ -201,7 +211,7 @@ function MessageBubbleComponent({
   return (
     <div
       className={cn(
-        `flex ${isUser ? 'justify-end' : 'justify-start'}`,
+        isUser ? 'flex flex-col items-end' : 'flex justify-start',
         className,
       )}
       {...restProps}
@@ -397,6 +407,23 @@ function MessageBubbleComponent({
           metadata={metadata}
         />
       </div>
+      {isUser && (onEdit || toolbarExtra) && (
+        <div className="flex items-center justify-end gap-0.5 pt-0.5">
+          {onEdit && !!displayContent && (
+            <Tooltip content={tChat('editMessage')} side="bottom">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-6 p-1"
+                onClick={handleEditClick}
+              >
+                <Pencil className="size-3.5" />
+              </Button>
+            </Tooltip>
+          )}
+          {toolbarExtra}
+        </div>
+      )}
     </div>
   );
 }
@@ -413,7 +440,9 @@ export const MessageBubble = memo(
       prevProps.message.attachments === nextProps.message.attachments &&
       prevProps.message.fileParts === nextProps.message.fileParts &&
       prevProps.className === nextProps.className &&
-      prevProps.onSendFollowUp === nextProps.onSendFollowUp
+      prevProps.onSendFollowUp === nextProps.onSendFollowUp &&
+      prevProps.onEdit === nextProps.onEdit &&
+      prevProps.toolbarExtra === nextProps.toolbarExtra
     );
   },
 );

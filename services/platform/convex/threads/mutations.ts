@@ -128,3 +128,4 @@ export const unarchiveChatThread = mutation({
 
 export { shareThread, unshareThread } from './share_thread';
 export { forkThread } from './fork_thread';
+export { editAndBranch } from './edit_and_branch';
