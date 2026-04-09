@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 
 import pkg from '../../../package.json';
-import { compareVersions } from '../../utils/compare-versions';
+import { compareVersions, extractVersion } from '../../utils/compare-versions';
 import * as logger from '../../utils/logger';
 import { requireProject } from '../project/find-project';
 import { update } from './update';
@@ -77,7 +77,12 @@ async function fetchLatestRelease(): Promise<ReleaseInfo> {
     );
   }
   const tag = data.tag_name;
-  const version = tag.replace(/^v/, '');
+  const version = extractVersion(tag);
+  if (!version) {
+    throw new Error(
+      `Could not extract semver version from release tag "${tag}".`,
+    );
+  }
   return { tag, version };
 }
 
