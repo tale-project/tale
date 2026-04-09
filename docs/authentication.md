@@ -80,7 +80,7 @@ Common proxy configurations:
 ### How it works
 
 1. The reverse proxy authenticates the user and sets identity headers.
-2. The browser is redirected to `/api/trusted-headers/authenticate`.
+2. The login page detects trusted headers mode and navigates the browser to `/api/trusted-headers/authenticate` via `window.location.href` (client-side navigation, not an HTTP redirect).
 3. Tale reads the headers, finds or creates the user, and sets a session cookie.
 4. The browser is redirected to the dashboard.
 

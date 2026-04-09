@@ -59,17 +59,22 @@ export function LogInPage() {
   const { data: ssoConfig } = useIsSsoConfigured();
 
   // When trusted headers auth is enabled, the reverse proxy has already
-  // authenticated the user. Redirect to the Convex HTTP endpoint that reads
+  // authenticated the user. Navigate to the Convex HTTP endpoint that reads
   // the proxy headers and creates a session — the user never sees the login form.
+  // If the auth endpoint fails, it redirects back here with ?trusted_headers_error=1
+  // to break the redirect loop and show the regular login form.
   const trustedHeadersEnabled = getEnv('TRUSTED_HEADERS_ENABLED');
+  const hasTrustedHeadersError = new URLSearchParams(
+    window.location.search,
+  ).has('trusted_headers_error');
   useEffect(() => {
-    if (trustedHeadersEnabled) {
+    if (trustedHeadersEnabled && !hasTrustedHeadersError) {
       const siteUrl = getEnv('SITE_URL');
       const basePath = getEnv('BASE_PATH');
       const target = redirectTo || `${basePath}/dashboard`;
       window.location.href = `${siteUrl}${basePath}/api/trusted-headers/authenticate?redirect=${encodeURIComponent(target)}`;
     }
-  }, [trustedHeadersEnabled, redirectTo]);
+  }, [trustedHeadersEnabled, hasTrustedHeadersError, redirectTo]);
 
   useEffect(() => {
     if (!trustedHeadersEnabled && hasUsers === false) {
@@ -150,7 +155,7 @@ export function LogInPage() {
     window.location.href = `${siteUrl}${basePath}/http_api/api/sso/authorize?redirect_uri=${encodeURIComponent(callbackUri)}`;
   }, []);
 
-  if (isLoadingUsers || trustedHeadersEnabled) {
+  if (isLoadingUsers || (trustedHeadersEnabled && !hasTrustedHeadersError)) {
     return null;
   }
 

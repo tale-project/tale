@@ -237,24 +237,37 @@ function escapeHtmlAttr(value: string): string {
 }
 
 function escapeJs(value: string): string {
-  return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  return value
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/\t/g, '\\t')
+    .replace(/\f/g, '\\f')
+    .replace(/\v/g, '\\v')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
 }
 
 function createErrorResponse(
-  origin: string,
+  _origin: string,
   basePath: string,
   message: string,
 ): Response {
-  const loginPath = `${basePath}/log-in`;
+  // Redirect back to the login page with an error flag so the login page
+  // breaks the redirect loop and shows the regular login form.
+  const loginPath = `${basePath}/log-in?trusted_headers_error=1`;
   const html = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
+  <meta http-equiv="refresh" content="0;url=${escapeHtmlAttr(loginPath)}">
   <title>Authentication Error</title>
 </head>
 <body>
   <p>Error: ${escapeHtmlAttr(message)}</p>
   <p><a href="${escapeHtmlAttr(loginPath)}">Return to login</a></p>
+  <script>window.location.href = '${escapeJs(loginPath)}';</script>
 </body>
 </html>`;
 
