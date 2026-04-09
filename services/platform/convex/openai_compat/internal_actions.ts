@@ -9,7 +9,7 @@
 
 import { readdir } from 'node:fs/promises';
 
-import { streamText } from 'ai';
+import { streamText, type ModelMessage } from 'ai';
 import { v } from 'convex/values';
 
 import { isRecord, getString } from '../../lib/utils/type-guards';
@@ -24,6 +24,37 @@ import {
 import { scrubPii, type PiiConfig } from '../governance/pii';
 import { resolveLanguageModelWithFallback } from '../providers/failover';
 import { convertOpenAITools, generateToolCallId } from './tool_conversion';
+
+/**
+ * Map OpenAI tool_choice to AI SDK toolChoice format.
+ * OpenAI: "auto" | "none" | "required" | { type: "function", function: { name: "..." } }
+ * AI SDK: "auto" | "none" | "required" | { type: "tool", toolName: "..." }
+ */
+function mapToolChoice(
+  openaiChoice: unknown,
+): 'auto' | 'none' | 'required' | { type: 'tool'; toolName: string } {
+  if (typeof openaiChoice === 'string') {
+    if (openaiChoice === 'required') return 'required';
+    if (openaiChoice === 'none') return 'none';
+    return 'auto';
+  }
+  if (
+    typeof openaiChoice === 'object' &&
+    openaiChoice !== null &&
+    'type' in openaiChoice &&
+    (openaiChoice as Record<string, unknown>).type === 'function' &&
+    'function' in openaiChoice
+  ) {
+    const fn = (openaiChoice as Record<string, unknown>).function;
+    if (typeof fn === 'object' && fn !== null && 'name' in fn) {
+      return {
+        type: 'tool',
+        toolName: String((fn as Record<string, unknown>).name),
+      };
+    }
+  }
+  return 'auto';
+}
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -187,7 +218,8 @@ export const chatViaOpenAIWithTools = internalAction({
     message: v.string(),
     threadId: v.optional(v.string()),
     tools: v.any(),
-    toolMessages: v.optional(v.any()),
+    toolChoice: v.optional(v.any()),
+    conversationMessages: v.optional(v.any()),
     generationParams: v.optional(v.any()),
     responseFormat: v.optional(v.string()),
   },
@@ -249,17 +281,6 @@ export const chatViaOpenAIWithTools = internalAction({
       },
     );
 
-    // If continuation: save tool result messages to thread
-    if (args.toolMessages && Array.isArray(args.toolMessages)) {
-      await ctx.runMutation(
-        internal.openai_compat.internal_mutations.saveToolMessages,
-        {
-          threadId,
-          messages: args.toolMessages,
-        },
-      );
-    }
-
     // Build system prompt from agent instructions
     const systemPrompt: string =
       String(agentConfig.instructions ?? '') ||
@@ -270,11 +291,26 @@ export const chatViaOpenAIWithTools = internalAction({
     const genParams = (args.generationParams ?? {}) as Record<string, unknown>;
 
     // Direct streamText call with client tools (no auto-execute)
+    // Always use messages format for proper tool calling support.
+    // For continuation, use the full conversation history from the client.
+    const hasConversation =
+      args.conversationMessages &&
+      Array.isArray(args.conversationMessages) &&
+      args.conversationMessages.length > 0;
+
+    const messages: ModelMessage[] = hasConversation
+      ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- conversationMessages is built by convertToModelMessages in http_actions.ts; shape matches ModelMessage[]
+        (args.conversationMessages as ModelMessage[])
+      : [{ role: 'user' as const, content: message }];
+
     const result = streamText({
       model: resolved.languageModel,
       system: systemPrompt,
-      prompt: message,
+      messages,
       tools: aiTools,
+      ...(args.toolChoice != null && {
+        toolChoice: mapToolChoice(args.toolChoice),
+      }),
       ...(genParams.temperature != null && {
         temperature: Number(genParams.temperature),
       }),
@@ -297,19 +333,27 @@ export const chatViaOpenAIWithTools = internalAction({
     const finishReason: string = await result.finishReason;
     const steps = await result.steps;
 
-    // Extract tool calls from steps
-    interface StepWithToolCalls {
-      toolCalls?: Array<{ toolName: string; args: unknown }>;
+    // Extract tool calls from steps.
+    // AI SDK v6 stores tool calls in step.content[] as { type: "tool-call", toolCallId, toolName, input }
+    interface ToolCallContent {
+      type: string;
+      toolCallId?: string;
+      toolName?: string;
+      input?: unknown;
     }
-    const typedSteps: StepWithToolCalls[] = Array.isArray(steps) ? steps : [];
-    const toolCalls = typedSteps
-      .flatMap((step) => step.toolCalls ?? [])
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- StepResult serialized to extract tool-call content parts; shape is known from AI SDK v6
+    const rawSteps = JSON.parse(JSON.stringify(steps)) as Array<{
+      content?: ToolCallContent[];
+    }>;
+    const toolCalls = rawSteps
+      .flatMap((step) => step.content ?? [])
+      .filter((part): part is ToolCallContent => part.type === 'tool-call')
       .map((tc) => ({
-        id: generateToolCallId(),
+        id: tc.toolCallId ?? generateToolCallId(),
         type: 'function' as const,
         function: {
-          name: tc.toolName,
-          arguments: JSON.stringify(tc.args ?? {}),
+          name: tc.toolName ?? '',
+          arguments: JSON.stringify(tc.input ?? {}),
         },
       }));
 

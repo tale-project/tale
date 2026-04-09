@@ -424,6 +424,7 @@ import type * as lib_rls_wrappers_with_organization_rls from "../lib/rls/wrapper
 import type * as lib_rls_wrappers_with_resource_rls from "../lib/rls/wrappers/with_resource_rls.js";
 import type * as lib_shared_schemas_utils_json_value from "../lib/shared/schemas/utils/json_value.js";
 import type * as lib_sops from "../lib/sops.js";
+import type * as lib_strip_nulls from "../lib/strip_nulls.js";
 import type * as lib_summarization_auto_summarize from "../lib/summarization/auto_summarize.js";
 import type * as lib_summarization_index from "../lib/summarization/index.js";
 import type * as lib_summarization_internal_actions from "../lib/summarization/internal_actions.js";
@@ -1318,6 +1319,7 @@ declare const fullApi: ApiFromModules<{
   "lib/rls/wrappers/with_resource_rls": typeof lib_rls_wrappers_with_resource_rls;
   "lib/shared/schemas/utils/json_value": typeof lib_shared_schemas_utils_json_value;
   "lib/sops": typeof lib_sops;
+  "lib/strip_nulls": typeof lib_strip_nulls;
   "lib/summarization/auto_summarize": typeof lib_summarization_auto_summarize;
   "lib/summarization/index": typeof lib_summarization_index;
   "lib/summarization/internal_actions": typeof lib_summarization_internal_actions;

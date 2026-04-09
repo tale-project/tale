@@ -18,13 +18,13 @@ import * as logger from './utils/logger';
 process.on('uncaughtException', (err) => {
   logger.error(`Fatal: ${err.message}`);
   logger.debug(err.stack ?? '');
-  process.exitCode = 1;
+  process.exit(1);
 });
 process.on('unhandledRejection', (reason) => {
   const msg = reason instanceof Error ? reason.message : String(reason);
   logger.error(`Fatal: ${msg}`);
   if (reason instanceof Error) logger.debug(reason.stack ?? '');
-  process.exitCode = 1;
+  process.exit(1);
 });
 
 program
@@ -44,4 +44,4 @@ program.addCommand(createRollbackCommand());
 program.addCommand(createResetCommand());
 program.addCommand(createCleanupCommand());
 
-program.parse();
+await program.parseAsync();

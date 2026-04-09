@@ -148,41 +148,83 @@ function buildGenerationParams(body: ChatCompletionsRequestBody) {
 }
 
 // ---------------------------------------------------------------------------
-// Build tool messages for continuation requests
+// Convert OpenAI messages to AI SDK ModelMessage format for continuation
 // ---------------------------------------------------------------------------
 
-function extractToolMessages(messages: OpenAIMessage[]) {
-  const toolMessages: Array<{ role: string; content: unknown }> = [];
+function hasToolInteraction(messages: OpenAIMessage[]): boolean {
+  return messages.some(
+    (m) =>
+      (m.role === 'assistant' && m.tool_calls && m.tool_calls.length > 0) ||
+      m.role === 'tool',
+  );
+}
+
+/**
+ * Convert the full OpenAI messages array to AI SDK ModelMessage format.
+ * Used for tool-calling continuation so the LLM sees the complete conversation
+ * including previous tool_calls and tool results.
+ */
+function convertToModelMessages(
+  messages: OpenAIMessage[],
+): Array<Record<string, unknown>> {
+  const result: Array<Record<string, unknown>> = [];
 
   for (const msg of messages) {
-    if (msg.role === 'assistant' && msg.tool_calls) {
-      // Save the assistant message with tool_calls
-      toolMessages.push({
-        role: 'assistant',
-        content: msg.tool_calls.map((tc) => ({
-          type: 'tool-call',
-          toolCallId: tc.id,
-          toolName: tc.function.name,
-          args: JSON.parse(tc.function.arguments),
-        })),
-      });
+    if (msg.role === 'user') {
+      result.push({ role: 'user', content: msg.content ?? '' });
+    } else if (msg.role === 'system') {
+      result.push({ role: 'system', content: msg.content ?? '' });
+    } else if (msg.role === 'assistant') {
+      if (msg.tool_calls && msg.tool_calls.length > 0) {
+        // Assistant message with tool calls
+        const content: Array<Record<string, unknown>> = [];
+        if (msg.content) {
+          content.push({ type: 'text', text: msg.content });
+        }
+        for (const tc of msg.tool_calls) {
+          content.push({
+            type: 'tool-call',
+            toolCallId: tc.id,
+            toolName: tc.function.name,
+            args: JSON.parse(tc.function.arguments || '{}'),
+          });
+        }
+        result.push({ role: 'assistant', content });
+      } else {
+        result.push({
+          role: 'assistant',
+          content: msg.content ?? '',
+        });
+      }
     } else if (msg.role === 'tool' && msg.tool_call_id) {
-      // Save the tool result message
-      toolMessages.push({
+      // Look up tool name from the preceding assistant message's tool_calls
+      const toolName =
+        messages
+          .filter(
+            (
+              m,
+            ): m is OpenAIMessage & {
+              tool_calls: NonNullable<OpenAIMessage['tool_calls']>;
+            } => m.role === 'assistant' && !!m.tool_calls,
+          )
+          .flatMap((m) => m.tool_calls)
+          .find((tc) => tc.id === msg.tool_call_id)?.function.name ?? '';
+
+      result.push({
         role: 'tool',
         content: [
           {
             type: 'tool-result',
             toolCallId: msg.tool_call_id,
-            toolName: '',
-            result: msg.content,
+            toolName,
+            output: { type: 'text', value: msg.content ?? '' },
           },
         ],
       });
     }
   }
 
-  return toolMessages.length > 0 ? toolMessages : undefined;
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -298,6 +340,7 @@ export const chatCompletionsHandler = httpAction(async (ctx, request) => {
       messages,
       lastUserMessage: lastUserMessage.content,
       tools: body.tools ?? [],
+      toolChoice: body.tool_choice,
       shouldStream,
       threadId,
       generationParams,
@@ -348,6 +391,7 @@ async function handleToolCallingMode(
     messages: OpenAIMessage[];
     lastUserMessage: string;
     tools: ChatCompletionsRequestBody['tools'];
+    toolChoice?: unknown;
     shouldStream: boolean;
     threadId?: string;
     generationParams?: Record<string, unknown>;
@@ -356,7 +400,10 @@ async function handleToolCallingMode(
     user: { userId: string; email: string; name: string };
   },
 ) {
-  const toolMessages = extractToolMessages(opts.messages);
+  const isContinuation = hasToolInteraction(opts.messages);
+  const conversationMessages = isContinuation
+    ? convertToModelMessages(opts.messages)
+    : undefined;
   const created = Math.floor(Date.now() / 1000);
 
   let result: {
@@ -378,7 +425,8 @@ async function handleToolCallingMode(
         message: opts.lastUserMessage,
         threadId: opts.threadId,
         tools: opts.tools,
-        toolMessages,
+        toolChoice: opts.toolChoice,
+        conversationMessages,
         generationParams: opts.generationParams,
         responseFormat: opts.responseFormat,
       },
