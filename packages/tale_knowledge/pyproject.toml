@@ -5,7 +5,7 @@ description = "Knowledge pipeline primitives for Tale Python services"
 requires-python = ">=3.11"
 dependencies = [
     "tale-shared",
-    "openai==2.30.0",
+    "openai==2.31.0",
     "semantic-text-splitter==0.29.0",
     "pymupdf==1.27.2.2",
     "python-docx==1.2.0",
