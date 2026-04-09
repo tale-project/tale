@@ -59,6 +59,7 @@ export function WorkflowTemplateGrid({
         window.dispatchEvent(new Event('workflow-updated'));
         onTemplateInstalled(slug);
       } catch (err) {
+        console.error('[template install]', err);
         const detail =
           err instanceof Error ? err.message.split('\n')[0] : String(err);
         setError(`${t('templates.installFailed')}: ${detail}`);
