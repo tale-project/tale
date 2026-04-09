@@ -37,11 +37,17 @@ class LlmCacheEntry:
 
 
 class LlmResponseCache:
-    def __init__(self, pool: asyncpg.Pool):
+    def __init__(self, pool: asyncpg.Pool, dimensions: int):
         self._pool = pool
+        self._dimensions = dimensions
 
     async def ensure_table(self) -> None:
-        """Create the llm_response_cache table if it does not exist."""
+        """Create the llm_response_cache table and pin vector dimensions.
+
+        Follows the same pattern as pin_embedding_dimensions() for chunks:
+        ALTER COLUMN TYPE to match the configured dimensions if mismatched.
+        """
+        dims = self._dimensions
         async with acquire_with_retry(self._pool) as conn:
             await conn.execute(f"""
                 CREATE TABLE IF NOT EXISTS {TABLE} (
@@ -51,7 +57,7 @@ class LlmResponseCache:
                     user_id TEXT,
                     organization_id TEXT,
                     user_message TEXT NOT NULL,
-                    user_message_embedding vector NOT NULL,
+                    user_message_embedding vector({dims}) NOT NULL,
                     response_text TEXT NOT NULL,
                     provider TEXT,
                     usage JSONB DEFAULT '{{}}'::jsonb,
@@ -61,6 +67,26 @@ class LlmResponseCache:
                     hit_count INTEGER NOT NULL DEFAULT 0
                 )
             """)
+
+            # Pin vector dimensions if table already existed with different dims
+            expected_type = f"vector({dims})"
+            col_type = await conn.fetchval(
+                """
+                SELECT format_type(atttypid, atttypmod)
+                FROM pg_attribute
+                WHERE attrelid = $1::regclass AND attname = 'user_message_embedding'
+                """,
+                TABLE,
+            )
+            if col_type and col_type != expected_type:
+                logger.info(
+                    "Pinning {}.user_message_embedding to {} (was {})",
+                    TABLE,
+                    expected_type,
+                    col_type,
+                )
+                await conn.execute(f"ALTER TABLE {TABLE} ALTER COLUMN user_message_embedding TYPE vector({dims})")
+
             await conn.execute(f"""
                 CREATE INDEX IF NOT EXISTS idx_llm_cache_embedding
                 ON {TABLE}

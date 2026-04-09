@@ -400,6 +400,7 @@ import type * as lib_pagination_types from "../lib/pagination/types.js";
 import type * as lib_rate_limiter_helpers from "../lib/rate_limiter/helpers.js";
 import type * as lib_rate_limiter_index from "../lib/rate_limiter/index.js";
 import type * as lib_response_cache_cache_key from "../lib/response_cache/cache_key.js";
+import type * as lib_response_cache_internal_actions from "../lib/response_cache/internal_actions.js";
 import type * as lib_response_cache_internal_mutations from "../lib/response_cache/internal_mutations.js";
 import type * as lib_response_cache_internal_queries from "../lib/response_cache/internal_queries.js";
 import type * as lib_response_cache_normalize from "../lib/response_cache/normalize.js";
@@ -1304,6 +1305,7 @@ declare const fullApi: ApiFromModules<{
   "lib/rate_limiter/helpers": typeof lib_rate_limiter_helpers;
   "lib/rate_limiter/index": typeof lib_rate_limiter_index;
   "lib/response_cache/cache_key": typeof lib_response_cache_cache_key;
+  "lib/response_cache/internal_actions": typeof lib_response_cache_internal_actions;
   "lib/response_cache/internal_mutations": typeof lib_response_cache_internal_mutations;
   "lib/response_cache/internal_queries": typeof lib_response_cache_internal_queries;
   "lib/response_cache/normalize": typeof lib_response_cache_normalize;

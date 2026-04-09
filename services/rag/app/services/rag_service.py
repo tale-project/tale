@@ -136,7 +136,7 @@ class RagService:
         self._search_service = RagSearchService(self._pool, self._embedding_service)
 
         # LLM response cache
-        self._llm_response_cache = LlmResponseCache(self._pool)
+        self._llm_response_cache = LlmResponseCache(self._pool, dimensions)
         await self._llm_response_cache.ensure_table()
         logger.info("LLM response cache initialized")
 

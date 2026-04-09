@@ -43,10 +43,6 @@ import {
 import { wrapInDetails } from '../context_management/message_formatter';
 import { createDebugLog } from '../debug_log';
 import { computeCacheKey } from '../response_cache/cache_key';
-import {
-  lookupSemanticCache,
-  storeSemanticCache,
-} from '../response_cache/semantic_cache';
 import { areAllToolsCacheable } from '../response_cache/tool_cacheability';
 import { resolveTemplateVariables } from './resolve_template_variables';
 import { STRUCTURED_RESPONSE_INSTRUCTIONS } from './structured_response_instructions';
@@ -181,7 +177,6 @@ export async function generateAgentResponse(
     agentTeamId,
     knowledgeFileIds,
     structuredResponsesEnabled,
-    responseCacheEnabled,
     responseCacheTtlMs,
     noCacheToolNames,
     instructions,
@@ -603,23 +598,17 @@ export async function generateAgentResponse(
       : structuredThreadContext.threadContext;
 
     // ── Response cache lookup ──
-    // Only cache when explicitly enabled and temperature is 0 (deterministic).
-    const temperature = generationParams?.temperature;
-    const cacheEnabled =
-      responseCacheEnabled === true &&
-      (temperature === 0 || temperature === undefined);
-    const cacheKey = cacheEnabled
-      ? computeCacheKey({
-          agentName: agentType,
-          model,
-          instructions: instructions ?? '',
-          threadContext: structuredThreadContext.threadContext,
-          userMessage: typeof promptToSend === 'string' ? promptToSend : '',
-          generationParams,
-        })
-      : undefined;
+    const cacheKey = computeCacheKey({
+      agentName: agentType,
+      model,
+      instructions: instructions ?? '',
+      threadContext: structuredThreadContext.threadContext,
+      userMessage: typeof promptToSend === 'string' ? promptToSend : '',
+      generationParams,
+    });
 
     if (cacheKey) {
+      const exactLookupStart = Date.now();
       let cached: {
         responseText: string;
         model: string;
@@ -638,9 +627,13 @@ export async function generateAgentResponse(
       } catch (err) {
         debugLog('CACHE_LOOKUP_ERROR', { error: String(err), cacheKey });
       }
+      const exactLookupMs = Date.now() - exactLookupStart;
+      debugLog('EXACT_CACHE_LOOKUP', {
+        cacheKey,
+        hit: !!cached,
+        durationMs: exactLookupMs,
+      });
       if (cached) {
-        debugLog('CACHE_HIT', { cacheKey, threadId });
-
         // Save assistant message via Agent SDK
         const { messageId } = await saveMessage(ctx, components.agent, {
           threadId,
@@ -701,82 +694,6 @@ export async function generateAgentResponse(
 
         abortWatcher?.stop();
         return cachedResult;
-      }
-    }
-
-    // ── Semantic cache lookup (RAG service) ──
-    // lookupSemanticCache has built-in try/catch and graceful degradation
-    const userMessageStr = typeof promptToSend === 'string' ? promptToSend : '';
-    if (cacheEnabled && userMessageStr) {
-      const semanticHit = await lookupSemanticCache({
-        agentName: agentType,
-        model,
-        userMessage: userMessageStr,
-      });
-      if (semanticHit) {
-        debugLog('SEMANTIC_CACHE_HIT', {
-          threadId,
-          similarity: semanticHit.similarity,
-        });
-
-        const { messageId } = await saveMessage(ctx, components.agent, {
-          threadId,
-          message: { role: 'assistant', content: semanticHit.responseText },
-        });
-
-        if (streamId) {
-          try {
-            await ctx.runMutation(
-              internal.streaming.internal_mutations.appendToStream,
-              { streamId, text: semanticHit.responseText },
-            );
-            await ctx.runMutation(
-              internal.streaming.internal_mutations.completeStream,
-              { streamId },
-            );
-            await ctx.runMutation(
-              internal.threads.internal_mutations.clearGenerationStatus,
-              { threadId, streamId },
-            );
-          } catch (err) {
-            debugLog('SEMANTIC_CACHE_HIT_STREAM_ERROR', {
-              error: String(err),
-              streamId,
-            });
-          }
-        }
-
-        const durationMs = Date.now() - startTime;
-        const semanticResult: GenerateResponseResult = {
-          threadId,
-          text: semanticHit.responseText,
-          savedMessageId: messageId,
-          usage: semanticHit.usage ?? undefined,
-          finishReason: 'cached',
-          durationMs,
-          model,
-          provider: semanticHit.provider ?? provider,
-        };
-
-        if (hooks?.afterGenerate) {
-          await hooks.afterGenerate(ctx, args, semanticResult, hookData);
-        }
-        await onAgentComplete(ctx, {
-          threadId,
-          agentType,
-          result: {
-            threadId,
-            messageId,
-            text: semanticHit.responseText,
-            model,
-            provider: semanticHit.provider ?? provider,
-            usage: semanticResult.usage,
-            durationMs,
-          },
-        });
-
-        abortWatcher?.stop();
-        return semanticResult;
       }
     }
 
@@ -1434,28 +1351,6 @@ export async function generateAgentResponse(
           debugLog('CACHE_STORE', { cacheKey, threadId });
         } catch (err) {
           debugLog('CACHE_STORE_ERROR', { error: String(err), cacheKey });
-        }
-
-        // Also store in semantic cache (fire-and-forget)
-        const storeUserMessage =
-          typeof promptToSend === 'string' ? promptToSend : '';
-        if (storeUserMessage) {
-          void storeSemanticCache({
-            agentName: agentType,
-            model: result.response?.modelId ?? model,
-            userMessage: storeUserMessage,
-            responseText: result.text,
-            provider: provider ?? undefined,
-            usage: result.usage
-              ? {
-                  inputTokens: result.usage.inputTokens,
-                  outputTokens: result.usage.outputTokens,
-                  totalTokens: result.usage.totalTokens,
-                }
-              : undefined,
-            userId: userId ?? undefined,
-            organizationId,
-          });
         }
       }
     }
