@@ -58,8 +58,10 @@ export function WorkflowTemplateGrid({
         await invalidateWorkflows('default');
         window.dispatchEvent(new Event('workflow-updated'));
         onTemplateInstalled(slug);
-      } catch {
-        setError(t('templates.installFailed'));
+      } catch (err) {
+        const detail =
+          err instanceof Error ? err.message.split('\n')[0] : String(err);
+        setError(`${t('templates.installFailed')}: ${detail}`);
       } finally {
         setInstallingSlug(null);
       }

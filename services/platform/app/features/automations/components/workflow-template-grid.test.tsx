@@ -74,10 +74,10 @@ describe('WorkflowTemplateGrid', () => {
     });
   });
 
-  it('shows user-friendly error message when install fails', async () => {
+  it('shows error with technical detail from first line of message', async () => {
     mockInstallWorkflow.mockRejectedValueOnce(
       new Error(
-        "EACCES: permission denied, mkdir '/app/data/workflows/.history'",
+        "EACCES: permission denied, mkdir '/app/data/workflows/.history'\n    at Object.mkdirSync (node:fs:123)\n    at someFn",
       ),
     );
 
@@ -88,15 +88,14 @@ describe('WorkflowTemplateGrid', () => {
     await waitFor(() => {
       const alert = screen.getByRole('alert');
       expect(alert).toBeInTheDocument();
-      expect(alert).not.toHaveTextContent('EACCES');
-      expect(alert).not.toHaveTextContent('permission denied');
-      expect(alert).not.toHaveTextContent('/app/data');
+      expect(alert).toHaveTextContent('EACCES: permission denied');
+      expect(alert).not.toHaveTextContent('at Object.mkdirSync');
     });
 
     expect(defaultProps.onTemplateInstalled).not.toHaveBeenCalled();
   });
 
-  it('shows user-friendly error for non-Error exceptions', async () => {
+  it('shows stringified detail for non-Error exceptions', async () => {
     mockInstallWorkflow.mockRejectedValueOnce('raw string error');
 
     const { user } = render(<WorkflowTemplateGrid {...defaultProps} />);
@@ -106,7 +105,7 @@ describe('WorkflowTemplateGrid', () => {
     await waitFor(() => {
       const alert = screen.getByRole('alert');
       expect(alert).toBeInTheDocument();
-      expect(alert).not.toHaveTextContent('raw string error');
+      expect(alert).toHaveTextContent('raw string error');
     });
 
     expect(defaultProps.onTemplateInstalled).not.toHaveBeenCalled();
