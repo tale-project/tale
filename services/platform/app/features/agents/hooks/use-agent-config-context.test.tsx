@@ -98,7 +98,7 @@ describe('useAgentConfig', () => {
     expect(result.current.isDirty).toBe(true);
 
     act(() => {
-      result.current.markSaved();
+      result.current.markSaved(result.current.config);
     });
     expect(result.current.isDirty).toBe(false);
   });
@@ -145,9 +145,9 @@ describe('useAgentConfig', () => {
       result.current.markSaving(true);
     });
 
-    // Simulate: save succeeds
+    // Simulate: save succeeds — pass the config that was persisted
     act(() => {
-      result.current.markSaved();
+      result.current.markSaved(result.current.config);
     });
 
     // Simulate: finally block

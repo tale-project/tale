@@ -137,7 +137,7 @@ export function AgentNavigation({
         config,
       });
 
-      markSaved();
+      markSaved(config);
       setHistoryEntries([]);
       toast({
         title: t('agents.agentSaved'),

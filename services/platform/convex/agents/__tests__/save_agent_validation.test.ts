@@ -1,26 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { agentJsonSchema } from '../../../lib/shared/schemas/agents';
-
-/**
- * Mirrors the stripNulls function in file_actions.ts.
- * Duplicated here because file_actions uses 'use node' which makes
- * direct imports difficult in edge-runtime test environment.
- */
-function stripNulls(obj: unknown): unknown {
-  if (obj === null || obj === undefined) return undefined;
-  if (Array.isArray(obj)) return obj.map(stripNulls);
-  if (typeof obj === 'object') {
-    const out: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(obj)) {
-      if (value !== null) {
-        out[key] = typeof value === 'object' ? stripNulls(value) : value;
-      }
-    }
-    return out;
-  }
-  return obj;
-}
+import { stripNulls } from '../../lib/strip_nulls';
 
 const BASE_CONFIG = {
   displayName: 'Assistant',
@@ -120,6 +101,18 @@ describe('stripNulls', () => {
   it('preserves arrays and processes their elements', () => {
     const input = { items: ['a', 'b'] };
     expect(stripNulls(input)).toEqual({ items: ['a', 'b'] });
+  });
+
+  it('filters null elements from arrays', () => {
+    const input = { delegates: ['web-assistant', null] };
+    expect(stripNulls(input)).toEqual({ delegates: ['web-assistant'] });
+  });
+
+  it('filters undefined elements from arrays', () => {
+    const input = { delegates: ['web-assistant', undefined, 'crm-assistant'] };
+    expect(stripNulls(input)).toEqual({
+      delegates: ['web-assistant', 'crm-assistant'],
+    });
   });
 
   it('returns undefined for null input', () => {

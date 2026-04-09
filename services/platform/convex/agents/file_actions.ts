@@ -27,6 +27,7 @@ import {
   readJsonFile,
   sha256,
 } from '../lib/file_io';
+import { stripNulls } from '../lib/strip_nulls';
 import type { AgentJsonConfig, AgentReadResult } from './file_utils';
 import {
   MAX_FILE_SIZE_BYTES,
@@ -39,26 +40,6 @@ import {
   serializeAgentJson,
   validateAgentName,
 } from './file_utils';
-
-/**
- * Recursively strip null values from a plain object so that Zod `.optional()`
- * fields do not fail validation when the Convex transport converts missing
- * properties to explicit `null`.
- */
-function stripNulls(obj: unknown): unknown {
-  if (obj === null || obj === undefined) return undefined;
-  if (Array.isArray(obj)) return obj.map(stripNulls);
-  if (typeof obj === 'object') {
-    const out: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(obj)) {
-      if (value !== null) {
-        out[key] = typeof value === 'object' ? stripNulls(value) : value;
-      }
-    }
-    return out;
-  }
-  return obj;
-}
 
 async function readAgentFile(
   orgSlug: string,

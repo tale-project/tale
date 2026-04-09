@@ -21,7 +21,7 @@ interface AgentConfigContextValue {
   updateConfig: (partial: Partial<AgentJsonConfig>) => void;
   resetConfig: () => void;
   markSaving: (saving: boolean) => void;
-  markSaved: () => void;
+  markSaved: (persistedConfig: AgentJsonConfig) => void;
   overrideConfig: (config: AgentJsonConfig) => void;
 }
 
@@ -75,18 +75,15 @@ export function AgentConfigProvider({
   }, []);
 
   const resetConfig = useCallback(() => {
-    setSavedConfig((prev) => {
-      setConfig(prev);
-      return prev;
-    });
+    setConfig(savedConfigRef.current);
   }, []);
 
   const markSaving = useCallback((saving: boolean) => {
     setIsSaving(saving);
   }, []);
 
-  const markSaved = useCallback(() => {
-    setSavedConfig(configRef.current);
+  const markSaved = useCallback((persistedConfig: AgentJsonConfig) => {
+    setSavedConfig(persistedConfig);
   }, []);
 
   const overrideConfig = useCallback((next: AgentJsonConfig) => {
