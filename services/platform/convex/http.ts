@@ -15,6 +15,12 @@ import {
 } from './lib/rate_limiter/helpers';
 import { toId } from './lib/type_cast_helpers';
 import {
+  chatCompletionsHandler,
+  chatCompletionsOptionsHandler,
+  modelsListHandler,
+  modelsOptionsHandler,
+} from './openai_compat/http_actions';
+import {
   ssoDiscoverHandler,
   ssoAuthorizeHandler,
   ssoCallbackHandler,
@@ -186,6 +192,31 @@ http.route({
   path: '/api/workflows/trigger',
   method: 'OPTIONS',
   handler: apiTriggerOptionsHandler,
+});
+
+// OpenAI-Compatible API Routes
+http.route({
+  path: '/api/v1/chat/completions',
+  method: 'POST',
+  handler: chatCompletionsHandler,
+});
+
+http.route({
+  path: '/api/v1/chat/completions',
+  method: 'OPTIONS',
+  handler: chatCompletionsOptionsHandler,
+});
+
+http.route({
+  path: '/api/v1/models',
+  method: 'GET',
+  handler: modelsListHandler,
+});
+
+http.route({
+  path: '/api/v1/models',
+  method: 'OPTIONS',
+  handler: modelsOptionsHandler,
 });
 
 // API Gateway Routes - Handle /api/run/* paths with session cookie or API key authentication
