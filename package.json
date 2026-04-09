@@ -71,7 +71,7 @@
     "convex-helpers@0.1.113": "patches/convex-helpers@0.1.113.patch"
   },
   "overrides": {
-    "react-is": "19.2.4",
+    "react-is": "19.2.5",
     "magic-string": "0.30.21"
   }
 }
