@@ -191,6 +191,7 @@ export async function generateAgentResponse(
     streamId,
     promptMessageId,
     maxSteps: _maxSteps,
+    generationParams,
   } = args;
 
   const debugLog = createDebugLog(
@@ -618,6 +619,24 @@ export async function generateAgentResponse(
             system: systemPrompt,
             prompt: promptToSend,
             abortSignal: abortController.signal,
+            ...(generationParams?.temperature != null && {
+              temperature: generationParams.temperature,
+            }),
+            ...(generationParams?.maxTokens != null && {
+              maxTokens: generationParams.maxTokens,
+            }),
+            ...(generationParams?.topP != null && {
+              topP: generationParams.topP,
+            }),
+            ...(generationParams?.frequencyPenalty != null && {
+              frequencyPenalty: generationParams.frequencyPenalty,
+            }),
+            ...(generationParams?.presencePenalty != null && {
+              presencePenalty: generationParams.presencePenalty,
+            }),
+            ...(generationParams?.stopSequences != null && {
+              stopSequences: generationParams.stopSequences,
+            }),
             onChunk: ({ chunk }: { chunk: { type: string } }) => {
               if (firstTokenTime === null && chunk.type === 'text-delta') {
                 firstTokenTime = Date.now();
@@ -712,6 +731,24 @@ export async function generateAgentResponse(
               prompt: promptMessage,
               abortSignal: abortController.signal,
               ...(promptMessageId ? { promptMessageId } : {}),
+              ...(generationParams?.temperature != null && {
+                temperature: generationParams.temperature,
+              }),
+              ...(generationParams?.maxTokens != null && {
+                maxTokens: generationParams.maxTokens,
+              }),
+              ...(generationParams?.topP != null && {
+                topP: generationParams.topP,
+              }),
+              ...(generationParams?.frequencyPenalty != null && {
+                frequencyPenalty: generationParams.frequencyPenalty,
+              }),
+              ...(generationParams?.presencePenalty != null && {
+                presencePenalty: generationParams.presencePenalty,
+              }),
+              ...(generationParams?.stopSequences != null && {
+                stopSequences: generationParams.stopSequences,
+              }),
             },
             {
               contextOptions: {

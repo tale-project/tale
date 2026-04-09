@@ -91,6 +91,19 @@ export interface AgentRuntimeConfig {
  * Arguments for runAgentGeneration action.
  * These are the serialized arguments passed through scheduler.
  */
+/**
+ * Optional LLM generation parameters (temperature, etc.).
+ * Only set fields that are explicitly provided; omit to use model defaults.
+ */
+export interface GenerationParams {
+  temperature?: number;
+  maxTokens?: number;
+  topP?: number;
+  frequencyPenalty?: number;
+  presencePenalty?: number;
+  stopSequences?: string[];
+}
+
 export interface RunAgentGenerationArgs {
   agentType: string;
   agentConfig: SerializableAgentConfig;
@@ -116,6 +129,8 @@ export interface RunAgentGenerationArgs {
   streamId?: string;
   promptMessageId?: string;
   maxSteps?: number;
+  /** Optional per-request generation parameters from OpenAI compat endpoint */
+  generationParams?: GenerationParams;
 }
 
 /**

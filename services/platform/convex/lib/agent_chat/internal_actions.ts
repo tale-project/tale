@@ -133,6 +133,7 @@ export const runAgentGeneration = internalAction({
     promptMessageId: v.optional(v.string()),
     maxSteps: v.optional(v.number()),
     deadlineMs: v.optional(v.number()),
+    generationParams: v.optional(v.any()),
   },
   handler: async (ctx, args) => {
     const actionStartTime = Date.now();
@@ -162,6 +163,7 @@ export const runAgentGeneration = internalAction({
       promptMessageId,
       maxSteps,
       deadlineMs,
+      generationParams,
     } = args;
 
     const agentType = narrowStringUnion(
@@ -360,6 +362,7 @@ export const runAgentGeneration = internalAction({
           promptMessageId,
           maxSteps,
           deadlineMs,
+          generationParams,
         },
       );
 

@@ -68,7 +68,7 @@
     "esbuild"
   ],
   "patchedDependencies": {
-    "convex-helpers@0.1.113": "patches/convex-helpers@0.1.113.patch"
+    "convex-helpers@0.1.114": "patches/convex-helpers@0.1.114.patch"
   },
   "overrides": {
     "react-is": "19.2.5",

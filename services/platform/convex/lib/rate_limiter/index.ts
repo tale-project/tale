@@ -171,6 +171,12 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: MINUTE,
     capacity: 50,
   },
+  'openai:chat': {
+    kind: 'token bucket',
+    rate: 30,
+    period: MINUTE,
+    capacity: 50,
+  },
   'agent:document-list': {
     kind: 'fixed window',
     rate: 30,

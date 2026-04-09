@@ -125,6 +125,15 @@ export interface GenerateResponseArgs {
   maxSteps?: number;
   /** Absolute deadline (Date.now()-based) by which this generation must complete */
   deadlineMs?: number;
+  /** Optional per-request generation parameters from OpenAI compat endpoint */
+  generationParams?: {
+    temperature?: number;
+    maxTokens?: number;
+    topP?: number;
+    frequencyPenalty?: number;
+    presencePenalty?: number;
+    stopSequences?: string[];
+  };
 }
 
 /**

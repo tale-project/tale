@@ -15,6 +15,8 @@ import { tables as generatedTables } from './generated_schema';
 // Extend the generated tables with custom indexes
 export const tables = {
   ...generatedTables,
+  // Add index on key field for efficient API key lookups
+  apikey: generatedTables.apikey.index('key', ['key']),
   // Add custom index for [organizationId, userId] queries on member table
   member: generatedTables.member.index('organizationId_userId', [
     'organizationId',

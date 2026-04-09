@@ -424,6 +424,7 @@ import type * as lib_rls_wrappers_with_organization_rls from "../lib/rls/wrapper
 import type * as lib_rls_wrappers_with_resource_rls from "../lib/rls/wrappers/with_resource_rls.js";
 import type * as lib_shared_schemas_utils_json_value from "../lib/shared/schemas/utils/json_value.js";
 import type * as lib_sops from "../lib/sops.js";
+import type * as lib_strip_nulls from "../lib/strip_nulls.js";
 import type * as lib_summarization_auto_summarize from "../lib/summarization/auto_summarize.js";
 import type * as lib_summarization_index from "../lib/summarization/index.js";
 import type * as lib_summarization_internal_actions from "../lib/summarization/internal_actions.js";
@@ -513,6 +514,12 @@ import type * as onedrive_upload_and_create_document_deps from "../onedrive/uplo
 import type * as onedrive_upload_to_storage from "../onedrive/upload_to_storage.js";
 import type * as onedrive_validators from "../onedrive/validators.js";
 import type * as onedrive_with_microsoft_token from "../onedrive/with_microsoft_token.js";
+import type * as openai_compat_http_actions from "../openai_compat/http_actions.js";
+import type * as openai_compat_internal_actions from "../openai_compat/internal_actions.js";
+import type * as openai_compat_internal_mutations from "../openai_compat/internal_mutations.js";
+import type * as openai_compat_internal_queries from "../openai_compat/internal_queries.js";
+import type * as openai_compat_response_format from "../openai_compat/response_format.js";
+import type * as openai_compat_tool_conversion from "../openai_compat/tool_conversion.js";
 import type * as organizations_actions from "../organizations/actions.js";
 import type * as organizations_create_organization from "../organizations/create_organization.js";
 import type * as organizations_delete_organization from "../organizations/delete_organization.js";
@@ -1312,6 +1319,7 @@ declare const fullApi: ApiFromModules<{
   "lib/rls/wrappers/with_resource_rls": typeof lib_rls_wrappers_with_resource_rls;
   "lib/shared/schemas/utils/json_value": typeof lib_shared_schemas_utils_json_value;
   "lib/sops": typeof lib_sops;
+  "lib/strip_nulls": typeof lib_strip_nulls;
   "lib/summarization/auto_summarize": typeof lib_summarization_auto_summarize;
   "lib/summarization/index": typeof lib_summarization_index;
   "lib/summarization/internal_actions": typeof lib_summarization_internal_actions;
@@ -1401,6 +1409,12 @@ declare const fullApi: ApiFromModules<{
   "onedrive/upload_to_storage": typeof onedrive_upload_to_storage;
   "onedrive/validators": typeof onedrive_validators;
   "onedrive/with_microsoft_token": typeof onedrive_with_microsoft_token;
+  "openai_compat/http_actions": typeof openai_compat_http_actions;
+  "openai_compat/internal_actions": typeof openai_compat_internal_actions;
+  "openai_compat/internal_mutations": typeof openai_compat_internal_mutations;
+  "openai_compat/internal_queries": typeof openai_compat_internal_queries;
+  "openai_compat/response_format": typeof openai_compat_response_format;
+  "openai_compat/tool_conversion": typeof openai_compat_tool_conversion;
   "organizations/actions": typeof organizations_actions;
   "organizations/create_organization": typeof organizations_create_organization;
   "organizations/delete_organization": typeof organizations_delete_organization;

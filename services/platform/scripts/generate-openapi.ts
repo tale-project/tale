@@ -42,6 +42,313 @@ interface OpenApiSpec {
   tags?: Array<{ name: string; description: string }>;
 }
 
+/**
+ * Inject OpenAI-compatible Chat Completions API paths into the spec.
+ * These are custom HTTP routes registered via httpRouter, not generated
+ * by convex-helpers.
+ */
+function injectOpenAICompatPaths(spec: OpenApiSpec) {
+  const bearerAuth = {
+    bearerAuth: {
+      type: 'http',
+      scheme: 'bearer',
+      description:
+        'API key as Bearer token (e.g., "Bearer tale_..."). Create keys in Settings > API Keys.',
+    },
+  };
+  Object.assign(spec.components.securitySchemes ?? {}, bearerAuth);
+
+  const openaiTag = 'OpenAI Compatible';
+
+  spec.paths['/api/v1/chat/completions'] = {
+    post: {
+      tags: [openaiTag],
+      summary: 'Create chat completion',
+      description: `Send messages to an agent and receive a response. Fully compatible with the OpenAI Chat Completions API.
+
+**Two modes:**
+- **Agent mode** (no \`tools\`): The agent uses server-side tools and auto-executes them.
+- **Client tool mode** (\`tools\` provided): Only client-defined tools are used. Returns \`tool_calls\` for client execution.`,
+      operationId: 'createChatCompletion',
+      security: [{ bearerAuth: [] }],
+      parameters: [
+        {
+          name: 'X-Organization-Slug',
+          in: 'header',
+          required: false,
+          schema: { type: 'string' },
+          description:
+            'Organization slug. Auto-resolved if user belongs to one org.',
+        },
+        {
+          name: 'X-Thread-Id',
+          in: 'header',
+          required: false,
+          schema: { type: 'string' },
+          description: 'Reuse a conversation thread across requests.',
+        },
+      ],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: { $ref: '#/components/schemas/ChatCompletionRequest' },
+          },
+        },
+      },
+      responses: {
+        '200': {
+          description:
+            'Chat completion response (or SSE stream if stream=true)',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ChatCompletionResponse' },
+            },
+            'text/event-stream': {
+              schema: {
+                type: 'string',
+                description:
+                  'SSE stream of ChatCompletionChunk objects, terminated by `data: [DONE]`',
+              },
+            },
+          },
+        },
+        '400': {
+          description: 'Invalid request (missing model, messages, etc.)',
+        },
+        '401': { description: 'Invalid or missing API key' },
+        '403': { description: 'Not a member of the organization' },
+        '404': { description: 'Model (agent) not found' },
+        '429': { description: 'Rate limit exceeded' },
+        '500': { description: 'Generation failed' },
+      },
+    },
+  };
+
+  spec.paths['/api/v1/models'] = {
+    get: {
+      tags: [openaiTag],
+      summary: 'List models',
+      description:
+        'List available agents as OpenAI-compatible models. Only agents with `visibleInChat: true` are returned.',
+      operationId: 'listModels',
+      security: [{ bearerAuth: [] }],
+      parameters: [
+        {
+          name: 'X-Organization-Slug',
+          in: 'header',
+          required: false,
+          schema: { type: 'string' },
+          description: 'Organization slug.',
+        },
+      ],
+      responses: {
+        '200': {
+          description: 'List of models',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ModelList' },
+            },
+          },
+        },
+        '401': { description: 'Invalid or missing API key' },
+      },
+    },
+  };
+
+  // Add schemas
+  const schemas = spec.components.schemas;
+
+  schemas.ChatCompletionRequest = {
+    type: 'object',
+    required: ['model', 'messages'],
+    properties: {
+      model: {
+        type: 'string',
+        description: 'Agent slug (e.g., "chat-agent").',
+        example: 'chat-agent',
+      },
+      messages: {
+        type: 'array',
+        description: 'Conversation messages.',
+        items: { $ref: '#/components/schemas/ChatMessage' },
+      },
+      stream: {
+        type: 'boolean',
+        description: 'Enable SSE streaming.',
+        default: false,
+      },
+      temperature: {
+        type: 'number',
+        minimum: 0,
+        maximum: 2,
+        description: 'Sampling temperature.',
+      },
+      max_tokens: {
+        type: 'integer',
+        description: 'Maximum tokens to generate.',
+      },
+      top_p: { type: 'number', description: 'Nucleus sampling.' },
+      frequency_penalty: { type: 'number' },
+      presence_penalty: { type: 'number' },
+      stop: {
+        oneOf: [
+          { type: 'string' },
+          { type: 'array', items: { type: 'string' } },
+        ],
+        description: 'Stop sequences.',
+      },
+      response_format: {
+        type: 'object',
+        properties: {
+          type: {
+            type: 'string',
+            enum: ['text', 'json_object'],
+          },
+        },
+        description: 'Set to `{"type": "json_object"}` for JSON mode.',
+      },
+      tools: {
+        type: 'array',
+        items: { $ref: '#/components/schemas/ToolDefinition' },
+        description:
+          'Tool definitions for client-side tool calling. When provided, server-side agent tools are disabled.',
+      },
+      tool_choice: {
+        oneOf: [
+          { type: 'string', enum: ['auto', 'required', 'none'] },
+          {
+            type: 'object',
+            properties: {
+              type: { type: 'string', enum: ['function'] },
+              function: {
+                type: 'object',
+                properties: { name: { type: 'string' } },
+                required: ['name'],
+              },
+            },
+          },
+        ],
+        description: 'Controls tool calling behavior.',
+      },
+    },
+  };
+
+  schemas.ChatMessage = {
+    type: 'object',
+    required: ['role'],
+    properties: {
+      role: {
+        type: 'string',
+        enum: ['system', 'user', 'assistant', 'tool'],
+      },
+      content: {
+        oneOf: [{ type: 'string' }, { type: 'null' }],
+        description: 'Message content.',
+      },
+      tool_calls: {
+        type: 'array',
+        items: { $ref: '#/components/schemas/ToolCall' },
+        description: 'Tool calls (assistant messages only).',
+      },
+      tool_call_id: {
+        type: 'string',
+        description:
+          'ID of the tool call this result is for (tool messages only).',
+      },
+    },
+  };
+
+  schemas.ToolDefinition = {
+    type: 'object',
+    required: ['type', 'function'],
+    properties: {
+      type: { type: 'string', enum: ['function'] },
+      function: {
+        type: 'object',
+        required: ['name'],
+        properties: {
+          name: { type: 'string' },
+          description: { type: 'string' },
+          parameters: {
+            type: 'object',
+            description: 'JSON Schema for the function parameters.',
+          },
+        },
+      },
+    },
+  };
+
+  schemas.ToolCall = {
+    type: 'object',
+    properties: {
+      id: { type: 'string' },
+      type: { type: 'string', enum: ['function'] },
+      function: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          arguments: {
+            type: 'string',
+            description: 'JSON string of function arguments.',
+          },
+        },
+      },
+    },
+  };
+
+  schemas.ChatCompletionResponse = {
+    type: 'object',
+    properties: {
+      id: { type: 'string', example: 'chatcmpl-abc123' },
+      object: { type: 'string', enum: ['chat.completion'] },
+      created: { type: 'integer' },
+      model: { type: 'string' },
+      choices: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            index: { type: 'integer' },
+            message: { $ref: '#/components/schemas/ChatMessage' },
+            finish_reason: {
+              type: 'string',
+              enum: ['stop', 'length', 'tool_calls'],
+            },
+          },
+        },
+      },
+      usage: {
+        type: 'object',
+        properties: {
+          prompt_tokens: { type: 'integer' },
+          completion_tokens: { type: 'integer' },
+          total_tokens: { type: 'integer' },
+        },
+      },
+    },
+  };
+
+  schemas.ModelList = {
+    type: 'object',
+    properties: {
+      object: { type: 'string', enum: ['list'] },
+      data: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', example: 'chat-agent' },
+            object: { type: 'string', enum: ['model'] },
+            created: { type: 'integer' },
+            owned_by: { type: 'string' },
+          },
+        },
+      },
+    },
+  };
+}
+
 function main() {
   const tempYamlPath = join(platformDir, 'convex-openapi-temp.yaml');
   const outputPath = join(platformDir, 'public', 'openapi.json');
@@ -123,21 +430,171 @@ All endpoints accept POST requests with JSON body containing an \`args\` object:
   };
 
   spec.tags = [
+    {
+      name: 'OpenAI Compatible',
+      description:
+        'OpenAI Chat Completions compatible API. Use any OpenAI SDK by pointing base_url to this server.',
+    },
     { name: 'query', description: 'Read-only functions that fetch data' },
     { name: 'mutation', description: 'Functions that modify data' },
     { name: 'action', description: 'Functions that can call external APIs' },
   ];
+
+  // Inject OpenAI-compatible endpoints (custom HTTP routes not covered by convex-helpers)
+  injectOpenAICompatPaths(spec);
 
   const outputDir = dirname(outputPath);
   if (!existsSync(outputDir)) {
     mkdirSync(outputDir, { recursive: true });
   }
 
-  writeFileSync(outputPath, JSON.stringify(spec, null, 2), 'utf-8');
+  // Output only the public-facing spec (curated endpoints for external use)
+  const publicSpec = generatePublicSpec(spec);
+  writeFileSync(outputPath, JSON.stringify(publicSpec, null, 2), 'utf-8');
 
   rmSync(tempYamlPath, { force: true });
 
   console.log(`OpenAPI spec written to ${outputPath}`);
+}
+
+/**
+ * Curated list of public-facing endpoint path prefixes to include in the
+ * Swagger UI. Only endpoints matching these prefixes are shown.
+ */
+const PUBLIC_ENDPOINT_PREFIXES = [
+  // OpenAI-compatible API (custom HTTP routes)
+  '/api/v1/',
+
+  // Documents
+  '/api/run/documents/queries/',
+  '/api/run/documents/mutations/',
+  '/api/run/documents/actions/',
+
+  // Websites
+  '/api/run/websites/queries/',
+  '/api/run/websites/mutations/',
+  '/api/run/websites/actions/',
+
+  // Products
+  '/api/run/products/queries/',
+  '/api/run/products/mutations/',
+
+  // Customers
+  '/api/run/customers/queries/',
+  '/api/run/customers/mutations/',
+
+  // Vendors
+  '/api/run/vendors/queries/',
+  '/api/run/vendors/mutations/',
+
+  // Agents
+  '/api/run/agents/file_actions/',
+  '/api/run/agents/queries/',
+  '/api/run/agents/mutations/',
+  '/api/run/agents/webhooks/queries/',
+  '/api/run/agents/webhooks/mutations/',
+
+  // Workflows / Automations
+  '/api/run/workflows/triggers/slug_queries/',
+  '/api/run/workflows/triggers/slug_mutations/',
+];
+
+/**
+ * Generate a lightweight public-facing OpenAPI spec for the Swagger UI.
+ *
+ * Only includes curated endpoints that external integrators need.
+ */
+function generatePublicSpec(fullSpec: OpenApiSpec): OpenApiSpec {
+  const publicPaths: Record<string, unknown> = {};
+
+  for (const [path, def] of Object.entries(fullSpec.paths)) {
+    if (PUBLIC_ENDPOINT_PREFIXES.some((prefix) => path.startsWith(prefix))) {
+      publicPaths[path] = def;
+    }
+  }
+
+  // Collect referenced schemas
+  const referencedSchemas = new Set<string>();
+  const json = JSON.stringify(publicPaths);
+  const refPattern = /#\/components\/schemas\/([^"]+)/g;
+  let match;
+  while ((match = refPattern.exec(json)) !== null) {
+    referencedSchemas.add(match[1]);
+  }
+
+  // Recursively resolve nested schema refs
+  let prevSize = 0;
+  while (referencedSchemas.size !== prevSize) {
+    prevSize = referencedSchemas.size;
+    for (const name of Array.from(referencedSchemas)) {
+      const schema = fullSpec.components.schemas[name];
+      if (!schema) continue;
+      const schemaJson = JSON.stringify(schema);
+      let nested;
+      while ((nested = refPattern.exec(schemaJson)) !== null) {
+        referencedSchemas.add(nested[1]);
+      }
+    }
+  }
+
+  const publicSchemas: Record<string, unknown> = {};
+  for (const name of referencedSchemas) {
+    if (fullSpec.components.schemas[name]) {
+      publicSchemas[name] = fullSpec.components.schemas[name];
+    }
+  }
+
+  return {
+    openapi: fullSpec.openapi,
+    info: {
+      title: 'Tale Public API',
+      version: '1.0.0',
+      description: `
+Tale Public API — OpenAI-compatible Chat Completions interface.
+
+## Authentication
+
+Use a Bearer token with your API key:
+
+\`\`\`
+Authorization: Bearer tale_...
+\`\`\`
+
+Create API keys in **Settings > API Keys**.
+
+## Quick start
+
+\`\`\`python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://your-instance.com/api/v1",
+    api_key="tale_...",
+    default_headers={"X-Organization-Slug": "default"},
+)
+
+response = client.chat.completions.create(
+    model="chat-agent",
+    messages=[{"role": "user", "content": "Hello!"}],
+)
+\`\`\`
+`.trim(),
+    },
+    servers: fullSpec.servers,
+    security: [{ bearerAuth: [] }],
+    paths: publicPaths,
+    components: {
+      securitySchemes: {
+        bearerAuth: fullSpec.components.securitySchemes?.bearerAuth ?? {
+          type: 'http',
+          scheme: 'bearer',
+          description: 'API key as Bearer token.',
+        },
+      },
+      schemas: publicSchemas,
+    },
+    tags: (fullSpec.tags ?? []).filter((t) => t.name === 'OpenAI Compatible'),
+  };
 }
 
 main();
