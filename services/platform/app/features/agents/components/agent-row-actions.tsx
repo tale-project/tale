@@ -16,12 +16,14 @@ import { AgentDeleteDialog } from './agent-delete-dialog';
 
 interface AgentRowActionsProps {
   agentName: string;
+  organizationId: string;
   onDuplicated?: () => void;
   onDeleted?: () => void;
 }
 
 export function AgentRowActions({
   agentName,
+  organizationId,
   onDuplicated,
   onDeleted,
 }: AgentRowActionsProps) {
@@ -82,6 +84,7 @@ export function AgentRowActions({
 
       <AgentDeleteDialog
         agentName={agentName}
+        organizationId={organizationId}
         open={dialogs.isOpen.delete}
         onOpenChange={dialogs.setOpen.delete}
         onDeleted={onDeleted}

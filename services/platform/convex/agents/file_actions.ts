@@ -257,6 +257,7 @@ export const deleteAgent = action({
   args: {
     orgSlug: v.string(),
     agentName: v.string(),
+    organizationId: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
@@ -270,8 +271,19 @@ export const deleteAgent = action({
     const filePath = resolveAgentFilePath(args.orgSlug, args.agentName);
     const historyDir = resolveHistoryDir(args.orgSlug, args.agentName);
 
-    await unlink(filePath).catch(() => {});
-    await rm(historyDir, { recursive: true, force: true }).catch(() => {});
+    await unlink(filePath).catch((err) => {
+      if (err instanceof Error && 'code' in err && err.code !== 'ENOENT') {
+        throw err;
+      }
+    });
+    await rm(historyDir, { recursive: true, force: true });
+
+    if (args.organizationId) {
+      await ctx.runMutation(internal.agents.mutations.cleanupAgentBinding, {
+        organizationId: args.organizationId,
+        agentSlug: args.agentName,
+      });
+    }
 
     return null;
   },
