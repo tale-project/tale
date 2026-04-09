@@ -1921,6 +1921,7 @@
     "templates": {
       "description": "Choose a template to get started with pre-configured steps.",
       "fetchError": "Failed to load template. Please try again.",
+      "installFailed": "Unable to create automation from template. Please try again later.",
       "fetching": "Loading template...",
       "noTemplates": "No templates available for this integration.",
       "newAutomation": "New automation",
