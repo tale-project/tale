@@ -4,11 +4,8 @@ import { XIcon } from 'lucide-react';
 
 import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { Text } from '@/app/components/ui/typography/text';
-import {
-  formatFileSize,
-  middleEllipsis,
-} from '@/app/features/chat/components/message-bubble/file-displays';
 import { cn } from '@/lib/utils/cn';
+import { formatFileSize, middleEllipsis } from '@/lib/utils/format/file';
 
 import { DocumentIcon } from './document-icon';
 

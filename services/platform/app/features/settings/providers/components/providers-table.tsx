@@ -106,7 +106,6 @@ export function ProvidersTable({ organizationId }: ProvidersTableProps) {
         size: 44,
         cell: ({ row }: { row: Row<ProviderRow> }) => (
           <ProviderRowActions
-            provider={row.original}
             onEdit={() => setEditProvider(row.original)}
             onDelete={() => setDeleteProvider(row.original)}
           />
@@ -181,11 +180,9 @@ export function ProvidersTable({ organizationId }: ProvidersTableProps) {
 }
 
 function ProviderRowActions({
-  provider: _provider,
   onEdit,
   onDelete,
 }: {
-  provider: ProviderRow;
   onEdit: () => void;
   onDelete: () => void;
 }) {

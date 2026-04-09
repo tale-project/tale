@@ -2472,11 +2472,11 @@
     "deletePermanentMessage": "Diese Aktion kann nicht rückgängig gemacht werden. Der Chat wird dauerhaft gelöscht.",
     "deleteFailed": "Chat konnte nicht gelöscht werden",
     "archive": "Archivieren",
-    "unarchive": "Wiederherstellen",
+    "unarchive": "Dearchivieren",
     "archiveSuccess": "Chat archiviert",
     "archiveFailed": "Chat konnte nicht archiviert werden",
-    "unarchiveSuccess": "Chat wiederhergestellt",
-    "unarchiveFailed": "Chat konnte nicht wiederhergestellt werden",
+    "unarchiveSuccess": "Chat dearchiviert",
+    "unarchiveFailed": "Chat konnte nicht dearchiviert werden",
     "archived": {
       "title": "Archiviert",
       "empty": "Keine archivierten Chats"

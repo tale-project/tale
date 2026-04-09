@@ -41,7 +41,7 @@ export function useProvidersTableConfig(): ProvidersTableConfig {
       {
         id: 'models',
         header: t('providers.models'),
-        meta: { skeleton: { type: 'badge' } },
+        meta: { skeleton: { type: 'text' } },
         cell: ({ row }) => (
           <Text as="span" variant="muted">
             {t('providers.modelCount', { count: row.original.modelCount ?? 0 })}

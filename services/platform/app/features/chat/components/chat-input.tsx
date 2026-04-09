@@ -15,11 +15,11 @@ import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { CHAT_UPLOAD_ACCEPT } from '@/lib/shared/file-types';
 import { cn } from '@/lib/utils/cn';
+import { formatFileSize, middleEllipsis } from '@/lib/utils/format/file';
 
 import type { FileAttachment } from '../hooks/use-convex-file-upload';
 import { AgentSelector } from './agent-selector';
 import { ImagePreviewDialog } from './message-bubble';
-import { formatFileSize, middleEllipsis } from './message-bubble/file-displays';
 import { ModelSelector } from './model-selector';
 
 interface ChatInputProps extends Omit<

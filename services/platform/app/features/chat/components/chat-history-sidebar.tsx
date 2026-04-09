@@ -382,6 +382,7 @@ export function ChatHistorySidebar({
         <button
           type="button"
           onClick={() => setShowArchived((prev) => !prev)}
+          aria-expanded={showArchived}
           className="text-muted-foreground hover:text-foreground flex items-center gap-1 px-2 text-sm font-medium transition-colors"
         >
           <ChevronRightIcon
