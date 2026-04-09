@@ -322,27 +322,34 @@ export function ViewWebsiteDialog({
       {
         label: t('viewDialog.status'),
         value: (
-          <Badge
-            variant={
-              website.status && website.status in statusVariant
-                ? statusVariant[website.status]
-                : 'outline'
-            }
-            dot
-          >
-            {(website.status &&
-              (
-                {
-                  idle: t('filter.status.idle'),
-                  scanning: t('filter.status.scanning'),
-                  active: t('filter.status.active'),
-                  error: t('filter.status.error'),
-                  deleting: t('filter.status.deleting'),
-                } satisfies Record<string, string>
-              )[website.status]) ||
-              website.status ||
-              t('viewDialog.unknown')}
-          </Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge
+              variant={
+                website.status && website.status in statusVariant
+                  ? statusVariant[website.status]
+                  : 'outline'
+              }
+              dot
+            >
+              {(website.status &&
+                (
+                  {
+                    idle: t('filter.status.idle'),
+                    scanning: t('filter.status.scanning'),
+                    active: t('filter.status.active'),
+                    error: t('filter.status.error'),
+                    deleting: t('filter.status.deleting'),
+                  } satisfies Record<string, string>
+                )[website.status]) ||
+                website.status ||
+                t('viewDialog.unknown')}
+            </Badge>
+            {website.status === 'error' && website.metadata?.lastSyncError && (
+              <Text variant="caption" className="text-destructive">
+                {String(website.metadata.lastSyncError)}
+              </Text>
+            )}
+          </div>
         ),
       },
       {

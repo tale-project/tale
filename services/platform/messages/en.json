@@ -3313,7 +3313,8 @@
       "titleField": "Title",
       "description": "Description",
       "created": "Created",
-      "unknown": "Unknown"
+      "unknown": "Unknown",
+      "errorReason": "Error reason"
     },
     "viewPages": "View pages",
     "indexed": "Indexed",

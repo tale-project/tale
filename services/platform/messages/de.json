@@ -3260,7 +3260,8 @@
       "titleField": "Titel",
       "description": "Beschreibung",
       "created": "Erstellt",
-      "unknown": "Unbekannt"
+      "unknown": "Unbekannt",
+      "errorReason": "Fehlergrund"
     },
     "viewPages": "Seiten anzeigen",
     "indexed": "Indexiert",
