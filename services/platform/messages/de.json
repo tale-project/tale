@@ -2605,6 +2605,7 @@
     "noAgentsAvailable": "Keine Agents verfügbar. Bitte veröffentliche zuerst einen Agent.",
     "pendingApprovalDisabled": "Beantworte die ausstehende Anfrage oben, um fortzufahren",
     "archivedDisabled": "Dieser Chat ist archiviert. Stelle ihn wieder her, um die Unterhaltung fortzusetzen.",
+    "archivedBanner": "Diese Unterhaltung wurde archiviert",
     "placeholder": "Frag zu Kunden, Produkten oder Dokumenten...",
     "searchConversations": "Konversationen durchsuchen",
     "invalidFiles": "Ungültige Dateien",

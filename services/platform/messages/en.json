@@ -2611,6 +2611,7 @@
     "noAgentsAvailable": "No agents available. Please publish an agent first.",
     "pendingApprovalDisabled": "Respond to the pending request above to continue",
     "archivedDisabled": "This chat is archived. Unarchive it to continue the conversation.",
+    "archivedBanner": "This conversation was archived",
     "placeholder": "Ask about customers, products, or documents…",
     "searchConversations": "Search conversations",
     "invalidFiles": "Invalid files",

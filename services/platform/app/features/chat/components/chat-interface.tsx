@@ -1,7 +1,7 @@
 'use client';
 
 import { m, AnimatePresence } from 'framer-motion';
-import { ArrowDown } from 'lucide-react';
+import { Archive, ArrowDown } from 'lucide-react';
 import { useRef, useEffect, useState, useCallback } from 'react';
 
 import { PanelFooter } from '@/app/components/layout/panel-footer';
@@ -16,6 +16,7 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import { useChatLayout } from '../context/chat-layout-context';
+import { useUnarchiveThread } from '../hooks/mutations';
 import {
   useChatAgents,
   useDocumentWriteApprovals,
@@ -123,6 +124,9 @@ export function ChatInterface({
   // Thread status — disable input for archived threads
   const threadStatus = useThreadStatus(threadId);
   const isArchived = threadStatus === 'archived';
+
+  const { mutate: unarchiveThread, isPending: isUnarchiving } =
+    useUnarchiveThread();
 
   // Approvals
   const { approvals: integrationApprovals } = useIntegrationApprovals(
@@ -416,33 +420,52 @@ export function ChatInterface({
             )}
           </AnimatePresence>
         </div>
-        <FileUpload.Root>
-          <ChatInput
-            className="mx-auto w-full max-w-(--chat-max-width)"
-            placeholder={t('placeholder')}
-            value={inputValue}
-            onChange={setInputValue}
-            onSendMessage={handleSendMessage}
-            onStopGenerating={stopGenerating}
-            isLoading={isLoading}
-            disabled={hasNoAgents || hasActiveApproval || isArchived}
-            disabledReason={
-              isArchived
-                ? 'archived'
-                : hasNoAgents
+        {isArchived ? (
+          <div className="border-border bg-muted/50 flex items-center justify-center gap-2 border-t px-3 py-3">
+            <Archive className="text-muted-foreground size-4" />
+            <span className="text-muted-foreground text-sm">
+              {t('archivedBanner')}
+            </span>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={isUnarchiving}
+              onClick={() => {
+                if (threadId) {
+                  unarchiveThread({ threadId });
+                }
+              }}
+            >
+              {t('unarchive')}
+            </Button>
+          </div>
+        ) : (
+          <FileUpload.Root>
+            <ChatInput
+              className="mx-auto w-full max-w-(--chat-max-width)"
+              placeholder={t('placeholder')}
+              value={inputValue}
+              onChange={setInputValue}
+              onSendMessage={handleSendMessage}
+              onStopGenerating={stopGenerating}
+              isLoading={isLoading}
+              disabled={hasNoAgents || hasActiveApproval}
+              disabledReason={
+                hasNoAgents
                   ? 'no-agents'
                   : hasActiveApproval
                     ? 'pending-approval'
                     : undefined
-            }
-            organizationId={organizationId}
-            attachments={attachments}
-            uploadingFiles={uploadingFiles}
-            uploadFiles={uploadFiles}
-            removeAttachment={removeAttachment}
-            clearAttachments={clearAttachments}
-          />
-        </FileUpload.Root>
+              }
+              organizationId={organizationId}
+              attachments={attachments}
+              uploadingFiles={uploadingFiles}
+              uploadFiles={uploadFiles}
+              removeAttachment={removeAttachment}
+              clearAttachments={clearAttachments}
+            />
+          </FileUpload.Root>
+        )}
       </PanelFooter>
     </div>
   );

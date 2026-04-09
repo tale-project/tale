@@ -81,7 +81,7 @@ export function ChatHistorySidebar({
     canLoadMore: canLoadMoreArchived,
     isLoadingMore: isLoadingMoreArchived,
     loadMore: loadMoreArchived,
-  } = useArchivedThreads({ skip: !showArchived });
+  } = useArchivedThreads();
 
   const { approvals } = useActiveApprovals(organizationId);
 
@@ -391,6 +391,11 @@ export function ChatHistorySidebar({
             )}
           />
           {t('archived.title')}
+          {archivedChats && archivedChats.length > 0 && (
+            <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-xs leading-none font-medium">
+              {archivedChats.length}
+            </span>
+          )}
         </button>
 
         {showArchived && (
