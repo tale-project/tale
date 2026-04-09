@@ -19,9 +19,7 @@
   "paths": {
     "/api/v1/chat/completions": {
       "post": {
-        "tags": [
-          "OpenAI Compatible"
-        ],
+        "tags": ["OpenAI Compatible"],
         "summary": "Create chat completion",
         "description": "Send messages to an agent and receive a response. Fully compatible with the OpenAI Chat Completions API.\n\n**Two modes:**\n- **Agent mode** (no `tools`): The agent uses server-side tools and auto-executes them.\n- **Client tool mode** (`tools` provided): Only client-defined tools are used. Returns `tool_calls` for client execution.",
         "operationId": "createChatCompletion",
@@ -100,9 +98,7 @@
     },
     "/api/v1/models": {
       "get": {
-        "tags": [
-          "OpenAI Compatible"
-        ],
+        "tags": ["OpenAI Compatible"],
         "summary": "List models",
         "description": "List available agents as OpenAI-compatible models. Only agents with `visibleInChat: true` are returned.",
         "operationId": "listModels",
@@ -151,10 +147,7 @@
     "schemas": {
       "ChatCompletionRequest": {
         "type": "object",
-        "required": [
-          "model",
-          "messages"
-        ],
+        "required": ["model", "messages"],
         "properties": {
           "model": {
             "type": "string",
@@ -212,10 +205,7 @@
             "properties": {
               "type": {
                 "type": "string",
-                "enum": [
-                  "text",
-                  "json_object"
-                ]
+                "enum": ["text", "json_object"]
               }
             },
             "description": "Set to `{\"type\": \"json_object\"}` for JSON mode."
@@ -231,20 +221,14 @@
             "oneOf": [
               {
                 "type": "string",
-                "enum": [
-                  "auto",
-                  "required",
-                  "none"
-                ]
+                "enum": ["auto", "required", "none"]
               },
               {
                 "type": "object",
                 "properties": {
                   "type": {
                     "type": "string",
-                    "enum": [
-                      "function"
-                    ]
+                    "enum": ["function"]
                   },
                   "function": {
                     "type": "object",
@@ -253,9 +237,7 @@
                         "type": "string"
                       }
                     },
-                    "required": [
-                      "name"
-                    ]
+                    "required": ["name"]
                   }
                 }
               }
@@ -273,9 +255,7 @@
           },
           "object": {
             "type": "string",
-            "enum": [
-              "chat.completion"
-            ]
+            "enum": ["chat.completion"]
           },
           "created": {
             "type": "integer"
@@ -296,11 +276,7 @@
                 },
                 "finish_reason": {
                   "type": "string",
-                  "enum": [
-                    "stop",
-                    "length",
-                    "tool_calls"
-                  ]
+                  "enum": ["stop", "length", "tool_calls"]
                 }
               }
             }
@@ -326,9 +302,7 @@
         "properties": {
           "object": {
             "type": "string",
-            "enum": [
-              "list"
-            ]
+            "enum": ["list"]
           },
           "data": {
             "type": "array",
@@ -341,9 +315,7 @@
                 },
                 "object": {
                   "type": "string",
-                  "enum": [
-                    "model"
-                  ]
+                  "enum": ["model"]
                 },
                 "created": {
                   "type": "integer"
@@ -358,18 +330,11 @@
       },
       "ChatMessage": {
         "type": "object",
-        "required": [
-          "role"
-        ],
+        "required": ["role"],
         "properties": {
           "role": {
             "type": "string",
-            "enum": [
-              "system",
-              "user",
-              "assistant",
-              "tool"
-            ]
+            "enum": ["system", "user", "assistant", "tool"]
           },
           "content": {
             "oneOf": [
@@ -397,22 +362,15 @@
       },
       "ToolDefinition": {
         "type": "object",
-        "required": [
-          "type",
-          "function"
-        ],
+        "required": ["type", "function"],
         "properties": {
           "type": {
             "type": "string",
-            "enum": [
-              "function"
-            ]
+            "enum": ["function"]
           },
           "function": {
             "type": "object",
-            "required": [
-              "name"
-            ],
+            "required": ["name"],
             "properties": {
               "name": {
                 "type": "string"
@@ -436,9 +394,7 @@
           },
           "type": {
             "type": "string",
-            "enum": [
-              "function"
-            ]
+            "enum": ["function"]
           },
           "function": {
             "type": "object",

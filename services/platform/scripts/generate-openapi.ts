@@ -458,20 +458,57 @@ All endpoints accept POST requests with JSON body containing an \`args\` object:
 }
 
 /**
+ * Curated list of public-facing endpoint path prefixes to include in the
+ * Swagger UI. Only endpoints matching these prefixes are shown.
+ */
+const PUBLIC_ENDPOINT_PREFIXES = [
+  // OpenAI-compatible API (custom HTTP routes)
+  '/api/v1/',
+
+  // Documents
+  '/api/run/documents/queries/',
+  '/api/run/documents/mutations/',
+  '/api/run/documents/actions/',
+
+  // Websites
+  '/api/run/websites/queries/',
+  '/api/run/websites/mutations/',
+  '/api/run/websites/actions/',
+
+  // Products
+  '/api/run/products/queries/',
+  '/api/run/products/mutations/',
+
+  // Customers
+  '/api/run/customers/queries/',
+  '/api/run/customers/mutations/',
+
+  // Vendors
+  '/api/run/vendors/queries/',
+  '/api/run/vendors/mutations/',
+
+  // Agents
+  '/api/run/agents/file_actions/',
+  '/api/run/agents/queries/',
+  '/api/run/agents/mutations/',
+  '/api/run/agents/webhooks/queries/',
+  '/api/run/agents/webhooks/mutations/',
+
+  // Workflows / Automations
+  '/api/run/workflows/triggers/slug_queries/',
+  '/api/run/workflows/triggers/slug_mutations/',
+];
+
+/**
  * Generate a lightweight public-facing OpenAPI spec for the Swagger UI.
  *
- * Only includes curated endpoints that external integrators need:
- * - OpenAI-compatible chat completions
- * - Model listing
- *
- * The full spec (openapi.json) is still available for internal use.
+ * Only includes curated endpoints that external integrators need.
  */
 function generatePublicSpec(fullSpec: OpenApiSpec): OpenApiSpec {
   const publicPaths: Record<string, unknown> = {};
 
-  // Pick only /api/v1/* paths (public API)
   for (const [path, def] of Object.entries(fullSpec.paths)) {
-    if (path.startsWith('/api/v1/')) {
+    if (PUBLIC_ENDPOINT_PREFIXES.some((prefix) => path.startsWith(prefix))) {
       publicPaths[path] = def;
     }
   }
