@@ -19,12 +19,14 @@ interface AgentsTableConfig {
 }
 
 interface AgentsTableConfigOptions {
+  organizationId: string;
   teamNameMap: Map<string, string>;
   onDuplicated?: () => void;
   onDeleted?: () => void;
 }
 
 export function useAgentsTableConfig({
+  organizationId,
   onDuplicated,
   onDeleted,
 }: AgentsTableConfigOptions): AgentsTableConfig {
@@ -77,6 +79,7 @@ export function useAgentsTableConfig({
           <HStack gap={1} justify="end">
             <AgentRowActions
               agentName={row.original.name}
+              organizationId={organizationId}
               onDuplicated={onDuplicated}
               onDeleted={onDeleted}
             />
@@ -85,7 +88,7 @@ export function useAgentsTableConfig({
         size: 80,
       },
     ],
-    [t, onDuplicated, onDeleted],
+    [t, organizationId, onDuplicated, onDeleted],
   );
 
   return {

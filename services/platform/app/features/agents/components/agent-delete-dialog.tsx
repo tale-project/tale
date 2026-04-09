@@ -12,6 +12,7 @@ interface AgentDeleteDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   agentName: string;
+  organizationId: string;
   onDeleted?: () => void;
 }
 
@@ -19,6 +20,7 @@ export function AgentDeleteDialog({
   open,
   onOpenChange,
   agentName,
+  organizationId,
   onDeleted,
 }: AgentDeleteDialogProps) {
   const { t } = useT('settings');
@@ -32,6 +34,7 @@ export function AgentDeleteDialog({
       await deleteAgent({
         orgSlug: 'default',
         agentName,
+        organizationId,
       });
       toast({
         title: t('agents.agentDeleted'),

@@ -73,6 +73,7 @@ export function AgentsTable({ organizationId }: AgentsTableProps) {
 
   const { columns, searchPlaceholder, stickyLayout, pageSize } =
     useAgentsTableConfig({
+      organizationId,
       teamNameMap,
       onDuplicated: invalidateAgents,
       onDeleted: invalidateAgents,
