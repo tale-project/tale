@@ -513,6 +513,11 @@ import type * as onedrive_upload_and_create_document_deps from "../onedrive/uplo
 import type * as onedrive_upload_to_storage from "../onedrive/upload_to_storage.js";
 import type * as onedrive_validators from "../onedrive/validators.js";
 import type * as onedrive_with_microsoft_token from "../onedrive/with_microsoft_token.js";
+import type * as openai_compat_http_actions from "../openai_compat/http_actions.js";
+import type * as openai_compat_internal_actions from "../openai_compat/internal_actions.js";
+import type * as openai_compat_internal_mutations from "../openai_compat/internal_mutations.js";
+import type * as openai_compat_internal_queries from "../openai_compat/internal_queries.js";
+import type * as openai_compat_response_format from "../openai_compat/response_format.js";
 import type * as organizations_actions from "../organizations/actions.js";
 import type * as organizations_create_organization from "../organizations/create_organization.js";
 import type * as organizations_delete_organization from "../organizations/delete_organization.js";
@@ -1401,6 +1406,11 @@ declare const fullApi: ApiFromModules<{
   "onedrive/upload_to_storage": typeof onedrive_upload_to_storage;
   "onedrive/validators": typeof onedrive_validators;
   "onedrive/with_microsoft_token": typeof onedrive_with_microsoft_token;
+  "openai_compat/http_actions": typeof openai_compat_http_actions;
+  "openai_compat/internal_actions": typeof openai_compat_internal_actions;
+  "openai_compat/internal_mutations": typeof openai_compat_internal_mutations;
+  "openai_compat/internal_queries": typeof openai_compat_internal_queries;
+  "openai_compat/response_format": typeof openai_compat_response_format;
   "organizations/actions": typeof organizations_actions;
   "organizations/create_organization": typeof organizations_create_organization;
   "organizations/delete_organization": typeof organizations_delete_organization;
