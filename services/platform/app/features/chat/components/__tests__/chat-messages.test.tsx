@@ -31,6 +31,17 @@ vi.mock('../collapsible-system-message', () => ({
   CollapsibleSystemMessage: () => <div data-testid="system-message" />,
 }));
 
+vi.mock('../../context/branch-context', () => ({
+  useBranchContext: () => ({
+    rootThreadId: 'thread-1',
+    activeBranchThreadId: undefined,
+    branches: [],
+    branchSelections: {},
+    switchBranch: vi.fn(),
+    selectNewBranch: vi.fn(),
+  }),
+}));
+
 function createMessage(overrides: Partial<ChatMessage> = {}): ChatMessage {
   const id = overrides.id ?? `msg-${Date.now()}-${Math.random()}`;
   return {

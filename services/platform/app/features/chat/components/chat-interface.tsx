@@ -15,7 +15,9 @@ import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
+import { useBranchContext } from '../context/branch-context';
 import { useChatLayout } from '../context/chat-layout-context';
+import { useEditAndBranch } from '../hooks/mutations';
 import { useUnarchiveThread } from '../hooks/mutations';
 import {
   useChatAgents,
@@ -41,6 +43,7 @@ import { useUserContext } from '../hooks/use-user-context';
 import type { FileAttachment } from '../types';
 import { ChatInput } from './chat-input';
 import { ChatMessages } from './chat-messages';
+import { EditMessageDialog } from './edit-message-dialog';
 import { WelcomeView } from './welcome-view';
 
 function chatDraftKey(
@@ -76,6 +79,10 @@ export function ChatInterface({
     selectedModelOverrides,
   } = useChatLayout();
 
+  const { activeBranchThreadId } = useBranchContext();
+  // Use the active branch thread for data loading, but keep URL threadId for drafts/routing
+  const dataThreadId = activeBranchThreadId ?? threadId;
+
   const { agent: effectiveAgent, isLoading: isAgentLoading } =
     useEffectiveAgent(organizationId);
 
@@ -109,11 +116,11 @@ export function ChatInterface({
     isLoadingMore,
     activeMessage,
     terminalAssistantCount,
-  } = useMessageProcessing(threadId);
+  } = useMessageProcessing(dataThreadId);
 
   // Merge with pending messages from context for optimistic UI
   const messages = usePendingMessages({
-    threadId,
+    threadId: dataThreadId,
     realMessages: rawMessages,
   });
 
@@ -122,7 +129,7 @@ export function ChatInterface({
   const hasNoAgents = agents !== undefined && agents.length === 0;
 
   // Thread status — disable input for archived threads
-  const threadStatus = useThreadStatus(threadId);
+  const threadStatus = useThreadStatus(dataThreadId);
   const isArchived = threadStatus === 'archived';
 
   const { mutate: unarchiveThread, isPending: isUnarchiving } =
@@ -131,31 +138,31 @@ export function ChatInterface({
   // Approvals
   const { approvals: integrationApprovals } = useIntegrationApprovals(
     organizationId,
-    threadId,
+    dataThreadId,
   );
   const { approvals: workflowCreationApprovals } = useWorkflowCreationApprovals(
     organizationId,
-    threadId,
+    dataThreadId,
   );
   const { approvals: workflowUpdateApprovals } = useWorkflowUpdateApprovals(
     organizationId,
-    threadId,
+    dataThreadId,
   );
   const { approvals: workflowRunApprovals } = useWorkflowRunApprovals(
     organizationId,
-    threadId,
+    dataThreadId,
   );
   const { requests: humanInputRequests } = useHumanInputRequests(
     organizationId,
-    threadId,
+    dataThreadId,
   );
   const { requests: locationRequests } = useLocationRequests(
     organizationId,
-    threadId,
+    dataThreadId,
   );
   const { approvals: documentWriteApprovals } = useDocumentWriteApprovals(
     organizationId,
-    threadId,
+    dataThreadId,
   );
 
   // Merge messages with approvals and human input requests
@@ -176,7 +183,7 @@ export function ChatInterface({
   // Server-derived generation status (reactive Convex subscription)
   const { data: isGenerating } = useConvexQuery(
     api.threads.queries.isThreadGenerating,
-    threadId ? { threadId } : 'skip',
+    dataThreadId ? { threadId: dataThreadId } : 'skip',
   );
 
   // Single derived loading state: "Is the AI turn active?"
@@ -184,13 +191,15 @@ export function ChatInterface({
     isPending,
     setIsPending,
     isGenerating: isGenerating ?? false,
-    threadId,
+    threadId: dataThreadId,
     pendingThreadId,
     terminalAssistantCount,
   });
 
   // Stop generating
-  const { stopGenerating, resetCancelled } = useStopGenerating({ threadId });
+  const { stopGenerating, resetCancelled } = useStopGenerating({
+    threadId: dataThreadId,
+  });
 
   // Auto-clear freeze when loading ends — covers mutation failure, thread
   // navigation, and natural completion without needing explicit .catch()
@@ -216,6 +225,12 @@ export function ChatInterface({
     if (!container || !content) return undefined;
 
     const onContentChange = () => {
+      // During branch switch: override all scroll behavior with saved position
+      if (branchScrollSaveRef.current !== null) {
+        container.scrollTop = branchScrollSaveRef.current;
+        setShowScrollButton(!isAtBottom());
+        return;
+      }
       const scrollBehavior = scrollingToBottomBehaviorRef.current;
       if (scrollBehavior) {
         container.scrollTo({
@@ -278,6 +293,30 @@ export function ChatInterface({
     });
   }, [threadId, messages.length, containerRef]);
 
+  // Preserve scroll position during branch switches.
+  // Save scrollTop synchronously during render when dataThreadId changes.
+  // The saved value is kept and restored on every onContentChange call
+  // until cleared by a timeout (to handle multiple ResizeObserver fires).
+  const branchScrollSaveRef = useRef<number | null>(null);
+  const branchScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const prevDataThreadIdRef = useRef(dataThreadId);
+  if (
+    prevDataThreadIdRef.current !== dataThreadId &&
+    prevDataThreadIdRef.current !== undefined
+  ) {
+    branchScrollSaveRef.current = containerRef.current?.scrollTop ?? null;
+    // Clear after content settles
+    if (branchScrollTimerRef.current)
+      clearTimeout(branchScrollTimerRef.current);
+    branchScrollTimerRef.current = setTimeout(() => {
+      branchScrollSaveRef.current = null;
+      branchScrollTimerRef.current = null;
+    }, 2000);
+  }
+  prevDataThreadIdRef.current = dataThreadId;
+
   // Load-more scroll preservation: keep viewport stable when older messages prepend
   const handleLoadMore = useCallback(
     (count: number) => {
@@ -305,7 +344,7 @@ export function ChatInterface({
 
   const { sendMessage } = useSendMessage({
     organizationId,
-    threadId,
+    threadId: dataThreadId,
     messages: rawMessages,
     setIsPending: setIsPending,
     setPendingThreadId,
@@ -349,9 +388,55 @@ export function ChatInterface({
     [sendMessage],
   );
 
+  // Edit message → open dialog → create branch on submit
+  const { selectNewBranch, rootThreadId } = useBranchContext();
+  const { mutateAsync: editAndBranchAction } = useEditAndBranch();
+
+  const [editingMessage, setEditingMessage] = useState<{
+    id: string;
+    content: string;
+  } | null>(null);
+
+  const handleEditClick = useCallback((messageId: string, content: string) => {
+    setEditingMessage({ id: messageId, content });
+  }, []);
+
+  const handleEditSubmit = useCallback(
+    async (newContent: string) => {
+      if (!editingMessage || !dataThreadId || !effectiveAgent) return;
+      const modelId = effectiveAgent.name
+        ? selectedModelOverrides[effectiveAgent.name]
+        : undefined;
+
+      const result = await editAndBranchAction({
+        sourceThreadId: dataThreadId,
+        rootThreadId: rootThreadId ?? dataThreadId,
+        editedMessageId: editingMessage.id,
+        newMessage: newContent,
+        organizationId,
+        orgSlug: 'default',
+        agentSlug: effectiveAgent.name,
+        modelId,
+        userContext,
+      });
+      selectNewBranch(String(result.forkOrder), result.branchThreadId);
+    },
+    [
+      editingMessage,
+      dataThreadId,
+      rootThreadId,
+      effectiveAgent,
+      selectedModelOverrides,
+      organizationId,
+      userContext,
+      editAndBranchAction,
+      selectNewBranch,
+    ],
+  );
+
   // Show messages view when we have content or are loading (to show ThinkingAnimation)
   const showMessages =
-    threadId || messages.length > 0 || pendingMessage || isLoading;
+    dataThreadId || messages.length > 0 || pendingMessage || isLoading;
   const showWelcome = !showMessages;
 
   return (
@@ -379,7 +464,7 @@ export function ChatInterface({
         {showMessages && (
           <ChatMessages
             items={mergedMessages}
-            threadId={threadId}
+            threadId={dataThreadId}
             organizationId={organizationId}
             canLoadMore={canLoadMore}
             isLoadingMore={isLoadingMore}
@@ -392,6 +477,7 @@ export function ChatInterface({
             onHumanInputResponseSubmitted={handleHumanInputResponseSubmitted}
             onSendFollowUp={handleSendFollowUp}
             onSendMessage={handleSendMessageDirect}
+            onEditMessage={handleEditClick}
           />
         )}
       </div>
@@ -467,6 +553,15 @@ export function ChatInterface({
           </FileUpload.Root>
         )}
       </PanelFooter>
+
+      <EditMessageDialog
+        open={editingMessage !== null}
+        onOpenChange={(open) => {
+          if (!open) setEditingMessage(null);
+        }}
+        messageContent={editingMessage?.content ?? ''}
+        onSubmit={handleEditSubmit}
+      />
     </div>
   );
 }

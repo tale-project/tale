@@ -126,5 +126,30 @@ export const unarchiveChatThread = mutation({
   },
 });
 
+export const updateBranchSelections = mutation({
+  args: {
+    threadId: v.string(),
+    branchSelections: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) throw new Error('Unauthenticated');
+
+    const metadata = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
+      .first();
+
+    if (metadata) {
+      await ctx.db.patch(metadata._id, {
+        branchSelections: args.branchSelections,
+      });
+    }
+    return null;
+  },
+});
+
 export { shareThread, unshareThread } from './share_thread';
 export { forkThread } from './fork_thread';
+export { editAndBranch } from './edit_and_branch';

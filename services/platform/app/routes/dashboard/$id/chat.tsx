@@ -11,6 +11,7 @@ import { ChatHeader } from '@/app/features/chat/components/chat-header';
 import { ChatHistorySidebar } from '@/app/features/chat/components/chat-history-sidebar';
 import { ChatInterface } from '@/app/features/chat/components/chat-interface';
 import { WelcomeContentSkeleton } from '@/app/features/chat/components/welcome-content-skeleton';
+import { BranchProvider } from '@/app/features/chat/context/branch-context';
 import {
   ChatLayoutProvider,
   useChatLayout,
@@ -112,13 +113,15 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
 
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <LayoutErrorBoundary organizationId={organizationId}>
-            <Suspense fallback={<ChatSkeleton />}>
-              <ChatInterface
-                key={`chat-${newChatCount}`}
-                organizationId={organizationId}
-                threadId={threadId}
-              />
-            </Suspense>
+            <BranchProvider threadId={threadId}>
+              <Suspense fallback={<ChatSkeleton />}>
+                <ChatInterface
+                  key={`chat-${newChatCount}`}
+                  organizationId={organizationId}
+                  threadId={threadId}
+                />
+              </Suspense>
+            </BranchProvider>
           </LayoutErrorBoundary>
         </div>
       </div>

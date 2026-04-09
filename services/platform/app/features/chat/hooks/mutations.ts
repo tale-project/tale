@@ -83,3 +83,7 @@ export function useUnshareThread() {
 export function useForkThread() {
   return useConvexMutation(api.threads.mutations.forkThread);
 }
+
+export function useEditAndBranch() {
+  return useConvexAction(api.threads.mutations.editAndBranch);
+}

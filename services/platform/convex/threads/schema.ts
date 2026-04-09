@@ -32,6 +32,8 @@ export const threadMetadataTable = defineTable({
   arenaGroupId: v.optional(v.string()),
   arenaModelId: v.optional(v.string()),
   updatedAt: v.optional(v.number()),
+  isBranch: v.optional(v.boolean()),
+  branchSelections: v.optional(v.string()),
 })
   .index('by_threadId', ['threadId'])
   .index('by_userId_chatType_status', [

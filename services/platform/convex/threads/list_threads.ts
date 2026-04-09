@@ -43,14 +43,16 @@ export async function listThreads(
     .paginate(args.paginationOpts);
 
   return {
-    page: result.page.map((row) => ({
-      _id: row.threadId,
-      _creationTime: row.updatedAt ?? row.createdAt,
-      title: row.title,
-      status: row.status,
-      userId: row.userId,
-      generationStatus: row.generationStatus,
-    })),
+    page: result.page
+      .filter((row) => !row.isBranch)
+      .map((row) => ({
+        _id: row.threadId,
+        _creationTime: row.updatedAt ?? row.createdAt,
+        title: row.title,
+        status: row.status,
+        userId: row.userId,
+        generationStatus: row.generationStatus,
+      })),
     isDone: result.isDone,
     continueCursor: result.continueCursor,
   };

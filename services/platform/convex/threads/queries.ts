@@ -175,6 +175,57 @@ export const getThreadStatus = query({
 
 export { getSharedThread } from './get_shared_thread';
 
+export const getThreadBranches = query({
+  args: { rootThreadId: v.string() },
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) return [];
+
+    const branches: Array<{
+      branchThreadId: string;
+      parentThreadId: string;
+      forkAfterMessageId: string;
+      forkOrder: number;
+      branchIndex: number;
+      createdAt: number;
+    }> = [];
+
+    const branchQuery = ctx.db
+      .query('threadBranches')
+      .withIndex('by_rootThreadId', (q) =>
+        q.eq('rootThreadId', args.rootThreadId),
+      );
+
+    for await (const branch of branchQuery) {
+      branches.push({
+        branchThreadId: branch.branchThreadId,
+        parentThreadId: branch.parentThreadId,
+        forkAfterMessageId: branch.forkAfterMessageId,
+        forkOrder: branch.forkOrder,
+        branchIndex: branch.branchIndex,
+        createdAt: branch.createdAt,
+      });
+    }
+
+    return branches;
+  },
+});
+
+export const getThreadBranchSelections = query({
+  args: { threadId: v.string() },
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) return null;
+
+    const metadata = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
+      .first();
+
+    return metadata?.branchSelections ?? null;
+  },
+});
+
 export const getThreadShareStatus = query({
   args: { threadId: v.string() },
   handler: async (ctx, args) => {

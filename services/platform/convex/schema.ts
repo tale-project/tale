@@ -31,6 +31,7 @@ import { productsTable } from './products/schema';
 import { promptTemplatesTable } from './prompts/schema';
 import { ssoProvidersTable } from './sso_providers/schema';
 import { messageMetadataTable } from './streaming/schema';
+import { threadBranchesTable } from './threads/branch_schema';
 import { threadMetadataTable } from './threads/schema';
 import { vendorsTable } from './vendors/schema';
 import { websitesTable } from './websites/schema';
@@ -78,6 +79,7 @@ export default defineSchema({
   llmResponseCache: llmResponseCacheTable,
   messageMetadata: messageMetadataTable,
   onedriveSyncConfigs: onedriveSyncConfigsTable,
+  threadBranches: threadBranchesTable,
   threadMetadata: threadMetadataTable,
   products: productsTable,
   ssoProviders: ssoProvidersTable,

@@ -2603,6 +2603,8 @@
     "errorHintContentFilter": "Die Nachricht wurde vom Inhaltsfilter markiert. Versuche, deine Nachricht umzuformulieren.",
     "showMore": "Mehr anzeigen",
     "showLess": "Weniger anzeigen",
+    "editMessage": "Nachricht bearbeiten",
+    "editSend": "Senden",
     "noAgentsAvailable": "Keine Agents verfügbar. Bitte veröffentliche zuerst einen Agent.",
     "pendingApprovalDisabled": "Beantworte die ausstehende Anfrage oben, um fortzufahren",
     "archivedDisabled": "Dieser Chat ist archiviert. Stelle ihn wieder her, um die Unterhaltung fortzusetzen.",
