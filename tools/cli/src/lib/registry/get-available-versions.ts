@@ -1,3 +1,4 @@
+import { compareVersions } from '../../utils/compare-versions';
 import * as logger from '../../utils/logger';
 
 interface TagsListResponse {
@@ -86,43 +87,8 @@ function isBranchTag(tag: string): boolean {
   return /^main-[a-f0-9]+$/.test(tag);
 }
 
-function extractPrereleaseNumber(tag: string): number {
-  // Extract trailing digits from prerelease suffix (e.g., rc16 -> 16, alpha2 -> 2)
-  const match = tag.match(/(\d+)$/);
-  return match ? parseInt(match[1], 10) : 0;
-}
-
 function sortVersions(tags: string[]): string[] {
-  return tags.toSorted((a, b) => {
-    // Extract base version (before any prerelease suffix)
-    const aBase = a.replace(/^v/, '').split('-')[0];
-    const bBase = b.replace(/^v/, '').split('-')[0];
-
-    const aParts = aBase.split('.').map(Number);
-    const bParts = bBase.split('.').map(Number);
-
-    for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
-      const aVal = aParts[i] ?? 0;
-      const bVal = bParts[i] ?? 0;
-      if (bVal !== aVal) return bVal - aVal;
-    }
-
-    // If base versions are equal, handle prerelease
-    // Release versions (no suffix) come before prerelease versions
-    const aPrerelease = a.includes('-');
-    const bPrerelease = b.includes('-');
-
-    if (!aPrerelease && bPrerelease) return -1;
-    if (aPrerelease && !bPrerelease) return 1;
-
-    // Both have prerelease, sort by numeric suffix (rc16 > rc15 > rc2 > rc1)
-    const aNum = extractPrereleaseNumber(a);
-    const bNum = extractPrereleaseNumber(b);
-    if (aNum !== bNum) return bNum - aNum;
-
-    // Fallback to string comparison for non-numeric prereleases
-    return b.localeCompare(a);
-  });
+  return tags.toSorted((a, b) => compareVersions(b, a));
 }
 
 export async function getAvailableVersions(

@@ -94,10 +94,10 @@ The `-p tale-dev` flag is required because `tale start` creates a compose projec
 
 > **Important:** Never run `docker compose -p tale-dev down -v`. The `-v` flag deletes all Docker volumes, which permanently erases your database, uploaded documents, crawler state, and all platform data. There is no recovery from this.
 
-### Updating
+### Upgrading
 
 ```bash
-tale update             # Update project files to match CLI version
+tale upgrade            # Upgrade CLI and sync project files
 ```
 
 ### Viewing backend data

@@ -26,8 +26,7 @@ export const governancePoliciesTable = defineTable({
   updatedAt: v.optional(v.number()),
 })
   .index('by_organizationId', ['organizationId'])
-  .index('by_org_policyType', ['organizationId', 'policyType'])
-  .index('by_org_and_type', ['organizationId', 'policyType']);
+  .index('by_org_policyType', ['organizationId', 'policyType']);
 
 export const usageLedgerTable = defineTable({
   organizationId: v.string(),

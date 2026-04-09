@@ -70,7 +70,7 @@ tale start                         # Start all services locally
 tale start --detach                # Start in background
 tale start --port 8443             # Use a custom HTTPS port
 tale start --fresh                 # Re-seed builtin configs
-tale update                        # Update project files to match CLI version
+tale upgrade                       # Upgrade CLI and sync project files
 tale convex admin                  # Generate Convex dashboard admin key
 tale config                        # Manage CLI configuration
 ```

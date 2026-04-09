@@ -12,7 +12,7 @@ import { createResetCommand } from './commands/reset';
 import { createRollbackCommand } from './commands/rollback';
 import { createStartCommand } from './commands/start';
 import { createStatusCommand } from './commands/status';
-import { createUpdateCommand } from './commands/update';
+import { createUpgradeCommand } from './commands/upgrade';
 import * as logger from './utils/logger';
 
 process.on('uncaughtException', (err) => {
@@ -34,7 +34,7 @@ program
 
 program.addCommand(createInitCommand());
 program.addCommand(createStartCommand());
-program.addCommand(createUpdateCommand());
+program.addCommand(createUpgradeCommand());
 program.addCommand(createConfigCommand());
 program.addCommand(createConvexCommand());
 program.addCommand(createDeployCommand());
