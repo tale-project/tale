@@ -21,6 +21,7 @@ interface AgentConfigContextValue {
   updateConfig: (partial: Partial<AgentJsonConfig>) => void;
   resetConfig: () => void;
   markSaving: (saving: boolean) => void;
+  markSaved: () => void;
   overrideConfig: (config: AgentJsonConfig) => void;
 }
 
@@ -46,24 +47,27 @@ export function AgentConfigProvider({
   children,
 }: AgentConfigProviderProps) {
   const [config, setConfig] = useState(initialConfig);
+  const [savedConfig, setSavedConfig] = useState(initialConfig);
   const [isSaving, setIsSaving] = useState(false);
-  const initialRef = useRef(initialConfig);
   const configRef = useRef(config);
   configRef.current = config;
 
   // Sync with external changes (SSE file events) when user has no unsaved edits
+  const savedConfigRef = useRef(savedConfig);
+  savedConfigRef.current = savedConfig;
   useEffect(() => {
     const hasUnsavedEdits =
-      JSON.stringify(configRef.current) !== JSON.stringify(initialRef.current);
+      JSON.stringify(configRef.current) !==
+      JSON.stringify(savedConfigRef.current);
     if (!hasUnsavedEdits) {
       setConfig(initialConfig);
-      initialRef.current = initialConfig;
+      setSavedConfig(initialConfig);
     }
   }, [initialConfig]);
 
   const isDirty = useMemo(
-    () => JSON.stringify(config) !== JSON.stringify(initialRef.current),
-    [config],
+    () => JSON.stringify(config) !== JSON.stringify(savedConfig),
+    [config, savedConfig],
   );
 
   const updateConfig = useCallback((partial: Partial<AgentJsonConfig>) => {
@@ -71,41 +75,48 @@ export function AgentConfigProvider({
   }, []);
 
   const resetConfig = useCallback(() => {
-    setConfig(initialRef.current);
+    setSavedConfig((prev) => {
+      setConfig(prev);
+      return prev;
+    });
   }, []);
 
   const markSaving = useCallback((saving: boolean) => {
     setIsSaving(saving);
-    if (!saving) {
-      initialRef.current = configRef.current;
-    }
+  }, []);
+
+  const markSaved = useCallback(() => {
+    setSavedConfig(configRef.current);
   }, []);
 
   const overrideConfig = useCallback((next: AgentJsonConfig) => {
     setConfig(next);
-    initialRef.current = next;
+    setSavedConfig(next);
   }, []);
 
   const value = useMemo<AgentConfigContextValue>(
     () => ({
       agentName,
       config,
-      initialConfig: initialRef.current,
+      initialConfig: savedConfig,
       isDirty,
       isSaving,
       updateConfig,
       resetConfig,
       markSaving,
+      markSaved,
       overrideConfig,
     }),
     [
       agentName,
       config,
+      savedConfig,
       isDirty,
       isSaving,
       updateConfig,
       resetConfig,
       markSaving,
+      markSaved,
       overrideConfig,
     ],
   );
