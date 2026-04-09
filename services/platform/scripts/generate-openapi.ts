@@ -526,7 +526,7 @@ function generatePublicSpec(fullSpec: OpenApiSpec): OpenApiSpec {
   let prevSize = 0;
   while (referencedSchemas.size !== prevSize) {
     prevSize = referencedSchemas.size;
-    for (const name of [...referencedSchemas]) {
+    for (const name of Array.from(referencedSchemas)) {
       const schema = fullSpec.components.schemas[name];
       if (!schema) continue;
       const schemaJson = JSON.stringify(schema);
