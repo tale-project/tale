@@ -11,7 +11,8 @@
       "imapflow",
       "mailparser",
       "nodemailer",
-      "xlsx"
+      "xlsx",
+      "@modelcontextprotocol/sdk"
     ]
   }
 }

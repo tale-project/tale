@@ -314,6 +314,7 @@ services:
       - db
       - rag
       - crawler
+      - proxy
 
     # Resource limits (optional, adjust based on your needs)
     # deploy:
@@ -411,8 +412,7 @@ services:
       retries: 3
       start_period: 10s
 
-    # Note: We removed depends_on for platform to avoid circular dependency
-    # when platform uses links/extra_hosts to reach localhost via proxy.
+    # Note: platform depends on proxy (see platform.depends_on above).
     # Caddy handles upstream unavailability gracefully.
 
     # Logging configuration
