@@ -4,7 +4,10 @@ import { XIcon } from 'lucide-react';
 import { memo } from 'react';
 
 import { Text } from '@/app/components/ui/typography/text';
-import { useT } from '@/lib/i18n/client';
+import {
+  formatFileSize,
+  middleEllipsis,
+} from '@/app/features/chat/components/message-bubble/file-displays';
 
 import type { AttachedFile } from './types';
 import { getFileIcon } from './types';
@@ -14,28 +17,10 @@ interface FileAttachmentsListProps {
   onRemove: (fileId: string) => void;
 }
 
-function formatFileSize(
-  bytes: number,
-  tCommon: (key: string) => string,
-): string {
-  if (bytes === 0) return `0 ${tCommon('fileSize.bytes')}`;
-  const k = 1024;
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  const units = [
-    tCommon('fileSize.bytes'),
-    tCommon('fileSize.kb'),
-    tCommon('fileSize.mb'),
-    tCommon('fileSize.gb'),
-  ];
-  return `${Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${units[i]}`;
-}
-
 export const FileAttachmentsList = memo(function FileAttachmentsList({
   files,
   onRemove,
 }: FileAttachmentsListProps) {
-  const { t: tCommon } = useT('common');
-
   if (files.length === 0) return null;
 
   return (
@@ -47,11 +32,11 @@ export const FileAttachmentsList = memo(function FileAttachmentsList({
             className="bg-muted flex items-center gap-2 rounded-md px-3 py-2 text-sm"
           >
             {getFileIcon(file.type)}
-            <Text as="span" truncate className="max-w-[200px]">
-              {file.file?.name}
+            <Text as="span" title={file.file?.name}>
+              {middleEllipsis(file.file?.name ?? '', 28)}
             </Text>
             <Text as="span" variant="caption">
-              {file.file && formatFileSize(file.file.size, tCommon)}
+              {file.file && formatFileSize(file.file.size)}
             </Text>
             <button
               type="button"

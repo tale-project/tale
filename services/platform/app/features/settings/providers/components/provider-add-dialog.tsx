@@ -116,7 +116,7 @@ export function ProviderAddDialog({
         onOpenChange(isOpen);
       }}
       title={t('providers.addProvider')}
-      submitText={tCommon('actions.create')}
+      submitText={t('providers.addProvider')}
       submittingText={tCommon('actions.adding')}
       isSubmitting={isSubmitting}
       onSubmit={handleSubmit(onSubmit)}

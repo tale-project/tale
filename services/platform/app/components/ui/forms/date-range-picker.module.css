@@ -7,7 +7,7 @@
 }
 
 .wrapper :global(.react-datepicker) {
-  @apply ring-border bg-popover rounded-lg p-2 font-sans shadow-lg ring-1;
+  @apply ring-border bg-muted rounded-lg p-2 font-sans shadow-lg ring-1;
   border: none !important;
 }
 
@@ -219,7 +219,7 @@
 
 /* Dark mode specific overrides */
 :global(.dark) .wrapper :global(.react-datepicker) {
-  @apply ring-border bg-popover;
+  @apply ring-border bg-muted;
 }
 
 :global(.dark) .wrapper :global(.react-datepicker__day) {

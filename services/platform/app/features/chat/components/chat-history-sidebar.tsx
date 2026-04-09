@@ -1,7 +1,11 @@
 'use client';
 
 import { useParams, useNavigate } from '@tanstack/react-router';
-import { LoaderCircleIcon, CircleDotIcon } from 'lucide-react';
+import {
+  LoaderCircleIcon,
+  CircleDotIcon,
+  ChevronRightIcon,
+} from 'lucide-react';
 import {
   type ComponentPropsWithoutRef,
   useEffect,
@@ -19,7 +23,11 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import { useUpdateThread } from '../hooks/mutations';
-import { useActiveApprovals, useThreads } from '../hooks/queries';
+import {
+  useActiveApprovals,
+  useArchivedThreads,
+  useThreads,
+} from '../hooks/queries';
 import { ChatActions } from './chat-actions';
 
 const emptySubscribe = () => () => {};
@@ -55,6 +63,7 @@ export function ChatHistorySidebar({
   const [isMac, setIsMac] = useState(false);
   const [editingChatId, setEditingChatId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
+  const [showArchived, setShowArchived] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const clickTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isMounted = useIsMounted();
@@ -66,6 +75,13 @@ export function ChatHistorySidebar({
     isLoadingMore,
     loadMore,
   } = useThreads();
+
+  const {
+    threads: archivedThreadsData,
+    canLoadMore: canLoadMoreArchived,
+    isLoadingMore: isLoadingMoreArchived,
+    loadMore: loadMoreArchived,
+  } = useArchivedThreads();
 
   const { approvals } = useActiveApprovals(organizationId);
 
@@ -137,6 +153,16 @@ export function ChatHistorySidebar({
         generationStatus: thread.generationStatus,
       })),
     [threadsData, t],
+  );
+
+  const archivedChats = useMemo(
+    () =>
+      archivedThreadsData?.map((thread) => ({
+        _id: thread._id,
+        title: thread.title ?? t('history.untitled'),
+        createdAt: thread._creationTime,
+      })),
+    [archivedThreadsData, t],
   );
 
   useEffect(() => {
@@ -224,130 +250,208 @@ export function ChatHistorySidebar({
   };
 
   return (
-    <Stack
-      gap={4}
+    <div
       className={cn(
-        'flex-[1_1_0] pb-4 px-2.5 py-3.5 overflow-y-auto',
+        'flex flex-[1_1_0] flex-col px-2.5 py-3.5 overflow-hidden',
         className,
       )}
       {...restProps}
     >
-      <Heading
-        level={2}
-        size="sm"
-        weight="medium"
-        className="text-muted-foreground px-2"
-      >
-        {t('chatHistory')}
-      </Heading>
-      <Stack gap={1}>
-        {!isMounted || !chats ? (
-          <Text as="div" variant="muted" className="px-2 text-nowrap">
-            {t('history.loading')}
-          </Text>
-        ) : chats.length === 0 ? (
-          <Text as="div" variant="muted" className="px-2 text-nowrap">
-            {t('history.empty')}
-          </Text>
-        ) : (
-          <>
-            {chats.map((chat) => {
-              const isEditing = editingChatId === chat._id;
+      {/* Active chats — scrollable */}
+      <Stack gap={4} className="min-h-0 flex-1 overflow-y-auto pb-2">
+        <Heading
+          level={2}
+          size="sm"
+          weight="medium"
+          className="text-muted-foreground px-2"
+        >
+          {t('chatHistory')}
+        </Heading>
+        <Stack gap={1}>
+          {!isMounted || !chats ? (
+            <Text as="div" variant="muted" className="px-2 text-nowrap">
+              {t('history.loading')}
+            </Text>
+          ) : chats.length === 0 ? (
+            <Text as="div" variant="muted" className="px-2 text-nowrap">
+              {t('history.empty')}
+            </Text>
+          ) : (
+            <>
+              {chats.map((chat) => {
+                const isEditing = editingChatId === chat._id;
 
-              return (
-                <div
-                  key={chat._id}
-                  className={cn(
-                    'group relative flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors',
-                    !isEditing &&
-                      'cursor-pointer hover:bg-accent hover:text-accent-foreground',
-                    currentThreadId === chat._id &&
+                return (
+                  <div
+                    key={chat._id}
+                    className={cn(
+                      'group relative flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors',
                       !isEditing &&
-                      'bg-accent text-accent-foreground',
-                  )}
-                >
-                  {isEditing ? (
-                    <input
-                      ref={inputRef}
-                      value={editValue}
-                      onChange={(e) => setEditValue(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          void handleSaveRename(chat._id);
-                        } else if (e.key === 'Escape') {
-                          e.preventDefault();
-                          handleCancelRename();
-                        }
-                      }}
-                      onBlur={() => handleInputBlur(chat._id)}
-                      aria-label={t('history.renameChat')}
-                      className="ring-primary focus-visible:ring-primary min-h-[1.5rem] min-w-0 flex-1 rounded-sm bg-transparent px-1 text-sm leading-snug ring-1 outline-none focus-visible:ring-2"
-                    />
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        aria-label={chat.title}
-                        onClick={() => {
-                          if (clickTimeoutRef.current) {
-                            clearTimeout(clickTimeoutRef.current);
-                            clickTimeoutRef.current = null;
-                            handleStartRename(chat._id, chat.title);
-                          } else {
-                            clickTimeoutRef.current = setTimeout(() => {
-                              clickTimeoutRef.current = null;
-                              handleChatClick(chat._id);
-                            }, 250);
+                        'cursor-pointer hover:bg-accent hover:text-accent-foreground',
+                      currentThreadId === chat._id &&
+                        !isEditing &&
+                        'bg-accent text-accent-foreground',
+                    )}
+                  >
+                    {isEditing ? (
+                      <input
+                        ref={inputRef}
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            void handleSaveRename(chat._id);
+                          } else if (e.key === 'Escape') {
+                            e.preventDefault();
+                            handleCancelRename();
                           }
                         }}
-                        className="absolute inset-0 cursor-pointer rounded-md"
+                        onBlur={() => handleInputBlur(chat._id)}
+                        aria-label={t('history.renameChat')}
+                        className="ring-primary focus-visible:ring-primary min-h-[1.5rem] min-w-0 flex-1 rounded-sm bg-transparent px-1 text-sm leading-snug ring-1 outline-none focus-visible:ring-2"
                       />
-                      <span className="pointer-events-none relative z-10 flex min-h-[1.5rem] flex-1 items-center gap-1.5 truncate text-left text-sm leading-snug">
-                        {pendingThreadIds.has(chat._id) ? (
-                          <CircleDotIcon
-                            className="text-warning size-3.5 shrink-0"
-                            aria-label={t('history.awaitingInput')}
-                          />
-                        ) : chat.generationStatus === 'generating' ||
-                          executingThreadIds.has(chat._id) ? (
-                          <LoaderCircleIcon
-                            className="text-muted-foreground size-3.5 shrink-0 animate-spin"
-                            aria-label={t('history.generating')}
-                          />
-                        ) : null}
-                        <span className="truncate">{chat.title}</span>
-                      </span>
-                      <div className="relative z-10 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
-                        <ChatActions
-                          chat={{ id: chat._id, title: chat.title }}
-                          currentChatId={currentThreadId}
-                          organizationId={organizationId}
-                          onRename={() =>
-                            handleStartRename(chat._id, chat.title)
-                          }
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          aria-label={chat.title}
+                          onClick={() => {
+                            if (clickTimeoutRef.current) {
+                              clearTimeout(clickTimeoutRef.current);
+                              clickTimeoutRef.current = null;
+                              handleStartRename(chat._id, chat.title);
+                            } else {
+                              clickTimeoutRef.current = setTimeout(() => {
+                                clickTimeoutRef.current = null;
+                                handleChatClick(chat._id);
+                              }, 250);
+                            }
+                          }}
+                          className="absolute inset-0 cursor-pointer rounded-md"
                         />
-                      </div>
-                    </>
-                  )}
-                </div>
-              );
-            })}
-            {canLoadMore && (
-              <button
-                type="button"
-                onClick={loadMore}
-                disabled={isLoadingMore}
-                className="text-muted-foreground hover:text-foreground px-2 py-1.5 text-sm transition-colors disabled:opacity-50"
-              >
-                {isLoadingMore
-                  ? t('history.loadingMore')
-                  : t('history.loadMore')}
-              </button>
-            )}
-          </>
-        )}
+                        <span className="pointer-events-none relative z-10 flex min-h-[1.5rem] flex-1 items-center gap-1.5 truncate text-left text-sm leading-snug">
+                          {pendingThreadIds.has(chat._id) ? (
+                            <CircleDotIcon
+                              className="text-warning size-3.5 shrink-0"
+                              aria-label={t('history.awaitingInput')}
+                            />
+                          ) : chat.generationStatus === 'generating' ||
+                            executingThreadIds.has(chat._id) ? (
+                            <LoaderCircleIcon
+                              className="text-muted-foreground size-3.5 shrink-0 animate-spin"
+                              aria-label={t('history.generating')}
+                            />
+                          ) : null}
+                          <span className="truncate">{chat.title}</span>
+                        </span>
+                        <div className="relative z-10 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
+                          <ChatActions
+                            chat={{ id: chat._id, title: chat.title }}
+                            currentChatId={currentThreadId}
+                            organizationId={organizationId}
+                            onRename={() =>
+                              handleStartRename(chat._id, chat.title)
+                            }
+                          />
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+              {canLoadMore && (
+                <button
+                  type="button"
+                  onClick={loadMore}
+                  disabled={isLoadingMore}
+                  className="text-muted-foreground hover:text-foreground px-2 py-1.5 text-sm transition-colors disabled:opacity-50"
+                >
+                  {isLoadingMore
+                    ? t('history.loadingMore')
+                    : t('history.loadMore')}
+                </button>
+              )}
+            </>
+          )}
+        </Stack>
       </Stack>
-    </Stack>
+
+      {/* Archived chats — pinned to bottom */}
+      <div className="border-border shrink-0 border-t py-4">
+        <button
+          type="button"
+          onClick={() => setShowArchived((prev) => !prev)}
+          aria-expanded={showArchived}
+          className="text-muted-foreground hover:text-foreground flex items-center gap-1 px-2 text-sm font-medium transition-colors"
+        >
+          <ChevronRightIcon
+            className={cn(
+              'size-3.5 transition-transform',
+              showArchived && 'rotate-90',
+            )}
+          />
+          {t('archived.title')}
+          {archivedChats && archivedChats.length > 0 && (
+            <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-xs leading-none font-medium">
+              {archivedChats.length}
+            </span>
+          )}
+        </button>
+
+        {showArchived && (
+          <Stack gap={1} className="mt-1 max-h-48 overflow-y-auto">
+            {!archivedChats ? (
+              <Text as="div" variant="muted" className="px-2 text-nowrap">
+                {t('history.loading')}
+              </Text>
+            ) : archivedChats.length === 0 ? (
+              <Text as="div" variant="muted" className="px-2 text-nowrap">
+                {t('archived.empty')}
+              </Text>
+            ) : (
+              <>
+                {archivedChats.map((chat) => (
+                  <div
+                    key={chat._id}
+                    className="group hover:bg-accent hover:text-accent-foreground relative flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors"
+                  >
+                    <button
+                      type="button"
+                      aria-label={chat.title}
+                      onClick={() => handleChatClick(chat._id)}
+                      className="absolute inset-0 cursor-pointer rounded-md"
+                    />
+                    <span className="text-muted-foreground pointer-events-none relative z-10 flex min-h-[1.5rem] flex-1 items-center truncate text-left text-sm leading-snug">
+                      <span className="truncate">{chat.title}</span>
+                    </span>
+                    <div className="relative z-10 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
+                      <ChatActions
+                        chat={{ id: chat._id, title: chat.title }}
+                        currentChatId={currentThreadId}
+                        organizationId={organizationId}
+                        isArchived
+                      />
+                    </div>
+                  </div>
+                ))}
+                {canLoadMoreArchived && (
+                  <button
+                    type="button"
+                    onClick={loadMoreArchived}
+                    disabled={isLoadingMoreArchived}
+                    className="text-muted-foreground hover:text-foreground px-2 py-1.5 text-sm transition-colors disabled:opacity-50"
+                  >
+                    {isLoadingMoreArchived
+                      ? t('history.loadingMore')
+                      : t('history.loadMore')}
+                  </button>
+                )}
+              </>
+            )}
+          </Stack>
+        )}
+      </div>
+    </div>
   );
 }

@@ -10,6 +10,8 @@ import { useT } from '@/lib/i18n/client';
 import {
   CHAT_UPLOAD_ALLOWED_TYPES,
   CHAT_MAX_FILE_SIZE,
+  CHAT_MAX_FILE_COUNT,
+  CHAT_MAX_TOTAL_SIZE,
   resolveFileType,
 } from '@/lib/shared/file-types';
 import { compressImage } from '@/lib/utils/compress-image';
@@ -50,6 +52,9 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
     [config],
   );
 
+  const attachmentsRef = useRef(attachments);
+  attachmentsRef.current = attachments;
+
   const uploadFiles = useCallback(
     async (files: File[]) => {
       const validFiles: { file: File; resolvedType: string }[] = [];
@@ -78,73 +83,148 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
 
       if (validFiles.length === 0) return;
 
-      const uploadPromises = validFiles.map(async ({ file, resolvedType }) => {
-        const fileId = `${file.name}-${Date.now()}`;
-        setUploadingFiles((prev) => [...prev, fileId]);
-
-        try {
-          let fileToUpload = file;
-
-          if (resolvedType.startsWith('image/')) {
-            const compressionResult = await compressImage(file);
-            fileToUpload = compressionResult.file;
-          }
-
-          const uploadUrl = await generateUploadUrl({});
-
-          const result = await fetch(uploadUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': resolvedType || 'application/octet-stream',
-            },
-            body: fileToUpload,
-          });
-
-          if (!result.ok) {
-            throw new Error(t('uploadFailed'));
-          }
-
-          const { storageId } = await result.json();
-
-          if (!storageId) {
-            throw new Error(t('uploadFailed'));
-          }
-
-          await saveFileMetadata({
-            organizationId: config.organizationId,
-            storageId,
-            fileName: fileToUpload.name,
-            contentType: resolvedType || 'application/octet-stream',
-            size: fileToUpload.size,
-          });
-
-          const attachment: FileAttachment = {
-            fileId: storageId,
-            fileName: fileToUpload.name,
-            fileType: resolvedType,
-            fileSize: fileToUpload.size,
-            previewUrl: resolvedType.startsWith('image/')
-              ? URL.createObjectURL(fileToUpload)
-              : undefined,
-          };
-
-          setAttachments((prev) => [...prev, attachment]);
-
+      // Skip files already attached (match by name + size)
+      const existingKeys = new Set(
+        attachmentsRef.current.map((att) => `${att.fileName}:${att.fileSize}`),
+      );
+      const deduped: typeof validFiles = [];
+      for (const entry of validFiles) {
+        const key = `${entry.file.name}:${entry.file.size}`;
+        if (existingKeys.has(key)) {
           toast({
-            title: t('fileUploaded'),
-            description: t('uploadedSuccessfully', { filename: file.name }),
+            title: t('duplicateFile'),
+            description: t('duplicateFileDescription', {
+              filename: entry.file.name,
+            }),
           });
-        } catch (error) {
-          console.error('Upload error:', error);
-          toast({
-            title: t('uploadFailed'),
-            description: t('failedToUpload', { filename: file.name }),
-            variant: 'destructive',
-          });
-        } finally {
-          setUploadingFiles((prev) => prev.filter((id) => id !== fileId));
+        } else {
+          existingKeys.add(key);
+          deduped.push(entry);
         }
-      });
+      }
+
+      if (deduped.length === 0) return;
+
+      // Enforce max file count
+      const slotsAvailable =
+        CHAT_MAX_FILE_COUNT - attachmentsRef.current.length;
+      if (slotsAvailable <= 0) {
+        toast({
+          title: t('tooManyFiles'),
+          description: t('tooManyFilesDescription', {
+            max: CHAT_MAX_FILE_COUNT,
+            rejected: deduped.length,
+          }),
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const acceptedFiles =
+        deduped.length > slotsAvailable
+          ? deduped.slice(0, slotsAvailable)
+          : deduped;
+
+      if (acceptedFiles.length < deduped.length) {
+        toast({
+          title: t('tooManyFiles'),
+          description: t('tooManyFilesDescription', {
+            max: CHAT_MAX_FILE_COUNT,
+            rejected: deduped.length - acceptedFiles.length,
+          }),
+          variant: 'destructive',
+        });
+      }
+
+      // Enforce max total attachment size
+      const existingSize = attachmentsRef.current.reduce(
+        (sum, att) => sum + att.fileSize,
+        0,
+      );
+      const incomingSize = acceptedFiles.reduce(
+        (sum, { file }) => sum + file.size,
+        0,
+      );
+      if (existingSize + incomingSize > CHAT_MAX_TOTAL_SIZE) {
+        toast({
+          title: t('totalSizeExceeded'),
+          description: t('totalSizeExceededDescription', {
+            maxSize: Math.round(CHAT_MAX_TOTAL_SIZE / (1024 * 1024)),
+          }),
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const uploadPromises = acceptedFiles.map(
+        async ({ file, resolvedType }) => {
+          const fileId = `${file.name}-${Date.now()}`;
+          setUploadingFiles((prev) => [...prev, fileId]);
+
+          try {
+            let fileToUpload = file;
+
+            if (resolvedType.startsWith('image/')) {
+              const compressionResult = await compressImage(file);
+              fileToUpload = compressionResult.file;
+            }
+
+            const uploadUrl = await generateUploadUrl({});
+
+            const result = await fetch(uploadUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': resolvedType || 'application/octet-stream',
+              },
+              body: fileToUpload,
+            });
+
+            if (!result.ok) {
+              throw new Error(t('uploadFailed'));
+            }
+
+            const { storageId } = await result.json();
+
+            if (!storageId) {
+              throw new Error(t('uploadFailed'));
+            }
+
+            await saveFileMetadata({
+              organizationId: config.organizationId,
+              storageId,
+              fileName: fileToUpload.name,
+              contentType: resolvedType || 'application/octet-stream',
+              size: fileToUpload.size,
+            });
+
+            const attachment: FileAttachment = {
+              fileId: storageId,
+              fileName: fileToUpload.name,
+              fileType: resolvedType,
+              fileSize: fileToUpload.size,
+              previewUrl: resolvedType.startsWith('image/')
+                ? URL.createObjectURL(fileToUpload)
+                : undefined,
+            };
+
+            setAttachments((prev) => [...prev, attachment]);
+
+            toast({
+              title: t('fileUploaded'),
+              description: t('uploadedSuccessfully', { filename: file.name }),
+            });
+          } catch (error) {
+            console.error('Upload error:', error);
+            toast({
+              title: t('uploadFailed'),
+              description: t('failedToUpload', { filename: file.name }),
+              variant: 'destructive',
+            });
+          } finally {
+            setUploadingFiles((prev) => prev.filter((id) => id !== fileId));
+          }
+        },
+      );
 
       await Promise.all(uploadPromises);
     },
@@ -166,9 +246,6 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
       return prev.filter((att) => att.fileId !== fileId);
     });
   }, []);
-
-  const attachmentsRef = useRef(attachments);
-  attachmentsRef.current = attachments;
 
   const clearAttachments = useCallback(() => {
     const clearedAttachments = attachmentsRef.current;

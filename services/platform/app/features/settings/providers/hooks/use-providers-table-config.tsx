@@ -3,7 +3,6 @@
 import type { ColumnDef } from '@tanstack/react-table';
 import { useMemo } from 'react';
 
-import { Badge } from '@/app/components/ui/feedback/badge';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 
@@ -16,9 +15,7 @@ interface ProvidersTableConfig {
   pageSize: number;
 }
 
-export function useProvidersTableConfig(_opts: {
-  onDeleted?: () => void;
-}): ProvidersTableConfig {
+export function useProvidersTableConfig(): ProvidersTableConfig {
   const { t } = useT('settings');
 
   const columns = useMemo<ColumnDef<ProviderRow>[]>(
@@ -31,7 +28,6 @@ export function useProvidersTableConfig(_opts: {
             {row.original.displayName}
           </Text>
         ),
-        size: 200,
       },
       {
         id: 'baseUrl',
@@ -41,16 +37,15 @@ export function useProvidersTableConfig(_opts: {
             {row.original.baseUrl}
           </Text>
         ),
-        size: 300,
       },
       {
         id: 'models',
         header: t('providers.models'),
-        meta: { skeleton: { type: 'badge' } },
+        meta: { skeleton: { type: 'text' } },
         cell: ({ row }) => (
-          <Badge variant="outline">
+          <Text as="span" variant="muted">
             {t('providers.modelCount', { count: row.original.modelCount ?? 0 })}
-          </Badge>
+          </Text>
         ),
         size: 120,
       },

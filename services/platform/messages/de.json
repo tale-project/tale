@@ -1510,7 +1510,11 @@
       "tagEmbedding": "Embedding",
       "displayNameRequired": "Anzeigename ist erforderlich",
       "invalidBaseUrl": "Basis-URL muss eine gültige URL sein",
-      "modelIdRequired": "Alle Modelle müssen eine ID haben"
+      "modelIdRequired": "Alle Modelle müssen eine ID haben",
+      "deleteConfirmNamed": "Möchtest du den Anbieter \"{name}\" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden. Alle Modellkonfigurationen dieses Anbieters werden entfernt.",
+      "providerActions": "Anbieteraktionen",
+      "saveChanges": "Änderungen speichern",
+      "addModelShort": "+ Modell hinzufügen"
     },
     "form": {
       "name": "Name",
@@ -2465,7 +2469,18 @@
     "deleteChat": "Chat löschen",
     "deleteConfirmation": "Möchtest du {title} wirklich löschen?",
     "deleteArchiveMessage": "Dieser Chat wird archiviert und erscheint nicht mehr in Ihrem Chatverlauf.",
+    "deletePermanentMessage": "Diese Aktion kann nicht rückgängig gemacht werden. Der Chat wird dauerhaft gelöscht.",
     "deleteFailed": "Chat konnte nicht gelöscht werden",
+    "archive": "Archivieren",
+    "unarchive": "Dearchivieren",
+    "archiveSuccess": "Chat archiviert",
+    "archiveFailed": "Chat konnte nicht archiviert werden",
+    "unarchiveSuccess": "Chat dearchiviert",
+    "unarchiveFailed": "Chat konnte nicht dearchiviert werden",
+    "archived": {
+      "title": "Archiviert",
+      "empty": "Keine archivierten Chats"
+    },
     "welcome": "Woran arbeitest du?",
     "welcomeEmpty": "Wie kann ich dir helfen?",
     "welcomeSuffix": "hier, woran arbeiten wir?",
@@ -2589,6 +2604,8 @@
     "showLess": "Weniger anzeigen",
     "noAgentsAvailable": "Keine Agents verfügbar. Bitte veröffentliche zuerst einen Agent.",
     "pendingApprovalDisabled": "Beantworte die ausstehende Anfrage oben, um fortzufahren",
+    "archivedDisabled": "Dieser Chat ist archiviert. Stelle ihn wieder her, um die Unterhaltung fortzusetzen.",
+    "archivedBanner": "Diese Unterhaltung wurde archiviert",
     "placeholder": "Frag zu Kunden, Produkten oder Dokumenten...",
     "searchConversations": "Konversationen durchsuchen",
     "invalidFiles": "Ungültige Dateien",
@@ -2611,6 +2628,8 @@
       "config": "CONFIG",
       "data": "DATA",
       "markup": "MARKUP",
+      "xlsx": "XLSX",
+      "csv": "CSV",
       "file": "FILE"
     },
     "fallback": {

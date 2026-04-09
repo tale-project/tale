@@ -125,7 +125,7 @@ export function TeamMultiSelect({
         <div
           role="listbox"
           aria-multiselectable="true"
-          className="ring-border bg-popover absolute top-full left-0 z-50 mt-1 w-full overflow-hidden rounded-lg p-1 shadow-lg ring-1"
+          className="ring-border bg-muted absolute top-full left-0 z-50 mt-1 w-full overflow-hidden rounded-lg p-1 shadow-lg ring-1"
         >
           {teams.map((team) => {
             const isSelected = selectedTeamIds.includes(team.id);

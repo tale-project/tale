@@ -56,6 +56,14 @@ export function useDeleteThread() {
   return useConvexMutation(api.threads.mutations.deleteChatThread);
 }
 
+export function useArchiveThread() {
+  return useConvexMutation(api.threads.mutations.archiveChatThread);
+}
+
+export function useUnarchiveThread() {
+  return useConvexMutation(api.threads.mutations.unarchiveChatThread);
+}
+
 export function useUpdateThread() {
   return useConvexMutation(api.threads.mutations.updateChatThread);
 }

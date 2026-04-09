@@ -2,6 +2,10 @@ import { v } from 'convex/values';
 
 import { mutation } from '../_generated/server';
 import { authComponent } from '../auth';
+import {
+  archiveChatThread as archiveChatThreadHelper,
+  unarchiveChatThread as unarchiveChatThreadHelper,
+} from './archive_chat_thread';
 import { cancelGeneration as cancelGenerationHelper } from './cancel_generation';
 import { createChatThread as createChatThreadHelper } from './create_chat_thread';
 import { deleteChatThread as deleteChatThreadHelper } from './delete_chat_thread';
@@ -86,6 +90,38 @@ export const cancelGeneration = mutation({
       args.threadId,
       args.displayedContent,
     );
+    return null;
+  },
+});
+
+export const archiveChatThread = mutation({
+  args: {
+    threadId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) {
+      throw new Error('Unauthenticated');
+    }
+
+    await archiveChatThreadHelper(ctx, args.threadId);
+    return null;
+  },
+});
+
+export const unarchiveChatThread = mutation({
+  args: {
+    threadId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) {
+      throw new Error('Unauthenticated');
+    }
+
+    await unarchiveChatThreadHelper(ctx, args.threadId);
     return null;
   },
 });

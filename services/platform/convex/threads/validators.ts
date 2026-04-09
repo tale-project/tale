@@ -18,6 +18,7 @@ export const messageRoleValidator = v.union(
 export const threadStatusValidator = v.union(
   v.literal('active'),
   v.literal('archived'),
+  v.literal('deleted'),
 );
 
 export const toolStatusValidator = v.union(
