@@ -283,10 +283,47 @@ export const runAgentGeneration = internalAction({
             }
           : undefined;
 
+      // Fetch mandatory system prompt governance policy (skip for sub-agents
+      // to prevent double-injection in delegation chains)
+      let mandatoryPrefix = '';
+      let mandatorySuffix = '';
+      if (!parentThreadId) {
+        const systemPromptPolicy = await ctx.runQuery(
+          internal.governance.internal_queries.getSystemPromptPolicyInternal,
+          { organizationId },
+        );
+        if (
+          systemPromptPolicy?.enabled !== false &&
+          isRecord(systemPromptPolicy?.config)
+        ) {
+          const cfg = systemPromptPolicy.config;
+          if (
+            typeof cfg.mandatoryPrefixPrompt === 'string' &&
+            cfg.mandatoryPrefixPrompt.trim()
+          ) {
+            mandatoryPrefix = cfg.mandatoryPrefixPrompt.trim();
+          }
+          if (
+            typeof cfg.mandatorySuffixPrompt === 'string' &&
+            cfg.mandatorySuffixPrompt.trim()
+          ) {
+            mandatorySuffix = cfg.mandatorySuffixPrompt.trim();
+          }
+        }
+      }
+
       // Combine instructions with delegation agent descriptions
-      const finalInstructions = delegationInstructionsAppend
+      let finalInstructions = delegationInstructionsAppend
         ? agentConfig.instructions + delegationInstructionsAppend
         : agentConfig.instructions;
+
+      // Wrap with mandatory governance system prompt (non-overridable)
+      if (mandatoryPrefix) {
+        finalInstructions = mandatoryPrefix + '\n\n' + finalInstructions;
+      }
+      if (mandatorySuffix) {
+        finalInstructions = finalInstructions + '\n\n' + mandatorySuffix;
+      }
 
       // Resolve model from provider files with automatic failover
       const modelId = model === 'default' ? undefined : model;

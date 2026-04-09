@@ -240,6 +240,7 @@
     "providers": "KI-Anbieter",
     "apiKeys": "API-Schlüssel",
     "branding": "Branding",
+    "governance": "Richtlinien",
     "apiDocs": "API-Dokumentation",
     "account": "Konto",
     "logs": "Protokolle",
@@ -3480,6 +3481,32 @@
     "apiKeys": {
       "title": "API-Schlüssel",
       "description": "API-Schlüssel für Integrationen erstellen und verwalten."
+    },
+    "governance": {
+      "title": "Richtlinien",
+      "description": "Organisationsweite Richtlinien und System-Prompts verwalten."
+    }
+  },
+  "governance": {
+    "title": "Richtlinien",
+    "description": "Konfigurieren Sie organisationsweite Richtlinien und Kontrollen.",
+    "systemPrompt": {
+      "title": "System-Prompt",
+      "description": "Legen Sie einen verbindlichen System-Prompt fest, der auf alle Agents angewendet wird und nicht von Benutzern überschrieben werden kann.",
+      "prefix": "Präfix (wird vor Agent-Anweisungen eingefügt)",
+      "prefixLabel": "Verbindliches Präfix",
+      "prefixDescription": "Dieser Text wird vor die Anweisungen jedes Agents gestellt und kann nicht überschrieben werden.",
+      "prefixPlaceholder": "Verbindliches Prompt-Präfix eingeben...",
+      "suffix": "Suffix (wird nach Agent-Anweisungen angehängt)",
+      "suffixLabel": "Verbindliches Suffix",
+      "suffixDescription": "Dieser Text wird nach die Anweisungen jedes Agents angehängt und kann nicht überschrieben werden.",
+      "suffixPlaceholder": "Verbindliches Prompt-Suffix eingeben...",
+      "charCount": "{count} / {max} Zeichen",
+      "charLimitExceeded": "Zeichenlimit überschritten",
+      "save": "Speichern",
+      "saving": "Wird gespeichert...",
+      "saved": "System-Prompt gespeichert",
+      "saveFailed": "System-Prompt konnte nicht gespeichert werden"
     }
   }
 }
