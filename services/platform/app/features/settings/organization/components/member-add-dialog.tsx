@@ -36,6 +36,10 @@ interface AddMemberDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
+// This is the primary way to add users to Tale. Since the platform is offline-first,
+// there is no self-service sign-up — admins create accounts here with an email,
+// optional password, and role. For self-service provisioning, configure SSO or
+// trusted headers instead (see docs/authentication.md).
 export function AddMemberDialog({
   organizationId,
   open,

@@ -636,9 +636,11 @@ deploy_convex_functions() {
     "POSTGRES_URL"
     "RAG_DATABASE_URL"
     "TRUSTED_HEADERS_ENABLED"
+    "TRUSTED_HEADERS_INTERNAL_SECRET"
     "TRUSTED_EMAIL_HEADER"
     "TRUSTED_NAME_HEADER"
     "TRUSTED_ROLE_HEADER"
+    "TRUSTED_TEAMS_HEADER"
     # Root directory for file-based configs (agents, workflows, integrations, branding)
     "TALE_CONFIG_DIR"
     # Agents directory (filesystem path for agent JSON configs)

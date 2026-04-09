@@ -44,6 +44,10 @@ type LogInFormData = {
   password: string;
 };
 
+// Tale is offline-first — there is no self-service sign-up or forgot-password flow.
+// Users are created by admins (Settings → Members). To enable self-service login,
+// configure SSO or trusted headers (see docs/authentication.md).
+// If no users exist yet, the page redirects to /sign-up for initial owner setup.
 export function LogInPage() {
   const navigate = useNavigate();
   const queryClient = useReactQueryClient();
@@ -54,11 +58,29 @@ export function LogInPage() {
   const { data: hasUsers, isLoading: isLoadingUsers } = useHasAnyUsers();
   const { data: ssoConfig } = useIsSsoConfigured();
 
+  // When trusted headers auth is enabled, the reverse proxy has already
+  // authenticated the user. Navigate to the Convex HTTP endpoint that reads
+  // the proxy headers and creates a session — the user never sees the login form.
+  // If the auth endpoint fails, it redirects back here with ?trusted_headers_error=1
+  // to break the redirect loop and show the regular login form.
+  const trustedHeadersEnabled = getEnv('TRUSTED_HEADERS_ENABLED');
+  const hasTrustedHeadersError = new URLSearchParams(
+    window.location.search,
+  ).has('trusted_headers_error');
   useEffect(() => {
-    if (hasUsers === false) {
+    if (trustedHeadersEnabled && !hasTrustedHeadersError) {
+      const siteUrl = getEnv('SITE_URL');
+      const basePath = getEnv('BASE_PATH');
+      const target = redirectTo || `${basePath}/dashboard`;
+      window.location.href = `${siteUrl}${basePath}/api/trusted-headers/authenticate?redirect=${encodeURIComponent(target)}`;
+    }
+  }, [trustedHeadersEnabled, hasTrustedHeadersError, redirectTo]);
+
+  useEffect(() => {
+    if (!trustedHeadersEnabled && hasUsers === false) {
       void navigate({ to: '/sign-up' });
     }
-  }, [hasUsers, navigate]);
+  }, [trustedHeadersEnabled, hasUsers, navigate]);
 
   const logInSchema = useMemo(
     () =>
@@ -133,7 +155,7 @@ export function LogInPage() {
     window.location.href = `${siteUrl}${basePath}/http_api/api/sso/authorize?redirect_uri=${encodeURIComponent(callbackUri)}`;
   }, []);
 
-  if (isLoadingUsers) {
+  if (isLoadingUsers || (trustedHeadersEnabled && !hasTrustedHeadersError)) {
     return null;
   }
 
