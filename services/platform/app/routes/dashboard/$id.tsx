@@ -76,7 +76,10 @@ function DashboardLayout() {
                 <Navigation organizationId={organizationId} />
               </div>
 
-              <div className="border-border bg-background flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:border-l">
+              <main
+                id="main-content"
+                className="border-border bg-background flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:border-l"
+              >
                 {hasRole || isLoading ? (
                   <Outlet />
                 ) : status === 'not_found' ? (
@@ -89,7 +92,7 @@ function DashboardLayout() {
                     message={t(isDisabled ? 'disabled' : 'noMembership')}
                   />
                 )}
-              </div>
+              </main>
             </div>
           </AdaptiveHeaderProvider>
         </TeamFilterProvider>

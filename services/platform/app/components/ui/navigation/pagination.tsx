@@ -7,6 +7,7 @@ import { useState, useEffect, useTransition } from 'react';
 import { Select } from '@/app/components/ui/forms/select';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
+import { useT } from '@/lib/i18n/client';
 
 interface PaginationProps {
   currentPage: number;
@@ -119,9 +120,13 @@ export function Pagination({
   const totalPageCount = totalPages ?? Math.ceil(total / pageSize);
   // Disable next button if we're on the last page or hasNextPage is explicitly false
   const isNextDisabled = currentPage >= totalPageCount || hasNextPage === false;
+  const { t } = useT('common');
 
   return (
-    <div className={`flex items-center gap-2 ${className}`}>
+    <nav
+      aria-label={t('aria.pageNavigation')}
+      className={`flex items-center gap-2 ${className}`}
+    >
       <Button
         variant="ghost"
         size="icon"
@@ -132,6 +137,7 @@ export function Pagination({
           loadingStates.prev ||
           loadingStates.next
         }
+        aria-label={t('aria.previousPage')}
         className="p-1.5"
       >
         {loadingStates.prev ? (
@@ -160,6 +166,7 @@ export function Pagination({
         disabled={
           isEmpty || isNextDisabled || loadingStates.prev || loadingStates.next
         }
+        aria-label={t('aria.nextPage')}
         className="p-1.5"
       >
         {loadingStates.next ? (
@@ -176,6 +183,6 @@ export function Pagination({
       >
         {isEmpty ? 'No items' : `${startIdx}-${endIdx} of ${total}`}
       </Text>
-    </div>
+    </nav>
   );
 }

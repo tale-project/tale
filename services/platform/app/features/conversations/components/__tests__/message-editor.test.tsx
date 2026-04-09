@@ -4,6 +4,7 @@ import { cleanup, act } from '@testing-library/react';
 import { useState, useCallback } from 'react';
 import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest';
 
+import { checkAccessibility } from '@/test/utils/a11y';
 import { render, screen } from '@/test/utils/render';
 
 let renderCount = 0;
@@ -156,5 +157,12 @@ describe('MessageEditor', () => {
     });
 
     expect(renderCount).toBe(initialCount);
+  });
+
+  describe('accessibility', () => {
+    it('passes axe audit', async () => {
+      const { container } = render(<MessageEditor />);
+      await checkAccessibility(container);
+    });
   });
 });

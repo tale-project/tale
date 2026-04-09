@@ -1,6 +1,7 @@
 import { cleanup } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { checkAccessibility } from '@/test/utils/a11y';
 import { render, screen } from '@/test/utils/render';
 
 import { AgentSelector } from '../agent-selector';
@@ -237,5 +238,12 @@ describe('AgentSelector', () => {
     );
     expect(selected).toHaveLength(1);
     expect(selected[0]).toHaveTextContent('Assistant');
+  });
+
+  describe('accessibility', () => {
+    it('passes axe audit', async () => {
+      const { container } = render(<AgentSelector organizationId="org-1" />);
+      await checkAccessibility(container);
+    });
   });
 });

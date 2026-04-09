@@ -22,7 +22,7 @@ const spinnerVariants = cva(
 
 interface SpinnerProps extends VariantProps<typeof spinnerVariants> {
   className?: string;
-  /** Accessible label for screen readers */
+  /** Accessible label for screen readers. Should be a translated string via `t()`. */
   label?: string;
 }
 

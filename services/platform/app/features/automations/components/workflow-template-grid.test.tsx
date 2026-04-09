@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { checkAccessibility } from '@/test/utils/a11y';
 import { render, screen, waitFor } from '@/test/utils/render';
 
 import { WorkflowTemplateGrid } from './workflow-template-grid';
@@ -127,6 +128,13 @@ describe('WorkflowTemplateGrid', () => {
 
     await waitFor(() => {
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('accessibility', () => {
+    it('passes axe audit', async () => {
+      const { container } = render(<WorkflowTemplateGrid {...defaultProps} />);
+      await checkAccessibility(container);
     });
   });
 });

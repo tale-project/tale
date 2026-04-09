@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
 import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest';
 
+import { checkAccessibility } from '@/test/utils/a11y';
 import { render, screen, waitFor } from '@/test/utils/render';
 
 import { AutomationActiveToggle } from './automation-active-toggle';
@@ -154,6 +155,15 @@ describe('AutomationActiveToggle', () => {
       await user.click(screen.getByRole('switch'));
 
       expect(mockToggleEnabled).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('accessibility', () => {
+    it('passes axe audit', async () => {
+      const { container } = render(
+        <AutomationActiveToggle automation={createAutomation()} />,
+      );
+      await checkAccessibility(container);
     });
   });
 });

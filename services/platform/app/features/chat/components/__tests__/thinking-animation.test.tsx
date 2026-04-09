@@ -2,6 +2,8 @@ import type { UIMessage } from '@convex-dev/agent/react';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
+import { checkAccessibility } from '@/test/utils/a11y';
+
 import { ThinkingAnimation } from '../thinking-animation';
 
 vi.mock('@/lib/i18n/client', () => ({
@@ -217,5 +219,12 @@ describe('ThinkingAnimation', () => {
       />,
     );
     expect(screen.getByText('Thinking')).toBeInTheDocument();
+  });
+
+  describe('accessibility', () => {
+    it('passes axe audit', async () => {
+      const { container } = render(<ThinkingAnimation />);
+      await checkAccessibility(container);
+    });
   });
 });

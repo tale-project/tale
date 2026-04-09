@@ -3,6 +3,8 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, fireEvent } from '@testing-library/react';
 import { afterEach, describe, it, expect, vi } from 'vitest';
 
+import { checkAccessibility } from '@/test/utils/a11y';
+
 import { ColorPickerInput } from '../color-picker-input';
 
 afterEach(cleanup);
@@ -147,5 +149,19 @@ describe('ColorPickerInput', () => {
 
     const label = screen.getByText('Accent color');
     expect(label).toHaveAttribute('for', 'accent');
+  });
+
+  describe('accessibility', () => {
+    it('passes axe audit', async () => {
+      const { container } = render(
+        <ColorPickerInput
+          value="#FF0000"
+          onChange={vi.fn()}
+          label="Brand color"
+          id="brand-color"
+        />,
+      );
+      await checkAccessibility(container);
+    });
   });
 });

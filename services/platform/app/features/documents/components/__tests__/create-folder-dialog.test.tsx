@@ -86,6 +86,8 @@ vi.mock('@/app/components/ui/forms/select', () => ({
   },
 }));
 
+import { checkAccessibility } from '@/test/utils/a11y';
+
 import { CreateFolderDialog } from '../create-folder-dialog';
 
 function getNameInput() {
@@ -175,6 +177,13 @@ describe('CreateFolderDialog', () => {
     expect(mockToast).toHaveBeenCalledWith({
       title: 'documents.folder.createFailed',
       variant: 'destructive',
+    });
+  });
+
+  describe('accessibility', () => {
+    it('passes axe audit', async () => {
+      const { container } = render(<CreateFolderDialog {...defaultProps} />);
+      await checkAccessibility(container);
     });
   });
 });

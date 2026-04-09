@@ -136,7 +136,10 @@ export function MobileNavigation({ organizationId }: MobileNavigationProps) {
         className="w-72 p-0"
         hideClose
       >
-        <NavigationMenu className="bg-sidebar flex h-full w-full max-w-none flex-col">
+        <NavigationMenu
+          aria-label={t('aria.mainNavigation')}
+          className="bg-sidebar flex h-full w-full max-w-none flex-col"
+        >
           <div className="border-border flex h-(--nav-size) flex-shrink-0 items-center border-b px-4 py-2">
             <Link
               to="/dashboard/$id/chat"

@@ -5,6 +5,8 @@ import userEvent from '@testing-library/user-event';
 import { Code } from 'lucide-react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { checkAccessibility } from '@/test/utils/a11y';
+
 import { IntegrationCard } from '../integration-card';
 
 vi.mock('next-intl', () => ({
@@ -107,5 +109,17 @@ describe('IntegrationCard', () => {
       />,
     );
     expect(screen.getByRole('button')).toBeDisabled();
+  });
+
+  describe('accessibility', () => {
+    it('passes axe audit', async () => {
+      const { container } = render(
+        <IntegrationCard
+          title="Shopify"
+          description="Sync products from Shopify."
+        />,
+      );
+      await checkAccessibility(container);
+    });
   });
 });

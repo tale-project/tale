@@ -1,8 +1,11 @@
 import { RenderResult } from '@testing-library/react';
+import type { UserEvent } from '@testing-library/user-event';
+import { expect } from 'vitest';
 import { axe } from 'vitest-axe';
 
 /**
- * Run axe accessibility audit on a container
+ * Run axe accessibility audit on a container.
+ * Checks WCAG 2.1 AA rules by default.
  */
 export async function checkAccessibility(
   container: Element | RenderResult,
@@ -17,6 +20,12 @@ export async function checkAccessibility(
       'button-name': { enabled: true },
       'link-name': { enabled: true },
       'image-alt': { enabled: true },
+      'aria-allowed-attr': { enabled: true },
+      'aria-required-attr': { enabled: true },
+      'aria-valid-attr-value': { enabled: true },
+      'heading-order': { enabled: true },
+      'duplicate-id-aria': { enabled: true },
+      tabindex: { enabled: true },
     },
     ...options,
   });
@@ -41,5 +50,33 @@ export function expectFocusable(element: HTMLElement) {
   element.focus();
   if (document.activeElement !== element) {
     throw new Error(`Expected element to be focusable, but it is not`);
+  }
+}
+
+/**
+ * Assert an element has a specific ARIA attribute, optionally with a given value.
+ */
+export function expectAriaAttribute(
+  element: HTMLElement,
+  attr: string,
+  value?: string,
+) {
+  if (value !== undefined) {
+    expect(element).toHaveAttribute(attr, value);
+  } else {
+    expect(element).toHaveAttribute(attr);
+  }
+}
+
+/**
+ * Assert that tab navigation visits elements in the expected order.
+ */
+export async function expectKeyboardNavigable(
+  user: UserEvent,
+  elements: HTMLElement[],
+) {
+  for (const el of elements) {
+    await user.tab();
+    expect(document.activeElement).toBe(el);
   }
 }

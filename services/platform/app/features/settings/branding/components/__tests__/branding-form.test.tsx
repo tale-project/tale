@@ -48,6 +48,8 @@ vi.mock('../image-upload-field', () => ({
   ),
 }));
 
+import { checkAccessibility } from '@/test/utils/a11y';
+
 import { BrandingForm } from '../branding-form';
 
 afterEach(() => {
@@ -141,5 +143,12 @@ describe('BrandingForm', () => {
     render(<BrandingForm {...defaultProps} />);
 
     expect(screen.getByText('branding.faviconDescription')).toBeInTheDocument();
+  });
+
+  describe('accessibility', () => {
+    it('passes axe audit', async () => {
+      const { container } = render(<BrandingForm {...defaultProps} />);
+      await checkAccessibility(container);
+    });
   });
 });

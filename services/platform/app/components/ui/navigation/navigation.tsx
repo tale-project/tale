@@ -123,10 +123,14 @@ export interface NavigationProps {
 
 export function Navigation({ organizationId }: NavigationProps) {
   const { t } = useT('navigation');
+  const { t: tCommon } = useT('common');
   const navigationItems = useNavigationItems(organizationId);
 
   return (
-    <NavigationMenu className="border-border flex h-full flex-col">
+    <NavigationMenu
+      aria-label={tCommon('aria.mainNavigation')}
+      className="border-border flex h-full flex-col"
+    >
       <div className="flex flex-shrink-0 items-center justify-center py-3">
         <Link
           to="/dashboard/$id/chat"

@@ -91,6 +91,8 @@ vi.mock('../../hooks/mutations', () => ({
   }),
 }));
 
+import { checkAccessibility } from '@/test/utils/a11y';
+
 import { DocumentUploadDialog } from '../document-upload-dialog';
 
 afterEach(cleanup);
@@ -227,5 +229,12 @@ describe('DocumentUploadDialog', () => {
       screen.getByText('documents.upload.retryUpload'),
     ).toBeInTheDocument();
     expect(screen.getByText('common.actions.cancel')).toBeInTheDocument();
+  });
+
+  describe('accessibility', () => {
+    it('passes axe audit', async () => {
+      const { container } = render(<DocumentUploadDialog {...defaultProps} />);
+      await checkAccessibility(container);
+    });
   });
 });

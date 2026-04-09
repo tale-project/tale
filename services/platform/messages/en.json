@@ -168,7 +168,10 @@
       "valid": "valid",
       "invalid": "invalid",
       "validationRequirements": "Validation requirements",
-      "validationStatus": "{message}: {status}"
+      "validationStatus": "{message}: {status}",
+      "skipToContent": "Skip to main content",
+      "mainNavigation": "Main navigation",
+      "pageNavigation": "Page navigation"
     },
     "pagination": {
       "rowsPerPage": "Rows per page",

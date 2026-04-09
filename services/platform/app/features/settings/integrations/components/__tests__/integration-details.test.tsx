@@ -4,6 +4,8 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, it, expect, vi } from 'vitest';
 
+import { checkAccessibility } from '@/test/utils/a11y';
+
 import { IntegrationDetails } from '../integration-details';
 
 // Mock next-intl used by useT
@@ -337,5 +339,14 @@ describe('IntegrationDetails', () => {
     const list = screen.getByRole('list');
     const items = within(list).getAllByRole('listitem');
     expect(items).toHaveLength(3);
+  });
+
+  describe('accessibility', () => {
+    it('passes axe audit', async () => {
+      const { container } = render(
+        <IntegrationDetails integration={makeIntegration()} />,
+      );
+      await checkAccessibility(container);
+    });
   });
 });

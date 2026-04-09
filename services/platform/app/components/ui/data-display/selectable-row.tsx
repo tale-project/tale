@@ -13,6 +13,7 @@ export const SelectableRow = forwardRef<HTMLButtonElement, SelectableRowProps>(
     <button
       ref={ref}
       type="button"
+      aria-pressed={selected}
       className={cn(
         'flex w-full cursor-pointer items-center gap-3 rounded-lg border bg-card p-3 text-left transition-colors hover:bg-accent/50',
         selected && 'ring-primary ring-2',

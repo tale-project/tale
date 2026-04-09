@@ -1,7 +1,6 @@
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import viteReact from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
-import tsConfigPaths from 'vite-tsconfig-paths';
 
 import { injectAcceptLanguage } from './vite-plugins/inject-accept-language';
 import { injectEnv } from './vite-plugins/inject-env';
@@ -13,6 +12,7 @@ export default defineConfig({
   base: './',
   resolve: {
     dedupe: ['convex', 'convex/react', 'react', 'react-dom'],
+    tsconfigPaths: true,
   },
   server: {
     port: 3000,
@@ -124,7 +124,6 @@ export default defineConfig({
     injectEnv(),
     injectAcceptLanguage(),
     stubSSRImports(),
-    tsConfigPaths(),
     viteReact(),
     watchExamples(),
     serveBrandingImages(),

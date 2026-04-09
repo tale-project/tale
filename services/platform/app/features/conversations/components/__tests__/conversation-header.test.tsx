@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { checkAccessibility } from '@/test/utils/a11y';
 import { render, screen } from '@/test/utils/render';
 
 import { ConversationHeader } from '../conversation-header';
@@ -195,5 +196,17 @@ describe('ConversationHeader', () => {
     );
 
     expect(screen.queryByLabelText('Back')).not.toBeInTheDocument();
+  });
+
+  describe('accessibility', () => {
+    it('passes axe audit', async () => {
+      const { container } = render(
+        <ConversationHeader
+          conversation={makeConversation()}
+          organizationId="org-1"
+        />,
+      );
+      await checkAccessibility(container);
+    });
   });
 });
