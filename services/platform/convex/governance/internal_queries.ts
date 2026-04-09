@@ -19,6 +19,23 @@ export const getPiiConfigInternal = internalQuery({
   },
 });
 
+export const getSystemPromptPolicyInternal = internalQuery({
+  args: {
+    organizationId: v.string(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    return ctx.db
+      .query('governancePolicies')
+      .withIndex('by_org_policyType', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('policyType', 'system_prompt'),
+      )
+      .first();
+  },
+});
+
 export const listRetentionPolicies = internalQuery({
   args: {},
   returns: v.any(),

@@ -281,10 +281,34 @@ export const chatViaOpenAIWithTools = internalAction({
       },
     );
 
+    // Fetch mandatory system prompt governance policy
+    const systemPromptPolicy = await ctx.runQuery(
+      internal.governance.internal_queries.getSystemPromptPolicyInternal,
+      { organizationId: args.organizationId },
+    );
+
     // Build system prompt from agent instructions
-    const systemPrompt: string =
+    let systemPrompt: string =
       String(agentConfig.instructions ?? '') ||
       `You are ${String(agentConfig.name ?? 'assistant')}, a helpful assistant.`;
+
+    // Apply mandatory governance system prompt (non-overridable)
+    if (
+      systemPromptPolicy?.enabled !== false &&
+      isRecord(systemPromptPolicy?.config)
+    ) {
+      const cfg = systemPromptPolicy.config;
+      const prefix =
+        typeof cfg.mandatoryPrefixPrompt === 'string'
+          ? cfg.mandatoryPrefixPrompt.trim()
+          : '';
+      const suffix =
+        typeof cfg.mandatorySuffixPrompt === 'string'
+          ? cfg.mandatorySuffixPrompt.trim()
+          : '';
+      if (prefix) systemPrompt = prefix + '\n\n' + systemPrompt;
+      if (suffix) systemPrompt = systemPrompt + '\n\n' + suffix;
+    }
 
     // Build generation params
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- generationParams is v.any() from Convex validator; shape is controlled by http_actions.ts buildGenerationParams
