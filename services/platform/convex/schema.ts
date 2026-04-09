@@ -24,6 +24,7 @@ import { foldersTable } from './folders/schema';
 import { governancePoliciesTable, usageLedgerTable } from './governance/schema';
 import { integrationCredentialsTable } from './integrations/credentials_schema';
 import { integrationsTable } from './integrations/schema';
+import { llmResponseCacheTable } from './lib/response_cache/schema';
 import { mcpServersTable } from './mcp_servers/schema';
 import { onedriveSyncConfigsTable } from './onedrive/schema';
 import { productsTable } from './products/schema';
@@ -74,6 +75,7 @@ export default defineSchema({
   integrationCredentials: integrationCredentialsTable,
   /** @deprecated Retained for backward compatibility with existing data. Use integrationCredentials + file-based config. */
   integrations: integrationsTable,
+  llmResponseCache: llmResponseCacheTable,
   messageMetadata: messageMetadataTable,
   onedriveSyncConfigs: onedriveSyncConfigsTable,
   threadMetadata: threadMetadataTable,

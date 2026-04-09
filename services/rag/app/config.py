@@ -47,10 +47,14 @@ class Settings(BaseServiceSettings):
     recency_decay_base: float = 0.85
     recency_max_age_days: int = 730
 
-    # Semantic cache
+    # Semantic cache (RAG search results)
     semantic_cache_enabled: bool = False
     semantic_cache_similarity_threshold: float = 0.95
     semantic_cache_ttl_hours: int = 24
+
+    # LLM response cache (semantic similarity)
+    llm_cache_similarity_threshold: float = 0.95
+    llm_cache_ttl_hours: int = 24
 
     # Re-ranking (cross-encoder)
     reranking_enabled: bool = False

@@ -46,5 +46,8 @@ export function toSerializableConfig(
     structuredResponsesEnabled: config.structuredResponsesEnabled ?? true,
     timeoutMs: config.timeoutMs,
     outputReserve: config.outputReserve,
+    responseCacheEnabled: config.responseCacheEnabled,
+    responseCacheTtlMs: config.responseCacheTtlMs,
+    noCacheToolNames: config.noCacheToolNames,
   };
 }

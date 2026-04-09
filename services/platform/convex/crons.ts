@@ -35,4 +35,12 @@ crons.cron(
   {},
 );
 
+// LLM response cache cleanup - purge expired entries hourly
+crons.cron(
+  'purge expired LLM response cache (hourly)',
+  '0 * * * *',
+  internal.lib.response_cache.internal_mutations.purgeExpired,
+  {},
+);
+
 export default crons;

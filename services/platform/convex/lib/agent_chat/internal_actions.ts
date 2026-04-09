@@ -88,6 +88,9 @@ const serializableAgentConfigValidator = v.object({
   structuredResponsesEnabled: v.optional(v.boolean()),
   timeoutMs: v.optional(v.number()),
   outputReserve: v.optional(v.number()),
+  responseCacheEnabled: v.optional(v.boolean()),
+  responseCacheTtlMs: v.optional(v.number()),
+  noCacheToolNames: v.optional(v.array(v.string())),
 });
 
 const hooksConfigValidator = v.object({
@@ -381,6 +384,9 @@ export const runAgentGeneration = internalAction({
           agentTeamId: agentConfig.agentTeamId,
           knowledgeFileIds: agentConfig.knowledgeFileIds,
           structuredResponsesEnabled: agentConfig.structuredResponsesEnabled,
+          responseCacheEnabled: agentConfig.responseCacheEnabled,
+          responseCacheTtlMs: agentConfig.responseCacheTtlMs,
+          noCacheToolNames: agentConfig.noCacheToolNames,
           instructions: finalInstructions,
           toolsSummary,
         },

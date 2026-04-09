@@ -51,6 +51,12 @@ export interface SerializableAgentConfig {
   timeoutMs?: number;
   /** Per-agent output token reserve */
   outputReserve?: number;
+  /** Whether response caching is enabled (default true) */
+  responseCacheEnabled?: boolean;
+  /** Cache TTL in milliseconds (default 24 hours) */
+  responseCacheTtlMs?: number;
+  /** Tool names whose invocation should prevent caching the response */
+  noCacheToolNames?: string[];
 }
 
 /**

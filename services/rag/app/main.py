@@ -14,7 +14,7 @@ from tale_telemetry import init_telemetry, shutdown_telemetry
 from . import __version__
 from .config import settings
 from .models import ErrorResponse
-from .routers import documents_router, health_router, search_router
+from .routers import documents_router, health_router, llm_cache_router, search_router
 from .services.rag_service import rag_service
 from .utils import cleanup_memory
 
@@ -125,4 +125,5 @@ async def general_exception_handler(_request, exc):
 app.include_router(health_router)
 app.include_router(documents_router)
 app.include_router(search_router)
+app.include_router(llm_cache_router)
 init_telemetry(app)
