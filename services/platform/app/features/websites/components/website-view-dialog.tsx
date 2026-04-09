@@ -346,7 +346,7 @@ export function ViewWebsiteDialog({
             </Badge>
             {website.status === 'error' && website.metadata?.lastSyncError && (
               <Text variant="caption" className="text-destructive">
-                {website.metadata.lastSyncError as string}
+                {String(website.metadata.lastSyncError)}
               </Text>
             )}
           </div>
