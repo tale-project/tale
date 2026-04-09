@@ -43,8 +43,15 @@ export function AgentNavigation({
 }: AgentNavigationProps) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
-  const { config, isDirty, isSaving, resetConfig, markSaving, overrideConfig } =
-    useAgentConfig();
+  const {
+    config,
+    isDirty,
+    isSaving,
+    resetConfig,
+    markSaving,
+    markSaved,
+    overrideConfig,
+  } = useAgentConfig();
   const { formatDate } = useFormatDate();
 
   const snapshotAction = useConvexAction(
@@ -119,16 +126,18 @@ export function AgentNavigation({
   const handleSave = useCallback(async () => {
     markSaving(true);
     try {
-      await snapshotAction.mutateAsync({
-        orgSlug: 'default',
-        agentName: agentId,
-      });
+      // Best-effort history snapshot — do not block save on failure
+      await snapshotAction
+        .mutateAsync({ orgSlug: 'default', agentName: agentId })
+        .catch((err) => console.error('[agent history snapshot]', err));
+
       await saveAction.mutateAsync({
         orgSlug: 'default',
         agentName: agentId,
         config,
       });
 
+      markSaved(config);
       setHistoryEntries([]);
       toast({
         title: t('agents.agentSaved'),
@@ -136,7 +145,7 @@ export function AgentNavigation({
       });
       onSaved(config);
     } catch (err) {
-      console.error(err);
+      console.error('[agent save]', err);
       toast({
         title: t('agents.agentSaveFailed'),
         variant: 'destructive',
@@ -144,7 +153,16 @@ export function AgentNavigation({
     } finally {
       markSaving(false);
     }
-  }, [agentId, config, markSaving, onSaved, saveAction, snapshotAction, t]);
+  }, [
+    agentId,
+    config,
+    markSaving,
+    markSaved,
+    onSaved,
+    saveAction,
+    snapshotAction,
+    t,
+  ]);
 
   const handleDiscard = useCallback(() => {
     resetConfig();

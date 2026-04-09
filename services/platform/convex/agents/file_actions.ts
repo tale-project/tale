@@ -27,6 +27,7 @@ import {
   readJsonFile,
   sha256,
 } from '../lib/file_io';
+import { stripNulls } from '../lib/strip_nulls';
 import type { AgentJsonConfig, AgentReadResult } from './file_utils';
 import {
   MAX_FILE_SIZE_BYTES,
@@ -141,7 +142,7 @@ export const saveAgent = action({
       throw new Error(`Invalid agent name: ${args.agentName}`);
     }
 
-    const config = agentJsonSchema.parse(args.config);
+    const config = agentJsonSchema.parse(stripNulls(args.config));
     const content = serializeAgentJson(config);
     const filePath = resolveAgentFilePath(args.orgSlug, args.agentName);
 
