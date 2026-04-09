@@ -26,6 +26,7 @@ from .database import (
     pin_embedding_dimensions,
 )
 from .indexing_service import index_document
+from .llm_response_cache import LlmResponseCache
 from .search_service import RagSearchService
 
 RAG_TOP_K = 30
@@ -68,6 +69,7 @@ class RagService:
         self._vision_client: VisionClient | None = None
         self._openai_client: AsyncOpenAI | None = None
         self._search_service: RagSearchService | None = None
+        self._llm_response_cache: LlmResponseCache | None = None
         self._llm_config: dict | None = None
         self._vision_config: tuple | None = None
         self._last_config_check: float = 0
@@ -133,9 +135,22 @@ class RagService:
         # Search service
         self._search_service = RagSearchService(self._pool, self._embedding_service)
 
+        # LLM response cache
+        self._llm_response_cache = LlmResponseCache(self._pool)
+        await self._llm_response_cache.ensure_table()
+        logger.info("LLM response cache initialized")
+
         self._last_config_check = time.monotonic()
         self.initialized = True
         logger.info("RagService initialized")
+
+    @property
+    def embedding_service(self) -> EmbeddingService | None:
+        return self._embedding_service
+
+    @property
+    def llm_response_cache(self) -> LlmResponseCache | None:
+        return self._llm_response_cache
 
     def _maybe_refresh_clients(self) -> None:
         """Check provider config freshness; rebuild clients if changed.

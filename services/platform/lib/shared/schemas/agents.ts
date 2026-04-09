@@ -51,8 +51,8 @@ export const agentJsonSchema = z.object({
   conversationStarters: z.array(z.string().max(200)).max(4).optional(),
   visibleInChat: z.boolean().optional(),
   responseCacheEnabled: z.boolean().optional(),
-  responseCacheTtlMs: z.number().int().min(1000).optional(),
-  noCacheToolNames: z.array(z.string()).optional(),
+  responseCacheTtlMs: z.number().int().min(1000).max(604_800_000).optional(),
+  noCacheToolNames: z.array(z.string().min(1)).optional(),
   i18n: z
     .record(
       z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/),

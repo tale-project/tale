@@ -919,7 +919,7 @@
         "webSearchHintLink": "Websites verwalten",
         "cacheExclusions": "Cache-Ausschlüsse",
         "cacheExclusionsDescription": "Wenn eines dieser Tools aufgerufen wird, wird die Antwort nicht zwischengespeichert",
-        "noCacheToolsEmpty": "Aktivieren Sie Tools, um Cache-Ausschlüsse zu konfigurieren",
+        "noCacheToolsEmpty": "Aktiviere Response-Caching-Tools, um Ausschlüsse zu konfigurieren",
         "toolsSaved": "Tool-Einstellungen gespeichert",
         "toolsSaveFailed": "Tool-Einstellungen konnten nicht gespeichert werden",
         "webModeSaved": "Websuch-Einstellungen gespeichert",

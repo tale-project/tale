@@ -43,6 +43,10 @@ import {
 import { wrapInDetails } from '../context_management/message_formatter';
 import { createDebugLog } from '../debug_log';
 import { computeCacheKey } from '../response_cache/cache_key';
+import {
+  lookupSemanticCache,
+  storeSemanticCache,
+} from '../response_cache/semantic_cache';
 import { areAllToolsCacheable } from '../response_cache/tool_cacheability';
 import { resolveTemplateVariables } from './resolve_template_variables';
 import { STRUCTURED_RESPONSE_INSTRUCTIONS } from './structured_response_instructions';
@@ -599,9 +603,11 @@ export async function generateAgentResponse(
       : structuredThreadContext.threadContext;
 
     // ── Response cache lookup ──
-    // Use raw instructions (before template variable resolution) + threadContext
-    // so that time-varying variables like {{current_time}} don't bust the cache.
-    const cacheEnabled = responseCacheEnabled !== false;
+    // Only cache when explicitly enabled and temperature is 0 (deterministic).
+    const temperature = generationParams?.temperature;
+    const cacheEnabled =
+      responseCacheEnabled === true &&
+      (temperature === 0 || temperature === undefined);
     const cacheKey = cacheEnabled
       ? computeCacheKey({
           agentName: agentType,
@@ -614,10 +620,24 @@ export async function generateAgentResponse(
       : undefined;
 
     if (cacheKey) {
-      const cached = await ctx.runQuery(
-        internal.lib.response_cache.internal_queries.lookupCache,
-        { cacheKey },
-      );
+      let cached: {
+        responseText: string;
+        model: string;
+        provider?: string;
+        usage?: {
+          inputTokens?: number;
+          outputTokens?: number;
+          totalTokens?: number;
+        };
+      } | null = null;
+      try {
+        cached = await ctx.runQuery(
+          internal.lib.response_cache.internal_queries.lookupCache,
+          { cacheKey },
+        );
+      } catch (err) {
+        debugLog('CACHE_LOOKUP_ERROR', { error: String(err), cacheKey });
+      }
       if (cached) {
         debugLog('CACHE_HIT', { cacheKey, threadId });
 
@@ -629,18 +649,25 @@ export async function generateAgentResponse(
 
         // Write to persistent stream so frontend receives the response
         if (streamId) {
-          await ctx.runMutation(
-            internal.streaming.internal_mutations.appendToStream,
-            { streamId, text: cached.responseText },
-          );
-          await ctx.runMutation(
-            internal.streaming.internal_mutations.completeStream,
-            { streamId },
-          );
-          await ctx.runMutation(
-            internal.threads.internal_mutations.clearGenerationStatus,
-            { threadId, streamId },
-          );
+          try {
+            await ctx.runMutation(
+              internal.streaming.internal_mutations.appendToStream,
+              { streamId, text: cached.responseText },
+            );
+            await ctx.runMutation(
+              internal.streaming.internal_mutations.completeStream,
+              { streamId },
+            );
+            await ctx.runMutation(
+              internal.threads.internal_mutations.clearGenerationStatus,
+              { threadId, streamId },
+            );
+          } catch (err) {
+            debugLog('CACHE_HIT_STREAM_ERROR', {
+              error: String(err),
+              streamId,
+            });
+          }
         }
 
         const durationMs = Date.now() - startTime;
@@ -672,7 +699,84 @@ export async function generateAgentResponse(
           },
         });
 
+        abortWatcher?.stop();
         return cachedResult;
+      }
+    }
+
+    // ── Semantic cache lookup (RAG service) ──
+    // lookupSemanticCache has built-in try/catch and graceful degradation
+    const userMessageStr = typeof promptToSend === 'string' ? promptToSend : '';
+    if (cacheEnabled && userMessageStr) {
+      const semanticHit = await lookupSemanticCache({
+        agentName: agentType,
+        model,
+        userMessage: userMessageStr,
+      });
+      if (semanticHit) {
+        debugLog('SEMANTIC_CACHE_HIT', {
+          threadId,
+          similarity: semanticHit.similarity,
+        });
+
+        const { messageId } = await saveMessage(ctx, components.agent, {
+          threadId,
+          message: { role: 'assistant', content: semanticHit.responseText },
+        });
+
+        if (streamId) {
+          try {
+            await ctx.runMutation(
+              internal.streaming.internal_mutations.appendToStream,
+              { streamId, text: semanticHit.responseText },
+            );
+            await ctx.runMutation(
+              internal.streaming.internal_mutations.completeStream,
+              { streamId },
+            );
+            await ctx.runMutation(
+              internal.threads.internal_mutations.clearGenerationStatus,
+              { threadId, streamId },
+            );
+          } catch (err) {
+            debugLog('SEMANTIC_CACHE_HIT_STREAM_ERROR', {
+              error: String(err),
+              streamId,
+            });
+          }
+        }
+
+        const durationMs = Date.now() - startTime;
+        const semanticResult: GenerateResponseResult = {
+          threadId,
+          text: semanticHit.responseText,
+          savedMessageId: messageId,
+          usage: semanticHit.usage ?? undefined,
+          finishReason: 'cached',
+          durationMs,
+          model,
+          provider: semanticHit.provider ?? provider,
+        };
+
+        if (hooks?.afterGenerate) {
+          await hooks.afterGenerate(ctx, args, semanticResult, hookData);
+        }
+        await onAgentComplete(ctx, {
+          threadId,
+          agentType,
+          result: {
+            threadId,
+            messageId,
+            text: semanticHit.responseText,
+            model,
+            provider: semanticHit.provider ?? provider,
+            usage: semanticResult.usage,
+            durationMs,
+          },
+        });
+
+        abortWatcher?.stop();
+        return semanticResult;
       }
     }
 
@@ -1307,13 +1411,41 @@ export async function generateAgentResponse(
     if (cacheKey && result.text?.trim()) {
       const calledToolNames = toolCalls.map((tc) => tc.toolName);
       if (areAllToolsCacheable(calledToolNames, noCacheToolNames)) {
-        await ctx.runMutation(
-          internal.lib.response_cache.internal_mutations.storeCache,
-          {
-            cacheKey,
-            responseText: result.text,
+        try {
+          await ctx.runMutation(
+            internal.lib.response_cache.internal_mutations.storeCache,
+            {
+              cacheKey,
+              responseText: result.text,
+              model: result.response?.modelId ?? model,
+              provider,
+              usage: result.usage
+                ? {
+                    inputTokens: result.usage.inputTokens,
+                    outputTokens: result.usage.outputTokens,
+                    totalTokens: result.usage.totalTokens,
+                  }
+                : undefined,
+              organizationId,
+              agentSlug: agentType,
+              ttlMs: responseCacheTtlMs,
+            },
+          );
+          debugLog('CACHE_STORE', { cacheKey, threadId });
+        } catch (err) {
+          debugLog('CACHE_STORE_ERROR', { error: String(err), cacheKey });
+        }
+
+        // Also store in semantic cache (fire-and-forget)
+        const storeUserMessage =
+          typeof promptToSend === 'string' ? promptToSend : '';
+        if (storeUserMessage) {
+          void storeSemanticCache({
+            agentName: agentType,
             model: result.response?.modelId ?? model,
-            provider,
+            userMessage: storeUserMessage,
+            responseText: result.text,
+            provider: provider ?? undefined,
             usage: result.usage
               ? {
                   inputTokens: result.usage.inputTokens,
@@ -1321,12 +1453,10 @@ export async function generateAgentResponse(
                   totalTokens: result.usage.totalTokens,
                 }
               : undefined,
+            userId: userId ?? undefined,
             organizationId,
-            agentSlug: agentType,
-            ttlMs: responseCacheTtlMs,
-          },
-        );
-        debugLog('CACHE_STORE', { cacheKey, threadId });
+          });
+        }
       }
     }
 
@@ -2057,6 +2187,7 @@ function needsToolResultRetry(
  */
 const NON_RETRYABLE_FINISH_REASONS = new Set([
   'stop',
+  'cached',
   'cancelled',
   'content-filter',
   'error',

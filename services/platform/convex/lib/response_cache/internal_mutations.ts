@@ -4,7 +4,6 @@ import { internal } from '../../_generated/api';
 import { internalMutation } from '../../_generated/server';
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
-const ONE_HOUR_MS = 60 * 60 * 1000;
 const PURGE_BATCH_SIZE = 100;
 
 export const storeCache = internalMutation({
@@ -58,13 +57,6 @@ export const storeCache = internalMutation({
         expiresAt: now + ttlMs,
       });
     }
-
-    // Schedule cleanup after 1 hour — naturally rate-limited by the delay
-    await ctx.scheduler.runAfter(
-      ONE_HOUR_MS,
-      internal.lib.response_cache.internal_mutations.purgeExpired,
-      {},
-    );
   },
 });
 
@@ -78,6 +70,14 @@ export const purgeExpired = internalMutation({
       .take(PURGE_BATCH_SIZE);
     for (const entry of expired) {
       await ctx.db.delete(entry._id);
+    }
+    // Self-reschedule if batch was full (more entries may remain)
+    if (expired.length === PURGE_BATCH_SIZE) {
+      await ctx.scheduler.runAfter(
+        1000,
+        internal.lib.response_cache.internal_mutations.purgeExpired,
+        {},
+      );
     }
   },
 });

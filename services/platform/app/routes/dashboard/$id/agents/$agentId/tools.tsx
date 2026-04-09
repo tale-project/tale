@@ -107,7 +107,7 @@ function ToolsTab() {
         hiddenTools={hiddenTools}
       />
 
-      <CacheExclusionsSection />
+      {config.responseCacheEnabled === true && <CacheExclusionsSection />}
     </ContentArea>
   );
 }
@@ -145,6 +145,7 @@ function CacheExclusionsSection() {
         </Text>
       ) : (
         <CheckboxGroup
+          label={t('agents.tools.cacheExclusions')}
           options={options}
           value={noCacheToolNames}
           onValueChange={handleChange}

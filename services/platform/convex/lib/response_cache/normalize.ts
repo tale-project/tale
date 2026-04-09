@@ -1,13 +1,9 @@
 /**
  * Text normalization for response cache keys.
  *
- * Normalizes text so that queries differing only in casing,
- * punctuation, or whitespace map to the same cache key.
+ * Only collapses whitespace — punctuation and casing are preserved
+ * to avoid false cache hits (e.g. "C++" vs "C", JSON vs plain text).
  */
 export function normalizeForCache(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s]/gu, ' ') // punctuation → space (preserves Unicode letters & digits)
-    .replace(/\s+/g, ' ') // collapse whitespace
-    .trim();
+  return text.replace(/\s+/g, ' ').trim();
 }
