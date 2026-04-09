@@ -211,6 +211,21 @@ export const getThreadBranches = query({
   },
 });
 
+export const getThreadBranchSelections = query({
+  args: { threadId: v.string() },
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) return null;
+
+    const metadata = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
+      .first();
+
+    return metadata?.branchSelections ?? null;
+  },
+});
+
 export const getThreadShareStatus = query({
   args: { threadId: v.string() },
   handler: async (ctx, args) => {

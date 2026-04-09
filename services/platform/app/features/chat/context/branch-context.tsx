@@ -7,9 +7,12 @@ import {
   useState,
   useCallback,
   useMemo,
+  useEffect,
+  useRef,
   type ReactNode,
 } from 'react';
 
+import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { api } from '@/convex/_generated/api';
 
 interface ThreadBranch {
@@ -22,21 +25,11 @@ interface ThreadBranch {
 }
 
 interface BranchContextValue {
-  /** The original thread ID from the URL. */
   rootThreadId: string | undefined;
-  /** The thread ID to actually load data from (may differ from rootThreadId on a branch). */
   activeBranchThreadId: string | undefined;
-  /** All branches for this root thread. */
   branches: ThreadBranch[];
-  /**
-   * Current branch selections: forkOrder (as string) → chosen branchThreadId.
-   * forkOrder is the message order of the edited user message — it's stable across
-   * cloned threads (unlike message IDs which change on clone).
-   */
   branchSelections: Record<string, string>;
-  /** Switch to a different branch at a fork point. Pass null to go back to the parent. */
   switchBranch: (forkOrder: string, branchThreadId: string | null) => void;
-  /** Select a newly created branch (called after editAndBranch succeeds). */
   selectNewBranch: (forkOrder: string, branchThreadId: string) => void;
 }
 
@@ -58,8 +51,6 @@ interface BranchProviderProps {
 /**
  * Resolves the active branch thread ID by walking the branch chain
  * from the root thread through the user's branch selections.
- *
- * Selections are keyed by forkOrder (the message order of the edited user message).
  */
 function resolveActiveBranch(
   rootThreadId: string | undefined,
@@ -70,7 +61,6 @@ function resolveActiveBranch(
 
   let currentThreadId = rootThreadId;
 
-  // Walk through selections: at each fork point, follow the selected branch
   let changed = true;
   while (changed) {
     changed = false;
@@ -94,6 +84,62 @@ export function BranchProvider({ threadId, children }: BranchProviderProps) {
   const [branchSelections, setBranchSelections] = useState<
     Record<string, string>
   >({});
+  const initializedRef = useRef(false);
+
+  // Load persisted branch selections from DB
+  const persistedSelections = useQuery(
+    api.threads.queries.getThreadBranchSelections,
+    threadId ? { threadId } : 'skip',
+  );
+
+  // Initialize from persisted data once on load
+  useEffect(() => {
+    if (persistedSelections && !initializedRef.current) {
+      try {
+        const parsed: unknown = JSON.parse(persistedSelections);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          const selections: Record<string, string> = {};
+          const entries = Object.entries(
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validated as object above
+            parsed as Record<string, unknown>,
+          );
+          for (const [key, val] of entries) {
+            if (typeof val === 'string') selections[key] = val;
+          }
+          setBranchSelections(selections);
+        }
+      } catch {
+        // ignore invalid JSON
+      }
+      initializedRef.current = true;
+    }
+  }, [persistedSelections]);
+
+  // Reset when thread changes
+  useEffect(() => {
+    initializedRef.current = false;
+    setBranchSelections({});
+  }, [threadId]);
+
+  // Persist branch selections to DB
+  const { mutate: updateBranchSelections } = useConvexMutation(
+    api.threads.mutations.updateBranchSelections,
+  );
+  const persistTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const persistSelections = useCallback(
+    (selections: Record<string, string>) => {
+      if (!threadId) return;
+      if (persistTimeoutRef.current) clearTimeout(persistTimeoutRef.current);
+      persistTimeoutRef.current = setTimeout(() => {
+        updateBranchSelections({
+          threadId,
+          branchSelections: JSON.stringify(selections),
+        });
+      }, 300);
+    },
+    [threadId, updateBranchSelections],
+  );
 
   const rawBranches =
     useQuery(
@@ -101,8 +147,6 @@ export function BranchProvider({ threadId, children }: BranchProviderProps) {
       threadId ? { rootThreadId: threadId } : 'skip',
     ) ?? [];
 
-  // Stabilize branch array reference — useQuery returns new arrays each render.
-  // Compare by serialized content so downstream useMemo/useCallback deps don't thrash.
   const branchesKey = JSON.stringify(rawBranches);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const branches = useMemo(() => rawBranches, [branchesKey]);
@@ -115,24 +159,29 @@ export function BranchProvider({ threadId, children }: BranchProviderProps) {
   const switchBranch = useCallback(
     (forkOrder: string, branchThreadId: string | null) => {
       setBranchSelections((prev) => {
+        let next: Record<string, string>;
         if (branchThreadId === null) {
           const { [forkOrder]: _, ...rest } = prev;
-          return rest;
+          next = rest;
+        } else {
+          next = { ...prev, [forkOrder]: branchThreadId };
         }
-        return { ...prev, [forkOrder]: branchThreadId };
+        persistSelections(next);
+        return next;
       });
     },
-    [],
+    [persistSelections],
   );
 
   const selectNewBranch = useCallback(
     (forkOrder: string, branchThreadId: string) => {
-      setBranchSelections((prev) => ({
-        ...prev,
-        [forkOrder]: branchThreadId,
-      }));
+      setBranchSelections((prev) => {
+        const next = { ...prev, [forkOrder]: branchThreadId };
+        persistSelections(next);
+        return next;
+      });
     },
-    [],
+    [persistSelections],
   );
 
   const value = useMemo(

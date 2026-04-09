@@ -13,45 +13,65 @@ interface BranchNavigatorProps {
 }
 
 /**
- * Renders a `< 2 / 3 >` branch navigator at a fork point in the message list.
+ * Renders a `< 2 / 3 >` branch navigator at a fork point.
  *
- * Finds all branches at this forkOrder regardless of which thread is currently active.
+ * Determines the correct parent thread for this fork point:
+ * - If the active thread IS a branch at this forkOrder → parent is that branch's parent
+ * - Otherwise → parent is the active thread itself (it has child branches here)
+ *
  * The "original" parent counts as option 0, each branch is 1+.
  */
 export function BranchNavigator({ forkOrder }: BranchNavigatorProps) {
   const ctx = useBranchContext();
-
   const forkOrderKey = String(forkOrder);
 
-  // Find all branches at this fork point. Look for branches whose forkOrder matches,
-  // regardless of parentThreadId — this ensures the navigator works on both
-  // the original thread and any branch thread.
+  // Determine the parent thread for this fork point.
+  // If we're viewing a branch that was forked at this order, use ITS parent.
+  // Otherwise, the current thread is the parent.
+  const forkParentThreadId = useMemo(() => {
+    const currentAsBranch = ctx.branches.find(
+      (b) =>
+        b.branchThreadId === ctx.activeBranchThreadId &&
+        b.forkOrder === forkOrder,
+    );
+    return currentAsBranch
+      ? currentAsBranch.parentThreadId
+      : ctx.activeBranchThreadId;
+  }, [ctx.branches, ctx.activeBranchThreadId, forkOrder]);
+
+  // Find sibling branches at this fork point (same parent + same forkOrder)
   const siblings = useMemo(
     () =>
       ctx.branches
-        .filter((b) => b.forkOrder === forkOrder)
+        .filter(
+          (b) =>
+            b.parentThreadId === forkParentThreadId &&
+            b.forkOrder === forkOrder,
+        )
         .sort((a, b) => a.branchIndex - b.branchIndex),
-    [ctx.branches, forkOrder],
+    [ctx.branches, forkParentThreadId, forkOrder],
   );
 
-  // Total options: original parent (0) + branches
   const totalCount = siblings.length + 1;
 
-  // Determine current index based on which thread is active.
-  // If we're viewing one of the branch threads, find its index.
-  // Otherwise we're on the original (index 0).
+  // Current index: 0 = parent (original), 1+ = branch
   const currentIndex = useMemo(() => {
-    const activeId = ctx.activeBranchThreadId;
-    if (!activeId) return 0;
-    const idx = siblings.findIndex((b) => b.branchThreadId === activeId);
+    if (
+      !ctx.activeBranchThreadId ||
+      ctx.activeBranchThreadId === forkParentThreadId
+    ) {
+      return 0;
+    }
+    const idx = siblings.findIndex(
+      (b) => b.branchThreadId === ctx.activeBranchThreadId,
+    );
     return idx >= 0 ? idx + 1 : 0;
-  }, [ctx.activeBranchThreadId, siblings]);
+  }, [ctx.activeBranchThreadId, forkParentThreadId, siblings]);
 
   const handlePrev = useCallback(() => {
     if (currentIndex <= 0) return;
     const newIndex = currentIndex - 1;
     if (newIndex === 0) {
-      // Go back to the original parent thread
       ctx.switchBranch(forkOrderKey, null);
     } else {
       const branch = siblings[newIndex - 1];
@@ -72,7 +92,7 @@ export function BranchNavigator({ forkOrder }: BranchNavigatorProps) {
   if (totalCount <= 1) return null;
 
   return (
-    <div className="flex items-center justify-end gap-0.5 py-0.5">
+    <div className="flex items-center gap-0.5">
       <Button
         variant="ghost"
         size="icon"

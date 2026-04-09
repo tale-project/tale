@@ -225,8 +225,9 @@ export function ChatInterface({
     if (!container || !content) return undefined;
 
     const onContentChange = () => {
-      // Skip auto-scroll during branch switches to preserve scroll position
-      if (suppressAutoScrollRef.current) {
+      // During branch switch: override all scroll behavior with saved position
+      if (branchScrollSaveRef.current !== null) {
+        container.scrollTop = branchScrollSaveRef.current;
         setShowScrollButton(!isAtBottom());
         return;
       }
@@ -292,27 +293,29 @@ export function ChatInterface({
     });
   }, [threadId, messages.length, containerRef]);
 
-  // Suppress auto-scroll during branch switches.
-  // When dataThreadId changes but URL threadId stays the same, it's a branch switch —
-  // the viewport should stay at the same scroll position instead of jumping.
-  const suppressAutoScrollRef = useRef(false);
+  // Preserve scroll position during branch switches.
+  // Save scrollTop synchronously during render when dataThreadId changes.
+  // The saved value is kept and restored on every onContentChange call
+  // until cleared by a timeout (to handle multiple ResizeObserver fires).
+  const branchScrollSaveRef = useRef<number | null>(null);
+  const branchScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const prevDataThreadIdRef = useRef(dataThreadId);
-  useEffect(() => {
-    if (
-      prevDataThreadIdRef.current !== dataThreadId &&
-      prevDataThreadIdRef.current !== undefined
-    ) {
-      suppressAutoScrollRef.current = true;
-      // Clear suppression after a short delay (enough for one render cycle)
-      const timer = setTimeout(() => {
-        suppressAutoScrollRef.current = false;
-      }, 500);
-      prevDataThreadIdRef.current = dataThreadId;
-      return () => clearTimeout(timer);
-    }
-    prevDataThreadIdRef.current = dataThreadId;
-    return undefined;
-  }, [dataThreadId]);
+  if (
+    prevDataThreadIdRef.current !== dataThreadId &&
+    prevDataThreadIdRef.current !== undefined
+  ) {
+    branchScrollSaveRef.current = containerRef.current?.scrollTop ?? null;
+    // Clear after content settles
+    if (branchScrollTimerRef.current)
+      clearTimeout(branchScrollTimerRef.current);
+    branchScrollTimerRef.current = setTimeout(() => {
+      branchScrollSaveRef.current = null;
+      branchScrollTimerRef.current = null;
+    }, 2000);
+  }
+  prevDataThreadIdRef.current = dataThreadId;
 
   // Load-more scroll preservation: keep viewport stable when older messages prepend
   const handleLoadMore = useCallback(

@@ -122,7 +122,7 @@ export function ChatMessages({
   onEditMessage,
 }: ChatMessagesProps) {
   const { t } = useT('chat');
-  const { branches } = useBranchContext();
+  const { branches, activeBranchThreadId } = useBranchContext();
   const responseAreaRef = useRef<HTMLDivElement>(null);
 
   // Split items: find the last user message index for layout purposes.
@@ -204,14 +204,23 @@ export function ChatMessages({
     };
   }, [containerRef, lastUserMessageRef]);
 
-  // Build a set of forkOrder values that have branches (for showing BranchNavigator).
-  // forkOrder is the message order of the edited user message — stable across cloned threads.
-  // Include ALL branches (not just from the current thread) so the navigator is visible
-  // even when viewing a branch thread — this allows switching back to the original.
-  const forkPointOrders = useMemo(
-    () => new Set(branches.map((b) => b.forkOrder)),
-    [branches],
-  );
+  // Build a set of forkOrder values where branch navigators should appear.
+  // Two cases:
+  // 1. Current thread has child branches → show navigator at child's forkOrder
+  // 2. Current thread IS a branch → show navigator at its own forkOrder (to switch siblings)
+  const forkPointOrders = useMemo(() => {
+    if (!activeBranchThreadId) return new Set<number>();
+    const orders = new Set<number>();
+    for (const b of branches) {
+      if (b.parentThreadId === activeBranchThreadId) {
+        orders.add(b.forkOrder);
+      }
+      if (b.branchThreadId === activeBranchThreadId) {
+        orders.add(b.forkOrder);
+      }
+    }
+    return orders;
+  }, [branches, activeBranchThreadId]);
 
   const renderMessage = (item: ChatItem) => {
     if (item.type !== 'message') return null;
