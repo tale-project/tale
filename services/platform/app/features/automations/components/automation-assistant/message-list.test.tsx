@@ -8,6 +8,7 @@ import type {
   WorkflowUpdateApproval,
 } from '@/app/features/chat/hooks/queries';
 import type { Id } from '@/convex/_generated/dataModel';
+import { checkAccessibility } from '@/test/utils/a11y';
 import { render, screen } from '@/test/utils/render';
 
 import { MessageList } from './message-list';
@@ -229,6 +230,21 @@ describe('MessageList', () => {
       expect(
         screen.queryByTestId('workflow_update_approval-approval-older-ap'),
       ).not.toBeInTheDocument();
+    });
+  });
+
+  describe('accessibility', () => {
+    it('passes axe audit', async () => {
+      const message = createMessage({ id: 'msg-a11y', content: 'Hello' });
+      const { container } = render(
+        <MessageList
+          {...defaultProps}
+          displayMessages={[message]}
+          workflowUpdateApprovals={[]}
+          workflowCreationApprovals={[]}
+        />,
+      );
+      await checkAccessibility(container);
     });
   });
 });

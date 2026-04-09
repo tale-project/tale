@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { checkAccessibility } from '@/test/utils/a11y';
 import { render, screen, waitFor } from '@/test/utils/render';
 
 import { AutomationRenameDialog } from './automation-rename-dialog';
@@ -86,5 +87,14 @@ describe('AutomationRenameDialog', () => {
 
     // Dialog should NOT have been closed
     expect(defaultProps.onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+
+  describe('accessibility', () => {
+    it('passes axe audit', async () => {
+      const { container } = render(
+        <AutomationRenameDialog {...defaultProps} />,
+      );
+      await checkAccessibility(container);
+    });
   });
 });

@@ -2,7 +2,8 @@ import { RenderResult } from '@testing-library/react';
 import { axe } from 'vitest-axe';
 
 /**
- * Run axe accessibility audit on a container
+ * Run axe accessibility audit on a container.
+ * Checks WCAG 2.1 AA rules by default.
  */
 export async function checkAccessibility(
   container: Element | RenderResult,
@@ -17,6 +18,12 @@ export async function checkAccessibility(
       'button-name': { enabled: true },
       'link-name': { enabled: true },
       'image-alt': { enabled: true },
+      'aria-allowed-attr': { enabled: true },
+      'aria-required-attr': { enabled: true },
+      'aria-valid-attr-value': { enabled: true },
+      'heading-order': { enabled: true },
+      'duplicate-id-aria': { enabled: true },
+      tabindex: { enabled: true },
     },
     ...options,
   });

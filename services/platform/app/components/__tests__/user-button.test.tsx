@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 
+import { checkAccessibility } from '@/test/utils/a11y';
 import { render, screen } from '@/test/utils/render';
 
 import { UserButton } from '../user-button';
@@ -187,5 +188,16 @@ describe('UserButton', () => {
     mockTeamFilter = null;
     const { container } = render(<UserButton />);
     expect(getDropdownTrigger(container)).toBeInTheDocument();
+  });
+
+  describe('accessibility', () => {
+    it('passes axe audit', async () => {
+      const { container } = render(<UserButton />);
+      // Disable aria-allowed-attr: Radix mocks render <div> with
+      // aria-haspopup/aria-expanded which axe flags without a proper role.
+      await checkAccessibility(container, {
+        rules: { 'aria-allowed-attr': { enabled: false } },
+      });
+    });
   });
 });

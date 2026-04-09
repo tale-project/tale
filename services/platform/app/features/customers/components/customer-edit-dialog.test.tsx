@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { checkAccessibility } from '@/test/utils/a11y';
 import { render, screen, waitFor } from '@/test/utils/render';
 
 import { CustomerEditDialog } from './customer-edit-dialog';
@@ -142,5 +143,18 @@ describe('CustomerEditDialog', () => {
     });
 
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+
+  describe('accessibility', () => {
+    it('passes axe audit', async () => {
+      const { container } = render(
+        <CustomerEditDialog
+          customer={makeCustomer({ name: 'John' })}
+          isOpen={true}
+          onOpenChange={vi.fn()}
+        />,
+      );
+      await checkAccessibility(container);
+    });
   });
 });

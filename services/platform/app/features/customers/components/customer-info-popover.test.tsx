@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { render, screen } from '@/test/utils/render';
+import { checkAccessibility } from '@/test/utils/a11y';
+import { render, screen, act } from '@/test/utils/render';
 
 import { CustomerInfoPopover } from './customer-info-popover';
 
@@ -89,5 +90,16 @@ describe('CustomerInfoPopover', () => {
     renderPopover({ customer: makeCustomerDoc({ source: undefined }) });
 
     expect(screen.getByText('Sarah Johnson')).toBeInTheDocument();
+  });
+
+  describe('accessibility', () => {
+    it('passes axe audit', async () => {
+      let container!: HTMLElement;
+      await act(async () => {
+        const result = renderPopover();
+        container = result.container;
+      });
+      await checkAccessibility(container);
+    });
   });
 });

@@ -3,6 +3,8 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, fireEvent } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { checkAccessibility } from '@/test/utils/a11y';
+
 vi.mock('@/lib/i18n/client', () => ({
   useT: (ns: string) => ({
     t: (key: string) => `${ns}.${key}`,
@@ -93,5 +95,12 @@ describe('UploadFileRow', () => {
     const row = container.firstChild;
     expect(row).toHaveClass('bg-red-50');
     expect(row).toHaveClass('border-red-200');
+  });
+
+  describe('accessibility', () => {
+    it('passes axe audit', async () => {
+      const { container } = render(<UploadFileRow {...baseProps} />);
+      await checkAccessibility(container);
+    });
   });
 });

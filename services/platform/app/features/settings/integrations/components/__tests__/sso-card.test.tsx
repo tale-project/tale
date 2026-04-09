@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { SsoProvider } from '@/lib/shared/schemas/sso_providers';
+import { checkAccessibility } from '@/test/utils/a11y';
 
 import { SSOCard } from '../sso-card';
 
@@ -70,5 +71,14 @@ describe('SSOCard', () => {
     render(<SSOCard organizationId="org-1" ssoProvider={null} />);
     await user.click(screen.getByRole('button'));
     expect(screen.getByTestId('sso-dialog')).toBeInTheDocument();
+  });
+
+  describe('accessibility', () => {
+    it('passes axe audit', async () => {
+      const { container } = render(
+        <SSOCard organizationId="org-1" ssoProvider={null} />,
+      );
+      await checkAccessibility(container);
+    });
   });
 });

@@ -566,6 +566,7 @@ export function DataTable<TData, TValue = unknown>({
                     rowClassNameValue,
                   )}
                   data-state={row.getIsSelected() ? 'selected' : undefined}
+                  aria-selected={row.getIsSelected() || undefined}
                   onMouseEnter={() => onRowMouseEnter?.(row)}
                   onClick={() => {
                     if (enableExpanding) {

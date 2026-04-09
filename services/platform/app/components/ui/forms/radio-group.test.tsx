@@ -165,14 +165,15 @@ describe('RadioGroup', () => {
       await checkAccessibility(container);
     });
 
-    it('radio buttons are focusable', () => {
-      render(
+    it('radio buttons are focusable', async () => {
+      const { user } = render(
         <RadioGroup
           defaultValue="a"
           options={[{ value: 'a', label: 'Option A' }]}
         />,
       );
       const radio = screen.getByRole('radio');
+      await user.click(radio);
       expectFocusable(radio);
     });
 

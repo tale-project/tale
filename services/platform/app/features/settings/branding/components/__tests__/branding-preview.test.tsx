@@ -3,6 +3,8 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, it, expect, vi } from 'vitest';
 
+import { checkAccessibility } from '@/test/utils/a11y';
+
 import { BrandingPreview } from '../branding-preview';
 
 // Mock Image component
@@ -123,5 +125,12 @@ describe('BrandingPreview', () => {
 
     const textLogo = screen.getByText('ACME');
     expect(textLogo).toHaveStyle({ color: '#FF0000' });
+  });
+
+  describe('accessibility', () => {
+    it('passes axe audit', async () => {
+      const { container } = render(<BrandingPreview data={{}} />);
+      await checkAccessibility(container);
+    });
   });
 });

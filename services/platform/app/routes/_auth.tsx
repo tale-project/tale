@@ -24,7 +24,9 @@ function AuthLayout() {
       <div className="px-4 pt-8 pb-16 sm:px-8 md:pb-32">
         <LogoLink href="/" />
       </div>
-      <Outlet />
+      <main id="main-content">
+        <Outlet />
+      </main>
       <Spacer />
     </VStack>
   );

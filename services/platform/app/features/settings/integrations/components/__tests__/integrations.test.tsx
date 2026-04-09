@@ -4,6 +4,8 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { checkAccessibility } from '@/test/utils/a11y';
+
 import type { IntegrationListItem } from '../integrations';
 import { Integrations } from '../integrations';
 
@@ -157,5 +159,16 @@ describe('Integrations', () => {
 
     await user.click(screen.getByText('integrations.tabs.connected'));
     expect(onTabChange).toHaveBeenCalledWith('connected');
+  });
+
+  describe('accessibility', () => {
+    it('passes axe audit', async () => {
+      const { container } = render(<Integrations {...defaultProps} />);
+      // Radix Tabs renders aria-controls referencing a lazy panel that
+      // doesn't exist in JSDOM, causing a false positive.
+      await checkAccessibility(container, {
+        rules: { 'aria-valid-attr-value': { enabled: false } },
+      });
+    });
   });
 });

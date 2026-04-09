@@ -166,16 +166,91 @@ for await (const product of products) {
 
 ## Accessibility (WCAG 2.1 Level AA)
 
-- ALWAYS CONSIDER semantic HTML elements (`<button>`, `<nav>`, `<main>`, `<header>`, `<footer>`, `<article>`, `<section>`).
+All UI must conform to [WCAG 2.1 Level AA](https://www.w3.org/TR/WCAG21/). The rules below apply to every component, page, and feature.
+
+### Semantic HTML and landmarks
+
+- USE semantic HTML elements (`<button>`, `<nav>`, `<main>`, `<header>`, `<footer>`, `<article>`, `<section>`).
+- ENSURE every page has exactly one `<main>` element. Use `<header>`, `<nav aria-label="...">`, `<aside>`, `<footer>` as appropriate.
+- INCLUDE a skip-to-main-content link as the first focusable element in the root layout. Use the `sr-only focus:not-sr-only` pattern.
+
+### Text alternatives and ARIA
+
 - ALWAYS provide text alternatives for non-text content (`alt` for images, `aria-label` for icon buttons).
+- ENSURE decorative images use `alt=""`. Complex images use `aria-describedby` pointing to a longer description.
+- ALWAYS use translation keys for `aria-label` values. Never hardcode English in ARIA attributes.
+
+### Keyboard and focus
+
 - ENSURE all interactive elements are keyboard accessible and have visible focus states.
+- ENSURE focus rings have at least 3:1 contrast against adjacent colors.
+- NEVER trap focus except in modal dialogs. Focus MUST return to the trigger element when a dialog closes.
+- ENSURE interactive elements have a minimum 24×24 CSS pixel touch target (WCAG 2.5.8). Prefer 44×44 for mobile.
+
+### Headings and structure
+
 - USE proper heading hierarchy (`h1` → `h2` → `h3`), never skip heading levels.
+- ENSURE each page has exactly one `h1`.
+
+### Forms
+
 - ALWAYS associate form labels with inputs using `htmlFor` or wrapping.
 - PROVIDE clear error messages that identify the field and describe how to fix the issue.
-- AVOID using color alone to convey information.
-- USE `aria-live` regions for dynamic content updates.
+- USE `aria-describedby` to link inputs to their descriptions and error messages.
+- USE `aria-invalid` on inputs with validation errors and `role="alert"` on error messages.
 
-### Accessible form example
+### Color and contrast
+
+- ENSURE all text meets 4.5:1 contrast ratio against its background. Large text (18pt+ or 14pt bold) must meet 3:1.
+- ENSURE non-text UI components and graphical objects meet 3:1 contrast.
+- AVOID using color alone to convey information.
+
+### Motion and animation
+
+- ENSURE all animations and transitions respect `prefers-reduced-motion: reduce`.
+- USE the `motion-reduce:` Tailwind prefix for CSS-driven animation overrides.
+
+### Tables
+
+- ENSURE data tables have a `<caption>` (can be visually hidden with `sr-only`).
+- USE `scope="col"` on `<th>` elements.
+- ENSURE selected rows have `aria-selected="true"`.
+
+### Live regions and dynamic content
+
+- USE `aria-live="polite"` for non-urgent updates (toast notifications, status changes).
+- USE `aria-live="assertive"` only for critical alerts.
+- USE `aria-atomic="true"` when the entire region should be re-read.
+
+### Dialogs and overlays
+
+- ENSURE all dialogs have a title (visible or wrapped in `VisuallyHidden`).
+- ENSURE focus is trapped inside open dialogs and returns to the trigger on close.
+
+### Loading states
+
+- USE `aria-busy="true"` on containers whose content is loading.
+- USE `role="status"` with `aria-label` for spinners.
+
+### Testing
+
+- EVERY UI component MUST have an `accessibility` describe block in its test file using `checkAccessibility()` from `@/test/utils/a11y`.
+- EVERY Storybook story is automatically audited via the `addon-a11y` plugin (WCAG 2.1 AA ruleset).
+
+### Examples
+
+#### Skip link
+
+```tsx
+<a
+  href="#main-content"
+  className="sr-only focus:not-sr-only focus:absolute focus:z-[100] focus:top-4 focus:left-4 focus:rounded-lg focus:bg-background focus:px-4 focus:py-2 focus:text-foreground focus:ring-2 focus:ring-ring"
+>
+  {t('aria.skipToContent')}
+</a>
+```
+
+#### Accessible form
 
 ```tsx
 <div>
@@ -190,6 +265,26 @@ for await (const product of products) {
     <span id="email-error" role="alert">
       Please enter a valid email address
     </span>
+  )}
+</div>
+```
+
+#### Table row selection
+
+```tsx
+<TableRow aria-selected={row.getIsSelected() || undefined}>
+  {/* row cells */}
+</TableRow>
+```
+
+#### Loading state
+
+```tsx
+<div aria-busy={isLoading}>
+  {isLoading ? (
+    <Spinner label={t('common.loading')} />
+  ) : (
+    <Content />
   )}
 </div>
 ```

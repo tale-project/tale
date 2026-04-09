@@ -8,6 +8,7 @@ import {
 import { LazyMotion, domAnimation } from 'framer-motion';
 
 import { BrandingProvider } from '@/app/components/branding/branding-provider';
+import { SkipLink } from '@/app/components/layout/skip-link';
 import { ThemeColorMeta } from '@/app/components/theme/theme-color-meta';
 import { ThemeProvider } from '@/app/components/theme/theme-provider';
 import { Toaster } from '@/app/components/ui/feedback/toaster';
@@ -36,6 +37,7 @@ function RootComponent() {
   return (
     <SiteUrlProvider>
       <HeadContent />
+      <SkipLink />
       <ConvexBetterAuthProvider
         client={convexQueryClient.convexClient}
         authClient={authClient}

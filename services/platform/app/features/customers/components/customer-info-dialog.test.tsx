@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { checkAccessibility } from '@/test/utils/a11y';
 import { render, screen } from '@/test/utils/render';
 
 import { CustomerInfoDialog } from './customer-info-dialog';
@@ -84,5 +85,18 @@ describe('CustomerInfoDialog', () => {
     );
 
     expect(screen.queryByText('Unknown Customer')).not.toBeInTheDocument();
+  });
+
+  describe('accessibility', () => {
+    it('passes axe audit', async () => {
+      const { container } = render(
+        <CustomerInfoDialog
+          customer={makeCustomerDoc()}
+          open={true}
+          onOpenChange={vi.fn()}
+        />,
+      );
+      await checkAccessibility(container);
+    });
   });
 });
