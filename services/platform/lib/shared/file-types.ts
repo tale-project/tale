@@ -463,7 +463,7 @@ export function getParseEndpoint(filename: string): string {
  * Returns an i18n key suffix for the file type display label.
  * Intended for use with `t('fileTypes.<key>')`.
  */
-export function getFileTypeLabelKey(mimeType: string): string {
+function getFileTypeLabelKey(mimeType: string): string {
   if (mimeType === MIME_TYPES.PDF) return 'pdf';
   if (mimeType.includes('word')) return 'doc';
   if (mimeType.includes('presentation') || mimeType.includes('powerpoint'))

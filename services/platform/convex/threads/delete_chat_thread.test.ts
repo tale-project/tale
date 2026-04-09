@@ -122,7 +122,7 @@ describe('deleteChatThread', () => {
 
     await deleteChatThread(ctx, 'parent_1');
 
-    expect(mockPatch).toHaveBeenCalledWith('meta_1', { status: 'archived' });
+    expect(mockPatch).toHaveBeenCalledWith('meta_1', { status: 'deleted' });
   });
 
   it('should not patch threadMetadata when not found', async () => {

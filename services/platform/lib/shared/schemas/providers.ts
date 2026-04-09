@@ -2,7 +2,7 @@ import { z } from 'zod/v4';
 
 const modelTagLiterals = ['chat', 'vision', 'embedding'] as const;
 const modelTagSchema = z.enum(modelTagLiterals);
-export type ModelTag = z.infer<typeof modelTagSchema>;
+type ModelTag = z.infer<typeof modelTagSchema>;
 
 const modelDefinitionSchema = z.object({
   id: z.string().min(1).max(200),
