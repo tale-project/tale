@@ -129,7 +129,7 @@ export function AgentNavigation({
       // Best-effort history snapshot — do not block save on failure
       await snapshotAction
         .mutateAsync({ orgSlug: 'default', agentName: agentId })
-        .catch(() => {});
+        .catch((err) => console.error('[agent history snapshot]', err));
 
       await saveAction.mutateAsync({
         orgSlug: 'default',
