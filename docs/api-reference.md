@@ -145,6 +145,149 @@ GET /api/v1/websites/{domain}/urls
 
 ## Platform API
 
-The Platform service exposes a public API at `/api/v1/*` for programmatic access to your data. Authenticate using an `x-api-key` header with a key from Settings > API Keys.
+The Platform service exposes a public API at `/api/v1/*` for programmatic access to your data. Authenticate using an API key from **Settings > API Keys**.
 
-Full API documentation: `https://yourdomain.com/api/v1/openapi.json`
+### OpenAI-compatible chat completions
+
+The platform provides an interface fully compatible with the [OpenAI Chat Completions API](https://platform.openai.com/docs/api-reference/chat). Any client or SDK that supports OpenAI (Python, Node, curl, LiteLLM, etc.) can connect by pointing `base_url` to your Tale instance.
+
+#### Quick start
+
+<CodeGroup>
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://your-tale-instance.com/api/v1",
+    api_key="tale_...",  # from Settings > API Keys
+    default_headers={"X-Organization-Slug": "default"},
+)
+
+response = client.chat.completions.create(
+    model="chat-agent",  # agent slug from your Agents page
+    messages=[{"role": "user", "content": "Hello!"}],
+)
+print(response.choices[0].message.content)
+```
+
+```typescript Node.js
+import OpenAI from "openai";
+
+const client = new OpenAI({
+  baseURL: "https://your-tale-instance.com/api/v1",
+  apiKey: "tale_...",
+  defaultHeaders: { "X-Organization-Slug": "default" },
+});
+
+const response = await client.chat.completions.create({
+  model: "chat-agent",
+  messages: [{ role: "user", content: "Hello!" }],
+});
+console.log(response.choices[0].message.content);
+```
+
+```bash curl
+curl https://your-tale-instance.com/api/v1/chat/completions \
+  -H "Authorization: Bearer tale_..." \
+  -H "X-Organization-Slug: default" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"chat-agent","messages":[{"role":"user","content":"Hello!"}]}'
+```
+
+</CodeGroup>
+
+#### Authentication
+
+All requests require a Bearer token in the `Authorization` header:
+
+```text
+Authorization: Bearer tale_...
+```
+
+Create API keys in **Settings > API Keys** in the platform UI.
+
+#### Headers
+
+| Header | Required | Description |
+| --- | --- | --- |
+| `Authorization` | Yes | `Bearer <api-key>` |
+| `X-Organization-Slug` | No | Organization slug. Auto-resolved if user belongs to one org. |
+| `X-Thread-Id` | No | Reuse a conversation thread across requests. |
+
+#### Endpoints
+
+##### POST /api/v1/chat/completions
+
+Send a chat message and receive a response. Supports streaming and tool calling.
+
+**Request body:**
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `model` | string | **Required.** Agent slug (e.g., `chat-agent`). |
+| `messages` | array | **Required.** Conversation messages with `role` and `content`. |
+| `stream` | boolean | Enable SSE streaming. Default: `false`. |
+| `temperature` | number | Sampling temperature (0–2). |
+| `max_tokens` | number | Maximum tokens to generate. |
+| `top_p` | number | Nucleus sampling parameter. |
+| `frequency_penalty` | number | Penalize repeated tokens. |
+| `presence_penalty` | number | Penalize tokens already present. |
+| `stop` | string or array | Stop sequences. |
+| `response_format` | object | Set `{"type": "json_object"}` for JSON mode. |
+| `tools` | array | Tool definitions for client-side tool calling. |
+| `tool_choice` | string or object | `"auto"`, `"required"`, `"none"`, or `{"type":"function","function":{"name":"..."}}`. |
+
+**Two modes:**
+
+- **Agent mode** (no `tools`): The agent uses its pre-configured server-side tools (RAG, web search, etc.) and auto-executes them. The response contains the final text.
+- **Client tool mode** (`tools` provided): Only the client-defined tools are available. The model returns `tool_calls` for the client to execute. Send results back with `role: "tool"` messages.
+
+**Tool calling example:**
+
+```python
+# Step 1: send tools
+response = client.chat.completions.create(
+    model="chat-agent",
+    messages=[{"role": "user", "content": "What's the weather?"}],
+    tools=[{
+        "type": "function",
+        "function": {
+            "name": "get_weather",
+            "description": "Get weather for a city",
+            "parameters": {
+                "type": "object",
+                "properties": {"city": {"type": "string"}},
+                "required": ["city"],
+            },
+        },
+    }],
+    tool_choice="required",
+)
+
+# Step 2: execute tool and send result
+tc = response.choices[0].message.tool_calls[0]
+messages = [
+    {"role": "user", "content": "What's the weather?"},
+    response.choices[0].message.model_dump(),
+    {"role": "tool", "tool_call_id": tc.id, "content": '{"temp": 20}'},
+]
+final = client.chat.completions.create(
+    model="chat-agent", messages=messages, tools=tools
+)
+print(final.choices[0].message.content)
+```
+
+##### GET /api/v1/models
+
+List available agents (models).
+
+```json
+{
+  "object": "list",
+  "data": [
+    {"id": "chat-agent", "object": "model", "owned_by": "default"},
+    {"id": "workflow-assistant", "object": "model", "owned_by": "default"}
+  ]
+}
+```
