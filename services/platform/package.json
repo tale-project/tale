@@ -74,7 +74,7 @@
     "@tanstack/react-router": "1.168.10",
     "@tanstack/react-table": "8.21.3",
     "@xyflow/react": "12.10.2",
-    "ai": "6.0.154",
+    "ai": "6.0.156",
     "base64-arraybuffer": "1.0.2",
     "bcryptjs": "3.0.3",
     "better-auth": "1.4.9",
