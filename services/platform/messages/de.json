@@ -1924,6 +1924,7 @@
     "templates": {
       "description": "Wähle eine Vorlage mit vorkonfigurierten Schritten.",
       "fetchError": "Vorlage konnte nicht geladen werden. Bitte versuche es erneut.",
+      "installFailed": "Automatisierung konnte nicht aus Vorlage erstellt werden",
       "fetching": "Vorlage wird geladen...",
       "noTemplates": "Keine Vorlagen für diese Integration verfügbar.",
       "newAutomation": "Neue Automatisierung",
