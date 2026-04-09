@@ -60,3 +60,31 @@ graph TD
 - Role-based access control from read-only Member to full Admin
 - SSO and integrations including Microsoft Entra ID, REST APIs, OneDrive sync, and SQL connectors
 - Production operations with zero-downtime deployments, Prometheus metrics, and Sentry error tracking
+- WCAG 2.1 Level AA accessibility across all pages and components
+
+## Accessibility
+
+Tale is built to conform to [WCAG 2.1 Level AA](https://www.w3.org/TR/WCAG21/). Every page and component is designed and tested against these standards so the platform is usable by everyone, including people who rely on assistive technologies.
+
+Key accessibility features:
+
+- **Keyboard navigation** — all interactive elements are reachable and operable via keyboard with visible focus indicators.
+- **Screen reader support** — semantic HTML landmarks (`<main>`, `<nav>`, `<header>`), proper heading hierarchy, ARIA labels, and live regions for dynamic content.
+- **Skip navigation** — a skip-to-main-content link lets keyboard users bypass repeated navigation.
+- **Color and contrast** — all text meets the 4.5:1 contrast ratio for normal text and 3:1 for large text. Information is never conveyed by color alone.
+- **Reduced motion** — all animations and transitions respect the `prefers-reduced-motion` user preference.
+- **Form accessibility** — labels are associated with inputs, error messages identify the field and describe how to fix the issue, and validation states are communicated via ARIA attributes.
+- **Dialogs and overlays** — focus is trapped inside open dialogs and returns to the trigger element on close.
+- **Touch targets** — interactive elements meet the minimum 24×24 CSS pixel target size.
+
+### Automated testing
+
+Accessibility compliance is enforced through automated tooling at multiple levels:
+
+| Layer | Tool | What it checks |
+| --- | --- | --- |
+| Linting | oxlint with jsx-a11y plugin (27 rules) | ARIA validity, semantic HTML, keyboard handlers, alt text |
+| Component tests | vitest-axe (`checkAccessibility`) | Axe-core WCAG 2.1 AA audit on rendered components |
+| Storybook | @storybook/addon-a11y | Visual a11y panel with WCAG 2.1 AA ruleset |
+
+The coding standards in `AGENTS.md` require every new UI component to include an accessibility test block using `checkAccessibility()` from the shared test utilities.
