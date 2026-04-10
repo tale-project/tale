@@ -229,6 +229,23 @@ export function MessageInfoDialog({
           label: t(`messageInfo.${key}`),
           value: <Text>{formatNumber(value, locale)}</Text>,
         })),
+      ...(metadata?.costEstimateCents != null
+        ? [
+            {
+              label: 'Cost',
+              value: (
+                <Text className="font-mono">
+                  {(() => {
+                    const dollars = metadata.costEstimateCents / 100;
+                    if (dollars === 0) return '$0.00';
+                    if (dollars >= 1) return `$${dollars.toFixed(2)}`;
+                    return `$${dollars.toPrecision(3)}`;
+                  })()}
+                </Text>
+              ),
+            },
+          ]
+        : []),
     ],
     [metadata, t, tCommon, locale],
   );
@@ -286,19 +303,6 @@ export function MessageInfoDialog({
             {perfItems.length > 0 && (
               <Field label={t('messageInfo.performance')}>
                 <StatGrid className="text-sm" items={perfItems} />
-              </Field>
-            )}
-
-            {metadata.costEstimateCents != null && (
-              <Field label="Estimated Cost">
-                <Text as="div" className="font-mono">
-                  {(() => {
-                    const dollars = metadata.costEstimateCents / 100;
-                    if (dollars === 0) return '$0.00';
-                    if (dollars >= 1) return `$${dollars.toFixed(2)}`;
-                    return `$${dollars.toPrecision(3)}`;
-                  })()}
-                </Text>
               </Field>
             )}
 
