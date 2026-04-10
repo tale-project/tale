@@ -155,9 +155,9 @@ describe('customerMappers.excel', () => {
   });
 });
 
-describe('productMappers.excel', () => {
+describe('productMappers.record', () => {
   it('parses record with lowercase keys', () => {
-    const result = productMappers.excel({
+    const result = productMappers.record({
       name: 'Widget',
       description: 'A fine widget',
       price: 9.99,
@@ -178,17 +178,17 @@ describe('productMappers.excel', () => {
   });
 
   it('falls back to title when name is missing', () => {
-    const result = productMappers.excel({ title: 'Gadget', price: 5 });
+    const result = productMappers.record({ title: 'Gadget', price: 5 });
     expect(result).toMatchObject({ name: 'Gadget' });
   });
 
   it('returns null when name and title are missing', () => {
-    const result = productMappers.excel({ description: 'orphan' });
+    const result = productMappers.record({ description: 'orphan' });
     expect(result).toBeNull();
   });
 
   it('defaults stock to 0, price to 0, currency to USD', () => {
-    const result = productMappers.excel({ name: 'Minimal' });
+    const result = productMappers.record({ name: 'Minimal' });
     expect(result).toMatchObject({
       stock: 0,
       price: 0,
@@ -197,7 +197,7 @@ describe('productMappers.excel', () => {
   });
 
   it('resolves imageurl key (normalized from ImageUrl/imageUrl)', () => {
-    const result = productMappers.excel({
+    const result = productMappers.record({
       name: 'Pic',
       imageurl: 'https://example.com/pic.png',
     });

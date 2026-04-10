@@ -227,22 +227,27 @@ export const productMappers = {
     const lowerValue = value.toLowerCase();
     return validStatuses.find((s) => s === lowerValue) ?? defaultStatus;
   },
-  csv: (row: string[], _index: number) => {
-    const name = row[0]?.trim();
-    if (!name) return null;
-
-    return {
-      name,
-      description: row[1]?.trim() || undefined,
-      imageUrl: row[2]?.trim() || undefined,
-      stock: row[3] ? parseInt(row[3], 10) : 0,
-      price: row[4] ? parseFloat(row[4]) : 0,
-      currency: row[5]?.trim() || 'USD',
-      category: row[6]?.trim() || undefined,
-      source: 'manual_import' as const,
-    };
+  /** Expected header names for product imports */
+  expectedHeaders: [
+    'name',
+    'description',
+    'imageurl',
+    'stock',
+    'price',
+    'currency',
+    'category',
+    'status',
+  ] as const,
+  /**
+   * CSV fallback mapper — only runs when headers are NOT detected.
+   * Returns null for every row so the import fails with a clear error
+   * instead of silently misaligning columns by position.
+   */
+  csv: (_row: string[], _index: number) => {
+    return null;
   },
-  excel: (record: Record<string, unknown>) => {
+  /** Record-based mapper used by both CSV (with headers) and Excel imports */
+  record: (record: Record<string, unknown>) => {
     const name = getString(record.name) || getString(record.title);
     if (!name) return null;
 

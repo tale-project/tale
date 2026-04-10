@@ -77,9 +77,9 @@ export function ProductsImportDialog({
     [],
   );
 
-  const excelMapper = useCallback(
+  const recordMapper = useCallback(
     (record: Record<string, unknown>): ParsedProduct | null => {
-      const result = productMappers.excel(record);
+      const result = productMappers.record(record);
       if (!result) return null;
 
       return {
@@ -90,22 +90,9 @@ export function ProductsImportDialog({
     [validateStatus],
   );
 
-  const csvMapper = useCallback(
-    (row: string[], index: number): ParsedProduct | null => {
-      const result = productMappers.csv(row, index);
-      if (!result) return null;
-
-      return {
-        ...result,
-        status: validateStatus(row[7]),
-      };
-    },
-    [validateStatus],
-  );
-
   const { parseFile } = useFileImport<ParsedProduct>({
-    csvMapper,
-    excelMapper,
+    csvMapper: productMappers.csv,
+    excelMapper: recordMapper,
   });
 
   const resetForm = useCallback(() => {

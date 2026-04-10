@@ -169,6 +169,7 @@ export function CustomerImportForm({
           </FileUpload.Root>
           <Text as="div" variant="caption" className="leading-relaxed">
             <ul className="list-outside list-disc space-y-2 pl-4">
+              <li>{t('importForm.expectedColumns')}</li>
               <li>{t('importForm.localeHint')}</li>
               <li className="text-blue-600">{t('importForm.statusNote')}</li>
             </ul>

@@ -3177,8 +3177,9 @@
       "fromShopify": "Von Shopify",
       "syncBusinessData": "Geschäftsdaten synchronisieren",
       "formatHint": "Format: E-Mail, Name (optional), Sprache (optional). Ein Kunde pro Zeile.",
-      "localeHint": "Unterstützte Sprachen: en, fr, de, zh, sowie erweiterte Formate wie en-US, de-DE und de-CH.",
-      "statusNote": "Importierte Kunden werden als (Aktiv) markiert"
+      "localeHint": "Sprache kann ein beliebiger BCP 47-Tag sein (z. B. en, en-US, de-DE, zh-Hans).",
+      "statusNote": "Importierte Kunden werden als (Aktiv) markiert",
+      "expectedColumns": "Erwartete Spalten: email, name, locale"
     },
     "editCustomer": "Kunde bearbeiten",
     "deleteCustomer": "Kunde löschen",
@@ -3236,8 +3237,8 @@
     "importForm": {
       "manualEntry": "Manuelle Eingabe",
       "upload": "Upload",
-      "formatHint": "Format: E-Mail, Name (optional), Sprache (optional). Ein Lieferant pro Zeile.",
-      "localeHint": "Du kannst die folgenden unterstützten Sprachen verwenden: en, fr, de, zh, sowie erweiterte Formate wie en-US, de-DE und de-CH."
+      "localeHint": "Sprache kann ein beliebiger BCP 47-Tag sein (z. B. en, en-US, de-DE, zh-Hans).",
+      "expectedColumns": "Erwartete Spalten: email, name, locale"
     },
     "editVendor": "Lieferant bearbeiten",
     "deleteVendor": "Lieferant löschen",

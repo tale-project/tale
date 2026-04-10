@@ -2,7 +2,7 @@
 
 import * as ToastPrimitives from '@radix-ui/react-toast';
 import { cva } from 'class-variance-authority';
-import { X, CheckCircle2, XCircle } from 'lucide-react';
+import { X, CheckCircle2, XCircle, Info } from 'lucide-react';
 
 import { useToast } from '@/app/hooks/use-toast';
 import { cn } from '@/lib/utils/cn';
@@ -34,7 +34,9 @@ function VariantIcon({ variant }: { variant?: ToastVariant }) {
     case 'destructive':
       return <XCircle className="text-destructive size-5" aria-hidden="true" />;
     default:
-      return null;
+      return (
+        <Info className="text-muted-foreground size-5" aria-hidden="true" />
+      );
   }
 }
 
@@ -45,47 +47,29 @@ export function Toaster() {
     <ToastPrimitives.Provider duration={3500}>
       {toasts.map(
         ({ id, title, description, action, variant, className, ...props }) => {
-          const icon = <VariantIcon variant={variant} />;
-          const hasIcon = variant === 'success' || variant === 'destructive';
-
           return (
             <ToastPrimitives.Root
               key={id}
               className={cn(toastVariants({ variant }), className)}
               {...props}
             >
-              {hasIcon ? (
-                <div className="flex items-start space-x-3">
-                  {icon}
-                  <div className="flex-1 pr-4">
-                    <div className="grid gap-1">
-                      {title && (
-                        <ToastPrimitives.Title className="text-sm font-semibold">
-                          {title}
-                        </ToastPrimitives.Title>
-                      )}
-                      {description && (
-                        <ToastPrimitives.Description className="text-sm opacity-90">
-                          {description}
-                        </ToastPrimitives.Description>
-                      )}
-                    </div>
+              <div className="flex items-start space-x-3">
+                <VariantIcon variant={variant} />
+                <div className="flex-1 pr-4">
+                  <div className="grid gap-1">
+                    {title && (
+                      <ToastPrimitives.Title className="text-sm font-semibold">
+                        {title}
+                      </ToastPrimitives.Title>
+                    )}
+                    {description && (
+                      <ToastPrimitives.Description className="text-sm opacity-90">
+                        {description}
+                      </ToastPrimitives.Description>
+                    )}
                   </div>
                 </div>
-              ) : (
-                <div className="grid gap-1">
-                  {title && (
-                    <ToastPrimitives.Title className="text-sm font-semibold">
-                      {title}
-                    </ToastPrimitives.Title>
-                  )}
-                  {description && (
-                    <ToastPrimitives.Description className="text-sm opacity-90">
-                      {description}
-                    </ToastPrimitives.Description>
-                  )}
-                </div>
-              )}
+              </div>
               {action}
               <ToastPrimitives.Close
                 className="text-foreground/50 hover:text-foreground absolute top-2.5 right-2.5 rounded-md p-1 opacity-0 transition-opacity group-hover:opacity-100 group-[.destructive]:text-red-300 group-[.destructive]:hover:text-red-50 focus:opacity-100 focus:ring-2 focus:outline-none group-[.destructive]:focus:ring-red-400 group-[.destructive]:focus:ring-offset-red-600"

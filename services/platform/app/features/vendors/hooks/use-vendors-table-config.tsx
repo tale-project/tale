@@ -11,6 +11,7 @@ export const useVendorsTableConfig = createTableConfigHook<'vendors'>(
     defaultSort: '_creationTime',
   },
   ({ tTables, builders }) => [
+    builders.createSelectColumn(),
     {
       accessorKey: 'name',
       header: tTables('headers.name'),

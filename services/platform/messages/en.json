@@ -3236,8 +3236,9 @@
       "fromShopify": "From Shopify",
       "syncBusinessData": "Sync business data",
       "formatHint": "Format: email, name (optional), locale (optional). One customer per line.",
-      "localeHint": "Supported locales: en, fr, de, zh, as well as extended formats like en-US, de-DE, and de-CH.",
-      "statusNote": "Imported customers are tagged as (Active)"
+      "localeHint": "Locale can be any valid BCP 47 tag (e.g. en, en-US, de-DE, zh-Hans).",
+      "statusNote": "Imported customers are tagged as (Active)",
+      "expectedColumns": "Expected columns: email, name, locale"
     },
     "editCustomer": "Edit customer",
     "deleteCustomer": "Delete customer",
@@ -3295,8 +3296,8 @@
     "importForm": {
       "manualEntry": "Manual entry",
       "upload": "Upload",
-      "formatHint": "Format: email, name (optional), locale (optional). One vendor per line.",
-      "localeHint": "You can use the following supported locales: en, fr, de, zh, as well as extended formats like en-US, de-DE, and de-CH."
+      "localeHint": "Locale can be any valid BCP 47 tag (e.g. en, en-US, de-DE, zh-Hans).",
+      "expectedColumns": "Expected columns: email, name, locale"
     },
     "editVendor": "Edit vendor",
     "deleteVendor": "Delete vendor",
