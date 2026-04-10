@@ -7,6 +7,7 @@ type ErrorCategory =
 interface SanitizedError {
   category: ErrorCategory;
   i18nKey: string;
+  rawMessage?: string;
 }
 
 const ERROR_PATTERNS: { pattern: RegExp; category: ErrorCategory }[] = [
@@ -44,9 +45,17 @@ export function sanitizeChatError(
 
   for (const { pattern, category } of ERROR_PATTERNS) {
     if (pattern.test(rawError)) {
-      return { category, i18nKey: CATEGORY_I18N_KEY[category] };
+      return {
+        category,
+        i18nKey: CATEGORY_I18N_KEY[category],
+        rawMessage: rawError,
+      };
     }
   }
 
-  return { category: 'generic', i18nKey: CATEGORY_I18N_KEY.generic };
+  return {
+    category: 'generic',
+    i18nKey: CATEGORY_I18N_KEY.generic,
+    rawMessage: rawError,
+  };
 }
