@@ -170,6 +170,7 @@ export function ImportCustomersDialog({
                   ? `, ${result.failed} ${tCustomers('import.failed')}`
                   : '',
             }),
+            variant: 'success',
           });
 
           if (result.errors.length > 0) {

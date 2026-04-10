@@ -158,6 +158,7 @@ export function ImportVendorsDialog({
               success: result.success,
               failed: result.failed,
             }),
+            variant: 'success',
           });
 
           if (result.errors.length > 0) {

@@ -36,6 +36,10 @@ export function ProductRowActions({ product }: ProductRowActionsProps) {
         productId: product._id,
       });
       dialogs.setOpen.delete(false);
+      toast({
+        title: tProducts('actions.deleteSuccess'),
+        variant: 'success',
+      });
     } catch (err) {
       console.error('Deletion error:', err);
       toast({

@@ -3105,7 +3105,8 @@
       "draftStatusNote": "Importierte Produkte werden standardmässig mit dem Status \"Entwurf\" erstellt."
     },
     "actions": {
-      "deleteFailed": "Produkt konnte nicht gelöscht werden"
+      "deleteFailed": "Produkt konnte nicht gelöscht werden",
+      "deleteSuccess": "Produkt erfolgreich gelöscht"
     },
     "delete": {
       "title": "Produkt löschen",

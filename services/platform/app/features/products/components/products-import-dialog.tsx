@@ -168,33 +168,26 @@ export function ProductsImportDialog({
         const failedCount = results.filter(
           (r) => r.status === 'rejected',
         ).length;
-        const importErrors = results
-          .map((result, index) =>
-            result.status === 'rejected'
-              ? `Failed to import ${products[index].name}: ${result.reason}`
-              : null,
-          )
-          .filter((error): error is string => error !== null);
-
         if (successCount > 0) {
-          if (importErrors.length > 0) {
-            toast({
-              title: t('import.success'),
-              description: t('import.successDescription', {
-                count: successCount,
-                failed: failedCount,
-              }),
-              variant: 'destructive',
-            });
-          } else {
-            toast({
-              title: t('import.success'),
-              description: t('import.successDescription', {
-                count: successCount,
-                failed: failedCount,
-              }),
-            });
+          if (failedCount > 0) {
+            const importErrors = results
+              .map((result, index) =>
+                result.status === 'rejected'
+                  ? `Failed to import ${products[index].name}: ${result.reason}`
+                  : null,
+              )
+              .filter((error): error is string => error !== null);
+            console.warn('Import errors:', importErrors);
           }
+
+          toast({
+            title: t('import.success'),
+            description: t('import.successDescription', {
+              count: successCount,
+              failed: failedCount,
+            }),
+            variant: 'success',
+          });
 
           onSuccess?.();
           handleClose();
