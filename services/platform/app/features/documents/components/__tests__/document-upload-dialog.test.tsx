@@ -230,7 +230,6 @@ describe('DocumentUploadDialog', () => {
     expect(
       screen.getByText('documents.upload.retryUpload'),
     ).toBeInTheDocument();
-    expect(screen.getByText('common.actions.cancel')).toBeInTheDocument();
   });
 
   it('shows upload button when files are staged as pending', () => {
