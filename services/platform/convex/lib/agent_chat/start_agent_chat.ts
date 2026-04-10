@@ -214,7 +214,7 @@ export async function startAgentChat(
       AGENT_CONTEXT_CONFIGS[agentType]?.timeoutMs ??
       420_000);
 
-  // Budget enforcement — block before scheduling if limits are exceeded
+  // Budget enforcement — if limits exceeded, save a system reply instead of generating
   const userId = thread?.userId;
   if (userId) {
     const budgetResult = await checkBudget(
@@ -224,7 +224,14 @@ export async function startAgentChat(
       agentConfig.agentTeamId ? [agentConfig.agentTeamId] : [],
     );
     if (!budgetResult.allowed) {
-      throw new Error(budgetResult.reason ?? 'Budget limit exceeded');
+      const budgetMessage =
+        budgetResult.reason ??
+        'Your usage limit has been reached for this period. Please contact your administrator.';
+      await saveMessage(ctx, components.agent, {
+        threadId,
+        message: { role: 'assistant', content: budgetMessage },
+      });
+      return { messageAlreadyExists, streamId };
     }
   }
 
