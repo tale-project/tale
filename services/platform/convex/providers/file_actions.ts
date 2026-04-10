@@ -293,8 +293,8 @@ export const resolveModelData = internalAction({
       if (definition) {
         return {
           providerName: provider.name,
-          baseUrl: definition.baseUrl ?? provider.config.baseUrl,
-          apiKey: definition.apiKey ?? provider.secrets.apiKey,
+          baseUrl: provider.config.baseUrl,
+          apiKey: provider.secrets.apiKey,
           modelId: args.modelId,
           supportsStructuredOutputs:
             provider.config.supportsStructuredOutputs ?? false,
@@ -356,8 +356,8 @@ export const resolveModelByTag = internalAction({
         if (definition) {
           return {
             providerName: provider.name,
-            baseUrl: definition.baseUrl ?? provider.config.baseUrl,
-            apiKey: definition.apiKey ?? provider.secrets.apiKey,
+            baseUrl: provider.config.baseUrl,
+            apiKey: provider.secrets.apiKey,
             modelId: definition.id,
             dimensions: definition.dimensions,
             supportsStructuredOutputs:
@@ -375,8 +375,8 @@ export const resolveModelByTag = internalAction({
       if (definition) {
         return {
           providerName: provider.name,
-          baseUrl: definition.baseUrl ?? provider.config.baseUrl,
-          apiKey: definition.apiKey ?? provider.secrets.apiKey,
+          baseUrl: provider.config.baseUrl,
+          apiKey: provider.secrets.apiKey,
           modelId: definition.id,
           dimensions: definition.dimensions,
           supportsStructuredOutputs:

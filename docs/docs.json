@@ -92,7 +92,7 @@
       },
       {
         "group": "Administration",
-        "pages": ["roles-and-permissions", "authentication"]
+        "pages": ["roles-and-permissions", "authentication", "providers"]
       },
       {
         "group": "Operations",

@@ -406,8 +406,6 @@ interface ModelFormState {
   description: string;
   tags: string[];
   dimensions: string;
-  baseUrl: string;
-  apiKey: string;
 }
 
 const EMPTY_MODEL_FORM: ModelFormState = {
@@ -416,8 +414,6 @@ const EMPTY_MODEL_FORM: ModelFormState = {
   description: '',
   tags: ['chat'],
   dimensions: '',
-  baseUrl: '',
-  apiKey: '',
 };
 
 function ModelsSection() {
@@ -445,8 +441,6 @@ function ModelsSection() {
         description: model.description ?? '',
         tags: [...model.tags],
         dimensions: model.dimensions != null ? String(model.dimensions) : '',
-        baseUrl: model.baseUrl ?? '',
-        apiKey: model.apiKey ?? '',
       });
       setDialogOpen(true);
     },
@@ -463,8 +457,6 @@ function ModelsSection() {
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- tags are constrained to checkbox values
         tags: form.tags as Array<'chat' | 'vision' | 'embedding'>,
         dimensions: form.dimensions ? Number(form.dimensions) : undefined,
-        baseUrl: form.baseUrl || undefined,
-        apiKey: form.apiKey || undefined,
       };
       const updatedModels =
         editingIndex != null
@@ -655,22 +647,6 @@ function ModelsSection() {
               placeholder="e.g., 1536"
             />
           )}
-          <Input
-            label={t('providers.modelBaseUrl')}
-            value={form.baseUrl}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, baseUrl: e.target.value }))
-            }
-            placeholder={t('providers.modelBaseUrlPlaceholder')}
-          />
-          <Input
-            label={t('providers.modelApiKey')}
-            type="password"
-            value={form.apiKey}
-            onChange={(e) => setForm((f) => ({ ...f, apiKey: e.target.value }))}
-            placeholder={t('providers.modelApiKeyPlaceholder')}
-            autoComplete="off"
-          />
         </Stack>
       </FormDialog>
 
