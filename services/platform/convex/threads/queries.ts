@@ -70,7 +70,8 @@ export const isThreadGenerating = query({
       .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
       .first();
 
-    if (metadata?.generationStatus !== 'generating') return false;
+    if (!metadata || metadata.userId !== authUser.userId) return false;
+    if (metadata.generationStatus !== 'generating') return false;
 
     // Guard against stuck generationStatus: if the action crashed without
     // cleanup, the generation start time lets us detect staleness and
@@ -124,6 +125,20 @@ export const getThreadMessagesStreaming = query({
       };
     }
 
+    const metadata = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
+      .first();
+
+    if (!metadata || metadata.userId !== authUser.userId) {
+      return {
+        page: [],
+        isDone: true,
+        continueCursor: '',
+        streams: { value: null },
+      };
+    }
+
     return await getThreadMessagesStreamingHelper(ctx, {
       threadId: args.threadId,
       paginationOpts: args.paginationOpts,
@@ -142,6 +157,13 @@ export const getFailedMessageErrors = query({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) return {};
+
+    const metadata = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
+      .first();
+
+    if (!metadata || metadata.userId !== authUser.userId) return {};
 
     const result = await listMessages(ctx, components.agent, {
       threadId: args.threadId,
@@ -169,7 +191,9 @@ export const getThreadStatus = query({
       .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
       .first();
 
-    return metadata?.status ?? null;
+    if (!metadata || metadata.userId !== authUser.userId) return null;
+
+    return metadata.status ?? null;
   },
 });
 
@@ -180,6 +204,13 @@ export const getThreadBranches = query({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) return [];
+
+    const rootMetadata = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.rootThreadId))
+      .first();
+
+    if (!rootMetadata || rootMetadata.userId !== authUser.userId) return [];
 
     const branches: Array<{
       branchThreadId: string;
@@ -222,7 +253,9 @@ export const getThreadBranchSelections = query({
       .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
       .first();
 
-    return metadata?.branchSelections ?? null;
+    if (!metadata || metadata.userId !== authUser.userId) return null;
+
+    return metadata.branchSelections ?? null;
   },
 });
 
@@ -239,7 +272,7 @@ export const getThreadShareStatus = query({
       .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
       .first();
 
-    if (!metadata) {
+    if (!metadata || metadata.userId !== authUser.userId) {
       return { isShared: false, shareToken: null };
     }
 
@@ -264,7 +297,11 @@ export const getThreadForkInfo = query({
       .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
       .first();
 
-    if (!metadata || !metadata.forkedFrom) {
+    if (
+      !metadata ||
+      metadata.userId !== authUser.userId ||
+      !metadata.forkedFrom
+    ) {
       return null;
     }
 

@@ -2738,6 +2738,7 @@
     },
     "shareBoundary": "Messages above are from a shared chat",
     "forkBoundary": "Forked from your own chat",
+    "notFound": "This chat is not available.",
     "forkChat": "Fork chat",
     "forkSuccess": "Chat forked successfully",
     "forkFailed": "Failed to fork chat",

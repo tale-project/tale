@@ -2700,6 +2700,7 @@
     },
     "shareBoundary": "Nachrichten oben stammen aus einem geteilten Chat",
     "forkBoundary": "Von Ihrem eigenen Chat geforkt",
+    "notFound": "Dieser Chat ist nicht verfügbar.",
     "forkChat": "Chat forken",
     "forkSuccess": "Chat erfolgreich geforkt",
     "forkFailed": "Chat konnte nicht geforkt werden",
