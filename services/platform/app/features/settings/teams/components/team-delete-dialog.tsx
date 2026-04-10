@@ -43,6 +43,7 @@ export function TeamDeleteDialog({
 
       toast({
         title: tSettings('teams.teamDeleted'),
+        variant: 'success',
       });
       onOpenChange(false);
       onSuccess?.();

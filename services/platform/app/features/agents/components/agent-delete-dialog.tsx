@@ -38,6 +38,7 @@ export function AgentDeleteDialog({
       });
       toast({
         title: t('agents.agentDeleted'),
+        variant: 'success',
       });
       onOpenChange(false);
       onDeleted?.();

@@ -80,6 +80,7 @@ export function EntityDeleteDialog<TEntity>({
       await deleteMutation(entity);
       toast({
         title: translations.successMessage,
+        variant: 'success',
       });
       onClose();
       onSuccess?.();

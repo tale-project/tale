@@ -90,7 +90,7 @@ export function ProvidersTable({ organizationId }: ProvidersTableProps) {
         orgSlug: 'default',
         providerName: deleteProvider.name,
       });
-      toast({ title: t('providers.deleted') });
+      toast({ title: t('providers.deleted'), variant: 'success' });
       setDeleteProvider(null);
       invalidateProviders();
     } catch {
