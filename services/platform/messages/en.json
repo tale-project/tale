@@ -817,7 +817,7 @@
         "templateVariablesLabel": "Available template variables",
         "templateVariablesDescription": "Use these variables in your instructions — they will be resolved at runtime.",
         "sectionModel": "Model",
-        "sectionModelDescription": "Configure the AI model and generation parameters",
+        "sectionModelDescription": "Configure the AI models for this agent. The first model is the primary model used for generation. Additional models serve as ordered fallbacks — if the primary model is unavailable, the agent automatically tries the next model in the list.",
         "sectionTools": "Tools",
         "sectionToolsDescription": "Select which tools this agent can use",
         "sectionIntegrationBindings": "Bound integrations",
@@ -869,6 +869,11 @@
         "searchModels": "Search models…",
         "noModelsFound": "No models found",
         "removeModel": "Remove",
+        "modelSelector": {
+          "moveUp": "Move model up",
+          "moveDown": "Move model down",
+          "dragHandle": "Drag to reorder model"
+        },
         "structuredResponsesInjectedPrompt": "The following instructions will be automatically appended to the system prompt:"
       },
       "delegation": {

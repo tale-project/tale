@@ -1,10 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { Plus, X } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
 import { CodeBlock } from '@/app/components/ui/data-display/code-block';
-import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
+import { ModelSelector } from '@/app/components/ui/forms/model-selector';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { PageSection } from '@/app/components/ui/layout/page-section';
@@ -29,13 +28,12 @@ function InstructionsTab() {
   const { t } = useT('settings');
   const { config, updateConfig } = useAgentConfig();
   const { providers } = useListProviders('default');
-  const [addOpen, setAddOpen] = useState(false);
 
   const structuredResponsesEnabled = config.structuredResponsesEnabled ?? true;
   const selectedModels = config.supportedModels;
 
   const modelDisplayNames = useMemo(() => {
-    const map = new Map();
+    const map = new Map<string, string>();
     for (const provider of providers) {
       if (
         !provider ||
@@ -76,22 +74,11 @@ function InstructionsTab() {
     [modelDisplayNames],
   );
 
-  const handleAddModel = useCallback(
-    (modelId: string) => {
-      updateConfig({ supportedModels: [...selectedModels, modelId] });
-      setAddOpen(false);
+  const handleModelsChange = useCallback(
+    (models: string[]) => {
+      updateConfig({ supportedModels: models });
     },
-    [selectedModels, updateConfig],
-  );
-
-  const handleRemoveModel = useCallback(
-    (modelId: string) => {
-      if (selectedModels.length <= 1) return;
-      updateConfig({
-        supportedModels: selectedModels.filter((m) => m !== modelId),
-      });
-    },
-    [selectedModels, updateConfig],
+    [updateConfig],
   );
 
   return (
@@ -133,49 +120,12 @@ function InstructionsTab() {
         title={t('agents.form.sectionModel')}
         description={t('agents.form.sectionModelDescription')}
       >
-        <div className="space-y-2">
-          <ul className="space-y-1.5">
-            {selectedModels.map((modelId) => (
-              <li
-                key={modelId}
-                className="bg-muted flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm"
-              >
-                <code className="min-w-0 flex-1 truncate">
-                  {getDisplayName(modelId)}
-                </code>
-                <button
-                  type="button"
-                  onClick={() => handleRemoveModel(modelId)}
-                  disabled={selectedModels.length <= 1}
-                  className="text-muted-foreground hover:text-foreground shrink-0 rounded p-0.5 transition-colors disabled:pointer-events-none disabled:opacity-30"
-                  aria-label={`${t('agents.form.removeModel')} ${getDisplayName(modelId)}`}
-                >
-                  <X className="size-3.5" />
-                </button>
-              </li>
-            ))}
-          </ul>
-
-          <SearchableSelect
-            value={null}
-            onValueChange={handleAddModel}
-            options={availableOptions}
-            open={addOpen}
-            onOpenChange={setAddOpen}
-            searchPlaceholder={t('agents.form.searchModels')}
-            emptyText={t('agents.form.noModelsFound')}
-            aria-label={t('agents.form.addModel')}
-            trigger={
-              <button
-                type="button"
-                className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 text-sm transition-colors"
-              >
-                <Plus className="size-3.5" />
-                <span>{t('agents.form.addModel')}</span>
-              </button>
-            }
-          />
-        </div>
+        <ModelSelector
+          models={selectedModels}
+          onChange={handleModelsChange}
+          availableOptions={availableOptions}
+          getDisplayName={getDisplayName}
+        />
       </PageSection>
 
       <PageSection

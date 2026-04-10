@@ -15,7 +15,7 @@ import type { Id } from '../../../_generated/dataModel';
 import type { ActionCtx } from '../../../_generated/server';
 import { imageAnalysisCache } from '../../../lib/action_cache';
 import { createDebugLog } from '../../../lib/debug_log';
-import { resolveLanguageModel } from '../../../providers/resolve_model';
+import { resolveLanguageModelWithFallback } from '../../../providers/failover';
 import { createVisionAgent } from './vision_agent';
 
 const debugLog = createDebugLog('DEBUG_IMAGE_ANALYSIS', '[ImageAnalysis]');
@@ -53,9 +53,12 @@ export async function analyzeImage(
   debugLog('analyzeImage starting', { fileId, question, fileName });
 
   // Resolve vision model from provider files
-  const { languageModel, modelData } = await resolveLanguageModel(ctx, {
-    tag: 'vision',
-  });
+  const { languageModel, modelData } = await resolveLanguageModelWithFallback(
+    ctx,
+    {
+      tag: 'vision',
+    },
+  );
   const visionModelId = modelData.modelId;
 
   try {

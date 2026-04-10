@@ -1,7 +1,7 @@
 import { v } from 'convex/values';
 
 import { internalAction } from '../../_generated/server';
-import { resolveLanguageModel } from '../../providers/resolve_model';
+import { resolveLanguageModelWithFallback } from '../../providers/failover';
 import { autoSummarizeIfNeededModel } from './auto_summarize';
 
 export const autoSummarizeIfNeeded = internalAction({
@@ -16,7 +16,9 @@ export const autoSummarizeIfNeeded = internalAction({
   }),
   handler: async (ctx, args) => {
     // Resolve chat model from provider files
-    const { languageModel } = await resolveLanguageModel(ctx, { tag: 'chat' });
+    const { languageModel } = await resolveLanguageModelWithFallback(ctx, {
+      tag: 'chat',
+    });
 
     return await autoSummarizeIfNeededModel(ctx, {
       ...args,

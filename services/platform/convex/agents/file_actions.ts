@@ -454,9 +454,12 @@ export const resolveAgentConfig = internalAction({
         : undefined,
     );
 
-    // Apply model override if requested and allowed by agent's supportedModels
+    // Apply model override if requested and allowed by agent's supportedModels.
+    // When an explicit model is forced (e.g. arena mode), disable fallback so
+    // the specific model is tested without automatic failover.
     if (args.modelId && result.config.supportedModels.includes(args.modelId)) {
       config.model = args.modelId;
+      config.fallbackModels = undefined;
     }
 
     return config;

@@ -5,7 +5,7 @@ import { z } from 'zod';
 
 import { components } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
-import { resolveLanguageModel } from '../providers/resolve_model';
+import { resolveLanguageModelWithFallback } from '../providers/failover';
 
 const MAX_RETRIES = 3;
 
@@ -103,7 +103,9 @@ export async function translateFields(
   });
 
   // Resolve chat model from provider files
-  const { languageModel } = await resolveLanguageModel(ctx, { tag: 'chat' });
+  const { languageModel } = await resolveLanguageModelWithFallback(ctx, {
+    tag: 'chat',
+  });
 
   const agent = createTranslationAgent(args.targetLocale, languageModel);
   const userId = `translate-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;

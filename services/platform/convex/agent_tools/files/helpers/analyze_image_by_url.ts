@@ -7,7 +7,7 @@
 import { components } from '../../../_generated/api';
 import type { ActionCtx } from '../../../_generated/server';
 import { createDebugLog } from '../../../lib/debug_log';
-import { resolveLanguageModel } from '../../../providers/resolve_model';
+import { resolveLanguageModelWithFallback } from '../../../providers/failover';
 import type { AnalyzeImageResult } from './analyze_image';
 import { createVisionAgent } from './vision_agent';
 
@@ -37,9 +37,12 @@ export async function analyzeImageByUrl(
   });
 
   // Resolve vision model from provider files
-  const { languageModel, modelData } = await resolveLanguageModel(ctx, {
-    tag: 'vision',
-  });
+  const { languageModel, modelData } = await resolveLanguageModelWithFallback(
+    ctx,
+    {
+      tag: 'vision',
+    },
+  );
   const visionModelId = modelData.modelId;
 
   try {
