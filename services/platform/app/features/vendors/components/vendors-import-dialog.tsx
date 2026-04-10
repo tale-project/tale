@@ -186,7 +186,7 @@ export function ImportVendorsDialog({
       } catch (err) {
         console.error('Error importing vendors:', err);
         toast({
-          title: err instanceof Error ? err.message : t('import.error'),
+          title: t('import.error'),
           variant: 'destructive',
         });
       }

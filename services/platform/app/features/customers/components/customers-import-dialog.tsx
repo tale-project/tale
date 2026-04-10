@@ -165,10 +165,7 @@ export function ImportCustomersDialog({
             title: tCustomers('import.success'),
             description: tCustomers('import.successDescription', {
               success: result.success,
-              failed:
-                result.failed > 0
-                  ? `, ${result.failed} ${tCustomers('import.failed')}`
-                  : '',
+              failed: result.failed,
             }),
             variant: 'success',
           });

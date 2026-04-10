@@ -152,25 +152,32 @@ export function ProductsImportDialog({
         });
 
         if (result.success > 0) {
-          if (result.errors.length > 0) {
-            console.warn('Import errors:', result.errors);
-          }
-
           toast({
             title: t('import.success'),
             description: t('import.successDescription', {
-              count: result.success,
+              success: result.success,
               failed: result.failed,
             }),
             variant: 'success',
           });
 
+          if (result.errors.length > 0) {
+            console.warn('Import errors:', result.errors);
+          }
+
           onSuccess?.();
           handleClose();
         } else {
+          const firstError = result.errors[0];
+          const errorCodeKeys: Record<string, string> = {
+            unknown: 'import.errorCodes.unknown',
+          };
+          const errorKey = firstError
+            ? (errorCodeKeys[firstError.errorCode] ?? errorCodeKeys['unknown'])
+            : undefined;
           toast({
-            title: t('import.failed'),
-            description: t('noneImported'),
+            title: t('noneImported'),
+            description: errorKey ? t(errorKey) : undefined,
             variant: 'destructive',
           });
         }
