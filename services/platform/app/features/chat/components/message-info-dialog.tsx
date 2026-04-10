@@ -131,6 +131,18 @@ function ToolCallCard({ usage, locale, t }: ToolCallCardProps) {
           {formatNumber(usage.outputTokens ?? 0, locale)}
           {' · '}
           {t('messageInfo.total')}: {formatNumber(usage.totalTokens, locale)}
+          {usage.costEstimateCents != null && (
+            <>
+              {' · '}
+              Cost:{' '}
+              {(() => {
+                const d = usage.costEstimateCents / 100;
+                if (d === 0) return '$0.00';
+                if (d >= 1) return `$${d.toFixed(2)}`;
+                return `$${d.toPrecision(3)}`;
+              })()}
+            </>
+          )}
           {usage.durationMs !== undefined && (
             <>
               {' · '}

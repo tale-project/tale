@@ -70,5 +70,7 @@ export function buildPeriodKeyFromTimestamp(
     }
     case 'monthly':
       return `${year}-${month}`;
+    default:
+      return `${year}-${month}-${day}`;
   }
 }

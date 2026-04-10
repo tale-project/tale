@@ -514,6 +514,7 @@ export interface ToolUsage {
   durationMs?: number;
   input?: string;
   output?: string;
+  costEstimateCents?: number;
 }
 
 /** @deprecated Use ToolUsage */

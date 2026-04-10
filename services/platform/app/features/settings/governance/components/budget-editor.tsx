@@ -16,7 +16,6 @@ import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
-import { useT } from '@/lib/i18n/client';
 import {
   budgetConfigSchema,
   type BudgetConfig,
@@ -31,6 +30,7 @@ interface BudgetEditorProps {
   organizationId: string;
 }
 
+const SCOPE_VALUES = ['default', 'user', 'team', 'role'] as const;
 const SCOPE_OPTIONS = [
   { value: 'default', label: 'Default' },
   { value: 'user', label: 'User' },
@@ -45,6 +45,7 @@ const ROLE_OPTIONS = [
   { value: 'member', label: 'Member' },
 ];
 
+const PERIOD_VALUES = ['monthly', 'weekly', 'daily'] as const;
 const PERIOD_OPTIONS = [
   { value: 'monthly', label: 'Monthly' },
   { value: 'weekly', label: 'Weekly', disabled: true },
@@ -88,7 +89,7 @@ function RuleDialog({
   memberOptions,
   teamOptions,
 }: RuleDialogProps) {
-  const [draft, setDraft] = useState<BudgetRule>(initialRule);
+  const [draft, setDraft] = useState(initialRule);
 
   useEffect(() => {
     if (open) {
@@ -130,9 +131,11 @@ function RuleDialog({
               label="Scope"
               options={SCOPE_OPTIONS}
               value={draft.scope}
-              onValueChange={(value) =>
-                updateDraft({ scope: value as BudgetRule['scope'] })
-              }
+              onValueChange={(value: string) => {
+                if (SCOPE_VALUES.includes(value as BudgetRule['scope'])) {
+                  updateDraft({ scope: value as BudgetRule['scope'] });
+                }
+              }}
               disabled={cannotManage}
               size="sm"
             />
@@ -216,9 +219,11 @@ function RuleDialog({
               label="Period"
               options={PERIOD_OPTIONS}
               value={draft.period}
-              onValueChange={(value) =>
-                updateDraft({ period: value as BudgetRule['period'] })
-              }
+              onValueChange={(value: string) => {
+                if (PERIOD_VALUES.includes(value as BudgetRule['period'])) {
+                  updateDraft({ period: value as BudgetRule['period'] });
+                }
+              }}
               disabled
               size="sm"
             />
@@ -303,7 +308,6 @@ function formatCost(cents: number): string {
 }
 
 export function BudgetEditor({ organizationId }: BudgetEditorProps) {
-  const { t } = useT('governance');
   const { toast } = useToast();
   const ability = useAbility();
 
@@ -318,8 +322,8 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
   const memberOptions = useMemo(
     () =>
       (members ?? []).map((m) => ({
-        value: String(m.userId),
-        label: m.displayName || m.email || String(m.userId),
+        value: m.userId,
+        label: m.displayName || m.email || m.userId,
         description: m.email && m.displayName ? m.email : undefined,
       })),
     [members],
@@ -327,9 +331,9 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
 
   const teamOptions = useMemo(
     () =>
-      (teams ?? []).map((t) => ({
-        value: String(t.id),
-        label: t.name || String(t.id),
+      (teams ?? []).map((team) => ({
+        value: team.id,
+        label: team.name || team.id,
       })),
     [teams],
   );
@@ -345,7 +349,7 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  const [dialogRule, setDialogRule] = useState<BudgetRule>(emptyRule());
+  const [dialogRule, setDialogRule] = useState(emptyRule());
 
   useEffect(() => {
     setEnabled(savedConfig.enabled);

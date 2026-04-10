@@ -12,6 +12,7 @@ export const toolUsageItemValidator = v.object({
   durationMs: v.optional(v.number()),
   input: v.optional(v.string()),
   output: v.optional(v.string()),
+  costEstimateCents: v.optional(v.number()),
 });
 
 /** @deprecated Use toolUsageItemValidator */

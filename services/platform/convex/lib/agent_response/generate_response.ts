@@ -28,6 +28,7 @@ import { isRecord, getString } from '../../../lib/utils/type-guards';
 import { components, internal } from '../../_generated/api';
 import { queryRagContext } from '../../agent_tools/rag/query_rag_context';
 import { queryWebContext } from '../../agent_tools/web/helpers/query_web_context';
+import { estimateCostCents } from '../../governance/cost_estimation';
 import { recordFailure, recordSuccess } from '../../providers/circuit_breaker';
 import {
   ProviderUnavailableError,
@@ -1893,6 +1894,7 @@ function extractToolCallsFromSteps(steps: unknown[]): {
     durationMs?: number;
     input?: string;
     output?: string;
+    costEstimateCents?: number;
   }>;
 } {
   type StepWithTools = {
@@ -1922,6 +1924,7 @@ function extractToolCallsFromSteps(steps: unknown[]): {
     durationMs?: number;
     input?: string;
     output?: string;
+    costEstimateCents?: number;
   }> = [];
 
   for (const rawStep of steps) {
@@ -2038,6 +2041,17 @@ function extractToolCallsFromSteps(steps: unknown[]): {
         usageEntry.durationMs = toolUsage?.durationSeconds
           ? Math.round(toolUsage.durationSeconds * 1000)
           : undefined;
+
+        if (
+          usageEntry.model &&
+          (usageEntry.inputTokens || usageEntry.outputTokens)
+        ) {
+          usageEntry.costEstimateCents = estimateCostCents(
+            usageEntry.model,
+            usageEntry.inputTokens ?? 0,
+            usageEntry.outputTokens ?? 0,
+          );
+        }
       }
 
       toolsUsage.push(usageEntry);

@@ -70,9 +70,11 @@ export const incrementUsageLedger = internalMutation({
         const sorted = allEntries.sort(
           (a, b) => a._creationTime - b._creationTime,
         );
-        const keep = sorted[0]!;
+        const keep = sorted[0];
+        if (!keep) return null;
         for (let i = 1; i < sorted.length; i++) {
-          const dup = sorted[i]!;
+          const dup = sorted[i];
+          if (!dup) continue;
           await ctx.db.patch(keep._id, {
             inputTokens: keep.inputTokens + dup.inputTokens,
             outputTokens: keep.outputTokens + dup.outputTokens,

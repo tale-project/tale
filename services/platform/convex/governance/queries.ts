@@ -96,7 +96,7 @@ export const getUsageSummary = query({
       email: authUser.email,
       name: authUser.name,
     });
-    if (!isAdmin(member.role as string)) {
+    if (!isAdmin(member.role)) {
       throw new Error('Only admins can view usage summaries');
     }
 

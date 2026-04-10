@@ -28,7 +28,7 @@ export const upsertPolicy = mutation({
       email: authUser.email,
       name: authUser.name,
     });
-    if (!isAdmin(member.role as string)) {
+    if (!isAdmin(member.role)) {
       throw new Error('Only admins can modify governance policies');
     }
 
@@ -117,7 +117,7 @@ export const upsertPiiConfig = mutation({
       email: authUser.email,
       name: authUser.name,
     });
-    if (!isAdmin(member.role as string)) {
+    if (!isAdmin(member.role)) {
       throw new Error('Only admins can modify PII configuration');
     }
 
