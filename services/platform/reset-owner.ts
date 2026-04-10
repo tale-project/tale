@@ -26,12 +26,14 @@ if (!newEmail && !newPassword) {
   process.exit(1);
 }
 
+// setAdminAuth exists at runtime but is @internal (not in public types).
+// We need it to send the `Convex <adminKey>` auth header for internal functions.
 const client = new ConvexHttpClient(convexUrl);
-// setAdminAuth is @internal in Convex types but exists at runtime —
-// it enables calling internal functions with the admin key.
-(client as unknown as { setAdminAuth(token: string): void }).setAdminAuth(
-  adminKey,
-);
+// oxlint-disable-next-line no-unsafe-type-assertion
+const setAdminAuth = Reflect.get(client, 'setAdminAuth') as (
+  token: string,
+) => void;
+setAdminAuth.call(client, adminKey);
 
 try {
   const result = await client.mutation(
