@@ -60,8 +60,8 @@ function ApiDocsPage() {
 
   // Prevent TanStack Router from intercepting Swagger UI internal link clicks
   const handleClick = (e: React.MouseEvent) => {
-    const target = e.target as HTMLElement;
-    const anchor = target.closest('a');
+    if (!(e.target instanceof HTMLElement)) return;
+    const anchor = e.target.closest('a');
     if (anchor && anchor.getAttribute('href')?.startsWith('#')) {
       e.stopPropagation();
     }
