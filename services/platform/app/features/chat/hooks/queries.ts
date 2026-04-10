@@ -540,6 +540,7 @@ export interface MessageMetadata {
   toolsUsage?: ToolUsage[];
   contextWindow?: string;
   contextStats?: ContextStats;
+  costEstimateCents?: number;
 }
 
 export function useMessageError(threadId: string | null) {

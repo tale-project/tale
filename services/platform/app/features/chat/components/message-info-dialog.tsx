@@ -289,6 +289,19 @@ export function MessageInfoDialog({
               </Field>
             )}
 
+            {metadata.costEstimateCents != null && (
+              <Field label="Estimated Cost">
+                <Text as="div" className="font-mono">
+                  {(() => {
+                    const dollars = metadata.costEstimateCents / 100;
+                    if (dollars === 0) return '$0.00';
+                    if (dollars >= 1) return `$${dollars.toFixed(2)}`;
+                    return `$${dollars.toPrecision(3)}`;
+                  })()}
+                </Text>
+              </Field>
+            )}
+
             {metadata.toolsUsage && metadata.toolsUsage.length > 0 && (
               <Field label={t('messageInfo.toolCalls')}>
                 <Stack gap={2}>
