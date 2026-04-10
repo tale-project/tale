@@ -89,7 +89,21 @@ export function ProviderAddDialog({
                 .min(1, t('providers.tagsRequired')),
             }),
           )
-          .min(1, t('providers.modelsRequired')),
+          .min(1, t('providers.modelsRequired'))
+          .superRefine((models, ctx) => {
+            const seen = new Set<string>();
+            for (let i = 0; i < models.length; i++) {
+              const id = models[i].id;
+              if (id && seen.has(id)) {
+                ctx.addIssue({
+                  code: 'custom',
+                  message: t('providers.duplicateModelId'),
+                  path: [i, 'id'],
+                });
+              }
+              seen.add(id);
+            }
+          }),
       }),
     [t, tCommon],
   );

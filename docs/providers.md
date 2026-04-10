@@ -94,15 +94,17 @@ To connect a self-hosted model:
 
 ## Making models available in chat
 
-After adding a provider with models, you also need to add the model IDs to the agent's `supportedModels` list. Agent configurations are stored in `TALE_CONFIG_DIR/agents/`. Edit the relevant agent JSON file and add the model IDs:
+After adding a provider with models, you also need to add the model IDs to the agent's `supportedModels` list. Agent configurations are stored in `TALE_CONFIG_DIR/agents/`. Edit the relevant agent JSON file and add the exact model IDs as defined in your provider config (`models[*].id`):
 
 ```json
 {
   "supportedModels": [
-    "ollama/llama3.3",
-    "openrouter/anthropic/claude-opus-4.6"
+    "llama3.3",
+    "anthropic/claude-opus-4.6"
   ]
 }
 ```
+
+The IDs must match the `id` field in the provider's model definition exactly. For example, if your Ollama provider defines a model with `"id": "llama3.3"`, use `"llama3.3"` — not `"ollama/llama3.3"`.
 
 Only models listed in `supportedModels` with the `chat` tag appear in the model selector dropdown.
