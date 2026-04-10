@@ -366,6 +366,11 @@
   }
 }
 
+/* Override browser autofill masking when password type is toggled to text */
+input[type='text']:-webkit-autofill {
+  -webkit-text-security: none !important;
+}
+
 html,
 body,
 #root {

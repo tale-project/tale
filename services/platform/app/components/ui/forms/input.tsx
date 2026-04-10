@@ -11,6 +11,7 @@ import {
   useEffect,
 } from 'react';
 
+import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -66,6 +67,7 @@ export const Input = forwardRef<HTMLInputElement, BaseProps>(
       required,
       wrapperClassName,
       id: providedId,
+      style,
       ...props
     },
     ref,
@@ -125,22 +127,33 @@ export const Input = forwardRef<HTMLInputElement, BaseProps>(
               aria-describedby={describedBy}
               aria-errormessage={hasError ? errorId : undefined}
               {...props}
+              // Force-clear browser autofill masking when password is revealed.
+              // Chrome/Safari apply `-webkit-text-security: disc` via their autofill
+              // overlay, which persists even after `type` changes to "text".
+              style={{
+                ...style,
+                ...(show && { WebkitTextSecurity: 'none' }),
+              }}
             />
-            <button
-              type="button"
-              aria-label={
-                show ? t('aria.hidePassword') : t('aria.showPassword')
-              }
-              aria-pressed={show}
-              className="text-muted-foreground hover:text-foreground absolute inset-y-0 right-2 my-auto inline-flex size-6 items-center justify-center rounded-md transition-colors duration-150"
-              onClick={() => setShow((v) => !v)}
+            <Tooltip
+              content={show ? t('aria.hidePassword') : t('aria.showPassword')}
             >
-              {show ? (
-                <EyeOff className="size-4" aria-hidden="true" />
-              ) : (
-                <Eye className="size-4" aria-hidden="true" />
-              )}
-            </button>
+              <button
+                type="button"
+                aria-label={
+                  show ? t('aria.hidePassword') : t('aria.showPassword')
+                }
+                aria-pressed={show}
+                className="text-muted-foreground hover:text-foreground absolute inset-y-0 right-2 my-auto inline-flex size-6 items-center justify-center rounded-md transition-colors duration-150"
+                onClick={() => setShow((v) => !v)}
+              >
+                {show ? (
+                  <EyeOff className="size-4" aria-hidden="true" />
+                ) : (
+                  <Eye className="size-4" aria-hidden="true" />
+                )}
+              </button>
+            </Tooltip>
           </div>
           {errorMessage && (
             <p
@@ -185,6 +198,7 @@ export const Input = forwardRef<HTMLInputElement, BaseProps>(
           aria-describedby={describedBy}
           aria-errormessage={hasError ? errorId : undefined}
           {...props}
+          style={style}
         />
         {errorMessage && (
           <p

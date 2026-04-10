@@ -467,6 +467,7 @@
       "loginButton": "Log in",
       "continueWithSso": "Continue with SSO",
       "wrongCredentials": "Wrong email or password",
+      "forgotPassword": "Forgot password? Contact an admin for assistance.",
       "toast": {
         "success": "Signed in successfully",
         "microsoftFailed": "Microsoft sign-in failed. Please try again.",
@@ -1528,7 +1529,8 @@
       "password": "Password",
       "passwordPlaceholder": "Enter password",
       "role": "Role",
-      "passwordHint": "Password is required to create a new user account. If the user already has an account, they will be added without needing a password."
+      "passwordHint": "Password is required to create a new user account. If the user already has an account, they will be added without needing a password.",
+      "forgotPassword": "Users who forget their password should contact an admin."
     },
     "roles": {
       "owner": "Owner",
