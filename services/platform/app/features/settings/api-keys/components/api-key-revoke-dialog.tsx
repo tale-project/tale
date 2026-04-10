@@ -35,7 +35,6 @@ export function ApiKeyRevokeDialog({
       onSuccess: () => {
         toast({
           title: tSettings('apiKeys.keyRevoked'),
-          variant: 'success',
         });
         onOpenChange(false);
         onSuccess?.();
