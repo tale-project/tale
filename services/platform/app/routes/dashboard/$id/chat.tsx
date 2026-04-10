@@ -1,4 +1,5 @@
-import { createFileRoute, useMatch } from '@tanstack/react-router';
+import { createFileRoute, useMatch, useNavigate } from '@tanstack/react-router';
+import { useQuery } from 'convex/react';
 import { m, AnimatePresence } from 'framer-motion';
 import { PanelLeftClose } from 'lucide-react';
 import { Suspense, useState, useEffect, useRef } from 'react';
@@ -7,6 +8,7 @@ import { LayoutErrorBoundary } from '@/app/components/error-boundaries/boundarie
 import { PageLayout } from '@/app/components/layout/page-layout';
 import { PanelFooter } from '@/app/components/layout/panel-footer';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
+import { Button } from '@/app/components/ui/primitives/button';
 import { ChatHeader } from '@/app/features/chat/components/chat-header';
 import { ChatHistorySidebar } from '@/app/features/chat/components/chat-history-sidebar';
 import { ChatInterface } from '@/app/features/chat/components/chat-interface';
@@ -17,6 +19,7 @@ import {
   ChatLayoutProvider,
   useChatLayout,
 } from '@/app/features/chat/context/chat-layout-context';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
@@ -50,6 +53,87 @@ function ChatSkeleton() {
       </div>
       <ChatInputSkeleton />
     </div>
+  );
+}
+
+/**
+ * Gates ChatInterface behind a thread ownership check.
+ * When a threadId is present, waits for getThreadStatus to resolve:
+ * - null while loading → show skeleton
+ * - null after load (unauthorized / missing) → show "not found"
+ * - valid status → render ChatInterface
+ * When no threadId, renders ChatInterface immediately (new chat).
+ */
+function ThreadGate({
+  organizationId,
+  threadId,
+  newChatCount,
+}: {
+  organizationId: string;
+  threadId: string | undefined;
+  newChatCount: number;
+}) {
+  const { t: tChat } = useT('chat');
+  const navigate = useNavigate();
+
+  // Raw Convex query — stable subscription, no suspense, no react-query wrapper.
+  // Returns undefined while loading, null if thread not found / not owned.
+  const threadStatus = useQuery(
+    api.threads.queries.getThreadStatus,
+    threadId ? { threadId } : 'skip',
+  );
+
+  // No threadId → new chat, render immediately
+  if (!threadId) {
+    return (
+      <BranchProvider threadId={threadId}>
+        <Suspense fallback={<ChatSkeleton />}>
+          <ChatInterface
+            key={`chat-${newChatCount}`}
+            organizationId={organizationId}
+            threadId={threadId}
+          />
+        </Suspense>
+      </BranchProvider>
+    );
+  }
+
+  // Still loading
+  if (threadStatus === undefined) {
+    return <ChatSkeleton />;
+  }
+
+  // Loaded but thread not found / not authorized
+  if (threadStatus === null) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-4 p-8">
+        <p className="text-muted-foreground text-sm">{tChat('notFound')}</p>
+        <Button
+          variant="secondary"
+          onClick={() =>
+            void navigate({
+              to: '/dashboard/$id/chat',
+              params: { id: organizationId },
+            })
+          }
+        >
+          {tChat('newChat')}
+        </Button>
+      </div>
+    );
+  }
+
+  // Thread is accessible — render ChatInterface
+  return (
+    <BranchProvider threadId={threadId}>
+      <Suspense fallback={<ChatSkeleton />}>
+        <ChatInterface
+          key={`chat-${newChatCount}`}
+          organizationId={organizationId}
+          threadId={threadId}
+        />
+      </Suspense>
+    </BranchProvider>
   );
 }
 
@@ -147,15 +231,11 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
 
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <LayoutErrorBoundary organizationId={organizationId}>
-            <BranchProvider threadId={threadId}>
-              <Suspense fallback={<ChatSkeleton />}>
-                <ChatInterface
-                  key={`chat-${newChatCount}`}
-                  organizationId={organizationId}
-                  threadId={threadId}
-                />
-              </Suspense>
-            </BranchProvider>
+            <ThreadGate
+              organizationId={organizationId}
+              threadId={threadId}
+              newChatCount={newChatCount}
+            />
           </LayoutErrorBoundary>
         </div>
       </div>

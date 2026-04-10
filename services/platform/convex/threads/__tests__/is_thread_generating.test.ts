@@ -18,15 +18,17 @@ const isThreadGenerating = isThreadGeneratingQuery as unknown as (
 
 function createMockCtx(
   threadMeta?: {
+    userId?: string;
     generationStatus?: string;
     generationStartTime?: number;
   } | null,
 ) {
+  const meta = threadMeta ? { userId: 'user_1', ...threadMeta } : null;
   return {
     db: {
       query: () => ({
         withIndex: () => ({
-          first: vi.fn().mockResolvedValue(threadMeta ?? null),
+          first: vi.fn().mockResolvedValue(meta),
         }),
       }),
     },
