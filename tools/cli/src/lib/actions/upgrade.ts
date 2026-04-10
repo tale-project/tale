@@ -101,6 +101,12 @@ function getInstallPath(): string {
   return process.execPath;
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 async function downloadBinary(
   tag: string,
   asset: string,
@@ -118,7 +124,48 @@ async function downloadBinary(
     );
   }
 
-  await Bun.write(destPath, response);
+  const totalBytes = Number(response.headers.get('content-length')) || null;
+  const isTTY = process.stdout.isTTY && !process.env.NO_COLOR;
+
+  if (!response.body) {
+    await Bun.write(destPath, response);
+  } else {
+    const reader = response.body.getReader();
+    const writer = Bun.file(destPath).writer();
+    let downloadedBytes = 0;
+    let lastPrintTime = 0;
+
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        writer.write(value);
+        downloadedBytes += value.byteLength;
+
+        if (isTTY) {
+          const now = Date.now();
+          if (now - lastPrintTime >= 100) {
+            lastPrintTime = now;
+            const progress = totalBytes
+              ? `${formatBytes(downloadedBytes)} / ${formatBytes(totalBytes)} (${Math.round((downloadedBytes / totalBytes) * 100)}%)`
+              : formatBytes(downloadedBytes);
+            process.stdout.write(`\r  Downloading... ${progress}`);
+          }
+        }
+      }
+      await writer.end();
+    } catch (err) {
+      await writer.end();
+      throw err;
+    }
+
+    if (isTTY) {
+      process.stdout.write(
+        `\x1b[2K\r  Downloaded ${formatBytes(downloadedBytes)}\n`,
+      );
+    }
+  }
 
   if (process.platform !== 'win32') {
     await chmod(destPath, 0o755);
