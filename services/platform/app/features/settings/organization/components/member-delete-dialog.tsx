@@ -45,6 +45,7 @@ export function DeleteMemberDialog({
 
       toast({
         title: t('organization.memberRemoved'),
+        variant: 'success',
       });
       onOpenChange(false);
     } catch (error) {
