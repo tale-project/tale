@@ -574,6 +574,7 @@ export function useMessageMetadata(messageId: string | null) {
           toolsUsage: metadata.toolsUsage ?? metadata.subAgentUsage,
           contextWindow: metadata.contextWindow,
           contextStats: metadata.contextStats,
+          costEstimateCents: metadata.costEstimateCents,
         }
       : undefined,
     isLoading,
