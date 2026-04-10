@@ -141,6 +141,7 @@ export function VendorsTable({
 
   const handleDeleteItem = useCallback(
     async (id: string) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex Id type from row selection key
       const vendorId = id as Doc<'vendors'>['_id'];
       await deleteVendor.mutateAsync({ vendorId });
     },
