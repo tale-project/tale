@@ -244,7 +244,7 @@ describe('useChatLoadingState', () => {
       expect(setIsPending).not.toHaveBeenCalledWith(false);
     });
 
-    it('clears isPending on new-chat page when pendingThreadId is set (navigated away)', () => {
+    it('keeps isPending on new-chat page when pendingThreadId is set (threadId undefined is transient)', () => {
       renderHook(() =>
         useChatLoadingState({
           isPending: true,
@@ -256,7 +256,7 @@ describe('useChatLoadingState', () => {
         }),
       );
 
-      expect(setIsPending).toHaveBeenCalledWith(false);
+      expect(setIsPending).not.toHaveBeenCalledWith(false);
     });
 
     it('keeps isPending on new-chat page when pendingThreadId is null (sent from new-chat)', () => {

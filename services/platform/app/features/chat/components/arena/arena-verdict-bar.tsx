@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react';
 
 import { Button } from '@/app/components/ui/primitives/button';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
+import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -24,12 +25,19 @@ export function ArenaVerdictBar({
   organizationId,
 }: ArenaVerdictBarProps) {
   const { t } = useT('chat');
-  const { modelA, modelB } = useArenaMode();
-  const [selectedVerdict, setSelectedVerdict] = useState<Verdict | null>(null);
+  const {
+    modelA,
+    modelB,
+    verdict: selectedVerdict,
+    setVerdict,
+  } = useArenaMode();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { mutateAsync: submitFeedback } = useConvexMutation(
     api.feedback.mutations.submitFeedback,
+  );
+  const { mutateAsync: updateBranchSelections } = useConvexMutation(
+    api.threads.mutations.updateBranchSelections,
   );
 
   const handleVerdict = useCallback(
@@ -52,7 +60,24 @@ export function ArenaVerdictBar({
           },
         });
 
-        setSelectedVerdict(verdict);
+        // If B is better, switch the branch selection so Thread B becomes active
+        if (verdict === 'b_better') {
+          await updateBranchSelections({
+            threadId: threadIdA,
+            branchSelections: JSON.stringify({ '0': threadIdB }),
+          });
+        }
+
+        setVerdict(verdict);
+
+        toast({
+          title: t('arena.verdictRecorded'),
+        });
+      } catch {
+        toast({
+          title: t('arena.verdictError'),
+          variant: 'destructive',
+        });
       } finally {
         setIsSubmitting(false);
       }
@@ -60,11 +85,14 @@ export function ArenaVerdictBar({
     [
       isSubmitting,
       submitFeedback,
+      updateBranchSelections,
+      setVerdict,
       organizationId,
       threadIdA,
       threadIdB,
       modelA,
       modelB,
+      t,
     ],
   );
 

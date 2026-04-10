@@ -91,6 +91,7 @@ interface ChatMessagesProps {
   onSendMessage?: (message: string) => void;
   onEditMessage?: (messageId: string, content: string) => void;
   onForkAtMessage?: (messageId: string) => void;
+  hideBranchNavigator?: boolean;
 }
 
 /**
@@ -126,6 +127,7 @@ export function ChatMessages({
   onSendMessage,
   onEditMessage,
   onForkAtMessage,
+  hideBranchNavigator,
 }: ChatMessagesProps) {
   const { t } = useT('chat');
   const { branches, activeBranchThreadId } = useBranchContext();
@@ -321,7 +323,9 @@ export function ChatMessages({
           onEdit={isUserMessage ? onEditMessage : undefined}
           onFork={onForkAtMessage}
           toolbarExtra={
-            hasBranches && message.order !== undefined ? (
+            !hideBranchNavigator &&
+            hasBranches &&
+            message.order !== undefined ? (
               <BranchNavigator forkOrder={message.order} />
             ) : undefined
           }

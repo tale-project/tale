@@ -43,6 +43,8 @@ import { useSendMessage } from '../hooks/use-send-message';
 import { useStopGenerating } from '../hooks/use-stop-generating';
 import { useUserContext } from '../hooks/use-user-context';
 import type { FileAttachment } from '../types';
+import { useArenaModeOptional } from './arena/arena-mode-context';
+import { ArenaSplitView } from './arena/arena-split-view';
 import { ChatInput } from './chat-input';
 import { ChatMessages } from './chat-messages';
 import { EditMessageDialog } from './edit-message-dialog';
@@ -82,6 +84,40 @@ export function ChatInterface({
     setPendingMessage,
     selectedModelOverrides,
   } = useChatLayout();
+
+  const arenaContext = useArenaModeOptional();
+
+  // Restore arena thread pair when re-enabling arena mode on an existing arena thread
+  const isArenaMode = arenaContext?.isArenaMode ?? false;
+  const needsArenaRestore =
+    isArenaMode && threadId && !arenaContext?.arenaThreadIdA;
+  const { data: arenaPair } = useConvexQuery(
+    api.threads.queries.getArenaThreadPair,
+    needsArenaRestore ? { threadId } : 'skip',
+  );
+  useEffect(() => {
+    if (!arenaContext || arenaContext.arenaThreadIdA) return;
+    if (arenaPair) {
+      // Existing arena thread — restore both IDs
+      arenaContext.setArenaThreadIdA(arenaPair.threadIdA);
+      arenaContext.setArenaThreadIdB(arenaPair.threadIdB);
+    } else if (isArenaMode && threadId && arenaPair === null) {
+      // Non-arena thread — use current thread as A, B will be created on send
+      arenaContext.setArenaThreadIdA(threadId);
+    }
+  }, [arenaPair, arenaContext, isArenaMode, threadId]);
+
+  // Reset arena mode when navigating FROM a thread back to new chat.
+  // Track whether we previously had a threadId to avoid disabling
+  // arena mode when the user enables it on the new chat page.
+  const prevThreadIdRef = useRef(threadId);
+  useEffect(() => {
+    const hadThread = prevThreadIdRef.current;
+    prevThreadIdRef.current = threadId;
+    if (hadThread && !threadId && arenaContext?.isArenaMode) {
+      arenaContext.disableArenaMode();
+    }
+  }, [threadId, arenaContext]);
 
   const { activeBranchThreadId } = useBranchContext();
   // Use the active branch thread for data loading, but keep URL threadId for drafts/routing
@@ -286,7 +322,7 @@ export function ChatInterface({
       mutationObserver.disconnect();
       container.removeEventListener('scroll', onScroll);
     };
-  }, [containerRef, contentRef, isAtBottom]);
+  }, [containerRef, contentRef, isAtBottom, arenaContext?.isArenaMode]);
 
   // Scroll to bottom on thread initial load.
   const scrolledForThreadRef = useRef<string | null>(null);
@@ -368,6 +404,7 @@ export function ChatInterface({
       ? selectedModelOverrides[effectiveAgent.name]
       : undefined,
     userContext,
+    arena: arenaContext ?? undefined,
   });
 
   const handleSendMessage = async (
@@ -483,56 +520,72 @@ export function ChatInterface({
     ],
   );
 
+  const showArena = arenaContext?.isArenaMode && !!arenaContext.arenaThreadIdA;
+
+  // In arena mode, while waiting for thread creation (isPending but no arena
+  // threads yet), don't let isLoading alone trigger the messages view.
+  // This keeps the welcome page visible with just the send button loading.
+  const arenaWaiting = arenaContext?.isArenaMode && isPending && !showArena;
+
   // Show messages view when we have content or are loading (to show ThinkingAnimation)
   const showMessages =
-    dataThreadId || messages.length > 0 || pendingMessage || isLoading;
-  const showWelcome = !showMessages;
+    dataThreadId ||
+    messages.length > 0 ||
+    pendingMessage ||
+    (isLoading && !arenaWaiting);
+  const showWelcome = !showMessages && !showArena;
 
   return (
     <div
       ref={containerRef}
-      className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto scroll-smooth will-change-transform"
+      className={cn(
+        'flex h-full min-h-0 flex-1 flex-col',
+        !showArena && 'overflow-y-auto scroll-smooth will-change-transform',
+      )}
     >
-      <div
-        ref={contentRef}
-        className={cn(
-          'flex flex-col overflow-y-visible p-4 sm:p-6',
-          showWelcome && 'flex-1 items-center justify-center',
-        )}
-      >
-        {showWelcome && (
-          <WelcomeView
-            isPending={isLoading}
-            isAgentLoading={isAgentLoading}
-            agentName={effectiveAgent?.displayName}
-            conversationStarters={effectiveAgent?.conversationStarters}
-            onSuggestionClick={setInputValue}
-          />
-        )}
+      {showArena ? (
+        <ArenaSplitView organizationId={organizationId} />
+      ) : (
+        <div
+          ref={contentRef}
+          className={cn(
+            'flex flex-col overflow-y-visible p-4 sm:p-6',
+            showWelcome && 'flex-1 items-center justify-center',
+          )}
+        >
+          {showWelcome && (
+            <WelcomeView
+              isAgentLoading={isAgentLoading}
+              agentName={effectiveAgent?.displayName}
+              conversationStarters={effectiveAgent?.conversationStarters}
+              onSuggestionClick={setInputValue}
+            />
+          )}
 
-        {showMessages && (
-          <ChatMessages
-            items={mergedMessages}
-            threadId={dataThreadId}
-            organizationId={organizationId}
-            canLoadMore={canLoadMore}
-            isLoadingMore={isLoadingMore}
-            loadMore={handleLoadMore}
-            activeMessage={activeMessage}
-            isLoading={isLoading}
-            lastUserMessageRef={lastUserMessageRef}
-            containerRef={containerRef}
-            activeApproval={activeApproval}
-            forkedMessageCount={forkInfo?.forkedMessageCount ?? undefined}
-            forkedFromShare={forkInfo?.forkedFromShare}
-            onHumanInputResponseSubmitted={handleHumanInputResponseSubmitted}
-            onSendFollowUp={handleSendFollowUp}
-            onSendMessage={handleSendMessageDirect}
-            onEditMessage={handleEditClick}
-            onForkAtMessage={handleForkAtMessage}
-          />
-        )}
-      </div>
+          {showMessages && (
+            <ChatMessages
+              items={mergedMessages}
+              threadId={dataThreadId}
+              organizationId={organizationId}
+              canLoadMore={canLoadMore}
+              isLoadingMore={isLoadingMore}
+              loadMore={handleLoadMore}
+              activeMessage={activeMessage}
+              isLoading={isLoading}
+              lastUserMessageRef={lastUserMessageRef}
+              containerRef={containerRef}
+              activeApproval={activeApproval}
+              forkedMessageCount={forkInfo?.forkedMessageCount ?? undefined}
+              forkedFromShare={forkInfo?.forkedFromShare}
+              onHumanInputResponseSubmitted={handleHumanInputResponseSubmitted}
+              onSendFollowUp={handleSendFollowUp}
+              onSendMessage={handleSendMessageDirect}
+              onEditMessage={handleEditClick}
+              onForkAtMessage={handleForkAtMessage}
+            />
+          )}
+        </div>
+      )}
 
       <PanelFooter className="mt-auto">
         <div className="relative mx-auto w-full max-w-(--chat-max-width)">

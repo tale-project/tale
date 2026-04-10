@@ -9,6 +9,7 @@ import { PageLayout } from '@/app/components/layout/page-layout';
 import { PanelFooter } from '@/app/components/layout/panel-footer';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Button } from '@/app/components/ui/primitives/button';
+import { ArenaModeProvider } from '@/app/features/chat/components/arena/arena-mode-context';
 import { ChatHeader } from '@/app/features/chat/components/chat-header';
 import { ChatHistorySidebar } from '@/app/features/chat/components/chat-history-sidebar';
 import { ChatInterface } from '@/app/features/chat/components/chat-interface';
@@ -75,16 +76,21 @@ function ThreadGate({
 }) {
   const { t: tChat } = useT('chat');
   const navigate = useNavigate();
+  const { pendingThreadId } = useChatLayout();
+
+  // Skip ownership check for threads we just created — avoids a skeleton
+  // flash while the Convex subscription catches up with the new document.
+  const isJustCreated = threadId != null && threadId === pendingThreadId;
 
   // Raw Convex query — stable subscription, no suspense, no react-query wrapper.
   // Returns undefined while loading, null if thread not found / not owned.
   const threadStatus = useQuery(
     api.threads.queries.getThreadStatus,
-    threadId ? { threadId } : 'skip',
+    threadId && !isJustCreated ? { threadId } : 'skip',
   );
 
-  // No threadId → new chat, render immediately
-  if (!threadId) {
+  // No threadId or just-created thread → render immediately
+  if (!threadId || isJustCreated) {
     return (
       <BranchProvider threadId={threadId}>
         <Suspense fallback={<ChatSkeleton />}>
@@ -248,7 +254,9 @@ function ChatLayout() {
 
   return (
     <ChatLayoutProvider organizationId={organizationId}>
-      <ChatLayoutContent organizationId={organizationId} />
+      <ArenaModeProvider>
+        <ChatLayoutContent organizationId={organizationId} />
+      </ArenaModeProvider>
     </ChatLayoutProvider>
   );
 }

@@ -8,10 +8,13 @@ const mockCreateThread = vi.fn();
 const mockUpdateThread = vi.fn();
 const mockChatWithAgent = vi.fn();
 
+const mockArenaChat = vi.fn();
+
 vi.mock('../mutations', () => ({
   useCreateThread: () => ({ mutateAsync: mockCreateThread }),
   useUpdateThread: () => ({ mutateAsync: mockUpdateThread }),
   useUnifiedChatWithAgent: () => ({ mutateAsync: mockChatWithAgent }),
+  useArenaChat: () => ({ mutateAsync: mockArenaChat }),
 }));
 
 const mockResetGlobalFreeze = vi.fn();

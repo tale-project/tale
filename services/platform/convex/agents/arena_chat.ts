@@ -7,7 +7,7 @@
 
 import { v } from 'convex/values';
 
-import { api } from '../_generated/api';
+import { api, internal } from '../_generated/api';
 import { action } from '../_generated/server';
 import { authComponent } from '../auth';
 
@@ -37,6 +37,7 @@ export const arenaChat = action({
         language: v.string(),
       }),
     ),
+    copyHistoryToB: v.optional(v.boolean()),
   },
   returns: v.object({
     streamIdA: v.string(),
@@ -48,6 +49,16 @@ export const arenaChat = action({
   ): Promise<{ streamIdA: string; streamIdB: string }> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
+
+    // Copy message history from Thread A to Thread B if requested
+    // (when arena is enabled on an existing thread with conversation history)
+    if (args.copyHistoryToB) {
+      await ctx.runMutation(internal.threads.mutations.copyThreadMessages, {
+        sourceThreadId: args.threadIdA,
+        targetThreadId: args.threadIdB,
+        userId: authUser._id,
+      });
+    }
 
     const sharedArgs = {
       agentSlug: args.agentSlug,
@@ -70,6 +81,12 @@ export const arenaChat = action({
         modelId: args.modelIdB,
       }),
     ]);
+
+    // Create branch link so thread B appears as a branch of thread A
+    await ctx.runMutation(internal.threads.mutations.createArenaBranchLink, {
+      rootThreadId: args.threadIdA,
+      branchThreadId: args.threadIdB,
+    });
 
     return {
       streamIdA: resultA.streamId,

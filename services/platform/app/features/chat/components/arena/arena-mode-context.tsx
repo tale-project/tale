@@ -9,6 +9,8 @@ import {
   type ReactNode,
 } from 'react';
 
+type Verdict = 'a_better' | 'b_better' | 'tie' | 'both_bad';
+
 interface ArenaModeContextType {
   isArenaMode: boolean;
   modelA: string | null;
@@ -21,6 +23,8 @@ interface ArenaModeContextType {
   arenaThreadIdB: string | null;
   setArenaThreadIdA: (threadId: string | null) => void;
   setArenaThreadIdB: (threadId: string | null) => void;
+  verdict: Verdict | null;
+  setVerdict: (verdict: Verdict | null) => void;
 }
 
 const ArenaModeContext = createContext<ArenaModeContextType | null>(null);
@@ -47,6 +51,7 @@ export function ArenaModeProvider({ children }: ArenaModeProviderProps) {
   const [modelB, setModelB] = useState<string | null>(null);
   const [arenaThreadIdA, setArenaThreadIdA] = useState<string | null>(null);
   const [arenaThreadIdB, setArenaThreadIdB] = useState<string | null>(null);
+  const [verdict, setVerdict] = useState<Verdict | null>(null);
 
   const enableArenaMode = useCallback(() => {
     setIsArenaMode(true);
@@ -58,6 +63,7 @@ export function ArenaModeProvider({ children }: ArenaModeProviderProps) {
     setModelB(null);
     setArenaThreadIdA(null);
     setArenaThreadIdB(null);
+    setVerdict(null);
   }, []);
 
   const value = useMemo(
@@ -73,6 +79,8 @@ export function ArenaModeProvider({ children }: ArenaModeProviderProps) {
       arenaThreadIdB,
       setArenaThreadIdA,
       setArenaThreadIdB,
+      verdict,
+      setVerdict,
     }),
     [
       isArenaMode,
@@ -82,6 +90,7 @@ export function ArenaModeProvider({ children }: ArenaModeProviderProps) {
       disableArenaMode,
       arenaThreadIdA,
       arenaThreadIdB,
+      verdict,
     ],
   );
 

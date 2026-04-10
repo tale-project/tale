@@ -9,6 +9,12 @@ export async function createChatThread(
   userId: string,
   title?: string,
   chatType: ChatType = 'general',
+  arena?: {
+    arenaGroupId: string;
+    arenaModelId: string;
+    isBranch?: boolean;
+    forkedFrom?: string;
+  },
 ): Promise<string> {
   const summary = JSON.stringify({ chatType });
   const resolvedTitle = title ?? 'New Chat';
@@ -32,6 +38,12 @@ export async function createChatThread(
     title: resolvedTitle,
     createdAt,
     updatedAt: createdAt,
+    ...(arena && {
+      arenaGroupId: arena.arenaGroupId,
+      arenaModelId: arena.arenaModelId,
+      ...(arena.isBranch && { isBranch: true }),
+      ...(arena.forkedFrom && { forkedFrom: arena.forkedFrom }),
+    }),
   });
 
   return threadId;

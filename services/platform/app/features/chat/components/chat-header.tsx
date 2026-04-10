@@ -1,10 +1,14 @@
 'use client';
 
 import { useNavigate } from '@tanstack/react-router';
-import { Clock, Download, Search, Share, Plus } from 'lucide-react';
-import { useEffect, useState, useCallback } from 'react';
+import { Clock, Download, Ellipsis, Search, Share, Plus } from 'lucide-react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 
 import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
+import {
+  DropdownMenu,
+  type DropdownMenuGroup,
+} from '@/app/components/ui/overlays/dropdown-menu';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
@@ -95,6 +99,20 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
     window.addEventListener('keydown', onKeyDown, true);
     return () => window.removeEventListener('keydown', onKeyDown, true);
   }, [isMac, handleToggleSearch, handleNewChat, handleToggleHistory]);
+
+  const headerMenuItems = useMemo<DropdownMenuGroup[]>(
+    () => [
+      [
+        {
+          type: 'item' as const,
+          label: tChat('export.button'),
+          icon: Download,
+          onClick: () => setIsExportDialogOpen(true),
+        },
+      ],
+    ],
+    [tChat],
+  );
 
   const baseIconClasses = 'size-5 text-muted-foreground p-0.25';
 
@@ -193,16 +211,6 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setIsExportDialogOpen(true)}
-              aria-label={tChat('export.button')}
-              className="text-muted-foreground gap-1.5"
-            >
-              <Download className="size-4" />
-              {tChat('export.button')}
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
               onClick={() => setIsShareDialogOpen(true)}
               aria-label={tChat('share.button')}
               className="text-muted-foreground gap-1.5"
@@ -210,6 +218,19 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
               <Share className="size-4" />
               {tChat('share.button')}
             </Button>
+            <DropdownMenu
+              trigger={
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  aria-label={tChat('moreActions')}
+                >
+                  <Ellipsis className={baseIconClasses} />
+                </Button>
+              }
+              items={headerMenuItems}
+              align="end"
+            />
           </>
         )}
       </div>
@@ -235,24 +256,26 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
           {threadId && (
             <>
               <Button
+                size="icon"
                 variant="ghost"
-                size="sm"
-                onClick={() => setIsExportDialogOpen(true)}
-                aria-label={tChat('export.button')}
-                className="text-muted-foreground gap-1.5"
-              >
-                <Download className="size-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
                 onClick={() => setIsShareDialogOpen(true)}
                 aria-label={tChat('share.button')}
-                className="text-muted-foreground gap-1.5"
               >
-                <Share className="size-4" />
-                {tChat('share.button')}
+                <Share className={baseIconClasses} />
               </Button>
+              <DropdownMenu
+                trigger={
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    aria-label={tChat('moreActions')}
+                  >
+                    <Ellipsis className={baseIconClasses} />
+                  </Button>
+                }
+                items={headerMenuItems}
+                align="end"
+              />
             </>
           )}
           <Button

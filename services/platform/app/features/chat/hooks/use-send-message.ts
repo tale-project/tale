@@ -1,5 +1,5 @@
 import { useNavigate } from '@tanstack/react-router';
-import { useCallback, startTransition } from 'react';
+import { useCallback, useRef, startTransition } from 'react';
 
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -11,12 +11,23 @@ import type {
 import type { FileAttachment } from '../types';
 import {
   useUnifiedChatWithAgent,
+  useArenaChat,
   useCreateThread,
   useUpdateThread,
 } from './mutations';
 import type { ChatMessage } from './use-message-processing';
 import { resetGlobalFreeze } from './use-stream-buffer';
 import type { UserContext } from './use-user-context';
+
+interface ArenaParams {
+  isArenaMode: boolean;
+  modelA: string | null;
+  modelB: string | null;
+  arenaThreadIdA: string | null;
+  arenaThreadIdB: string | null;
+  setArenaThreadIdA: (threadId: string | null) => void;
+  setArenaThreadIdB: (threadId: string | null) => void;
+}
 
 interface UseSendMessageParams {
   organizationId: string;
@@ -30,11 +41,13 @@ interface UseSendMessageParams {
   selectedAgent: SelectedAgent | null;
   modelId?: string;
   userContext?: UserContext;
+  arena?: ArenaParams;
 }
 
 /**
  * Hook to handle message sending logic.
  * Manages thread creation, title updates, and message mutations.
+ * Supports arena mode for A/B model comparison.
  */
 export function useSendMessage({
   organizationId,
@@ -48,6 +61,7 @@ export function useSendMessage({
   selectedAgent,
   modelId,
   userContext,
+  arena,
 }: UseSendMessageParams) {
   const { t } = useT('chat');
   const navigate = useNavigate();
@@ -55,6 +69,13 @@ export function useSendMessage({
   const { mutateAsync: createThread } = useCreateThread();
   const { mutateAsync: updateThread } = useUpdateThread();
   const { mutateAsync: chatWithAgent } = useUnifiedChatWithAgent();
+  const { mutateAsync: arenaChatAction } = useArenaChat();
+
+  // Use refs for arena params to avoid destabilizing the sendMessage callback
+  const arenaRef = useRef(arena);
+  arenaRef.current = arena;
+  const arenaChatRef = useRef(arenaChatAction);
+  arenaChatRef.current = arenaChatAction;
 
   const sendMessage = useCallback(
     async (message: string, attachments?: FileAttachment[]) => {
@@ -72,10 +93,7 @@ export function useSendMessage({
       onBeforeSend?.();
 
       try {
-        let currentThreadId = threadId;
-        let isFirstMessage = false;
-
-        // Convert attachments format (needed before storing pending message)
+        // Convert attachments format
         const mutationAttachments = attachments?.map((a) => ({
           fileId: a.fileId,
           fileName: a.fileName,
@@ -83,87 +101,182 @@ export function useSendMessage({
           fileSize: a.fileSize,
         }));
 
-        // Capture last message key at send time for optimistic message baseline.
-        // Frozen in state before any server round-trip to prevent TOCTOU races.
-        const lastMessageKey = messages[messages.length - 1]?.key;
+        const currentArena = arenaRef.current;
+        const modelA = currentArena?.modelA;
+        const modelB = currentArena?.modelB;
+        const isArena = currentArena?.isArenaMode && modelA && modelB;
 
-        if (!currentThreadId) {
-          const pendingTimestamp = new Date();
-          setPendingMessage({
-            content: message,
-            threadId: 'pending',
-            attachments: mutationAttachments,
-            timestamp: pendingTimestamp,
-            lastMessageKey,
-          });
-
+        if (isArena) {
+          // --- Arena mode: Thread A = root, Thread B = branch ---
           const title =
             message.length > 50 ? message.slice(0, 50) + '...' : message;
-          const newThreadId = await createThread({
-            organizationId,
-            title,
-            chatType: 'general',
-          });
-          currentThreadId = newThreadId;
-          isFirstMessage = true;
+          const arenaGroupId = crypto.randomUUID();
 
-          // Update pending message with real threadId
+          let tIdA: string;
+          let tIdB: string;
+          let needsCopyHistory = false;
+
+          if (currentArena.arenaThreadIdA && currentArena.arenaThreadIdB) {
+            // Both threads exist — reuse (subsequent messages in arena)
+            tIdA = currentArena.arenaThreadIdA;
+            tIdB = currentArena.arenaThreadIdB;
+          } else if (currentArena.arenaThreadIdA) {
+            // Thread A exists (existing thread) — only create B as branch
+            tIdA = currentArena.arenaThreadIdA;
+            needsCopyHistory = true;
+            const newB = await createThread({
+              organizationId,
+              title,
+              chatType: 'general',
+              arenaGroupId,
+              arenaModelId: modelB,
+              isBranch: true,
+              forkedFrom: tIdA,
+            });
+            tIdB = newB;
+            currentArena.setArenaThreadIdB(newB);
+          } else {
+            // New chat — create both threads
+            const newA = await createThread({
+              organizationId,
+              title,
+              chatType: 'general',
+              arenaGroupId,
+              arenaModelId: modelA,
+            });
+            const newB = await createThread({
+              organizationId,
+              title,
+              chatType: 'general',
+              arenaGroupId,
+              arenaModelId: modelB,
+              isBranch: true,
+              forkedFrom: newA,
+            });
+
+            tIdA = newA;
+            tIdB = newB;
+            currentArena.setArenaThreadIdA(newA);
+            currentArena.setArenaThreadIdB(newB);
+          }
+
+          // Start both models generating (split view shows "Thinking")
+          await arenaChatRef.current({
+            agentSlug: selectedAgent.name,
+            orgSlug: 'default',
+            threadIdA: tIdA,
+            threadIdB: tIdB,
+            organizationId,
+            message,
+            modelIdA: modelA,
+            modelIdB: modelB,
+            attachments: mutationAttachments,
+            userContext: userContext
+              ? {
+                  timezone: userContext.timezone,
+                  language: userContext.language,
+                }
+              : undefined,
+            copyHistoryToB: needsCopyHistory || undefined,
+          });
+
+          // Navigate AFTER arena chat completes — split view is already
+          // showing, so this just updates the URL without visual change.
           setPendingMessage({
             content: message,
-            threadId: newThreadId,
+            threadId: tIdA,
             attachments: mutationAttachments,
-            timestamp: pendingTimestamp,
-            lastMessageKey,
+            timestamp: new Date(),
+            lastMessageKey: messages[messages.length - 1]?.key,
           });
-
-          // Use startTransition to prevent Suspense from triggering.
-          // Batch setPendingThreadId with navigate so React renders atomically
-          // on the new route — no intermediate render on new-chat with mismatched threadId.
+          setPendingThreadId(tIdA);
           startTransition(() => {
-            setPendingThreadId(newThreadId);
             void navigate({
               to: '/dashboard/$id/chat/$threadId',
-              params: { id: organizationId, threadId: newThreadId },
+              params: { id: organizationId, threadId: tIdA },
             });
           });
         } else {
-          setPendingMessage({
-            content: message,
+          // --- Standard mode: send to one model ---
+          let currentThreadId = threadId;
+          let isFirstMessage = false;
+
+          const lastMessageKey = messages[messages.length - 1]?.key;
+
+          if (!currentThreadId) {
+            const pendingTimestamp = new Date();
+            setPendingMessage({
+              content: message,
+              threadId: 'pending',
+              attachments: mutationAttachments,
+              timestamp: pendingTimestamp,
+              lastMessageKey,
+            });
+
+            const title =
+              message.length > 50 ? message.slice(0, 50) + '...' : message;
+            const newThreadId = await createThread({
+              organizationId,
+              title,
+              chatType: 'general',
+            });
+            currentThreadId = newThreadId;
+            isFirstMessage = true;
+
+            // Update pending state synchronously (high priority) so that
+            // ThreadGate sees pendingThreadId immediately and skips the
+            // skeleton. usePendingMessages matches via the pendingThreadId
+            // fallback path even while URL is still /chat.
+            // Only navigation is deferred via startTransition.
+            setPendingMessage({
+              content: message,
+              threadId: newThreadId,
+              attachments: mutationAttachments,
+              timestamp: pendingTimestamp,
+              lastMessageKey,
+            });
+            setPendingThreadId(newThreadId);
+            startTransition(() => {
+              void navigate({
+                to: '/dashboard/$id/chat/$threadId',
+                params: { id: organizationId, threadId: newThreadId },
+              });
+            });
+          } else {
+            setPendingMessage({
+              content: message,
+              threadId: currentThreadId,
+              attachments: mutationAttachments,
+              timestamp: new Date(),
+              lastMessageKey,
+            });
+            isFirstMessage = messages?.length === 0;
+          }
+
+          if (isFirstMessage && currentThreadId) {
+            const title =
+              message.length > 50 ? message.slice(0, 50) + '...' : message;
+            await updateThread({ threadId: currentThreadId, title });
+          }
+
+          await chatWithAgent({
+            agentSlug: selectedAgent.name,
+            orgSlug: 'default',
             threadId: currentThreadId,
+            organizationId,
+            message,
+            modelId: modelId || undefined,
             attachments: mutationAttachments,
-            timestamp: new Date(),
-            lastMessageKey,
+            userContext: userContext
+              ? {
+                  timezone: userContext.timezone,
+                  language: userContext.language,
+                }
+              : undefined,
           });
-          isFirstMessage = messages?.length === 0;
         }
-
-        // Update thread title for first message
-        if (isFirstMessage && currentThreadId) {
-          const title =
-            message.length > 50 ? message.slice(0, 50) + '...' : message;
-          await updateThread({ threadId: currentThreadId, title });
-        }
-
-        await chatWithAgent({
-          agentSlug: selectedAgent.name,
-          orgSlug: 'default',
-          threadId: currentThreadId,
-          organizationId,
-          message: message,
-          modelId: modelId || undefined,
-          attachments: mutationAttachments,
-          userContext: userContext
-            ? {
-                timezone: userContext.timezone,
-                language: userContext.language,
-              }
-            : undefined,
-        });
       } catch (error) {
         console.error('Failed to send message:', error);
-        // Reset all client-side pending/loading state so the chat returns
-        // to an idle, sendable state. Includes the stream freeze flag which
-        // could otherwise block text rendering on the next response.
         clearChatState();
         resetGlobalFreeze();
         toast({

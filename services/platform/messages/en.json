@@ -2479,6 +2479,7 @@
     "nextImage": "Next image",
     "imageCounter": "{current} of {total}",
     "newChat": "New chat",
+    "moreActions": "More actions",
     "deleteChat": "Delete chat",
     "deleteConfirmation": "Are you sure you want to delete {title}?",
     "deleteArchiveMessage": "This chat will be archived and won't appear in your chat history.",
@@ -2790,15 +2791,23 @@
     },
     "arena": {
       "title": "Arena Mode",
+      "label": "Arena Mode",
       "enable": "Enable Arena Mode",
       "disable": "Disable Arena Mode",
       "modelA": "Model A",
       "modelB": "Model B",
+      "modelALabel": "Model A",
+      "modelBLabel": "Model B",
       "selectModels": "Select two models to compare",
+      "selectModel": "Select model",
+      "vs": "vs",
+      "verdictLabel": "Choose a verdict",
       "aBetter": "A is better",
       "bBetter": "B is better",
       "tie": "Tie",
-      "bothBad": "Both bad"
+      "bothBad": "Both bad",
+      "verdictRecorded": "Verdict recorded",
+      "verdictError": "Failed to record verdict"
     },
     "canvas": {
       "title": "Canvas",

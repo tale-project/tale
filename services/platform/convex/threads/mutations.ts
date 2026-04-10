@@ -1,6 +1,8 @@
+import { saveMessage } from '@convex-dev/agent';
 import { v } from 'convex/values';
 
-import { mutation } from '../_generated/server';
+import { components } from '../_generated/api';
+import { internalMutation, mutation } from '../_generated/server';
 import { authComponent } from '../auth';
 import {
   archiveChatThread as archiveChatThreadHelper,
@@ -9,6 +11,7 @@ import {
 import { cancelGeneration as cancelGenerationHelper } from './cancel_generation';
 import { createChatThread as createChatThreadHelper } from './create_chat_thread';
 import { deleteChatThread as deleteChatThreadHelper } from './delete_chat_thread';
+import { getThreadMessages } from './get_thread_messages';
 import { updateChatThread as updateChatThreadHelper } from './update_chat_thread';
 
 export const createChatThread = mutation({
@@ -22,6 +25,10 @@ export const createChatThread = mutation({
         v.literal('agent_test'),
       ),
     ),
+    arenaGroupId: v.optional(v.string()),
+    arenaModelId: v.optional(v.string()),
+    isBranch: v.optional(v.boolean()),
+    forkedFrom: v.optional(v.string()),
   },
   returns: v.string(),
   handler: async (ctx, args) => {
@@ -35,6 +42,14 @@ export const createChatThread = mutation({
       authUser._id,
       args.title,
       args.chatType ?? 'general',
+      args.arenaGroupId && args.arenaModelId
+        ? {
+            arenaGroupId: args.arenaGroupId,
+            arenaModelId: args.arenaModelId,
+            isBranch: args.isBranch ?? false,
+            forkedFrom: args.forkedFrom,
+          }
+        : undefined,
     );
   },
 });
@@ -146,6 +161,74 @@ export const updateBranchSelections = mutation({
         branchSelections: args.branchSelections,
       });
     }
+    return null;
+  },
+});
+
+/**
+ * Copies all messages from one thread to another.
+ * Used when enabling arena mode on an existing thread — Thread B needs
+ * the same conversation history as Thread A.
+ */
+export const copyThreadMessages = internalMutation({
+  args: {
+    sourceThreadId: v.string(),
+    targetThreadId: v.string(),
+    userId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const { messages } = await getThreadMessages(ctx, args.sourceThreadId);
+
+    for (const msg of messages) {
+      await saveMessage(ctx, components.agent, {
+        threadId: args.targetThreadId,
+        userId: args.userId,
+        message: {
+          role: msg.role,
+          content: msg.content,
+        },
+      });
+    }
+
+    return null;
+  },
+});
+
+/**
+ * Creates a branch link between arena thread A (root) and thread B (branch).
+ * Called by arenaChat action after both chatWithAgent calls complete.
+ */
+export const createArenaBranchLink = internalMutation({
+  args: {
+    rootThreadId: v.string(),
+    branchThreadId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    // Find the last user message in the root thread to use as fork point
+    const { messages } = await getThreadMessages(ctx, args.rootThreadId);
+
+    const userMessages = messages.filter((m) => m.role === 'user');
+    const lastUserMessage = userMessages[userMessages.length - 1];
+
+    if (!lastUserMessage) {
+      throw new Error('No user message found in root thread');
+    }
+
+    // Count user messages to determine forkOrder (0-based)
+    const forkOrder = userMessages.length - 1;
+
+    await ctx.db.insert('threadBranches', {
+      rootThreadId: args.rootThreadId,
+      branchThreadId: args.branchThreadId,
+      parentThreadId: args.rootThreadId,
+      forkAfterMessageId: lastUserMessage._id,
+      forkOrder,
+      branchIndex: 1,
+      createdAt: Date.now(),
+    });
+
     return null;
   },
 });

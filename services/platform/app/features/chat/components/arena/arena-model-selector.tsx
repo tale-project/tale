@@ -1,7 +1,13 @@
 'use client';
 
 import { ChevronDown, Cpu } from 'lucide-react';
-import { type ReactNode, useCallback, useMemo, useState } from 'react';
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 
 import {
   SearchableSelect,
@@ -91,6 +97,18 @@ export function ArenaModelSelector({
   const currentModelA = modelA ?? supportedModels[0] ?? null;
   const currentModelB =
     modelB ?? supportedModels[1] ?? supportedModels[0] ?? null;
+
+  // Sync default selections back to context so sendMessage can read them
+  useEffect(() => {
+    if (supportedModels.length >= 2) {
+      if (!modelA && supportedModels[0]) {
+        setModelA(supportedModels[0]);
+      }
+      if (!modelB && supportedModels[1]) {
+        setModelB(supportedModels[1]);
+      }
+    }
+  }, [supportedModels, modelA, modelB, setModelA, setModelB]);
 
   if (supportedModels.length < 2) return null;
 
