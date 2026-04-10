@@ -28,7 +28,9 @@ vi.mock('@/lib/i18n/client', () => ({
 describe('CitationLink', () => {
   describe('accessibility', () => {
     it('passes axe audit with minimal citation', async () => {
-      const { container } = render(<CitationLink citation={{ number: 1 }} />);
+      const { container } = render(
+        <CitationLink citation={{ number: 1, type: 'rag' }} />,
+      );
       await checkAccessibility(container);
     });
 
@@ -41,6 +43,7 @@ describe('CitationLink', () => {
             fileId: 'file-123',
             page: 5,
             relevance: 87.5,
+            type: 'rag',
           }}
           onNavigate={vi.fn()}
         />,
