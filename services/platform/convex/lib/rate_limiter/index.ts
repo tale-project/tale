@@ -177,6 +177,12 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: MINUTE,
     capacity: 50,
   },
+  'rest:api': {
+    kind: 'token bucket',
+    rate: 120,
+    period: MINUTE,
+    capacity: 200,
+  },
   'agent:document-list': {
     kind: 'fixed window',
     rate: 30,

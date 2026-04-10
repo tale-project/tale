@@ -45,6 +45,9 @@ function ApiDocsPage() {
       showCommonExtensions: true,
       tryItOutEnabled: true,
       persistAuthorization: true,
+      deepLinking: true,
+      tagsSorter: 'alpha' as const,
+      operationsSorter: 'alpha' as const,
       requestInterceptor: (req: Record<string, unknown>) => {
         if (typeof req.url === 'string' && req.url.includes('/api/')) {
           req.credentials = 'include';

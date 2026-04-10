@@ -1,14 +1,26 @@
 'use node';
 
+import { readdir } from 'node:fs/promises';
+
 import { v } from 'convex/values';
 
 import { isRecord, getString } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
 import { getPollingInterval } from '../documents/internal_actions';
+import { readJsonFile } from '../lib/file_io';
 import { getRagConfig } from '../lib/helpers/rag_config';
 import { deleteDocumentById } from '../workflow_engine/action_defs/rag/helpers/delete_document';
 import { uploadDocument } from '../workflow_engine/action_defs/rag/helpers/upload_document';
+import type { AgentJsonConfig, AgentReadResult } from './file_utils';
+import {
+  MAX_FILE_SIZE_BYTES,
+  agentNameFromFileName,
+  parseAgentJson,
+  resolveAgentFilePath,
+  resolveAgentsDir,
+  validateAgentName,
+} from './file_utils';
 
 const INITIAL_POLLING_DELAY_MS = 10_000;
 const MAX_POLLING_ATTEMPTS = 50;
@@ -242,5 +254,84 @@ export const deleteKnowledgeFileFromRag = internalAction({
     }
 
     return null;
+  },
+});
+
+// ---------------------------------------------------------------------------
+// REST API helpers — internal actions for listing/reading agent configs
+// ---------------------------------------------------------------------------
+
+async function readAgentFileInternal(
+  orgSlug: string,
+  agentName: string,
+): Promise<AgentReadResult> {
+  const filePath = resolveAgentFilePath(orgSlug, agentName);
+  const result = await readJsonFile<AgentJsonConfig>(
+    filePath,
+    MAX_FILE_SIZE_BYTES,
+    parseAgentJson,
+  );
+  if (result.ok) {
+    return { ok: true, config: result.data, hash: result.hash };
+  }
+  return result;
+}
+
+export const listAgentsInternal = internalAction({
+  args: {
+    orgSlug: v.string(),
+  },
+  returns: v.any(),
+  handler: async (_ctx, args) => {
+    const dir = resolveAgentsDir(args.orgSlug);
+    let entries: string[];
+    try {
+      entries = await readdir(dir);
+    } catch {
+      return [];
+    }
+
+    const jsonFiles = entries.filter(
+      (e) => e.endsWith('.json') && !e.startsWith('.'),
+    );
+
+    const results = await Promise.all(
+      jsonFiles.map(async (fileName) => {
+        const agentName = agentNameFromFileName(fileName);
+        if (!validateAgentName(agentName)) return null;
+        const result = await readAgentFileInternal(args.orgSlug, agentName);
+        if (result.ok) {
+          return {
+            name: agentName,
+            displayName: result.config.displayName,
+            description: result.config.description,
+            visibleInChat: result.config.visibleInChat,
+            supportedModels: result.config.supportedModels,
+            toolNames: result.config.toolNames,
+            roleRestriction: result.config.roleRestriction,
+            conversationStarters: result.config.conversationStarters,
+            i18n: result.config.i18n,
+          };
+        }
+        return {
+          name: agentName,
+          status: result.error,
+          message: result.message,
+        };
+      }),
+    );
+
+    return results.filter(Boolean);
+  },
+});
+
+export const readAgentInternal = internalAction({
+  args: {
+    orgSlug: v.string(),
+    agentName: v.string(),
+  },
+  returns: v.any(),
+  handler: async (_ctx, args) => {
+    return readAgentFileInternal(args.orgSlug, args.agentName);
   },
 });

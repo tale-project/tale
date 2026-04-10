@@ -1,0 +1,248 @@
+import { v } from 'convex/values';
+
+import type { ConvexJsonValue } from '../../lib/shared/schemas/utils/json-value';
+import { internalMutation } from '../_generated/server';
+import { jsonRecordValidator } from '../lib/validators/json';
+import {
+  vendorSourceValidator,
+  vendorAddressValidator,
+  vendorInputValidator,
+  bulkCreateVendorsResponseValidator,
+} from './validators';
+
+export const createVendor = internalMutation({
+  args: {
+    organizationId: v.string(),
+    name: v.optional(v.string()),
+    email: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    externalId: v.optional(v.union(v.string(), v.number())),
+    source: vendorSourceValidator,
+    locale: v.optional(v.string()),
+    address: v.optional(vendorAddressValidator),
+    tags: v.optional(v.array(v.string())),
+    metadata: v.optional(jsonRecordValidator),
+    notes: v.optional(v.string()),
+  },
+  returns: v.id('vendors'),
+  handler: async (ctx, args) => {
+    const email = args.email?.toLowerCase().trim() || undefined;
+
+    if (email) {
+      const existing = await ctx.db
+        .query('vendors')
+        .withIndex('by_organizationId_and_email', (q) =>
+          q.eq('organizationId', args.organizationId).eq('email', email),
+        )
+        .first();
+
+      if (existing) {
+        throw new Error(`Vendor with email ${email} already exists`);
+      }
+    }
+
+    if (args.externalId) {
+      const existing = await ctx.db
+        .query('vendors')
+        .withIndex('by_organizationId_and_externalId', (q) =>
+          q
+            .eq('organizationId', args.organizationId)
+            .eq('externalId', args.externalId),
+        )
+        .first();
+
+      if (existing) {
+        throw new Error(
+          `Vendor with external ID ${args.externalId} already exists`,
+        );
+      }
+    }
+
+    return await ctx.db.insert('vendors', {
+      ...args,
+      ...(email !== undefined && { email }),
+    });
+  },
+});
+
+export const updateVendor = internalMutation({
+  args: {
+    vendorId: v.id('vendors'),
+    name: v.optional(v.string()),
+    email: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    externalId: v.optional(v.string()),
+    source: v.optional(vendorSourceValidator),
+    locale: v.optional(v.string()),
+    address: v.optional(vendorAddressValidator),
+    tags: v.optional(v.array(v.string())),
+    metadata: v.optional(jsonRecordValidator),
+    notes: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const { vendorId, ...updateData } = args;
+
+    if (updateData.email) {
+      updateData.email = updateData.email.toLowerCase().trim() || undefined;
+    }
+
+    const existingVendor = await ctx.db.get(vendorId);
+    if (!existingVendor) {
+      throw new Error('Vendor not found');
+    }
+
+    const checkEmailConflict =
+      updateData.email && updateData.email !== existingVendor.email;
+    const checkExternalIdConflict =
+      updateData.externalId &&
+      updateData.externalId !== existingVendor.externalId;
+
+    const [emailConflict, externalIdConflict] = await Promise.all([
+      checkEmailConflict
+        ? ctx.db
+            .query('vendors')
+            .withIndex('by_organizationId_and_email', (q) =>
+              q
+                .eq('organizationId', existingVendor.organizationId)
+                .eq('email', updateData.email),
+            )
+            .first()
+        : Promise.resolve(null),
+      checkExternalIdConflict
+        ? ctx.db
+            .query('vendors')
+            .withIndex('by_organizationId_and_externalId', (q) =>
+              q
+                .eq('organizationId', existingVendor.organizationId)
+                .eq('externalId', updateData.externalId),
+            )
+            .first()
+        : Promise.resolve(null),
+    ]);
+
+    if (emailConflict && emailConflict._id !== vendorId) {
+      throw new Error(`Vendor with email ${updateData.email} already exists`);
+    }
+
+    if (externalIdConflict && externalIdConflict._id !== vendorId) {
+      throw new Error(
+        `Vendor with external ID ${updateData.externalId} already exists`,
+      );
+    }
+
+    const cleanUpdateData = Object.fromEntries(
+      Object.entries(updateData).filter(([_, value]) => value !== undefined),
+    );
+
+    await ctx.db.patch(vendorId, cleanUpdateData);
+    return null;
+  },
+});
+
+export const deleteVendor = internalMutation({
+  args: {
+    vendorId: v.id('vendors'),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const vendor = await ctx.db.get(args.vendorId);
+    if (!vendor) {
+      throw new Error('Vendor not found');
+    }
+
+    await ctx.db.delete(args.vendorId);
+    return null;
+  },
+});
+
+export const bulkCreateVendors = internalMutation({
+  args: {
+    organizationId: v.string(),
+    vendors: v.array(vendorInputValidator),
+  },
+  returns: bulkCreateVendorsResponseValidator,
+  handler: async (ctx, args) => {
+    class BulkCreateError extends Error {
+      constructor(
+        message: string,
+        readonly errorCode: string,
+      ) {
+        super(message);
+      }
+    }
+
+    const results = {
+      success: 0,
+      failed: 0,
+      errors: [] as Array<{
+        index: number;
+        error: string;
+        errorCode: string;
+        vendor: ConvexJsonValue;
+      }>,
+    };
+
+    for (let i = 0; i < args.vendors.length; i++) {
+      const vendorData = args.vendors[i];
+
+      try {
+        const email = vendorData.email?.toLowerCase().trim();
+
+        if (email) {
+          const existing = await ctx.db
+            .query('vendors')
+            .withIndex('by_organizationId_and_email', (q) =>
+              q.eq('organizationId', args.organizationId).eq('email', email),
+            )
+            .first();
+
+          if (existing) {
+            throw new BulkCreateError(
+              `Vendor with email ${email} already exists`,
+              'duplicate_email',
+            );
+          }
+        }
+
+        if (vendorData.externalId) {
+          const { externalId } = vendorData;
+          const existing = await ctx.db
+            .query('vendors')
+            .withIndex('by_organizationId_and_externalId', (q) =>
+              q
+                .eq('organizationId', args.organizationId)
+                .eq('externalId', externalId),
+            )
+            .first();
+
+          if (existing) {
+            throw new BulkCreateError(
+              `Vendor with external ID ${vendorData.externalId} already exists`,
+              'duplicate_external_id',
+            );
+          }
+        }
+
+        await ctx.db.insert('vendors', {
+          organizationId: args.organizationId,
+          ...vendorData,
+          ...(email !== undefined && { email }),
+        });
+
+        results.success++;
+      } catch (error) {
+        results.failed++;
+        results.errors.push({
+          index: i,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          errorCode:
+            error instanceof BulkCreateError ? error.errorCode : 'unknown',
+          vendor: vendorData,
+        });
+      }
+    }
+
+    return results;
+  },
+});

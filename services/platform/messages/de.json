@@ -1575,7 +1575,8 @@
         }
       },
       "never": "Nie",
-      "neverUsed": "Nie verwendet"
+      "neverUsed": "Nie verwendet",
+      "docsGuide": "Verwenden Sie API-Schlüssel für den Zugriff auf die REST-API. Verfügbare Endpunkte finden Sie in der API-Dokumentation."
     },
     "apiDocs": {
       "title": "API-Dokumentation",
