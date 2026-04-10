@@ -2,7 +2,7 @@ import * as logger from '../../utils/logger';
 import { docker } from '../docker/docker';
 import { findPlatformContainer } from '../docker/find-platform-container';
 
-export interface ResetOwnerOptions {
+interface ResetOwnerOptions {
   email?: string;
   password?: string;
 }

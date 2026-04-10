@@ -27,7 +27,11 @@ if (!newEmail && !newPassword) {
 }
 
 const client = new ConvexHttpClient(convexUrl);
-client.setAdminAuth(adminKey);
+// setAdminAuth is @internal in Convex types but exists at runtime —
+// it enables calling internal functions with the admin key.
+(client as unknown as { setAdminAuth(token: string): void }).setAdminAuth(
+  adminKey,
+);
 
 try {
   const result = await client.mutation(

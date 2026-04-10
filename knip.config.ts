@@ -20,6 +20,7 @@ export default {
         '!convex/betterAuth/_generated/**',
         'scripts/**/*.ts',
         'server.ts',
+        'reset-owner.ts',
       ],
       project: ['**/*.{ts,tsx}'],
       ignoreDependencies: ['convex-test', 'mermaid'],
