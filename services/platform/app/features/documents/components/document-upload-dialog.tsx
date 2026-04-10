@@ -81,7 +81,6 @@ export function DocumentUploadDialog({
 
   // Derived state
   const hasFiles = trackedFiles.length > 0;
-  const isActive = isUploading || hasFiles;
   const hasPendingFiles = trackedFiles.some((f) => f.status === 'pending');
   const totalSize = useMemo(
     () => trackedFiles.reduce((sum, f) => sum + f.file.size, 0),
@@ -300,56 +299,37 @@ export function DocumentUploadDialog({
         )}
 
         {/* Footer actions */}
-        {isActive && (
-          <div className="flex items-center justify-end gap-2">
-            {hasPendingFiles && !isUploading && !allCompleted && (
-              <>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => handleOpenChange(false)}
-                >
-                  {tCommon('actions.cancel')}
-                </Button>
-                <Button type="button" size="sm" onClick={handleUpload}>
-                  {tDocuments('upload.uploadDocuments')}
-                </Button>
-              </>
-            )}
-            {hasFailures && !isUploading && !hasPendingFiles && (
-              <>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => handleOpenChange(false)}
-                >
-                  {tCommon('actions.cancel')}
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={handleRetryAll}
-                  className="gap-1.5"
-                >
-                  <RotateCw className="size-3.5" />
-                  {tDocuments('upload.retryUpload')}
-                </Button>
-              </>
-            )}
-            {isUploading && (
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={handleCancel}
-              >
-                {tDocuments('upload.cancelUpload')}
-              </Button>
-            )}
-          </div>
-        )}
+        <div className="flex items-center justify-end gap-2">
+          {hasFailures && !isUploading && !hasPendingFiles && (
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleRetryAll}
+              className="gap-1.5"
+            >
+              <RotateCw className="size-3.5" />
+              {tDocuments('upload.retryUpload')}
+            </Button>
+          )}
+          {isUploading && (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={handleCancel}
+            >
+              {tDocuments('upload.cancelUpload')}
+            </Button>
+          )}
+          <Button
+            type="button"
+            size="sm"
+            onClick={handleUpload}
+            disabled={!hasPendingFiles || isUploading || allCompleted}
+          >
+            {tDocuments('upload.uploadDocuments')}
+          </Button>
+        </div>
       </div>
     </Dialog>
   );
