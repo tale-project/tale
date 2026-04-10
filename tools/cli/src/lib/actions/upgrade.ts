@@ -1,20 +1,12 @@
 import { chmod, rename, unlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, dirname, join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import pkg from '../../../package.json';
 import { compareVersions, extractVersion } from '../../utils/compare-versions';
 import * as logger from '../../utils/logger';
 import { requireProject } from '../project/find-project';
 import { update } from './update';
-
-const COMPILED_BINARY_NAMES = new Set([
-  'tale',
-  'tale.exe',
-  'tale_linux',
-  'tale_macos',
-  'tale_windows.exe',
-]);
 
 const GITHUB_REPO = 'tale-project/tale';
 
@@ -101,6 +93,12 @@ function getInstallPath(): string {
   return process.execPath;
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 async function downloadBinary(
   tag: string,
   asset: string,
@@ -118,7 +116,48 @@ async function downloadBinary(
     );
   }
 
-  await Bun.write(destPath, response);
+  const totalBytes = Number(response.headers.get('content-length')) || null;
+  const isTTY = process.stdout.isTTY && !process.env.NO_COLOR;
+
+  if (!response.body) {
+    await Bun.write(destPath, response);
+  } else {
+    const reader = response.body.getReader();
+    const writer = Bun.file(destPath).writer();
+    let downloadedBytes = 0;
+    let lastPrintTime = 0;
+
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        writer.write(value);
+        downloadedBytes += value.byteLength;
+
+        if (isTTY) {
+          const now = Date.now();
+          if (now - lastPrintTime >= 100) {
+            lastPrintTime = now;
+            const progress = totalBytes
+              ? `${formatBytes(downloadedBytes)} / ${formatBytes(totalBytes)} (${Math.round((downloadedBytes / totalBytes) * 100)}%)`
+              : formatBytes(downloadedBytes);
+            process.stdout.write(`\r  Downloading... ${progress}`);
+          }
+        }
+      }
+      await writer.end();
+    } catch (err) {
+      await writer.end();
+      throw err;
+    }
+
+    if (isTTY) {
+      process.stdout.write(
+        `\x1b[2K\r  Downloaded ${formatBytes(downloadedBytes)}\n`,
+      );
+    }
+  }
 
   if (process.platform !== 'win32') {
     await chmod(destPath, 0o755);
@@ -254,14 +293,6 @@ export async function upgrade(options: UpgradeOptions): Promise<void> {
     return;
   }
 
-  // Guard against running in dev mode where process.execPath is the bun runtime
-  const execName = basename(process.execPath);
-  if (!COMPILED_BINARY_NAMES.has(execName)) {
-    throw new Error(
-      `Cannot self-upgrade when running via "${execName}". Build and install the compiled binary first.`,
-    );
-  }
-
   requireProject();
 
   const prefix = options.dryRun ? '[DRY-RUN] ' : '';
@@ -285,7 +316,8 @@ export async function upgrade(options: UpgradeOptions): Promise<void> {
   logger.info(`Current version: ${currentVersion}`);
   logger.info(`Latest version:  ${release.version}`);
 
-  const needsBinaryUpgrade = comparison > 0 || options.force;
+  const isDevBuild = currentVersion.includes('dev');
+  const needsBinaryUpgrade = isDevBuild || comparison > 0 || options.force;
 
   if (!needsBinaryUpgrade) {
     logger.success(`CLI is up to date (v${currentVersion})`);
