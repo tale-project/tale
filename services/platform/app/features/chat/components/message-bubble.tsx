@@ -268,9 +268,21 @@ function MessageBubbleComponent({
                     {tChat('errorGenerating')}
                   </span>
                 </div>
-                <p className="text-muted-foreground text-[13px]">
-                  {tChat(sanitizeChatError(message.error).i18nKey)}
-                </p>
+                {(() => {
+                  const sanitized = sanitizeChatError(message.error);
+                  return (
+                    <>
+                      <p className="text-muted-foreground text-[13px]">
+                        {tChat(sanitized.i18nKey)}
+                      </p>
+                      {sanitized.rawMessage && (
+                        <p className="text-muted-foreground text-xs break-all whitespace-pre-wrap opacity-70">
+                          {sanitized.rawMessage}
+                        </p>
+                      )}
+                    </>
+                  );
+                })()}
                 {onRetry && (
                   <Button
                     variant="secondary"
@@ -299,9 +311,21 @@ function MessageBubbleComponent({
                   {tChat('errorGenerating')}
                 </span>
               </div>
-              <p className="text-muted-foreground text-[13px]">
-                {tChat(sanitizeChatError(message.error).i18nKey)}
-              </p>
+              {(() => {
+                const sanitized = sanitizeChatError(message.error);
+                return (
+                  <>
+                    <p className="text-muted-foreground text-[13px]">
+                      {tChat(sanitized.i18nKey)}
+                    </p>
+                    {sanitized.rawMessage && (
+                      <p className="text-muted-foreground text-xs break-all whitespace-pre-wrap opacity-70">
+                        {sanitized.rawMessage}
+                      </p>
+                    )}
+                  </>
+                );
+              })()}
               {onRetry && (
                 <Button
                   variant="secondary"
