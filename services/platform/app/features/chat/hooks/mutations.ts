@@ -6,6 +6,10 @@ export function useUnifiedChatWithAgent() {
   return useConvexAction(api.agents.unified_chat.chatWithAgent);
 }
 
+export function useArenaChat() {
+  return useConvexAction(api.agents.arena_chat.arenaChat);
+}
+
 export function useSubmitHumanInputResponse() {
   return useConvexAction(
     api.agent_tools.human_input.actions.submitHumanInputResponse,

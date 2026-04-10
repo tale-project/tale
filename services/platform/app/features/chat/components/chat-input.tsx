@@ -19,6 +19,9 @@ import { formatFileSize, middleEllipsis } from '@/lib/utils/format/file';
 
 import type { FileAttachment } from '../hooks/use-convex-file-upload';
 import { AgentSelector } from './agent-selector';
+import { useArenaModeOptional } from './arena/arena-mode-context';
+import { ArenaModeToggle } from './arena/arena-mode-toggle';
+import { ArenaModelSelector } from './arena/arena-model-selector';
 import { ImagePreviewDialog } from './message-bubble';
 import { ModelSelector } from './model-selector';
 
@@ -61,6 +64,8 @@ export function ChatInput({
 }: ChatInputProps) {
   const { t: tChat } = useT('chat');
   const { t: tDialogs } = useT('dialogs');
+  const arenaContext = useArenaModeOptional();
+  const isArenaMode = arenaContext?.isArenaMode ?? false;
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -304,8 +309,15 @@ export function ChatInput({
                   <Paperclip className="size-4" />
                 </Button>
               </Tooltip>
-              <AgentSelector organizationId={organizationId} />
-              <ModelSelector organizationId={organizationId} />
+              <ArenaModeToggle />
+              {isArenaMode ? (
+                <ArenaModelSelector organizationId={organizationId} />
+              ) : (
+                <>
+                  <AgentSelector organizationId={organizationId} />
+                  <ModelSelector organizationId={organizationId} />
+                </>
+              )}
             </HStack>
 
             <Button

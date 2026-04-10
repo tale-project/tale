@@ -31,6 +31,9 @@ export function ArenaVerdictBar({
   const { mutateAsync: submitFeedback } = useConvexMutation(
     api.feedback.mutations.submitFeedback,
   );
+  const { mutateAsync: updateBranchSelections } = useConvexMutation(
+    api.threads.mutations.updateBranchSelections,
+  );
 
   const handleVerdict = useCallback(
     async (verdict: Verdict) => {
@@ -52,6 +55,14 @@ export function ArenaVerdictBar({
           },
         });
 
+        // If B is better, switch the branch selection so Thread B becomes active
+        if (verdict === 'b_better') {
+          await updateBranchSelections({
+            threadId: threadIdA,
+            branchSelections: JSON.stringify({ '0': threadIdB }),
+          });
+        }
+
         setSelectedVerdict(verdict);
       } finally {
         setIsSubmitting(false);
@@ -60,6 +71,7 @@ export function ArenaVerdictBar({
     [
       isSubmitting,
       submitFeedback,
+      updateBranchSelections,
       organizationId,
       threadIdA,
       threadIdB,

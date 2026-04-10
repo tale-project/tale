@@ -296,6 +296,53 @@ export const getThreadShareStatus = query({
   },
 });
 
+export const getArenaThreadPair = query({
+  args: { threadId: v.string() },
+  returns: v.union(
+    v.object({
+      threadIdA: v.string(),
+      threadIdB: v.string(),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) return null;
+
+    const metadata = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
+      .first();
+
+    if (!metadata?.arenaGroupId || metadata.userId !== authUser.userId) {
+      return null;
+    }
+
+    // Find all threads in this arena group
+    const groupThreads: Array<{ threadId: string; isBranch: boolean }> = [];
+    for await (const t of ctx.db
+      .query('threadMetadata')
+      .withIndex('by_arenaGroupId', (q) =>
+        q.eq('arenaGroupId', metadata.arenaGroupId),
+      )) {
+      groupThreads.push({
+        threadId: t.threadId,
+        isBranch: t.isBranch ?? false,
+      });
+    }
+
+    if (groupThreads.length < 2) return null;
+
+    // Thread A = root (not branch), Thread B = branch
+    const threadA = groupThreads.find((t) => !t.isBranch);
+    const threadB = groupThreads.find((t) => t.isBranch);
+
+    if (!threadA || !threadB) return null;
+
+    return { threadIdA: threadA.threadId, threadIdB: threadB.threadId };
+  },
+});
+
 export const getThreadForkInfo = query({
   args: { threadId: v.string() },
   handler: async (ctx, args) => {

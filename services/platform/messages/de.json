@@ -2475,6 +2475,7 @@
     "nextImage": "Nächstes Bild",
     "imageCounter": "{current} von {total}",
     "newChat": "Neuer Chat",
+    "moreActions": "Weitere Aktionen",
     "deleteChat": "Chat löschen",
     "deleteConfirmation": "Möchtest du {title} wirklich löschen?",
     "deleteArchiveMessage": "Dieser Chat wird archiviert und erscheint nicht mehr in Ihrem Chatverlauf.",
@@ -2749,6 +2750,24 @@
       "noMessages": "Keine Nachrichten zum Exportieren",
       "you": "Sie",
       "assistant": "Assistent"
+    },
+    "arena": {
+      "title": "Arena-Modus",
+      "label": "Arena-Modus",
+      "enable": "Arena-Modus aktivieren",
+      "disable": "Arena-Modus deaktivieren",
+      "modelA": "Modell A",
+      "modelB": "Modell B",
+      "modelALabel": "Modell A",
+      "modelBLabel": "Modell B",
+      "selectModels": "Zwei Modelle zum Vergleichen auswählen",
+      "selectModel": "Modell auswählen",
+      "vs": "vs",
+      "verdictLabel": "Bewertung auswählen",
+      "aBetter": "A ist besser",
+      "bBetter": "B ist besser",
+      "tie": "Unentschieden",
+      "bothBad": "Beide schlecht"
     }
   },
   "documents": {

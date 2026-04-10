@@ -7,7 +7,7 @@
 
 import { v } from 'convex/values';
 
-import { api } from '../_generated/api';
+import { api, internal } from '../_generated/api';
 import { action } from '../_generated/server';
 import { authComponent } from '../auth';
 
@@ -70,6 +70,12 @@ export const arenaChat = action({
         modelId: args.modelIdB,
       }),
     ]);
+
+    // Create branch link so thread B appears as a branch of thread A
+    await ctx.runMutation(internal.threads.mutations.createArenaBranchLink, {
+      rootThreadId: args.threadIdA,
+      branchThreadId: args.threadIdB,
+    });
 
     return {
       streamIdA: resultA.streamId,

@@ -71,11 +71,14 @@ export function useChatLoadingState({
       setIsPending(false);
     }
 
-    // Thread mismatch: navigated away from the pending thread
+    // Thread mismatch: navigated away from the pending thread.
+    // Skip when threadId is undefined — this happens transiently during
+    // new-chat→thread navigation before the route transition commits.
     if (
       isPending &&
       pendingThreadId !== null &&
-      (pendingThreadId ?? null) !== (threadId ?? null)
+      threadId !== undefined &&
+      pendingThreadId !== threadId
     ) {
       setIsPending(false);
     }
