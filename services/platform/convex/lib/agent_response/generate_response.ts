@@ -192,6 +192,7 @@ export async function generateAgentResponse(
     userContext,
     agentSlug,
     teamIds,
+    providerCost,
     parentThreadId,
     agentOptions,
     streamId,
@@ -403,6 +404,7 @@ export async function generateAgentResponse(
             userId,
             teamIds,
             agentSlug,
+            providerCost,
           });
         } catch (metaError) {
           console.error(
@@ -707,6 +709,7 @@ export async function generateAgentResponse(
           userId,
           teamIds,
           agentSlug,
+          providerCost,
         });
 
         abortWatcher?.stop();
@@ -1450,6 +1453,7 @@ export async function generateAgentResponse(
       userId,
       teamIds,
       agentSlug,
+      providerCost,
     });
 
     // Link approvals to message (only for main agent, not sub-agents)

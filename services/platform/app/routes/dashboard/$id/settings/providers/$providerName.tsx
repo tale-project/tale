@@ -406,6 +406,8 @@ interface ModelFormState {
   description: string;
   tags: string[];
   dimensions: string;
+  inputCostPerMillion: string;
+  outputCostPerMillion: string;
 }
 
 const EMPTY_MODEL_FORM: ModelFormState = {
@@ -414,6 +416,8 @@ const EMPTY_MODEL_FORM: ModelFormState = {
   description: '',
   tags: ['chat'],
   dimensions: '',
+  inputCostPerMillion: '',
+  outputCostPerMillion: '',
 };
 
 function ModelsSection() {
@@ -441,6 +445,14 @@ function ModelsSection() {
         description: model.description ?? '',
         tags: [...model.tags],
         dimensions: model.dimensions != null ? String(model.dimensions) : '',
+        inputCostPerMillion:
+          model.cost?.inputCentsPerMillion != null
+            ? String(model.cost.inputCentsPerMillion / 100)
+            : '',
+        outputCostPerMillion:
+          model.cost?.outputCentsPerMillion != null
+            ? String(model.cost.outputCentsPerMillion / 100)
+            : '',
       });
       setDialogOpen(true);
     },
@@ -450,6 +462,17 @@ function ModelsSection() {
   const handleSubmitModel = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
+      const cost =
+        form.inputCostPerMillion || form.outputCostPerMillion
+          ? {
+              inputCentsPerMillion: form.inputCostPerMillion
+                ? Math.round(Number(form.inputCostPerMillion) * 100)
+                : 0,
+              outputCentsPerMillion: form.outputCostPerMillion
+                ? Math.round(Number(form.outputCostPerMillion) * 100)
+                : 0,
+            }
+          : undefined;
       const model = {
         id: form.id,
         displayName: form.displayName,
@@ -457,6 +480,7 @@ function ModelsSection() {
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- tags are constrained to checkbox values
         tags: form.tags as Array<'chat' | 'vision' | 'embedding'>,
         dimensions: form.dimensions ? Number(form.dimensions) : undefined,
+        cost,
       };
       const updatedModels =
         editingIndex != null
@@ -508,6 +532,9 @@ function ModelsSection() {
                 <TableHead className="w-[200px]">
                   {t('providers.tags')}
                 </TableHead>
+                <TableHead className="w-[140px] text-right">
+                  Cost / 1M tokens
+                </TableHead>
                 <TableHead className="w-11" />
               </TableRow>
             </TableHeader>
@@ -548,6 +575,16 @@ function ModelsSection() {
                         </Badge>
                       ))}
                     </HStack>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {model.cost ? (
+                      <Text className="text-muted-foreground text-xs">
+                        ${(model.cost.inputCentsPerMillion / 100).toFixed(2)} /
+                        ${(model.cost.outputCentsPerMillion / 100).toFixed(2)}
+                      </Text>
+                    ) : (
+                      <Text className="text-muted-foreground text-xs">—</Text>
+                    )}
                   </TableCell>
                   <TableCell>
                     <IconButton
@@ -647,6 +684,39 @@ function ModelsSection() {
               placeholder="e.g., 1536"
             />
           )}
+          <HStack gap={3}>
+            <Input
+              label="Input cost (USD / 1M tokens)"
+              type="number"
+              value={form.inputCostPerMillion}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  inputCostPerMillion: e.target.value,
+                }))
+              }
+              placeholder="e.g., 2.50"
+              min={0}
+              step={0.01}
+            />
+            <Input
+              label="Output cost (USD / 1M tokens)"
+              type="number"
+              value={form.outputCostPerMillion}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  outputCostPerMillion: e.target.value,
+                }))
+              }
+              placeholder="e.g., 10.00"
+              min={0}
+              step={0.01}
+            />
+          </HStack>
+          <Text className="text-muted-foreground text-xs">
+            Used for budget tracking. Leave empty to use default estimates.
+          </Text>
         </Stack>
       </FormDialog>
 

@@ -41,12 +41,12 @@ const MODEL_COSTS: Record<string, ModelCost> = {
 };
 
 /**
- * Conservative default: use the most expensive model cost as fallback.
- * Undercharging is worse than overcharging for budget enforcement.
+ * Default fallback for unknown models. Uses mid-range pricing.
+ * When provider JSON has explicit cost data, that takes precedence.
  */
 const DEFAULT_COST: ModelCost = {
-  inputCentsPerMillion: 1500,
-  outputCentsPerMillion: 7500,
+  inputCentsPerMillion: 200,
+  outputCentsPerMillion: 800,
 };
 
 /** Entries sorted by key length descending to avoid substring collision

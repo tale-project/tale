@@ -125,6 +125,10 @@ export interface GenerateResponseArgs {
   };
   agentSlug?: string;
   teamIds?: string[];
+  providerCost?: {
+    inputCentsPerMillion: number;
+    outputCentsPerMillion: number;
+  };
   parentThreadId?: string;
   agentOptions?: Record<string, unknown>;
   attachments?: FileAttachment[];

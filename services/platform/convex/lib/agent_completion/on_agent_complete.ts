@@ -63,6 +63,10 @@ export interface OnAgentCompleteArgs {
   userId?: string;
   teamIds?: string[];
   agentSlug?: string;
+  providerCost?: {
+    inputCentsPerMillion: number;
+    outputCentsPerMillion: number;
+  };
   options?: {
     skipMetadata?: boolean;
   };
@@ -152,6 +156,7 @@ export async function onAgentComplete(
       result.model,
       inputTokens,
       outputTokens,
+      args.providerCost,
     );
     const timestamp = Date.now();
 

@@ -399,6 +399,13 @@ export const runAgentGeneration = internalAction({
           teamIds: agentConfig.agentTeamId
             ? [agentConfig.agentTeamId]
             : undefined,
+          providerCost:
+            modelData.inputCentsPerMillion != null
+              ? {
+                  inputCentsPerMillion: modelData.inputCentsPerMillion,
+                  outputCentsPerMillion: modelData.outputCentsPerMillion ?? 0,
+                }
+              : undefined,
           promptMessage,
           additionalContext,
           userContext,
