@@ -364,6 +364,14 @@ export function ChatInterface({
         branchScrollSaveRef.current = null;
         branchScrollTimerRef.current = null;
       }, 2000);
+    } else {
+      // Clear any stale scroll position from a prior branch switch so
+      // onContentChange doesn't override the intended scroll-to-bottom.
+      branchScrollSaveRef.current = null;
+      if (branchScrollTimerRef.current) {
+        clearTimeout(branchScrollTimerRef.current);
+        branchScrollTimerRef.current = null;
+      }
     }
   }
   prevDataThreadIdRef.current = dataThreadId;

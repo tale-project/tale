@@ -16,6 +16,7 @@ import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
+import { useT } from '@/lib/i18n/client';
 import {
   budgetConfigSchema,
   type BudgetConfig,
@@ -314,6 +315,7 @@ function formatCost(cents: number): string {
 }
 
 export function BudgetEditor({ organizationId }: BudgetEditorProps) {
+  const { t } = useT('governance');
   const { toast } = useToast();
   const ability = useAbility();
 
@@ -372,7 +374,7 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
           policyType: 'budgets',
           config: configToSave,
         });
-        toast({ title: 'Budget configuration saved', variant: 'success' });
+        toast({ title: t('budgets.saved'), variant: 'success' });
       } catch (error: unknown) {
         const message =
           error instanceof Error ? error.message : 'Failed to save';

@@ -73,6 +73,7 @@ export function InlineEditInput({
         }}
         onKeyDown={handleKeyDown}
         disabled={isSubmitting}
+        aria-label={tChat('editMessage')}
         className="text-foreground min-h-[2.5rem] w-full resize-none bg-transparent text-sm leading-6 focus:outline-none disabled:opacity-50"
         rows={1}
       />
