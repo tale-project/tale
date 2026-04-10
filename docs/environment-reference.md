@@ -45,10 +45,14 @@ AI provider configuration (API keys, base URLs, models) is managed through provi
 
 ## Database
 
-| Variable       | Required | Default | Description                                                                |
-| -------------- | -------- | ------- | -------------------------------------------------------------------------- |
-| `DB_PASSWORD`  | Yes      |         | Password for the self-hosted PostgreSQL database                           |
-| `POSTGRES_URL` | No       |         | Override the auto-generated database connection URL. If not set, constructed as `postgresql://tale:${DB_PASSWORD}@db:5432` |
+| Variable               | Required | Default | Description                                                                |
+| ---------------------- | -------- | ------- | -------------------------------------------------------------------------- |
+| `DB_PASSWORD`          | Yes      |         | Password for the self-hosted PostgreSQL database                           |
+| `POSTGRES_URL`         | No       |         | Override the auto-generated database connection URL. If not set, constructed as `postgresql://tale:${DB_PASSWORD}@db:5432` |
+| `RAG_DATABASE_URL`     | No       |         | Override database URL for the RAG service (must include database name, e.g. `postgresql://...host/tale_knowledge`) |
+| `CRAWLER_DATABASE_URL` | No       |         | Override database URL for the Crawler service (must include database name, e.g. `postgresql://...host/tale_knowledge`) |
+
+To use an external PostgreSQL instance instead of the bundled container, see [Using an external database](/production-deployment#using-an-external-database).
 
 ## Error tracking
 

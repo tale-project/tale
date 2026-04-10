@@ -244,6 +244,73 @@ location /tale/ {
 **Known limitations:**
 - Convex Dashboard (`/convex-dashboard`) is not accessible under subpath deployments
 
+## Using an external database
+
+Tale ships a bundled ParadeDB (PostgreSQL 16 + pgvector + pg_search) container, but the architecture supports connecting to any external PostgreSQL instance instead. This is useful when your organization requires a managed database, needs to comply with data residency policies, or wants to use an existing PostgreSQL cluster.
+
+### Requirements
+
+Your external PostgreSQL instance must meet these requirements:
+
+| Requirement | Details |
+|-------------|---------|
+| PostgreSQL version | 16+ |
+| pgvector extension | Required for vector/semantic search |
+| pg_search extension (ParadeDB) | Optional — BM25 full-text search is disabled gracefully if unavailable |
+| Databases | `tale` (platform data) and `tale_knowledge` (RAG + crawler data) |
+| Schemas in `tale_knowledge` | `public_web` (crawler) and `private_knowledge` (RAG) |
+
+### Configuration
+
+Set `POSTGRES_URL` in your `.env` to point all services at the external database:
+
+```dotenv
+POSTGRES_URL=postgresql://tale:your-password@your-db-host:5432
+```
+
+You can also override individual service connections if needed:
+
+| Variable | Service | Description |
+|----------|---------|-------------|
+| `POSTGRES_URL` | All | Base connection URL (without database name) |
+| `RAG_DATABASE_URL` | RAG | Full URL including database name, overrides `POSTGRES_URL` for RAG |
+| `CRAWLER_DATABASE_URL` | Crawler | Full URL including database name, overrides `POSTGRES_URL` for Crawler |
+
+When using service-specific URLs, include the database name:
+
+```dotenv
+RAG_DATABASE_URL=postgresql://tale:your-password@your-db-host:5432/tale_knowledge
+CRAWLER_DATABASE_URL=postgresql://tale:your-password@your-db-host:5432/tale_knowledge
+```
+
+### Database initialization
+
+The bundled DB container runs initialization scripts automatically on first start. With an external database, you must run them manually. The scripts are in `services/db/init-scripts/` and are numbered to execute in order:
+
+```bash
+for f in services/db/init-scripts/*.sql; do
+  psql -h your-db-host -U postgres -f "$f"
+done
+```
+
+Then apply any pending migrations:
+
+```bash
+dbmate -u "postgresql://tale:your-password@your-db-host:5432/tale_knowledge" -d services/db/migrations/db/migrations up
+```
+
+### Disabling the bundled DB container
+
+After configuring the external database, you can prevent the bundled `db` container from starting. Create a `compose.override.yml` in your deployment directory:
+
+```yaml
+services:
+  db:
+    profiles: ["disabled"]
+```
+
+This keeps the service definition (so `depends_on` references don't break) but prevents it from starting unless you explicitly request the `disabled` profile.
+
 ## Vulnerability scanning
 
 All Tale images are scanned for vulnerabilities during the CI/CD release pipeline using [Trivy](https://trivy.dev/). Scan results are uploaded to the GitHub Security tab for each release.
