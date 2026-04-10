@@ -71,7 +71,7 @@ EXAMPLES:
 - { query: "product pricing details" }
 - { query: "workflow patterns", domain: "docs.convex.dev" } — searches only docs.convex.dev`,
     inputSchema: webToolArgs,
-    execute: async (ctx: ToolCtx, args): Promise<string> => {
+    execute: async (ctx: ToolCtx, args) => {
       const targetUrl = args.url || extractUrl(args.query);
 
       if (targetUrl) {
@@ -84,7 +84,10 @@ EXAMPLES:
         });
 
         if (!result.success) {
-          return `Failed to fetch URL: ${result.error || 'Unknown error'}`;
+          return {
+            success: false,
+            response: `Failed to fetch URL: ${result.error || 'Unknown error'}`,
+          };
         }
 
         const meta = [
@@ -98,10 +101,28 @@ EXAMPLES:
           .filter(Boolean)
           .join(' | ');
 
-        return `${meta}\n\n${result.content}`;
+        const responseText = `${meta}\n\n${result.content}`;
+
+        return {
+          success: true,
+          response: responseText,
+          output: responseText,
+          ...(result.usage && {
+            usage: {
+              inputTokens: result.usage.input_tokens,
+              outputTokens: result.usage.output_tokens,
+              totalTokens: result.usage.total_tokens,
+            },
+            model: result.usage.model,
+          }),
+        };
       }
 
-      return searchPages(ctx, { query: args.query, domain: args.domain });
+      const searchResult = await searchPages(ctx, {
+        query: args.query,
+        domain: args.domain,
+      });
+      return { success: true, response: searchResult, output: searchResult };
     },
   }),
 };

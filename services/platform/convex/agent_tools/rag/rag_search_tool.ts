@@ -148,10 +148,7 @@ RESPONSE (list_indexed):
 • hasMore: Whether more results are available
 • cursor: Opaque pagination cursor. Pass the exact value to the next call to fetch the next page. Do not fabricate values.`,
     inputSchema: ragToolArgs,
-    execute: async (
-      ctx: ToolCtx,
-      args,
-    ): Promise<string | AgentIndexedDocumentListResult> => {
+    execute: async (ctx: ToolCtx, args) => {
       if (args.operation === 'list_indexed') {
         return listIndexedDocuments(ctx, {
           limit: args.limit,
@@ -168,7 +165,11 @@ RESPONSE (list_indexed):
       const fileIds = await resolveFileIds(ctx, args.fileIds);
 
       if (fileIds.length === 0) {
-        return 'No documents available in the knowledge base. Upload documents first.';
+        return {
+          success: true,
+          response:
+            'No documents available in the knowledge base. Upload documents first.',
+        };
       }
 
       const ragServiceUrl = getRagConfig().serviceUrl;
@@ -211,9 +212,22 @@ RESPONSE (list_indexed):
           query: args.query,
           resultCount: result.total_results,
           processing_time_ms: result.processing_time_ms,
+          usage: result.usage,
         });
 
-        return formatted;
+        return {
+          success: true,
+          response: formatted,
+          output: formatted,
+          ...(result.usage && {
+            usage: {
+              inputTokens: result.usage.input_tokens,
+              outputTokens: result.usage.output_tokens ?? 0,
+              totalTokens: result.usage.total_tokens,
+            },
+            model: result.usage.model,
+          }),
+        };
       } catch (error) {
         console.error('[tool:rag_search] error', {
           query: args.query,

@@ -6,6 +6,13 @@
 // FETCH URL RESULT (web pages, documents, images)
 // =============================================================================
 
+export interface ServiceUsage {
+  input_tokens?: number;
+  output_tokens?: number;
+  total_tokens?: number;
+  model?: string;
+}
+
 export type WebFetchUrlResult = {
   operation: 'fetch_url';
   success: boolean;
@@ -17,6 +24,7 @@ export type WebFetchUrlResult = {
   vision_used: boolean;
   truncated?: boolean;
   error?: string;
+  usage?: ServiceUsage;
 };
 
 // =============================================================================
@@ -51,6 +59,7 @@ export interface WebFetchExtractApiResponse {
   page_count: number;
   vision_used: boolean;
   error?: string;
+  usage?: ServiceUsage;
 }
 
 export interface OperatorChatResponse {
