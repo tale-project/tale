@@ -3773,6 +3773,15 @@
           }
         }
       },
+      "CreatedResource": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "ID of the created resource"
+          }
+        }
+      },
       "Thread": {
         "type": "object",
         "properties": {
