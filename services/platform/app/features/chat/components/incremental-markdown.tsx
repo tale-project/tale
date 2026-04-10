@@ -39,10 +39,11 @@ import { remendMarkdown } from '../utils/remend-markdown';
 
 const chatSanitizeSchema = {
   ...defaultSchema,
-  tagNames: [...(defaultSchema.tagNames ?? []), 'details', 'summary'],
+  tagNames: [...(defaultSchema.tagNames ?? []), 'details', 'summary', 'cite'],
   attributes: {
     ...defaultSchema.attributes,
     details: [...(defaultSchema.attributes?.details ?? []), 'open'],
+    cite: ['data-n'],
   },
 };
 

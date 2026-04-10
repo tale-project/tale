@@ -98,6 +98,7 @@ import type * as agent_tools_tool_registry from "../agent_tools/tool_registry.js
 import type * as agent_tools_types from "../agent_tools/types.js";
 import type * as agent_tools_web_helpers_browser_operate from "../agent_tools/web/helpers/browser_operate.js";
 import type * as agent_tools_web_helpers_fetch_and_extract from "../agent_tools/web/helpers/fetch_and_extract.js";
+import type * as agent_tools_web_helpers_format_web_results from "../agent_tools/web/helpers/format_web_results.js";
 import type * as agent_tools_web_helpers_get_crawler_service_url from "../agent_tools/web/helpers/get_crawler_service_url.js";
 import type * as agent_tools_web_helpers_get_operator_service_url from "../agent_tools/web/helpers/get_operator_service_url.js";
 import type * as agent_tools_web_helpers_query_web_context from "../agent_tools/web/helpers/query_web_context.js";
@@ -276,6 +277,7 @@ import type * as file_metadata_helpers from "../file_metadata/helpers.js";
 import type * as file_metadata_internal_mutations from "../file_metadata/internal_mutations.js";
 import type * as file_metadata_internal_queries from "../file_metadata/internal_queries.js";
 import type * as file_metadata_mutations from "../file_metadata/mutations.js";
+import type * as file_metadata_queries from "../file_metadata/queries.js";
 import type * as files_mutations from "../files/mutations.js";
 import type * as files_queries from "../files/queries.js";
 import type * as folders_get_or_create_path from "../folders/get_or_create_path.js";
@@ -1006,6 +1008,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/types": typeof agent_tools_types;
   "agent_tools/web/helpers/browser_operate": typeof agent_tools_web_helpers_browser_operate;
   "agent_tools/web/helpers/fetch_and_extract": typeof agent_tools_web_helpers_fetch_and_extract;
+  "agent_tools/web/helpers/format_web_results": typeof agent_tools_web_helpers_format_web_results;
   "agent_tools/web/helpers/get_crawler_service_url": typeof agent_tools_web_helpers_get_crawler_service_url;
   "agent_tools/web/helpers/get_operator_service_url": typeof agent_tools_web_helpers_get_operator_service_url;
   "agent_tools/web/helpers/query_web_context": typeof agent_tools_web_helpers_query_web_context;
@@ -1184,6 +1187,7 @@ declare const fullApi: ApiFromModules<{
   "file_metadata/internal_mutations": typeof file_metadata_internal_mutations;
   "file_metadata/internal_queries": typeof file_metadata_internal_queries;
   "file_metadata/mutations": typeof file_metadata_mutations;
+  "file_metadata/queries": typeof file_metadata_queries;
   "files/mutations": typeof files_mutations;
   "files/queries": typeof files_queries;
   "folders/get_or_create_path": typeof folders_get_or_create_path;

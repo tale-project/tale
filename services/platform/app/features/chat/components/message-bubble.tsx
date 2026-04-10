@@ -25,7 +25,10 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
+import { CitationsContext } from '../context/citations-context';
 import { useMessageMetadata, useFileUrls } from '../hooks/queries';
+import { useCitations } from '../hooks/use-citations';
+import { injectCitationTags } from '../utils/inject-citation-tags';
 import { sanitizeChatError } from '../utils/sanitize-chat-error';
 import {
   FileAttachmentDisplay,
@@ -37,6 +40,7 @@ import {
 } from './message-bubble/image-preview-dialog';
 import type { Message } from './message-bubble/types';
 import { MessageInfoDialog } from './message-info-dialog';
+import { SourceCards } from './source-cards';
 import { StructuredMessage } from './structured-message/structured-message';
 
 export { ImagePreviewDialog } from './message-bubble/image-preview-dialog';
@@ -117,11 +121,6 @@ function MessageBubbleComponent({
     if (onEdit) onEdit(message.id, message.content);
   }, [onEdit, message.id, message.content]);
 
-  const displayContent = message.content ?? '';
-  // Only normalize pipes for assistant messages (markdown table rendering);
-  // user messages must be rendered verbatim to preserve content integrity.
-  const assistantContent = displayContent.replace(/\|\|+/g, '|');
-
   const [isCopied, setIsCopied] = useState(false);
   const [isInfoDialogOpen, setIsInfoDialogOpen] = useState(false);
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
@@ -132,7 +131,20 @@ function MessageBubbleComponent({
   const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const { metadata } = useMessageMetadata(message.id);
+  const { citations, hasCitations } = useCitations(metadata?.toolsUsage);
+  const citationNumbers = useMemo(() => new Set(citations.keys()), [citations]);
+  const citationsContextValue = useMemo(() => ({ citations }), [citations]);
   const galleryImages = useMessageGallery(message);
+
+  const displayContent = message.content ?? '';
+  // Only normalize pipes for assistant messages (markdown table rendering);
+  // user messages must be rendered verbatim to preserve content integrity.
+  const normalizedContent = displayContent.replace(/\|\|+/g, '|');
+  // Inject citation tags for known citation numbers so [N] renders as interactive components
+  const assistantContent = useMemo(
+    () => injectCitationTags(normalizedContent, citationNumbers),
+    [normalizedContent, citationNumbers],
+  );
 
   // Map each filePart/attachment to its gallery index (-1 for non-images)
   const { filePartGalleryIndices, attachmentGalleryIndices } = useMemo(() => {
@@ -238,11 +250,13 @@ function MessageBubbleComponent({
                   {displayContent}
                 </p>
               ) : (
-                <StructuredMessage
-                  text={assistantContent}
-                  isStreaming={!!isAssistantStreaming}
-                  onSendFollowUp={onSendFollowUp}
-                />
+                <CitationsContext.Provider value={citationsContextValue}>
+                  <StructuredMessage
+                    text={assistantContent}
+                    isStreaming={!!isAssistantStreaming}
+                    onSendFollowUp={onSendFollowUp}
+                  />
+                </CitationsContext.Provider>
               )}
             </div>
             {isUser && (isOverflowing || isExpanded) && (
@@ -421,6 +435,10 @@ function MessageBubbleComponent({
             activeIndex={galleryIndex}
             onActiveIndexChange={setGalleryIndex}
           />
+        )}
+
+        {!isUser && hasCitations && !isAssistantStreaming && (
+          <SourceCards citations={citations} />
         )}
 
         <MessageInfoDialog

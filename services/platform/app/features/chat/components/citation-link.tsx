@@ -12,11 +12,21 @@ interface CitationLinkProps {
   onNavigate?: (fileId: string, page?: number) => void;
 }
 
+function getDomain(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return url;
+  }
+}
+
 function CitationLinkComponent({ citation, onNavigate }: CitationLinkProps) {
   const { t } = useT('chat');
 
   const handleClick = () => {
-    if (citation.fileId && onNavigate) {
+    if (citation.type === 'web' && citation.url) {
+      window.open(citation.url, '_blank', 'noopener,noreferrer');
+    } else if (citation.fileId && onNavigate) {
       onNavigate(citation.fileId, citation.page);
     }
   };
@@ -43,7 +53,12 @@ function CitationLinkComponent({ citation, onNavigate }: CitationLinkProps) {
         {citation.filename && (
           <div className="font-medium">{citation.filename}</div>
         )}
-        {citation.page != null && (
+        {citation.type === 'web' && citation.url && (
+          <div className="text-muted-foreground truncate text-xs">
+            {getDomain(citation.url)}
+          </div>
+        )}
+        {citation.type === 'rag' && citation.page != null && (
           <div className="text-muted-foreground">
             {t('citations.page', { page: String(citation.page) })}
           </div>
@@ -55,7 +70,17 @@ function CitationLinkComponent({ citation, onNavigate }: CitationLinkProps) {
             })}
           </div>
         )}
-        {citation.fileId && onNavigate && (
+        {citation.type === 'web' && citation.url && (
+          <a
+            href={citation.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary hover:underline"
+          >
+            {t('citations.visitPage')}
+          </a>
+        )}
+        {citation.type === 'rag' && citation.fileId && onNavigate && (
           <button
             type="button"
             className="text-primary hover:underline"

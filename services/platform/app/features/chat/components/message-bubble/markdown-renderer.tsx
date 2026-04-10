@@ -21,6 +21,8 @@ import {
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
+import { useCitationsContext } from '../../context/citations-context';
+import { CitationLink } from '../citation-link';
 import { PaginatedMarkdownTable } from '../paginated-markdown-table';
 import { StructuredMessage } from '../structured-message/structured-message';
 import { CodeBlock, HighlightedCode } from './code-block';
@@ -238,6 +240,18 @@ export const markdownComponents = {
       {children}
     </a>
   ),
+  cite: function InlineCitation({
+    'data-n': dataN,
+  }: {
+    node?: unknown;
+    'data-n'?: string;
+  }) {
+    const { citations, onNavigate } = useCitationsContext();
+    const n = dataN ? parseInt(dataN, 10) : NaN;
+    const citation = !isNaN(n) ? citations.get(n) : undefined;
+    if (!citation) return <span>[{dataN}]</span>;
+    return <CitationLink citation={citation} onNavigate={onNavigate} />;
+  },
 };
 
 export function TypewriterTextWrapper({
