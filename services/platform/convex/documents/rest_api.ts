@@ -24,131 +24,116 @@ import { toId } from '../lib/type_cast_helpers';
 
 const PREFIX = '/api/v1/documents/';
 
-export const listDocuments = withRestAuth(
-  'rest:api',
-  async (rc, request) => {
-    const url = new URL(request.url);
-    const cursor = url.searchParams.get('cursor') ?? null;
-    const limit = parseIntParam(url, 'limit', 25);
-    const sourceProvider = url.searchParams.get('sourceProvider') ?? undefined;
+export const listDocuments = withRestAuth('rest:api', async (rc, request) => {
+  const url = new URL(request.url);
+  const cursor = url.searchParams.get('cursor') ?? null;
+  const limit = parseIntParam(url, 'limit', 25);
+  const sourceProvider = url.searchParams.get('sourceProvider') ?? undefined;
 
-    const result = await rc.ctx.runQuery(
-      internal.documents.internal_queries.queryDocuments,
-      {
-        organizationId: rc.org.organizationId,
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- user input validated at runtime
-        sourceProvider: sourceProvider as
-          | 'upload'
-          | 'onedrive'
-          | 'sharepoint'
-          | 'agent'
-          | undefined,
-        paginationOpts: { numItems: limit, cursor },
-      },
-    );
+  const result = await rc.ctx.runQuery(
+    internal.documents.internal_queries.queryDocuments,
+    {
+      organizationId: rc.org.organizationId,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- user input validated at runtime
+      sourceProvider: sourceProvider as
+        | 'upload'
+        | 'onedrive'
+        | 'sharepoint'
+        | 'agent'
+        | undefined,
+      paginationOpts: { numItems: limit, cursor },
+    },
+  );
 
-    return jsonOk(result);
-  },
-);
+  return jsonOk(result);
+});
 
-export const createDocument = withRestAuth(
-  'rest:api',
-  async (rc, request) => {
-    const body = await request.json();
+export const createDocument = withRestAuth('rest:api', async (rc, request) => {
+  const body = await request.json();
 
-    const documentId = await rc.ctx.runMutation(
-      internal.documents.internal_mutations.createDocument,
-      {
-        organizationId: rc.org.organizationId,
-        title: body.title,
-        content: body.content,
-        fileId: body.fileId,
-        mimeType: body.mimeType,
-        extension: body.extension,
-        sourceProvider: body.sourceProvider,
-        metadata: body.metadata,
-        teamId: body.teamId,
-        folderId: body.folderId,
-        createdBy: rc.user.userId,
-      },
-    );
+  const documentId = await rc.ctx.runMutation(
+    internal.documents.internal_mutations.createDocument,
+    {
+      organizationId: rc.org.organizationId,
+      title: body.title,
+      content: body.content,
+      fileId: body.fileId,
+      mimeType: body.mimeType,
+      extension: body.extension,
+      sourceProvider: body.sourceProvider,
+      metadata: body.metadata,
+      teamId: body.teamId,
+      folderId: body.folderId,
+      createdBy: rc.user.userId,
+    },
+  );
 
-    return jsonCreated({ id: documentId });
-  },
-);
+  return jsonCreated({ id: documentId });
+});
 
-export const getDocument = withRestAuth(
-  'rest:api',
-  async (rc, request) => {
-    const url = new URL(request.url);
-    const { id } = extractPathParts(url, PREFIX);
+export const getDocument = withRestAuth('rest:api', async (rc, request) => {
+  const url = new URL(request.url);
+  const { id } = extractPathParts(url, PREFIX);
 
-    if (!id) {
-      return jsonError('Missing document ID', 400);
-    }
+  if (!id) {
+    return jsonError('Missing document ID', 400);
+  }
 
-    const document = await rc.ctx.runQuery(
-      internal.documents.internal_queries.getDocumentByIdRaw,
-      { documentId: toId<'documents'>(id) },
-    );
+  const document = await rc.ctx.runQuery(
+    internal.documents.internal_queries.getDocumentByIdRaw,
+    { documentId: toId<'documents'>(id) },
+  );
 
-    if (!document) {
-      return jsonError('Document not found', 404);
-    }
+  if (!document) {
+    return jsonError('Document not found', 404);
+  }
 
-    return jsonOk(document);
-  },
-);
+  return jsonOk(document);
+});
 
-export const patchDocument = withRestAuth(
-  'rest:api',
-  async (rc, request) => {
-    const url = new URL(request.url);
-    const { id } = extractPathParts(url, PREFIX);
+export const patchDocument = withRestAuth('rest:api', async (rc, request) => {
+  const url = new URL(request.url);
+  const { id } = extractPathParts(url, PREFIX);
 
-    if (!id) {
-      return jsonError('Missing document ID', 400);
-    }
+  if (!id) {
+    return jsonError('Missing document ID', 400);
+  }
 
-    const body = await request.json();
+  const body = await request.json();
 
-    await rc.ctx.runMutation(
-      internal.documents.internal_mutations.updateDocument,
-      {
-        documentId: toId<'documents'>(id),
-        title: body.title,
-        content: body.content,
-        metadata: body.metadata,
-        mimeType: body.mimeType,
-        extension: body.extension,
-        sourceProvider: body.sourceProvider,
-        teamId: body.teamId,
-        folderId: body.folderId,
-      },
-    );
+  await rc.ctx.runMutation(
+    internal.documents.internal_mutations.updateDocument,
+    {
+      documentId: toId<'documents'>(id),
+      title: body.title,
+      content: body.content,
+      metadata: body.metadata,
+      mimeType: body.mimeType,
+      extension: body.extension,
+      sourceProvider: body.sourceProvider,
+      teamId: body.teamId,
+      folderId: body.folderId,
+    },
+  );
 
-    return jsonNoContent();
-  },
-);
+  return jsonNoContent();
+});
 
-export const deleteDocument = withRestAuth(
-  'rest:api',
-  async (rc, request) => {
-    const url = new URL(request.url);
-    const { id } = extractPathParts(url, PREFIX);
+export const deleteDocument = withRestAuth('rest:api', async (rc, request) => {
+  const url = new URL(request.url);
+  const { id } = extractPathParts(url, PREFIX);
 
-    if (!id) {
-      return jsonError('Missing document ID', 400);
-    }
+  if (!id) {
+    return jsonError('Missing document ID', 400);
+  }
 
-    await rc.ctx.runMutation(
-      internal.documents.internal_mutations.deleteDocumentById,
-      { documentId: toId<'documents'>(id) },
-    );
+  await rc.ctx.runMutation(
+    internal.documents.internal_mutations.deleteDocumentById,
+    { documentId: toId<'documents'>(id) },
+  );
 
-    return jsonNoContent();
-  },
-);
+  return jsonNoContent();
+});
 
 export const documentSubActions = withRestAuth(
   'rest:api',

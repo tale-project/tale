@@ -46,31 +46,28 @@ export const listVendors = withRestAuth('rest:api', async (rc, request) => {
   return jsonOk(result);
 });
 
-export const createVendor = withRestAuth(
-  'rest:api',
-  async (rc, request) => {
-    const body = await request.json();
+export const createVendor = withRestAuth('rest:api', async (rc, request) => {
+  const body = await request.json();
 
-    const vendorId = await rc.ctx.runMutation(
-      internal.vendors.internal_mutations.createVendor,
-      {
-        organizationId: rc.org.organizationId,
-        name: body.name,
-        email: body.email,
-        phone: body.phone,
-        externalId: body.externalId,
-        source: body.source,
-        locale: body.locale,
-        address: body.address,
-        tags: body.tags,
-        metadata: body.metadata,
-        notes: body.notes,
-      },
-    );
+  const vendorId = await rc.ctx.runMutation(
+    internal.vendors.internal_mutations.createVendor,
+    {
+      organizationId: rc.org.organizationId,
+      name: body.name,
+      email: body.email,
+      phone: body.phone,
+      externalId: body.externalId,
+      source: body.source,
+      locale: body.locale,
+      address: body.address,
+      tags: body.tags,
+      metadata: body.metadata,
+      notes: body.notes,
+    },
+  );
 
-    return jsonCreated({ id: vendorId });
-  },
-);
+  return jsonCreated({ id: vendorId });
+});
 
 export const bulkCreateVendors = withRestAuth(
   'rest:api',
@@ -140,20 +137,17 @@ export const patchVendor = withRestAuth('rest:api', async (rc, request) => {
   return jsonNoContent();
 });
 
-export const deleteVendor = withRestAuth(
-  'rest:api',
-  async (rc, request) => {
-    const url = new URL(request.url);
-    const { id } = extractPathParts(url, PREFIX);
+export const deleteVendor = withRestAuth('rest:api', async (rc, request) => {
+  const url = new URL(request.url);
+  const { id } = extractPathParts(url, PREFIX);
 
-    if (!id) {
-      return jsonError('Missing vendor ID', 400);
-    }
+  if (!id) {
+    return jsonError('Missing vendor ID', 400);
+  }
 
-    await rc.ctx.runMutation(internal.vendors.internal_mutations.deleteVendor, {
-      vendorId: toId<'vendors'>(id),
-    });
+  await rc.ctx.runMutation(internal.vendors.internal_mutations.deleteVendor, {
+    vendorId: toId<'vendors'>(id),
+  });
 
-    return jsonNoContent();
-  },
-);
+  return jsonNoContent();
+});

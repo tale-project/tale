@@ -25,133 +25,118 @@ import { toId } from '../lib/type_cast_helpers';
 
 const PREFIX = '/api/v1/customers/';
 
-export const listCustomers = withRestAuth(
-  'rest:api',
-  async (rc, request) => {
-    const url = new URL(request.url);
-    const cursor = url.searchParams.get('cursor') ?? null;
-    const limit = parseIntParam(url, 'limit', 25);
-    const status = url.searchParams.get('status') ?? undefined;
-    const source = url.searchParams.get('source') ?? undefined;
-    const locale = url.searchParams.get('locale') ?? undefined;
+export const listCustomers = withRestAuth('rest:api', async (rc, request) => {
+  const url = new URL(request.url);
+  const cursor = url.searchParams.get('cursor') ?? null;
+  const limit = parseIntParam(url, 'limit', 25);
+  const status = url.searchParams.get('status') ?? undefined;
+  const source = url.searchParams.get('source') ?? undefined;
+  const locale = url.searchParams.get('locale') ?? undefined;
 
-    const result = await rc.ctx.runQuery(
-      internal.customers.internal_queries.queryCustomers,
-      {
-        organizationId: rc.org.organizationId,
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- user input validated at runtime
-        status: status as 'active' | 'churned' | 'potential' | undefined,
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- user input validated at runtime
-        source: source as DataSource | undefined,
-        locale: locale ? [locale] : undefined,
-        paginationOpts: { numItems: limit, cursor },
-      },
-    );
+  const result = await rc.ctx.runQuery(
+    internal.customers.internal_queries.queryCustomers,
+    {
+      organizationId: rc.org.organizationId,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- user input validated at runtime
+      status: status as 'active' | 'churned' | 'potential' | undefined,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- user input validated at runtime
+      source: source as DataSource | undefined,
+      locale: locale ? [locale] : undefined,
+      paginationOpts: { numItems: limit, cursor },
+    },
+  );
 
-    return jsonOk(result);
-  },
-);
+  return jsonOk(result);
+});
 
-export const createCustomer = withRestAuth(
-  'rest:api',
-  async (rc, request) => {
-    const body = await request.json();
+export const createCustomer = withRestAuth('rest:api', async (rc, request) => {
+  const body = await request.json();
 
-    const result = await rc.ctx.runMutation(
-      internal.customers.internal_mutations.createCustomer,
-      {
-        organizationId: rc.org.organizationId,
-        name: body.name,
-        email: body.email,
-        status: body.status,
-        source: body.source,
-        locale: body.locale,
-        address: body.address,
-        externalId: body.externalId,
-        metadata: body.metadata,
-      },
-    );
+  const result = await rc.ctx.runMutation(
+    internal.customers.internal_mutations.createCustomer,
+    {
+      organizationId: rc.org.organizationId,
+      name: body.name,
+      email: body.email,
+      status: body.status,
+      source: body.source,
+      locale: body.locale,
+      address: body.address,
+      externalId: body.externalId,
+      metadata: body.metadata,
+    },
+  );
 
-    return jsonCreated({ id: result.customerId });
-  },
-);
+  return jsonCreated({ id: result.customerId });
+});
 
-export const getCustomer = withRestAuth(
-  'rest:api',
-  async (rc, request) => {
-    const url = new URL(request.url);
-    const { id } = extractPathParts(url, PREFIX);
+export const getCustomer = withRestAuth('rest:api', async (rc, request) => {
+  const url = new URL(request.url);
+  const { id } = extractPathParts(url, PREFIX);
 
-    if (!id) {
-      return jsonError('Missing customer ID', 400);
-    }
+  if (!id) {
+    return jsonError('Missing customer ID', 400);
+  }
 
-    const customer = await rc.ctx.runQuery(
-      internal.customers.internal_queries.getCustomerById,
-      { customerId: toId<'customers'>(id) },
-    );
+  const customer = await rc.ctx.runQuery(
+    internal.customers.internal_queries.getCustomerById,
+    { customerId: toId<'customers'>(id) },
+  );
 
-    if (!customer) {
-      return jsonError('Customer not found', 404);
-    }
+  if (!customer) {
+    return jsonError('Customer not found', 404);
+  }
 
-    return jsonOk(customer);
-  },
-);
+  return jsonOk(customer);
+});
 
-export const patchCustomer = withRestAuth(
-  'rest:api',
-  async (rc, request) => {
-    const url = new URL(request.url);
-    const { id } = extractPathParts(url, PREFIX);
+export const patchCustomer = withRestAuth('rest:api', async (rc, request) => {
+  const url = new URL(request.url);
+  const { id } = extractPathParts(url, PREFIX);
 
-    if (!id) {
-      return jsonError('Missing customer ID', 400);
-    }
+  if (!id) {
+    return jsonError('Missing customer ID', 400);
+  }
 
-    const body = await request.json();
+  const body = await request.json();
 
-    const updated = await rc.ctx.runMutation(
-      internal.customers.internal_mutations.updateCustomer,
-      {
-        customerId: toId<'customers'>(id),
-        name: body.name,
-        email: body.email,
-        externalId: body.externalId,
-        status: body.status,
-        source: body.source,
-        locale: body.locale,
-        address: body.address,
-        metadata: body.metadata,
-      },
-    );
+  const updated = await rc.ctx.runMutation(
+    internal.customers.internal_mutations.updateCustomer,
+    {
+      customerId: toId<'customers'>(id),
+      name: body.name,
+      email: body.email,
+      externalId: body.externalId,
+      status: body.status,
+      source: body.source,
+      locale: body.locale,
+      address: body.address,
+      metadata: body.metadata,
+    },
+  );
 
-    if (!updated) {
-      return jsonError('Customer not found', 404);
-    }
+  if (!updated) {
+    return jsonError('Customer not found', 404);
+  }
 
-    return jsonOk(updated);
-  },
-);
+  return jsonOk(updated);
+});
 
-export const deleteCustomer = withRestAuth(
-  'rest:api',
-  async (rc, request) => {
-    const url = new URL(request.url);
-    const { id } = extractPathParts(url, PREFIX);
+export const deleteCustomer = withRestAuth('rest:api', async (rc, request) => {
+  const url = new URL(request.url);
+  const { id } = extractPathParts(url, PREFIX);
 
-    if (!id) {
-      return jsonError('Missing customer ID', 400);
-    }
+  if (!id) {
+    return jsonError('Missing customer ID', 400);
+  }
 
-    await rc.ctx.runMutation(
-      internal.customers.internal_mutations.deleteCustomer,
-      { customerId: toId<'customers'>(id) },
-    );
+  await rc.ctx.runMutation(
+    internal.customers.internal_mutations.deleteCustomer,
+    { customerId: toId<'customers'>(id) },
+  );
 
-    return jsonNoContent();
-  },
-);
+  return jsonNoContent();
+});
 
 export const customerPostActions = withRestAuth(
   'rest:api',

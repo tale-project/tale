@@ -27,65 +27,59 @@ import { toWebsiteDomain } from './create_website';
 
 const PREFIX = '/api/v1/websites/';
 
-export const listWebsites = withRestAuth(
-  'rest:api',
-  async (rc, request) => {
-    const url = new URL(request.url);
-    const cursor = url.searchParams.get('cursor') ?? null;
-    const limit = parseIntParam(url, 'limit', 25);
-    const status = url.searchParams.get('status') ?? undefined;
-    const scanInterval = url.searchParams.get('scanInterval') ?? undefined;
+export const listWebsites = withRestAuth('rest:api', async (rc, request) => {
+  const url = new URL(request.url);
+  const cursor = url.searchParams.get('cursor') ?? null;
+  const limit = parseIntParam(url, 'limit', 25);
+  const status = url.searchParams.get('status') ?? undefined;
+  const scanInterval = url.searchParams.get('scanInterval') ?? undefined;
 
-    const result = await rc.ctx.runQuery(
-      internal.websites.internal_queries.listWebsitesPaginated,
-      {
-        organizationId: rc.org.organizationId,
-        status,
-        scanInterval,
-        paginationOpts: { numItems: limit, cursor },
-      },
-    );
+  const result = await rc.ctx.runQuery(
+    internal.websites.internal_queries.listWebsitesPaginated,
+    {
+      organizationId: rc.org.organizationId,
+      status,
+      scanInterval,
+      paginationOpts: { numItems: limit, cursor },
+    },
+  );
 
-    return jsonOk(result);
-  },
-);
+  return jsonOk(result);
+});
 
-export const createWebsite = withRestAuth(
-  'rest:api',
-  async (rc, request) => {
-    const body = await request.json();
+export const createWebsite = withRestAuth('rest:api', async (rc, request) => {
+  const body = await request.json();
 
-    if (!body.domain) {
-      return jsonError('Missing required field: domain', 400);
-    }
-    if (!body.scanInterval) {
-      return jsonError('Missing required field: scanInterval', 400);
-    }
+  if (!body.domain) {
+    return jsonError('Missing required field: domain', 400);
+  }
+  if (!body.scanInterval) {
+    return jsonError('Missing required field: scanInterval', 400);
+  }
 
-    const domain = toWebsiteDomain(body.domain);
+  const domain = toWebsiteDomain(body.domain);
 
-    const websiteId = await rc.ctx.runMutation(
-      internal.websites.internal_mutations.provisionWebsite,
-      {
-        organizationId: rc.org.organizationId,
-        domain,
-        title: body.title,
-        description: body.description,
-        scanInterval: body.scanInterval,
-        status: 'scanning',
-      },
-    );
-
-    // Register with crawler and schedule follow-up sync
-    await rc.ctx.runAction(internal.websites.internal_actions.registerAndSync, {
-      websiteId,
+  const websiteId = await rc.ctx.runMutation(
+    internal.websites.internal_mutations.provisionWebsite,
+    {
+      organizationId: rc.org.organizationId,
       domain,
+      title: body.title,
+      description: body.description,
       scanInterval: body.scanInterval,
-    });
+      status: 'scanning',
+    },
+  );
 
-    return jsonCreated({ id: websiteId });
-  },
-);
+  // Register with crawler and schedule follow-up sync
+  await rc.ctx.runAction(internal.websites.internal_actions.registerAndSync, {
+    websiteId,
+    domain,
+    scanInterval: body.scanInterval,
+  });
+
+  return jsonCreated({ id: websiteId });
+});
 
 export const getWebsite = withRestAuth('rest:api', async (rc, request) => {
   const url = new URL(request.url);
@@ -144,77 +138,67 @@ export const getWebsite = withRestAuth('rest:api', async (rc, request) => {
   return jsonError(`Unknown sub-path: ${subPath}`, 404);
 });
 
-export const patchWebsite = withRestAuth(
-  'rest:api',
-  async (rc, request) => {
-    const url = new URL(request.url);
-    const { id } = extractPathParts(url, PREFIX);
+export const patchWebsite = withRestAuth('rest:api', async (rc, request) => {
+  const url = new URL(request.url);
+  const { id } = extractPathParts(url, PREFIX);
 
-    if (!id) {
-      return jsonError('Missing website ID', 400);
-    }
+  if (!id) {
+    return jsonError('Missing website ID', 400);
+  }
 
-    const website = await rc.ctx.runQuery(
-      internal.websites.internal_queries.getWebsite,
-      { websiteId: toId<'websites'>(id) },
-    );
+  const website = await rc.ctx.runQuery(
+    internal.websites.internal_queries.getWebsite,
+    { websiteId: toId<'websites'>(id) },
+  );
 
-    if (!website) {
-      return jsonError('Website not found', 404);
-    }
+  if (!website) {
+    return jsonError('Website not found', 404);
+  }
 
-    if (website.organizationId !== rc.org.organizationId) {
-      return jsonError('Website not found', 404);
-    }
+  if (website.organizationId !== rc.org.organizationId) {
+    return jsonError('Website not found', 404);
+  }
 
-    const body = await request.json();
+  const body = await request.json();
 
-    await rc.ctx.runMutation(
-      internal.websites.internal_mutations.patchWebsite,
-      {
-        websiteId: toId<'websites'>(id),
-        domain: body.domain,
-        title: body.title,
-        description: body.description,
-        scanInterval: body.scanInterval,
-      },
-    );
+  await rc.ctx.runMutation(internal.websites.internal_mutations.patchWebsite, {
+    websiteId: toId<'websites'>(id),
+    domain: body.domain,
+    title: body.title,
+    description: body.description,
+    scanInterval: body.scanInterval,
+  });
 
-    return jsonNoContent();
-  },
-);
+  return jsonNoContent();
+});
 
-export const deleteWebsite = withRestAuth(
-  'rest:api',
-  async (rc, request) => {
-    const url = new URL(request.url);
-    const { id } = extractPathParts(url, PREFIX);
+export const deleteWebsite = withRestAuth('rest:api', async (rc, request) => {
+  const url = new URL(request.url);
+  const { id } = extractPathParts(url, PREFIX);
 
-    if (!id) {
-      return jsonError('Missing website ID', 400);
-    }
+  if (!id) {
+    return jsonError('Missing website ID', 400);
+  }
 
-    const website = await rc.ctx.runQuery(
-      internal.websites.internal_queries.getWebsite,
-      { websiteId: toId<'websites'>(id) },
-    );
+  const website = await rc.ctx.runQuery(
+    internal.websites.internal_queries.getWebsite,
+    { websiteId: toId<'websites'>(id) },
+  );
 
-    if (!website) {
-      return jsonError('Website not found', 404);
-    }
+  if (!website) {
+    return jsonError('Website not found', 404);
+  }
 
-    if (website.organizationId !== rc.org.organizationId) {
-      return jsonError('Website not found', 404);
-    }
+  if (website.organizationId !== rc.org.organizationId) {
+    return jsonError('Website not found', 404);
+  }
 
-    await rc.ctx.runMutation(
-      internal.websites.internal_mutations.deleteWebsite,
-      { websiteId: toId<'websites'>(id) },
-    );
+  await rc.ctx.runMutation(internal.websites.internal_mutations.deleteWebsite, {
+    websiteId: toId<'websites'>(id),
+  });
 
-    return jsonNoContent();
-  },
-);
+  return jsonNoContent();
+});
 
 export const websiteSubActions = withRestAuth(
   'rest:api',

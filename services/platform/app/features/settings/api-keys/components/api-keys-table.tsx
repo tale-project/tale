@@ -26,7 +26,7 @@ function ApiDocsLink() {
         href="/docs"
         target="_blank"
         rel="noopener noreferrer"
-        className={buttonVariants({ variant: 'outline', size: 'sm' })}
+        className={buttonVariants({ variant: 'secondary', size: 'sm' })}
       >
         <BookOpen className="mr-2 size-4" />
         {tSettings('apiDocs.openDocs')}
