@@ -77,5 +77,5 @@ export function estimateCostCents(
   const cost = providerCost ?? getModelCost(modelId ?? '');
   const inputCost = (inputTokens / 1_000_000) * cost.inputCentsPerMillion;
   const outputCost = (outputTokens / 1_000_000) * cost.outputCentsPerMillion;
-  return Math.round((inputCost + outputCost) * 100) / 100;
+  return Math.round((inputCost + outputCost) * 10000) / 10000;
 }
