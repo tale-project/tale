@@ -352,30 +352,42 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
     setRules(savedConfig.rules);
   }, [savedConfig]);
 
-  const hasChanges =
-    enabled !== savedConfig.enabled ||
-    JSON.stringify(rules) !== JSON.stringify(savedConfig.rules);
-
   const cannotManage = ability.cannot('write', 'orgSettings');
-  const canSave = hasChanges && !upsertMutation.isPending && !cannotManage;
 
-  const handleSave = useCallback(async () => {
-    try {
-      await upsertMutation.mutateAsync({
-        organizationId,
-        policyType: 'budgets',
-        config: { enabled, rules },
-      });
-      toast({ title: 'Budget configuration saved' });
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to save';
-      toast({ title: message, variant: 'destructive' });
-    }
-  }, [organizationId, enabled, rules, upsertMutation, toast]);
+  const saveConfig = useCallback(
+    async (configToSave: { enabled: boolean; rules: BudgetRule[] }) => {
+      try {
+        await upsertMutation.mutateAsync({
+          organizationId,
+          policyType: 'budgets',
+          config: configToSave,
+        });
+        toast({ title: 'Budget configuration saved' });
+      } catch (error: unknown) {
+        const message =
+          error instanceof Error ? error.message : 'Failed to save';
+        toast({ title: message, variant: 'destructive' });
+      }
+    },
+    [organizationId, upsertMutation, toast],
+  );
 
-  const removeRule = useCallback((index: number) => {
-    setRules((prev) => prev.filter((_, i) => i !== index));
-  }, []);
+  const handleToggleEnabled = useCallback(
+    (checked: boolean) => {
+      setEnabled(checked);
+      void saveConfig({ enabled: checked, rules });
+    },
+    [saveConfig, rules],
+  );
+
+  const removeRule = useCallback(
+    (index: number) => {
+      const newRules = rules.filter((_, i) => i !== index);
+      setRules(newRules);
+      void saveConfig({ enabled, rules: newRules });
+    },
+    [rules, enabled, saveConfig],
+  );
 
   const openAddDialog = useCallback(() => {
     setEditingIndex(null);
@@ -394,13 +406,16 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
 
   const handleDialogSave = useCallback(
     (rule: BudgetRule) => {
+      let newRules: BudgetRule[];
       if (editingIndex === null) {
-        setRules((prev) => [...prev, rule]);
+        newRules = [...rules, rule];
       } else {
-        setRules((prev) => prev.map((r, i) => (i === editingIndex ? rule : r)));
+        newRules = rules.map((r, i) => (i === editingIndex ? rule : r));
       }
+      setRules(newRules);
+      void saveConfig({ enabled, rules: newRules });
     },
-    [editingIndex],
+    [editingIndex, rules, enabled, saveConfig],
   );
 
   const resolveTarget = useCallback(
@@ -440,22 +455,15 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
       title="Budget Rules"
       description="Set token, cost, and request limits per scope and billing period."
       action={
-        <Button onClick={handleSave} disabled={!canSave} size="sm">
-          {upsertMutation.isPending ? 'Saving...' : 'Save'}
-        </Button>
+        <Switch
+          label="Enabled"
+          checked={enabled}
+          onCheckedChange={handleToggleEnabled}
+          disabled={cannotManage || upsertMutation.isPending}
+        />
       }
     >
-      <Stack gap={6} className="max-w-4xl">
-        <div className="max-w-2xl">
-          <Switch
-            label="Enable budget enforcement"
-            description="When enabled, usage will be checked against the rules below."
-            checked={enabled}
-            onCheckedChange={setEnabled}
-            disabled={cannotManage}
-          />
-        </div>
-
+      <Stack gap={6}>
         <Stack gap={3}>
           {rules.length > 0 ? (
             <div className="overflow-x-auto">
