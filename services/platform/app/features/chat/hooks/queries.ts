@@ -514,6 +514,7 @@ export interface ToolUsage {
   durationMs?: number;
   input?: string;
   output?: string;
+  costEstimateCents?: number;
 }
 
 /** @deprecated Use ToolUsage */
@@ -540,6 +541,7 @@ export interface MessageMetadata {
   toolsUsage?: ToolUsage[];
   contextWindow?: string;
   contextStats?: ContextStats;
+  costEstimateCents?: number;
 }
 
 export function useMessageError(threadId: string | null) {
@@ -573,6 +575,7 @@ export function useMessageMetadata(messageId: string | null) {
           toolsUsage: metadata.toolsUsage ?? metadata.subAgentUsage,
           contextWindow: metadata.contextWindow,
           contextStats: metadata.contextStats,
+          costEstimateCents: metadata.costEstimateCents,
         }
       : undefined,
     isLoading,

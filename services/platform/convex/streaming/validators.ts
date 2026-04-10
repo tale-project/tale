@@ -12,6 +12,7 @@ export const toolUsageItemValidator = v.object({
   durationMs: v.optional(v.number()),
   input: v.optional(v.string()),
   output: v.optional(v.string()),
+  costEstimateCents: v.optional(v.number()),
 });
 
 /** @deprecated Use toolUsageItemValidator */
@@ -48,4 +49,5 @@ export const messageMetadataValidator = v.object({
   contextWindow: v.optional(v.string()),
   contextStats: v.optional(contextStatsValidator),
   error: v.optional(v.string()),
+  costEstimateCents: v.optional(v.number()),
 });

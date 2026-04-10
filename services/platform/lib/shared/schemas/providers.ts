@@ -11,6 +11,12 @@ const modelDefinitionSchema = z.object({
   tags: z.array(modelTagSchema).min(1),
   dimensions: z.number().int().positive().optional(),
   fallbackModelId: z.string().min(1).max(200).optional(),
+  cost: z
+    .object({
+      inputCentsPerMillion: z.number(),
+      outputCentsPerMillion: z.number(),
+    })
+    .optional(),
 });
 
 type ModelDefinition = z.infer<typeof modelDefinitionSchema>;

@@ -131,6 +131,18 @@ function ToolCallCard({ usage, locale, t }: ToolCallCardProps) {
           {formatNumber(usage.outputTokens ?? 0, locale)}
           {' · '}
           {t('messageInfo.total')}: {formatNumber(usage.totalTokens, locale)}
+          {usage.costEstimateCents != null && (
+            <>
+              {' · '}
+              Cost:{' '}
+              {(() => {
+                const d = usage.costEstimateCents / 100;
+                if (d === 0) return '$0.00';
+                if (d >= 1) return `$${d.toFixed(2)}`;
+                return `$${d.toPrecision(3)}`;
+              })()}
+            </>
+          )}
           {usage.durationMs !== undefined && (
             <>
               {' · '}
@@ -229,6 +241,23 @@ export function MessageInfoDialog({
           label: t(`messageInfo.${key}`),
           value: <Text>{formatNumber(value, locale)}</Text>,
         })),
+      ...(metadata?.costEstimateCents != null
+        ? [
+            {
+              label: 'Cost',
+              value: (
+                <Text className="font-mono">
+                  {(() => {
+                    const dollars = metadata.costEstimateCents / 100;
+                    if (dollars === 0) return '$0.00';
+                    if (dollars >= 1) return `$${dollars.toFixed(2)}`;
+                    return `$${dollars.toPrecision(3)}`;
+                  })()}
+                </Text>
+              ),
+            },
+          ]
+        : []),
     ],
     [metadata, t, tCommon, locale],
   );

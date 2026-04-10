@@ -278,7 +278,10 @@ class RagService:
         similarity_threshold: float | None = None,
         file_ids: list[str] | None = None,
     ) -> list[dict[str, Any]]:
-        """Search the knowledge base using hybrid BM25 + vector search."""
+        """Search the knowledge base using hybrid BM25 + vector search.
+
+        Embedding token usage available via `self.last_search_usage` after call.
+        """
         if not self.initialized:
             await self.initialize()
         self._maybe_refresh_clients()
@@ -294,6 +297,8 @@ class RagService:
             file_ids=file_ids,
             top_k=effective_top_k,
         )
+
+        self.last_search_usage = getattr(self._search_service, "last_search_usage", None)
 
         if threshold > 0:
             results = [r for r in results if r.get("score", 0) >= threshold]
@@ -369,11 +374,23 @@ class RagService:
             processing_time = (time.time() - start_time) * 1000
             logger.info("Generation completed in {:.2f}ms", processing_time)
 
+            # Combine embedding usage (from search step) + LLM usage
+            embedding_usage = getattr(self, "last_search_usage", None)
+            embedding_tokens = embedding_usage.prompt_tokens if embedding_usage else 0
+            llm_input = completion.usage.prompt_tokens if completion.usage else 0
+            llm_output = completion.usage.completion_tokens if completion.usage else 0
+
             return {
                 "success": True,
                 "response": response,
                 "sources": search_results,
                 "processing_time_ms": processing_time,
+                "usage": {
+                    "input_tokens": embedding_tokens + llm_input,
+                    "output_tokens": llm_output,
+                    "total_tokens": embedding_tokens + llm_input + llm_output,
+                    "model": llm_config["model"],
+                },
             }
 
         except Exception as e:

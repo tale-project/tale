@@ -381,6 +381,39 @@ export const chatViaOpenAIWithTools = internalAction({
         },
       }));
 
+    // Track usage for client tool mode (this path bypasses onAgentComplete)
+    const usage = await result.usage;
+    if (usage && args.organizationId) {
+      const { estimateCostCents } =
+        await import('../governance/cost_estimation');
+      const inputTokens = usage.inputTokens ?? 0;
+      const outputTokens = usage.outputTokens ?? 0;
+      if (inputTokens > 0 || outputTokens > 0) {
+        await ctx
+          .runMutation(
+            internal.governance.internal_mutations.incrementUsageLedger,
+            {
+              organizationId: args.organizationId,
+              userId: args.userId ?? 'system',
+              inputTokens,
+              outputTokens,
+              costEstimateCents: estimateCostCents(
+                modelId,
+                inputTokens,
+                outputTokens,
+              ),
+              timestamp: Date.now(),
+            },
+          )
+          .catch((error) => {
+            console.error(
+              '[OpenAI-compat:clientTools] Failed to increment usage ledger:',
+              error,
+            );
+          });
+      }
+    }
+
     return {
       threadId,
       text: text || null,

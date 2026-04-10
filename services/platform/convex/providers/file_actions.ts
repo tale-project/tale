@@ -270,6 +270,8 @@ export const resolveModelData = internalAction({
     modelId: v.string(),
     dimensions: v.optional(v.number()),
     supportsStructuredOutputs: v.boolean(),
+    inputCentsPerMillion: v.optional(v.number()),
+    outputCentsPerMillion: v.optional(v.number()),
   }),
   handler: async (_ctx, args) => {
     const orgSlug = args.orgSlug ?? 'default';
@@ -298,6 +300,8 @@ export const resolveModelData = internalAction({
           modelId: args.modelId,
           supportsStructuredOutputs:
             provider.config.supportsStructuredOutputs ?? false,
+          inputCentsPerMillion: definition.cost?.inputCentsPerMillion,
+          outputCentsPerMillion: definition.cost?.outputCentsPerMillion,
         };
       }
     }
@@ -327,6 +331,8 @@ export const resolveModelByTag = internalAction({
     modelId: v.string(),
     dimensions: v.optional(v.number()),
     supportsStructuredOutputs: v.boolean(),
+    inputCentsPerMillion: v.optional(v.number()),
+    outputCentsPerMillion: v.optional(v.number()),
   }),
   handler: async (_ctx, args) => {
     const orgSlug = args.orgSlug ?? 'default';
@@ -362,6 +368,8 @@ export const resolveModelByTag = internalAction({
             dimensions: definition.dimensions,
             supportsStructuredOutputs:
               provider.config.supportsStructuredOutputs ?? false,
+            inputCentsPerMillion: definition.cost?.inputCentsPerMillion,
+            outputCentsPerMillion: definition.cost?.outputCentsPerMillion,
           };
         }
       }
@@ -381,6 +389,8 @@ export const resolveModelByTag = internalAction({
           dimensions: definition.dimensions,
           supportsStructuredOutputs:
             provider.config.supportsStructuredOutputs ?? false,
+          inputCentsPerMillion: definition.cost?.inputCentsPerMillion,
+          outputCentsPerMillion: definition.cost?.outputCentsPerMillion,
         };
       }
     }

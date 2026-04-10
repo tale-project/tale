@@ -1,8 +1,11 @@
 import { v } from 'convex/values';
 
+import { budgetConfigSchema } from '../../lib/shared/schemas/governance';
 import { mutation } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
 import { authComponent } from '../auth';
+import { getOrganizationMember } from '../lib/rls';
+import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import { GOVERNANCE_POLICY_TYPES } from './schema';
 
 const policyTypeValidator = v.union(
@@ -19,6 +22,24 @@ export const upsertPolicy = mutation({
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
+
+    const member = await getOrganizationMember(ctx, args.organizationId, {
+      userId: String(authUser._id),
+      email: authUser.email,
+      name: authUser.name,
+    });
+    if (!isAdmin(member.role)) {
+      throw new Error('Only admins can modify governance policies');
+    }
+
+    if (args.policyType === 'budgets') {
+      const parsed = budgetConfigSchema.safeParse(args.config);
+      if (!parsed.success) {
+        throw new Error(
+          `Invalid budget configuration: ${parsed.error.message}`,
+        );
+      }
+    }
 
     const existing = await ctx.db
       .query('governancePolicies')
@@ -90,6 +111,15 @@ export const upsertPiiConfig = mutation({
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
+
+    const member = await getOrganizationMember(ctx, args.organizationId, {
+      userId: String(authUser._id),
+      email: authUser.email,
+      name: authUser.name,
+    });
+    if (!isAdmin(member.role)) {
+      throw new Error('Only admins can modify PII configuration');
+    }
 
     const existing = await ctx.db
       .query('governancePolicies')

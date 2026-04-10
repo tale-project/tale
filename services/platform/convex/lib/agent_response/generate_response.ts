@@ -28,6 +28,7 @@ import { isRecord, getString } from '../../../lib/utils/type-guards';
 import { components, internal } from '../../_generated/api';
 import { queryRagContext } from '../../agent_tools/rag/query_rag_context';
 import { queryWebContext } from '../../agent_tools/web/helpers/query_web_context';
+import { estimateCostCents } from '../../governance/cost_estimation';
 import { recordFailure, recordSuccess } from '../../providers/circuit_breaker';
 import {
   ProviderUnavailableError,
@@ -190,6 +191,9 @@ export async function generateAgentResponse(
     promptMessage,
     additionalContext,
     userContext,
+    agentSlug,
+    teamIds,
+    providerCost,
     parentThreadId,
     agentOptions,
     streamId,
@@ -397,6 +401,11 @@ export async function generateAgentResponse(
               contextWindow: cancelContextWindow,
               contextStats: cancelContextStats,
             },
+            organizationId,
+            userId,
+            teamIds,
+            agentSlug,
+            providerCost,
           });
         } catch (metaError) {
           console.error(
@@ -664,11 +673,18 @@ export async function generateAgentResponse(
         }
 
         const durationMs = Date.now() - startTime;
+        // Zero out usage for cached responses — tokens were already counted
+        // when the original (non-cached) response was generated.
+        const zeroUsage = {
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+        };
         const cachedResult: GenerateResponseResult = {
           threadId,
           text: cached.responseText,
           savedMessageId: messageId,
-          usage: cached.usage,
+          usage: zeroUsage,
           finishReason: 'cached',
           durationMs,
           model: cached.model,
@@ -687,9 +703,14 @@ export async function generateAgentResponse(
             text: cached.responseText,
             model: cached.model,
             provider: cached.provider,
-            usage: cached.usage,
+            usage: zeroUsage,
             durationMs,
           },
+          organizationId,
+          userId,
+          teamIds,
+          agentSlug,
+          providerCost,
         });
 
         abortWatcher?.stop();
@@ -1429,6 +1450,11 @@ export async function generateAgentResponse(
         contextWindow: completeContextWindow,
         contextStats: responseResult.contextStats,
       },
+      organizationId,
+      userId,
+      teamIds,
+      agentSlug,
+      providerCost,
     });
 
     // Link approvals to message (only for main agent, not sub-agents)
@@ -1802,6 +1828,10 @@ export async function generateAgentResponse(
             contextStats: structuredThreadContext?.stats,
             error: errorMessage || 'Unknown error',
           },
+          organizationId,
+          userId,
+          teamIds,
+          agentSlug,
         });
       } catch (metadataError) {
         console.error(
@@ -1864,6 +1894,7 @@ function extractToolCallsFromSteps(steps: unknown[]): {
     durationMs?: number;
     input?: string;
     output?: string;
+    costEstimateCents?: number;
   }>;
 } {
   type StepWithTools = {
@@ -1893,6 +1924,7 @@ function extractToolCallsFromSteps(steps: unknown[]): {
     durationMs?: number;
     input?: string;
     output?: string;
+    costEstimateCents?: number;
   }> = [];
 
   for (const rawStep of steps) {
@@ -2009,6 +2041,17 @@ function extractToolCallsFromSteps(steps: unknown[]): {
         usageEntry.durationMs = toolUsage?.durationSeconds
           ? Math.round(toolUsage.durationSeconds * 1000)
           : undefined;
+
+        if (
+          usageEntry.model &&
+          (usageEntry.inputTokens || usageEntry.outputTokens)
+        ) {
+          usageEntry.costEstimateCents = estimateCostCents(
+            usageEntry.model,
+            usageEntry.inputTokens ?? 0,
+            usageEntry.outputTokens ?? 0,
+          );
+        }
       }
 
       toolsUsage.push(usageEntry);

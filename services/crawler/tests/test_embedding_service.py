@@ -9,7 +9,10 @@ pytestmark = pytest.mark.asyncio
 
 
 def make_embedding_response(embeddings: list[list[float]]):
-    return SimpleNamespace(data=[SimpleNamespace(embedding=e) for e in embeddings])
+    return SimpleNamespace(
+        data=[SimpleNamespace(embedding=e) for e in embeddings],
+        usage=SimpleNamespace(prompt_tokens=0, total_tokens=0),
+    )
 
 
 def create_service(dimensions: int = 1536) -> EmbeddingService:

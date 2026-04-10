@@ -3,6 +3,7 @@ import { v } from 'convex/values';
 
 import { components, internal } from '../_generated/api';
 import type { MutationCtx } from '../_generated/server';
+import { checkBudget } from '../governance/budget_enforcement';
 import type { SerializableAgentConfig } from '../lib/agent_chat/types';
 import { persistentStreaming } from '../streaming/helpers';
 
@@ -72,6 +73,20 @@ export async function triggerCompletionResponseHandler(
       streamId,
       updatedAt: Date.now(),
     });
+  }
+
+  // Budget enforcement — block before scheduling if limits are exceeded
+  const userId = thread?.userId;
+  if (userId) {
+    const budgetResult = await checkBudget(
+      ctx,
+      organizationId,
+      userId,
+      agentConfig.agentTeamId ? [agentConfig.agentTeamId] : [],
+    );
+    if (!budgetResult.allowed) {
+      throw new Error(budgetResult.reason ?? 'Budget limit exceeded');
+    }
   }
 
   await ctx.scheduler.runAfter(

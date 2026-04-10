@@ -12,7 +12,7 @@ from typing import Any, ClassVar
 
 import asyncpg
 from loguru import logger
-from tale_knowledge.embedding import EmbeddingService
+from tale_knowledge.embedding import EmbeddingService, EmbeddingUsage
 from tale_knowledge.retrieval import merge_rrf
 from tale_knowledge.retrieval.reranker import Reranker
 from tale_shared.db import acquire_with_retry
@@ -55,13 +55,17 @@ class RagSearchService:
 
         Returns:
             List of result dicts with content, score, file_id.
+            Embedding token usage available via `self.last_search_usage` after call.
         """
         query_embedding: list[float] | None = None
+        self.last_search_usage = EmbeddingUsage(model=self._embedding._model)
         try:
-            embedding_task = asyncio.create_task(self._embedding.embed_query(query))
+            embedding_task = asyncio.create_task(self._embedding.embed_query_with_usage(query))
             fts_task = asyncio.create_task(self._fts_search(query, file_ids, top_k * 3))
 
-            query_embedding, fts_results = await asyncio.gather(embedding_task, fts_task)
+            query_result, fts_results = await asyncio.gather(embedding_task, fts_task)
+            query_embedding = query_result.embedding
+            self.last_search_usage = query_result.usage
 
             # Semantic cache: check for a cached result before vector search
             if self._semantic_cache and query_embedding:

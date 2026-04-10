@@ -204,6 +204,15 @@ class SearchResult(BaseModel):
     cached: bool = Field(default=False, description="Whether this result was served from cache")
 
 
+class UsageInfo(BaseModel):
+    """Token usage metadata for AI API calls."""
+
+    input_tokens: int = Field(default=0, description="Input/prompt tokens consumed")
+    output_tokens: int = Field(default=0, description="Output/completion tokens consumed")
+    total_tokens: int = Field(default=0, description="Total tokens consumed")
+    model: str | None = Field(default=None, description="Model used for this operation")
+
+
 class QueryResponse(BaseModel):
     """Response to a query."""
 
@@ -213,6 +222,7 @@ class QueryResponse(BaseModel):
     total_results: int = Field(..., description="Total number of results")
     processing_time_ms: float = Field(..., description="Query processing time in milliseconds")
     cached: bool = Field(default=False, description="Whether results were served from semantic cache")
+    usage: UsageInfo | None = Field(default=None, description="Embedding token usage for this query")
 
 
 # ============================================================================
@@ -248,6 +258,7 @@ class GenerateResponse(BaseModel):
     response: str = Field(..., description="Generated response")
     sources: list[SearchResult] = Field(..., description="Source documents used")
     processing_time_ms: float = Field(..., description="Total processing time in milliseconds")
+    usage: UsageInfo | None = Field(default=None, description="Combined embedding + LLM token usage")
 
 
 # ============================================================================

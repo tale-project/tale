@@ -29,6 +29,7 @@ export const messageMetadataTable = defineTable({
         durationMs: v.optional(v.number()),
         input: v.optional(v.string()),
         output: v.optional(v.string()),
+        costEstimateCents: v.optional(v.number()),
       }),
     ),
   ),
@@ -44,6 +45,7 @@ export const messageMetadataTable = defineTable({
         durationMs: v.optional(v.number()),
         input: v.optional(v.string()),
         output: v.optional(v.string()),
+        costEstimateCents: v.optional(v.number()),
       }),
     ),
   ),
@@ -61,6 +63,7 @@ export const messageMetadataTable = defineTable({
     }),
   ),
   error: v.optional(v.string()),
+  costEstimateCents: v.optional(v.number()),
 })
   .index('by_messageId', ['messageId'])
   .index('by_threadId', ['threadId']);

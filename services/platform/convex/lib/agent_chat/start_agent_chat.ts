@@ -17,6 +17,7 @@ import { isSpreadsheet } from '../../../lib/shared/file-types';
 import { components, internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
+import { checkBudget } from '../../governance/budget_enforcement';
 import { persistentStreaming } from '../../streaming/helpers';
 import type { FileAttachment } from '../attachments';
 import type { AgentType } from '../context_management/constants';
@@ -212,6 +213,33 @@ export async function startAgentChat(
     (agentConfig.timeoutMs ??
       AGENT_CONTEXT_CONFIGS[agentType]?.timeoutMs ??
       420_000);
+
+  // Budget enforcement — if limits exceeded, save a system reply instead of generating
+  const userId = thread?.userId;
+  if (userId) {
+    const budgetResult = await checkBudget(
+      ctx,
+      organizationId,
+      userId,
+      agentConfig.agentTeamId ? [agentConfig.agentTeamId] : [],
+    );
+    if (!budgetResult.allowed) {
+      const budgetMessage =
+        budgetResult.reason ??
+        'Your usage limit has been reached for this period. Please contact your administrator.';
+      await saveMessage(ctx, components.agent, {
+        threadId,
+        message: { role: 'assistant', content: budgetMessage },
+      });
+      if (threadMeta) {
+        await ctx.db.patch(threadMeta._id, {
+          generationStatus: 'idle' as const,
+          updatedAt: Date.now(),
+        });
+      }
+      return { messageAlreadyExists, streamId };
+    }
+  }
 
   // Schedule the generic agent action with full configuration
   debugLog('SCHEDULE_ACTION', {

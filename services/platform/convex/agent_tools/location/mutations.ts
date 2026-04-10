@@ -8,6 +8,7 @@ import { components, internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
 import { internalMutation } from '../../_generated/server';
+import { checkBudget } from '../../governance/budget_enforcement';
 import type { SerializableAgentConfig } from '../../lib/agent_chat/types';
 import { persistentStreaming } from '../../streaming/helpers';
 import { workflowManagers } from '../../workflow_engine/engine';
@@ -154,6 +155,20 @@ async function handleSubmission({
   const agentConfig = externalAgentConfig ?? DEFAULT_AGENT_CONFIG;
   const model = agentConfig.model ?? 'default';
   const timeoutMs = agentConfig.timeoutMs ?? 1_200_000;
+
+  // Budget enforcement — block before scheduling if limits are exceeded
+  const userId = thread?.userId;
+  if (userId) {
+    const budgetResult = await checkBudget(
+      ctx,
+      organizationId,
+      userId,
+      agentConfig.agentTeamId ? [agentConfig.agentTeamId] : [],
+    );
+    if (!budgetResult.allowed) {
+      throw new Error(budgetResult.reason ?? 'Budget limit exceeded');
+    }
+  }
 
   const beforeGenerate = await createFunctionHandle(beforeGenerateHookRef);
 

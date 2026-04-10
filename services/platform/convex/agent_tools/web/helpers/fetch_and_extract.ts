@@ -96,6 +96,7 @@ export async function fetchAndExtract(
       page_count: result.page_count,
       vision_used: result.vision_used,
       truncated,
+      usage: result.usage,
     };
   } catch (error) {
     const errorMessage =

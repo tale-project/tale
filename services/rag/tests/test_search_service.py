@@ -17,6 +17,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import asyncpg
 import pytest
+from tale_knowledge.embedding import EmbeddingQueryResult, EmbeddingUsage
 
 pytestmark = pytest.mark.asyncio
 
@@ -73,7 +74,12 @@ def _build_service(
     pool = MagicMock()
 
     embedding_service = AsyncMock()
-    embedding_service.embed_query = AsyncMock(return_value=embed_return or [0.1, 0.2, 0.3])
+    embedding_service.embed_query_with_usage = AsyncMock(
+        return_value=EmbeddingQueryResult(
+            embedding=embed_return or [0.1, 0.2, 0.3],
+            usage=EmbeddingUsage(prompt_tokens=0, total_tokens=0, model="test-model"),
+        )
+    )
 
     service = RagSearchService(pool, embedding_service)
     return service, pool, embedding_service, fts_conn, vector_conn
@@ -173,7 +179,7 @@ class TestHybridSearch:
 
         await service.search("my search query")
 
-        embed_svc.embed_query.assert_awaited_once_with("my search query")
+        embed_svc.embed_query_with_usage.assert_awaited_once_with("my search query")
 
 
 class TestScopeFiltering:

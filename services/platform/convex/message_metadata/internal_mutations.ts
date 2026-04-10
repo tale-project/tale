@@ -28,6 +28,7 @@ export const saveMessageMetadata = internalMutation({
     contextWindow: v.optional(v.string()),
     contextStats: v.optional(contextStatsValidator),
     error: v.optional(v.string()),
+    costEstimateCents: v.optional(v.number()),
   },
   returns: v.id('messageMetadata'),
   handler: async (ctx, args) => {
@@ -63,6 +64,7 @@ export const saveMessageMetadata = internalMutation({
         contextWindow: contextWindow ?? existing.contextWindow,
         contextStats: args.contextStats ?? existing.contextStats,
         error: args.error ?? existing.error,
+        costEstimateCents: args.costEstimateCents ?? existing.costEstimateCents,
       });
       return existing._id;
     }
@@ -85,6 +87,7 @@ export const saveMessageMetadata = internalMutation({
       contextWindow,
       contextStats: args.contextStats,
       error: args.error,
+      costEstimateCents: args.costEstimateCents,
     });
   },
 });

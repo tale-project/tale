@@ -3,6 +3,7 @@ import { v } from 'convex/values';
 import { query } from '../_generated/server';
 import { authComponent } from '../auth';
 import { getOrganizationMember } from '../lib/rls';
+import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import { GOVERNANCE_POLICY_TYPES } from './schema';
 
 const policyTypeValidator = v.union(
@@ -90,11 +91,14 @@ export const getUsageSummary = query({
       throw new Error('Unauthenticated');
     }
 
-    await getOrganizationMember(ctx, args.organizationId, {
+    const member = await getOrganizationMember(ctx, args.organizationId, {
       userId: String(authUser._id),
       email: authUser.email,
       name: authUser.name,
     });
+    if (!isAdmin(member.role)) {
+      throw new Error('Only admins can view usage summaries');
+    }
 
     const now = new Date();
     const defaultPeriodKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
