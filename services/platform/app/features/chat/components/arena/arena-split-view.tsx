@@ -185,19 +185,19 @@ function ArenaColumn({
 
 export function ArenaSplitView({ organizationId }: ArenaSplitViewProps) {
   const { t } = useT('chat');
-  const { arenaThreadIdA, arenaThreadIdB } = useArenaMode();
+  const { arenaThreadIdA, arenaThreadIdB, modelA, modelB } = useArenaMode();
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <ArenaColumn
-          label={t('arena.modelALabel')}
+          label={modelA ? `A - ${modelA}` : t('arena.modelALabel')}
           threadId={arenaThreadIdA}
           organizationId={organizationId}
         />
         <div className="bg-border w-px shrink-0" />
         <ArenaColumn
-          label={t('arena.modelBLabel')}
+          label={modelB ? `B - ${modelB}` : t('arena.modelBLabel')}
           threadId={arenaThreadIdB ?? arenaThreadIdA}
           organizationId={organizationId}
         />

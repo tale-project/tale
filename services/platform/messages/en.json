@@ -2805,7 +2805,9 @@
       "aBetter": "A is better",
       "bBetter": "B is better",
       "tie": "Tie",
-      "bothBad": "Both bad"
+      "bothBad": "Both bad",
+      "verdictRecorded": "Verdict recorded",
+      "verdictError": "Failed to record verdict"
     },
     "canvas": {
       "title": "Canvas",

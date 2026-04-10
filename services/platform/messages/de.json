@@ -2767,7 +2767,9 @@
       "aBetter": "A ist besser",
       "bBetter": "B ist besser",
       "tie": "Unentschieden",
-      "bothBad": "Beide schlecht"
+      "bothBad": "Beide schlecht",
+      "verdictRecorded": "Bewertung gespeichert",
+      "verdictError": "Bewertung konnte nicht gespeichert werden"
     }
   },
   "documents": {
