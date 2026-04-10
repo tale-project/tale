@@ -1,6 +1,7 @@
 'use client';
 
-import { Check, Copy, Link } from 'lucide-react';
+import { useNavigate } from '@tanstack/react-router';
+import { Check, Copy, ExternalLink, Link } from 'lucide-react';
 import { useCallback, useState, useRef, useEffect } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
@@ -29,6 +30,7 @@ function ShareChatDialogContent({
 }: ShareChatDialogProps) {
   const { t } = useT('chat');
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [isCopied, setIsCopied] = useState(false);
   const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -111,7 +113,7 @@ function ShareChatDialogContent({
       icon={<Link className="text-muted-foreground size-5" />}
       size="md"
     >
-      <div className="flex flex-col gap-4">
+      <div className="flex min-w-0 flex-col gap-4 overflow-hidden">
         <Switch
           label={t('share.enableSharing')}
           description={t('share.enableSharingDescription')}
@@ -121,19 +123,24 @@ function ShareChatDialogContent({
         />
 
         {isShared && shareToken && (
-          <div className="flex flex-col gap-2">
+          <div className="flex min-w-0 flex-col gap-2">
             <Text variant="label" className="text-sm">
               {t('share.linkLabel')}
             </Text>
-            <div className="bg-background border-border flex items-center gap-2 rounded-lg border p-2">
-              <Text variant="muted" className="min-w-0 flex-1 truncate text-xs">
+            <div className="bg-background border-border min-w-0 overflow-hidden rounded-lg border p-2">
+              <Text
+                variant="muted"
+                className="block overflow-hidden text-xs text-ellipsis whitespace-nowrap"
+              >
                 {shareUrl}
               </Text>
+            </div>
+            <div className="flex gap-1.5">
               <Button
                 variant="secondary"
                 size="sm"
                 onClick={handleCopy}
-                className="shrink-0 gap-1.5"
+                className="gap-1.5"
                 aria-label={t('share.copyLink')}
               >
                 {isCopied ? (
@@ -142,6 +149,25 @@ function ShareChatDialogContent({
                   <Copy className="size-3.5" />
                 )}
                 {isCopied ? t('share.copied') : t('share.copyLink')}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  onOpenChange(false);
+                  void navigate({
+                    to: '/dashboard/$id/chat/shared/$shareToken',
+                    params: {
+                      id: organizationId,
+                      shareToken: shareToken,
+                    },
+                  });
+                }}
+                className="gap-1.5"
+                aria-label={t('share.preview')}
+              >
+                <ExternalLink className="size-3.5" />
+                {t('share.preview')}
               </Button>
             </div>
             <Text variant="muted" className="text-xs">

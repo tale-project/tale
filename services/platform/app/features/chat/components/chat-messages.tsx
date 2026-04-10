@@ -1,7 +1,7 @@
 'use client';
 
 import type { UIMessage } from '@convex-dev/agent/react';
-import { AlertTriangle, Loader2, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, Loader2, CheckCircle2, Lock } from 'lucide-react';
 import {
   useMemo,
   useRef,
@@ -84,10 +84,13 @@ interface ChatMessagesProps {
   lastUserMessageRef: RefObject<HTMLDivElement | null>;
   containerRef: RefObject<HTMLDivElement | null>;
   activeApproval: ChatItem | null;
+  forkedMessageCount?: number;
+  forkedFromShare?: boolean;
   onHumanInputResponseSubmitted?: () => void;
   onSendFollowUp?: (message: string) => void;
   onSendMessage?: (message: string) => void;
   onEditMessage?: (messageId: string, content: string) => void;
+  onForkAtMessage?: (messageId: string) => void;
 }
 
 /**
@@ -116,10 +119,13 @@ export function ChatMessages({
   lastUserMessageRef,
   containerRef,
   activeApproval,
+  forkedMessageCount,
+  forkedFromShare,
   onHumanInputResponseSubmitted,
   onSendFollowUp,
   onSendMessage,
   onEditMessage,
+  onForkAtMessage,
 }: ChatMessagesProps) {
   const { t } = useT('chat');
   const { branches, activeBranchThreadId } = useBranchContext();
@@ -313,6 +319,7 @@ export function ChatMessages({
           }}
           onSendFollowUp={onSendFollowUp}
           onEdit={isUserMessage ? onEditMessage : undefined}
+          onFork={onForkAtMessage}
           toolbarExtra={
             hasBranches && message.order !== undefined ? (
               <BranchNavigator forkOrder={message.order} />
@@ -321,6 +328,48 @@ export function ChatMessages({
         />
       </div>
     );
+  };
+
+  // Compute fork divider position: after the Nth message (forkedMessageCount)
+  const forkDividerAfterIdx = useMemo(() => {
+    if (!forkedMessageCount || forkedMessageCount <= 0) return -1;
+    let msgCount = 0;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type === 'message') {
+        msgCount++;
+        if (msgCount === forkedMessageCount) return i;
+      }
+    }
+    return -1;
+  }, [items, forkedMessageCount]);
+
+  const forkDivider =
+    forkDividerAfterIdx >= 0 ? (
+      <div
+        key="fork-divider"
+        className="flex items-center gap-3 py-2"
+        role="separator"
+      >
+        <div className="bg-border h-px flex-1" />
+        <span className="text-muted-foreground flex items-center gap-1.5 text-xs">
+          <Lock className="size-3" />
+          {forkedFromShare ? t('shareBoundary') : t('forkBoundary')}
+        </span>
+        <div className="bg-border h-px flex-1" />
+      </div>
+    ) : null;
+
+  const renderItemWithDivider = (item: ChatItem, idx: number) => {
+    const rendered = renderMessage(item);
+    if (idx === forkDividerAfterIdx) {
+      return (
+        <div key={`divider-wrap-${idx}`}>
+          {rendered}
+          {forkDivider}
+        </div>
+      );
+    }
+    return rendered;
   };
 
   const beforeItems = lastUserIdx >= 0 ? items.slice(0, lastUserIdx) : items;
@@ -359,11 +408,11 @@ export function ChatMessages({
         {/* Messages before the last user message — content-visibility skips
             rendering work for messages scrolled offscreen. */}
         <div className="flex flex-col gap-3 [contain-intrinsic-size:auto_none] [content-visibility:auto]">
-          {beforeItems.map(renderMessage)}
+          {beforeItems.map((item, i) => renderItemWithDivider(item, i))}
         </div>
 
         {/* Last user message */}
-        {lastUserItem && renderMessage(lastUserItem)}
+        {lastUserItem && renderItemWithDivider(lastUserItem, lastUserIdx)}
 
         {/* Response area: min-height fills viewport so scroll-to-bottom
             positions the user message at the top. When AI response exceeds
@@ -372,7 +421,9 @@ export function ChatMessages({
           ref={responseAreaRef}
           className="flex shrink-0 flex-col gap-3 [overflow-anchor:none]"
         >
-          {afterItems.map(renderMessage)}
+          {afterItems.map((item, i) =>
+            renderItemWithDivider(item, lastUserIdx + 1 + i),
+          )}
 
           <div>
             {isLoading && (

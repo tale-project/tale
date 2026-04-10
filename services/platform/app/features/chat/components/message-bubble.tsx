@@ -3,6 +3,7 @@
 import {
   CopyIcon,
   CheckIcon,
+  GitFork,
   Info,
   Pencil,
   TriangleAlert,
@@ -50,6 +51,7 @@ interface MessageBubbleProps extends ComponentPropsWithoutRef<'div'> {
   onSendFollowUp?: (message: string) => void;
   onRetry?: () => void;
   onEdit?: (messageId: string, content: string) => void;
+  onFork?: (messageId: string) => void;
   /** Extra content rendered in the user message toolbar (e.g. BranchNavigator). */
   toolbarExtra?: React.ReactNode;
 }
@@ -108,6 +110,7 @@ function MessageBubbleComponent({
   onSendFollowUp,
   onRetry,
   onEdit,
+  onFork,
   toolbarExtra,
   ...restProps
 }: MessageBubbleProps) {
@@ -120,6 +123,10 @@ function MessageBubbleComponent({
   const handleEditClick = useCallback(() => {
     if (onEdit) onEdit(message.id, message.content);
   }, [onEdit, message.id, message.content]);
+
+  const handleForkClick = useCallback(() => {
+    if (onFork) onFork(message.id);
+  }, [onFork, message.id]);
 
   const [isCopied, setIsCopied] = useState(false);
   const [isInfoDialogOpen, setIsInfoDialogOpen] = useState(false);
@@ -422,6 +429,18 @@ function MessageBubbleComponent({
                 <Info className="size-4" />
               </Button>
             </Tooltip>
+            {onFork && (
+              <Tooltip content={tChat('forkChat')} side="bottom">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="p-1"
+                  onClick={handleForkClick}
+                >
+                  <GitFork className="size-4" />
+                </Button>
+              </Tooltip>
+            )}
           </div>
         )}
 
@@ -484,6 +503,7 @@ export const MessageBubble = memo(
       prevProps.className === nextProps.className &&
       prevProps.onSendFollowUp === nextProps.onSendFollowUp &&
       prevProps.onEdit === nextProps.onEdit &&
+      prevProps.onFork === nextProps.onFork &&
       prevProps.toolbarExtra === nextProps.toolbarExtra
     );
   },

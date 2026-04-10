@@ -10,6 +10,7 @@ import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { ChatHeader } from '@/app/features/chat/components/chat-header';
 import { ChatHistorySidebar } from '@/app/features/chat/components/chat-history-sidebar';
 import { ChatInterface } from '@/app/features/chat/components/chat-interface';
+import { SharedChatView } from '@/app/features/chat/components/shared-chat-view';
 import { WelcomeContentSkeleton } from '@/app/features/chat/components/welcome-content-skeleton';
 import { BranchProvider } from '@/app/features/chat/context/branch-context';
 import {
@@ -63,6 +64,13 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
   });
   const threadId = threadMatch?.params?.threadId;
 
+  // Check if we're on the shared chat route
+  const sharedMatch = useMatch({
+    from: '/dashboard/$id/chat/shared/$shareToken',
+    shouldThrow: false,
+  });
+  const shareToken = sharedMatch?.params?.shareToken;
+
   // Directional key: only remount ChatInterface when entering new-chat from a
   // thread (thread→new). All other transitions (new→thread, thread→thread) keep
   // the same key so the component stays mounted for smooth transitions.
@@ -78,10 +86,36 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
     }
   }, [threadId, clearChatState]);
 
+  // Render shared chat view when on shared route
+  if (shareToken) {
+    return (
+      <PageLayout className="bg-background h-full overflow-hidden">
+        <LayoutErrorBoundary organizationId={organizationId}>
+          <Suspense
+            fallback={
+              <div className="flex h-full flex-col items-center p-8">
+                <div className="w-full max-w-(--chat-max-width) space-y-4">
+                  <Skeleton className="h-8 w-48" />
+                  <Skeleton className="h-24 w-full" />
+                  <Skeleton className="h-24 w-3/4" />
+                </div>
+              </div>
+            }
+          >
+            <SharedChatView
+              organizationId={organizationId}
+              shareToken={shareToken}
+            />
+          </Suspense>
+        </LayoutErrorBoundary>
+      </PageLayout>
+    );
+  }
+
   return (
     <PageLayout className="bg-background h-full overflow-hidden">
       <LayoutErrorBoundary organizationId={organizationId}>
-        <ChatHeader organizationId={organizationId} />
+        <ChatHeader organizationId={organizationId} threadId={threadId} />
       </LayoutErrorBoundary>
 
       <div className="flex min-h-0 flex-1 overflow-hidden">

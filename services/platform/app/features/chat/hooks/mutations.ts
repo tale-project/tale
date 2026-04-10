@@ -84,6 +84,14 @@ export function useForkThread() {
   return useConvexMutation(api.threads.mutations.forkThread);
 }
 
+export function useForkOwnThread() {
+  return useConvexMutation(api.threads.mutations.forkOwnThread);
+}
+
+export function useForkAndChat() {
+  return useConvexAction(api.threads.mutations.forkAndChat);
+}
+
 export function useEditAndBranch() {
   return useConvexAction(api.threads.mutations.editAndBranch);
 }

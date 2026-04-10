@@ -23,13 +23,23 @@ export const getSharedThread = query({
       return null;
     }
 
-    const { messages } = await getThreadMessages(ctx, metadata.threadId);
+    const { messages: allMessages } = await getThreadMessages(
+      ctx,
+      metadata.threadId,
+    );
+
+    // Snapshot: only include messages up to the share timestamp
+    const sharedAt = metadata.sharedAt;
+    const messages = sharedAt
+      ? allMessages.filter((m) => m._creationTime <= sharedAt)
+      : allMessages;
 
     return {
       threadId: metadata.threadId,
       title: metadata.title,
       createdAt: metadata.createdAt,
       sharedBy: metadata.sharedBy,
+      agentSlug: metadata.agentSlug ?? null,
       messages,
     };
   },
