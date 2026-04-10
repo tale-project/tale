@@ -7,6 +7,7 @@
 
 import type { Id } from '../../../../_generated/dataModel';
 import type { ActionCtx } from '../../../../_generated/server';
+import { resolveLanguageModelWithFallback } from '../../../../providers/failover';
 import { resolveLanguageModel } from '../../../../providers/resolve_model';
 import type { StepExecutionResult, LLMNodeConfig } from '../../../types';
 import { executeAgentWithTools } from './execute_agent_with_tools';
@@ -36,9 +37,11 @@ export async function executeLLMNode(
   threadId?: string,
   stepSlug?: string,
 ): Promise<StepExecutionResult> {
-  // 1. Resolve default model from provider files, then validate and normalize config
-  const { languageModel, modelData: chatModelData } =
-    await resolveLanguageModel(ctx, { tag: 'chat' });
+  // 1. Resolve default model from provider files, then validate and normalize config.
+  // Use fallback-aware resolution unless the step explicitly disables it.
+  const { languageModel, modelData: chatModelData } = config.noFallback
+    ? await resolveLanguageModel(ctx, { tag: 'chat' })
+    : await resolveLanguageModelWithFallback(ctx, { tag: 'chat' });
   const normalizedConfig = validateAndNormalizeConfig(
     config,
     chatModelData.modelId,

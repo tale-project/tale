@@ -81,6 +81,9 @@ export interface LLMNodeConfig {
 
   // Custom variables and context
   contextVariables?: Record<string, unknown>;
+
+  /** When true, disable model fallback for this step (default: false) */
+  noFallback?: boolean;
 }
 
 // =============================================================================
@@ -166,6 +169,7 @@ export const llmNodeConfigValidator = v.object({
       v.union(v.string(), v.number(), v.boolean(), v.null()),
     ),
   ),
+  noFallback: v.optional(v.boolean()),
 
   // ==========================================================================
   // DEPRECATED FIELDS (kept for backward compatibility during migration)

@@ -7,7 +7,7 @@ import { z } from 'zod/v4';
 
 import { action } from '../../_generated/server';
 import { authComponent } from '../../auth';
-import { resolveLanguageModel } from '../../providers/resolve_model';
+import { resolveLanguageModelWithFallback } from '../../providers/failover';
 
 export const generateCronExpression = action({
   args: {
@@ -32,7 +32,9 @@ export const generateCronExpression = action({
     }
 
     // Resolve chat model from provider files
-    const { languageModel } = await resolveLanguageModel(ctx, { tag: 'chat' });
+    const { languageModel } = await resolveLanguageModelWithFallback(ctx, {
+      tag: 'chat',
+    });
 
     const result = await generateObject({
       model: languageModel,

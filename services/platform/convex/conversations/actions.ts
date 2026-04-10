@@ -2,7 +2,7 @@ import { v } from 'convex/values';
 
 import { action } from '../_generated/server';
 import { authComponent } from '../auth';
-import { resolveLanguageModel } from '../providers/resolve_model';
+import { resolveLanguageModelWithFallback } from '../providers/failover';
 import { improveMessage as improveMessageHandler } from './improve_message';
 
 export const improveMessage = action({
@@ -24,7 +24,9 @@ export const improveMessage = action({
     }
 
     // Resolve fast/chat model from provider files
-    const { languageModel } = await resolveLanguageModel(ctx, { tag: 'chat' });
+    const { languageModel } = await resolveLanguageModelWithFallback(ctx, {
+      tag: 'chat',
+    });
 
     return improveMessageHandler(ctx, {
       ...args,

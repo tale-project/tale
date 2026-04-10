@@ -51,6 +51,8 @@ export interface SerializableAgentConfig {
   timeoutMs?: number;
   /** Per-agent output token reserve */
   outputReserve?: number;
+  /** Ordered fallback model IDs (tried in sequence when primary fails) */
+  fallbackModels?: string[];
   /** Whether response caching is enabled (default true) */
   responseCacheEnabled?: boolean;
   /** Cache TTL in milliseconds (default 24 hours) */

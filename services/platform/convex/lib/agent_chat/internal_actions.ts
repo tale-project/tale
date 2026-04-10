@@ -30,7 +30,10 @@ import {
   sanitizeWorkflowName,
 } from '../../agent_tools/workflows/create_bound_workflow_tool';
 import { extractInputSchema } from '../../agent_tools/workflows/helpers/extract_input_schema';
+import { recordFailure } from '../../providers/circuit_breaker';
+import { isTransientProviderError } from '../../providers/errors';
 import { resolveLanguageModelWithFallback } from '../../providers/failover';
+import { resolveLanguageModelById } from '../../providers/resolve_model';
 import { generateAgentResponse } from '../agent_response';
 import type {
   GenerateResponseHooks,
@@ -91,6 +94,7 @@ const serializableAgentConfigValidator = v.object({
   responseCacheEnabled: v.optional(v.boolean()),
   responseCacheTtlMs: v.optional(v.number()),
   noCacheToolNames: v.optional(v.array(v.string())),
+  fallbackModels: v.optional(v.array(v.string())),
 });
 
 const hooksConfigValidator = v.object({
@@ -328,34 +332,6 @@ export const runAgentGeneration = internalAction({
         finalInstructions = finalInstructions + '\n\n' + mandatorySuffix;
       }
 
-      // Resolve model from provider files with automatic failover
-      const modelId = model === 'default' ? undefined : model;
-      const { languageModel, modelData } =
-        await resolveLanguageModelWithFallback(ctx, {
-          modelId,
-          providerName: agentConfig.provider,
-          tag: modelId ? undefined : 'chat',
-        });
-      const resolvedProvider = modelData.providerName;
-
-      // Create agent factory function from serializable config
-      const createAgent = () => {
-        const config = createAgentConfig({
-          name: agentConfig.name,
-          instructions: finalInstructions,
-          languageModel,
-          convexToolNames: agentConfig.convexToolNames
-            ? agentConfig.convexToolNames.filter((n): n is ToolName =>
-                (TOOL_NAMES as readonly string[]).includes(n),
-              )
-            : undefined,
-          extraTools: allExtraTools,
-          maxSteps: agentConfig.maxSteps,
-          outputFormat: agentConfig.outputFormat,
-        });
-        return new Agent(components.agent, config);
-      };
-
       // Build hooks object from FunctionHandle strings
       const hooks: GenerateResponseHooks | undefined = hooksConfig
         ? buildHooksFromConfig(hooksConfig)
@@ -367,93 +343,238 @@ export const runAgentGeneration = internalAction({
         allExtraTools,
       );
 
-      const result = await generateAgentResponse(
-        {
-          agentType,
-          createAgent,
-          model,
-          provider: resolvedProvider,
-          debugTag,
-          enableStreaming,
-          hooks,
-          convexToolNames: agentConfig.convexToolNames,
-          knowledgeMode: agentConfig.knowledgeMode,
-          webSearchMode: agentConfig.webSearchMode,
-          includeTeamKnowledge: agentConfig.includeTeamKnowledge,
-          includeOrgKnowledge: agentConfig.includeOrgKnowledge,
-          agentTeamId: agentConfig.agentTeamId,
-          knowledgeFileIds: agentConfig.knowledgeFileIds,
-          structuredResponsesEnabled: agentConfig.structuredResponsesEnabled,
-          responseCacheEnabled: agentConfig.responseCacheEnabled,
-          responseCacheTtlMs: agentConfig.responseCacheTtlMs,
-          noCacheToolNames: agentConfig.noCacheToolNames,
-          instructions: finalInstructions,
-          toolsSummary,
-        },
-        {
-          ctx,
-          threadId,
-          organizationId,
-          userId,
-          agentSlug: args.agentSlug,
-          teamIds: agentConfig.agentTeamId
-            ? [agentConfig.agentTeamId]
-            : undefined,
-          providerCost:
-            modelData.inputCentsPerMillion != null
-              ? {
-                  inputCentsPerMillion: modelData.inputCentsPerMillion,
-                  outputCentsPerMillion: modelData.outputCentsPerMillion ?? 0,
-                }
-              : undefined,
-          promptMessage,
-          additionalContext,
-          userContext,
-          parentThreadId,
-          agentOptions,
-          attachments,
-          streamId,
-          promptMessageId,
-          maxSteps,
-          deadlineMs,
-          generationParams,
-        },
-      );
-
-      // User cancelled — cancelGeneration already handled message state
-      if (result.finishReason === 'cancelled') {
-        return result;
-      }
-
-      // Validate response — save a failed message so the client exits loading
-      if (!result.text?.trim()) {
-        try {
-          await saveMessage(ctx, components.agent, {
-            threadId,
-            message: {
-              role: 'assistant',
-              content: 'I was unable to generate a response. Please try again.',
-            },
-            metadata: {
-              status: 'failed',
-              error: 'Agent returned empty response',
-            },
-          });
-        } catch (saveError) {
-          console.error(
-            '[runAgentGeneration] Failed to save failed message:',
-            saveError,
-          );
+      // Build ordered list of models to try: primary + fallbacks
+      const primaryModelId = model === 'default' ? undefined : model;
+      const modelsToTry: Array<string | undefined> = [primaryModelId];
+      if (agentConfig.fallbackModels?.length) {
+        for (const fb of agentConfig.fallbackModels) {
+          modelsToTry.push(fb);
         }
-        throw new Error(
-          `Agent returned empty response: ${JSON.stringify({
-            model: result.model,
-            usage: result.usage,
-          })}`,
-        );
       }
 
-      return result;
+      // Fallback retry loop — try each model in order until one succeeds
+      let lastFallbackError: unknown;
+      for (let attempt = 0; attempt < modelsToTry.length; attempt++) {
+        const currentModelId = modelsToTry[attempt];
+
+        try {
+          // Resolve model from provider files with automatic failover
+          const { languageModel, modelData } = currentModelId
+            ? await resolveLanguageModelById(ctx, {
+                modelId: currentModelId,
+                providerName: agentConfig.provider,
+              })
+            : await resolveLanguageModelWithFallback(ctx, {
+                providerName: agentConfig.provider,
+                tag: 'chat',
+              });
+          const resolvedProvider = modelData.providerName;
+          const resolvedModelId = modelData.modelId;
+
+          // Create agent factory function from serializable config
+          const createAgent = () => {
+            const config = createAgentConfig({
+              name: agentConfig.name,
+              instructions: finalInstructions,
+              languageModel,
+              convexToolNames: agentConfig.convexToolNames
+                ? agentConfig.convexToolNames.filter((n): n is ToolName =>
+                    (TOOL_NAMES as readonly string[]).includes(n),
+                  )
+                : undefined,
+              extraTools: allExtraTools,
+              maxSteps: agentConfig.maxSteps,
+              outputFormat: agentConfig.outputFormat,
+            });
+            return new Agent(components.agent, config);
+          };
+
+          const result = await generateAgentResponse(
+            {
+              agentType,
+              createAgent,
+              model: resolvedModelId,
+              provider: resolvedProvider,
+              debugTag,
+              enableStreaming,
+              hooks,
+              convexToolNames: agentConfig.convexToolNames,
+              knowledgeMode: agentConfig.knowledgeMode,
+              webSearchMode: agentConfig.webSearchMode,
+              includeTeamKnowledge: agentConfig.includeTeamKnowledge,
+              includeOrgKnowledge: agentConfig.includeOrgKnowledge,
+              agentTeamId: agentConfig.agentTeamId,
+              knowledgeFileIds: agentConfig.knowledgeFileIds,
+              structuredResponsesEnabled:
+                agentConfig.structuredResponsesEnabled,
+              responseCacheEnabled: agentConfig.responseCacheEnabled,
+              responseCacheTtlMs: agentConfig.responseCacheTtlMs,
+              noCacheToolNames: agentConfig.noCacheToolNames,
+              instructions: finalInstructions,
+              toolsSummary,
+            },
+            {
+              ctx,
+              threadId,
+              organizationId,
+              userId,
+              agentSlug: args.agentSlug,
+              teamIds: agentConfig.agentTeamId
+                ? [agentConfig.agentTeamId]
+                : undefined,
+              providerCost:
+                modelData.inputCentsPerMillion != null
+                  ? {
+                      inputCentsPerMillion: modelData.inputCentsPerMillion,
+                      outputCentsPerMillion:
+                        modelData.outputCentsPerMillion ?? 0,
+                    }
+                  : undefined,
+              promptMessage,
+              additionalContext,
+              userContext,
+              parentThreadId,
+              agentOptions,
+              attachments,
+              streamId,
+              promptMessageId,
+              maxSteps,
+              deadlineMs,
+              generationParams,
+            },
+          );
+
+          // User cancelled — cancelGeneration already handled message state
+          if (result.finishReason === 'cancelled') {
+            return result;
+          }
+
+          // Validate response — save a failed message so the client exits loading
+          if (!result.text?.trim()) {
+            try {
+              await saveMessage(ctx, components.agent, {
+                threadId,
+                message: {
+                  role: 'assistant',
+                  content:
+                    'I was unable to generate a response. Please try again.',
+                },
+                metadata: {
+                  status: 'failed',
+                  error: 'Agent returned empty response',
+                },
+              });
+            } catch (saveError) {
+              console.error(
+                '[runAgentGeneration] Failed to save failed message:',
+                saveError,
+              );
+            }
+            throw new Error(
+              `Agent returned empty response: ${JSON.stringify({
+                model: result.model,
+                usage: result.usage,
+              })}`,
+            );
+          }
+
+          return result;
+        } catch (fallbackError) {
+          lastFallbackError = fallbackError;
+          const hasMoreFallbacks = attempt < modelsToTry.length - 1;
+
+          // Only retry on transient provider errors with remaining fallbacks
+          if (hasMoreFallbacks && isTransientProviderError(fallbackError)) {
+            const failedModelLabel = currentModelId ?? model;
+            const nextModel = modelsToTry[attempt + 1] ?? 'default';
+
+            // Record circuit breaker failure for the failed model
+            if (currentModelId && agentConfig.provider) {
+              recordFailure(agentConfig.provider, currentModelId);
+            }
+
+            // Check remaining deadline budget before retrying
+            if (deadlineMs && Date.now() >= deadlineMs - 5000) {
+              debugLog('FALLBACK_SKIP_DEADLINE', {
+                failedModel: failedModelLabel,
+                remainingMs: deadlineMs - Date.now(),
+              });
+              throw fallbackError;
+            }
+
+            debugLog('MODEL_FALLBACK', {
+              attempt: attempt + 1,
+              failedModel: failedModelLabel,
+              nextModel,
+            });
+
+            // Save system message so the user sees the fallback in chat
+            try {
+              await saveMessage(ctx, components.agent, {
+                threadId,
+                message: {
+                  role: 'system',
+                  content: `[MODEL_FALLBACK] ${failedModelLabel} was unavailable. Trying ${nextModel}...`,
+                },
+              });
+            } catch (msgError) {
+              console.error(
+                '[runAgentGeneration] Failed to save fallback message:',
+                msgError,
+              );
+            }
+
+            // Clean up all failed assistant messages from this attempt so
+            // the next attempt starts cleanly. We overwrite them to system
+            // role so the UI does not show stale error bubbles.
+            try {
+              const msgs = await listMessages(ctx, components.agent, {
+                threadId,
+                paginationOpts: { cursor: null, numItems: 5 },
+                excludeToolMessages: true,
+              });
+              const failedAssistants = msgs.page.filter(
+                (m: MessageDoc) =>
+                  m.message?.role === 'assistant' && m.status === 'failed',
+              );
+              for (const failed of failedAssistants) {
+                await ctx.runMutation(components.agent.messages.updateMessage, {
+                  messageId: failed._id,
+                  patch: {
+                    status: 'success',
+                    message: {
+                      role: 'system',
+                      content: `[MODEL_FALLBACK] ${failedModelLabel} failed — retrying with ${nextModel}.`,
+                    },
+                  },
+                });
+              }
+            } catch (cleanupError) {
+              debugLog('FALLBACK_CLEANUP_ERROR', { error: cleanupError });
+            }
+
+            // Reset stream state to 'streaming' for the next attempt
+            if (streamId) {
+              try {
+                await ctx.runMutation(
+                  internal.streaming.internal_mutations.startStream,
+                  { streamId },
+                );
+              } catch {
+                // Stream reset is best-effort; next attempt creates its own state
+              }
+            }
+
+            continue;
+          }
+
+          // Non-transient error or no more fallbacks — rethrow
+          throw fallbackError;
+        }
+      }
+
+      // Should not reach here, but satisfy TypeScript
+      throw lastFallbackError ?? new Error('No model could be resolved');
     } catch (error) {
       // Log full error details for debugging
       const err = isRecord(error) ? error : { message: String(error) };

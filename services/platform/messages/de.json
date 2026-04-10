@@ -814,7 +814,7 @@
         "templateVariablesLabel": "Verfügbare Vorlagenvariablen",
         "templateVariablesDescription": "Verwende diese Variablen in deinen Anweisungen – sie werden zur Laufzeit aufgelöst.",
         "sectionModel": "Modell",
-        "sectionModelDescription": "KI-Modell und Generierungsparameter konfigurieren",
+        "sectionModelDescription": "Konfiguriere die KI-Modelle für diesen Agent. Das erste Modell ist das primäre Modell für die Generierung. Zusätzliche Modelle dienen als geordnete Fallbacks — wenn das primäre Modell nicht verfügbar ist, versucht der Agent automatisch das nächste Modell in der Liste.",
         "sectionTools": "Tools",
         "sectionToolsDescription": "Auswählen, welche Tools dieser Agent verwenden kann",
         "sectionIntegrationBindings": "Gebundene Integrationen",
@@ -866,6 +866,11 @@
         "searchModels": "Modelle suchen…",
         "noModelsFound": "Keine Modelle gefunden",
         "removeModel": "Entfernen",
+        "modelSelector": {
+          "moveUp": "Modell nach oben verschieben",
+          "moveDown": "Modell nach unten verschieben",
+          "dragHandle": "Ziehen zum Neuordnen des Modells"
+        },
         "structuredResponsesInjectedPrompt": "Die folgenden Anweisungen werden automatisch an den System-Prompt angehängt:"
       },
       "delegation": {

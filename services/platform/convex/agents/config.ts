@@ -49,5 +49,9 @@ export function toSerializableConfig(
     responseCacheEnabled: config.responseCacheEnabled,
     responseCacheTtlMs: config.responseCacheTtlMs,
     noCacheToolNames: config.noCacheToolNames,
+    fallbackModels:
+      config.supportedModels.length > 1
+        ? config.supportedModels.slice(1)
+        : undefined,
   };
 }
