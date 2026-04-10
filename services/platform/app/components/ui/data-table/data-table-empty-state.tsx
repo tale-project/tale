@@ -1,4 +1,4 @@
-import type { ComponentType } from 'react';
+import type { ComponentType, ReactNode } from 'react';
 
 import { VStack, Center } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
@@ -8,8 +8,8 @@ export interface DataTableEmptyStateProps {
   icon?: ComponentType<{ className?: string }>;
   /** Title text */
   title: string;
-  /** Description text */
-  description?: string;
+  /** Description text or rich content */
+  description?: ReactNode;
 }
 
 /**

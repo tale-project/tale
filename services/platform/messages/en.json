@@ -1579,7 +1579,8 @@
         }
       },
       "never": "Never",
-      "neverUsed": "Never used"
+      "neverUsed": "Never used",
+      "docsGuide": "Use API keys to access the REST API. View available endpoints in the API documentation."
     },
     "apiDocs": {
       "title": "API documentation",

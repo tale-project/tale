@@ -1,7 +1,9 @@
 import { v } from 'convex/values';
 
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
+import type { Id } from '../_generated/dataModel';
 import { internalMutation } from '../_generated/server';
+import { deleteProduct as deleteProductHandler } from './delete_product';
 import * as ProductsHelpers from './helpers';
 import type { CreateProductResult, UpdateProductsResult } from './types';
 import { productStatusValidator } from './validators';
@@ -61,5 +63,15 @@ export const updateProducts = internalMutation({
   }),
   handler: async (ctx, args): Promise<UpdateProductsResult> => {
     return await ProductsHelpers.updateProducts(ctx, args);
+  },
+});
+
+export const deleteProduct = internalMutation({
+  args: {
+    productId: v.id('products'),
+  },
+  returns: v.id('products'),
+  handler: async (ctx, args): Promise<Id<'products'>> => {
+    return await deleteProductHandler(ctx, args.productId);
   },
 });

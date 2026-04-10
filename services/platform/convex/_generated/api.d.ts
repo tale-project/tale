@@ -130,6 +130,7 @@ import type * as agents_internal_queries from "../agents/internal_queries.js";
 import type * as agents_legacy_schema from "../agents/legacy_schema.js";
 import type * as agents_mutations from "../agents/mutations.js";
 import type * as agents_queries from "../agents/queries.js";
+import type * as agents_rest_api from "../agents/rest_api.js";
 import type * as agents_seed_system_defaults from "../agents/seed_system_defaults.js";
 import type * as agents_start_chat from "../agents/start_chat.js";
 import type * as agents_translate_fields from "../agents/translate_fields.js";
@@ -219,6 +220,7 @@ import type * as customers_list_customers_paginated from "../customers/list_cust
 import type * as customers_mutations from "../customers/mutations.js";
 import type * as customers_queries from "../customers/queries.js";
 import type * as customers_query_customers from "../customers/query_customers.js";
+import type * as customers_rest_api from "../customers/rest_api.js";
 import type * as customers_search_customers from "../customers/search_customers.js";
 import type * as customers_types from "../customers/types.js";
 import type * as customers_update_customer from "../customers/update_customer.js";
@@ -263,6 +265,7 @@ import type * as documents_mutations from "../documents/mutations.js";
 import type * as documents_queries from "../documents/queries.js";
 import type * as documents_query_documents from "../documents/query_documents.js";
 import type * as documents_read_file_base64_from_storage from "../documents/read_file_base64_from_storage.js";
+import type * as documents_rest_api from "../documents/rest_api.js";
 import type * as documents_team_fields from "../documents/team_fields.js";
 import type * as documents_transform_to_document_item from "../documents/transform_to_document_item.js";
 import type * as documents_types from "../documents/types.js";
@@ -408,6 +411,7 @@ import type * as lib_response_cache_internal_queries from "../lib/response_cache
 import type * as lib_response_cache_normalize from "../lib/response_cache/normalize.js";
 import type * as lib_response_cache_semantic_cache from "../lib/response_cache/semantic_cache.js";
 import type * as lib_response_cache_tool_cacheability from "../lib/response_cache/tool_cacheability.js";
+import type * as lib_rest_helpers from "../lib/rest/helpers.js";
 import type * as lib_rls_auth_get_auth_user_identity from "../lib/rls/auth/get_auth_user_identity.js";
 import type * as lib_rls_auth_get_authenticated_user from "../lib/rls/auth/get_authenticated_user.js";
 import type * as lib_rls_auth_get_trusted_auth_data from "../lib/rls/auth/get_trusted_auth_data.js";
@@ -553,6 +557,7 @@ import type * as products_list_products_paginated from "../products/list_product
 import type * as products_mutations from "../products/mutations.js";
 import type * as products_queries from "../products/queries.js";
 import type * as products_query_products from "../products/query_products.js";
+import type * as products_rest_api from "../products/rest_api.js";
 import type * as products_search_products_by_metadata from "../products/search_products_by_metadata.js";
 import type * as products_types from "../products/types.js";
 import type * as products_update_product from "../products/update_product.js";
@@ -636,6 +641,7 @@ import type * as threads_list_archived_threads from "../threads/list_archived_th
 import type * as threads_list_threads from "../threads/list_threads.js";
 import type * as threads_mutations from "../threads/mutations.js";
 import type * as threads_queries from "../threads/queries.js";
+import type * as threads_rest_api from "../threads/rest_api.js";
 import type * as threads_share_thread from "../threads/share_thread.js";
 import type * as threads_types from "../threads/types.js";
 import type * as threads_update_chat_thread from "../threads/update_chat_thread.js";
@@ -657,9 +663,12 @@ import type * as users_update_user_name from "../users/update_user_name.js";
 import type * as users_update_user_password from "../users/update_user_password.js";
 import type * as users_validators from "../users/validators.js";
 import type * as vendors_helpers from "../vendors/helpers.js";
+import type * as vendors_internal_mutations from "../vendors/internal_mutations.js";
+import type * as vendors_internal_queries from "../vendors/internal_queries.js";
 import type * as vendors_list_vendors_paginated from "../vendors/list_vendors_paginated.js";
 import type * as vendors_mutations from "../vendors/mutations.js";
 import type * as vendors_queries from "../vendors/queries.js";
+import type * as vendors_rest_api from "../vendors/rest_api.js";
 import type * as vendors_validators from "../vendors/validators.js";
 import type * as websites_actions from "../websites/actions.js";
 import type * as websites_bulk_create_websites from "../websites/bulk_create_websites.js";
@@ -675,6 +684,7 @@ import type * as websites_internal_queries from "../websites/internal_queries.js
 import type * as websites_list_websites_paginated from "../websites/list_websites_paginated.js";
 import type * as websites_mutations from "../websites/mutations.js";
 import type * as websites_queries from "../websites/queries.js";
+import type * as websites_rest_api from "../websites/rest_api.js";
 import type * as websites_search_websites from "../websites/search_websites.js";
 import type * as websites_types from "../websites/types.js";
 import type * as websites_update_website from "../websites/update_website.js";
@@ -899,6 +909,7 @@ import type * as workflows_processing_records_record_claimed from "../workflows/
 import type * as workflows_processing_records_record_processed from "../workflows/processing_records/record_processed.js";
 import type * as workflows_processing_records_run_query from "../workflows/processing_records/run_query.js";
 import type * as workflows_processing_records_types from "../workflows/processing_records/types.js";
+import type * as workflows_rest_api from "../workflows/rest_api.js";
 import type * as workflows_triggers_actions from "../workflows/triggers/actions.js";
 import type * as workflows_triggers_api_http from "../workflows/triggers/api_http.js";
 import type * as workflows_triggers_emit_event from "../workflows/triggers/emit_event.js";
@@ -1042,6 +1053,7 @@ declare const fullApi: ApiFromModules<{
   "agents/legacy_schema": typeof agents_legacy_schema;
   "agents/mutations": typeof agents_mutations;
   "agents/queries": typeof agents_queries;
+  "agents/rest_api": typeof agents_rest_api;
   "agents/seed_system_defaults": typeof agents_seed_system_defaults;
   "agents/start_chat": typeof agents_start_chat;
   "agents/translate_fields": typeof agents_translate_fields;
@@ -1131,6 +1143,7 @@ declare const fullApi: ApiFromModules<{
   "customers/mutations": typeof customers_mutations;
   "customers/queries": typeof customers_queries;
   "customers/query_customers": typeof customers_query_customers;
+  "customers/rest_api": typeof customers_rest_api;
   "customers/search_customers": typeof customers_search_customers;
   "customers/types": typeof customers_types;
   "customers/update_customer": typeof customers_update_customer;
@@ -1175,6 +1188,7 @@ declare const fullApi: ApiFromModules<{
   "documents/queries": typeof documents_queries;
   "documents/query_documents": typeof documents_query_documents;
   "documents/read_file_base64_from_storage": typeof documents_read_file_base64_from_storage;
+  "documents/rest_api": typeof documents_rest_api;
   "documents/team_fields": typeof documents_team_fields;
   "documents/transform_to_document_item": typeof documents_transform_to_document_item;
   "documents/types": typeof documents_types;
@@ -1320,6 +1334,7 @@ declare const fullApi: ApiFromModules<{
   "lib/response_cache/normalize": typeof lib_response_cache_normalize;
   "lib/response_cache/semantic_cache": typeof lib_response_cache_semantic_cache;
   "lib/response_cache/tool_cacheability": typeof lib_response_cache_tool_cacheability;
+  "lib/rest/helpers": typeof lib_rest_helpers;
   "lib/rls/auth/get_auth_user_identity": typeof lib_rls_auth_get_auth_user_identity;
   "lib/rls/auth/get_authenticated_user": typeof lib_rls_auth_get_authenticated_user;
   "lib/rls/auth/get_trusted_auth_data": typeof lib_rls_auth_get_trusted_auth_data;
@@ -1465,6 +1480,7 @@ declare const fullApi: ApiFromModules<{
   "products/mutations": typeof products_mutations;
   "products/queries": typeof products_queries;
   "products/query_products": typeof products_query_products;
+  "products/rest_api": typeof products_rest_api;
   "products/search_products_by_metadata": typeof products_search_products_by_metadata;
   "products/types": typeof products_types;
   "products/update_product": typeof products_update_product;
@@ -1548,6 +1564,7 @@ declare const fullApi: ApiFromModules<{
   "threads/list_threads": typeof threads_list_threads;
   "threads/mutations": typeof threads_mutations;
   "threads/queries": typeof threads_queries;
+  "threads/rest_api": typeof threads_rest_api;
   "threads/share_thread": typeof threads_share_thread;
   "threads/types": typeof threads_types;
   "threads/update_chat_thread": typeof threads_update_chat_thread;
@@ -1569,9 +1586,12 @@ declare const fullApi: ApiFromModules<{
   "users/update_user_password": typeof users_update_user_password;
   "users/validators": typeof users_validators;
   "vendors/helpers": typeof vendors_helpers;
+  "vendors/internal_mutations": typeof vendors_internal_mutations;
+  "vendors/internal_queries": typeof vendors_internal_queries;
   "vendors/list_vendors_paginated": typeof vendors_list_vendors_paginated;
   "vendors/mutations": typeof vendors_mutations;
   "vendors/queries": typeof vendors_queries;
+  "vendors/rest_api": typeof vendors_rest_api;
   "vendors/validators": typeof vendors_validators;
   "websites/actions": typeof websites_actions;
   "websites/bulk_create_websites": typeof websites_bulk_create_websites;
@@ -1587,6 +1607,7 @@ declare const fullApi: ApiFromModules<{
   "websites/list_websites_paginated": typeof websites_list_websites_paginated;
   "websites/mutations": typeof websites_mutations;
   "websites/queries": typeof websites_queries;
+  "websites/rest_api": typeof websites_rest_api;
   "websites/search_websites": typeof websites_search_websites;
   "websites/types": typeof websites_types;
   "websites/update_website": typeof websites_update_website;
@@ -1811,6 +1832,7 @@ declare const fullApi: ApiFromModules<{
   "workflows/processing_records/record_processed": typeof workflows_processing_records_record_processed;
   "workflows/processing_records/run_query": typeof workflows_processing_records_run_query;
   "workflows/processing_records/types": typeof workflows_processing_records_types;
+  "workflows/rest_api": typeof workflows_rest_api;
   "workflows/triggers/actions": typeof workflows_triggers_actions;
   "workflows/triggers/api_http": typeof workflows_triggers_api_http;
   "workflows/triggers/emit_event": typeof workflows_triggers_emit_event;

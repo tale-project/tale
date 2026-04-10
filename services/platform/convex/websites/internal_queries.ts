@@ -1,8 +1,10 @@
+import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
 import { internalQuery } from '../_generated/server';
 import { getOrganizationMember } from '../lib/rls';
 import * as WebsitesHelpers from './helpers';
+import { listWebsitesPaginated as listWebsitesPaginatedHelper } from './list_websites_paginated';
 
 export const getWebsite = internalQuery({
   args: {
@@ -48,6 +50,18 @@ export const listWebsitesForSync = internalQuery({
       });
     }
     return results;
+  },
+});
+
+export const listWebsitesPaginated = internalQuery({
+  args: {
+    paginationOpts: paginationOptsValidator,
+    organizationId: v.string(),
+    status: v.optional(v.string()),
+    scanInterval: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    return await listWebsitesPaginatedHelper(ctx, args);
   },
 });
 

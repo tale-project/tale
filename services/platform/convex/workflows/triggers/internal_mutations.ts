@@ -2,6 +2,7 @@ import { v } from 'convex/values';
 
 import type { Id } from '../../_generated/dataModel';
 import { internalMutation } from '../../_generated/server';
+import { generateToken } from './helpers/crypto';
 import { processEventHandler } from './process_event';
 
 export const updateScheduleLastTriggered = internalMutation({
@@ -117,4 +118,113 @@ export const processEvent = internalMutation({
   },
   returns: v.null(),
   handler: processEventHandler,
+});
+
+// ---------------------------------------------------------------------------
+// REST API helpers — CRUD for schedules, webhooks
+// ---------------------------------------------------------------------------
+
+export const createScheduleInternal = internalMutation({
+  args: {
+    organizationId: v.string(),
+    workflowSlug: v.string(),
+    cronExpression: v.string(),
+    timezone: v.string(),
+    createdBy: v.string(),
+  },
+  returns: v.id('wfSchedules'),
+  handler: async (ctx, args): Promise<Id<'wfSchedules'>> => {
+    return await ctx.db.insert('wfSchedules', {
+      organizationId: args.organizationId,
+      workflowSlug: args.workflowSlug,
+      cronExpression: args.cronExpression,
+      timezone: args.timezone,
+      isActive: true,
+      createdAt: Date.now(),
+      createdBy: args.createdBy,
+    });
+  },
+});
+
+export const updateScheduleInternal = internalMutation({
+  args: {
+    scheduleId: v.id('wfSchedules'),
+    cronExpression: v.optional(v.string()),
+    timezone: v.optional(v.string()),
+    isActive: v.optional(v.boolean()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const { scheduleId, ...patch } = args;
+    const updates: Record<string, unknown> = {};
+    if (patch.cronExpression !== undefined)
+      updates.cronExpression = patch.cronExpression;
+    if (patch.timezone !== undefined) updates.timezone = patch.timezone;
+    if (patch.isActive !== undefined) updates.isActive = patch.isActive;
+    if (Object.keys(updates).length > 0) {
+      await ctx.db.patch(scheduleId, updates);
+    }
+    return null;
+  },
+});
+
+export const deleteScheduleInternal = internalMutation({
+  args: { scheduleId: v.id('wfSchedules') },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    await ctx.db.delete(args.scheduleId);
+    return null;
+  },
+});
+
+export const createWebhookInternal = internalMutation({
+  args: {
+    organizationId: v.string(),
+    workflowSlug: v.string(),
+    createdBy: v.string(),
+  },
+  returns: v.object({ _id: v.id('wfWebhooks'), token: v.string() }),
+  handler: async (ctx, args) => {
+    const token = generateToken();
+    const id = await ctx.db.insert('wfWebhooks', {
+      organizationId: args.organizationId,
+      workflowSlug: args.workflowSlug,
+      token,
+      isActive: true,
+      createdAt: Date.now(),
+      createdBy: args.createdBy,
+    });
+    return { _id: id, token };
+  },
+});
+
+export const deleteWebhookInternal = internalMutation({
+  args: { webhookId: v.id('wfWebhooks') },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    await ctx.db.delete(args.webhookId);
+    return null;
+  },
+});
+
+export const cancelExecutionInternal = internalMutation({
+  args: { executionId: v.id('wfExecutions') },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const execution = await ctx.db.get(args.executionId);
+    if (
+      execution &&
+      (execution.status === 'running' || execution.status === 'pending')
+    ) {
+      await ctx.db.patch(args.executionId, {
+        status: 'failed',
+        updatedAt: Date.now(),
+        metadata: JSON.stringify({
+          error: 'Cancelled via REST API',
+          cancelledAt: Date.now(),
+        }),
+      });
+    }
+    return null;
+  },
 });

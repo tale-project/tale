@@ -2,17 +2,39 @@ import { httpRouter } from 'convex/server';
 
 import { httpAction } from './_generated/server';
 import {
+  listAgents as listAgentsRest,
+  getAgent,
+  patchAgent,
+} from './agents/rest_api';
+import {
   agentWebhookHandler,
   agentWebhookOptionsHandler,
 } from './agents/webhooks/http_actions';
 import { apiGatewayOptions, apiGatewayRun } from './api_gateway';
 import { authComponent, createAuth } from './auth';
+import {
+  listCustomers,
+  createCustomer,
+  getCustomer,
+  patchCustomer,
+  deleteCustomer,
+  customerPostActions,
+} from './customers/rest_api';
+import {
+  listDocuments,
+  createDocument,
+  getDocument,
+  patchDocument,
+  deleteDocument,
+  documentSubActions,
+} from './documents/rest_api';
 import { imageProxyHandler } from './images/http_actions';
 import { integrationOAuth2CallbackHandler } from './integrations/oauth2_callback';
 import {
   checkIpRateLimit,
   RateLimitExceededError,
 } from './lib/rate_limiter/helpers';
+import { restOptionsHandler } from './lib/rest/helpers';
 import { toId } from './lib/type_cast_helpers';
 import {
   chatCompletionsHandler,
@@ -20,6 +42,13 @@ import {
   modelsListHandler,
   modelsOptionsHandler,
 } from './openai_compat/http_actions';
+import {
+  listProducts,
+  createProduct,
+  getProduct,
+  patchProduct,
+  deleteProduct,
+} from './products/rest_api';
 import {
   ssoDiscoverHandler,
   ssoAuthorizeHandler,
@@ -30,7 +59,37 @@ import {
   streamChatHttp,
   streamChatHttpOptions,
 } from './streaming/http_actions';
+import {
+  listThreads,
+  createThread,
+  getThread,
+  patchThread,
+  deleteThread,
+  threadPostActions,
+} from './threads/rest_api';
 import { trustedHeadersAuthHandler } from './trusted_headers_auth/http_handlers';
+import {
+  listVendors,
+  createVendor,
+  bulkCreateVendors,
+  getVendor,
+  patchVendor,
+  deleteVendor,
+} from './vendors/rest_api';
+import {
+  listWebsites,
+  createWebsite,
+  getWebsite,
+  patchWebsite,
+  deleteWebsite,
+  websitePostActions,
+} from './websites/rest_api';
+import {
+  getWorkflow,
+  postWorkflow,
+  patchWorkflow,
+  deleteWorkflow,
+} from './workflows/rest_api';
 import {
   apiTriggerHandler,
   apiTriggerOptionsHandler,
@@ -229,7 +288,282 @@ http.route({
   handler: modelsOptionsHandler,
 });
 
+// ---------------------------------------------------------------------------
+// REST API v1 Routes
+// ---------------------------------------------------------------------------
+
+// Documents
+http.route({
+  path: '/api/v1/documents',
+  method: 'GET',
+  handler: listDocuments,
+});
+http.route({
+  path: '/api/v1/documents',
+  method: 'POST',
+  handler: createDocument,
+});
+http.route({
+  path: '/api/v1/documents',
+  method: 'OPTIONS',
+  handler: restOptionsHandler,
+});
+http.route({
+  pathPrefix: '/api/v1/documents/',
+  method: 'GET',
+  handler: getDocument,
+});
+http.route({
+  pathPrefix: '/api/v1/documents/',
+  method: 'PATCH',
+  handler: patchDocument,
+});
+http.route({
+  pathPrefix: '/api/v1/documents/',
+  method: 'DELETE',
+  handler: deleteDocument,
+});
+http.route({
+  pathPrefix: '/api/v1/documents/',
+  method: 'POST',
+  handler: documentSubActions,
+});
+http.route({
+  pathPrefix: '/api/v1/documents/',
+  method: 'OPTIONS',
+  handler: restOptionsHandler,
+});
+
+// Websites
+http.route({ path: '/api/v1/websites', method: 'GET', handler: listWebsites });
+http.route({
+  path: '/api/v1/websites',
+  method: 'POST',
+  handler: createWebsite,
+});
+http.route({
+  path: '/api/v1/websites',
+  method: 'OPTIONS',
+  handler: restOptionsHandler,
+});
+http.route({
+  pathPrefix: '/api/v1/websites/',
+  method: 'GET',
+  handler: getWebsite,
+});
+http.route({
+  pathPrefix: '/api/v1/websites/',
+  method: 'PATCH',
+  handler: patchWebsite,
+});
+http.route({
+  pathPrefix: '/api/v1/websites/',
+  method: 'DELETE',
+  handler: deleteWebsite,
+});
+http.route({
+  pathPrefix: '/api/v1/websites/',
+  method: 'POST',
+  handler: websitePostActions,
+});
+http.route({
+  pathPrefix: '/api/v1/websites/',
+  method: 'OPTIONS',
+  handler: restOptionsHandler,
+});
+
+// Products
+http.route({ path: '/api/v1/products', method: 'GET', handler: listProducts });
+http.route({
+  path: '/api/v1/products',
+  method: 'POST',
+  handler: createProduct,
+});
+http.route({
+  path: '/api/v1/products',
+  method: 'OPTIONS',
+  handler: restOptionsHandler,
+});
+http.route({
+  pathPrefix: '/api/v1/products/',
+  method: 'GET',
+  handler: getProduct,
+});
+http.route({
+  pathPrefix: '/api/v1/products/',
+  method: 'PATCH',
+  handler: patchProduct,
+});
+http.route({
+  pathPrefix: '/api/v1/products/',
+  method: 'DELETE',
+  handler: deleteProduct,
+});
+http.route({
+  pathPrefix: '/api/v1/products/',
+  method: 'OPTIONS',
+  handler: restOptionsHandler,
+});
+
+// Customers
+http.route({
+  path: '/api/v1/customers',
+  method: 'GET',
+  handler: listCustomers,
+});
+http.route({
+  path: '/api/v1/customers',
+  method: 'POST',
+  handler: createCustomer,
+});
+http.route({
+  path: '/api/v1/customers',
+  method: 'OPTIONS',
+  handler: restOptionsHandler,
+});
+http.route({
+  pathPrefix: '/api/v1/customers/',
+  method: 'GET',
+  handler: getCustomer,
+});
+http.route({
+  pathPrefix: '/api/v1/customers/',
+  method: 'PATCH',
+  handler: patchCustomer,
+});
+http.route({
+  pathPrefix: '/api/v1/customers/',
+  method: 'DELETE',
+  handler: deleteCustomer,
+});
+http.route({
+  pathPrefix: '/api/v1/customers/',
+  method: 'POST',
+  handler: customerPostActions,
+});
+http.route({
+  pathPrefix: '/api/v1/customers/',
+  method: 'OPTIONS',
+  handler: restOptionsHandler,
+});
+
+// Vendors
+http.route({ path: '/api/v1/vendors', method: 'GET', handler: listVendors });
+http.route({ path: '/api/v1/vendors', method: 'POST', handler: createVendor });
+http.route({
+  path: '/api/v1/vendors',
+  method: 'OPTIONS',
+  handler: restOptionsHandler,
+});
+http.route({
+  pathPrefix: '/api/v1/vendors/',
+  method: 'GET',
+  handler: getVendor,
+});
+http.route({
+  pathPrefix: '/api/v1/vendors/',
+  method: 'PATCH',
+  handler: patchVendor,
+});
+http.route({
+  pathPrefix: '/api/v1/vendors/',
+  method: 'DELETE',
+  handler: deleteVendor,
+});
+http.route({
+  pathPrefix: '/api/v1/vendors/',
+  method: 'POST',
+  handler: bulkCreateVendors,
+});
+http.route({
+  pathPrefix: '/api/v1/vendors/',
+  method: 'OPTIONS',
+  handler: restOptionsHandler,
+});
+
+// Threads
+http.route({ path: '/api/v1/threads', method: 'GET', handler: listThreads });
+http.route({ path: '/api/v1/threads', method: 'POST', handler: createThread });
+http.route({
+  path: '/api/v1/threads',
+  method: 'OPTIONS',
+  handler: restOptionsHandler,
+});
+http.route({
+  pathPrefix: '/api/v1/threads/',
+  method: 'GET',
+  handler: getThread,
+});
+http.route({
+  pathPrefix: '/api/v1/threads/',
+  method: 'PATCH',
+  handler: patchThread,
+});
+http.route({
+  pathPrefix: '/api/v1/threads/',
+  method: 'DELETE',
+  handler: deleteThread,
+});
+http.route({
+  pathPrefix: '/api/v1/threads/',
+  method: 'POST',
+  handler: threadPostActions,
+});
+http.route({
+  pathPrefix: '/api/v1/threads/',
+  method: 'OPTIONS',
+  handler: restOptionsHandler,
+});
+
+// Agents
+http.route({ path: '/api/v1/agents', method: 'GET', handler: listAgentsRest });
+http.route({
+  path: '/api/v1/agents',
+  method: 'OPTIONS',
+  handler: restOptionsHandler,
+});
+http.route({ pathPrefix: '/api/v1/agents/', method: 'GET', handler: getAgent });
+http.route({
+  pathPrefix: '/api/v1/agents/',
+  method: 'PATCH',
+  handler: patchAgent,
+});
+http.route({
+  pathPrefix: '/api/v1/agents/',
+  method: 'OPTIONS',
+  handler: restOptionsHandler,
+});
+
+// Workflows (triggers + executions)
+http.route({
+  pathPrefix: '/api/v1/workflows/',
+  method: 'GET',
+  handler: getWorkflow,
+});
+http.route({
+  pathPrefix: '/api/v1/workflows/',
+  method: 'POST',
+  handler: postWorkflow,
+});
+http.route({
+  pathPrefix: '/api/v1/workflows/',
+  method: 'PATCH',
+  handler: patchWorkflow,
+});
+http.route({
+  pathPrefix: '/api/v1/workflows/',
+  method: 'DELETE',
+  handler: deleteWorkflow,
+});
+http.route({
+  pathPrefix: '/api/v1/workflows/',
+  method: 'OPTIONS',
+  handler: restOptionsHandler,
+});
+
+// ---------------------------------------------------------------------------
 // API Gateway Routes - Handle /api/run/* paths with session cookie or API key authentication
+// ---------------------------------------------------------------------------
 http.route({
   pathPrefix: '/api/run/',
   method: 'POST',

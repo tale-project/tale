@@ -2,11 +2,15 @@ import { v } from 'convex/values';
 
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 import { internalMutation } from '../_generated/server';
+import { bulkCreateCustomers as bulkCreateCustomersHelper } from './bulk_create_customers';
+import { deleteCustomer as deleteCustomerHelper } from './delete_customer';
 import * as CustomersHelpers from './helpers';
+import { updateCustomer as updateCustomerHelper } from './update_customer';
 import {
   customerAddressValidator,
   customerSourceValidator,
   customerStatusValidator,
+  customerValidator,
 } from './validators';
 
 export const createCustomer = internalMutation({
@@ -45,6 +49,71 @@ export const findOrCreateCustomer = internalMutation({
   }),
   handler: async (ctx, args) => {
     return await CustomersHelpers.findOrCreateCustomer(ctx, args);
+  },
+});
+
+export const updateCustomer = internalMutation({
+  args: {
+    customerId: v.id('customers'),
+    name: v.optional(v.string()),
+    email: v.optional(v.string()),
+    externalId: v.optional(v.string()),
+    status: v.optional(customerStatusValidator),
+    source: v.optional(customerSourceValidator),
+    locale: v.optional(v.string()),
+    address: v.optional(customerAddressValidator),
+    metadata: v.optional(jsonRecordValidator),
+  },
+  returns: v.union(customerValidator, v.null()),
+  handler: async (ctx, args) => {
+    return await updateCustomerHelper(ctx, args);
+  },
+});
+
+export const deleteCustomer = internalMutation({
+  args: {
+    customerId: v.id('customers'),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    return await deleteCustomerHelper(ctx, args.customerId);
+  },
+});
+
+export const bulkCreateCustomers = internalMutation({
+  args: {
+    organizationId: v.string(),
+    customers: v.array(
+      v.object({
+        name: v.optional(v.string()),
+        email: v.string(),
+        externalId: v.optional(v.string()),
+        status: customerStatusValidator,
+        source: customerSourceValidator,
+        locale: v.optional(v.string()),
+        address: v.optional(customerAddressValidator),
+        metadata: v.optional(jsonRecordValidator),
+      }),
+    ),
+  },
+  returns: v.object({
+    success: v.number(),
+    failed: v.number(),
+    errors: v.array(
+      v.object({
+        index: v.number(),
+        error: v.string(),
+        errorCode: v.string(),
+        customer: v.any(),
+      }),
+    ),
+  }),
+  handler: async (ctx, args) => {
+    return await bulkCreateCustomersHelper(
+      ctx,
+      args.organizationId,
+      args.customers,
+    );
   },
 });
 
