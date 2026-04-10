@@ -1515,7 +1515,12 @@
       "deleteConfirmNamed": "Möchtest du den Anbieter \"{name}\" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden. Alle Modellkonfigurationen dieses Anbieters werden entfernt.",
       "providerActions": "Anbieteraktionen",
       "saveChanges": "Änderungen speichern",
-      "addModelShort": "+ Modell hinzufügen"
+      "addModelShort": "+ Modell hinzufügen",
+      "byomGuidance": "Jeder OpenAI-kompatible Endpunkt funktioniert hier. Setze die Basis-URL auf deinen selbst gehosteten Inferenzserver (z. B. vLLM, Ollama, LocalAI) oder ein Gateway wie OpenRouter, um Modelle wie LLaMA, Mistral, Gemini und mehr zu nutzen.",
+      "tagsRequired": "Mindestens ein Tag ist erforderlich",
+      "modelsRequired": "Mindestens ein Modell ist erforderlich",
+      "duplicateModelId": "Doppelte Modell-ID",
+      "modelNumber": "Modell {number}"
     },
     "form": {
       "name": "Name",
