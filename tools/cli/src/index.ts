@@ -2,6 +2,7 @@
 import { program } from 'commander';
 
 import pkg from '../package.json';
+import { createAuthCommand } from './commands/auth';
 import { createCleanupCommand } from './commands/cleanup';
 import { createConfigCommand } from './commands/config';
 import { createConvexCommand } from './commands/convex';
@@ -32,6 +33,7 @@ program
   .description('Tale CLI - deployment and management tools')
   .version(pkg.version);
 
+program.addCommand(createAuthCommand());
 program.addCommand(createInitCommand());
 program.addCommand(createStartCommand());
 program.addCommand(createUpgradeCommand());
