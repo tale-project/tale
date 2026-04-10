@@ -61,6 +61,7 @@ export const messageMetadataTable = defineTable({
     }),
   ),
   error: v.optional(v.string()),
+  costEstimateCents: v.optional(v.number()),
 })
   .index('by_messageId', ['messageId'])
   .index('by_threadId', ['threadId']);

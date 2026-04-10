@@ -95,6 +95,19 @@ export async function onAgentComplete(
 
   const promises: Promise<unknown>[] = [];
 
+  // Compute cost estimate (used by both metadata save and ledger)
+  const msgInputTokens = result.usage?.inputTokens ?? 0;
+  const msgOutputTokens = result.usage?.outputTokens ?? 0;
+  const costCents =
+    msgInputTokens > 0 || msgOutputTokens > 0
+      ? estimateCostCents(
+          result.model,
+          msgInputTokens,
+          msgOutputTokens,
+          args.providerCost,
+        )
+      : undefined;
+
   // Step 1: Save message metadata (unless skipped)
   if (!options?.skipMetadata) {
     const messageId = result.messageId;
@@ -121,6 +134,7 @@ export async function onAgentComplete(
               contextWindow: result.contextWindow,
               contextStats: result.contextStats,
               error: result.error,
+              costEstimateCents: costCents,
             },
           )
           .then(() => {
@@ -147,17 +161,9 @@ export async function onAgentComplete(
   }
 
   // Step 2: Increment usage ledger
-  const inputTokens = result.usage?.inputTokens ?? 0;
-  const outputTokens = result.usage?.outputTokens ?? 0;
-  const totalTokens = inputTokens + outputTokens;
+  const totalTokens = msgInputTokens + msgOutputTokens;
 
-  if (totalTokens > 0 && organizationId && userId) {
-    const costEstimateCents = estimateCostCents(
-      result.model,
-      inputTokens,
-      outputTokens,
-      args.providerCost,
-    );
+  if (totalTokens > 0 && organizationId && userId && costCents != null) {
     const timestamp = Date.now();
 
     const ledgerTeamIds = teamIds && teamIds.length > 0 ? teamIds : [undefined];
@@ -171,9 +177,9 @@ export async function onAgentComplete(
               organizationId,
               userId,
               teamId,
-              inputTokens,
-              outputTokens,
-              costEstimateCents,
+              inputTokens: msgInputTokens,
+              outputTokens: msgOutputTokens,
+              costEstimateCents: costCents,
               timestamp,
             },
           )
