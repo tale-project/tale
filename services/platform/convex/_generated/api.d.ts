@@ -542,6 +542,7 @@ import type * as organizations_helpers from "../organizations/helpers.js";
 import type * as organizations_queries from "../organizations/queries.js";
 import type * as organizations_update_organization from "../organizations/update_organization.js";
 import type * as organizations_validators from "../organizations/validators.js";
+import type * as products_bulk_create_products from "../products/bulk_create_products.js";
 import type * as products_create_product from "../products/create_product.js";
 import type * as products_create_product_with_translations from "../products/create_product_with_translations.js";
 import type * as products_delete_product from "../products/delete_product.js";
@@ -1467,6 +1468,7 @@ declare const fullApi: ApiFromModules<{
   "organizations/queries": typeof organizations_queries;
   "organizations/update_organization": typeof organizations_update_organization;
   "organizations/validators": typeof organizations_validators;
+  "products/bulk_create_products": typeof products_bulk_create_products;
   "products/create_product": typeof products_create_product;
   "products/create_product_with_translations": typeof products_create_product_with_translations;
   "products/delete_product": typeof products_delete_product;
