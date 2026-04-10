@@ -99,6 +99,7 @@ function makeMockCtx(rows: ThreadMetadataRow[]): QueryCtx {
 
   const queryChain = {
     withIndex: () => queryChain,
+    filter: () => queryChain,
     order: () => queryChain,
     paginate,
   };

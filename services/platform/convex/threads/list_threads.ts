@@ -39,20 +39,19 @@ export async function listThreads(
         .eq('chatType', 'general')
         .eq('status', 'active'),
     )
+    .filter((q) => q.neq(q.field('isBranch'), true))
     .order('desc')
     .paginate(args.paginationOpts);
 
   return {
-    page: result.page
-      .filter((row) => !row.isBranch)
-      .map((row) => ({
-        _id: row.threadId,
-        _creationTime: row.updatedAt ?? row.createdAt,
-        title: row.title,
-        status: row.status,
-        userId: row.userId,
-        generationStatus: row.generationStatus,
-      })),
+    page: result.page.map((row) => ({
+      _id: row.threadId,
+      _creationTime: row.updatedAt ?? row.createdAt,
+      title: row.title,
+      status: row.status,
+      userId: row.userId,
+      generationStatus: row.generationStatus,
+    })),
     isDone: result.isDone,
     continueCursor: result.continueCursor,
   };

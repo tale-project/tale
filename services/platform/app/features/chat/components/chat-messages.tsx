@@ -18,6 +18,7 @@ import type { ChatItem } from '../hooks/use-merged-chat-items';
 import { ApprovalCardRenderer } from './approval-card-renderer';
 import { BranchNavigator } from './branch-navigator';
 import { CollapsibleSystemMessage } from './collapsible-system-message';
+import { InlineEditInput } from './inline-edit-input';
 import { MessageBubble } from './message-bubble';
 import { ThinkingAnimation } from './thinking-animation';
 
@@ -91,6 +92,10 @@ interface ChatMessagesProps {
   onSendMessage?: (message: string) => void;
   onEditMessage?: (messageId: string, content: string) => void;
   onForkAtMessage?: (messageId: string) => void;
+  editingMessageId?: string;
+  editingMessageContent?: string;
+  onEditSubmit?: (newContent: string) => Promise<void>;
+  onEditCancel?: () => void;
   hideBranchNavigator?: boolean;
 }
 
@@ -127,10 +132,30 @@ export function ChatMessages({
   onSendMessage,
   onEditMessage,
   onForkAtMessage,
+  editingMessageId,
+  editingMessageContent,
+  onEditSubmit,
+  onEditCancel,
   hideBranchNavigator,
 }: ChatMessagesProps) {
   const { t } = useT('chat');
   const { branches, activeBranchThreadId } = useBranchContext();
+  const editInputScrollRef = useRef<HTMLDivElement>(null);
+
+  // Scroll the inline edit input into view when it appears.
+  // Double-RAF ensures the ChatInterface scroll system (MutationObserver /
+  // ResizeObserver) fires first, then we override with the correct position.
+  useEffect(() => {
+    if (!editingMessageId) return;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        editInputScrollRef.current?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        });
+      });
+    });
+  }, [editingMessageId]);
   const responseAreaRef = useRef<HTMLDivElement>(null);
 
   // Split items: find the last user message index for layout purposes.
@@ -307,29 +332,43 @@ export function ChatMessages({
       message.order !== undefined &&
       forkPointOrders.has(message.order);
 
+    const isEditing = isUserMessage && message.id === editingMessageId;
+
     return (
       <div
         key={reactKey}
         ref={isLastUserMessage ? lastUserMessageRef : undefined}
         className={isLastUserMessage ? 'scroll-mt-6' : undefined}
       >
-        <MessageBubble
-          message={{
-            ...message,
-            role: isUserMessage ? 'user' : 'assistant',
-            threadId: threadId,
-          }}
-          onSendFollowUp={onSendFollowUp}
-          onEdit={isUserMessage ? onEditMessage : undefined}
-          onFork={onForkAtMessage}
-          toolbarExtra={
-            !hideBranchNavigator &&
-            hasBranches &&
-            message.order !== undefined ? (
-              <BranchNavigator forkOrder={message.order} />
-            ) : undefined
-          }
-        />
+        {isEditing && onEditSubmit && onEditCancel ? (
+          <div className="flex justify-end" ref={editInputScrollRef}>
+            <div className="w-full max-w-[85%]">
+              <InlineEditInput
+                messageContent={editingMessageContent ?? message.content}
+                onSubmit={onEditSubmit}
+                onCancel={onEditCancel}
+              />
+            </div>
+          </div>
+        ) : (
+          <MessageBubble
+            message={{
+              ...message,
+              role: isUserMessage ? 'user' : 'assistant',
+              threadId: threadId,
+            }}
+            onSendFollowUp={onSendFollowUp}
+            onEdit={isUserMessage ? onEditMessage : undefined}
+            onFork={onForkAtMessage}
+            toolbarExtra={
+              !hideBranchNavigator &&
+              hasBranches &&
+              message.order !== undefined ? (
+                <BranchNavigator forkOrder={message.order} />
+              ) : undefined
+            }
+          />
+        )}
       </div>
     );
   };

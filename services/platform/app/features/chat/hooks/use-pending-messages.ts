@@ -21,6 +21,10 @@ interface UsePendingMessagesParams {
  * real message is in-flight. Uses `lastMessageKey` (captured at send time) to
  * detect when the real message arrives — when the last key in realMessages
  * changes from the baseline, the optimistic message is dropped.
+ *
+ * For EDIT-AND-BRANCH: replaces the edited message's content and truncates
+ * messages after it. Cleared when dataThreadId changes from the source thread
+ * (the branch subscription caught up and real messages are now from the branch).
  */
 export function usePendingMessages({
   threadId,
@@ -37,6 +41,15 @@ export function usePendingMessages({
   // Clear pending message once the real message arrives
   useEffect(() => {
     if (!pendingMessage) return;
+
+    // Edit-and-branch: clear when dataThreadId diverges from the source thread
+    // (branch subscription delivered the new branch, messages are now from it)
+    if (pendingMessage.editedMessageId) {
+      if (threadId !== pendingMessage.threadId) {
+        setPendingMessage(null);
+      }
+      return;
+    }
 
     // Only clear for matching thread
     const isMatchingThread =
@@ -72,13 +85,31 @@ export function usePendingMessages({
   ]);
 
   return useMemo(() => {
+    if (!pendingMessage) return realMessages;
+
+    // Edit-and-branch: replace the edited message and truncate after it
+    if (pendingMessage.editedMessageId) {
+      if (threadId !== pendingMessage.threadId) return realMessages;
+
+      const editIdx = realMessages.findIndex(
+        (m) => m.id === pendingMessage.editedMessageId,
+      );
+      if (editIdx === -1) return realMessages;
+
+      const before = realMessages.slice(0, editIdx);
+      const edited: ChatMessage = {
+        ...realMessages[editIdx],
+        content: pendingMessage.content,
+      };
+      return [...before, edited];
+    }
+
     const isMatchingThread =
-      pendingMessage &&
-      (pendingMessage.threadId === threadId ||
-        (threadId === undefined && pendingMessage.threadId === 'pending') ||
-        (threadId === undefined &&
-          pendingThreadId !== null &&
-          pendingMessage.threadId === pendingThreadId));
+      pendingMessage.threadId === threadId ||
+      (threadId === undefined && pendingMessage.threadId === 'pending') ||
+      (threadId === undefined &&
+        pendingThreadId !== null &&
+        pendingMessage.threadId === pendingThreadId);
 
     if (!isMatchingThread) return realMessages;
 

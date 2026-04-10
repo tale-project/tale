@@ -372,7 +372,7 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
           policyType: 'budgets',
           config: configToSave,
         });
-        toast({ title: 'Budget configuration saved' });
+        toast({ title: 'Budget configuration saved', variant: 'success' });
       } catch (error: unknown) {
         const message =
           error instanceof Error ? error.message : 'Failed to save';

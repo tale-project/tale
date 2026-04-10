@@ -140,7 +140,7 @@ function ConfigurationPage() {
 
       setHasChanges(false);
       await refetch();
-      toast({ title: tToast('success.saved') });
+      toast({ title: tToast('success.saved'), variant: 'success' });
     } catch (error) {
       console.error('Failed to save configuration:', error);
       toast({
