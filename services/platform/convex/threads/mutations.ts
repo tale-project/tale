@@ -152,4 +152,6 @@ export const updateBranchSelections = mutation({
 
 export { shareThread, unshareThread } from './share_thread';
 export { forkThread } from './fork_thread';
+export { forkOwnThread } from './fork_own_thread';
+export { forkAndChat } from './fork_and_chat';
 export { editAndBranch } from './edit_and_branch';

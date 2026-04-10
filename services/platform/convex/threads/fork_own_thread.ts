@@ -6,9 +6,10 @@ import { mutation } from '../_generated/server';
 import { authComponent } from '../auth';
 import { getThreadMessages } from './get_thread_messages';
 
-export const forkThread = mutation({
+export const forkOwnThread = mutation({
   args: {
-    shareToken: v.string(),
+    threadId: v.string(),
+    upToMessageIndex: v.optional(v.number()),
   },
   returns: v.string(),
   handler: async (ctx, args) => {
@@ -19,11 +20,16 @@ export const forkThread = mutation({
 
     const metadata = await ctx.db
       .query('threadMetadata')
-      .withIndex('by_shareToken', (q) => q.eq('shareToken', args.shareToken))
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
       .first();
 
-    if (!metadata || !metadata.isShared) {
-      throw new Error('Shared thread not found');
+    if (!metadata) {
+      throw new Error('Thread not found');
+    }
+
+    const userId = String(authUser._id);
+    if (metadata.userId !== userId) {
+      throw new Error('Not authorized to fork this thread');
     }
 
     const { messages: allMessages } = await getThreadMessages(
@@ -31,13 +37,12 @@ export const forkThread = mutation({
       metadata.threadId,
     );
 
-    // Snapshot: only include messages up to the share timestamp
-    const sharedAt = metadata.sharedAt;
-    const messages = sharedAt
-      ? allMessages.filter((m) => m._creationTime <= sharedAt)
-      : allMessages;
+    // Fork up to a specific message index, or all messages
+    const messages =
+      args.upToMessageIndex !== undefined
+        ? allMessages.slice(0, args.upToMessageIndex + 1)
+        : allMessages;
 
-    const userId = String(authUser._id);
     const title = metadata.title ? `Fork of ${metadata.title}` : 'Forked chat';
 
     const newThreadId = await createThread(ctx, components.agent, {
@@ -59,7 +64,6 @@ export const forkThread = mutation({
       createdAt,
       updatedAt: createdAt,
       forkedFrom: metadata.threadId,
-      forkedFromShare: true,
       forkedMessageCount: messages.length,
     });
 

@@ -1,5 +1,6 @@
 'use client';
 
+import { useNavigate } from '@tanstack/react-router';
 import { m, AnimatePresence } from 'framer-motion';
 import { Archive, ArrowDown } from 'lucide-react';
 import { useRef, useEffect, useState, useCallback } from 'react';
@@ -11,13 +12,14 @@ import { useAutoScroll } from '@/app/hooks/use-auto-scroll';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
+import { useToast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import { useBranchContext } from '../context/branch-context';
 import { useChatLayout } from '../context/chat-layout-context';
-import { useEditAndBranch } from '../hooks/mutations';
+import { useEditAndBranch, useForkOwnThread } from '../hooks/mutations';
 import { useUnarchiveThread } from '../hooks/mutations';
 import {
   useChatAgents,
@@ -67,6 +69,8 @@ export function ChatInterface({
   threadId,
 }: ChatInterfaceProps) {
   const { t } = useT('chat');
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const { user } = useAuth();
   const {
     isPending,
@@ -179,6 +183,12 @@ export function ChatInterface({
 
   // Block input when any pending or executing approval exists
   const hasActiveApproval = activeApproval !== null;
+
+  // Fork info — for showing divider in forked threads
+  const { data: forkInfo } = useConvexQuery(
+    api.threads.queries.getThreadForkInfo,
+    dataThreadId ? { threadId: dataThreadId } : 'skip',
+  );
 
   // Server-derived generation status (reactive Convex subscription)
   const { data: isGenerating } = useConvexQuery(
@@ -434,6 +444,45 @@ export function ChatInterface({
     ],
   );
 
+  // Fork at message — create a new thread with messages up to the selected one
+  const { mutate: forkOwnThread } = useForkOwnThread();
+
+  const handleForkAtMessage = useCallback(
+    (messageId: string) => {
+      if (!dataThreadId) return;
+
+      // Find message index in the raw messages array
+      const msgIndex = rawMessages.findIndex((msg) => msg.id === messageId);
+      if (msgIndex < 0) return;
+
+      forkOwnThread(
+        { threadId: dataThreadId, upToMessageIndex: msgIndex },
+        {
+          onSuccess: (newThreadId) => {
+            void navigate({
+              to: '/dashboard/$id/chat/$threadId',
+              params: { id: organizationId, threadId: newThreadId },
+            });
+            toast({ title: t('forkSuccess') });
+          },
+          onError: (error) => {
+            console.error('Failed to fork chat:', error);
+            toast({ title: t('forkFailed'), variant: 'destructive' });
+          },
+        },
+      );
+    },
+    [
+      dataThreadId,
+      rawMessages,
+      organizationId,
+      forkOwnThread,
+      navigate,
+      toast,
+      t,
+    ],
+  );
+
   // Show messages view when we have content or are loading (to show ThinkingAnimation)
   const showMessages =
     dataThreadId || messages.length > 0 || pendingMessage || isLoading;
@@ -474,10 +523,13 @@ export function ChatInterface({
             lastUserMessageRef={lastUserMessageRef}
             containerRef={containerRef}
             activeApproval={activeApproval}
+            forkedMessageCount={forkInfo?.forkedMessageCount ?? undefined}
+            forkedFromShare={forkInfo?.forkedFromShare}
             onHumanInputResponseSubmitted={handleHumanInputResponseSubmitted}
             onSendFollowUp={handleSendFollowUp}
             onSendMessage={handleSendMessageDirect}
             onEditMessage={handleEditClick}
+            onForkAtMessage={handleForkAtMessage}
           />
         )}
       </div>

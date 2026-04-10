@@ -246,6 +246,32 @@ export const getThreadShareStatus = query({
     return {
       isShared: metadata.isShared ?? false,
       shareToken: metadata.shareToken ?? null,
+      sharedAt: metadata.sharedAt ?? null,
+    };
+  },
+});
+
+export const getThreadForkInfo = query({
+  args: { threadId: v.string() },
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) {
+      return null;
+    }
+
+    const metadata = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
+      .first();
+
+    if (!metadata || !metadata.forkedFrom) {
+      return null;
+    }
+
+    return {
+      forkedFrom: metadata.forkedFrom,
+      forkedFromShare: metadata.forkedFromShare ?? false,
+      forkedMessageCount: metadata.forkedMessageCount ?? null,
     };
   },
 });
