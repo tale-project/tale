@@ -3093,9 +3093,11 @@
       "uploadProducts": "Produkte hochladen",
       "uploadFile": "Bitte lade eine Datei hoch",
       "success": "Import erfolgreich",
-      "successDescription": "{count} Produkte erfolgreich importiert{failed, select, 0 {} other {, {failed} fehlgeschlagen}}",
-      "failed": "Import fehlgeschlagen",
+      "successDescription": "{success} Produkte erfolgreich importiert{failed, select, 0 {} other {, {failed} fehlgeschlagen}}",
       "error": "Produkte konnten nicht importiert werden",
+      "errorCodes": {
+        "unknown": "Ein unerwarteter Fehler ist aufgetreten"
+      },
       "dropzoneAriaLabel": "Datei hochladen - klicken oder Enter drücken, um eine Datei auszuwählen, oder Datei hierher ziehen",
       "clickToUpload": "Klicken zum Hochladen",
       "or": "oder",
@@ -3105,7 +3107,8 @@
       "draftStatusNote": "Importierte Produkte werden standardmässig mit dem Status \"Entwurf\" erstellt."
     },
     "actions": {
-      "deleteFailed": "Produkt konnte nicht gelöscht werden"
+      "deleteFailed": "Produkt konnte nicht gelöscht werden",
+      "deleteSuccess": "Produkt erfolgreich gelöscht"
     },
     "delete": {
       "title": "Produkt löschen",
@@ -3190,7 +3193,7 @@
       "provideData": "Bitte gib Daten ein",
       "noValidData": "Keine gültigen Kundendaten gefunden",
       "success": "Import erfolgreich",
-      "successDescription": "{success} Kunden importiert{failed}",
+      "successDescription": "{success} Kunden erfolgreich importiert{failed, select, 0 {} other {, {failed} fehlgeschlagen}}",
       "failed": "fehlgeschlagen",
       "noneImported": "Es wurden keine Kunden importiert",
       "error": "Importfehler",

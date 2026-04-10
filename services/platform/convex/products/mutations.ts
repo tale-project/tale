@@ -2,8 +2,10 @@ import { v } from 'convex/values';
 
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 import { mutationWithRLS } from '../lib/rls';
+import { bulkCreateProducts as bulkCreateProductsHelper } from './bulk_create_products';
 import * as ProductsHelpers from './helpers';
 import {
+  bulkCreateProductsResponseValidator,
   productStatusValidator,
   productTranslationValidator,
 } from './validators';
@@ -57,6 +59,32 @@ export const deleteProduct = mutationWithRLS({
   returns: v.id('products'),
   handler: async (ctx, args) => {
     return await ProductsHelpers.deleteProduct(ctx, args.productId);
+  },
+});
+
+export const bulkCreateProducts = mutationWithRLS({
+  args: {
+    organizationId: v.string(),
+    products: v.array(
+      v.object({
+        name: v.string(),
+        description: v.optional(v.string()),
+        imageUrl: v.optional(v.string()),
+        stock: v.optional(v.number()),
+        price: v.optional(v.number()),
+        currency: v.optional(v.string()),
+        category: v.optional(v.string()),
+        status: v.optional(productStatusValidator),
+      }),
+    ),
+  },
+  returns: bulkCreateProductsResponseValidator,
+  handler: async (ctx, args) => {
+    return await bulkCreateProductsHelper(
+      ctx,
+      args.organizationId,
+      args.products,
+    );
   },
 });
 

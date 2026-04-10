@@ -3152,9 +3152,11 @@
       "uploadProducts": "Upload products",
       "uploadFile": "Please upload a file",
       "success": "Import successful",
-      "successDescription": "Successfully imported {count} products{failed, select, 0 {} other {, {failed} failed}}",
-      "failed": "Import failed",
+      "successDescription": "Successfully imported {success} products{failed, select, 0 {} other {, {failed} failed}}",
       "error": "Failed to import products",
+      "errorCodes": {
+        "unknown": "An unexpected error occurred"
+      },
       "dropzoneAriaLabel": "Upload file - click or press Enter to select a file, or drag and drop a file here",
       "clickToUpload": "Click to upload",
       "or": "or",
@@ -3164,7 +3166,8 @@
       "draftStatusNote": "Imported products are created with 'draft' status by default."
     },
     "actions": {
-      "deleteFailed": "Failed to delete product"
+      "deleteFailed": "Failed to delete product",
+      "deleteSuccess": "Product deleted successfully"
     },
     "delete": {
       "title": "Delete product",
@@ -3249,7 +3252,7 @@
       "provideData": "Please provide data",
       "noValidData": "No valid customer data found",
       "success": "Import successful",
-      "successDescription": "{success} customers imported{failed}",
+      "successDescription": "Successfully imported {success} customers{failed, select, 0 {} other {, {failed} failed}}",
       "failed": "failed",
       "noneImported": "No customers were imported",
       "error": "Import error",

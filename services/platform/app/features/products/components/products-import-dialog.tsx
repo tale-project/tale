@@ -14,7 +14,7 @@ import {
   PRODUCT_STATUS,
 } from '@/lib/shared/constants/convex-enums';
 
-import { useCreateProduct } from '../hooks/mutations';
+import { useBulkCreateProducts } from '../hooks/mutations';
 import { ProductImportForm } from './product-import-form';
 
 type FormValues = {
@@ -65,7 +65,7 @@ export function ProductsImportDialog({
     formState: { isSubmitting },
   } = formMethods;
 
-  const createProduct = useCreateProduct();
+  const { mutateAsync: bulkCreateProducts } = useBulkCreateProducts();
 
   const validateStatus = useCallback(
     (value: unknown): ProductStatus =>
@@ -146,62 +146,38 @@ export function ProductsImportDialog({
           return;
         }
 
-        const results = await Promise.allSettled(
-          products.map((product) =>
-            createProduct.mutateAsync({
-              organizationId,
-              name: product.name,
-              description: product.description,
-              imageUrl: product.imageUrl,
-              stock: product.stock,
-              price: product.price,
-              currency: product.currency,
-              category: product.category,
-              status: product.status,
+        const result = await bulkCreateProducts({
+          organizationId,
+          products,
+        });
+
+        if (result.success > 0) {
+          toast({
+            title: t('import.success'),
+            description: t('import.successDescription', {
+              success: result.success,
+              failed: result.failed,
             }),
-          ),
-        );
+            variant: 'success',
+          });
 
-        const successCount = results.filter(
-          (r) => r.status === 'fulfilled',
-        ).length;
-        const failedCount = results.filter(
-          (r) => r.status === 'rejected',
-        ).length;
-        const importErrors = results
-          .map((result, index) =>
-            result.status === 'rejected'
-              ? `Failed to import ${products[index].name}: ${result.reason}`
-              : null,
-          )
-          .filter((error): error is string => error !== null);
-
-        if (successCount > 0) {
-          if (importErrors.length > 0) {
-            toast({
-              title: t('import.success'),
-              description: t('import.successDescription', {
-                count: successCount,
-                failed: failedCount,
-              }),
-              variant: 'destructive',
-            });
-          } else {
-            toast({
-              title: t('import.success'),
-              description: t('import.successDescription', {
-                count: successCount,
-                failed: failedCount,
-              }),
-            });
+          if (result.errors.length > 0) {
+            console.warn('Import errors:', result.errors);
           }
 
           onSuccess?.();
           handleClose();
         } else {
+          const firstError = result.errors[0];
+          const errorCodeKeys: Record<string, string> = {
+            unknown: 'import.errorCodes.unknown',
+          };
+          const errorKey = firstError
+            ? (errorCodeKeys[firstError.errorCode] ?? errorCodeKeys['unknown'])
+            : undefined;
           toast({
-            title: t('import.failed'),
-            description: t('noneImported'),
+            title: t('noneImported'),
+            description: errorKey ? t(errorKey) : undefined,
             variant: 'destructive',
           });
         }
@@ -213,7 +189,7 @@ export function ProductsImportDialog({
         });
       }
     },
-    [parseFile, createProduct, organizationId, t, onSuccess, handleClose],
+    [parseFile, bulkCreateProducts, organizationId, t, onSuccess, handleClose],
   );
 
   return (

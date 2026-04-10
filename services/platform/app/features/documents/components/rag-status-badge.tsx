@@ -86,6 +86,7 @@ export function RagStatusBadge({
         toast({
           title: t('rag.toast.indexingStarted'),
           description: t('rag.toast.indexingQueued'),
+          variant: 'success',
         });
       } else {
         toast({

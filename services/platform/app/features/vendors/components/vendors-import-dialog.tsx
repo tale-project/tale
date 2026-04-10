@@ -158,6 +158,7 @@ export function ImportVendorsDialog({
               success: result.success,
               failed: result.failed,
             }),
+            variant: 'success',
           });
 
           if (result.errors.length > 0) {
@@ -185,7 +186,7 @@ export function ImportVendorsDialog({
       } catch (err) {
         console.error('Error importing vendors:', err);
         toast({
-          title: err instanceof Error ? err.message : t('import.error'),
+          title: t('import.error'),
           variant: 'destructive',
         });
       }

@@ -3,7 +3,10 @@
 
 import { v } from 'convex/values';
 
-import { jsonRecordValidator } from '../lib/validators/json';
+import {
+  jsonRecordValidator,
+  jsonValueValidator,
+} from '../lib/validators/json';
 
 export const productStatusValidator = v.union(
   v.literal('active'),
@@ -88,4 +91,17 @@ export const updateProductArgsValidator = v.object({
   status: v.optional(productStatusValidator),
   translations: v.optional(v.array(productTranslationValidator)),
   metadata: v.optional(jsonRecordValidator),
+});
+
+export const bulkCreateErrorItemValidator = v.object({
+  index: v.number(),
+  error: v.string(),
+  errorCode: v.string(),
+  product: jsonValueValidator,
+});
+
+export const bulkCreateProductsResponseValidator = v.object({
+  success: v.number(),
+  failed: v.number(),
+  errors: v.array(bulkCreateErrorItemValidator),
 });
