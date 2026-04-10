@@ -1,15 +1,17 @@
 'use client';
 
 import { useNavigate } from '@tanstack/react-router';
-import type { Row } from '@tanstack/react-table';
+import type { Row, RowSelectionState } from '@tanstack/react-table';
 import { Store } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
+import { BulkDeleteBar } from '@/app/components/ui/data-table/data-table-bulk-actions';
 import { useListPage } from '@/app/hooks/use-list-page';
 import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
+import { useDeleteVendor } from '../hooks/mutations';
 import {
   useApproxVendorCount,
   useListVendorsPaginated,
@@ -126,10 +128,24 @@ export function VendorsTable({
   );
 
   const [viewingVendor, setViewingVendor] = useState<Vendor | null>(null);
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const deleteVendor = useDeleteVendor();
 
   const handleRowClick = useCallback((row: Row<Vendor>) => {
     setViewingVendor(row.original);
   }, []);
+
+  const handleClearSelection = useCallback(() => {
+    setRowSelection({});
+  }, []);
+
+  const handleDeleteItem = useCallback(
+    async (id: string) => {
+      const vendorId = id as Doc<'vendors'>['_id'];
+      await deleteVendor.mutateAsync({ vendorId });
+    },
+    [deleteVendor],
+  );
 
   const list = useListPage<Vendor>({
     dataSource: {
@@ -159,12 +175,23 @@ export function VendorsTable({
         columns={columns}
         stickyLayout={stickyLayout}
         onRowClick={handleRowClick}
+        enableRowSelection
+        rowSelection={rowSelection}
+        onRowSelectionChange={setRowSelection}
         actionMenu={<VendorsActionMenu organizationId={organizationId} />}
         emptyState={{
           icon: Store,
           title: tEmpty('vendors.title'),
           description: tEmpty('vendors.description'),
         }}
+        footer={
+          <BulkDeleteBar
+            rowSelection={rowSelection}
+            onClearSelection={handleClearSelection}
+            onDeleteItem={handleDeleteItem}
+            onDeleteComplete={handleClearSelection}
+          />
+        }
         {...list.tableProps}
       />
 

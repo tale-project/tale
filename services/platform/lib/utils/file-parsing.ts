@@ -13,56 +13,9 @@ export type FileParseResult<T> = {
 type CSVParseOptions = {
   /** Column delimiter (default: comma) */
   delimiter?: string;
-  /** Whether the first row contains headers (default: false) */
-  hasHeaders?: boolean;
   /** Skip empty lines (default: true) */
   skipEmptyLines?: boolean;
 };
-
-const COMMON_HEADER_NAMES = new Set([
-  'name',
-  'email',
-  'description',
-  'price',
-  'sku',
-  'currency',
-  'category',
-  'stock',
-  'status',
-  'locale',
-  'source',
-  'id',
-  'title',
-  'brand',
-  'type',
-  'phone',
-  'address',
-  'country',
-  'city',
-  'image',
-  'imageurl',
-  'image_url',
-  'first name',
-  'last name',
-  'firstname',
-  'lastname',
-  'customer id',
-  'product',
-  'quantity',
-  'amount',
-  'unit',
-  'vendor',
-  'supplier',
-]);
-
-function isHeaderRow(values: string[]): boolean {
-  const nonEmpty = values.filter((v) => v.length > 0);
-  if (nonEmpty.length === 0) return false;
-  const matches = nonEmpty.filter((v) =>
-    COMMON_HEADER_NAMES.has(v.toLowerCase()),
-  );
-  return matches.length >= Math.ceil(nonEmpty.length / 2);
-}
 
 type CSVParseOutput = {
   headers: string[] | null;
@@ -125,7 +78,7 @@ function parseCSVText(
   csvText: string,
   options: CSVParseOptions = {},
 ): CSVParseOutput {
-  const { delimiter = ',', skipEmptyLines = true, hasHeaders } = options;
+  const { delimiter = ',', skipEmptyLines = true } = options;
 
   const lines = csvText.trim().split('\n');
   const rows: string[][] = [];
@@ -139,7 +92,7 @@ function parseCSVText(
   }
 
   let headers: string[] | null = null;
-  if (hasHeaders !== false && rows.length >= 2 && isHeaderRow(rows[0])) {
+  if (rows.length >= 2) {
     headers = rows.shift()?.map((h) => h.toLowerCase()) ?? null;
   }
 
