@@ -65,7 +65,7 @@ export function SharedChatView({
             to: '/dashboard/$id/chat/$threadId',
             params: { id: organizationId, threadId: newThreadId },
           });
-          toast({ title: t('share.forkSuccess') });
+          toast({ title: t('share.forkSuccess'), variant: 'success' });
         },
         onError: () => {
           toast({ title: t('share.forkFailed'), variant: 'destructive' });

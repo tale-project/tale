@@ -48,9 +48,15 @@ interface BranchProviderProps {
   children: ReactNode;
 }
 
+/** Sentinel value indicating the user explicitly selected the original (parent) thread. */
+const ORIGINAL_SELECTION = '__original__';
+
 /**
  * Resolves the active branch thread ID by walking the branch chain
  * from the root thread through the user's branch selections.
+ *
+ * When no selection exists for a fork point, defaults to the latest branch
+ * (highest branchIndex) so the user sees the most recent edit.
  */
 function resolveActiveBranch(
   rootThreadId: string | undefined,
@@ -64,16 +70,45 @@ function resolveActiveBranch(
   let changed = true;
   while (changed) {
     changed = false;
-    for (const branch of branches) {
-      const key = String(branch.forkOrder);
-      if (
-        branch.parentThreadId === currentThreadId &&
-        selections[key] === branch.branchThreadId
-      ) {
-        currentThreadId = branch.branchThreadId;
-        changed = true;
-        break;
+
+    // Find branches forking from the current thread
+    const children = branches.filter(
+      (b) => b.parentThreadId === currentThreadId,
+    );
+    if (children.length === 0) break;
+
+    // Group by forkOrder and pick the earliest fork point
+    const forkOrders = [...new Set(children.map((b) => b.forkOrder))].sort(
+      (a, b) => a - b,
+    );
+
+    for (const forkOrder of forkOrders) {
+      const key = String(forkOrder);
+      const siblingsAtFork = children.filter((b) => b.forkOrder === forkOrder);
+
+      // Explicit selection: original or a specific branch
+      if (key in selections) {
+        if (selections[key] === ORIGINAL_SELECTION) {
+          // User explicitly chose the original — stay on parent, stop walking
+          break;
+        }
+        const selected = siblingsAtFork.find(
+          (b) => b.branchThreadId === selections[key],
+        );
+        if (selected) {
+          currentThreadId = selected.branchThreadId;
+          changed = true;
+          break;
+        }
       }
+
+      // No selection: default to the latest branch (highest branchIndex)
+      const latest = siblingsAtFork.reduce((a, b) =>
+        b.branchIndex > a.branchIndex ? b : a,
+      );
+      currentThreadId = latest.branchThreadId;
+      changed = true;
+      break;
     }
   }
 
@@ -159,13 +194,10 @@ export function BranchProvider({ threadId, children }: BranchProviderProps) {
   const switchBranch = useCallback(
     (forkOrder: string, branchThreadId: string | null) => {
       setBranchSelections((prev) => {
-        let next: Record<string, string>;
-        if (branchThreadId === null) {
-          const { [forkOrder]: _, ...rest } = prev;
-          next = rest;
-        } else {
-          next = { ...prev, [forkOrder]: branchThreadId };
-        }
+        const next = {
+          ...prev,
+          [forkOrder]: branchThreadId ?? ORIGINAL_SELECTION,
+        };
         persistSelections(next);
         return next;
       });

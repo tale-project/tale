@@ -43,6 +43,7 @@ export function TransferOwnershipDialog({
 
       toast({
         title: t('organization.ownershipTransferred'),
+        variant: 'success',
       });
       onOpenChange(false);
     } catch (error) {

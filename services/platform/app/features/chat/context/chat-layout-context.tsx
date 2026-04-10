@@ -25,6 +25,12 @@ export interface PendingMessage {
   attachments?: PendingMessageAttachment[];
   timestamp: Date;
   lastMessageKey?: string;
+  /**
+   * When set, this is an edit-and-branch operation: replace the message with
+   * this ID and truncate everything after it, instead of appending a new message.
+   * Cleared when dataThreadId changes (branch subscription caught up).
+   */
+  editedMessageId?: string;
 }
 
 export interface SelectedAgent {

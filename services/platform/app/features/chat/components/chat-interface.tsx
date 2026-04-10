@@ -47,7 +47,6 @@ import { useArenaModeOptional } from './arena/arena-mode-context';
 import { ArenaSplitView } from './arena/arena-split-view';
 import { ChatInput } from './chat-input';
 import { ChatMessages } from './chat-messages';
-import { EditMessageDialog } from './edit-message-dialog';
 import { WelcomeView } from './welcome-view';
 
 function chatDraftKey(
@@ -169,7 +168,9 @@ export function ChatInterface({
   const hasNoAgents = agents !== undefined && agents.length === 0;
 
   // Thread status — disable input for archived threads
-  const threadStatus = useThreadStatus(dataThreadId);
+  // Always check the URL threadId (root thread), not dataThreadId (which may
+  // be a branch thread that wasn't individually archived).
+  const threadStatus = useThreadStatus(threadId);
   const isArchived = threadStatus === 'archived';
 
   const { mutate: unarchiveThread, isPending: isUnarchiving } =
@@ -352,14 +353,26 @@ export function ChatInterface({
     prevDataThreadIdRef.current !== dataThreadId &&
     prevDataThreadIdRef.current !== undefined
   ) {
-    branchScrollSaveRef.current = containerRef.current?.scrollTop ?? null;
-    // Clear after content settles
-    if (branchScrollTimerRef.current)
-      clearTimeout(branchScrollTimerRef.current);
-    branchScrollTimerRef.current = setTimeout(() => {
+    // Skip scroll preservation for edit-and-branch — we want scroll-to-bottom
+    // so the edited message and incoming AI response are visible.
+    if (!pendingMessage?.editedMessageId) {
+      branchScrollSaveRef.current = containerRef.current?.scrollTop ?? null;
+      // Clear after content settles
+      if (branchScrollTimerRef.current)
+        clearTimeout(branchScrollTimerRef.current);
+      branchScrollTimerRef.current = setTimeout(() => {
+        branchScrollSaveRef.current = null;
+        branchScrollTimerRef.current = null;
+      }, 2000);
+    } else {
+      // Clear any stale scroll position from a prior branch switch so
+      // onContentChange doesn't override the intended scroll-to-bottom.
       branchScrollSaveRef.current = null;
-      branchScrollTimerRef.current = null;
-    }, 2000);
+      if (branchScrollTimerRef.current) {
+        clearTimeout(branchScrollTimerRef.current);
+        branchScrollTimerRef.current = null;
+      }
+    }
   }
   prevDataThreadIdRef.current = dataThreadId;
 
@@ -455,6 +468,21 @@ export function ChatInterface({
         ? selectedModelOverrides[effectiveAgent.name]
         : undefined;
 
+      // Optimistic: show edited content immediately, truncate messages after it.
+      // Cleared by usePendingMessages when dataThreadId changes (branch loads).
+      setPendingMessage({
+        content: newContent,
+        threadId: dataThreadId,
+        timestamp: new Date(),
+        editedMessageId: editingMessage.id,
+      });
+
+      // Close inline editor so the optimistic content is visible
+      setEditingMessage(null);
+
+      // Scroll to bottom so the edited message + incoming AI response are visible
+      scrollingToBottomBehaviorRef.current = 'smooth';
+
       const result = await editAndBranchAction({
         sourceThreadId: dataThreadId,
         rootThreadId: rootThreadId ?? dataThreadId,
@@ -478,6 +506,7 @@ export function ChatInterface({
       userContext,
       editAndBranchAction,
       selectNewBranch,
+      setPendingMessage,
     ],
   );
 
@@ -500,7 +529,7 @@ export function ChatInterface({
               to: '/dashboard/$id/chat/$threadId',
               params: { id: organizationId, threadId: newThreadId },
             });
-            toast({ title: t('forkSuccess') });
+            toast({ title: t('forkSuccess'), variant: 'success' });
           },
           onError: (error) => {
             console.error('Failed to fork chat:', error);
@@ -578,10 +607,18 @@ export function ChatInterface({
               forkedMessageCount={forkInfo?.forkedMessageCount ?? undefined}
               forkedFromShare={forkInfo?.forkedFromShare}
               onHumanInputResponseSubmitted={handleHumanInputResponseSubmitted}
-              onSendFollowUp={handleSendFollowUp}
-              onSendMessage={handleSendMessageDirect}
-              onEditMessage={handleEditClick}
-              onForkAtMessage={handleForkAtMessage}
+              onSendFollowUp={isArchived ? undefined : handleSendFollowUp}
+              onSendMessage={isArchived ? undefined : handleSendMessageDirect}
+              onEditMessage={isArchived ? undefined : handleEditClick}
+              onForkAtMessage={isArchived ? undefined : handleForkAtMessage}
+              editingMessageId={isArchived ? undefined : editingMessage?.id}
+              editingMessageContent={
+                isArchived ? undefined : editingMessage?.content
+              }
+              onEditSubmit={isArchived ? undefined : handleEditSubmit}
+              onEditCancel={
+                isArchived ? undefined : () => setEditingMessage(null)
+              }
             />
           )}
         </div>
@@ -658,15 +695,6 @@ export function ChatInterface({
           </FileUpload.Root>
         )}
       </PanelFooter>
-
-      <EditMessageDialog
-        open={editingMessage !== null}
-        onOpenChange={(open) => {
-          if (!open) setEditingMessage(null);
-        }}
-        messageContent={editingMessage?.content ?? ''}
-        onSubmit={handleEditSubmit}
-      />
     </div>
   );
 }
