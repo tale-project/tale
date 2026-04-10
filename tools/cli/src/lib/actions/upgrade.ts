@@ -1,20 +1,12 @@
 import { chmod, rename, unlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, dirname, join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import pkg from '../../../package.json';
 import { compareVersions, extractVersion } from '../../utils/compare-versions';
 import * as logger from '../../utils/logger';
 import { requireProject } from '../project/find-project';
 import { update } from './update';
-
-const COMPILED_BINARY_NAMES = new Set([
-  'tale',
-  'tale.exe',
-  'tale_linux',
-  'tale_macos',
-  'tale_windows.exe',
-]);
 
 const GITHUB_REPO = 'tale-project/tale';
 
@@ -301,14 +293,6 @@ export async function upgrade(options: UpgradeOptions): Promise<void> {
     return;
   }
 
-  // Guard against running in dev mode where process.execPath is the bun runtime
-  const execName = basename(process.execPath);
-  if (!COMPILED_BINARY_NAMES.has(execName)) {
-    throw new Error(
-      `Cannot self-upgrade when running via "${execName}". Build and install the compiled binary first.`,
-    );
-  }
-
   requireProject();
 
   const prefix = options.dryRun ? '[DRY-RUN] ' : '';
@@ -332,7 +316,8 @@ export async function upgrade(options: UpgradeOptions): Promise<void> {
   logger.info(`Current version: ${currentVersion}`);
   logger.info(`Latest version:  ${release.version}`);
 
-  const needsBinaryUpgrade = comparison > 0 || options.force;
+  const isDevBuild = currentVersion.includes('dev');
+  const needsBinaryUpgrade = isDevBuild || comparison > 0 || options.force;
 
   if (!needsBinaryUpgrade) {
     logger.success(`CLI is up to date (v${currentVersion})`);
