@@ -1,13 +1,13 @@
 'use client';
 
-import { Plus, Trash2 } from 'lucide-react';
+import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
 import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
-import { Card } from '@/app/components/ui/layout/card';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { PageSection } from '@/app/components/ui/layout/page-section';
 import { Button } from '@/app/components/ui/primitives/button';
@@ -67,6 +67,241 @@ function parseBudgetConfig(policy: unknown): BudgetConfig {
   return { enabled: false, rules: [] };
 }
 
+interface RuleDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  rule: BudgetRule;
+  onSave: (rule: BudgetRule) => void;
+  title: string;
+  cannotManage: boolean;
+  memberOptions: { value: string; label: string; description?: string }[];
+  teamOptions: { value: string; label: string }[];
+}
+
+function RuleDialog({
+  open,
+  onOpenChange,
+  rule: initialRule,
+  onSave,
+  title,
+  cannotManage,
+  memberOptions,
+  teamOptions,
+}: RuleDialogProps) {
+  const [draft, setDraft] = useState<BudgetRule>(initialRule);
+
+  useEffect(() => {
+    if (open) {
+      setDraft(initialRule);
+    }
+  }, [open, initialRule]);
+
+  const updateDraft = useCallback((patch: Partial<BudgetRule>) => {
+    setDraft((prev) => {
+      const updated = { ...prev, ...patch };
+      if (patch.scope === 'default') {
+        delete updated.scopeId;
+      }
+      return updated;
+    });
+  }, []);
+
+  const handleSubmit = useCallback(
+    (e: React.FormEvent) => {
+      e.preventDefault();
+      onSave(draft);
+      onOpenChange(false);
+    },
+    [draft, onSave, onOpenChange],
+  );
+
+  return (
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={title}
+      onSubmit={handleSubmit}
+      submitText="Confirm"
+    >
+      <Stack gap={4}>
+        <HStack gap={3} wrap>
+          <div className="w-40">
+            <Select
+              label="Scope"
+              options={SCOPE_OPTIONS}
+              value={draft.scope}
+              onValueChange={(value) =>
+                updateDraft({ scope: value as BudgetRule['scope'] })
+              }
+              disabled={cannotManage}
+              size="sm"
+            />
+          </div>
+
+          {draft.scope === 'role' && (
+            <div className="w-40">
+              <Select
+                label="Role"
+                options={ROLE_OPTIONS}
+                value={draft.scopeId ?? ''}
+                onValueChange={(value) => updateDraft({ scopeId: value })}
+                disabled={cannotManage}
+                size="sm"
+              />
+            </div>
+          )}
+
+          {draft.scope === 'user' && (
+            <div className="w-56">
+              <Text className="mb-1 text-xs font-medium">User</Text>
+              <SearchableSelect
+                value={draft.scopeId ?? null}
+                onValueChange={(value) => updateDraft({ scopeId: value })}
+                options={memberOptions}
+                searchPlaceholder="Search users..."
+                emptyText="No users found"
+                aria-label="Select user"
+                trigger={
+                  <button
+                    type="button"
+                    disabled={cannotManage}
+                    className="border-input ring-offset-background flex h-8 w-full items-center justify-between rounded-md border bg-transparent px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <span
+                      className={draft.scopeId ? '' : 'text-muted-foreground'}
+                    >
+                      {draft.scopeId
+                        ? (memberOptions.find((o) => o.value === draft.scopeId)
+                            ?.label ?? draft.scopeId)
+                        : 'Select user...'}
+                    </span>
+                  </button>
+                }
+              />
+            </div>
+          )}
+
+          {draft.scope === 'team' && (
+            <div className="w-56">
+              <Text className="mb-1 text-xs font-medium">Team</Text>
+              <SearchableSelect
+                value={draft.scopeId ?? null}
+                onValueChange={(value) => updateDraft({ scopeId: value })}
+                options={teamOptions}
+                searchPlaceholder="Search teams..."
+                emptyText="No teams found"
+                aria-label="Select team"
+                trigger={
+                  <button
+                    type="button"
+                    disabled={cannotManage}
+                    className="border-input ring-offset-background flex h-8 w-full items-center justify-between rounded-md border bg-transparent px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <span
+                      className={draft.scopeId ? '' : 'text-muted-foreground'}
+                    >
+                      {draft.scopeId
+                        ? (teamOptions.find((o) => o.value === draft.scopeId)
+                            ?.label ?? draft.scopeId)
+                        : 'Select team...'}
+                    </span>
+                  </button>
+                }
+              />
+            </div>
+          )}
+
+          <div className="w-36">
+            <Select
+              label="Period"
+              options={PERIOD_OPTIONS}
+              value={draft.period}
+              onValueChange={(value) =>
+                updateDraft({ period: value as BudgetRule['period'] })
+              }
+              disabled
+              size="sm"
+            />
+          </div>
+        </HStack>
+
+        <Stack gap={3}>
+          <div>
+            <Input
+              label="Max Tokens"
+              type="number"
+              value={draft.maxTokens ?? ''}
+              onChange={(e) =>
+                updateDraft({
+                  maxTokens: e.target.value
+                    ? Number(e.target.value)
+                    : undefined,
+                })
+              }
+              disabled={cannotManage}
+              size="sm"
+              placeholder="e.g. 1000000"
+              min={0}
+            />
+            <Text className="text-muted-foreground mt-1 text-xs">
+              Total input + output tokens. 1M tokens ~ 750K words.
+            </Text>
+          </div>
+
+          <div>
+            <Input
+              label="Max Cost (USD)"
+              type="number"
+              value={draft.maxCostCents != null ? draft.maxCostCents / 100 : ''}
+              onChange={(e) =>
+                updateDraft({
+                  maxCostCents: e.target.value
+                    ? Math.round(Number(e.target.value) * 100)
+                    : undefined,
+                })
+              }
+              disabled={cannotManage}
+              size="sm"
+              placeholder="e.g. 50.00"
+              min={0}
+              step={0.01}
+            />
+            <Text className="text-muted-foreground mt-1 text-xs">
+              Hard spending cap in USD. GPT-4o ~ $10/1M tokens.
+            </Text>
+          </div>
+
+          <div>
+            <Input
+              label="Max Requests"
+              type="number"
+              value={draft.maxRequests ?? ''}
+              onChange={(e) =>
+                updateDraft({
+                  maxRequests: e.target.value
+                    ? Number(e.target.value)
+                    : undefined,
+                })
+              }
+              disabled={cannotManage}
+              size="sm"
+              placeholder="e.g. 500"
+              min={0}
+            />
+            <Text className="text-muted-foreground mt-1 text-xs">
+              Total AI requests per period. Leave empty for no limit.
+            </Text>
+          </div>
+        </Stack>
+      </Stack>
+    </FormDialog>
+  );
+}
+
+function formatCost(cents: number): string {
+  return `$${(cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 export function BudgetEditor({ organizationId }: BudgetEditorProps) {
   const { t } = useT('governance');
   const { toast } = useToast();
@@ -107,6 +342,11 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
   const [enabled, setEnabled] = useState(false);
   const [rules, setRules] = useState<BudgetRule[]>([]);
 
+  // Dialog state
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [dialogRule, setDialogRule] = useState<BudgetRule>(emptyRule());
+
   useEffect(() => {
     setEnabled(savedConfig.enabled);
     setRules(savedConfig.rules);
@@ -133,29 +373,62 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
     }
   }, [organizationId, enabled, rules, upsertMutation, toast]);
 
-  const addRule = useCallback(() => {
-    setRules((prev) => [...prev, emptyRule()]);
-  }, []);
-
   const removeRule = useCallback((index: number) => {
     setRules((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
-  const updateRule = useCallback(
-    (index: number, patch: Partial<BudgetRule>) => {
-      setRules((prev) =>
-        prev.map((r, i) => {
-          if (i !== index) return r;
-          const updated = { ...r, ...patch };
-          // Clear scopeId when switching to default scope
-          if (patch.scope === 'default') {
-            delete updated.scopeId;
-          }
-          return updated;
-        }),
-      );
+  const openAddDialog = useCallback(() => {
+    setEditingIndex(null);
+    setDialogRule(emptyRule());
+    setDialogOpen(true);
+  }, []);
+
+  const openEditDialog = useCallback(
+    (index: number) => {
+      setEditingIndex(index);
+      setDialogRule(rules[index]);
+      setDialogOpen(true);
     },
-    [],
+    [rules],
+  );
+
+  const handleDialogSave = useCallback(
+    (rule: BudgetRule) => {
+      if (editingIndex === null) {
+        setRules((prev) => [...prev, rule]);
+      } else {
+        setRules((prev) => prev.map((r, i) => (i === editingIndex ? rule : r)));
+      }
+    },
+    [editingIndex],
+  );
+
+  const resolveTarget = useCallback(
+    (rule: BudgetRule): string => {
+      switch (rule.scope) {
+        case 'user': {
+          if (!rule.scopeId) return '\u2014';
+          return (
+            memberOptions.find((o) => o.value === rule.scopeId)?.label ??
+            rule.scopeId
+          );
+        }
+        case 'team': {
+          if (!rule.scopeId) return '\u2014';
+          return (
+            teamOptions.find((o) => o.value === rule.scopeId)?.label ??
+            rule.scopeId
+          );
+        }
+        case 'role':
+          return rule.scopeId ?? '\u2014';
+        case 'default':
+          return 'All users';
+        default:
+          return '\u2014';
+      }
+    },
+    [memberOptions, teamOptions],
   );
 
   if (isLoading) {
@@ -172,241 +445,123 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
         </Button>
       }
     >
-      <Stack gap={6} className="max-w-2xl">
-        <Switch
-          label="Enable budget enforcement"
-          description="When enabled, usage will be checked against the rules below."
-          checked={enabled}
-          onCheckedChange={setEnabled}
-          disabled={cannotManage}
-        />
+      <Stack gap={6} className="max-w-4xl">
+        <div className="max-w-2xl">
+          <Switch
+            label="Enable budget enforcement"
+            description="When enabled, usage will be checked against the rules below."
+            checked={enabled}
+            onCheckedChange={setEnabled}
+            disabled={cannotManage}
+          />
+        </div>
 
         <Stack gap={3}>
-          {rules.map((rule, index) => (
-            <Card key={index} className="relative">
-              <Stack gap={4}>
-                <HStack justify="between" align="center">
-                  <Text className="text-sm font-medium">Rule {index + 1}</Text>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removeRule(index)}
-                    disabled={cannotManage}
-                    aria-label={`Remove rule ${index + 1}`}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
-                </HStack>
-
-                <HStack gap={3} wrap>
-                  <div className="w-40">
-                    <Select
-                      label="Scope"
-                      options={SCOPE_OPTIONS}
-                      value={rule.scope}
-                      onValueChange={(value) =>
-                        updateRule(index, {
-                          scope: value as BudgetRule['scope'],
-                        })
-                      }
-                      disabled={cannotManage}
-                      size="sm"
-                    />
-                  </div>
-
-                  {rule.scope === 'role' && (
-                    <div className="w-40">
-                      <Select
-                        label="Role"
-                        options={ROLE_OPTIONS}
-                        value={rule.scopeId ?? ''}
-                        onValueChange={(value) =>
-                          updateRule(index, { scopeId: value })
-                        }
-                        disabled={cannotManage}
-                        size="sm"
-                      />
-                    </div>
-                  )}
-
-                  {rule.scope === 'user' && (
-                    <div className="w-56">
-                      <Text className="mb-1 text-xs font-medium">User</Text>
-                      <SearchableSelect
-                        value={rule.scopeId ?? null}
-                        onValueChange={(value) =>
-                          updateRule(index, { scopeId: value })
-                        }
-                        options={memberOptions}
-                        searchPlaceholder="Search users..."
-                        emptyText="No users found"
-                        aria-label="Select user"
-                        trigger={
-                          <button
-                            type="button"
+          {rules.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-border border-b">
+                    <th className="text-muted-foreground px-3 py-2 text-left font-medium">
+                      Scope
+                    </th>
+                    <th className="text-muted-foreground px-3 py-2 text-left font-medium">
+                      Target
+                    </th>
+                    <th className="text-muted-foreground px-3 py-2 text-left font-medium">
+                      Period
+                    </th>
+                    <th className="text-muted-foreground px-3 py-2 text-right font-medium">
+                      Max Tokens
+                    </th>
+                    <th className="text-muted-foreground px-3 py-2 text-right font-medium">
+                      Max Cost
+                    </th>
+                    <th className="text-muted-foreground px-3 py-2 text-right font-medium">
+                      Max Requests
+                    </th>
+                    <th className="text-muted-foreground px-3 py-2 text-right font-medium">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rules.map((rule, index) => (
+                    <tr key={index} className="border-border border-b">
+                      <td className="px-3 py-2 capitalize">{rule.scope}</td>
+                      <td className="px-3 py-2">{resolveTarget(rule)}</td>
+                      <td className="px-3 py-2 capitalize">{rule.period}</td>
+                      <td className="px-3 py-2 text-right">
+                        {rule.maxTokens != null
+                          ? rule.maxTokens.toLocaleString()
+                          : '\u2014'}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        {rule.maxCostCents != null
+                          ? formatCost(rule.maxCostCents)
+                          : '\u2014'}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        {rule.maxRequests != null
+                          ? rule.maxRequests.toLocaleString()
+                          : '\u2014'}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <HStack gap={1} justify="end">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openEditDialog(index)}
                             disabled={cannotManage}
-                            className="border-input ring-offset-background flex h-8 w-full items-center justify-between rounded-md border bg-transparent px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                            aria-label={`Edit rule ${index + 1}`}
                           >
-                            <span
-                              className={
-                                rule.scopeId ? '' : 'text-muted-foreground'
-                              }
-                            >
-                              {rule.scopeId
-                                ? (memberOptions.find(
-                                    (o) => o.value === rule.scopeId,
-                                  )?.label ?? rule.scopeId)
-                                : 'Select user...'}
-                            </span>
-                          </button>
-                        }
-                      />
-                    </div>
-                  )}
-
-                  {rule.scope === 'team' && (
-                    <div className="w-56">
-                      <Text className="mb-1 text-xs font-medium">Team</Text>
-                      <SearchableSelect
-                        value={rule.scopeId ?? null}
-                        onValueChange={(value) =>
-                          updateRule(index, { scopeId: value })
-                        }
-                        options={teamOptions}
-                        searchPlaceholder="Search teams..."
-                        emptyText="No teams found"
-                        aria-label="Select team"
-                        trigger={
-                          <button
-                            type="button"
+                            <Pencil className="size-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removeRule(index)}
                             disabled={cannotManage}
-                            className="border-input ring-offset-background flex h-8 w-full items-center justify-between rounded-md border bg-transparent px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                            aria-label={`Remove rule ${index + 1}`}
                           >
-                            <span
-                              className={
-                                rule.scopeId ? '' : 'text-muted-foreground'
-                              }
-                            >
-                              {rule.scopeId
-                                ? (teamOptions.find(
-                                    (o) => o.value === rule.scopeId,
-                                  )?.label ?? rule.scopeId)
-                                : 'Select team...'}
-                            </span>
-                          </button>
-                        }
-                      />
-                    </div>
-                  )}
-
-                  <div className="w-36">
-                    <Select
-                      label="Period"
-                      options={PERIOD_OPTIONS}
-                      value={rule.period}
-                      onValueChange={(value) =>
-                        updateRule(index, {
-                          period: value as BudgetRule['period'],
-                        })
-                      }
-                      disabled
-                      size="sm"
-                    />
-                  </div>
-                </HStack>
-
-                <HStack gap={3} wrap>
-                  <div className="w-44">
-                    <Input
-                      label="Max Tokens"
-                      type="number"
-                      value={rule.maxTokens ?? ''}
-                      onChange={(e) =>
-                        updateRule(index, {
-                          maxTokens: e.target.value
-                            ? Number(e.target.value)
-                            : undefined,
-                        })
-                      }
-                      disabled={cannotManage}
-                      size="sm"
-                      placeholder="e.g. 1000000"
-                      min={0}
-                    />
-                    <Text className="text-muted-foreground mt-1 text-xs">
-                      Total input + output tokens. 1M tokens ≈ 750K words.
-                    </Text>
-                  </div>
-
-                  <div className="w-44">
-                    <Input
-                      label="Max Cost (USD)"
-                      type="number"
-                      value={
-                        rule.maxCostCents != null ? rule.maxCostCents / 100 : ''
-                      }
-                      onChange={(e) =>
-                        updateRule(index, {
-                          maxCostCents: e.target.value
-                            ? Math.round(Number(e.target.value) * 100)
-                            : undefined,
-                        })
-                      }
-                      disabled={cannotManage}
-                      size="sm"
-                      placeholder="e.g. 50.00"
-                      min={0}
-                      step={0.01}
-                    />
-                    <Text className="text-muted-foreground mt-1 text-xs">
-                      Hard spending cap in USD. GPT-4o ≈ $10/1M tokens.
-                    </Text>
-                  </div>
-
-                  <div className="w-44">
-                    <Input
-                      label="Max Requests"
-                      type="number"
-                      value={rule.maxRequests ?? ''}
-                      onChange={(e) =>
-                        updateRule(index, {
-                          maxRequests: e.target.value
-                            ? Number(e.target.value)
-                            : undefined,
-                        })
-                      }
-                      disabled={cannotManage}
-                      size="sm"
-                      placeholder="e.g. 500"
-                      min={0}
-                    />
-                    <Text className="text-muted-foreground mt-1 text-xs">
-                      Total AI requests per month. Leave empty for no limit.
-                    </Text>
-                  </div>
-                </HStack>
-              </Stack>
-            </Card>
-          ))}
+                            <Trash2 className="size-4" />
+                          </Button>
+                        </HStack>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <Text variant="muted" className="text-sm">
+              No budget rules configured. Add a rule to start enforcing limits.
+            </Text>
+          )}
 
           <Button
             variant="secondary"
             size="sm"
-            onClick={addRule}
+            onClick={openAddDialog}
             disabled={cannotManage}
             className="self-start"
           >
             <Plus className="mr-1.5 size-4" />
             Add Rule
           </Button>
-
-          {rules.length === 0 && (
-            <Text variant="muted" className="text-sm">
-              No budget rules configured. Add a rule to start enforcing limits.
-            </Text>
-          )}
         </Stack>
       </Stack>
+
+      <RuleDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        rule={dialogRule}
+        onSave={handleDialogSave}
+        title={editingIndex === null ? 'Add Budget Rule' : 'Edit Budget Rule'}
+        cannotManage={cannotManage}
+        memberOptions={memberOptions}
+        teamOptions={teamOptions}
+      />
     </PageSection>
   );
 }
