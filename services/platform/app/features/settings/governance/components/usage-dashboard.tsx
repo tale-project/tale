@@ -4,15 +4,9 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { BarChart3 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableRow,
-} from '@/app/components/ui/data-display/table';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Select } from '@/app/components/ui/forms/select';
-import { Stack } from '@/app/components/ui/layout/layout';
+import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
@@ -50,6 +44,15 @@ function buildPeriodOptions(): { value: string; label: string }[] {
 function getCurrentPeriodKey(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function StatCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <Text className="text-muted-foreground text-xs">{label}</Text>
+      <Text className="font-mono text-lg font-semibold">{value}</Text>
+    </div>
+  );
 }
 
 export function UsageDashboard({ organizationId }: UsageDashboardProps) {
@@ -146,6 +149,24 @@ export function UsageDashboard({ organizationId }: UsageDashboardProps) {
         </div>
       </div>
 
+      {totals && entries.length > 0 && (
+        <HStack gap={8} className="border-border rounded-lg border px-5 py-3">
+          <StatCard
+            label="Total Tokens"
+            value={formatNumber(totals.totalTokens)}
+          />
+          <StatCard
+            label="Total Cost"
+            value={formatCurrency(totals.costEstimate / 100, 'USD')}
+          />
+          <StatCard
+            label="Total Requests"
+            value={formatNumber(totals.requestCount)}
+          />
+          <StatCard label="Active Users" value={String(entries.length)} />
+        </HStack>
+      )}
+
       <DataTable
         columns={columns}
         data={entries}
@@ -157,44 +178,6 @@ export function UsageDashboard({ organizationId }: UsageDashboardProps) {
           title: 'No usage data',
           description: 'No usage has been recorded for this period.',
         }}
-        footer={
-          totals && entries.length > 0 ? (
-            <div className="border-border overflow-hidden rounded-xl border">
-              <Table>
-                <TableBody>
-                  <TableRow className="bg-muted/50 font-medium">
-                    <TableCell style={{ width: 220 }}>
-                      <Text as="span" variant="label">
-                        Totals
-                      </Text>
-                    </TableCell>
-                    <TableCell style={{ width: 160 }} />
-                    <TableCell>
-                      <div className="text-right font-mono text-xs">
-                        {formatNumber(totals.inputTokens)}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-right font-mono text-xs">
-                        {formatNumber(totals.outputTokens)}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-right font-mono text-xs">
-                        {formatCurrency(totals.costEstimate / 100, 'USD')}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-right font-mono text-xs">
-                        {formatNumber(totals.requestCount)}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </div>
-          ) : null
-        }
       />
     </Stack>
   );
