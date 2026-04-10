@@ -7,10 +7,7 @@ import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
-import {
-  DOCUMENT_MAX_FILE_SIZE,
-  resolveFileType,
-} from '@/lib/shared/file-types';
+import { resolveFileType } from '@/lib/shared/file-types';
 import { calculateFileHash } from '@/lib/utils/file-hash';
 
 // ---------------------------------------------------------------------------
@@ -142,6 +139,17 @@ export function useDocumentUpload(options: UploadOptions) {
     setTrackedFiles([]);
   }, []);
 
+  const stageFiles = useCallback((files: File[]) => {
+    const newTracked: TrackedFile[] = files.map((file) => ({
+      id: generateFileId(),
+      file,
+      status: 'pending' as const,
+      bytesLoaded: 0,
+      bytesTotal: file.size,
+    }));
+    setTrackedFiles((prev) => [...prev, ...newTracked]);
+  }, []);
+
   const uploadSingleFile = useCallback(
     async (
       tracked: TrackedFile,
@@ -248,10 +256,7 @@ export function useDocumentUpload(options: UploadOptions) {
   );
 
   const uploadFiles = useCallback(
-    async (
-      files: File[],
-      uploadOptions?: UploadFilesOptions,
-    ): Promise<UploadResult> => {
+    async (uploadOptions?: UploadFilesOptions): Promise<UploadResult> => {
       if (isUploading) {
         toast({
           title: t('upload.uploadInProgress'),
@@ -260,7 +265,8 @@ export function useDocumentUpload(options: UploadOptions) {
         return { success: false, error: 'Upload already in progress' };
       }
 
-      if (!files || files.length === 0) {
+      const pendingFiles = trackedFiles.filter((f) => f.status === 'pending');
+      if (pendingFiles.length === 0) {
         const error = t('upload.noFilesSelected');
         toast({
           title: t('upload.uploadFailed'),
@@ -270,43 +276,13 @@ export function useDocumentUpload(options: UploadOptions) {
         return { success: false, error };
       }
 
-      // Validate file sizes
-      for (const file of files) {
-        if (file.size > DOCUMENT_MAX_FILE_SIZE) {
-          const maxSizeMB = DOCUMENT_MAX_FILE_SIZE / (1024 * 1024);
-          const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
-          toast({
-            title: t('upload.fileTooLarge'),
-            description: t('upload.fileSizeExceeded', {
-              name: file.name,
-              maxSize: maxSizeMB,
-              currentSize: fileSizeMB,
-            }),
-            variant: 'destructive',
-          });
-          return { success: false, error: t('upload.fileTooLarge') };
-        }
-      }
-
       abortControllerRef.current = new AbortController();
-
-      // Create tracked files
-      const newTracked: TrackedFile[] = files.map((file) => ({
-        id: generateFileId(),
-        file,
-        status: 'pending' as const,
-        bytesLoaded: 0,
-        bytesTotal: file.size,
-      }));
-
-      setTrackedFiles(newTracked);
       setIsUploading(true);
 
       try {
         let allSuccess = true;
 
-        // Upload sequentially so we can show individual progress
-        for (const tracked of newTracked) {
+        for (const tracked of pendingFiles) {
           if (abortControllerRef.current?.signal.aborted) break;
           const success = await uploadSingleFile(tracked, uploadOptions);
           if (!success) allSuccess = false;
@@ -314,9 +290,9 @@ export function useDocumentUpload(options: UploadOptions) {
 
         if (allSuccess) {
           options.onSuccess?.({
-            name: files[0].name,
+            name: pendingFiles[0].file.name,
             storagePath: '',
-            size: files[0].size,
+            size: pendingFiles[0].file.size,
           });
         }
 
@@ -344,7 +320,7 @@ export function useDocumentUpload(options: UploadOptions) {
         abortControllerRef.current = null;
       }
     },
-    [isUploading, t, uploadSingleFile, options],
+    [isUploading, t, trackedFiles, uploadSingleFile, options],
   );
 
   const retryFile = useCallback(
@@ -403,6 +379,7 @@ export function useDocumentUpload(options: UploadOptions) {
   const hasFailures = failedCount > 0;
 
   return {
+    stageFiles,
     uploadFiles,
     retryFile,
     retryAllFailed,

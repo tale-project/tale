@@ -2903,7 +2903,8 @@
       "retry": "Erneut versuchen",
       "documentsUploadedSuccessfully": "{count} {count, plural, one {Dokument} other {Dokumente}} erfolgreich hochgeladen",
       "unsupportedFileType": "Nicht unterstützter Dateityp",
-      "unsupportedFileTypeDescription": "{name} ist kein unterstütztes Format. Unterstützte Formate: PDF, DOCX, XLSX, CSV, TXT, PPTX, Bilder."
+      "unsupportedFileTypeDescription": "{name} ist kein unterstütztes Format. Unterstützte Formate: PDF, DOCX, XLSX, CSV, TXT, PPTX, Bilder.",
+      "uploadDocuments": "Hochladen"
     },
     "import": {
       "noResponseBody": "Kein Antwortinhalt erhalten"

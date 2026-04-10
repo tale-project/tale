@@ -1,7 +1,7 @@
 'use client';
 
 import { CircleCheck, RotateCw, Upload } from 'lucide-react';
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Spinner } from '@/app/components/ui/feedback/spinner';
@@ -58,6 +58,7 @@ export function DocumentUploadDialog({
   const { teams, isLoading: isLoadingTeams } = useTeams();
 
   const {
+    stageFiles,
     uploadFiles,
     retryFile,
     retryAllFailed,
@@ -80,7 +81,7 @@ export function DocumentUploadDialog({
 
   // Derived state
   const hasFiles = trackedFiles.length > 0;
-  const isActive = isUploading || hasFiles;
+  const hasPendingFiles = trackedFiles.some((f) => f.status === 'pending');
   const totalSize = useMemo(
     () => trackedFiles.reduce((sum, f) => sum + f.file.size, 0),
     [trackedFiles],
@@ -137,22 +138,15 @@ export function DocumentUploadDialog({
       }
 
       if (validFiles.length > 0) {
-        void uploadFiles(validFiles, {
-          teamIds: selectedTeamIds.length > 0 ? selectedTeamIds : undefined,
-          folderId,
-        });
+        stageFiles(validFiles);
       }
     },
-    [tDocuments, uploadFiles, selectedTeamIds, folderId],
+    [tDocuments, stageFiles],
   );
 
-  const handleTeamSelectionChange = useCallback(
-    (teamIds: string[]) => {
-      setSelectedTeamIds(teamIds);
-      clearTrackedFiles();
-    },
-    [clearTrackedFiles],
-  );
+  const handleTeamSelectionChange = useCallback((teamIds: string[]) => {
+    setSelectedTeamIds(teamIds);
+  }, []);
 
   const handleCancel = useCallback(() => {
     cancelUpload();
@@ -176,6 +170,22 @@ export function DocumentUploadDialog({
     [retryFile, selectedTeamIds, folderId],
   );
 
+  const handleUpload = useCallback(() => {
+    if (!hasPendingFiles) return;
+    void uploadFiles({
+      teamIds: selectedTeamIds.length > 0 ? selectedTeamIds : undefined,
+      folderId,
+    });
+  }, [hasPendingFiles, uploadFiles, selectedTeamIds, folderId]);
+
+  useEffect(() => {
+    if (!allCompleted || completedCount === 0) return undefined;
+    const timer = setTimeout(() => {
+      handleOpenChange(false);
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [allCompleted, completedCount, handleOpenChange]);
+
   const maxSizeMB = DOCUMENT_MAX_FILE_SIZE / (1024 * 1024);
 
   return (
@@ -192,13 +202,13 @@ export function DocumentUploadDialog({
             onFilesSelected={processFiles}
             accept={DOCUMENT_UPLOAD_ACCEPT}
             multiple
-            disabled={isUploading}
+            disabled={isUploading || allCompleted}
             inputId="document-file-upload"
             className={cn(
               'relative flex flex-col items-center justify-center gap-2 rounded-lg border bg-muted/30 py-8 px-4 text-center cursor-pointer transition-colors',
               'hover:border-primary/40 hover:bg-muted/50',
               'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-              isUploading && 'opacity-50 cursor-not-allowed',
+              (isUploading || allCompleted) && 'opacity-50 cursor-not-allowed',
             )}
           >
             <FileUpload.Overlay className="rounded-lg" />
@@ -229,7 +239,7 @@ export function DocumentUploadDialog({
               selectedTeamIds={selectedTeamIds}
               onSelectionChange={handleTeamSelectionChange}
               orgWideLabel={tDocuments('teamTags.orgWide')}
-              disabled={isUploading}
+              disabled={isUploading || allCompleted}
             />
           )}
         </div>
@@ -289,41 +299,37 @@ export function DocumentUploadDialog({
         )}
 
         {/* Footer actions */}
-        {isActive && (
-          <div className="flex items-center justify-end gap-2">
-            {hasFailures && !isUploading && (
-              <>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => handleOpenChange(false)}
-                >
-                  {tCommon('actions.cancel')}
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={handleRetryAll}
-                  className="gap-1.5"
-                >
-                  <RotateCw className="size-3.5" />
-                  {tDocuments('upload.retryUpload')}
-                </Button>
-              </>
-            )}
-            {isUploading && (
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={handleCancel}
-              >
-                {tDocuments('upload.cancelUpload')}
-              </Button>
-            )}
-          </div>
-        )}
+        <div className="flex items-center justify-end gap-2">
+          {hasFailures && !isUploading && !hasPendingFiles && (
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleRetryAll}
+              className="gap-1.5"
+            >
+              <RotateCw className="size-3.5" />
+              {tDocuments('upload.retryUpload')}
+            </Button>
+          )}
+          {isUploading && (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={handleCancel}
+            >
+              {tDocuments('upload.cancelUpload')}
+            </Button>
+          )}
+          <Button
+            type="button"
+            size="sm"
+            onClick={handleUpload}
+            disabled={!hasPendingFiles || isUploading || allCompleted}
+          >
+            {tDocuments('upload.uploadDocuments')}
+          </Button>
+        </div>
       </div>
     </Dialog>
   );

@@ -2962,7 +2962,8 @@
       "retry": "Retry",
       "documentsUploadedSuccessfully": "{count} {count, plural, one {document} other {documents}} uploaded successfully",
       "unsupportedFileType": "Unsupported file type",
-      "unsupportedFileTypeDescription": "{name} is not a supported format. Supported formats: PDF, DOCX, XLSX, CSV, TXT, PPTX, images."
+      "unsupportedFileTypeDescription": "{name} is not a supported format. Supported formats: PDF, DOCX, XLSX, CSV, TXT, PPTX, images.",
+      "uploadDocuments": "Upload"
     },
     "import": {
       "noResponseBody": "No response body received"

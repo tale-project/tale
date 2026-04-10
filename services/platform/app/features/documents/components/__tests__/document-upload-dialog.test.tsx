@@ -4,6 +4,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockToast = vi.fn();
+const mockStageFiles = vi.fn();
 const mockUploadFiles = vi.fn().mockResolvedValue({ success: true });
 const mockCancelUpload = vi.fn();
 const mockClearTrackedFiles = vi.fn();
@@ -75,6 +76,7 @@ let mockHookState: {
 
 vi.mock('../../hooks/mutations', () => ({
   useDocumentUpload: () => ({
+    stageFiles: mockStageFiles,
     uploadFiles: mockUploadFiles,
     retryFile: mockRetryFile,
     retryAllFailed: mockRetryAllFailed,
@@ -228,7 +230,88 @@ describe('DocumentUploadDialog', () => {
     expect(
       screen.getByText('documents.upload.retryUpload'),
     ).toBeInTheDocument();
-    expect(screen.getByText('common.actions.cancel')).toBeInTheDocument();
+  });
+
+  it('shows upload button when files are staged as pending', () => {
+    mockHookState = {
+      isUploading: false,
+      trackedFiles: [
+        {
+          id: 'file-1',
+          file: new File(['content'], 'test.pdf', {
+            type: 'application/pdf',
+          }),
+          status: 'pending',
+          bytesLoaded: 0,
+          bytesTotal: 1000,
+        },
+      ],
+      completedCount: 0,
+      failedCount: 0,
+      totalCount: 1,
+      allCompleted: false,
+      hasFailures: false,
+    };
+
+    render(<DocumentUploadDialog {...defaultProps} />);
+
+    const uploadButton = screen.getByText('documents.upload.uploadDocuments');
+    expect(uploadButton).toBeInTheDocument();
+    expect(uploadButton.closest('button')).not.toBeDisabled();
+  });
+
+  it('disables upload button while uploading', () => {
+    mockHookState = {
+      isUploading: true,
+      trackedFiles: [
+        {
+          id: 'file-1',
+          file: new File(['content'], 'test.pdf', {
+            type: 'application/pdf',
+          }),
+          status: 'uploading',
+          bytesLoaded: 500,
+          bytesTotal: 1000,
+        },
+      ],
+      completedCount: 0,
+      failedCount: 0,
+      totalCount: 1,
+      allCompleted: false,
+      hasFailures: false,
+    };
+
+    render(<DocumentUploadDialog {...defaultProps} />);
+
+    const uploadButton = screen.getByText('documents.upload.uploadDocuments');
+    expect(uploadButton.closest('button')).toBeDisabled();
+  });
+
+  it('disables upload button after all files completed', () => {
+    mockHookState = {
+      isUploading: false,
+      trackedFiles: [
+        {
+          id: 'file-1',
+          file: new File(['content'], 'test.pdf', {
+            type: 'application/pdf',
+          }),
+          status: 'completed',
+          bytesLoaded: 1000,
+          bytesTotal: 1000,
+        },
+      ],
+      completedCount: 1,
+      failedCount: 0,
+      totalCount: 1,
+      allCompleted: true,
+      hasFailures: false,
+    };
+
+    render(<DocumentUploadDialog {...defaultProps} />);
+
+    const uploadButton = screen.getByText('documents.upload.uploadDocuments');
+    expect(uploadButton.closest('button')).toBeDisabled();
   });
 
   describe('accessibility', () => {
