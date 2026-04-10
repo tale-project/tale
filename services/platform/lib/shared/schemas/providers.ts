@@ -11,6 +11,8 @@ const modelDefinitionSchema = z.object({
   tags: z.array(modelTagSchema).min(1),
   dimensions: z.number().int().positive().optional(),
   fallbackModelId: z.string().min(1).max(200).optional(),
+  baseUrl: z.string().url().optional(),
+  apiKey: z.string().min(1).optional(),
 });
 
 type ModelDefinition = z.infer<typeof modelDefinitionSchema>;

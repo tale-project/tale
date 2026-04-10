@@ -1519,7 +1519,15 @@
       "deleteConfirmNamed": "Are you sure you want to delete the provider \"{name}\"? This action cannot be undone. All model configurations associated with this provider will be removed.",
       "providerActions": "Provider actions",
       "saveChanges": "Save changes",
-      "addModelShort": "+ Add model"
+      "addModelShort": "+ Add model",
+      "byomGuidance": "Any OpenAI-compatible endpoint works here. Point the base URL to your self-hosted inference server (e.g. vLLM, Ollama, LocalAI) or a third-party gateway like OpenRouter to use models such as LLaMA, Mistral, Gemini, and more.",
+      "tagsRequired": "At least one tag is required",
+      "modelsRequired": "At least one model is required",
+      "modelNumber": "Model {number}",
+      "modelBaseUrl": "Model base URL",
+      "modelBaseUrlPlaceholder": "e.g., https://custom-endpoint.example.com/v1",
+      "modelApiKey": "Model API key",
+      "modelApiKeyPlaceholder": "Enter model-specific API key"
     },
     "form": {
       "name": "Name",
