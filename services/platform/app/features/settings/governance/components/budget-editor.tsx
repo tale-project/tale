@@ -4,6 +4,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { Input } from '@/app/components/ui/forms/input';
+import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
 import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Card } from '@/app/components/ui/layout/card';
@@ -11,6 +12,8 @@ import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { PageSection } from '@/app/components/ui/layout/page-section';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
+import { useMembers } from '@/app/features/settings/organization/hooks/queries';
+import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -74,6 +77,27 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
     'budgets',
   );
   const upsertMutation = useUpsertGovernancePolicy();
+  const { members } = useMembers(organizationId);
+  const { teams } = useOrgTeams();
+
+  const memberOptions = useMemo(
+    () =>
+      (members ?? []).map((m) => ({
+        value: String(m.userId),
+        label: m.displayName || m.email || String(m.userId),
+        description: m.email && m.displayName ? m.email : undefined,
+      })),
+    [members],
+  );
+
+  const teamOptions = useMemo(
+    () =>
+      (teams ?? []).map((t) => ({
+        value: String(t.id),
+        label: t.name || String(t.id),
+      })),
+    [teams],
+  );
 
   const savedConfig = useMemo(
     () => parseBudgetConfig(policy?.config),
@@ -206,31 +230,71 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
                   )}
 
                   {rule.scope === 'user' && (
-                    <div className="w-48">
-                      <Input
-                        label="User ID"
-                        value={rule.scopeId ?? ''}
-                        onChange={(e) =>
-                          updateRule(index, { scopeId: e.target.value })
+                    <div className="w-56">
+                      <Text className="mb-1 text-xs font-medium">User</Text>
+                      <SearchableSelect
+                        value={rule.scopeId ?? null}
+                        onValueChange={(value) =>
+                          updateRule(index, { scopeId: value })
                         }
-                        disabled={cannotManage}
-                        size="sm"
-                        placeholder="User ID"
+                        options={memberOptions}
+                        searchPlaceholder="Search users..."
+                        emptyText="No users found"
+                        aria-label="Select user"
+                        trigger={
+                          <button
+                            type="button"
+                            disabled={cannotManage}
+                            className="border-input ring-offset-background flex h-8 w-full items-center justify-between rounded-md border bg-transparent px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <span
+                              className={
+                                rule.scopeId ? '' : 'text-muted-foreground'
+                              }
+                            >
+                              {rule.scopeId
+                                ? (memberOptions.find(
+                                    (o) => o.value === rule.scopeId,
+                                  )?.label ?? rule.scopeId)
+                                : 'Select user...'}
+                            </span>
+                          </button>
+                        }
                       />
                     </div>
                   )}
 
                   {rule.scope === 'team' && (
-                    <div className="w-48">
-                      <Input
-                        label="Team ID"
-                        value={rule.scopeId ?? ''}
-                        onChange={(e) =>
-                          updateRule(index, { scopeId: e.target.value })
+                    <div className="w-56">
+                      <Text className="mb-1 text-xs font-medium">Team</Text>
+                      <SearchableSelect
+                        value={rule.scopeId ?? null}
+                        onValueChange={(value) =>
+                          updateRule(index, { scopeId: value })
                         }
-                        disabled={cannotManage}
-                        size="sm"
-                        placeholder="Team ID"
+                        options={teamOptions}
+                        searchPlaceholder="Search teams..."
+                        emptyText="No teams found"
+                        aria-label="Select team"
+                        trigger={
+                          <button
+                            type="button"
+                            disabled={cannotManage}
+                            className="border-input ring-offset-background flex h-8 w-full items-center justify-between rounded-md border bg-transparent px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <span
+                              className={
+                                rule.scopeId ? '' : 'text-muted-foreground'
+                              }
+                            >
+                              {rule.scopeId
+                                ? (teamOptions.find(
+                                    (o) => o.value === rule.scopeId,
+                                  )?.label ?? rule.scopeId)
+                                : 'Select team...'}
+                            </span>
+                          </button>
+                        }
                       />
                     </div>
                   )}
