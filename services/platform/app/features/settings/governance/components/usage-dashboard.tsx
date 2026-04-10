@@ -10,7 +10,17 @@ import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
-import { formatCurrency, formatNumber } from '@/lib/utils/format/number';
+import { formatNumber } from '@/lib/utils/format/number';
+
+function formatCostUsd(cents: number): string {
+  const dollars = cents / 100;
+  if (dollars === 0) return '$0.00';
+  if (dollars >= 1) return `$${dollars.toFixed(2)}`;
+  // For small values, show enough decimals to preserve significant digits
+  // e.g. $0.0893, $0.00068, $0.000012
+  const str = dollars.toPrecision(3);
+  return `$${str}`;
+}
 
 interface UsageDashboardProps {
   organizationId: string;
@@ -114,7 +124,7 @@ export function UsageDashboard({ organizationId }: UsageDashboardProps) {
         header: () => <div className="text-right">Cost</div>,
         cell: ({ row }) => (
           <div className="text-right font-mono text-xs">
-            {formatCurrency(row.original.costEstimate / 100, 'USD')}
+            {formatCostUsd(row.original.costEstimate)}
           </div>
         ),
         meta: { align: 'right' as const },
@@ -157,7 +167,7 @@ export function UsageDashboard({ organizationId }: UsageDashboardProps) {
           />
           <StatCard
             label="Total Cost"
-            value={formatCurrency(totals.costEstimate / 100, 'USD')}
+            value={formatCostUsd(totals.costEstimate)}
           />
           <StatCard
             label="Total Requests"
