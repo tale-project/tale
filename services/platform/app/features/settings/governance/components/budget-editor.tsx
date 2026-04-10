@@ -381,7 +381,7 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
         toast({ title: message, variant: 'destructive' });
       }
     },
-    [organizationId, upsertMutation, toast],
+    [organizationId, upsertMutation, toast, t],
   );
 
   const handleToggleEnabled = useCallback(
