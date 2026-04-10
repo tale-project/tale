@@ -21,7 +21,7 @@ const INTERNAL_FILEID_ITALIC =
 // Matches a full enriched attachment block: markdown line + enriched fileId marker.
 // Only strips the markdown line when paired with an enriched marker (old messages keep their links).
 const INTERNAL_ENRICHED_BLOCK =
-  /\n?\n?(?:📎 \[[^\]]+\]\([^)]+\) \([^)]+\)|📄 \[[^\]]+\]\([^)]+\) \([^)]+\)|!\[[^\]]+\]\([^)]+\))\n\*\(fileId: [a-z0-9]+ \| fileName: .+? \| fileType: .+? \| fileSize: \d+\)\*/g;
+  /\n?\n?[^\n]+\n\*\(fileId: [a-z0-9]+ \| fileName: .+? \| fileType: .+? \| fileSize: \d+\)\*/g;
 
 const ENRICHED_ATTACHMENT_MARKER =
   /\*\(fileId: ([a-z0-9]+) \| fileName: (.+?) \| fileType: (.+?) \| fileSize: (\d+)\)\*/g;
