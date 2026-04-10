@@ -93,6 +93,7 @@ export function VendorImportForm({
           />
           <Text as="div" variant="caption" className="leading-relaxed">
             <ul className="list-outside list-disc space-y-2 pl-4">
+              <li>{t('importForm.formatHint')}</li>
               <li>{t('importForm.localeHint')}</li>
             </ul>
           </Text>
@@ -127,6 +128,7 @@ export function VendorImportForm({
           </FileUpload.Root>
           <Text as="div" variant="caption" className="leading-relaxed">
             <ul className="list-outside list-disc space-y-2 pl-4">
+              <li>{t('importForm.formatHint')}</li>
               <li>{t('importForm.localeHint')}</li>
             </ul>
           </Text>

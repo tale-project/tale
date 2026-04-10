@@ -3213,6 +3213,7 @@
     "importForm": {
       "manualEntry": "Manuelle Eingabe",
       "upload": "Upload",
+      "formatHint": "Format: E-Mail, Name (optional), Sprache (optional). Ein Anbieter pro Zeile.",
       "localeHint": "Du kannst die folgenden unterstützten Sprachen verwenden: en, fr, de, zh, sowie erweiterte Formate wie en-US, de-DE und de-CH."
     },
     "editVendor": "Lieferant bearbeiten",
