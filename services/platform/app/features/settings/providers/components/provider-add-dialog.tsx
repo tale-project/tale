@@ -285,7 +285,7 @@ export function ProviderAddDialog({
                   errorMessage={errors.models?.[index]?.displayName?.message}
                 />
 
-                <Stack gap={1.5}>
+                <Stack gap={2}>
                   <Text variant="caption" className="text-sm font-medium">
                     {t('providers.tags')}
                   </Text>
