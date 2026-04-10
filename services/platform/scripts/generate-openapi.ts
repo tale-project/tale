@@ -1613,6 +1613,12 @@ function injectRestApiPaths(spec: OpenApiSpec) {
       title: { type: 'string' },
     },
   };
+  schemas.CreatedResource = {
+    type: 'object',
+    properties: {
+      id: { type: 'string', description: 'ID of the created resource' },
+    },
+  };
   schemas.ThreadMessages = {
     type: 'object',
     properties: {

@@ -45,7 +45,7 @@ function ApiDocsPage() {
       showCommonExtensions: true,
       tryItOutEnabled: true,
       persistAuthorization: true,
-      deepLinking: true,
+      deepLinking: false,
       tagsSorter: 'alpha' as const,
       operationsSorter: 'alpha' as const,
       requestInterceptor: (req: Record<string, unknown>) => {
@@ -58,8 +58,17 @@ function ApiDocsPage() {
     [],
   );
 
+  // Prevent TanStack Router from intercepting Swagger UI internal link clicks
+  const handleClick = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    const anchor = target.closest('a');
+    if (anchor && anchor.getAttribute('href')?.startsWith('#')) {
+      e.stopPropagation();
+    }
+  };
+
   return (
-    <div className="bg-background min-h-screen">
+    <div className="bg-background min-h-screen" onClickCapture={handleClick}>
       <main className="swagger-ui-standalone">
         <Suspense fallback={<SwaggerSkeleton />}>
           <SwaggerUI {...swaggerConfig} />
