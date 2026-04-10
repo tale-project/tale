@@ -309,7 +309,7 @@ export function ChatInput({
                   <Paperclip className="size-4" />
                 </Button>
               </Tooltip>
-              <ArenaModeToggle />
+              <ArenaModeToggle disabled={isLoading} />
               {isArenaMode ? (
                 <ArenaModelSelector organizationId={organizationId} />
               ) : (

@@ -37,6 +37,7 @@ export const arenaChat = action({
         language: v.string(),
       }),
     ),
+    copyHistoryToB: v.optional(v.boolean()),
   },
   returns: v.object({
     streamIdA: v.string(),
@@ -48,6 +49,16 @@ export const arenaChat = action({
   ): Promise<{ streamIdA: string; streamIdB: string }> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
+
+    // Copy message history from Thread A to Thread B if requested
+    // (when arena is enabled on an existing thread with conversation history)
+    if (args.copyHistoryToB) {
+      await ctx.runMutation(internal.threads.mutations.copyThreadMessages, {
+        sourceThreadId: args.threadIdA,
+        targetThreadId: args.threadIdB,
+        userId: authUser._id,
+      });
+    }
 
     const sharedArgs = {
       agentSlug: args.agentSlug,

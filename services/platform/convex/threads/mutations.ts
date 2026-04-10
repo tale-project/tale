@@ -1,5 +1,7 @@
+import { saveMessage } from '@convex-dev/agent';
 import { v } from 'convex/values';
 
+import { components } from '../_generated/api';
 import { internalMutation, mutation } from '../_generated/server';
 import { authComponent } from '../auth';
 import {
@@ -159,6 +161,36 @@ export const updateBranchSelections = mutation({
         branchSelections: args.branchSelections,
       });
     }
+    return null;
+  },
+});
+
+/**
+ * Copies all messages from one thread to another.
+ * Used when enabling arena mode on an existing thread — Thread B needs
+ * the same conversation history as Thread A.
+ */
+export const copyThreadMessages = internalMutation({
+  args: {
+    sourceThreadId: v.string(),
+    targetThreadId: v.string(),
+    userId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const { messages } = await getThreadMessages(ctx, args.sourceThreadId);
+
+    for (const msg of messages) {
+      await saveMessage(ctx, components.agent, {
+        threadId: args.targetThreadId,
+        userId: args.userId,
+        message: {
+          role: msg.role,
+          content: msg.content,
+        },
+      });
+    }
+
     return null;
   },
 });

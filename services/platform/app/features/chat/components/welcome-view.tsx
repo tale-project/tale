@@ -3,11 +3,9 @@
 import { Heading } from '@/app/components/ui/typography/heading';
 import { useT } from '@/lib/i18n/client';
 
-import { LoadingDots } from './thinking-animation';
 import { WelcomeContentSkeleton } from './welcome-content-skeleton';
 
 interface WelcomeViewProps {
-  isPending: boolean;
   isAgentLoading: boolean;
   agentName: string | undefined;
   conversationStarters?: string[];
@@ -15,21 +13,12 @@ interface WelcomeViewProps {
 }
 
 export function WelcomeView({
-  isPending,
   isAgentLoading,
   agentName,
   conversationStarters,
   onSuggestionClick,
 }: WelcomeViewProps) {
   const { t } = useT('chat');
-
-  if (isPending) {
-    return (
-      <div className="flex size-full flex-1 items-center justify-center">
-        <LoadingDots />
-      </div>
-    );
-  }
 
   const hasStarters = conversationStarters && conversationStarters.length > 0;
 

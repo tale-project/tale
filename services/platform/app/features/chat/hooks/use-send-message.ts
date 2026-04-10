@@ -114,12 +114,29 @@ export function useSendMessage({
 
           let tIdA: string;
           let tIdB: string;
+          let needsCopyHistory = false;
 
           if (currentArena.arenaThreadIdA && currentArena.arenaThreadIdB) {
+            // Both threads exist — reuse (subsequent messages in arena)
             tIdA = currentArena.arenaThreadIdA;
             tIdB = currentArena.arenaThreadIdB;
+          } else if (currentArena.arenaThreadIdA) {
+            // Thread A exists (existing thread) — only create B as branch
+            tIdA = currentArena.arenaThreadIdA;
+            needsCopyHistory = true;
+            const newB = await createThread({
+              organizationId,
+              title,
+              chatType: 'general',
+              arenaGroupId,
+              arenaModelId: modelB,
+              isBranch: true,
+              forkedFrom: tIdA,
+            });
+            tIdB = newB;
+            currentArena.setArenaThreadIdB(newB);
           } else {
-            // Create Thread A first (root)
+            // New chat — create both threads
             const newA = await createThread({
               organizationId,
               title,
@@ -127,8 +144,6 @@ export function useSendMessage({
               arenaGroupId,
               arenaModelId: modelA,
             });
-
-            // Create Thread B as a branch of A
             const newB = await createThread({
               organizationId,
               title,
@@ -143,25 +158,9 @@ export function useSendMessage({
             tIdB = newB;
             currentArena.setArenaThreadIdA(newA);
             currentArena.setArenaThreadIdB(newB);
-
-            // Navigate to Thread A (the root) so it's the "main" thread
-            startTransition(() => {
-              setPendingThreadId(newA);
-              void navigate({
-                to: '/dashboard/$id/chat/$threadId',
-                params: { id: organizationId, threadId: newA },
-              });
-            });
           }
 
-          setPendingMessage({
-            content: message,
-            threadId: tIdA,
-            attachments: mutationAttachments,
-            timestamp: new Date(),
-            lastMessageKey: messages[messages.length - 1]?.key,
-          });
-
+          // Start both models generating (split view shows "Thinking")
           await arenaChatRef.current({
             agentSlug: selectedAgent.name,
             orgSlug: 'default',
@@ -178,6 +177,24 @@ export function useSendMessage({
                   language: userContext.language,
                 }
               : undefined,
+            copyHistoryToB: needsCopyHistory || undefined,
+          });
+
+          // Navigate AFTER arena chat completes — split view is already
+          // showing, so this just updates the URL without visual change.
+          setPendingMessage({
+            content: message,
+            threadId: tIdA,
+            attachments: mutationAttachments,
+            timestamp: new Date(),
+            lastMessageKey: messages[messages.length - 1]?.key,
+          });
+          setPendingThreadId(tIdA);
+          startTransition(() => {
+            void navigate({
+              to: '/dashboard/$id/chat/$threadId',
+              params: { id: organizationId, threadId: tIdA },
+            });
           });
         } else {
           // --- Standard mode: send to one model ---

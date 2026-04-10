@@ -96,15 +96,25 @@ export function ChatInterface({
     needsArenaRestore ? { threadId } : 'skip',
   );
   useEffect(() => {
-    if (arenaPair && arenaContext && !arenaContext.arenaThreadIdA) {
+    if (!arenaContext || arenaContext.arenaThreadIdA) return;
+    if (arenaPair) {
+      // Existing arena thread — restore both IDs
       arenaContext.setArenaThreadIdA(arenaPair.threadIdA);
       arenaContext.setArenaThreadIdB(arenaPair.threadIdB);
+    } else if (isArenaMode && threadId && arenaPair === null) {
+      // Non-arena thread — use current thread as A, B will be created on send
+      arenaContext.setArenaThreadIdA(threadId);
     }
-  }, [arenaPair, arenaContext]);
+  }, [arenaPair, arenaContext, isArenaMode, threadId]);
 
-  // Reset arena mode when navigating to new chat (no threadId)
+  // Reset arena mode when navigating FROM a thread back to new chat.
+  // Track whether we previously had a threadId to avoid disabling
+  // arena mode when the user enables it on the new chat page.
+  const prevThreadIdRef = useRef(threadId);
   useEffect(() => {
-    if (!threadId && arenaContext?.isArenaMode) {
+    const hadThread = prevThreadIdRef.current;
+    prevThreadIdRef.current = threadId;
+    if (hadThread && !threadId && arenaContext?.isArenaMode) {
       arenaContext.disableArenaMode();
     }
   }, [threadId, arenaContext]);
@@ -510,14 +520,20 @@ export function ChatInterface({
     ],
   );
 
+  const showArena = arenaContext?.isArenaMode && !!arenaContext.arenaThreadIdA;
+
+  // In arena mode, while waiting for thread creation (isPending but no arena
+  // threads yet), don't let isLoading alone trigger the messages view.
+  // This keeps the welcome page visible with just the send button loading.
+  const arenaWaiting = arenaContext?.isArenaMode && isPending && !showArena;
+
   // Show messages view when we have content or are loading (to show ThinkingAnimation)
   const showMessages =
-    dataThreadId || messages.length > 0 || pendingMessage || isLoading;
-  const showWelcome = !showMessages;
-
-  const showArena =
-    arenaContext?.isArenaMode &&
-    (isPending || (arenaContext.arenaThreadIdA && arenaContext.arenaThreadIdB));
+    dataThreadId ||
+    messages.length > 0 ||
+    pendingMessage ||
+    (isLoading && !arenaWaiting);
+  const showWelcome = !showMessages && !showArena;
 
   return (
     <div
@@ -539,7 +555,6 @@ export function ChatInterface({
         >
           {showWelcome && (
             <WelcomeView
-              isPending={isLoading}
               isAgentLoading={isAgentLoading}
               agentName={effectiveAgent?.displayName}
               conversationStarters={effectiveAgent?.conversationStarters}

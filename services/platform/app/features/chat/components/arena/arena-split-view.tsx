@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
@@ -105,7 +105,49 @@ function ArenaColumn({
   );
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const lastUserMessageRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll: always scroll to bottom when a new user message arrives
+  const userMessageCount = mergedMessages.filter(
+    (m) => m.type === 'message' && m.data.role === 'user',
+  ).length;
+  const prevUserCountRef = useRef(userMessageCount);
+  useEffect(() => {
+    if (userMessageCount > prevUserCountRef.current) {
+      requestAnimationFrame(() => {
+        containerRef.current?.scrollTo({
+          top: containerRef.current?.scrollHeight ?? 0,
+          behavior: 'smooth',
+        });
+      });
+    }
+    prevUserCountRef.current = userMessageCount;
+  }, [userMessageCount]);
+
+  // Auto-scroll: follow content growth during streaming (when near bottom)
+  useEffect(() => {
+    const container = containerRef.current;
+    const content = contentRef.current;
+    if (!container || !content) return undefined;
+
+    const isAtBottom = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      return scrollHeight - scrollTop - clientHeight <= 100;
+    };
+
+    const observer = new ResizeObserver(() => {
+      if (isAtBottom()) {
+        container.scrollTo({
+          top: container.scrollHeight,
+          behavior: 'instant',
+        });
+      }
+    });
+    observer.observe(content);
+
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -118,7 +160,7 @@ function ArenaColumn({
         ref={containerRef}
         className="flex min-h-0 flex-1 flex-col overflow-y-auto"
       >
-        <div className="flex flex-col p-4 sm:p-6">
+        <div ref={contentRef} className="flex flex-col p-4 sm:p-6">
           <ChatMessages
             items={mergedMessages}
             threadId={resolvedThreadId}
@@ -156,7 +198,7 @@ export function ArenaSplitView({ organizationId }: ArenaSplitViewProps) {
         <div className="bg-border w-px shrink-0" />
         <ArenaColumn
           label={t('arena.modelBLabel')}
-          threadId={arenaThreadIdB}
+          threadId={arenaThreadIdB ?? arenaThreadIdA}
           organizationId={organizationId}
         />
       </div>

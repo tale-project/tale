@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils/cn';
 
 import { useArenaModeOptional } from './arena-mode-context';
 
-export function ArenaModeToggle() {
+export function ArenaModeToggle({ disabled }: { disabled?: boolean }) {
   const { t } = useT('chat');
   const arenaContext = useArenaModeOptional();
 
@@ -35,6 +35,7 @@ export function ArenaModeToggle() {
         size="icon"
         variant="ghost"
         onClick={handleToggle}
+        disabled={disabled}
         aria-label={t('arena.label')}
         aria-pressed={isArenaMode}
         className={cn(isArenaMode && 'bg-accent text-accent-foreground')}
