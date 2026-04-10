@@ -464,6 +464,7 @@
       "loginButton": "Anmelden",
       "continueWithSso": "Weiter mit SSO",
       "wrongCredentials": "Falsche E-Mail oder falsches Passwort",
+      "forgotPassword": "Passwort vergessen? Wende dich an einen Admin.",
       "toast": {
         "success": "Erfolgreich angemeldet",
         "microsoftFailed": "Microsoft-Anmeldung fehlgeschlagen. Bitte versuche es erneut.",
@@ -1524,7 +1525,8 @@
       "password": "Passwort",
       "passwordPlaceholder": "Passwort eingeben",
       "role": "Rolle",
-      "passwordHint": "Ein Passwort ist erforderlich, um ein neues Benutzerkonto zu erstellen. Wenn der Benutzer bereits ein Konto hat, wird er ohne Passwort hinzugefügt."
+      "passwordHint": "Ein Passwort ist erforderlich, um ein neues Benutzerkonto zu erstellen. Wenn der Benutzer bereits ein Konto hat, wird er ohne Passwort hinzugefügt.",
+      "forgotPassword": "Benutzer, die ihr Passwort vergessen, sollten sich an einen Admin wenden."
     },
     "roles": {
       "owner": "Inhaber",

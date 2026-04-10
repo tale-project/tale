@@ -1,3 +1,4 @@
+import { useForm } from 'react-hook-form';
 import { describe, it, expect, vi } from 'vitest';
 
 import { checkAccessibility, expectFocusable } from '@/test/utils/a11y';
@@ -72,6 +73,18 @@ describe('Input', () => {
       await user.click(toggle);
       expect(toggle).toHaveAttribute('aria-pressed', 'true');
     });
+
+    it('preserves caller style prop on password input', async () => {
+      const { user } = render(
+        <Input type="password" label="Password" style={{ color: 'red' }} />,
+      );
+      const input = screen.getByLabelText('Password');
+      const toggle = screen.getByRole('button', { name: /show password/i });
+
+      expect(input.style.color).toBe('red');
+      await user.click(toggle);
+      expect(input.style.color).toBe('red');
+    });
   });
 
   describe('interactions', () => {
@@ -139,6 +152,15 @@ describe('Input', () => {
       const input = screen.getByLabelText('Email');
       expect(input).toHaveAttribute('id', 'email-input');
     });
+
+    it('passes axe audit for password with toggle visible', async () => {
+      const { container, user } = render(
+        <Input type="password" label="Password" />,
+      );
+      const toggle = screen.getByRole('button', { name: /show password/i });
+      await user.click(toggle);
+      await checkAccessibility(container);
+    });
   });
 
   describe('error animation', () => {
@@ -175,6 +197,42 @@ describe('Input', () => {
       );
       const input = screen.getByLabelText('Password');
       expect(input).toHaveAttribute('autocomplete', 'new-password');
+    });
+  });
+
+  describe('react hook form integration', () => {
+    function PasswordForm() {
+      const { register } = useForm({
+        defaultValues: { password: 'secret123' },
+      });
+      return (
+        <Input type="password" label="Password" {...register('password')} />
+      );
+    }
+
+    it('toggles visibility on pre-filled field', async () => {
+      const { user } = render(<PasswordForm />);
+      const input = screen.getByLabelText('Password');
+      const toggle = screen.getByRole('button', { name: /show password/i });
+
+      expect(input).toHaveAttribute('type', 'password');
+      expect(input).toHaveValue('secret123');
+
+      await user.click(toggle);
+      expect(input).toHaveAttribute('type', 'text');
+      expect(input).toHaveValue('secret123');
+    });
+
+    it('toggles back to masked after revealing', async () => {
+      const { user } = render(<PasswordForm />);
+      const input = screen.getByLabelText('Password');
+      const toggle = screen.getByRole('button', { name: /show password/i });
+
+      await user.click(toggle);
+      expect(input).toHaveAttribute('type', 'text');
+
+      await user.click(toggle);
+      expect(input).toHaveAttribute('type', 'password');
     });
   });
 });

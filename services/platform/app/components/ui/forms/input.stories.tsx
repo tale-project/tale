@@ -162,6 +162,22 @@ export const Password: Story = {
   },
 };
 
+export const PasswordPreFilled: Story = {
+  args: {
+    label: 'Password',
+    type: 'password',
+    defaultValue: 'mysecretpassword',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Password input with a pre-filled value. Click the eye icon to verify the password becomes visible, even when browser autofill applies visual masking.',
+      },
+    },
+  },
+};
+
 export const PasswordWithError: Story = {
   args: {
     label: 'Password',

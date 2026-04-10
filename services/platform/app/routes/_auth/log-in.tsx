@@ -189,6 +189,7 @@ export function LogInPage() {
               disabled={isSubmitting}
               autoComplete="current-password"
               className="shadow-xs"
+              description={t('login.forgotPassword')}
               {...form.register('password', {
                 onChange: () => setLoginError(null),
               })}

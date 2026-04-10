@@ -182,6 +182,7 @@ export function AddMemberDialog({
             type="password"
             label={tSettings('form.password')}
             placeholder={tSettings('form.passwordPlaceholder')}
+            description={tSettings('form.forgotPassword')}
             {...register('password')}
             className="w-full"
           />
