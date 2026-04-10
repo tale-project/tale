@@ -10,6 +10,7 @@
 
 import type { ActionCtx } from '../../../_generated/server';
 import { createDebugLog } from '../../../lib/debug_log';
+import { formatWebResults } from './format_web_results';
 import { getCrawlerServiceUrl } from './get_crawler_service_url';
 
 const debugLog = createDebugLog('DEBUG_WEB_CONTEXT', '[WebContext]');
@@ -88,24 +89,20 @@ export async function queryWebContext(
         byUrl.set(result.url, existing);
       }
 
-      const formatted = Array.from(byUrl.entries())
+      const pages = Array.from(byUrl.entries())
         .map(([url, chunks]) => {
           const bestScore = Math.max(...chunks.map((c) => c.score));
           const title = chunks[0].title ?? url;
-          const contentParts = chunks
+          const content = chunks
             .sort((a, b) => a.chunk_index - b.chunk_index)
             .map((c) => c.chunk_content)
             .join('\n\n');
 
-          return {
-            text: `**${title}**\nURL: ${url}\nRelevance: ${(bestScore * 100).toFixed(1)}%\n\n${contentParts}`,
-            score: bestScore,
-          };
+          return { title, url, score: bestScore, content };
         })
-        .sort((a, b) => b.score - a.score)
-        .map((r) => r.text);
+        .sort((a, b) => b.score - a.score);
 
-      const webContext = formatted.join('\n\n---\n\n');
+      const webContext = formatWebResults(pages) ?? '';
 
       debugLog('Web context retrieved', {
         resultCount: results.length,

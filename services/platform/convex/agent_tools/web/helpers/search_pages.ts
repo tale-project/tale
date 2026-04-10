@@ -9,6 +9,7 @@ import type { ToolCtx } from '@convex-dev/agent';
 
 import { internal } from '../../../_generated/api';
 import { createDebugLog } from '../../../lib/debug_log';
+import { formatWebResults } from './format_web_results';
 import { getCrawlerServiceUrl } from './get_crawler_service_url';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
@@ -119,24 +120,20 @@ export async function searchPages(
     byUrl.set(result.url, existing);
   }
 
-  const formatted = Array.from(byUrl.entries())
+  const pages = Array.from(byUrl.entries())
     .map(([url, chunks]) => {
       const bestScore = Math.max(...chunks.map((c) => c.score));
       const title = chunks[0].title ?? url;
-      const contentParts = chunks
+      const content = chunks
         .sort((a, b) => a.chunk_index - b.chunk_index)
         .map((c) => c.chunk_content)
         .join('\n\n');
 
-      return {
-        text: `**${title}**\nURL: ${url}\nRelevance: ${(bestScore * 100).toFixed(1)}%\n\n${contentParts}`,
-        score: bestScore,
-      };
+      return { title, url, score: bestScore, content };
     })
-    .sort((a, b) => b.score - a.score)
-    .map((r) => r.text);
+    .sort((a, b) => b.score - a.score);
 
-  const output = formatted.join('\n\n---\n\n');
+  const output = formatWebResults(pages) ?? '';
 
   if (domainFallback) {
     return `No results found on ${validDomain}. Showing results from all indexed websites:\n\n${output}`;

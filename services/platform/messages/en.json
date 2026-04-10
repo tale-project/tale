@@ -2720,7 +2720,10 @@
       "source": "Source {number}",
       "page": "Page {page}",
       "relevance": "Relevance: {score}%",
-      "viewDocument": "View in document"
+      "viewDocument": "View in document",
+      "visitPage": "Visit page",
+      "showAllSources": "Show all {count} sources",
+      "hideSources": "Hide sources"
     },
     "feedback": {
       "helpful": "Helpful",
