@@ -30,13 +30,16 @@ interface BudgetEditorProps {
   organizationId: string;
 }
 
-const SCOPE_VALUES = ['default', 'user', 'team', 'role'] as const;
 const SCOPE_OPTIONS = [
   { value: 'default', label: 'Default' },
   { value: 'user', label: 'User' },
   { value: 'team', label: 'Team' },
   { value: 'role', label: 'Role' },
 ];
+
+function isScopeValue(v: string): v is BudgetRule['scope'] {
+  return SCOPE_OPTIONS.some((o) => o.value === v);
+}
 
 const ROLE_OPTIONS = [
   { value: 'admin', label: 'Admin' },
@@ -45,12 +48,15 @@ const ROLE_OPTIONS = [
   { value: 'member', label: 'Member' },
 ];
 
-const PERIOD_VALUES = ['monthly', 'weekly', 'daily'] as const;
 const PERIOD_OPTIONS = [
   { value: 'monthly', label: 'Monthly' },
   { value: 'weekly', label: 'Weekly', disabled: true },
   { value: 'daily', label: 'Daily', disabled: true },
 ];
+
+function isPeriodValue(v: string): v is BudgetRule['period'] {
+  return PERIOD_OPTIONS.some((o) => o.value === v);
+}
 
 function emptyRule(): BudgetRule {
   return {
@@ -132,8 +138,8 @@ function RuleDialog({
               options={SCOPE_OPTIONS}
               value={draft.scope}
               onValueChange={(value: string) => {
-                if (SCOPE_VALUES.includes(value as BudgetRule['scope'])) {
-                  updateDraft({ scope: value as BudgetRule['scope'] });
+                if (isScopeValue(value)) {
+                  updateDraft({ scope: value });
                 }
               }}
               disabled={cannotManage}
@@ -220,8 +226,8 @@ function RuleDialog({
               options={PERIOD_OPTIONS}
               value={draft.period}
               onValueChange={(value: string) => {
-                if (PERIOD_VALUES.includes(value as BudgetRule['period'])) {
-                  updateDraft({ period: value as BudgetRule['period'] });
+                if (isPeriodValue(value)) {
+                  updateDraft({ period: value });
                 }
               }}
               disabled
