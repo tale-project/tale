@@ -2730,6 +2730,19 @@
       "backToChat": "Zurück zum Chat",
       "inputPlaceholder": "Nachricht senden, um diese Unterhaltung fortzusetzen...",
       "inputHint": "Das Senden einer Nachricht erstellt Ihre eigene Kopie dieses Chats"
+    },
+    "export": {
+      "button": "Exportieren",
+      "title": "Chat exportieren",
+      "description": "Nachrichten auswählen und im gewünschten Format herunterladen.",
+      "selectAll": "Alle auswählen",
+      "deselectAll": "Alle abwählen",
+      "messagesCount": "{count} von {total} Nachrichten ausgewählt",
+      "downloadPdf": "PDF herunterladen",
+      "downloadMarkdown": "Markdown herunterladen",
+      "noMessages": "Keine Nachrichten zum Exportieren",
+      "you": "Sie",
+      "assistant": "Assistent"
     }
   },
   "documents": {

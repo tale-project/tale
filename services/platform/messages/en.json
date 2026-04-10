@@ -2769,6 +2769,19 @@
       "inputPlaceholder": "Send a message to continue this conversation...",
       "inputHint": "Sending a message will create your own copy of this chat"
     },
+    "export": {
+      "button": "Export",
+      "title": "Export chat",
+      "description": "Select messages and download in your preferred format.",
+      "selectAll": "Select all",
+      "deselectAll": "Deselect all",
+      "messagesCount": "{count} of {total} messages selected",
+      "downloadPdf": "Download PDF",
+      "downloadMarkdown": "Download Markdown",
+      "noMessages": "No messages to export",
+      "you": "You",
+      "assistant": "Assistant"
+    },
     "arena": {
       "title": "Arena Mode",
       "enable": "Enable Arena Mode",
