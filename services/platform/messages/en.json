@@ -3272,6 +3272,7 @@
     "importForm": {
       "manualEntry": "Manual entry",
       "upload": "Upload",
+      "formatHint": "Format: email, name (optional), locale (optional). One vendor per line.",
       "localeHint": "You can use the following supported locales: en, fr, de, zh, as well as extended formats like en-US, de-DE, and de-CH."
     },
     "editVendor": "Edit vendor",
