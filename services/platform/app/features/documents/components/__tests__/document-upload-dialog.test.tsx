@@ -256,13 +256,12 @@ describe('DocumentUploadDialog', () => {
 
     render(<DocumentUploadDialog {...defaultProps} />);
 
-    expect(
-      screen.getByText('documents.upload.uploadDocuments'),
-    ).toBeInTheDocument();
-    expect(screen.getByText('common.actions.cancel')).toBeInTheDocument();
+    const uploadButton = screen.getByText('documents.upload.uploadDocuments');
+    expect(uploadButton).toBeInTheDocument();
+    expect(uploadButton.closest('button')).not.toBeDisabled();
   });
 
-  it('does not show upload button while uploading', () => {
+  it('disables upload button while uploading', () => {
     mockHookState = {
       isUploading: true,
       trackedFiles: [
@@ -285,12 +284,11 @@ describe('DocumentUploadDialog', () => {
 
     render(<DocumentUploadDialog {...defaultProps} />);
 
-    expect(
-      screen.queryByText('documents.upload.uploadDocuments'),
-    ).not.toBeInTheDocument();
+    const uploadButton = screen.getByText('documents.upload.uploadDocuments');
+    expect(uploadButton.closest('button')).toBeDisabled();
   });
 
-  it('does not show upload button after all files completed', () => {
+  it('disables upload button after all files completed', () => {
     mockHookState = {
       isUploading: false,
       trackedFiles: [
@@ -313,9 +311,8 @@ describe('DocumentUploadDialog', () => {
 
     render(<DocumentUploadDialog {...defaultProps} />);
 
-    expect(
-      screen.queryByText('documents.upload.uploadDocuments'),
-    ).not.toBeInTheDocument();
+    const uploadButton = screen.getByText('documents.upload.uploadDocuments');
+    expect(uploadButton.closest('button')).toBeDisabled();
   });
 
   describe('accessibility', () => {
