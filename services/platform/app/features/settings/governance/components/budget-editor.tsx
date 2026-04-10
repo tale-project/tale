@@ -316,7 +316,7 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
                 </HStack>
 
                 <HStack gap={3} wrap>
-                  <div className="w-40">
+                  <div className="w-44">
                     <Input
                       label="Max Tokens"
                       type="number"
@@ -330,31 +330,40 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
                       }
                       disabled={cannotManage}
                       size="sm"
-                      placeholder="No limit"
+                      placeholder="e.g. 1000000"
                       min={0}
                     />
+                    <Text className="text-muted-foreground mt-1 text-xs">
+                      Total input + output tokens. 1M tokens ≈ 750K words.
+                    </Text>
                   </div>
 
-                  <div className="w-40">
+                  <div className="w-44">
                     <Input
-                      label="Max Cost (cents)"
+                      label="Max Cost (USD)"
                       type="number"
-                      value={rule.maxCostCents ?? ''}
+                      value={
+                        rule.maxCostCents != null ? rule.maxCostCents / 100 : ''
+                      }
                       onChange={(e) =>
                         updateRule(index, {
                           maxCostCents: e.target.value
-                            ? Number(e.target.value)
+                            ? Math.round(Number(e.target.value) * 100)
                             : undefined,
                         })
                       }
                       disabled={cannotManage}
                       size="sm"
-                      placeholder="No limit"
+                      placeholder="e.g. 50.00"
                       min={0}
+                      step={0.01}
                     />
+                    <Text className="text-muted-foreground mt-1 text-xs">
+                      Hard spending cap in USD. GPT-4o ≈ $10/1M tokens.
+                    </Text>
                   </div>
 
-                  <div className="w-40">
+                  <div className="w-44">
                     <Input
                       label="Max Requests"
                       type="number"
@@ -368,9 +377,12 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
                       }
                       disabled={cannotManage}
                       size="sm"
-                      placeholder="No limit"
+                      placeholder="e.g. 500"
                       min={0}
                     />
+                    <Text className="text-muted-foreground mt-1 text-xs">
+                      Total AI requests per month. Leave empty for no limit.
+                    </Text>
                   </div>
                 </HStack>
               </Stack>
