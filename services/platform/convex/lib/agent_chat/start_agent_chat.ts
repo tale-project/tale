@@ -231,6 +231,12 @@ export async function startAgentChat(
         threadId,
         message: { role: 'assistant', content: budgetMessage },
       });
+      if (threadMeta) {
+        await ctx.db.patch(threadMeta._id, {
+          generationStatus: 'idle' as const,
+          updatedAt: Date.now(),
+        });
+      }
       return { messageAlreadyExists, streamId };
     }
   }
