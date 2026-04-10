@@ -75,6 +75,13 @@ export function ModelSelector({ organizationId }: ModelSelectorProps) {
     [modelInfoMap, t],
   );
 
+  const filteredModels = useMemo(() => {
+    return supportedModels.filter((modelId) => {
+      const info = modelInfoMap.get(modelId);
+      return info?.tags.includes('chat');
+    });
+  }, [supportedModels, modelInfoMap]);
+
   const getDisplayName = useCallback(
     (modelId: string) =>
       modelInfoMap.get(modelId)?.displayName ?? getModelShortName(modelId),
@@ -83,19 +90,19 @@ export function ModelSelector({ organizationId }: ModelSelectorProps) {
 
   const currentModelId =
     (effectiveAgent?.name && selectedModelOverrides[effectiveAgent.name]) ||
-    supportedModels[0] ||
+    filteredModels[0] ||
     null;
 
   // Clear stale override when agent changes
   useEffect(() => {
     if (!effectiveAgent?.name) return;
     const override = selectedModelOverrides[effectiveAgent.name];
-    if (override && !supportedModels.includes(override)) {
+    if (override && !filteredModels.includes(override)) {
       setSelectedModelOverride(effectiveAgent.name, null);
     }
   }, [
     effectiveAgent?.name,
-    supportedModels,
+    filteredModels,
     selectedModelOverrides,
     setSelectedModelOverride,
   ]);
@@ -103,13 +110,13 @@ export function ModelSelector({ organizationId }: ModelSelectorProps) {
   const handleSelect = useCallback(
     (modelId: string) => {
       if (!effectiveAgent?.name) return;
-      if (modelId === supportedModels[0]) {
+      if (modelId === filteredModels[0]) {
         setSelectedModelOverride(effectiveAgent.name, null);
       } else {
         setSelectedModelOverride(effectiveAgent.name, modelId);
       }
     },
-    [effectiveAgent?.name, supportedModels, setSelectedModelOverride],
+    [effectiveAgent?.name, filteredModels, setSelectedModelOverride],
   );
 
   if (!currentModelId) return null;
@@ -117,7 +124,7 @@ export function ModelSelector({ organizationId }: ModelSelectorProps) {
   const currentLabel = getDisplayName(currentModelId);
 
   // Single model — show as read-only text
-  if (supportedModels.length <= 1) {
+  if (filteredModels.length <= 1) {
     return (
       <span className="text-muted-foreground flex items-center gap-1.5 text-xs">
         <Cpu className="size-3.5" aria-hidden="true" />
@@ -126,7 +133,7 @@ export function ModelSelector({ organizationId }: ModelSelectorProps) {
     );
   }
 
-  const options = supportedModels.map((modelId) => ({
+  const options = filteredModels.map((modelId) => ({
     value: modelId,
     label: getDisplayName(modelId),
     description: modelInfoMap.get(modelId)?.description,
