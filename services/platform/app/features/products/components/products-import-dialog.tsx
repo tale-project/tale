@@ -14,7 +14,7 @@ import {
   PRODUCT_STATUS,
 } from '@/lib/shared/constants/convex-enums';
 
-import { useCreateProduct } from '../hooks/mutations';
+import { useBulkCreateProducts } from '../hooks/mutations';
 import { ProductImportForm } from './product-import-form';
 
 type FormValues = {
@@ -65,7 +65,7 @@ export function ProductsImportDialog({
     formState: { isSubmitting },
   } = formMethods;
 
-  const createProduct = useCreateProduct();
+  const { mutateAsync: bulkCreateProducts } = useBulkCreateProducts();
 
   const validateStatus = useCallback(
     (value: unknown): ProductStatus =>
@@ -146,45 +146,21 @@ export function ProductsImportDialog({
           return;
         }
 
-        const results = await Promise.allSettled(
-          products.map((product) =>
-            createProduct.mutateAsync({
-              organizationId,
-              name: product.name,
-              description: product.description,
-              imageUrl: product.imageUrl,
-              stock: product.stock,
-              price: product.price,
-              currency: product.currency,
-              category: product.category,
-              status: product.status,
-            }),
-          ),
-        );
+        const result = await bulkCreateProducts({
+          organizationId,
+          products,
+        });
 
-        const successCount = results.filter(
-          (r) => r.status === 'fulfilled',
-        ).length;
-        const failedCount = results.filter(
-          (r) => r.status === 'rejected',
-        ).length;
-        if (successCount > 0) {
-          if (failedCount > 0) {
-            const importErrors = results
-              .map((result, index) =>
-                result.status === 'rejected'
-                  ? `Failed to import ${products[index].name}: ${result.reason}`
-                  : null,
-              )
-              .filter((error): error is string => error !== null);
-            console.warn('Import errors:', importErrors);
+        if (result.success > 0) {
+          if (result.errors.length > 0) {
+            console.warn('Import errors:', result.errors);
           }
 
           toast({
             title: t('import.success'),
             description: t('import.successDescription', {
-              count: successCount,
-              failed: failedCount,
+              count: result.success,
+              failed: result.failed,
             }),
             variant: 'success',
           });
@@ -206,7 +182,7 @@ export function ProductsImportDialog({
         });
       }
     },
-    [parseFile, createProduct, organizationId, t, onSuccess, handleClose],
+    [parseFile, bulkCreateProducts, organizationId, t, onSuccess, handleClose],
   );
 
   return (
