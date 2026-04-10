@@ -81,7 +81,7 @@ export function VendorImportForm({
         <FormSection>
           <Textarea
             placeholder={
-              'vendor@example.com\nvendor2@example.com,en\nvendor3@example.com,es'
+              'vendor@example.com,Acme Corp\nvendor2@example.com,Beta Inc,en\nvendor3@example.com,,es'
             }
             className="min-h-[200px] font-mono text-sm"
             errorMessage={
