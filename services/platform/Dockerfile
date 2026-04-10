@@ -66,6 +66,8 @@ COPY services/platform/vite-plugins ./services/platform/vite-plugins
 
 COPY services/platform/docker-entrypoint.sh \
      services/platform/generate-admin-key.sh \
+     services/platform/reset-owner.sh \
+     services/platform/reset-owner.ts \
      services/platform/env.sh \
      ./services/platform/
 
@@ -233,9 +235,9 @@ COPY --from=pruner --chown=app:app /app/services/platform/convex ./convex
 COPY --from=pruner --chown=app:app /app/services/platform/lib ./lib
 COPY --from=pruner --chown=app:app /app/node_modules ./node_modules
 COPY --from=pruner --chown=app:app /app/services/platform/package.json ./
-COPY --from=pruner --chown=app:app /app/services/platform/docker-entrypoint.sh /app/services/platform/generate-admin-key.sh /app/services/platform/env.sh ./
+COPY --from=pruner --chown=app:app /app/services/platform/docker-entrypoint.sh /app/services/platform/generate-admin-key.sh /app/services/platform/reset-owner.sh /app/services/platform/reset-owner.ts /app/services/platform/env.sh ./
 
-RUN chmod +x ./docker-entrypoint.sh ./generate-admin-key.sh
+RUN chmod +x ./docker-entrypoint.sh ./generate-admin-key.sh ./reset-owner.sh
 
 EXPOSE 3000 3210 3211 6791
 HEALTHCHECK --interval=30s --timeout=3s CMD curl -f http://localhost:3000/api/health || exit 1

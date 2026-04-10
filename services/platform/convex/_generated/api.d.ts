@@ -649,8 +649,10 @@ import type * as users_create_user_without_session from "../users/create_user_wi
 import type * as users_get_user_by_email from "../users/get_user_by_email.js";
 import type * as users_has_any_users from "../users/has_any_users.js";
 import type * as users_helpers from "../users/helpers.js";
+import type * as users_internal_mutations from "../users/internal_mutations.js";
 import type * as users_mutations from "../users/mutations.js";
 import type * as users_queries from "../users/queries.js";
+import type * as users_reset_owner from "../users/reset_owner.js";
 import type * as users_set_member_password from "../users/set_member_password.js";
 import type * as users_types from "../users/types.js";
 import type * as users_update_user_name from "../users/update_user_name.js";
@@ -1561,8 +1563,10 @@ declare const fullApi: ApiFromModules<{
   "users/get_user_by_email": typeof users_get_user_by_email;
   "users/has_any_users": typeof users_has_any_users;
   "users/helpers": typeof users_helpers;
+  "users/internal_mutations": typeof users_internal_mutations;
   "users/mutations": typeof users_mutations;
   "users/queries": typeof users_queries;
+  "users/reset_owner": typeof users_reset_owner;
   "users/set_member_password": typeof users_set_member_password;
   "users/types": typeof users_types;
   "users/update_user_name": typeof users_update_user_name;

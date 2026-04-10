@@ -1,28 +1,6 @@
 import * as logger from '../../utils/logger';
 import { docker } from '../docker/docker';
-import { isContainerRunning } from '../docker/is-container-running';
-import { listContainers } from '../docker/list-containers';
-
-async function findPlatformContainer(): Promise<string> {
-  if (await isContainerRunning('tale-platform-blue')) {
-    return 'tale-platform-blue';
-  }
-  if (await isContainerRunning('tale-platform-green')) {
-    return 'tale-platform-green';
-  }
-
-  const containers = await listContainers('name=tale');
-  const platform = containers.find(
-    (c) => /platform/.test(c.name) && c.status.startsWith('Up'),
-  );
-  if (platform) {
-    return platform.name;
-  }
-
-  throw new Error(
-    'No platform container is running. Start the platform first with: tale deploy',
-  );
-}
+import { findPlatformContainer } from '../docker/find-platform-container';
 
 export async function convexAdmin(): Promise<void> {
   logger.step('Detecting platform container...');
