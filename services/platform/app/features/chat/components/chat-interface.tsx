@@ -322,7 +322,7 @@ export function ChatInterface({
       mutationObserver.disconnect();
       container.removeEventListener('scroll', onScroll);
     };
-  }, [containerRef, contentRef, isAtBottom]);
+  }, [containerRef, contentRef, isAtBottom, arenaContext?.isArenaMode]);
 
   // Scroll to bottom on thread initial load.
   const scrolledForThreadRef = useRef<string | null>(null);
