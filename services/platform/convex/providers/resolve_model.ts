@@ -24,6 +24,8 @@ export interface ResolvedModelData {
   modelId: string;
   dimensions?: number;
   supportsStructuredOutputs: boolean;
+  inputCentsPerMillion?: number;
+  outputCentsPerMillion?: number;
 }
 
 interface ResolvedLanguageModel {

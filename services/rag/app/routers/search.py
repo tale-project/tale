@@ -11,6 +11,7 @@ from ..models import (
     QueryRequest,
     QueryResponse,
     SearchResult,
+    UsageInfo,
 )
 from ..services.rag_service import rag_service
 
@@ -45,12 +46,22 @@ async def search(request: QueryRequest):
             for r in results
         ]
 
+        usage = None
+        search_usage = getattr(rag_service, "last_search_usage", None)
+        if search_usage:
+            usage = UsageInfo(
+                input_tokens=search_usage.prompt_tokens,
+                total_tokens=search_usage.total_tokens,
+                model=search_usage.model,
+            )
+
         return QueryResponse(
             success=True,
             query=request.query,
             results=search_results,
             total_results=len(search_results),
             processing_time_ms=processing_time,
+            usage=usage,
         )
 
     except Exception as e:
@@ -87,12 +98,16 @@ async def generate(request: GenerateRequest):
             for s in result.get("sources", [])
         ]
 
+        usage_data = result.get("usage")
+        gen_usage = UsageInfo(**usage_data) if usage_data else None
+
         return GenerateResponse(
             success=result.get("success", False),
             query=request.query,
             response=result.get("response", ""),
             sources=sources,
             processing_time_ms=result.get("processing_time_ms", 0),
+            usage=gen_usage,
         )
 
     except Exception as e:

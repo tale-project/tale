@@ -37,8 +37,6 @@ export const usageLedgerTable = defineTable({
   outputTokens: v.number(),
   totalTokens: v.number(),
   costEstimate: v.number(),
-  estimatedCostEur: v.number(),
-  estimatedCostUsd: v.number(),
   requestCount: v.number(),
 })
   .index('by_org_user_period', ['organizationId', 'userId', 'periodKey'])

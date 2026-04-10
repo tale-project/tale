@@ -10,7 +10,7 @@ from urllib.parse import urljoin, urlparse
 import httpx
 from loguru import logger
 
-from .vision.openai_client import vision_client
+from .vision.openai_client import UsageAccumulator, vision_client
 
 MAX_IMAGES_TO_PROCESS = 10
 MIN_IMAGE_BYTES = 10_000  # ~10KB, skip tiny images
@@ -105,6 +105,7 @@ async def extract_and_describe_images(
     media_images: list[dict],
     page_url: str,
     max_concurrent: int = 3,
+    usage: UsageAccumulator | None = None,
 ) -> tuple[list[str], bool]:
     """Download significant images from a web page and describe them using Vision API.
 
@@ -133,7 +134,7 @@ async def extract_and_describe_images(
         describe_tasks = []
         for image_bytes in downloaded:
             if image_bytes is not None:
-                describe_tasks.append(vision_client.describe_image(image_bytes))
+                describe_tasks.append(vision_client.describe_image(image_bytes, usage=usage))
 
         if describe_tasks:
             results = await asyncio.gather(*describe_tasks, return_exceptions=True)

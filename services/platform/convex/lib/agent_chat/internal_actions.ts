@@ -395,6 +395,10 @@ export const runAgentGeneration = internalAction({
           threadId,
           organizationId,
           userId,
+          agentSlug: args.agentSlug,
+          teamIds: agentConfig.agentTeamId
+            ? [agentConfig.agentTeamId]
+            : undefined,
           promptMessage,
           additionalContext,
           userContext,

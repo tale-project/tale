@@ -17,6 +17,7 @@ import { isSpreadsheet } from '../../../lib/shared/file-types';
 import { components, internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
+import { checkBudget } from '../../governance/budget_enforcement';
 import { persistentStreaming } from '../../streaming/helpers';
 import type { FileAttachment } from '../attachments';
 import type { AgentType } from '../context_management/constants';
@@ -212,6 +213,20 @@ export async function startAgentChat(
     (agentConfig.timeoutMs ??
       AGENT_CONTEXT_CONFIGS[agentType]?.timeoutMs ??
       420_000);
+
+  // Budget enforcement — block before scheduling if limits are exceeded
+  const userId = thread?.userId;
+  if (userId) {
+    const budgetResult = await checkBudget(
+      ctx,
+      organizationId,
+      userId,
+      agentConfig.agentTeamId ? [agentConfig.agentTeamId] : [],
+    );
+    if (!budgetResult.allowed) {
+      throw new Error(budgetResult.reason ?? 'Budget limit exceeded');
+    }
+  }
 
   // Schedule the generic agent action with full configuration
   debugLog('SCHEDULE_ACTION', {

@@ -34,14 +34,28 @@ export async function readPolicyConfig<T>(
 }
 
 /**
- * Build a period key for the current period.
+ * Build a period key for the current time.
  * Format: daily=YYYY-MM-DD, weekly=YYYY-Www, monthly=YYYY-MM
+ *
+ * Uses `new Date()` internally — prefer `buildPeriodKeyFromTimestamp`
+ * in mutations to avoid non-determinism on retry.
  */
 export function buildPeriodKey(period: 'daily' | 'weekly' | 'monthly'): string {
-  const now = new Date();
-  const year = now.getUTCFullYear();
-  const month = String(now.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(now.getUTCDate()).padStart(2, '0');
+  return buildPeriodKeyFromTimestamp(period, Date.now());
+}
+
+/**
+ * Build a period key from an explicit timestamp (milliseconds since epoch).
+ * Deterministic — safe for use inside Convex mutations.
+ */
+export function buildPeriodKeyFromTimestamp(
+  period: 'daily' | 'weekly' | 'monthly',
+  timestamp: number,
+): string {
+  const date = new Date(timestamp);
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
 
   switch (period) {
     case 'daily':
@@ -49,7 +63,7 @@ export function buildPeriodKey(period: 'daily' | 'weekly' | 'monthly'): string {
     case 'weekly': {
       const jan1 = new Date(Date.UTC(year, 0, 1));
       const dayOfYear =
-        Math.floor((now.getTime() - jan1.getTime()) / (24 * 60 * 60 * 1000)) +
+        Math.floor((date.getTime() - jan1.getTime()) / (24 * 60 * 60 * 1000)) +
         1;
       const weekNum = Math.ceil(dayOfYear / 7);
       return `${year}-W${String(weekNum).padStart(2, '0')}`;
@@ -57,5 +71,4 @@ export function buildPeriodKey(period: 'daily' | 'weekly' | 'monthly'): string {
     case 'monthly':
       return `${year}-${month}`;
   }
-  return `${year}-${month}`;
 }

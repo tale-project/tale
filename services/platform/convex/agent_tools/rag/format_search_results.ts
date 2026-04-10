@@ -16,12 +16,20 @@ export interface SearchResult {
   metadata?: Record<string, unknown>;
 }
 
+export interface ServiceUsageInfo {
+  input_tokens: number;
+  output_tokens?: number;
+  total_tokens: number;
+  model?: string;
+}
+
 export interface SearchResponse {
   success: boolean;
   query: string;
   results: SearchResult[];
   total_results: number;
   processing_time_ms: number;
+  usage?: ServiceUsageInfo;
 }
 
 /**

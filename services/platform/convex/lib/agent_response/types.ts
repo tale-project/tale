@@ -123,6 +123,8 @@ export interface GenerateResponseArgs {
     coordinates?: string;
     location?: string;
   };
+  agentSlug?: string;
+  teamIds?: string[];
   parentThreadId?: string;
   agentOptions?: Record<string, unknown>;
   attachments?: FileAttachment[];

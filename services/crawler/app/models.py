@@ -390,6 +390,9 @@ class WebFetchExtractResponse(BaseModel):
     page_count: int = Field(..., description="Number of pages in PDF")
     vision_used: bool = Field(False, description="Whether Vision API was used for extraction")
     error: str | None = Field(None, description="Error message if operation failed")
+    usage: dict[str, Any] | None = Field(
+        None, description="AI token usage (input_tokens, output_tokens, total_tokens, model)"
+    )
 
 
 # ==================== Search Models ====================

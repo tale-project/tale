@@ -190,6 +190,8 @@ export async function generateAgentResponse(
     promptMessage,
     additionalContext,
     userContext,
+    agentSlug,
+    teamIds,
     parentThreadId,
     agentOptions,
     streamId,
@@ -397,6 +399,10 @@ export async function generateAgentResponse(
               contextWindow: cancelContextWindow,
               contextStats: cancelContextStats,
             },
+            organizationId,
+            userId,
+            teamIds,
+            agentSlug,
           });
         } catch (metaError) {
           console.error(
@@ -664,11 +670,18 @@ export async function generateAgentResponse(
         }
 
         const durationMs = Date.now() - startTime;
+        // Zero out usage for cached responses — tokens were already counted
+        // when the original (non-cached) response was generated.
+        const zeroUsage = {
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+        };
         const cachedResult: GenerateResponseResult = {
           threadId,
           text: cached.responseText,
           savedMessageId: messageId,
-          usage: cached.usage,
+          usage: zeroUsage,
           finishReason: 'cached',
           durationMs,
           model: cached.model,
@@ -687,9 +700,13 @@ export async function generateAgentResponse(
             text: cached.responseText,
             model: cached.model,
             provider: cached.provider,
-            usage: cached.usage,
+            usage: zeroUsage,
             durationMs,
           },
+          organizationId,
+          userId,
+          teamIds,
+          agentSlug,
         });
 
         abortWatcher?.stop();
@@ -1429,6 +1446,10 @@ export async function generateAgentResponse(
         contextWindow: completeContextWindow,
         contextStats: responseResult.contextStats,
       },
+      organizationId,
+      userId,
+      teamIds,
+      agentSlug,
     });
 
     // Link approvals to message (only for main agent, not sub-agents)
@@ -1802,6 +1823,10 @@ export async function generateAgentResponse(
             contextStats: structuredThreadContext?.stats,
             error: errorMessage || 'Unknown error',
           },
+          organizationId,
+          userId,
+          teamIds,
+          agentSlug,
         });
       } catch (metadataError) {
         console.error(

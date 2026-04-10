@@ -148,6 +148,7 @@ async def _extract_from_file(
         word_count=word_count,
         page_count=page_count,
         vision_used=result.get("vision_used", False),
+        usage=result.get("usage"),
     )
 
 
@@ -158,16 +159,17 @@ async def _extract_from_image(
     timeout: float,
 ) -> WebFetchExtractResponse:
     """Download an image URL and extract content using Vision API (OCR + description)."""
-    from app.services.vision.openai_client import process_pages_with_llm, vision_client
+    from app.services.vision.openai_client import UsageAccumulator, process_pages_with_llm, vision_client
 
     logger.info(f"Downloading image: {url_str}")
     image_bytes, actual_ct = await download_file(url_str, timeout)
     logger.info(f"Downloaded image ({len(image_bytes)} bytes), extracting with Vision API")
 
     detected_ct = actual_ct or content_type or ""
+    usage_acc = UsageAccumulator()
 
-    ocr_text = await vision_client.ocr_image(image_bytes)
-    description = await vision_client.describe_image(image_bytes)
+    ocr_text = await vision_client.ocr_image(image_bytes, usage=usage_acc)
+    description = await vision_client.describe_image(image_bytes, usage=usage_acc)
 
     parts = []
     if description:
@@ -178,7 +180,7 @@ async def _extract_from_image(
     full_text = "\n\n".join(parts) if parts else ""
 
     if instruction and full_text:
-        processed = await process_pages_with_llm([full_text], instruction, max_concurrent=1)
+        processed = await process_pages_with_llm([full_text], instruction, max_concurrent=1, usage=usage_acc)
         full_text = "\n\n".join(processed)
 
     word_count = len(full_text.split()) if full_text else 0
@@ -193,6 +195,7 @@ async def _extract_from_image(
         word_count=word_count,
         page_count=1,
         vision_used=True,
+        usage=usage_acc.to_dict(),
     )
 
 
@@ -219,7 +222,7 @@ async def _extract_from_webpage(
     Returns:
         Extracted content with metadata
     """
-    from app.services.vision.openai_client import process_pages_with_llm
+    from app.services.vision.openai_client import UsageAccumulator, process_pages_with_llm
 
     crawler = get_crawler_service()
     if not crawler.initialized:
@@ -254,8 +257,9 @@ async def _extract_from_webpage(
     title = crawl_result.get("title")
     media_images = crawl_result.get("media_images", [])
     structured_data = crawl_result.get("structured_data", {})
+    usage_acc = UsageAccumulator()
 
-    image_descriptions, vision_used = await extract_and_describe_images(media_images, url_str)
+    image_descriptions, vision_used = await extract_and_describe_images(media_images, url_str, usage=usage_acc)
 
     parts = [markdown_content]
 
@@ -272,7 +276,7 @@ async def _extract_from_webpage(
     full_text = "\n\n".join(filter(None, parts))
 
     if instruction and full_text:
-        processed = await process_pages_with_llm([full_text], instruction, max_concurrent=3)
+        processed = await process_pages_with_llm([full_text], instruction, max_concurrent=3, usage=usage_acc)
         full_text = "\n\n".join(processed)
 
     word_count = len(full_text.split()) if full_text else 0
@@ -290,6 +294,7 @@ async def _extract_from_webpage(
         word_count=word_count,
         page_count=0,
         vision_used=vision_used,
+        usage=usage_acc.to_dict(),
     )
 
 

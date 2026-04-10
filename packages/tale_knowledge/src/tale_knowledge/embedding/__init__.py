@@ -1,5 +1,15 @@
 """Embedding generation service."""
 
-from .service import EmbeddingService
+from .service import (
+    EmbeddingQueryResult,
+    EmbeddingResult,
+    EmbeddingService,
+    EmbeddingUsage,
+)
 
-__all__ = ["EmbeddingService"]
+__all__ = [
+    "EmbeddingQueryResult",
+    "EmbeddingResult",
+    "EmbeddingService",
+    "EmbeddingUsage",
+]
