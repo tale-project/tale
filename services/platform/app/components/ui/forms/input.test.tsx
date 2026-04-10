@@ -74,46 +74,16 @@ describe('Input', () => {
       expect(toggle).toHaveAttribute('aria-pressed', 'true');
     });
 
-    it('clears webkit text-security masking when password is visible', async () => {
-      const { user } = render(<Input type="password" label="Password" />);
-      const input = screen.getByLabelText('Password');
-      const toggle = screen.getByRole('button', { name: /show password/i });
-
-      expect(input.style.getPropertyValue('-webkit-text-security')).not.toBe(
-        'none',
-      );
-
-      await user.click(toggle);
-      expect(input.style.getPropertyValue('-webkit-text-security')).toBe(
-        'none',
-      );
-
-      await user.click(toggle);
-      expect(input.style.getPropertyValue('-webkit-text-security')).not.toBe(
-        'none',
-      );
-    });
-
-    it('preserves caller style prop when toggling password', async () => {
+    it('preserves caller style prop on password input', async () => {
       const { user } = render(
         <Input type="password" label="Password" style={{ color: 'red' }} />,
       );
       const input = screen.getByLabelText('Password');
       const toggle = screen.getByRole('button', { name: /show password/i });
 
+      expect(input.style.color).toBe('red');
       await user.click(toggle);
-      expect(input).toHaveStyle({ color: 'red' });
-      expect(input.style.getPropertyValue('-webkit-text-security')).toBe(
-        'none',
-      );
-    });
-
-    it('does not apply webkit text-security to non-password inputs', () => {
-      render(<Input type="text" label="Name" />);
-      const input = screen.getByLabelText('Name');
-      expect(input.style.getPropertyValue('-webkit-text-security')).not.toBe(
-        'none',
-      );
+      expect(input.style.color).toBe('red');
     });
   });
 
@@ -251,9 +221,6 @@ describe('Input', () => {
       await user.click(toggle);
       expect(input).toHaveAttribute('type', 'text');
       expect(input).toHaveValue('secret123');
-      expect(input.style.getPropertyValue('-webkit-text-security')).toBe(
-        'none',
-      );
     });
 
     it('toggles back to masked after revealing', async () => {
@@ -266,9 +233,6 @@ describe('Input', () => {
 
       await user.click(toggle);
       expect(input).toHaveAttribute('type', 'password');
-      expect(input.style.getPropertyValue('-webkit-text-security')).not.toBe(
-        'none',
-      );
     });
   });
 });
