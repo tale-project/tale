@@ -1,7 +1,7 @@
 'use client';
 
 import { useNavigate } from '@tanstack/react-router';
-import { Clock, Search, Share, Plus } from 'lucide-react';
+import { Clock, Download, Search, Share, Plus } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
 
 import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils/cn';
 
 import { ChatHistorySidebar } from './chat-history-sidebar';
 import { ChatSearchDialog } from './chat-search-dialog';
+import { ExportChatDialog } from './export-chat-dialog';
 import { ShareChatDialog } from './share-chat-dialog';
 interface ChatHeaderProps {
   organizationId: string;
@@ -26,6 +27,7 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isMobileHistoryOpen, setIsMobileHistoryOpen] = useState(false);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [isMac, setIsMac] = useState(false);
 
   const { t: tChat } = useT('chat');
@@ -191,6 +193,16 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
             <Button
               variant="ghost"
               size="sm"
+              onClick={() => setIsExportDialogOpen(true)}
+              aria-label={tChat('export.button')}
+              className="text-muted-foreground gap-1.5"
+            >
+              <Download className="size-4" />
+              {tChat('export.button')}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setIsShareDialogOpen(true)}
               aria-label={tChat('share.button')}
               className="text-muted-foreground gap-1.5"
@@ -221,16 +233,27 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
             <Search className={baseIconClasses} />
           </Button>
           {threadId && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsShareDialogOpen(true)}
-              aria-label={tChat('share.button')}
-              className="text-muted-foreground gap-1.5"
-            >
-              <Share className="size-4" />
-              {tChat('share.button')}
-            </Button>
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsExportDialogOpen(true)}
+                aria-label={tChat('export.button')}
+                className="text-muted-foreground gap-1.5"
+              >
+                <Download className="size-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsShareDialogOpen(true)}
+                aria-label={tChat('share.button')}
+                className="text-muted-foreground gap-1.5"
+              >
+                <Share className="size-4" />
+                {tChat('share.button')}
+              </Button>
+            </>
           )}
           <Button
             size="icon"
@@ -250,12 +273,20 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
       />
 
       {threadId && (
-        <ShareChatDialog
-          open={isShareDialogOpen}
-          onOpenChange={setIsShareDialogOpen}
-          threadId={threadId}
-          organizationId={organizationId}
-        />
+        <>
+          <ExportChatDialog
+            open={isExportDialogOpen}
+            onOpenChange={setIsExportDialogOpen}
+            threadId={threadId}
+            organizationId={organizationId}
+          />
+          <ShareChatDialog
+            open={isShareDialogOpen}
+            onOpenChange={setIsShareDialogOpen}
+            threadId={threadId}
+            organizationId={organizationId}
+          />
+        </>
       )}
     </>
   );

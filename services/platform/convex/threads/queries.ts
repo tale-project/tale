@@ -5,6 +5,7 @@ import { v } from 'convex/values';
 import { components } from '../_generated/api';
 import { query } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls';
+import { getThreadMessages as getThreadMessagesHelper } from './get_thread_messages';
 import { getThreadMessagesStreaming as getThreadMessagesStreamingHelper } from './get_thread_messages_streaming';
 import { listArchivedThreads as listArchivedThreadsHelper } from './list_archived_threads';
 import { listThreads as listThreadsHelper } from './list_threads';
@@ -81,6 +82,17 @@ export const isThreadGenerating = query({
     }
 
     return true;
+  },
+});
+
+export const getThreadMessages = query({
+  args: { threadId: v.string() },
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) {
+      return { messages: [] };
+    }
+    return await getThreadMessagesHelper(ctx, args.threadId);
   },
 });
 
