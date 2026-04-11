@@ -2,8 +2,10 @@ import { v } from 'convex/values';
 
 import { query } from '../_generated/server';
 import { authComponent } from '../auth';
+import { getUserTeamIds } from '../lib/get_user_teams';
 import { getOrganizationMember } from '../lib/rls';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
+import { resolveFeatureFlags } from './feature_enforcement';
 import { GOVERNANCE_POLICY_TYPES } from './schema';
 
 const policyTypeValidator = v.union(
@@ -150,5 +152,33 @@ export const getUsageSummary = query({
         },
       ),
     };
+  },
+});
+
+export const getMyFeatureFlags = query({
+  args: {
+    organizationId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) {
+      throw new Error('Unauthenticated');
+    }
+
+    const userId = String(authUser._id);
+    const member = await getOrganizationMember(ctx, args.organizationId, {
+      userId,
+      email: authUser.email,
+      name: authUser.name,
+    });
+
+    const teamIds = await getUserTeamIds(ctx, userId);
+    return resolveFeatureFlags(
+      ctx,
+      args.organizationId,
+      userId,
+      teamIds,
+      member.role,
+    );
   },
 });

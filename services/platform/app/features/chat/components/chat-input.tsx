@@ -43,6 +43,7 @@ interface ChatInputProps extends Omit<
   uploadFiles: (files: File[]) => Promise<void>;
   removeAttachment: (fileId: Id<'_storage'>) => void;
   clearAttachments: () => FileAttachment[];
+  fileUploadDisabled?: boolean;
   isIndexing?: boolean;
   indexingStatuses?: Map<
     Id<'_storage'>,
@@ -65,6 +66,7 @@ export function ChatInput({
   uploadFiles,
   removeAttachment,
   clearAttachments,
+  fileUploadDisabled = false,
   isIndexing = false,
   indexingStatuses,
   ...restProps
@@ -124,7 +126,7 @@ export function ChatInput({
   };
 
   const handlePaste = (e: React.ClipboardEvent) => {
-    if (inputDisabled) return;
+    if (inputDisabled || fileUploadDisabled) return;
     const items = e.clipboardData?.items;
     if (!items) return;
 
@@ -165,7 +167,7 @@ export function ChatInput({
         className="relative flex h-full min-h-0 flex-1 flex-col"
         onFilesSelected={uploadFiles}
         clickable={false}
-        disabled={inputDisabled}
+        disabled={inputDisabled || fileUploadDisabled}
       >
         <FileUpload.Overlay className="mx-2 rounded-t-3xl" />
         <input
@@ -351,17 +353,19 @@ export function ChatInput({
 
           <HStack justify="between" align="center" className="pb-3">
             <HStack gap={3} align="center">
-              <Tooltip content={tDialogs('attach')} side="top">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={inputDisabled}
-                  aria-label={tDialogs('attach')}
-                >
-                  <Paperclip className="size-4" />
-                </Button>
-              </Tooltip>
+              {!fileUploadDisabled && (
+                <Tooltip content={tDialogs('attach')} side="top">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={inputDisabled}
+                    aria-label={tDialogs('attach')}
+                  >
+                    <Paperclip className="size-4" />
+                  </Button>
+                </Tooltip>
+              )}
               <ArenaModeToggle disabled={isLoading} />
               {isArenaMode ? (
                 <ArenaModelSelector organizationId={organizationId} />

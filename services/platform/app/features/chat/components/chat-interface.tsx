@@ -17,6 +17,7 @@ import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
+import { useMyFeatureFlags } from '../../settings/governance/hooks/queries';
 import { useBranchContext } from '../context/branch-context';
 import { useChatLayout } from '../context/chat-layout-context';
 import { useEditAndBranch, useForkOwnThread } from '../hooks/mutations';
@@ -143,6 +144,9 @@ export function ChatInterface({
 
   const { isIndexing, statusMap: indexingStatuses } =
     useFileIndexingStatus(attachments);
+
+  const { data: featureFlags } = useMyFeatureFlags(organizationId);
+  const fileUploadDisabled = featureFlags?.fileUpload === false;
 
   usePersistedAttachments({
     userId: user?.userId,
@@ -695,6 +699,7 @@ export function ChatInterface({
               uploadFiles={uploadFiles}
               removeAttachment={removeAttachment}
               clearAttachments={clearAttachments}
+              fileUploadDisabled={fileUploadDisabled}
               isIndexing={isIndexing}
               indexingStatuses={indexingStatuses}
             />

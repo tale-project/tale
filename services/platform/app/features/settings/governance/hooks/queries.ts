@@ -20,3 +20,9 @@ export function useGovernancePolicy(
     policyType,
   });
 }
+
+export function useMyFeatureFlags(organizationId: string) {
+  return useConvexQuery(api.governance.queries.getMyFeatureFlags, {
+    organizationId,
+  });
+}

@@ -108,6 +108,10 @@ function RuleDialog({
     }
   }, [open, initialRule]);
 
+  const isDirty = useMemo(() => {
+    return JSON.stringify(draft) !== JSON.stringify(initialRule);
+  }, [draft, initialRule]);
+
   const updateDraft = useCallback((patch: Partial<FeatureFlagRule>) => {
     setDraft((prev) => {
       const updated = { ...prev, ...patch };
@@ -134,6 +138,7 @@ function RuleDialog({
       title={title}
       onSubmit={handleSubmit}
       submitText={tCommon('actions.confirm')}
+      isDirty={isDirty}
     >
       <Stack gap={4}>
         <HStack gap={3} wrap>
