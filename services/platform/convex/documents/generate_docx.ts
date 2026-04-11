@@ -126,6 +126,7 @@ export async function generateDocx(
       fileName: finalFileName,
       contentType,
       size: docxBytes.length,
+      source: 'agent',
     },
   );
 

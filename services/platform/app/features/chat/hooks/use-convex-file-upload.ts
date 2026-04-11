@@ -195,6 +195,7 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
               fileName: fileToUpload.name,
               contentType: resolvedType || 'application/octet-stream',
               size: fileToUpload.size,
+              source: 'user' as const,
             });
 
             const attachment: FileAttachment = {

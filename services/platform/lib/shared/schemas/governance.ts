@@ -52,8 +52,11 @@ export type UploadPolicyConfig = z.infer<typeof uploadPolicyConfigSchema>;
 export const retentionPolicyConfigSchema = z.object({
   enabled: z.boolean(),
   retentionDays: z.number().nonnegative(),
-  scope: z.enum(['all', 'upload', 'agent']).optional(),
   batchSize: z.number().nonnegative().optional(),
+  userTempEnabled: z.boolean().optional(),
+  userTempRetentionHours: z.number().nonnegative().optional(),
+  agentTempEnabled: z.boolean().optional(),
+  agentTempRetentionHours: z.number().nonnegative().optional(),
 });
 export type RetentionPolicyConfig = z.infer<typeof retentionPolicyConfigSchema>;
 

@@ -194,6 +194,16 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: HOUR,
     capacity: 120,
   },
+
+  // ============================================
+  // TIER 6: Maintenance (Fixed Window)
+  // Background cleanup and retention tasks
+  // ============================================
+  'cleanup:retention': {
+    kind: 'fixed window',
+    rate: 1,
+    period: HOUR,
+  },
 });
 
 export type RateLimitName = Parameters<typeof rateLimiter.limit>[1];

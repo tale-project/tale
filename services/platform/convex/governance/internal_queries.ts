@@ -50,12 +50,40 @@ export const listRetentionPolicies = internalQuery({
   },
 });
 
+export const listExpiredTempFiles = internalQuery({
+  args: {
+    organizationId: v.string(),
+    source: v.union(v.literal('user'), v.literal('agent')),
+    cutoffMs: v.number(),
+    batchSize: v.number(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    const files = [];
+    for await (const file of ctx.db
+      .query('fileMetadata')
+      .withIndex('by_organizationId_and_source_and_documentId', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('source', args.source)
+          .eq('documentId', undefined),
+      )) {
+      if (file._creationTime < args.cutoffMs) {
+        files.push(file);
+        if (files.length >= args.batchSize) {
+          break;
+        }
+      }
+    }
+    return files;
+  },
+});
+
 export const listExpiredDocuments = internalQuery({
   args: {
     organizationId: v.string(),
     cutoffMs: v.number(),
     batchSize: v.number(),
-    scope: v.optional(v.string()),
   },
   returns: v.any(),
   handler: async (ctx, args) => {

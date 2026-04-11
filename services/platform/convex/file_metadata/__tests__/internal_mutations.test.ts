@@ -26,6 +26,17 @@ vi.mock('../../_generated/server', async (importOriginal) => {
   };
 });
 
+vi.mock('../../lib/rate_limiter/helpers', () => ({
+  checkOrganizationRateLimit: vi.fn(),
+  RateLimitExceededError: class extends Error {},
+}));
+
+vi.mock('../../_generated/api', () => ({
+  internal: {
+    governance: { retention_cleanup: { runRetentionCleanup: 'mock' } },
+  },
+}));
+
 function createMockCtx(existingDoc: Record<string, unknown> | null = null) {
   const builder = {
     withIndex: vi.fn().mockReturnThis(),
@@ -37,6 +48,9 @@ function createMockCtx(existingDoc: Record<string, unknown> | null = null) {
       query: vi.fn().mockReturnValue(builder),
       insert: vi.fn().mockResolvedValue('fm_new'),
       patch: vi.fn().mockResolvedValue(undefined),
+    },
+    scheduler: {
+      runAfter: vi.fn().mockResolvedValue(undefined),
     },
   };
 

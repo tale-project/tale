@@ -109,6 +109,7 @@ export const agentWebhookHandler = httpAction(async (ctx, req) => {
           fileName: file.name,
           contentType: file.type || 'application/octet-stream',
           size: file.size,
+          source: 'agent',
         },
       );
       attachment = {

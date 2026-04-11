@@ -48,7 +48,14 @@ export function createImportFilesDeps(
     saveFileMetadata: async (storageId, fileName, contentType, size) => {
       await ctx.runMutation(
         internal.file_metadata.internal_mutations.saveFileMetadata,
-        { organizationId, storageId, fileName, contentType, size },
+        {
+          organizationId,
+          storageId,
+          fileName,
+          contentType,
+          size,
+          source: 'user',
+        },
       );
     },
     linkDocumentToFile: async (storageId, documentId) => {

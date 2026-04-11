@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
 
 import { internalMutation } from '../_generated/server';
+import { deleteStorageWithMetadata } from '../file_metadata/helpers';
 
 export const deleteExpiredDocument = internalMutation({
   args: {
@@ -24,6 +25,22 @@ export const deleteExpiredDocument = internalMutation({
     }
 
     await ctx.db.delete(args.documentId);
+    return null;
+  },
+});
+
+export const deleteExpiredTempFile = internalMutation({
+  args: {
+    fileMetadataId: v.id('fileMetadata'),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const metadata = await ctx.db.get(args.fileMetadataId);
+    if (!metadata) {
+      return null;
+    }
+
+    await deleteStorageWithMetadata(ctx, metadata.storageId);
     return null;
   },
 });

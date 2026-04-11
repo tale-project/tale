@@ -138,6 +138,7 @@ To also save the file to a folder in the documents hub, call document_write with
               fileName: filename,
               contentType: 'text/plain; charset=utf-8',
               size: blob.size,
+              source: 'agent',
             },
           );
 

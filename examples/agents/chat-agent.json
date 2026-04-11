@@ -18,8 +18,8 @@
     "document_write"
   ],
   "supportedModels": [
-    "moonshotai/kimi-k2.5",
     "deepseek/deepseek-v3.2",
+    "moonshotai/kimi-k2.5",
     "anthropic/claude-opus-4.6",
     "anthropic/claude-sonnet-4.6",
     "anthropic/claude-haiku-4.5",

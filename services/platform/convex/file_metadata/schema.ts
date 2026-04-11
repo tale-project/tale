@@ -5,10 +5,16 @@ export const fileMetadataTable = defineTable({
   organizationId: v.string(),
   storageId: v.id('_storage'),
   documentId: v.optional(v.id('documents')),
+  source: v.optional(v.union(v.literal('user'), v.literal('agent'))),
   fileName: v.string(),
   contentType: v.string(),
   size: v.number(),
 })
   .index('by_organizationId', ['organizationId'])
   .index('by_storageId', ['storageId'])
-  .index('by_organizationId_and_documentId', ['organizationId', 'documentId']);
+  .index('by_organizationId_and_documentId', ['organizationId', 'documentId'])
+  .index('by_organizationId_and_source_and_documentId', [
+    'organizationId',
+    'source',
+    'documentId',
+  ]);
