@@ -223,6 +223,24 @@
     opacity: 0.5;
   }
 
+  .code-line-hover .line {
+    transition: background-color 0.15s ease;
+  }
+
+  .code-line-hover .line:hover {
+    background-color: hsl(var(--accent) / 0.15);
+  }
+
+  .code-line-hover .line:hover::before {
+    opacity: 1;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .code-line-hover .line {
+      transition: none;
+    }
+  }
+
   .code-editor-surface {
     font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas,
       'Liberation Mono', monospace;

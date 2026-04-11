@@ -8,6 +8,7 @@ import {
   Pencil,
   Eye,
   Code,
+  FileCode,
   FileText,
   Globe,
   GitBranch,
@@ -82,6 +83,7 @@ function CanvasPaneComponent() {
   } = useCanvas();
 
   const [isEditing, setIsEditing] = useState(false);
+  const [viewMode, setViewMode] = useState<'render' | 'code'>('render');
   const [isCopied, setIsCopied] = useState(false);
   const [width, setWidth] = useState(DEFAULT_WIDTH);
   const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -99,6 +101,7 @@ function CanvasPaneComponent() {
   useEffect(() => {
     if (!isCanvasOpen) {
       setIsEditing(false);
+      setViewMode('render');
     }
   }, [isCanvasOpen]);
 
@@ -171,10 +174,19 @@ function CanvasPaneComponent() {
     setIsEditing((prev) => !prev);
   }, []);
 
+  const toggleViewMode = useCallback(() => {
+    setViewMode((prev) => (prev === 'render' ? 'code' : 'render'));
+  }, []);
+
   if (!isCanvasOpen) return null;
 
   const TypeIcon = TYPE_ICONS[canvasType];
-  const canEdit = canvasType === 'code' || canvasType === 'markdown';
+  const canEdit =
+    canvasType === 'code' ||
+    canvasType === 'markdown' ||
+    ((canvasType === 'html' || canvasType === 'svg') && viewMode === 'code');
+  const hasRenderView =
+    canvasType === 'html' || canvasType === 'markdown' || canvasType === 'svg';
 
   return (
     <div
@@ -200,6 +212,35 @@ function CanvasPaneComponent() {
         </div>
 
         <div className="flex items-center gap-1">
+          {hasRenderView && (
+            <Tooltip
+              content={
+                viewMode === 'render'
+                  ? t('canvas.viewCode')
+                  : t('canvas.viewRender')
+              }
+              side="bottom"
+            >
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7"
+                onClick={toggleViewMode}
+                aria-label={
+                  viewMode === 'render'
+                    ? t('canvas.viewCode')
+                    : t('canvas.viewRender')
+                }
+              >
+                {viewMode === 'render' ? (
+                  <FileCode className="size-3.5" />
+                ) : (
+                  <Eye className="size-3.5" />
+                )}
+              </Button>
+            </Tooltip>
+          )}
+
           {canEdit && (
             <Tooltip
               content={isEditing ? t('canvas.preview') : t('canvas.edit')}
@@ -289,18 +330,46 @@ function CanvasPaneComponent() {
             onContentChange={updateCanvasContent}
           />
         )}
-        {canvasType === 'html' && <CanvasHtmlRenderer html={canvasContent} />}
-        {canvasType === 'svg' && <CanvasHtmlRenderer html={canvasContent} />}
+        {canvasType === 'html' &&
+          (viewMode === 'code' ? (
+            <CanvasCodeRenderer
+              code={canvasContent}
+              language="html"
+              isEditing={isEditing}
+              onContentChange={updateCanvasContent}
+            />
+          ) : (
+            <CanvasHtmlRenderer html={canvasContent} />
+          ))}
+        {canvasType === 'svg' &&
+          (viewMode === 'code' ? (
+            <CanvasCodeRenderer
+              code={canvasContent}
+              language="svg"
+              isEditing={isEditing}
+              onContentChange={updateCanvasContent}
+            />
+          ) : (
+            <CanvasHtmlRenderer html={canvasContent} />
+          ))}
         {canvasType === 'mermaid' && (
           <CanvasMermaidRenderer code={canvasContent} />
         )}
-        {canvasType === 'markdown' && (
-          <CanvasMarkdownRenderer
-            content={canvasContent}
-            isEditing={isEditing}
-            onContentChange={updateCanvasContent}
-          />
-        )}
+        {canvasType === 'markdown' &&
+          (viewMode === 'code' ? (
+            <CanvasCodeRenderer
+              code={canvasContent}
+              language="markdown"
+              isEditing={isEditing}
+              onContentChange={updateCanvasContent}
+            />
+          ) : (
+            <CanvasMarkdownRenderer
+              content={canvasContent}
+              isEditing={isEditing}
+              onContentChange={updateCanvasContent}
+            />
+          ))}
       </div>
     </div>
   );

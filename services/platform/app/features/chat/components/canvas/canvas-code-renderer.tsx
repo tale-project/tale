@@ -106,7 +106,7 @@ function CanvasCodeRendererComponent({
 
   if (!html) {
     return (
-      <div className="code-line-numbers h-full overflow-auto">
+      <div className="code-line-numbers code-line-hover h-full overflow-auto">
         <pre className="bg-muted p-4">
           <code className="code-editor-surface">{code}</code>
         </pre>
@@ -115,7 +115,7 @@ function CanvasCodeRendererComponent({
   }
 
   return (
-    <div className="code-line-numbers h-full overflow-auto">
+    <div className="code-line-numbers code-line-hover h-full overflow-auto">
       <pre className="bg-muted p-4">
         <code
           className="code-editor-surface"

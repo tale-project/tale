@@ -2860,7 +2860,9 @@
       "resizeHandle": "Resize canvas",
       "codeEditor": "Code editor",
       "apply": "Apply changes",
-      "applyTooltip": "Send edited code back to chat"
+      "applyTooltip": "Send edited code back to chat",
+      "viewCode": "View source code",
+      "viewRender": "View rendered output"
     },
     "promptLibrary": "Prompt library",
     "saveAsPrompt": "Save as prompt"

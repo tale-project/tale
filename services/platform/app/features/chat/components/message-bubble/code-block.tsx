@@ -147,7 +147,11 @@ export function CodeBlock({
           </Button>
         </div>
       </div>
-      <pre ref={preRef} {...props} className="bg-muted overflow-x-auto p-4">
+      <pre
+        ref={preRef}
+        {...props}
+        className="code-line-numbers bg-muted overflow-x-auto p-4"
+      >
         {children}
       </pre>
     </div>
