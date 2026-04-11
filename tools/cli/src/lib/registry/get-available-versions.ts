@@ -153,6 +153,17 @@ export async function getAvailableVersions(
       );
     }
 
+    // Verify manifests exist by lazily probing tags until we have enough
+    // published versions (handles runs of recent tags with missing manifests)
+    const publishedVersions = new Set<string>();
+    for (const tag of sortedSemanticTags) {
+      if (publishedVersions.size >= limit) break;
+      const hasManifest = !!(await getManifestDigest(image, tag, token));
+      if (hasManifest) {
+        publishedVersions.add(tag);
+      }
+    }
+
     // Build version list
     if (hasLatest) {
       const aliases: string[] = [];
@@ -169,6 +180,7 @@ export async function getAvailableVersions(
       i < sortedSemanticTags.length && versionInfos.length < limit;
       i++
     ) {
+      if (!publishedVersions.has(sortedSemanticTags[i])) continue;
       versionInfos.push({ tag: sortedSemanticTags[i], aliases: [] });
     }
 

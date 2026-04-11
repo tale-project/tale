@@ -47,7 +47,7 @@ jobs:
 
   create-release:
     name: Create release
-    needs: prepare
+    needs: [prepare, manifest]
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 5
     permissions:
@@ -247,7 +247,7 @@ jobs:
 
   trigger-cli:
     name: Trigger CLI build
-    needs: [prepare, create-release]
+    needs: [prepare, manifest]
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 5
     permissions:
