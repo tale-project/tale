@@ -80,6 +80,8 @@
   },
   "chat": {
     "filesNotSupported": "Einige Dateien sind zu gross (>100 MB) oder werden nicht unterstützt. Unterstützt: Bilder, PDF, Word-Dokumente, Textdateien.",
+    "fileSizeExceededMultiple": "{names} überschreitet das Dateigrössenlimit von {maxSize} MB.",
+    "fileTypeNotAllowed": "{names}: Dateityp nicht erlaubt laut Upload-Richtlinie.",
     "canvas": {
       "close": "Canvas schliessen",
       "resizeHandle": "Canvas-Grösse ändern"
@@ -106,8 +108,44 @@
       }
     },
     "uploadPolicy": {
-      "description": "Erlaubte Dateitypen, maximale Dateigrösse und Volumenlimits konfigurieren.",
-      "maxFileSize": "Maximale Dateigrösse"
+      "title": "Upload-Richtlinie",
+      "description": "Konfiguriere erlaubte Dateitypen, maximale Dateigrösse und Volumenlimits.",
+      "enabled": "Upload-Richtlinie aktivieren",
+      "allowedExtensions": "Erlaubte Dateierweiterungen",
+      "blockedExtensions": "Blockierte Dateierweiterungen",
+      "allowedMimeTypes": "Erlaubte MIME-Typen",
+      "maxFileSize": "Maximale Dateigrösse",
+      "maxVolumePerUser": "Maximales Gesamtvolumen pro Benutzer",
+      "extensionPlaceholder": "pdf, png, csv",
+      "mimeTypePlaceholder": "image/*, application/pdf",
+      "mbUnit": "MB",
+      "gbUnit": "GB",
+      "policyDisabledHint": "Aktiviere die Richtlinie, um Upload-Beschränkungen durchzusetzen.",
+      "saved": "Upload-Richtlinie gespeichert",
+      "saveFailed": "Upload-Richtlinie konnte nicht gespeichert werden"
+    },
+    "retentionPolicy": {
+      "title": "Aufbewahrungsrichtlinie",
+      "description": "Konfiguriere die automatische Löschung hochgeladener Dateien nach einem bestimmten Zeitraum.",
+      "enabled": "Aufbewahrungsrichtlinie aktivieren",
+      "retentionDays": "Aufbewahrungszeitraum (Tage)",
+      "retentionDaysHint": "Dokumente, die älter sind, werden dauerhaft gelöscht. Dies kann nicht rückgängig gemacht werden.",
+      "scope": "Anwenden auf",
+      "scopeAll": "Alle Dokumente",
+      "scopeUpload": "Nur hochgeladene Dateien",
+      "scopeAgent": "Nur Agent-generierte Dateien",
+      "batchSize": "Stapelgrösse pro Bereinigungslauf",
+      "batchSizeHint": "Anzahl der Dokumente, die pro geplantem Lauf gelöscht werden. Höhere Werte sind schneller, aber ressourcenintensiver.",
+      "warning": "Das Aktivieren dieser Richtlinie löscht dauerhaft Dokumente, die den Aufbewahrungszeitraum überschreiten. Dies kann nicht rückgängig gemacht werden.",
+      "presets": {
+        "30": "30 Tage",
+        "60": "60 Tage",
+        "90": "90 Tage",
+        "180": "6 Monate",
+        "365": "1 Jahr"
+      },
+      "saved": "Aufbewahrungsrichtlinie gespeichert",
+      "saveFailed": "Aufbewahrungsrichtlinie konnte nicht gespeichert werden"
     },
     "defaultModels": {
       "title": "Standardmodelle",

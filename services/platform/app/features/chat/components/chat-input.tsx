@@ -26,6 +26,7 @@ import { HStack, VStack } from '@/app/components/ui/layout/layout';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
+import { useUploadPolicy } from '@/app/features/settings/governance/hooks/use-upload-policy';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { CHAT_UPLOAD_ACCEPT } from '@/lib/shared/file-types';
@@ -118,6 +119,16 @@ export function ChatInput({
   const isArenaMode = arenaContext?.isArenaMode ?? false;
 
   const speechLang = LOCALE_TO_BCP47[i18n.language] ?? 'en-US';
+  const policyLimits = useUploadPolicy(organizationId);
+  const effectiveAccept = useMemo(() => {
+    if (
+      !policyLimits.policyEnabled ||
+      policyLimits.allowedExtensions.length === 0
+    ) {
+      return CHAT_UPLOAD_ACCEPT;
+    }
+    return policyLimits.allowedExtensions.map((ext) => `.${ext}`).join(',');
+  }, [policyLimits]);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -227,7 +238,7 @@ export function ChatInput({
           ref={fileInputRef}
           type="file"
           multiple
-          accept={CHAT_UPLOAD_ACCEPT}
+          accept={effectiveAccept}
           onChange={handleFileInputChange}
           style={{ display: 'none' }}
         />

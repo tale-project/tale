@@ -77,7 +77,7 @@ export const runRetentionCleanup = internalAction({
           await ctx.runMutation(
             internal.governance.internal_mutations_retention
               .deleteExpiredDocument,
-            { documentId: doc._id },
+            { documentId: doc._id, organizationId },
           );
         }
       }

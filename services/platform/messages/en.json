@@ -1452,7 +1452,7 @@
     },
     "providers": {
       "title": "Providers",
-      "description": "Manage LLM providers and their models",
+      "description": "Description",
       "addProvider": "Add provider",
       "editProvider": "Edit provider",
       "deleteProvider": "Delete provider",
@@ -2654,6 +2654,8 @@
     "searchConversations": "Search conversations",
     "invalidFiles": "Invalid files",
     "filesNotSupported": "Some files are too large (>100MB) or not supported. Supported: images, PDF, Word docs, text files.",
+    "fileSizeExceededMultiple": "{names} exceeded the {maxSize}MB file size limit.",
+    "fileTypeNotAllowed": "{names}: file type not allowed by upload policy.",
     "fileUploaded": "File uploaded",
     "uploadedSuccessfully": "{filename} uploaded successfully",
     "uploadFailed": "Upload failed",
@@ -3022,6 +3024,8 @@
       "documentsUploadedSuccessfully": "{count} {count, plural, one {document} other {documents}} uploaded successfully",
       "unsupportedFileType": "Unsupported file type",
       "unsupportedFileTypeDescription": "{name} is not a supported format. Supported formats: PDF, DOCX, XLSX, CSV, TXT, PPTX, images.",
+      "extensionBlocked": "{name}: .{ext} files are blocked by upload policy.",
+      "extensionNotAllowed": "{name}: .{ext} is not allowed. Allowed types: {allowed}.",
       "uploadDocuments": "Upload"
     },
     "import": {
@@ -3752,17 +3756,28 @@
       "confirm": "Confirm"
     },
     "uploadPolicy": {
-      "title": "Upload Policy",
+      "title": "Upload policy",
       "description": "Configure allowed file types, maximum file size, and volume limits.",
+      "enabled": "Enable upload policy",
       "allowedExtensions": "Allowed file extensions",
+      "blockedExtensions": "Blocked file extensions",
+      "allowedMimeTypes": "Allowed MIME types",
       "maxFileSize": "Maximum file size",
       "maxVolumePerUser": "Maximum total volume per user",
-      "saved": "Upload policy saved"
+      "extensionPlaceholder": "pdf, png, csv",
+      "mimeTypePlaceholder": "image/*, application/pdf",
+      "mbUnit": "MB",
+      "gbUnit": "GB",
+      "policyDisabledHint": "Enable the policy to enforce upload restrictions.",
+      "saved": "Upload policy saved",
+      "saveFailed": "Failed to save upload policy"
     },
     "retentionPolicy": {
-      "title": "Retention Policy",
+      "title": "Retention policy",
       "description": "Configure automatic deletion of uploaded files after a specified period.",
+      "enabled": "Enable retention policy",
       "retentionDays": "Retention period (days)",
+      "retentionDaysHint": "Documents older than this will be permanently deleted. This cannot be undone.",
       "scope": "Apply to",
       "tempFileRetentionHours": "Temporary file retention (hours)",
       "saved": "Retention policy saved"

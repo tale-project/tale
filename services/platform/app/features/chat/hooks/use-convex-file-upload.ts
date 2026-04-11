@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 
+import { useUploadPolicy } from '@/app/features/settings/governance/hooks/use-upload-policy';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
@@ -47,9 +48,18 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
     api.file_metadata.mutations.saveFileMetadata,
   );
 
+  const policyLimits = useUploadPolicy(config.organizationId);
+
   const mergedConfig = useMemo(
-    () => ({ ...DEFAULT_UPLOAD_CONFIG, ...config }),
-    [config],
+    () => ({
+      ...DEFAULT_UPLOAD_CONFIG,
+      ...config,
+      ...(policyLimits.policyEnabled && {
+        maxFileSize: policyLimits.maxFileSize,
+        allowedTypes: policyLimits.allowedTypes,
+      }),
+    }),
+    [config, policyLimits],
   );
 
   const attachmentsRef = useRef(attachments);
@@ -58,7 +68,10 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
   const uploadFiles = useCallback(
     async (files: File[]) => {
       const validFiles: { file: File; resolvedType: string }[] = [];
-      const invalidFiles: File[] = [];
+      const rejectedTooLarge: File[] = [];
+      const rejectedType: File[] = [];
+
+      const rejectedExtension: File[] = [];
 
       for (const file of files) {
         const resolvedType = resolveFileType(file.name, file.type);
@@ -66,17 +79,56 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
           mergedConfig.allowedTypes.includes(resolvedType) ||
           isTextBasedFile(file.name, resolvedType);
 
-        if (file.size > mergedConfig.maxFileSize || !isAllowedType) {
-          invalidFiles.push(file);
+        // Check policy extension restrictions
+        if (policyLimits.policyEnabled) {
+          const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+          if (
+            (policyLimits.blockedExtensions.length > 0 &&
+              policyLimits.blockedExtensions.includes(ext)) ||
+            (policyLimits.allowedExtensions.length > 0 &&
+              !policyLimits.allowedExtensions.includes(ext))
+          ) {
+            rejectedExtension.push(file);
+            continue;
+          }
+        }
+
+        if (file.size > mergedConfig.maxFileSize) {
+          rejectedTooLarge.push(file);
+        } else if (!isAllowedType) {
+          rejectedType.push(file);
         } else {
           validFiles.push({ file, resolvedType });
         }
       }
 
-      if (invalidFiles.length > 0) {
+      if (rejectedExtension.length > 0) {
+        const names = rejectedExtension.map((f) => f.name).join(', ');
         toast({
           title: t('invalidFiles'),
-          description: t('filesNotSupported'),
+          description: t('fileTypeNotAllowed', { names }),
+          variant: 'destructive',
+        });
+      }
+
+      if (rejectedTooLarge.length > 0) {
+        const maxSizeMB = Math.round(mergedConfig.maxFileSize / (1024 * 1024));
+        const names = rejectedTooLarge.map((f) => f.name).join(', ');
+        toast({
+          title: t('invalidFiles'),
+          description: t('fileSizeExceededMultiple', {
+            names,
+            maxSize: maxSizeMB,
+          }),
+          variant: 'destructive',
+        });
+      }
+
+      if (rejectedType.length > 0) {
+        const names = rejectedType.map((f) => f.name).join(', ');
+        toast({
+          title: t('invalidFiles'),
+          description: t('fileTypeNotAllowed', { names }),
           variant: 'destructive',
         });
       }
@@ -234,6 +286,7 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
       saveFileMetadata,
       config.organizationId,
       mergedConfig,
+      policyLimits,
       t,
     ],
   );

@@ -21,6 +21,12 @@ const DefaultModelEditor = lazyComponent<{ organizationId: string }>(() =>
   ),
 );
 
+const UploadPolicyEditor = lazyComponent(() =>
+  import('@/app/features/settings/governance/components/upload-policy-editor').then(
+    (m) => ({ default: m.UploadPolicyEditor }),
+  ),
+);
+
 const searchSchema = z.object({
   tab: z.string().optional(),
 });
@@ -69,6 +75,11 @@ function GovernanceSettingsPage() {
         value: 'default-models',
         label: t('defaultModels.title'),
         content: <DefaultModelEditor organizationId={organizationId} />,
+      },
+      {
+        value: 'upload-policy',
+        label: t('uploadPolicy.title'),
+        content: <UploadPolicyEditor organizationId={organizationId} />,
       },
       {
         value: 'retention',

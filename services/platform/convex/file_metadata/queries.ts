@@ -1,7 +1,31 @@
 import { v } from 'convex/values';
 
 import { query } from '../_generated/server';
+import { authComponent } from '../auth';
 import { getAuthUserIdentity } from '../lib/rls';
+
+export const getUserStorageUsage = query({
+  args: {
+    organizationId: v.string(),
+  },
+  returns: v.object({ totalBytes: v.number() }),
+  handler: async (ctx, args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) return { totalBytes: 0 };
+
+    let totalBytes = 0;
+    for await (const meta of ctx.db
+      .query('fileMetadata')
+      .withIndex('by_org_user', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('uploadedBy', String(authUser._id)),
+      )) {
+      totalBytes += meta.size;
+    }
+    return { totalBytes };
+  },
+});
 
 export const getByStorageIds = query({
   args: {

@@ -73,6 +73,10 @@ vi.mock('../update_document', () => ({
   updateDocument: vi.fn(),
 }));
 
+vi.mock('../../governance/upload_enforcement', () => ({
+  checkUploadPolicy: vi.fn().mockResolvedValue({ allowed: true }),
+}));
+
 vi.mock('../validators', () => ({
   sourceProviderValidator: 'validator',
 }));
@@ -145,6 +149,7 @@ describe('createDocumentFromUpload', () => {
       fileName: 'report.pdf',
       contentType: 'application/pdf',
       size: 2048,
+      uploadedBy: 'user_1',
     });
   });
 

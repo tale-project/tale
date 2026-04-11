@@ -96,11 +96,11 @@ export const listExpiredDocuments = internalQuery({
       .withIndex('by_organizationId', (q) =>
         q.eq('organizationId', args.organizationId),
       )) {
-      if (doc._creationTime < args.cutoffMs) {
-        docs.push(doc);
-        if (docs.length >= args.batchSize) {
-          break;
-        }
+      if (doc._creationTime >= args.cutoffMs) continue;
+
+      docs.push(doc);
+      if (docs.length >= args.batchSize) {
+        break;
       }
     }
     return docs;
