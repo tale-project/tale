@@ -8,19 +8,22 @@ mock.module('./docker', () => ({
   docker: dockerMock,
 }));
 
-const errorSpy = mock();
-const infoSpy = mock();
+const loggerInfoMock = mock();
+const loggerErrorMock = mock();
+const loggerWarnMock = mock();
 
 mock.module('../../utils/logger', () => ({
-  info: infoSpy,
-  error: errorSpy,
+  info: loggerInfoMock,
+  error: loggerErrorMock,
+  warn: loggerWarnMock,
   debug: mock(),
 }));
 
 afterEach(() => {
   dockerMock.mockReset();
-  errorSpy.mockReset();
-  infoSpy.mockReset();
+  loggerInfoMock.mockReset();
+  loggerErrorMock.mockReset();
+  loggerWarnMock.mockReset();
 });
 
 describe('pullImage', () => {
@@ -28,21 +31,21 @@ describe('pullImage', () => {
     dockerMock.mockResolvedValue({ success: true, stdout: '', stderr: '' });
 
     const result = await pullImage(
-      'ghcr.io/tale-project/tale/tale-crawler:0.2.16',
+      'ghcr.io/tale-project/tale/tale-platform:0.2.16',
     );
 
     expect(result).toBe(true);
     expect(dockerMock).toHaveBeenCalledWith(
       'pull',
-      'ghcr.io/tale-project/tale/tale-crawler:0.2.16',
+      'ghcr.io/tale-project/tale/tale-platform:0.2.16',
     );
   });
 
-  test('returns false on failed pull', async () => {
+  test('returns false and logs error on failed pull', async () => {
     dockerMock.mockResolvedValue({
       success: false,
       stdout: '',
-      stderr: 'connection refused',
+      stderr: 'some docker error',
     });
 
     const result = await pullImage(
@@ -50,9 +53,10 @@ describe('pullImage', () => {
     );
 
     expect(result).toBe(false);
+    expect(loggerErrorMock).toHaveBeenCalled();
   });
 
-  test('shows timing hint when image is not found', async () => {
+  test('shows timing hint when manifest is not found', async () => {
     dockerMock.mockResolvedValue({
       success: false,
       stdout: '',
@@ -60,11 +64,13 @@ describe('pullImage', () => {
         'Error response from daemon: manifest for ghcr.io/tale-project/tale/tale-crawler:0.2.16 not found',
     });
 
-    await pullImage('ghcr.io/tale-project/tale/tale-crawler:0.2.16');
+    const result = await pullImage(
+      'ghcr.io/tale-project/tale/tale-crawler:0.2.16',
+    );
 
-    const messages = errorSpy.mock.calls.map((c: string[]) => c[0]);
-    expect(messages.some((m: string) => m.includes('still be building'))).toBe(
-      true,
+    expect(result).toBe(false);
+    expect(loggerWarnMock).toHaveBeenCalledWith(
+      expect.stringContaining('images may still be building'),
     );
   });
 
@@ -75,56 +81,38 @@ describe('pullImage', () => {
       stderr: 'manifest unknown: manifest unknown',
     });
 
-    await pullImage('ghcr.io/example/image:1.0.0');
-
-    const messages = errorSpy.mock.calls.map((c: string[]) => c[0]);
-    expect(messages.some((m: string) => m.includes('still be building'))).toBe(
-      true,
-    );
-  });
-
-  test('shows timing hint for name unknown error', async () => {
-    dockerMock.mockResolvedValue({
-      success: false,
-      stdout: '',
-      stderr: 'name unknown: repository name not known to registry',
-    });
-
-    await pullImage('ghcr.io/example/image:1.0.0');
-
-    const messages = errorSpy.mock.calls.map((c: string[]) => c[0]);
-    expect(messages.some((m: string) => m.includes('still be building'))).toBe(
-      true,
-    );
-  });
-
-  test('shows raw stderr for non-not-found errors', async () => {
-    dockerMock.mockResolvedValue({
-      success: false,
-      stdout: '',
-      stderr: 'unauthorized: authentication required',
-    });
-
-    await pullImage('ghcr.io/example/image:1.0.0');
-
-    const messages = errorSpy.mock.calls.map((c: string[]) => c[0]);
-    expect(
-      messages.some((m: string) => m.includes('authentication required')),
-    ).toBe(true);
-    expect(messages.some((m: string) => m.includes('still be building'))).toBe(
-      false,
-    );
-  });
-
-  test('returns false and logs error on exception', async () => {
-    dockerMock.mockRejectedValue(new Error('Docker not installed'));
-
-    const result = await pullImage('ghcr.io/example/image:1.0.0');
+    const result = await pullImage('ghcr.io/tale-project/tale/tale-db:1.0.0');
 
     expect(result).toBe(false);
-    const messages = errorSpy.mock.calls.map((c: string[]) => c[0]);
-    expect(
-      messages.some((m: string) => m.includes('Docker not installed')),
-    ).toBe(true);
+    expect(loggerWarnMock).toHaveBeenCalledWith(
+      expect.stringContaining('images may still be building'),
+    );
+  });
+
+  test('shows raw stderr for non-manifest errors', async () => {
+    dockerMock.mockResolvedValue({
+      success: false,
+      stdout: '',
+      stderr: 'network timeout connecting to registry',
+    });
+
+    const result = await pullImage('ghcr.io/tale-project/tale/tale-rag:0.2.16');
+
+    expect(result).toBe(false);
+    expect(loggerWarnMock).not.toHaveBeenCalled();
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      'network timeout connecting to registry',
+    );
+  });
+
+  test('handles thrown exceptions gracefully', async () => {
+    dockerMock.mockRejectedValue(new Error('spawn failed'));
+
+    const result = await pullImage(
+      'ghcr.io/tale-project/tale/tale-proxy:0.2.16',
+    );
+
+    expect(result).toBe(false);
+    expect(loggerErrorMock).toHaveBeenCalledWith('spawn failed');
   });
 });

@@ -193,11 +193,19 @@ export async function deploy(options: DeployOptions): Promise<void> {
           logger.info(`${prefix}Would pull: ${image}`);
         }
       } else {
+        const failedImages: string[] = [];
         for (const image of imagesToPull) {
           const success = await pullImage(image);
           if (!success) {
-            throw new Error(`Failed to pull image: ${image}`);
+            failedImages.push(image);
           }
+        }
+        if (failedImages.length > 0) {
+          throw new Error(
+            `Failed to pull ${failedImages.length} image(s): ${failedImages.join(', ')}\n` +
+              'If this is a recent release, the container images may still be building and testing. ' +
+              'Please wait a few minutes and try again.',
+          );
         }
       }
 

@@ -57,6 +57,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      - name: Verify all manifests are pullable
+        run: |
+          VERSION="${{ needs.prepare.outputs.version_number }}"
+          REGISTRY="${{ env.REGISTRY }}/${{ github.repository }}"
+          for svc in platform rag crawler db proxy; do
+            IMAGE="${REGISTRY}/tale-${svc}:${VERSION}"
+            echo "Verifying manifest: ${IMAGE}"
+            docker manifest inspect "${IMAGE}" > /dev/null 2>&1 || {
+              echo "::error::Manifest not found: ${IMAGE}"
+              exit 1
+            }
+          done
+          echo "All service manifests verified"
+
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
