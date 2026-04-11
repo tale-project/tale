@@ -74,6 +74,7 @@ class TestGetDocumentStatuses:
                     "progress_detail": None,
                     "source_created_at": None,
                     "source_modified_at": None,
+                    "ocr_applied": False,
                 },
                 {
                     "file_id": "doc-2",
@@ -83,6 +84,7 @@ class TestGetDocumentStatuses:
                     "progress_detail": None,
                     "source_created_at": None,
                     "source_modified_at": None,
+                    "ocr_applied": False,
                 },
             ]
         )
@@ -111,6 +113,7 @@ class TestGetDocumentStatuses:
                     "progress_detail": None,
                     "source_created_at": None,
                     "source_modified_at": None,
+                    "ocr_applied": False,
                 },
             ]
         )

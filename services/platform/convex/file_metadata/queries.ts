@@ -30,7 +30,7 @@ export const getUserStorageUsage = query({
 export const getByDocumentId = query({
   args: {
     organizationId: v.string(),
-    documentId: v.string(),
+    documentId: v.id('documents'),
   },
   returns: v.union(
     v.object({
