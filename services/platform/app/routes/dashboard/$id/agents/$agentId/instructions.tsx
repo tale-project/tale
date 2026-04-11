@@ -1,19 +1,32 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { useCallback, useMemo } from 'react';
+import { BookOpen } from 'lucide-react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
 import { CodeBlock } from '@/app/components/ui/data-display/code-block';
 import { ModelSelector } from '@/app/components/ui/forms/model-selector';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import { HStack } from '@/app/components/ui/layout/layout';
 import { PageSection } from '@/app/components/ui/layout/page-section';
 import { CollapsibleDetails } from '@/app/components/ui/navigation/collapsible-details';
+import { Tooltip } from '@/app/components/ui/overlays/tooltip';
+import { Button } from '@/app/components/ui/primitives/button';
 import { useAgentConfig } from '@/app/features/agents/hooks/use-agent-config-context';
 import { useListProviders } from '@/app/features/settings/providers/hooks/queries';
 import { SUPPORTED_TEMPLATE_VARIABLES } from '@/convex/lib/agent_response/resolve_template_variables';
 import { STRUCTURED_RESPONSE_INSTRUCTIONS } from '@/convex/lib/agent_response/structured_response_instructions';
 import { useT } from '@/lib/i18n/client';
+import { lazyComponent } from '@/lib/utils/lazy-component';
 import { seo } from '@/lib/utils/seo';
+
+const PromptLibraryDialog = lazyComponent<
+  import('@/app/features/prompts/components/prompt-library-dialog').PromptLibraryDialogProps
+>(() =>
+  import('@/app/features/prompts/components/prompt-library-dialog').then(
+    (m) => ({ default: m.PromptLibraryDialog }),
+  ),
+);
 
 export const Route = createFileRoute(
   '/dashboard/$id/agents/$agentId/instructions',
@@ -28,6 +41,7 @@ function InstructionsTab() {
   const { t } = useT('settings');
   const { config, updateConfig } = useAgentConfig();
   const { providers } = useListProviders('default');
+  const [promptLibraryOpen, setPromptLibraryOpen] = useState(false);
 
   const structuredResponsesEnabled = config.structuredResponsesEnabled ?? true;
   const selectedModels = config.supportedModels;
@@ -88,16 +102,35 @@ function InstructionsTab() {
         description={t('agents.form.sectionInstructionsDescription')}
         gap={4}
       >
-        <Textarea
-          id="systemInstructions"
-          label={t('agents.form.systemInstructions')}
-          placeholder={t('agents.form.systemInstructionsPlaceholder')}
-          value={config.systemInstructions}
-          onChange={(e) => updateConfig({ systemInstructions: e.target.value })}
-          required
-          rows={8}
-          className="font-mono text-sm"
-        />
+        <div className="flex flex-col gap-2">
+          <HStack justify="between" align="center">
+            <label htmlFor="systemInstructions" className="text-sm font-medium">
+              {t('agents.form.systemInstructions')}
+            </label>
+            <Tooltip content={t('agents.form.browsePrompts')} side="top">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setPromptLibraryOpen(true)}
+                aria-label={t('agents.form.browsePrompts')}
+              >
+                <BookOpen className="mr-1 size-4" />
+                {t('agents.form.browsePrompts')}
+              </Button>
+            </Tooltip>
+          </HStack>
+          <Textarea
+            id="systemInstructions"
+            placeholder={t('agents.form.systemInstructionsPlaceholder')}
+            value={config.systemInstructions}
+            onChange={(e) =>
+              updateConfig({ systemInstructions: e.target.value })
+            }
+            required
+            rows={8}
+            className="font-mono text-sm"
+          />
+        </div>
         <CollapsibleDetails
           variant="compact"
           summary={t('agents.form.templateVariablesLabel')}
@@ -150,6 +183,18 @@ function InstructionsTab() {
           </CodeBlock>
         )}
       </PageSection>
+
+      <PromptLibraryDialog
+        open={promptLibraryOpen}
+        onOpenChange={setPromptLibraryOpen}
+        onSelectPrompt={(content) => {
+          const current = config.systemInstructions;
+          const separator = current.trim() ? '\n\n' : '';
+          updateConfig({
+            systemInstructions: current + separator + content,
+          });
+        }}
+      />
     </ContentArea>
   );
 }

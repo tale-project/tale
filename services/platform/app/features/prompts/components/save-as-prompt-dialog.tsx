@@ -10,7 +10,7 @@ import { useT } from '@/lib/i18n/client';
 
 import { useCreatePrompt } from '../hooks/mutations';
 
-interface SaveAsPromptDialogProps {
+export interface SaveAsPromptDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialContent: string;

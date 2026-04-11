@@ -1,0 +1,67 @@
+// @vitest-environment jsdom
+import '@testing-library/jest-dom/vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+import { checkAccessibility } from '@/test/utils/a11y';
+import { render, screen } from '@/test/utils/render';
+
+vi.mock('@/lib/i18n/client', () => ({
+  useT: (ns: string) => ({
+    t: (key: string, params?: Record<string, string>) => {
+      if (params) {
+        return Object.entries(params).reduce(
+          (acc, [k, v]) => acc.replace(`{${k}}`, v),
+          `${ns}.${key}`,
+        );
+      }
+      return `${ns}.${key}`;
+    },
+  }),
+}));
+
+vi.mock('@/app/hooks/use-organization-id', () => ({
+  useOrganizationId: () => 'test-org-id',
+}));
+
+vi.mock('../../hooks/mutations', () => ({
+  useCreatePrompt: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}));
+
+import { SaveAsPromptDialog } from '../save-as-prompt-dialog';
+
+describe('SaveAsPromptDialog', () => {
+  describe('accessibility', () => {
+    it('passes axe audit when open', async () => {
+      const { container } = render(
+        <SaveAsPromptDialog
+          open={true}
+          onOpenChange={vi.fn()}
+          initialContent="Hello, this is a test prompt."
+        />,
+      );
+      await checkAccessibility(container);
+    });
+  });
+
+  it('renders with initial content when open', () => {
+    render(
+      <SaveAsPromptDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        initialContent="Hello, this is a test prompt."
+      />,
+    );
+    expect(screen.getByText('prompts.saveAs.title')).toBeInTheDocument();
+  });
+
+  it('does not render when closed', () => {
+    const { container } = render(
+      <SaveAsPromptDialog
+        open={false}
+        onOpenChange={vi.fn()}
+        initialContent="Some content"
+      />,
+    );
+    expect(container.innerHTML).toBe('');
+  });
+});

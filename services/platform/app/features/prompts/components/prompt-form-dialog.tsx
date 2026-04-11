@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
+import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useT } from '@/lib/i18n/client';
 
 import type { PromptTemplate } from '../hooks/queries';
@@ -24,6 +26,7 @@ export interface PromptFormData {
   content: string;
   description: string;
   scope: PromptScope;
+  teamId?: string;
   category: string;
   tags: string[];
 }
@@ -36,6 +39,7 @@ function PromptFormDialogContent({
   initialData,
 }: PromptFormDialogProps) {
   const { t } = useT('prompts');
+  const { teams } = useTeams();
 
   const [title, setTitle] = useState(initialData?.title ?? '');
   const [content, setContent] = useState(initialData?.content ?? '');
@@ -45,9 +49,19 @@ function PromptFormDialogContent({
   const [scope, setScope] = useState<PromptScope>(
     initialData?.scope ?? 'personal',
   );
+  const [teamId, setTeamId] = useState(initialData?.teamId);
   const [category, setCategory] = useState(initialData?.category ?? '');
   const [tagsInput, setTagsInput] = useState(
     initialData?.tags?.join(', ') ?? '',
+  );
+
+  const teamOptions = useMemo(
+    () =>
+      (teams ?? []).map((team) => ({
+        value: team.id,
+        label: team.name,
+      })),
+    [teams],
   );
 
   const isDirty =
@@ -55,10 +69,14 @@ function PromptFormDialogContent({
     content !== (initialData?.content ?? '') ||
     description !== (initialData?.description ?? '') ||
     scope !== (initialData?.scope ?? 'personal') ||
+    teamId !== initialData?.teamId ||
     category !== (initialData?.category ?? '') ||
     tagsInput !== (initialData?.tags?.join(', ') ?? '');
 
-  const isValid = title.trim().length > 0 && content.trim().length > 0;
+  const isValid =
+    title.trim().length > 0 &&
+    content.trim().length > 0 &&
+    (scope !== 'team' || !!teamId);
 
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
@@ -75,6 +93,7 @@ function PromptFormDialogContent({
         content: content.trim(),
         description: description.trim(),
         scope,
+        teamId: scope === 'team' ? teamId : undefined,
         category: category.trim(),
         tags,
       });
@@ -84,6 +103,7 @@ function PromptFormDialogContent({
       content,
       description,
       scope,
+      teamId,
       category,
       tagsInput,
       isValid,
@@ -151,6 +171,16 @@ function PromptFormDialogContent({
           ))}
         </div>
       </fieldset>
+      {scope === 'team' && teamOptions.length > 0 && (
+        <Select
+          label={t('form.teamLabel')}
+          options={teamOptions}
+          value={teamId ?? ''}
+          onValueChange={(v) => setTeamId(v || undefined)}
+          placeholder={t('form.teamPlaceholder')}
+          required
+        />
+      )}
       <Input
         label={t('form.categoryLabel')}
         value={category}

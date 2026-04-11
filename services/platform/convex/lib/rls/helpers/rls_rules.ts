@@ -489,6 +489,34 @@ export async function rlsRules(
       },
     },
 
+    // Prompt Templates - organization-scoped
+    promptTemplates: {
+      read: async (_, prompt) => {
+        if (!user) return false;
+        if (!userOrgIds.has(prompt.organizationId)) return false;
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === prompt.organizationId,
+        );
+        return authorizeRls(membership?.role, 'promptTemplates', 'read');
+      },
+      modify: async (_, prompt) => {
+        if (!user) return false;
+        if (!userOrgIds.has(prompt.organizationId)) return false;
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === prompt.organizationId,
+        );
+        return authorizeRls(membership?.role, 'promptTemplates', 'write');
+      },
+      insert: async ({ user: ruleUser }, prompt) => {
+        if (!ruleUser) return false;
+        if (!userOrgIds.has(prompt.organizationId)) return false;
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === prompt.organizationId,
+        );
+        return authorizeRls(membership?.role, 'promptTemplates', 'write');
+      },
+    },
+
     // Audit Logs - organization-scoped, allow inserts for org members
     auditLogs: {
       read: async (_, log) => {
