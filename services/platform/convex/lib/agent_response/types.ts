@@ -148,6 +148,8 @@ export interface GenerateResponseArgs {
     presencePenalty?: number;
     stopSequences?: string[];
   };
+  /** Governance-resolved max context tokens (overrides agent default) */
+  maxContextTokens?: number;
 }
 
 /**

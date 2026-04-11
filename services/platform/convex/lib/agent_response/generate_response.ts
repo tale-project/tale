@@ -182,7 +182,6 @@ export async function generateAgentResponse(
     noCacheToolNames,
     instructions,
     toolsSummary,
-    maxContextTokens,
   } = config;
   const {
     ctx,
@@ -508,12 +507,25 @@ export async function generateAgentResponse(
     // Build structured context (history, RAG, web)
     // Note: promptMessage is NOT included - it's passed via `prompt` parameter
     const agentConfig = AGENT_CONTEXT_CONFIGS[agentType];
+    const governanceMaxContext =
+      config.maxContextTokens ?? args.maxContextTokens;
     const effectiveMaxHistoryTokens =
-      maxContextTokens != null &&
-      Number.isFinite(maxContextTokens) &&
-      maxContextTokens > 0
-        ? Math.floor(maxContextTokens)
+      governanceMaxContext != null &&
+      Number.isFinite(governanceMaxContext) &&
+      governanceMaxContext > 0
+        ? Math.floor(
+            Math.min(governanceMaxContext, agentConfig.maxHistoryTokens),
+          )
         : agentConfig.maxHistoryTokens;
+
+    if (governanceMaxContext) {
+      debugLog('Governance context limit applied', {
+        governanceLimit: governanceMaxContext,
+        agentDefault: agentConfig.maxHistoryTokens,
+        effective: effectiveMaxHistoryTokens,
+      });
+    }
+
     structuredThreadContext = await buildStructuredContext({
       ctx,
       threadId,

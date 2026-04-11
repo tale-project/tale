@@ -68,7 +68,7 @@ export const featureFlagRuleSchema = z.object({
   webSearch: z.boolean().optional(),
   codeExecution: z.boolean().optional(),
   fileUpload: z.boolean().optional(),
-  maxContextTokens: z.number().nonnegative().optional(),
+  maxContextTokens: z.number().min(4096).optional(),
 });
 export type FeatureFlagRule = z.infer<typeof featureFlagRuleSchema>;
 

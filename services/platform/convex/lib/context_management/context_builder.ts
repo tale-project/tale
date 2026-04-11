@@ -72,6 +72,8 @@ export interface ContextBuilderOptions {
   outputReserve?: number;
   /** Current prompt tokens (for budget calculation) */
   currentPromptTokens?: number;
+  /** Governance-resolved max context tokens (caps the effective context limit) */
+  maxContextTokens?: number;
 }
 
 /**
@@ -203,8 +205,11 @@ export class ContextBuilder {
     const agentType = this.options.agentType || 'chat';
     const config = AGENT_CONTEXT_CONFIGS[agentType];
 
-    const modelContextLimit =
+    const baseModelContextLimit =
       this.options.modelContextLimit ?? config.modelContextLimit;
+    const effectiveContextLimit = this.options.maxContextTokens
+      ? Math.min(this.options.maxContextTokens, baseModelContextLimit)
+      : baseModelContextLimit;
     const outputReserve = this.options.outputReserve ?? config.outputReserve;
     const currentPromptTokens = this.options.currentPromptTokens ?? 0;
 
@@ -220,7 +225,7 @@ export class ContextBuilder {
 
     // Calculate available token budget
     const contextBudget =
-      modelContextLimit * 0.75 - // Safety margin
+      effectiveContextLimit * 0.75 - // Safety margin
       SYSTEM_INSTRUCTIONS_TOKENS -
       RECENT_MESSAGES_TOKEN_ESTIMATE -
       currentPromptTokens -
