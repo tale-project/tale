@@ -13,6 +13,9 @@ export default defineConfig({
     poolOptions: {
       threads: {
         maxThreads: 4,
+        resourceLimits: {
+          maxOldGenerationSizeMb: 2048,
+        },
       },
     },
     setupFiles: ['./test/setup-ui.ts'],
