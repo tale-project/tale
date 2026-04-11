@@ -25,7 +25,6 @@ export function useTeamsTableConfig(organizationId: string): TeamsTableConfig {
       {
         accessorKey: 'name',
         header: tSettings('teams.columns.name'),
-        size: 300,
         cell: ({ row }) => (
           <Text as="span" variant="label">
             {row.original.name}
