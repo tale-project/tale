@@ -286,6 +286,7 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
       saveFileMetadata,
       config.organizationId,
       mergedConfig,
+      policyLimits,
       t,
     ],
   );

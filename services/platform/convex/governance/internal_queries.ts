@@ -98,9 +98,6 @@ export const listExpiredDocuments = internalQuery({
       )) {
       if (doc._creationTime >= args.cutoffMs) continue;
 
-      if (args.scope === 'upload' && doc.sourceProvider !== 'upload') continue;
-      if (args.scope === 'agent' && doc.sourceProvider !== 'agent') continue;
-
       docs.push(doc);
       if (docs.length >= args.batchSize) {
         break;
