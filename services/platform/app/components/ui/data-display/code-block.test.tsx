@@ -1,9 +1,28 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 import { checkAccessibility } from '@/test/utils/a11y';
 import { render, screen } from '@/test/utils/render';
 
 import { CodeBlock } from './code-block';
+
+vi.mock('@/app/components/theme/theme-provider', () => ({
+  useTheme: () => ({ resolvedTheme: 'dark' }),
+}));
+
+vi.mock('@/lib/utils/shiki', () => ({
+  highlightCode: vi.fn((code: string) =>
+    Promise.resolve(
+      `<pre class="shiki"><code>${code
+        .split('\n')
+        .map((line) => `<span class="line">${line}</span>`)
+        .join('\n')}</code></pre>`,
+    ),
+  ),
+  extractShikiCodeContent: vi.fn((html: string) => {
+    const match = html.match(/<code[^>]*>([\s\S]*?)<\/code>/);
+    return match ? match[1] : html;
+  }),
+}));
 
 describe('CodeBlock', () => {
   describe('rendering', () => {
@@ -51,6 +70,30 @@ describe('CodeBlock', () => {
     });
   });
 
+  describe('syntax highlighting', () => {
+    it('renders .line spans for line numbers when language is set', () => {
+      const { container } = render(
+        <CodeBlock language="javascript">
+          {'const x = 1;\nconst y = 2;'}
+        </CodeBlock>,
+      );
+      const lines = container.querySelectorAll('.line');
+      expect(lines.length).toBe(2);
+    });
+
+    it('applies code-line-numbers class when language is set', () => {
+      const { container } = render(
+        <CodeBlock language="javascript">const x = 1;</CodeBlock>,
+      );
+      expect(container.querySelector('.code-line-numbers')).not.toBeNull();
+    });
+
+    it('does not apply code-line-numbers class without language', () => {
+      const { container } = render(<CodeBlock>const x = 1;</CodeBlock>);
+      expect(container.querySelector('.code-line-numbers')).toBeNull();
+    });
+  });
+
   describe('accessibility', () => {
     it('passes axe audit', async () => {
       const { container } = render(
@@ -60,6 +103,19 @@ describe('CodeBlock', () => {
           copyLabel="Copy command"
         >
           curl -X POST https://example.com
+        </CodeBlock>,
+      );
+      await checkAccessibility(container);
+    });
+
+    it('passes axe audit with syntax highlighting', async () => {
+      const { container } = render(
+        <CodeBlock
+          language="javascript"
+          copyValue="const x = 1;"
+          copyLabel="Copy code"
+        >
+          const x = 1;
         </CodeBlock>,
       );
       await checkAccessibility(container);

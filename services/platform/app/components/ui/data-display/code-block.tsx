@@ -5,32 +5,74 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
 
+import { useTheme } from '@/app/components/theme/theme-provider';
 import { cn } from '@/lib/utils/cn';
+import { extractShikiCodeContent, highlightCode } from '@/lib/utils/shiki';
 
 import { Button } from '../primitives/button';
 import { Text } from '../typography/text';
 
 interface CodeBlockProps {
   children: ReactNode;
+  language?: string;
   label?: string;
   copyValue?: string;
   copyLabel?: string;
   className?: string;
 }
 
+function PlainCodeLines({ text }: { text: string }) {
+  const lines = useMemo(() => text.split('\n'), [text]);
+  return (
+    <>
+      {lines.map((line, i) => (
+        <span key={i} className="line">
+          {line}
+          {i < lines.length - 1 ? '\n' : ''}
+        </span>
+      ))}
+    </>
+  );
+}
+
 export function CodeBlock({
   children,
+  language,
   label,
   copyValue,
   copyLabel,
   className,
 }: CodeBlockProps) {
   const [copied, setCopied] = useState(false);
+  const [highlightedHtml, setHighlightedHtml] = useState('');
   const timerRef = useRef<ReturnType<typeof setTimeout>>(null);
+  const { resolvedTheme } = useTheme();
+  const shikiTheme = resolvedTheme === 'dark' ? 'github-dark' : 'github-light';
+
+  const textContent =
+    typeof children === 'string'
+      ? children
+      : Array.isArray(children)
+        ? children.join('')
+        : '';
+
+  useEffect(() => {
+    if (!language || !textContent) return undefined;
+    let cancelled = false;
+    void highlightCode(textContent, language, shikiTheme).then((result) => {
+      if (!cancelled && result) {
+        setHighlightedHtml(extractShikiCodeContent(result));
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [textContent, language, shikiTheme]);
 
   useEffect(() => {
     return () => {
@@ -64,9 +106,19 @@ export function CodeBlock({
           className={cn(
             'bg-muted rounded-md p-3 font-mono text-xs break-all whitespace-pre-wrap',
             copyValue && 'pr-10',
+            language &&
+              'code-line-numbers code-line-hover whitespace-pre break-normal',
           )}
         >
-          {children}
+          {language && highlightedHtml ? (
+            <code dangerouslySetInnerHTML={{ __html: highlightedHtml }} />
+          ) : language && textContent ? (
+            <code>
+              <PlainCodeLines text={textContent} />
+            </code>
+          ) : (
+            children
+          )}
         </pre>
         {copyValue && (
           <Button
