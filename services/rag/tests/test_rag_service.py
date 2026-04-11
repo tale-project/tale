@@ -231,6 +231,7 @@ class TestSearch:
     async def test_passes_file_ids(self):
         service = _make_service()
         service._search_service.search = AsyncMock(return_value=[])
+        service.get_document_statuses = AsyncMock(return_value={"doc-1": None, "doc-2": None})
 
         with patch("app.services.rag_service.settings") as mock_settings:
             mock_settings.top_k = 10

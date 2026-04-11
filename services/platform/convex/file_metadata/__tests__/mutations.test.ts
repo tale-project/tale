@@ -34,6 +34,7 @@ vi.mock('../../lib/rate_limiter/helpers', () => ({
 vi.mock('../../_generated/api', () => ({
   internal: {
     governance: { retention_cleanup: { runRetentionCleanup: 'mock' } },
+    file_metadata: { internal_actions: { uploadFileToRag: 'mock' } },
   },
 }));
 
