@@ -128,13 +128,25 @@ export function ModelSelector({ organizationId }: ModelSelectorProps) {
   const handleSelect = useCallback(
     (modelId: string) => {
       if (!effectiveAgent?.name) return;
-      if (modelId === filteredModels[0]) {
+      // Only clear the override when the user picks the effective default
+      // (governance default if present, otherwise the agent's primary model).
+      const effectiveDefault =
+        governanceDefault?.modelId &&
+        filteredModels.includes(governanceDefault.modelId)
+          ? governanceDefault.modelId
+          : filteredModels[0];
+      if (modelId === effectiveDefault) {
         setSelectedModelOverride(effectiveAgent.name, null);
       } else {
         setSelectedModelOverride(effectiveAgent.name, modelId);
       }
     },
-    [effectiveAgent?.name, filteredModels, setSelectedModelOverride],
+    [
+      effectiveAgent?.name,
+      filteredModels,
+      governanceDefault,
+      setSelectedModelOverride,
+    ],
   );
 
   if (!currentModelId) return null;
