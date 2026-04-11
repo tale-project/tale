@@ -61,11 +61,17 @@ function computeResponseMinHeight(
   const gap = flexParent
     ? parseFloat(getComputedStyle(flexParent).gap) || 0
     : 0;
-  const contentWrapper = container.firstElementChild;
-  const padBottom =
-    contentWrapper instanceof HTMLElement
-      ? parseFloat(getComputedStyle(contentWrapper).paddingBottom) || 0
-      : 0;
+  // Walk up from responseArea to find the content wrapper (direct child of
+  // container). Using container.firstElementChild is unreliable because
+  // conditional siblings (e.g. budget warning banner) can appear before the
+  // content wrapper when there is no threadId.
+  let contentWrapper: HTMLElement | null = responseArea;
+  while (contentWrapper && contentWrapper.parentElement !== container) {
+    contentWrapper = contentWrapper.parentElement;
+  }
+  const padBottom = contentWrapper
+    ? parseFloat(getComputedStyle(contentWrapper).paddingBottom) || 0
+    : 0;
 
   return Math.max(
     0,
