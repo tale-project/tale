@@ -301,7 +301,9 @@ export const resolveModelData = internalAction({
           modelId: args.modelId,
           maxOutputTokens: definition.maxOutputTokens,
           supportsStructuredOutputs:
-            provider.config.supportsStructuredOutputs ?? false,
+            definition.supportsStructuredOutputs ??
+            provider.config.supportsStructuredOutputs ??
+            false,
           inputCentsPerMillion: definition.cost?.inputCentsPerMillion,
           outputCentsPerMillion: definition.cost?.outputCentsPerMillion,
         };
@@ -371,7 +373,9 @@ export const resolveModelByTag = internalAction({
             dimensions: definition.dimensions,
             maxOutputTokens: definition.maxOutputTokens,
             supportsStructuredOutputs:
-              provider.config.supportsStructuredOutputs ?? false,
+              definition.supportsStructuredOutputs ??
+              provider.config.supportsStructuredOutputs ??
+              false,
             inputCentsPerMillion: definition.cost?.inputCentsPerMillion,
             outputCentsPerMillion: definition.cost?.outputCentsPerMillion,
           };
@@ -393,7 +397,9 @@ export const resolveModelByTag = internalAction({
           dimensions: definition.dimensions,
           maxOutputTokens: definition.maxOutputTokens,
           supportsStructuredOutputs:
-            provider.config.supportsStructuredOutputs ?? false,
+            definition.supportsStructuredOutputs ??
+            provider.config.supportsStructuredOutputs ??
+            false,
           inputCentsPerMillion: definition.cost?.inputCentsPerMillion,
           outputCentsPerMillion: definition.cost?.outputCentsPerMillion,
         };
@@ -403,6 +409,36 @@ export const resolveModelByTag = internalAction({
     throw new Error(
       `No model with tag "${args.tag}" found${args.providerName ? ` in provider "${args.providerName}"` : ' in any provider'}.`,
     );
+  },
+});
+
+/**
+ * Get all model IDs with their tags across all providers.
+ * Used for cross-validation of agent supportedModels at config time.
+ */
+export const getAllModelIds = internalAction({
+  args: { orgSlug: v.optional(v.string()) },
+  returns: v.array(
+    v.object({
+      id: v.string(),
+      tags: v.array(v.string()),
+    }),
+  ),
+  handler: async (_ctx, args) => {
+    const orgSlug = args.orgSlug ?? 'default';
+    let providers: ProviderWithSecrets[];
+    try {
+      providers = await loadAllProviders(orgSlug);
+    } catch {
+      return [];
+    }
+    const models: Array<{ id: string; tags: string[] }> = [];
+    for (const provider of providers) {
+      for (const m of provider.config.models) {
+        models.push({ id: m.id, tags: [...m.tags] });
+      }
+    }
+    return models;
   },
 });
 

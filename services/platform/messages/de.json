@@ -867,6 +867,7 @@
         "searchModels": "Modelle suchen…",
         "noModelsFound": "Keine Modelle gefunden",
         "removeModel": "Entfernen",
+        "embeddingModelWarning": "Nur Embedding-Modell — nicht für Chat nutzbar",
         "modelSelector": {
           "moveUp": "Modell nach oben verschieben",
           "moveDown": "Modell nach unten verschieben",

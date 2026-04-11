@@ -53,7 +53,10 @@ import {
 } from '../context_management/constants';
 import { createAgentConfig } from '../create_agent_config';
 import { createDebugLog } from '../debug_log';
-import { NonRetryableError } from '../error_classification';
+import {
+  NonRetryableError,
+  classifyProviderError,
+} from '../error_classification';
 
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[runAgentGeneration]');
 
@@ -626,16 +629,16 @@ export const runAgentGeneration = internalAction({
         );
         const hasFailedAssistant = newestAssistant?.status === 'failed';
         if (!hasFailedAssistant) {
+          const providerError = classifyProviderError(error);
           await saveMessage(ctx, components.agent, {
             threadId,
             message: {
               role: 'assistant',
-              content:
-                'I was unable to complete your request. Please try again.',
+              content: providerError.userMessage,
             },
             metadata: {
               status: 'failed',
-              error: getString(err, 'message') ?? 'Unknown error',
+              error: `[${providerError.errorType}] ${getString(err, 'message') ?? 'Unknown error'}`,
             },
           });
         }

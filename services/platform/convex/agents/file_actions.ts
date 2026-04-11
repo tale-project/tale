@@ -442,10 +442,51 @@ export const resolveAgentConfig = internalAction({
       },
     );
 
+    // Cross-validate supportedModels against provider model lists so the
+    // user is never presented with models that cannot be resolved.
+    const allModels = await ctx.runAction(
+      internal.providers.file_actions.getAllModelIds,
+      { orgSlug: args.orgSlug },
+    );
+
+    const providerModelIds = new Set<string>();
+    const chatModelIds = new Set<string>();
+    for (const m of allModels) {
+      providerModelIds.add(m.id);
+      if (m.tags.includes('chat')) {
+        chatModelIds.add(m.id);
+      }
+    }
+
+    const validatedModels = result.config.supportedModels.filter((modelId) => {
+      if (!providerModelIds.has(modelId)) {
+        console.warn(
+          `[resolveAgentConfig] Agent "${args.agentSlug}": model "${modelId}" not found in any provider, filtering out.`,
+        );
+        return false;
+      }
+      if (!chatModelIds.has(modelId)) {
+        console.warn(
+          `[resolveAgentConfig] Agent "${args.agentSlug}": model "${modelId}" lacks the "chat" tag, filtering out.`,
+        );
+        return false;
+      }
+      return true;
+    });
+
+    // Use validated models but fall back to original if all were filtered out
+    const effectiveConfig = {
+      ...result.config,
+      supportedModels:
+        validatedModels.length > 0
+          ? validatedModels
+          : result.config.supportedModels,
+    };
+
     const { toSerializableConfig } = await import('./config');
     const config = toSerializableConfig(
       args.agentSlug,
-      result.config,
+      effectiveConfig,
       binding
         ? {
             teamId: binding.teamId ?? undefined,
