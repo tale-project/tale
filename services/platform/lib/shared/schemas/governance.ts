@@ -8,6 +8,7 @@ export const POLICY_TYPES = [
   'retention_policy',
   'feature_flags',
   'pii_config',
+  'model_access',
 ] as const;
 export type PolicyType = (typeof POLICY_TYPES)[number];
 
@@ -101,3 +102,18 @@ export const piiConfigSchema = z.object({
   enabledPatterns: z.array(z.string()),
   customPatterns: z.array(piiCustomPatternSchema).optional(),
 });
+
+export const modelAccessRuleSchema = z.object({
+  scope: z.enum(['user', 'team', 'role', 'default']),
+  scopeId: z.string().optional(),
+  allowedModels: z.array(z.string()),
+  blockedModels: z.array(z.string()).optional(),
+});
+export type ModelAccessRule = z.infer<typeof modelAccessRuleSchema>;
+
+export const modelAccessConfigSchema = z.object({
+  enabled: z.boolean(),
+  mode: z.enum(['allowlist', 'blocklist']),
+  rules: z.array(modelAccessRuleSchema),
+});
+export type ModelAccessConfig = z.infer<typeof modelAccessConfigSchema>;

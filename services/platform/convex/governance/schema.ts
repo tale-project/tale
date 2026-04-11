@@ -11,6 +11,7 @@ export const GOVERNANCE_POLICY_TYPES = [
   'feature_flags',
   'pii_config',
   'default_models',
+  'model_access',
 ] as const;
 
 const policyTypeValidator = v.union(
