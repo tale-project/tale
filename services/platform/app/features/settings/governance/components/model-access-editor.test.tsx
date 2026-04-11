@@ -95,6 +95,105 @@ vi.mock('@/app/components/ui/forms/select', () => ({
   ),
 }));
 
+vi.mock('@/app/components/ui/dialog/form-dialog', () => ({
+  FormDialog: ({ children }: { children: React.ReactNode }) => (
+    <div role="dialog">{children}</div>
+  ),
+}));
+
+vi.mock('@/app/components/ui/forms/searchable-select', () => ({
+  SearchableSelect: ({
+    value,
+    onValueChange,
+    options,
+  }: {
+    value: string | null;
+    onValueChange: (value: string) => void;
+    options: Array<{ value: string; label: string }>;
+    [key: string]: unknown;
+  }) => (
+    <select
+      value={value ?? ''}
+      onChange={(e) => onValueChange(e.target.value)}
+      aria-label="searchable-select"
+    >
+      {options.map((opt: { value: string; label: string }) => (
+        <option key={opt.value} value={opt.value}>
+          {opt.label}
+        </option>
+      ))}
+    </select>
+  ),
+}));
+
+vi.mock('@/app/components/ui/forms/checkbox-group', () => ({
+  CheckboxGroup: ({
+    label,
+    options,
+    value,
+    onValueChange,
+  }: {
+    label: string;
+    options: Array<{ value: string; label: string }>;
+    value: string[];
+    onValueChange: (values: string[]) => void;
+    [key: string]: unknown;
+  }) => (
+    <fieldset>
+      <legend>{label}</legend>
+      {options.map((opt: { value: string; label: string }) => (
+        <label key={opt.value}>
+          <input
+            type="checkbox"
+            checked={value.includes(opt.value)}
+            onChange={(e) => {
+              if (e.target.checked) {
+                onValueChange([...value, opt.value]);
+              } else {
+                onValueChange(value.filter((v) => v !== opt.value));
+              }
+            }}
+          />
+          {opt.label}
+        </label>
+      ))}
+    </fieldset>
+  ),
+}));
+
+vi.mock('@/app/components/ui/layout/page-section', () => ({
+  PageSection: ({
+    children,
+    title,
+    description,
+  }: {
+    children: React.ReactNode;
+    title: string;
+    description?: string;
+  }) => (
+    <section>
+      <h2>{title}</h2>
+      {description && <p>{description}</p>}
+      {children}
+    </section>
+  ),
+}));
+
+vi.mock('@/app/components/ui/primitives/button', () => ({
+  Button: ({
+    children,
+    ...props
+  }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
+    <button {...props}>{children}</button>
+  ),
+}));
+
+vi.mock('@/app/components/ui/typography/text', () => ({
+  Text: ({ children, ...props }: React.HTMLAttributes<HTMLSpanElement>) => (
+    <span {...props}>{children}</span>
+  ),
+}));
+
 describe('ModelAccessEditor', () => {
   describe('accessibility', () => {
     it('passes axe audit', async () => {
