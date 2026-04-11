@@ -113,6 +113,7 @@
       "displayName": "Mistral Large 3",
       "description": "Mistral AI's flagship large language model",
       "tags": ["chat"],
+      "maxOutputTokens": 8192,
       "cost": { "inputCentsPerMillion": 50, "outputCentsPerMillion": 150 }
     },
     {
@@ -120,6 +121,7 @@
       "displayName": "Mistral Medium 3",
       "description": "Balanced Mistral model for general tasks",
       "tags": ["chat"],
+      "maxOutputTokens": 8192,
       "cost": { "inputCentsPerMillion": 40, "outputCentsPerMillion": 200 }
     },
     {

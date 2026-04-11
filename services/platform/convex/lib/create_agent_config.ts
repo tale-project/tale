@@ -157,7 +157,12 @@ Example: User asks for "John's email" and you find 3 Johns:
     callSettings,
     ...(typeof opts.maxTokens === 'number'
       ? { maxOutputTokens: opts.maxTokens }
-      : {}),
+      : {
+          // Set default maxOutputTokens via providerOptions to prevent OpenRouter
+          // from applying its own low defaults, which causes response truncation.
+          // Mirrors the pattern used in summarize_context.ts and vision_agent.ts.
+          providerOptions: { openai: { maxOutputTokens: 8192 } },
+        }),
     ...(hasAnyTools ? { tools: mergedTools } : {}),
     ...(typeof effectiveMaxSteps === 'number'
       ? { maxSteps: effectiveMaxSteps }

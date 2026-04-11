@@ -108,7 +108,9 @@ export function buildUserProfile(
     lines.push(`- Timezone: ${context.timezone}`);
   }
   if (context.language) {
-    lines.push(`- Language: ${context.language} (browser)`);
+    lines.push(
+      `- Browser locale: ${context.language} (for date/number formatting only — do NOT use this to determine response language)`,
+    );
   }
   lines.push(`- Current Time: ${new Date().toISOString()}`);
 

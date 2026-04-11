@@ -23,6 +23,7 @@ export interface ResolvedModelData {
   apiKey: string;
   modelId: string;
   dimensions?: number;
+  maxOutputTokens?: number;
   supportsStructuredOutputs: boolean;
   inputCentsPerMillion?: number;
   outputCentsPerMillion?: number;

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 
 import {
+  buildUserProfile,
   resolveTemplateVariables,
   SUPPORTED_TEMPLATE_VARIABLES,
 } from './resolve_template_variables';
@@ -185,6 +186,75 @@ describe('resolveTemplateVariables', () => {
     );
 
     expect(ctx.runQuery).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('buildUserProfile', () => {
+  it('uses "Browser locale" label instead of bare "Language" to prevent LLM confusion', () => {
+    const result = buildUserProfile(
+      {
+        organizationId: 'org-1',
+        language: 'de',
+        timezone: 'Europe/Berlin',
+      },
+      {
+        userName: 'Test User',
+        userEmail: 'test@example.com',
+      },
+    );
+
+    // Must NOT contain bare "- Language:" which models interpret as response language directive
+    expect(result).not.toMatch(/^- Language:/m);
+    // Must contain the disambiguated label
+    expect(result).toContain('Browser locale');
+    expect(result).toContain('de');
+    expect(result).toContain('do NOT use this to determine response language');
+  });
+
+  it('omits browser locale line when language is not provided', () => {
+    const result = buildUserProfile(
+      { organizationId: 'org-1' },
+      { userName: 'Test User', userEmail: 'test@example.com' },
+    );
+
+    expect(result).not.toContain('Browser locale');
+    expect(result).not.toContain('Language');
+  });
+
+  it('includes all user context fields when provided', () => {
+    const result = buildUserProfile(
+      {
+        organizationId: 'org-1',
+        timezone: 'America/New_York',
+        language: 'en',
+      },
+      {
+        userName: 'Jane Doe',
+        userEmail: 'jane@example.com',
+        userRole: 'admin',
+        organizationName: 'Acme Corp',
+      },
+    );
+
+    expect(result).toContain('## Current User');
+    expect(result).toContain('- Name: Jane Doe');
+    expect(result).toContain('- Email: jane@example.com');
+    expect(result).toContain('- Role: admin');
+    expect(result).toContain('- Organization: Acme Corp');
+    expect(result).toContain('- Timezone: America/New_York');
+  });
+
+  it('does not duplicate name when name equals email', () => {
+    const result = buildUserProfile(
+      { organizationId: 'org-1' },
+      {
+        userName: 'jane@example.com',
+        userEmail: 'jane@example.com',
+      },
+    );
+
+    expect(result).not.toContain('- Name:');
+    expect(result).toContain('- Email: jane@example.com');
   });
 });
 

@@ -1042,6 +1042,9 @@ export async function generateAgentResponse(
                   ...(originalUserMessage
                     ? { promptMessageId: originalUserMessage._id }
                     : {}),
+                  ...(generationParams?.maxTokens != null && {
+                    maxTokens: generationParams.maxTokens,
+                  }),
                 },
                 {
                   contextOptions: {
