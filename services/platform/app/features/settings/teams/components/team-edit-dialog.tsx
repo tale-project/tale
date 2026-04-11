@@ -112,7 +112,7 @@ export function TeamEditDialog({
       if (formState.isDirty) {
         const result = await authClient.organization.updateTeam({
           teamId: team.id,
-          data: { name: data.name },
+          data: { name: data.name, organizationId },
         });
 
         if (result.error) {

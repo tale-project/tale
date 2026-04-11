@@ -314,7 +314,7 @@
     },
     "teams": {
       "title": "No teams yet",
-      "description": "Create your first team to organize members and control access"
+      "description": "Teams let you scope access to agents and resources across your organization."
     },
     "apiKeys": {
       "title": "No API keys yet",
@@ -672,14 +672,15 @@
       "noMembersToAdd": "All organization members are already in this team",
       "noTeamMembers": "No members in this team yet",
       "cannotRemoveLastMember": "Cannot remove the last member. Delete the team instead.",
-      "sectionDescription": "Manage teams and organize members into groups.",
+      "sectionDescription": "Organize members into teams for scoped access to agents and resources.",
       "memberCount": "{count} {count, plural, one {member} other {members}}",
       "showingAllTeams": "Showing all {count} {count, plural, one {team} other {teams}}",
       "teamName": "Team name",
       "teamNamePlaceholder": "Enter team name...",
       "saveChanges": "Save changes",
       "loadingMembers": "Loading...",
-      "unknownMember": "Unknown"
+      "unknownMember": "Unknown",
+      "memberChecklistHint": "A member can be part of multiple teams. If no one is selected, you will be added automatically."
     },
     "agents": {
       "title": "Agents",

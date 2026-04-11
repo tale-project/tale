@@ -698,7 +698,7 @@ export function DataTable<TData, TValue = unknown>({
   const entityCountFooter = infiniteScroll &&
     infiniteScroll.entityLabel &&
     data.length > 0 && (
-      <output className="bg-background border-border text-muted-foreground sticky bottom-0 z-10 block border-t py-3 text-center text-xs">
+      <output className="bg-background border-border text-muted-foreground sticky bottom-0 z-10 block py-3 text-center text-xs">
         {infiniteScroll.totalCount !== undefined &&
         infiniteScroll.totalCount !== data.length
           ? t('pagination.showingFiltered', {

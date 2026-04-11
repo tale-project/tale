@@ -50,6 +50,9 @@ export function TeamMemberChecklist({
       <p className="text-foreground/80 text-sm font-medium">
         {tSettings('teams.manageMembers')}
       </p>
+      <p className="text-muted-foreground text-xs">
+        {tSettings('teams.memberChecklistHint')}
+      </p>
       <div className="border-border overflow-hidden rounded-lg border">
         {orgMembers.map((member: MemberOption, index: number) => {
           const isLast = index === orgMembers.length - 1;
