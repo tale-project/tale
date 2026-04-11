@@ -1536,7 +1536,19 @@
       "tagsRequired": "Mindestens ein Tag ist erforderlich",
       "modelsRequired": "Mindestens ein Modell ist erforderlich",
       "duplicateModelId": "Doppelte Modell-ID",
-      "modelNumber": "Modell {number}"
+      "modelNumber": "Modell {number}",
+      "modelBaseUrl": "Basis-URL-Überschreibung",
+      "modelBaseUrlPlaceholder": "Leer lassen, um die Anbieter-Basis-URL zu verwenden",
+      "modelBaseUrlHelp": "Überschreibt die Anbieter-Basis-URL nur für dieses Modell.",
+      "modelApiKey": "API-Key-Überschreibung",
+      "modelApiKeyPlaceholder": "Leer lassen, um den Anbieter-API-Key zu verwenden",
+      "modelApiKeyHelp": "Überschreibt den Anbieter-API-Key nur für dieses Modell.",
+      "modelApiKeyConfigured": "Modellspezifischer API-Key konfiguriert",
+      "modelApiKeyNotConfigured": "Verwendet den Anbieter-API-Key",
+      "modelOverrideIndicator": "Eigene Konfig.",
+      "deleteModelApiKey": "Modell-API-Key entfernen",
+      "deleteModelApiKeyConfirm": "Den modellspezifischen API-Key für \"{model}\" entfernen? Stattdessen wird der Anbieter-Key verwendet.",
+      "costHelp": "Wird für die Budgetverfolgung verwendet. Leer lassen für Standardschätzungen."
     },
     "form": {
       "name": "Name",

@@ -1539,7 +1539,19 @@
       "tagsRequired": "At least one tag is required",
       "modelsRequired": "At least one model is required",
       "duplicateModelId": "Duplicate model ID",
-      "modelNumber": "Model {number}"
+      "modelNumber": "Model {number}",
+      "modelBaseUrl": "Base URL override",
+      "modelBaseUrlPlaceholder": "Leave empty to use provider base URL",
+      "modelBaseUrlHelp": "Override the provider base URL for this model only.",
+      "modelApiKey": "API key override",
+      "modelApiKeyPlaceholder": "Leave empty to use provider API key",
+      "modelApiKeyHelp": "Override the provider API key for this model only.",
+      "modelApiKeyConfigured": "Model-specific API key configured",
+      "modelApiKeyNotConfigured": "Uses provider API key",
+      "modelOverrideIndicator": "Custom config",
+      "deleteModelApiKey": "Remove model API key",
+      "deleteModelApiKeyConfirm": "Remove the model-specific API key for \"{model}\"? The provider-level key will be used instead.",
+      "costHelp": "Used for budget tracking. Leave empty to use default estimates."
     },
     "form": {
       "name": "Name",
