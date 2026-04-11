@@ -39,58 +39,12 @@
       },
       "knowledge": {
         "fileTooLarge": "Datei zu gross"
-      },
-      "form": {
-        "browsePrompts": "Prompts durchsuchen"
       }
     },
     "integrations": {
       "authorizationRequiredDescription": "Schliessen die Autorisierung ab, um E-Mails senden und empfangen zu können",
       "sso": {
         "excludeGroupsLabel": "Gruppen ausschliessen"
-      }
-    },
-    "logs": {
-      "audit": {
-        "categories": {
-          "ai": "KI"
-        },
-        "export": {
-          "csv": "CSV exportieren",
-          "json": "JSON exportieren",
-          "csvLabel": "Audit-Protokolle als CSV exportieren",
-          "jsonLabel": "Audit-Protokolle als JSON exportieren",
-          "inProgress": "Exportieren...",
-          "complete": "Export abgeschlossen",
-          "error": "Export fehlgeschlagen"
-        },
-        "aiMetadata": {
-          "title": "KI-Nutzungsdetails",
-          "model": "Modell",
-          "provider": "Anbieter",
-          "inputTokens": "Eingabe-Token",
-          "outputTokens": "Ausgabe-Token",
-          "totalTokens": "Token gesamt",
-          "cost": "Geschätzte Kosten",
-          "duration": "Dauer",
-          "agent": "Agent",
-          "tools": "Verwendete Tools"
-        },
-        "verification": {
-          "button": "Integrität prüfen",
-          "inProgress": "Prüfung läuft...",
-          "valid": "Kette gültig",
-          "validDescription": "{count} Einträge geprüft, keine Manipulation erkannt",
-          "broken": "Kette unterbrochen",
-          "brokenDescription": "Integritätsbruch erkannt bei Eintrag {logId}"
-        },
-        "retention": {
-          "label": "Aufbewahrungsdauer",
-          "days": "Tage",
-          "minHint": "Minimum: 30 Tage",
-          "maxHint": "Maximum: 365 Tage",
-          "saved": "Aufbewahrungsrichtlinie gespeichert"
-        }
       }
     }
   },
@@ -124,13 +78,10 @@
   "chat": {
     "filesNotSupported": "Einige Dateien sind zu gross (>100 MB) oder werden nicht unterstützt. Unterstützt: Bilder, PDF, Word-Dokumente, Textdateien.",
     "fileSizeExceededMultiple": "{names} überschreitet das Dateigrössenlimit von {maxSize} MB.",
-    "fileTypeNotAllowed": "{names}: Dateityp nicht erlaubt laut Upload-Richtlinie.",
     "canvas": {
       "close": "Canvas schliessen",
       "resizeHandle": "Canvas-Grösse ändern"
-    },
-    "promptLibrary": "Prompt-Bibliothek",
-    "saveAsPrompt": "Als Prompt speichern"
+    }
   },
   "documents": {
     "preview": {
@@ -151,132 +102,11 @@
       }
     },
     "uploadPolicy": {
-      "title": "Upload-Richtlinie",
       "description": "Konfiguriere erlaubte Dateitypen, maximale Dateigrösse und Volumenlimits.",
-      "enabled": "Upload-Richtlinie aktivieren",
-      "allowedExtensions": "Erlaubte Dateierweiterungen",
-      "blockedExtensions": "Blockierte Dateierweiterungen",
-      "allowedMimeTypes": "Erlaubte MIME-Typen",
-      "maxFileSize": "Maximale Dateigrösse",
-      "maxVolumePerUser": "Maximales Gesamtvolumen pro Benutzer",
-      "extensionPlaceholder": "pdf, png, csv",
-      "mimeTypePlaceholder": "image/*, application/pdf",
-      "mbUnit": "MB",
-      "gbUnit": "GB",
-      "policyDisabledHint": "Aktiviere die Richtlinie, um Upload-Beschränkungen durchzusetzen.",
-      "saved": "Upload-Richtlinie gespeichert",
-      "saveFailed": "Upload-Richtlinie konnte nicht gespeichert werden"
+      "maxFileSize": "Maximale Dateigrösse"
     },
     "retentionPolicy": {
-      "title": "Aufbewahrungsrichtlinie",
-      "description": "Konfiguriere die automatische Löschung hochgeladener Dateien nach einem bestimmten Zeitraum.",
-      "enabled": "Aufbewahrungsrichtlinie aktivieren",
-      "retentionDays": "Aufbewahrungszeitraum (Tage)",
-      "retentionDaysHint": "Dokumente, die älter sind, werden dauerhaft gelöscht. Dies kann nicht rückgängig gemacht werden.",
-      "scope": "Anwenden auf",
-      "scopeAll": "Alle Dokumente",
-      "scopeUpload": "Nur hochgeladene Dateien",
-      "scopeAgent": "Nur Agent-generierte Dateien",
-      "batchSize": "Stapelgrösse pro Bereinigungslauf",
-      "batchSizeHint": "Anzahl der Dokumente, die pro geplantem Lauf gelöscht werden. Höhere Werte sind schneller, aber ressourcenintensiver.",
-      "warning": "Das Aktivieren dieser Richtlinie löscht dauerhaft Dokumente, die den Aufbewahrungszeitraum überschreiten. Dies kann nicht rückgängig gemacht werden.",
-      "presets": {
-        "30": "30 Tage",
-        "60": "60 Tage",
-        "90": "90 Tage",
-        "180": "6 Monate",
-        "365": "1 Jahr"
-      },
-      "saved": "Aufbewahrungsrichtlinie gespeichert",
-      "saveFailed": "Aufbewahrungsrichtlinie konnte nicht gespeichert werden"
-    },
-    "defaultModels": {
-      "title": "Standardmodelle",
-      "description": "Standardmodelle für bestimmte Benutzergruppen oder Rollen festlegen.",
-      "addMapping": "Modellzuordnung hinzufügen",
-      "saved": "Standardmodell-Konfiguration gespeichert",
-      "addRule": "Regel hinzufügen",
-      "addRuleTitle": "Standardmodell-Regel hinzufügen",
-      "editRuleTitle": "Standardmodell-Regel bearbeiten",
-      "editRule": "Regel {index} bearbeiten",
-      "removeRule": "Regel {index} entfernen",
-      "scope": "Geltungsbereich",
-      "target": "Ziel",
-      "provider": "Anbieter",
-      "model": "Modell",
-      "role": "Rolle",
-      "actions": "Aktionen",
-      "noRules": "Keine Standardmodell-Regeln konfiguriert. Füge eine Regel hinzu, um Team- oder Rollen-Standards festzulegen.",
-      "allUsers": "Alle Benutzer",
-      "selectProvider": "Anbieter auswählen...",
-      "selectModel": "Modell auswählen...",
-      "selectTeam": "Team auswählen...",
-      "searchProviders": "Anbieter suchen...",
-      "searchModels": "Modelle suchen...",
-      "searchTeams": "Teams suchen...",
-      "noProvidersFound": "Keine Anbieter gefunden",
-      "noModelsFound": "Keine Modelle gefunden",
-      "noTeamsFound": "Keine Teams gefunden",
-      "enabled": "Aktiviert",
-      "confirm": "Bestätigen"
+      "batchSize": "Stapelgrösse pro Bereinigungslauf"
     }
-  },
-  "prompts": {
-    "tabs": {
-      "all": "Alle",
-      "team": "Team",
-      "personal": "Persönlich"
-    },
-    "library": {
-      "title": "Prompt-Bibliothek",
-      "description": "Prompt-Vorlagen durchsuchen, speichern und teilen.",
-      "searchPlaceholder": "Prompts suchen...",
-      "loading": "Prompts werden geladen...",
-      "empty": "Noch keine Prompts. Erstelle deine erste Prompt-Vorlage."
-    },
-    "actions": {
-      "create": "Prompt erstellen",
-      "createFirst": "Ersten Prompt erstellen",
-      "edit": "Bearbeiten",
-      "delete": "Löschen",
-      "use": "Verwenden",
-      "usePrompt": "Diesen Prompt verwenden",
-      "more": "Weitere Aktionen"
-    },
-    "deleteConfirm": {
-      "title": "Prompt löschen",
-      "description": "Bist du sicher, dass du \"{title}\" löschen möchtest? Diese Aktion kann nicht rückgängig gemacht werden."
-    },
-    "scope": {
-      "global": "Global (alle)",
-      "team": "Team",
-      "personal": "Persönlich"
-    },
-    "form": {
-      "createTitle": "Prompt erstellen",
-      "createDescription": "Eine neue Prompt-Vorlage erstellen.",
-      "editTitle": "Prompt bearbeiten",
-      "editDescription": "Die Prompt-Vorlage aktualisieren.",
-      "titleLabel": "Titel",
-      "titlePlaceholder": "Prompt-Titel eingeben...",
-      "contentLabel": "Inhalt",
-      "contentPlaceholder": "Prompt-Inhalt eingeben...",
-      "descriptionLabel": "Beschreibung",
-      "descriptionPlaceholder": "Kurze Beschreibung des Prompts...",
-      "scopeLabel": "Sichtbarkeit",
-      "teamLabel": "Team",
-      "teamPlaceholder": "Team auswählen...",
-      "categoryLabel": "Kategorie",
-      "categoryPlaceholder": "z.B. Schreiben, Analyse, Programmierung",
-      "tagsLabel": "Tags",
-      "tagsPlaceholder": "Kommagetrennte Tags...",
-      "save": "Speichern",
-      "create": "Erstellen"
-    },
-    "saveAs": {
-      "title": "Als Prompt speichern",
-      "description": "Den aktuellen Text als wiederverwendbare Prompt-Vorlage speichern."
-    },
-    "usageCount": "{count, plural, one {# Verwendung} other {# Verwendungen}}"
   }
 }
