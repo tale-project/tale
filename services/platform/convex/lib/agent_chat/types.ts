@@ -139,6 +139,8 @@ export interface RunAgentGenerationArgs {
   maxSteps?: number;
   /** Optional per-request generation parameters from OpenAI compat endpoint */
   generationParams?: GenerationParams;
+  /** Governance-enforced max context tokens (overrides agent config) */
+  maxContextTokens?: number;
 }
 
 /**

@@ -182,6 +182,7 @@ export async function generateAgentResponse(
     noCacheToolNames,
     instructions,
     toolsSummary,
+    maxContextTokens,
   } = config;
   const {
     ctx,
@@ -507,12 +508,18 @@ export async function generateAgentResponse(
     // Build structured context (history, RAG, web)
     // Note: promptMessage is NOT included - it's passed via `prompt` parameter
     const agentConfig = AGENT_CONTEXT_CONFIGS[agentType];
+    const effectiveMaxHistoryTokens =
+      maxContextTokens != null &&
+      Number.isFinite(maxContextTokens) &&
+      maxContextTokens > 0
+        ? Math.floor(maxContextTokens)
+        : agentConfig.maxHistoryTokens;
     structuredThreadContext = await buildStructuredContext({
       ctx,
       threadId,
       additionalContext,
       parentThreadId,
-      maxHistoryTokens: agentConfig.maxHistoryTokens,
+      maxHistoryTokens: effectiveMaxHistoryTokens,
       ragContext: knowledgeContextResult ?? hookData?.ragContext,
       webContext: webContextResult,
     });
@@ -940,7 +947,7 @@ export async function generateAgentResponse(
             threadId,
             additionalContext,
             parentThreadId,
-            maxHistoryTokens: agentConfig.maxHistoryTokens,
+            maxHistoryTokens: effectiveMaxHistoryTokens,
             ragContext: hookData?.ragContext,
           });
 
@@ -1169,7 +1176,7 @@ export async function generateAgentResponse(
             threadId,
             additionalContext,
             parentThreadId,
-            maxHistoryTokens: agentConfig.maxHistoryTokens,
+            maxHistoryTokens: effectiveMaxHistoryTokens,
             ragContext: hookData?.ragContext,
           });
 

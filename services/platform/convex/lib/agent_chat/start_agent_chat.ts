@@ -18,11 +18,13 @@ import { components, internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
 import { checkBudget } from '../../governance/budget_enforcement';
+import { resolveFeatureFlags } from '../../governance/feature_enforcement';
 import { persistentStreaming } from '../../streaming/helpers';
 import type { FileAttachment } from '../attachments';
 import type { AgentType } from '../context_management/constants';
 import { AGENT_CONTEXT_CONFIGS } from '../context_management/constants';
 import { createDebugLog } from '../debug_log';
+import { getUserTeamIds } from '../get_user_teams';
 import {
   computeDeduplicationState,
   type AgentListMessagesResult,
@@ -241,6 +243,52 @@ export async function startAgentChat(
     }
   }
 
+  // Feature flag enforcement — resolve per-user flags and override agent config
+  let enforcedConfig = agentConfig;
+  let governanceMaxContextTokens: number | undefined;
+
+  if (userId) {
+    const userTeamIds = await getUserTeamIds(ctx, userId);
+    const featureFlags = await resolveFeatureFlags(
+      ctx,
+      organizationId,
+      userId,
+      userTeamIds,
+    );
+
+    if (!featureFlags.webSearch) {
+      enforcedConfig = {
+        ...agentConfig,
+        webSearchMode: 'off',
+        convexToolNames: (agentConfig.convexToolNames ?? []).filter(
+          (t) => t !== 'web',
+        ),
+      };
+    }
+
+    if (!featureFlags.fileUpload && attachments && attachments.length > 0) {
+      await saveMessage(ctx, components.agent, {
+        threadId,
+        message: {
+          role: 'assistant',
+          content:
+            'File uploads are disabled for your account by organization policy. Please contact your administrator.',
+        },
+      });
+      if (threadMeta) {
+        await ctx.db.patch(threadMeta._id, {
+          generationStatus: 'idle' as const,
+          updatedAt: Date.now(),
+        });
+      }
+      return { messageAlreadyExists, streamId };
+    }
+
+    if (featureFlags.maxContextTokens != null) {
+      governanceMaxContextTokens = featureFlags.maxContextTokens;
+    }
+  }
+
   // Schedule the generic agent action with full configuration
   debugLog('SCHEDULE_ACTION', {
     threadId,
@@ -252,7 +300,7 @@ export async function startAgentChat(
     internal.lib.agent_chat.internal_actions.runAgentGeneration,
     {
       agentType,
-      agentConfig,
+      agentConfig: enforcedConfig,
       model,
       provider,
       debugTag,
@@ -271,6 +319,7 @@ export async function startAgentChat(
       userContext,
       deadlineMs,
       generationParams: args.generationParams,
+      maxContextTokens: governanceMaxContextTokens,
     },
   );
 

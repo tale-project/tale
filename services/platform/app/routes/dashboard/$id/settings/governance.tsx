@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { Tabs } from '@/app/components/ui/navigation/tabs';
 import { BudgetEditor } from '@/app/features/settings/governance/components/budget-editor';
+import { FeatureFlagsEditor } from '@/app/features/settings/governance/components/feature-flags-editor';
 import { PiiConfig } from '@/app/features/settings/governance/components/pii-config';
 import { RetentionEditor } from '@/app/features/settings/governance/components/retention-editor';
 import { SystemPromptEditor } from '@/app/features/settings/governance/components/system-prompt-editor';
@@ -29,8 +30,8 @@ function GovernanceSettingsPage() {
   const { id: organizationId } = Route.useParams();
   const search = Route.useSearch();
   const navigate = useNavigate();
-  const { t } = useT('accessDenied');
-  const { t: tGov } = useT('governance');
+  const { t: tAccessDenied } = useT('accessDenied');
+  const { t } = useT('governance');
 
   const ability = useAbility();
   const abilityLoading = useAbilityLoading();
@@ -49,12 +50,12 @@ function GovernanceSettingsPage() {
     () => [
       {
         value: 'system-prompt',
-        label: tGov('tabs.systemPrompt'),
+        label: t('tabs.systemPrompt'),
         content: <SystemPromptEditor organizationId={organizationId} />,
       },
       {
         value: 'budgets',
-        label: tGov('tabs.budgets'),
+        label: t('tabs.budgets'),
         content: <BudgetEditor organizationId={organizationId} />,
       },
       {
@@ -63,17 +64,22 @@ function GovernanceSettingsPage() {
         content: <RetentionEditor organizationId={organizationId} />,
       },
       {
+        value: 'feature-controls',
+        label: t('tabs.featureControls'),
+        content: <FeatureFlagsEditor organizationId={organizationId} />,
+      },
+      {
         value: 'usage',
-        label: tGov('tabs.usage'),
+        label: t('tabs.usage'),
         content: <UsageDashboard organizationId={organizationId} />,
       },
       {
         value: 'pii',
-        label: tGov('tabs.pii'),
+        label: t('tabs.pii'),
         content: <PiiConfig organizationId={organizationId} />,
       },
     ],
-    [organizationId, tGov],
+    [organizationId, t],
   );
 
   if (abilityLoading) {
@@ -81,7 +87,7 @@ function GovernanceSettingsPage() {
   }
 
   if (ability.cannot('read', 'orgSettings')) {
-    return <AccessDenied message={t('organization')} />;
+    return <AccessDenied message={tAccessDenied('organization')} />;
   }
 
   return (
