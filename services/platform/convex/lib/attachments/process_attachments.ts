@@ -63,6 +63,14 @@ export interface ProcessAttachmentsConfig {
 }
 
 /**
+ * Reduced per-document limit when multiple documents are attached.
+ * Keeps total context manageable for comparison-style prompts (~20K tokens
+ * for two documents instead of ~100K).
+ */
+const DEFAULT_MAX_DOCUMENT_LENGTH = 50000;
+const MULTI_DOC_MAX_DOCUMENT_LENGTH = 15000;
+
+/**
  * Process file attachments for an AI agent.
  *
  * This function:
@@ -83,6 +91,19 @@ export async function processAttachments(
   userText: string | undefined,
   config: ProcessAttachmentsConfig & { model: string },
 ): Promise<ProcessedAttachments> {
+  // When multiple documents are attached (e.g. comparison), use a reduced
+  // per-document limit to keep total LLM context manageable.
+  const documentCount = attachments.filter(
+    (a) =>
+      !isImage(a.fileType) &&
+      !isSpreadsheet(a.fileName) &&
+      !isTextFile(a.fileType, a.fileName),
+  ).length;
+  const defaultLimit =
+    documentCount > 1
+      ? MULTI_DOC_MAX_DOCUMENT_LENGTH
+      : DEFAULT_MAX_DOCUMENT_LENGTH;
+  const maxDocLength = config?.maxDocumentLength ?? defaultLimit;
   const debugLog = config?.debugLog ?? (() => {});
 
   if (!attachments || attachments.length === 0) {
@@ -107,6 +128,67 @@ export async function processAttachments(
   const fileAttachments = attachments.filter(
     (a) => !isImage(a.fileType) && !isSpreadsheet(a.fileName),
   );
+  const documentAttachments = attachments.filter(
+    (a) =>
+      !isImage(a.fileType) &&
+      !isSpreadsheet(a.fileName) &&
+      !isTextFile(a.fileType, a.fileName),
+  );
+
+  // Parse document files to extract their text content (in parallel)
+  const parseStart = Date.now();
+  const parseResults = await Promise.all(
+    documentAttachments.map(async (attachment) => {
+      try {
+        const fileStart = Date.now();
+        const parseResult = await parseFile(
+          ctx,
+          attachment.fileId,
+          attachment.fileName,
+          toolName,
+          userText,
+        );
+        debugLog('PERF_PARSE_FILE', {
+          fileName: attachment.fileName,
+          durationMs: Date.now() - fileStart,
+          success: parseResult.success,
+          textLength: parseResult.full_text?.length ?? 0,
+        });
+        return { attachment, parseResult };
+      } catch (error) {
+        debugLog('Error parsing document', {
+          fileName: attachment.fileName,
+          error: String(error),
+        });
+        return null;
+      }
+    }),
+  );
+  debugLog('PERF_PARSE_ALL', {
+    durationMs: Date.now() - parseStart,
+    fileCount: documentAttachments.length,
+  });
+
+  const parsedDocuments: ParsedDocument[] = [];
+
+  for (const result of parseResults) {
+    if (result?.parseResult.success && result.parseResult.full_text) {
+      parsedDocuments.push({
+        fileId: result.attachment.fileId,
+        fileName: result.attachment.fileName,
+        content: result.parseResult.full_text,
+      });
+      debugLog('Parsed document', {
+        fileName: result.attachment.fileName,
+        textLength: result.parseResult.full_text.length,
+      });
+    } else if (result) {
+      debugLog('Failed to parse document', {
+        fileName: result.attachment.fileName,
+        error: result.parseResult.error,
+      });
+    }
+  }
 
   // Parse spreadsheet files using the xlsx library (in parallel)
   const spreadsheetResults = await Promise.all(

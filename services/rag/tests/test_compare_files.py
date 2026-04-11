@@ -115,6 +115,56 @@ class TestCompareFilesService:
                 "empty.txt",
             )
 
+    async def test_parallel_extraction(self):
+        """Both files should be extracted concurrently via asyncio.gather."""
+        import asyncio
+
+        service = _make_service()
+        call_order: list[str] = []
+
+        async def mock_extract(content_bytes, filename, *, vision_client=None):
+            call_order.append(f"start:{filename}")
+            await asyncio.sleep(0.01)
+            call_order.append(f"end:{filename}")
+            return content_bytes.decode("utf-8"), False
+
+        with patch("tale_knowledge.extraction.extract_text", side_effect=mock_extract):
+            result = await service.compare_files(
+                b"Section 1\n\nParagraph A.",
+                "base.txt",
+                b"Section 1\n\nParagraph B.",
+                "comp.txt",
+            )
+
+        assert result["success"] is True
+        # Both extractions should start before either finishes (parallel)
+        assert call_order[0].startswith("start:")
+        assert call_order[1].startswith("start:")
+
+    async def test_max_changes_forwarded(self):
+        service = _make_service()
+
+        async def mock_extract(content_bytes, filename, *, vision_client=None):
+            return content_bytes.decode("utf-8"), False
+
+        base = "\n\n".join(f"base {i}" for i in range(20))
+        comp = "\n\n".join(f"comp {i}" for i in range(20))
+
+        with patch("tale_knowledge.extraction.extract_text", side_effect=mock_extract):
+            result = await service.compare_files(
+                base.encode(),
+                "base.txt",
+                comp.encode(),
+                "comp.txt",
+                max_changes=3,
+            )
+
+        assert result["success"] is True
+        total_items = sum(
+            len([i for i in block["items"] if i["type"] != "context"]) for block in result["change_blocks"]
+        )
+        assert total_items <= 3
+
 
 class TestCompareFilesEndpoint:
     """POST /api/v1/documents/compare-files endpoint tests."""

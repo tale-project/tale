@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from typing import Any, ClassVar
 
 import asyncpg
@@ -60,21 +61,26 @@ class RagSearchService:
         query_embedding: list[float] | None = None
         self.last_search_usage = EmbeddingUsage(model=self._embedding._model)
         try:
+            t0 = time.time()
             embedding_task = asyncio.create_task(self._embedding.embed_query_with_usage(query))
             fts_task = asyncio.create_task(self._fts_search(query, file_ids, top_k * 3))
 
             query_result, fts_results = await asyncio.gather(embedding_task, fts_task)
             query_embedding = query_result.embedding
             self.last_search_usage = query_result.usage
+            embed_fts_ms = (time.time() - t0) * 1000
+            logger.debug("PERF embed+FTS parallel: {:.1f}ms", embed_fts_ms)
 
             # Semantic cache: check for a cached result before vector search
             if self._semantic_cache and query_embedding:
+                cache_t0 = time.time()
                 cached = await self._semantic_cache.lookup(
                     query_embedding,
                     threshold=settings.semantic_cache_similarity_threshold,
                 )
+                cache_ms = (time.time() - cache_t0) * 1000
                 if cached:
-                    logger.debug("Semantic cache hit for query: {}", query[:80])
+                    logger.debug("Semantic cache hit for query (lookup {:.1f}ms): {}", cache_ms, query[:80])
                     try:
                         cached_results = json.loads(cached.response_text)
                         for r in cached_results:
@@ -83,7 +89,10 @@ class RagSearchService:
                     except (json.JSONDecodeError, TypeError):
                         logger.warning("Invalid cached response format, performing fresh search")
 
+            vec_t0 = time.time()
             vector_results = await self._vector_search(query_embedding, file_ids, top_k * 3)
+            vec_ms = (time.time() - vec_t0) * 1000
+            logger.debug("PERF vector search: {:.1f}ms", vec_ms)
 
             if not fts_results and not vector_results:
                 return []
@@ -99,12 +108,15 @@ class RagSearchService:
 
             # Re-rank merged results with cross-encoder if enabled
             if self._reranker and merged:
+                rerank_t0 = time.time()
                 rerank_input = [{"content": item.get("chunk_content", ""), **item} for item in merged]
                 merged = await self._reranker.rerank(
                     query,
                     rerank_input,
                     top_k=settings.reranking_top_k,
                 )
+                rerank_ms = (time.time() - rerank_t0) * 1000
+                logger.debug("PERF reranking: {:.1f}ms", rerank_ms)
 
             results = [
                 {

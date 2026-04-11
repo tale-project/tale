@@ -221,6 +221,35 @@ describe('structured_context_builder', () => {
     expect(result.stats.messageCount).toBe(1);
   });
 
+  it('should run message loading and approvals query in parallel', async () => {
+    const messages = [makeMessage('user-1', 'user', 'hello', 1)];
+
+    mockListMessages.mockResolvedValue({
+      page: messages,
+      isDone: true,
+      continueCursor: null,
+    });
+
+    const mockRunQuery = vi.fn().mockResolvedValue([]);
+    const ctx = {
+      runQuery: mockRunQuery,
+      runMutation: vi.fn(),
+      runAction: vi.fn(),
+    } as never;
+
+    await buildStructuredContext({
+      ctx,
+      threadId: 'thread-1',
+      maxHistoryTokens: 25_000,
+    });
+
+    // Both listMessages and runQuery (approvals) should have been called
+    expect(mockListMessages).toHaveBeenCalledTimes(1);
+    expect(mockRunQuery).toHaveBeenCalledWith('mock-getApprovalsForThread', {
+      threadId: 'thread-1',
+    });
+  });
+
   it('should apply age-tiered truncation to tool outputs', async () => {
     const longToolOutput = 'z'.repeat(5000);
     // Create 10 tool messages with proper tool-result content

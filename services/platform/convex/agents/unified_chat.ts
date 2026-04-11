@@ -51,10 +51,35 @@ export const chatWithAgent = action({
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
-    // PII scrubbing: fetch governance policy and apply if enabled
-    const piiPolicy = await ctx.runQuery(
-      internal.governance.internal_queries.getPiiConfigInternal,
-      { organizationId: args.organizationId },
+    // PII query and governance default model resolution are independent —
+    // run them in parallel to reduce latency.
+    const [piiPolicy, governanceDefault] = await Promise.all([
+      ctx.runQuery(internal.governance.internal_queries.getPiiConfigInternal, {
+        organizationId: args.organizationId,
+      }),
+      !args.modelId
+        ? ctx.runQuery(
+            internal.governance.internal_queries.resolveDefaultModelInternal,
+            {
+              organizationId: args.organizationId,
+              userId: String(authUser._id),
+              userEmail: authUser.email,
+              userName: authUser.name,
+            },
+          )
+        : null,
+    ]);
+
+    const effectiveModelId = args.modelId ?? governanceDefault?.modelId;
+
+    const agentConfig = await ctx.runAction(
+      internal.agents.file_actions.resolveAgentConfig,
+      {
+        orgSlug: args.orgSlug,
+        agentSlug: args.agentSlug,
+        organizationId: args.organizationId,
+        modelId: effectiveModelId,
+      },
     );
 
     let message = args.message;
@@ -92,33 +117,6 @@ export const chatWithAgent = action({
         );
       }
     }
-
-    // Resolve governance default model when no explicit model is provided
-    let effectiveModelId = args.modelId;
-    if (!effectiveModelId) {
-      const governanceDefault = await ctx.runQuery(
-        internal.governance.internal_queries.resolveDefaultModelInternal,
-        {
-          organizationId: args.organizationId,
-          userId: String(authUser._id),
-          userEmail: authUser.email,
-          userName: authUser.name,
-        },
-      );
-      if (governanceDefault) {
-        effectiveModelId = governanceDefault.modelId;
-      }
-    }
-
-    const agentConfig = await ctx.runAction(
-      internal.agents.file_actions.resolveAgentConfig,
-      {
-        orgSlug: args.orgSlug,
-        agentSlug: args.agentSlug,
-        organizationId: args.organizationId,
-        modelId: effectiveModelId,
-      },
-    );
 
     // Delegate to the internal mutation for transactional chat start
     return ctx.runMutation(internal.agents.start_chat.startChat, {

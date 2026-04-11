@@ -188,58 +188,67 @@ export const runAgentGeneration = internalAction({
     }
 
     try {
-      // Build bound integration tools eagerly (before synchronous createAgent closure)
-      let integrationExtraTools: Record<string, unknown> | undefined;
-      if (agentConfig.integrationBindings?.length) {
-        integrationExtraTools = {};
+      const toolBuildStart = Date.now();
+
+      // Build integration, delegation, workflow tools, and governance query
+      // in parallel since they are all independent reads/actions.
+      const buildIntegrationTools = async (): Promise<
+        Record<string, unknown> | undefined
+      > => {
+        if (!agentConfig.integrationBindings?.length) return undefined;
+        const tools: Record<string, unknown> = {};
         for (const name of agentConfig.integrationBindings) {
           const fetched = await fetchOperationsWithSchema(
             ctx,
             organizationId,
             name,
           );
-          integrationExtraTools[`integration_${name}`] =
-            createBoundIntegrationTool(
-              name,
-              fetched?.summary,
-              fetched?.operations,
-              fetched?.metadata,
-            );
+          tools[`integration_${name}`] = createBoundIntegrationTool(
+            name,
+            fetched?.summary,
+            fetched?.operations,
+            fetched?.metadata,
+          );
         }
         debugLog('Built bound integration tools', {
-          names: Object.keys(integrationExtraTools),
+          names: Object.keys(tools),
         });
-      }
+        return tools;
+      };
 
-      // Build delegation tools dynamically
-      let delegationExtraTools: Record<string, unknown> | undefined;
-      let delegationInstructionsAppend = '';
-      if (agentConfig.delegateSlugs?.length) {
+      const buildDelegationTools = async (): Promise<{
+        tools: Record<string, unknown> | undefined;
+        instructionsAppend: string;
+      }> => {
+        if (!agentConfig.delegateSlugs?.length) {
+          return { tools: undefined, instructionsAppend: '' };
+        }
         const delegates = await loadDelegateAgents(
           ctx,
           agentConfig.delegateSlugs,
           organizationId,
           'default',
         );
-
-        if (delegates.length > 0) {
-          delegationExtraTools = {};
-          for (const delegate of delegates) {
-            const delegationTool = createDelegationTool(delegate);
-            delegationExtraTools[delegationTool.name] = delegationTool.tool;
-          }
-          delegationInstructionsAppend =
-            buildDelegationInstructionsSection(delegates);
-          debugLog('Built delegation tools', {
-            names: Object.keys(delegationExtraTools),
-          });
+        if (delegates.length === 0) {
+          return { tools: undefined, instructionsAppend: '' };
         }
-      }
+        const tools: Record<string, unknown> = {};
+        for (const delegate of delegates) {
+          const delegationTool = createDelegationTool(delegate);
+          tools[delegationTool.name] = delegationTool.tool;
+        }
+        debugLog('Built delegation tools', { names: Object.keys(tools) });
+        return {
+          tools,
+          instructionsAppend: buildDelegationInstructionsSection(delegates),
+        };
+      };
 
-      // Build bound workflow tools eagerly (file-based)
-      let workflowExtraTools: Record<string, unknown> | undefined;
-      if (agentConfig.workflowBindings?.length) {
-        workflowExtraTools = {};
+      const buildWorkflowTools = async (): Promise<
+        Record<string, unknown> | undefined
+      > => {
+        if (!agentConfig.workflowBindings?.length) return undefined;
+        const tools: Record<string, unknown> = {};
         for (const slug of agentConfig.workflowBindings) {
           const result: unknown = await ctx.runAction(
             internal.workflows.file_actions.readWorkflowForExecution,
@@ -268,7 +277,7 @@ export const runAgentGeneration = internalAction({
           const inputSchema = extractInputSchema(startStep?.config);
 
           const toolKey = `workflow_${sanitizeWorkflowName(config.name)}_${slug}`;
-          workflowExtraTools[toolKey] = createBoundWorkflowTool(
+          tools[toolKey] = createBoundWorkflowTool(
             {
               workflowSlug: slug,
               name: config.name,
@@ -278,12 +287,71 @@ export const runAgentGeneration = internalAction({
           );
         }
 
-        if (Object.keys(workflowExtraTools).length > 0) {
+        if (Object.keys(tools).length > 0) {
           debugLog('Built bound workflow tools', {
-            names: Object.keys(workflowExtraTools),
+            names: Object.keys(tools),
           });
         }
-      }
+        return Object.keys(tools).length > 0 ? tools : undefined;
+      };
+
+      const fetchGovernancePolicy = async (): Promise<{
+        prefix: string;
+        suffix: string;
+      }> => {
+        if (parentThreadId) return { prefix: '', suffix: '' };
+        const systemPromptPolicy = await ctx.runQuery(
+          internal.governance.internal_queries.getSystemPromptPolicyInternal,
+          { organizationId },
+        );
+        let prefix = '';
+        let suffix = '';
+        if (
+          systemPromptPolicy?.enabled !== false &&
+          isRecord(systemPromptPolicy?.config)
+        ) {
+          const cfg = systemPromptPolicy.config;
+          if (
+            typeof cfg.mandatoryPrefixPrompt === 'string' &&
+            cfg.mandatoryPrefixPrompt.trim()
+          ) {
+            prefix = cfg.mandatoryPrefixPrompt.trim();
+          }
+          if (
+            typeof cfg.mandatorySuffixPrompt === 'string' &&
+            cfg.mandatorySuffixPrompt.trim()
+          ) {
+            suffix = cfg.mandatorySuffixPrompt.trim();
+          }
+        }
+        return { prefix, suffix };
+      };
+
+      const [
+        integrationExtraTools,
+        delegationResult,
+        workflowExtraTools,
+        governanceResult,
+      ] = await Promise.all([
+        buildIntegrationTools(),
+        buildDelegationTools(),
+        buildWorkflowTools(),
+        fetchGovernancePolicy(),
+      ]);
+
+      const delegationExtraTools = delegationResult.tools;
+      const delegationInstructionsAppend = delegationResult.instructionsAppend;
+      const mandatoryPrefix = governanceResult.prefix;
+      const mandatorySuffix = governanceResult.suffix;
+
+      const toolBuildMs = Date.now() - toolBuildStart;
+      debugLog('PERF_TOOL_BUILD', {
+        durationMs: toolBuildMs,
+        hasIntegrations: !!integrationExtraTools,
+        hasDelegation: !!delegationExtraTools,
+        hasWorkflows: !!workflowExtraTools,
+        hasGovernance: !!(mandatoryPrefix || mandatorySuffix),
+      });
 
       // Merge all extra tools
       const allExtraTools: Record<string, unknown> | undefined =
@@ -294,35 +362,6 @@ export const runAgentGeneration = internalAction({
               ...workflowExtraTools,
             }
           : undefined;
-
-      // Fetch mandatory system prompt governance policy (skip for sub-agents
-      // to prevent double-injection in delegation chains)
-      let mandatoryPrefix = '';
-      let mandatorySuffix = '';
-      if (!parentThreadId) {
-        const systemPromptPolicy = await ctx.runQuery(
-          internal.governance.internal_queries.getSystemPromptPolicyInternal,
-          { organizationId },
-        );
-        if (
-          systemPromptPolicy?.enabled !== false &&
-          isRecord(systemPromptPolicy?.config)
-        ) {
-          const cfg = systemPromptPolicy.config;
-          if (
-            typeof cfg.mandatoryPrefixPrompt === 'string' &&
-            cfg.mandatoryPrefixPrompt.trim()
-          ) {
-            mandatoryPrefix = cfg.mandatoryPrefixPrompt.trim();
-          }
-          if (
-            typeof cfg.mandatorySuffixPrompt === 'string' &&
-            cfg.mandatorySuffixPrompt.trim()
-          ) {
-            mandatorySuffix = cfg.mandatorySuffixPrompt.trim();
-          }
-        }
-      }
 
       // Combine instructions with delegation agent descriptions
       let finalInstructions = delegationInstructionsAppend

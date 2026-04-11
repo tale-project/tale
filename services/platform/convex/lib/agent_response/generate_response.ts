@@ -526,6 +526,7 @@ export async function generateAgentResponse(
       });
     }
 
+    const contextBuildStart = Date.now();
     structuredThreadContext = await buildStructuredContext({
       ctx,
       threadId,
@@ -535,10 +536,12 @@ export async function generateAgentResponse(
       ragContext: knowledgeContextResult ?? hookData?.ragContext,
       webContext: webContextResult,
     });
+    const contextBuildMs = Date.now() - contextBuildStart;
 
     debugLog('Context built', {
       estimatedTokens: structuredThreadContext.stats.totalTokens,
       messageCount: structuredThreadContext.stats.messageCount,
+      contextBuildMs,
       elapsedMs: Date.now() - startTime,
     });
 
@@ -1360,6 +1363,21 @@ export async function generateAgentResponse(
       finishReason: result.finishReason,
       stepsCount: result.steps?.length ?? 0,
       timeToFirstTokenMs,
+    });
+
+    // Structured performance summary for profiling (T0 instrumentation)
+    debugLog('PERF_SUMMARY', {
+      threadId,
+      model,
+      totalMs: durationMs,
+      ttftMs: timeToFirstTokenMs,
+      contextBuildMs,
+      ragContextLength: knowledgeContextResult?.length ?? 0,
+      webContextLength: webContextResult?.length ?? 0,
+      contextTokens: structuredThreadContext.stats.totalTokens,
+      messageCount: structuredThreadContext.stats.messageCount,
+      inputTokens: result.usage?.inputTokens,
+      outputTokens: result.usage?.outputTokens,
     });
 
     // Extract tool calls from steps
