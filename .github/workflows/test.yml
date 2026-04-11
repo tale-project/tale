@@ -84,5 +84,3 @@ jobs:
 
       - name: Run UI tests
         run: bunx turbo run test:ui
-        env:
-          NODE_OPTIONS: '--max-old-space-size=4096'

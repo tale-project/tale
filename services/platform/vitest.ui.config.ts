@@ -10,14 +10,6 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     pool: 'threads',
-    poolOptions: {
-      threads: {
-        maxThreads: 4,
-        resourceLimits: {
-          maxOldGenerationSizeMb: 2048,
-        },
-      },
-    },
     setupFiles: ['./test/setup-ui.ts'],
     include: [
       'app/components/**/*.test.{ts,tsx}',

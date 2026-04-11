@@ -17,29 +17,37 @@ vi.mock('../hooks/mutations', () => ({
   useUpsertGovernancePolicy: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
-vi.mock('../hooks/queries', () => ({
-  useGovernancePolicy: () => ({
-    data: {
-      config: {
-        enabled: false,
-        mode: 'blocklist',
-        rules: [],
-      },
+// Stable references prevent infinite re-render loops caused by
+// useEffect depending on useMemo([policy]) — a new object each render
+// would trigger setState → re-render → new object → infinite loop.
+const STABLE_POLICY = {
+  data: {
+    config: {
+      enabled: false,
+      mode: 'blocklist' as const,
+      rules: [],
     },
-    isLoading: false,
-  }),
+  },
+  isLoading: false,
+};
+
+vi.mock('../hooks/queries', () => ({
+  useGovernancePolicy: () => STABLE_POLICY,
 }));
 
+const STABLE_MEMBERS = { members: [] };
 vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
-  useMembers: () => ({ members: [] }),
+  useMembers: () => STABLE_MEMBERS,
 }));
 
+const STABLE_TEAMS = { teams: [] };
 vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
-  useOrgTeams: () => ({ teams: [] }),
+  useOrgTeams: () => STABLE_TEAMS,
 }));
 
+const STABLE_PROVIDERS = { providers: [] };
 vi.mock('@/app/features/settings/providers/hooks/queries', () => ({
-  useListProviders: () => ({ providers: [] }),
+  useListProviders: () => STABLE_PROVIDERS,
 }));
 
 vi.mock('@/app/hooks/use-ability', () => ({
