@@ -69,13 +69,14 @@ export function McpServerPanel({
       setTestResult(result);
       if (result.success) {
         toast({ title: t('connected'), variant: 'success' });
+        onUpdated();
       }
     } catch {
       setTestResult({ success: false, error: 'Connection test failed' });
     } finally {
       setIsTesting(false);
     }
-  }, [testConnectionAction, server._id, t]);
+  }, [testConnectionAction, server._id, t, onUpdated]);
 
   const handleUpdate = useCallback(
     async (data: McpServerFormData) => {

@@ -132,8 +132,7 @@ export const updateDiscoveredTools = internalMutation({
     const { id, ...patch } = args;
     await ctx.db.patch(id, {
       discoveredTools: patch.discoveredTools,
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- status union is a superset during discovery
-      status: patch.status as 'active' | 'inactive' | 'error',
+      status: patch.status,
       lastConnectedAt: patch.lastTestedAt,
       lastError: patch.lastErrorMessage,
     });

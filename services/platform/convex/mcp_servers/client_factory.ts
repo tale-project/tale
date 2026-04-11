@@ -80,6 +80,27 @@ interface TokenUpdate {
 }
 
 /**
+ * Recursively strip keys starting with '$' from an object.
+ * Convex does not allow field names that begin with '$'.
+ */
+function stripDollarKeys(
+  obj: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  if (!obj) return undefined;
+
+  const cleaned: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (key.startsWith('$')) continue;
+    if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+      cleaned[key] = stripDollarKeys(value as Record<string, unknown>);
+    } else {
+      cleaned[key] = value;
+    }
+  }
+  return cleaned;
+}
+
+/**
  * Build authorization headers based on auth config.
  */
 async function buildAuthHeaders(
@@ -203,7 +224,9 @@ export async function discoverTools(
         name: tool.name,
         description: tool.description,
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- MCP SDK returns untyped JSON schema objects
-        inputSchema: tool.inputSchema as Record<string, unknown> | undefined,
+        inputSchema: stripDollarKeys(
+          tool.inputSchema as Record<string, unknown> | undefined,
+        ),
       }));
     },
   );

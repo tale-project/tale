@@ -47,6 +47,7 @@ export const mcpServersTable = defineTable({
     v.literal('active'),
     v.literal('inactive'),
     v.literal('error'),
+    v.literal('discovering'),
   ),
   capabilities: v.optional(
     v.object({
