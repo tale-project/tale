@@ -109,8 +109,12 @@ function RuleDialog({
   const updateDraft = useCallback((patch: Partial<DefaultModelRule>) => {
     setDraft((prev) => {
       const updated = { ...prev, ...patch };
-      if (patch.scope === 'default') {
-        delete updated.scopeId;
+      if (patch.scope !== undefined) {
+        if (patch.scope === 'default') {
+          delete updated.scopeId;
+        } else {
+          updated.scopeId = '';
+        }
       }
       if (patch.providerName && patch.providerName !== prev.providerName) {
         updated.modelId = '';
@@ -122,6 +126,8 @@ function RuleDialog({
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault();
+      if (!draft.providerName || !draft.modelId) return;
+      if (draft.scope !== 'default' && !draft.scopeId) return;
       onSave(draft);
       onOpenChange(false);
     },

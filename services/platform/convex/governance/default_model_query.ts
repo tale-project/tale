@@ -28,7 +28,10 @@ export const getMyDefaultModel = query({
     v.null(),
   ),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    let authUser = null;
+    try {
+      authUser = await authComponent.getAuthUser(ctx);
+    } catch {}
     if (!authUser) return null;
 
     const member = await getOrganizationMember(ctx, args.organizationId, {

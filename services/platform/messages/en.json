@@ -1451,7 +1451,7 @@
     },
     "providers": {
       "title": "Providers",
-      "description": "Description",
+      "description": "Manage LLM providers and their models",
       "addProvider": "Add provider",
       "editProvider": "Edit provider",
       "deleteProvider": "Delete provider",

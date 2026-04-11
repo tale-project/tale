@@ -476,7 +476,8 @@ export function ChatInterface({
     async (newContent: string) => {
       if (!editingMessage || !dataThreadId || !effectiveAgent) return;
       const modelId = effectiveAgent.name
-        ? selectedModelOverrides[effectiveAgent.name]
+        ? (selectedModelOverrides[effectiveAgent.name] ??
+          governanceDefault?.modelId)
         : undefined;
 
       // Optimistic: show edited content immediately, truncate messages after it.
@@ -513,6 +514,7 @@ export function ChatInterface({
       rootThreadId,
       effectiveAgent,
       selectedModelOverrides,
+      governanceDefault,
       organizationId,
       userContext,
       editAndBranchAction,

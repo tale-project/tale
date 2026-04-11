@@ -141,8 +141,8 @@ export const resolveDefaultModelInternal = internalQuery({
     const membershipsResult: BetterAuthFindManyResult<BetterAuthTeamMember> =
       await ctx.runQuery(components.betterAuth.adapter.findMany, {
         model: 'teamMember',
-        paginationOpts: { cursor: null, numItems: 100 },
-        where: [{ field: 'userId', operator: 'eq', value: args.userId }],
+        paginationOpts: { cursor: null, numItems: 1000 },
+        where: [{ field: 'userId', operator: 'eq', value: member.userId }],
       });
 
     const teamIds = membershipsResult?.page.map((m) => m.teamId) ?? [];
