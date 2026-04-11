@@ -108,6 +108,20 @@ export function classifyError(error: unknown): ErrorClassification {
     };
   }
 
+  // Credit exhaustion - provider cannot afford the request
+  if (
+    status === 402 ||
+    message.includes('more credits') ||
+    message.includes('can only afford') ||
+    (message.includes('credit') && message.includes('insufficient'))
+  ) {
+    return {
+      shouldRetry: false,
+      reason: 'credit_exhausted',
+      description: 'Provider credit limit reached',
+    };
+  }
+
   // Context length exceeded - needs summarization, not retry
   if (
     message.includes('context_length') ||

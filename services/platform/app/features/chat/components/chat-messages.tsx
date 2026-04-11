@@ -92,6 +92,7 @@ interface ChatMessagesProps {
   onSendMessage?: (message: string) => void;
   onEditMessage?: (messageId: string, content: string) => void;
   onForkAtMessage?: (messageId: string) => void;
+  onRetry?: () => void;
   editingMessageId?: string;
   editingMessageContent?: string;
   onEditSubmit?: (newContent: string) => Promise<void>;
@@ -132,6 +133,7 @@ export function ChatMessages({
   onSendMessage,
   onEditMessage,
   onForkAtMessage,
+  onRetry,
   editingMessageId,
   editingMessageContent,
   onEditSubmit,
@@ -358,6 +360,7 @@ export function ChatMessages({
               threadId: threadId,
             }}
             onSendFollowUp={onSendFollowUp}
+            onRetry={message.isFailed ? onRetry : undefined}
             onEdit={isUserMessage ? onEditMessage : undefined}
             onFork={onForkAtMessage}
             toolbarExtra={
