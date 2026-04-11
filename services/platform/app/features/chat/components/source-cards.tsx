@@ -69,9 +69,6 @@ function SourceCard({ source, onClick }: SourceCardProps) {
             </div>
           )}
         </div>
-        <span className="text-muted-foreground shrink-0 text-[10px]">
-          [{source.chunkNumbers.join(', ')}]
-        </span>
       </button>
     </Tooltip>
   );

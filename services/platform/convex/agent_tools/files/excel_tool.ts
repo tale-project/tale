@@ -58,6 +58,10 @@ export const excelTool = {
 
 IMPORTANT: Only call this tool when the user explicitly requests creating or exporting an Excel/spreadsheet file. Do NOT proactively generate Excel files unless the user specifically asks for this format.
 
+TO READ EXCEL FILE CONTENT: Do NOT use this tool. Instead use the rag_search tool:
+• To get the full content of an Excel file: use rag_search with operation='retrieve' and the fileId
+• To search for specific information across Excel files: use rag_search with operation='search'
+
 OPERATION:
 
 generate - Generate an Excel file from structured tabular data
@@ -74,10 +78,6 @@ AFTER GENERATING: Check the downloadUrl in the result:
 - If it says "[file card shown in chat]": the file is already visible as a download card. Do NOT mention downloading, do NOT include a link, and do NOT say "you can download it" — the card handles this.
 - If it contains an actual URL: no download card was shown. You MUST include the URL as a clickable markdown link so the user can download the file.
 To also save the file to a folder in the documents hub, call document_write with the returned fileStorageId and the desired folderPath.
-
-TO READ FILE CONTENT: Do NOT use this tool. Instead use the rag_search tool:
-• To get the full content of a file: use rag_search with operation='retrieve' and the fileId
-• To search for specific information across files: use rag_search with operation='search'
 `,
     inputSchema: excelArgs,
     execute: async (ctx: ToolCtx, args): Promise<GenerateExcelResult> => {

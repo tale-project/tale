@@ -96,6 +96,10 @@ export const docxTool = {
 
 IMPORTANT: Only call the "generate" operation when the user explicitly requests creating or exporting a Word/DOCX file. Do NOT proactively generate Word documents unless the user specifically asks for this format.
 
+TO READ WORD/DOCX FILE CONTENT: Do NOT use this tool. Instead use the rag_search tool:
+• To get the full content of a DOCX file: use rag_search with operation='retrieve' and the fileId
+• To search for specific information across DOCX files: use rag_search with operation='search'
+
 OPERATIONS:
 
 1. generate - Generate a DOCX document
@@ -127,10 +131,6 @@ AFTER GENERATING: Check the downloadUrl in the result:
 - If it says "[file card shown in chat]": the file is already visible as a download card. Do NOT mention downloading, do NOT include a link, and do NOT say "you can download it" — the card handles this.
 - If it contains an actual URL: no download card was shown. You MUST include the URL as a clickable markdown link so the user can download the file.
 To also save the file to a folder in the documents hub, call document_write with the returned fileStorageId and the desired folderPath.
-
-TO READ FILE CONTENT: Do NOT use this tool. Instead use the rag_search tool:
-• To get the full content of a file: use rag_search with operation='retrieve' and the fileId
-• To search for specific information across files: use rag_search with operation='search'
 `,
     inputSchema: docxArgs,
     execute: async (ctx: ToolCtx, args): Promise<DocxResult> => {

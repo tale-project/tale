@@ -14,6 +14,7 @@ export interface CitationInfo {
 
 interface ToolUsageInput {
   toolName: string;
+  input?: string;
   output?: string;
 }
 
@@ -87,44 +88,151 @@ export function parseWebCitations(text: string): Map<number, CitationInfo> {
 }
 
 /**
+ * Try to unwrap safeStringify'd output — handles both JSON-wrapped
+ * strings and nested objects with a `response` or `output` field.
+ */
+function unwrapOutput(raw: string): string {
+  let output = raw;
+
+  // Unwrap JSON-wrapped string: "\"...\""
+  if (output.startsWith('"') && output.endsWith('"')) {
+    try {
+      const parsed: unknown = JSON.parse(output);
+      if (typeof parsed === 'string') {
+        output = parsed;
+      }
+    } catch {
+      // use as-is
+    }
+  }
+
+  return output;
+}
+
+function isPlainObject(val: unknown): val is Record<string, unknown> {
+  return val !== null && typeof val === 'object' && !Array.isArray(val);
+}
+
+interface JsonFieldsResult {
+  response?: string;
+  filename?: string;
+  fileId?: string;
+}
+
+/**
+ * Extract metadata fields from a JSON tool output string.
+ * Handles both direct objects and nested `{ value: { ... } }` wrappers.
+ */
+function extractJsonFields(output: string): JsonFieldsResult | undefined {
+  try {
+    const parsed: unknown = JSON.parse(output);
+    if (!isPlainObject(parsed)) return undefined;
+
+    // Check nested value wrapper (tool-result shape)
+    const obj = isPlainObject(parsed.value) ? parsed.value : parsed;
+
+    const response =
+      typeof obj.response === 'string'
+        ? obj.response
+        : typeof obj.output === 'string'
+          ? obj.output
+          : undefined;
+    // filename field (retrieve), or title as fallback
+    const filename =
+      typeof obj.filename === 'string'
+        ? obj.filename
+        : typeof obj.title === 'string'
+          ? obj.title
+          : undefined;
+    const fileId = typeof obj.fileId === 'string' ? obj.fileId : undefined;
+
+    return response || filename || fileId
+      ? { response, filename, fileId }
+      : undefined;
+  } catch {
+    // not JSON
+  }
+  return undefined;
+}
+
+/**
+ * Detect whether a rag_search tool call is a 'retrieve' operation
+ * by examining its input. Returns parsed input data if it is.
+ */
+function parseRetrieveInput(
+  inputStr: string | undefined,
+): { fileId: string } | undefined {
+  if (!inputStr) return undefined;
+  try {
+    const parsed: unknown = JSON.parse(inputStr);
+    if (
+      isPlainObject(parsed) &&
+      parsed.operation === 'retrieve' &&
+      typeof parsed.fileId === 'string'
+    ) {
+      return { fileId: parsed.fileId };
+    }
+  } catch {
+    // not JSON
+  }
+  return undefined;
+}
+
+/**
  * Parse citations from tool usage records.
  *
- * Processes RAG and web tool outputs in order, offsetting web citation
- * numbers by the max RAG citation number to avoid collisions.
+ * Processes RAG search and retrieve operations plus web tool outputs,
+ * offsetting citation numbers between successive calls to avoid collisions.
  */
 export function parseCitationsFromToolsUsage(
   toolsUsage: ToolUsageInput[],
 ): Map<number, CitationInfo> {
   const allCitations = new Map<number, CitationInfo>();
-  let maxNumber = 0;
+  let nextNumber = 1;
 
   for (const usage of toolsUsage) {
     if (!usage.output) continue;
 
-    // toolsUsage.output is safeStringify'd — unwrap if it's a JSON string
-    let output = usage.output;
-    if (output.startsWith('"') && output.endsWith('"')) {
-      try {
-        const parsed: unknown = JSON.parse(output);
-        if (typeof parsed === 'string') {
-          output = parsed;
-        }
-      } catch {
-        // use as-is
-      }
-    }
+    const output = unwrapOutput(usage.output);
 
     if (usage.toolName === 'rag_search') {
-      const ragCitations = parseRagCitations(output);
-      for (const [num, citation] of ragCitations) {
-        allCitations.set(num, citation);
-        if (num > maxNumber) maxNumber = num;
+      const fields = extractJsonFields(output);
+      // First try to parse as formatted search results ([N] Relevance: ...)
+      const responseText = fields?.response ?? output;
+      const ragCitations = parseRagCitations(responseText);
+
+      if (ragCitations.size > 0) {
+        // Offset all numbers so successive rag_search calls don't collide
+        const offset = nextNumber - 1;
+        for (const [, citation] of ragCitations) {
+          const newNum = citation.number + offset;
+          allCitations.set(newNum, { ...citation, number: newNum });
+          if (newNum >= nextNumber) nextNumber = newNum + 1;
+        }
+      } else {
+        // No formatted citations — could be a retrieve operation
+        const retrieveInput = parseRetrieveInput(usage.input);
+        if (retrieveInput) {
+          const content = fields?.response ?? output;
+          if (content && content !== 'Document has no text content.') {
+            allCitations.set(nextNumber, {
+              number: nextNumber,
+              fileId: fields?.fileId ?? retrieveInput.fileId,
+              filename: fields?.filename ?? undefined,
+              type: 'rag',
+              content,
+            });
+            nextNumber++;
+          }
+        }
       }
     } else if (usage.toolName === 'web') {
       const webCitations = parseWebCitations(output);
-      for (const [originalNum, citation] of webCitations) {
-        const offsetNum = originalNum + maxNumber;
-        allCitations.set(offsetNum, { ...citation, number: offsetNum });
+      const offset = nextNumber - 1;
+      for (const [, citation] of webCitations) {
+        const newNum = citation.number + offset;
+        allCitations.set(newNum, { ...citation, number: newNum });
+        if (newNum >= nextNumber) nextNumber = newNum + 1;
       }
     }
   }
@@ -151,9 +259,12 @@ function deduplicateCitations(
   const deduped = new Map<number, CitationInfo>();
 
   for (const [num, citation] of citations) {
+    // Include a content fingerprint so different chunks from the same
+    // file/page are kept as separate entries.
+    const contentKey = citation.content?.slice(0, 80) ?? '';
     const sourceKey =
       citation.type === 'rag'
-        ? `rag:${citation.fileId ?? ''}:${citation.page ?? ''}`
+        ? `rag:${citation.fileId ?? ''}:${citation.page ?? ''}:${contentKey}`
         : `web:${citation.url ?? ''}`;
 
     const existingNum = seen.get(sourceKey);
@@ -203,44 +314,71 @@ export function getUniqueSources(
   citations: Map<number, CitationInfo>,
 ): SourceGroup[] {
   const groups = new Map<string, SourceGroup>();
+  // Track which original citation numbers we've already added as chunks
+  // to avoid duplicating content when deduplicateCitations maps multiple
+  // keys to the same citation object.
+  const addedChunkIds = new Map<string, Set<number>>();
 
-  for (const citation of citations.values()) {
+  for (const [mapKey, citation] of citations) {
     const sourceKey =
       citation.type === 'rag'
         ? `rag:${citation.fileId ?? ''}`
         : `web:${citation.url ?? ''}`;
 
-    const chunk: ChunkDetail = {
-      number: citation.number,
-      page: citation.page,
-      relevance: citation.relevance,
-      content: citation.content,
-    };
+    // Use the Map key as the inline reference number (the [N] in the text),
+    // since deduplicateCitations may remap multiple keys to the same citation.
+    const inlineNumber = mapKey;
 
     const existing = groups.get(sourceKey);
     if (existing) {
-      existing.chunkNumbers.push(citation.number);
-      existing.chunks.push(chunk);
-      if (citation.page != null && !existing.pages.includes(citation.page)) {
-        existing.pages.push(citation.page);
+      existing.chunkNumbers.push(inlineNumber);
+
+      // Only add chunk detail if this is a genuinely different chunk
+      // (not a remapped duplicate pointing to the same original citation)
+      let chunkSet = addedChunkIds.get(sourceKey);
+      if (!chunkSet) {
+        chunkSet = new Set();
+        addedChunkIds.set(sourceKey, chunkSet);
       }
-      if (
-        citation.relevance != null &&
-        (existing.relevance == null || citation.relevance > existing.relevance)
-      ) {
-        existing.relevance = citation.relevance;
+      if (!chunkSet.has(citation.number)) {
+        chunkSet.add(citation.number);
+        existing.chunks.push({
+          number: citation.number,
+          page: citation.page,
+          relevance: citation.relevance,
+          content: citation.content,
+        });
+        if (citation.page != null && !existing.pages.includes(citation.page)) {
+          existing.pages.push(citation.page);
+        }
+        if (
+          citation.relevance != null &&
+          (existing.relevance == null ||
+            citation.relevance > existing.relevance)
+        ) {
+          existing.relevance = citation.relevance;
+        }
       }
     } else {
+      const chunkSet = new Set([citation.number]);
+      addedChunkIds.set(sourceKey, chunkSet);
       groups.set(sourceKey, {
-        number: citation.number,
+        number: inlineNumber,
         filename: citation.filename,
         fileId: citation.fileId,
         url: citation.url,
         type: citation.type,
-        chunkNumbers: [citation.number],
+        chunkNumbers: [inlineNumber],
         pages: citation.page != null ? [citation.page] : [],
         relevance: citation.relevance,
-        chunks: [chunk],
+        chunks: [
+          {
+            number: citation.number,
+            page: citation.page,
+            relevance: citation.relevance,
+            content: citation.content,
+          },
+        ],
       });
     }
   }

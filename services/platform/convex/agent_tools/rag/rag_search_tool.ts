@@ -211,6 +211,8 @@ RESPONSE (list_indexed):
           total_chars: number;
           chunk_range: { start: number; end: number };
           chunks: Array<{ index: number; content: string }> | null;
+          source_created_at: string | null;
+          source_modified_at: string | null;
         }
         const result = await fetchJson<RetrieveResponse>(response);
 
@@ -232,7 +234,10 @@ RESPONSE (list_indexed):
         return {
           success: true,
           response: text || 'Document has no text content.',
-          title: result.title,
+          fileId: result.file_id,
+          filename: result.title,
+          sourceCreatedAt: result.source_created_at,
+          sourceModifiedAt: result.source_modified_at,
           totalChunks: result.total_chunks,
           chunkRange: result.chunk_range,
           hasMore,
