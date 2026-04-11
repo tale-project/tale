@@ -175,6 +175,7 @@ CREATE TABLE IF NOT EXISTS private_knowledge.documents (
     progress_detail TEXT,
     source_created_at  TIMESTAMPTZ,
     source_modified_at TIMESTAMPTZ,
+    ocr_applied   BOOLEAN NOT NULL DEFAULT FALSE,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

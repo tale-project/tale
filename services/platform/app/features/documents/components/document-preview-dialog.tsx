@@ -112,6 +112,19 @@ function DetailsSidebar({ doc }: { doc: Document }) {
         />
       </SidebarRow>
 
+      {doc.scannedPagesDetected != null && doc.scannedPagesDetected > 0 && (
+        <SidebarRow label={t('preview.sidebar.imagePages')}>
+          {String(doc.scannedPagesDetected)}
+          {doc.ragStatus === 'completed' && doc.ocrApplied != null && (
+            <Text variant="label-sm" className="text-muted-foreground">
+              {doc.ocrApplied
+                ? t('ocr.processingWithOcr')
+                : t('ocr.unavailable')}
+            </Text>
+          )}
+        </SidebarRow>
+      )}
+
       <Separator />
 
       {teamNames.length > 0 && (

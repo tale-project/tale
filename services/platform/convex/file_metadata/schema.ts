@@ -9,6 +9,10 @@ export const fileMetadataTable = defineTable({
   fileName: v.string(),
   contentType: v.string(),
   size: v.number(),
+  pageCount: v.optional(v.number()),
+  scannedPagesDetected: v.optional(v.number()),
+  visionRequired: v.optional(v.boolean()),
+  ocrApplied: v.optional(v.boolean()),
   ragStatus: v.optional(
     v.union(
       v.literal('queued'),

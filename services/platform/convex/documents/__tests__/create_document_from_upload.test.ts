@@ -28,9 +28,10 @@ vi.mock('../../_generated/server', async (importOriginal) => {
 
 vi.mock('../../_generated/api', () => ({
   internal: {
-    documents: {
-      internal_actions: {
-        extractDocumentDates: 'extractDocumentDates',
+    file_metadata: {
+      internal_mutations: {
+        saveFileMetadata: 'saveFileMetadata',
+        linkDocumentToFile: 'linkDocumentToFile',
       },
     },
   },
@@ -98,6 +99,7 @@ function createMockCtx() {
       insert: vi.fn().mockResolvedValue('fm_new'),
       patch: vi.fn().mockResolvedValue(undefined),
     },
+    runMutation: vi.fn().mockResolvedValue('fm_new'),
     scheduler: {
       runAfter: vi.fn().mockResolvedValue(undefined),
     },
@@ -136,14 +138,14 @@ describe('createDocumentFromUpload', () => {
     await expect(handler(ctx, baseArgs)).rejects.toThrow('Unauthenticated');
   });
 
-  it('inserts file metadata when fileSize is provided', async () => {
+  it('saves file metadata via runMutation when fileSize is provided', async () => {
     mockGetAuthUser.mockResolvedValue(AUTH_USER);
     const ctx = createMockCtx();
     const handler = await getHandler();
 
     await handler(ctx, baseArgs);
 
-    expect(ctx.db.insert).toHaveBeenCalledWith('fileMetadata', {
+    expect(ctx.runMutation).toHaveBeenCalledWith('saveFileMetadata', {
       organizationId: 'org_1',
       storageId: 'storage_1',
       fileName: 'report.pdf',
@@ -153,7 +155,7 @@ describe('createDocumentFromUpload', () => {
     });
   });
 
-  it('skips file metadata insert when fileSize is not provided', async () => {
+  it('skips file metadata save when fileSize is not provided', async () => {
     mockGetAuthUser.mockResolvedValue(AUTH_USER);
     const ctx = createMockCtx();
     const handler = await getHandler();
@@ -161,7 +163,10 @@ describe('createDocumentFromUpload', () => {
 
     await handler(ctx, argsWithoutSize);
 
-    expect(ctx.db.insert).not.toHaveBeenCalled();
+    expect(ctx.runMutation).not.toHaveBeenCalledWith(
+      'saveFileMetadata',
+      expect.anything(),
+    );
   });
 
   it('creates document and returns documentId', async () => {
@@ -227,19 +232,20 @@ describe('createDocumentFromUpload', () => {
     ).rejects.toThrow('Folder not accessible');
   });
 
-  it('patches fileMetadata with documentId after document creation', async () => {
+  it('links document to file after document creation', async () => {
     mockGetAuthUser.mockResolvedValue(AUTH_USER);
     const ctx = createMockCtx();
     const handler = await getHandler();
 
     await handler(ctx, baseArgs);
 
-    expect(ctx.db.patch).toHaveBeenCalledWith('fm_new', {
+    expect(ctx.runMutation).toHaveBeenCalledWith('linkDocumentToFile', {
+      storageId: 'storage_1',
       documentId: 'doc_created',
     });
   });
 
-  it('does not patch fileMetadata when fileSize is not provided', async () => {
+  it('does not link document to file when fileSize is not provided', async () => {
     mockGetAuthUser.mockResolvedValue(AUTH_USER);
     const ctx = createMockCtx();
     const handler = await getHandler();
@@ -247,36 +253,18 @@ describe('createDocumentFromUpload', () => {
 
     await handler(ctx, argsWithoutSize);
 
-    expect(ctx.db.patch).not.toHaveBeenCalled();
+    expect(ctx.runMutation).not.toHaveBeenCalledWith(
+      'linkDocumentToFile',
+      expect.anything(),
+    );
   });
 
-  it('schedules extractDocumentDates for PDF uploads', async () => {
+  it('does not schedule extractDocumentDates (handled by saveFileMetadata)', async () => {
     mockGetAuthUser.mockResolvedValue(AUTH_USER);
     const ctx = createMockCtx();
     const handler = await getHandler();
 
     await handler(ctx, baseArgs);
-
-    expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
-      0,
-      'extractDocumentDates',
-      {
-        documentId: 'doc_created',
-        fileId: 'storage_1',
-      },
-    );
-  });
-
-  it('does not schedule extractDocumentDates for TXT uploads', async () => {
-    mockGetAuthUser.mockResolvedValue(AUTH_USER);
-    const ctx = createMockCtx();
-    const handler = await getHandler();
-
-    await handler(ctx, {
-      ...baseArgs,
-      fileName: 'notes.txt',
-      contentType: 'text/plain',
-    });
 
     expect(ctx.scheduler.runAfter).not.toHaveBeenCalled();
   });

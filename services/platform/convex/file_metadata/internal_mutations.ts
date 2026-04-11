@@ -65,6 +65,16 @@ export const saveFileMetadata = internalMutation({
       },
     );
 
+    await ctx.scheduler.runAfter(
+      0,
+      internal.file_metadata.internal_actions.extractFileMetadata,
+      {
+        storageId: args.storageId,
+        fileName: args.fileName,
+        contentType: args.contentType,
+      },
+    );
+
     try {
       await checkOrganizationRateLimit(
         ctx,
@@ -97,6 +107,7 @@ export const updateFileRagStatus = internalMutation({
     ),
     ragError: v.optional(v.string()),
     ragProgress: v.optional(v.string()),
+    ocrApplied: v.optional(v.boolean()),
   },
   async handler(ctx, args) {
     const metadata = await ctx.db
@@ -112,7 +123,44 @@ export const updateFileRagStatus = internalMutation({
         args.ragStatus === 'completed' || args.ragStatus === 'failed'
           ? undefined
           : args.ragProgress,
+      ...(args.ocrApplied != null && { ocrApplied: args.ocrApplied }),
     });
+
+    // Sync ocrApplied to linked document so the list view can show it
+    if (args.ocrApplied != null && metadata.documentId) {
+      const doc = await ctx.db.get(metadata.documentId);
+      if (doc) {
+        await ctx.db.patch(metadata.documentId, {
+          ocrApplied: args.ocrApplied,
+        });
+      }
+    }
+  },
+});
+
+export const updateFileVisionMetadata = internalMutation({
+  args: {
+    storageId: v.id('_storage'),
+    pageCount: v.optional(v.number()),
+    scannedPagesDetected: v.optional(v.number()),
+    visionRequired: v.optional(v.boolean()),
+  },
+  async handler(ctx, args) {
+    const metadata = await ctx.db
+      .query('fileMetadata')
+      .withIndex('by_storageId', (q) => q.eq('storageId', args.storageId))
+      .first();
+    if (!metadata) return;
+
+    const patch: Record<string, unknown> = {};
+    if (args.pageCount != null) patch.pageCount = args.pageCount;
+    if (args.scannedPagesDetected != null)
+      patch.scannedPagesDetected = args.scannedPagesDetected;
+    if (args.visionRequired != null) patch.visionRequired = args.visionRequired;
+
+    if (Object.keys(patch).length > 0) {
+      await ctx.db.patch(metadata._id, patch);
+    }
   },
 });
 

@@ -7,6 +7,7 @@ import pytest
 
 from tale_knowledge.extraction.pdf import (
     LARGE_IMAGE_RATIO,
+    PdfExtractionResult,
     _extract_page_text_sync,
     extract_text_from_pdf_bytes,
 )
@@ -114,9 +115,12 @@ class TestExtractTextFromPdfBytes:
     @pytest.mark.asyncio
     async def test_digital_pdf_extraction(self):
         pdf_bytes = _make_simple_pdf("Hello World")
-        text, vision_used = await extract_text_from_pdf_bytes(pdf_bytes)
-        assert "Hello World" in text
-        assert vision_used is False
+        result = await extract_text_from_pdf_bytes(pdf_bytes)
+        assert isinstance(result, PdfExtractionResult)
+        assert "Hello World" in result.text
+        assert result.vision_used is False
+        assert result.scanned_pages_detected == 0
+        assert result.ocr_applied is False
 
     @pytest.mark.asyncio
     async def test_multi_page_pdf(self):
@@ -127,11 +131,11 @@ class TestExtractTextFromPdfBytes:
         pdf_bytes = doc.tobytes()
         doc.close()
 
-        text, vision_used = await extract_text_from_pdf_bytes(pdf_bytes)
-        assert "Page 1" in text
-        assert "Page 2" in text
-        assert "Page 3" in text
-        assert vision_used is False
+        result = await extract_text_from_pdf_bytes(pdf_bytes)
+        assert "Page 1" in result.text
+        assert "Page 2" in result.text
+        assert "Page 3" in result.text
+        assert result.vision_used is False
 
     @pytest.mark.asyncio
     async def test_empty_pdf(self):
@@ -140,17 +144,15 @@ class TestExtractTextFromPdfBytes:
         pdf_bytes = doc.tobytes()
         doc.close()
 
-        text, vision_used = await extract_text_from_pdf_bytes(pdf_bytes)
-        assert "--- Page 1 ---" in text
+        result = await extract_text_from_pdf_bytes(pdf_bytes)
+        assert "--- Page 1 ---" in result.text
 
     @pytest.mark.asyncio
     async def test_no_vision_without_client(self):
         pdf_bytes = _make_simple_pdf("Digital text only")
-        text, vision_used = await extract_text_from_pdf_bytes(
-            pdf_bytes, vision_client=None
-        )
-        assert "Digital text only" in text
-        assert vision_used is False
+        result = await extract_text_from_pdf_bytes(pdf_bytes, vision_client=None)
+        assert "Digital text only" in result.text
+        assert result.vision_used is False
 
     @pytest.mark.asyncio
     async def test_image_described_with_vision_client(self):
@@ -161,24 +163,20 @@ class TestExtractTextFromPdfBytes:
         mock_client.max_concurrent_pages = 3
         mock_client.describe_image = AsyncMock(return_value="A red square image")
 
-        text, vision_used = await extract_text_from_pdf_bytes(
-            pdf_bytes, vision_client=mock_client
-        )
-        assert long_text in text
-        assert "[Image: A red square image]" in text
-        assert vision_used is True
+        result = await extract_text_from_pdf_bytes(pdf_bytes, vision_client=mock_client)
+        assert long_text in result.text
+        assert "[Image: A red square image]" in result.text
+        assert result.vision_used is True
         mock_client.describe_image.assert_called()
 
     @pytest.mark.asyncio
     async def test_image_skipped_without_vision_client(self):
         long_text = "This document has embedded images but no vision client provided"
         pdf_bytes = _make_pdf_with_image(long_text, image_size=200)
-        text, vision_used = await extract_text_from_pdf_bytes(
-            pdf_bytes, vision_client=None
-        )
-        assert long_text in text
-        assert "[Image:" not in text
-        assert vision_used is False
+        result = await extract_text_from_pdf_bytes(pdf_bytes, vision_client=None)
+        assert long_text in result.text
+        assert "[Image:" not in result.text
+        assert result.vision_used is False
 
     @pytest.mark.asyncio
     async def test_image_skipped_when_process_images_false(self):
@@ -188,11 +186,11 @@ class TestExtractTextFromPdfBytes:
         mock_client = AsyncMock()
         mock_client.max_concurrent_pages = 3
 
-        text, vision_used = await extract_text_from_pdf_bytes(
+        result = await extract_text_from_pdf_bytes(
             pdf_bytes, vision_client=mock_client, process_images=False
         )
-        assert long_text in text
-        assert "[Image:" not in text
+        assert long_text in result.text
+        assert "[Image:" not in result.text
         mock_client.describe_image.assert_not_called()
 
     @pytest.mark.asyncio
@@ -203,10 +201,19 @@ class TestExtractTextFromPdfBytes:
         mock_client.max_concurrent_pages = 3
         mock_client.ocr_image = AsyncMock(return_value="OCR extracted text from scan")
 
-        text, vision_used = await extract_text_from_pdf_bytes(
-            pdf_bytes, vision_client=mock_client
-        )
-        assert "OCR extracted text from scan" in text
-        assert vision_used is True
+        result = await extract_text_from_pdf_bytes(pdf_bytes, vision_client=mock_client)
+        assert "OCR extracted text from scan" in result.text
+        assert result.vision_used is True
+        assert result.scanned_pages_detected == 1
+        assert result.ocr_applied is True
         mock_client.ocr_image.assert_called()
         mock_client.describe_image.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_scanned_page_without_vision_client(self):
+        pdf_bytes = _make_fullpage_image_pdf()
+
+        result = await extract_text_from_pdf_bytes(pdf_bytes, vision_client=None)
+        assert result.scanned_pages_detected == 1
+        assert result.ocr_applied is False
+        assert result.vision_used is False

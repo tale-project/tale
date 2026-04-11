@@ -204,7 +204,7 @@ class FileParserService:
         try:
             acc = UsageAccumulator()
 
-            pages_content, vision_used = await extract_text_from_pdf_bytes(
+            pages_content, vision_used, extraction_meta = await extract_text_from_pdf_bytes(
                 file_bytes,
                 filename,
                 process_images=process_images,
@@ -245,6 +245,8 @@ class FileParserService:
                 "page_count": len(pages_content),
                 "full_text": "\n\n".join(pages_content),
                 "vision_used": vision_used,
+                "scanned_pages_detected": extraction_meta.scanned_pages_detected,
+                "ocr_applied": extraction_meta.ocr_applied,
                 "metadata": pdf_metadata,
             }
             if acc.total_tokens > 0:

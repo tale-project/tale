@@ -2997,7 +2997,8 @@
         "modified": "Modified",
         "sourceUpload": "Upload",
         "sourceOnedrive": "OneDrive",
-        "sourceSharepoint": "SharePoint"
+        "sourceSharepoint": "SharePoint",
+        "imagePages": "Image pages"
       }
     },
     "upload": {
@@ -3037,6 +3038,12 @@
       "extensionBlocked": "{name}: .{ext} files are blocked by upload policy.",
       "extensionNotAllowed": "{name}: .{ext} is not allowed. Allowed types: {allowed}.",
       "uploadDocuments": "Upload"
+    },
+    "ocr": {
+      "available": "OCR available",
+      "unavailable": "OCR unavailable",
+      "processingWithOcr": "Document processed with OCR",
+      "noVisionModelWarning": "No vision model configured — scanned documents and images will not be processed"
     },
     "import": {
       "noResponseBody": "No response body received"

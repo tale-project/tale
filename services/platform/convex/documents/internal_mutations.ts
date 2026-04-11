@@ -66,6 +66,8 @@ export const updateDocumentDates = internalMutation({
     documentId: v.id('documents'),
     sourceCreatedAt: v.optional(v.number()),
     sourceModifiedAt: v.optional(v.number()),
+    scannedPagesDetected: v.optional(v.number()),
+    ocrApplied: v.optional(v.boolean()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -74,12 +76,18 @@ export const updateDocumentDates = internalMutation({
       return null;
     }
 
-    const patch: Record<string, number> = {};
+    const patch: Record<string, unknown> = {};
     if (args.sourceCreatedAt != null) {
       patch.sourceCreatedAt = args.sourceCreatedAt;
     }
     if (args.sourceModifiedAt != null) {
       patch.sourceModifiedAt = args.sourceModifiedAt;
+    }
+    if (args.scannedPagesDetected != null) {
+      patch.scannedPagesDetected = args.scannedPagesDetected;
+    }
+    if (args.ocrApplied != null) {
+      patch.ocrApplied = args.ocrApplied;
     }
 
     if (Object.keys(patch).length > 0) {

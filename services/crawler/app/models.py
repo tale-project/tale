@@ -376,6 +376,9 @@ class FileMetadataResponse(BaseModel):
     slide_count: int | None = Field(None, description="Number of slides (PPTX)")
     created_at: int | None = Field(None, description="Document creation date (Unix ms)")
     modified_at: int | None = Field(None, description="Document modification date (Unix ms)")
+    scanned_pages_detected: int | None = Field(
+        None, description="Number of pages detected as scanned (low text content)"
+    )
     error: str | None = Field(None, description="Error message if extraction failed")
 
 

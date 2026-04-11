@@ -526,7 +526,7 @@ class RagService:
                 f"""
                 SELECT DISTINCT ON (file_id)
                     file_id, status, error, progress_phase, progress_detail,
-                    source_created_at, source_modified_at
+                    source_created_at, source_modified_at, ocr_applied
                 FROM {SCHEMA}.documents
                 WHERE file_id = ANY($1)
                 ORDER BY file_id,
@@ -549,6 +549,7 @@ class RagService:
                 "progress_detail": row["progress_detail"],
                 "source_created_at": row["source_created_at"],
                 "source_modified_at": row["source_modified_at"],
+                "ocr_applied": row["ocr_applied"],
             }
             for row in rows
         }

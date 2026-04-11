@@ -429,8 +429,8 @@ async def _do_store(
             f"""
                 INSERT INTO {SCHEMA}.documents
                     (file_id, filename, content_hash, status, chunks_count,
-                     source_created_at, source_modified_at)
-                VALUES ($1, $2, $3, 'completed', $4, $5, $6)
+                     source_created_at, source_modified_at, ocr_applied)
+                VALUES ($1, $2, $3, 'completed', $4, $5, $6, $7)
                 RETURNING id
                 """,
             file_id,
@@ -439,6 +439,7 @@ async def _do_store(
             len(prepared.chunks),
             prepared.source_created_at,
             prepared.source_modified_at,
+            prepared.vision_used,
         )
         doc_uuid = doc_row["id"]
 
@@ -543,6 +544,43 @@ async def index_document(
     content, clone its chunks instead of re-extracting/embedding.
     """
     content_hash = compute_content_hash(content_bytes)
+
+    # Fast path: same file_id with unchanged content AND chunks already stored —
+    # skip immediately instead of re-extracting/embedding.
+    async with acquire_with_retry(pool) as conn:
+        own_row = await conn.fetchrow(
+            f"""SELECT d.content_hash,
+                       (SELECT COUNT(*)
+                        FROM {SCHEMA}.chunks c
+                        WHERE c.document_id = d.id) AS chunk_count
+                FROM {SCHEMA}.documents d
+                WHERE d.file_id = $1""",
+            file_id,
+        )
+    if own_row and own_row["content_hash"] == content_hash and own_row["chunk_count"] > 0:
+        logger.info(
+            "Document {} content unchanged with {} chunks, skipping (early dedup)",
+            file_id,
+            own_row["chunk_count"],
+        )
+        async with acquire_with_retry(pool) as conn:
+            await conn.execute(
+                f"""UPDATE {SCHEMA}.documents
+                    SET status = 'completed', error = NULL,
+                        progress_phase = NULL,
+                        progress_detail = NULL,
+                        updated_at = NOW()
+                    WHERE file_id = $1""",
+                file_id,
+            )
+        return {
+            "success": True,
+            "file_id": file_id,
+            "chunks_created": 0,
+            "skipped": True,
+            "skip_reason": "content_unchanged",
+        }
+
     source_id = await find_existing_by_hash(pool, content_hash)
 
     if source_id is not None:

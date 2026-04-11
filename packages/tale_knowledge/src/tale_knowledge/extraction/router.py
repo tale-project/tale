@@ -67,13 +67,14 @@ async def extract_text(
     if suffix in PDF_EXTENSIONS:
         from .pdf import extract_text_from_pdf_bytes
 
-        return await extract_text_from_pdf_bytes(
+        result = await extract_text_from_pdf_bytes(
             file_bytes,
             filename,
             vision_client=vision_client,
             process_images=process_images,
             on_progress=on_progress,
         )
+        return result.text, result.vision_used
 
     if suffix in DOCX_EXTENSIONS:
         from .docx import extract_text_from_docx_bytes

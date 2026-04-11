@@ -107,6 +107,8 @@ export function transformToDocumentItem(
     ragStatus: document.ragInfo?.status,
     ragIndexedAt: document.ragInfo?.indexedAt,
     ragError: document.ragInfo?.error,
+    scannedPagesDetected: document.scannedPagesDetected,
+    ocrApplied: document.ocrApplied,
     teamId: document.teamId ?? null,
     teamIds: document.teamTags ?? [],
     // Creator tracking

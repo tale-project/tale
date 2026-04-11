@@ -48,7 +48,10 @@ async def extract_text_from_image_bytes(
         Tuple of (extracted_text, vision_was_used).
     """
     if not vision_client:
-        logger.warning(f"No vision client provided for image extraction: {filename}")
+        logger.warning(
+            f"No vision client configured for image extraction: {filename}. "
+            f"Image OCR requires a vision model in provider settings."
+        )
         return "", False
 
     logger.info(f"Processing image: {filename}")

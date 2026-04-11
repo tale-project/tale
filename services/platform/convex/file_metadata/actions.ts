@@ -2,7 +2,7 @@
 
 import { v } from 'convex/values';
 
-import { isRecord, getString } from '../../lib/utils/type-guards';
+import { isRecord, getBoolean, getString } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
 import { getRagConfig } from '../lib/helpers/rag_config';
@@ -68,9 +68,14 @@ export const checkFileRagStatuses = action({
           : progressPhase || undefined;
 
       if (status === 'completed') {
+        const ocrApplied = getBoolean(docStatus, 'ocr_applied');
         await ctx.runMutation(
           internal.file_metadata.internal_mutations.updateFileRagStatus,
-          { storageId, ragStatus: 'completed' },
+          {
+            storageId,
+            ragStatus: 'completed',
+            ...(ocrApplied != null && { ocrApplied }),
+          },
         );
       } else if (status === 'failed') {
         await ctx.runMutation(

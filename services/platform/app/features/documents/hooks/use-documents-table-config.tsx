@@ -164,12 +164,24 @@ export function useDocumentsTableConfig({
               —
             </Text>
           ) : (
-            <RagStatusBadge
-              status={row.original.ragStatus}
-              indexedAt={row.original.ragIndexedAt}
-              error={row.original.ragError}
-              documentId={row.original.id}
-            />
+            <HStack gap={2} className="items-center">
+              <RagStatusBadge
+                status={row.original.ragStatus}
+                indexedAt={row.original.ragIndexedAt}
+                error={row.original.ragError}
+                documentId={row.original.id}
+              />
+              {row.original.ragStatus === 'completed' &&
+                row.original.ocrApplied === true && (
+                  <Text
+                    as="span"
+                    variant="label-sm"
+                    className="text-muted-foreground"
+                  >
+                    OCR
+                  </Text>
+                )}
+            </HStack>
           ),
       },
       {

@@ -27,6 +27,43 @@ export const getUserStorageUsage = query({
   },
 });
 
+export const getByDocumentId = query({
+  args: {
+    organizationId: v.string(),
+    documentId: v.id('documents'),
+  },
+  returns: v.union(
+    v.object({
+      pageCount: v.optional(v.number()),
+      scannedPagesDetected: v.optional(v.number()),
+      visionRequired: v.optional(v.boolean()),
+      ocrApplied: v.optional(v.boolean()),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) return null;
+
+    const meta = await ctx.db
+      .query('fileMetadata')
+      .withIndex('by_organizationId_and_documentId', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('documentId', args.documentId),
+      )
+      .first();
+    if (!meta) return null;
+
+    return {
+      pageCount: meta.pageCount,
+      scannedPagesDetected: meta.scannedPagesDetected,
+      visionRequired: meta.visionRequired,
+      ocrApplied: meta.ocrApplied,
+    };
+  },
+});
+
 export const getByStorageIds = query({
   args: {
     storageIds: v.array(v.id('_storage')),
@@ -48,6 +85,9 @@ export const getByStorageIds = query({
       ),
       ragError: v.optional(v.string()),
       ragProgress: v.optional(v.string()),
+      pageCount: v.optional(v.number()),
+      scannedPagesDetected: v.optional(v.number()),
+      visionRequired: v.optional(v.boolean()),
     }),
   ),
   handler: async (ctx, args) => {
@@ -70,6 +110,9 @@ export const getByStorageIds = query({
           ragStatus: meta.ragStatus,
           ragError: meta.ragError,
           ragProgress: meta.ragProgress,
+          pageCount: meta.pageCount,
+          scannedPagesDetected: meta.scannedPagesDetected,
+          visionRequired: meta.visionRequired,
         };
       }),
     );

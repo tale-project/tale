@@ -301,6 +301,7 @@ async def extract_pptx_metadata(file: UploadFile = _FILE_UPLOAD):
             slide_count=len(prs.slides),
             created_at=meta["created_at"],
             modified_at=meta["modified_at"],
+            scanned_pages_detected=0,
         )
     except HTTPException:
         raise
