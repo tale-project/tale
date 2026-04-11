@@ -15,7 +15,7 @@ import {
   narrowStringUnion,
 } from '../../../lib/utils/type-guards';
 import { components, internal } from '../../_generated/api';
-import { internalAction } from '../../_generated/server';
+import { internalAction, type ActionCtx } from '../../_generated/server';
 import {
   createDelegationTool,
   buildDelegationInstructionsSection,
@@ -192,159 +192,42 @@ export const runAgentGeneration = internalAction({
     try {
       const toolBuildStart = Date.now();
 
-      // Build integration, delegation, workflow tools, and governance query
-      // in parallel since they are all independent reads/actions.
-      const buildIntegrationTools = async (): Promise<
-        Record<string, unknown> | undefined
-      > => {
-        if (!agentConfig.integrationBindings?.length) return undefined;
-        const tools: Record<string, unknown> = {};
-        for (const name of agentConfig.integrationBindings) {
-          const fetched = await fetchOperationsWithSchema(
-            ctx,
-            organizationId,
-            name,
-          );
-          tools[`integration_${name}`] = createBoundIntegrationTool(
-            name,
-            fetched?.summary,
-            fetched?.operations,
-            fetched?.metadata,
-          );
-        }
-        debugLog('Built bound integration tools', {
-          names: Object.keys(tools),
-        });
-        return tools;
-      };
-
-      const buildDelegationTools = async (): Promise<{
-        tools: Record<string, unknown> | undefined;
-        instructionsAppend: string;
-      }> => {
-        if (!agentConfig.delegateSlugs?.length) {
-          return { tools: undefined, instructionsAppend: '' };
-        }
-        const delegates = await loadDelegateAgents(
-          ctx,
-          agentConfig.delegateSlugs,
-          organizationId,
-          'default',
-        );
-        if (delegates.length === 0) {
-          return { tools: undefined, instructionsAppend: '' };
-        }
-        const tools: Record<string, unknown> = {};
-        for (const delegate of delegates) {
-          const delegationTool = createDelegationTool(delegate);
-          tools[delegationTool.name] = delegationTool.tool;
-        }
-        debugLog('Built delegation tools', { names: Object.keys(tools) });
-        return {
-          tools,
-          instructionsAppend: buildDelegationInstructionsSection(delegates),
-        };
-      };
-
-      const buildWorkflowTools = async (): Promise<
-        Record<string, unknown> | undefined
-      > => {
-        if (!agentConfig.workflowBindings?.length) return undefined;
-        const tools: Record<string, unknown> = {};
-        for (const slug of agentConfig.workflowBindings) {
-          const result: unknown = await ctx.runAction(
-            internal.workflows.file_actions.readWorkflowForExecution,
-            { orgSlug: 'default', workflowSlug: slug },
-          );
-
-          if (!isRecord(result) || result.ok !== true) {
-            debugLog('Skipping bound workflow (not found)', { slug });
-            continue;
-          }
-
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- readWorkflowForExecution returns v.any() but ok=true guarantees WorkflowJsonConfig shape
-          const config = result.config as {
-            name: string;
-            description?: string;
-            enabled?: boolean;
-            steps: Array<{ stepType: string; config?: unknown }>;
-          };
-
-          if (!config.enabled) {
-            debugLog('Skipping bound workflow (disabled)', { slug });
-            continue;
-          }
-
-          const startStep = config.steps.find((s) => s.stepType === 'start');
-          const inputSchema = extractInputSchema(startStep?.config);
-
-          const toolKey = `workflow_${sanitizeWorkflowName(config.name)}_${slug}`;
-          tools[toolKey] = createBoundWorkflowTool(
-            {
-              workflowSlug: slug,
-              name: config.name,
-              description: config.description,
-            },
-            inputSchema,
-          );
-        }
-
-        if (Object.keys(tools).length > 0) {
-          debugLog('Built bound workflow tools', {
-            names: Object.keys(tools),
-          });
-        }
-        return Object.keys(tools).length > 0 ? tools : undefined;
-      };
-
-      const fetchGovernancePolicy = async (): Promise<{
-        prefix: string;
-        suffix: string;
-      }> => {
-        if (parentThreadId) return { prefix: '', suffix: '' };
-        const systemPromptPolicy = await ctx.runQuery(
-          internal.governance.internal_queries.getSystemPromptPolicyInternal,
-          { organizationId },
-        );
-        let prefix = '';
-        let suffix = '';
-        if (
-          systemPromptPolicy?.enabled !== false &&
-          isRecord(systemPromptPolicy?.config)
-        ) {
-          const cfg = systemPromptPolicy.config;
-          if (
-            typeof cfg.mandatoryPrefixPrompt === 'string' &&
-            cfg.mandatoryPrefixPrompt.trim()
-          ) {
-            prefix = cfg.mandatoryPrefixPrompt.trim();
-          }
-          if (
-            typeof cfg.mandatorySuffixPrompt === 'string' &&
-            cfg.mandatorySuffixPrompt.trim()
-          ) {
-            suffix = cfg.mandatorySuffixPrompt.trim();
-          }
-        }
-        return { prefix, suffix };
-      };
-
+      // Build all tool categories and fetch governance policy in parallel.
+      // Each builder is independent, so running them concurrently saves
+      // ~300-1200ms depending on the number of bindings.
       const [
         integrationExtraTools,
         delegationResult,
         workflowExtraTools,
         governanceResult,
+        mcpExtraTools,
       ] = await Promise.all([
-        buildIntegrationTools(),
-        buildDelegationTools(),
-        buildWorkflowTools(),
-        fetchGovernancePolicy(),
+        buildIntegrationTools(ctx, agentConfig, organizationId),
+        buildDelegationTools(ctx, agentConfig, organizationId),
+        buildWorkflowTools(ctx, agentConfig),
+        fetchGovernanceSystemPrompt(ctx, organizationId, parentThreadId),
+        buildMcpTools(ctx, organizationId),
       ]);
 
-      const delegationExtraTools = delegationResult.tools;
-      const delegationInstructionsAppend = delegationResult.instructionsAppend;
-      const mandatoryPrefix = governanceResult.prefix;
-      const mandatorySuffix = governanceResult.suffix;
+      // Extract delegation tools and instructions append
+      let delegationExtraTools: Record<string, unknown> | undefined;
+      let delegationInstructionsAppend = '';
+      if (delegationResult) {
+        delegationExtraTools = delegationResult.tools;
+        delegationInstructionsAppend = delegationResult.instructionsAppend;
+        debugLog('Built delegation tools', {
+          names: Object.keys(delegationExtraTools),
+        });
+      }
+
+      if (workflowExtraTools) {
+        debugLog('Built bound workflow tools', {
+          names: Object.keys(workflowExtraTools),
+        });
+      }
+
+      // Extract governance prompt prefixes/suffixes
+      const { mandatoryPrefix, mandatorySuffix } = governanceResult;
 
       const toolBuildMs = Date.now() - toolBuildStart;
       debugLog('PERF_TOOL_BUILD', {
@@ -352,49 +235,9 @@ export const runAgentGeneration = internalAction({
         hasIntegrations: !!integrationExtraTools,
         hasDelegation: !!delegationExtraTools,
         hasWorkflows: !!workflowExtraTools,
+        hasMcp: !!mcpExtraTools,
         hasGovernance: !!(mandatoryPrefix || mandatorySuffix),
       });
-
-      // Build bound MCP server tools dynamically
-      let mcpExtraTools: Record<string, unknown> | undefined;
-      {
-        interface ActiveMcpServer {
-          _id: string;
-          name: string;
-          displayName: string;
-          discoveredTools?: Array<{
-            name: string;
-            description?: string;
-            inputSchema?: Record<string, unknown>;
-            requiresApproval?: boolean;
-          }>;
-        }
-        const activeServers: ActiveMcpServer[] = await ctx.runQuery(
-          internal.mcp_servers.internal_queries.listActiveByOrg,
-          { organizationId },
-        );
-        if (activeServers.length > 0) {
-          mcpExtraTools = {};
-          for (const server of activeServers) {
-            if (!server.discoveredTools?.length) continue;
-            for (const tool of server.discoveredTools) {
-              const toolKey = `mcp_${server.name}_${tool.name}`;
-              mcpExtraTools[toolKey] = createBoundMcpTool(
-                server._id,
-                server.displayName,
-                tool,
-              );
-            }
-          }
-          if (Object.keys(mcpExtraTools).length > 0) {
-            debugLog('Built bound MCP tools', {
-              names: Object.keys(mcpExtraTools),
-            });
-          } else {
-            mcpExtraTools = undefined;
-          }
-        }
-      }
 
       // Merge all extra tools
       const allExtraTools: Record<string, unknown> | undefined =
@@ -751,6 +594,234 @@ export const runAgentGeneration = internalAction({
     }
   },
 });
+
+// ---------------------------------------------------------------------------
+// T2 helper functions: parallelized tool building
+// ---------------------------------------------------------------------------
+
+interface AgentConfigForTools {
+  integrationBindings?: string[];
+  delegateSlugs?: string[];
+  workflowBindings?: string[];
+}
+
+/**
+ * Build bound integration tools for all configured integration bindings.
+ */
+async function buildIntegrationTools(
+  ctx: ActionCtx,
+  agentConfig: AgentConfigForTools,
+  organizationId: string,
+): Promise<Record<string, unknown> | undefined> {
+  if (!agentConfig.integrationBindings?.length) return undefined;
+
+  const results = await Promise.all(
+    agentConfig.integrationBindings.map(async (name) => {
+      const fetched = await fetchOperationsWithSchema(
+        ctx,
+        organizationId,
+        name,
+      );
+      return {
+        key: `integration_${name}`,
+        tool: createBoundIntegrationTool(
+          name,
+          fetched?.summary,
+          fetched?.operations,
+          fetched?.metadata,
+        ),
+      };
+    }),
+  );
+
+  const tools: Record<string, unknown> = {};
+  for (const { key, tool } of results) {
+    tools[key] = tool;
+  }
+  return tools;
+}
+
+/**
+ * Build delegation tools for all configured delegate slugs.
+ */
+async function buildDelegationTools(
+  ctx: ActionCtx,
+  agentConfig: AgentConfigForTools,
+  organizationId: string,
+): Promise<
+  | {
+      tools: Record<string, unknown>;
+      instructionsAppend: string;
+    }
+  | undefined
+> {
+  if (!agentConfig.delegateSlugs?.length) return undefined;
+
+  const delegates = await loadDelegateAgents(
+    ctx,
+    agentConfig.delegateSlugs,
+    organizationId,
+    'default',
+  );
+
+  if (delegates.length === 0) return undefined;
+
+  const tools: Record<string, unknown> = {};
+  for (const delegate of delegates) {
+    const delegationTool = createDelegationTool(delegate);
+    tools[delegationTool.name] = delegationTool.tool;
+  }
+
+  return {
+    tools,
+    instructionsAppend: buildDelegationInstructionsSection(delegates),
+  };
+}
+
+/**
+ * Build bound workflow tools for all configured workflow bindings.
+ */
+async function buildWorkflowTools(
+  ctx: ActionCtx,
+  agentConfig: AgentConfigForTools,
+): Promise<Record<string, unknown> | undefined> {
+  if (!agentConfig.workflowBindings?.length) return undefined;
+
+  const results = await Promise.all(
+    agentConfig.workflowBindings.map(async (slug) => {
+      const result: unknown = await ctx.runAction(
+        internal.workflows.file_actions.readWorkflowForExecution,
+        { orgSlug: 'default', workflowSlug: slug },
+      );
+
+      if (!isRecord(result) || result.ok !== true) {
+        return null;
+      }
+
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- readWorkflowForExecution returns v.any() but ok=true guarantees WorkflowJsonConfig shape
+      const config = result.config as {
+        name: string;
+        description?: string;
+        enabled?: boolean;
+        steps: Array<{ stepType: string; config?: unknown }>;
+      };
+
+      if (!config.enabled) {
+        return null;
+      }
+
+      const startStep = config.steps.find((s) => s.stepType === 'start');
+      const inputSchema = extractInputSchema(startStep?.config);
+
+      const toolKey = `workflow_${sanitizeWorkflowName(config.name)}_${slug}`;
+      return {
+        key: toolKey,
+        tool: createBoundWorkflowTool(
+          {
+            workflowSlug: slug,
+            name: config.name,
+            description: config.description,
+          },
+          inputSchema,
+        ),
+      };
+    }),
+  );
+
+  const tools: Record<string, unknown> = {};
+  for (const entry of results) {
+    if (entry) {
+      tools[entry.key] = entry.tool;
+    }
+  }
+
+  return Object.keys(tools).length > 0 ? tools : undefined;
+}
+
+/**
+ * Fetch the mandatory system prompt governance policy.
+ * Skipped for sub-agents to prevent double-injection in delegation chains.
+ */
+async function fetchGovernanceSystemPrompt(
+  ctx: ActionCtx,
+  organizationId: string,
+  parentThreadId: string | undefined,
+): Promise<{ mandatoryPrefix: string; mandatorySuffix: string }> {
+  if (parentThreadId) {
+    return { mandatoryPrefix: '', mandatorySuffix: '' };
+  }
+
+  const systemPromptPolicy = await ctx.runQuery(
+    internal.governance.internal_queries.getSystemPromptPolicyInternal,
+    { organizationId },
+  );
+
+  let mandatoryPrefix = '';
+  let mandatorySuffix = '';
+
+  if (
+    systemPromptPolicy?.enabled !== false &&
+    isRecord(systemPromptPolicy?.config)
+  ) {
+    const cfg = systemPromptPolicy.config;
+    if (
+      typeof cfg.mandatoryPrefixPrompt === 'string' &&
+      cfg.mandatoryPrefixPrompt.trim()
+    ) {
+      mandatoryPrefix = cfg.mandatoryPrefixPrompt.trim();
+    }
+    if (
+      typeof cfg.mandatorySuffixPrompt === 'string' &&
+      cfg.mandatorySuffixPrompt.trim()
+    ) {
+      mandatorySuffix = cfg.mandatorySuffixPrompt.trim();
+    }
+  }
+
+  return { mandatoryPrefix, mandatorySuffix };
+}
+
+/**
+ * Build bound MCP server tools from all active MCP servers for the org.
+ */
+async function buildMcpTools(
+  ctx: ActionCtx,
+  organizationId: string,
+): Promise<Record<string, unknown> | undefined> {
+  interface ActiveMcpServer {
+    _id: string;
+    name: string;
+    displayName: string;
+    discoveredTools?: Array<{
+      name: string;
+      description?: string;
+      inputSchema?: Record<string, unknown>;
+      requiresApproval?: boolean;
+    }>;
+  }
+
+  const activeServers: ActiveMcpServer[] = await ctx.runQuery(
+    internal.mcp_servers.internal_queries.listActiveByOrg,
+    { organizationId },
+  );
+
+  if (activeServers.length === 0) return undefined;
+
+  const tools: Record<string, unknown> = {};
+  for (const server of activeServers) {
+    if (!server.discoveredTools?.length) continue;
+    for (const tool of server.discoveredTools) {
+      const toolKey = `mcp_${server.name}_${tool.name}`;
+      tools[toolKey] = createBoundMcpTool(server._id, server.displayName, tool);
+    }
+  }
+
+  if (Object.keys(tools).length > 0) {
+    debugLog('Built bound MCP tools', { names: Object.keys(tools) });
+    return tools;
+  }
+  return undefined;
+}
 
 /**
  * Build hooks object from FunctionHandle configuration.

@@ -483,7 +483,8 @@ export const resolveAgentConfig = internalAction({
           : result.config.supportedModels,
     };
 
-    const { toSerializableConfig } = await import('./config');
+    const { toSerializableConfig, applyModelOverride } =
+      await import('./config');
     const config = toSerializableConfig(
       args.agentSlug,
       effectiveConfig,
@@ -496,12 +497,8 @@ export const resolveAgentConfig = internalAction({
         : undefined,
     );
 
-    // Apply model override if requested and allowed by agent's supportedModels.
-    // When an explicit model is forced (e.g. arena mode), disable fallback so
-    // the specific model is tested without automatic failover.
-    if (args.modelId && result.config.supportedModels.includes(args.modelId)) {
-      config.model = args.modelId;
-      config.fallbackModels = undefined;
+    if (args.modelId) {
+      applyModelOverride(config, args.modelId, result.config.supportedModels);
     }
 
     return config;
