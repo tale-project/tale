@@ -1,7 +1,7 @@
 'use client';
 
 import { ShieldCheck } from 'lucide-react';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 
 import { Alert } from '@/app/components/ui/feedback/alert';
 import { Badge } from '@/app/components/ui/feedback/badge';
@@ -49,62 +49,78 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
     new Set(PATTERN_NAMES),
   );
   const [customPatterns, setCustomPatterns] = useState<CustomPattern[]>([]);
+  const [editingPattern, setEditingPattern] = useState<CustomPattern | null>(
+    null,
+  );
   const [testText, setTestText] = useState('');
+  const [testResults, setTestResults] = useState<ReturnType<
+    typeof detectPii
+  > | null>(null);
   const [initialized, setInitialized] = useState(false);
-
-  // Track the last-saved server state for dirty checking
-  const savedState = useRef({
-    enabled: false,
-    mode: 'mask' as 'mask' | 'block',
-    enabledPatterns: new Set(PATTERN_NAMES),
-    customPatterns: [] as CustomPattern[],
-  });
 
   // Sync from server data once loaded
   if (policy && !initialized) {
-    const serverEnabled = policy.enabled ?? false;
-    const serverMode = policy.config?.mode ?? 'mask';
-    const serverPatterns = new Set<string>(
-      policy.config?.enabledPatterns ?? PATTERN_NAMES,
+    setEnabled(policy.enabled ?? false);
+    setMode(policy.config?.mode ?? 'mask');
+    setEnabledPatterns(
+      new Set<string>(policy.config?.enabledPatterns ?? PATTERN_NAMES),
     );
-    const serverCustom: CustomPattern[] = policy.config?.customPatterns ?? [];
-
-    setEnabled(serverEnabled);
-    setMode(serverMode);
-    setEnabledPatterns(serverPatterns);
-    setCustomPatterns(serverCustom);
-
-    savedState.current = {
-      enabled: serverEnabled,
-      mode: serverMode,
-      enabledPatterns: new Set<string>(serverPatterns),
-      customPatterns: serverCustom.map((p: CustomPattern) => ({ ...p })),
-    };
-
+    setCustomPatterns(policy.config?.customPatterns ?? []);
     setInitialized(true);
   }
 
-  const isDirty = useMemo(() => {
-    const s = savedState.current;
-    if (enabled !== s.enabled) return true;
-    if (mode !== s.mode) return true;
-    if (enabledPatterns.size !== s.enabledPatterns.size) return true;
-    for (const p of enabledPatterns) {
-      if (!s.enabledPatterns.has(p)) return true;
-    }
-    if (customPatterns.length !== s.customPatterns.length) return true;
-    for (let i = 0; i < customPatterns.length; i++) {
-      const a = customPatterns[i];
-      const b = s.customPatterns[i];
-      if (
-        a.name !== b.name ||
-        a.regex !== b.regex ||
-        a.replacement !== b.replacement
-      )
-        return true;
-    }
-    return false;
-  }, [enabled, mode, enabledPatterns, customPatterns]);
+  const saveConfig = useCallback(
+    async (overrides: {
+      enabled?: boolean;
+      mode?: 'mask' | 'block';
+      enabledPatterns?: string[];
+      customPatterns?: CustomPattern[];
+    }) => {
+      const resolved = {
+        organizationId,
+        enabled: overrides.enabled ?? enabled,
+        mode: overrides.mode ?? mode,
+        enabledPatterns: overrides.enabledPatterns ?? [...enabledPatterns],
+        customPatterns: (overrides.customPatterns ?? customPatterns).filter(
+          (p) => p.name && p.regex && p.replacement,
+        ),
+      };
+      try {
+        await upsertMutation.mutateAsync(resolved);
+        toast({ title: t('pii.saved'), variant: 'success' });
+      } catch {
+        toast({ title: t('pii.saveFailed'), variant: 'destructive' });
+      }
+    },
+    [
+      upsertMutation,
+      organizationId,
+      enabled,
+      mode,
+      enabledPatterns,
+      customPatterns,
+      toast,
+      t,
+    ],
+  );
+
+  const handleEnabledChange = useCallback(
+    (checked: boolean) => {
+      setEnabled(checked);
+      void saveConfig({ enabled: checked });
+    },
+    [saveConfig],
+  );
+
+  const handleModeChange = useCallback(
+    (v: string) => {
+      if (v === 'mask' || v === 'block') {
+        setMode(v);
+        void saveConfig({ mode: v });
+      }
+    },
+    [saveConfig],
+  );
 
   const handlePatternToggle = useCallback(
     (patternName: string, checked: boolean) => {
@@ -115,67 +131,57 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
         } else {
           next.delete(patternName);
         }
+        void saveConfig({ enabledPatterns: [...next] });
         return next;
       });
     },
-    [],
+    [saveConfig],
   );
 
   const handleAddCustomPattern = useCallback(() => {
-    setCustomPatterns((prev) => [
-      ...prev,
-      { name: '', regex: '', replacement: '' },
-    ]);
+    setEditingPattern({ name: '', regex: '', replacement: '' });
   }, []);
 
-  const handleRemoveCustomPattern = useCallback((index: number) => {
-    setCustomPatterns((prev) => prev.filter((_, i) => i !== index));
-  }, []);
-
-  const handleCustomPatternChange = useCallback(
-    (index: number, field: keyof CustomPattern, value: string) => {
-      setCustomPatterns((prev) =>
-        prev.map((p, i) => (i === index ? { ...p, [field]: value } : p)),
-      );
+  const handleEditingPatternChange = useCallback(
+    (field: keyof CustomPattern, value: string) => {
+      setEditingPattern((prev) => (prev ? { ...prev, [field]: value } : prev));
     },
     [],
   );
 
-  const handleSave = useCallback(async () => {
-    try {
-      const filteredCustom = customPatterns.filter(
-        (p) => p.name && p.regex && p.replacement,
-      );
-      await upsertMutation.mutateAsync({
-        organizationId,
-        enabled,
-        mode,
-        enabledPatterns: [...enabledPatterns],
-        customPatterns: filteredCustom,
-      });
-      savedState.current = {
-        enabled,
-        mode,
-        enabledPatterns: new Set(enabledPatterns),
-        customPatterns: filteredCustom.map((p) => ({ ...p })),
-      };
-      toast({ title: t('pii.saved'), variant: 'success' });
-    } catch {
-      toast({ title: t('pii.saveFailed'), variant: 'destructive' });
+  const handleSaveCustomPattern = useCallback(() => {
+    if (!editingPattern) return;
+    if (
+      !editingPattern.name ||
+      !editingPattern.regex ||
+      !editingPattern.replacement
+    ) {
+      return;
     }
-  }, [
-    upsertMutation,
-    organizationId,
-    enabled,
-    mode,
-    enabledPatterns,
-    customPatterns,
-    toast,
-    t,
-  ]);
+    const updated = [...customPatterns, editingPattern];
+    setCustomPatterns(updated);
+    setEditingPattern(null);
+    void saveConfig({ customPatterns: updated });
+  }, [editingPattern, customPatterns, saveConfig]);
 
-  const testResults = useMemo(() => {
-    if (!testText.trim()) return null;
+  const handleCancelCustomPattern = useCallback(() => {
+    setEditingPattern(null);
+  }, []);
+
+  const handleRemoveCustomPattern = useCallback(
+    (index: number) => {
+      const updated = customPatterns.filter((_, i) => i !== index);
+      setCustomPatterns(updated);
+      void saveConfig({ customPatterns: updated });
+    },
+    [customPatterns, saveConfig],
+  );
+
+  const handleTest = useCallback(() => {
+    if (!testText.trim()) {
+      setTestResults(null);
+      return;
+    }
 
     const builtIn = getEnabledPatterns([...enabledPatterns]);
     const custom = customPatterns
@@ -187,7 +193,7 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
       }));
 
     const allPatterns = [...builtIn, ...custom];
-    return detectPii(testText, allPatterns);
+    setTestResults(detectPii(testText, allPatterns));
   }, [testText, enabledPatterns, customPatterns]);
 
   if (isLoading) {
@@ -210,7 +216,7 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
           label={t('pii.enableLabel')}
           description={t('pii.enableDescription')}
           checked={enabled}
-          onCheckedChange={setEnabled}
+          onCheckedChange={handleEnabledChange}
         />
       </FormSection>
 
@@ -221,9 +227,7 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
               label={t('pii.modeLabel')}
               options={modeOptions}
               value={mode}
-              onValueChange={(v) => {
-                if (v === 'mask' || v === 'block') setMode(v);
-              }}
+              onValueChange={handleModeChange}
             />
           </FormSection>
 
@@ -253,36 +257,14 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
             {customPatterns.map((cp, index) => (
               <div
                 key={index}
-                className="border-border flex flex-col gap-2 rounded-lg border p-3"
+                className="border-border flex items-center justify-between rounded-lg border p-3"
               >
-                <Input
-                  label={t('pii.customPatternName')}
-                  value={cp.name}
-                  onChange={(e) =>
-                    handleCustomPatternChange(index, 'name', e.target.value)
-                  }
-                  placeholder={t('pii.customPatternNamePlaceholder')}
-                />
-                <Input
-                  label={t('pii.customPatternRegex')}
-                  value={cp.regex}
-                  onChange={(e) =>
-                    handleCustomPatternChange(index, 'regex', e.target.value)
-                  }
-                  placeholder={t('pii.customPatternRegexPlaceholder')}
-                />
-                <Input
-                  label={t('pii.customPatternReplacement')}
-                  value={cp.replacement}
-                  onChange={(e) =>
-                    handleCustomPatternChange(
-                      index,
-                      'replacement',
-                      e.target.value,
-                    )
-                  }
-                  placeholder={t('pii.customPatternReplacementPlaceholder')}
-                />
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium">{cp.name}</span>
+                  <span className="text-muted-foreground text-xs">
+                    {cp.regex}
+                  </span>
+                </div>
                 <Button
                   type="button"
                   variant="destructive"
@@ -293,14 +275,66 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
                 </Button>
               </div>
             ))}
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={handleAddCustomPattern}
-            >
-              {t('pii.addCustomPattern')}
-            </Button>
+            {editingPattern && (
+              <div className="border-border flex flex-col gap-2 rounded-lg border p-3">
+                <Input
+                  label={t('pii.customPatternName')}
+                  value={editingPattern.name}
+                  onChange={(e) =>
+                    handleEditingPatternChange('name', e.target.value)
+                  }
+                  placeholder={t('pii.customPatternNamePlaceholder')}
+                />
+                <Input
+                  label={t('pii.customPatternRegex')}
+                  value={editingPattern.regex}
+                  onChange={(e) =>
+                    handleEditingPatternChange('regex', e.target.value)
+                  }
+                  placeholder={t('pii.customPatternRegexPlaceholder')}
+                />
+                <Input
+                  label={t('pii.customPatternReplacement')}
+                  value={editingPattern.replacement}
+                  onChange={(e) =>
+                    handleEditingPatternChange('replacement', e.target.value)
+                  }
+                  placeholder={t('pii.customPatternReplacementPlaceholder')}
+                />
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleSaveCustomPattern}
+                    disabled={
+                      !editingPattern.name ||
+                      !editingPattern.regex ||
+                      !editingPattern.replacement
+                    }
+                  >
+                    {tCommon('actions.save')}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleCancelCustomPattern}
+                  >
+                    {tCommon('actions.cancel')}
+                  </Button>
+                </div>
+              </div>
+            )}
+            {!editingPattern && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={handleAddCustomPattern}
+              >
+                {t('pii.addCustomPattern')}
+              </Button>
+            )}
           </FormSection>
 
           <FormSection
@@ -310,10 +344,22 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
             <Textarea
               label={t('pii.testInput')}
               value={testText}
-              onChange={(e) => setTestText(e.target.value)}
+              onChange={(e) => {
+                setTestText(e.target.value);
+                setTestResults(null);
+              }}
               placeholder={t('pii.testInputPlaceholder')}
               rows={4}
             />
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={handleTest}
+              disabled={!testText.trim()}
+            >
+              {t('pii.testButton')}
+            </Button>
             {testResults && testResults.length > 0 && (
               <Alert
                 icon={ShieldCheck}
@@ -332,24 +378,12 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
                 </div>
               </Alert>
             )}
-            {testResults && testResults.length === 0 && testText.trim() && (
+            {testResults && testResults.length === 0 && (
               <Alert icon={ShieldCheck} title={t('pii.testNoResults')} />
             )}
           </FormSection>
         </>
       )}
-
-      <div className="flex justify-end">
-        <Button
-          type="button"
-          onClick={handleSave}
-          disabled={!isDirty || upsertMutation.isPending}
-        >
-          {upsertMutation.isPending
-            ? tCommon('actions.saving')
-            : tCommon('actions.saveChanges')}
-        </Button>
-      </div>
     </div>
   );
 }

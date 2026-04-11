@@ -3681,6 +3681,7 @@
       "testInputPlaceholder": "Text hier einfügen, um PII-Erkennung zu testen...",
       "testResultsTitle": "Erkannte PII",
       "testNoResults": "Keine PII in der Testeingabe erkannt.",
+      "testButton": "Testen",
       "addCustomPattern": "Benutzerdefiniertes Muster hinzufügen",
       "saved": "PII-Konfiguration gespeichert",
       "saveFailed": "PII-Konfiguration konnte nicht gespeichert werden",

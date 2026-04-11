@@ -3735,6 +3735,7 @@
       "testInputPlaceholder": "Paste text here to test PII detection...",
       "testResultsTitle": "Detected PII",
       "testNoResults": "No PII detected in the test input.",
+      "testButton": "Test",
       "addCustomPattern": "Add custom pattern",
       "saved": "PII configuration saved",
       "saveFailed": "Failed to save PII configuration",
