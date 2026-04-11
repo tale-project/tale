@@ -1,7 +1,7 @@
 'use client';
 
 import { ShieldCheck } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { Alert } from '@/app/components/ui/feedback/alert';
 import { Badge } from '@/app/components/ui/feedback/badge';
@@ -52,16 +52,59 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
   const [testText, setTestText] = useState('');
   const [initialized, setInitialized] = useState(false);
 
+  // Track the last-saved server state for dirty checking
+  const savedState = useRef({
+    enabled: false,
+    mode: 'mask' as 'mask' | 'block',
+    enabledPatterns: new Set(PATTERN_NAMES),
+    customPatterns: [] as CustomPattern[],
+  });
+
   // Sync from server data once loaded
   if (policy && !initialized) {
-    setEnabled(policy.enabled ?? false);
-    setMode(policy.config?.mode ?? 'mask');
-    setEnabledPatterns(
-      new Set(policy.config?.enabledPatterns ?? PATTERN_NAMES),
+    const serverEnabled = policy.enabled ?? false;
+    const serverMode = policy.config?.mode ?? 'mask';
+    const serverPatterns = new Set<string>(
+      policy.config?.enabledPatterns ?? PATTERN_NAMES,
     );
-    setCustomPatterns(policy.config?.customPatterns ?? []);
+    const serverCustom: CustomPattern[] = policy.config?.customPatterns ?? [];
+
+    setEnabled(serverEnabled);
+    setMode(serverMode);
+    setEnabledPatterns(serverPatterns);
+    setCustomPatterns(serverCustom);
+
+    savedState.current = {
+      enabled: serverEnabled,
+      mode: serverMode,
+      enabledPatterns: new Set<string>(serverPatterns),
+      customPatterns: serverCustom.map((p: CustomPattern) => ({ ...p })),
+    };
+
     setInitialized(true);
   }
+
+  const isDirty = useMemo(() => {
+    const s = savedState.current;
+    if (enabled !== s.enabled) return true;
+    if (mode !== s.mode) return true;
+    if (enabledPatterns.size !== s.enabledPatterns.size) return true;
+    for (const p of enabledPatterns) {
+      if (!s.enabledPatterns.has(p)) return true;
+    }
+    if (customPatterns.length !== s.customPatterns.length) return true;
+    for (let i = 0; i < customPatterns.length; i++) {
+      const a = customPatterns[i];
+      const b = s.customPatterns[i];
+      if (
+        a.name !== b.name ||
+        a.regex !== b.regex ||
+        a.replacement !== b.replacement
+      )
+        return true;
+    }
+    return false;
+  }, [enabled, mode, enabledPatterns, customPatterns]);
 
   const handlePatternToggle = useCallback(
     (patternName: string, checked: boolean) => {
@@ -100,15 +143,22 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
 
   const handleSave = useCallback(async () => {
     try {
+      const filteredCustom = customPatterns.filter(
+        (p) => p.name && p.regex && p.replacement,
+      );
       await upsertMutation.mutateAsync({
         organizationId,
         enabled,
         mode,
         enabledPatterns: [...enabledPatterns],
-        customPatterns: customPatterns.filter(
-          (p) => p.name && p.regex && p.replacement,
-        ),
+        customPatterns: filteredCustom,
       });
+      savedState.current = {
+        enabled,
+        mode,
+        enabledPatterns: new Set(enabledPatterns),
+        customPatterns: filteredCustom.map((p) => ({ ...p })),
+      };
       toast({ title: t('pii.saved'), variant: 'success' });
     } catch {
       toast({ title: t('pii.saveFailed'), variant: 'destructive' });
@@ -293,7 +343,7 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
         <Button
           type="button"
           onClick={handleSave}
-          disabled={upsertMutation.isPending}
+          disabled={!isDirty || upsertMutation.isPending}
         >
           {upsertMutation.isPending
             ? tCommon('actions.saving')
