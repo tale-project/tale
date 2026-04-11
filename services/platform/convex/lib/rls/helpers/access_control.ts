@@ -23,6 +23,7 @@ type PlatformTable =
   | 'approvals'
   | 'websites'
   | 'workflowProcessingRecords'
+  | 'promptTemplates'
   | 'auditLogs';
 
 type PlatformAction = 'read' | 'write';
@@ -60,6 +61,7 @@ const platformPermissions: Record<
     workflowProcessingRecords: ALL,
     approvals: ALL,
     websites: ALL,
+    promptTemplates: ALL,
     auditLogs: ALL,
   },
   developer: {
@@ -80,6 +82,7 @@ const platformPermissions: Record<
     workflowProcessingRecords: ALL,
     approvals: ALL,
     websites: ALL,
+    promptTemplates: ALL,
     auditLogs: ALL,
   },
   editor: {
@@ -100,6 +103,7 @@ const platformPermissions: Record<
     workflowProcessingRecords: READ_ONLY,
     approvals: ALL,
     websites: ALL,
+    promptTemplates: ALL,
     auditLogs: ALL,
   },
   member: {
@@ -120,6 +124,7 @@ const platformPermissions: Record<
     workflowProcessingRecords: READ_ONLY,
     approvals: READ_ONLY,
     websites: READ_ONLY,
+    promptTemplates: ALL,
     auditLogs: READ_ONLY,
   },
   disabled: {
@@ -140,6 +145,7 @@ const platformPermissions: Record<
     workflowProcessingRecords: NONE,
     approvals: NONE,
     websites: NONE,
+    promptTemplates: NONE,
     auditLogs: NONE,
   },
 };

@@ -42,6 +42,8 @@
       "descriptionLabel": "Beschreibung",
       "descriptionPlaceholder": "Kurze Beschreibung des Prompts...",
       "scopeLabel": "Sichtbarkeit",
+      "teamLabel": "Team",
+      "teamPlaceholder": "Team auswählen...",
       "categoryLabel": "Kategorie",
       "categoryPlaceholder": "z.B. Schreiben, Analyse, Programmierung",
       "tagsLabel": "Tags",

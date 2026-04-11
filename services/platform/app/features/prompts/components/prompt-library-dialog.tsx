@@ -115,6 +115,7 @@ function PromptLibraryDialogContent({
         content: data.content,
         description: data.description || undefined,
         scope: data.scope,
+        teamId: data.teamId,
         category: data.category || undefined,
         tags: data.tags.length > 0 ? data.tags : undefined,
         isPublished: true,
@@ -133,6 +134,7 @@ function PromptLibraryDialogContent({
         content: data.content,
         description: data.description || undefined,
         scope: data.scope,
+        teamId: data.teamId,
         category: data.category || undefined,
         tags: data.tags.length > 0 ? data.tags : undefined,
       });

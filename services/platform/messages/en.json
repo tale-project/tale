@@ -3836,6 +3836,8 @@
       "descriptionLabel": "Description",
       "descriptionPlaceholder": "Brief description of what this prompt does...",
       "scopeLabel": "Visibility",
+      "teamLabel": "Team",
+      "teamPlaceholder": "Select a team...",
       "categoryLabel": "Category",
       "categoryPlaceholder": "e.g., writing, analysis, coding",
       "tagsLabel": "Tags",
