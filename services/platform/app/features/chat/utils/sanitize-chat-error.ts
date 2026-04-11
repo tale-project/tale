@@ -1,7 +1,10 @@
 type ErrorCategory =
-  | 'creditLimit'
+  | 'creditExhausted'
+  | 'tokenLimit'
   | 'rateLimited'
   | 'contentFilter'
+  | 'contextLength'
+  | 'toolFailure'
   | 'generic';
 
 interface SanitizedError {
@@ -12,8 +15,17 @@ interface SanitizedError {
 
 const ERROR_PATTERNS: { pattern: RegExp; category: ErrorCategory }[] = [
   {
-    pattern: /more credits|fewer max_tokens|can only afford|token.*limit/i,
-    category: 'creditLimit',
+    pattern:
+      /more credits|can only afford|credit.*insufficient|credit.*limit|credit.*reached|\b402\b/i,
+    category: 'creditExhausted',
+  },
+  {
+    pattern: /fewer max_tokens|token.*limit|max_tokens/i,
+    category: 'tokenLimit',
+  },
+  {
+    pattern: /context.?length|context.?window|maximum context/i,
+    category: 'contextLength',
   },
   {
     pattern: /rate.?limit|too many requests|429/i,
@@ -23,12 +35,19 @@ const ERROR_PATTERNS: { pattern: RegExp; category: ErrorCategory }[] = [
     pattern: /content.?filter|content.?policy|moderation/i,
     category: 'contentFilter',
   },
+  {
+    pattern: /tool.*error|tool.*fail|unable to complete/i,
+    category: 'toolFailure',
+  },
 ];
 
 const CATEGORY_I18N_KEY: Record<ErrorCategory, string> = {
-  creditLimit: 'errorHintCreditLimit',
+  creditExhausted: 'errorHintCreditExhausted',
+  tokenLimit: 'errorHintTokenLimit',
   rateLimited: 'errorHintRateLimited',
   contentFilter: 'errorHintContentFilter',
+  contextLength: 'errorHintContextLength',
+  toolFailure: 'errorHintToolFailure',
   generic: 'errorGeneratingDescription',
 };
 

@@ -92,6 +92,7 @@ interface ChatMessagesProps {
   onSendMessage?: (message: string) => void;
   onEditMessage?: (messageId: string, content: string) => void;
   onForkAtMessage?: (messageId: string) => void;
+  onRetry?: () => void;
   editingMessageId?: string;
   editingMessageContent?: string;
   onEditSubmit?: (newContent: string) => Promise<void>;
@@ -132,6 +133,7 @@ export function ChatMessages({
   onSendMessage,
   onEditMessage,
   onForkAtMessage,
+  onRetry,
   editingMessageId,
   editingMessageContent,
   onEditSubmit,
@@ -172,6 +174,22 @@ export function ChatMessages({
     const item = items[lastUserIdx];
     return item.type === 'message' ? item.data.key : null;
   }, [items, lastUserIdx]);
+
+  // Only show the retry button on the latest failed assistant message
+  // to avoid retrying the wrong turn when multiple messages have failed.
+  const latestFailedAssistantKey = useMemo(() => {
+    for (let i = items.length - 1; i >= 0; i--) {
+      const item = items[i];
+      if (
+        item.type === 'message' &&
+        item.data.role === 'assistant' &&
+        item.data.isFailed
+      ) {
+        return item.data.key;
+      }
+    }
+    return null;
+  }, [items]);
 
   const prevMinHeightRef = useRef('');
   // Tracks the pending key so the last user message keeps a stable React key
@@ -358,6 +376,11 @@ export function ChatMessages({
               threadId: threadId,
             }}
             onSendFollowUp={onSendFollowUp}
+            onRetry={
+              message.isFailed && message.key === latestFailedAssistantKey
+                ? onRetry
+                : undefined
+            }
             onEdit={isUserMessage ? onEditMessage : undefined}
             onFork={onForkAtMessage}
             toolbarExtra={

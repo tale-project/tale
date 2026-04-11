@@ -553,6 +553,15 @@ export function ChatInterface({
     ],
   );
 
+  const handleRetry = useCallback(() => {
+    const lastUserMessage = messages
+      .toReversed()
+      .find((msg) => msg.role === 'user');
+    if (!lastUserMessage?.content) return;
+    scrollingToBottomBehaviorRef.current = 'smooth';
+    void sendMessage(lastUserMessage.content);
+  }, [messages, sendMessage]);
+
   const showArena = arenaContext?.isArenaMode && !!arenaContext.arenaThreadIdA;
 
   // In arena mode, while waiting for thread creation (isPending but no arena
@@ -615,6 +624,7 @@ export function ChatInterface({
               onSendMessage={isArchived ? undefined : handleSendMessageDirect}
               onEditMessage={isArchived ? undefined : handleEditClick}
               onForkAtMessage={isArchived ? undefined : handleForkAtMessage}
+              onRetry={isArchived ? undefined : handleRetry}
               editingMessageId={isArchived ? undefined : editingMessage?.id}
               editingMessageContent={
                 isArchived ? undefined : editingMessage?.content

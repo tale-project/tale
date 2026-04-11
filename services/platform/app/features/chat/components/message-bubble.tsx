@@ -502,6 +502,7 @@ export const MessageBubble = memo(
       prevProps.message.fileParts === nextProps.message.fileParts &&
       prevProps.className === nextProps.className &&
       prevProps.onSendFollowUp === nextProps.onSendFollowUp &&
+      prevProps.onRetry === nextProps.onRetry &&
       prevProps.onEdit === nextProps.onEdit &&
       prevProps.onFork === nextProps.onFork &&
       prevProps.toolbarExtra === nextProps.toolbarExtra
