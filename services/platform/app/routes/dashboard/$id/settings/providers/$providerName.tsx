@@ -74,6 +74,7 @@ function ProviderDetailRoute() {
       <ProviderDetailContent
         organizationId={organizationId}
         providerName={providerName}
+        maskedModelKeys={data.maskedModelKeys ?? {}}
       />
     </ProviderConfigProvider>
   );
@@ -136,9 +137,11 @@ function ProviderDetailSkeleton() {
 function ProviderDetailContent({
   organizationId,
   providerName,
+  maskedModelKeys,
 }: {
   organizationId: string;
   providerName: string;
+  maskedModelKeys: Record<string, string>;
 }) {
   const { t } = useT('settings');
   const { config } = useProviderConfig();
@@ -162,7 +165,10 @@ function ProviderDetailContent({
       <GeneralSection />
       <ApiKeySection providerName={providerName} />
       <DefaultModelsSection />
-      <ModelsSection />
+      <ModelsSection
+        providerName={providerName}
+        maskedModelKeys={maskedModelKeys}
+      />
     </Stack>
   );
 }
@@ -408,6 +414,8 @@ interface ModelFormState {
   dimensions: string;
   inputCostPerMillion: string;
   outputCostPerMillion: string;
+  baseUrl: string;
+  apiKey: string;
 }
 
 const EMPTY_MODEL_FORM: ModelFormState = {
@@ -418,19 +426,35 @@ const EMPTY_MODEL_FORM: ModelFormState = {
   dimensions: '',
   inputCostPerMillion: '',
   outputCostPerMillion: '',
+  baseUrl: '',
+  apiKey: '',
 };
 
-function ModelsSection() {
+function ModelsSection({
+  providerName,
+  maskedModelKeys,
+}: {
+  providerName: string;
+  maskedModelKeys: Record<string, string>;
+}) {
   const { t } = useT('settings');
   const { config, saveConfig, isSaving } = useProviderConfig();
+  const saveSecret = useSaveProviderSecret();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [form, setForm] = useState(EMPTY_MODEL_FORM);
+  const [initialForm, setInitialForm] = useState(EMPTY_MODEL_FORM);
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null);
+  const [savingSecret, setSavingSecret] = useState(false);
+  const [modelKeyAction, setModelKeyAction] = useState<
+    'none' | 'remove' | 'replace'
+  >('none');
 
   const openAddDialog = useCallback(() => {
     setEditingIndex(null);
     setForm(EMPTY_MODEL_FORM);
+    setInitialForm(EMPTY_MODEL_FORM);
+    setModelKeyAction('none');
     setDialogOpen(true);
   }, []);
 
@@ -439,7 +463,7 @@ function ModelsSection() {
       const model = config.models[index];
       if (!model) return;
       setEditingIndex(index);
-      setForm({
+      const formData = {
         id: model.id,
         displayName: model.displayName,
         description: model.description ?? '',
@@ -453,7 +477,12 @@ function ModelsSection() {
           model.cost?.outputCentsPerMillion != null
             ? String(model.cost.outputCentsPerMillion / 100)
             : '',
-      });
+        baseUrl: model.baseUrl ?? '',
+        apiKey: '',
+      };
+      setForm(formData);
+      setInitialForm(formData);
+      setModelKeyAction('none');
       setDialogOpen(true);
     },
     [config.models],
@@ -480,6 +509,7 @@ function ModelsSection() {
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- tags are constrained to checkbox values
         tags: form.tags as Array<'chat' | 'vision' | 'embedding'>,
         dimensions: form.dimensions ? Number(form.dimensions) : undefined,
+        baseUrl: form.baseUrl.trim() || undefined,
         cost,
       };
       const updatedModels =
@@ -488,25 +518,57 @@ function ModelsSection() {
           : [...config.models, model];
       try {
         await saveConfig({ models: updatedModels });
+        if (form.apiKey.trim() || modelKeyAction === 'remove') {
+          setSavingSecret(true);
+          try {
+            await saveSecret.mutateAsync({
+              orgSlug: 'default',
+              providerName,
+              modelKeys: {
+                [form.id]:
+                  modelKeyAction === 'remove' ? '' : form.apiKey.trim(),
+              },
+            });
+          } finally {
+            setSavingSecret(false);
+          }
+        }
         setDialogOpen(false);
       } catch {
         toast({ title: t('providers.saveFailed'), variant: 'destructive' });
       }
     },
-    [form, editingIndex, config.models, saveConfig, t],
+    [
+      form,
+      editingIndex,
+      config.models,
+      saveConfig,
+      saveSecret,
+      providerName,
+      modelKeyAction,
+      t,
+    ],
   );
 
   const handleDeleteModel = useCallback(async () => {
     if (deleteIndex == null) return;
+    const deletedModel = config.models[deleteIndex];
     try {
       await saveConfig({
         models: config.models.filter((_, i) => i !== deleteIndex),
       });
+      if (deletedModel) {
+        await saveSecret.mutateAsync({
+          orgSlug: 'default',
+          providerName,
+          modelKeys: { [deletedModel.id]: '' },
+        });
+      }
       setDeleteIndex(null);
     } catch {
       toast({ title: t('providers.saveFailed'), variant: 'destructive' });
     }
-  }, [deleteIndex, config.models, saveConfig, t]);
+  }, [deleteIndex, config.models, saveConfig, saveSecret, providerName, t]);
 
   return (
     <>
@@ -546,7 +608,19 @@ function ModelsSection() {
                   onClick={() => openEditDialog(index)}
                 >
                   <TableCell>
-                    <Text className="font-mono text-[13px]">{model.id}</Text>
+                    <HStack gap={2} align="center">
+                      <Text className="font-mono text-[13px]">{model.id}</Text>
+                      {model.baseUrl && (
+                        <Badge variant="outline" className="text-[10px]">
+                          {t('providers.modelOverrideIndicator')}
+                        </Badge>
+                      )}
+                      {maskedModelKeys[model.id] && (
+                        <Badge variant="outline" className="text-[10px]">
+                          {t('providers.modelApiKeyOverrideIndicator')}
+                        </Badge>
+                      )}
+                    </HStack>
                   </TableCell>
                   <TableCell>
                     <Text className="text-sm font-medium">
@@ -616,13 +690,19 @@ function ModelsSection() {
             : t('providers.addModel')
         }
         onSubmit={handleSubmitModel}
-        isSubmitting={isSaving}
+        isSubmitting={isSaving || savingSecret}
         isDirty={
-          form.id.trim().length > 0 && form.displayName.trim().length > 0
+          form.id.trim().length > 0 &&
+          form.displayName.trim().length > 0 &&
+          (editingIndex == null ||
+            modelKeyAction === 'remove' ||
+            JSON.stringify(form) !== JSON.stringify(initialForm))
         }
         submitText={
           editingIndex != null ? t('providers.save') : t('providers.addModel')
         }
+        large
+        className="sm:max-w-lg"
       >
         <Stack gap={4}>
           <Input
@@ -715,8 +795,83 @@ function ModelsSection() {
             />
           </HStack>
           <Text className="text-muted-foreground text-xs">
-            Used for budget tracking. Leave empty to use default estimates.
+            {t('providers.costHelp')}
           </Text>
+          <Input
+            label={t('providers.modelBaseUrl')}
+            value={form.baseUrl}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, baseUrl: e.target.value }))
+            }
+            placeholder={t('providers.modelBaseUrlPlaceholder')}
+          />
+          <Text className="text-muted-foreground text-xs">
+            {t('providers.modelBaseUrlHelp')}
+          </Text>
+          {maskedModelKeys[form.id] && modelKeyAction === 'none' ? (
+            <HStack gap={2} align="center" className="flex-wrap">
+              <Badge variant="green" dot>
+                {t('providers.modelApiKeyConfigured')}
+              </Badge>
+              <Text className="text-muted-foreground font-mono text-sm">
+                {maskedModelKeys[form.id]}
+              </Text>
+              <HStack gap={3}>
+                <button
+                  type="button"
+                  onClick={() => setModelKeyAction('replace')}
+                  className="text-muted-foreground hover:text-foreground text-xs font-medium"
+                >
+                  {t('providers.editKey')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModelKeyAction('remove')}
+                  className="text-muted-foreground hover:text-destructive text-xs font-medium"
+                >
+                  {t('providers.deleteModelApiKey')}
+                </button>
+              </HStack>
+            </HStack>
+          ) : maskedModelKeys[form.id] && modelKeyAction === 'remove' ? (
+            <HStack gap={2} align="center">
+              <Badge variant="outline">
+                {t('providers.modelApiKeyNotConfigured')}
+              </Badge>
+              <button
+                type="button"
+                onClick={() => setModelKeyAction('none')}
+                className="text-muted-foreground hover:text-foreground text-xs font-medium"
+              >
+                {t('providers.undoRemoveKey')}
+              </button>
+            </HStack>
+          ) : (
+            <>
+              {modelKeyAction === 'replace' && (
+                <HStack gap={2} align="center">
+                  <Badge variant="green" dot>
+                    {t('providers.modelApiKeyConfigured')}
+                  </Badge>
+                  <Text className="text-muted-foreground font-mono text-sm">
+                    {maskedModelKeys[form.id]}
+                  </Text>
+                </HStack>
+              )}
+              <Input
+                label={t('providers.modelApiKey')}
+                type="password"
+                value={form.apiKey}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, apiKey: e.target.value }))
+                }
+                placeholder={t('providers.modelApiKeyPlaceholder')}
+              />
+              <Text className="text-muted-foreground text-xs">
+                {t('providers.modelApiKeyHelp')}
+              </Text>
+            </>
+          )}
         </Stack>
       </FormDialog>
 

@@ -150,10 +150,41 @@ async function loadAllProviders(
 export const readProvider = action({
   args: { orgSlug: v.string(), providerName: v.string() },
   returns: v.any(),
-  handler: async (ctx, args): Promise<ProviderReadResult> => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<
+    ProviderReadResult & { maskedModelKeys?: Record<string, string> }
+  > => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
-    return readProviderFile(args.orgSlug, args.providerName);
+    const result = await readProviderFile(args.orgSlug, args.providerName);
+    if (!result.ok) return result;
+
+    // Attach masked per-model API keys (modelId → masked key)
+    const maskedModelKeys: Record<string, string> = {};
+    try {
+      const secretsPath = resolveProviderSecretsPath(
+        args.orgSlug,
+        args.providerName,
+      );
+      const raw = await decryptSecretsFile(secretsPath);
+      const secrets = parseProviderSecrets(raw);
+      if (secrets.modelKeys) {
+        for (const [id, key] of Object.entries(secrets.modelKeys)) {
+          if (key) {
+            maskedModelKeys[id] = maskApiKey(key);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn(
+        `Provider "${args.providerName}": failed to read model key overrides`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+
+    return { ...result, maskedModelKeys };
   },
 });
 
@@ -185,6 +216,20 @@ export const listProviders = action({
         if (!validateProviderName(name)) return null;
         const result = await readProviderFile(args.orgSlug, name);
         if (result.ok) {
+          // Try reading secrets to detect per-model API key overrides
+          let modelKeys: Record<string, string> | undefined;
+          try {
+            const secretsPath = resolveProviderSecretsPath(args.orgSlug, name);
+            const raw = await decryptSecretsFile(secretsPath);
+            const secrets = parseProviderSecrets(raw);
+            modelKeys = secrets.modelKeys;
+          } catch (err) {
+            console.warn(
+              `Provider "${name}": failed to read model key overrides`,
+              err instanceof Error ? err.message : String(err),
+            );
+          }
+
           return {
             name,
             displayName: result.config.displayName,
@@ -197,6 +242,8 @@ export const listProviders = action({
               displayName: m.displayName,
               description: m.description ?? '',
               tags: m.tags,
+              hasBaseUrlOverride: m.baseUrl != null,
+              hasApiKeyOverride: modelKeys?.[m.id] != null,
             })),
             i18n: result.config.i18n,
           };
@@ -296,8 +343,10 @@ export const resolveModelData = internalAction({
       if (definition) {
         return {
           providerName: provider.name,
-          baseUrl: provider.config.baseUrl,
-          apiKey: provider.secrets.apiKey,
+          baseUrl: definition.baseUrl ?? provider.config.baseUrl,
+          apiKey:
+            provider.secrets.modelKeys?.[definition.id] ??
+            provider.secrets.apiKey,
           modelId: args.modelId,
           maxOutputTokens: definition.maxOutputTokens,
           supportsStructuredOutputs:
@@ -367,8 +416,10 @@ export const resolveModelByTag = internalAction({
         if (definition) {
           return {
             providerName: provider.name,
-            baseUrl: provider.config.baseUrl,
-            apiKey: provider.secrets.apiKey,
+            baseUrl: definition.baseUrl ?? provider.config.baseUrl,
+            apiKey:
+              provider.secrets.modelKeys?.[definition.id] ??
+              provider.secrets.apiKey,
             modelId: definition.id,
             dimensions: definition.dimensions,
             maxOutputTokens: definition.maxOutputTokens,
@@ -391,8 +442,10 @@ export const resolveModelByTag = internalAction({
       if (definition) {
         return {
           providerName: provider.name,
-          baseUrl: provider.config.baseUrl,
-          apiKey: provider.secrets.apiKey,
+          baseUrl: definition.baseUrl ?? provider.config.baseUrl,
+          apiKey:
+            provider.secrets.modelKeys?.[definition.id] ??
+            provider.secrets.apiKey,
           modelId: definition.id,
           dimensions: definition.dimensions,
           maxOutputTokens: definition.maxOutputTokens,
@@ -504,7 +557,8 @@ export const saveProviderSecret = action({
   args: {
     orgSlug: v.string(),
     providerName: v.string(),
-    apiKey: v.string(),
+    apiKey: v.optional(v.string()),
+    modelKeys: v.optional(v.any()),
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
@@ -528,7 +582,44 @@ export const saveProviderSecret = action({
     }
     const agePublicKey = deriveAgePublicKey(sopsAgeKey);
 
-    const plaintext = JSON.stringify({ apiKey: args.apiKey }, null, 2) + '\n';
+    // Read existing secrets to merge with new values
+    let existing: ProviderSecrets | null = null;
+    try {
+      const raw = await decryptSecretsFile(secretsPath);
+      existing = parseProviderSecrets(raw);
+    } catch {
+      // No existing secrets or decryption failed — start fresh
+    }
+
+    const mergedApiKey = args.apiKey ?? existing?.apiKey;
+    if (!mergedApiKey) {
+      throw new Error(
+        'A provider-level API key is required. ' +
+          'Provide an apiKey or ensure one is already configured.',
+      );
+    }
+
+    // Merge model keys: existing + new (new values overwrite existing per model ID)
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- modelKeys validated as Record<string, string> by caller
+    const incomingModelKeys = args.modelKeys as
+      | Record<string, string>
+      | undefined;
+    const mergedModelKeys = {
+      ...existing?.modelKeys,
+      ...incomingModelKeys,
+    };
+
+    // Remove entries with empty string values (signals deletion)
+    for (const [key, value] of Object.entries(mergedModelKeys)) {
+      if (!value) delete mergedModelKeys[key];
+    }
+
+    const secretsData: Record<string, unknown> = { apiKey: mergedApiKey };
+    if (Object.keys(mergedModelKeys).length > 0) {
+      secretsData.modelKeys = mergedModelKeys;
+    }
+
+    const plaintext = JSON.stringify(secretsData, null, 2) + '\n';
     const { execFileSync } = await import('node:child_process');
     const { writeFileSync, unlinkSync, mkdtempSync, rmdirSync } =
       await import('node:fs');
@@ -587,6 +678,7 @@ export const hasProviderSecret = action({
   args: {
     orgSlug: v.string(),
     providerName: v.string(),
+    modelId: v.optional(v.string()),
   },
   returns: v.union(v.string(), v.null()),
   handler: async (ctx, args): Promise<string | null> => {
@@ -608,6 +700,13 @@ export const hasProviderSecret = action({
     try {
       const secrets = await decryptSecretsFile(secretsPath);
       const parsed = parseProviderSecrets(secrets);
+
+      if (args.modelId) {
+        const modelKey = parsed.modelKeys?.[args.modelId];
+        if (!modelKey) return null;
+        return maskApiKey(modelKey);
+      }
+
       const key = parsed.apiKey;
       if (!key) return null;
       return maskApiKey(key);

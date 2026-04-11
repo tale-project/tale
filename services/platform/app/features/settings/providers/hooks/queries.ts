@@ -31,3 +31,15 @@ export function useHasProviderSecret(orgSlug: string, providerName: string) {
     { orgSlug, providerName },
   );
 }
+
+export function useHasModelSecret(
+  orgSlug: string,
+  providerName: string,
+  modelId: string,
+) {
+  return useActionQuery(
+    ['config', 'providers', orgSlug, providerName, 'model-secret', modelId],
+    api.providers.file_actions.hasProviderSecret,
+    { orgSlug, providerName, modelId },
+  );
+}
