@@ -87,7 +87,7 @@ const ragToolArgs = z.discriminatedUnion('operation', [
       .array(z.string())
       .optional()
       .describe(
-        'Specific file IDs to search within. When provided, only these files are searched (skips automatic file resolution). Use this when you know exactly which files to search.',
+        'Specific file IDs to search within. When provided, only these files are searched (skips automatic file resolution). IMPORTANT: If the user message contains file IDs (from uploaded attachments), pass them here first to prioritize those files. Retry without fileIds for a broader search if no relevant results are found.',
       ),
     topK: z
       .number()
@@ -143,12 +143,15 @@ export const ragSearchTool = {
 OPERATIONS:
 • 'search': Search the knowledge base for relevant document excerpts using hybrid search (BM25 + vector similarity). Returns numbered excerpts with relevance scores.
 • 'retrieve': Retrieve document content by file ID in paginated chunks (default 10 chunks per call). Use chunkStart/chunkEnd to paginate. Returns chunk range and totalChunks so you can fetch more. Use this to read uploaded files (PDF, DOCX, PPTX, TXT, XLSX, etc.).
-• 'list_indexed': List documents that have been indexed in the knowledge base. Returns file names, file IDs, and modification dates. Use this to see what's available before searching.
+• 'list_indexed': List documents indexed in the Document Hub (does NOT include files uploaded in chat). Returns file names, file IDs, and modification dates.
 
 WHEN TO USE 'search':
 • Knowledge base lookups: policies, procedures, documentation
 • Questions about stored documents and content
 • Finding information when you don't know exact field values
+
+SEARCH STRATEGY — file ID priority:
+When the user's message contains file IDs (e.g. from uploaded attachments), ALWAYS pass those IDs in the 'fileIds' parameter first to search within those specific files. If that returns no relevant results, retry WITHOUT fileIds to perform a broader knowledge base search. This ensures uploaded/referenced files are prioritized while still falling back to the full knowledge base when needed.
 
 WHEN TO USE 'retrieve':
 • Reading content of a specific uploaded file (paginated, 10 chunks per call by default)
@@ -156,9 +159,10 @@ WHEN TO USE 'retrieve':
 • For large documents, retrieve returns the first page — use chunkStart/chunkEnd to read more, or use 'search' with a query for targeted lookup
 
 WHEN TO USE 'list_indexed':
-• See which files are available for RAG search
+• See which documents are in the Document Hub (org/team knowledge base)
 • Get file IDs for use with the search or retrieve operations
-• Check when files were last modified
+• Check when documents were last modified
+• NOTE: This only lists Document Hub files. Files uploaded in chat are NOT included — their file IDs are already in the conversation context.
 
 WHEN NOT TO USE:
 • "How many customers?" → Use customer_read with operation='list'
