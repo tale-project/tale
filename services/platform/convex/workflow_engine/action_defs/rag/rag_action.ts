@@ -2,14 +2,14 @@ import { v } from 'convex/values';
 
 import { fetchJson } from '../../../../lib/utils/type-cast-helpers';
 import type { SearchResponse } from '../../../agent_tools/rag/format_search_results';
+import { fetchDocumentChunks } from '../../../agent_tools/rag/helpers/fetch_document_chunks';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import { deleteDocumentById } from './helpers/delete_document';
 import { getRagConfig } from './helpers/get_rag_config';
-import type { RagActionParams, RagChunkResult } from './helpers/types';
+import type { RagActionParams } from './helpers/types';
 import { uploadDocument } from './helpers/upload_document';
 
 const SEARCH_TIMEOUT_MS = 30_000;
-const MAX_CHUNK_WINDOW = 200;
 
 export const ragAction: ActionDefinition<RagActionParams> = {
   type: 'rag',
@@ -128,59 +128,6 @@ export const ragAction: ActionDefinition<RagActionParams> = {
     return undefined;
   },
 };
-
-interface DocumentContentResponse {
-  file_id: string;
-  title: string | null;
-  content: string;
-  chunk_range: { start: number; end: number };
-  total_chunks: number;
-  total_chars: number;
-  chunks: Array<{ index: number; content: string }> | null;
-}
-
-async function fetchDocumentChunks(
-  serviceUrl: string,
-  fileId: string,
-): Promise<RagChunkResult> {
-  const allChunks: Array<{ index: number; content: string }> = [];
-  let totalChunks = 0;
-  let documentId = '';
-  let title: string | null = null;
-  let chunkStart = 1;
-
-  // Paginate through all chunks in MAX_CHUNK_WINDOW batches
-  while (true) {
-    const chunkEnd = chunkStart + MAX_CHUNK_WINDOW - 1;
-    const url = `${serviceUrl}/api/v1/documents/${encodeURIComponent(fileId)}/content?return_chunks=true&chunk_start=${chunkStart}&chunk_end=${chunkEnd}`;
-
-    const response = await fetch(url);
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
-      throw new Error(
-        `RAG get_chunks error (${response.status}): ${errorText || 'Unknown error'}`,
-      );
-    }
-
-    const result = await fetchJson<DocumentContentResponse>(response);
-    documentId = result.file_id;
-    title = result.title;
-    totalChunks = result.total_chunks;
-
-    if (result.chunks) {
-      allChunks.push(...result.chunks);
-    }
-
-    if (result.chunk_range.end >= totalChunks) {
-      break;
-    }
-
-    chunkStart = result.chunk_range.end + 1;
-  }
-
-  return { documentId, title, chunks: allChunks, totalChunks };
-}
 
 /**
  * Backward compatibility: map old param names (recordId, documentIds)

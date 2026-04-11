@@ -121,7 +121,7 @@ export type ListDocumentsByExtensionResult = Array<{
 
 export type DocumentSourceType = 'markdown' | 'html' | 'url';
 
-export type DocumentOutputFormat = 'pdf' | 'image' | 'docx';
+export type DocumentOutputFormat = 'pdf' | 'image' | 'docx' | 'pptx';
 
 export interface GenerateDocumentPdfOptions {
   format?: string; // A4, Letter, Legal, etc.

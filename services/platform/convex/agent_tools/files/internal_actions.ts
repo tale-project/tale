@@ -12,59 +12,6 @@ import {
   analyzeImage as analyzeImageHelper,
   type AnalyzeImageResult,
 } from './helpers/analyze_image';
-import {
-  parseFile as parseFileHelper,
-  type ParseFileResult,
-} from './helpers/parse_file';
-
-/**
- * Internal action for parsing files (PDF, DOCX, PPTX).
- * Wrapped for caching - same fileId/filename should return same result.
- */
-export const parseFileUncached = internalAction({
-  args: {
-    fileId: v.string(),
-    filename: v.string(),
-    toolName: v.string(),
-    model: v.optional(v.string()),
-  },
-  returns: v.object({
-    success: v.boolean(),
-    filename: v.string(),
-    file_type: v.optional(v.string()),
-    full_text: v.optional(v.string()),
-    page_count: v.optional(v.number()),
-    slide_count: v.optional(v.number()),
-    paragraph_count: v.optional(v.number()),
-    metadata: v.optional(
-      v.object({
-        title: v.optional(v.string()),
-        author: v.optional(v.string()),
-        subject: v.optional(v.string()),
-      }),
-    ),
-    usage: v.optional(
-      v.object({
-        inputTokens: v.number(),
-        outputTokens: v.number(),
-        totalTokens: v.number(),
-        durationMs: v.optional(v.number()),
-        model: v.optional(v.string()),
-      }),
-    ),
-    error: v.optional(v.string()),
-  }),
-  handler: async (ctx, args): Promise<ParseFileResult> => {
-    return await parseFileHelper(
-      ctx,
-      args.fileId,
-      args.filename,
-      args.toolName,
-      undefined,
-      args.model,
-    );
-  },
-});
 
 /**
  * Internal action for analyzing images with vision model.

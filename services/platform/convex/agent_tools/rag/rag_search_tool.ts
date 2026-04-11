@@ -26,6 +26,7 @@ import {
   formatSearchResults,
   type SearchResponse,
 } from './format_search_results';
+import { fetchDocumentChunks } from './helpers/fetch_document_chunks';
 import { listIndexedDocuments } from './helpers/list_indexed_documents';
 
 // ToolCtx from @convex-dev/agent does not include our agent knowledge
@@ -113,15 +114,24 @@ const ragToolArgs = z.discriminatedUnion('operation', [
         'Pagination cursor from previous response. Pass the exact cursor value returned — do not fabricate.',
       ),
   }),
+  z.object({
+    operation: z.literal('retrieve'),
+    fileId: z
+      .string()
+      .describe(
+        'File ID of the document to retrieve full content from (e.g., "kg2bazp7fbgt9srq63knfagjrd7yfenj")',
+      ),
+  }),
 ]);
 
 export const ragSearchTool = {
   name: 'rag_search' as const,
   tool: createTool({
-    description: `Knowledge base tool for searching content and listing indexed documents.
+    description: `Knowledge base tool for searching, retrieving, and listing indexed documents.
 
 OPERATIONS:
 • 'search': Search the knowledge base for relevant document excerpts using hybrid search (BM25 + vector similarity). Returns numbered excerpts with relevance scores.
+• 'retrieve': Retrieve the full text content of a document by file ID. Use this whenever you need to read or analyze an uploaded file's content (PDF, DOCX, PPTX, TXT, XLSX, etc.). This is the primary way to read file content.
 • 'list_indexed': List documents that have been indexed in the knowledge base. Returns file names, file IDs, and modification dates. Use this to see what's available before searching.
 
 WHEN TO USE 'search':
@@ -129,9 +139,14 @@ WHEN TO USE 'search':
 • Questions about stored documents and content
 • Finding information when you don't know exact field values
 
+WHEN TO USE 'retrieve':
+• Reading the full content of a specific uploaded file
+• When a user uploads a file and asks you to read, summarize, or analyze it
+• When you need the complete text of a document (not just search excerpts)
+
 WHEN TO USE 'list_indexed':
 • See which files are available for RAG search
-• Get file IDs for use with the search operation's fileIds parameter
+• Get file IDs for use with the search or retrieve operations
 • Check when files were last modified
 
 WHEN NOT TO USE:
@@ -153,6 +168,31 @@ RESPONSE (list_indexed):
           limit: args.limit,
           cursor: args.cursor,
         });
+      }
+
+      if (args.operation === 'retrieve') {
+        debugLog('tool:rag_search retrieve start', { fileId: args.fileId });
+
+        const ragServiceUrl = getRagConfig().serviceUrl;
+        const result = await fetchDocumentChunks(ragServiceUrl, args.fileId);
+
+        const fullText = result.chunks
+          .sort((a, b) => a.index - b.index)
+          .map((c) => c.content)
+          .join('\n');
+
+        debugLog('tool:rag_search retrieve success', {
+          fileId: args.fileId,
+          totalChunks: result.totalChunks,
+          textLength: fullText.length,
+        });
+
+        return {
+          success: true,
+          response: fullText || 'Document has no text content.',
+          title: result.title,
+          totalChunks: result.totalChunks,
+        };
       }
 
       // operation === 'search'

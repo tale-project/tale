@@ -15,8 +15,6 @@ import { getRagConfig } from '../lib/helpers/rag_config';
 import { ragAction } from '../workflow_engine/action_defs/rag/rag_action';
 import { getCrawlerUrl } from './generate_document_helpers';
 import type { GenerateDocxResult } from './generate_docx';
-import type { GenerateDocxFromTemplateResult } from './generate_docx_from_template';
-import type { GeneratePptxResult } from './generate_pptx';
 import * as DocumentsHelpers from './helpers';
 import type { GenerateDocumentResult } from './types';
 
@@ -39,6 +37,7 @@ const documentOutputFormatValidator = v.union(
   v.literal('pdf'),
   v.literal('image'),
   v.literal('docx'),
+  v.literal('pptx'),
 );
 
 const pdfOptionsValidator = v.optional(
@@ -74,33 +73,6 @@ const urlOptionsValidator = v.optional(
         v.literal('commit'),
       ),
     ),
-  }),
-);
-
-const tableDataValidator = v.object({
-  headers: v.array(v.string()),
-  rows: v.array(v.array(v.string())),
-});
-
-const slideContentValidator = v.object({
-  title: v.optional(v.string()),
-  subtitle: v.optional(v.string()),
-  textContent: v.optional(v.array(v.string())),
-  bulletPoints: v.optional(v.array(v.string())),
-  tables: v.optional(v.array(tableDataValidator)),
-});
-
-const pptxBrandingValidator = v.optional(
-  v.object({
-    slideWidth: v.optional(v.number()),
-    slideHeight: v.optional(v.number()),
-    titleFontName: v.optional(v.string()),
-    bodyFontName: v.optional(v.string()),
-    titleFontSize: v.optional(v.number()),
-    bodyFontSize: v.optional(v.number()),
-    primaryColor: v.optional(v.string()),
-    secondaryColor: v.optional(v.string()),
-    accentColor: v.optional(v.string()),
   }),
 );
 
@@ -145,19 +117,6 @@ export const generateDocument = internalAction({
   },
 });
 
-export const generatePptx = internalAction({
-  args: {
-    organizationId: v.string(),
-    fileName: v.string(),
-    slidesContent: v.array(slideContentValidator),
-    branding: pptxBrandingValidator,
-    templateStorageId: v.id('_storage'),
-  },
-  handler: async (ctx, args): Promise<GeneratePptxResult> => {
-    return await DocumentsHelpers.generatePptx(ctx, args);
-  },
-});
-
 export const generateDocx = internalAction({
   args: {
     organizationId: v.string(),
@@ -166,18 +125,6 @@ export const generateDocx = internalAction({
   },
   handler: async (ctx, args): Promise<GenerateDocxResult> => {
     return await DocumentsHelpers.generateDocx(ctx, args);
-  },
-});
-
-export const generateDocxFromTemplate = internalAction({
-  args: {
-    organizationId: v.string(),
-    fileName: v.string(),
-    content: docxContentValidator,
-    templateStorageId: v.id('_storage'),
-  },
-  handler: async (ctx, args): Promise<GenerateDocxFromTemplateResult> => {
-    return await DocumentsHelpers.generateDocxFromTemplate(ctx, args);
   },
 });
 

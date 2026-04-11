@@ -1,6 +1,5 @@
 /** Convex Tool: Excel
  *  Generate Excel (.xlsx) files from tabular data.
- *  Parse Excel files to extract structured content.
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
@@ -10,10 +9,8 @@ import { z } from 'zod/v4';
 import { internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
 import { buildDownloadUrl } from '../../lib/helpers/public_storage_url';
-import { toId } from '../../lib/type_cast_helpers';
 import type { ToolDefinition } from '../types';
 import { appendFilePart } from './helpers/append_file_part';
-import { resolveFileName } from './helpers/resolve_file_name';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 
@@ -29,152 +26,61 @@ interface GenerateExcelResult {
   error?: string;
 }
 
-interface ParseExcelResult {
-  operation: 'parse';
-  success: boolean;
-  fileName: string;
-  sheets: Array<{
-    name: string;
-    headers: string[];
-    rows: Array<Array<string | number | boolean | null>>;
-    rowCount: number;
-  }>;
-  totalRows: number;
-  sheetCount: number;
-  error?: string;
-}
-
-type ExcelResult = GenerateExcelResult | ParseExcelResult;
-
-const excelArgs = z.discriminatedUnion('operation', [
-  z.object({
-    operation: z.literal('generate'),
-    fileName: z
-      .string()
-      .describe('Base name for the Excel file (without extension)'),
-    sheets: z
-      .array(
-        z.object({
-          name: z.string().describe('Sheet name'),
-          headers: z
-            .array(z.string())
-            .nonempty()
-            .describe(
-              "Column headers for the sheet (must align with each row's columns)",
-            ),
-          rows: z
-            .array(
-              z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])),
-            )
-            .describe('2D array of cell values (rows x columns)'),
-        }),
-      )
-      .describe('Sheets to include in the Excel file'),
-  }),
-  z.object({
-    operation: z.literal('parse'),
-    fileId: z
-      .string()
-      .describe(
-        "Convex storage ID (e.g., 'kg2bazp7fbgt9srq63knfagjrd7yfenj'). Get this from the file attachment context.",
-      ),
-    filename: z
-      .string()
-      .optional()
-      .describe(
-        "Original filename (e.g., 'report.xlsx'). Optional — auto-resolved from file metadata if omitted.",
-      ),
-  }),
-]);
+const excelArgs = z.object({
+  operation: z.literal('generate'),
+  fileName: z
+    .string()
+    .describe('Base name for the Excel file (without extension)'),
+  sheets: z
+    .array(
+      z.object({
+        name: z.string().describe('Sheet name'),
+        headers: z
+          .array(z.string())
+          .nonempty()
+          .describe(
+            "Column headers for the sheet (must align with each row's columns)",
+          ),
+        rows: z
+          .array(
+            z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])),
+          )
+          .describe('2D array of cell values (rows x columns)'),
+      }),
+    )
+    .describe('Sheets to include in the Excel file'),
+});
 
 export const excelTool = {
   name: 'excel' as const,
   tool: createTool({
-    description: `Excel (.xlsx) tool for generating and parsing spreadsheet files.
+    description: `Excel (.xlsx) tool for generating spreadsheet files.
 
-IMPORTANT: Only call the "generate" operation when the user explicitly requests creating or exporting an Excel/spreadsheet file. Do NOT proactively generate Excel files unless the user specifically asks for this format.
+IMPORTANT: Only call this tool when the user explicitly requests creating or exporting an Excel/spreadsheet file. Do NOT proactively generate Excel files unless the user specifically asks for this format.
 
-OPERATIONS:
+OPERATION:
 
-1. generate - Generate an Excel file from structured tabular data
-   Use this when the user asks for an Excel/Spreadsheet export (e.g. customer lists, product tables, analytics).
-   Parameters:
-   - fileName: Base name for the Excel file (without extension)
-   - sheets: Array of sheets with names, headers, and rows
-   Returns: { success, downloadUrl, fileName, rowCount, sheetCount }
+generate - Generate an Excel file from structured tabular data
+  Use this when the user asks for an Excel/Spreadsheet export (e.g. customer lists, product tables, analytics).
+  Parameters:
+  - fileName: Base name for the Excel file (without extension)
+  - sheets: Array of sheets with names, headers, and rows
+  Returns: { success, downloadUrl, fileName, rowCount, sheetCount }
 
-2. parse - Extract structured data from an existing Excel file
-   USE THIS when a user uploads an Excel file and you need to read its content.
-   Parameters:
-   - fileId: **REQUIRED** - Convex storage ID (e.g., "kg2bazp7fbgt9srq63knfagjrd7yfenj")
-   - filename: Optional — original filename (e.g., "report.xlsx"). Auto-resolved from file metadata if omitted.
-   Returns: { success, sheets (with headers and rows), totalRows, sheetCount }
-
-EXAMPLES:
+EXAMPLE:
 • Generate: { "operation": "generate", "fileName": "customers", "sheets": [{ "name": "Sheet1", "headers": ["Name", "Email"], "rows": [["Alice", "alice@example.com"]] }] }
-• Parse: { "operation": "parse", "fileId": "kg2bazp7...", "filename": "report.xlsx" }
 
 AFTER GENERATING: Check the downloadUrl in the result:
 - If it says "[file card shown in chat]": the file is already visible as a download card. Do NOT mention downloading, do NOT include a link, and do NOT say "you can download it" — the card handles this.
 - If it contains an actual URL: no download card was shown. You MUST include the URL as a clickable markdown link so the user can download the file.
 To also save the file to a folder in the documents hub, call document_write with the returned fileStorageId and the desired folderPath.
+
+TO READ FILE CONTENT: Do NOT use this tool. Instead use the rag_search tool:
+• To get the full content of a file: use rag_search with operation='retrieve' and the fileId
+• To search for specific information across files: use rag_search with operation='search'
 `,
     inputSchema: excelArgs,
-    execute: async (ctx: ToolCtx, args): Promise<ExcelResult> => {
-      if (args.operation === 'parse') {
-        const resolvedFilename = await resolveFileName(
-          ctx,
-          args.fileId,
-          args.filename,
-        );
-
-        debugLog('tool:excel parse start', {
-          fileId: args.fileId,
-          filename: resolvedFilename,
-        });
-
-        try {
-          const result = await ctx.runAction(
-            internal.node_only.documents.internal_actions.parseExcel,
-            {
-              storageId: toId<'_storage'>(args.fileId),
-            },
-          );
-
-          debugLog('tool:excel parse success', {
-            filename: resolvedFilename,
-            sheetCount: result.sheetCount,
-            totalRows: result.totalRows,
-          });
-
-          return {
-            operation: 'parse',
-            success: true,
-            fileName: resolvedFilename,
-            sheets: result.sheets,
-            totalRows: result.totalRows,
-            sheetCount: result.sheetCount,
-          };
-        } catch (error) {
-          const message =
-            error instanceof Error ? error.message : String(error);
-          console.error('[tool:excel parse] error', {
-            fileId: args.fileId,
-            error: message,
-          });
-          return {
-            operation: 'parse',
-            success: false,
-            fileName: resolvedFilename,
-            sheets: [],
-            totalRows: 0,
-            sheetCount: 0,
-            error: message,
-          };
-        }
-      }
-
-      // operation === 'generate'
+    execute: async (ctx: ToolCtx, args): Promise<GenerateExcelResult> => {
       debugLog('tool:excel generate start', {
         fileName: args.fileName,
         sheetCount: args.sheets.length,
