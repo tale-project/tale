@@ -71,7 +71,7 @@ export async function uploadBase64ToStorage(
 
   await ctx.runMutation(
     internal.file_metadata.internal_mutations.saveFileMetadata,
-    { organizationId, storageId, fileName, contentType, size },
+    { organizationId, storageId, fileName, contentType, size, source: 'agent' },
   );
 
   // Build download URL using our custom HTTP endpoint that sets Content-Disposition

@@ -132,6 +132,7 @@ export async function generateDocxFromTemplate(
       fileName: finalFileName,
       contentType,
       size: docxBytes.length,
+      source: 'agent',
     },
   );
 

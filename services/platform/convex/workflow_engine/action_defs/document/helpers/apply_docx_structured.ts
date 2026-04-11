@@ -172,6 +172,7 @@ export async function applyDocxStructured(
         fileName: finalFileName,
         contentType: DOCX_CONTENT_TYPE,
         size: docxBytes.length,
+        source: 'agent',
       },
     );
   }

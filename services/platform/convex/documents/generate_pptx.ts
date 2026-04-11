@@ -178,6 +178,7 @@ export async function generatePptx(
       fileName: finalFileName,
       contentType,
       size: pptxBytes.length,
+      source: 'agent',
     },
   );
 

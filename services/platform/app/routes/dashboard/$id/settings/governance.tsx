@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { Tabs } from '@/app/components/ui/navigation/tabs';
 import { BudgetEditor } from '@/app/features/settings/governance/components/budget-editor';
+import { RetentionEditor } from '@/app/features/settings/governance/components/retention-editor';
 import { SystemPromptEditor } from '@/app/features/settings/governance/components/system-prompt-editor';
 import { UsageDashboard } from '@/app/features/settings/governance/components/usage-dashboard';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
@@ -53,6 +54,11 @@ function GovernanceSettingsPage() {
         value: 'budgets',
         label: 'Budgets',
         content: <BudgetEditor organizationId={organizationId} />,
+      },
+      {
+        value: 'retention',
+        label: 'Retention',
+        content: <RetentionEditor organizationId={organizationId} />,
       },
       {
         value: 'usage',

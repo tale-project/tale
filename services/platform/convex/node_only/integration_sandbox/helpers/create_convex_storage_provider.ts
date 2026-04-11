@@ -55,6 +55,7 @@ export function createConvexStorageProvider(
           fileName,
           contentType,
           size: blob.size,
+          source: 'agent',
         },
       );
 
@@ -90,6 +91,7 @@ export function createConvexStorageProvider(
           fileName,
           contentType,
           size: blob.size,
+          source: 'agent',
         },
       );
 

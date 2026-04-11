@@ -120,6 +120,7 @@ export const downloadAndStoreFile = internalAction({
             fileName: args.fileName ?? args.itemId,
             contentType,
             size,
+            source: 'user',
           },
         );
       },

@@ -209,6 +209,7 @@ To also save the file to a folder in the documents hub, call document_write with
             contentType:
               'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             size: blob.size,
+            source: 'agent',
           },
         );
 

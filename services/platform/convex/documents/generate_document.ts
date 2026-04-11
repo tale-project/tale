@@ -120,6 +120,7 @@ export async function generateDocument(
       fileName: finalFileName,
       contentType,
       size,
+      source: 'agent',
     },
   );
 
