@@ -4,7 +4,7 @@
   "baseUrl": "https://openrouter.ai/api/v1",
   "supportsStructuredOutputs": true,
   "defaults": {
-    "chat": "moonshotai/kimi-k2.5",
+    "chat": "deepseek/deepseek-v3.2",
     "vision": "qwen/qwen3-vl-32b-instruct",
     "embedding": "qwen/qwen3-embedding-8b"
   },
@@ -13,130 +13,227 @@
       "id": "moonshotai/kimi-k2.5",
       "displayName": "Kimi K2.5",
       "description": "High-performance general-purpose model",
-      "tags": ["chat"],
-      "cost": { "inputCentsPerMillion": 38, "outputCentsPerMillion": 172 }
+      "tags": [
+        "chat"
+      ],
+      "cost": {
+        "inputCentsPerMillion": 38,
+        "outputCentsPerMillion": 172
+      }
     },
     {
       "id": "deepseek/deepseek-v3.2",
       "displayName": "DeepSeek V3.2",
       "description": "Strong reasoning and general capabilities",
-      "tags": ["chat"],
-      "cost": { "inputCentsPerMillion": 26, "outputCentsPerMillion": 38 }
+      "tags": [
+        "chat"
+      ],
+      "cost": {
+        "inputCentsPerMillion": 26,
+        "outputCentsPerMillion": 38
+      }
     },
     {
       "id": "qwen/qwen3-next-80b-a3b-instruct",
       "displayName": "Qwen3 Next 80B",
       "description": "Fast and efficient instruction-following model",
-      "tags": ["chat"],
-      "cost": { "inputCentsPerMillion": 9, "outputCentsPerMillion": 110 }
+      "tags": [
+        "chat"
+      ],
+      "cost": {
+        "inputCentsPerMillion": 9,
+        "outputCentsPerMillion": 110
+      }
     },
     {
       "id": "qwen/qwen3.5-35b-a3b",
       "displayName": "Qwen3.5 35B",
       "description": "Compact and fast model",
-      "tags": ["chat"],
-      "cost": { "inputCentsPerMillion": 16, "outputCentsPerMillion": 130 }
+      "tags": [
+        "chat"
+      ],
+      "cost": {
+        "inputCentsPerMillion": 16,
+        "outputCentsPerMillion": 130
+      }
     },
     {
       "id": "anthropic/claude-opus-4.6",
       "displayName": "Claude Opus 4.6",
       "description": "Most capable model for complex reasoning and coding",
-      "tags": ["chat", "vision"],
-      "cost": { "inputCentsPerMillion": 500, "outputCentsPerMillion": 2500 }
+      "tags": [
+        "chat",
+        "vision"
+      ],
+      "cost": {
+        "inputCentsPerMillion": 500,
+        "outputCentsPerMillion": 2500
+      }
     },
     {
       "id": "openai/gpt-5.2",
       "displayName": "GPT-5.2",
       "description": "OpenAI's latest flagship model",
-      "tags": ["chat", "vision"],
-      "cost": { "inputCentsPerMillion": 175, "outputCentsPerMillion": 1400 }
+      "tags": [
+        "chat",
+        "vision"
+      ],
+      "cost": {
+        "inputCentsPerMillion": 175,
+        "outputCentsPerMillion": 1400
+      }
     },
     {
       "id": "qwen/qwen3-vl-32b-instruct",
       "displayName": "Qwen3 VL 32B",
       "description": "Vision-language model for image understanding",
-      "tags": ["chat", "vision"],
-      "cost": { "inputCentsPerMillion": 10, "outputCentsPerMillion": 42 }
+      "tags": [
+        "chat",
+        "vision"
+      ],
+      "cost": {
+        "inputCentsPerMillion": 10,
+        "outputCentsPerMillion": 42
+      }
     },
     {
       "id": "qwen/qwen3-embedding-8b",
       "displayName": "Qwen3 Embedding 8B",
       "description": "Text embedding model for semantic search",
-      "tags": ["embedding"],
+      "tags": [
+        "embedding"
+      ],
       "dimensions": 1536,
-      "cost": { "inputCentsPerMillion": 1, "outputCentsPerMillion": 0 }
+      "cost": {
+        "inputCentsPerMillion": 1,
+        "outputCentsPerMillion": 0
+      }
     },
     {
       "id": "openai/gpt-5.2-chat",
       "displayName": "GPT-5.2 Instant",
       "description": "Fast, low-latency variant of GPT-5.2 optimized for chat",
-      "tags": ["chat"],
-      "cost": { "inputCentsPerMillion": 175, "outputCentsPerMillion": 1400 }
+      "tags": [
+        "chat"
+      ],
+      "cost": {
+        "inputCentsPerMillion": 175,
+        "outputCentsPerMillion": 1400
+      }
     },
     {
       "id": "openai/gpt-5.2-pro",
       "displayName": "GPT-5.2 Pro",
       "description": "Most advanced GPT-5.2 variant for complex reasoning tasks",
-      "tags": ["chat", "vision"],
-      "cost": { "inputCentsPerMillion": 2100, "outputCentsPerMillion": 16800 }
+      "tags": [
+        "chat",
+        "vision"
+      ],
+      "cost": {
+        "inputCentsPerMillion": 2100,
+        "outputCentsPerMillion": 16800
+      }
     },
     {
       "id": "anthropic/claude-sonnet-4.6",
       "displayName": "Claude Sonnet 4.6",
       "description": "Balanced performance and speed for everyday tasks",
-      "tags": ["chat", "vision"],
-      "cost": { "inputCentsPerMillion": 300, "outputCentsPerMillion": 1500 }
+      "tags": [
+        "chat",
+        "vision"
+      ],
+      "cost": {
+        "inputCentsPerMillion": 300,
+        "outputCentsPerMillion": 1500
+      }
     },
     {
       "id": "anthropic/claude-haiku-4.5",
       "displayName": "Claude Haiku 4.5",
       "description": "Fast and compact model for lightweight tasks",
-      "tags": ["chat"],
-      "cost": { "inputCentsPerMillion": 100, "outputCentsPerMillion": 500 }
+      "tags": [
+        "chat"
+      ],
+      "cost": {
+        "inputCentsPerMillion": 100,
+        "outputCentsPerMillion": 500
+      }
     },
     {
       "id": "google/gemini-3.1-pro-preview",
       "displayName": "Gemini 3 Pro",
       "description": "Google's most capable Gemini model",
-      "tags": ["chat", "vision"],
-      "cost": { "inputCentsPerMillion": 200, "outputCentsPerMillion": 1200 }
+      "tags": [
+        "chat",
+        "vision"
+      ],
+      "cost": {
+        "inputCentsPerMillion": 200,
+        "outputCentsPerMillion": 1200
+      }
     },
     {
       "id": "google/gemini-3-flash-preview",
       "displayName": "Gemini 3 Flash",
       "description": "Fast and efficient Gemini model",
-      "tags": ["chat", "vision"],
-      "cost": { "inputCentsPerMillion": 50, "outputCentsPerMillion": 300 }
+      "tags": [
+        "chat",
+        "vision"
+      ],
+      "cost": {
+        "inputCentsPerMillion": 50,
+        "outputCentsPerMillion": 300
+      }
     },
     {
       "id": "mistralai/mistral-large-2512",
       "displayName": "Mistral Large 3",
       "description": "Mistral AI's flagship large language model",
-      "tags": ["chat"],
+      "tags": [
+        "chat"
+      ],
       "maxOutputTokens": 8192,
-      "cost": { "inputCentsPerMillion": 50, "outputCentsPerMillion": 150 }
+      "cost": {
+        "inputCentsPerMillion": 50,
+        "outputCentsPerMillion": 150
+      }
     },
     {
       "id": "mistralai/mistral-medium-3",
       "displayName": "Mistral Medium 3",
       "description": "Balanced Mistral model for general tasks",
-      "tags": ["chat"],
+      "tags": [
+        "chat"
+      ],
       "maxOutputTokens": 8192,
-      "cost": { "inputCentsPerMillion": 40, "outputCentsPerMillion": 200 }
+      "cost": {
+        "inputCentsPerMillion": 40,
+        "outputCentsPerMillion": 200
+      }
     },
     {
       "id": "meta-llama/llama-4-maverick",
       "displayName": "LLaMA 4 Maverick",
       "description": "Meta's powerful open-source large language model",
-      "tags": ["chat"],
-      "cost": { "inputCentsPerMillion": 15, "outputCentsPerMillion": 60 }
+      "tags": [
+        "chat"
+      ],
+      "cost": {
+        "inputCentsPerMillion": 15,
+        "outputCentsPerMillion": 60
+      }
     },
     {
       "id": "meta-llama/llama-4-scout",
       "displayName": "LLaMA 4 Scout",
       "description": "Meta's efficient open-source language model",
-      "tags": ["chat"],
-      "cost": { "inputCentsPerMillion": 8, "outputCentsPerMillion": 30 }
+      "tags": [
+        "chat"
+      ],
+      "cost": {
+        "inputCentsPerMillion": 8,
+        "outputCentsPerMillion": 30
+      }
     }
   ],
   "i18n": {
