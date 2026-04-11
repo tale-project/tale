@@ -93,13 +93,30 @@ export const chatWithAgent = action({
       }
     }
 
+    // Resolve governance default model when no explicit model is provided
+    let effectiveModelId = args.modelId;
+    if (!effectiveModelId) {
+      const governanceDefault = await ctx.runQuery(
+        internal.governance.internal_queries.resolveDefaultModelInternal,
+        {
+          organizationId: args.organizationId,
+          userId: String(authUser._id),
+          userEmail: authUser.email,
+          userName: authUser.name,
+        },
+      );
+      if (governanceDefault) {
+        effectiveModelId = governanceDefault.modelId;
+      }
+    }
+
     const agentConfig = await ctx.runAction(
       internal.agents.file_actions.resolveAgentConfig,
       {
         orgSlug: args.orgSlug,
         agentSlug: args.agentSlug,
         organizationId: args.organizationId,
-        modelId: args.modelId,
+        modelId: effectiveModelId,
       },
     );
 

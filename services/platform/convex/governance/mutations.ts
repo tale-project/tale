@@ -2,6 +2,7 @@ import { v } from 'convex/values';
 
 import {
   budgetConfigSchema,
+  defaultModelsConfigSchema,
   featureFlagsConfigSchema,
   piiConfigSchema,
 } from '../../lib/shared/schemas/governance';
@@ -41,6 +42,15 @@ export const upsertPolicy = mutation({
       if (!parsed.success) {
         throw new Error(
           `Invalid budget configuration: ${parsed.error.message}`,
+        );
+      }
+    }
+
+    if (args.policyType === 'default_models') {
+      const parsed = defaultModelsConfigSchema.safeParse(args.config);
+      if (!parsed.success) {
+        throw new Error(
+          `Invalid default models configuration: ${parsed.error.message}`,
         );
       }
     }

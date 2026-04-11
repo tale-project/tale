@@ -57,6 +57,38 @@
     },
     "usageCount": "{count, plural, one {# Verwendung} other {# Verwendungen}}"
   },
+  "governance": {
+    "defaultModels": {
+      "title": "Standardmodelle",
+      "description": "Standardmodelle für bestimmte Benutzergruppen oder Rollen festlegen.",
+      "addMapping": "Modellzuordnung hinzufügen",
+      "saved": "Standardmodell-Konfiguration gespeichert",
+      "addRule": "Regel hinzufügen",
+      "addRuleTitle": "Standardmodell-Regel hinzufügen",
+      "editRuleTitle": "Standardmodell-Regel bearbeiten",
+      "editRule": "Regel {index} bearbeiten",
+      "removeRule": "Regel {index} entfernen",
+      "scope": "Geltungsbereich",
+      "target": "Ziel",
+      "provider": "Anbieter",
+      "model": "Modell",
+      "role": "Rolle",
+      "actions": "Aktionen",
+      "noRules": "Keine Standardmodell-Regeln konfiguriert. Füge eine Regel hinzu, um Team- oder Rollen-Standards festzulegen.",
+      "allUsers": "Alle Benutzer",
+      "selectProvider": "Anbieter auswählen...",
+      "selectModel": "Modell auswählen...",
+      "selectTeam": "Team auswählen...",
+      "searchProviders": "Anbieter suchen...",
+      "searchModels": "Modelle suchen...",
+      "searchTeams": "Teams suchen...",
+      "noProvidersFound": "Keine Anbieter gefunden",
+      "noModelsFound": "Keine Modelle gefunden",
+      "noTeamsFound": "Keine Teams gefunden",
+      "enabled": "Aktiviert",
+      "confirm": "Bestätigen"
+    }
+  },
   "settings": {
     "agents": {
       "form": {
