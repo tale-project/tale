@@ -121,4 +121,3 @@ export type ModelAccessConfig = z.infer<typeof modelAccessConfigSchema>;
 export const auditRetentionConfigSchema = z.object({
   retentionDays: z.number().int().min(30).max(365),
 });
-export type AuditRetentionConfig = z.infer<typeof auditRetentionConfigSchema>;
