@@ -34,6 +34,7 @@ import { Route as DashboardIdAgentsIndexRouteImport } from './routes/dashboard/$
 import { Route as DashboardIdSettingsTeamsRouteImport } from './routes/dashboard/$id/settings/teams'
 import { Route as DashboardIdSettingsProvidersRouteImport } from './routes/dashboard/$id/settings/providers'
 import { Route as DashboardIdSettingsOrganizationRouteImport } from './routes/dashboard/$id/settings/organization'
+import { Route as DashboardIdSettingsMcpServersRouteImport } from './routes/dashboard/$id/settings/mcp-servers'
 import { Route as DashboardIdSettingsLogsRouteImport } from './routes/dashboard/$id/settings/logs'
 import { Route as DashboardIdSettingsIntegrationsRouteImport } from './routes/dashboard/$id/settings/integrations'
 import { Route as DashboardIdSettingsGovernanceRouteImport } from './routes/dashboard/$id/settings/governance'
@@ -192,6 +193,12 @@ const DashboardIdSettingsOrganizationRoute =
   DashboardIdSettingsOrganizationRouteImport.update({
     id: '/organization',
     path: '/organization',
+    getParentRoute: () => DashboardIdSettingsRoute,
+  } as any)
+const DashboardIdSettingsMcpServersRoute =
+  DashboardIdSettingsMcpServersRouteImport.update({
+    id: '/mcp-servers',
+    path: '/mcp-servers',
     getParentRoute: () => DashboardIdSettingsRoute,
   } as any)
 const DashboardIdSettingsLogsRoute = DashboardIdSettingsLogsRouteImport.update({
@@ -400,6 +407,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/settings/governance': typeof DashboardIdSettingsGovernanceRoute
   '/dashboard/$id/settings/integrations': typeof DashboardIdSettingsIntegrationsRoute
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute
+  '/dashboard/$id/settings/mcp-servers': typeof DashboardIdSettingsMcpServersRoute
   '/dashboard/$id/settings/organization': typeof DashboardIdSettingsOrganizationRoute
   '/dashboard/$id/settings/providers': typeof DashboardIdSettingsProvidersRouteWithChildren
   '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute
@@ -447,6 +455,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id/settings/governance': typeof DashboardIdSettingsGovernanceRoute
   '/dashboard/$id/settings/integrations': typeof DashboardIdSettingsIntegrationsRoute
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute
+  '/dashboard/$id/settings/mcp-servers': typeof DashboardIdSettingsMcpServersRoute
   '/dashboard/$id/settings/organization': typeof DashboardIdSettingsOrganizationRoute
   '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute
   '/dashboard/$id/agents': typeof DashboardIdAgentsIndexRoute
@@ -503,6 +512,7 @@ export interface FileRoutesById {
   '/dashboard/$id/settings/governance': typeof DashboardIdSettingsGovernanceRoute
   '/dashboard/$id/settings/integrations': typeof DashboardIdSettingsIntegrationsRoute
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute
+  '/dashboard/$id/settings/mcp-servers': typeof DashboardIdSettingsMcpServersRoute
   '/dashboard/$id/settings/organization': typeof DashboardIdSettingsOrganizationRoute
   '/dashboard/$id/settings/providers': typeof DashboardIdSettingsProvidersRouteWithChildren
   '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute
@@ -559,6 +569,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/governance'
     | '/dashboard/$id/settings/integrations'
     | '/dashboard/$id/settings/logs'
+    | '/dashboard/$id/settings/mcp-servers'
     | '/dashboard/$id/settings/organization'
     | '/dashboard/$id/settings/providers'
     | '/dashboard/$id/settings/teams'
@@ -606,6 +617,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/governance'
     | '/dashboard/$id/settings/integrations'
     | '/dashboard/$id/settings/logs'
+    | '/dashboard/$id/settings/mcp-servers'
     | '/dashboard/$id/settings/organization'
     | '/dashboard/$id/settings/teams'
     | '/dashboard/$id/agents'
@@ -661,6 +673,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/governance'
     | '/dashboard/$id/settings/integrations'
     | '/dashboard/$id/settings/logs'
+    | '/dashboard/$id/settings/mcp-servers'
     | '/dashboard/$id/settings/organization'
     | '/dashboard/$id/settings/providers'
     | '/dashboard/$id/settings/teams'
@@ -866,6 +879,13 @@ declare module '@tanstack/react-router' {
       path: '/organization'
       fullPath: '/dashboard/$id/settings/organization'
       preLoaderRoute: typeof DashboardIdSettingsOrganizationRouteImport
+      parentRoute: typeof DashboardIdSettingsRoute
+    }
+    '/dashboard/$id/settings/mcp-servers': {
+      id: '/dashboard/$id/settings/mcp-servers'
+      path: '/mcp-servers'
+      fullPath: '/dashboard/$id/settings/mcp-servers'
+      preLoaderRoute: typeof DashboardIdSettingsMcpServersRouteImport
       parentRoute: typeof DashboardIdSettingsRoute
     }
     '/dashboard/$id/settings/logs': {
@@ -1242,6 +1262,7 @@ interface DashboardIdSettingsRouteChildren {
   DashboardIdSettingsGovernanceRoute: typeof DashboardIdSettingsGovernanceRoute
   DashboardIdSettingsIntegrationsRoute: typeof DashboardIdSettingsIntegrationsRoute
   DashboardIdSettingsLogsRoute: typeof DashboardIdSettingsLogsRoute
+  DashboardIdSettingsMcpServersRoute: typeof DashboardIdSettingsMcpServersRoute
   DashboardIdSettingsOrganizationRoute: typeof DashboardIdSettingsOrganizationRoute
   DashboardIdSettingsProvidersRoute: typeof DashboardIdSettingsProvidersRouteWithChildren
   DashboardIdSettingsTeamsRoute: typeof DashboardIdSettingsTeamsRoute
@@ -1256,6 +1277,7 @@ const DashboardIdSettingsRouteChildren: DashboardIdSettingsRouteChildren = {
   DashboardIdSettingsGovernanceRoute: DashboardIdSettingsGovernanceRoute,
   DashboardIdSettingsIntegrationsRoute: DashboardIdSettingsIntegrationsRoute,
   DashboardIdSettingsLogsRoute: DashboardIdSettingsLogsRoute,
+  DashboardIdSettingsMcpServersRoute: DashboardIdSettingsMcpServersRoute,
   DashboardIdSettingsOrganizationRoute: DashboardIdSettingsOrganizationRoute,
   DashboardIdSettingsProvidersRoute:
     DashboardIdSettingsProvidersRouteWithChildren,

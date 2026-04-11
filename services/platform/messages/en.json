@@ -242,6 +242,7 @@
     "organization": "Organization",
     "teams": "Teams",
     "integrations": "Integrations",
+    "mcpServers": "MCP servers",
     "providers": "AI providers",
     "apiKeys": "API keys",
     "branding": "Branding",
@@ -3569,6 +3570,7 @@
     "organization": "You need Admin permissions to access organization settings.",
     "teams": "You need Admin permissions to access team settings.",
     "agents": "You need Admin or Developer permissions to manage agents.",
+    "mcpServers": "You need Admin or Developer permissions to manage MCP servers.",
     "branding": "You need Admin permissions to access branding settings.",
     "knowledge": "Your account does not have permission to access knowledge.",
     "noMembership": "You are not a member of this workspace. Please contact an administrator for access.",
@@ -3649,6 +3651,10 @@
     "integrations": {
       "title": "Integrations",
       "description": "Connect third-party services."
+    },
+    "mcpServers": {
+      "title": "MCP servers",
+      "description": "Connect external tools via Model Context Protocol."
     },
     "providers": {
       "title": "Providers",
@@ -4055,6 +4061,10 @@
     "connected": "Connected",
     "disconnected": "Disconnected",
     "error": "Error",
+    "emptyTitle": "No MCP servers configured",
+    "emptyDescription": "Add an MCP server to connect external tools and data sources to your agents.",
+    "activate": "Activate",
+    "deactivate": "Deactivate",
     "form": {
       "name": "Name",
       "displayName": "Display name",
@@ -4067,7 +4077,11 @@
       "none": "None",
       "apiKey": "API Key",
       "oauth2": "OAuth 2.0",
-      "save": "Save server"
+      "save": "Save server",
+      "saving": "Saving...",
+      "cancel": "Cancel",
+      "connectionSection": "Connection",
+      "authSection": "Authentication"
     },
     "oauth2": {
       "title": "OAuth 2.0 Configuration",
