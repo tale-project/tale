@@ -553,10 +553,13 @@ export function useMessageError(threadId: string | null) {
   return data ?? null;
 }
 
-export function useMessageMetadata(messageId: string | null) {
+export function useMessageMetadata(
+  messageId: string | null,
+  threadId?: string | null,
+) {
   const { data: metadata, isLoading } = useConvexQuery(
     api.message_metadata.queries.getMessageMetadata,
-    messageId ? { messageId } : 'skip',
+    messageId ? { messageId, ...(threadId ? { threadId } : {}) } : 'skip',
   );
 
   return {

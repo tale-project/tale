@@ -137,7 +137,7 @@ function MessageBubbleComponent({
   const contentRef = useRef<HTMLDivElement | null>(null);
   const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const { metadata } = useMessageMetadata(message.id);
+  const { metadata } = useMessageMetadata(message.id, message.threadId);
   const { citations, hasCitations } = useCitations(metadata?.toolsUsage);
   const citationNumbers = useMemo(() => new Set(citations.keys()), [citations]);
   const citationsContextValue = useMemo(() => ({ citations }), [citations]);
