@@ -1,7 +1,8 @@
 /**
  * Internal queries for OpenAI-compatible endpoint.
  *
- * Provides organization resolution from API key user context.
+ * Provides organization resolution and metadata queries
+ * for the API key user context.
  */
 
 import { v } from 'convex/values';
@@ -83,5 +84,41 @@ export const resolveUserOrganization = internalQuery({
     }
 
     return { organizationId: orgId, orgSlug: slug };
+  },
+});
+
+/**
+ * Fetch the latest toolsUsage for a thread.
+ *
+ * In agent mode, each request creates a single assistant message.
+ * This query retrieves the most recent messageMetadata for the thread
+ * and returns its toolsUsage array (used to build API citation data).
+ */
+export const getLatestThreadToolsUsage = internalQuery({
+  args: {
+    threadId: v.string(),
+  },
+  returns: v.union(
+    v.array(
+      v.object({
+        toolName: v.string(),
+        output: v.optional(v.string()),
+      }),
+    ),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    const metadata = await ctx.db
+      .query('messageMetadata')
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
+      .order('desc')
+      .first();
+
+    if (!metadata?.toolsUsage) return null;
+
+    return metadata.toolsUsage.map((t) => ({
+      toolName: t.toolName,
+      output: t.output,
+    }));
   },
 });

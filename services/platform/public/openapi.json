@@ -3,7 +3,7 @@
   "info": {
     "title": "Tale Public API",
     "version": "1.0.0",
-    "description": "Tale Platform REST API.\n\n## Authentication\n\nAll endpoints require a Bearer token:\n\n```\nAuthorization: Bearer tale_...\n```\n\nCreate API keys in **Settings > API Keys**.\n\n## Quick start — REST API\n\n```bash\n# List documents\ncurl -H \"Authorization: Bearer tale_...\" https://your-instance.com/api/v1/documents\n\n# Create a product\ncurl -X POST -H \"Authorization: Bearer tale_...\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"name\": \"New Product\", \"price\": 9.99}' \\\n  https://your-instance.com/api/v1/products\n\n# List chat threads\ncurl -H \"Authorization: Bearer tale_...\" https://your-instance.com/api/v1/threads\n```\n\n## Quick start — OpenAI Compatible\n\n```python\nfrom openai import OpenAI\n\nclient = OpenAI(\n    base_url=\"https://your-instance.com/api/v1\",\n    api_key=\"tale_...\",\n)\n\nresponse = client.chat.completions.create(\n    model=\"chat-agent\",\n    messages=[{\"role\": \"user\", \"content\": \"Hello!\"}],\n)\n```"
+    "description": "Tale Platform REST API.\n\n## Authentication\n\nAll endpoints require a Bearer token:\n\n```\nAuthorization: Bearer tale_...\n```\n\nCreate API keys in **Settings > API Keys**.\n\n## Quick start — REST API\n\n```bash\n# List documents\ncurl -H \"Authorization: Bearer tale_...\" https://your-instance.com/api/v1/documents\n\n# Create a product\ncurl -X POST -H \"Authorization: Bearer tale_...\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"name\": \"New Product\", \"price\": 9.99}' \\\n  https://your-instance.com/api/v1/products\n\n# List chat threads\ncurl -H \"Authorization: Bearer tale_...\" https://your-instance.com/api/v1/threads\n```\n\n## Quick start — OpenAI Compatible\n\n```python\nfrom openai import OpenAI\n\nclient = OpenAI(\n    base_url=\"https://your-instance.com/api/v1\",\n    api_key=\"tale_...\",\n)\n\nresponse = client.chat.completions.create(\n    model=\"chat-agent\",\n    messages=[{\"role\": \"user\", \"content\": \"Hello!\"}],\n)\n```\n\n## Citations\n\nAgent mode responses include a `citations` array when knowledge tools (RAG search, web search) are used:\n\n```python\nresponse = client.chat.completions.create(\n    model=\"my-agent\",\n    messages=[{\"role\": \"user\", \"content\": \"What does the policy say about returns?\"}],\n)\n\n# Access citations\nfor citation in response.model_extra.get(\"citations\", []):\n    print(f\"[{citation['index']}] {citation['source']} (relevance: {citation['relevance']})\")\n```\n\nFor streaming, citations arrive as a separate SSE event before `[DONE]`."
   },
   "servers": [
     {
@@ -21,7 +21,7 @@
       "post": {
         "tags": ["OpenAI Compatible"],
         "summary": "Create chat completion",
-        "description": "Send messages to an agent and receive a response. Fully compatible with the OpenAI Chat Completions API.\n\n**Two modes:**\n- **Agent mode** (no `tools`): The agent uses server-side tools and auto-executes them.\n- **Client tool mode** (`tools` provided): Only client-defined tools are used. Returns `tool_calls` for client execution.",
+        "description": "Send messages to an agent and receive a response. Fully compatible with the OpenAI Chat Completions API.\n\n**Two modes:**\n- **Agent mode** (no `tools`): The agent uses server-side tools and auto-executes them. Response includes `citations` array when knowledge tools (RAG, web search) were used.\n- **Client tool mode** (`tools` provided): Only client-defined tools are used. Returns `tool_calls` for client execution.",
         "operationId": "createChatCompletion",
         "security": [
           {
@@ -2946,6 +2946,48 @@
                 "type": "integer"
               }
             }
+          },
+          "citations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Citation"
+            },
+            "description": "Source citations referenced in the response text via [N] markers. Empty array when no knowledge tools were used."
+          }
+        }
+      },
+      "Citation": {
+        "type": "object",
+        "required": ["index", "type", "source", "relevance"],
+        "properties": {
+          "index": {
+            "type": "integer",
+            "description": "The [N] citation marker number in the response text"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["rag", "web"],
+            "description": "Source type"
+          },
+          "source": {
+            "type": "string",
+            "description": "Filename (rag) or page title (web)"
+          },
+          "fileId": {
+            "type": "string",
+            "description": "Document file ID (rag only)"
+          },
+          "url": {
+            "type": "string",
+            "description": "Source URL (web only)"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number within document (rag only)"
+          },
+          "relevance": {
+            "type": "number",
+            "description": "Relevance score (0-1)"
           }
         }
       },

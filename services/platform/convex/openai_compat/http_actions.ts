@@ -24,10 +24,12 @@ import {
 } from '../lib/rate_limiter/helpers';
 import { persistentStreaming } from '../streaming/helpers';
 import { extractClientIp } from '../workflows/triggers/helpers/validate';
+import { parseCitationsFromToolsUsage } from './citations';
 import {
   buildChatCompletion,
   buildChatCompletionChunk,
   buildChatCompletionWithToolCalls,
+  formatSSECitations,
   formatSSEChunk,
   formatSSEDone,
   openAIErrorResponse,
@@ -684,11 +686,20 @@ async function pollOpenAIResponse(
     const body = await persistentStreaming.getStreamBody(ctx, streamId);
 
     if (body.status === 'done') {
+      const toolsUsage = await ctx.runQuery(
+        internal.openai_compat.internal_queries.getLatestThreadToolsUsage,
+        { threadId: chatResult.threadId },
+      );
+      const citations = toolsUsage
+        ? parseCitationsFromToolsUsage(toolsUsage)
+        : [];
+
       const response = buildChatCompletion(
         chatResult.streamId,
         model,
         body.text,
         created,
+        citations,
       );
       return new Response(JSON.stringify(response), {
         status: 200,
@@ -784,6 +795,17 @@ async function streamOpenAIResponse(
           created,
         );
         await writer.write(encoder.encode(formatSSEChunk(finalChunk)));
+
+        const toolsUsage = await ctx.runQuery(
+          internal.openai_compat.internal_queries.getLatestThreadToolsUsage,
+          { threadId: chatResult.threadId },
+        );
+        const citations = toolsUsage
+          ? parseCitationsFromToolsUsage(toolsUsage)
+          : [];
+        if (citations.length > 0) {
+          await writer.write(encoder.encode(formatSSECitations(citations)));
+        }
       }
 
       await writer.write(encoder.encode(formatSSEDone()));
