@@ -62,6 +62,7 @@ export function BrandingForm({
 
   const form = useForm({
     resolver: zodResolver(brandingFormSchema),
+    mode: 'onChange',
     defaultValues: {
       appName: branding?.appName ?? '',
       textLogo: branding?.textLogo ?? '',
@@ -74,7 +75,7 @@ export function BrandingForm({
   });
 
   const { formState, handleSubmit, register, watch, setValue } = form;
-  const { isSubmitting, isDirty } = formState;
+  const { isSubmitting, isDirty, isValid } = formState;
 
   const watchedValues = watch();
 
@@ -198,6 +199,12 @@ export function BrandingForm({
             id="branding-app-name"
             label={t('branding.appName')}
             placeholder={t('branding.appNamePlaceholder')}
+            required
+            errorMessage={
+              formState.errors.appName
+                ? t('branding.validation.appNameRequired')
+                : undefined
+            }
             {...register('appName')}
             wrapperClassName="w-full"
           />
@@ -322,7 +329,7 @@ export function BrandingForm({
           <div className="ml-auto">
             <Button
               type="submit"
-              disabled={isSubmitting || !isDirty}
+              disabled={isSubmitting || !isDirty || !isValid}
               className="bg-foreground text-background hover:bg-foreground/90"
             >
               {isSubmitting

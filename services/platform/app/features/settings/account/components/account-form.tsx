@@ -77,10 +77,11 @@ function ProfileSection() {
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting, isDirty },
+    formState: { errors, isSubmitting, isDirty, isValid },
     reset,
   } = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
+    mode: 'onChange',
     defaultValues: {
       name: user?.name ?? '',
     },
@@ -122,7 +123,7 @@ function ProfileSection() {
             wrapperClassName="max-w-sm flex-1"
             {...register('name')}
           />
-          <Button type="submit" disabled={isSubmitting || !isDirty}>
+          <Button type="submit" disabled={isSubmitting || !isDirty || !isValid}>
             {isSubmitting
               ? tCommon('actions.saving')
               : tCommon('actions.saveChanges')}
@@ -210,7 +211,7 @@ function ChangePasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting, isDirty },
+    formState: { errors, isSubmitting, isDirty, isValid },
     reset,
     watch,
   } = useForm<ChangePasswordFormData>({
@@ -263,6 +264,7 @@ function ChangePasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
       submitText={tAuth('changePassword.title')}
       isSubmitting={isSubmitting}
       isDirty={isDirty}
+      isValid={isValid}
       onSubmit={handleSubmit(onSubmit)}
     >
       <Input
@@ -337,7 +339,7 @@ function SetPasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting, isDirty },
+    formState: { errors, isSubmitting, isDirty, isValid },
     reset,
     watch,
   } = useForm<SetPasswordFormData>({
@@ -389,6 +391,7 @@ function SetPasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
       submitText={tAuth('setPassword.title')}
       isSubmitting={isSubmitting}
       isDirty={isDirty}
+      isValid={isValid}
       onSubmit={handleSubmit(onSubmit)}
     >
       <FormSection>

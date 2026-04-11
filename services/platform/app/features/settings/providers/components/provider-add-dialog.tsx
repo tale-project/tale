@@ -112,12 +112,13 @@ export function ProviderAddDialog({
     register,
     control,
     handleSubmit,
-    formState: { isSubmitting, errors },
+    formState: { isSubmitting, isValid, errors },
     reset,
     setValue,
     watch,
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
+    mode: 'onChange',
     defaultValues: {
       name: '',
       displayName: '',
@@ -195,6 +196,7 @@ export function ProviderAddDialog({
       submitText={t('providers.addProvider')}
       submittingText={tCommon('actions.adding')}
       isSubmitting={isSubmitting}
+      isValid={isValid}
       onSubmit={handleSubmit(onSubmit)}
       large
     >

@@ -15,6 +15,7 @@ import { Text } from '@/app/components/ui/typography/text';
 import { markdownWrapperStyles } from '@/app/features/chat/components/message-bubble/markdown-renderer';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
+import { startCase } from '@/lib/utils/string';
 
 import type { Integration } from '../../hooks/use-integration-manage';
 import { SENSITIVE_KEYS, maskValue } from '../../hooks/use-integration-manage';
@@ -230,7 +231,7 @@ export function IntegrationCredentialsForm({
             <Input
               key={binding}
               id={`manage-credential-${binding}`}
-              label={binding}
+              label={startCase(binding)}
               type={isSensitive ? 'password' : 'text'}
               placeholder={isSensitive ? '••••••••' : ''}
               value={credentials[binding] ?? ''}
@@ -249,7 +250,7 @@ export function IntegrationCredentialsForm({
               <Input
                 key={field.key}
                 id={`manage-config-${field.key}`}
-                label={field.key}
+                label={startCase(field.key)}
                 type={field.type === 'number' ? 'number' : 'text'}
                 placeholder={String(field.defaultValue)}
                 value={configValues[field.key] ?? ''}

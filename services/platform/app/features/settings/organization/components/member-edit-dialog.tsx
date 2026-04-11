@@ -84,6 +84,7 @@ export function EditMemberDialog({
 
   const form = useForm<EditMemberFormData>({
     resolver: zodResolver(editMemberSchema),
+    mode: 'onChange',
     defaultValues: {
       displayName: member?.displayName,
       role: isMemberRole(member?.role) ? member.role : undefined,
@@ -142,7 +143,7 @@ export function EditMemberDialog({
   };
 
   const { handleSubmit, register, reset, watch, formState } = form;
-  const { isSubmitting, isDirty } = formState;
+  const { isSubmitting, isDirty, isValid } = formState;
   const password = watch('password') ?? '';
   const passwordValidationItems = usePasswordValidation(password);
 
@@ -171,6 +172,7 @@ export function EditMemberDialog({
       title={t('organization.editMember')}
       isSubmitting={isSubmitting}
       isDirty={isDirty}
+      isValid={isValid}
       onSubmit={handleSubmit(onSubmit)}
     >
       {/* Name Field */}

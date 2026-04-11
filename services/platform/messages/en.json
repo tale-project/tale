@@ -1209,6 +1209,7 @@
         "invalidIconFormat": "Icon must be PNG, SVG, JPG, or WebP"
       },
       "manageDialog": {
+        "configuration": "Configuration",
         "authentication": "Authentication",
         "setupGuide": "Configuration guide",
         "connect": "Connect",
@@ -1663,7 +1664,10 @@
       "uploadFavicon": "Upload favicon",
       "invalidHexColor": "Enter a valid hex color (e.g., #FF5733)",
       "brandingSaved": "Branding updated successfully",
-      "brandingSaveFailed": "Failed to update branding"
+      "brandingSaveFailed": "Failed to update branding",
+      "validation": {
+        "appNameRequired": "App name is required"
+      }
     }
   },
   "automations": {

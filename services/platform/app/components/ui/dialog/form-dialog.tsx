@@ -34,6 +34,8 @@ export interface FormDialogProps {
   isSubmitting?: boolean;
   /** Whether the form has been modified (e.g. from react-hook-form formState.isDirty) */
   isDirty?: boolean;
+  /** Whether the form passes validation (e.g. from react-hook-form formState.isValid) */
+  isValid?: boolean;
   /** Form submit handler (optional when customFooter is provided) */
   onSubmit?: (e: React.FormEvent) => void;
   /** Additional className for DialogContent */
@@ -67,6 +69,7 @@ export function FormDialog({
   submittingText,
   isSubmitting = false,
   isDirty = true,
+  isValid = true,
   onSubmit,
   className,
   customHeader,
@@ -111,7 +114,7 @@ export function FormDialog({
       >
         {cancelText ?? tCommon('actions.cancel')}
       </Button>
-      <Button type="submit" disabled={isSubmitting || !isDirty}>
+      <Button type="submit" disabled={isSubmitting || !isDirty || !isValid}>
         {isSubmitting
           ? (submittingText ?? tCommon('actions.saving'))
           : (submitText ?? tCommon('actions.save'))}

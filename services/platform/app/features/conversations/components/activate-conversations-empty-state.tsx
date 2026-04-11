@@ -27,7 +27,7 @@ export function ActivateConversationsEmptyState({
           {t('activate.description')}
         </Text>
         <LinkButton
-          href={`/dashboard/${organizationId}/settings/integrations?tab=email`}
+          href={`/dashboard/${organizationId}/settings/integrations?tab=all`}
         >
           {t('activate.connectEmail')}
         </LinkButton>
