@@ -135,7 +135,8 @@
       "invalidJson": "Ungültiges JSON-Format",
       "uploadFile": "Bitte lade eine Datei hoch",
       "unsupportedFileType": "Nicht unterstützter Dateityp",
-      "schemaValidationFailed": "Schema-Validierung fehlgeschlagen{error, select, empty {} other {: {error}}}"
+      "schemaValidationFailed": "Schema-Validierung fehlgeschlagen{error, select, empty {} other {: {error}}}",
+      "url": "Bitte gib eine gültige URL ein"
     },
     "aria": {
       "close": "Schließen",
@@ -1478,6 +1479,7 @@
       "name": "Anbietername",
       "namePlaceholder": "z. B. openai",
       "nameHelp": "Nur Kleinbuchstaben, Zahlen und Bindestriche.",
+      "nameReadonlyHelp": "Der Anbietername ist eine permanente Kennung und kann nicht geändert werden. Verwende den Anzeigenamen, um die Darstellung anzupassen.",
       "namePatternError": "Muss mit einem Buchstaben beginnen und darf nur Kleinbuchstaben, Zahlen und Bindestriche enthalten.",
       "displayNamePlaceholder": "z. B. OpenAI",
       "descriptionPlaceholder": "z. B. OpenAI GPT-Modelle",
@@ -1523,6 +1525,7 @@
       "providerActions": "Anbieteraktionen",
       "saveChanges": "Änderungen speichern",
       "addModelShort": "+ Modell hinzufügen",
+      "byomGuidanceTitle": "Erste Schritte",
       "byomGuidance": "Jeder OpenAI-kompatible Endpunkt funktioniert hier. Setze die Basis-URL auf deinen selbst gehosteten Inferenzserver (z. B. vLLM, Ollama, LocalAI) oder ein Gateway wie OpenRouter, um Modelle wie LLaMA, Mistral, Gemini und mehr zu nutzen.",
       "tagsRequired": "Mindestens ein Tag ist erforderlich",
       "modelsRequired": "Mindestens ein Modell ist erforderlich",

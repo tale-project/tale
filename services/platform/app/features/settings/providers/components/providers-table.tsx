@@ -21,8 +21,8 @@ import { useT } from '@/lib/i18n/client';
 import { useDeleteProvider } from '../hooks/mutations';
 import { useListProviders } from '../hooks/queries';
 import { useProvidersTableConfig } from '../hooks/use-providers-table-config';
-import { ProviderAddDialog } from './provider-add-dialog';
-import { ProviderEditDialog } from './provider-edit-dialog';
+import { ProviderAddPanel } from './provider-add-panel';
+import { ProviderEditPanel } from './provider-edit-panel';
 
 export interface ProviderRow {
   name: string;
@@ -144,14 +144,14 @@ export function ProvidersTable({ organizationId }: ProvidersTableProps) {
         }}
       />
 
-      <ProviderAddDialog
+      <ProviderAddPanel
         open={addDialogOpen}
         onOpenChange={setAddDialogOpen}
         organizationId={organizationId}
       />
 
       {editProvider && (
-        <ProviderEditDialog
+        <ProviderEditPanel
           open
           onOpenChange={(open) => {
             if (!open) setEditProvider(null);

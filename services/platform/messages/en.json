@@ -135,7 +135,8 @@
       "invalidJson": "Invalid JSON format",
       "uploadFile": "Please upload a file",
       "unsupportedFileType": "Unsupported file type",
-      "schemaValidationFailed": "Schema validation failed{error, select, empty {} other {: {error}}}"
+      "schemaValidationFailed": "Schema validation failed{error, select, empty {} other {: {error}}}",
+      "url": "Please enter a valid URL"
     },
     "aria": {
       "close": "Close",
@@ -1481,6 +1482,7 @@
       "name": "Provider name",
       "namePlaceholder": "e.g., openai",
       "nameHelp": "Lowercase letters, numbers, and hyphens only.",
+      "nameReadonlyHelp": "The provider name is a permanent identifier and cannot be changed. Use display name to customize how it appears.",
       "namePatternError": "Must start with a letter and contain only lowercase letters, numbers, and hyphens.",
       "displayNamePlaceholder": "e.g., OpenAI",
       "descriptionPlaceholder": "e.g., OpenAI GPT models",
@@ -1526,6 +1528,7 @@
       "providerActions": "Provider actions",
       "saveChanges": "Save changes",
       "addModelShort": "+ Add model",
+      "byomGuidanceTitle": "Getting started",
       "byomGuidance": "Any OpenAI-compatible endpoint works here. Point the base URL to your self-hosted inference server (e.g. vLLM, Ollama, LocalAI) or a third-party gateway like OpenRouter to use models such as LLaMA, Mistral, Gemini, and more.",
       "tagsRequired": "At least one tag is required",
       "modelsRequired": "At least one model is required",

@@ -1,9 +1,8 @@
 'use client';
 
-import { Info, Loader2, Pencil, Save } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import { Loader2, Pencil, Save } from 'lucide-react';
 
+import { CollapsibleGuide } from '@/app/components/ui/data-display/collapsible-guide';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
@@ -12,9 +11,7 @@ import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { Text } from '@/app/components/ui/typography/text';
-import { markdownWrapperStyles } from '@/app/features/chat/components/message-bubble/markdown-renderer';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 import { startCase } from '@/lib/utils/string';
 
 import type { Integration } from '../../hooks/use-integration-manage';
@@ -105,24 +102,11 @@ export function IntegrationCredentialsForm({
         />
       )}
 
-      {/* Setup Guide */}
       {typeof integration.setupGuide === 'string' && (
-        <details className="bg-muted/30 border-border rounded-lg border">
-          <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm font-medium">
-            <Info className="text-muted-foreground size-3.5 shrink-0" />
-            {t('integrations.manageDialog.setupGuide')}
-          </summary>
-          <div
-            className={cn(
-              markdownWrapperStyles,
-              'max-w-none border-t border-border px-3 py-2 text-xs leading-relaxed',
-            )}
-          >
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {integration.setupGuide}
-            </ReactMarkdown>
-          </div>
-        </details>
+        <CollapsibleGuide
+          label={t('integrations.manageDialog.setupGuide')}
+          content={integration.setupGuide}
+        />
       )}
 
       <Stack gap={3}>
