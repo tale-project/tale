@@ -874,7 +874,8 @@
           "moveDown": "Move model down",
           "dragHandle": "Drag to reorder model"
         },
-        "structuredResponsesInjectedPrompt": "The following instructions will be automatically appended to the system prompt:"
+        "structuredResponsesInjectedPrompt": "The following instructions will be automatically appended to the system prompt:",
+        "browsePrompts": "Browse prompts"
       },
       "delegation": {
         "title": "Delegation",
@@ -1450,7 +1451,7 @@
     },
     "providers": {
       "title": "Providers",
-      "description": "Manage LLM providers and their models",
+      "description": "Description",
       "addProvider": "Add provider",
       "editProvider": "Edit provider",
       "deleteProvider": "Delete provider",
@@ -1508,7 +1509,6 @@
       "apiKeyReplace": "Enter new API key to replace ({maskedKey})",
       "apiKeyEnter": "Enter API key",
       "searchProvider": "Search providers...",
-      "description": "Description",
       "created": "Provider created",
       "modelCount": "{count, plural, one {# model} other {# models}}",
       "removeModel": "Remove model",
@@ -2734,7 +2734,6 @@
     "structured": {
       "nextSteps": "Suggested follow-ups"
     },
-    "welcomeSuffix": "here, what are we working on?",
     "dictation": {
       "start": "Start dictation",
       "stop": "Stop dictation",
@@ -2837,7 +2836,9 @@
       "copied": "Copied!",
       "mermaidError": "Failed to render diagram",
       "resizeHandle": "Resize canvas"
-    }
+    },
+    "promptLibrary": "Prompt library",
+    "saveAsPrompt": "Save as prompt"
   },
   "documents": {
     "title": "Documents",
@@ -3793,41 +3794,60 @@
     }
   },
   "prompts": {
-    "title": "Prompt Library",
-    "description": "Browse, save, and share prompt templates.",
-    "search": "Search prompts...",
-    "all": "All",
-    "team": "Team",
-    "myPrompts": "My Prompts",
-    "create": "Create prompt",
-    "edit": "Edit prompt",
-    "delete": "Delete prompt",
-    "deleteConfirmation": "Are you sure you want to delete this prompt?",
-    "use": "Use prompt",
-    "saveAsPrompt": "Save as prompt",
-    "form": {
-      "title": "Title",
-      "titlePlaceholder": "Enter prompt title...",
-      "content": "Content",
-      "contentPlaceholder": "Enter prompt content...",
-      "description": "Description",
-      "descriptionPlaceholder": "Brief description of what this prompt does...",
-      "scope": "Visibility",
-      "category": "Category",
-      "categoryPlaceholder": "e.g., writing, analysis, coding",
-      "tags": "Tags",
-      "tagsPlaceholder": "Add tags...",
-      "save": "Save prompt",
-      "saved": "Prompt saved"
+    "tabs": {
+      "all": "All",
+      "team": "Team",
+      "personal": "Personal"
     },
-    "scopeLabels": {
+    "library": {
+      "title": "Prompt library",
+      "description": "Browse, save, and share prompt templates.",
+      "searchPlaceholder": "Search prompts...",
+      "loading": "Loading prompts...",
+      "empty": "No prompts yet. Create your first prompt template."
+    },
+    "actions": {
+      "create": "Create prompt",
+      "createFirst": "Create first prompt",
+      "edit": "Edit",
+      "delete": "Delete",
+      "use": "Use",
+      "usePrompt": "Use this prompt",
+      "more": "More actions"
+    },
+    "deleteConfirm": {
+      "title": "Delete prompt",
+      "description": "Are you sure you want to delete \"{title}\"? This action cannot be undone."
+    },
+    "scope": {
       "global": "Global (everyone)",
       "team": "Team",
       "personal": "Personal"
     },
-    "usageCount": "{count} uses",
-    "noResults": "No prompts found",
-    "emptyState": "No prompts yet. Create your first prompt template."
+    "form": {
+      "createTitle": "Create prompt",
+      "createDescription": "Create a new prompt template.",
+      "editTitle": "Edit prompt",
+      "editDescription": "Update the prompt template.",
+      "titleLabel": "Title",
+      "titlePlaceholder": "Enter prompt title...",
+      "contentLabel": "Content",
+      "contentPlaceholder": "Enter prompt content...",
+      "descriptionLabel": "Description",
+      "descriptionPlaceholder": "Brief description of what this prompt does...",
+      "scopeLabel": "Visibility",
+      "categoryLabel": "Category",
+      "categoryPlaceholder": "e.g., writing, analysis, coding",
+      "tagsLabel": "Tags",
+      "tagsPlaceholder": "Comma-separated tags...",
+      "save": "Save",
+      "create": "Create"
+    },
+    "saveAs": {
+      "title": "Save as prompt",
+      "description": "Save the current text as a reusable prompt template."
+    },
+    "usageCount": "{count, plural, one {# use} other {# uses}}"
   },
   "mcpServers": {
     "title": "MCP Servers",

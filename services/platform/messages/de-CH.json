@@ -39,6 +39,9 @@
       },
       "knowledge": {
         "fileTooLarge": "Datei zu gross"
+      },
+      "form": {
+        "browsePrompts": "Prompts durchsuchen"
       }
     },
     "integrations": {
@@ -80,7 +83,9 @@
     "canvas": {
       "close": "Canvas schliessen",
       "resizeHandle": "Canvas-Grösse ändern"
-    }
+    },
+    "promptLibrary": "Prompt-Bibliothek",
+    "saveAsPrompt": "Als Prompt speichern"
   },
   "documents": {
     "preview": {
@@ -104,5 +109,61 @@
       "description": "Erlaubte Dateitypen, maximale Dateigrösse und Volumenlimits konfigurieren.",
       "maxFileSize": "Maximale Dateigrösse"
     }
+  },
+  "prompts": {
+    "tabs": {
+      "all": "Alle",
+      "team": "Team",
+      "personal": "Persönlich"
+    },
+    "library": {
+      "title": "Prompt-Bibliothek",
+      "description": "Prompt-Vorlagen durchsuchen, speichern und teilen.",
+      "searchPlaceholder": "Prompts suchen...",
+      "loading": "Prompts werden geladen...",
+      "empty": "Noch keine Prompts. Erstelle deine erste Prompt-Vorlage."
+    },
+    "actions": {
+      "create": "Prompt erstellen",
+      "createFirst": "Ersten Prompt erstellen",
+      "edit": "Bearbeiten",
+      "delete": "Löschen",
+      "use": "Verwenden",
+      "usePrompt": "Diesen Prompt verwenden",
+      "more": "Weitere Aktionen"
+    },
+    "deleteConfirm": {
+      "title": "Prompt löschen",
+      "description": "Bist du sicher, dass du \"{title}\" löschen möchtest? Diese Aktion kann nicht rückgängig gemacht werden."
+    },
+    "scope": {
+      "global": "Global (alle)",
+      "team": "Team",
+      "personal": "Persönlich"
+    },
+    "form": {
+      "createTitle": "Prompt erstellen",
+      "createDescription": "Eine neue Prompt-Vorlage erstellen.",
+      "editTitle": "Prompt bearbeiten",
+      "editDescription": "Die Prompt-Vorlage aktualisieren.",
+      "titleLabel": "Titel",
+      "titlePlaceholder": "Prompt-Titel eingeben...",
+      "contentLabel": "Inhalt",
+      "contentPlaceholder": "Prompt-Inhalt eingeben...",
+      "descriptionLabel": "Beschreibung",
+      "descriptionPlaceholder": "Kurze Beschreibung des Prompts...",
+      "scopeLabel": "Sichtbarkeit",
+      "categoryLabel": "Kategorie",
+      "categoryPlaceholder": "z.B. Schreiben, Analyse, Programmierung",
+      "tagsLabel": "Tags",
+      "tagsPlaceholder": "Kommagetrennte Tags...",
+      "save": "Speichern",
+      "create": "Erstellen"
+    },
+    "saveAs": {
+      "title": "Als Prompt speichern",
+      "description": "Den aktuellen Text als wiederverwendbare Prompt-Vorlage speichern."
+    },
+    "usageCount": "{count, plural, one {# Verwendung} other {# Verwendungen}}"
   }
 }

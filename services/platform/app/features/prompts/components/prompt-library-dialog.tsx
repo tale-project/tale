@@ -26,9 +26,7 @@ import { usePrompts } from '../hooks/queries';
 import { PromptCard } from './prompt-card';
 import { PromptFormDialog, type PromptFormData } from './prompt-form-dialog';
 
-type TabValue = 'all' | 'team' | 'personal';
-
-interface PromptLibraryDialogProps {
+export interface PromptLibraryDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSelectPrompt: (content: string) => void;
@@ -171,8 +169,7 @@ function PromptLibraryDialogContent({
             <Tabs
               items={tabItems}
               value={activeTab}
-              // @ts-expect-error -- Tabs onValueChange provides string, but TabValue is a string union
-              onValueChange={(v: TabValue) => setActiveTab(v)}
+              onValueChange={setActiveTab}
             />
             <Button
               size="sm"

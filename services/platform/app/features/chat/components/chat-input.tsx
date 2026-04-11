@@ -1,6 +1,14 @@
 'use client';
 
-import { X, Paperclip, ArrowUp, CircleStop, Loader } from 'lucide-react';
+import {
+  X,
+  Paperclip,
+  ArrowUp,
+  CircleStop,
+  Loader,
+  BookOpen,
+  Save,
+} from 'lucide-react';
 import {
   ComponentPropsWithoutRef,
   useCallback,
@@ -23,6 +31,7 @@ import { useT } from '@/lib/i18n/client';
 import { CHAT_UPLOAD_ACCEPT } from '@/lib/shared/file-types';
 import { cn } from '@/lib/utils/cn';
 import { formatFileSize, middleEllipsis } from '@/lib/utils/format/file';
+import { lazyComponent } from '@/lib/utils/lazy-component';
 
 import type { FileAttachment } from '../hooks/use-convex-file-upload';
 import { AgentSelector } from './agent-selector';
@@ -39,6 +48,22 @@ const LOCALE_TO_BCP47: Record<string, string> = {
   'de-AT': 'de-AT',
   'de-CH': 'de-CH',
 };
+
+const PromptLibraryDialog = lazyComponent<
+  import('@/app/features/prompts/components/prompt-library-dialog').PromptLibraryDialogProps
+>(() =>
+  import('@/app/features/prompts/components/prompt-library-dialog').then(
+    (m) => ({ default: m.PromptLibraryDialog }),
+  ),
+);
+
+const SaveAsPromptDialog = lazyComponent<
+  import('@/app/features/prompts/components/save-as-prompt-dialog').SaveAsPromptDialogProps
+>(() =>
+  import('@/app/features/prompts/components/save-as-prompt-dialog').then(
+    (m) => ({ default: m.SaveAsPromptDialog }),
+  ),
+);
 
 interface ChatInputProps extends Omit<
   ComponentPropsWithoutRef<'div'>,
@@ -100,6 +125,8 @@ export function ChatInput({
     src: string;
     alt: string;
   } | null>(null);
+  const [promptLibraryOpen, setPromptLibraryOpen] = useState(false);
+  const [saveAsPromptOpen, setSaveAsPromptOpen] = useState(false);
 
   const defaultPlaceholder = placeholder || tChat('typeMessageHere');
 
@@ -392,6 +419,30 @@ export function ChatInput({
                   </Button>
                 </Tooltip>
               )}
+              <Tooltip content={tChat('promptLibrary')} side="top">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setPromptLibraryOpen(true)}
+                  disabled={inputDisabled}
+                  aria-label={tChat('promptLibrary')}
+                >
+                  <BookOpen className="size-4" />
+                </Button>
+              </Tooltip>
+              {value.trim().length > 0 && (
+                <Tooltip content={tChat('saveAsPrompt')} side="top">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setSaveAsPromptOpen(true)}
+                    disabled={inputDisabled}
+                    aria-label={tChat('saveAsPrompt')}
+                  >
+                    <Save className="size-4" />
+                  </Button>
+                </Tooltip>
+              )}
               <DictationButton
                 disabled={inputDisabled}
                 lang={speechLang}
@@ -441,6 +492,18 @@ export function ChatInput({
           alt={previewImage.alt}
         />
       )}
+
+      <PromptLibraryDialog
+        open={promptLibraryOpen}
+        onOpenChange={setPromptLibraryOpen}
+        onSelectPrompt={(content) => onChange?.(content)}
+      />
+
+      <SaveAsPromptDialog
+        open={saveAsPromptOpen}
+        onOpenChange={setSaveAsPromptOpen}
+        initialContent={value}
+      />
     </div>
   );
 }
