@@ -62,3 +62,23 @@ export function toSerializableConfig(
         : undefined,
   };
 }
+
+/**
+ * Apply a model override to a config if the model is in the agent's
+ * supportedModels list. When forcing a specific model (e.g. arena mode or
+ * governance default), fallback is disabled so the exact model is used.
+ *
+ * Returns true if the override was applied.
+ */
+export function applyModelOverride(
+  config: SerializableAgentConfig,
+  modelId: string,
+  supportedModels: string[],
+): boolean {
+  if (supportedModels.includes(modelId)) {
+    config.model = modelId;
+    config.fallbackModels = undefined;
+    return true;
+  }
+  return false;
+}

@@ -21,7 +21,7 @@ import { authComponent } from '../auth';
 import { scrubPii, type PiiConfig } from '../governance/pii';
 import type { SerializableAgentConfig } from '../lib/agent_chat/types';
 import { readJsonFile } from '../lib/file_io';
-import { toSerializableConfig } from './config';
+import { applyModelOverride, toSerializableConfig } from './config';
 import {
   resolveAgentFilePath,
   parseAgentJson,
@@ -72,7 +72,7 @@ export const chatWithAgent = action({
     // resolution are independent — run them in parallel to reduce TTFT.
     // Agent config is read directly from the filesystem (inlined) instead of
     // dispatching a separate resolveAgentConfig action, saving ~100-300ms.
-    const [piiPolicy, governanceDefault, agentConfig] = await Promise.all([
+    const [piiPolicy, governanceDefault, configResult] = await Promise.all([
       ctx.runQuery(internal.governance.internal_queries.getPiiConfigInternal, {
         organizationId: args.organizationId,
       }),
@@ -95,11 +95,17 @@ export const chatWithAgent = action({
       }),
     ]);
 
+    const agentConfig = configResult.config;
+
     // Apply governance default model when no explicit model was requested.
-    // This runs after the parallel block because governanceDefault isn't
-    // available during resolveAgentConfigInline.
+    // Same supportedModels gate as the explicit modelId path — silently
+    // ignored if the governance model isn't in the agent's supported list.
     if (!args.modelId && governanceDefault?.modelId) {
-      agentConfig.model = governanceDefault.modelId;
+      applyModelOverride(
+        agentConfig,
+        governanceDefault.modelId,
+        configResult.supportedModels,
+      );
     }
 
     // PII scrubbing must still happen before startChat (modifies message)
@@ -174,12 +180,18 @@ export const chatWithAgent = action({
   },
 });
 
+interface InlineConfigResult {
+  config: SerializableAgentConfig;
+  supportedModels: string[];
+}
+
 /**
  * Resolve agent config directly from the filesystem, eliminating the
  * separate resolveAgentConfig internalAction hop (~100-300ms savings).
  *
- * This is the same logic as `file_actions.resolveAgentConfig` but runs
- * inline within the unified_chat action context.
+ * Returns the config and the raw supportedModels list so the caller can
+ * apply governance default model overrides with the same supportedModels
+ * check that the explicit modelId path uses.
  */
 async function resolveAgentConfigInline(
   ctx: ActionCtx,
@@ -189,7 +201,7 @@ async function resolveAgentConfigInline(
     organizationId: string;
     modelId?: string;
   },
-): Promise<SerializableAgentConfig> {
+): Promise<InlineConfigResult> {
   const filePath = resolveAgentFilePath(args.orgSlug, args.agentSlug);
   const result = await readJsonFile<AgentJsonConfig>(
     filePath,
@@ -211,6 +223,7 @@ async function resolveAgentConfigInline(
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- binding shape guaranteed by getBindingByAgent query; returns v.any()
   const typedBinding = binding as {
     teamId?: string;
+    sharedWithTeamIds?: string[];
     knowledgeFiles?: KnowledgeFile[];
   } | null;
 
@@ -220,18 +233,15 @@ async function resolveAgentConfigInline(
     typedBinding
       ? {
           teamId: typedBinding.teamId ?? undefined,
+          sharedWithTeamIds: typedBinding.sharedWithTeamIds ?? undefined,
           knowledgeFiles: typedBinding.knowledgeFiles ?? undefined,
         }
       : undefined,
   );
 
-  // Apply model override if requested and allowed by agent's supportedModels.
-  // When an explicit model is forced (e.g. arena mode), disable fallback so
-  // the specific model is tested without automatic failover.
-  if (args.modelId && result.data.supportedModels.includes(args.modelId)) {
-    config.model = args.modelId;
-    config.fallbackModels = undefined;
+  if (args.modelId) {
+    applyModelOverride(config, args.modelId, result.data.supportedModels);
   }
 
-  return config;
+  return { config, supportedModels: result.data.supportedModels };
 }

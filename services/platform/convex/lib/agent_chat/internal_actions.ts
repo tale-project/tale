@@ -200,11 +200,13 @@ export const runAgentGeneration = internalAction({
         delegationResult,
         workflowExtraTools,
         governanceResult,
+        mcpExtraTools,
       ] = await Promise.all([
         buildIntegrationTools(ctx, agentConfig, organizationId),
         buildDelegationTools(ctx, agentConfig, organizationId),
         buildWorkflowTools(ctx, agentConfig),
         fetchGovernanceSystemPrompt(ctx, organizationId, parentThreadId),
+        buildMcpTools(ctx, organizationId),
       ]);
 
       // Extract delegation tools and instructions append
@@ -233,49 +235,9 @@ export const runAgentGeneration = internalAction({
         hasIntegrations: !!integrationExtraTools,
         hasDelegation: !!delegationExtraTools,
         hasWorkflows: !!workflowExtraTools,
+        hasMcp: !!mcpExtraTools,
         hasGovernance: !!(mandatoryPrefix || mandatorySuffix),
       });
-
-      // Build bound MCP server tools dynamically
-      let mcpExtraTools: Record<string, unknown> | undefined;
-      {
-        interface ActiveMcpServer {
-          _id: string;
-          name: string;
-          displayName: string;
-          discoveredTools?: Array<{
-            name: string;
-            description?: string;
-            inputSchema?: Record<string, unknown>;
-            requiresApproval?: boolean;
-          }>;
-        }
-        const activeServers: ActiveMcpServer[] = await ctx.runQuery(
-          internal.mcp_servers.internal_queries.listActiveByOrg,
-          { organizationId },
-        );
-        if (activeServers.length > 0) {
-          mcpExtraTools = {};
-          for (const server of activeServers) {
-            if (!server.discoveredTools?.length) continue;
-            for (const tool of server.discoveredTools) {
-              const toolKey = `mcp_${server.name}_${tool.name}`;
-              mcpExtraTools[toolKey] = createBoundMcpTool(
-                server._id,
-                server.displayName,
-                tool,
-              );
-            }
-          }
-          if (Object.keys(mcpExtraTools).length > 0) {
-            debugLog('Built bound MCP tools', {
-              names: Object.keys(mcpExtraTools),
-            });
-          } else {
-            mcpExtraTools = undefined;
-          }
-        }
-      }
 
       // Merge all extra tools
       const allExtraTools: Record<string, unknown> | undefined =
@@ -817,6 +779,48 @@ async function fetchGovernanceSystemPrompt(
   }
 
   return { mandatoryPrefix, mandatorySuffix };
+}
+
+/**
+ * Build bound MCP server tools from all active MCP servers for the org.
+ */
+async function buildMcpTools(
+  ctx: ActionCtx,
+  organizationId: string,
+): Promise<Record<string, unknown> | undefined> {
+  interface ActiveMcpServer {
+    _id: string;
+    name: string;
+    displayName: string;
+    discoveredTools?: Array<{
+      name: string;
+      description?: string;
+      inputSchema?: Record<string, unknown>;
+      requiresApproval?: boolean;
+    }>;
+  }
+
+  const activeServers: ActiveMcpServer[] = await ctx.runQuery(
+    internal.mcp_servers.internal_queries.listActiveByOrg,
+    { organizationId },
+  );
+
+  if (activeServers.length === 0) return undefined;
+
+  const tools: Record<string, unknown> = {};
+  for (const server of activeServers) {
+    if (!server.discoveredTools?.length) continue;
+    for (const tool of server.discoveredTools) {
+      const toolKey = `mcp_${server.name}_${tool.name}`;
+      tools[toolKey] = createBoundMcpTool(server._id, server.displayName, tool);
+    }
+  }
+
+  if (Object.keys(tools).length > 0) {
+    debugLog('Built bound MCP tools', { names: Object.keys(tools) });
+    return tools;
+  }
+  return undefined;
 }
 
 /**
