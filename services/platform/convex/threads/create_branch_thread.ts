@@ -69,6 +69,7 @@ export const createBranchThread = internalMutation({
       agentSlug: sourceMetadata.agentSlug,
       isBranch: true,
       forkedFrom: args.sourceThreadId,
+      ...(sourceMetadata.teamId && { teamId: sourceMetadata.teamId }),
     });
 
     // Create threadBranches record

@@ -23,6 +23,7 @@ export interface Thread {
   generationStatus?: 'generating' | 'idle';
   cancelledAt?: number;
   generationStartTime?: number;
+  teamId?: string;
 }
 
 export interface ThreadMessage {

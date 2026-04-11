@@ -12,6 +12,7 @@ import { useAutoScroll } from '@/app/hooks/use-auto-scroll';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
+import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
 import { useToast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
@@ -421,6 +422,7 @@ export function ChatInterface({
   );
 
   const userContext = useUserContext();
+  const teamFilter = useOptionalTeamFilter();
 
   const { sendMessage } = useSendMessage({
     organizationId,
@@ -440,6 +442,7 @@ export function ChatInterface({
       : undefined,
     userContext,
     arena: arenaContext ?? undefined,
+    teamId: teamFilter?.selectedTeamId ?? undefined,
   });
 
   const handleSendMessage = async (

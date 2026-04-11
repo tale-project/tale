@@ -65,6 +65,7 @@ export const forkOwnThread = mutation({
       updatedAt: createdAt,
       forkedFrom: metadata.threadId,
       forkedMessageCount: messages.length,
+      ...(metadata.teamId && { teamId: metadata.teamId }),
     });
 
     for (const msg of messages) {

@@ -13,6 +13,7 @@ import { listThreads as listThreadsHelper } from './list_threads';
 export const listThreads = query({
   args: {
     paginationOpts: v.optional(paginationOptsValidator),
+    teamId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
@@ -27,6 +28,7 @@ export const listThreads = query({
     return await listThreadsHelper(ctx, {
       userId: authUser.userId,
       paginationOpts: args.paginationOpts ?? { cursor: null, numItems: 20 },
+      teamId: args.teamId,
     });
   },
 });
@@ -34,6 +36,7 @@ export const listThreads = query({
 export const listArchivedThreads = query({
   args: {
     paginationOpts: v.optional(paginationOptsValidator),
+    teamId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
@@ -48,6 +51,7 @@ export const listArchivedThreads = query({
     return await listArchivedThreadsHelper(ctx, {
       userId: authUser.userId,
       paginationOpts: args.paginationOpts ?? { cursor: null, numItems: 20 },
+      teamId: args.teamId,
     });
   },
 });

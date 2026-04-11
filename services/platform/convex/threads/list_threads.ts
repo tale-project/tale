@@ -29,6 +29,7 @@ export async function listThreads(
   ctx: QueryCtx,
   args: Pick<ListThreadsArgs, 'userId'> & {
     paginationOpts: PaginationOptions;
+    teamId?: string;
   },
 ): Promise<ListThreadsPaginatedResult> {
   const result = await ctx.db
@@ -39,7 +40,11 @@ export async function listThreads(
         .eq('chatType', 'general')
         .eq('status', 'active'),
     )
-    .filter((q) => q.neq(q.field('isBranch'), true))
+    .filter((q) => {
+      const notBranch = q.neq(q.field('isBranch'), true);
+      if (!args.teamId) return notBranch;
+      return q.and(notBranch, q.eq(q.field('teamId'), args.teamId));
+    })
     .order('desc')
     .paginate(args.paginationOpts);
 
@@ -51,6 +56,7 @@ export async function listThreads(
       status: row.status,
       userId: row.userId,
       generationStatus: row.generationStatus,
+      teamId: row.teamId,
     })),
     isDone: result.isDone,
     continueCursor: result.continueCursor,

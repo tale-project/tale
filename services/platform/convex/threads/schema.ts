@@ -36,6 +36,8 @@ export const threadMetadataTable = defineTable({
   updatedAt: v.optional(v.number()),
   isBranch: v.optional(v.boolean()),
   branchSelections: v.optional(v.string()),
+  // Team/workspace assignment
+  teamId: v.optional(v.string()),
 })
   .index('by_threadId', ['threadId'])
   .index('by_userId_chatType_status', [

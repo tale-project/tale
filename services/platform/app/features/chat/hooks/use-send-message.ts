@@ -46,6 +46,7 @@ interface UseSendMessageParams {
   modelId?: string;
   userContext?: UserContext;
   arena?: ArenaParams;
+  teamId?: string;
 }
 
 /**
@@ -66,6 +67,7 @@ export function useSendMessage({
   modelId,
   userContext,
   arena,
+  teamId,
 }: UseSendMessageParams) {
   const { t } = useT('chat');
   const navigate = useNavigate();
@@ -165,6 +167,7 @@ export function useSendMessage({
               arenaModelId: modelB,
               isBranch: true,
               forkedFrom: tIdA,
+              teamId,
             });
             tIdB = newB;
             currentArena.setArenaThreadIdB(newB);
@@ -176,6 +179,7 @@ export function useSendMessage({
               chatType: 'general',
               arenaGroupId,
               arenaModelId: modelA,
+              teamId,
             });
             const newB = await createThread({
               organizationId,
@@ -185,6 +189,7 @@ export function useSendMessage({
               arenaModelId: modelB,
               isBranch: true,
               forkedFrom: newA,
+              teamId,
             });
 
             tIdA = newA;
@@ -252,6 +257,7 @@ export function useSendMessage({
               organizationId,
               title,
               chatType: 'general',
+              teamId,
             });
             currentThreadId = newThreadId;
             isFirstMessage = true;
@@ -342,6 +348,7 @@ export function useSendMessage({
       navigate,
       t,
       convexClient,
+      teamId,
     ],
   );
 

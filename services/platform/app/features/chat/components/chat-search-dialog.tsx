@@ -9,6 +9,7 @@ import { Input } from '@/app/components/ui/forms/input';
 import { Text } from '@/app/components/ui/typography/text';
 import { useDebounce } from '@/app/hooks/use-debounce';
 import { useFormatDate } from '@/app/hooks/use-format-date';
+import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { filterByTextSearch } from '@/lib/utils/filtering';
@@ -37,8 +38,13 @@ export function ChatSearchDialog({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const debouncedQuery = useDebounce(query, 300);
+  const teamFilter = useOptionalTeamFilter();
+  const selectedTeamId = teamFilter?.selectedTeamId ?? undefined;
 
-  const { threads: allThreads } = useThreads({ skip: !isOpen });
+  const { threads: allThreads } = useThreads({
+    skip: !isOpen,
+    teamId: selectedTeamId,
+  });
 
   const threadsData = useMemo(() => {
     if (!allThreads) return null;
