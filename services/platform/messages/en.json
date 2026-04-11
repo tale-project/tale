@@ -2748,12 +2748,11 @@
       "noContent": "Content not available"
     },
     "feedback": {
-      "helpful": "Helpful",
-      "notHelpful": "Not helpful",
+      "thumbsUp": "Helpful",
+      "thumbsDown": "Not helpful",
       "commentPlaceholder": "What could be improved?",
-      "submit": "Submit feedback",
-      "submitted": "Feedback submitted",
-      "removed": "Feedback removed"
+      "submitComment": "Submit",
+      "cancel": "Cancel"
     },
     "shareBoundary": "Messages above are from a shared chat",
     "forkBoundary": "Forked from your own chat",

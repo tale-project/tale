@@ -40,6 +40,7 @@ import {
   type GalleryImage,
 } from './message-bubble/image-preview-dialog';
 import type { Message } from './message-bubble/types';
+import { MessageFeedback } from './message-feedback';
 import { MessageInfoDialog } from './message-info-dialog';
 import { SourceCards } from './source-cards';
 import { StructuredMessage } from './structured-message/structured-message';
@@ -48,6 +49,8 @@ export { ImagePreviewDialog } from './message-bubble/image-preview-dialog';
 
 interface MessageBubbleProps extends ComponentPropsWithoutRef<'div'> {
   message: Message;
+  organizationId?: string;
+  hideFeedback?: boolean;
   onSendFollowUp?: (message: string) => void;
   onRetry?: () => void;
   onEdit?: (messageId: string, content: string) => void;
@@ -107,6 +110,8 @@ function useMessageGallery(message: Message) {
 function MessageBubbleComponent({
   message,
   className,
+  organizationId,
+  hideFeedback,
   onSendFollowUp,
   onRetry,
   onEdit,
@@ -441,6 +446,13 @@ function MessageBubbleComponent({
                 </Button>
               </Tooltip>
             )}
+            {!hideFeedback && organizationId && message.threadId && (
+              <MessageFeedback
+                messageId={message.id}
+                threadId={message.threadId}
+                organizationId={organizationId}
+              />
+            )}
           </div>
         )}
 
@@ -500,7 +512,10 @@ export const MessageBubble = memo(
       prevProps.message.isFailed === nextProps.message.isFailed &&
       prevProps.message.attachments === nextProps.message.attachments &&
       prevProps.message.fileParts === nextProps.message.fileParts &&
+      prevProps.message.threadId === nextProps.message.threadId &&
       prevProps.className === nextProps.className &&
+      prevProps.organizationId === nextProps.organizationId &&
+      prevProps.hideFeedback === nextProps.hideFeedback &&
       prevProps.onSendFollowUp === nextProps.onSendFollowUp &&
       prevProps.onRetry === nextProps.onRetry &&
       prevProps.onEdit === nextProps.onEdit &&

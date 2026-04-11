@@ -2715,6 +2715,13 @@
     "structured": {
       "nextSteps": "Vorgeschlagene Folgefragen"
     },
+    "feedback": {
+      "thumbsUp": "Hilfreich",
+      "thumbsDown": "Nicht hilfreich",
+      "commentPlaceholder": "Was kann verbessert werden?",
+      "submitComment": "Senden",
+      "cancel": "Abbrechen"
+    },
     "shareBoundary": "Nachrichten oben stammen aus einem geteilten Chat",
     "forkBoundary": "Von Ihrem eigenen Chat geforkt",
     "notFound": "Dieser Chat ist nicht verfügbar.",

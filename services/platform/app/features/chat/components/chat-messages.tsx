@@ -98,6 +98,7 @@ interface ChatMessagesProps {
   onEditSubmit?: (newContent: string) => Promise<void>;
   onEditCancel?: () => void;
   hideBranchNavigator?: boolean;
+  hideFeedback?: boolean;
 }
 
 /**
@@ -139,6 +140,7 @@ export function ChatMessages({
   onEditSubmit,
   onEditCancel,
   hideBranchNavigator,
+  hideFeedback,
 }: ChatMessagesProps) {
   const { t } = useT('chat');
   const { branches, activeBranchThreadId } = useBranchContext();
@@ -375,6 +377,8 @@ export function ChatMessages({
               role: isUserMessage ? 'user' : 'assistant',
               threadId: threadId,
             }}
+            organizationId={organizationId}
+            hideFeedback={hideFeedback}
             onSendFollowUp={onSendFollowUp}
             onRetry={
               message.isFailed && message.key === latestFailedAssistantKey

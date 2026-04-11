@@ -45,6 +45,8 @@ export function MessageFeedback({
         setShowCommentBox(false);
         setComment('');
       }
+    } catch {
+      // Silently handle feedback errors — UI re-enables via finally
     } finally {
       setIsSubmitting(false);
     }
@@ -58,6 +60,8 @@ export function MessageFeedback({
         await removeFeedback();
         setShowCommentBox(false);
         setComment('');
+      } catch {
+        // Silently handle feedback errors — UI re-enables via finally
       } finally {
         setIsSubmitting(false);
       }
@@ -66,6 +70,8 @@ export function MessageFeedback({
       try {
         await submitFeedback('negative');
         setShowCommentBox(true);
+      } catch {
+        // Silently handle feedback errors — UI re-enables via finally
       } finally {
         setIsSubmitting(false);
       }
@@ -79,6 +85,8 @@ export function MessageFeedback({
       await submitFeedback('negative', comment.trim());
       setShowCommentBox(false);
       setComment('');
+    } catch {
+      // Silently handle feedback errors — UI re-enables via finally
     } finally {
       setIsSubmitting(false);
     }
