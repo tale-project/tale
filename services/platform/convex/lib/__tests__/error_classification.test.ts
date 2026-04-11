@@ -96,4 +96,18 @@ describe('classifyError', () => {
       expect(result.shouldRetry).toBe(false);
     });
   });
+
+  describe('edge cases', () => {
+    it('handles empty object gracefully', () => {
+      const result = classifyError({});
+      expect(result.reason).toBe('unknown');
+      expect(result.shouldRetry).toBe(true);
+    });
+
+    it('handles empty message gracefully', () => {
+      const result = classifyError({ message: '' });
+      expect(result.reason).toBe('unknown');
+      expect(result.shouldRetry).toBe(true);
+    });
+  });
 });

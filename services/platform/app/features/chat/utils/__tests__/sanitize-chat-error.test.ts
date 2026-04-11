@@ -59,6 +59,22 @@ describe('sanitizeChatError', () => {
         rawMessage: 'Error 402: payment required',
       });
     });
+
+    it('matches backend "Provider credit limit reached" message', () => {
+      expect(sanitizeChatError('Provider credit limit reached')).toEqual({
+        category: 'creditExhausted',
+        i18nKey: 'errorHintCreditExhausted',
+        rawMessage: 'Provider credit limit reached',
+      });
+    });
+
+    it('does not false-positive on numbers containing 402', () => {
+      expect(sanitizeChatError('Error code 14025 encountered')).toEqual({
+        category: 'generic',
+        i18nKey: 'errorGeneratingDescription',
+        rawMessage: 'Error code 14025 encountered',
+      });
+    });
   });
 
   describe('token limit errors', () => {

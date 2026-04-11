@@ -15,7 +15,8 @@ interface SanitizedError {
 
 const ERROR_PATTERNS: { pattern: RegExp; category: ErrorCategory }[] = [
   {
-    pattern: /more credits|can only afford|credit.*insufficient|402/i,
+    pattern:
+      /more credits|can only afford|credit.*insufficient|credit.*limit|credit.*reached|\b402\b/i,
     category: 'creditExhausted',
   },
   {
