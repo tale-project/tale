@@ -78,9 +78,19 @@ export const featureFlagsConfigSchema = z.object({
 });
 export type FeatureFlagsConfig = z.infer<typeof featureFlagsConfigSchema>;
 
-export const piiCustomPatternSchema = z.object({
+const piiCustomPatternSchema = z.object({
   name: z.string().min(1),
-  regex: z.string().min(1),
+  regex: z
+    .string()
+    .min(1)
+    .refine((v) => {
+      try {
+        new RegExp(v);
+        return true;
+      } catch {
+        return false;
+      }
+    }, 'Invalid regex pattern'),
   replacement: z.string().min(1),
 });
 export type PiiCustomPattern = z.infer<typeof piiCustomPatternSchema>;

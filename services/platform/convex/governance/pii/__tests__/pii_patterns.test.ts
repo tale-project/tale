@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import type { PiiConfig } from '../index';
 import { scrubPii } from '../index';
 import { detectPii } from '../pii_detector';
 import { maskPii } from '../pii_masker';
@@ -106,6 +107,11 @@ describe('German ID pattern', () => {
     expect(matches).toHaveLength(1);
   });
 
+  it('does not match digit-only strings like 123456789', () => {
+    const matches = detectPii('Document: 123456789', germanIdPatterns);
+    expect(matches).toHaveLength(0);
+  });
+
   it('does not match lowercase strings', () => {
     const matches = detectPii('abcdefghi', germanIdPatterns);
     expect(matches).toHaveLength(0);
@@ -123,10 +129,10 @@ describe('German ID pattern', () => {
 describe('scrubPii with new patterns', () => {
   const config = {
     enabled: true,
-    mode: 'mask' as const,
+    mode: 'mask',
     enabledPatterns: ['iban', 'germanId', 'email'],
     customPatterns: [],
-  };
+  } satisfies PiiConfig;
 
   it('masks IBAN in text', () => {
     const result = scrubPii('Transfer to DE89 3704 0044 0532 0130 00', config);
@@ -142,14 +148,14 @@ describe('scrubPii with new patterns', () => {
   });
 
   it('throws in block mode when IBAN detected', () => {
-    const blockConfig = { ...config, mode: 'block' as const };
+    const blockConfig = { ...config, mode: 'block' } satisfies PiiConfig;
     expect(() =>
       scrubPii('Transfer to DE89 3704 0044 0532 0130 00', blockConfig),
     ).toThrow('Message blocked');
   });
 
   it('throws in block mode when German ID detected', () => {
-    const blockConfig = { ...config, mode: 'block' as const };
+    const blockConfig = { ...config, mode: 'block' } satisfies PiiConfig;
     expect(() => scrubPii('ID: T22000129', blockConfig)).toThrow(
       'Message blocked',
     );

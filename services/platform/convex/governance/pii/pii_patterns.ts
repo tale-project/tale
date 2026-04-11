@@ -52,7 +52,7 @@ export const BUILT_IN_PII_PATTERNS: PiiPattern[] = [
   },
   {
     name: 'germanId',
-    regex: /\b[CFGHJKLMNPRTVWXYZ\d][CFGHJKLMNPRTVWXYZ\d]{8}\b/g,
+    regex: /\b[CFGHJKLMNPRTVWXYZ][CFGHJKLMNPRTVWXYZ\d]{8}\b/g,
     replacement: '[GERMAN_ID]',
   },
 ];

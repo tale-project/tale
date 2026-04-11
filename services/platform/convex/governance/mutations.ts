@@ -44,6 +44,13 @@ export const upsertPolicy = mutation({
       }
     }
 
+    if (args.policyType === 'pii_config') {
+      const parsed = piiConfigSchema.safeParse(args.config);
+      if (!parsed.success) {
+        throw new Error(`Invalid PII configuration: ${parsed.error.message}`);
+      }
+    }
+
     const existing = await ctx.db
       .query('governancePolicies')
       .withIndex('by_org_policyType', (q) =>
