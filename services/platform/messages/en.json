@@ -2833,7 +2833,10 @@
       "edit": "Edit",
       "preview": "Preview",
       "copy": "Copy",
-      "download": "Download"
+      "download": "Download",
+      "copied": "Copied!",
+      "mermaidError": "Failed to render diagram",
+      "resizeHandle": "Resize canvas"
     }
   },
   "documents": {

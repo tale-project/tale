@@ -44,31 +44,18 @@ const pptxArgs = z.discriminatedUnion('operation', [
 export const pptxTool: ToolDefinition = {
   name: 'pptx',
   tool: createTool({
-    description: `Presentation tool for generating HTML slide decks.
+    description: `Presentation / slide deck capability.
 
-IMPORTANT: Only call the "generate" operation when the user explicitly requests creating a presentation / slides / PPT. Do NOT proactively generate presentations unless the user specifically asks.
+DO NOT CALL THIS TOOL. Instead, output the presentation directly in the chat as a fenced HTML code block.
 
-Do NOT mention templates — this tool does not use templates. Just generate the content directly.
+When the user asks for a presentation, slides, or PPT:
+1. Generate a complete, self-contained HTML document using reveal.js (CDN: https://cdn.jsdelivr.net/npm/reveal.js@5)
+2. Output it as a \`\`\`html code block in your response
+3. The chat has a Canvas preview pane that renders HTML directly — the user can view the slides without downloading anything
 
-TO READ EXISTING PPTX FILE CONTENT: Do NOT use this tool. Instead use the rag_search tool:
-• To get the full content of a PPTX file: use rag_search with operation='retrieve' and the fileId
-• To search for specific information across PPTX files: use rag_search with operation='search'
+Only call this tool's "generate" operation if the user explicitly asks to export or download the presentation as a file.
 
-OPERATIONS:
-
-1. generate - Generate an HTML slide presentation
-   Parameters:
-   - fileName: Base name for the file (without extension)
-   - html: A complete, self-contained HTML document for the presentation.
-     Use reveal.js (loaded from CDN: https://cdn.jsdelivr.net/npm/reveal.js@5) as the slide framework.
-     You have full control over styling, layout, colors, animations, and themes.
-     The HTML must work when opened directly in a browser with no server needed.
-   Returns: { success, fileStorageId, downloadUrl, fileName, contentType, size }
-
-AFTER GENERATING: Check the downloadUrl in the result:
-- If it says "[file card shown in chat]": the file is already visible as a download card. Do NOT mention downloading, do NOT include a link, and do NOT say "you can download it" — the card handles this.
-- If it contains an actual URL: no download card was shown. You MUST include the URL as a clickable markdown link so the user can download the file.
-To also save the file to a folder in the documents hub, call document_write with the returned fileStorageId and the desired folderPath.
+TO READ EXISTING PPTX FILE CONTENT: use the rag_search tool with operation='retrieve' and the fileId.
 `,
     inputSchema: pptxArgs,
     execute: async (
