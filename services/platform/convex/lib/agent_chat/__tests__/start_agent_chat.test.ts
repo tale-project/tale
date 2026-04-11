@@ -13,6 +13,9 @@ vi.mock('../../../_generated/api', () => ({
     persistentTextStreaming: {
       lib: { getStreamStatus: 'mock-getStreamStatus' },
     },
+    betterAuth: {
+      adapter: { findMany: 'mock-betterAuth-findMany' },
+    },
   },
   internal: {
     lib: {
@@ -83,12 +86,22 @@ function createMockCtx(
       }),
       patch: vi.fn(),
     },
-    runQuery: vi.fn().mockResolvedValue({ userId: 'user_1' }),
+    runQuery: vi.fn().mockImplementation((queryRef: string) => {
+      // betterAuth adapter queries (getUserTeamIds + resolveBudgetContext)
+      if (queryRef === 'mock-betterAuth-findMany') {
+        return Promise.resolve({ page: [], isDone: true });
+      }
+      // getThread query returns thread data with userId
+      return Promise.resolve({ userId: 'user_1' });
+    }),
     scheduler: {
       runAfter: vi.fn(),
     },
     storage: {
       getUrl: vi.fn(),
+    },
+    auth: {
+      getUserIdentity: vi.fn().mockResolvedValue(null),
     },
   };
 }

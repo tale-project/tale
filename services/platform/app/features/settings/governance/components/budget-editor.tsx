@@ -36,6 +36,7 @@ const SCOPE_OPTIONS = [
   { value: 'user', label: 'User' },
   { value: 'team', label: 'Team' },
   { value: 'role', label: 'Role' },
+  { value: 'org', label: 'Organization' },
 ];
 
 function isScopeValue(v: string): v is BudgetRule['scope'] {
@@ -51,8 +52,8 @@ const ROLE_OPTIONS = [
 
 const PERIOD_OPTIONS = [
   { value: 'monthly', label: 'Monthly' },
-  { value: 'weekly', label: 'Weekly', disabled: true },
-  { value: 'daily', label: 'Daily', disabled: true },
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'daily', label: 'Daily' },
 ];
 
 function isPeriodValue(v: string): v is BudgetRule['period'] {
@@ -96,6 +97,7 @@ function RuleDialog({
   memberOptions,
   teamOptions,
 }: RuleDialogProps) {
+  const { t } = useT('governance');
   const [draft, setDraft] = useState(initialRule);
 
   useEffect(() => {
@@ -107,7 +109,7 @@ function RuleDialog({
   const updateDraft = useCallback((patch: Partial<BudgetRule>) => {
     setDraft((prev) => {
       const updated = { ...prev, ...patch };
-      if (patch.scope === 'default') {
+      if (patch.scope === 'default' || patch.scope === 'org') {
         delete updated.scopeId;
       }
       return updated;
@@ -129,13 +131,13 @@ function RuleDialog({
       onOpenChange={onOpenChange}
       title={title}
       onSubmit={handleSubmit}
-      submitText="Confirm"
+      submitText={t('budgets.confirm')}
     >
       <Stack gap={4}>
         <HStack gap={3} wrap>
           <div className="w-40">
             <Select
-              label="Scope"
+              label={t('budgets.scope')}
               options={SCOPE_OPTIONS}
               value={draft.scope}
               onValueChange={(value: string) => {
@@ -151,7 +153,7 @@ function RuleDialog({
           {draft.scope === 'role' && (
             <div className="w-40">
               <Select
-                label="Role"
+                label={t('budgets.role')}
                 options={ROLE_OPTIONS}
                 value={draft.scopeId ?? ''}
                 onValueChange={(value) => updateDraft({ scopeId: value })}
@@ -163,14 +165,16 @@ function RuleDialog({
 
           {draft.scope === 'user' && (
             <div className="w-56">
-              <Text className="mb-1 text-xs font-medium">User</Text>
+              <Text className="mb-1 text-xs font-medium">
+                {t('budgets.user')}
+              </Text>
               <SearchableSelect
                 value={draft.scopeId ?? null}
                 onValueChange={(value) => updateDraft({ scopeId: value })}
                 options={memberOptions}
-                searchPlaceholder="Search users..."
-                emptyText="No users found"
-                aria-label="Select user"
+                searchPlaceholder={t('budgets.searchUsers')}
+                emptyText={t('budgets.noUsersFound')}
+                aria-label={t('budgets.selectUserAriaLabel')}
                 trigger={
                   <button
                     type="button"
@@ -183,7 +187,7 @@ function RuleDialog({
                       {draft.scopeId
                         ? (memberOptions.find((o) => o.value === draft.scopeId)
                             ?.label ?? draft.scopeId)
-                        : 'Select user...'}
+                        : t('budgets.selectUser')}
                     </span>
                   </button>
                 }
@@ -193,14 +197,16 @@ function RuleDialog({
 
           {draft.scope === 'team' && (
             <div className="w-56">
-              <Text className="mb-1 text-xs font-medium">Team</Text>
+              <Text className="mb-1 text-xs font-medium">
+                {t('budgets.team')}
+              </Text>
               <SearchableSelect
                 value={draft.scopeId ?? null}
                 onValueChange={(value) => updateDraft({ scopeId: value })}
                 options={teamOptions}
-                searchPlaceholder="Search teams..."
-                emptyText="No teams found"
-                aria-label="Select team"
+                searchPlaceholder={t('budgets.searchTeams')}
+                emptyText={t('budgets.noTeamsFound')}
+                aria-label={t('budgets.selectTeamAriaLabel')}
                 trigger={
                   <button
                     type="button"
@@ -213,7 +219,7 @@ function RuleDialog({
                       {draft.scopeId
                         ? (teamOptions.find((o) => o.value === draft.scopeId)
                             ?.label ?? draft.scopeId)
-                        : 'Select team...'}
+                        : t('budgets.selectTeam')}
                     </span>
                   </button>
                 }
@@ -223,7 +229,7 @@ function RuleDialog({
 
           <div className="w-36">
             <Select
-              label="Period"
+              label={t('budgets.period')}
               options={PERIOD_OPTIONS}
               value={draft.period}
               onValueChange={(value: string) => {
@@ -231,7 +237,7 @@ function RuleDialog({
                   updateDraft({ period: value });
                 }
               }}
-              disabled
+              disabled={cannotManage}
               size="sm"
             />
           </div>
@@ -240,7 +246,7 @@ function RuleDialog({
         <Stack gap={3}>
           <div>
             <Input
-              label="Max Tokens"
+              label={t('budgets.tokenLimit')}
               type="number"
               value={draft.maxTokens ?? ''}
               onChange={(e) =>
@@ -256,13 +262,13 @@ function RuleDialog({
               min={0}
             />
             <Text className="text-muted-foreground mt-1 text-xs">
-              Total input + output tokens. 1M tokens ~ 750K words.
+              {t('budgets.tokenLimitHelp')}
             </Text>
           </div>
 
           <div>
             <Input
-              label="Max Cost (USD)"
+              label={t('budgets.costLimitUsd')}
               type="number"
               value={draft.maxCostCents != null ? draft.maxCostCents / 100 : ''}
               onChange={(e) =>
@@ -279,13 +285,13 @@ function RuleDialog({
               step={0.01}
             />
             <Text className="text-muted-foreground mt-1 text-xs">
-              Hard spending cap in USD. GPT-4o ~ $10/1M tokens.
+              {t('budgets.costLimitHelp')}
             </Text>
           </div>
 
           <div>
             <Input
-              label="Max Requests"
+              label={t('budgets.maxRequests')}
               type="number"
               value={draft.maxRequests ?? ''}
               onChange={(e) =>
@@ -301,7 +307,30 @@ function RuleDialog({
               min={0}
             />
             <Text className="text-muted-foreground mt-1 text-xs">
-              Total AI requests per period. Leave empty for no limit.
+              {t('budgets.maxRequestsHelp')}
+            </Text>
+          </div>
+
+          <div>
+            <Input
+              label={t('budgets.warningThreshold')}
+              type="number"
+              value={draft.warningThresholdPercent ?? ''}
+              onChange={(e) =>
+                updateDraft({
+                  warningThresholdPercent: e.target.value
+                    ? Number(e.target.value)
+                    : undefined,
+                })
+              }
+              disabled={cannotManage}
+              size="sm"
+              placeholder="e.g. 80"
+              min={0}
+              max={100}
+            />
+            <Text className="text-muted-foreground mt-1 text-xs">
+              {t('budgets.warningThresholdHelp')}
             </Text>
           </div>
         </Stack>
@@ -449,13 +478,15 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
         }
         case 'role':
           return rule.scopeId ?? '\u2014';
+        case 'org':
+          return t('budgets.orgScopeTarget');
         case 'default':
-          return 'All users';
+          return t('budgets.allUsers');
         default:
           return '\u2014';
       }
     },
-    [memberOptions, teamOptions],
+    [memberOptions, teamOptions, t],
   );
 
   if (isLoading) {
@@ -464,11 +495,11 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
 
   return (
     <PageSection
-      title="Budget Rules"
-      description="Set token, cost, and request limits per scope and billing period."
+      title={t('budgets.title')}
+      description={t('budgets.description')}
       action={
         <Switch
-          label="Enabled"
+          label={t('budgets.enabled')}
           checked={enabled}
           onCheckedChange={handleToggleEnabled}
           disabled={cannotManage || upsertMutation.isPending}
@@ -476,32 +507,58 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
       }
     >
       <Stack gap={6}>
+        <Text variant="muted" className="text-xs">
+          {t('budgets.overrideHint')}
+        </Text>
+
         <Stack gap={3}>
           {rules.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
+                <caption className="sr-only">{t('budgets.title')}</caption>
                 <thead>
                   <tr className="border-border border-b">
-                    <th className="text-muted-foreground px-3 py-2 text-left font-medium">
-                      Scope
+                    <th
+                      scope="col"
+                      className="text-muted-foreground px-3 py-2 text-left font-medium"
+                    >
+                      {t('budgets.scope')}
                     </th>
-                    <th className="text-muted-foreground px-3 py-2 text-left font-medium">
-                      Target
+                    <th
+                      scope="col"
+                      className="text-muted-foreground px-3 py-2 text-left font-medium"
+                    >
+                      {t('budgets.target')}
                     </th>
-                    <th className="text-muted-foreground px-3 py-2 text-left font-medium">
-                      Period
+                    <th
+                      scope="col"
+                      className="text-muted-foreground px-3 py-2 text-left font-medium"
+                    >
+                      {t('budgets.period')}
                     </th>
-                    <th className="text-muted-foreground px-3 py-2 text-right font-medium">
-                      Max Tokens
+                    <th
+                      scope="col"
+                      className="text-muted-foreground px-3 py-2 text-right font-medium"
+                    >
+                      {t('budgets.tokenLimit')}
                     </th>
-                    <th className="text-muted-foreground px-3 py-2 text-right font-medium">
-                      Max Cost
+                    <th
+                      scope="col"
+                      className="text-muted-foreground px-3 py-2 text-right font-medium"
+                    >
+                      {t('budgets.maxCost')}
                     </th>
-                    <th className="text-muted-foreground px-3 py-2 text-right font-medium">
-                      Max Requests
+                    <th
+                      scope="col"
+                      className="text-muted-foreground px-3 py-2 text-right font-medium"
+                    >
+                      {t('budgets.maxRequests')}
                     </th>
-                    <th className="text-muted-foreground px-3 py-2 text-right font-medium">
-                      Actions
+                    <th
+                      scope="col"
+                      className="text-muted-foreground px-3 py-2 text-right font-medium"
+                    >
+                      {t('budgets.actions')}
                     </th>
                   </tr>
                 </thead>
@@ -533,7 +590,9 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
                             size="icon"
                             onClick={() => openEditDialog(index)}
                             disabled={cannotManage}
-                            aria-label={`Edit rule ${index + 1}`}
+                            aria-label={t('budgets.editRuleAriaLabel', {
+                              index: index + 1,
+                            })}
                           >
                             <Pencil className="size-4" />
                           </Button>
@@ -542,7 +601,9 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
                             size="icon"
                             onClick={() => removeRule(index)}
                             disabled={cannotManage}
-                            aria-label={`Remove rule ${index + 1}`}
+                            aria-label={t('budgets.removeRuleAriaLabel', {
+                              index: index + 1,
+                            })}
                           >
                             <Trash2 className="size-4" />
                           </Button>
@@ -555,7 +616,7 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
             </div>
           ) : (
             <Text variant="muted" className="text-sm">
-              No budget rules configured. Add a rule to start enforcing limits.
+              {t('budgets.noRules')}
             </Text>
           )}
 
@@ -567,7 +628,7 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
             className="self-start"
           >
             <Plus className="mr-1.5 size-4" />
-            Add Rule
+            {t('budgets.addRule')}
           </Button>
         </Stack>
       </Stack>
@@ -577,7 +638,11 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
         onOpenChange={setDialogOpen}
         rule={dialogRule}
         onSave={handleDialogSave}
-        title={editingIndex === null ? 'Add Budget Rule' : 'Edit Budget Rule'}
+        title={
+          editingIndex === null
+            ? t('budgets.addRuleDialogTitle')
+            : t('budgets.editRuleDialogTitle')
+        }
         cannotManage={cannotManage}
         memberOptions={memberOptions}
         teamOptions={teamOptions}

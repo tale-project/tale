@@ -7,6 +7,14 @@ import type {
 import type { DataModel } from '../_generated/dataModel';
 import { buildPeriodKey, readPolicyConfig } from './helpers';
 
+export interface BudgetWarning {
+  code: 'TOKEN_WARNING' | 'COST_WARNING' | 'REQUEST_WARNING';
+  period: string;
+  used: number;
+  limit: number;
+  percent: number;
+}
+
 export interface BudgetCheckResult {
   allowed: boolean;
   code?: 'TOKEN_LIMIT' | 'COST_LIMIT' | 'REQUEST_LIMIT';
@@ -14,6 +22,7 @@ export interface BudgetCheckResult {
   used?: number;
   limit?: number;
   reason?: string;
+  warnings?: BudgetWarning[];
 }
 
 interface UsageTotals {
@@ -22,15 +31,27 @@ interface UsageTotals {
   requestCount: number;
 }
 
+export interface EffectiveLimits {
+  maxTokens?: number;
+  maxCostCents?: number;
+  maxRequests?: number;
+  orgMaxTokens?: number;
+  orgMaxCostCents?: number;
+  orgMaxRequests?: number;
+  warningThresholdPercent?: number;
+  orgWarningThresholdPercent?: number;
+  /** Team IDs whose rules contributed to the effective limits (for aggregate checks). */
+  effectiveTeamIds: string[];
+}
+
 /**
  * Collect ALL budget rules that apply to the given user/agent context.
- * Unlike the old `findApplicableRule`, every matching rule is returned
- * so that each one can be checked independently.
+ * Every matching rule is returned so that each one can be checked independently.
  */
-function collectAllApplicableRules(
+export function collectAllApplicableRules(
   rules: BudgetRule[],
   userId: string,
-  agentTeamIds: string[],
+  userTeamIds: string[],
   userRole?: string,
 ): BudgetRule[] {
   return rules.filter((r) => {
@@ -38,15 +59,142 @@ function collectAllApplicableRules(
       case 'user':
         return r.scopeId === userId;
       case 'team':
-        return r.scopeId != null && agentTeamIds.includes(r.scopeId);
+        return r.scopeId != null && userTeamIds.includes(r.scopeId);
       case 'role':
         return userRole != null && r.scopeId === userRole;
+      case 'org':
+        return true;
       case 'default':
         return true;
       default:
         return false;
     }
   });
+}
+
+/**
+ * Resolve effective budget limits using priority: user > team > role > default.
+ *
+ * Each limit field (maxTokens, maxCostCents, maxRequests) is resolved independently
+ * from the most specific scope that defines it. This allows granular overrides:
+ * e.g. a user-level token limit with a team-level cost cap.
+ *
+ * Org-scoped limits are resolved separately because they represent aggregate caps
+ * that always apply in addition to per-user limits.
+ *
+ * For multi-team users, the most permissive (highest) team limit wins.
+ */
+export function resolveEffectiveLimits(
+  rules: BudgetRule[],
+  userId: string,
+  userTeamIds: string[],
+  userRole?: string,
+): EffectiveLimits {
+  const userRules = rules.filter(
+    (r) => r.scope === 'user' && r.scopeId === userId,
+  );
+  const teamRules = rules.filter(
+    (r) =>
+      r.scope === 'team' &&
+      r.scopeId != null &&
+      userTeamIds.includes(r.scopeId),
+  );
+  const roleRules = userRole
+    ? rules.filter((r) => r.scope === 'role' && r.scopeId === userRole)
+    : [];
+  const defaultRules = rules.filter((r) => r.scope === 'default');
+  const orgRules = rules.filter((r) => r.scope === 'org');
+
+  // Priority tiers for per-user limits: user > team > role > default
+  const tiers = [userRules, teamRules, roleRules, defaultRules];
+  const teamTierIndex = 1;
+  const fieldsFromTeam = new Set<string>();
+
+  function resolveField(
+    field: 'maxTokens' | 'maxCostCents' | 'maxRequests',
+  ): number | undefined {
+    for (let i = 0; i < tiers.length; i++) {
+      const tier = tiers[i];
+      const values = tier
+        .map((r) => r[field])
+        .filter((v): v is number => v != null);
+      if (values.length > 0) {
+        if (i === teamTierIndex) fieldsFromTeam.add(field);
+        // For team tier with multiple matching teams, use the most permissive (highest)
+        return Math.max(...values);
+      }
+    }
+    return undefined;
+  }
+
+  function resolveWarningThreshold(): number | undefined {
+    for (const tier of tiers) {
+      const values = tier
+        .map((r) => r.warningThresholdPercent)
+        .filter((v): v is number => v != null);
+      if (values.length > 0) {
+        return Math.min(...values);
+      }
+    }
+    return undefined;
+  }
+
+  const orgMaxTokens = orgRules
+    .map((r) => r.maxTokens)
+    .filter((v): v is number => v != null)
+    .reduce<number | undefined>(
+      (acc, v) => (acc == null ? v : Math.min(acc, v)),
+      undefined,
+    );
+  const orgMaxCostCents = orgRules
+    .map((r) => r.maxCostCents)
+    .filter((v): v is number => v != null)
+    .reduce<number | undefined>(
+      (acc, v) => (acc == null ? v : Math.min(acc, v)),
+      undefined,
+    );
+  const orgMaxRequests = orgRules
+    .map((r) => r.maxRequests)
+    .filter((v): v is number => v != null)
+    .reduce<number | undefined>(
+      (acc, v) => (acc == null ? v : Math.min(acc, v)),
+      undefined,
+    );
+  const orgWarningThreshold = orgRules
+    .map((r) => r.warningThresholdPercent)
+    .filter((v): v is number => v != null)
+    .reduce<number | undefined>(
+      (acc, v) => (acc == null ? v : Math.min(acc, v)),
+      undefined,
+    );
+
+  const maxTokens = resolveField('maxTokens');
+  const maxCostCents = resolveField('maxCostCents');
+  const maxRequests = resolveField('maxRequests');
+
+  // Collect unique team IDs from team rules when any field was resolved from the team tier
+  const effectiveTeamIds =
+    fieldsFromTeam.size > 0
+      ? [
+          ...new Set(
+            teamRules
+              .map((r) => r.scopeId)
+              .filter((id): id is string => id != null),
+          ),
+        ]
+      : [];
+
+  return {
+    maxTokens,
+    maxCostCents,
+    maxRequests,
+    orgMaxTokens,
+    orgMaxCostCents,
+    orgMaxRequests,
+    warningThresholdPercent: resolveWarningThreshold(),
+    orgWarningThresholdPercent: orgWarningThreshold,
+    effectiveTeamIds,
+  };
 }
 
 /**
@@ -81,7 +229,7 @@ async function getUserPeriodUsage(
 
 /**
  * Query the combined usage of all members within a team for a given period.
- * Team budgets are shared caps — every member's usage counts toward the limit.
+ * Team budgets are shared caps -- every member's usage counts toward the limit.
  */
 async function getTeamPeriodUsage(
   ctx: GenericQueryCtx<DataModel>,
@@ -89,23 +237,47 @@ async function getTeamPeriodUsage(
   teamId: string,
   periodKey: string,
 ): Promise<UsageTotals> {
-  const entries = await ctx.db
-    .query('usageLedger')
-    .withIndex('by_org_team_period', (q) =>
-      q
-        .eq('organizationId', organizationId)
-        .eq('teamId', teamId)
-        .eq('periodKey', periodKey),
-    )
-    .collect();
-
   const totals: UsageTotals = {
     totalTokens: 0,
     costEstimate: 0,
     requestCount: 0,
   };
 
-  for (const entry of entries) {
+  for await (const entry of ctx.db
+    .query('usageLedger')
+    .withIndex('by_org_team_period', (q) =>
+      q
+        .eq('organizationId', organizationId)
+        .eq('teamId', teamId)
+        .eq('periodKey', periodKey),
+    )) {
+    totals.totalTokens += entry.totalTokens;
+    totals.costEstimate += entry.costEstimate;
+    totals.requestCount += entry.requestCount;
+  }
+
+  return totals;
+}
+
+/**
+ * Query the organization-wide aggregate usage for a given period.
+ */
+async function getOrgPeriodUsage(
+  ctx: GenericQueryCtx<DataModel>,
+  organizationId: string,
+  periodKey: string,
+): Promise<UsageTotals> {
+  const totals: UsageTotals = {
+    totalTokens: 0,
+    costEstimate: 0,
+    requestCount: 0,
+  };
+
+  for await (const entry of ctx.db
+    .query('usageLedger')
+    .withIndex('by_org_period', (q) =>
+      q.eq('organizationId', organizationId).eq('periodKey', periodKey),
+    )) {
     totals.totalTokens += entry.totalTokens;
     totals.costEstimate += entry.costEstimate;
     totals.requestCount += entry.requestCount;
@@ -118,7 +290,7 @@ async function getTeamPeriodUsage(
  * Check a single rule against usage totals and return a violation result
  * if any limit is exceeded, or null if the rule passes.
  */
-function checkRuleAgainstUsage(
+export function checkRuleAgainstUsage(
   rule: BudgetRule,
   usage: UsageTotals,
 ): BudgetCheckResult | null {
@@ -159,19 +331,78 @@ function checkRuleAgainstUsage(
 }
 
 /**
+ * Collect warnings for usage that exceeds the warning threshold but is still allowed.
+ */
+function collectWarnings(
+  limits: EffectiveLimits,
+  usage: UsageTotals,
+  period: string,
+): BudgetWarning[] {
+  const threshold = limits.warningThresholdPercent;
+  if (threshold == null) return [];
+
+  const warnings: BudgetWarning[] = [];
+
+  if (limits.maxTokens != null) {
+    const percent = (usage.totalTokens / limits.maxTokens) * 100;
+    if (percent >= threshold && usage.totalTokens < limits.maxTokens) {
+      warnings.push({
+        code: 'TOKEN_WARNING',
+        period,
+        used: usage.totalTokens,
+        limit: limits.maxTokens,
+        percent: Math.round(percent),
+      });
+    }
+  }
+
+  if (limits.maxCostCents != null) {
+    const percent = (usage.costEstimate / limits.maxCostCents) * 100;
+    if (percent >= threshold && usage.costEstimate < limits.maxCostCents) {
+      warnings.push({
+        code: 'COST_WARNING',
+        period,
+        used: usage.costEstimate,
+        limit: limits.maxCostCents,
+        percent: Math.round(percent),
+      });
+    }
+  }
+
+  if (limits.maxRequests != null) {
+    const percent = (usage.requestCount / limits.maxRequests) * 100;
+    if (percent >= threshold && usage.requestCount < limits.maxRequests) {
+      warnings.push({
+        code: 'REQUEST_WARNING',
+        period,
+        used: usage.requestCount,
+        limit: limits.maxRequests,
+        percent: Math.round(percent),
+      });
+    }
+  }
+
+  return warnings;
+}
+
+/**
  * Check whether a user is within their budget limits.
  *
- * Reads the budgets governance policy and checks the user's current-period
- * usage against ALL applicable rules. If any rule is violated, access is denied.
+ * Reads the budgets governance policy and resolves effective limits using
+ * priority: user > team > role > default. Each limit field is resolved
+ * independently from the most specific scope that defines it.
  *
- * @param agentTeamIds - the agent's team tags (not the user's teams).
- *   Team budget rules only apply when the agent belongs to that team.
+ * Org-scoped limits are checked separately against aggregate org usage.
+ *
+ * @param userTeamIds - the user's team memberships (not the agent's teams).
+ *   Team budget rules apply when the user belongs to that team.
+ * @param userRole - the user's role in the organization (e.g. 'admin', 'member').
  */
 export async function checkBudget(
   ctx: GenericQueryCtx<DataModel>,
   organizationId: string,
   userId: string,
-  agentTeamIds: string[],
+  userTeamIds: string[],
   userRole?: string,
 ): Promise<BudgetCheckResult> {
   const config = await readPolicyConfig<BudgetConfig>(
@@ -184,44 +415,120 @@ export async function checkBudget(
     return { allowed: true };
   }
 
-  const rules = collectAllApplicableRules(
+  const applicableRules = collectAllApplicableRules(
     config.rules,
     userId,
-    agentTeamIds,
+    userTeamIds,
     userRole,
   );
 
-  if (rules.length === 0) {
+  if (applicableRules.length === 0) {
     return { allowed: true };
   }
 
-  for (const rule of rules) {
-    if (rule.period !== 'monthly') {
-      console.warn(
-        `[budget_enforcement] Skipping rule with unsupported period "${rule.period}" (scope=${rule.scope}, scopeId=${rule.scopeId ?? 'none'}). Only "monthly" is supported in v1.`,
-      );
-      continue;
-    }
-
-    const periodKey = buildPeriodKey(rule.period);
-
-    let usage: UsageTotals;
-    if (rule.scope === 'team' && rule.scopeId) {
-      usage = await getTeamPeriodUsage(
-        ctx,
-        organizationId,
-        rule.scopeId,
-        periodKey,
-      );
+  // Group rules by period so each period is enforced independently
+  type Period = 'daily' | 'weekly' | 'monthly';
+  const rulesByPeriod = new Map<Period, BudgetRule[]>();
+  for (const rule of applicableRules) {
+    const existing = rulesByPeriod.get(rule.period);
+    if (existing) {
+      existing.push(rule);
     } else {
-      usage = await getUserPeriodUsage(ctx, organizationId, userId, periodKey);
-    }
-
-    const violation = checkRuleAgainstUsage(rule, usage);
-    if (violation) {
-      return violation;
+      rulesByPeriod.set(rule.period, [rule]);
     }
   }
 
-  return { allowed: true };
+  const allWarnings: BudgetWarning[] = [];
+
+  for (const [period, periodRules] of rulesByPeriod) {
+    const periodKey = buildPeriodKey(period);
+
+    // Resolve effective per-user limits for this period
+    const limits = resolveEffectiveLimits(
+      periodRules,
+      userId,
+      userTeamIds,
+      userRole,
+    );
+
+    // Check per-user limits against user's personal usage
+    const userUsage = await getUserPeriodUsage(
+      ctx,
+      organizationId,
+      userId,
+      periodKey,
+    );
+
+    const effectiveRule: BudgetRule = {
+      scope: 'default',
+      period: period,
+      maxTokens: limits.maxTokens,
+      maxCostCents: limits.maxCostCents,
+      maxRequests: limits.maxRequests,
+    };
+    const violation = checkRuleAgainstUsage(effectiveRule, userUsage);
+    if (violation) {
+      return {
+        ...violation,
+        warnings: allWarnings.length > 0 ? allWarnings : undefined,
+      };
+    }
+
+    // Collect warnings for approaching limits
+    allWarnings.push(...collectWarnings(limits, userUsage, period));
+
+    // Check team aggregate usage when limits came from team-scoped rules
+    for (const teamId of limits.effectiveTeamIds) {
+      const teamUsage = await getTeamPeriodUsage(
+        ctx,
+        organizationId,
+        teamId,
+        periodKey,
+      );
+      const teamRule: BudgetRule = {
+        scope: 'team',
+        scopeId: teamId,
+        period: period,
+        maxTokens: limits.maxTokens,
+        maxCostCents: limits.maxCostCents,
+        maxRequests: limits.maxRequests,
+      };
+      const teamViolation = checkRuleAgainstUsage(teamRule, teamUsage);
+      if (teamViolation) {
+        return {
+          ...teamViolation,
+          warnings: allWarnings.length > 0 ? allWarnings : undefined,
+        };
+      }
+    }
+
+    // Check org-scoped limits against org-wide aggregate usage
+    if (
+      limits.orgMaxTokens != null ||
+      limits.orgMaxCostCents != null ||
+      limits.orgMaxRequests != null
+    ) {
+      const orgUsage = await getOrgPeriodUsage(ctx, organizationId, periodKey);
+      const orgRule: BudgetRule = {
+        scope: 'org',
+        period: period,
+        maxTokens: limits.orgMaxTokens,
+        maxCostCents: limits.orgMaxCostCents,
+        maxRequests: limits.orgMaxRequests,
+      };
+      const orgViolation = checkRuleAgainstUsage(orgRule, orgUsage);
+      if (orgViolation) {
+        return {
+          ...orgViolation,
+          reason: `Organization-wide ${orgViolation.reason}`,
+          warnings: allWarnings.length > 0 ? allWarnings : undefined,
+        };
+      }
+    }
+  }
+
+  return {
+    allowed: true,
+    warnings: allWarnings.length > 0 ? allWarnings : undefined,
+  };
 }

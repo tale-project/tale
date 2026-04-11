@@ -39,6 +39,8 @@ export const incrementUsageLedger = internalMutation({
         totalTokens: existing.totalTokens + totalTokens,
         costEstimate: existing.costEstimate + args.costEstimateCents,
         requestCount: existing.requestCount + 1,
+        // Backfill teamId if the existing entry has none and we now have one
+        ...(args.teamId && !existing.teamId ? { teamId: args.teamId } : {}),
       });
     } else {
       await ctx.db.insert('usageLedger', {
@@ -55,15 +57,18 @@ export const incrementUsageLedger = internalMutation({
 
       // Guard against duplicate-insert race: if two concurrent mutations
       // both saw existing===null and inserted, merge into the older row.
-      const allEntries = await ctx.db
+      const dupQuery = ctx.db
         .query('usageLedger')
         .withIndex('by_org_user_period', (q) =>
           q
             .eq('organizationId', args.organizationId)
             .eq('userId', args.userId)
             .eq('periodKey', periodKey),
-        )
-        .collect();
+        );
+      const allEntries = [];
+      for await (const entry of dupQuery) {
+        allEntries.push(entry);
+      }
 
       if (allEntries.length > 1) {
         // Keep the oldest entry, merge the rest into it

@@ -12,12 +12,13 @@ export const POLICY_TYPES = [
 export type PolicyType = (typeof POLICY_TYPES)[number];
 
 export const budgetRuleSchema = z.object({
-  scope: z.enum(['user', 'team', 'role', 'default']),
+  scope: z.enum(['user', 'team', 'role', 'org', 'default']),
   scopeId: z.string().optional(),
   period: z.enum(['daily', 'weekly', 'monthly']),
   maxTokens: z.number().nonnegative().optional(),
   maxCostCents: z.number().nonnegative().optional(),
   maxRequests: z.number().nonnegative().optional(),
+  warningThresholdPercent: z.number().min(0).max(100).optional(),
 });
 export type BudgetRule = z.infer<typeof budgetRuleSchema>;
 

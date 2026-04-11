@@ -299,6 +299,7 @@ import type * as governance_pii_pii_detector from "../governance/pii/pii_detecto
 import type * as governance_pii_pii_masker from "../governance/pii/pii_masker.js";
 import type * as governance_pii_pii_patterns from "../governance/pii/pii_patterns.js";
 import type * as governance_queries from "../governance/queries.js";
+import type * as governance_resolve_budget_context from "../governance/resolve_budget_context.js";
 import type * as governance_resolve_default_model from "../governance/resolve_default_model.js";
 import type * as governance_retention_cleanup from "../governance/retention_cleanup.js";
 import type * as governance_upload_enforcement from "../governance/upload_enforcement.js";
@@ -1223,6 +1224,7 @@ declare const fullApi: ApiFromModules<{
   "governance/pii/pii_masker": typeof governance_pii_pii_masker;
   "governance/pii/pii_patterns": typeof governance_pii_pii_patterns;
   "governance/queries": typeof governance_queries;
+  "governance/resolve_budget_context": typeof governance_resolve_budget_context;
   "governance/resolve_default_model": typeof governance_resolve_default_model;
   "governance/retention_cleanup": typeof governance_retention_cleanup;
   "governance/upload_enforcement": typeof governance_upload_enforcement;

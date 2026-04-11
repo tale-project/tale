@@ -11,6 +11,7 @@ import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
 import { internalMutation } from '../../_generated/server';
 import { checkBudget } from '../../governance/budget_enforcement';
+import { resolveBudgetContext } from '../../governance/resolve_budget_context';
 import type { SerializableAgentConfig } from '../../lib/agent_chat/types';
 import { persistentStreaming } from '../../streaming/helpers';
 import { workflowManagers } from '../../workflow_engine/engine';
@@ -193,11 +194,17 @@ async function handleSubmission({
   // Budget enforcement — block before scheduling if limits are exceeded
   const userId = thread?.userId;
   if (userId) {
+    const { userTeamIds, userRole } = await resolveBudgetContext(
+      ctx,
+      organizationId,
+      userId,
+    );
     const budgetResult = await checkBudget(
       ctx,
       organizationId,
       userId,
-      agentConfig.agentTeamId ? [agentConfig.agentTeamId] : [],
+      userTeamIds,
+      userRole,
     );
     if (!budgetResult.allowed) {
       throw new Error(budgetResult.reason ?? 'Budget limit exceeded');
