@@ -28,6 +28,8 @@ export interface CheckAndSummarizeArgs {
   existingSummary: string | undefined;
   /** Model's context limit in tokens */
   modelContextLimit?: number;
+  /** Governance-resolved max context tokens (caps the effective context limit) */
+  maxContextTokens?: number;
 }
 
 /**
@@ -61,7 +63,12 @@ export async function checkAndSummarizeIfNeeded(
     currentPromptTokens,
     existingSummary,
     modelContextLimit = DEFAULT_MODEL_CONTEXT_LIMIT,
+    maxContextTokens,
   } = args;
+
+  const effectiveContextLimit = maxContextTokens
+    ? Math.min(maxContextTokens, modelContextLimit)
+    : modelContextLimit;
 
   // Estimate context size with tool messages included
   const estimate = await estimateContextSize(ctx, {
@@ -70,10 +77,10 @@ export async function checkAndSummarizeIfNeeded(
     currentPromptTokens,
     recentMessagesCount: DEFAULT_RECENT_MESSAGES,
     excludeToolMessages: true,
-    modelContextLimit,
+    modelContextLimit: effectiveContextLimit,
   });
 
-  const usageRatio = estimate.totalTokens / modelContextLimit;
+  const usageRatio = estimate.totalTokens / effectiveContextLimit;
   const needsSummarization = usageRatio >= SUMMARIZATION_THRESHOLD;
 
   debugLog('Context size check', {

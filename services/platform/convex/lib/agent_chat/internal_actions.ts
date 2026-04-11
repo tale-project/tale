@@ -412,6 +412,7 @@ export const runAgentGeneration = internalAction({
               responseCacheEnabled: agentConfig.responseCacheEnabled,
               responseCacheTtlMs: agentConfig.responseCacheTtlMs,
               noCacheToolNames: agentConfig.noCacheToolNames,
+              maxContextTokens,
               instructions: finalInstructions,
               toolsSummary,
               maxContextTokens,

@@ -41,6 +41,14 @@ function isScopeValue(v: string): v is FeatureFlagRule['scope'] {
 
 const ROLE_VALUES = ['admin', 'developer', 'editor', 'member'] as const;
 
+const CONTEXT_TOKEN_PRESETS = [
+  { value: 8192, label: '8K' },
+  { value: 16384, label: '16K' },
+  { value: 32768, label: '32K' },
+  { value: 65536, label: '64K' },
+  { value: 131072, label: '128K' },
+];
+
 function emptyRule(): FeatureFlagRule {
   return {
     scope: 'default',
@@ -277,6 +285,27 @@ function RuleDialog({
             <Text className="text-muted-foreground mt-1 text-xs">
               {t('featureFlags.maxContextTokensHint')}
             </Text>
+            <HStack gap={1} className="mt-2" wrap>
+              {CONTEXT_TOKEN_PRESETS.map((preset) => (
+                <Button
+                  key={preset.value}
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() =>
+                    updateDraft({ maxContextTokens: preset.value })
+                  }
+                  disabled={cannotManage}
+                  className={
+                    draft.maxContextTokens === preset.value
+                      ? 'border-primary'
+                      : ''
+                  }
+                >
+                  {preset.label}
+                </Button>
+              ))}
+            </HStack>
           </div>
         </Stack>
       </Stack>

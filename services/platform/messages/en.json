@@ -3704,9 +3704,16 @@
       "tempFileRetentionHours": "Temporary file retention (hours)",
       "saved": "Retention policy saved"
     },
+    "tabs": {
+      "systemPrompt": "System Prompt",
+      "budgets": "Budgets",
+      "featureControls": "Feature controls",
+      "usage": "Usage"
+    },
     "featureFlags": {
       "title": "Feature controls",
       "description": "Enable or disable features per user, team, or role.",
+      "enabled": "Enabled",
       "webSearch": "Web search",
       "codeExecution": "Code execution",
       "fileUpload": "File upload",
