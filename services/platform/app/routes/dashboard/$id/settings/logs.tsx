@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
+import { useMemo } from 'react';
 import { z } from 'zod';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
@@ -9,7 +10,9 @@ import { Text } from '@/app/components/ui/typography/text';
 import { AuditLogTable } from '@/app/features/settings/audit-logs/components/audit-log-table';
 import { useListAuditLogsPaginated } from '@/app/features/settings/audit-logs/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
@@ -42,6 +45,17 @@ function LogsPage() {
     initialNumItems: 30,
   });
 
+  const membersQuery = useConvexQuery(api.members.queries.listByOrganization, {
+    organizationId,
+  });
+  const userEmailMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const m of membersQuery.data ?? []) {
+      if (m.email) map.set(m.userId, m.email);
+    }
+    return map;
+  }, [membersQuery.data]);
+
   if (ability.cannot('read', 'orgSettings')) {
     return <AccessDenied message={tAccess('organization')} />;
   }
@@ -62,6 +76,7 @@ function LogsPage() {
                   paginatedResult={paginatedResult}
                   category={search.category}
                   isAdmin={isAdminUser}
+                  userEmailMap={userEmailMap}
                 />
               </Card>
             ),

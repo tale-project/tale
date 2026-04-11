@@ -1645,6 +1645,7 @@
           "timestamp": "Time",
           "action": "Action",
           "actor": "User",
+          "actorId": "User ID",
           "actorType": "Actor type",
           "actorRole": "Role",
           "resource": "Resource",

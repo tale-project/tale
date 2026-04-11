@@ -19,6 +19,7 @@ type SettingsLabelKey =
   | 'apiKeys'
   | 'branding'
   | 'governance'
+  | 'logs'
   | 'account';
 
 export function SettingsNavigation({
@@ -70,6 +71,12 @@ export function SettingsNavigation({
       labelKey: 'governance',
       label: t('governance'),
       href: `/dashboard/${organizationId}/settings/governance`,
+      can: ['read', 'orgSettings'],
+    },
+    {
+      labelKey: 'logs',
+      label: t('logs'),
+      href: `/dashboard/${organizationId}/settings/logs`,
       can: ['read', 'orgSettings'],
     },
     {

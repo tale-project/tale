@@ -7,6 +7,7 @@
 
 import { v } from 'convex/values';
 
+import { isRecord, getString } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import { internalQuery } from '../_generated/server';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
@@ -93,6 +94,32 @@ export const getAuditRetentionConfig = internalQuery({
           .eq('policyType', 'audit_retention'),
       )
       .first();
+  },
+});
+
+export const getUserEmailMap = internalQuery({
+  args: {},
+  returns: v.any(),
+  handler: async (ctx) => {
+    const map: Record<string, string> = {};
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result: any = await ctx.runQuery(
+      components.betterAuth.adapter.findMany,
+      {
+        model: 'user',
+        paginationOpts: { cursor: null, numItems: 500 },
+        where: [],
+      },
+    );
+    for (const raw of result?.page ?? []) {
+      if (!isRecord(raw)) continue;
+      const id = getString(raw, '_id');
+      const email = getString(raw, 'email');
+      if (id && email) {
+        map[id] = email;
+      }
+    }
+    return map;
   },
 });
 

@@ -17,7 +17,14 @@ interface AuditLogTableConfig {
   pageSize: number;
 }
 
-export function useAuditLogTableConfig(): AuditLogTableConfig {
+interface UseAuditLogTableConfigOptions {
+  resolveEmail?: (log: AuditLog) => string | undefined;
+}
+
+export function useAuditLogTableConfig(
+  options?: UseAuditLogTableConfigOptions,
+): AuditLogTableConfig {
+  const resolveEmail = options?.resolveEmail;
   const { t } = useT('settings');
 
   const columns = useMemo<ColumnDef<AuditLog>[]>(
@@ -55,12 +62,22 @@ export function useAuditLogTableConfig(): AuditLogTableConfig {
       {
         accessorKey: 'actorEmail',
         header: t('logs.audit.columns.actor'),
-        cell: ({ row }) => (
-          <Text as="span" variant="body">
-            {row.original.actorEmail ?? row.original.actorId}
-          </Text>
-        ),
-        size: 200,
+        cell: ({ row }) => {
+          const email = resolveEmail?.(row.original) ?? row.original.actorEmail;
+          return (
+            <div className="flex flex-col gap-0.5">
+              <Text as="span" variant="body" truncate>
+                {email ?? row.original.actorId}
+              </Text>
+              {email && (
+                <Text as="span" variant="muted" truncate className="text-xs">
+                  {row.original.actorId}
+                </Text>
+              )}
+            </div>
+          );
+        },
+        size: 220,
       },
       {
         accessorKey: 'resourceType',
@@ -121,7 +138,7 @@ export function useAuditLogTableConfig(): AuditLogTableConfig {
         size: 100,
       },
     ],
-    [t],
+    [t, resolveEmail],
   );
 
   return { columns, stickyLayout: true, pageSize: 30 };

@@ -27,6 +27,7 @@ interface AuditLogTableProps {
   paginatedResult: UsePaginatedQueryResult<AuditLog>;
   category?: string;
   isAdmin?: boolean;
+  userEmailMap?: Map<string, string>;
 }
 
 export function AuditLogTable({
@@ -34,6 +35,7 @@ export function AuditLogTable({
   paginatedResult,
   category,
   isAdmin: isAdminUser = false,
+  userEmailMap,
 }: AuditLogTableProps) {
   const navigate = useNavigate();
   const { formatDate } = useFormatDate();
@@ -41,7 +43,15 @@ export function AuditLogTable({
   const { toast } = useToast();
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
 
-  const { columns, stickyLayout, pageSize } = useAuditLogTableConfig();
+  const resolveEmail = useCallback(
+    (log: AuditLog) =>
+      log.actorEmail || userEmailMap?.get(log.actorId) || undefined,
+    [userEmailMap],
+  );
+
+  const { columns, stickyLayout, pageSize } = useAuditLogTableConfig({
+    resolveEmail,
+  });
 
   const exportAction = useConvexAction(api.audit_logs.actions.requestExport, {
     onSuccess: (data) => {
@@ -195,8 +205,14 @@ export function AuditLogTable({
               />
               <DetailRow
                 label={t('logs.audit.columns.actor')}
-                value={selectedLog.actorEmail ?? selectedLog.actorId}
+                value={resolveEmail(selectedLog) ?? selectedLog.actorId}
               />
+              {resolveEmail(selectedLog) && (
+                <DetailRow
+                  label={t('logs.audit.columns.actorId')}
+                  value={selectedLog.actorId}
+                />
+              )}
               <DetailRow
                 label={t('logs.audit.columns.actorType')}
                 value={selectedLog.actorType}

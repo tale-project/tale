@@ -33,13 +33,20 @@ export const exportAuditLogs = internalAction({
     fileName: v.string(),
   }),
   handler: async (ctx, args) => {
-    const logs = await ctx.runQuery(
-      internal.audit_logs.internal_queries.listLogsForExport,
-      {
+    const [rawLogs, emailMap] = await Promise.all([
+      ctx.runQuery(internal.audit_logs.internal_queries.listLogsForExport, {
         organizationId: args.organizationId,
         filter: args.filter,
-      },
-    );
+      }),
+      ctx.runQuery(internal.audit_logs.internal_queries.getUserEmailMap, {}),
+    ]);
+
+    const logs = rawLogs.map((log: Record<string, unknown>) => {
+      const actorId = typeof log.actorId === 'string' ? log.actorId : '';
+      const resolved = log.actorEmail || emailMap[actorId] || undefined;
+      log.actorEmail = resolved;
+      return log;
+    });
 
     let content: string;
     let fileName: string;
