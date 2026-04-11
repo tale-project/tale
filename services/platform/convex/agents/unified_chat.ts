@@ -1,17 +1,34 @@
+'use node';
+
 /**
  * Unified Chat Action
  *
  * Single entry point for chatting with any agent.
- * Delegates filesystem I/O to resolveAgentConfig (Node action),
- * then starts the chat via an internal mutation.
+ * Reads agent config directly from the filesystem (inlined to eliminate
+ * the resolveAgentConfig action hop) and starts the chat via an internal
+ * mutation.
+ *
+ * TTFT optimizations (issue #1219):
+ * - PII policy query and agent config resolution run in parallel
+ * - resolveAgentConfig logic inlined to avoid extra Convex action scheduling
  */
 
 import { v } from 'convex/values';
 
 import { internal } from '../_generated/api';
-import { action } from '../_generated/server';
+import { action, type ActionCtx } from '../_generated/server';
 import { authComponent } from '../auth';
 import { scrubPii, type PiiConfig } from '../governance/pii';
+import type { SerializableAgentConfig } from '../lib/agent_chat/types';
+import { readJsonFile } from '../lib/file_io';
+import { toSerializableConfig } from './config';
+import {
+  resolveAgentFilePath,
+  parseAgentJson,
+  MAX_FILE_SIZE_BYTES,
+  type AgentJsonConfig,
+} from './file_utils';
+import type { KnowledgeFile } from './schema';
 
 export const chatWithAgent = action({
   args: {
@@ -51,9 +68,11 @@ export const chatWithAgent = action({
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
 
-    // PII query and governance default model resolution are independent —
-    // run them in parallel to reduce latency.
-    const [piiPolicy, governanceDefault] = await Promise.all([
+    // PII query, governance default model resolution, and agent config
+    // resolution are independent — run them in parallel to reduce TTFT.
+    // Agent config is read directly from the filesystem (inlined) instead of
+    // dispatching a separate resolveAgentConfig action, saving ~100-300ms.
+    const [piiPolicy, governanceDefault, agentConfig] = await Promise.all([
       ctx.runQuery(internal.governance.internal_queries.getPiiConfigInternal, {
         organizationId: args.organizationId,
       }),
@@ -68,20 +87,22 @@ export const chatWithAgent = action({
             },
           )
         : null,
-    ]);
-
-    const effectiveModelId = args.modelId ?? governanceDefault?.modelId;
-
-    const agentConfig = await ctx.runAction(
-      internal.agents.file_actions.resolveAgentConfig,
-      {
+      resolveAgentConfigInline(ctx, {
         orgSlug: args.orgSlug,
         agentSlug: args.agentSlug,
         organizationId: args.organizationId,
-        modelId: effectiveModelId,
-      },
-    );
+        modelId: args.modelId,
+      }),
+    ]);
 
+    // Apply governance default model when no explicit model was requested.
+    // This runs after the parallel block because governanceDefault isn't
+    // available during resolveAgentConfigInline.
+    if (!args.modelId && governanceDefault?.modelId) {
+      agentConfig.model = governanceDefault.modelId;
+    }
+
+    // PII scrubbing must still happen before startChat (modifies message)
     let message = args.message;
     if (piiPolicy?.enabled && piiPolicy.config) {
       const piiConfig: PiiConfig = {
@@ -152,3 +173,65 @@ export const chatWithAgent = action({
     });
   },
 });
+
+/**
+ * Resolve agent config directly from the filesystem, eliminating the
+ * separate resolveAgentConfig internalAction hop (~100-300ms savings).
+ *
+ * This is the same logic as `file_actions.resolveAgentConfig` but runs
+ * inline within the unified_chat action context.
+ */
+async function resolveAgentConfigInline(
+  ctx: ActionCtx,
+  args: {
+    orgSlug: string;
+    agentSlug: string;
+    organizationId: string;
+    modelId?: string;
+  },
+): Promise<SerializableAgentConfig> {
+  const filePath = resolveAgentFilePath(args.orgSlug, args.agentSlug);
+  const result = await readJsonFile<AgentJsonConfig>(
+    filePath,
+    MAX_FILE_SIZE_BYTES,
+    parseAgentJson,
+  );
+  if (!result.ok) {
+    throw new Error(`Agent not found: ${args.agentSlug} — ${result.message}`);
+  }
+
+  const binding = await ctx.runQuery(
+    internal.agents.internal_queries.getBindingByAgent,
+    {
+      organizationId: args.organizationId,
+      agentSlug: args.agentSlug,
+    },
+  );
+
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- binding shape guaranteed by getBindingByAgent query; returns v.any()
+  const typedBinding = binding as {
+    teamId?: string;
+    knowledgeFiles?: KnowledgeFile[];
+  } | null;
+
+  const config = toSerializableConfig(
+    args.agentSlug,
+    result.data,
+    typedBinding
+      ? {
+          teamId: typedBinding.teamId ?? undefined,
+          knowledgeFiles: typedBinding.knowledgeFiles ?? undefined,
+        }
+      : undefined,
+  );
+
+  // Apply model override if requested and allowed by agent's supportedModels.
+  // When an explicit model is forced (e.g. arena mode), disable fallback so
+  // the specific model is tested without automatic failover.
+  if (args.modelId && result.data.supportedModels.includes(args.modelId)) {
+    config.model = args.modelId;
+    config.fallbackModels = undefined;
+  }
+
+  return config;
+}
