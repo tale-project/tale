@@ -100,6 +100,7 @@ export const listIndexedForAgent = internalQuery({
   args: {
     organizationId: v.string(),
     agentTeamId: v.optional(v.string()),
+    agentTeamIds: v.optional(v.array(v.string())),
     includeTeamKnowledge: v.optional(v.boolean()),
     includeOrgKnowledge: v.optional(v.boolean()),
     knowledgeFileIds: v.optional(v.array(v.string())),
@@ -115,6 +116,7 @@ export const getAgentScopedFileIds = internalQuery({
   args: {
     organizationId: v.string(),
     agentTeamId: v.optional(v.string()),
+    agentTeamIds: v.optional(v.array(v.string())),
     includeTeamKnowledge: v.optional(v.boolean()),
     includeOrgKnowledge: v.optional(v.boolean()),
     knowledgeFileIds: v.optional(v.array(v.string())),

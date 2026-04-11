@@ -58,6 +58,10 @@ export function useUpdateAgentBindings() {
   return useConvexMutation(api.agents.mutations.updateAgentBindings);
 }
 
+export function useUpdateAgentSharing() {
+  return useConvexMutation(api.agents.mutations.updateAgentSharing);
+}
+
 export function useAddKnowledgeFile() {
   return useConvexMutation(api.agents.mutations.addKnowledgeFile);
 }

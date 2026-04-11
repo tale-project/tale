@@ -119,6 +119,7 @@ import type * as agent_tools_workflows_trigger_completion_action from "../agent_
 import type * as agent_tools_workflows_update_workflow_step_tool from "../agent_tools/workflows/update_workflow_step_tool.js";
 import type * as agent_tools_workflows_workflow_read_tool from "../agent_tools/workflows/workflow_read_tool.js";
 import type * as agent_tools_workflows_workflow_syntax_tool from "../agent_tools/workflows/workflow_syntax_tool.js";
+import type * as agents_access from "../agents/access.js";
 import type * as agents_arena_chat from "../agents/arena_chat.js";
 import type * as agents_config from "../agents/config.js";
 import type * as agents_file_actions from "../agents/file_actions.js";
@@ -1046,6 +1047,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/workflows/update_workflow_step_tool": typeof agent_tools_workflows_update_workflow_step_tool;
   "agent_tools/workflows/workflow_read_tool": typeof agent_tools_workflows_workflow_read_tool;
   "agent_tools/workflows/workflow_syntax_tool": typeof agent_tools_workflows_workflow_syntax_tool;
+  "agents/access": typeof agents_access;
   "agents/arena_chat": typeof agents_arena_chat;
   "agents/config": typeof agents_config;
   "agents/file_actions": typeof agents_file_actions;

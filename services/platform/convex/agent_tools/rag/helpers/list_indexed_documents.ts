@@ -22,6 +22,7 @@ export async function listIndexedDocuments(
   return ctx.runQuery(internal.documents.internal_queries.listIndexedForAgent, {
     organizationId,
     agentTeamId: extended.agentTeamId,
+    agentTeamIds: extended.agentTeamIds,
     includeTeamKnowledge: extended.includeTeamKnowledge,
     includeOrgKnowledge: extended.includeOrgKnowledge,
     knowledgeFileIds: extended.knowledgeFileIds,

@@ -48,12 +48,59 @@ export const hasBindingsByTeam = query({
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) return false;
 
-    const binding = await ctx.db
+    // Check primary teamId via index
+    const byPrimary = await ctx.db
       .query('agentBindings')
       .withIndex('by_team', (q) => q.eq('teamId', args.teamId))
       .first();
 
-    return binding !== null;
+    if (byPrimary) return true;
+
+    // Check sharedWithTeamIds (requires full org scan since no index)
+    const allBindings = ctx.db.query('agentBindings');
+    for await (const binding of allBindings) {
+      if (binding.sharedWithTeamIds?.includes(args.teamId)) return true;
+    }
+
+    return false;
+  },
+});
+
+export const listBindingsByOrg = query({
+  args: {
+    organizationId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) return [];
+
+    await getOrganizationMember(ctx, args.organizationId, {
+      userId: String(authUser._id),
+      email: authUser.email,
+      name: authUser.name,
+    });
+
+    const results: Array<{
+      agentSlug: string;
+      teamId?: string;
+      sharedWithTeamIds?: string[];
+    }> = [];
+
+    const bindings = ctx.db
+      .query('agentBindings')
+      .withIndex('by_organization', (q) =>
+        q.eq('organizationId', args.organizationId),
+      );
+
+    for await (const binding of bindings) {
+      results.push({
+        agentSlug: binding.agentSlug,
+        teamId: binding.teamId ?? undefined,
+        sharedWithTeamIds: binding.sharedWithTeamIds ?? undefined,
+      });
+    }
+
+    return results;
   },
 });
 

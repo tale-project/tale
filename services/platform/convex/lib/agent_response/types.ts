@@ -31,8 +31,10 @@ export interface GenerateResponseConfig {
   includeTeamKnowledge?: boolean;
   /** Whether to include org-wide documents in knowledge scope (default false) */
   includeOrgKnowledge?: boolean;
-  /** Team ID the agent is assigned to */
+  /** Team ID the agent is assigned to (primary/legacy) */
   agentTeamId?: string;
+  /** All team IDs the agent is scoped to (union of teamId + sharedWithTeamIds) */
+  agentTeamIds?: string[];
   /** Pre-resolved completed file IDs from agent-specific knowledge files */
   knowledgeFileIds?: string[];
   /** Whether to inject structured response markers into the system prompt (default true) */

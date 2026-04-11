@@ -89,6 +89,7 @@ const serializableAgentConfigValidator = v.object({
   includeTeamKnowledge: v.optional(v.boolean()),
   includeOrgKnowledge: v.optional(v.boolean()),
   agentTeamId: v.optional(v.string()),
+  agentTeamIds: v.optional(v.array(v.string())),
   knowledgeFileIds: v.optional(v.array(v.string())),
   delegateSlugs: v.optional(v.array(v.string())),
   structuredResponsesEnabled: v.optional(v.boolean()),
@@ -448,6 +449,7 @@ export const runAgentGeneration = internalAction({
               includeTeamKnowledge: agentConfig.includeTeamKnowledge,
               includeOrgKnowledge: agentConfig.includeOrgKnowledge,
               agentTeamId: agentConfig.agentTeamId,
+              agentTeamIds: agentConfig.agentTeamIds,
               knowledgeFileIds: agentConfig.knowledgeFileIds,
               structuredResponsesEnabled:
                 agentConfig.structuredResponsesEnabled,
@@ -464,9 +466,11 @@ export const runAgentGeneration = internalAction({
               organizationId,
               userId,
               agentSlug: args.agentSlug,
-              teamIds: agentConfig.agentTeamId
-                ? [agentConfig.agentTeamId]
-                : undefined,
+              teamIds:
+                agentConfig.agentTeamIds ??
+                (agentConfig.agentTeamId
+                  ? [agentConfig.agentTeamId]
+                  : undefined),
               providerCost:
                 modelData.inputCentsPerMillion != null
                   ? {
