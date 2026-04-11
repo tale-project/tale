@@ -125,6 +125,16 @@ export const updateFileRagStatus = internalMutation({
           : args.ragProgress,
       ...(args.ocrApplied != null && { ocrApplied: args.ocrApplied }),
     });
+
+    // Sync ocrApplied to linked document so the list view can show it
+    if (args.ocrApplied != null && metadata.documentId) {
+      const doc = await ctx.db.get(metadata.documentId);
+      if (doc) {
+        await ctx.db.patch(metadata.documentId, {
+          ocrApplied: args.ocrApplied,
+        });
+      }
+    }
   },
 });
 
