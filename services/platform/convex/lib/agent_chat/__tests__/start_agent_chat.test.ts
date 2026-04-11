@@ -61,6 +61,10 @@ vi.mock('../../message_deduplication', () => ({
   }),
 }));
 
+const { resolveFeatureFlags } =
+  await import('../../../governance/feature_enforcement');
+const mockedResolveFeatureFlags = vi.mocked(resolveFeatureFlags);
+
 const { startAgentChat } = await import('../start_agent_chat');
 
 function createMockCtx(
@@ -159,5 +163,135 @@ describe('startAgentChat — concurrent generation guard', () => {
       generationStatus: 'generating',
       streamId: 'new-stream-id',
     });
+  });
+});
+
+describe('startAgentChat — feature flag enforcement', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockListMessages.mockResolvedValue({ page: [] });
+    mockSaveMessage.mockResolvedValue({ messageId: 'msg_1' });
+  });
+
+  it('forwards maxContextTokens to scheduled generation when set', async () => {
+    mockedResolveFeatureFlags.mockResolvedValueOnce({
+      webSearch: true,
+      codeExecution: true,
+      fileUpload: true,
+      maxContextTokens: 4096,
+    });
+
+    const ctx = createMockCtx({
+      _id: 'meta_1',
+      generationStatus: 'idle',
+    });
+
+    await startAgentChat(createDefaultArgs(ctx));
+
+    expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
+      expect.any(Number),
+      'mock-runAgentGeneration',
+      expect.objectContaining({ maxContextTokens: 4096 }),
+    );
+  });
+
+  it('removes web tool and sets webSearchMode off when webSearch is disabled', async () => {
+    mockedResolveFeatureFlags.mockResolvedValueOnce({
+      webSearch: false,
+      codeExecution: true,
+      fileUpload: true,
+    });
+
+    const ctx = createMockCtx({
+      _id: 'meta_1',
+      generationStatus: 'idle',
+    });
+
+    const args = {
+      ...createDefaultArgs(ctx),
+      agentConfig: {
+        name: 'test-agent',
+        instructions: 'test',
+        maxSteps: 5,
+        webSearchMode: 'tool' as const,
+        convexToolNames: ['web', 'rag_search'] as never[],
+      },
+    };
+
+    await startAgentChat(args);
+
+    expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
+      expect.any(Number),
+      'mock-runAgentGeneration',
+      expect.objectContaining({
+        agentConfig: expect.objectContaining({
+          webSearchMode: 'off',
+          convexToolNames: ['rag_search'],
+        }),
+      }),
+    );
+  });
+
+  it('blocks file upload with assistant message when fileUpload is disabled', async () => {
+    mockedResolveFeatureFlags.mockResolvedValueOnce({
+      webSearch: true,
+      codeExecution: true,
+      fileUpload: false,
+    });
+
+    const ctx = createMockCtx({
+      _id: 'meta_1',
+      generationStatus: 'idle',
+    });
+
+    const args = {
+      ...createDefaultArgs(ctx),
+      attachments: [
+        {
+          fileId: 'file_1' as never,
+          fileName: 'test.pdf',
+          fileType: 'application/pdf',
+          fileSize: 1024,
+        },
+      ],
+    };
+
+    const result = await startAgentChat(args);
+
+    expect(result.streamId).toBe('new-stream-id');
+    expect(mockSaveMessage).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({
+        message: expect.objectContaining({
+          role: 'assistant',
+          content: expect.stringContaining('File uploads are disabled'),
+        }),
+      }),
+    );
+    expect(ctx.db.patch).toHaveBeenCalledWith(
+      'meta_1',
+      expect.objectContaining({
+        generationStatus: 'idle',
+      }),
+    );
+    expect(ctx.scheduler.runAfter).not.toHaveBeenCalled();
+  });
+
+  it('allows request without attachments when fileUpload is disabled', async () => {
+    mockedResolveFeatureFlags.mockResolvedValueOnce({
+      webSearch: true,
+      codeExecution: true,
+      fileUpload: false,
+    });
+
+    const ctx = createMockCtx({
+      _id: 'meta_1',
+      generationStatus: 'idle',
+    });
+
+    await startAgentChat(createDefaultArgs(ctx));
+
+    expect(ctx.scheduler.runAfter).toHaveBeenCalled();
   });
 });
