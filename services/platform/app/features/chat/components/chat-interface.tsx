@@ -451,7 +451,9 @@ export function ChatInterface({
     message: string,
     sentAttachments?: FileAttachment[],
   ) => {
-    scrollingToBottomBehaviorRef.current = 'smooth';
+    // Instant for new threads (no content to scroll past, avoids layout shift
+    // during the budget-banner → thread transition). Smooth for existing threads.
+    scrollingToBottomBehaviorRef.current = threadId ? 'smooth' : 'instant';
     clearInputValue();
     await sendMessage(message, sentAttachments);
   };
@@ -469,10 +471,10 @@ export function ChatInterface({
 
   const handleSendMessageDirect = useCallback(
     (message: string) => {
-      scrollingToBottomBehaviorRef.current = 'smooth';
+      scrollingToBottomBehaviorRef.current = threadId ? 'smooth' : 'instant';
       void sendMessage(message);
     },
-    [sendMessage],
+    [sendMessage, threadId],
   );
 
   // Edit message → open dialog → create branch on submit
