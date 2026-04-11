@@ -111,6 +111,7 @@ describe('saveFileMetadata (public)', () => {
       fileName: 'test.pdf',
       contentType: 'application/pdf',
       size: 1024,
+      ragStatus: 'queued',
     });
     expect(ctx.db.patch).not.toHaveBeenCalled();
   });
@@ -171,6 +172,7 @@ describe('saveFileMetadata (public)', () => {
       contentType: 'application/pdf',
       size: 1024,
       documentId: 'doc_1',
+      ragStatus: 'queued',
     });
   });
 

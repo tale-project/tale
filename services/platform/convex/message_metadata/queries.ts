@@ -19,10 +19,11 @@ export const getMessageMetadata = query({
     // In error scenarios, the metadata is saved with the failed message's
     // ID which differs from the UIMessage id (first message in group).
     // Fall back to the most recent metadata entry for this thread.
-    if (args.threadId) {
+    const { threadId } = args;
+    if (threadId) {
       return ctx.db
         .query('messageMetadata')
-        .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId!))
+        .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
         .order('desc')
         .first();
     }
