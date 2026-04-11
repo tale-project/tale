@@ -23,6 +23,7 @@ import {
 import { loadDelegateAgents } from '../../agent_tools/delegation/load_delegation_agents';
 import { createBoundIntegrationTool } from '../../agent_tools/integrations/create_bound_integration_tool';
 import { fetchOperationsWithSchema } from '../../agent_tools/integrations/fetch_operations_summary';
+import { createBoundMcpTool } from '../../agent_tools/mcp/create_bound_mcp_tool';
 import { TOOL_NAMES, type ToolName } from '../../agent_tools/tool_names';
 import { getToolRegistryMap } from '../../agent_tools/tool_registry';
 import {
@@ -354,13 +355,58 @@ export const runAgentGeneration = internalAction({
         hasGovernance: !!(mandatoryPrefix || mandatorySuffix),
       });
 
+      // Build bound MCP server tools dynamically
+      let mcpExtraTools: Record<string, unknown> | undefined;
+      {
+        interface ActiveMcpServer {
+          _id: string;
+          name: string;
+          displayName: string;
+          discoveredTools?: Array<{
+            name: string;
+            description?: string;
+            inputSchema?: Record<string, unknown>;
+            requiresApproval?: boolean;
+          }>;
+        }
+        const activeServers: ActiveMcpServer[] = await ctx.runQuery(
+          internal.mcp_servers.internal_queries.listActiveByOrg,
+          { organizationId },
+        );
+        if (activeServers.length > 0) {
+          mcpExtraTools = {};
+          for (const server of activeServers) {
+            if (!server.discoveredTools?.length) continue;
+            for (const tool of server.discoveredTools) {
+              const toolKey = `mcp_${server.name}_${tool.name}`;
+              mcpExtraTools[toolKey] = createBoundMcpTool(
+                server._id,
+                server.displayName,
+                tool,
+              );
+            }
+          }
+          if (Object.keys(mcpExtraTools).length > 0) {
+            debugLog('Built bound MCP tools', {
+              names: Object.keys(mcpExtraTools),
+            });
+          } else {
+            mcpExtraTools = undefined;
+          }
+        }
+      }
+
       // Merge all extra tools
       const allExtraTools: Record<string, unknown> | undefined =
-        integrationExtraTools || delegationExtraTools || workflowExtraTools
+        integrationExtraTools ||
+        delegationExtraTools ||
+        workflowExtraTools ||
+        mcpExtraTools
           ? {
               ...integrationExtraTools,
               ...delegationExtraTools,
               ...workflowExtraTools,
+              ...mcpExtraTools,
             }
           : undefined;
 

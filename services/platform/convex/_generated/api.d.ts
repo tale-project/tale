@@ -467,6 +467,8 @@ import type * as mcp_servers_execute_approved from "../mcp_servers/execute_appro
 import type * as mcp_servers_internal_queries from "../mcp_servers/internal_queries.js";
 import type * as mcp_servers_mutations from "../mcp_servers/mutations.js";
 import type * as mcp_servers_oauth2_helpers from "../mcp_servers/oauth2_helpers.js";
+import type * as mcp_servers_public_mutations from "../mcp_servers/public_mutations.js";
+import type * as mcp_servers_queries from "../mcp_servers/queries.js";
 import type * as members_helpers from "../members/helpers.js";
 import type * as members_internal_queries from "../members/internal_queries.js";
 import type * as members_mutations from "../members/mutations.js";
@@ -1402,6 +1404,8 @@ declare const fullApi: ApiFromModules<{
   "mcp_servers/internal_queries": typeof mcp_servers_internal_queries;
   "mcp_servers/mutations": typeof mcp_servers_mutations;
   "mcp_servers/oauth2_helpers": typeof mcp_servers_oauth2_helpers;
+  "mcp_servers/public_mutations": typeof mcp_servers_public_mutations;
+  "mcp_servers/queries": typeof mcp_servers_queries;
   "members/helpers": typeof members_helpers;
   "members/internal_queries": typeof members_internal_queries;
   "members/mutations": typeof members_mutations;

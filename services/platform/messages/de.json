@@ -239,6 +239,7 @@
     "organization": "Organisation",
     "teams": "Teams",
     "integrations": "Integrationen",
+    "mcpServers": "MCP-Server",
     "providers": "KI-Anbieter",
     "apiKeys": "API-Schlüssel",
     "branding": "Branding",
@@ -3543,6 +3544,7 @@
     "organization": "Du benötigst Admin-Berechtigungen, um auf die Organisationseinstellungen zuzugreifen.",
     "teams": "Du benötigst Admin-Berechtigungen, um auf die Team-Einstellungen zuzugreifen.",
     "agents": "Du benötigst Admin- oder Entwickler-Berechtigungen, um Agents zu verwalten.",
+    "mcpServers": "Du benötigst Admin- oder Entwickler-Berechtigungen, um MCP-Server zu verwalten.",
     "branding": "Du benötigst Admin-Berechtigungen, um auf die Branding-Einstellungen zuzugreifen.",
     "knowledge": "Dein Konto hat keine Berechtigung, auf Wissen zuzugreifen.",
     "noMembership": "Du bist kein Mitglied dieses Workspace. Bitte kontaktiere einen Administrator für Zugriff.",
@@ -3623,6 +3625,10 @@
     "integrations": {
       "title": "Integrationen",
       "description": "Drittanbieter-Dienste verbinden."
+    },
+    "mcpServers": {
+      "title": "MCP-Server",
+      "description": "Externe Tools via Model Context Protocol verbinden."
     },
     "providers": {
       "title": "Anbieter",
@@ -4021,5 +4027,60 @@
       "description": "Den aktuellen Text als wiederverwendbare Prompt-Vorlage speichern."
     },
     "usageCount": "{count, plural, one {# Verwendung} other {# Verwendungen}}"
+  },
+  "mcpServers": {
+    "title": "MCP-Server",
+    "description": "Verbinde interne Datenquellen und Tools via Model Context Protocol.",
+    "addServer": "MCP-Server hinzufügen",
+    "editServer": "MCP-Server bearbeiten",
+    "deleteServer": "MCP-Server löschen",
+    "deleteConfirmation": "Bist du sicher, dass du diese MCP-Server-Verbindung löschen möchtest?",
+    "testConnection": "Verbindung testen",
+    "testing": "Verbindung wird getestet...",
+    "connected": "Verbunden",
+    "disconnected": "Getrennt",
+    "error": "Fehler",
+    "emptyTitle": "Keine MCP-Server konfiguriert",
+    "emptyDescription": "Füge einen MCP-Server hinzu, um externe Tools und Datenquellen mit deinen Agents zu verbinden.",
+    "activate": "Aktivieren",
+    "deactivate": "Deaktivieren",
+    "form": {
+      "name": "Name",
+      "displayName": "Anzeigename",
+      "description": "Beschreibung",
+      "transportType": "Transporttyp",
+      "url": "URL",
+      "command": "Befehl",
+      "args": "Argumente",
+      "authType": "Authentifizierung",
+      "none": "Keine",
+      "apiKey": "API Key",
+      "oauth2": "OAuth 2.0",
+      "save": "Server speichern",
+      "saving": "Wird gespeichert...",
+      "cancel": "Abbrechen",
+      "connectionSection": "Verbindung",
+      "authSection": "Authentifizierung"
+    },
+    "oauth2": {
+      "title": "OAuth 2.0 Konfiguration",
+      "tokenUrl": "Token-URL",
+      "authorizationUrl": "Autorisierungs-URL",
+      "clientId": "Client-ID",
+      "clientSecret": "Client-Geheimnis",
+      "scopes": "Bereiche",
+      "grantType": "Berechtigungstyp",
+      "clientCredentials": "Client Credentials",
+      "authorizationCode": "Authorization Code",
+      "authorize": "Autorisieren",
+      "authorized": "Autorisiert"
+    },
+    "tools": {
+      "title": "Erkannte Tools",
+      "noTools": "Keine Tools erkannt. Teste zuerst die Verbindung.",
+      "requiresApproval": "Genehmigung erforderlich"
+    },
+    "saved": "MCP-Server gespeichert",
+    "deleted": "MCP-Server gelöscht"
   }
 }

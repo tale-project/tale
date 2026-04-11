@@ -15,6 +15,7 @@ type SettingsLabelKey =
   | 'organization'
   | 'teams'
   | 'integrations'
+  | 'mcpServers'
   | 'providers'
   | 'apiKeys'
   | 'branding'
@@ -46,6 +47,12 @@ export function SettingsNavigation({
       labelKey: 'integrations',
       label: t('integrations'),
       href: `/dashboard/${organizationId}/settings/integrations`,
+      can: ['read', 'developerSettings'],
+    },
+    {
+      labelKey: 'mcpServers',
+      label: t('mcpServers'),
+      href: `/dashboard/${organizationId}/settings/mcp-servers`,
       can: ['read', 'developerSettings'],
     },
     {
