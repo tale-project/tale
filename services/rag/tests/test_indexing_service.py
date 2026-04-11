@@ -643,6 +643,8 @@ class TestHnswIndexSelfHealing:
         from app.services.indexing_service import store_prepared_document, PreparedDocument
 
         pool, mock_conn = _mock_pool(existing_row=None)
+        # store_prepared_document calls _do_store directly (no early-dedup)
+        mock_conn.fetchrow = AsyncMock(side_effect=[None, {"id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"}])
 
         prepared = PreparedDocument(
             content_hash=SAMPLE_HASH,

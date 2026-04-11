@@ -317,10 +317,11 @@ class TestIndexDocumentDatesThreaded:
 
         assert result["success"] is True
 
-        # The INSERT query has 6 positional args:
+        # The INSERT query has 7 positional args:
         # $1=file_id, $2=filename, $3=content_hash, $4=chunks_count,
-        # $5=source_created_at, $6=source_modified_at
-        insert_call = mock_conn.fetchrow.call_args_list[1]
+        # $5=source_created_at, $6=source_modified_at, $7=ocr_applied
+        # call_args_list[0] = early-dedup check, [1] = cross-scope dedup, [2] = INSERT
+        insert_call = mock_conn.fetchrow.call_args_list[2]
         args = insert_call[0]
         # args[0] is the SQL string, positional params start at args[1]
         source_created_arg = args[5]  # $5
