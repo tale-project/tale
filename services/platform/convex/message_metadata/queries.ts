@@ -22,7 +22,7 @@ export const getMessageMetadata = query({
     if (args.threadId) {
       return ctx.db
         .query('messageMetadata')
-        .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
+        .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId!))
         .order('desc')
         .first();
     }
