@@ -67,11 +67,15 @@ export function ProviderAddPanel({
             field: t('providers.displayName'),
           }),
         ),
-        baseUrl: z.string().url(
-          tCommon('validation.required', {
-            field: t('providers.baseUrl'),
-          }),
-        ),
+        baseUrl: z
+          .string()
+          .min(
+            1,
+            tCommon('validation.required', {
+              field: t('providers.baseUrl'),
+            }),
+          )
+          .url(tCommon('validation.url')),
         apiKey: z.string().min(
           1,
           tCommon('validation.required', {
@@ -287,7 +291,11 @@ export function ProviderAddPanel({
               </HStack>
 
               {errors.models?.root?.message && (
-                <Text variant="caption" className="text-destructive text-sm">
+                <Text
+                  variant="caption"
+                  className="text-destructive text-sm"
+                  role="alert"
+                >
                   {errors.models.root.message}
                 </Text>
               )}
@@ -359,6 +367,7 @@ export function ProviderAddPanel({
                         <Text
                           variant="caption"
                           className="text-destructive text-sm"
+                          role="alert"
                         >
                           {errors.models[index].tags.message}
                         </Text>

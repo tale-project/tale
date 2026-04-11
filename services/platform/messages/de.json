@@ -135,7 +135,8 @@
       "invalidJson": "Ungültiges JSON-Format",
       "uploadFile": "Bitte lade eine Datei hoch",
       "unsupportedFileType": "Nicht unterstützter Dateityp",
-      "schemaValidationFailed": "Schema-Validierung fehlgeschlagen{error, select, empty {} other {: {error}}}"
+      "schemaValidationFailed": "Schema-Validierung fehlgeschlagen{error, select, empty {} other {: {error}}}",
+      "url": "Bitte gib eine gültige URL ein"
     },
     "aria": {
       "close": "Schließen",

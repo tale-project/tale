@@ -1,6 +1,7 @@
 'use client';
 
 import { Info } from 'lucide-react';
+import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -18,10 +19,13 @@ export function CollapsibleGuide({
   content,
   defaultOpen,
 }: CollapsibleGuideProps) {
+  const [isOpen, setIsOpen] = useState(Boolean(defaultOpen));
+
   return (
     <details
       className="bg-muted/30 border-border rounded-lg border"
-      open={defaultOpen}
+      open={isOpen}
+      onToggle={(event) => setIsOpen(event.currentTarget.open)}
     >
       <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm font-medium">
         <Info className="text-muted-foreground size-3.5 shrink-0" />

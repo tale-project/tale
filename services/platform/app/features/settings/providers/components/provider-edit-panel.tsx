@@ -71,7 +71,9 @@ export function ProviderEditPanel({
   );
 
   const isValid =
-    form.displayName.trim().length > 0 && form.baseUrl.trim().length > 0;
+    form.displayName.trim().length > 0 &&
+    form.baseUrl.trim().length > 0 &&
+    URL.canParse(form.baseUrl.trim());
 
   const isDirty =
     data?.ok &&
