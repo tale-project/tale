@@ -1,7 +1,14 @@
 'use client';
 
 import { X, Paperclip, ArrowUp, CircleStop, Loader } from 'lucide-react';
-import { ComponentPropsWithoutRef, useRef, useMemo, useState } from 'react';
+import {
+  ComponentPropsWithoutRef,
+  useCallback,
+  useRef,
+  useMemo,
+  useState,
+} from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { EnterKeyIcon } from '@/app/components/icons/enter-key-icon';
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
@@ -22,8 +29,16 @@ import { AgentSelector } from './agent-selector';
 import { useArenaModeOptional } from './arena/arena-mode-context';
 import { ArenaModeToggle } from './arena/arena-mode-toggle';
 import { ArenaModelSelector } from './arena/arena-model-selector';
+import { DictationButton } from './dictation-button';
 import { ImagePreviewDialog } from './message-bubble';
 import { ModelSelector } from './model-selector';
+
+const LOCALE_TO_BCP47: Record<string, string> = {
+  en: 'en-US',
+  de: 'de-DE',
+  'de-AT': 'de-AT',
+  'de-CH': 'de-CH',
+};
 
 interface ChatInputProps extends Omit<
   ComponentPropsWithoutRef<'div'>,
@@ -73,8 +88,11 @@ export function ChatInput({
 }: ChatInputProps) {
   const { t: tChat } = useT('chat');
   const { t: tDialogs } = useT('dialogs');
+  const { i18n } = useTranslation();
   const arenaContext = useArenaModeOptional();
   const isArenaMode = arenaContext?.isArenaMode ?? false;
+
+  const speechLang = LOCALE_TO_BCP47[i18n.language] ?? 'en-US';
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -117,6 +135,14 @@ export function ChatInput({
   const handleInputChange = (newValue: string) => {
     onChange?.(newValue);
   };
+
+  const handleTranscript = useCallback(
+    (transcript: string) => {
+      const separator = value.length > 0 && !value.endsWith(' ') ? ' ' : '';
+      onChange?.(value + separator + transcript);
+    },
+    [value, onChange],
+  );
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -366,6 +392,11 @@ export function ChatInput({
                   </Button>
                 </Tooltip>
               )}
+              <DictationButton
+                disabled={inputDisabled}
+                lang={speechLang}
+                onTranscript={handleTranscript}
+              />
               <ArenaModeToggle disabled={isLoading} />
               {isArenaMode ? (
                 <ArenaModelSelector organizationId={organizationId} />
