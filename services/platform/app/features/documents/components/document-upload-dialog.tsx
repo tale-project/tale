@@ -63,6 +63,16 @@ export function DocumentUploadDialog({
     ? policyLimits.documentMaxFileSize
     : DOCUMENT_MAX_FILE_SIZE;
 
+  const effectiveAccept = useMemo(() => {
+    if (
+      !policyLimits.policyEnabled ||
+      policyLimits.allowedExtensions.length === 0
+    ) {
+      return DOCUMENT_UPLOAD_ACCEPT;
+    }
+    return policyLimits.allowedExtensions.map((ext) => `.${ext}`).join(',');
+  }, [policyLimits]);
+
   const {
     stageFiles,
     uploadFiles,
@@ -126,6 +136,40 @@ export function DocumentUploadDialog({
           continue;
         }
 
+        // Check policy extension restrictions
+        if (policyLimits.policyEnabled) {
+          const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+          if (
+            policyLimits.blockedExtensions.length > 0 &&
+            policyLimits.blockedExtensions.includes(ext)
+          ) {
+            toast({
+              title: tDocuments('upload.unsupportedFileType'),
+              description: tDocuments('upload.extensionBlocked', {
+                name: file.name,
+                ext,
+              }),
+              variant: 'destructive',
+            });
+            continue;
+          }
+          if (
+            policyLimits.allowedExtensions.length > 0 &&
+            !policyLimits.allowedExtensions.includes(ext)
+          ) {
+            toast({
+              title: tDocuments('upload.unsupportedFileType'),
+              description: tDocuments('upload.extensionNotAllowed', {
+                name: file.name,
+                ext,
+                allowed: policyLimits.allowedExtensions.join(', '),
+              }),
+              variant: 'destructive',
+            });
+            continue;
+          }
+        }
+
         if (file.size > effectiveMaxFileSize) {
           const currentSizeMB = (file.size / (1024 * 1024)).toFixed(1);
           toast({
@@ -147,7 +191,7 @@ export function DocumentUploadDialog({
         stageFiles(validFiles);
       }
     },
-    [tDocuments, stageFiles, effectiveMaxFileSize],
+    [tDocuments, stageFiles, effectiveMaxFileSize, policyLimits],
   );
 
   const handleTeamSelectionChange = useCallback((teamIds: string[]) => {
@@ -206,7 +250,7 @@ export function DocumentUploadDialog({
         <FileUpload.Root>
           <FileUpload.DropZone
             onFilesSelected={processFiles}
-            accept={DOCUMENT_UPLOAD_ACCEPT}
+            accept={effectiveAccept}
             multiple
             disabled={isUploading || allCompleted}
             inputId="document-file-upload"

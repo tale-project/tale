@@ -80,6 +80,8 @@
   },
   "chat": {
     "filesNotSupported": "Einige Dateien sind zu gross (>100 MB) oder werden nicht unterstützt. Unterstützt: Bilder, PDF, Word-Dokumente, Textdateien.",
+    "fileSizeExceededMultiple": "{names} überschreitet das Dateigrössenlimit von {maxSize} MB.",
+    "fileTypeNotAllowed": "{names}: Dateityp nicht erlaubt laut Upload-Richtlinie.",
     "canvas": {
       "close": "Canvas schliessen",
       "resizeHandle": "Canvas-Grösse ändern"

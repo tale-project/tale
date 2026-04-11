@@ -2654,6 +2654,8 @@
     "searchConversations": "Search conversations",
     "invalidFiles": "Invalid files",
     "filesNotSupported": "Some files are too large (>100MB) or not supported. Supported: images, PDF, Word docs, text files.",
+    "fileSizeExceededMultiple": "{names} exceeded the {maxSize}MB file size limit.",
+    "fileTypeNotAllowed": "{names}: file type not allowed by upload policy.",
     "fileUploaded": "File uploaded",
     "uploadedSuccessfully": "{filename} uploaded successfully",
     "uploadFailed": "Upload failed",
@@ -3022,6 +3024,8 @@
       "documentsUploadedSuccessfully": "{count} {count, plural, one {document} other {documents}} uploaded successfully",
       "unsupportedFileType": "Unsupported file type",
       "unsupportedFileTypeDescription": "{name} is not a supported format. Supported formats: PDF, DOCX, XLSX, CSV, TXT, PPTX, images.",
+      "extensionBlocked": "{name}: .{ext} files are blocked by upload policy.",
+      "extensionNotAllowed": "{name}: .{ext} is not allowed. Allowed types: {allowed}.",
       "uploadDocuments": "Upload"
     },
     "import": {

@@ -16,6 +16,8 @@ import { useGovernancePolicy } from './queries';
 interface UploadPolicyLimits {
   maxFileSize: number;
   allowedTypes: string[];
+  allowedExtensions: string[];
+  blockedExtensions: string[];
   documentMaxFileSize: number;
   policyEnabled: boolean;
 }
@@ -41,6 +43,8 @@ export function useUploadPolicy(organizationId: string): UploadPolicyLimits {
       return {
         maxFileSize: CHAT_MAX_FILE_SIZE,
         allowedTypes: [...CHAT_UPLOAD_ALLOWED_TYPES],
+        allowedExtensions: [],
+        blockedExtensions: [],
         documentMaxFileSize: DOCUMENT_MAX_FILE_SIZE,
         policyEnabled: false,
       };
@@ -52,6 +56,12 @@ export function useUploadPolicy(organizationId: string): UploadPolicyLimits {
         config.allowedMimeTypes && config.allowedMimeTypes.length > 0
           ? config.allowedMimeTypes
           : [...CHAT_UPLOAD_ALLOWED_TYPES],
+      allowedExtensions: (config.allowedExtensions ?? []).map((e) =>
+        e.toLowerCase().replace(/^\./, ''),
+      ),
+      blockedExtensions: (config.blockedExtensions ?? []).map((e) =>
+        e.toLowerCase().replace(/^\./, ''),
+      ),
       documentMaxFileSize: config.maxFileSizeBytes ?? DOCUMENT_MAX_FILE_SIZE,
       policyEnabled: true,
     };

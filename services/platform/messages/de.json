@@ -2646,6 +2646,8 @@
     "searchConversations": "Konversationen durchsuchen",
     "invalidFiles": "Ungültige Dateien",
     "filesNotSupported": "Einige Dateien sind zu groß (>100 MB) oder werden nicht unterstützt. Unterstützt: Bilder, PDF, Word-Dokumente, Textdateien.",
+    "fileSizeExceededMultiple": "{names} überschreitet das Dateigrößenlimit von {maxSize} MB.",
+    "fileTypeNotAllowed": "{names}: Dateityp nicht erlaubt laut Upload-Richtlinie.",
     "fileUploaded": "Datei hochgeladen",
     "uploadedSuccessfully": "{filename} erfolgreich hochgeladen",
     "uploadFailed": "Upload fehlgeschlagen",
@@ -2997,6 +2999,8 @@
       "documentsUploadedSuccessfully": "{count} {count, plural, one {Dokument} other {Dokumente}} erfolgreich hochgeladen",
       "unsupportedFileType": "Nicht unterstützter Dateityp",
       "unsupportedFileTypeDescription": "{name} ist kein unterstütztes Format. Unterstützte Formate: PDF, DOCX, XLSX, CSV, TXT, PPTX, Bilder.",
+      "extensionBlocked": "{name}: .{ext}-Dateien sind durch die Upload-Richtlinie blockiert.",
+      "extensionNotAllowed": "{name}: .{ext} ist nicht erlaubt. Erlaubte Typen: {allowed}.",
       "uploadDocuments": "Hochladen"
     },
     "import": {

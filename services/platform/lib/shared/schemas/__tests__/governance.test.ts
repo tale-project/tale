@@ -57,8 +57,11 @@ describe('retentionPolicyConfigSchema', () => {
     const result = retentionPolicyConfigSchema.safeParse({
       enabled: true,
       retentionDays: 90,
-      scope: 'upload',
       batchSize: 50,
+      userTempEnabled: true,
+      userTempRetentionHours: 24,
+      agentTempEnabled: false,
+      agentTempRetentionHours: 48,
     });
 
     expect(result.success).toBe(true);
@@ -90,33 +93,34 @@ describe('retentionPolicyConfigSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('rejects invalid scope value', () => {
+  it('rejects negative batchSize', () => {
     const result = retentionPolicyConfigSchema.safeParse({
       enabled: true,
       retentionDays: 30,
-      scope: 'invalid',
+      batchSize: -1,
     });
 
     expect(result.success).toBe(false);
   });
 
-  it('accepts scope all', () => {
+  it('accepts config with temp file settings', () => {
     const result = retentionPolicyConfigSchema.safeParse({
       enabled: true,
       retentionDays: 30,
-      scope: 'all',
+      userTempEnabled: true,
+      userTempRetentionHours: 12,
     });
 
     expect(result.success).toBe(true);
   });
 
-  it('accepts scope agent', () => {
+  it('rejects negative temp retention hours', () => {
     const result = retentionPolicyConfigSchema.safeParse({
       enabled: true,
-      retentionDays: 90,
-      scope: 'agent',
+      retentionDays: 30,
+      agentTempRetentionHours: -5,
     });
 
-    expect(result.success).toBe(true);
+    expect(result.success).toBe(false);
   });
 });
