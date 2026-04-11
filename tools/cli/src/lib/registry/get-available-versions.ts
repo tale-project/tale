@@ -20,10 +20,18 @@ interface VersionsResult {
   error?: 'network' | 'unknown';
 }
 
+const SERVICE_NAMES = ['platform', 'rag', 'crawler', 'db', 'proxy'];
+
 function parseRegistry(registry: string): string | null {
   const match = registry.match(/^ghcr\.io\/(.+)$/);
   if (!match) return null;
   return `${match[1]}/tale-platform`;
+}
+
+function parseRegistryBase(registry: string): string | null {
+  const match = registry.match(/^ghcr\.io\/(.+)$/);
+  if (!match) return null;
+  return match[1];
 }
 
 async function getRegistryToken(image: string): Promise<string | null> {
@@ -83,6 +91,21 @@ async function getManifestDigest(
   }
 }
 
+async function hasCompleteManifests(
+  registryBase: string,
+  tag: string,
+): Promise<boolean> {
+  const checks = SERVICE_NAMES.map(async (svc) => {
+    const image = `${registryBase}/tale-${svc}`;
+    const svcToken = await getRegistryToken(image);
+    if (!svcToken) return false;
+    const digest = await getManifestDigest(image, tag, svcToken);
+    return digest !== null;
+  });
+  const results = await Promise.all(checks);
+  return results.every(Boolean);
+}
+
 function isBranchTag(tag: string): boolean {
   return /^main-[a-f0-9]+$/.test(tag);
 }
@@ -96,7 +119,8 @@ export async function getAvailableVersions(
   limit = 10,
 ): Promise<VersionsResult> {
   const image = parseRegistry(registry);
-  if (!image) {
+  const registryBase = parseRegistryBase(registry);
+  if (!image || !registryBase) {
     logger.debug(`Cannot parse registry URL: ${registry}`);
     return { versions: [], error: 'unknown' };
   }
@@ -153,15 +177,24 @@ export async function getAvailableVersions(
       );
     }
 
-    // Verify manifests exist by lazily probing tags until we have enough
-    // published versions (handles runs of recent tags with missing manifests)
-    const publishedVersions = new Set<string>();
-    for (const tag of sortedSemanticTags) {
-      if (publishedVersions.size >= limit) break;
-      const hasManifest = !!(await getManifestDigest(image, tag, token));
-      if (hasManifest) {
-        publishedVersions.add(tag);
-      }
+    // Verify the top candidate versions have complete manifests across all services.
+    // Only check the first few to avoid excessive API calls.
+    const MANIFEST_CHECK_LIMIT = 5;
+    const candidateTags = sortedSemanticTags.slice(0, MANIFEST_CHECK_LIMIT);
+    const manifestChecks = await Promise.all(
+      candidateTags.map(async (tag) => {
+        const complete = await hasCompleteManifests(registryBase, tag);
+        return { tag, complete };
+      }),
+    );
+    const incompleteVersions = new Set(
+      manifestChecks.filter((r) => !r.complete).map((r) => r.tag),
+    );
+
+    if (incompleteVersions.size > 0) {
+      logger.debug(
+        `Versions with incomplete manifests: ${[...incompleteVersions].join(', ')}`,
+      );
     }
 
     // Build version list
@@ -173,15 +206,16 @@ export async function getAvailableVersions(
       versionInfos.push({ tag: 'latest', aliases });
     }
 
-    // Add semantic versions (skip the first one if it matches latest)
+    // Add semantic versions (skip those with incomplete manifests)
     const startIndex = latestMatchesSemanticTag ? 1 : 0;
     for (
       let i = startIndex;
       i < sortedSemanticTags.length && versionInfos.length < limit;
       i++
     ) {
-      if (!publishedVersions.has(sortedSemanticTags[i])) continue;
-      versionInfos.push({ tag: sortedSemanticTags[i], aliases: [] });
+      const tag = sortedSemanticTags[i];
+      if (incompleteVersions.has(tag)) continue;
+      versionInfos.push({ tag, aliases: [] });
     }
 
     // Fallback to branch tags if no semantic versions
