@@ -44,6 +44,17 @@ export const BUILT_IN_PII_PATTERNS: PiiPattern[] = [
       /\b\d{1,5}\s+[\w\s]{1,30}(?:street|st|avenue|ave|road|rd|drive|dr|lane|ln|boulevard|blvd|court|ct|way|place|pl)\b/gi,
     replacement: '[ADDRESS]',
   },
+  {
+    name: 'iban',
+    regex:
+      /\b[A-Z]{2}\d{2}[\s-]?[\dA-Z]{4}[\s-]?(?:[\dA-Z]{4}[\s-]?){2,7}[\dA-Z]{1,4}\b/g,
+    replacement: '[IBAN]',
+  },
+  {
+    name: 'germanId',
+    regex: /\b[CFGHJKLMNPRTVWXYZ\d][CFGHJKLMNPRTVWXYZ\d]{8}\b/g,
+    replacement: '[GERMAN_ID]',
+  },
 ];
 
 /**

@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { Tabs } from '@/app/components/ui/navigation/tabs';
 import { BudgetEditor } from '@/app/features/settings/governance/components/budget-editor';
+import { PiiConfig } from '@/app/features/settings/governance/components/pii-config';
 import { RetentionEditor } from '@/app/features/settings/governance/components/retention-editor';
 import { SystemPromptEditor } from '@/app/features/settings/governance/components/system-prompt-editor';
 import { UsageDashboard } from '@/app/features/settings/governance/components/usage-dashboard';
@@ -29,6 +30,7 @@ function GovernanceSettingsPage() {
   const search = Route.useSearch();
   const navigate = useNavigate();
   const { t } = useT('accessDenied');
+  const { t: tGov } = useT('governance');
 
   const ability = useAbility();
   const abilityLoading = useAbilityLoading();
@@ -47,12 +49,12 @@ function GovernanceSettingsPage() {
     () => [
       {
         value: 'system-prompt',
-        label: 'System Prompt',
+        label: tGov('tabs.systemPrompt'),
         content: <SystemPromptEditor organizationId={organizationId} />,
       },
       {
         value: 'budgets',
-        label: 'Budgets',
+        label: tGov('tabs.budgets'),
         content: <BudgetEditor organizationId={organizationId} />,
       },
       {
@@ -62,11 +64,16 @@ function GovernanceSettingsPage() {
       },
       {
         value: 'usage',
-        label: 'Usage',
+        label: tGov('tabs.usage'),
         content: <UsageDashboard organizationId={organizationId} />,
       },
+      {
+        value: 'pii',
+        label: tGov('tabs.pii'),
+        content: <PiiConfig organizationId={organizationId} />,
+      },
     ],
-    [organizationId],
+    [organizationId, tGov],
   );
 
   if (abilityLoading) {

@@ -1,11 +1,13 @@
 import { z } from 'zod/v4';
 
 export const POLICY_TYPES = [
+  'system_prompt',
   'budgets',
   'default_models',
   'upload_policy',
   'retention_policy',
   'feature_flags',
+  'pii_config',
 ] as const;
 export type PolicyType = (typeof POLICY_TYPES)[number];
 
@@ -75,3 +77,18 @@ export const featureFlagsConfigSchema = z.object({
   enabled: z.boolean(),
 });
 export type FeatureFlagsConfig = z.infer<typeof featureFlagsConfigSchema>;
+
+export const piiCustomPatternSchema = z.object({
+  name: z.string().min(1),
+  regex: z.string().min(1),
+  replacement: z.string().min(1),
+});
+export type PiiCustomPattern = z.infer<typeof piiCustomPatternSchema>;
+
+export const piiConfigSchema = z.object({
+  enabled: z.boolean(),
+  mode: z.enum(['mask', 'block']),
+  enabledPatterns: z.array(z.string()),
+  customPatterns: z.array(piiCustomPatternSchema).optional(),
+});
+export type PiiConfigData = z.infer<typeof piiConfigSchema>;
