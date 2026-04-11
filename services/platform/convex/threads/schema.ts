@@ -22,6 +22,7 @@ export const threadMetadataTable = defineTable({
   agentId: v.optional(v.id('agentBindings')),
   /** @deprecated Retained for backward compatibility with existing documents. */
   customAgentId: v.optional(v.id('customAgents')),
+  organizationId: v.optional(v.string()),
   // Sharing fields
   shareToken: v.optional(v.string()),
   sharedAt: v.optional(v.number()),
@@ -53,4 +54,5 @@ export const threadMetadataTable = defineTable({
     'updatedAt',
   ])
   .index('by_shareToken', ['shareToken'])
-  .index('by_arenaGroupId', ['arenaGroupId']);
+  .index('by_arenaGroupId', ['arenaGroupId'])
+  .index('by_organizationId', ['organizationId']);

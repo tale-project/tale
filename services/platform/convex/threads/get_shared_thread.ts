@@ -1,8 +1,12 @@
 import { v } from 'convex/values';
 
 import { query } from '../_generated/server';
+import { isOrgMember } from '../lib/rls/auth/check_org_membership';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getThreadMessages } from './get_thread_messages';
+
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const getSharedThread = query({
   args: {
@@ -14,6 +18,10 @@ export const getSharedThread = query({
       return null;
     }
 
+    if (!UUID_REGEX.test(args.shareToken)) {
+      return null;
+    }
+
     const metadata = await ctx.db
       .query('threadMetadata')
       .withIndex('by_shareToken', (q) => q.eq('shareToken', args.shareToken))
@@ -21,6 +29,18 @@ export const getSharedThread = query({
 
     if (!metadata || !metadata.isShared) {
       return null;
+    }
+
+    // Org-scoped access: if the thread has an organizationId, verify membership
+    if (metadata.organizationId) {
+      const isMember = await isOrgMember(
+        ctx,
+        authUser.userId,
+        metadata.organizationId,
+      );
+      if (!isMember) {
+        return null;
+      }
     }
 
     const { messages: allMessages } = await getThreadMessages(

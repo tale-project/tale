@@ -5,6 +5,7 @@ import { v } from 'convex/values';
 import { components } from '../_generated/api';
 import { query } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls';
+import { isOrgMember } from '../lib/rls/auth/check_org_membership';
 import { getThreadMessages as getThreadMessagesHelper } from './get_thread_messages';
 import { getThreadMessagesStreaming as getThreadMessagesStreamingHelper } from './get_thread_messages_streaming';
 import { listArchivedThreads as listArchivedThreadsHelper } from './list_archived_threads';
@@ -146,7 +147,19 @@ export const getThreadMessagesStreaming = query({
       .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
       .first();
 
-    if (!metadata || metadata.userId !== authUser.userId) {
+    const isOwner = metadata?.userId === authUser.userId;
+
+    // Non-owner: check if thread is shared and user is in the same org
+    let isSharedAccess = false;
+    if (metadata && !isOwner && metadata.isShared && metadata.organizationId) {
+      isSharedAccess = await isOrgMember(
+        ctx,
+        authUser.userId,
+        metadata.organizationId,
+      );
+    }
+
+    if (!metadata || (!isOwner && !isSharedAccess)) {
       return {
         page: [],
         isDone: true,
@@ -207,9 +220,26 @@ export const getThreadStatus = query({
       .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
       .first();
 
-    if (!metadata || metadata.userId !== authUser.userId) return null;
+    if (!metadata) return null;
 
-    return metadata.status ?? null;
+    // Owner always gets the real status
+    if (metadata.userId === authUser.userId) {
+      return metadata.status ?? null;
+    }
+
+    // Non-owner: allow read-only access if thread is shared and user is in the same org
+    if (metadata.isShared && metadata.organizationId) {
+      const isMember = await isOrgMember(
+        ctx,
+        authUser.userId,
+        metadata.organizationId,
+      );
+      if (isMember) {
+        return 'shared-readonly';
+      }
+    }
+
+    return null;
   },
 });
 

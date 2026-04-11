@@ -411,6 +411,7 @@ import type * as lib_response_cache_normalize from "../lib/response_cache/normal
 import type * as lib_response_cache_semantic_cache from "../lib/response_cache/semantic_cache.js";
 import type * as lib_response_cache_tool_cacheability from "../lib/response_cache/tool_cacheability.js";
 import type * as lib_rest_helpers from "../lib/rest/helpers.js";
+import type * as lib_rls_auth_check_org_membership from "../lib/rls/auth/check_org_membership.js";
 import type * as lib_rls_auth_get_auth_user_identity from "../lib/rls/auth/get_auth_user_identity.js";
 import type * as lib_rls_auth_get_authenticated_user from "../lib/rls/auth/get_authenticated_user.js";
 import type * as lib_rls_auth_get_trusted_auth_data from "../lib/rls/auth/get_trusted_auth_data.js";
@@ -1336,6 +1337,7 @@ declare const fullApi: ApiFromModules<{
   "lib/response_cache/semantic_cache": typeof lib_response_cache_semantic_cache;
   "lib/response_cache/tool_cacheability": typeof lib_response_cache_tool_cacheability;
   "lib/rest/helpers": typeof lib_rest_helpers;
+  "lib/rls/auth/check_org_membership": typeof lib_rls_auth_check_org_membership;
   "lib/rls/auth/get_auth_user_identity": typeof lib_rls_auth_get_auth_user_identity;
   "lib/rls/auth/get_authenticated_user": typeof lib_rls_auth_get_authenticated_user;
   "lib/rls/auth/get_trusted_auth_data": typeof lib_rls_auth_get_trusted_auth_data;

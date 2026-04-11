@@ -6,6 +6,7 @@ import { authComponent } from '../auth';
 export const shareThread = mutation({
   args: {
     threadId: v.string(),
+    organizationId: v.optional(v.string()),
   },
   returns: v.string(),
   handler: async (ctx, args) => {
@@ -27,6 +28,18 @@ export const shareThread = mutation({
       throw new Error('Not authorized to share this thread');
     }
 
+    if (metadata.status === 'archived') {
+      throw new Error('Cannot share an archived thread');
+    }
+
+    if (metadata.arenaGroupId) {
+      throw new Error('Cannot share arena mode threads');
+    }
+
+    if (metadata.isBranch) {
+      throw new Error('Cannot share branch threads');
+    }
+
     if (metadata.isShared && metadata.shareToken) {
       return metadata.shareToken;
     }
@@ -38,6 +51,11 @@ export const shareThread = mutation({
       isShared: true,
       sharedAt: Date.now(),
       sharedBy: String(authUser._id),
+      // Store organizationId if provided and not already set
+      ...(args.organizationId &&
+        !metadata.organizationId && {
+          organizationId: args.organizationId,
+        }),
     });
 
     return shareToken;
@@ -66,6 +84,10 @@ export const unshareThread = mutation({
 
     if (metadata.userId !== String(authUser._id)) {
       throw new Error('Not authorized to unshare this thread');
+    }
+
+    if (metadata.status === 'archived') {
+      throw new Error('Cannot unshare an archived thread');
     }
 
     await ctx.db.patch(metadata._id, {
