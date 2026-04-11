@@ -3,6 +3,7 @@
 import { v } from 'convex/values';
 
 import { extractExtension } from '../../lib/shared/file-types';
+import { fetchJson } from '../../lib/utils/type-cast-helpers';
 import {
   isRecord,
   getBoolean,
@@ -10,7 +11,9 @@ import {
   getString,
 } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
+import type { Id } from '../_generated/dataModel';
 import { internalAction } from '../_generated/server';
+import { buildDownloadUrl } from '../lib/helpers/public_storage_url';
 import { getRagConfig } from '../lib/helpers/rag_config';
 import { ragAction } from '../workflow_engine/action_defs/rag/rag_action';
 import { getCrawlerUrl } from './generate_document_helpers';
@@ -628,6 +631,71 @@ export const reindexDocumentInRag = internalAction({
     }
 
     return null;
+  },
+});
+
+/**
+ * Store raw string content (e.g. HTML) directly as a file in Convex storage.
+ * Used by tools that generate content locally without the crawler service.
+ */
+export const storeRawContent = internalAction({
+  args: {
+    organizationId: v.string(),
+    fileName: v.string(),
+    content: v.string(),
+    contentType: v.string(),
+    extension: v.string(),
+  },
+  handler: async (ctx, args): Promise<GenerateDocumentResult> => {
+    const bytes = new TextEncoder().encode(args.content);
+    const size = bytes.byteLength;
+
+    const uploadUrl = await ctx.storage.generateUploadUrl();
+    const uploadResponse = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': args.contentType },
+      body: bytes,
+    });
+
+    if (!uploadResponse.ok) {
+      throw new Error(
+        `Failed to upload content: ${uploadResponse.status} ${uploadResponse.statusText}`,
+      );
+    }
+
+    const { storageId } = await fetchJson<{ storageId: Id<'_storage'> }>(
+      uploadResponse,
+    );
+
+    const lowerFileName = args.fileName.toLowerCase();
+    const expectedSuffix = `.${args.extension.toLowerCase()}`;
+    const finalFileName = lowerFileName.endsWith(expectedSuffix)
+      ? args.fileName
+      : `${args.fileName}.${args.extension}`;
+
+    await ctx.runMutation(
+      internal.file_metadata.internal_mutations.saveFileMetadata,
+      {
+        organizationId: args.organizationId,
+        storageId,
+        fileName: finalFileName,
+        contentType: args.contentType,
+        size,
+        source: 'agent',
+      },
+    );
+
+    const downloadUrl = buildDownloadUrl(storageId, finalFileName);
+
+    return {
+      success: true,
+      fileStorageId: storageId,
+      downloadUrl,
+      fileName: finalFileName,
+      contentType: args.contentType,
+      size,
+      extension: args.extension,
+    };
   },
 });
 

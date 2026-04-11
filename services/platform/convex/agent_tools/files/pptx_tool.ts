@@ -1,7 +1,8 @@
 /**
- * Convex Tool: PPTX
+ * Convex Tool: PPTX (Presentation)
  *
- * Generate PPTX presentations from Markdown or HTML via the crawler service.
+ * Generate HTML slide presentations. The LLM produces the full HTML content
+ * (using reveal.js or any other approach) and this tool stores it as a file.
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
@@ -15,7 +16,7 @@ import { appendFilePart } from './helpers/append_file_part';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 
-interface GeneratePptxResult {
+interface GeneratePresentationResult {
   operation: 'generate';
   success: boolean;
   fileStorageId: string;
@@ -31,37 +32,38 @@ const pptxArgs = z.discriminatedUnion('operation', [
     operation: z.literal('generate'),
     fileName: z
       .string()
-      .describe('Base name for the PPTX file (without extension)'),
-    sourceType: z.enum(['markdown', 'html']).describe('Source content type'),
-    content: z
+      .describe('Base name for the presentation file (without extension)'),
+    html: z
       .string()
-      .describe('The Markdown or HTML content to convert to PPTX'),
+      .describe(
+        'Complete HTML document for the presentation. Must be a self-contained HTML file that can be opened directly in a browser.',
+      ),
   }),
 ]);
 
 export const pptxTool: ToolDefinition = {
   name: 'pptx',
   tool: createTool({
-    description: `PowerPoint (PPTX) tool for generating presentations from Markdown or HTML content.
+    description: `Presentation tool for generating HTML slide decks.
 
-IMPORTANT: Only call the "generate" operation when the user explicitly requests creating or exporting a PowerPoint/PPTX file. Do NOT proactively generate presentations unless the user specifically asks for this format.
+IMPORTANT: Only call the "generate" operation when the user explicitly requests creating a presentation / slides / PPT. Do NOT proactively generate presentations unless the user specifically asks.
 
-TO READ PPTX FILE CONTENT: Do NOT use this tool. Instead use the rag_search tool:
+Do NOT mention templates — this tool does not use templates. Just generate the content directly.
+
+TO READ EXISTING PPTX FILE CONTENT: Do NOT use this tool. Instead use the rag_search tool:
 • To get the full content of a PPTX file: use rag_search with operation='retrieve' and the fileId
 • To search for specific information across PPTX files: use rag_search with operation='search'
 
 OPERATIONS:
 
-1. generate - Generate a PPTX from Markdown or HTML
+1. generate - Generate an HTML slide presentation
    Parameters:
-   - fileName: Base name for the PPTX (without extension)
-   - sourceType: "markdown" or "html"
-   - content: The Markdown or HTML content to convert
+   - fileName: Base name for the file (without extension)
+   - html: A complete, self-contained HTML document for the presentation.
+     Use reveal.js (loaded from CDN: https://cdn.jsdelivr.net/npm/reveal.js@5) as the slide framework.
+     You have full control over styling, layout, colors, animations, and themes.
+     The HTML must work when opened directly in a browser with no server needed.
    Returns: { success, fileStorageId, downloadUrl, fileName, contentType, size }
-
-EXAMPLES:
-• Generate from Markdown: { "operation": "generate", "fileName": "Report", "sourceType": "markdown", "content": "# Slide 1\\n\\nBullet points here..." }
-• Generate from HTML: { "operation": "generate", "fileName": "Report", "sourceType": "html", "content": "<h1>Slide 1</h1><ul><li>Item</li></ul>" }
 
 AFTER GENERATING: Check the downloadUrl in the result:
 - If it says "[file card shown in chat]": the file is already visible as a download card. Do NOT mention downloading, do NOT include a link, and do NOT say "you can download it" — the card handles this.
@@ -69,7 +71,10 @@ AFTER GENERATING: Check the downloadUrl in the result:
 To also save the file to a folder in the documents hub, call document_write with the returned fileStorageId and the desired folderPath.
 `,
     inputSchema: pptxArgs,
-    execute: async (ctx: ToolCtx, args): Promise<GeneratePptxResult> => {
+    execute: async (
+      ctx: ToolCtx,
+      args,
+    ): Promise<GeneratePresentationResult> => {
       const { organizationId } = ctx;
       if (!organizationId) {
         throw new Error(
@@ -79,18 +84,17 @@ To also save the file to a folder in the documents hub, call document_write with
 
       debugLog('tool:pptx generate start', {
         fileName: args.fileName,
-        sourceType: args.sourceType,
       });
 
       try {
         const result = await ctx.runAction(
-          internal.documents.internal_actions.generateDocument,
+          internal.documents.internal_actions.storeRawContent,
           {
             organizationId,
             fileName: args.fileName,
-            sourceType: args.sourceType,
-            outputFormat: 'pptx',
-            content: args.content,
+            content: args.html,
+            contentType: 'text/html',
+            extension: 'html',
           },
         );
 
@@ -112,7 +116,7 @@ To also save the file to a folder in the documents hub, call document_write with
           downloadUrl: cardAppended
             ? '[file card shown in chat]'
             : result.downloadUrl,
-        } as GeneratePptxResult;
+        } as GeneratePresentationResult;
       } catch (error) {
         console.error('[tool:pptx generate] error', {
           fileName: args.fileName,
