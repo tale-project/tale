@@ -12,6 +12,7 @@ export const GOVERNANCE_POLICY_TYPES = [
   'pii_config',
   'default_models',
   'model_access',
+  'audit_retention',
 ] as const;
 
 const policyTypeValidator = v.union(

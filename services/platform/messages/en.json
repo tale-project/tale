@@ -1646,6 +1646,7 @@
           "timestamp": "Time",
           "action": "Action",
           "actor": "User",
+          "actorId": "User ID",
           "actorType": "Actor type",
           "actorRole": "Role",
           "resource": "Resource",
@@ -1666,7 +1667,44 @@
           "integration": "Integration",
           "workflow": "Workflow",
           "security": "Security",
-          "admin": "Admin"
+          "admin": "Admin",
+          "ai": "AI"
+        },
+        "export": {
+          "csv": "Export CSV",
+          "json": "Export JSON",
+          "csvLabel": "Export audit logs as CSV",
+          "jsonLabel": "Export audit logs as JSON",
+          "inProgress": "Exporting...",
+          "complete": "Export complete",
+          "error": "Export failed"
+        },
+        "aiMetadata": {
+          "title": "AI usage details",
+          "model": "Model",
+          "provider": "Provider",
+          "inputTokens": "Input tokens",
+          "outputTokens": "Output tokens",
+          "totalTokens": "Total tokens",
+          "cost": "Estimated cost",
+          "duration": "Duration",
+          "agent": "Agent",
+          "tools": "Tools used"
+        },
+        "verification": {
+          "button": "Verify integrity",
+          "inProgress": "Verifying...",
+          "valid": "Chain valid",
+          "validDescription": "{count} entries verified, no tampering detected",
+          "broken": "Chain broken",
+          "brokenDescription": "Integrity break detected at entry {logId}"
+        },
+        "retention": {
+          "label": "Retention period",
+          "days": "days",
+          "minHint": "Minimum: 30 days",
+          "maxHint": "Maximum: 365 days",
+          "saved": "Retention policy saved"
         }
       }
     },

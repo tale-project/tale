@@ -44,12 +44,12 @@ export const archiveOldLogs = internalMutation({
     batchSize: v.optional(v.number()),
   },
   returns: v.object({
-    deletedCount: v.number(),
+    archivedCount: v.number(),
     hasMore: v.boolean(),
   }),
   handler: async (ctx, args) => {
     const batchSize = args.batchSize ?? 100;
-    let deletedCount = 0;
+    let archivedCount = 0;
 
     for await (const log of ctx.db
       .query('auditLogs')
@@ -62,18 +62,39 @@ export const archiveOldLogs = internalMutation({
       }
 
       await ctx.db.delete(log._id);
-      deletedCount++;
+      archivedCount++;
 
-      if (deletedCount >= batchSize) {
+      if (archivedCount >= batchSize) {
         break;
       }
     }
 
-    return { deletedCount, hasMore: deletedCount >= batchSize };
+    if (archivedCount > 0) {
+      await AuditLogHelpers.createAuditLog(ctx, {
+        organizationId: args.organizationId,
+        actorId: 'system',
+        actorType: 'system',
+        action: 'audit_log.archived',
+        category: 'admin',
+        resourceType: 'audit_log_archive',
+        status: 'success',
+        metadata: {
+          archivedCount,
+          olderThanTimestamp: args.olderThanTimestamp,
+        },
+      });
+    }
+
+    return {
+      archivedCount,
+      hasMore: archivedCount >= batchSize,
+    };
   },
 });
 
-const RETENTION_DAYS = 90;
+const DEFAULT_RETENTION_DAYS = 90;
+const MIN_RETENTION_DAYS = 30;
+const MAX_RETENTION_DAYS = 365;
 const BATCH_SIZE = 500;
 
 export const runRetentionCleanup = internalMutation({
@@ -83,15 +104,50 @@ export const runRetentionCleanup = internalMutation({
     hasMore: v.boolean(),
   }),
   handler: async (ctx) => {
-    const cutoffTimestamp = Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000;
     let totalDeleted = 0;
+
+    // Collect distinct organization IDs from old logs
+    const orgRetentionMap = new Map<string, number>();
 
     for await (const log of ctx.db
       .query('auditLogs')
       .withIndex('by_timestamp')
       .order('asc')) {
-      if (log.timestamp >= cutoffTimestamp) {
-        break;
+      const orgId = log.organizationId;
+
+      if (!orgRetentionMap.has(orgId)) {
+        // Look up per-org retention config
+        const policy = await ctx.db
+          .query('governancePolicies')
+          .withIndex('by_org_policyType', (q) =>
+            q.eq('organizationId', orgId).eq('policyType', 'audit_retention'),
+          )
+          .first();
+
+        let retentionDays = DEFAULT_RETENTION_DAYS;
+        if (
+          policy?.config &&
+          typeof policy.config === 'object' &&
+          'retentionDays' in policy.config
+        ) {
+          const days = policy.config.retentionDays;
+          if (
+            typeof days === 'number' &&
+            days >= MIN_RETENTION_DAYS &&
+            days <= MAX_RETENTION_DAYS
+          ) {
+            retentionDays = days;
+          }
+        }
+        orgRetentionMap.set(orgId, retentionDays);
+      }
+
+      const retentionDays =
+        orgRetentionMap.get(orgId) ?? DEFAULT_RETENTION_DAYS;
+      const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+
+      if (log.timestamp >= cutoff) {
+        continue;
       }
 
       await ctx.db.delete(log._id);
@@ -100,6 +156,22 @@ export const runRetentionCleanup = internalMutation({
       if (totalDeleted >= BATCH_SIZE) {
         break;
       }
+    }
+
+    // Meta-audit: log the retention cleanup action
+    if (totalDeleted > 0) {
+      await AuditLogHelpers.createAuditLog(ctx, {
+        organizationId: 'system',
+        actorId: 'system',
+        actorType: 'system',
+        action: 'audit_log.retention_cleanup',
+        category: 'admin',
+        resourceType: 'audit_log_retention',
+        status: 'success',
+        metadata: {
+          deletedCount: totalDeleted,
+        },
+      });
     }
 
     return { deletedCount: totalDeleted, hasMore: totalDeleted >= BATCH_SIZE };

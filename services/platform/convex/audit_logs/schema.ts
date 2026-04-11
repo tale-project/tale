@@ -17,6 +17,7 @@ export const AUDIT_LOG_CATEGORIES = [
   'workflow',
   'security',
   'admin',
+  'ai',
 ] as const;
 export const AUDIT_LOG_STATUSES = ['success', 'failure', 'denied'] as const;
 
@@ -56,6 +57,9 @@ export const auditLogsTable = defineTable({
   status: statusValidator,
   errorMessage: v.optional(v.string()),
   metadata: v.optional(jsonRecordValidator),
+
+  integrityHash: v.optional(v.string()),
+  previousHash: v.optional(v.string()),
 })
   .index('by_organizationId', ['organizationId'])
   .index('by_organizationId_and_timestamp', ['organizationId', 'timestamp'])

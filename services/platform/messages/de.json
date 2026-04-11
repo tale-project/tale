@@ -1642,6 +1642,7 @@
           "timestamp": "Zeit",
           "action": "Aktion",
           "actor": "Benutzer",
+          "actorId": "Benutzer-ID",
           "actorType": "Akteurtyp",
           "actorRole": "Rolle",
           "resource": "Ressource",
@@ -1662,7 +1663,44 @@
           "integration": "Integration",
           "workflow": "Workflow",
           "security": "Sicherheit",
-          "admin": "Admin"
+          "admin": "Admin",
+          "ai": "KI"
+        },
+        "export": {
+          "csv": "CSV exportieren",
+          "json": "JSON exportieren",
+          "csvLabel": "Audit-Protokolle als CSV exportieren",
+          "jsonLabel": "Audit-Protokolle als JSON exportieren",
+          "inProgress": "Exportieren...",
+          "complete": "Export abgeschlossen",
+          "error": "Export fehlgeschlagen"
+        },
+        "aiMetadata": {
+          "title": "KI-Nutzungsdetails",
+          "model": "Modell",
+          "provider": "Anbieter",
+          "inputTokens": "Eingabe-Token",
+          "outputTokens": "Ausgabe-Token",
+          "totalTokens": "Token gesamt",
+          "cost": "Geschätzte Kosten",
+          "duration": "Dauer",
+          "agent": "Agent",
+          "tools": "Verwendete Tools"
+        },
+        "verification": {
+          "button": "Integrität prüfen",
+          "inProgress": "Prüfung läuft...",
+          "valid": "Kette gültig",
+          "validDescription": "{count} Einträge geprüft, keine Manipulation erkannt",
+          "broken": "Kette unterbrochen",
+          "brokenDescription": "Integritätsbruch erkannt bei Eintrag {logId}"
+        },
+        "retention": {
+          "label": "Aufbewahrungsdauer",
+          "days": "Tage",
+          "minHint": "Minimum: 30 Tage",
+          "maxHint": "Maximum: 365 Tage",
+          "saved": "Aufbewahrungsrichtlinie gespeichert"
         }
       }
     },
