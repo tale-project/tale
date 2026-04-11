@@ -1,5 +1,5 @@
 """File text extraction modules."""
 
-from .router import extract_text
+from .router import ProgressCallback, extract_text
 
-__all__ = ["extract_text"]
+__all__ = ["ProgressCallback", "extract_text"]

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -33,12 +34,16 @@ def is_supported(filename: str) -> bool:
     return Path(filename).suffix.lower() in ALL_SUPPORTED_EXTENSIONS
 
 
+ProgressCallback = Callable[[int, int], None]
+
+
 async def extract_text(
     file_bytes: bytes,
     filename: str,
     *,
     vision_client: VisionClient | None = None,
     process_images: bool = True,
+    on_progress: ProgressCallback | None = None,
 ) -> tuple[str, bool]:
     """Extract text from file bytes, routing to the correct extractor.
 
@@ -47,6 +52,8 @@ async def extract_text(
         filename: Original filename (used to determine file type).
         vision_client: Optional VisionClient for OCR/image description.
         process_images: Whether to extract and describe embedded images.
+        on_progress: Optional callback ``(done, total)`` for page-level progress
+            (currently only used by PDF extraction).
 
     Returns:
         Tuple of (extracted_text, vision_was_used).
@@ -65,6 +72,7 @@ async def extract_text(
             filename,
             vision_client=vision_client,
             process_images=process_images,
+            on_progress=on_progress,
         )
 
     if suffix in DOCX_EXTENSIONS:

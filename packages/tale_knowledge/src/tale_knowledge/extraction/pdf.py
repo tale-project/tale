@@ -8,6 +8,7 @@ Hybrid approach:
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from functools import partial
 from typing import TYPE_CHECKING
 
@@ -18,6 +19,8 @@ from ._helpers import MIN_IMAGE_SIZE
 
 if TYPE_CHECKING:
     from tale_knowledge.vision.client import VisionClient
+
+ProgressCallback = Callable[[int, int], None]  # (pages_done, total_pages)
 
 LARGE_IMAGE_RATIO = 0.5
 MAX_PAGES = 2000
@@ -139,6 +142,7 @@ async def extract_text_from_pdf_bytes(
     vision_client: VisionClient | None = None,
     process_images: bool = True,
     max_pages: int = MAX_PAGES,
+    on_progress: ProgressCallback | None = None,
 ) -> tuple[str, bool]:
     """Extract text from PDF bytes.
 
@@ -148,6 +152,8 @@ async def extract_text_from_pdf_bytes(
         vision_client: Optional VisionClient for OCR/image description.
         process_images: Whether to extract and describe embedded images.
         max_pages: Maximum number of pages to process.
+        on_progress: Optional callback ``(pages_done, total_pages)`` invoked
+            after each page completes.  Safe to call from concurrent tasks.
 
     Returns:
         Tuple of (extracted_text, vision_was_used).
@@ -182,7 +188,10 @@ async def extract_text_from_pdf_bytes(
     finally:
         doc.close()
 
+    pages_done = 0
+
     async def process_page(page_num: int, page_bytes: bytes) -> tuple[int, str, bool]:
+        nonlocal pages_done
         async with page_semaphore:
             content, vis_used = await _extract_page_with_layout(
                 page_bytes,
@@ -191,6 +200,9 @@ async def extract_text_from_pdf_bytes(
                 vision_client,
                 process_images,
             )
+            pages_done += 1
+            if on_progress is not None:
+                on_progress(pages_done, pages_to_process)
             return page_num, f"--- Page {page_num + 1} ---\n{content}", vis_used
 
     tasks = [process_page(pn, pb) for pn, pb in page_data]

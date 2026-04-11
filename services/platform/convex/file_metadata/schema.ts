@@ -18,6 +18,7 @@ export const fileMetadataTable = defineTable({
     ),
   ),
   ragError: v.optional(v.string()),
+  ragProgress: v.optional(v.string()),
 })
   .index('by_organizationId', ['organizationId'])
   .index('by_storageId', ['storageId'])

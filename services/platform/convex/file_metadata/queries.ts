@@ -23,6 +23,7 @@ export const getByStorageIds = query({
         ),
       ),
       ragError: v.optional(v.string()),
+      ragProgress: v.optional(v.string()),
     }),
   ),
   handler: async (ctx, args) => {
@@ -44,6 +45,7 @@ export const getByStorageIds = query({
           size: meta.size,
           ragStatus: meta.ragStatus,
           ragError: meta.ragError,
+          ragProgress: meta.ragProgress,
         };
       }),
     );

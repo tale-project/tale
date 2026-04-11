@@ -199,6 +199,18 @@ export const checkFileRagStatus = internalAction({
       const error = isRecord(docStatus)
         ? getString(docStatus, 'error')
         : undefined;
+      const progressPhase = isRecord(docStatus)
+        ? getString(docStatus, 'progress_phase')
+        : undefined;
+      const progressDetail = isRecord(docStatus)
+        ? getString(docStatus, 'progress_detail')
+        : undefined;
+
+      // Build a human-readable progress string, e.g. "extracting 12/50"
+      const ragProgress =
+        progressPhase && progressDetail
+          ? `${progressPhase} ${progressDetail}`
+          : progressPhase || undefined;
 
       if (status === 'completed') {
         await ctx.runMutation(
@@ -220,10 +232,14 @@ export const checkFileRagStatus = internalAction({
         return null;
       }
 
-      if (status === 'processing' && metadata.ragStatus !== 'running') {
+      if (status === 'processing') {
         await ctx.runMutation(
           internal.file_metadata.internal_mutations.updateFileRagStatus,
-          { storageId: args.storageId, ragStatus: 'running' },
+          {
+            storageId: args.storageId,
+            ragStatus: 'running',
+            ragProgress,
+          },
         );
       }
 

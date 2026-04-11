@@ -13,6 +13,7 @@ type RagStatus = 'queued' | 'running' | 'completed' | 'failed';
 interface FileIndexingInfo {
   status?: RagStatus;
   error?: string;
+  progress?: string;
 }
 
 /**
@@ -39,7 +40,11 @@ export function useFileIndexingStatus(attachments: FileAttachment[]) {
     const map = new Map<Id<'_storage'>, FileIndexingInfo>();
     if (!metadata) return map;
     for (const m of metadata) {
-      map.set(m.storageId, { status: m.ragStatus, error: m.ragError });
+      map.set(m.storageId, {
+        status: m.ragStatus,
+        error: m.ragError,
+        progress: m.ragProgress,
+      });
     }
     return map;
   }, [metadata]);

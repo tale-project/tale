@@ -555,6 +555,8 @@ async def get_document_statuses(request: DocumentStatusRequest):
             did: DocumentStatusInfo(
                 status=info["status"],
                 error=info.get("error"),
+                progress_phase=info.get("progress_phase"),
+                progress_detail=info.get("progress_detail"),
                 source_created_at=info.get("source_created_at"),
                 source_modified_at=info.get("source_modified_at"),
             )

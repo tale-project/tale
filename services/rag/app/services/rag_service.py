@@ -525,7 +525,8 @@ class RagService:
             rows = await conn.fetch(
                 f"""
                 SELECT DISTINCT ON (file_id)
-                    file_id, status, error, source_created_at, source_modified_at
+                    file_id, status, error, progress_phase, progress_detail,
+                    source_created_at, source_modified_at
                 FROM {SCHEMA}.documents
                 WHERE file_id = ANY($1)
                 ORDER BY file_id,
@@ -544,6 +545,8 @@ class RagService:
             row["file_id"]: {
                 "status": row["status"],
                 "error": row["error"],
+                "progress_phase": row["progress_phase"],
+                "progress_detail": row["progress_detail"],
                 "source_created_at": row["source_created_at"],
                 "source_modified_at": row["source_modified_at"],
             }

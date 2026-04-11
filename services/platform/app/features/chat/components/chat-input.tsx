@@ -44,7 +44,10 @@ interface ChatInputProps extends Omit<
   removeAttachment: (fileId: Id<'_storage'>) => void;
   clearAttachments: () => FileAttachment[];
   isIndexing?: boolean;
-  indexingStatuses?: Map<Id<'_storage'>, { status?: string; error?: string }>;
+  indexingStatuses?: Map<
+    Id<'_storage'>,
+    { status?: string; error?: string; progress?: string }
+  >;
 }
 
 export function ChatInput({
@@ -233,6 +236,7 @@ export function ChatInput({
                       const info = indexingStatuses?.get(attachment.fileId);
                       const ragStatus = info?.status;
                       if (ragStatus === 'queued' || ragStatus === 'running') {
+                        const progress = info?.progress;
                         return (
                           <HStack gap={1} align="center">
                             <Loader className="text-muted-foreground/50 size-3 animate-spin" />
@@ -241,7 +245,7 @@ export function ChatInput({
                               variant="caption"
                               className="text-muted-foreground/50"
                             >
-                              {tChat('indexing')}
+                              {progress || tChat('indexing')}
                             </Text>
                           </HStack>
                         );

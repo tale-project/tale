@@ -91,6 +91,7 @@ export const updateFileRagStatus = internalMutation({
       v.literal('failed'),
     ),
     ragError: v.optional(v.string()),
+    ragProgress: v.optional(v.string()),
   },
   async handler(ctx, args) {
     const metadata = await ctx.db
@@ -102,6 +103,10 @@ export const updateFileRagStatus = internalMutation({
     await ctx.db.patch(metadata._id, {
       ragStatus: args.ragStatus,
       ragError: args.ragStatus === 'failed' ? args.ragError : undefined,
+      ragProgress:
+        args.ragStatus === 'completed' || args.ragStatus === 'failed'
+          ? undefined
+          : args.ragProgress,
     });
   },
 });

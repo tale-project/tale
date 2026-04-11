@@ -134,6 +134,10 @@ class DocumentStatusInfo(BaseModel):
 
     status: str = Field(..., description="Document status: processing, completed, or failed")
     error: str | None = Field(default=None, description="Error message when status is failed")
+    progress_phase: str | None = Field(
+        default=None, description="Current processing phase: extracting, embedding, storing"
+    )
+    progress_detail: str | None = Field(default=None, description="Phase detail, e.g. '12/50' for page progress")
     source_created_at: dt.datetime | None = Field(
         default=None, description="Original file creation date (from file metadata)"
     )

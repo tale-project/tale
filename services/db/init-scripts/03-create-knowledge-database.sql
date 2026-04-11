@@ -171,6 +171,8 @@ CREATE TABLE IF NOT EXISTS private_knowledge.documents (
     status        TEXT NOT NULL DEFAULT 'processing' CHECK (status IN ('processing', 'completed', 'failed')),
     error         TEXT,
     chunks_count  INTEGER NOT NULL DEFAULT 0,
+    progress_phase TEXT,
+    progress_detail TEXT,
     source_created_at  TIMESTAMPTZ,
     source_modified_at TIMESTAMPTZ,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
