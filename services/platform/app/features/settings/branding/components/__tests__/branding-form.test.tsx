@@ -65,7 +65,9 @@ describe('BrandingForm', () => {
   it('renders all form fields', () => {
     render(<BrandingForm {...defaultProps} />);
 
-    expect(screen.getByLabelText('branding.appName')).toBeInTheDocument();
+    expect(
+      screen.getByLabelText('branding.appName', { exact: false }),
+    ).toBeInTheDocument();
     expect(
       screen.getByLabelText('branding.textLogo branding.textLogoOptional'),
     ).toBeInTheDocument();
@@ -86,7 +88,7 @@ describe('BrandingForm', () => {
   it('enables save button when form is dirty', async () => {
     render(<BrandingForm {...defaultProps} />);
 
-    const input = screen.getByLabelText('branding.appName');
+    const input = screen.getByLabelText('branding.appName', { exact: false });
     fireEvent.change(input, { target: { value: 'Acme Corp' } });
 
     const button = screen.getByRole('button', { name: 'actions.saveChanges' });
@@ -108,9 +110,9 @@ describe('BrandingForm', () => {
       />,
     );
 
-    expect(screen.getByLabelText('branding.appName')).toHaveValue(
-      'Existing App',
-    );
+    expect(
+      screen.getByLabelText('branding.appName', { exact: false }),
+    ).toHaveValue('Existing App');
     expect(
       screen.getByLabelText('branding.textLogo branding.textLogoOptional'),
     ).toHaveValue('EA');
