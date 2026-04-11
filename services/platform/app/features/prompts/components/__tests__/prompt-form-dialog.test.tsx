@@ -23,6 +23,10 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'test-org-id',
 }));
 
+vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
+  useTeams: () => ({ teams: [], isLoading: false }),
+}));
+
 import { PromptFormDialog } from '../prompt-form-dialog';
 
 describe('PromptFormDialog', () => {

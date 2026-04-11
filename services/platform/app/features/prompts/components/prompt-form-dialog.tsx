@@ -49,7 +49,7 @@ function PromptFormDialogContent({
   const [scope, setScope] = useState<PromptScope>(
     initialData?.scope ?? 'personal',
   );
-  const [teamId, setTeamId] = useState<string | undefined>(initialData?.teamId);
+  const [teamId, setTeamId] = useState(initialData?.teamId);
   const [category, setCategory] = useState(initialData?.category ?? '');
   const [tagsInput, setTagsInput] = useState(
     initialData?.tags?.join(', ') ?? '',
