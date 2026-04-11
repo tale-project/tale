@@ -13,6 +13,7 @@ const modelDefinitionSchema = z.object({
   maxOutputTokens: z.number().int().positive().optional(),
   supportsStructuredOutputs: z.boolean().optional(),
   fallbackModelId: z.string().min(1).max(200).optional(),
+  baseUrl: z.string().url().optional(),
   cost: z
     .object({
       inputCentsPerMillion: z.number(),
@@ -91,6 +92,7 @@ export type ProviderJson = z.infer<typeof providerJsonSchema>;
 
 export const providerSecretsSchema = z.object({
   apiKey: z.string().min(1),
+  modelKeys: z.record(z.string(), z.string().min(1)).optional(),
 });
 
 export type ProviderSecrets = z.infer<typeof providerSecretsSchema>;

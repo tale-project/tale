@@ -7,6 +7,7 @@ import { getOrganizationMember } from '../lib/rls';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import { checkBudget } from './budget_enforcement';
 import { resolveFeatureFlags } from './feature_enforcement';
+import { getAccessibleModels } from './model_access_enforcement';
 import { GOVERNANCE_POLICY_TYPES } from './schema';
 
 const policyTypeValidator = v.union(
@@ -237,5 +238,36 @@ export const getMyBudgetStatus = query({
     }
 
     return null;
+  },
+});
+
+export const getAccessibleModelsForUser = query({
+  args: {
+    organizationId: v.string(),
+    modelIds: v.array(v.string()),
+  },
+  returns: v.array(v.string()),
+  handler: async (ctx, args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) {
+      throw new Error('Unauthenticated');
+    }
+
+    const member = await getOrganizationMember(ctx, args.organizationId, {
+      userId: String(authUser._id),
+      email: authUser.email,
+      name: authUser.name,
+    });
+
+    const teamIds = await getUserTeamIds(ctx, String(authUser._id));
+
+    return getAccessibleModels(
+      ctx,
+      args.organizationId,
+      String(authUser._id),
+      teamIds,
+      member.role,
+      args.modelIds,
+    );
   },
 });

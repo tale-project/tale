@@ -75,6 +75,10 @@ vi.mock('../model-tag-icons', () => ({
   ModelTagIcons: () => null,
 }));
 
+vi.mock('@/app/features/settings/governance/hooks/queries', () => ({
+  useAccessibleModels: () => ({ data: undefined }),
+}));
+
 describe('ModelSelector', () => {
   describe('accessibility', () => {
     it('passes axe audit', async () => {

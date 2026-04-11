@@ -118,6 +118,23 @@ export const chatWithAgent = action({
       }
     }
 
+    // Model access RBAC: check if the user is allowed to use the requested model
+    if (args.modelId) {
+      const accessCheck = await ctx.runQuery(
+        internal.governance.internal_queries.checkModelAccessInternal,
+        {
+          organizationId: args.organizationId,
+          userId: String(authUser._id),
+          modelId: args.modelId,
+        },
+      );
+      if (!accessCheck.allowed) {
+        throw new Error(
+          accessCheck.reason ?? 'You do not have access to the selected model.',
+        );
+      }
+    }
+
     // Delegate to the internal mutation for transactional chat start
     return ctx.runMutation(internal.agents.start_chat.startChat, {
       threadId: args.threadId,

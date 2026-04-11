@@ -4,6 +4,7 @@ import {
   budgetConfigSchema,
   defaultModelsConfigSchema,
   featureFlagsConfigSchema,
+  modelAccessConfigSchema,
   piiConfigSchema,
   retentionPolicyConfigSchema,
   uploadPolicyConfigSchema,
@@ -87,6 +88,15 @@ export const upsertPolicy = mutation({
       if (!parsed.success) {
         throw new Error(
           `Invalid retention policy configuration: ${parsed.error.message}`,
+        );
+      }
+    }
+
+    if (args.policyType === 'model_access') {
+      const parsed = modelAccessConfigSchema.safeParse(args.config);
+      if (!parsed.success) {
+        throw new Error(
+          `Invalid model access configuration: ${parsed.error.message}`,
         );
       }
     }

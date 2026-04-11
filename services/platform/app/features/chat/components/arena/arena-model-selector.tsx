@@ -13,6 +13,7 @@ import {
   SearchableSelect,
   type SearchableSelectOption,
 } from '@/app/components/ui/forms/searchable-select';
+import { useAccessibleModels } from '@/app/features/settings/governance/hooks/queries';
 import { useListProviders } from '@/app/features/settings/providers/hooks/queries';
 import { useT } from '@/lib/i18n/client';
 
@@ -84,33 +85,43 @@ export function ArenaModelSelector({
     [modelInfoMap],
   );
 
+  const { data: accessibleModelIds } = useAccessibleModels(
+    organizationId,
+    supportedModels,
+  );
+
+  const filteredModels = useMemo(() => {
+    if (!accessibleModelIds) return supportedModels;
+    return supportedModels.filter((id) => accessibleModelIds.includes(id));
+  }, [supportedModels, accessibleModelIds]);
+
   const options = useMemo(
     () =>
-      supportedModels.map((modelId) => ({
+      filteredModels.map((modelId) => ({
         value: modelId,
         label: getDisplayName(modelId),
         description: modelInfoMap.get(modelId)?.description,
       })),
-    [supportedModels, getDisplayName, modelInfoMap],
+    [filteredModels, getDisplayName, modelInfoMap],
   );
 
-  const currentModelA = modelA ?? supportedModels[0] ?? null;
+  const currentModelA = modelA ?? filteredModels[0] ?? null;
   const currentModelB =
-    modelB ?? supportedModels[1] ?? supportedModels[0] ?? null;
+    modelB ?? filteredModels[1] ?? filteredModels[0] ?? null;
 
   // Sync default selections back to context so sendMessage can read them
   useEffect(() => {
-    if (supportedModels.length >= 2) {
-      if (!modelA && supportedModels[0]) {
-        setModelA(supportedModels[0]);
+    if (filteredModels.length >= 2) {
+      if (!modelA && filteredModels[0]) {
+        setModelA(filteredModels[0]);
       }
-      if (!modelB && supportedModels[1]) {
-        setModelB(supportedModels[1]);
+      if (!modelB && filteredModels[1]) {
+        setModelB(filteredModels[1]);
       }
     }
-  }, [supportedModels, modelA, modelB, setModelA, setModelB]);
+  }, [filteredModels, modelA, modelB, setModelA, setModelB]);
 
-  if (supportedModels.length < 2) return null;
+  if (filteredModels.length < 2) return null;
 
   return (
     <div className="flex items-center gap-3">

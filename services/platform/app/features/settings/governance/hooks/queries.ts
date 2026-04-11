@@ -32,3 +32,13 @@ export function useMyBudgetStatus(organizationId: string) {
     organizationId,
   });
 }
+
+export function useAccessibleModels(
+  organizationId: string,
+  modelIds: string[],
+) {
+  return useConvexQuery(
+    api.governance.queries.getAccessibleModelsForUser,
+    modelIds.length > 0 ? { organizationId, modelIds } : 'skip',
+  );
+}
