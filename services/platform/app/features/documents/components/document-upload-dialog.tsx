@@ -7,6 +7,7 @@ import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Spinner } from '@/app/components/ui/feedback/spinner';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Button } from '@/app/components/ui/primitives/button';
+import { useUploadPolicy } from '@/app/features/settings/governance/hooks/use-upload-policy';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { toast } from '@/app/hooks/use-toast';
@@ -56,6 +57,11 @@ export function DocumentUploadDialog({
   );
 
   const { teams, isLoading: isLoadingTeams } = useTeams();
+  const policyLimits = useUploadPolicy(organizationId);
+
+  const effectiveMaxFileSize = policyLimits.policyEnabled
+    ? policyLimits.documentMaxFileSize
+    : DOCUMENT_MAX_FILE_SIZE;
 
   const {
     stageFiles,
@@ -104,7 +110,7 @@ export function DocumentUploadDialog({
     (files: File[]) => {
       if (files.length === 0) return;
 
-      const maxSizeMB = DOCUMENT_MAX_FILE_SIZE / (1024 * 1024);
+      const maxSizeMB = effectiveMaxFileSize / (1024 * 1024);
       const validFiles: File[] = [];
 
       for (const file of files) {
@@ -120,7 +126,7 @@ export function DocumentUploadDialog({
           continue;
         }
 
-        if (file.size > DOCUMENT_MAX_FILE_SIZE) {
+        if (file.size > effectiveMaxFileSize) {
           const currentSizeMB = (file.size / (1024 * 1024)).toFixed(1);
           toast({
             title: tDocuments('upload.fileTooLarge'),
@@ -141,7 +147,7 @@ export function DocumentUploadDialog({
         stageFiles(validFiles);
       }
     },
-    [tDocuments, stageFiles],
+    [tDocuments, stageFiles, effectiveMaxFileSize],
   );
 
   const handleTeamSelectionChange = useCallback((teamIds: string[]) => {
@@ -186,7 +192,7 @@ export function DocumentUploadDialog({
     return () => clearTimeout(timer);
   }, [allCompleted, completedCount, handleOpenChange]);
 
-  const maxSizeMB = DOCUMENT_MAX_FILE_SIZE / (1024 * 1024);
+  const maxSizeMB = effectiveMaxFileSize / (1024 * 1024);
 
   return (
     <Dialog

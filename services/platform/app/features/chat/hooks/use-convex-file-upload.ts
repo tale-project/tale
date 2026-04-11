@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 
+import { useUploadPolicy } from '@/app/features/settings/governance/hooks/use-upload-policy';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
@@ -47,9 +48,18 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
     api.file_metadata.mutations.saveFileMetadata,
   );
 
+  const policyLimits = useUploadPolicy(config.organizationId);
+
   const mergedConfig = useMemo(
-    () => ({ ...DEFAULT_UPLOAD_CONFIG, ...config }),
-    [config],
+    () => ({
+      ...DEFAULT_UPLOAD_CONFIG,
+      ...config,
+      ...(policyLimits.policyEnabled && {
+        maxFileSize: policyLimits.maxFileSize,
+        allowedTypes: policyLimits.allowedTypes,
+      }),
+    }),
+    [config, policyLimits],
   );
 
   const attachmentsRef = useRef(attachments);

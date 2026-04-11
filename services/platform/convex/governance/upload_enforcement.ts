@@ -85,8 +85,8 @@ export async function checkUploadPolicy(
     let totalVolume = 0;
     for await (const meta of ctx.db
       .query('fileMetadata')
-      .withIndex('by_organizationId', (q) =>
-        q.eq('organizationId', organizationId),
+      .withIndex('by_org_user', (q) =>
+        q.eq('organizationId', organizationId).eq('uploadedBy', userId),
       )) {
       if (meta.size != null) {
         totalVolume += meta.size;

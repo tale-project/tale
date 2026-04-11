@@ -11,6 +11,7 @@ import {
 import { internal } from '../_generated/api';
 import { mutation } from '../_generated/server';
 import { authComponent } from '../auth';
+import { checkUploadPolicy } from '../governance/upload_enforcement';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { getOrganizationMember } from '../lib/rls';
 import { hasTeamAccess } from '../lib/team_access';
@@ -123,6 +124,23 @@ export const createDocumentFromUpload = mutation({
       args.fileName,
       args.contentType ?? '',
     );
+
+    const userId = String(authUser._id);
+    const ext = extractExtension(args.fileName);
+    const policyCheck = await checkUploadPolicy(
+      ctx,
+      args.organizationId,
+      userId,
+      ext,
+      resolvedContentType,
+      args.fileSize ?? undefined,
+    );
+    if (!policyCheck.allowed) {
+      throw new Error(
+        policyCheck.reason ?? 'Upload rejected by organization policy',
+      );
+    }
+
     if (!isAllowedDocumentUpload(resolvedContentType, args.fileName)) {
       throw new Error(
         'Unsupported file type. Supported formats: PDF, DOCX, XLSX, CSV, TXT, PPTX, images (JPEG, PNG, GIF, WEBP).',
@@ -153,6 +171,7 @@ export const createDocumentFromUpload = mutation({
         fileName: args.fileName,
         contentType: args.contentType ?? 'application/octet-stream',
         size: args.fileSize,
+        uploadedBy: userId,
       });
     }
 
@@ -175,7 +194,6 @@ export const createDocumentFromUpload = mutation({
       });
     }
 
-    const ext = extractExtension(args.fileName);
     if (ext && ['pdf', 'docx', 'pptx'].includes(ext)) {
       await ctx.scheduler.runAfter(
         0,

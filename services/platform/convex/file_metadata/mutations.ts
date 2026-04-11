@@ -1,8 +1,10 @@
 import { v } from 'convex/values';
 
+import { extractExtension } from '../../lib/shared/file-types';
 import { internal } from '../_generated/api';
 import { mutation } from '../_generated/server';
 import { authComponent } from '../auth';
+import { checkUploadPolicy } from '../governance/upload_enforcement';
 import {
   RateLimitExceededError,
   checkOrganizationRateLimit,
@@ -24,6 +26,20 @@ export const saveFileMetadata = mutation({
       throw new Error('Unauthenticated');
     }
 
+    const userId = String(authUser._id);
+    const ext = extractExtension(args.fileName);
+    const check = await checkUploadPolicy(
+      ctx,
+      args.organizationId,
+      userId,
+      ext,
+      args.contentType,
+      args.size,
+    );
+    if (!check.allowed) {
+      throw new Error(check.reason ?? 'Upload rejected by organization policy');
+    }
+
     const existing = await ctx.db
       .query('fileMetadata')
       .withIndex('by_storageId', (q) => q.eq('storageId', args.storageId))
@@ -34,6 +50,7 @@ export const saveFileMetadata = mutation({
         fileName: args.fileName,
         contentType: args.contentType,
         size: args.size,
+        uploadedBy: userId,
       };
       if (args.documentId !== undefined) {
         patchData.documentId = args.documentId;
@@ -52,6 +69,7 @@ export const saveFileMetadata = mutation({
       contentType: args.contentType,
       size: args.size,
       ragStatus: 'queued',
+      uploadedBy: userId,
       ...(args.documentId !== undefined && { documentId: args.documentId }),
       ...(args.source !== undefined && { source: args.source }),
     });

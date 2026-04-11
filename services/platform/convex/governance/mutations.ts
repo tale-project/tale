@@ -5,6 +5,8 @@ import {
   defaultModelsConfigSchema,
   featureFlagsConfigSchema,
   piiConfigSchema,
+  retentionPolicyConfigSchema,
+  uploadPolicyConfigSchema,
 } from '../../lib/shared/schemas/governance';
 import { mutation } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
@@ -55,6 +57,15 @@ export const upsertPolicy = mutation({
       }
     }
 
+    if (args.policyType === 'upload_policy') {
+      const parsed = uploadPolicyConfigSchema.safeParse(args.config);
+      if (!parsed.success) {
+        throw new Error(
+          `Invalid upload policy configuration: ${parsed.error.message}`,
+        );
+      }
+    }
+
     if (args.policyType === 'pii_config') {
       const parsed = piiConfigSchema.safeParse(args.config);
       if (!parsed.success) {
@@ -67,6 +78,15 @@ export const upsertPolicy = mutation({
       if (!parsed.success) {
         throw new Error(
           `Invalid feature flags configuration: ${parsed.error.message}`,
+        );
+      }
+    }
+
+    if (args.policyType === 'retention_policy') {
+      const parsed = retentionPolicyConfigSchema.safeParse(args.config);
+      if (!parsed.success) {
+        throw new Error(
+          `Invalid retention policy configuration: ${parsed.error.message}`,
         );
       }
     }

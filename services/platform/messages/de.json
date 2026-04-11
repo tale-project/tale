@@ -3763,11 +3763,20 @@
     },
     "uploadPolicy": {
       "title": "Upload-Richtlinie",
-      "description": "Erlaubte Dateitypen, maximale Dateigröße und Volumenlimits konfigurieren.",
+      "description": "Konfiguriere erlaubte Dateitypen, maximale Dateigrösse und Volumenlimits.",
+      "enabled": "Upload-Richtlinie aktivieren",
       "allowedExtensions": "Erlaubte Dateierweiterungen",
-      "maxFileSize": "Maximale Dateigröße",
+      "blockedExtensions": "Blockierte Dateierweiterungen",
+      "allowedMimeTypes": "Erlaubte MIME-Typen",
+      "maxFileSize": "Maximale Dateigrösse",
       "maxVolumePerUser": "Maximales Gesamtvolumen pro Benutzer",
-      "saved": "Upload-Richtlinie gespeichert"
+      "extensionPlaceholder": "pdf, png, csv",
+      "mimeTypePlaceholder": "image/*, application/pdf",
+      "mbUnit": "MB",
+      "gbUnit": "GB",
+      "policyDisabledHint": "Aktiviere die Richtlinie, um Upload-Beschränkungen durchzusetzen.",
+      "saved": "Upload-Richtlinie gespeichert",
+      "saveFailed": "Upload-Richtlinie konnte nicht gespeichert werden"
     },
     "retentionPolicy": {
       "title": "Aufbewahrungsrichtlinie",

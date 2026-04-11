@@ -16,6 +16,7 @@ export const saveFileMetadata = internalMutation({
     size: v.number(),
     documentId: v.optional(v.id('documents')),
     source: v.optional(v.union(v.literal('user'), v.literal('agent'))),
+    uploadedBy: v.optional(v.string()),
   },
   async handler(ctx, args) {
     const existing = await ctx.db
@@ -35,6 +36,9 @@ export const saveFileMetadata = internalMutation({
       if (args.source !== undefined) {
         patchData.source = args.source;
       }
+      if (args.uploadedBy !== undefined) {
+        patchData.uploadedBy = args.uploadedBy;
+      }
       await ctx.db.patch(existing._id, patchData);
       return existing._id;
     }
@@ -48,6 +52,7 @@ export const saveFileMetadata = internalMutation({
       ragStatus: 'queued',
       ...(args.documentId !== undefined && { documentId: args.documentId }),
       ...(args.source !== undefined && { source: args.source }),
+      ...(args.uploadedBy !== undefined && { uploadedBy: args.uploadedBy }),
     });
 
     await ctx.scheduler.runAfter(

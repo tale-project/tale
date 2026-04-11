@@ -1452,7 +1452,7 @@
     },
     "providers": {
       "title": "Providers",
-      "description": "Manage LLM providers and their models",
+      "description": "Description",
       "addProvider": "Add provider",
       "editProvider": "Edit provider",
       "deleteProvider": "Delete provider",
@@ -3752,17 +3752,28 @@
       "confirm": "Confirm"
     },
     "uploadPolicy": {
-      "title": "Upload Policy",
+      "title": "Upload policy",
       "description": "Configure allowed file types, maximum file size, and volume limits.",
+      "enabled": "Enable upload policy",
       "allowedExtensions": "Allowed file extensions",
+      "blockedExtensions": "Blocked file extensions",
+      "allowedMimeTypes": "Allowed MIME types",
       "maxFileSize": "Maximum file size",
       "maxVolumePerUser": "Maximum total volume per user",
-      "saved": "Upload policy saved"
+      "extensionPlaceholder": "pdf, png, csv",
+      "mimeTypePlaceholder": "image/*, application/pdf",
+      "mbUnit": "MB",
+      "gbUnit": "GB",
+      "policyDisabledHint": "Enable the policy to enforce upload restrictions.",
+      "saved": "Upload policy saved",
+      "saveFailed": "Failed to save upload policy"
     },
     "retentionPolicy": {
-      "title": "Retention Policy",
+      "title": "Retention policy",
       "description": "Configure automatic deletion of uploaded files after a specified period.",
+      "enabled": "Enable retention policy",
       "retentionDays": "Retention period (days)",
+      "retentionDaysHint": "Documents older than this will be permanently deleted. This cannot be undone.",
       "scope": "Apply to",
       "tempFileRetentionHours": "Temporary file retention (hours)",
       "saved": "Retention policy saved"

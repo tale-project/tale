@@ -45,6 +45,10 @@ vi.mock('../../auth', () => ({
   },
 }));
 
+vi.mock('../../governance/upload_enforcement', () => ({
+  checkUploadPolicy: vi.fn().mockResolvedValue({ allowed: true }),
+}));
+
 function createMockCtx(existingDoc: Record<string, unknown> | null = null) {
   const builder = {
     withIndex: vi.fn().mockReturnThis(),
@@ -112,6 +116,7 @@ describe('saveFileMetadata (public)', () => {
       contentType: 'application/pdf',
       size: 1024,
       ragStatus: 'queued',
+      uploadedBy: 'user_1',
     });
     expect(ctx.db.patch).not.toHaveBeenCalled();
   });
@@ -140,6 +145,7 @@ describe('saveFileMetadata (public)', () => {
       fileName: 'new.pdf',
       contentType: 'application/pdf',
       size: 2048,
+      uploadedBy: 'user_1',
     });
     expect(ctx.db.insert).not.toHaveBeenCalled();
   });
@@ -171,6 +177,7 @@ describe('saveFileMetadata (public)', () => {
       fileName: 'test.pdf',
       contentType: 'application/pdf',
       size: 1024,
+      uploadedBy: 'user_1',
       documentId: 'doc_1',
       ragStatus: 'queued',
     });
@@ -196,6 +203,7 @@ describe('saveFileMetadata (public)', () => {
       fileName: 'test.pdf',
       contentType: 'application/pdf',
       size: 1024,
+      uploadedBy: 'user_1',
     });
   });
 });

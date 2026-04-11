@@ -35,6 +35,14 @@ crons.cron(
   {},
 );
 
+// Document retention cleanup - delete expired documents daily at 4 AM UTC
+crons.cron(
+  'document retention cleanup (daily)',
+  '0 4 * * *',
+  internal.governance.retention_cleanup.runRetentionCleanup,
+  {},
+);
+
 // LLM response cache cleanup - purge expired entries hourly
 crons.cron(
   'purge expired LLM response cache (hourly)',
