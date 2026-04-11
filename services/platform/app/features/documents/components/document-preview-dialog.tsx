@@ -128,7 +128,7 @@ function DetailsSidebar({
       {fileMeta?.visionRequired &&
         fileMeta.scannedPagesDetected != null &&
         fileMeta.scannedPagesDetected > 0 && (
-          <SidebarRow label={t('preview.sidebar.scannedPages')}>
+          <SidebarRow label={t('preview.sidebar.imagePages')}>
             {`${fileMeta.scannedPagesDetected} / ${fileMeta.pageCount ?? '?'}`}
             {doc.ragStatus === 'completed' && fileMeta.ocrApplied != null && (
               <Text variant="label-sm" className="text-muted-foreground">

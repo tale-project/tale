@@ -2998,7 +2998,7 @@
         "sourceUpload": "Upload",
         "sourceOnedrive": "OneDrive",
         "sourceSharepoint": "SharePoint",
-        "scannedPages": "Image pages"
+        "imagePages": "Image pages"
       }
     },
     "upload": {
