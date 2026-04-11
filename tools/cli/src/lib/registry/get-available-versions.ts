@@ -153,6 +153,19 @@ export async function getAvailableVersions(
       );
     }
 
+    // Verify manifests exist for the top semantic versions (filters out
+    // versions still being built where only arch-specific tags exist)
+    const candidateCount = Math.min(sortedSemanticTags.length, limit + 1);
+    const manifestChecks = await Promise.all(
+      sortedSemanticTags.slice(0, candidateCount).map(async (tag) => ({
+        tag,
+        hasManifest: !!(await getManifestDigest(image, tag, token)),
+      })),
+    );
+    const publishedVersions = new Set(
+      manifestChecks.filter((c) => c.hasManifest).map((c) => c.tag),
+    );
+
     // Build version list
     if (hasLatest) {
       const aliases: string[] = [];
@@ -169,6 +182,7 @@ export async function getAvailableVersions(
       i < sortedSemanticTags.length && versionInfos.length < limit;
       i++
     ) {
+      if (!publishedVersions.has(sortedSemanticTags[i])) continue;
       versionInfos.push({ tag: sortedSemanticTags[i], aliases: [] });
     }
 
