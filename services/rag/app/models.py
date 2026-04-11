@@ -144,6 +144,7 @@ class DocumentStatusInfo(BaseModel):
     source_modified_at: dt.datetime | None = Field(
         default=None, description="Original file modification date (from file metadata)"
     )
+    ocr_applied: bool | None = Field(default=None, description="Whether OCR was applied during text extraction")
 
 
 class DocumentStatusRequest(BaseModel):
