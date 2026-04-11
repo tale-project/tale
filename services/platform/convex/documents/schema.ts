@@ -45,6 +45,8 @@ export const documentsTable = defineTable({
     }),
   ),
   indexed: v.optional(v.boolean()),
+  scannedPagesDetected: v.optional(v.number()),
+  ocrApplied: v.optional(v.boolean()),
   sourceCreatedAt: v.optional(v.number()),
   sourceModifiedAt: v.optional(v.number()),
   createdBy: v.optional(v.string()),

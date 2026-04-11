@@ -170,23 +170,22 @@ export const extractFileMetadata = internalAction({
           },
         );
 
-        // Write dates to linked document (if any)
-        if (createdAt != null || modifiedAt != null) {
-          const fileMetadata = await ctx.runQuery(
-            internal.file_metadata.internal_queries.getByStorageId,
-            { storageId: args.storageId },
-          );
+        // Write dates and scanned page info to linked document (if any)
+        const fileMetadata = await ctx.runQuery(
+          internal.file_metadata.internal_queries.getByStorageId,
+          { storageId: args.storageId },
+        );
 
-          if (fileMetadata?.documentId) {
-            await ctx.runMutation(
-              internal.documents.internal_mutations.updateDocumentDates,
-              {
-                documentId: fileMetadata.documentId,
-                sourceCreatedAt: createdAt,
-                sourceModifiedAt: modifiedAt,
-              },
-            );
-          }
+        if (fileMetadata?.documentId) {
+          await ctx.runMutation(
+            internal.documents.internal_mutations.updateDocumentDates,
+            {
+              documentId: fileMetadata.documentId,
+              sourceCreatedAt: createdAt,
+              sourceModifiedAt: modifiedAt,
+              scannedPagesDetected: scannedPagesDetected ?? undefined,
+            },
+          );
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);

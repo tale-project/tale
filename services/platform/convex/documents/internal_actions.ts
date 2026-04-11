@@ -283,16 +283,25 @@ export const checkRagDocumentStatus = internalAction({
             ? getString(docStatus, 'source_modified_at')
             : undefined,
         );
+        const ocrApplied = isRecord(docStatus)
+          ? getBoolean(docStatus, 'ocr_applied')
+          : undefined;
 
-        // Write dates BEFORE marking completed — if we crash after marking
-        // completed but before writing dates, the polling loop won't retry.
-        if (sourceCreatedAt != null || sourceModifiedAt != null) {
+        // Write dates and OCR status BEFORE marking completed — if we crash
+        // after marking completed but before writing, the polling loop won't retry.
+        const datePatch: Record<string, unknown> = {};
+        if (sourceCreatedAt != null)
+          datePatch.sourceCreatedAt = sourceCreatedAt;
+        if (sourceModifiedAt != null)
+          datePatch.sourceModifiedAt = sourceModifiedAt;
+        if (ocrApplied != null) datePatch.ocrApplied = ocrApplied;
+
+        if (Object.keys(datePatch).length > 0) {
           await ctx.runMutation(
             internal.documents.internal_mutations.updateDocumentDates,
             {
               documentId: args.documentId,
-              ...(sourceCreatedAt != null && { sourceCreatedAt }),
-              ...(sourceModifiedAt != null && { sourceModifiedAt }),
+              ...datePatch,
             },
           );
         }

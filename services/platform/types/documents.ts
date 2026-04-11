@@ -26,6 +26,10 @@ export interface DocumentItem {
   ragIndexedAt?: number;
   /** Error message (for failed status) */
   ragError?: string;
+  /** Number of scanned pages detected in the document */
+  scannedPagesDetected?: number;
+  /** Whether OCR was applied during RAG indexing */
+  ocrApplied?: boolean;
   teamId?: string | null;
   teamIds?: string[];
   /** User ID who created/uploaded this document */
