@@ -245,7 +245,7 @@ function MessageBubbleComponent({
           'rounded-2xl',
           isUser
             ? 'bg-muted text-foreground max-w-xs lg:max-w-md'
-            : 'text-foreground bg-background',
+            : 'text-foreground bg-background min-w-0',
           (displayContent || message.isAborted) && 'px-4 py-3',
         )}
       >

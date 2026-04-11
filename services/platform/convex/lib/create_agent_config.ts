@@ -107,6 +107,26 @@ Example: User asks for "John's email" and you find 3 Johns:
 → Then STOP and say "I found 3 customers named John. Please select which one you mean from the options above."`);
   }
 
+  // Prefer inline output over file generation when file tools are available
+  const FILE_GENERATION_TOOLS = new Set<ToolName>([
+    'text',
+    'docx',
+    'pptx',
+    'pdf',
+    'excel',
+    'image',
+  ]);
+  if (opts.convexToolNames?.some((name) => FILE_GENERATION_TOOLS.has(name))) {
+    suffixParts.push(
+      `**INLINE OUTPUT PREFERENCE**
+When the user asks you to create, write, or generate content (e.g. code, markdown, HTML, SVG, Mermaid diagrams, slides, documents):
+- ALWAYS output the content directly in the chat as a fenced code block with the appropriate language tag (e.g. \\\`\\\`\\\`html, \\\`\\\`\\\`mermaid, \\\`\\\`\\\`markdown, \\\`\\\`\\\`svg, etc.)
+- The chat supports a Canvas preview pane that can render HTML, SVG, Mermaid, and Markdown directly from code blocks — no file download needed
+- Only use file generation tools (text, docx, pptx, pdf, excel, image) when the user EXPLICITLY asks to download, export, or save as a file
+- For presentations: output the HTML slide deck as a code block first; only call the pptx tool if the user asks for a downloadable file`,
+    );
+  }
+
   // Add approval card placement rule for agents with tools that create approval cards
   if (
     opts.convexToolNames?.some((name) =>
