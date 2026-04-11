@@ -5,10 +5,15 @@
  * including document parsing and image metadata extraction.
  */
 
-import { isImage, isSpreadsheet } from '../../../lib/shared/file-types';
+import {
+  isImage,
+  isSpreadsheet,
+  isTextFile,
+} from '../../../lib/shared/file-types';
 import { internal } from '../../_generated/api';
 import type { ActionCtx } from '../../_generated/server';
 import { analyzeImageCached } from '../../agent_tools/files/helpers/analyze_image';
+import { parseFile } from '../../agent_tools/files/helpers/parse_file';
 import { toId } from '../../lib/type_cast_helpers';
 import { registerFilesWithAgent } from './register_files';
 import type { FileAttachment, MessageContentPart } from './types';
@@ -104,6 +109,7 @@ export async function processAttachments(
       ? MULTI_DOC_MAX_DOCUMENT_LENGTH
       : DEFAULT_MAX_DOCUMENT_LENGTH;
   const maxDocLength = config?.maxDocumentLength ?? defaultLimit;
+  const toolName = config?.toolName ?? 'agent';
   const debugLog = config?.debugLog ?? (() => {});
 
   if (!attachments || attachments.length === 0) {
@@ -265,13 +271,28 @@ export async function processAttachments(
   const contentParts: MessageContentPart[] = [{ type: 'text', text }];
 
   const hasAnalyzedContent =
-    parsedSpreadsheets.length > 0 || analyzedImages.length > 0;
+    parsedDocuments.length > 0 ||
+    parsedSpreadsheets.length > 0 ||
+    analyzedImages.length > 0;
 
   if (hasAnalyzedContent) {
     contentParts.push({
       type: 'text',
       text: '\n\n[PRE-ANALYZED CONTENT BELOW - This is the attachment from the CURRENT message. It takes priority over any previous context. Answer directly from this content without delegating to document tools.]',
     });
+
+    for (const doc of parsedDocuments) {
+      const truncatedContent =
+        doc.content.length > maxDocLength
+          ? doc.content.slice(0, maxDocLength) +
+            '\n\n[... Document truncated due to length ...]'
+          : doc.content;
+
+      contentParts.push({
+        type: 'text',
+        text: `\n\n---\n**Document: ${doc.fileName}** (fileId: ${doc.fileId})\n\n${truncatedContent}\n---\n`,
+      });
+    }
 
     for (const { attachment, result } of parsedSpreadsheets) {
       const sheetTexts = result.sheets.map((sheet) => {
@@ -338,7 +359,7 @@ export async function processAttachments(
       : undefined;
 
   return {
-    parsedDocuments: [],
+    parsedDocuments,
     imageInfoList: [],
     textFileInfoList: [],
     promptContent,
