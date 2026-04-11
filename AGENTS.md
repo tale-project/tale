@@ -117,6 +117,7 @@ for await (const product of products) {
 - KEEP all translation files in sync — every key in `en.json` MUST exist in all locale files (`de.json`, etc.).
 - WHEN adding, changing, or removing a translation key, update ALL locale files in the same commit.
 - WHEN removing code that references translation keys, also remove the unused keys from ALL locale files.
+- LOCALE VARIANTS (e.g. `de-CH`, `de-AT`) only contain keys whose values differ from the base locale (e.g. `de`). Variants fall back to its base automatically.
 - USE sentence case in all translations.
 - PRESERVE ICU placeholders exactly (`{count, plural, ...}`, `{field}`, `{error, select, ...}`).
 - DO NOT translate brand names (Tale, Gmail, Outlook, Shopify, etc.).
@@ -281,10 +282,6 @@ All UI must conform to [WCAG 2.1 Level AA](https://www.w3.org/TR/WCAG21/). The r
 
 ```tsx
 <div aria-busy={isLoading}>
-  {isLoading ? (
-    <Spinner label={t('common.loading')} />
-  ) : (
-    <Content />
-  )}
+  {isLoading ? <Spinner label={t('common.loading')} /> : <Content />}
 </div>
 ```
