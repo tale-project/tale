@@ -38,6 +38,11 @@ vi.mock('../../../_generated/api', () => ({
         readWorkflowForExecution: 'mock-readWorkflowForExecution',
       },
     },
+    mcp_servers: {
+      internal_queries: {
+        listActiveByOrg: 'mock-listActiveByOrg',
+      },
+    },
     lib: {
       response_cache: {
         internal_queries: { lookupCache: 'mock-lookupCache' },
@@ -222,6 +227,9 @@ describe('runAgentGeneration — tool building parallelization', () => {
         if (fn === 'getSystemPromptPolicyInternal') {
           return Promise.resolve({ enabled: false });
         }
+        if (fn === 'mock-listActiveByOrg') {
+          return Promise.resolve([]);
+        }
         return Promise.resolve(null);
       }),
       runAction: vi.fn().mockImplementation((fn: string) => {
@@ -335,6 +343,9 @@ describe('runAgentGeneration — tool building parallelization', () => {
         return new Promise((resolve) =>
           setTimeout(() => resolve({ enabled: false }), 15),
         );
+      }
+      if (fn === 'mock-listActiveByOrg') {
+        return Promise.resolve([]);
       }
       return Promise.resolve(null);
     });
