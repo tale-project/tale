@@ -549,18 +549,27 @@ async def index_document(
     # skip immediately instead of re-extracting/embedding.
     async with acquire_with_retry(pool) as conn:
         own_row = await conn.fetchrow(
-            f"""SELECT d.content_hash, (SELECT COUNT(*) FROM {SCHEMA}.chunks c WHERE c.document_id = d.id) AS chunk_count
-                FROM {SCHEMA}.documents d WHERE d.file_id = $1""",
+            f"""SELECT d.content_hash,
+                       (SELECT COUNT(*)
+                        FROM {SCHEMA}.chunks c
+                        WHERE c.document_id = d.id) AS chunk_count
+                FROM {SCHEMA}.documents d
+                WHERE d.file_id = $1""",
             file_id,
         )
     if own_row and own_row["content_hash"] == content_hash and own_row["chunk_count"] > 0:
         logger.info(
-            "Document {} content unchanged with {} chunks, skipping (early dedup)", file_id, own_row["chunk_count"]
+            "Document {} content unchanged with {} chunks, skipping (early dedup)",
+            file_id,
+            own_row["chunk_count"],
         )
         async with acquire_with_retry(pool) as conn:
             await conn.execute(
                 f"""UPDATE {SCHEMA}.documents
-                    SET status = 'completed', error = NULL, progress_phase = NULL, progress_detail = NULL, updated_at = NOW()
+                    SET status = 'completed', error = NULL,
+                        progress_phase = NULL,
+                        progress_detail = NULL,
+                        updated_at = NOW()
                     WHERE file_id = $1""",
                 file_id,
             )

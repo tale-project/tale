@@ -276,7 +276,7 @@ class TestIndexDocumentDatesThreaded:
         caller_created = dt.datetime(2022, 6, 1, tzinfo=dt.UTC)
 
         mock_conn = AsyncMock()
-        mock_conn.fetchrow = AsyncMock(side_effect=[None, {"id": "uuid-1"}])
+        mock_conn.fetchrow = AsyncMock(side_effect=[None, None, {"id": "uuid-1"}])
         mock_conn.executemany = AsyncMock()
         mock_tx = AsyncMock()
         mock_tx.__aenter__ = AsyncMock(return_value=mock_tx)

@@ -1,6 +1,5 @@
 'use client';
 
-import { useQuery } from 'convex/react';
 import { Download, X, Loader2 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 
@@ -17,7 +16,6 @@ import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useLocale } from '@/app/hooks/use-locale';
 import { useToast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { formatBytes } from '@/lib/utils/format/number';
 
@@ -51,22 +49,11 @@ function SidebarRow({
   );
 }
 
-function DetailsSidebar({
-  doc,
-  organizationId,
-}: {
-  doc: Document;
-  organizationId: string;
-}) {
+function DetailsSidebar({ doc }: { doc: Document }) {
   const { t } = useT('documents');
   const { formatDate } = useFormatDate();
   const { locale } = useLocale();
   const { teams } = useTeams();
-
-  const fileMeta = useQuery(api.file_metadata.queries.getByDocumentId, {
-    organizationId,
-    documentId: doc.id,
-  });
 
   const teamNames = useMemo(() => {
     const ids = doc.teamIds ?? [];
@@ -125,20 +112,18 @@ function DetailsSidebar({
         />
       </SidebarRow>
 
-      {fileMeta?.visionRequired &&
-        fileMeta.scannedPagesDetected != null &&
-        fileMeta.scannedPagesDetected > 0 && (
-          <SidebarRow label={t('preview.sidebar.imagePages')}>
-            {`${fileMeta.scannedPagesDetected} / ${fileMeta.pageCount ?? '?'}`}
-            {doc.ragStatus === 'completed' && fileMeta.ocrApplied != null && (
-              <Text variant="label-sm" className="text-muted-foreground">
-                {fileMeta.ocrApplied
-                  ? t('ocr.processingWithOcr')
-                  : t('ocr.unavailable')}
-              </Text>
-            )}
-          </SidebarRow>
-        )}
+      {doc.scannedPagesDetected != null && doc.scannedPagesDetected > 0 && (
+        <SidebarRow label={t('preview.sidebar.imagePages')}>
+          {String(doc.scannedPagesDetected)}
+          {doc.ragStatus === 'completed' && doc.ocrApplied != null && (
+            <Text variant="label-sm" className="text-muted-foreground">
+              {doc.ocrApplied
+                ? t('ocr.processingWithOcr')
+                : t('ocr.unavailable')}
+            </Text>
+          )}
+        </SidebarRow>
+      )}
 
       <Separator />
 
@@ -284,7 +269,7 @@ export function DocumentPreviewDialog({
           <div className="flex min-w-0 flex-1 flex-col">
             <DocumentPreview url={doc.url} fileName={displayName} />
           </div>
-          <DetailsSidebar doc={doc} organizationId={organizationId} />
+          <DetailsSidebar doc={doc} />
         </div>
       )}
     </Dialog>

@@ -52,6 +52,7 @@ def _mock_pool(
     mock_conn = AsyncMock()
     mock_conn.fetchrow = AsyncMock(
         side_effect=[
+            None,  # early-dedup check (no existing row with same content)
             existing_row,
             {"id": inserted_doc_id},
         ]
@@ -248,20 +249,17 @@ class TestContentHashDedup:
     async def test_skips_unchanged_content(self):
         from app.services.indexing_service import index_document
 
-        existing = {"id": "existing-uuid", "content_hash": SAMPLE_HASH}
-        pool, mock_conn = _mock_pool(existing_row=existing)
+        pool, mock_conn = _mock_pool()
+        # Early-dedup fetchrow returns a row with matching hash and existing chunks
+        mock_conn.fetchrow = AsyncMock(
+            return_value={"content_hash": SAMPLE_HASH, "chunk_count": 5},
+        )
         mock_embed = AsyncMock()
         mock_embed.embed_texts = AsyncMock(return_value=SAMPLE_EMBEDDINGS)
 
         with (
             _patch_acquire(mock_conn),
             patch("app.services.indexing_service.compute_content_hash", return_value=SAMPLE_HASH),
-            patch(
-                "app.services.indexing_service.extract_text",
-                new_callable=AsyncMock,
-                return_value=("Some text", False),
-            ),
-            patch("app.services.indexing_service.chunk_content", return_value=SAMPLE_CHUNKS),
         ):
             result = await index_document(
                 pool,
@@ -284,12 +282,12 @@ class TestContentHashDedup:
         mock_embed.embed_texts = AsyncMock(return_value=SAMPLE_EMBEDDINGS)
 
         # The connection is used multiple times:
-        # 1. fetchrow for dedup check -> returns existing row
-        # 2. execute for DELETE old doc
+        # 1. fetchrow for early-dedup check -> returns row with different hash
+        # 2. fetchrow for cross-scope dedup -> returns existing row
         # 3. fetchrow for INSERT new doc RETURNING id
-        # 4. execute for each chunk INSERT
         mock_conn.fetchrow = AsyncMock(
             side_effect=[
+                {"content_hash": DIFFERENT_HASH, "chunk_count": 3},
                 existing,
                 {"id": "new-uuid"},
             ]
@@ -334,6 +332,7 @@ class TestExplicitChunkDeletion:
 
         mock_conn.fetchrow = AsyncMock(
             side_effect=[
+                {"content_hash": DIFFERENT_HASH, "chunk_count": 3},
                 existing,
                 {"id": "new-uuid"},
             ]
@@ -381,6 +380,7 @@ class TestExplicitChunkDeletion:
 
         mock_conn.fetchrow = AsyncMock(
             side_effect=[
+                {"content_hash": DIFFERENT_HASH, "chunk_count": 3},
                 existing,
                 {"id": "new-uuid"},
             ]
