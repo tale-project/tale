@@ -193,9 +193,45 @@ export async function onAgentComplete(
       );
     }
 
-    // TODO: Write audit log for usage tracking. logSuccess requires MutationCtx
-    // but onAgentComplete runs in ActionCtx. Consider creating an internalMutation
-    // wrapper or a dedicated audit log action for this.
+    // AI audit log for usage tracking
+    promises.push(
+      ctx
+        .runMutation(internal.audit_logs.internal_mutations.createAuditLog, {
+          organizationId,
+          actorId: userId,
+          actorType: 'user' as const,
+          action: result.error ? 'ai.completion_failed' : 'ai.completion',
+          category: 'ai' as const,
+          resourceType: 'agent_completion',
+          resourceId: result.messageId,
+          resourceName: args.agentSlug,
+          status: result.error ? ('failure' as const) : ('success' as const),
+          errorMessage: result.error,
+          metadata: {
+            model: result.model,
+            provider: result.provider,
+            inputTokens: result.usage?.inputTokens,
+            outputTokens: result.usage?.outputTokens,
+            totalTokens: result.usage?.totalTokens,
+            reasoningTokens: result.usage?.reasoningTokens,
+            cachedInputTokens: result.usage?.cachedInputTokens,
+            costEstimateCents: costCents,
+            durationMs: result.durationMs,
+            timeToFirstTokenMs: result.timeToFirstTokenMs,
+            threadId,
+            agentType,
+            agentSlug: args.agentSlug,
+            toolCallCount: result.toolCalls?.length,
+            toolNames: result.toolCalls?.map((tc) => tc.toolName),
+          },
+        })
+        .catch((error) => {
+          console.error(`[${agentType}] Failed to write AI audit log:`, {
+            threadId,
+            error,
+          });
+        }),
+    );
   }
 
   await Promise.all(promises);

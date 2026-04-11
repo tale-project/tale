@@ -17,6 +17,7 @@ import { isSpreadsheet } from '../../../lib/shared/file-types';
 import { components, internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
+import { createAuditLog } from '../../audit_logs/helpers';
 import { checkBudget } from '../../governance/budget_enforcement';
 import { resolveFeatureFlags } from '../../governance/feature_enforcement';
 import { resolveBudgetContext } from '../../governance/resolve_budget_context';
@@ -246,6 +247,26 @@ export async function startAgentChat(
           updatedAt: Date.now(),
         });
       }
+
+      await createAuditLog(ctx, {
+        organizationId,
+        actorId: userId,
+        actorType: 'user',
+        action: 'ai.budget_blocked',
+        category: 'ai',
+        resourceType: 'agent_completion',
+        resourceId: threadId,
+        resourceName: args.agentSlug,
+        status: 'denied',
+        errorMessage: budgetMessage,
+        metadata: {
+          threadId,
+          agentType,
+          model,
+          reason: budgetResult.reason,
+        },
+      });
+
       return { messageAlreadyExists, streamId };
     }
   }

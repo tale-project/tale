@@ -9,6 +9,7 @@ import { Text } from '@/app/components/ui/typography/text';
 import { AuditLogTable } from '@/app/features/settings/audit-logs/components/audit-log-table';
 import { useListAuditLogsPaginated } from '@/app/features/settings/audit-logs/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
+import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
@@ -31,6 +32,9 @@ function LogsPage() {
   const { t: tAccess } = useT('accessDenied');
 
   const ability = useAbility();
+  const memberContext = useCurrentMemberContext(organizationId);
+  const memberRole = memberContext.data?.role;
+  const isAdminUser = memberRole === 'admin' || memberRole === 'owner';
 
   const paginatedResult = useListAuditLogsPaginated({
     organizationId,
@@ -57,6 +61,7 @@ function LogsPage() {
                   organizationId={organizationId}
                   paginatedResult={paginatedResult}
                   category={search.category}
+                  isAdmin={isAdminUser}
                 />
               </Card>
             ),

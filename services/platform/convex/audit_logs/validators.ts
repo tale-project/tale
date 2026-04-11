@@ -47,6 +47,9 @@ export const auditLogItemValidator = v.object({
   status: auditLogStatusValidator,
   errorMessage: v.optional(v.string()),
   metadata: v.optional(jsonRecordValidator),
+
+  integrityHash: v.optional(v.string()),
+  previousHash: v.optional(v.string()),
 });
 
 export const auditLogFilterValidator = v.object({

@@ -1,6 +1,7 @@
 import { isRecord } from '../../lib/utils/type-guards';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
+import { computeAuditHash } from '../lib/helpers/audit_hash';
 import type {
   CreateAuditLogArgs,
   ListAuditLogsArgs,
@@ -139,6 +140,47 @@ export async function createAuditLog(
     args.changedFields ??
     computeChangedFields(args.previousState, args.newState);
 
+  const timestamp = Date.now();
+
+  // Look up the most recent audit log for this organization to chain hashes
+  const lastEntry = await ctx.db
+    .query('auditLogs')
+    .withIndex('by_organizationId_and_timestamp', (q) =>
+      q.eq('organizationId', args.organizationId),
+    )
+    .order('desc')
+    .first();
+
+  const previousHash = lastEntry?.integrityHash ?? '';
+
+  // Build the record payload for hashing (all fields except hash chain metadata)
+  const recordForHash: Record<string, unknown> = {
+    organizationId: args.organizationId,
+    actorId: args.actorId,
+    actorEmail: args.actorEmail,
+    actorRole: args.actorRole,
+    actorType: args.actorType,
+    action: args.action,
+    category: args.category,
+    resourceType: args.resourceType,
+    resourceId: args.resourceId,
+    resourceName: args.resourceName,
+    previousState: redactedPreviousState,
+    newState: redactedNewState,
+    changedFields: changedFields.length > 0 ? changedFields : undefined,
+    sessionId: args.sessionId,
+    ipAddress: args.ipAddress,
+    userAgent: args.userAgent,
+    requestId: args.requestId,
+    timestamp,
+    status: args.status,
+    errorMessage: args.errorMessage,
+    metadata: args.metadata,
+  };
+
+  // Compute integrity hash: SHA-256(previousHash + canonicalized record)
+  const integrityHash = await computeAuditHash(previousHash, recordForHash);
+
   const auditLogId = await ctx.db.insert('auditLogs', {
     organizationId: args.organizationId,
     actorId: args.actorId,
@@ -157,10 +199,12 @@ export async function createAuditLog(
     ipAddress: args.ipAddress,
     userAgent: args.userAgent,
     requestId: args.requestId,
-    timestamp: Date.now(),
+    timestamp,
     status: args.status,
     errorMessage: args.errorMessage,
     metadata: args.metadata,
+    integrityHash,
+    previousHash: previousHash || undefined,
   });
 
   return auditLogId;

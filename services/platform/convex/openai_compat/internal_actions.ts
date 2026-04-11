@@ -389,6 +389,7 @@ export const chatViaOpenAIWithTools = internalAction({
       const inputTokens = usage.inputTokens ?? 0;
       const outputTokens = usage.outputTokens ?? 0;
       if (inputTokens > 0 || outputTokens > 0) {
+        const costCents = estimateCostCents(modelId, inputTokens, outputTokens);
         await ctx
           .runMutation(
             internal.governance.internal_mutations.incrementUsageLedger,
@@ -397,17 +398,42 @@ export const chatViaOpenAIWithTools = internalAction({
               userId: args.userId ?? 'system',
               inputTokens,
               outputTokens,
-              costEstimateCents: estimateCostCents(
-                modelId,
-                inputTokens,
-                outputTokens,
-              ),
+              costEstimateCents: costCents,
               timestamp: Date.now(),
             },
           )
           .catch((error) => {
             console.error(
               '[OpenAI-compat:clientTools] Failed to increment usage ledger:',
+              error,
+            );
+          });
+
+        // AI audit log for OpenAI-compat client tool mode
+        await ctx
+          .runMutation(internal.audit_logs.internal_mutations.createAuditLog, {
+            organizationId: args.organizationId,
+            actorId: args.userId ?? 'system',
+            actorType: 'api' as const,
+            action: 'ai.completion',
+            category: 'ai' as const,
+            resourceType: 'agent_completion',
+            resourceId: threadId,
+            status: 'success' as const,
+            metadata: {
+              model: modelId,
+              inputTokens,
+              outputTokens,
+              totalTokens: inputTokens + outputTokens,
+              costEstimateCents: costCents,
+              threadId,
+              agentType: 'openai_compat',
+              toolCallCount: toolCalls.length,
+            },
+          })
+          .catch((error) => {
+            console.error(
+              '[OpenAI-compat:clientTools] Failed to write AI audit log:',
               error,
             );
           });
