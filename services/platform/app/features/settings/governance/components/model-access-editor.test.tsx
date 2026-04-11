@@ -1,0 +1,107 @@
+import { describe, it, vi } from 'vitest';
+
+import { checkAccessibility } from '@/test/utils/a11y';
+import { render } from '@/test/utils/render';
+
+import { ModelAccessEditor } from './model-access-editor';
+
+vi.mock('@/app/hooks/use-organization-id', () => ({
+  useOrganizationId: () => 'org-1',
+}));
+
+vi.mock('@/app/hooks/use-toast', () => ({
+  useToast: () => ({ toast: vi.fn() }),
+}));
+
+vi.mock('../hooks/mutations', () => ({
+  useUpsertGovernancePolicy: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}));
+
+vi.mock('../hooks/queries', () => ({
+  useGovernancePolicy: () => ({
+    data: {
+      config: {
+        enabled: false,
+        mode: 'blocklist',
+        rules: [],
+      },
+    },
+    isLoading: false,
+  }),
+}));
+
+vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
+  useMembers: () => ({ members: [] }),
+}));
+
+vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
+  useOrgTeams: () => ({ teams: [] }),
+}));
+
+vi.mock('@/app/features/settings/providers/hooks/queries', () => ({
+  useListProviders: () => ({ providers: [] }),
+}));
+
+vi.mock('@/app/hooks/use-ability', () => ({
+  useAbility: () => ({ can: () => true, cannot: () => false }),
+}));
+
+vi.mock('@/app/components/ui/forms/switch', () => ({
+  Switch: ({
+    checked,
+    onCheckedChange,
+    label,
+  }: {
+    checked: boolean;
+    onCheckedChange: (checked: boolean) => void;
+    label?: string;
+    disabled?: boolean;
+  }) => (
+    <label>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onCheckedChange(e.target.checked)}
+        aria-label={label ?? 'Switch'}
+      />
+      {label && <span>{label}</span>}
+    </label>
+  ),
+}));
+
+vi.mock('@/app/components/ui/forms/select', () => ({
+  Select: ({
+    value,
+    onValueChange,
+    options,
+    label,
+  }: {
+    value: string;
+    onValueChange: (value: string) => void;
+    options: Array<{ value: string; label: string }>;
+    label?: string;
+  }) => (
+    <select
+      value={value}
+      onChange={(e) => onValueChange(e.target.value)}
+      aria-label={label ?? 'Select'}
+    >
+      {options.map((opt: { value: string; label: string }) => (
+        <option key={opt.value} value={opt.value}>
+          {opt.label}
+        </option>
+      ))}
+    </select>
+  ),
+}));
+
+describe('ModelAccessEditor', () => {
+  describe('accessibility', () => {
+    it('passes axe audit', async () => {
+      const { container } = render(
+        <ModelAccessEditor organizationId="org-1" />,
+      );
+      await checkAccessibility(container);
+    });
+  });
+});

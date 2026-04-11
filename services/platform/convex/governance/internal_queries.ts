@@ -2,7 +2,9 @@ import { v } from 'convex/values';
 
 import { components } from '../_generated/api';
 import { internalQuery } from '../_generated/server';
+import { getUserTeamIds } from '../lib/get_user_teams';
 import { getOrganizationMember } from '../lib/rls';
+import { checkModelAccess } from './model_access_enforcement';
 import { resolveDefaultModel } from './resolve_default_model';
 
 export const getPiiConfigInternal = internalQuery({
@@ -148,5 +150,32 @@ export const resolveDefaultModelInternal = internalQuery({
     const teamIds = membershipsResult?.page.map((m) => m.teamId) ?? [];
 
     return resolveDefaultModel(ctx, args.organizationId, teamIds, member.role);
+  },
+});
+
+export const checkModelAccessInternal = internalQuery({
+  args: {
+    organizationId: v.string(),
+    userId: v.string(),
+    modelId: v.string(),
+  },
+  returns: v.object({
+    allowed: v.boolean(),
+    reason: v.optional(v.string()),
+  }),
+  handler: async (ctx, args) => {
+    const member = await getOrganizationMember(ctx, args.organizationId, {
+      userId: args.userId,
+    });
+    const teamIds = await getUserTeamIds(ctx, args.userId);
+
+    return checkModelAccess(
+      ctx,
+      args.organizationId,
+      args.userId,
+      teamIds,
+      member.role,
+      args.modelId,
+    );
   },
 });

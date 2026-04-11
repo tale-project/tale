@@ -13,6 +13,7 @@ import {
   SearchableSelect,
   type SearchableSelectOption,
 } from '@/app/components/ui/forms/searchable-select';
+import { useAccessibleModels } from '@/app/features/settings/governance/hooks/queries';
 import { useListProviders } from '@/app/features/settings/providers/hooks/queries';
 import { useT } from '@/lib/i18n/client';
 
@@ -77,12 +78,22 @@ export function ModelSelector({ organizationId }: ModelSelectorProps) {
     [modelInfoMap, t],
   );
 
-  const filteredModels = useMemo(() => {
+  const chatModels = useMemo(() => {
     return supportedModels.filter((modelId) => {
       const info = modelInfoMap.get(modelId);
       return info?.tags.includes('chat');
     });
   }, [supportedModels, modelInfoMap]);
+
+  const { data: accessibleModelIds } = useAccessibleModels(
+    organizationId,
+    chatModels,
+  );
+
+  const filteredModels = useMemo(() => {
+    if (!accessibleModelIds) return chatModels;
+    return chatModels.filter((id) => accessibleModelIds.includes(id));
+  }, [chatModels, accessibleModelIds]);
 
   const getDisplayName = useCallback(
     (modelId: string) =>

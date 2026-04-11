@@ -6,6 +6,7 @@ import { AccessDenied } from '@/app/components/layout/access-denied';
 import { Tabs } from '@/app/components/ui/navigation/tabs';
 import { BudgetEditor } from '@/app/features/settings/governance/components/budget-editor';
 import { FeatureFlagsEditor } from '@/app/features/settings/governance/components/feature-flags-editor';
+import { ModelAccessEditor } from '@/app/features/settings/governance/components/model-access-editor';
 import { PiiConfig } from '@/app/features/settings/governance/components/pii-config';
 import { RetentionEditor } from '@/app/features/settings/governance/components/retention-editor';
 import { SystemPromptEditor } from '@/app/features/settings/governance/components/system-prompt-editor';
@@ -90,6 +91,11 @@ function GovernanceSettingsPage() {
         value: 'feature-controls',
         label: t('tabs.featureControls'),
         content: <FeatureFlagsEditor organizationId={organizationId} />,
+      },
+      {
+        value: 'model-access',
+        label: t('tabs.modelAccess'),
+        content: <ModelAccessEditor organizationId={organizationId} />,
       },
       {
         value: 'usage',
