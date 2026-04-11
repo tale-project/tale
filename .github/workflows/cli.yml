@@ -132,6 +132,26 @@ jobs:
       - name: List artifacts
         run: find artifacts -type f
 
+      - name: Wait for release to exist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ github.event.inputs.release_tag }}"
+          REPO="${{ github.repository }}"
+          MAX_ATTEMPTS=10
+          DELAY=15
+          for i in $(seq 1 $MAX_ATTEMPTS); do
+            if gh release view "$TAG" --repo "$REPO" > /dev/null 2>&1; then
+              echo "Release $TAG found."
+              exit 0
+            fi
+            echo "Release $TAG not found yet (attempt $i/$MAX_ATTEMPTS). Waiting ${DELAY}s..."
+            sleep $DELAY
+            DELAY=$((DELAY * 2 > 120 ? 120 : DELAY * 2))
+          done
+          echo "::error::Release $TAG not found after $MAX_ATTEMPTS attempts."
+          exit 1
+
       - name: Upload to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

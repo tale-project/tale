@@ -211,4 +211,46 @@ describe('getAvailableVersions', () => {
 
     expect(result.versions.length).toBeLessThanOrEqual(3);
   });
+
+  test('backfills past missing manifests to satisfy limit', async () => {
+    // Newest 3 tags have no manifest; the next 3 do.
+    // With limit=3 the result must skip the broken tags and return the older valid ones.
+    const tagsWithMissing = [
+      '0.4.0',
+      '0.3.2',
+      '0.3.1',
+      '0.3.0',
+      '0.2.16',
+      '0.2.15',
+    ];
+    const missingManifestTags = new Set(['0.4.0', '0.3.2', '0.3.1']);
+
+    fetchMock.mockImplementation((url: string, options?: RequestInit) => {
+      const urlStr = url.toString();
+
+      if (urlStr.includes('/token')) {
+        return Promise.resolve(mockTokenResponse());
+      }
+
+      if (urlStr.includes('/tags/list')) {
+        return Promise.resolve(mockTagsResponse(tagsWithMissing));
+      }
+
+      if (options?.method === 'HEAD') {
+        for (const tag of missingManifestTags) {
+          if (urlStr.includes(`/${tag}`)) {
+            return Promise.resolve(mockManifestHead(null));
+          }
+        }
+        return Promise.resolve(mockManifestHead('sha256:valid'));
+      }
+
+      return Promise.resolve(new Response(null, { status: 404 }));
+    });
+
+    const result = await getAvailableVersions('ghcr.io/tale-project/tale', 3);
+
+    const tags = result.versions.map((v) => v.tag);
+    expect(tags).toEqual(['0.3.0', '0.2.16', '0.2.15']);
+  });
 });

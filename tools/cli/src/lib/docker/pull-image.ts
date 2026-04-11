@@ -15,6 +15,9 @@ export async function pullImage(image: string): Promise<boolean> {
         logger.error(
           'The image does not exist in the registry. If this is a recent release, the images may still be building. Wait a few minutes and try again.',
         );
+        if (result.stderr) {
+          logger.error(result.stderr);
+        }
       } else {
         logger.error(result.stderr);
       }
