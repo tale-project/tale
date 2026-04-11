@@ -150,10 +150,41 @@ async function loadAllProviders(
 export const readProvider = action({
   args: { orgSlug: v.string(), providerName: v.string() },
   returns: v.any(),
-  handler: async (ctx, args): Promise<ProviderReadResult> => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<
+    ProviderReadResult & { maskedModelKeys?: Record<string, string> }
+  > => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
-    return readProviderFile(args.orgSlug, args.providerName);
+    const result = await readProviderFile(args.orgSlug, args.providerName);
+    if (!result.ok) return result;
+
+    // Attach masked per-model API keys (modelId → masked key)
+    const maskedModelKeys: Record<string, string> = {};
+    try {
+      const secretsPath = resolveProviderSecretsPath(
+        args.orgSlug,
+        args.providerName,
+      );
+      const raw = await decryptSecretsFile(secretsPath);
+      const secrets = parseProviderSecrets(raw);
+      if (secrets.modelKeys) {
+        for (const [id, key] of Object.entries(secrets.modelKeys)) {
+          if (key) {
+            maskedModelKeys[id] = maskApiKey(key);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn(
+        `Provider "${args.providerName}": failed to read model key overrides`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+
+    return { ...result, maskedModelKeys };
   },
 });
 
@@ -185,6 +216,20 @@ export const listProviders = action({
         if (!validateProviderName(name)) return null;
         const result = await readProviderFile(args.orgSlug, name);
         if (result.ok) {
+          // Try reading secrets to detect per-model API key overrides
+          let modelKeys: Record<string, string> | undefined;
+          try {
+            const secretsPath = resolveProviderSecretsPath(args.orgSlug, name);
+            const raw = await decryptSecretsFile(secretsPath);
+            const secrets = parseProviderSecrets(raw);
+            modelKeys = secrets.modelKeys;
+          } catch (err) {
+            console.warn(
+              `Provider "${name}": failed to read model key overrides`,
+              err instanceof Error ? err.message : String(err),
+            );
+          }
+
           return {
             name,
             displayName: result.config.displayName,
@@ -198,6 +243,7 @@ export const listProviders = action({
               description: m.description ?? '',
               tags: m.tags,
               hasBaseUrlOverride: m.baseUrl != null,
+              hasApiKeyOverride: modelKeys?.[m.id] != null,
             })),
             i18n: result.config.i18n,
           };
