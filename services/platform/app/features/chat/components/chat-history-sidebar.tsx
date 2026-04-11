@@ -18,6 +18,7 @@ import {
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Heading } from '@/app/components/ui/typography/heading';
 import { Text } from '@/app/components/ui/typography/text';
+import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -69,19 +70,22 @@ export function ChatHistorySidebar({
   const isMounted = useIsMounted();
   const { toast } = useToast();
 
+  const teamFilter = useOptionalTeamFilter();
+  const selectedTeamId = teamFilter?.selectedTeamId ?? undefined;
+
   const {
     threads: threadsData,
     canLoadMore,
     isLoadingMore,
     loadMore,
-  } = useThreads();
+  } = useThreads({ teamId: selectedTeamId });
 
   const {
     threads: archivedThreadsData,
     canLoadMore: canLoadMoreArchived,
     isLoadingMore: isLoadingMoreArchived,
     loadMore: loadMoreArchived,
-  } = useArchivedThreads();
+  } = useArchivedThreads({ teamId: selectedTeamId });
 
   const { approvals } = useActiveApprovals(organizationId);
 

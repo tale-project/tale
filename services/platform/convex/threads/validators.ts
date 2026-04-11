@@ -40,6 +40,7 @@ export const threadListItemValidator = v.object({
   title: v.optional(v.string()),
   status: threadStatusValidator,
   userId: v.optional(v.string()),
+  teamId: v.optional(v.string()),
 });
 
 export const latestToolMessageValidator = v.object({

@@ -14,6 +14,7 @@ export async function listArchivedThreads(
   args: {
     userId: string;
     paginationOpts: PaginationOptions;
+    teamId?: string;
   },
 ): Promise<ListArchivedThreadsPaginatedResult> {
   const result = await ctx.db
@@ -24,6 +25,10 @@ export async function listArchivedThreads(
         .eq('chatType', 'general')
         .eq('status', 'archived'),
     )
+    .filter((q) => {
+      if (!args.teamId) return true;
+      return q.eq(q.field('teamId'), args.teamId);
+    })
     .order('desc')
     .paginate(args.paginationOpts);
 
@@ -35,6 +40,7 @@ export async function listArchivedThreads(
       status: row.status,
       userId: row.userId,
       generationStatus: row.generationStatus,
+      teamId: row.teamId,
     })),
     isDone: result.isDone,
     continueCursor: result.continueCursor,

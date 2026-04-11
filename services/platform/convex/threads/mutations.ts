@@ -29,6 +29,7 @@ export const createChatThread = mutation({
     arenaModelId: v.optional(v.string()),
     isBranch: v.optional(v.boolean()),
     forkedFrom: v.optional(v.string()),
+    teamId: v.optional(v.string()),
   },
   returns: v.string(),
   handler: async (ctx, args) => {
@@ -50,6 +51,7 @@ export const createChatThread = mutation({
             forkedFrom: args.forkedFrom,
           }
         : undefined,
+      args.teamId,
     );
   },
 });

@@ -59,6 +59,7 @@ interface ThreadMetadataRow {
   title?: string;
   createdAt: number;
   updatedAt?: number;
+  teamId?: string;
 }
 
 let idCounter = 0;
@@ -68,6 +69,7 @@ function makeRow(overrides: {
   title?: string;
   createdAt?: number;
   updatedAt?: number;
+  teamId?: string;
 }): ThreadMetadataRow {
   idCounter++;
   const createdAt = overrides.createdAt ?? Date.now() - idCounter * 1000;
@@ -81,6 +83,7 @@ function makeRow(overrides: {
     title: overrides.title ?? `Thread ${overrides.threadId}`,
     createdAt,
     updatedAt: overrides.updatedAt,
+    teamId: overrides.teamId,
   };
 }
 
@@ -170,7 +173,7 @@ describe('listThreads', () => {
     expect(thread._creationTime).toBe(5000);
   });
 
-  it('should only include _id, _creationTime, title, status, userId, generationStatus in results', async () => {
+  it('should only include _id, _creationTime, title, status, userId, generationStatus, teamId in results', async () => {
     const ctx = makeMockCtx([
       makeRow({ threadId: 't1', title: 'Test Thread' }),
     ]);
@@ -186,6 +189,7 @@ describe('listThreads', () => {
       '_id',
       'generationStatus',
       'status',
+      'teamId',
       'title',
       'userId',
     ]);
@@ -254,5 +258,27 @@ describe('listThreads', () => {
 
     expect(result.page).toHaveLength(2);
     expect(result.isDone).toBe(true);
+  });
+
+  it('should return teamId in thread results', async () => {
+    const ctx = makeMockCtx([makeRow({ threadId: 't1', teamId: 'team_abc' })]);
+
+    const result = await listThreads(ctx, {
+      userId: 'user1',
+      paginationOpts: { cursor: null, numItems: 10 },
+    });
+
+    expect(result.page[0].teamId).toBe('team_abc');
+  });
+
+  it('should return undefined teamId for threads without team', async () => {
+    const ctx = makeMockCtx([makeRow({ threadId: 't1' })]);
+
+    const result = await listThreads(ctx, {
+      userId: 'user1',
+      paginationOpts: { cursor: null, numItems: 10 },
+    });
+
+    expect(result.page[0].teamId).toBeUndefined();
   });
 });

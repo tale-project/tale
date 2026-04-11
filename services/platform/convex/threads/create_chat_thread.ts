@@ -15,6 +15,7 @@ export async function createChatThread(
     isBranch?: boolean;
     forkedFrom?: string;
   },
+  teamId?: string,
 ): Promise<string> {
   const summary = JSON.stringify({ chatType });
   const resolvedTitle = title ?? 'New Chat';
@@ -38,6 +39,7 @@ export async function createChatThread(
     title: resolvedTitle,
     createdAt,
     updatedAt: createdAt,
+    ...(teamId && { teamId }),
     ...(arena && {
       arenaGroupId: arena.arenaGroupId,
       arenaModelId: arena.arenaModelId,
