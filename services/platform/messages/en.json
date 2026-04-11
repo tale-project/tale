@@ -2531,7 +2531,8 @@
     },
     "toast": {
       "generateFailed": "Failed to generate response",
-      "sendFailed": "Failed to send message"
+      "sendFailed": "Failed to send message",
+      "piiBlocked": "Message blocked by PII policy"
     },
     "thinking": {
       "default": "Thinking",

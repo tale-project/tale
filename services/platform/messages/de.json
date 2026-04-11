@@ -2527,7 +2527,8 @@
     },
     "toast": {
       "generateFailed": "Antwort konnte nicht generiert werden",
-      "sendFailed": "Nachricht konnte nicht gesendet werden"
+      "sendFailed": "Nachricht konnte nicht gesendet werden",
+      "piiBlocked": "Nachricht durch PII-Richtlinie blockiert"
     },
     "thinking": {
       "default": "Denkt nach",
