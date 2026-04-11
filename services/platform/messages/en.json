@@ -870,6 +870,7 @@
         "searchModels": "Search models…",
         "noModelsFound": "No models found",
         "removeModel": "Remove",
+        "embeddingModelWarning": "Embedding-only model — not usable for chat",
         "modelSelector": {
           "moveUp": "Move model up",
           "moveDown": "Move model down",

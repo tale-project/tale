@@ -62,6 +62,22 @@ function InstructionsTab() {
     return map;
   }, [providers]);
 
+  const modelTagsMap = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const provider of providers) {
+      if (
+        !provider ||
+        !('models' in provider) ||
+        !Array.isArray(provider.models)
+      )
+        continue;
+      for (const model of provider.models) {
+        map.set(model.id, model.tags ?? []);
+      }
+    }
+    return map;
+  }, [providers]);
+
   const availableOptions = useMemo(() => {
     const allModels: { id: string; displayName: string }[] = [];
     for (const provider of providers) {
@@ -79,8 +95,19 @@ function InstructionsTab() {
     const selected = new Set(selectedModels);
     return allModels
       .filter((m) => !selected.has(m.id))
-      .map((m) => ({ value: m.id, label: m.displayName }));
-  }, [providers, selectedModels, config.provider]);
+      .map((m) => {
+        const tags = modelTagsMap.get(m.id) ?? [];
+        const isEmbeddingOnly =
+          tags.includes('embedding') && !tags.includes('chat');
+        return {
+          value: m.id,
+          label: m.displayName,
+          description: isEmbeddingOnly
+            ? t('agents.form.embeddingModelWarning')
+            : undefined,
+        };
+      });
+  }, [providers, selectedModels, config.provider, modelTagsMap, t]);
 
   const getDisplayName = useCallback(
     (modelId: string) =>

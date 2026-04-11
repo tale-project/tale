@@ -231,6 +231,105 @@ export class NonRetryableError extends Error {
 }
 
 /**
+ * Provider error classification for user-facing messages.
+ *
+ * Maps HTTP status codes and error patterns to actionable descriptions
+ * that tell the user what went wrong and what to do about it.
+ */
+export interface ProviderErrorClassification {
+  errorType:
+    | 'model_not_found'
+    | 'auth_failed'
+    | 'rate_limited'
+    | 'bad_request'
+    | 'provider_error'
+    | 'unknown';
+  userMessage: string;
+}
+
+export function classifyProviderError(
+  error: unknown,
+): ProviderErrorClassification {
+  const isObject = (val: unknown): val is Record<string, unknown> =>
+    val !== null && typeof val === 'object';
+
+  const err = isObject(error) ? error : {};
+
+  const status =
+    typeof err.status === 'number'
+      ? err.status
+      : typeof err.statusCode === 'number'
+        ? err.statusCode
+        : undefined;
+  const message = (
+    typeof err.message === 'string' ? err.message : ''
+  ).toLowerCase();
+
+  // Check message-based patterns first (more specific than status code)
+  if (message.includes('model') && message.includes('not found')) {
+    return {
+      errorType: 'model_not_found',
+      userMessage:
+        'The selected model was not found on the provider. It may have been renamed or is not available.',
+    };
+  }
+
+  if (status === 404) {
+    return {
+      errorType: 'model_not_found',
+      userMessage:
+        'The selected model was not found on the provider. It may have been renamed or is not available.',
+    };
+  }
+
+  if (status === 401) {
+    return {
+      errorType: 'auth_failed',
+      userMessage:
+        'The API key is invalid or expired. Check your provider configuration.',
+    };
+  }
+
+  if (status === 403) {
+    return {
+      errorType: 'auth_failed',
+      userMessage:
+        'The API key does not have access to this model. Check your provider permissions.',
+    };
+  }
+
+  if (status === 429) {
+    return {
+      errorType: 'rate_limited',
+      userMessage:
+        'The rate limit was exceeded for this model. Try again later or switch to a different model.',
+    };
+  }
+
+  if (status === 400) {
+    return {
+      errorType: 'bad_request',
+      userMessage:
+        'The model rejected the request. This may be a compatibility issue with the current tools or message format.',
+    };
+  }
+
+  if (status !== undefined && status >= 500) {
+    return {
+      errorType: 'provider_error',
+      userMessage:
+        'The model provider is experiencing issues. Try again later or switch to a different model.',
+    };
+  }
+
+  return {
+    errorType: 'unknown',
+    userMessage:
+      'An unexpected error occurred. Try again or switch to a different model.',
+  };
+}
+
+/**
  * Wraps an error based on its classification.
  * Non-retryable errors are wrapped in NonRetryableError.
  * Retryable errors are returned as-is.
