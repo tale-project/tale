@@ -18,6 +18,7 @@ Tests:
   14. Error: invalid API key (401)
   15. Error: missing messages (400)
   16. Error: no user message (400)
+  17. Citations field present in agent mode response
 """
 
 import json
@@ -526,6 +527,34 @@ except Exception as e:
         ok(f"{s[:80]}")
     else:
         fail(f"Unexpected: {s[:80]}")
+
+# =========================================================================
+# 17. Citations field present in agent mode response
+# =========================================================================
+test("17. Citations field present in agent mode response")
+try:
+    r = client.chat.completions.create(
+        model=MODEL,
+        messages=[{"role": "user", "content": "Say hello in exactly 2 words."}],
+    )
+    # citations is a non-standard field; access via model_extra
+    citations = r.model_extra.get("citations") if r.model_extra else None
+    print(f"  Citations: {citations}")
+    if citations is not None and isinstance(citations, list):
+        ok(f"citations field present (length: {len(citations)})")
+        # Validate citation shape if any citations are returned
+        for c in citations:
+            assert "index" in c, "Missing 'index' in citation"
+            assert "type" in c, "Missing 'type' in citation"
+            assert c["type"] in ("rag", "web"), f"Invalid type: {c['type']}"
+            assert "source" in c, "Missing 'source' in citation"
+            assert "relevance" in c, "Missing 'relevance' in citation"
+        if citations:
+            ok(f"Citation shape valid for {len(citations)} citation(s)")
+    else:
+        fail("citations field missing or not a list")
+except Exception as e:
+    fail(str(e)[:120])
 
 # =========================================================================
 # Summary

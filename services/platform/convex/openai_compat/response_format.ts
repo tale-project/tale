@@ -5,6 +5,8 @@
  * for both streaming (SSE) and non-streaming modes.
  */
 
+import type { Citation } from './citations';
+
 // ---------------------------------------------------------------------------
 // Non-streaming response
 // ---------------------------------------------------------------------------
@@ -36,6 +38,7 @@ interface ChatCompletionResponse {
     completion_tokens: number;
     total_tokens: number;
   };
+  citations: Citation[];
 }
 
 export function buildChatCompletion(
@@ -43,6 +46,7 @@ export function buildChatCompletion(
   model: string,
   content: string,
   created: number,
+  citations: Citation[] = [],
 ): ChatCompletionResponse {
   return {
     id: `chatcmpl-${id}`,
@@ -57,6 +61,7 @@ export function buildChatCompletion(
       },
     ],
     usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+    citations,
   };
 }
 
@@ -83,6 +88,7 @@ export function buildChatCompletionWithToolCalls(
       },
     ],
     usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+    citations: [],
   };
 }
 
@@ -139,6 +145,10 @@ export function formatSSEChunk(data: unknown): string {
 
 export function formatSSEDone(): string {
   return 'data: [DONE]\n\n';
+}
+
+export function formatSSECitations(citations: Citation[]): string {
+  return `data: ${JSON.stringify({ citations })}\n\n`;
 }
 
 // ---------------------------------------------------------------------------
