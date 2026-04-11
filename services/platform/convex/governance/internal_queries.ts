@@ -1,6 +1,9 @@
 import { v } from 'convex/values';
 
+import { components } from '../_generated/api';
 import { internalQuery } from '../_generated/server';
+import { getOrganizationMember } from '../lib/rls';
+import { resolveDefaultModel } from './resolve_default_model';
 
 export const getPiiConfigInternal = internalQuery({
   args: {
@@ -101,5 +104,49 @@ export const listExpiredDocuments = internalQuery({
       }
     }
     return docs;
+  },
+});
+
+interface BetterAuthTeamMember {
+  teamId: string;
+}
+
+interface BetterAuthFindManyResult<T> {
+  page: T[];
+  continueCursor: string;
+  isDone: boolean;
+}
+
+export const resolveDefaultModelInternal = internalQuery({
+  args: {
+    organizationId: v.string(),
+    userId: v.string(),
+    userEmail: v.string(),
+    userName: v.optional(v.string()),
+  },
+  returns: v.union(
+    v.object({
+      providerName: v.string(),
+      modelId: v.string(),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    const member = await getOrganizationMember(ctx, args.organizationId, {
+      userId: args.userId,
+      email: args.userEmail,
+      name: args.userName,
+    });
+
+    const membershipsResult: BetterAuthFindManyResult<BetterAuthTeamMember> =
+      await ctx.runQuery(components.betterAuth.adapter.findMany, {
+        model: 'teamMember',
+        paginationOpts: { cursor: null, numItems: 100 },
+        where: [{ field: 'userId', operator: 'eq', value: args.userId }],
+      });
+
+    const teamIds = membershipsResult?.page.map((m) => m.teamId) ?? [];
+
+    return resolveDefaultModel(ctx, args.organizationId, teamIds, member.role);
   },
 });

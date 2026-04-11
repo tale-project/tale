@@ -67,6 +67,10 @@ vi.mock('@/app/features/settings/providers/hooks/queries', () => ({
   }),
 }));
 
+vi.mock('../../hooks/use-default-model', () => ({
+  useDefaultModel: () => ({ data: null }),
+}));
+
 vi.mock('../model-tag-icons', () => ({
   ModelTagIcons: () => null,
 }));

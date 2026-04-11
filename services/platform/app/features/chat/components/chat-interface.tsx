@@ -35,6 +35,7 @@ import {
 } from '../hooks/queries';
 import { useChatLoadingState } from '../hooks/use-chat-loading-state';
 import { useConvexFileUpload } from '../hooks/use-convex-file-upload';
+import { useDefaultModel } from '../hooks/use-default-model';
 import { useEffectiveAgent } from '../hooks/use-effective-agent';
 import { useFileIndexingStatus } from '../hooks/use-file-indexing-status';
 import { useMergedChatItems } from '../hooks/use-merged-chat-items';
@@ -126,6 +127,7 @@ export function ChatInterface({
 
   const { agent: effectiveAgent, isLoading: isAgentLoading } =
     useEffectiveAgent(organizationId);
+  const { data: governanceDefault } = useDefaultModel(organizationId);
 
   const [inputValue, setInputValue, clearInputValue] = usePersistedState(
     chatDraftKey(user?.userId, organizationId, threadId),
@@ -422,7 +424,8 @@ export function ChatInterface({
     },
     selectedAgent: effectiveAgent,
     modelId: effectiveAgent?.name
-      ? selectedModelOverrides[effectiveAgent.name]
+      ? (selectedModelOverrides[effectiveAgent.name] ??
+        governanceDefault?.modelId)
       : undefined,
     userContext,
     arena: arenaContext ?? undefined,

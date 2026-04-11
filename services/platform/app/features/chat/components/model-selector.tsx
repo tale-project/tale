@@ -18,6 +18,7 @@ import { useT } from '@/lib/i18n/client';
 
 import { useChatLayout } from '../context/chat-layout-context';
 import { useChatAgents } from '../hooks/queries';
+import { useDefaultModel } from '../hooks/use-default-model';
 import { useEffectiveAgent } from '../hooks/use-effective-agent';
 import { ModelTagIcons } from './model-tag-icons';
 
@@ -36,6 +37,7 @@ export function ModelSelector({ organizationId }: ModelSelectorProps) {
   const { agents } = useChatAgents(organizationId);
   const { providers } = useListProviders('default');
   const { selectedModelOverrides, setSelectedModelOverride } = useChatLayout();
+  const { data: governanceDefault } = useDefaultModel(organizationId);
   const [open, setOpen] = useState(false);
 
   const supportedModels = useMemo(() => {
@@ -88,10 +90,26 @@ export function ModelSelector({ organizationId }: ModelSelectorProps) {
     [modelInfoMap],
   );
 
-  const currentModelId =
-    (effectiveAgent?.name && selectedModelOverrides[effectiveAgent.name]) ||
-    filteredModels[0] ||
-    null;
+  const currentModelId = useMemo(() => {
+    // 1. User's explicit override (localStorage) takes highest priority
+    if (effectiveAgent?.name && selectedModelOverrides[effectiveAgent.name]) {
+      return selectedModelOverrides[effectiveAgent.name];
+    }
+    // 2. Governance team/role default (if model is in agent's supported list)
+    if (
+      governanceDefault?.modelId &&
+      filteredModels.includes(governanceDefault.modelId)
+    ) {
+      return governanceDefault.modelId;
+    }
+    // 3. Agent's primary model
+    return filteredModels[0] ?? null;
+  }, [
+    effectiveAgent?.name,
+    selectedModelOverrides,
+    governanceDefault,
+    filteredModels,
+  ]);
 
   // Clear stale override when agent changes
   useEffect(() => {

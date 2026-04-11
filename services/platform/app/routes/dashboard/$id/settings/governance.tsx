@@ -12,7 +12,14 @@ import { SystemPromptEditor } from '@/app/features/settings/governance/component
 import { UsageDashboard } from '@/app/features/settings/governance/components/usage-dashboard';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
+import { lazyComponent } from '@/lib/utils/lazy-component';
 import { seo } from '@/lib/utils/seo';
+
+const DefaultModelEditor = lazyComponent<{ organizationId: string }>(() =>
+  import('@/app/features/settings/governance/components/default-model-editor').then(
+    (m) => ({ default: m.DefaultModelEditor }),
+  ),
+);
 
 const searchSchema = z.object({
   tab: z.string().optional(),
@@ -57,6 +64,11 @@ function GovernanceSettingsPage() {
         value: 'budgets',
         label: t('tabs.budgets'),
         content: <BudgetEditor organizationId={organizationId} />,
+      },
+      {
+        value: 'default-models',
+        label: t('defaultModels.title'),
+        content: <DefaultModelEditor organizationId={organizationId} />,
       },
       {
         value: 'retention',

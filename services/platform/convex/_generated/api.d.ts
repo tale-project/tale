@@ -286,6 +286,7 @@ import type * as folders_mutations from "../folders/mutations.js";
 import type * as folders_queries from "../folders/queries.js";
 import type * as governance_budget_enforcement from "../governance/budget_enforcement.js";
 import type * as governance_cost_estimation from "../governance/cost_estimation.js";
+import type * as governance_default_model_query from "../governance/default_model_query.js";
 import type * as governance_entra_attribute_matcher from "../governance/entra_attribute_matcher.js";
 import type * as governance_feature_enforcement from "../governance/feature_enforcement.js";
 import type * as governance_helpers from "../governance/helpers.js";
@@ -1209,6 +1210,7 @@ declare const fullApi: ApiFromModules<{
   "folders/queries": typeof folders_queries;
   "governance/budget_enforcement": typeof governance_budget_enforcement;
   "governance/cost_estimation": typeof governance_cost_estimation;
+  "governance/default_model_query": typeof governance_default_model_query;
   "governance/entra_attribute_matcher": typeof governance_entra_attribute_matcher;
   "governance/feature_enforcement": typeof governance_feature_enforcement;
   "governance/helpers": typeof governance_helpers;
