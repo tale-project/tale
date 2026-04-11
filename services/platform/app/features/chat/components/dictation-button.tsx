@@ -1,10 +1,11 @@
 'use client';
 
 import { Mic } from 'lucide-react';
-import { useCallback, memo } from 'react';
+import { useCallback, useEffect, useRef, memo } from 'react';
 
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
+import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -12,11 +13,13 @@ import { useSpeechToText } from '../hooks/use-speech-to-text';
 
 interface DictationButtonProps {
   disabled?: boolean;
+  lang?: string;
   onTranscript: (transcript: string) => void;
 }
 
 function DictationButtonComponent({
   disabled = false,
+  lang,
   onTranscript,
 }: DictationButtonProps) {
   const { t } = useT('chat');
@@ -28,10 +31,24 @@ function DictationButtonComponent({
     [onTranscript],
   );
 
-  const { isListening, isSupported, startListening, stopListening } =
+  const { isListening, isSupported, error, startListening, stopListening } =
     useSpeechToText({
+      lang,
       onTranscript: handleTranscript,
     });
+
+  const prevErrorRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (error && error !== prevErrorRef.current) {
+      const message =
+        error === 'not-allowed'
+          ? t('dictation.permissionDenied')
+          : t('dictation.notSupported');
+      toast({ title: message, variant: 'destructive' });
+    }
+    prevErrorRef.current = error;
+  }, [error, t]);
 
   if (!isSupported) return null;
 

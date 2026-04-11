@@ -2722,6 +2722,12 @@
       "submitComment": "Senden",
       "cancel": "Abbrechen"
     },
+    "dictation": {
+      "start": "Diktat starten",
+      "stop": "Diktat stoppen",
+      "notSupported": "Spracherkennung wird in diesem Browser nicht unterstützt",
+      "permissionDenied": "Mikrofonzugriff wurde verweigert. Bitte erlaube den Mikrofonzugriff in den Browsereinstellungen."
+    },
     "shareBoundary": "Nachrichten oben stammen aus einem geteilten Chat",
     "forkBoundary": "Von Ihrem eigenen Chat geforkt",
     "notFound": "Dieser Chat ist nicht verfügbar.",

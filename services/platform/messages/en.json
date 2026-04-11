@@ -2734,7 +2734,8 @@
     "dictation": {
       "start": "Start dictation",
       "stop": "Stop dictation",
-      "notSupported": "Speech recognition is not supported in this browser"
+      "notSupported": "Speech recognition is not supported in this browser",
+      "permissionDenied": "Microphone access was denied. Please allow microphone access in your browser settings."
     },
     "citations": {
       "source": "Source {number}",
