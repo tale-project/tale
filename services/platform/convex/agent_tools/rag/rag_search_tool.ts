@@ -26,7 +26,6 @@ import {
   formatSearchResults,
   type SearchResponse,
 } from './format_search_results';
-import { fetchDocumentChunks } from './helpers/fetch_document_chunks';
 import { listIndexedDocuments } from './helpers/list_indexed_documents';
 
 // ToolCtx from @convex-dev/agent does not include our agent knowledge
@@ -119,8 +118,20 @@ const ragToolArgs = z.discriminatedUnion('operation', [
     fileId: z
       .string()
       .describe(
-        'File ID of the document to retrieve full content from (e.g., "kg2bazp7fbgt9srq63knfagjrd7yfenj")',
+        'File ID of the document to retrieve content from (e.g., "kg2bazp7fbgt9srq63knfagjrd7yfenj")',
       ),
+    chunkStart: z
+      .number()
+      .int()
+      .min(1)
+      .optional()
+      .describe('Start chunk index (1-based, default 1)'),
+    chunkEnd: z
+      .number()
+      .int()
+      .min(1)
+      .optional()
+      .describe('End chunk index (inclusive, default chunkStart + 9)'),
   }),
 ]);
 
@@ -131,7 +142,7 @@ export const ragSearchTool = {
 
 OPERATIONS:
 • 'search': Search the knowledge base for relevant document excerpts using hybrid search (BM25 + vector similarity). Returns numbered excerpts with relevance scores.
-• 'retrieve': Retrieve the full text content of a document by file ID. Use this whenever you need to read or analyze an uploaded file's content (PDF, DOCX, PPTX, TXT, XLSX, etc.). This is the primary way to read file content.
+• 'retrieve': Retrieve document content by file ID in paginated chunks (default 10 chunks per call). Use chunkStart/chunkEnd to paginate. Returns chunk range and totalChunks so you can fetch more. Use this to read uploaded files (PDF, DOCX, PPTX, TXT, XLSX, etc.).
 • 'list_indexed': List documents that have been indexed in the knowledge base. Returns file names, file IDs, and modification dates. Use this to see what's available before searching.
 
 WHEN TO USE 'search':
@@ -140,9 +151,9 @@ WHEN TO USE 'search':
 • Finding information when you don't know exact field values
 
 WHEN TO USE 'retrieve':
-• Reading the full content of a specific uploaded file
+• Reading content of a specific uploaded file (paginated, 10 chunks per call by default)
 • When a user uploads a file and asks you to read, summarize, or analyze it
-• When you need the complete text of a document (not just search excerpts)
+• For large documents, retrieve returns the first page — use chunkStart/chunkEnd to read more, or use 'search' with a query for targeted lookup
 
 WHEN TO USE 'list_indexed':
 • See which files are available for RAG search
@@ -171,38 +182,60 @@ RESPONSE (list_indexed):
       }
 
       if (args.operation === 'retrieve') {
-        debugLog('tool:rag_search retrieve start', { fileId: args.fileId });
+        const DEFAULT_PAGE_SIZE = 10;
+        const start = args.chunkStart ?? 1;
+        const end = args.chunkEnd ?? start + DEFAULT_PAGE_SIZE - 1;
+
+        debugLog('tool:rag_search retrieve start', {
+          fileId: args.fileId,
+          chunkStart: start,
+          chunkEnd: end,
+        });
 
         const ragServiceUrl = getRagConfig().serviceUrl;
-        const result = await fetchDocumentChunks(ragServiceUrl, args.fileId);
+        const url = `${ragServiceUrl}/api/v1/documents/${encodeURIComponent(args.fileId)}/content?return_chunks=true&chunk_start=${start}&chunk_end=${end}`;
+        const response = await fetch(url);
 
-        const fullText = result.chunks
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => '');
+          return {
+            success: false,
+            response: `Failed to retrieve document: ${response.status} ${errorText}`,
+          };
+        }
+
+        interface RetrieveResponse {
+          file_id: string;
+          title: string | null;
+          total_chunks: number;
+          total_chars: number;
+          chunk_range: { start: number; end: number };
+          chunks: Array<{ index: number; content: string }> | null;
+        }
+        const result = await fetchJson<RetrieveResponse>(response);
+
+        const text = (result.chunks ?? [])
           .sort((a, b) => a.index - b.index)
           .map((c) => c.content)
           .join('\n');
 
-        // ~50K chars ≈ 12-15K tokens — safe for most model context windows.
-        // If the document is larger, truncate and advise the agent to use search instead.
-        const MAX_RETRIEVE_CHARS = 50_000;
-        const truncated = fullText.length > MAX_RETRIEVE_CHARS;
-        const responseText = truncated
-          ? fullText.slice(0, MAX_RETRIEVE_CHARS) +
-            '\n\n[Document truncated — too large to retrieve in full. ' +
-            'Use rag_search with operation="search" and a specific query to find relevant sections.]'
-          : fullText;
+        const hasMore = result.chunk_range.end < result.total_chunks;
 
         debugLog('tool:rag_search retrieve success', {
           fileId: args.fileId,
-          totalChunks: result.totalChunks,
-          textLength: fullText.length,
-          truncated,
+          chunkRange: result.chunk_range,
+          totalChunks: result.total_chunks,
+          textLength: text.length,
+          hasMore,
         });
 
         return {
           success: true,
-          response: responseText || 'Document has no text content.',
+          response: text || 'Document has no text content.',
           title: result.title,
-          totalChunks: result.totalChunks,
+          totalChunks: result.total_chunks,
+          chunkRange: result.chunk_range,
+          hasMore,
         };
       }
 
