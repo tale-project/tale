@@ -2527,7 +2527,8 @@
     },
     "toast": {
       "generateFailed": "Antwort konnte nicht generiert werden",
-      "sendFailed": "Nachricht konnte nicht gesendet werden"
+      "sendFailed": "Nachricht konnte nicht gesendet werden",
+      "piiBlocked": "Nachricht durch PII-Richtlinie blockiert"
     },
     "thinking": {
       "default": "Denkt nach",
@@ -3601,6 +3602,98 @@
       "saving": "Wird gespeichert...",
       "saved": "System-Prompt gespeichert",
       "saveFailed": "System-Prompt konnte nicht gespeichert werden"
+    },
+    "budgets": {
+      "title": "Budgets & Limits",
+      "description": "Token-Budgets, Kostenlimits und Ratenlimits pro Benutzer oder Gruppe konfigurieren.",
+      "addRule": "Budgetregel hinzufügen",
+      "scope": "Geltungsbereich",
+      "period": "Zeitraum",
+      "tokenLimit": "Token-Limit",
+      "costLimitEur": "Kostenlimit (EUR)",
+      "costLimitUsd": "Kostenlimit (USD)",
+      "requestsPerMinute": "Anfragen pro Minute",
+      "daily": "Täglich",
+      "weekly": "Wöchentlich",
+      "monthly": "Monatlich",
+      "saved": "Budgetregeln gespeichert"
+    },
+    "defaultModels": {
+      "title": "Standardmodelle",
+      "description": "Standardmodelle für bestimmte Benutzergruppen oder Rollen festlegen.",
+      "addMapping": "Modellzuordnung hinzufügen",
+      "saved": "Standardmodell-Konfiguration gespeichert"
+    },
+    "uploadPolicy": {
+      "title": "Upload-Richtlinie",
+      "description": "Erlaubte Dateitypen, maximale Dateigröße und Volumenlimits konfigurieren.",
+      "allowedExtensions": "Erlaubte Dateierweiterungen",
+      "maxFileSize": "Maximale Dateigröße",
+      "maxVolumePerUser": "Maximales Gesamtvolumen pro Benutzer",
+      "saved": "Upload-Richtlinie gespeichert"
+    },
+    "retentionPolicy": {
+      "title": "Aufbewahrungsrichtlinie",
+      "description": "Automatische Löschung hochgeladener Dateien nach einem bestimmten Zeitraum konfigurieren.",
+      "retentionDays": "Aufbewahrungszeitraum (Tage)",
+      "scope": "Anwenden auf",
+      "saved": "Aufbewahrungsrichtlinie gespeichert"
+    },
+    "featureFlags": {
+      "title": "Funktionssteuerung",
+      "description": "Funktionen pro Benutzer, Team oder Rolle aktivieren oder deaktivieren.",
+      "webSearch": "Websuche",
+      "codeExecution": "Code-Ausführung",
+      "maxContextTokens": "Maximale Kontext-Token",
+      "saved": "Funktionssteuerung gespeichert"
+    },
+    "pii": {
+      "title": "PII-Schutz",
+      "description": "Personenbezogene Daten erkennen und maskieren oder blockieren, bevor sie an KI-Modelle gesendet werden.",
+      "enableLabel": "PII-Schutz aktivieren",
+      "enableDescription": "Wenn aktiviert, werden Nachrichten vor dem Senden an KI-Modelle auf personenbezogene Daten geprüft.",
+      "modeLabel": "Erkennungsmodus",
+      "modeMask": "Maskieren (durch Platzhalter ersetzen)",
+      "modeBlock": "Blockieren (Nachricht ablehnen)",
+      "patternsTitle": "Erkennungsmuster",
+      "patternsDescription": "Wähle aus, welche Arten von personenbezogenen Daten erkannt werden sollen.",
+      "patterns": {
+        "email": "E-Mail-Adressen",
+        "phone": "Telefonnummern",
+        "ssn": "Sozialversicherungsnummern",
+        "creditCard": "Kreditkartennummern",
+        "ipAddress": "IP-Adressen",
+        "dateOfBirth": "Geburtsdaten",
+        "address": "Straßenadressen",
+        "iban": "IBAN-Nummern",
+        "germanId": "Personalausweisnummern"
+      },
+      "customPatternsTitle": "Benutzerdefinierte Regex-Regeln",
+      "customPatternsDescription": "Füge benutzerdefinierte Regex-Muster hinzu, um weitere Arten personenbezogener Daten zu erkennen.",
+      "customPatternName": "Mustername",
+      "customPatternNamePlaceholder": "z. B. Mitarbeiter-ID",
+      "customPatternRegex": "Regex-Muster",
+      "customPatternRegexPlaceholder": "z. B. EMP-\\d{6}",
+      "customPatternReplacement": "Ersatztext",
+      "customPatternReplacementPlaceholder": "z. B. [MITARBEITER_ID]",
+      "testAreaTitle": "Erkennung testen",
+      "testAreaDescription": "Beispieltext einfügen, um zu prüfen, welche Muster erkannt werden.",
+      "testInput": "Testeingabe",
+      "testInputPlaceholder": "Text hier einfügen, um PII-Erkennung zu testen...",
+      "testResultsTitle": "Erkannte PII",
+      "testNoResults": "Keine PII in der Testeingabe erkannt.",
+      "testButton": "Testen",
+      "addCustomPattern": "Benutzerdefiniertes Muster hinzufügen",
+      "saved": "PII-Konfiguration gespeichert",
+      "saveFailed": "PII-Konfiguration konnte nicht gespeichert werden",
+      "blocked": "Nachricht blockiert: personenbezogene Daten erkannt",
+      "detectedTypes": "Erkannt: {types}"
+    },
+    "tabs": {
+      "systemPrompt": "System-Prompt",
+      "budgets": "Budgets",
+      "usage": "Nutzung",
+      "pii": "PII-Schutz"
     }
   }
 }

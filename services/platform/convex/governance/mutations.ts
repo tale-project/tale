@@ -1,6 +1,9 @@
 import { v } from 'convex/values';
 
-import { budgetConfigSchema } from '../../lib/shared/schemas/governance';
+import {
+  budgetConfigSchema,
+  piiConfigSchema,
+} from '../../lib/shared/schemas/governance';
 import { mutation } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
 import { authComponent } from '../auth';
@@ -38,6 +41,13 @@ export const upsertPolicy = mutation({
         throw new Error(
           `Invalid budget configuration: ${parsed.error.message}`,
         );
+      }
+    }
+
+    if (args.policyType === 'pii_config') {
+      const parsed = piiConfigSchema.safeParse(args.config);
+      if (!parsed.success) {
+        throw new Error(`Invalid PII configuration: ${parsed.error.message}`);
       }
     }
 
@@ -119,6 +129,16 @@ export const upsertPiiConfig = mutation({
     });
     if (!isAdmin(member.role)) {
       throw new Error('Only admins can modify PII configuration');
+    }
+
+    const parsed = piiConfigSchema.safeParse({
+      enabled: args.enabled,
+      mode: args.mode,
+      enabledPatterns: args.enabledPatterns,
+      customPatterns: args.customPatterns,
+    });
+    if (!parsed.success) {
+      throw new Error(`Invalid PII configuration: ${parsed.error.message}`);
     }
 
     const existing = await ctx.db

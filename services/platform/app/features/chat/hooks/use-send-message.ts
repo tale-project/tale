@@ -1,8 +1,12 @@
 import { useNavigate } from '@tanstack/react-router';
 import { useCallback, useRef, startTransition } from 'react';
 
+import { useConvexClient } from '@/app/hooks/use-convex-client';
 import { toast } from '@/app/hooks/use-toast';
+import { api } from '@/convex/_generated/api';
+import { scrubPii } from '@/convex/governance/pii';
 import { useT } from '@/lib/i18n/client';
+import { piiConfigSchema } from '@/lib/shared/schemas/governance';
 
 import type {
   PendingMessage,
@@ -70,6 +74,7 @@ export function useSendMessage({
   const { mutateAsync: updateThread } = useUpdateThread();
   const { mutateAsync: chatWithAgent } = useUnifiedChatWithAgent();
   const { mutateAsync: arenaChatAction } = useArenaChat();
+  const convexClient = useConvexClient();
 
   // Use refs for arena params to avoid destabilizing the sendMessage callback
   const arenaRef = useRef(arena);
@@ -85,6 +90,34 @@ export function useSendMessage({
           variant: 'destructive',
         });
         return;
+      }
+
+      // Pre-check PII policy before creating thread
+      try {
+        const piiPolicy = await convexClient.query(
+          api.governance.queries.getPolicy,
+          { organizationId, policyType: 'pii_config' as const },
+        );
+        if (piiPolicy?.enabled && piiPolicy.config) {
+          const parsed = piiConfigSchema.safeParse({
+            ...piiPolicy.config,
+            enabled: piiPolicy.enabled,
+          });
+          if (parsed.success && parsed.data.mode === 'block') {
+            scrubPii(message, parsed.data);
+          }
+        }
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        if (errorMessage.includes('Message blocked: PII')) {
+          toast({
+            title: t('toast.piiBlocked'),
+            description: errorMessage,
+            variant: 'destructive',
+          });
+          return;
+        }
       }
 
       // Set pending state scoped to this thread (null for new-chat page)
@@ -279,8 +312,14 @@ export function useSendMessage({
         console.error('Failed to send message:', error);
         clearChatState();
         resetGlobalFreeze();
+
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        const isPiiBlocked = errorMessage.includes('Message blocked: PII');
+
         toast({
-          title: t('toast.sendFailed'),
+          title: isPiiBlocked ? t('toast.piiBlocked') : t('toast.sendFailed'),
+          description: isPiiBlocked ? errorMessage : undefined,
           variant: 'destructive',
         });
       }
@@ -302,6 +341,7 @@ export function useSendMessage({
       userContext,
       navigate,
       t,
+      convexClient,
     ],
   );
 

@@ -89,5 +89,16 @@
       "fileTooLarge": "Datei zu gross",
       "fileSizeExceeded": "Datei {name} überschreitet das Limit von {maxSize} MB. Aktuelle Grösse: {currentSize} MB"
     }
+  },
+  "governance": {
+    "pii": {
+      "patterns": {
+        "address": "Strassenadressen"
+      }
+    },
+    "uploadPolicy": {
+      "description": "Erlaubte Dateitypen, maximale Dateigrösse und Volumenlimits konfigurieren.",
+      "maxFileSize": "Maximale Dateigrösse"
+    }
   }
 }
