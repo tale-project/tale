@@ -251,6 +251,20 @@ async def extract_pdf_metadata(file: UploadFile = _FILE_UPLOAD):
         doc = fitz.open(stream=file_bytes, filetype="pdf")
         raw = doc.metadata or {}
         page_count = len(doc)
+
+        large_image_ratio = 0.5
+        scanned_count = 0
+        for page_num in range(page_count):
+            page = doc[page_num]
+            page_area = page.rect.get_area()
+            if page_area <= 0:
+                continue
+            for img in page.get_images(full=True):
+                bbox = page.get_image_bbox(img)
+                if bbox and bbox.get_area() / page_area > large_image_ratio:
+                    scanned_count += 1
+                    break
+
         doc.close()
 
         return FileMetadataResponse(
@@ -262,6 +276,7 @@ async def extract_pdf_metadata(file: UploadFile = _FILE_UPLOAD):
             page_count=page_count,
             created_at=_parse_pdf_date(raw.get("creationDate")),
             modified_at=_parse_pdf_date(raw.get("modDate")),
+            scanned_pages_detected=scanned_count,
         )
     except HTTPException:
         raise

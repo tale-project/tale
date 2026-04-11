@@ -167,13 +167,16 @@ export const addKnowledgeFile = mutation({
       name: authUser.name,
     });
 
-    await ctx.db.insert('fileMetadata', {
-      organizationId: args.organizationId,
-      storageId: args.fileId,
-      fileName: args.fileName,
-      contentType: args.contentType,
-      size: args.fileSize,
-    });
+    await ctx.runMutation(
+      internal.file_metadata.internal_mutations.saveFileMetadata,
+      {
+        organizationId: args.organizationId,
+        storageId: args.fileId,
+        fileName: args.fileName,
+        contentType: args.contentType,
+        size: args.fileSize,
+      },
+    );
 
     const existing = await ctx.db
       .query('agentBindings')

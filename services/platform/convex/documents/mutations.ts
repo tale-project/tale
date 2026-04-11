@@ -165,14 +165,17 @@ export const createDocumentFromUpload = mutation({
 
     let fileMetadataId;
     if (args.fileSize != null) {
-      fileMetadataId = await ctx.db.insert('fileMetadata', {
-        organizationId: args.organizationId,
-        storageId: args.fileId,
-        fileName: args.fileName,
-        contentType: args.contentType ?? 'application/octet-stream',
-        size: args.fileSize,
-        uploadedBy: userId,
-      });
+      fileMetadataId = await ctx.runMutation(
+        internal.file_metadata.internal_mutations.saveFileMetadata,
+        {
+          organizationId: args.organizationId,
+          storageId: args.fileId,
+          fileName: args.fileName,
+          contentType: args.contentType ?? 'application/octet-stream',
+          size: args.fileSize,
+          uploadedBy: userId,
+        },
+      );
     }
 
     const result = await createDocument(ctx, {
@@ -189,18 +192,11 @@ export const createDocumentFromUpload = mutation({
     });
 
     if (fileMetadataId) {
-      await ctx.db.patch(fileMetadataId, {
-        documentId: result.documentId,
-      });
-    }
-
-    if (ext && ['pdf', 'docx', 'pptx'].includes(ext)) {
-      await ctx.scheduler.runAfter(
-        0,
-        internal.documents.internal_actions.extractDocumentDates,
+      await ctx.runMutation(
+        internal.file_metadata.internal_mutations.linkDocumentToFile,
         {
+          storageId: args.fileId,
           documentId: result.documentId,
-          fileId: args.fileId,
         },
       );
     }

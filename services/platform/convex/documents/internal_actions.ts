@@ -2,21 +2,14 @@
 
 import { v } from 'convex/values';
 
-import { extractExtension } from '../../lib/shared/file-types';
 import { fetchJson } from '../../lib/utils/type-cast-helpers';
-import {
-  isRecord,
-  getBoolean,
-  getNumber,
-  getString,
-} from '../../lib/utils/type-guards';
+import { isRecord, getBoolean, getString } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import { internalAction } from '../_generated/server';
 import { buildDownloadUrl } from '../lib/helpers/public_storage_url';
 import { getRagConfig } from '../lib/helpers/rag_config';
 import { ragAction } from '../workflow_engine/action_defs/rag/rag_action';
-import { getCrawlerUrl } from './generate_document_helpers';
 import type { GenerateDocxResult } from './generate_docx';
 import * as DocumentsHelpers from './helpers';
 import type { GenerateDocumentResult } from './types';
@@ -696,137 +689,5 @@ export const storeRawContent = internalAction({
       size,
       extension: args.extension,
     };
-  },
-});
-
-const EXTRACT_DATES_SUPPORTED_EXTENSIONS = new Set(['pdf', 'docx', 'pptx']);
-const EXTRACT_DATES_RETRY_DELAYS = [30_000, 60_000, 120_000];
-
-export const extractDocumentDates = internalAction({
-  args: {
-    documentId: v.id('documents'),
-    fileId: v.id('_storage'),
-    attempt: v.optional(v.number()),
-  },
-  returns: v.null(),
-  handler: async (ctx, args): Promise<null> => {
-    const attempt = args.attempt ?? 0;
-
-    try {
-      const document = await ctx.runQuery(
-        internal.documents.internal_queries.getDocumentByIdRaw,
-        { documentId: args.documentId },
-      );
-
-      if (!document) {
-        console.warn(
-          `[extractDocumentDates] Document ${args.documentId} not found, skipping`,
-        );
-        return null;
-      }
-
-      if (document.fileId !== args.fileId) {
-        console.warn(
-          `[extractDocumentDates] File changed for document ${args.documentId}, skipping stale extraction`,
-        );
-        return null;
-      }
-
-      const ext = document.extension ?? extractExtension(document.title);
-      if (!ext || !EXTRACT_DATES_SUPPORTED_EXTENSIONS.has(ext)) {
-        console.warn(
-          `[extractDocumentDates] Unsupported extension "${ext}" for document ${args.documentId}`,
-        );
-        return null;
-      }
-
-      const fileUrl = await ctx.storage.getUrl(args.fileId);
-      if (!fileUrl) {
-        console.warn(
-          `[extractDocumentDates] No URL for file ${args.fileId}, skipping`,
-        );
-        return null;
-      }
-
-      const fileResponse = await fetch(fileUrl, {
-        signal: AbortSignal.timeout(30_000),
-      });
-
-      if (!fileResponse.ok) {
-        throw new Error(
-          `Failed to download file: ${fileResponse.status} ${fileResponse.statusText}`,
-        );
-      }
-
-      const fileBlob = await fileResponse.blob();
-
-      const crawlerUrl = getCrawlerUrl();
-      const endpoint = `${crawlerUrl}/api/v1/${ext}/extract-metadata`;
-
-      const formData = new FormData();
-      formData.append('file', fileBlob, document.title ?? `file.${ext}`);
-
-      const metadataResponse = await fetch(endpoint, {
-        method: 'POST',
-        body: formData,
-        signal: AbortSignal.timeout(30_000),
-      });
-
-      if (!metadataResponse.ok) {
-        const errorText = await metadataResponse.text().catch(() => '');
-        throw new Error(
-          `Crawler extract-metadata returned ${metadataResponse.status}: ${errorText}`,
-        );
-      }
-
-      let body: unknown;
-      try {
-        body = await metadataResponse.json();
-      } catch {
-        throw new Error('Crawler returned non-JSON response');
-      }
-
-      if (!isRecord(body)) {
-        throw new Error('Invalid response shape from crawler extract-metadata');
-      }
-
-      const createdAt = getNumber(body, 'created_at');
-      const modifiedAt = getNumber(body, 'modified_at');
-
-      if (createdAt != null || modifiedAt != null) {
-        await ctx.runMutation(
-          internal.documents.internal_mutations.updateDocumentDates,
-          {
-            documentId: args.documentId,
-            sourceCreatedAt: createdAt,
-            sourceModifiedAt: modifiedAt,
-          },
-        );
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error(
-        `[extractDocumentDates] Error for document ${args.documentId} (attempt ${attempt}): ${message}`,
-      );
-
-      if (attempt < EXTRACT_DATES_RETRY_DELAYS.length) {
-        const retryDelay = EXTRACT_DATES_RETRY_DELAYS[attempt];
-        await ctx.scheduler.runAfter(
-          retryDelay,
-          internal.documents.internal_actions.extractDocumentDates,
-          {
-            documentId: args.documentId,
-            fileId: args.fileId,
-            attempt: attempt + 1,
-          },
-        );
-      } else {
-        console.warn(
-          `[extractDocumentDates] All retries exhausted for document ${args.documentId}: ${message}`,
-        );
-      }
-    }
-
-    return null;
   },
 });

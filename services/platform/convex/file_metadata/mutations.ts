@@ -84,6 +84,16 @@ export const saveFileMetadata = mutation({
       },
     );
 
+    await ctx.scheduler.runAfter(
+      0,
+      internal.file_metadata.internal_actions.extractFileMetadata,
+      {
+        storageId: args.storageId,
+        fileName: args.fileName,
+        contentType: args.contentType,
+      },
+    );
+
     try {
       await checkOrganizationRateLimit(
         ctx,

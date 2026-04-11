@@ -499,6 +499,7 @@ async def extract_docx_metadata(file: UploadFile = _FILE_UPLOAD):
             author=meta["author"] or None,
             created_at=meta["created_at"],
             modified_at=meta["modified_at"],
+            scanned_pages_detected=0,
         )
     except HTTPException:
         raise

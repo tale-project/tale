@@ -1,5 +1,6 @@
 'use client';
 
+import { useQuery } from 'convex/react';
 import { Download, X, Loader2 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 
@@ -16,6 +17,7 @@ import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useLocale } from '@/app/hooks/use-locale';
 import { useToast } from '@/app/hooks/use-toast';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { formatBytes } from '@/lib/utils/format/number';
 
@@ -49,11 +51,22 @@ function SidebarRow({
   );
 }
 
-function DetailsSidebar({ doc }: { doc: Document }) {
+function DetailsSidebar({
+  doc,
+  organizationId,
+}: {
+  doc: Document;
+  organizationId: string;
+}) {
   const { t } = useT('documents');
   const { formatDate } = useFormatDate();
   const { locale } = useLocale();
   const { teams } = useTeams();
+
+  const fileMeta = useQuery(api.file_metadata.queries.getByDocumentId, {
+    organizationId,
+    documentId: doc.id,
+  });
 
   const teamNames = useMemo(() => {
     const ids = doc.teamIds ?? [];
@@ -111,6 +124,14 @@ function DetailsSidebar({ doc }: { doc: Document }) {
           documentId={doc.id}
         />
       </SidebarRow>
+
+      {fileMeta?.visionRequired &&
+        fileMeta.scannedPagesDetected != null &&
+        fileMeta.scannedPagesDetected > 0 && (
+          <SidebarRow label={t('preview.sidebar.scannedPages')}>
+            {`${fileMeta.scannedPagesDetected} / ${fileMeta.pageCount ?? '?'}`}
+          </SidebarRow>
+        )}
 
       <Separator />
 
@@ -256,7 +277,7 @@ export function DocumentPreviewDialog({
           <div className="flex min-w-0 flex-1 flex-col">
             <DocumentPreview url={doc.url} fileName={displayName} />
           </div>
-          <DetailsSidebar doc={doc} />
+          <DetailsSidebar doc={doc} organizationId={organizationId} />
         </div>
       )}
     </Dialog>

@@ -2997,7 +2997,8 @@
         "modified": "Modified",
         "sourceUpload": "Upload",
         "sourceOnedrive": "OneDrive",
-        "sourceSharepoint": "SharePoint"
+        "sourceSharepoint": "SharePoint",
+        "scannedPages": "scanned pages"
       }
     },
     "upload": {

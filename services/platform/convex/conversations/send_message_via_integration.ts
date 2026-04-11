@@ -63,13 +63,16 @@ export async function sendMessageViaIntegration(
   if (args.attachments && args.attachments.length > 0) {
     attachmentsMeta = await Promise.all(
       args.attachments.map(async (att) => {
-        await ctx.db.insert('fileMetadata', {
-          organizationId: args.organizationId,
-          storageId: att.storageId,
-          fileName: att.fileName,
-          contentType: att.contentType,
-          size: att.size,
-        });
+        await ctx.runMutation(
+          internal.file_metadata.internal_mutations.saveFileMetadata,
+          {
+            organizationId: args.organizationId,
+            storageId: att.storageId,
+            fileName: att.fileName,
+            contentType: att.contentType,
+            size: att.size,
+          },
+        );
         const url = await ctx.storage.getUrl(att.storageId);
         return {
           id: att.storageId,
