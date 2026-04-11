@@ -92,6 +92,7 @@ function stripDollarKeys(
   for (const [key, value] of Object.entries(obj)) {
     if (key.startsWith('$')) continue;
     if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- value is confirmed to be a non-null, non-array object above
       cleaned[key] = stripDollarKeys(value as Record<string, unknown>);
     } else {
       cleaned[key] = value;
