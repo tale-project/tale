@@ -1206,6 +1206,7 @@
         "invalidIconFormat": "Symbol muss PNG, SVG, JPG oder WebP sein"
       },
       "manageDialog": {
+        "configuration": "Konfiguration",
         "authentication": "Authentifizierung",
         "setupGuide": "Konfigurationsanleitung",
         "connect": "Verbinden",

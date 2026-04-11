@@ -21,7 +21,7 @@ export const brandingJsonSchema = z.object({
 export type BrandingJsonConfig = z.infer<typeof brandingJsonSchema>;
 
 export const brandingFormSchema = z.object({
-  appName: z.string().max(100).optional(),
+  appName: z.string().min(1).max(100),
   textLogo: z.string().max(50).optional(),
   brandColor: hexColorSchema,
   accentColor: hexColorSchema,

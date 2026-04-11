@@ -80,6 +80,7 @@ export function AddMemberDialog({
     useCreateMember();
   const form = useForm<AddMemberFormData>({
     resolver: zodResolver(addMemberSchema),
+    mode: 'onChange',
     defaultValues: {
       email: '',
       password: '',
@@ -155,6 +156,7 @@ export function AddMemberDialog({
         submitText={tDialogs('addMember.title')}
         submittingText={tCommon('actions.adding')}
         isSubmitting={isSubmitting}
+        isValid={formState.isValid}
         onSubmit={handleSubmit(onSubmit)}
       >
         <Input
