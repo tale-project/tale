@@ -3,12 +3,20 @@
 Hybrid approach:
 1. Digital PDFs: Extract text directly using PyMuPDF (no API calls)
 2. Embedded images: Large images (>50% page area) are OCR'd, smaller ones described
+
+Scanned page detection:
+- Pages with < SCANNED_PAGE_TEXT_THRESHOLD characters of digital text are
+  considered "scanned" when they also contain at least one embedded image
+  covering > LARGE_IMAGE_RATIO of the page area.
+- The extraction result includes `scanned_pages_detected` and `ocr_applied`
+  so callers can inform the user about OCR activity.
 """
 
 from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
+from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING
 
@@ -23,8 +31,19 @@ if TYPE_CHECKING:
 ProgressCallback = Callable[[int, int], None]  # (pages_done, total_pages)
 
 LARGE_IMAGE_RATIO = 0.5
+SCANNED_PAGE_TEXT_THRESHOLD = 50
 MAX_PAGES = 2000
 DEFAULT_PAGE_CONCURRENCY = 8
+
+
+@dataclass(frozen=True, slots=True)
+class PdfExtractionResult:
+    """Result of a PDF text extraction."""
+
+    text: str
+    vision_used: bool
+    scanned_pages_detected: int
+    ocr_applied: bool
 
 
 def _extract_page_text_sync(page_bytes: bytes) -> dict:
@@ -95,11 +114,14 @@ async def _extract_page_with_layout(
     vision_semaphore: asyncio.Semaphore,
     vision_client: VisionClient | None,
     process_images: bool,
-) -> tuple[str, bool]:
+) -> tuple[str, bool, bool]:
     """Extract page content preserving text and image positions.
 
     Images covering >50% of the page area are OCR'd (likely scanned pages),
     smaller images are described.
+
+    Returns:
+        Tuple of (content, vision_used, is_scanned_page).
     """
     loop = asyncio.get_running_loop()
 
@@ -108,7 +130,17 @@ async def _extract_page_with_layout(
     )
     elements: list[tuple[float, str]] = text_data["elements"]
     images: list[tuple[float, bytes, float]] = text_data["images"]
+    total_text_len: int = text_data["total_text_len"]
     vision_used = False
+
+    has_large_image = any(area_ratio > LARGE_IMAGE_RATIO for _, _, area_ratio in images)
+    is_scanned_page = total_text_len < SCANNED_PAGE_TEXT_THRESHOLD and has_large_image
+
+    if is_scanned_page and not vision_client:
+        logger.warning(
+            f"Page {page_num + 1}: Scanned page detected ({total_text_len} chars, "
+            f"large image present) but no vision client configured — OCR skipped"
+        )
 
     if process_images and vision_client and images:
         for y0, img_bytes, area_ratio in images:
@@ -132,7 +164,7 @@ async def _extract_page_with_layout(
 
     elements.sort(key=lambda x: x[0])
     content = "\n\n".join(elem[1] for elem in elements)
-    return content, vision_used
+    return content, vision_used, is_scanned_page
 
 
 async def extract_text_from_pdf_bytes(
@@ -143,7 +175,7 @@ async def extract_text_from_pdf_bytes(
     process_images: bool = True,
     max_pages: int = MAX_PAGES,
     on_progress: ProgressCallback | None = None,
-) -> tuple[str, bool]:
+) -> PdfExtractionResult:
     """Extract text from PDF bytes.
 
     Args:
@@ -156,7 +188,7 @@ async def extract_text_from_pdf_bytes(
             after each page completes.  Safe to call from concurrent tasks.
 
     Returns:
-        Tuple of (extracted_text, vision_was_used).
+        PdfExtractionResult with text, vision_used, scanned_pages_detected, and ocr_applied.
     """
     logger.info(f"Processing PDF: {filename}")
 
@@ -190,10 +222,12 @@ async def extract_text_from_pdf_bytes(
 
     pages_done = 0
 
-    async def process_page(page_num: int, page_bytes: bytes) -> tuple[int, str, bool]:
+    async def process_page(
+        page_num: int, page_bytes: bytes
+    ) -> tuple[int, str, bool, bool]:
         nonlocal pages_done
         async with page_semaphore:
-            content, vis_used = await _extract_page_with_layout(
+            content, vis_used, is_scanned = await _extract_page_with_layout(
                 page_bytes,
                 page_num,
                 vision_semaphore,
@@ -203,29 +237,52 @@ async def extract_text_from_pdf_bytes(
             pages_done += 1
             if on_progress is not None:
                 on_progress(pages_done, pages_to_process)
-            return page_num, f"--- Page {page_num + 1} ---\n{content}", vis_used
+            return (
+                page_num,
+                f"--- Page {page_num + 1} ---\n{content}",
+                vis_used,
+                is_scanned,
+            )
 
     tasks = [process_page(pn, pb) for pn, pb in page_data]
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
     pages_content: list[tuple[int, str]] = []
     vision_used = False
+    scanned_pages_detected = 0
+    ocr_applied = False
 
     for result in results:
         if isinstance(result, Exception):
             logger.warning(f"Page processing failed: {result}")
             continue
-        page_num, content, page_vision_used = result
+        page_num, content, page_vision_used, page_is_scanned = result
         pages_content.append((page_num, content))
         if page_vision_used:
             vision_used = True
+        if page_is_scanned:
+            scanned_pages_detected += 1
+            if page_vision_used:
+                ocr_applied = True
 
     pages_content.sort(key=lambda x: x[0])
     combined_text = "\n\n".join(p[1] for p in pages_content)
 
+    if scanned_pages_detected > 0 and not vision_client:
+        logger.warning(
+            f"PDF '{filename}': {scanned_pages_detected} scanned page(s) detected "
+            f"but no vision client configured — text may be incomplete"
+        )
+
     logger.info(
         f"PDF processing complete: {pages_to_process} pages, {len(combined_text)} chars, "
-        f"Vision API used: {vision_used}"
+        f"Vision API used: {vision_used}, scanned pages: {scanned_pages_detected}, "
+        f"OCR applied: {ocr_applied}"
     )
 
-    return combined_text, vision_used
+    return PdfExtractionResult(
+        text=combined_text,
+        vision_used=vision_used,
+        scanned_pages_detected=scanned_pages_detected,
+        ocr_applied=ocr_applied,
+    )

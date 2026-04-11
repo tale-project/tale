@@ -3013,6 +3013,12 @@
       "extensionNotAllowed": "{name}: .{ext} ist nicht erlaubt. Erlaubte Typen: {allowed}.",
       "uploadDocuments": "Hochladen"
     },
+    "ocr": {
+      "available": "OCR verfügbar",
+      "unavailable": "OCR nicht verfügbar",
+      "processingWithOcr": "Dokument mit OCR verarbeitet",
+      "noVisionModelWarning": "Kein Vision-Modell konfiguriert — gescannte Dokumente und Bilder werden nicht verarbeitet"
+    },
     "import": {
       "noResponseBody": "Kein Antwortinhalt erhalten"
     },
