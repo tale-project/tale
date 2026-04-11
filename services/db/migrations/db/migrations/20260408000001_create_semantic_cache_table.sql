@@ -5,7 +5,7 @@
 CREATE TABLE IF NOT EXISTS private_knowledge.semantic_cache (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     query_text TEXT NOT NULL,
-    query_embedding vector NOT NULL,
+    query_embedding vector,
     response_text TEXT NOT NULL,
     metadata JSONB DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -14,10 +14,8 @@ CREATE TABLE IF NOT EXISTS private_knowledge.semantic_cache (
     file_ids TEXT[] DEFAULT '{}'
 );
 
--- HNSW index for fast cosine similarity lookups
-CREATE INDEX IF NOT EXISTS idx_semantic_cache_embedding
-    ON private_knowledge.semantic_cache
-    USING hnsw (query_embedding vector_cosine_ops);
+-- NOTE: HNSW index on query_embedding is created at runtime by the RAG
+-- service once the embedding dimensions are known (same pattern as chunks).
 
 -- B-tree index for TTL cleanup
 CREATE INDEX IF NOT EXISTS idx_semantic_cache_expires_at
