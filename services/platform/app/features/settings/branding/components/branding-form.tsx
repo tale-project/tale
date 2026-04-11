@@ -200,7 +200,11 @@ export function BrandingForm({
             label={t('branding.appName')}
             placeholder={t('branding.appNamePlaceholder')}
             required
-            errorMessage={formState.errors.appName?.message}
+            errorMessage={
+              formState.errors.appName
+                ? t('branding.validation.appNameRequired')
+                : undefined
+            }
             {...register('appName')}
             wrapperClassName="w-full"
           />
