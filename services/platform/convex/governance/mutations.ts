@@ -2,6 +2,7 @@ import { v } from 'convex/values';
 
 import {
   budgetConfigSchema,
+  featureFlagsConfigSchema,
   piiConfigSchema,
 } from '../../lib/shared/schemas/governance';
 import { mutation } from '../_generated/server';
@@ -48,6 +49,15 @@ export const upsertPolicy = mutation({
       const parsed = piiConfigSchema.safeParse(args.config);
       if (!parsed.success) {
         throw new Error(`Invalid PII configuration: ${parsed.error.message}`);
+      }
+    }
+
+    if (args.policyType === 'feature_flags') {
+      const parsed = featureFlagsConfigSchema.safeParse(args.config);
+      if (!parsed.success) {
+        throw new Error(
+          `Invalid feature flags configuration: ${parsed.error.message}`,
+        );
       }
     }
 

@@ -141,6 +141,7 @@ export const runAgentGeneration = internalAction({
     maxSteps: v.optional(v.number()),
     deadlineMs: v.optional(v.number()),
     generationParams: v.optional(v.any()),
+    maxContextTokens: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const actionStartTime = Date.now();
@@ -171,6 +172,7 @@ export const runAgentGeneration = internalAction({
       maxSteps,
       deadlineMs,
       generationParams,
+      maxContextTokens,
     } = args;
 
     const agentType = narrowStringUnion(
@@ -412,6 +414,7 @@ export const runAgentGeneration = internalAction({
               noCacheToolNames: agentConfig.noCacheToolNames,
               instructions: finalInstructions,
               toolsSummary,
+              maxContextTokens,
             },
             {
               ctx,

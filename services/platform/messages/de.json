@@ -3585,6 +3585,31 @@
   "governance": {
     "title": "Richtlinien",
     "description": "Konfigurieren Sie organisationsweite Richtlinien und Kontrollen.",
+    "tabs": {
+      "systemPrompt": "System-Prompt",
+      "budgets": "Budgets",
+      "featureControls": "Feature-Steuerung",
+      "usage": "Nutzung"
+    },
+    "featureFlags": {
+      "title": "Feature-Steuerung",
+      "description": "Funktionen pro Benutzer, Team oder Rolle aktivieren oder deaktivieren.",
+      "webSearch": "Websuche",
+      "codeExecution": "Code-Ausführung",
+      "fileUpload": "Datei-Upload",
+      "maxContextTokens": "Max. Kontext-Tokens",
+      "maxContextTokensHint": "Maximale Kontext-Tokens für KI-Antworten. Leer lassen für unbegrenzt.",
+      "enabled": "Feature-Steuerung aktivieren",
+      "scope": "Geltungsbereich",
+      "target": "Ziel",
+      "allUsers": "Alle Benutzer",
+      "addRule": "Regel hinzufügen",
+      "editRule": "Regel bearbeiten",
+      "deleteRule": "Regel löschen",
+      "noRules": "Keine Feature-Regeln konfiguriert. Füge eine Regel hinzu, um Funktionen pro Benutzer, Team oder Rolle zu steuern.",
+      "saved": "Feature-Steuerung gespeichert",
+      "saveFailed": "Feature-Steuerung konnte nicht gespeichert werden"
+    },
     "systemPrompt": {
       "title": "System-Prompt",
       "description": "Legen Sie einen verbindlichen System-Prompt fest, der auf alle Agents angewendet wird und nicht von Benutzern überschrieben werden kann.",

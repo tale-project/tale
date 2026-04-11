@@ -182,6 +182,7 @@ export async function generateAgentResponse(
     noCacheToolNames,
     instructions,
     toolsSummary,
+    maxContextTokens,
   } = config;
   const {
     ctx,
@@ -512,7 +513,7 @@ export async function generateAgentResponse(
       threadId,
       additionalContext,
       parentThreadId,
-      maxHistoryTokens: agentConfig.maxHistoryTokens,
+      maxHistoryTokens: maxContextTokens ?? agentConfig.maxHistoryTokens,
       ragContext: knowledgeContextResult ?? hookData?.ragContext,
       webContext: webContextResult,
     });
@@ -940,7 +941,7 @@ export async function generateAgentResponse(
             threadId,
             additionalContext,
             parentThreadId,
-            maxHistoryTokens: agentConfig.maxHistoryTokens,
+            maxHistoryTokens: maxContextTokens ?? agentConfig.maxHistoryTokens,
             ragContext: hookData?.ragContext,
           });
 
@@ -1169,7 +1170,7 @@ export async function generateAgentResponse(
             threadId,
             additionalContext,
             parentThreadId,
-            maxHistoryTokens: agentConfig.maxHistoryTokens,
+            maxHistoryTokens: maxContextTokens ?? agentConfig.maxHistoryTokens,
             ragContext: hookData?.ragContext,
           });
 

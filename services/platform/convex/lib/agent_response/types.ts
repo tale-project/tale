@@ -47,6 +47,8 @@ export interface GenerateResponseConfig {
   responseCacheTtlMs?: number;
   /** Tool names whose invocation should prevent caching the response */
   noCacheToolNames?: string[];
+  /** Governance-enforced max context tokens (overrides agent config maxHistoryTokens) */
+  maxContextTokens?: number;
 }
 
 /**

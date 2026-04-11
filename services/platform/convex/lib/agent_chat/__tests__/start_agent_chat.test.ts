@@ -37,6 +37,22 @@ vi.mock('../../debug_log', () => ({
   createDebugLog: () => () => {},
 }));
 
+vi.mock('../../../governance/budget_enforcement', () => ({
+  checkBudget: vi.fn().mockResolvedValue({ allowed: true }),
+}));
+
+vi.mock('../../../governance/feature_enforcement', () => ({
+  resolveFeatureFlags: vi.fn().mockResolvedValue({
+    webSearch: true,
+    codeExecution: true,
+    fileUpload: true,
+  }),
+}));
+
+vi.mock('../../get_user_teams', () => ({
+  getUserTeamIds: vi.fn().mockResolvedValue([]),
+}));
+
 vi.mock('../../message_deduplication', () => ({
   computeDeduplicationState: () => ({
     lastUserMessage: null,

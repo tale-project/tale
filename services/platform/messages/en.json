@@ -3638,6 +3638,12 @@
   "governance": {
     "title": "Governance",
     "description": "Configure organization-wide policies and controls.",
+    "tabs": {
+      "systemPrompt": "System prompt",
+      "budgets": "Budgets",
+      "featureControls": "Feature controls",
+      "usage": "Usage"
+    },
     "systemPrompt": {
       "title": "System Prompt",
       "description": "Set a mandatory system prompt that is applied to all agents and cannot be overridden by users.",
@@ -3694,12 +3700,23 @@
       "saved": "Retention policy saved"
     },
     "featureFlags": {
-      "title": "Feature Controls",
+      "title": "Feature controls",
       "description": "Enable or disable features per user, team, or role.",
       "webSearch": "Web search",
       "codeExecution": "Code execution",
+      "fileUpload": "File upload",
       "maxContextTokens": "Max context tokens",
-      "saved": "Feature controls saved"
+      "maxContextTokensHint": "Maximum number of context tokens for AI responses. Leave empty for no limit.",
+      "enabled": "Enable feature controls",
+      "scope": "Scope",
+      "target": "Target",
+      "allUsers": "All users",
+      "addRule": "Add rule",
+      "editRule": "Edit rule",
+      "deleteRule": "Delete rule",
+      "noRules": "No feature control rules configured. Add a rule to manage features per user, team, or role.",
+      "saved": "Feature controls saved",
+      "saveFailed": "Failed to save feature controls"
     },
     "pii": {
       "title": "PII protection",
