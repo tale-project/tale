@@ -181,15 +181,26 @@ RESPONSE (list_indexed):
           .map((c) => c.content)
           .join('\n');
 
+        // ~50K chars ≈ 12-15K tokens — safe for most model context windows.
+        // If the document is larger, truncate and advise the agent to use search instead.
+        const MAX_RETRIEVE_CHARS = 50_000;
+        const truncated = fullText.length > MAX_RETRIEVE_CHARS;
+        const responseText = truncated
+          ? fullText.slice(0, MAX_RETRIEVE_CHARS) +
+            '\n\n[Document truncated — too large to retrieve in full. ' +
+            'Use rag_search with operation="search" and a specific query to find relevant sections.]'
+          : fullText;
+
         debugLog('tool:rag_search retrieve success', {
           fileId: args.fileId,
           totalChunks: result.totalChunks,
           textLength: fullText.length,
+          truncated,
         });
 
         return {
           success: true,
-          response: fullText || 'Document has no text content.',
+          response: responseText || 'Document has no text content.',
           title: result.title,
           totalChunks: result.totalChunks,
         };

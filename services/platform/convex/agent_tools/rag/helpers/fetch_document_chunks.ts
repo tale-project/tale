@@ -1,6 +1,8 @@
 import { fetchJson } from '../../../../lib/utils/type-cast-helpers';
 
 const MAX_CHUNK_WINDOW = 200;
+/** Stop fetching once accumulated content exceeds this size (~15K tokens). */
+const MAX_TOTAL_CHARS = 60_000;
 
 interface DocumentContentResponse {
   file_id: string;
@@ -51,7 +53,11 @@ export async function fetchDocumentChunks(
       allChunks.push(...result.chunks);
     }
 
-    if (result.chunk_range.end >= totalChunks) {
+    const totalCharsNow = allChunks.reduce((s, c) => s + c.content.length, 0);
+    if (
+      result.chunk_range.end >= totalChunks ||
+      totalCharsNow >= MAX_TOTAL_CHARS
+    ) {
       break;
     }
 
