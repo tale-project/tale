@@ -32,8 +32,7 @@ export function McpServers({ organizationId }: McpServersProps) {
 
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
-  const [selectedServer, setSelectedServer] =
-    useState<McpServerListItem | null>(null);
+  const [selectedServerId, setSelectedServerId] = useState<string | null>(null);
 
   const handleCreate = useCallback(
     async (data: McpServerFormData) => {
@@ -65,11 +64,16 @@ export function McpServers({ organizationId }: McpServersProps) {
   );
 
   const handleCardClick = useCallback((server: McpServerListItem) => {
-    setSelectedServer(server);
+    setSelectedServerId(server._id);
   }, []);
 
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex query returns loosely typed data; shape matches McpServerListItem from queries.ts
   const serverList = (servers ?? []) as McpServerListItem[];
+
+  // Derive selectedServer from query data so it stays in sync after refetch
+  const selectedServer = selectedServerId
+    ? (serverList.find((s) => s._id === selectedServerId) ?? null)
+    : null;
 
   return (
     <Stack gap={0} className="pb-8">
@@ -122,11 +126,11 @@ export function McpServers({ organizationId }: McpServersProps) {
         <McpServerPanel
           open={!!selectedServer}
           onOpenChange={(open) => {
-            if (!open) setSelectedServer(null);
+            if (!open) setSelectedServerId(null);
           }}
           server={selectedServer}
           onDeleted={() => {
-            setSelectedServer(null);
+            setSelectedServerId(null);
             void refetch();
           }}
           onUpdated={() => void refetch()}
