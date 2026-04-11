@@ -32,6 +32,7 @@ import { listIndexedDocuments } from './helpers/list_indexed_documents';
 // properties — these are set by our agent configuration and injected at runtime.
 export interface AgentKnowledgeCtx extends ToolCtx {
   agentTeamId?: string;
+  agentTeamIds?: string[];
   includeTeamKnowledge?: boolean;
   includeOrgKnowledge?: boolean;
   knowledgeFileIds?: string[];
@@ -72,6 +73,7 @@ export async function resolveFileIds(
     {
       organizationId,
       agentTeamId: extended.agentTeamId,
+      agentTeamIds: extended.agentTeamIds,
       includeTeamKnowledge: extended.includeTeamKnowledge,
       includeOrgKnowledge: extended.includeOrgKnowledge,
       knowledgeFileIds: extended.knowledgeFileIds,

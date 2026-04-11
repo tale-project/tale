@@ -71,6 +71,7 @@ export async function listIndexedDocumentsForAgent(
   args: {
     organizationId: string;
     agentTeamId?: string;
+    agentTeamIds?: string[];
     includeTeamKnowledge?: boolean;
     includeOrgKnowledge?: boolean;
     knowledgeFileIds?: string[];
@@ -80,8 +81,17 @@ export async function listIndexedDocumentsForAgent(
 ): Promise<AgentIndexedDocumentListResult> {
   const limit = Math.min(Math.max(args.limit ?? DEFAULT_LIMIT, 1), MAX_LIMIT);
   const knowledgeFileIdSet = new Set(args.knowledgeFileIds ?? []);
+
+  // Build effective team set: prefer agentTeamIds, fall back to single agentTeamId
+  const agentTeamIdSet = new Set<string>();
+  if (args.agentTeamIds) {
+    for (const id of args.agentTeamIds) agentTeamIdSet.add(id);
+  } else if (args.agentTeamId) {
+    agentTeamIdSet.add(args.agentTeamId);
+  }
+
   const needsTeamDocs =
-    args.includeTeamKnowledge !== false && !!args.agentTeamId;
+    args.includeTeamKnowledge !== false && agentTeamIdSet.size > 0;
   const needsOrgDocs = args.includeOrgKnowledge === true;
 
   const { dbCursor: startDbCursor, skip: initialSkip } = decodeCursor(
@@ -118,7 +128,7 @@ export async function listIndexedDocumentsForAgent(
       const fileId = String(doc.fileId);
       const isMatch =
         knowledgeFileIdSet.has(fileId) ||
-        (needsTeamDocs && doc.teamId === args.agentTeamId) ||
+        (needsTeamDocs && doc.teamId && agentTeamIdSet.has(doc.teamId)) ||
         (needsOrgDocs && !doc.teamId);
 
       if (!isMatch) continue;

@@ -26,6 +26,35 @@ export const getBindingByAgent = internalQuery({
   },
 });
 
+export const listBindingsForOrg = internalQuery({
+  args: {
+    organizationId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const results: Array<{
+      agentSlug: string;
+      teamId?: string;
+      sharedWithTeamIds?: string[];
+    }> = [];
+
+    const query = ctx.db
+      .query('agentBindings')
+      .withIndex('by_organization', (q) =>
+        q.eq('organizationId', args.organizationId),
+      );
+
+    for await (const binding of query) {
+      results.push({
+        agentSlug: binding.agentSlug,
+        teamId: binding.teamId ?? undefined,
+        sharedWithTeamIds: binding.sharedWithTeamIds ?? undefined,
+      });
+    }
+
+    return results;
+  },
+});
+
 export const getAvailableIntegrations = internalQuery({
   args: {
     organizationId: v.string(),

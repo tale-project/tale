@@ -7,18 +7,24 @@
 
 import type { ToolName } from '../agent_tools/tool_names';
 import type { SerializableAgentConfig } from '../lib/agent_chat/types';
+import { getAgentTeamIds } from './access';
 import type { AgentJsonConfig } from './file_utils';
 import type { KnowledgeFile } from './schema';
 
 export function toSerializableConfig(
   agentName: string,
   config: AgentJsonConfig,
-  binding?: { teamId?: string; knowledgeFiles?: KnowledgeFile[] },
+  binding?: {
+    teamId?: string;
+    sharedWithTeamIds?: string[];
+    knowledgeFiles?: KnowledgeFile[];
+  },
 ): SerializableAgentConfig {
   const knowledgeMode = config.knowledgeMode ?? 'off';
   const webSearchMode =
     config.webSearchMode ??
     (config.toolNames?.includes('web') ? 'tool' : 'off');
+  const allTeamIds = getAgentTeamIds(binding ?? null);
 
   return {
     name: agentName,
@@ -39,6 +45,7 @@ export function toSerializableConfig(
     includeTeamKnowledge: config.includeTeamKnowledge ?? true,
     includeOrgKnowledge: config.includeOrgKnowledge ?? false,
     agentTeamId: binding?.teamId,
+    agentTeamIds: allTeamIds.length > 0 ? allTeamIds : undefined,
     knowledgeFileIds: (binding?.knowledgeFiles ?? [])
       .filter((f) => f.ragStatus === 'completed')
       .map((f) => String(f.fileId)),

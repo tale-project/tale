@@ -490,6 +490,7 @@ export const resolveAgentConfig = internalAction({
       binding
         ? {
             teamId: binding.teamId ?? undefined,
+            sharedWithTeamIds: binding.sharedWithTeamIds ?? undefined,
             knowledgeFiles: binding.knowledgeFiles ?? undefined,
           }
         : undefined,

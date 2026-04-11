@@ -5,7 +5,7 @@ import type { QueryCtx } from '../_generated/server';
  *
  * Access layers (in order):
  * 1. Agent-specific files — always included (passed in directly as knowledgeFileIds)
- * 2. Team documents — included when includeTeamKnowledge !== false and agentTeamId is set
+ * 2. Team documents — included when includeTeamKnowledge !== false and agent has teams
  * 3. Org-wide documents — included when includeOrgKnowledge is true
  *
  * Only returns documents with ragInfo.status === 'completed' and a valid fileId.
@@ -15,6 +15,7 @@ export async function getAgentScopedFileIds(
   args: {
     organizationId: string;
     agentTeamId?: string;
+    agentTeamIds?: string[];
     includeTeamKnowledge?: boolean;
     includeOrgKnowledge?: boolean;
     knowledgeFileIds?: string[];
@@ -22,8 +23,16 @@ export async function getAgentScopedFileIds(
 ): Promise<string[]> {
   const fileIdSet = new Set<string>(args.knowledgeFileIds ?? []);
 
+  // Build effective team set: prefer agentTeamIds, fall back to single agentTeamId
+  const agentTeamIdSet = new Set<string>();
+  if (args.agentTeamIds) {
+    for (const id of args.agentTeamIds) agentTeamIdSet.add(id);
+  } else if (args.agentTeamId) {
+    agentTeamIdSet.add(args.agentTeamId);
+  }
+
   const needsTeamDocs =
-    args.includeTeamKnowledge !== false && !!args.agentTeamId;
+    args.includeTeamKnowledge !== false && agentTeamIdSet.size > 0;
   const needsOrgDocs = args.includeOrgKnowledge === true;
 
   if (!needsTeamDocs && !needsOrgDocs) {
@@ -42,7 +51,7 @@ export async function getAgentScopedFileIds(
     const fileId = String(doc.fileId);
     if (fileIdSet.has(fileId)) continue;
 
-    if (needsTeamDocs && doc.teamId === args.agentTeamId) {
+    if (needsTeamDocs && doc.teamId && agentTeamIdSet.has(doc.teamId)) {
       fileIdSet.add(fileId);
       continue;
     }

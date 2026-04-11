@@ -97,6 +97,56 @@ export const updateAgentBindings = mutation({
   },
 });
 
+export const updateAgentSharing = mutation({
+  args: {
+    organizationId: v.string(),
+    agentSlug: v.string(),
+    teamIds: v.array(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) throw new Error('Unauthenticated');
+
+    const member = await getOrganizationMember(ctx, args.organizationId, {
+      userId: String(authUser._id),
+      email: authUser.email,
+      name: authUser.name,
+    });
+
+    const role = member.role ?? 'member';
+    if (role !== 'owner' && role !== 'admin') {
+      throw new Error('Only admins can update agent sharing');
+    }
+
+    const existing = await ctx.db
+      .query('agentBindings')
+      .withIndex('by_org_agent', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('agentSlug', args.agentSlug),
+      )
+      .first();
+
+    const sharedWithTeamIds =
+      args.teamIds.length > 0 ? args.teamIds : undefined;
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        sharedWithTeamIds,
+      });
+    } else {
+      await ctx.db.insert('agentBindings', {
+        organizationId: args.organizationId,
+        agentSlug: args.agentSlug,
+        sharedWithTeamIds,
+      });
+    }
+
+    return null;
+  },
+});
+
 export const addKnowledgeFile = mutation({
   args: {
     organizationId: v.string(),

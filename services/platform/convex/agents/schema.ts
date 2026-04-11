@@ -35,6 +35,7 @@ export const agentBindingsTable = defineTable({
   organizationId: v.string(),
   agentSlug: v.string(),
   teamId: v.optional(v.string()),
+  sharedWithTeamIds: v.optional(v.array(v.string())),
   knowledgeFiles: v.optional(v.array(knowledgeFileValidator)),
 })
   .index('by_organization', ['organizationId'])
