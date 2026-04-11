@@ -5,6 +5,7 @@ import { authComponent } from '../auth';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { getOrganizationMember } from '../lib/rls';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
+import { checkBudget } from './budget_enforcement';
 import { resolveFeatureFlags } from './feature_enforcement';
 import { GOVERNANCE_POLICY_TYPES } from './schema';
 
@@ -180,5 +181,61 @@ export const getMyFeatureFlags = query({
       teamIds,
       member.role,
     );
+  },
+});
+
+export const getMyBudgetStatus = query({
+  args: {
+    organizationId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) {
+      return null;
+    }
+
+    const userId = String(authUser._id);
+    const member = await getOrganizationMember(ctx, args.organizationId, {
+      userId,
+      email: authUser.email,
+      name: authUser.name,
+    });
+
+    const teamIds = await getUserTeamIds(ctx, userId);
+    const result = await checkBudget(
+      ctx,
+      args.organizationId,
+      userId,
+      teamIds,
+      member.role,
+    );
+
+    // Budget exceeded — return the violation so the UI can show a hard limit banner
+    if (!result.allowed) {
+      return {
+        exceeded: true as const,
+        code: result.code ?? null,
+        period: result.period ?? null,
+        used: result.used ?? null,
+        limit: result.limit ?? null,
+        reason: result.reason ?? null,
+        warnings: null,
+      };
+    }
+
+    // Approaching limit — return warnings
+    if (result.warnings && result.warnings.length > 0) {
+      return {
+        exceeded: false as const,
+        code: null,
+        period: null,
+        used: null,
+        limit: null,
+        reason: null,
+        warnings: result.warnings,
+      };
+    }
+
+    return null;
   },
 });

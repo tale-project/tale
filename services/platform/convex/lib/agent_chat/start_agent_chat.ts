@@ -19,6 +19,7 @@ import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
 import { checkBudget } from '../../governance/budget_enforcement';
 import { resolveFeatureFlags } from '../../governance/feature_enforcement';
+import { resolveBudgetContext } from '../../governance/resolve_budget_context';
 import { persistentStreaming } from '../../streaming/helpers';
 import type { FileAttachment } from '../attachments';
 import type { AgentType } from '../context_management/constants';
@@ -219,11 +220,17 @@ export async function startAgentChat(
   // Budget enforcement — if limits exceeded, save a system reply instead of generating
   const userId = thread?.userId;
   if (userId) {
+    const { userTeamIds, userRole } = await resolveBudgetContext(
+      ctx,
+      organizationId,
+      userId,
+    );
     const budgetResult = await checkBudget(
       ctx,
       organizationId,
       userId,
-      agentConfig.agentTeamId ? [agentConfig.agentTeamId] : [],
+      userTeamIds,
+      userRole,
     );
     if (!budgetResult.allowed) {
       const budgetMessage =

@@ -26,3 +26,9 @@ export function useMyFeatureFlags(organizationId: string) {
     organizationId,
   });
 }
+
+export function useMyBudgetStatus(organizationId: string) {
+  return useConvexQuery(api.governance.queries.getMyBudgetStatus, {
+    organizationId,
+  });
+}
