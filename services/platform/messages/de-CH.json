@@ -76,7 +76,11 @@
     }
   },
   "chat": {
-    "filesNotSupported": "Einige Dateien sind zu gross (>100 MB) oder werden nicht unterstützt. Unterstützt: Bilder, PDF, Word-Dokumente, Textdateien."
+    "filesNotSupported": "Einige Dateien sind zu gross (>100 MB) oder werden nicht unterstützt. Unterstützt: Bilder, PDF, Word-Dokumente, Textdateien.",
+    "canvas": {
+      "close": "Canvas schliessen",
+      "resizeHandle": "Canvas-Grösse ändern"
+    }
   },
   "documents": {
     "preview": {

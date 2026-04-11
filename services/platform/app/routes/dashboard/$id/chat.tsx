@@ -10,6 +10,7 @@ import { PanelFooter } from '@/app/components/layout/panel-footer';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Button } from '@/app/components/ui/primitives/button';
 import { ArenaModeProvider } from '@/app/features/chat/components/arena/arena-mode-context';
+import { CanvasProvider } from '@/app/features/chat/components/canvas/canvas-context';
 import { ChatHeader } from '@/app/features/chat/components/chat-header';
 import { ChatHistorySidebar } from '@/app/features/chat/components/chat-history-sidebar';
 import { ChatInterface } from '@/app/features/chat/components/chat-interface';
@@ -22,7 +23,14 @@ import {
 } from '@/app/features/chat/context/chat-layout-context';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
+import { lazyComponent } from '@/lib/utils/lazy-component';
 import { seo } from '@/lib/utils/seo';
+
+const CanvasPane = lazyComponent(() =>
+  import('@/app/features/chat/components/canvas/canvas-pane').then((mod) => ({
+    default: mod.CanvasPane,
+  })),
+);
 
 export const Route = createFileRoute('/dashboard/$id/chat')({
   head: () => ({
@@ -244,6 +252,8 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
             />
           </LayoutErrorBoundary>
         </div>
+
+        <CanvasPane />
       </div>
     </PageLayout>
   );
@@ -255,7 +265,9 @@ function ChatLayout() {
   return (
     <ChatLayoutProvider organizationId={organizationId}>
       <ArenaModeProvider>
-        <ChatLayoutContent organizationId={organizationId} />
+        <CanvasProvider>
+          <ChatLayoutContent organizationId={organizationId} />
+        </CanvasProvider>
       </ArenaModeProvider>
     </ChatLayoutProvider>
   );

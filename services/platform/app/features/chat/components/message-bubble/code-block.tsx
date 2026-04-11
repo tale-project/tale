@@ -1,9 +1,10 @@
 'use client';
 
-import { CopyIcon, CheckIcon } from 'lucide-react';
+import { CopyIcon, CheckIcon, PanelRight } from 'lucide-react';
 import {
   ComponentPropsWithoutRef,
   ReactNode,
+  useCallback,
   useRef,
   useState,
   useEffect,
@@ -14,6 +15,21 @@ import { useTheme } from '@/app/components/theme/theme-provider';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
 import { highlightCode } from '@/lib/utils/shiki';
+
+import {
+  useCanvasOptional,
+  type CanvasContentType,
+} from '../canvas/canvas-context';
+
+function resolveCanvasType(language?: string): CanvasContentType {
+  if (!language) return 'code';
+  const lower = language.toLowerCase();
+  if (lower === 'html' || lower === 'htm') return 'html';
+  if (lower === 'svg') return 'svg';
+  if (lower === 'mermaid' || lower === 'mmd') return 'mermaid';
+  if (lower === 'markdown' || lower === 'md') return 'markdown';
+  return 'code';
+}
 
 /**
  * Extract the inner HTML from Shiki's codeToHtml output.
@@ -72,9 +88,11 @@ export function CodeBlock({
   ...props
 }: ComponentPropsWithoutRef<'pre'> & { lang?: string; children?: ReactNode }) {
   const { t } = useT('common');
+  const { t: tChat } = useT('chat');
   const [isCopied, setIsCopied] = useState(false);
   const preRef = useRef<HTMLPreElement>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const canvasContext = useCanvasOptional();
 
   useEffect(() => {
     return () => {
@@ -99,25 +117,46 @@ export function CodeBlock({
     }
   };
 
+  const handleOpenInCanvas = useCallback(() => {
+    if (!canvasContext) return;
+    const textContent = preRef.current?.textContent ?? '';
+    const canvasType = resolveCanvasType(lang);
+    canvasContext.openCanvas(textContent, canvasType, lang ?? 'code', lang);
+  }, [canvasContext, lang]);
+
   return (
     <div className="border-border bg-background my-4 overflow-hidden rounded-lg border">
       <div className="border-border flex items-center justify-between border-b px-4 py-2.5">
         <span className="text-muted-foreground font-sans text-xs">
           {lang ?? 'code'}
         </span>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-muted-foreground hover:text-foreground h-auto gap-1.5 rounded-md px-2 py-1 text-xs"
-          onClick={handleCopy}
-        >
-          {isCopied ? (
-            <CheckIcon className="text-success size-3.5" />
-          ) : (
-            <CopyIcon className="size-3.5" />
+        <div className="flex items-center gap-1">
+          {canvasContext && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground hover:text-foreground h-auto gap-1.5 rounded-md px-2 py-1 text-xs"
+              onClick={handleOpenInCanvas}
+              aria-label={tChat('canvas.openInCanvas')}
+            >
+              <PanelRight className="size-3.5" />
+              {tChat('canvas.openInCanvas')}
+            </Button>
           )}
-          {isCopied ? t('actions.copied') : t('actions.copy')}
-        </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:text-foreground h-auto gap-1.5 rounded-md px-2 py-1 text-xs"
+            onClick={handleCopy}
+          >
+            {isCopied ? (
+              <CheckIcon className="text-success size-3.5" />
+            ) : (
+              <CopyIcon className="size-3.5" />
+            )}
+            {isCopied ? t('actions.copied') : t('actions.copy')}
+          </Button>
+        </div>
       </div>
       <pre
         ref={preRef}
