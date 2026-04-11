@@ -103,50 +103,75 @@ describe('checkAgentAccess', () => {
     });
   });
 
-  describe('team-scoped agents', () => {
-    it('grants use access when user is in assigned team', () => {
+  describe('owning team', () => {
+    it('grants use + edit to owning team members', () => {
       const result = checkAgentAccess(
-        { sharedWithTeamIds: ['team-1', 'team-2'] },
+        { teamId: 'team-1' },
         ['team-1'],
+        'member',
+      );
+      expect(result).toEqual({ canUse: true, canEdit: true });
+    });
+
+    it('denies access when user is not in owning team', () => {
+      const result = checkAgentAccess(
+        { teamId: 'team-1' },
+        ['team-2'],
+        'member',
+      );
+      expect(result).toEqual({ canUse: false, canEdit: false });
+    });
+
+    it('denies access when user has no team memberships', () => {
+      const result = checkAgentAccess({ teamId: 'team-1' }, [], 'member');
+      expect(result).toEqual({ canUse: false, canEdit: false });
+    });
+  });
+
+  describe('shared teams', () => {
+    it('grants use-only access to shared team members', () => {
+      const result = checkAgentAccess(
+        { teamId: 'team-1', sharedWithTeamIds: ['team-2', 'team-3'] },
+        ['team-2'],
         'member',
       );
       expect(result).toEqual({ canUse: true, canEdit: false });
     });
 
-    it('denies use access when user is not in any assigned team', () => {
+    it('denies access when user is not in any shared team', () => {
       const result = checkAgentAccess(
-        { sharedWithTeamIds: ['team-1', 'team-2'] },
+        { teamId: 'team-1', sharedWithTeamIds: ['team-2'] },
         ['team-3'],
         'member',
       );
       expect(result).toEqual({ canUse: false, canEdit: false });
     });
 
-    it('grants use access via legacy teamId', () => {
+    it('prefers owning team (canEdit) over shared team', () => {
       const result = checkAgentAccess(
-        { teamId: 'team-1' },
+        { teamId: 'team-1', sharedWithTeamIds: ['team-1', 'team-2'] },
+        ['team-1'],
+        'member',
+      );
+      expect(result).toEqual({ canUse: true, canEdit: true });
+    });
+
+    it('grants use-only when only sharedWithTeamIds is set (no owning team)', () => {
+      const result = checkAgentAccess(
+        { sharedWithTeamIds: ['team-1', 'team-2'] },
         ['team-1'],
         'member',
       );
       expect(result).toEqual({ canUse: true, canEdit: false });
     });
 
-    it('denies use access when user has no team memberships', () => {
+    it('denies access when user has no team memberships', () => {
       const result = checkAgentAccess(
         { sharedWithTeamIds: ['team-1'] },
         [],
         'member',
       );
       expect(result).toEqual({ canUse: false, canEdit: false });
-    });
-
-    it('grants use access when user matches one of multiple teams', () => {
-      const result = checkAgentAccess(
-        { teamId: 'team-1', sharedWithTeamIds: ['team-2', 'team-3'] },
-        ['team-3'],
-        'member',
-      );
-      expect(result).toEqual({ canUse: true, canEdit: false });
     });
   });
 

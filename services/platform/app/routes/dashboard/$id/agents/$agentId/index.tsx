@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
+import { Link } from '@tanstack/react-router';
 import { useCallback, useMemo, useState, useEffect } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
@@ -9,9 +10,13 @@ import { Switch } from '@/app/components/ui/forms/switch';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { PageSection } from '@/app/components/ui/layout/page-section';
 import { StickySectionHeader } from '@/app/components/ui/layout/sticky-section-header';
-import { useUpdateAgentBindings } from '@/app/features/agents/hooks/mutations';
+import {
+  useUpdateAgentBindings,
+  useUpdateAgentSharing,
+} from '@/app/features/agents/hooks/mutations';
 import { useAgentBinding } from '@/app/features/agents/hooks/queries';
 import { useAgentConfig } from '@/app/features/agents/hooks/use-agent-config-context';
+import { TeamMultiSelect } from '@/app/features/documents/components/team-multi-select';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -34,6 +39,7 @@ function GeneralTab() {
   const { teams } = useTeamFilter();
   const { data: binding } = useAgentBinding(organizationId, agentSlug);
   const updateBindings = useUpdateAgentBindings();
+  const updateSharing = useUpdateAgentSharing();
 
   const [timeoutMinutes, setTimeoutMinutes] = useState(DEFAULT_TIMEOUT_MINUTES);
   const [timeoutInitialized, setTimeoutInitialized] = useState(false);
@@ -59,6 +65,14 @@ function GeneralTab() {
     return items;
   }, [teams, t]);
 
+  const owningTeamId = binding?.teamId ?? null;
+
+  // Teams available for sharing (exclude the owning team)
+  const shareableTeams = useMemo(() => {
+    if (!teams || !owningTeamId) return [];
+    return teams.filter((team) => team.id !== owningTeamId);
+  }, [teams, owningTeamId]);
+
   const handleTeamChange = useCallback(
     (value: string) => {
       updateBindings
@@ -81,6 +95,30 @@ function GeneralTab() {
         });
     },
     [updateBindings, organizationId, agentSlug, t],
+  );
+
+  const handleSharingChange = useCallback(
+    (teamIds: string[]) => {
+      updateSharing
+        .mutateAsync({
+          organizationId,
+          agentSlug,
+          teamIds,
+        })
+        .then(() => {
+          toast({
+            title: t('agents.form.sharingUpdateSuccess'),
+            variant: 'success',
+          });
+        })
+        .catch(() => {
+          toast({
+            title: t('agents.form.sharingUpdateFailed'),
+            variant: 'destructive',
+          });
+        });
+    },
+    [updateSharing, organizationId, agentSlug, t],
   );
 
   const handleVisibilityChange = useCallback(
@@ -134,24 +172,58 @@ function GeneralTab() {
         />
       </FormSection>
 
-      {teams && teams.length > 0 && (
-        <PageSection
-          title={t('agents.form.sectionAccess')}
-          description={t('agents.form.sectionAccessDescription')}
-          gap={6}
-          className="mt-8 border-t pt-8"
-        >
+      <PageSection
+        title={t('agents.form.sectionAccess')}
+        description={t('agents.form.sectionAccessDescription')}
+        gap={6}
+        className="mt-8 border-t pt-8"
+      >
+        {teams && teams.length > 0 ? (
+          <>
+            <FormSection>
+              <Select
+                options={teamOptions}
+                label={t('agents.form.team')}
+                description={t('agents.form.teamHelp')}
+                value={binding?.teamId ?? NO_TEAM_VALUE}
+                onValueChange={handleTeamChange}
+              />
+            </FormSection>
+
+            {owningTeamId && shareableTeams.length > 0 && (
+              <FormSection>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">
+                    {t('agents.form.sharedWithTeams')}
+                  </label>
+                  <p className="text-muted-foreground text-sm">
+                    {t('agents.form.sharedWithTeamsHelp')}
+                  </p>
+                  <TeamMultiSelect
+                    teams={shareableTeams}
+                    selectedTeamIds={binding?.sharedWithTeamIds ?? []}
+                    onSelectionChange={handleSharingChange}
+                    orgWideLabel={t('agents.form.noSharedTeams')}
+                  />
+                </div>
+              </FormSection>
+            )}
+          </>
+        ) : (
           <FormSection>
-            <Select
-              options={teamOptions}
-              label={t('agents.form.team')}
-              description={t('agents.form.teamHelp')}
-              value={binding?.teamId ?? NO_TEAM_VALUE}
-              onValueChange={handleTeamChange}
-            />
+            <p className="text-muted-foreground text-sm">
+              {t('agents.form.noTeamsHint')}{' '}
+              <Link
+                to="/dashboard/$id/settings/teams"
+                params={{ id: organizationId }}
+                className="text-primary hover:underline"
+              >
+                {t('agents.form.noTeamsCreateLink')}
+              </Link>
+            </p>
           </FormSection>
-        </PageSection>
-      )}
+        )}
+      </PageSection>
 
       <PageSection
         title={t('agents.general.sectionAdvanced')}

@@ -128,20 +128,17 @@ export const updateAgentSharing = mutation({
       )
       .first();
 
-    const primaryTeamId = args.teamIds[0] ?? undefined;
     const sharedWithTeamIds =
       args.teamIds.length > 0 ? args.teamIds : undefined;
 
     if (existing) {
       await ctx.db.patch(existing._id, {
-        teamId: primaryTeamId,
         sharedWithTeamIds,
       });
     } else {
       await ctx.db.insert('agentBindings', {
         organizationId: args.organizationId,
         agentSlug: args.agentSlug,
-        teamId: primaryTeamId,
         sharedWithTeamIds,
       });
     }

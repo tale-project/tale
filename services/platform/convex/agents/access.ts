@@ -7,8 +7,8 @@
  * Access rules:
  * - Org admins/owners always have full access to all agents.
  * - Agents with no team assignment (org-wide) are usable by all members.
- * - Team-scoped agents are only usable by members of assigned teams.
- * - Edit/admin access requires org admin/owner role.
+ * - Owning team members get canUse + canEdit.
+ * - Shared team members get canUse only (read-only access).
  */
 
 interface AgentBinding {
@@ -49,19 +49,28 @@ export function checkAgentAccess(
     return { canUse: false, canEdit: false };
   }
 
-  // Determine the effective team set for the agent
-  const agentTeams = getAgentTeamIds(binding);
+  const owningTeamId = binding?.teamId ?? null;
+  const sharedTeamIds = binding?.sharedWithTeamIds ?? [];
 
   // No teams assigned = org-wide agent, accessible to all members
-  if (agentTeams.length === 0) {
+  if (!owningTeamId && sharedTeamIds.length === 0) {
     return { canUse: true, canEdit: false };
   }
 
-  // Team-scoped agent: user must be in at least one assigned team
   const userTeamSet = new Set(userTeamIds);
-  const hasTeamAccess = agentTeams.some((id) => userTeamSet.has(id));
 
-  return { canUse: hasTeamAccess, canEdit: false };
+  // Owning team members get use + edit
+  if (owningTeamId && userTeamSet.has(owningTeamId)) {
+    return { canUse: true, canEdit: true };
+  }
+
+  // Shared team members get use only
+  const hasSharedAccess = sharedTeamIds.some((id) => userTeamSet.has(id));
+  if (hasSharedAccess) {
+    return { canUse: true, canEdit: false };
+  }
+
+  return { canUse: false, canEdit: false };
 }
 
 /**
