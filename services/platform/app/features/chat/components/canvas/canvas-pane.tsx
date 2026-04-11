@@ -75,8 +75,10 @@ function CanvasPaneComponent() {
     canvasType,
     canvasTitle,
     canvasLanguage,
+    isDirty,
     closeCanvas,
     updateCanvasContent,
+    applyCanvasContent,
   } = useCanvas();
 
   const [isEditing, setIsEditing] = useState(false);
@@ -215,6 +217,20 @@ function CanvasPaneComponent() {
                 ) : (
                   <Pencil className="size-3.5" />
                 )}
+              </Button>
+            </Tooltip>
+          )}
+
+          {canEdit && isDirty && (
+            <Tooltip content={t('canvas.applyTooltip')} side="bottom">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7"
+                onClick={applyCanvasContent}
+                aria-label={t('canvas.apply')}
+              >
+                <Check className="text-success size-3.5" />
               </Button>
             </Tooltip>
           )}

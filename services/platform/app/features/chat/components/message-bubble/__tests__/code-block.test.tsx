@@ -15,6 +15,10 @@ vi.mock('@/lib/utils/shiki', () => ({
       `<pre class="shiki"><code><span class="line">${code}</span></code></pre>`,
     ),
   ),
+  extractShikiCodeContent: vi.fn((html: string) => {
+    const match = html.match(/<code[^>]*>([\s\S]*?)<\/code>/);
+    return match ? match[1] : html;
+  }),
 }));
 
 // Mock theme provider

@@ -14,7 +14,7 @@ import {
 import { useTheme } from '@/app/components/theme/theme-provider';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
-import { highlightCode } from '@/lib/utils/shiki';
+import { extractShikiCodeContent, highlightCode } from '@/lib/utils/shiki';
 
 import {
   useCanvasOptional,
@@ -29,17 +29,6 @@ function resolveCanvasType(language?: string): CanvasContentType {
   if (lower === 'mermaid' || lower === 'mmd') return 'mermaid';
   if (lower === 'markdown' || lower === 'md') return 'markdown';
   return 'code';
-}
-
-/**
- * Extract the inner HTML from Shiki's codeToHtml output.
- * Shiki wraps output in `<pre class="shiki ..."><code>...tokens...</code></pre>`.
- * Since we're already inside a `<pre>` from react-markdown's CodeBlock,
- * we extract only the inner content of the `<code>` element.
- */
-function extractShikiCodeContent(html: string): string {
-  const codeMatch = html.match(/<code[^>]*>([\s\S]*?)<\/code>/);
-  return codeMatch ? codeMatch[1] : html;
 }
 
 /** Debounce delay for Shiki highlighting. During streaming, code changes

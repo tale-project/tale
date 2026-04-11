@@ -2857,7 +2857,10 @@
       "download": "Download",
       "copied": "Copied!",
       "mermaidError": "Failed to render diagram",
-      "resizeHandle": "Resize canvas"
+      "resizeHandle": "Resize canvas",
+      "codeEditor": "Code editor",
+      "apply": "Apply changes",
+      "applyTooltip": "Send edited code back to chat"
     },
     "promptLibrary": "Prompt library",
     "saveAsPrompt": "Save as prompt"

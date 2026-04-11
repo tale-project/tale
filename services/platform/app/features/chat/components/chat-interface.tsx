@@ -52,6 +52,7 @@ import { useUserContext } from '../hooks/use-user-context';
 import type { FileAttachment } from '../types';
 import { useArenaModeOptional } from './arena/arena-mode-context';
 import { ArenaSplitView } from './arena/arena-split-view';
+import { useCanvasOptional } from './canvas/canvas-context';
 import { ChatInput } from './chat-input';
 import { ChatMessages } from './chat-messages';
 import { WelcomeView } from './welcome-view';
@@ -94,6 +95,7 @@ export function ChatInterface({
   } = useChatLayout();
 
   const arenaContext = useArenaModeOptional();
+  const canvasContext = useCanvasOptional();
 
   // Restore arena thread pair when re-enabling arena mode on an existing arena thread
   const isArenaMode = arenaContext?.isArenaMode ?? false;
@@ -476,6 +478,16 @@ export function ChatInterface({
     },
     [sendMessage, threadId],
   );
+
+  useEffect(() => {
+    if (!canvasContext || readOnly) return;
+    canvasContext.registerOnApply((content, language) => {
+      const lang = language || 'code';
+      const message = `I've edited the ${lang}. Here is the updated version:\n\n\`\`\`${language || ''}\n${content}\n\`\`\``;
+      scrollingToBottomBehaviorRef.current = threadId ? 'smooth' : 'instant';
+      void sendMessage(message);
+    });
+  }, [canvasContext, readOnly, sendMessage, threadId]);
 
   // Edit message → open dialog → create branch on submit
   const { selectNewBranch, rootThreadId } = useBranchContext();

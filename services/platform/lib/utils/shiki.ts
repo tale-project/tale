@@ -109,3 +109,8 @@ export async function highlightCode(
 
   return DOMPurify.sanitize(hl.codeToHtml(code, { lang: resolvedLang, theme }));
 }
+
+export function extractShikiCodeContent(html: string): string {
+  const codeMatch = html.match(/<code[^>]*>([\s\S]*?)<\/code>/);
+  return codeMatch ? codeMatch[1] : html;
+}

@@ -2832,7 +2832,10 @@
       "download": "Herunterladen",
       "copied": "Kopiert!",
       "mermaidError": "Diagramm konnte nicht gerendert werden",
-      "resizeHandle": "Canvas-Größe ändern"
+      "resizeHandle": "Canvas-Größe ändern",
+      "codeEditor": "Code-Editor",
+      "apply": "Änderungen anwenden",
+      "applyTooltip": "Bearbeiteten Code zurück an den Chat senden"
     },
     "promptLibrary": "Prompt-Bibliothek",
     "saveAsPrompt": "Als Prompt speichern"

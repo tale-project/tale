@@ -223,6 +223,18 @@
     opacity: 0.5;
   }
 
+  .code-editor-surface {
+    font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas,
+      'Liberation Mono', monospace;
+    font-size: 0.75rem;
+    line-height: 1.625;
+    letter-spacing: 0;
+    tab-size: 2;
+    white-space: pre;
+    word-wrap: normal;
+    overflow-wrap: normal;
+  }
+
   /*
    * Reduced motion support
    * When user prefers reduced motion, disable cursor blink and show instant text

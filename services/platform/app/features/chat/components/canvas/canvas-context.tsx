@@ -6,6 +6,7 @@ import {
   useState,
   useCallback,
   useMemo,
+  useRef,
   type ReactNode,
 } from 'react';
 
@@ -19,12 +20,14 @@ export type CanvasContentType =
 interface CanvasState {
   isCanvasOpen: boolean;
   canvasContent: string;
+  originalContent: string;
   canvasType: CanvasContentType;
   canvasTitle: string;
   canvasLanguage?: string;
 }
 
 interface CanvasContextType extends CanvasState {
+  isDirty: boolean;
   openCanvas: (
     content: string,
     type: CanvasContentType,
@@ -33,6 +36,11 @@ interface CanvasContextType extends CanvasState {
   ) => void;
   closeCanvas: () => void;
   updateCanvasContent: (content: string) => void;
+  registerOnApply: (
+    callback: (content: string, language?: string) => void,
+  ) => void;
+  applyCanvasContent: () => void;
+  resetDirtyState: () => void;
 }
 
 const CanvasContext = createContext<CanvasContextType | null>(null);
@@ -57,10 +65,17 @@ export function CanvasProvider({ children }: CanvasProviderProps) {
   const [state, setState] = useState<CanvasState>({
     isCanvasOpen: false,
     canvasContent: '',
+    originalContent: '',
     canvasType: 'code',
     canvasTitle: '',
     canvasLanguage: undefined,
   });
+
+  const onApplyRef = useRef<
+    ((content: string, language?: string) => void) | null
+  >(null);
+
+  const isDirty = state.canvasContent !== state.originalContent;
 
   const openCanvas = useCallback(
     (
@@ -72,6 +87,7 @@ export function CanvasProvider({ children }: CanvasProviderProps) {
       setState({
         isCanvasOpen: true,
         canvasContent: content,
+        originalContent: content,
         canvasType: type,
         canvasTitle: title,
         canvasLanguage: language,
@@ -88,14 +104,51 @@ export function CanvasProvider({ children }: CanvasProviderProps) {
     setState((prev) => ({ ...prev, canvasContent: content }));
   }, []);
 
+  const registerOnApply = useCallback(
+    (callback: (content: string, language?: string) => void) => {
+      onApplyRef.current = callback;
+    },
+    [],
+  );
+
+  const applyCanvasContent = useCallback(() => {
+    if (onApplyRef.current) {
+      onApplyRef.current(state.canvasContent, state.canvasLanguage);
+    }
+    setState((prev) => ({
+      ...prev,
+      originalContent: prev.canvasContent,
+    }));
+  }, [state.canvasContent, state.canvasLanguage]);
+
+  const resetDirtyState = useCallback(() => {
+    setState((prev) => ({
+      ...prev,
+      originalContent: prev.canvasContent,
+    }));
+  }, []);
+
   const value = useMemo(
     () => ({
       ...state,
+      isDirty,
       openCanvas,
       closeCanvas,
       updateCanvasContent,
+      registerOnApply,
+      applyCanvasContent,
+      resetDirtyState,
     }),
-    [state, openCanvas, closeCanvas, updateCanvasContent],
+    [
+      state,
+      isDirty,
+      openCanvas,
+      closeCanvas,
+      updateCanvasContent,
+      registerOnApply,
+      applyCanvasContent,
+      resetDirtyState,
+    ],
   );
 
   return (

@@ -7,6 +7,7 @@ const config: StorybookConfig = {
     '../app/components/ui/**/*.stories.@(ts|tsx)',
     '../app/components/icons/**/*.stories.@(ts|tsx)',
     '../app/components/theme/**/*.stories.@(ts|tsx)',
+    '../app/features/**/*.stories.@(ts|tsx)',
   ],
   addons: [
     '@storybook/addon-a11y',
