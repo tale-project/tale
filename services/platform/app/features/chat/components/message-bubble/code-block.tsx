@@ -5,6 +5,7 @@ import {
   ComponentPropsWithoutRef,
   ReactNode,
   useCallback,
+  useMemo,
   useRef,
   useState,
   useEffect,
@@ -64,8 +65,19 @@ export const HighlightedCode = memo(function HighlightedCode({
     };
   }, [code, lang, shikiTheme]);
 
+  const plainLines = useMemo(
+    () =>
+      code.split('\n').map((line, i, arr) => (
+        <span key={i} className="line">
+          {line}
+          {i < arr.length - 1 ? '\n' : ''}
+        </span>
+      )),
+    [code],
+  );
+
   if (!html || highlightedForRef.current !== code) {
-    return <code>{code}</code>;
+    return <code>{plainLines}</code>;
   }
 
   return <code dangerouslySetInnerHTML={{ __html: html }} />;

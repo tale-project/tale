@@ -1,11 +1,25 @@
 'use client';
 
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useTheme } from '@/app/components/theme/theme-provider';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { extractShikiCodeContent, highlightCode } from '@/lib/utils/shiki';
+
+function PlainCodeLines({ code }: { code: string }) {
+  const lines = useMemo(() => code.split('\n'), [code]);
+  return (
+    <>
+      {lines.map((line, i) => (
+        <span key={i} className="line">
+          {line}
+          {i < lines.length - 1 ? '\n' : ''}
+        </span>
+      ))}
+    </>
+  );
+}
 
 interface CanvasCodeRendererProps {
   code: string;
@@ -72,35 +86,55 @@ function CanvasCodeRendererComponent({
   );
 
   if (isEditing) {
-    return (
-      <div className="relative h-full overflow-hidden">
-        <pre
-          ref={preRef}
-          className="code-line-numbers code-editor-surface bg-muted pointer-events-none absolute inset-0 overflow-auto p-4"
-          aria-hidden="true"
-        >
-          <code
-            className="code-editor-surface"
-            dangerouslySetInnerHTML={{ __html: html }}
+    const hasHighlight = html.length > 0;
+
+    if (hasHighlight) {
+      return (
+        <div className="relative h-full overflow-hidden">
+          <pre
+            ref={preRef}
+            className="code-line-numbers code-editor-surface bg-muted pointer-events-none absolute inset-0 overflow-auto p-4"
+            aria-hidden="true"
+          >
+            <code
+              className="code-editor-surface"
+              dangerouslySetInnerHTML={{ __html: html }}
+            />
+          </pre>
+          <textarea
+            ref={textareaRef}
+            value={code}
+            onChange={(e) => onContentChange(e.target.value)}
+            onScroll={handleScroll}
+            onKeyDown={handleKeyDown}
+            className={cn(
+              'code-editor-surface',
+              'absolute inset-0 h-full w-full resize-none bg-transparent py-4 pr-4 pl-[4rem]',
+              'text-transparent selection:bg-accent/30',
+              'focus:outline-none',
+            )}
+            spellCheck={false}
+            style={{ caretColor: 'var(--foreground)' }}
+            aria-label={t('canvas.codeEditor')}
           />
-        </pre>
-        <textarea
-          ref={textareaRef}
-          value={code}
-          onChange={(e) => onContentChange(e.target.value)}
-          onScroll={handleScroll}
-          onKeyDown={handleKeyDown}
-          className={cn(
-            'code-editor-surface',
-            'absolute inset-0 h-full w-full resize-none bg-transparent py-4 pr-4 pl-[4rem]',
-            'text-transparent caret-foreground selection:bg-accent/30',
-            'focus:outline-none',
-          )}
-          spellCheck={false}
-          style={{ caretColor: 'var(--foreground)' }}
-          aria-label={t('canvas.codeEditor')}
-        />
-      </div>
+        </div>
+      );
+    }
+
+    return (
+      <textarea
+        ref={textareaRef}
+        value={code}
+        onChange={(e) => onContentChange(e.target.value)}
+        onKeyDown={handleKeyDown}
+        className={cn(
+          'code-editor-surface',
+          'text-foreground bg-muted h-full w-full resize-none p-4',
+          'focus:outline-none',
+        )}
+        spellCheck={false}
+        aria-label={t('canvas.codeEditor')}
+      />
     );
   }
 
@@ -108,7 +142,9 @@ function CanvasCodeRendererComponent({
     return (
       <div className="code-line-numbers code-line-hover h-full overflow-auto">
         <pre className="bg-muted p-4">
-          <code className="code-editor-surface">{code}</code>
+          <code className="code-editor-surface">
+            <PlainCodeLines code={code} />
+          </code>
         </pre>
       </div>
     );

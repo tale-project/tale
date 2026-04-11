@@ -224,6 +224,8 @@
   }
 
   .code-line-hover .line {
+    margin: 0 -1rem;
+    padding: 0 1rem;
     transition: background-color 0.15s ease;
   }
 

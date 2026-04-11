@@ -2861,8 +2861,9 @@
       "codeEditor": "Code editor",
       "apply": "Apply changes",
       "applyTooltip": "Send edited code back to chat",
-      "viewCode": "View source code",
-      "viewRender": "View rendered output"
+      "viewCode": "Code",
+      "viewRender": "Preview",
+      "viewModeLabel": "View mode"
     },
     "promptLibrary": "Prompt library",
     "saveAsPrompt": "Save as prompt"

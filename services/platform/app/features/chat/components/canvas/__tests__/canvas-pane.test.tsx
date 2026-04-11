@@ -25,8 +25,9 @@ vi.mock('@/lib/i18n/client', () => ({
         'canvas.codeEditor': 'Code editor',
         'canvas.apply': 'Apply changes',
         'canvas.applyTooltip': 'Send edited code back to chat',
-        'canvas.viewCode': 'View source code',
-        'canvas.viewRender': 'View rendered output',
+        'canvas.viewCode': 'Code',
+        'canvas.viewRender': 'Preview',
+        'canvas.viewModeLabel': 'View mode',
       };
       return translations[key] ?? key;
     },

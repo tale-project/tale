@@ -8,7 +8,6 @@ import {
   Pencil,
   Eye,
   Code,
-  FileCode,
   FileText,
   Globe,
   GitBranch,
@@ -20,6 +19,7 @@ import { Badge } from '@/app/components/ui/feedback/badge';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 
 import { useCanvas, type CanvasContentType } from './canvas-context';
@@ -174,19 +174,14 @@ function CanvasPaneComponent() {
     setIsEditing((prev) => !prev);
   }, []);
 
-  const toggleViewMode = useCallback(() => {
-    setViewMode((prev) => (prev === 'render' ? 'code' : 'render'));
-  }, []);
-
   if (!isCanvasOpen) return null;
 
   const TypeIcon = TYPE_ICONS[canvasType];
+  const hasViewModeToggle = canvasType === 'html' || canvasType === 'markdown';
   const canEdit =
     canvasType === 'code' ||
     canvasType === 'markdown' ||
-    ((canvasType === 'html' || canvasType === 'svg') && viewMode === 'code');
-  const hasRenderView =
-    canvasType === 'html' || canvasType === 'markdown' || canvasType === 'svg';
+    (canvasType === 'html' && viewMode === 'code');
 
   return (
     <div
@@ -212,35 +207,6 @@ function CanvasPaneComponent() {
         </div>
 
         <div className="flex items-center gap-1">
-          {hasRenderView && (
-            <Tooltip
-              content={
-                viewMode === 'render'
-                  ? t('canvas.viewCode')
-                  : t('canvas.viewRender')
-              }
-              side="bottom"
-            >
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-7"
-                onClick={toggleViewMode}
-                aria-label={
-                  viewMode === 'render'
-                    ? t('canvas.viewCode')
-                    : t('canvas.viewRender')
-                }
-              >
-                {viewMode === 'render' ? (
-                  <FileCode className="size-3.5" />
-                ) : (
-                  <Eye className="size-3.5" />
-                )}
-              </Button>
-            </Tooltip>
-          )}
-
           {canEdit && (
             <Tooltip
               content={isEditing ? t('canvas.preview') : t('canvas.edit')}
@@ -321,6 +287,43 @@ function CanvasPaneComponent() {
         </div>
       </div>
 
+      {hasViewModeToggle && (
+        <div
+          className="border-border flex border-b"
+          role="tablist"
+          aria-label={t('canvas.viewModeLabel')}
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={viewMode === 'render'}
+            className={cn(
+              'flex-1 px-3 py-1.5 text-xs font-medium transition-colors',
+              viewMode === 'render'
+                ? 'border-primary text-foreground border-b-2'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+            onClick={() => setViewMode('render')}
+          >
+            {t('canvas.viewRender')}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={viewMode === 'code'}
+            className={cn(
+              'flex-1 px-3 py-1.5 text-xs font-medium transition-colors',
+              viewMode === 'code'
+                ? 'border-primary text-foreground border-b-2'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+            onClick={() => setViewMode('code')}
+          >
+            {t('canvas.viewCode')}
+          </button>
+        </div>
+      )}
+
       <div className="min-h-0 flex-1 overflow-hidden">
         {canvasType === 'code' && (
           <CanvasCodeRenderer
@@ -341,17 +344,7 @@ function CanvasPaneComponent() {
           ) : (
             <CanvasHtmlRenderer html={canvasContent} />
           ))}
-        {canvasType === 'svg' &&
-          (viewMode === 'code' ? (
-            <CanvasCodeRenderer
-              code={canvasContent}
-              language="svg"
-              isEditing={isEditing}
-              onContentChange={updateCanvasContent}
-            />
-          ) : (
-            <CanvasHtmlRenderer html={canvasContent} />
-          ))}
+        {canvasType === 'svg' && <CanvasHtmlRenderer html={canvasContent} />}
         {canvasType === 'mermaid' && (
           <CanvasMermaidRenderer code={canvasContent} />
         )}

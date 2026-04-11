@@ -2836,8 +2836,9 @@
       "codeEditor": "Code-Editor",
       "apply": "Änderungen anwenden",
       "applyTooltip": "Bearbeiteten Code zurück an den Chat senden",
-      "viewCode": "Quellcode anzeigen",
-      "viewRender": "Gerenderte Ausgabe anzeigen"
+      "viewCode": "Code",
+      "viewRender": "Vorschau",
+      "viewModeLabel": "Ansichtsmodus"
     },
     "promptLibrary": "Prompt-Bibliothek",
     "saveAsPrompt": "Als Prompt speichern"
