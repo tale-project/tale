@@ -132,6 +132,58 @@ describe('useSendMessage — error handling', () => {
     expect(params.setIsPending).not.toHaveBeenCalled();
   });
 
+  it('clears isPending on successful send', async () => {
+    const params = createParams();
+    const { result } = renderHook(() => useSendMessage(params));
+
+    await act(async () => {
+      await result.current.sendMessage('Hello');
+    });
+
+    expect(params.setIsPending).toHaveBeenCalledWith(true);
+    expect(params.setIsPending).toHaveBeenCalledWith(false);
+  });
+
+  it('clears isPending after successful thread creation and send', async () => {
+    mockCreateThread.mockResolvedValue('new_thread_id');
+    const params = createParams({ threadId: undefined });
+    const { result } = renderHook(() => useSendMessage(params));
+
+    await act(async () => {
+      await result.current.sendMessage('Hello');
+    });
+
+    expect(params.setIsPending).toHaveBeenCalledWith(true);
+    expect(params.setIsPending).toHaveBeenCalledWith(false);
+  });
+
+  it('clears isPending on successful arena send', async () => {
+    mockCreateThread
+      .mockResolvedValueOnce('arena_a')
+      .mockResolvedValueOnce('arena_b');
+    mockArenaChat.mockResolvedValue(undefined);
+
+    const params = createParams({
+      arena: {
+        isArenaMode: true,
+        modelA: 'model-a',
+        modelB: 'model-b',
+        arenaThreadIdA: null,
+        arenaThreadIdB: null,
+        setArenaThreadIdA: vi.fn(),
+        setArenaThreadIdB: vi.fn(),
+      },
+    });
+    const { result } = renderHook(() => useSendMessage(params));
+
+    await act(async () => {
+      await result.current.sendMessage('Hello');
+    });
+
+    expect(params.setIsPending).toHaveBeenCalledWith(true);
+    expect(params.setIsPending).toHaveBeenCalledWith(false);
+  });
+
   it('allows sending a new message after a previous error', async () => {
     mockChatWithAgent
       .mockRejectedValueOnce(new Error('Credit error'))

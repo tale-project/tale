@@ -180,6 +180,8 @@ export function useSendMessage({
             copyHistoryToB: needsCopyHistory || undefined,
           });
 
+          setIsPending(false);
+
           // Navigate AFTER arena chat completes — split view is already
           // showing, so this just updates the URL without visual change.
           setPendingMessage({
@@ -274,6 +276,8 @@ export function useSendMessage({
                 }
               : undefined,
           });
+
+          setIsPending(false);
         }
       } catch (error) {
         console.error('Failed to send message:', error);
