@@ -256,20 +256,11 @@ export async function startAgentChat(
       userTeamIds,
     );
 
-    const needsWebSearchOverride =
-      !featureFlags.webSearch && agentConfig.webSearchMode !== 'off';
-    const needsFileUploadBlock =
-      !featureFlags.fileUpload && attachments && attachments.length > 0;
-
-    if (needsWebSearchOverride || needsFileUploadBlock) {
-      enforcedConfig = { ...agentConfig };
-    }
-
     if (!featureFlags.webSearch) {
       enforcedConfig = {
-        ...enforcedConfig,
+        ...agentConfig,
         webSearchMode: 'off',
-        convexToolNames: (enforcedConfig.convexToolNames ?? []).filter(
+        convexToolNames: (agentConfig.convexToolNames ?? []).filter(
           (t) => t !== 'web',
         ),
       };

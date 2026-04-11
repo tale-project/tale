@@ -4,6 +4,7 @@ import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
+import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Input } from '@/app/components/ui/forms/input';
 import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
 import { Select } from '@/app/components/ui/forms/select';
@@ -22,6 +23,7 @@ import {
   type FeatureFlagsConfig,
   type FeatureFlagRule,
 } from '@/lib/shared/schemas/governance';
+import { formatNumber } from '@/lib/utils/format/number';
 import { isRecord } from '@/lib/utils/type-guards';
 
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
@@ -31,23 +33,13 @@ interface FeatureFlagsEditorProps {
   organizationId: string;
 }
 
-const SCOPE_OPTIONS = [
-  { value: 'default', label: 'Default' },
-  { value: 'user', label: 'User' },
-  { value: 'team', label: 'Team' },
-  { value: 'role', label: 'Role' },
-];
+const SCOPE_VALUES = ['default', 'user', 'team', 'role'] as const;
 
 function isScopeValue(v: string): v is FeatureFlagRule['scope'] {
-  return SCOPE_OPTIONS.some((o) => o.value === v);
+  return (SCOPE_VALUES as readonly string[]).includes(v);
 }
 
-const ROLE_OPTIONS = [
-  { value: 'admin', label: 'Admin' },
-  { value: 'developer', label: 'Developer' },
-  { value: 'editor', label: 'Editor' },
-  { value: 'member', label: 'Member' },
-];
+const ROLE_VALUES = ['admin', 'developer', 'editor', 'member'] as const;
 
 function emptyRule(): FeatureFlagRule {
   return {
@@ -89,7 +81,26 @@ function RuleDialog({
   teamOptions,
 }: RuleDialogProps) {
   const { t } = useT('governance');
+  const { t: tCommon } = useT('common');
   const [draft, setDraft] = useState(initialRule);
+
+  const scopeOptions = useMemo(
+    () =>
+      SCOPE_VALUES.map((v) => ({
+        value: v,
+        label: t(`featureFlags.scopeLabels.${v}`),
+      })),
+    [t],
+  );
+
+  const roleOptions = useMemo(
+    () =>
+      ROLE_VALUES.map((v) => ({
+        value: v,
+        label: t(`featureFlags.roleLabels.${v}`),
+      })),
+    [t],
+  );
 
   useEffect(() => {
     if (open) {
@@ -122,14 +133,14 @@ function RuleDialog({
       onOpenChange={onOpenChange}
       title={title}
       onSubmit={handleSubmit}
-      submitText="Confirm"
+      submitText={tCommon('actions.confirm')}
     >
       <Stack gap={4}>
         <HStack gap={3} wrap>
           <div className="w-40">
             <Select
               label={t('featureFlags.scope')}
-              options={SCOPE_OPTIONS}
+              options={scopeOptions}
               value={draft.scope}
               onValueChange={(value: string) => {
                 if (isScopeValue(value)) {
@@ -144,8 +155,8 @@ function RuleDialog({
           {draft.scope === 'role' && (
             <div className="w-40">
               <Select
-                label="Role"
-                options={ROLE_OPTIONS}
+                label={t('featureFlags.role')}
+                options={roleOptions}
                 value={draft.scopeId ?? ''}
                 onValueChange={(value) => updateDraft({ scopeId: value })}
                 disabled={cannotManage}
@@ -156,14 +167,16 @@ function RuleDialog({
 
           {draft.scope === 'user' && (
             <div className="w-56">
-              <Text className="mb-1 text-xs font-medium">User</Text>
+              <Text className="mb-1 text-xs font-medium">
+                {t('featureFlags.scopeLabels.user')}
+              </Text>
               <SearchableSelect
                 value={draft.scopeId ?? null}
                 onValueChange={(value) => updateDraft({ scopeId: value })}
                 options={memberOptions}
-                searchPlaceholder="Search users..."
-                emptyText="No users found"
-                aria-label="Select user"
+                searchPlaceholder={t('featureFlags.searchUsers')}
+                emptyText={t('featureFlags.noUsersFound')}
+                aria-label={t('featureFlags.selectUser')}
                 trigger={
                   <button
                     type="button"
@@ -176,7 +189,7 @@ function RuleDialog({
                       {draft.scopeId
                         ? (memberOptions.find((o) => o.value === draft.scopeId)
                             ?.label ?? draft.scopeId)
-                        : 'Select user...'}
+                        : t('featureFlags.selectUser')}
                     </span>
                   </button>
                 }
@@ -186,14 +199,16 @@ function RuleDialog({
 
           {draft.scope === 'team' && (
             <div className="w-56">
-              <Text className="mb-1 text-xs font-medium">Team</Text>
+              <Text className="mb-1 text-xs font-medium">
+                {t('featureFlags.scopeLabels.team')}
+              </Text>
               <SearchableSelect
                 value={draft.scopeId ?? null}
                 onValueChange={(value) => updateDraft({ scopeId: value })}
                 options={teamOptions}
-                searchPlaceholder="Search teams..."
-                emptyText="No teams found"
-                aria-label="Select team"
+                searchPlaceholder={t('featureFlags.searchTeams')}
+                emptyText={t('featureFlags.noTeamsFound')}
+                aria-label={t('featureFlags.selectTeam')}
                 trigger={
                   <button
                     type="button"
@@ -206,7 +221,7 @@ function RuleDialog({
                       {draft.scopeId
                         ? (teamOptions.find((o) => o.value === draft.scopeId)
                             ?.label ?? draft.scopeId)
-                        : 'Select team...'}
+                        : t('featureFlags.selectTeam')}
                     </span>
                   </button>
                 }
@@ -410,7 +425,13 @@ export function FeatureFlagsEditor({
   );
 
   if (isLoading) {
-    return null;
+    return (
+      <div aria-busy="true" className="space-y-3 py-4">
+        <Skeleton className="h-6 w-48" />
+        <Skeleton className="h-4 w-72" />
+        <Skeleton className="h-10 w-full" />
+      </div>
+    );
   }
 
   return (
@@ -477,7 +498,7 @@ export function FeatureFlagsEditor({
                       scope="col"
                       className="text-muted-foreground px-3 py-2 text-right font-medium"
                     >
-                      Actions
+                      {t('featureFlags.actions')}
                     </th>
                   </tr>
                 </thead>
@@ -497,7 +518,7 @@ export function FeatureFlagsEditor({
                       </td>
                       <td className="px-3 py-2 text-right">
                         {rule.maxContextTokens != null
-                          ? rule.maxContextTokens.toLocaleString()
+                          ? formatNumber(rule.maxContextTokens)
                           : '\u2014'}
                       </td>
                       <td className="px-3 py-2 text-right">

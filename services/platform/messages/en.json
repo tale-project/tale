@@ -3716,7 +3716,27 @@
       "deleteRule": "Delete rule",
       "noRules": "No feature control rules configured. Add a rule to manage features per user, team, or role.",
       "saved": "Feature controls saved",
-      "saveFailed": "Failed to save feature controls"
+      "saveFailed": "Failed to save feature controls",
+      "actions": "Actions",
+      "role": "Role",
+      "scopeLabels": {
+        "default": "Default",
+        "user": "User",
+        "team": "Team",
+        "role": "Role"
+      },
+      "roleLabels": {
+        "admin": "Admin",
+        "developer": "Developer",
+        "editor": "Editor",
+        "member": "Member"
+      },
+      "searchUsers": "Search users...",
+      "noUsersFound": "No users found",
+      "selectUser": "Select user...",
+      "searchTeams": "Search teams...",
+      "noTeamsFound": "No teams found",
+      "selectTeam": "Select team..."
     },
     "pii": {
       "title": "PII protection",

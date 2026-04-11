@@ -112,7 +112,7 @@ describe('FeatureFlagsEditor', () => {
     expect(screen.getByRole('switch')).toBeInTheDocument();
   });
 
-  it('returns null while loading', () => {
+  it('renders loading skeleton while loading', () => {
     mockedUseGovernancePolicy.mockReturnValue({
       data: null,
       isLoading: true,
@@ -120,7 +120,7 @@ describe('FeatureFlagsEditor', () => {
 
     const { container } = render(<FeatureFlagsEditor organizationId="org_1" />);
 
-    expect(container.innerHTML).toBe('');
+    expect(container.querySelector('[aria-busy="true"]')).toBeInTheDocument();
   });
 
   describe('accessibility', () => {
