@@ -1,7 +1,8 @@
 'use client';
 
+import { useAction } from 'convex/react';
 import { useQuery } from 'convex/react';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
@@ -16,11 +17,15 @@ interface FileIndexingInfo {
   progress?: string;
 }
 
+const POLL_INTERVAL_MS = 3_000;
+
 /**
  * Query RAG indexing status for non-image file attachments.
  *
- * Uses a reactive Convex query so the UI updates automatically
- * as files transition through queued → running → completed/failed.
+ * - Reactive Convex query for instant UI updates when status changes.
+ * - Client-side polling: calls checkFileRagStatuses action every 3s
+ *   while any file is in queued/running state. Polling stops automatically
+ *   when the user leaves the page or all files finish indexing.
  */
 export function useFileIndexingStatus(attachments: FileAttachment[]) {
   const fileIds = useMemo(
@@ -49,14 +54,45 @@ export function useFileIndexingStatus(attachments: FileAttachment[]) {
     return map;
   }, [metadata]);
 
-  // Only block send for actively indexing files.
-  // undefined (legacy records) and failed are not blocking.
   const isIndexing = useMemo(() => {
     if (!metadata || fileIds.length === 0) return false;
     return metadata.some(
       (m) => m.ragStatus === 'queued' || m.ragStatus === 'running',
     );
   }, [metadata, fileIds.length]);
+
+  // IDs of files that still need polling
+  const pendingIds = useMemo(() => {
+    if (!metadata) return [];
+    return metadata
+      .filter((m) => m.ragStatus === 'queued' || m.ragStatus === 'running')
+      .map((m) => m.storageId);
+  }, [metadata]);
+
+  // Client-side polling: call the action periodically while files are pending
+  const checkStatuses = useAction(
+    api.file_metadata.actions.checkFileRagStatuses,
+  );
+  const pollingRef = useRef(false);
+
+  useEffect(() => {
+    if (pendingIds.length === 0) return undefined;
+
+    pollingRef.current = true;
+
+    // Trigger immediately, then poll on interval
+    checkStatuses({ storageIds: pendingIds }).catch(() => {});
+
+    const timer = setInterval(() => {
+      if (!pollingRef.current) return;
+      checkStatuses({ storageIds: pendingIds }).catch(() => {});
+    }, POLL_INTERVAL_MS);
+
+    return () => {
+      pollingRef.current = false;
+      clearInterval(timer);
+    };
+  }, [pendingIds, checkStatuses]);
 
   return { isIndexing, statusMap };
 }

@@ -2739,7 +2739,9 @@
       "viewDocument": "View in document",
       "visitPage": "Visit page",
       "showAllSources": "Show all {count} sources",
-      "hideSources": "Hide sources"
+      "hideSources": "Hide sources",
+      "chunkCount": "{count, plural, one {# chunk} other {# chunks}}",
+      "noContent": "Content not available"
     },
     "feedback": {
       "helpful": "Helpful",

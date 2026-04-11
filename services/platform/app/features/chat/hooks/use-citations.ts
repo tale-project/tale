@@ -8,6 +8,8 @@ export interface CitationInfo {
   relevance?: number;
   url?: string;
   type: 'rag' | 'web';
+  /** Chunk text content extracted from tool output. */
+  content?: string;
 }
 
 interface ToolUsageInput {
@@ -22,14 +24,35 @@ const WEB_CITATION_PATTERN =
   /\[(\d+)\]\s*\(Relevance:\s*([\d.]+)%\)(?:\s*\[Source:\s*([^\]]+)\])?(?:\s*\[URL:\s*([^\]]+)\])?/g;
 
 /**
- * Parse citation metadata from RAG search result text.
+ * Parse citation metadata and chunk content from RAG search result text.
+ *
+ * The RAG output format is:
+ * ```
+ * [1] (Relevance: 87.3%) [Source: report.pdf] [Page: 5] [FileID: abc]
+ * <chunk content>
+ *
+ * ---
+ *
+ * [2] (Relevance: 72.1%) [Source: memo.docx] [FileID: def]
+ * <chunk content>
+ * ```
  */
 export function parseRagCitations(text: string): Map<number, CitationInfo> {
   const citations = new Map<number, CitationInfo>();
-  let match;
-  RAG_CITATION_PATTERN.lastIndex = 0;
-  while ((match = RAG_CITATION_PATTERN.exec(text)) !== null) {
+
+  // Split by chunk separator to get individual chunks
+  const chunks = text.split(/\n\n---\n\n/);
+
+  for (const chunk of chunks) {
+    RAG_CITATION_PATTERN.lastIndex = 0;
+    const match = RAG_CITATION_PATTERN.exec(chunk);
+    if (!match) continue;
+
     const num = parseInt(match[1], 10);
+    // Content is everything after the metadata line
+    const metadataEnd = (match.index ?? 0) + match[0].length;
+    const content = chunk.slice(metadataEnd).trim() || undefined;
+
     citations.set(num, {
       number: num,
       relevance: parseFloat(match[2]),
@@ -37,6 +60,7 @@ export function parseRagCitations(text: string): Map<number, CitationInfo> {
       page: match[4] ? parseInt(match[4], 10) : undefined,
       fileId: match[5] || undefined,
       type: 'rag',
+      content,
     });
   }
   return citations;
@@ -146,28 +170,82 @@ function deduplicateCitations(
   return deduped;
 }
 
+export interface ChunkDetail {
+  number: number;
+  page?: number;
+  relevance?: number;
+  content?: string;
+}
+
+export interface SourceGroup {
+  /** The first citation number (used for ordering and as key). */
+  number: number;
+  filename?: string;
+  fileId?: string;
+  url?: string;
+  type: 'rag' | 'web';
+  /** All inline citation numbers that reference this source. */
+  chunkNumbers: number[];
+  /** All distinct page numbers referenced (RAG only). */
+  pages: number[];
+  /** Highest relevance score among the grouped citations. */
+  relevance?: number;
+  /** Individual chunk details with content for display. */
+  chunks: ChunkDetail[];
+}
+
 /**
- * Get unique citations for display in source cards (no duplicates).
+ * Group citations by source (fileId for RAG, url for web) for display
+ * in source cards. Same file with different pages/chunks is merged
+ * into a single entry.
  */
-export function getUniqueCitations(
+export function getUniqueSources(
   citations: Map<number, CitationInfo>,
-): CitationInfo[] {
-  const seen = new Set<string>();
-  const unique: CitationInfo[] = [];
+): SourceGroup[] {
+  const groups = new Map<string, SourceGroup>();
 
   for (const citation of citations.values()) {
     const sourceKey =
       citation.type === 'rag'
-        ? `rag:${citation.fileId ?? ''}:${citation.page ?? ''}`
+        ? `rag:${citation.fileId ?? ''}`
         : `web:${citation.url ?? ''}`;
 
-    if (!seen.has(sourceKey)) {
-      seen.add(sourceKey);
-      unique.push(citation);
+    const chunk: ChunkDetail = {
+      number: citation.number,
+      page: citation.page,
+      relevance: citation.relevance,
+      content: citation.content,
+    };
+
+    const existing = groups.get(sourceKey);
+    if (existing) {
+      existing.chunkNumbers.push(citation.number);
+      existing.chunks.push(chunk);
+      if (citation.page != null && !existing.pages.includes(citation.page)) {
+        existing.pages.push(citation.page);
+      }
+      if (
+        citation.relevance != null &&
+        (existing.relevance == null || citation.relevance > existing.relevance)
+      ) {
+        existing.relevance = citation.relevance;
+      }
+    } else {
+      groups.set(sourceKey, {
+        number: citation.number,
+        filename: citation.filename,
+        fileId: citation.fileId,
+        url: citation.url,
+        type: citation.type,
+        chunkNumbers: [citation.number],
+        pages: citation.page != null ? [citation.page] : [],
+        relevance: citation.relevance,
+        chunks: [chunk],
+      });
     }
   }
 
-  return unique.sort((a, b) => a.number - b.number);
+  return Array.from(groups.values()).sort((a, b) => a.number - b.number);
 }
 
 /**

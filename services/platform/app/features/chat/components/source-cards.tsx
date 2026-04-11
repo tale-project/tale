@@ -1,17 +1,15 @@
 'use client';
 
 import { FileText, Globe, ChevronDown, ChevronUp } from 'lucide-react';
-import { memo, useState, useMemo, useCallback } from 'react';
+import { memo, useState, useCallback } from 'react';
 
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { useOrganizationId } from '@/app/hooks/use-organization-id';
-import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
+import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
+import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useT } from '@/lib/i18n/client';
 
-import { DocumentPreviewDialog } from '../../documents/components/document-preview-dialog';
 import type { CitationInfo } from '../hooks/use-citations';
-import { getUniqueCitations } from '../hooks/use-citations';
+import type { SourceGroup } from '../hooks/use-citations';
+import { getUniqueSources } from '../hooks/use-citations';
 
 const COLLAPSED_LIMIT = 3;
 
@@ -24,43 +22,162 @@ function getDomain(url: string): string {
 }
 
 interface SourceCardProps {
-  citation: CitationInfo;
+  source: SourceGroup;
   onClick: () => void;
 }
 
-function SourceCard({ citation, onClick }: SourceCardProps) {
-  const isWeb = citation.type === 'web';
+function SourceCard({ source, onClick }: SourceCardProps) {
+  const { t } = useT('chat');
+  const isWeb = source.type === 'web';
   const Icon = isWeb ? Globe : FileText;
   const title =
-    citation.filename ??
-    (citation.url ? getDomain(citation.url) : `Source ${citation.number}`);
-  const subtitle = isWeb
-    ? citation.url
-      ? getDomain(citation.url)
-      : undefined
-    : citation.page != null
-      ? `p. ${citation.page}`
-      : undefined;
+    source.filename ??
+    (source.url
+      ? getDomain(source.url)
+      : t('citations.source', { number: String(source.number) }));
+  const chunkCount = source.chunkNumbers.length;
+
+  const tooltipContent = (
+    <div className="flex flex-col gap-0.5">
+      <span className="font-medium">{title}</span>
+      {chunkCount > 1 && (
+        <span>{t('citations.chunkCount', { count: chunkCount })}</span>
+      )}
+      {source.relevance != null && (
+        <span>
+          {t('citations.relevance', {
+            score: String(Math.round(source.relevance)),
+          })}
+        </span>
+      )}
+    </div>
+  );
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="border-border bg-muted/50 hover:bg-muted flex max-w-[200px] min-w-0 shrink-0 items-center gap-2 rounded-lg border px-2.5 py-2 text-left transition-colors"
+    <Tooltip content={tooltipContent} side="top">
+      <button
+        type="button"
+        onClick={onClick}
+        className="border-border bg-muted/50 hover:bg-muted flex max-w-[240px] min-w-0 shrink-0 items-center gap-2 rounded-lg border px-2.5 py-2 text-left transition-colors"
+      >
+        <Icon className="text-muted-foreground size-3.5 shrink-0" />
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-xs font-medium">{title}</div>
+          {chunkCount > 1 && (
+            <div className="text-muted-foreground text-[10px]">
+              {t('citations.chunkCount', { count: chunkCount })}
+            </div>
+          )}
+        </div>
+        <span className="text-muted-foreground shrink-0 text-[10px]">
+          [{source.chunkNumbers.join(', ')}]
+        </span>
+      </button>
+    </Tooltip>
+  );
+}
+
+interface SourceDetailDialogProps {
+  source: SourceGroup | null;
+  onClose: () => void;
+}
+
+/**
+ * Normalize chunk content for display:
+ * - Convert literal `\n` sequences to real newlines
+ * - Collapse 3+ consecutive blank lines into 2
+ */
+function normalizeContent(raw: string): string {
+  return raw
+    .replace(/\\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function SourceDetailDialog({ source, onClose }: SourceDetailDialogProps) {
+  const { t } = useT('chat');
+  if (!source) return null;
+
+  const title =
+    source.filename ??
+    (source.url
+      ? getDomain(source.url)
+      : t('citations.source', { number: String(source.number) }));
+
+  const chunkCount = source.chunks.length;
+
+  return (
+    <ViewDialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      title={title}
+      size="xl"
+      className="overflow-x-hidden"
     >
-      <Icon className="text-muted-foreground size-3.5 shrink-0" />
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-xs font-medium">{title}</div>
-        {subtitle && (
-          <div className="text-muted-foreground truncate text-[10px]">
-            {subtitle}
-          </div>
-        )}
+      <div className="flex min-w-0 flex-col gap-4 overflow-hidden">
+        {/* Metadata */}
+        <div className="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+          {source.relevance != null && (
+            <span>
+              {t('citations.relevance', {
+                score: String(Math.round(source.relevance)),
+              })}
+            </span>
+          )}
+          {source.pages.length > 0 && (
+            <span>
+              {source.pages
+                .map((p) => t('citations.page', { page: String(p) }))
+                .join(', ')}
+            </span>
+          )}
+          {chunkCount > 1 && (
+            <span>{t('citations.chunkCount', { count: chunkCount })}</span>
+          )}
+        </div>
+
+        {/* Chunk contents */}
+        <div className="flex flex-col gap-3">
+          {source.chunks.map((chunk) => (
+            <div key={chunk.number} className="bg-background/50 rounded-lg p-3">
+              {chunkCount > 1 && (
+                <div className="text-muted-foreground mb-2 flex items-center gap-2 text-[11px]">
+                  <span className="bg-muted rounded px-1.5 py-0.5 font-medium">
+                    [{chunk.number}]
+                  </span>
+                  {chunk.page != null && (
+                    <span>
+                      {t('citations.page', { page: String(chunk.page) })}
+                    </span>
+                  )}
+                  {chunk.relevance != null && (
+                    <span>
+                      {t('citations.relevance', {
+                        score: String(Math.round(chunk.relevance)),
+                      })}
+                    </span>
+                  )}
+                </div>
+              )}
+              {chunk.content ? (
+                <div
+                  className="text-foreground/90 max-h-[300px] overflow-y-auto text-sm leading-relaxed whitespace-pre-wrap"
+                  style={{ overflowWrap: 'anywhere' }}
+                >
+                  {normalizeContent(chunk.content)}
+                </div>
+              ) : (
+                <div className="text-muted-foreground text-sm italic">
+                  {t('citations.noContent')}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
-      <span className="text-muted-foreground shrink-0 text-[10px]">
-        [{citation.number}]
-      </span>
-    </button>
+    </ViewDialog>
   );
 }
 
@@ -70,74 +187,37 @@ interface SourceCardsProps {
 
 function SourceCardsComponent({ citations }: SourceCardsProps) {
   const { t } = useT('chat');
-  const organizationId = useOrganizationId();
   const [isExpanded, setIsExpanded] = useState(false);
-  const [previewDocId, setPreviewDocId] = useState<string | undefined>();
-  const [previewFileName, setPreviewFileName] = useState<string | undefined>();
-
-  const citationList = getUniqueCitations(citations);
-
-  // Collect all RAG fileIds to batch-query file metadata
-  const ragFileIds = useMemo(() => {
-    const ids: Id<'_storage'>[] = [];
-    for (const c of citationList) {
-      if (c.type === 'rag' && c.fileId) {
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- fileId from RAG metadata is a Convex storage ID string
-        ids.push(c.fileId as Id<'_storage'>);
-      }
-    }
-    return ids;
-  }, [citationList]);
-
-  const { data: fileMetadataList } = useConvexQuery(
-    api.file_metadata.queries.getByStorageIds,
-    ragFileIds.length > 0 ? { storageIds: ragFileIds } : 'skip',
+  const [selectedSource, setSelectedSource] = useState<SourceGroup | null>(
+    null,
   );
 
-  // Map storageId → documentId for quick lookup
-  const storageToDocId = useMemo(() => {
-    const map = new Map<string, string>();
-    if (fileMetadataList) {
-      for (const meta of fileMetadataList) {
-        if (meta.documentId) {
-          map.set(meta.storageId, meta.documentId);
-        }
-      }
+  const sourceList = getUniqueSources(citations);
+
+  const handleCardClick = useCallback((source: SourceGroup) => {
+    if (source.type === 'web' && source.url) {
+      window.open(source.url, '_blank', 'noopener,noreferrer');
+    } else {
+      setSelectedSource(source);
     }
-    return map;
-  }, [fileMetadataList]);
+  }, []);
 
-  const handleCardClick = useCallback(
-    (citation: CitationInfo) => {
-      if (citation.type === 'web' && citation.url) {
-        window.open(citation.url, '_blank', 'noopener,noreferrer');
-      } else if (citation.type === 'rag' && citation.fileId) {
-        const docId = storageToDocId.get(citation.fileId);
-        if (docId) {
-          setPreviewDocId(docId);
-          setPreviewFileName(citation.filename);
-        }
-      }
-    },
-    [storageToDocId],
-  );
+  if (sourceList.length === 0) return null;
 
-  if (citationList.length === 0) return null;
-
-  const needsCollapse = citationList.length > COLLAPSED_LIMIT;
-  const visibleCitations =
+  const needsCollapse = sourceList.length > COLLAPSED_LIMIT;
+  const visibleSources =
     needsCollapse && !isExpanded
-      ? citationList.slice(0, COLLAPSED_LIMIT)
-      : citationList;
+      ? sourceList.slice(0, COLLAPSED_LIMIT)
+      : sourceList;
 
   return (
     <div className="mt-1.5">
       <div className="flex flex-wrap gap-1.5 pb-1">
-        {visibleCitations.map((citation) => (
+        {visibleSources.map((source) => (
           <SourceCard
-            key={citation.number}
-            citation={citation}
-            onClick={() => handleCardClick(citation)}
+            key={source.number}
+            source={source}
+            onClick={() => handleCardClick(source)}
           />
         ))}
       </div>
@@ -156,24 +236,17 @@ function SourceCardsComponent({ citations }: SourceCardsProps) {
             <>
               <ChevronDown className="size-3" />
               {t('citations.showAllSources', {
-                count: String(citationList.length),
+                count: String(sourceList.length),
               })}
             </>
           )}
         </button>
       )}
 
-      {organizationId && (
-        <DocumentPreviewDialog
-          open={!!previewDocId}
-          onOpenChange={(open) => {
-            if (!open) setPreviewDocId(undefined);
-          }}
-          organizationId={organizationId}
-          documentId={previewDocId}
-          fileName={previewFileName}
-        />
-      )}
+      <SourceDetailDialog
+        source={selectedSource}
+        onClose={() => setSelectedSource(null)}
+      />
     </div>
   );
 }
