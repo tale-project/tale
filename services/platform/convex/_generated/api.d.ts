@@ -295,6 +295,7 @@ import type * as governance_helpers from "../governance/helpers.js";
 import type * as governance_internal_mutations from "../governance/internal_mutations.js";
 import type * as governance_internal_mutations_retention from "../governance/internal_mutations_retention.js";
 import type * as governance_internal_queries from "../governance/internal_queries.js";
+import type * as governance_model_access_enforcement from "../governance/model_access_enforcement.js";
 import type * as governance_mutations from "../governance/mutations.js";
 import type * as governance_pii_index from "../governance/pii/index.js";
 import type * as governance_pii_pii_detector from "../governance/pii/pii_detector.js";
@@ -529,6 +530,7 @@ import type * as onedrive_upload_and_create_document_deps from "../onedrive/uplo
 import type * as onedrive_upload_to_storage from "../onedrive/upload_to_storage.js";
 import type * as onedrive_validators from "../onedrive/validators.js";
 import type * as onedrive_with_microsoft_token from "../onedrive/with_microsoft_token.js";
+import type * as openai_compat_citations from "../openai_compat/citations.js";
 import type * as openai_compat_http_actions from "../openai_compat/http_actions.js";
 import type * as openai_compat_internal_actions from "../openai_compat/internal_actions.js";
 import type * as openai_compat_internal_mutations from "../openai_compat/internal_mutations.js";
@@ -1223,6 +1225,7 @@ declare const fullApi: ApiFromModules<{
   "governance/internal_mutations": typeof governance_internal_mutations;
   "governance/internal_mutations_retention": typeof governance_internal_mutations_retention;
   "governance/internal_queries": typeof governance_internal_queries;
+  "governance/model_access_enforcement": typeof governance_model_access_enforcement;
   "governance/mutations": typeof governance_mutations;
   "governance/pii/index": typeof governance_pii_index;
   "governance/pii/pii_detector": typeof governance_pii_pii_detector;
@@ -1457,6 +1460,7 @@ declare const fullApi: ApiFromModules<{
   "onedrive/upload_to_storage": typeof onedrive_upload_to_storage;
   "onedrive/validators": typeof onedrive_validators;
   "onedrive/with_microsoft_token": typeof onedrive_with_microsoft_token;
+  "openai_compat/citations": typeof openai_compat_citations;
   "openai_compat/http_actions": typeof openai_compat_http_actions;
   "openai_compat/internal_actions": typeof openai_compat_internal_actions;
   "openai_compat/internal_mutations": typeof openai_compat_internal_mutations;

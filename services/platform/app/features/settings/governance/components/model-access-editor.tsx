@@ -135,6 +135,7 @@ function RuleDialog({
       title={title}
       onSubmit={handleSubmit}
       submitText={t('modelAccess.confirm')}
+      className="sm:max-w-2xl"
     >
       <Stack gap={4}>
         <HStack gap={3} wrap>
@@ -251,7 +252,7 @@ function RuleDialog({
             }
           }}
           disabled={cannotManage}
-          columns={1}
+          columns={2}
         />
       </Stack>
     </FormDialog>
@@ -453,16 +454,21 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
     <PageSection
       title={t('modelAccess.title')}
       description={t('modelAccess.description')}
-      action={
-        <HStack gap={3}>
-          <Select
-            label={t('modelAccess.mode')}
-            options={MODE_OPTIONS}
-            value={mode}
-            onValueChange={handleModeChange}
-            disabled={cannotManage || upsertMutation.isPending}
-            size="sm"
-          />
+    >
+      <Stack gap={6}>
+        <HStack gap={3} align="center" justify="between">
+          <HStack gap={2} align="center">
+            <Text className="text-sm font-medium">{t('modelAccess.mode')}</Text>
+            <div className="w-36">
+              <Select
+                options={MODE_OPTIONS}
+                value={mode}
+                onValueChange={handleModeChange}
+                disabled={cannotManage || upsertMutation.isPending}
+                size="sm"
+              />
+            </div>
+          </HStack>
           <Switch
             label={t('modelAccess.enabled')}
             checked={enabled}
@@ -470,9 +476,6 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
             disabled={cannotManage || upsertMutation.isPending}
           />
         </HStack>
-      }
-    >
-      <Stack gap={6}>
         <Stack gap={3}>
           {rules.length > 0 ? (
             <div className="overflow-x-auto">
