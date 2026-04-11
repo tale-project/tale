@@ -93,7 +93,6 @@ const piiCustomPatternSchema = z.object({
     }, 'Invalid regex pattern'),
   replacement: z.string().min(1),
 });
-export type PiiCustomPattern = z.infer<typeof piiCustomPatternSchema>;
 
 export const piiConfigSchema = z.object({
   enabled: z.boolean(),
@@ -101,4 +100,3 @@ export const piiConfigSchema = z.object({
   enabledPatterns: z.array(z.string()),
   customPatterns: z.array(piiCustomPatternSchema).optional(),
 });
-export type PiiConfigData = z.infer<typeof piiConfigSchema>;
