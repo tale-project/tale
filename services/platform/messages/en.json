@@ -2117,7 +2117,7 @@
       "upload": {
         "uploading": "Uploading...",
         "invalidFiles": "Invalid files",
-        "invalidFilesDescription": "Some files are too large (>10MB) or not supported. Supported: images, PDF, Word docs, text files.",
+        "invalidFilesDescription": "Some files are too large (>100MB) or not supported. Supported: images, PDF, Word docs, text files.",
         "success": "File uploaded",
         "successDescription": "{fileName} uploaded successfully",
         "failed": "Upload failed",
@@ -2635,7 +2635,7 @@
     "placeholder": "Ask about customers, products, or documents…",
     "searchConversations": "Search conversations",
     "invalidFiles": "Invalid files",
-    "filesNotSupported": "Some files are too large (>10MB) or not supported. Supported: images, PDF, Word docs, text files.",
+    "filesNotSupported": "Some files are too large (>100MB) or not supported. Supported: images, PDF, Word docs, text files.",
     "fileUploaded": "File uploaded",
     "uploadedSuccessfully": "{filename} uploaded successfully",
     "uploadFailed": "Upload failed",
@@ -2648,6 +2648,8 @@
     "duplicateFileDescription": "{filename} is already attached.",
     "removeAttachment": "Remove attachment",
     "uploadingFile": "Uploading file",
+    "indexing": "Indexing...",
+    "indexingFailed": "Index failed",
     "viewImage": "View image",
     "dropFilesToAdd": "Drop files here to add to chat",
     "fileTypes": {

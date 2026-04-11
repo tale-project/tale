@@ -51,6 +51,7 @@ export const saveFileMetadata = mutation({
       fileName: args.fileName,
       contentType: args.contentType,
       size: args.size,
+      ragStatus: 'queued',
       ...(args.documentId !== undefined && { documentId: args.documentId }),
       ...(args.source !== undefined && { source: args.source }),
     });

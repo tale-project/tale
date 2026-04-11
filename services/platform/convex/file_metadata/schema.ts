@@ -9,6 +9,15 @@ export const fileMetadataTable = defineTable({
   fileName: v.string(),
   contentType: v.string(),
   size: v.number(),
+  ragStatus: v.optional(
+    v.union(
+      v.literal('queued'),
+      v.literal('running'),
+      v.literal('completed'),
+      v.literal('failed'),
+    ),
+  ),
+  ragError: v.optional(v.string()),
 })
   .index('by_organizationId', ['organizationId'])
   .index('by_storageId', ['storageId'])

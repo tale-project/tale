@@ -280,14 +280,14 @@ export const SPREADSHEET_IMPORT_ACCEPT = '.xlsx,.xls,.csv';
 // Size limits
 // ---------------------------------------------------------------------------
 
-/** Chat attachment max (10 MB) */
-export const CHAT_MAX_FILE_SIZE = 10 * 1024 * 1024;
+/** Chat attachment max (100 MB) */
+export const CHAT_MAX_FILE_SIZE = 100 * 1024 * 1024;
 
 /** Max attachments per chat message */
 export const CHAT_MAX_FILE_COUNT = 10;
 
-/** Max total attachment size per chat message (25 MB) */
-export const CHAT_MAX_TOTAL_SIZE = 25 * 1024 * 1024;
+/** Max total attachment size per chat message (200 MB) */
+export const CHAT_MAX_TOTAL_SIZE = 200 * 1024 * 1024;
 
 /** Document upload max (100 MB) */
 export const DOCUMENT_MAX_FILE_SIZE = 100 * 1024 * 1024;

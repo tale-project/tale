@@ -43,6 +43,8 @@ interface ChatInputProps extends Omit<
   uploadFiles: (files: File[]) => Promise<void>;
   removeAttachment: (fileId: Id<'_storage'>) => void;
   clearAttachments: () => FileAttachment[];
+  isIndexing?: boolean;
+  indexingStatuses?: Map<Id<'_storage'>, { status?: string; error?: string }>;
 }
 
 export function ChatInput({
@@ -60,6 +62,8 @@ export function ChatInput({
   uploadFiles,
   removeAttachment,
   clearAttachments,
+  isIndexing = false,
+  indexingStatuses,
   ...restProps
 }: ChatInputProps) {
   const { t: tChat } = useT('chat');
@@ -84,7 +88,8 @@ export function ChatInput({
       (!value.trim() && attachments.length === 0) ||
       isLoading ||
       disabled ||
-      isUploading
+      isUploading ||
+      isIndexing
     )
       return;
 
@@ -224,13 +229,44 @@ export function ChatInput({
                     <Text as="div" variant="label" title={attachment.fileName}>
                       {middleEllipsis(attachment.fileName, 28)}
                     </Text>
-                    <Text
-                      as="div"
-                      variant="caption"
-                      className="text-muted-foreground/50"
-                    >
-                      {formatFileSize(attachment.fileSize)}
-                    </Text>
+                    {(() => {
+                      const info = indexingStatuses?.get(attachment.fileId);
+                      const ragStatus = info?.status;
+                      if (ragStatus === 'queued' || ragStatus === 'running') {
+                        return (
+                          <HStack gap={1} align="center">
+                            <Loader className="text-muted-foreground/50 size-3 animate-spin" />
+                            <Text
+                              as="span"
+                              variant="caption"
+                              className="text-muted-foreground/50"
+                            >
+                              {tChat('indexing')}
+                            </Text>
+                          </HStack>
+                        );
+                      }
+                      if (ragStatus === 'failed') {
+                        return (
+                          <Text
+                            as="span"
+                            variant="caption"
+                            className="text-destructive"
+                          >
+                            {tChat('indexingFailed')}
+                          </Text>
+                        );
+                      }
+                      return (
+                        <Text
+                          as="div"
+                          variant="caption"
+                          className="text-muted-foreground/50"
+                        >
+                          {formatFileSize(attachment.fileSize)}
+                        </Text>
+                      );
+                    })()}
                   </VStack>
                   <button
                     type="button"
@@ -328,7 +364,8 @@ export function ChatInput({
                   ? !onStopGenerating
                   : (!value.trim() && attachments.length === 0) ||
                     inputDisabled ||
-                    isUploading
+                    isUploading ||
+                    isIndexing
               }
               size="icon"
               className="rounded-full"
