@@ -637,6 +637,7 @@ export function ChatInterface({
               onEditCancel={
                 isArchived ? undefined : () => setEditingMessage(null)
               }
+              hideFeedback={isArchived}
             />
           )}
         </div>

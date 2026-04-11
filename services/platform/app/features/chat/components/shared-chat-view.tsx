@@ -198,6 +198,7 @@ export function SharedChatView({
                     content: message.content,
                     timestamp: new Date(message._creationTime),
                   }}
+                  hideFeedback
                 />
               ),
             )}
