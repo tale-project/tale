@@ -57,6 +57,7 @@ export async function listThreads(
       userId: row.userId,
       generationStatus: row.generationStatus,
       teamId: row.teamId,
+      isShared: row.isShared ?? false,
     })),
     isDone: result.isDone,
     continueCursor: result.continueCursor,

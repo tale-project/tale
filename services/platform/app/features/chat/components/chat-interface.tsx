@@ -2,7 +2,7 @@
 
 import { useNavigate } from '@tanstack/react-router';
 import { m, AnimatePresence } from 'framer-motion';
-import { AlertTriangle, Archive, ArrowDown, X } from 'lucide-react';
+import { AlertTriangle, Archive, ArrowDown, Share, X } from 'lucide-react';
 import { useRef, useEffect, useState, useCallback } from 'react';
 
 import { PanelFooter } from '@/app/components/layout/panel-footer';
@@ -70,11 +70,13 @@ function chatDraftKey(
 interface ChatInterfaceProps {
   organizationId: string;
   threadId?: string;
+  readOnly?: boolean;
 }
 
 export function ChatInterface({
   organizationId,
   threadId,
+  readOnly = false,
 }: ChatInterfaceProps) {
   const { t } = useT('chat');
   const navigate = useNavigate();
@@ -727,18 +729,32 @@ export function ChatInterface({
               forkedMessageCount={forkInfo?.forkedMessageCount ?? undefined}
               forkedFromShare={forkInfo?.forkedFromShare}
               onHumanInputResponseSubmitted={handleHumanInputResponseSubmitted}
-              onSendFollowUp={isArchived ? undefined : handleSendFollowUp}
-              onSendMessage={isArchived ? undefined : handleSendMessageDirect}
-              onEditMessage={isArchived ? undefined : handleEditClick}
-              onForkAtMessage={isArchived ? undefined : handleForkAtMessage}
-              onRetry={isArchived ? undefined : handleRetry}
-              editingMessageId={isArchived ? undefined : editingMessage?.id}
-              editingMessageContent={
-                isArchived ? undefined : editingMessage?.content
+              onSendFollowUp={
+                isArchived || readOnly ? undefined : handleSendFollowUp
               }
-              onEditSubmit={isArchived ? undefined : handleEditSubmit}
+              onSendMessage={
+                isArchived || readOnly ? undefined : handleSendMessageDirect
+              }
+              onEditMessage={
+                isArchived || readOnly ? undefined : handleEditClick
+              }
+              onForkAtMessage={
+                isArchived || readOnly ? undefined : handleForkAtMessage
+              }
+              onRetry={isArchived || readOnly ? undefined : handleRetry}
+              editingMessageId={
+                isArchived || readOnly ? undefined : editingMessage?.id
+              }
+              editingMessageContent={
+                isArchived || readOnly ? undefined : editingMessage?.content
+              }
+              onEditSubmit={
+                isArchived || readOnly ? undefined : handleEditSubmit
+              }
               onEditCancel={
-                isArchived ? undefined : () => setEditingMessage(null)
+                isArchived || readOnly
+                  ? undefined
+                  : () => setEditingMessage(null)
               }
               hideFeedback={isArchived}
             />
@@ -770,7 +786,14 @@ export function ChatInterface({
             )}
           </AnimatePresence>
         </div>
-        {isArchived ? (
+        {readOnly ? (
+          <div className="border-border bg-muted/50 flex items-center justify-center gap-2 border-t px-3 py-3">
+            <Share className="text-muted-foreground size-4" />
+            <span className="text-muted-foreground text-sm">
+              {t('share.readOnlyBanner')}
+            </span>
+          </div>
+        ) : isArchived ? (
           <div className="border-border bg-muted/50 flex items-center justify-center gap-2 border-t px-3 py-3">
             <Archive className="text-muted-foreground size-4" />
             <span className="text-muted-foreground text-sm">

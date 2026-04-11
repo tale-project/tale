@@ -30,6 +30,7 @@ export interface Thread {
   userId?: string;
   generationStatus?: 'generating' | 'idle';
   teamId?: string;
+  isShared?: boolean;
 }
 
 const THREADS_PAGE_SIZE = 20;

@@ -5,6 +5,7 @@ import {
   LoaderCircleIcon,
   CircleDotIcon,
   ChevronRightIcon,
+  Share2Icon,
 } from 'lucide-react';
 import {
   type ComponentPropsWithoutRef,
@@ -155,6 +156,7 @@ export function ChatHistorySidebar({
         title: thread.title ?? t('history.untitled'),
         createdAt: thread._creationTime,
         generationStatus: thread.generationStatus,
+        isShared: thread.isShared ?? false,
       })),
     [threadsData, t],
   );
@@ -349,6 +351,12 @@ export function ChatHistorySidebar({
                           ) : null}
                           <span className="truncate">{chat.title}</span>
                         </span>
+                        {chat.isShared && (
+                          <Share2Icon
+                            className="text-muted-foreground pointer-events-none relative z-10 size-3 shrink-0"
+                            aria-label={t('share.sharedIndicator')}
+                          />
+                        )}
                         <div className="relative z-10 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
                           <ChatActions
                             chat={{ id: chat._id, title: chat.title }}

@@ -4,7 +4,11 @@ import { v } from 'convex/values';
 import { components } from '../_generated/api';
 import { mutation } from '../_generated/server';
 import { authComponent } from '../auth';
+import { isOrgMember } from '../lib/rls/auth/check_org_membership';
 import { getThreadMessages } from './get_thread_messages';
+
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const forkThread = mutation({
   args: {
@@ -17,6 +21,10 @@ export const forkThread = mutation({
       throw new Error('Unauthenticated');
     }
 
+    if (!UUID_REGEX.test(args.shareToken)) {
+      throw new Error('Invalid share token');
+    }
+
     const metadata = await ctx.db
       .query('threadMetadata')
       .withIndex('by_shareToken', (q) => q.eq('shareToken', args.shareToken))
@@ -24,6 +32,18 @@ export const forkThread = mutation({
 
     if (!metadata || !metadata.isShared) {
       throw new Error('Shared thread not found');
+    }
+
+    // Org-scoped access: verify the forking user is in the same org
+    if (metadata.organizationId) {
+      const isMember = await isOrgMember(
+        ctx,
+        String(authUser._id),
+        metadata.organizationId,
+      );
+      if (!isMember) {
+        throw new Error('Shared thread not found');
+      }
     }
 
     const { messages: allMessages } = await getThreadMessages(
@@ -61,6 +81,9 @@ export const forkThread = mutation({
       forkedFrom: metadata.threadId,
       forkedFromShare: true,
       forkedMessageCount: messages.length,
+      ...(metadata.organizationId && {
+        organizationId: metadata.organizationId,
+      }),
     });
 
     for (const msg of messages) {

@@ -52,6 +52,7 @@ export const createChatThread = mutation({
           }
         : undefined,
       args.teamId,
+      args.organizationId,
     );
   },
 });

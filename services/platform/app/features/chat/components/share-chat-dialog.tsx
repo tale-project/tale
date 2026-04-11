@@ -61,7 +61,7 @@ function ShareChatDialogContent({
     (checked: boolean) => {
       if (checked) {
         shareThread(
-          { threadId },
+          { threadId, organizationId },
           {
             onError: () => {
               toast({
@@ -85,7 +85,7 @@ function ShareChatDialogContent({
         );
       }
     },
-    [threadId, shareThread, unshareThread, toast, t],
+    [threadId, organizationId, shareThread, unshareThread, toast, t],
   );
 
   const handleCopy = useCallback(async () => {

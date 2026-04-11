@@ -137,6 +137,22 @@ function ThreadGate({
     );
   }
 
+  // Shared read-only access for non-owner org members
+  if (threadStatus === 'shared-readonly') {
+    return (
+      <BranchProvider threadId={threadId}>
+        <Suspense fallback={<ChatSkeleton />}>
+          <ChatInterface
+            key={`chat-${newChatCount}`}
+            organizationId={organizationId}
+            threadId={threadId}
+            readOnly
+          />
+        </Suspense>
+      </BranchProvider>
+    );
+  }
+
   // Thread is accessible — render ChatInterface
   return (
     <BranchProvider threadId={threadId}>

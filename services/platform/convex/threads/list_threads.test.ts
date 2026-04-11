@@ -173,7 +173,7 @@ describe('listThreads', () => {
     expect(thread._creationTime).toBe(5000);
   });
 
-  it('should only include _id, _creationTime, title, status, userId, generationStatus, teamId in results', async () => {
+  it('should only include _id, _creationTime, title, status, userId, generationStatus, teamId, isShared in results', async () => {
     const ctx = makeMockCtx([
       makeRow({ threadId: 't1', title: 'Test Thread' }),
     ]);
@@ -188,6 +188,7 @@ describe('listThreads', () => {
       '_creationTime',
       '_id',
       'generationStatus',
+      'isShared',
       'status',
       'teamId',
       'title',

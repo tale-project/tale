@@ -103,6 +103,16 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
   const headerMenuItems = useMemo<DropdownMenuGroup[]>(
     () => [
       [
+        ...(threadId
+          ? [
+              {
+                type: 'item' as const,
+                label: tChat('share.button'),
+                icon: Share,
+                onClick: () => setIsShareDialogOpen(true),
+              },
+            ]
+          : []),
         {
           type: 'item' as const,
           label: tChat('export.button'),
@@ -111,7 +121,7 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
         },
       ],
     ],
-    [tChat],
+    [tChat, threadId],
   );
 
   const baseIconClasses = 'size-5 text-muted-foreground p-0.25';
