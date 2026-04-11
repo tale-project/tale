@@ -3638,12 +3638,6 @@
   "governance": {
     "title": "Governance",
     "description": "Configure organization-wide policies and controls.",
-    "tabs": {
-      "systemPrompt": "System prompt",
-      "budgets": "Budgets",
-      "featureControls": "Feature controls",
-      "usage": "Usage"
-    },
     "systemPrompt": {
       "title": "System Prompt",
       "description": "Set a mandatory system prompt that is applied to all agents and cannot be overridden by users.",
@@ -3784,7 +3778,8 @@
       "systemPrompt": "System prompt",
       "budgets": "Budgets",
       "usage": "Usage",
-      "pii": "PII protection"
+      "pii": "PII protection",
+      "featureControls": "Feature controls"
     }
   },
   "prompts": {
