@@ -170,47 +170,22 @@ export const getFailedMessageErrors = query({
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) return {};
 
-    const threadMeta = await ctx.db
+    const metadata = await ctx.db
       .query('threadMetadata')
       .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
       .first();
 
-    if (!threadMeta || threadMeta.userId !== authUser.userId) return {};
+    if (!metadata || metadata.userId !== authUser.userId) return {};
 
-    // Primary source: messageMetadata stores the original error from the
-    // agent pipeline and is keyed by messageId (matches UIMessage.id for
-    // single-step responses). We also fall back to the MessageDoc error
-    // field for multi-step agent groups where the UIMessage id (first
-    // message in group) differs from the failed message id.
-    const errors: Record<string, string> = {};
-
-    // 1. Errors from messageMetadata (keyed by messageId → UIMessage.id)
-    const metadataRows = await ctx.db
-      .query('messageMetadata')
-      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
-      .order('desc')
-      .take(20);
-
-    for (const row of metadataRows) {
-      if (row.error) {
-        errors[row.messageId] = row.error;
-      }
-    }
-
-    // 2. Fall back to MessageDoc.error for any failed messages not yet
-    //    covered (handles multi-step groups where first message _id ≠
-    //    metadata messageId).
     const result = await listMessages(ctx, components.agent, {
       threadId: args.threadId,
       paginationOpts: { cursor: null, numItems: 10 },
       statuses: ['failed'],
     });
+    const errors: Record<string, string> = {};
     for (const msg of result.page) {
-      if (msg.error && !errors[msg._id]) {
-        errors[msg._id] = msg.error;
-      }
+      if (msg.error) errors[msg._id] = msg.error;
     }
-
     return errors;
   },
 });
