@@ -415,7 +415,6 @@ export const runAgentGeneration = internalAction({
               maxContextTokens,
               instructions: finalInstructions,
               toolsSummary,
-              maxContextTokens,
             },
             {
               ctx,

@@ -182,7 +182,6 @@ export async function generateAgentResponse(
     noCacheToolNames,
     instructions,
     toolsSummary,
-    maxContextTokens,
   } = config;
   const {
     ctx,
