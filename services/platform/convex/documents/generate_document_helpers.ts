@@ -33,7 +33,9 @@ export function getEndpointPath(
       ? 'pdf'
       : outputFormat === 'docx'
         ? 'docx'
-        : 'images';
+        : outputFormat === 'pptx'
+          ? 'pptx'
+          : 'images';
   return `/api/v1/${formatPath}/from-${sourceType}`;
 }
 
@@ -150,6 +152,13 @@ export function getOutputInfo(
       contentType:
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       extension: 'docx',
+    };
+  }
+  if (outputFormat === 'pptx') {
+    return {
+      contentType:
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      extension: 'pptx',
     };
   }
   const type = imageType ?? 'png';

@@ -303,6 +303,22 @@ class RagService:
         if threshold > 0:
             results = [r for r in results if r.get("score", 0) >= threshold]
 
+        # If no results and some files are still indexing, wait and retry once
+        if not results and file_ids:
+            statuses = await self.get_document_statuses(file_ids)
+            has_processing = any(s is not None and s.get("status") == "processing" for s in statuses.values())
+            if has_processing:
+                logger.info("No results and some files still indexing, retrying in 3s")
+                await asyncio.sleep(3)
+                results = await self._search_service.search(
+                    query,
+                    file_ids=file_ids,
+                    top_k=effective_top_k,
+                )
+                self.last_search_usage = getattr(self._search_service, "last_search_usage", None)
+                if threshold > 0:
+                    results = [r for r in results if r.get("score", 0) >= threshold]
+
         return results
 
     async def generate(
@@ -509,7 +525,8 @@ class RagService:
             rows = await conn.fetch(
                 f"""
                 SELECT DISTINCT ON (file_id)
-                    file_id, status, error, source_created_at, source_modified_at
+                    file_id, status, error, progress_phase, progress_detail,
+                    source_created_at, source_modified_at
                 FROM {SCHEMA}.documents
                 WHERE file_id = ANY($1)
                 ORDER BY file_id,
@@ -528,6 +545,8 @@ class RagService:
             row["file_id"]: {
                 "status": row["status"],
                 "error": row["error"],
+                "progress_phase": row["progress_phase"],
+                "progress_detail": row["progress_detail"],
                 "source_created_at": row["source_created_at"],
                 "source_modified_at": row["source_modified_at"],
             }

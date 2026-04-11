@@ -87,7 +87,7 @@ const ragToolArgs = z.discriminatedUnion('operation', [
       .array(z.string())
       .optional()
       .describe(
-        'Specific file IDs to search within. When provided, only these files are searched (skips automatic file resolution). Use this when you know exactly which files to search.',
+        'Specific file IDs to search within. When provided, only these files are searched (skips automatic file resolution). IMPORTANT: If the user message contains file IDs (from uploaded attachments), pass them here first to prioritize those files. Retry without fileIds for a broader search if no relevant results are found.',
       ),
     topK: z
       .number()
@@ -113,26 +113,56 @@ const ragToolArgs = z.discriminatedUnion('operation', [
         'Pagination cursor from previous response. Pass the exact cursor value returned — do not fabricate.',
       ),
   }),
+  z.object({
+    operation: z.literal('retrieve'),
+    fileId: z
+      .string()
+      .describe(
+        'File ID of the document to retrieve content from (e.g., "kg2bazp7fbgt9srq63knfagjrd7yfenj")',
+      ),
+    chunkStart: z
+      .number()
+      .int()
+      .min(1)
+      .optional()
+      .describe('Start chunk index (1-based, default 1)'),
+    chunkEnd: z
+      .number()
+      .int()
+      .min(1)
+      .optional()
+      .describe('End chunk index (inclusive, default chunkStart + 9)'),
+  }),
 ]);
 
 export const ragSearchTool = {
   name: 'rag_search' as const,
   tool: createTool({
-    description: `Knowledge base tool for searching content and listing indexed documents.
+    description: `Knowledge base tool for searching, retrieving, and listing indexed documents.
 
 OPERATIONS:
 • 'search': Search the knowledge base for relevant document excerpts using hybrid search (BM25 + vector similarity). Returns numbered excerpts with relevance scores.
-• 'list_indexed': List documents that have been indexed in the knowledge base. Returns file names, file IDs, and modification dates. Use this to see what's available before searching.
+• 'retrieve': Retrieve document content by file ID in paginated chunks (default 10 chunks per call). Use chunkStart/chunkEnd to paginate. Returns chunk range and totalChunks so you can fetch more. Use this to read uploaded files (PDF, DOCX, PPTX, TXT, XLSX, etc.).
+• 'list_indexed': List documents indexed in the Document Hub (does NOT include files uploaded in chat). Returns file names, file IDs, and modification dates.
 
 WHEN TO USE 'search':
 • Knowledge base lookups: policies, procedures, documentation
 • Questions about stored documents and content
 • Finding information when you don't know exact field values
 
+SEARCH STRATEGY — file ID priority:
+When the user's message contains file IDs (e.g. from uploaded attachments), ALWAYS pass those IDs in the 'fileIds' parameter first to search within those specific files. If that returns no relevant results, retry WITHOUT fileIds to perform a broader knowledge base search. This ensures uploaded/referenced files are prioritized while still falling back to the full knowledge base when needed.
+
+WHEN TO USE 'retrieve':
+• Reading content of a specific uploaded file (paginated, 10 chunks per call by default)
+• When a user uploads a file and asks you to read, summarize, or analyze it
+• For large documents, retrieve returns the first page — use chunkStart/chunkEnd to read more, or use 'search' with a query for targeted lookup
+
 WHEN TO USE 'list_indexed':
-• See which files are available for RAG search
-• Get file IDs for use with the search operation's fileIds parameter
-• Check when files were last modified
+• See which documents are in the Document Hub (org/team knowledge base)
+• Get file IDs for use with the search or retrieve operations
+• Check when documents were last modified
+• NOTE: This only lists Document Hub files. Files uploaded in chat are NOT included — their file IDs are already in the conversation context.
 
 WHEN NOT TO USE:
 • "How many customers?" → Use customer_read with operation='list'
@@ -153,6 +183,69 @@ RESPONSE (list_indexed):
           limit: args.limit,
           cursor: args.cursor,
         });
+      }
+
+      if (args.operation === 'retrieve') {
+        const DEFAULT_PAGE_SIZE = 10;
+        const start = args.chunkStart ?? 1;
+        const end = args.chunkEnd ?? start + DEFAULT_PAGE_SIZE - 1;
+
+        debugLog('tool:rag_search retrieve start', {
+          fileId: args.fileId,
+          chunkStart: start,
+          chunkEnd: end,
+        });
+
+        const ragServiceUrl = getRagConfig().serviceUrl;
+        const url = `${ragServiceUrl}/api/v1/documents/${encodeURIComponent(args.fileId)}/content?return_chunks=true&chunk_start=${start}&chunk_end=${end}`;
+        const response = await fetch(url);
+
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => '');
+          return {
+            success: false,
+            response: `Failed to retrieve document: ${response.status} ${errorText}`,
+          };
+        }
+
+        interface RetrieveResponse {
+          file_id: string;
+          title: string | null;
+          total_chunks: number;
+          total_chars: number;
+          chunk_range: { start: number; end: number };
+          chunks: Array<{ index: number; content: string }> | null;
+          source_created_at: string | null;
+          source_modified_at: string | null;
+        }
+        const result = await fetchJson<RetrieveResponse>(response);
+
+        const text = (result.chunks ?? [])
+          .sort((a, b) => a.index - b.index)
+          .map((c) => c.content)
+          .join('\n');
+
+        const hasMore = result.chunk_range.end < result.total_chunks;
+
+        debugLog('tool:rag_search retrieve success', {
+          fileId: args.fileId,
+          chunkRange: result.chunk_range,
+          totalChunks: result.total_chunks,
+          textLength: text.length,
+          hasMore,
+        });
+
+        return {
+          success: true,
+          response: text || 'Document has no text content.',
+          fileId: result.file_id,
+          filename: result.title,
+          sourceCreatedAt: result.source_created_at,
+          sourceModifiedAt: result.source_modified_at,
+          totalChunks: result.total_chunks,
+          chunkRange: result.chunk_range,
+          hasMore,
+        };
       }
 
       // operation === 'search'

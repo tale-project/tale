@@ -31,18 +31,6 @@ export const TTL = {
 // ============================================
 
 /**
- * Cache for file parsing results.
- * File content is immutable per storage ID.
- */
-export const parseFileCache: ActionCache<
-  FunctionReference<'action', 'internal'>
-> = new ActionCache(components.actionCache, {
-  action: internal.agent_tools.files.internal_actions.parseFileUncached,
-  name: `parse_file_${CACHE_VERSION}`,
-  ttl: TTL.INDEFINITE,
-});
-
-/**
  * Cache for image analysis results.
  * Same image + question produces same analysis.
  */

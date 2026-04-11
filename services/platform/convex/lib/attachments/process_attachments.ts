@@ -5,21 +5,11 @@
  * including document parsing and image metadata extraction.
  */
 
-import type { LanguageModelV3 } from '@ai-sdk/provider';
-
-import {
-  isImage,
-  isSpreadsheet,
-  isTextFile,
-} from '../../../lib/shared/file-types';
+import { isImage, isSpreadsheet } from '../../../lib/shared/file-types';
 import { internal } from '../../_generated/api';
-import type { Id } from '../../_generated/dataModel';
 import type { ActionCtx } from '../../_generated/server';
 import { analyzeImageCached } from '../../agent_tools/files/helpers/analyze_image';
-import { analyzeTextContent } from '../../agent_tools/files/helpers/analyze_text';
-import { parseFile } from '../../agent_tools/files/helpers/parse_file';
 import { toId } from '../../lib/type_cast_helpers';
-import { resolveLanguageModel } from '../../providers/resolve_model';
 import { registerFilesWithAgent } from './register_files';
 import type { FileAttachment, MessageContentPart } from './types';
 
@@ -37,16 +27,16 @@ export interface ParsedDocument {
  */
 export interface ImageInfo {
   fileName: string;
-  fileId: Id<'_storage'>;
+  fileId: string;
   url: string | undefined;
 }
 
 /**
- * Text file info for the txt tool's parse operation
+ * Text file info
  */
 export interface TextFileInfo {
   fileName: string;
-  fileId: Id<'_storage'>;
+  fileId: string;
   fileSize: number;
 }
 
@@ -70,19 +60,17 @@ export interface ProcessAttachmentsConfig {
   debugLog?: (message: string, data?: Record<string, unknown>) => void;
   toolName?: string;
   model?: string;
-  languageModel?: LanguageModelV3;
 }
-
-const DEFAULT_MAX_DOCUMENT_LENGTH = 50000;
 
 /**
  * Process file attachments for an AI agent.
  *
  * This function:
- * 1. Separates images from documents
- * 2. Parses documents to extract text content
- * 3. Prepares image metadata for the image tool
- * 4. Builds multi-modal prompt content
+ * 1. Separates images from other files
+ * 2. Analyzes images with vision model
+ * 3. Parses spreadsheets for structured data
+ * 4. Lists documents and text files for the agent to retrieve via rag_search
+ * 5. Builds multi-modal prompt content
  *
  * @param ctx - Action context for storage access
  * @param attachments - Array of file attachments to process
@@ -95,9 +83,7 @@ export async function processAttachments(
   userText: string | undefined,
   config: ProcessAttachmentsConfig & { model: string },
 ): Promise<ProcessedAttachments> {
-  const maxDocLength = config?.maxDocumentLength ?? DEFAULT_MAX_DOCUMENT_LENGTH;
   const debugLog = config?.debugLog ?? (() => {});
-  const toolName = config?.toolName ?? 'agent';
 
   if (!attachments || attachments.length === 0) {
     return {
@@ -113,66 +99,14 @@ export async function processAttachments(
     files: attachments.map((a) => ({ name: a.fileName, type: a.fileType })),
   });
 
-  // Separate images, text files, spreadsheets, and other documents
+  // Separate images, spreadsheets, and other files (documents + text)
   const imageAttachments = attachments.filter((a) => isImage(a.fileType));
   const spreadsheetAttachments = attachments.filter(
     (a) => !isImage(a.fileType) && isSpreadsheet(a.fileName),
   );
-  const textFileAttachments = attachments.filter(
-    (a) =>
-      !isImage(a.fileType) &&
-      !isSpreadsheet(a.fileName) &&
-      isTextFile(a.fileType, a.fileName),
+  const fileAttachments = attachments.filter(
+    (a) => !isImage(a.fileType) && !isSpreadsheet(a.fileName),
   );
-  const documentAttachments = attachments.filter(
-    (a) =>
-      !isImage(a.fileType) &&
-      !isSpreadsheet(a.fileName) &&
-      !isTextFile(a.fileType, a.fileName),
-  );
-
-  // Parse document files to extract their text content (in parallel)
-  const parseResults = await Promise.all(
-    documentAttachments.map(async (attachment) => {
-      try {
-        const parseResult = await parseFile(
-          ctx,
-          attachment.fileId,
-          attachment.fileName,
-          toolName,
-          userText,
-        );
-        return { attachment, parseResult };
-      } catch (error) {
-        debugLog('Error parsing document', {
-          fileName: attachment.fileName,
-          error: String(error),
-        });
-        return null;
-      }
-    }),
-  );
-
-  const parsedDocuments: ParsedDocument[] = [];
-
-  for (const result of parseResults) {
-    if (result?.parseResult.success && result.parseResult.full_text) {
-      parsedDocuments.push({
-        fileId: result.attachment.fileId,
-        fileName: result.attachment.fileName,
-        content: result.parseResult.full_text,
-      });
-      debugLog('Parsed document', {
-        fileName: result.attachment.fileName,
-        textLength: result.parseResult.full_text.length,
-      });
-    } else if (result) {
-      debugLog('Failed to parse document', {
-        fileName: result.attachment.fileName,
-        error: result.parseResult.error,
-      });
-    }
-  }
 
   // Parse spreadsheet files using the xlsx library (in parallel)
   const spreadsheetResults = await Promise.all(
@@ -238,66 +172,9 @@ export async function processAttachments(
     (r): r is { fileName: string; analysis: string } => r !== null,
   );
 
-  // Resolve language model for text analysis if not provided
-  let resolvedLanguageModelV3 = config.languageModel;
-  if (!resolvedLanguageModelV3 && textFileAttachments.length > 0) {
-    const resolved = await resolveLanguageModel(ctx, { tag: 'chat' });
-    resolvedLanguageModelV3 = resolved.languageModel;
-  }
-
-  // Analyze text files with LLM (in parallel)
-  const textAnalysisResults = await Promise.all(
-    textFileAttachments.map(async (attachment) => {
-      try {
-        const result = await analyzeTextContent(ctx, {
-          fileId: attachment.fileId,
-          filename: attachment.fileName,
-          userInput: userText || 'Analyze this file',
-          model: config.model,
-          // resolvedLanguageModelV3 is guaranteed set: either from config or resolved above
-          // oxlint-disable-next-line typescript/no-non-null-assertion -- guard above ensures non-null
-          languageModel: resolvedLanguageModelV3!,
-        });
-
-        if (result.success) {
-          return {
-            fileName: attachment.fileName,
-            analysis: result.result,
-            charCount: result.charCount,
-            lineCount: result.lineCount,
-          };
-        } else {
-          debugLog('Text file analysis failed', {
-            fileName: attachment.fileName,
-            error: result.error,
-          });
-          return null;
-        }
-      } catch (error) {
-        debugLog('Error analyzing text file', {
-          fileName: attachment.fileName,
-          error: String(error),
-        });
-        return null;
-      }
-    }),
-  );
-
-  const analyzedTextFiles = textAnalysisResults.filter(
-    (
-      r,
-    ): r is {
-      fileName: string;
-      analysis: string;
-      charCount: number;
-      lineCount: number;
-    } => r !== null,
-  );
-
-  // Register files with the agent component for tracking (documents + spreadsheets)
-  // Images and text files are handled via their respective tools, not inline
+  // Register files with the agent component for tracking
   await registerFilesWithAgent(ctx, [
-    ...documentAttachments,
+    ...fileAttachments,
     ...spreadsheetAttachments,
   ]);
 
@@ -306,29 +183,13 @@ export async function processAttachments(
   const contentParts: MessageContentPart[] = [{ type: 'text', text }];
 
   const hasAnalyzedContent =
-    parsedDocuments.length > 0 ||
-    parsedSpreadsheets.length > 0 ||
-    analyzedImages.length > 0 ||
-    analyzedTextFiles.length > 0;
+    parsedSpreadsheets.length > 0 || analyzedImages.length > 0;
 
   if (hasAnalyzedContent) {
     contentParts.push({
       type: 'text',
       text: '\n\n[PRE-ANALYZED CONTENT BELOW - This is the attachment from the CURRENT message. It takes priority over any previous context. Answer directly from this content without delegating to document tools.]',
     });
-
-    for (const doc of parsedDocuments) {
-      const truncatedContent =
-        doc.content.length > maxDocLength
-          ? doc.content.slice(0, maxDocLength) +
-            '\n\n[... Document truncated due to length ...]'
-          : doc.content;
-
-      contentParts.push({
-        type: 'text',
-        text: `\n\n---\n**Document: ${doc.fileName}** (fileId: ${doc.fileId})\n\n${truncatedContent}\n---\n`,
-      });
-    }
 
     for (const { attachment, result } of parsedSpreadsheets) {
       const sheetTexts = result.sheets.map((sheet) => {
@@ -356,41 +217,27 @@ export async function processAttachments(
         text: `\n\n---\n**Image: ${img.fileName}**\n\n${img.analysis}\n---\n`,
       });
     }
-
-    for (const txt of analyzedTextFiles) {
-      contentParts.push({
-        type: 'text',
-        text: `\n\n---\n**Text File: ${txt.fileName}** (${txt.charCount} chars, ${txt.lineCount} lines)\n\n${txt.analysis}\n---\n`,
-      });
-    }
   }
 
-  // Collect attachments that failed pre-analysis — include their references
-  // so the agent can use its tools (docx, pdf, image, etc.) to process them
-  const failedDocuments = documentAttachments.filter(
-    (a) => !parsedDocuments.some((d) => d.fileName === a.fileName),
-  );
+  // List documents, text files, and failed attachments for the agent to process
+  // via rag_search tool (retrieve operation)
   const failedImages = imageAttachments.filter(
     (a) => !analyzedImages.some((d) => d.fileName === a.fileName),
-  );
-  const failedTextFiles = textFileAttachments.filter(
-    (a) => !analyzedTextFiles.some((d) => d.fileName === a.fileName),
   );
   const failedSpreadsheets = spreadsheetAttachments.filter(
     (a) =>
       !parsedSpreadsheets.some((d) => d.attachment.fileName === a.fileName),
   );
   const unprocessedAttachments = [
-    ...failedDocuments,
+    ...fileAttachments,
     ...failedImages,
-    ...failedTextFiles,
     ...failedSpreadsheets,
   ];
 
   if (unprocessedAttachments.length > 0) {
     contentParts.push({
       type: 'text',
-      text: '\n\n[ATTACHED FILES - Pre-analysis was not available. Use your tools to process these files.]',
+      text: '\n\n[ATTACHED FILES - Use rag_search tool with operation="retrieve" and the fileId to read these files.]',
     });
 
     for (const attachment of unprocessedAttachments) {
@@ -409,7 +256,7 @@ export async function processAttachments(
       : undefined;
 
   return {
-    parsedDocuments,
+    parsedDocuments: [],
     imageInfoList: [],
     textFileInfoList: [],
     promptContent,

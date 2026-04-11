@@ -76,11 +76,6 @@ export function isImage(mimeType: string): boolean {
   return mimeType.startsWith('image/');
 }
 
-export function isTextFile(mimeType: string, fileName?: string): boolean {
-  if (!fileName) return mimeType.startsWith('text/plain');
-  return isTextBasedFile(fileName, mimeType);
-}
-
 export function isSpreadsheet(fileName: string): boolean {
   const lower = fileName.toLowerCase();
   return (
@@ -285,14 +280,14 @@ export const SPREADSHEET_IMPORT_ACCEPT = '.xlsx,.xls,.csv';
 // Size limits
 // ---------------------------------------------------------------------------
 
-/** Chat attachment max (10 MB) */
-export const CHAT_MAX_FILE_SIZE = 10 * 1024 * 1024;
+/** Chat attachment max (100 MB) */
+export const CHAT_MAX_FILE_SIZE = 100 * 1024 * 1024;
 
 /** Max attachments per chat message */
 export const CHAT_MAX_FILE_COUNT = 10;
 
-/** Max total attachment size per chat message (25 MB) */
-export const CHAT_MAX_TOTAL_SIZE = 25 * 1024 * 1024;
+/** Max total attachment size per chat message (200 MB) */
+export const CHAT_MAX_TOTAL_SIZE = 200 * 1024 * 1024;
 
 /** Document upload max (100 MB) */
 export const DOCUMENT_MAX_FILE_SIZE = 100 * 1024 * 1024;
@@ -437,24 +432,6 @@ export function hasFileTools(toolNames: readonly string[]): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Parse endpoint routing
-// ---------------------------------------------------------------------------
-
-const PARSE_ENDPOINTS: Record<string, string> = {
-  pdf: '/api/v1/pdf/parse',
-  docx: '/api/v1/docx/parse',
-  pptx: '/api/v1/pptx/parse',
-};
-
-/**
- * Get the crawler service parse endpoint for a given filename.
- * Falls back to PDF parser for unknown extensions.
- */
-export function getParseEndpoint(filename: string): string {
-  const ext = extractExtension(filename);
-  return (ext && PARSE_ENDPOINTS[ext]) || PARSE_ENDPOINTS.pdf;
-}
-
 // ---------------------------------------------------------------------------
 // MIME → display label key (for i18n)
 // ---------------------------------------------------------------------------

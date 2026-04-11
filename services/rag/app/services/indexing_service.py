@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import datetime as dt
 import re
+import time
 import uuid
 from dataclasses import dataclass, replace
 from io import BytesIO
@@ -152,6 +153,53 @@ def _extract_file_dates(
     return (None, None)
 
 
+async def _update_progress(
+    pool: asyncpg.Pool,
+    file_id: str,
+    phase: str,
+    detail: str,
+) -> None:
+    """Write progress info to the documents table for status polling."""
+    try:
+        async with acquire_with_retry(pool) as conn:
+            await conn.execute(
+                f"""UPDATE {SCHEMA}.documents
+                    SET progress_phase = $2, progress_detail = $3, updated_at = NOW()
+                    WHERE file_id = $1 AND status = 'processing'""",
+                file_id,
+                phase,
+                detail,
+            )
+    except Exception:
+        logger.debug("Failed to update progress for {}", file_id)
+
+
+def _make_extraction_progress_callback(
+    pool: asyncpg.Pool,
+    file_id: str,
+    loop: Any,
+    *,
+    min_interval: float = 3.0,
+) -> Any:
+    """Create a throttled progress callback for page extraction.
+
+    Writes to DB at most once per ``min_interval`` seconds to avoid
+    overwhelming the database during concurrent page processing.
+    """
+    last_flush = 0.0
+
+    def on_progress(pages_done: int, total_pages: int) -> None:
+        nonlocal last_flush
+        now = time.monotonic()
+        if now - last_flush < min_interval and pages_done < total_pages:
+            return
+        last_flush = now
+        detail = f"{pages_done}/{total_pages}"
+        loop.create_task(_update_progress(pool, file_id, "extracting", detail))
+
+    return on_progress
+
+
 async def prepare_document(
     content_bytes: bytes,
     filename: str,
@@ -160,6 +208,7 @@ async def prepare_document(
     vision_client: VisionClient | None = None,
     chunk_size: int = 2048,
     chunk_overlap: int = 200,
+    on_progress: Any = None,
 ) -> PreparedDocument | None:
     """Extract, chunk, and embed a document (expensive work done once).
 
@@ -172,6 +221,7 @@ async def prepare_document(
             content_bytes,
             filename,
             vision_client=vision_client,
+            on_progress=on_progress,
         )
     except UnicodeDecodeError:
         raise ValueError(
@@ -509,6 +559,13 @@ async def index_document(
             return result
         logger.warning("Clone source {} vanished, falling back to full processing", source_id)
 
+    import asyncio as _aio
+
+    loop = _aio.get_running_loop()
+    extraction_cb = _make_extraction_progress_callback(pool, file_id, loop)
+
+    await _update_progress(pool, file_id, "extracting", "")
+
     prepared = await prepare_document(
         content_bytes,
         filename,
@@ -516,6 +573,7 @@ async def index_document(
         vision_client=vision_client,
         chunk_size=chunk_size,
         chunk_overlap=chunk_overlap,
+        on_progress=extraction_cb,
     )
 
     if prepared is None:
@@ -527,12 +585,21 @@ async def index_document(
             "skip_reason": "no_text_extracted",
         }
 
+    await _update_progress(
+        pool,
+        file_id,
+        "embedding",
+        f"{len(prepared.chunks)} chunks",
+    )
+
     if source_created_at is not None or source_modified_at is not None:
         prepared = replace(
             prepared,
             source_created_at=source_created_at or prepared.source_created_at,
             source_modified_at=source_modified_at or prepared.source_modified_at,
         )
+
+    await _update_progress(pool, file_id, "storing", "")
 
     return await store_prepared_document(
         pool,

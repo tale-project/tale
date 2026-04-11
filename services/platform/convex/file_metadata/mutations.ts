@@ -51,9 +51,20 @@ export const saveFileMetadata = mutation({
       fileName: args.fileName,
       contentType: args.contentType,
       size: args.size,
+      ragStatus: 'queued',
       ...(args.documentId !== undefined && { documentId: args.documentId }),
       ...(args.source !== undefined && { source: args.source }),
     });
+
+    await ctx.scheduler.runAfter(
+      0,
+      internal.file_metadata.internal_actions.uploadFileToRag,
+      {
+        storageId: args.storageId,
+        fileName: args.fileName,
+        contentType: args.contentType,
+      },
+    );
 
     try {
       await checkOrganizationRateLimit(

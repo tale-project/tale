@@ -34,6 +34,7 @@ vi.mock('../../lib/rate_limiter/helpers', () => ({
 vi.mock('../../_generated/api', () => ({
   internal: {
     governance: { retention_cleanup: { runRetentionCleanup: 'mock' } },
+    file_metadata: { internal_actions: { uploadFileToRag: 'mock' } },
   },
 }));
 
@@ -110,6 +111,7 @@ describe('saveFileMetadata (public)', () => {
       fileName: 'test.pdf',
       contentType: 'application/pdf',
       size: 1024,
+      ragStatus: 'queued',
     });
     expect(ctx.db.patch).not.toHaveBeenCalled();
   });
@@ -170,6 +172,7 @@ describe('saveFileMetadata (public)', () => {
       contentType: 'application/pdf',
       size: 1024,
       documentId: 'doc_1',
+      ragStatus: 'queued',
     });
   });
 

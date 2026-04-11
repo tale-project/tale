@@ -6,11 +6,14 @@ import base64
 import json
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
+from fastapi.responses import Response
 from loguru import logger
 
 from app.models import (
     FileMetadataResponse,
     GeneratePptxResponse,
+    HtmlToPptxRequest,
+    MarkdownToPptxRequest,
     ParseFileResponse,
 )
 from app.services.file_parser_service import get_file_parser_service
@@ -131,6 +134,88 @@ async def generate_pptx_from_json(
             success=False,
             error=f"Unexpected error: {e!s}",
         )
+
+
+_PPTX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+
+
+@router.post("/from-markdown")
+async def convert_markdown_to_pptx(request: MarkdownToPptxRequest):
+    """
+    Convert Markdown content to PPTX.
+
+    Parses markdown into HTML, then extracts slide structure (headings become
+    slide titles, lists become bullet points, etc.) and generates a PowerPoint.
+
+    Args:
+        request: Markdown content
+
+    Returns:
+        PPTX file as binary response
+    """
+    try:
+        from app.services.base_converter import BaseConverterService
+        from app.services.html_to_pptx_converter import html_to_slides
+
+        converter = BaseConverterService()
+        html = await converter.markdown_to_html(request.content)
+        slides_content = html_to_slides(html)
+
+        template_service = get_template_service()
+        pptx_bytes = await template_service.generate_pptx_from_content(
+            slides_content=slides_content,
+        )
+
+        return Response(
+            content=pptx_bytes,
+            media_type=_PPTX_CONTENT_TYPE,
+            headers={"Content-Disposition": "attachment; filename=presentation.pptx"},
+        )
+
+    except Exception:
+        logger.exception("Error converting markdown to PPTX")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to convert markdown to PPTX",
+        ) from None
+
+
+@router.post("/from-html")
+async def convert_html_to_pptx(request: HtmlToPptxRequest):
+    """
+    Convert HTML content to PPTX.
+
+    Parses HTML to extract slide structure (h1/h2 headings become slide titles,
+    lists become bullet points, tables preserved) and generates a PowerPoint.
+
+    Args:
+        request: HTML content
+
+    Returns:
+        PPTX file as binary response
+    """
+    try:
+        from app.services.html_to_pptx_converter import html_to_slides
+
+        slides_content = html_to_slides(request.html)
+
+        template_service = get_template_service()
+        pptx_bytes = await template_service.generate_pptx_from_content(
+            slides_content=slides_content,
+        )
+
+        return Response(
+            content=pptx_bytes,
+            media_type=_PPTX_CONTENT_TYPE,
+            headers={"Content-Disposition": "attachment; filename=presentation.pptx"},
+        )
+
+    except Exception:
+        logger.exception("Error converting HTML to PPTX")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to convert HTML to PPTX",
+        ) from None
 
 
 @router.post("/parse", response_model=ParseFileResponse)

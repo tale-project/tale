@@ -19,17 +19,6 @@ export const getDocumentByIdRaw = internalQuery({
   },
 });
 
-export const listDocumentsByExtension = internalQuery({
-  args: {
-    organizationId: v.string(),
-    extension: v.string(),
-    limit: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    return await DocumentsHelpers.listDocumentsByExtension(ctx, args);
-  },
-});
-
 export const queryDocuments = internalQuery({
   args: {
     organizationId: v.string(),

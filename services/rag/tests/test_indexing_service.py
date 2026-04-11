@@ -211,11 +211,10 @@ class TestSuccessfulIndexing:
                 vision_client=mock_vision,
             )
 
-        mock_extract.assert_awaited_once_with(
-            SAMPLE_CONTENT,
-            SAMPLE_FILENAME,
-            vision_client=mock_vision,
-        )
+        call_kwargs = mock_extract.call_args
+        assert call_kwargs.args == (SAMPLE_CONTENT, SAMPLE_FILENAME)
+        assert call_kwargs.kwargs["vision_client"] is mock_vision
+        assert "on_progress" in call_kwargs.kwargs
 
     async def test_custom_chunk_size_and_overlap(self):
         from app.services.indexing_service import index_document

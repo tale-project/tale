@@ -3,6 +3,7 @@
 import { v } from 'convex/values';
 
 import { extractExtension } from '../../lib/shared/file-types';
+import { fetchJson } from '../../lib/utils/type-cast-helpers';
 import {
   isRecord,
   getBoolean,
@@ -10,13 +11,13 @@ import {
   getString,
 } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
+import type { Id } from '../_generated/dataModel';
 import { internalAction } from '../_generated/server';
+import { buildDownloadUrl } from '../lib/helpers/public_storage_url';
 import { getRagConfig } from '../lib/helpers/rag_config';
 import { ragAction } from '../workflow_engine/action_defs/rag/rag_action';
 import { getCrawlerUrl } from './generate_document_helpers';
 import type { GenerateDocxResult } from './generate_docx';
-import type { GenerateDocxFromTemplateResult } from './generate_docx_from_template';
-import type { GeneratePptxResult } from './generate_pptx';
 import * as DocumentsHelpers from './helpers';
 import type { GenerateDocumentResult } from './types';
 
@@ -39,6 +40,7 @@ const documentOutputFormatValidator = v.union(
   v.literal('pdf'),
   v.literal('image'),
   v.literal('docx'),
+  v.literal('pptx'),
 );
 
 const pdfOptionsValidator = v.optional(
@@ -74,33 +76,6 @@ const urlOptionsValidator = v.optional(
         v.literal('commit'),
       ),
     ),
-  }),
-);
-
-const tableDataValidator = v.object({
-  headers: v.array(v.string()),
-  rows: v.array(v.array(v.string())),
-});
-
-const slideContentValidator = v.object({
-  title: v.optional(v.string()),
-  subtitle: v.optional(v.string()),
-  textContent: v.optional(v.array(v.string())),
-  bulletPoints: v.optional(v.array(v.string())),
-  tables: v.optional(v.array(tableDataValidator)),
-});
-
-const pptxBrandingValidator = v.optional(
-  v.object({
-    slideWidth: v.optional(v.number()),
-    slideHeight: v.optional(v.number()),
-    titleFontName: v.optional(v.string()),
-    bodyFontName: v.optional(v.string()),
-    titleFontSize: v.optional(v.number()),
-    bodyFontSize: v.optional(v.number()),
-    primaryColor: v.optional(v.string()),
-    secondaryColor: v.optional(v.string()),
-    accentColor: v.optional(v.string()),
   }),
 );
 
@@ -145,19 +120,6 @@ export const generateDocument = internalAction({
   },
 });
 
-export const generatePptx = internalAction({
-  args: {
-    organizationId: v.string(),
-    fileName: v.string(),
-    slidesContent: v.array(slideContentValidator),
-    branding: pptxBrandingValidator,
-    templateStorageId: v.id('_storage'),
-  },
-  handler: async (ctx, args): Promise<GeneratePptxResult> => {
-    return await DocumentsHelpers.generatePptx(ctx, args);
-  },
-});
-
 export const generateDocx = internalAction({
   args: {
     organizationId: v.string(),
@@ -166,18 +128,6 @@ export const generateDocx = internalAction({
   },
   handler: async (ctx, args): Promise<GenerateDocxResult> => {
     return await DocumentsHelpers.generateDocx(ctx, args);
-  },
-});
-
-export const generateDocxFromTemplate = internalAction({
-  args: {
-    organizationId: v.string(),
-    fileName: v.string(),
-    content: docxContentValidator,
-    templateStorageId: v.id('_storage'),
-  },
-  handler: async (ctx, args): Promise<GenerateDocxFromTemplateResult> => {
-    return await DocumentsHelpers.generateDocxFromTemplate(ctx, args);
   },
 });
 
@@ -681,6 +631,71 @@ export const reindexDocumentInRag = internalAction({
     }
 
     return null;
+  },
+});
+
+/**
+ * Store raw string content (e.g. HTML) directly as a file in Convex storage.
+ * Used by tools that generate content locally without the crawler service.
+ */
+export const storeRawContent = internalAction({
+  args: {
+    organizationId: v.string(),
+    fileName: v.string(),
+    content: v.string(),
+    contentType: v.string(),
+    extension: v.string(),
+  },
+  handler: async (ctx, args): Promise<GenerateDocumentResult> => {
+    const bytes = new TextEncoder().encode(args.content);
+    const size = bytes.byteLength;
+
+    const uploadUrl = await ctx.storage.generateUploadUrl();
+    const uploadResponse = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': args.contentType },
+      body: bytes,
+    });
+
+    if (!uploadResponse.ok) {
+      throw new Error(
+        `Failed to upload content: ${uploadResponse.status} ${uploadResponse.statusText}`,
+      );
+    }
+
+    const { storageId } = await fetchJson<{ storageId: Id<'_storage'> }>(
+      uploadResponse,
+    );
+
+    const lowerFileName = args.fileName.toLowerCase();
+    const expectedSuffix = `.${args.extension.toLowerCase()}`;
+    const finalFileName = lowerFileName.endsWith(expectedSuffix)
+      ? args.fileName
+      : `${args.fileName}.${args.extension}`;
+
+    await ctx.runMutation(
+      internal.file_metadata.internal_mutations.saveFileMetadata,
+      {
+        organizationId: args.organizationId,
+        storageId,
+        fileName: finalFileName,
+        contentType: args.contentType,
+        size,
+        source: 'agent',
+      },
+    );
+
+    const downloadUrl = buildDownloadUrl(storageId, finalFileName);
+
+    return {
+      success: true,
+      fileStorageId: storageId,
+      downloadUrl,
+      fileName: finalFileName,
+      contentType: args.contentType,
+      size,
+      extension: args.extension,
+    };
   },
 });
 

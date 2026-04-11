@@ -35,6 +35,7 @@ import {
 import { useChatLoadingState } from '../hooks/use-chat-loading-state';
 import { useConvexFileUpload } from '../hooks/use-convex-file-upload';
 import { useEffectiveAgent } from '../hooks/use-effective-agent';
+import { useFileIndexingStatus } from '../hooks/use-file-indexing-status';
 import { useMergedChatItems } from '../hooks/use-merged-chat-items';
 import { useMessageProcessing } from '../hooks/use-message-processing';
 import { usePendingMessages } from '../hooks/use-pending-messages';
@@ -139,6 +140,9 @@ export function ChatInterface({
     removeAttachment,
     clearAttachments,
   } = useConvexFileUpload({ organizationId });
+
+  const { isIndexing, statusMap: indexingStatuses } =
+    useFileIndexingStatus(attachments);
 
   usePersistedAttachments({
     userId: user?.userId,
@@ -691,6 +695,8 @@ export function ChatInterface({
               uploadFiles={uploadFiles}
               removeAttachment={removeAttachment}
               clearAttachments={clearAttachments}
+              isIndexing={isIndexing}
+              indexingStatuses={indexingStatuses}
             />
           </FileUpload.Root>
         )}

@@ -1,6 +1,5 @@
 /** Convex Tool: PDF
  *  Generate PDF documents from Markdown/HTML/URL via the crawler service.
- *  Parse PDF documents to extract text content.
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
@@ -11,8 +10,6 @@ import { internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
 import type { ToolDefinition } from '../types';
 import { appendFilePart } from './helpers/append_file_part';
-import { getAgentModelId } from './helpers/get_agent_model';
-import { parseFile, type ParseFileResult } from './helpers/parse_file';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 
@@ -27,16 +24,16 @@ interface GeneratePdfResult {
   size: number;
 }
 
-type ParsePdfResult = { operation: 'parse' } & ParseFileResult;
-
-type PdfResult = GeneratePdfResult | ParsePdfResult;
-
 export const pdfTool = {
   name: 'pdf' as const,
   tool: createTool({
-    description: `PDF tool for generating, downloading, and parsing PDF documents.
+    description: `PDF tool for generating and downloading PDF documents.
 
 IMPORTANT: Only call the "generate" operation when the user explicitly requests creating or exporting a PDF file. Do NOT proactively generate PDFs unless the user specifically asks for this format.
+
+TO READ PDF FILE CONTENT: Do NOT use this tool. Instead use the rag_search tool:
+• To get the full content of a PDF file: use rag_search with operation='retrieve' and the fileId
+• To search for specific information across PDF files: use rag_search with operation='search'
 
 OPERATIONS:
 
@@ -58,95 +55,53 @@ OPERATIONS:
    • Use this to download and store existing PDF files from external URLs
    • The returned fileStorageId can be passed to document_write to save to a folder in the documents hub
 
-2. parse - Extract text content from an existing PDF file
-   USE THIS when a user uploads a PDF and you need to read its content.
-   Parameters:
-   - fileId: **REQUIRED** - Convex storage ID (e.g., "kg2bazp7fbgt9srq63knfagjrd7yfenj")
-   - filename: Optional — original filename (e.g., "report.pdf"). Auto-resolved from file metadata if omitted.
-   - user_input: **REQUIRED** - The user's question or instruction about the PDF
-   Returns: { success, full_text, page_count, metadata }
-
 EXAMPLES:
 • Generate: { "operation": "generate", "fileName": "report", "sourceType": "markdown", "content": "# Report\\n..." }
 • Download existing PDF: { "operation": "generate", "fileName": "report", "sourceType": "url", "content": "https://example.com/report.pdf" }
-• Parse: { "operation": "parse", "fileId": "kg2bazp7...", "filename": "report.pdf", "user_input": "Summarize the key findings" }
 
 AFTER GENERATING: Check the downloadUrl in the result:
 - If it says "[file card shown in chat]": the file is already visible as a download card. Do NOT mention downloading, do NOT include a link, and do NOT say "you can download it" — the card handles this.
 - If it contains an actual URL: no download card was shown. You MUST include the URL as a clickable markdown link so the user can download the file.
 To also save the file to a folder in the documents hub, call document_write with the returned fileStorageId and the desired folderPath.
 `,
-    inputSchema: z.discriminatedUnion('operation', [
-      z.object({
-        operation: z.literal('generate'),
-        fileName: z
-          .string()
-          .describe('Base name for the PDF file (without extension)'),
-        sourceType: z
-          .enum(['markdown', 'html', 'url'])
-          .describe('Type of source content'),
-        content: z
-          .string()
-          .describe('Markdown text, HTML content, or URL to capture'),
-        pdfOptions: z
-          .object({
-            format: z.string().optional(),
-            landscape: z.boolean().optional(),
-            marginTop: z.string().optional(),
-            marginBottom: z.string().optional(),
-            marginLeft: z.string().optional(),
-            marginRight: z.string().optional(),
-            printBackground: z.boolean().optional(),
-          })
-          .optional()
-          .describe('Advanced PDF options'),
-        urlOptions: z
-          .object({
-            waitUntil: z
-              .enum(['load', 'domcontentloaded', 'networkidle', 'commit'])
-              .optional(),
-          })
-          .optional()
-          .describe('Options for URL capture'),
-        extraCss: z.string().optional().describe('Additional CSS to inject'),
-        wrapInTemplate: z
-          .boolean()
-          .optional()
-          .describe('Whether to wrap in HTML template'),
-      }),
-      z.object({
-        operation: z.literal('parse'),
-        fileId: z
-          .string()
-          .describe(
-            "Convex storage ID (e.g., 'kg2bazp7fbgt9srq63knfagjrd7yfenj'). Get this from the file attachment context.",
-          ),
-        filename: z
-          .string()
-          .optional()
-          .describe(
-            "Original filename (e.g., 'report.pdf'). Optional — auto-resolved from file metadata if omitted.",
-          ),
-        user_input: z
-          .string()
-          .describe("The user's question or instruction about the PDF content"),
-      }),
-    ]),
-    execute: async (ctx: ToolCtx, args): Promise<PdfResult> => {
-      if (args.operation === 'parse') {
-        const model = getAgentModelId(ctx);
-        const result = await parseFile(
-          ctx,
-          args.fileId,
-          args.filename,
-          'pdf',
-          args.user_input,
-          model,
-        );
-        return { operation: 'parse', ...result };
-      }
-
-      // operation === 'generate'
+    inputSchema: z.object({
+      operation: z.literal('generate'),
+      fileName: z
+        .string()
+        .describe('Base name for the PDF file (without extension)'),
+      sourceType: z
+        .enum(['markdown', 'html', 'url'])
+        .describe('Type of source content'),
+      content: z
+        .string()
+        .describe('Markdown text, HTML content, or URL to capture'),
+      pdfOptions: z
+        .object({
+          format: z.string().optional(),
+          landscape: z.boolean().optional(),
+          marginTop: z.string().optional(),
+          marginBottom: z.string().optional(),
+          marginLeft: z.string().optional(),
+          marginRight: z.string().optional(),
+          printBackground: z.boolean().optional(),
+        })
+        .optional()
+        .describe('Advanced PDF options'),
+      urlOptions: z
+        .object({
+          waitUntil: z
+            .enum(['load', 'domcontentloaded', 'networkidle', 'commit'])
+            .optional(),
+        })
+        .optional()
+        .describe('Options for URL capture'),
+      extraCss: z.string().optional().describe('Additional CSS to inject'),
+      wrapInTemplate: z
+        .boolean()
+        .optional()
+        .describe('Whether to wrap in HTML template'),
+    }),
+    execute: async (ctx: ToolCtx, args): Promise<GeneratePdfResult> => {
       const { organizationId } = ctx;
       if (!organizationId) {
         throw new Error('organizationId is required to generate a PDF');

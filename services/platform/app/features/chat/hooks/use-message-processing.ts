@@ -271,7 +271,14 @@ export function useMessageProcessing(
             m.role === 'assistant' && m.status === 'failed' && !m.text?.trim(),
           isFailed:
             m.role === 'assistant' && m.status === 'failed' && !!m.text?.trim(),
-          error: messageErrors?.[m.id],
+          error:
+            messageErrors?.[m.id] ??
+            // UIMessage.id is the first message in a group, but the error
+            // lives on the last (failed) message which has a different _id.
+            // Fall back to any error in the map for this failed message.
+            (m.status === 'failed' && messageErrors
+              ? Object.values(messageErrors)[0]
+              : undefined),
           systemMessageDisplay,
           systemMessageBody,
         };

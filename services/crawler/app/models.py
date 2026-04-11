@@ -207,6 +207,18 @@ class HtmlToDocxRequest(BaseModel):
 # ==================== PPTX Models ====================
 
 
+class MarkdownToPptxRequest(BaseModel):
+    """Request to convert Markdown to PPTX."""
+
+    content: str = Field(..., description="Markdown content to convert")
+
+
+class HtmlToPptxRequest(BaseModel):
+    """Request to convert HTML to PPTX."""
+
+    html: str = Field(..., description="HTML content to convert")
+
+
 class TableData(BaseModel):
     """Table data for PPTX generation."""
 

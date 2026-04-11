@@ -93,15 +93,6 @@ export const generateDocumentResponseValidator = v.object({
   size: v.number(),
 });
 
-export const generatePptxResponseValidator = v.object({
-  success: v.boolean(),
-  fileStorageId: v.string(),
-  downloadUrl: v.string(),
-  fileName: v.string(),
-  contentType: v.string(),
-  size: v.number(),
-});
-
 export const generateDocxResponseValidator = v.object({
   success: v.boolean(),
   fileStorageId: v.string(),

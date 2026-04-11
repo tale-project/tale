@@ -14,6 +14,16 @@ export const getByStorageIds = query({
       fileName: v.string(),
       contentType: v.string(),
       size: v.number(),
+      ragStatus: v.optional(
+        v.union(
+          v.literal('queued'),
+          v.literal('running'),
+          v.literal('completed'),
+          v.literal('failed'),
+        ),
+      ),
+      ragError: v.optional(v.string()),
+      ragProgress: v.optional(v.string()),
     }),
   ),
   handler: async (ctx, args) => {
@@ -33,6 +43,9 @@ export const getByStorageIds = query({
           fileName: meta.fileName,
           contentType: meta.contentType,
           size: meta.size,
+          ragStatus: meta.ragStatus,
+          ragError: meta.ragError,
+          ragProgress: meta.ragProgress,
         };
       }),
     );

@@ -45,9 +45,20 @@ export const saveFileMetadata = internalMutation({
       fileName: args.fileName,
       contentType: args.contentType,
       size: args.size,
+      ragStatus: 'queued',
       ...(args.documentId !== undefined && { documentId: args.documentId }),
       ...(args.source !== undefined && { source: args.source }),
     });
+
+    await ctx.scheduler.runAfter(
+      0,
+      internal.file_metadata.internal_actions.uploadFileToRag,
+      {
+        storageId: args.storageId,
+        fileName: args.fileName,
+        contentType: args.contentType,
+      },
+    );
 
     try {
       await checkOrganizationRateLimit(
@@ -67,6 +78,36 @@ export const saveFileMetadata = internalMutation({
     }
 
     return id;
+  },
+});
+
+export const updateFileRagStatus = internalMutation({
+  args: {
+    storageId: v.id('_storage'),
+    ragStatus: v.union(
+      v.literal('queued'),
+      v.literal('running'),
+      v.literal('completed'),
+      v.literal('failed'),
+    ),
+    ragError: v.optional(v.string()),
+    ragProgress: v.optional(v.string()),
+  },
+  async handler(ctx, args) {
+    const metadata = await ctx.db
+      .query('fileMetadata')
+      .withIndex('by_storageId', (q) => q.eq('storageId', args.storageId))
+      .first();
+    if (!metadata) return;
+
+    await ctx.db.patch(metadata._id, {
+      ragStatus: args.ragStatus,
+      ragError: args.ragStatus === 'failed' ? args.ragError : undefined,
+      ragProgress:
+        args.ragStatus === 'completed' || args.ragStatus === 'failed'
+          ? undefined
+          : args.ragProgress,
+    });
   },
 });
 

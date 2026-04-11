@@ -1,8 +1,6 @@
 /** Convex Tool: Text
- *  Parse text-based files and analyze content using fast model.
  *  Generate plain text files from content.
  *  Supports all text formats: .txt, .md, .js, .ts, .json, .csv, .log, code files, and more.
- *  Handles various encodings and large files via chunked processing.
  *  Uses ctx.storage.get() for direct Convex storage access (like image_tool).
  */
 
@@ -14,27 +12,9 @@ import { internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
 import { buildDownloadUrl } from '../../lib/helpers/public_storage_url';
 import type { ToolDefinition } from '../types';
-import { analyzeTextContent } from './helpers/analyze_text';
 import { appendFilePart } from './helpers/append_file_part';
-import { getAgentModelId } from './helpers/get_agent_model';
-import { resolveFileName } from './helpers/resolve_file_name';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
-
-interface TextParseResult {
-  operation: 'parse';
-  success: boolean;
-  result: string;
-  filename: string;
-  char_count: number;
-  line_count: number;
-  encoding: string;
-  chunked: boolean;
-  chunk_count?: number;
-  model?: string;
-  usage?: { inputTokens: number; outputTokens: number; totalTokens: number };
-  error?: string;
-}
 
 interface TextGenerateResult {
   operation: 'generate';
@@ -47,26 +27,7 @@ interface TextGenerateResult {
   error?: string;
 }
 
-type TextResult = TextParseResult | TextGenerateResult;
-
 const textArgs = z.discriminatedUnion('operation', [
-  z.object({
-    operation: z.literal('parse'),
-    fileId: z
-      .string()
-      .describe(
-        "Convex storage ID of the file (e.g., 'kg2bazp7fbgt9srq63knfagjrd7yfenj'). Get this from the file attachment context.",
-      ),
-    filename: z
-      .string()
-      .optional()
-      .describe(
-        "Original filename (e.g., 'data.txt', 'script.js'). Optional — auto-resolved from file metadata if omitted.",
-      ),
-    user_input: z
-      .string()
-      .describe("The user's question or instruction about the file"),
-  }),
   z.object({
     operation: z.literal('generate'),
     filename: z
@@ -79,22 +40,13 @@ const textArgs = z.discriminatedUnion('operation', [
 export const textTool = {
   name: 'text' as const,
   tool: createTool({
-    description: `Text file tool for parsing, analyzing, and generating text-based files (.txt, .md, .js, .ts, .json, .csv, .log, and any other text format).
+    description: `Text file tool for generating text-based files (.txt, .md, .js, .ts, .json, .csv, .log, and any other text format).
 
 IMPORTANT: Only call the "generate" operation when the user explicitly requests creating or exporting a text file. Do NOT proactively generate text files unless the user specifically asks for this format.
 
-OPERATIONS:
-1. **parse** - Parse and analyze an uploaded text-based file
-2. **generate** - Create a new text file from content
-
-**PARSE OPERATION**
-Use when a user uploads any text-based file and asks to analyze its content.
-Supports all text formats: plain text (.txt), markdown (.md), source code (.js, .ts, .py, etc.), config files (.json, .yaml, .toml), logs (.log), CSV, and more.
-Parameters:
-- operation: "parse"
-- fileId: **REQUIRED** - Convex storage ID (e.g., "kg2bazp7fbgt9srq63knfagjrd7yfenj")
-- filename: Optional — original filename (e.g., "notes.txt", "app.js"). Auto-resolved from file metadata if omitted.
-- user_input: The user's question or instruction
+TO READ TEXT FILE CONTENT: Do NOT use this tool. Instead use the rag_search tool:
+• To get the full content of a text file: use rag_search with operation='retrieve' and the fileId
+• To search for specific information across text files: use rag_search with operation='search'
 
 **GENERATE OPERATION**
 Use when a user wants to create/export a text file.
@@ -104,11 +56,9 @@ Parameters:
 - content: The text content to write
 
 EXAMPLES:
-• Parse: { "operation": "parse", "fileId": "kg2...", "filename": "error.log", "user_input": "Find all errors" }
-• Parse: { "operation": "parse", "fileId": "kg2...", "filename": "app.ts", "user_input": "Explain this code" }
 • Generate: { "operation": "generate", "filename": "report.md", "content": "# Report\\n\\nContent here..." }
 
-Returns: { success, downloadUrl (for generate), result (for parse), char_count, line_count }
+Returns: { success, downloadUrl, filename, char_count, line_count }
 
 AFTER GENERATING: Check the downloadUrl in the result:
 - If it says "[file card shown in chat]": the file is already visible as a download card. Do NOT mention downloading, do NOT include a link, and do NOT say "you can download it" — the card handles this.
@@ -116,143 +66,72 @@ AFTER GENERATING: Check the downloadUrl in the result:
 To also save the file to a folder in the documents hub, call document_write with the returned fileStorageId and the desired folderPath.
 `,
     inputSchema: textArgs,
-    execute: async (ctx: ToolCtx, args): Promise<TextResult> => {
-      if (args.operation === 'generate') {
-        const { filename, content } = args;
-
-        try {
-          debugLog('tool:text generate start', {
-            filename,
-            contentLength: content.length,
-          });
-          const blob = new Blob([content], {
-            type: 'text/plain; charset=utf-8',
-          });
-          const fileId = await ctx.storage.store(blob);
-
-          await ctx.runMutation(
-            internal.file_metadata.internal_mutations.saveFileMetadata,
-            {
-              organizationId: ctx.organizationId ?? 'system',
-              storageId: fileId,
-              fileName: filename,
-              contentType: 'text/plain; charset=utf-8',
-              size: blob.size,
-              source: 'agent',
-            },
-          );
-
-          const url = buildDownloadUrl(fileId, filename);
-          const lineCount = content.split('\n').length;
-
-          debugLog('tool:text generate success', {
-            filename,
-            fileId,
-            charCount: content.length,
-            lineCount,
-          });
-
-          const cardAppended = await appendFilePart(ctx, {
-            fileName: filename,
-            mimeType: 'text/plain; charset=utf-8',
-            downloadUrl: url,
-          });
-
-          return {
-            operation: 'generate',
-            success: true,
-            fileStorageId: fileId,
-            downloadUrl: cardAppended ? '[file card shown in chat]' : url,
-            filename,
-            char_count: content.length,
-            line_count: lineCount,
-          };
-        } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : String(error);
-          console.error('[tool:text generate] error', {
-            filename,
-            error: errorMessage,
-          });
-
-          return {
-            operation: 'generate',
-            success: false,
-            fileStorageId: '',
-            downloadUrl: '',
-            filename,
-            char_count: 0,
-            line_count: 0,
-            error: errorMessage,
-          };
-        }
-      }
-
-      // operation === 'parse'
-      const { fileId, filename, user_input } = args;
-      const model = getAgentModelId(ctx);
-      const resolvedFilename = await resolveFileName(ctx, fileId, filename);
-
-      debugLog('tool:text parse start', {
-        fileId,
-        filename: resolvedFilename,
-        model,
-        user_input:
-          user_input.length > 100
-            ? user_input.slice(0, 100) + '...'
-            : user_input,
-      });
+    execute: async (ctx: ToolCtx, args): Promise<TextGenerateResult> => {
+      const { filename, content } = args;
 
       try {
-        const result = await analyzeTextContent(ctx, {
+        debugLog('tool:text generate start', {
+          filename,
+          contentLength: content.length,
+        });
+        const blob = new Blob([content], {
+          type: 'text/plain; charset=utf-8',
+        });
+        const fileId = await ctx.storage.store(blob);
+
+        await ctx.runMutation(
+          internal.file_metadata.internal_mutations.saveFileMetadata,
+          {
+            organizationId: ctx.organizationId ?? 'system',
+            storageId: fileId,
+            fileName: filename,
+            contentType: 'text/plain; charset=utf-8',
+            size: blob.size,
+            source: 'agent',
+          },
+        );
+
+        const url = buildDownloadUrl(fileId, filename);
+        const lineCount = content.split('\n').length;
+
+        debugLog('tool:text generate success', {
+          filename,
           fileId,
-          filename: resolvedFilename,
-          userInput: user_input,
-          model,
-          // oxlint-disable-next-line typescript/no-non-null-assertion,typescript/no-unsafe-type-assertion -- ctx.agent is guaranteed non-null inside a tool execute callback
-          languageModel: ctx.agent!.options
-            .languageModel as import('@ai-sdk/provider').LanguageModelV3,
+          charCount: content.length,
+          lineCount,
         });
 
-        debugLog('tool:text parse success', {
-          filename: resolvedFilename,
-          charCount: result.charCount,
-          lineCount: result.lineCount,
-          chunked: result.chunked,
+        const cardAppended = await appendFilePart(ctx, {
+          fileName: filename,
+          mimeType: 'text/plain; charset=utf-8',
+          downloadUrl: url,
         });
 
         return {
-          operation: 'parse',
-          success: result.success,
-          result: result.result,
-          filename: resolvedFilename,
-          char_count: result.charCount,
-          line_count: result.lineCount,
-          encoding: result.encoding,
-          chunked: result.chunked,
-          chunk_count: result.chunkCount,
-          model: result.model,
-          usage: result.usage,
-          error: result.error,
+          operation: 'generate',
+          success: true,
+          fileStorageId: fileId,
+          downloadUrl: cardAppended ? '[file card shown in chat]' : url,
+          filename,
+          char_count: content.length,
+          line_count: lineCount,
         };
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : String(error);
-        console.error('[tool:text parse] error', {
-          fileId,
-          filename: resolvedFilename,
+        console.error('[tool:text generate] error', {
+          filename,
           error: errorMessage,
         });
 
         return {
-          operation: 'parse',
+          operation: 'generate',
           success: false,
-          result: '',
-          filename: resolvedFilename,
+          fileStorageId: '',
+          downloadUrl: '',
+          filename,
           char_count: 0,
           line_count: 0,
-          encoding: 'unknown',
-          chunked: false,
           error: errorMessage,
         };
       }
