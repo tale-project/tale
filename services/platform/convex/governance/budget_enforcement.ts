@@ -312,7 +312,7 @@ export function checkRuleAgainstUsage(
       period: rule.period,
       used: usage.costEstimate,
       limit: rule.maxCostCents,
-      reason: `Cost limit reached for this ${rule.period} period`,
+      reason: `Cost limit reached for this ${rule.period} period ($${(usage.costEstimate / 100).toFixed(2)} / $${(rule.maxCostCents / 100).toFixed(2)})`,
     };
   }
 
