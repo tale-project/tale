@@ -37,6 +37,7 @@ export const getByDocumentId = query({
       pageCount: v.optional(v.number()),
       scannedPagesDetected: v.optional(v.number()),
       visionRequired: v.optional(v.boolean()),
+      ocrApplied: v.optional(v.boolean()),
     }),
     v.null(),
   ),
@@ -58,6 +59,7 @@ export const getByDocumentId = query({
       pageCount: meta.pageCount,
       scannedPagesDetected: meta.scannedPagesDetected,
       visionRequired: meta.visionRequired,
+      ocrApplied: meta.ocrApplied,
     };
   },
 });

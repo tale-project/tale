@@ -429,8 +429,8 @@ async def _do_store(
             f"""
                 INSERT INTO {SCHEMA}.documents
                     (file_id, filename, content_hash, status, chunks_count,
-                     source_created_at, source_modified_at)
-                VALUES ($1, $2, $3, 'completed', $4, $5, $6)
+                     source_created_at, source_modified_at, ocr_applied)
+                VALUES ($1, $2, $3, 'completed', $4, $5, $6, $7)
                 RETURNING id
                 """,
             file_id,
@@ -439,6 +439,7 @@ async def _do_store(
             len(prepared.chunks),
             prepared.source_created_at,
             prepared.source_modified_at,
+            prepared.vision_used,
         )
         doc_uuid = doc_row["id"]
 

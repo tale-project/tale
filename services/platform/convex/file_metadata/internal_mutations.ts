@@ -107,6 +107,7 @@ export const updateFileRagStatus = internalMutation({
     ),
     ragError: v.optional(v.string()),
     ragProgress: v.optional(v.string()),
+    ocrApplied: v.optional(v.boolean()),
   },
   async handler(ctx, args) {
     const metadata = await ctx.db
@@ -122,6 +123,7 @@ export const updateFileRagStatus = internalMutation({
         args.ragStatus === 'completed' || args.ragStatus === 'failed'
           ? undefined
           : args.ragProgress,
+      ...(args.ocrApplied != null && { ocrApplied: args.ocrApplied }),
     });
   },
 });

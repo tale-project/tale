@@ -130,6 +130,13 @@ function DetailsSidebar({
         fileMeta.scannedPagesDetected > 0 && (
           <SidebarRow label={t('preview.sidebar.scannedPages')}>
             {`${fileMeta.scannedPagesDetected} / ${fileMeta.pageCount ?? '?'}`}
+            {doc.ragStatus === 'completed' && fileMeta.ocrApplied != null && (
+              <Text variant="label-sm" className="text-muted-foreground">
+                {fileMeta.ocrApplied
+                  ? t('ocr.processingWithOcr')
+                  : t('ocr.unavailable')}
+              </Text>
+            )}
           </SidebarRow>
         )}
 
