@@ -10,6 +10,7 @@ const modelDefinitionSchema = z.object({
   description: z.string().max(1000).optional(),
   tags: z.array(modelTagSchema).min(1),
   dimensions: z.number().int().positive().optional(),
+  maxOutputTokens: z.number().int().positive().optional(),
   fallbackModelId: z.string().min(1).max(200).optional(),
   cost: z
     .object({

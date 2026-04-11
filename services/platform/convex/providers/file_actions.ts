@@ -269,6 +269,7 @@ export const resolveModelData = internalAction({
     apiKey: v.string(),
     modelId: v.string(),
     dimensions: v.optional(v.number()),
+    maxOutputTokens: v.optional(v.number()),
     supportsStructuredOutputs: v.boolean(),
     inputCentsPerMillion: v.optional(v.number()),
     outputCentsPerMillion: v.optional(v.number()),
@@ -298,6 +299,7 @@ export const resolveModelData = internalAction({
           baseUrl: provider.config.baseUrl,
           apiKey: provider.secrets.apiKey,
           modelId: args.modelId,
+          maxOutputTokens: definition.maxOutputTokens,
           supportsStructuredOutputs:
             provider.config.supportsStructuredOutputs ?? false,
           inputCentsPerMillion: definition.cost?.inputCentsPerMillion,
@@ -330,6 +332,7 @@ export const resolveModelByTag = internalAction({
     apiKey: v.string(),
     modelId: v.string(),
     dimensions: v.optional(v.number()),
+    maxOutputTokens: v.optional(v.number()),
     supportsStructuredOutputs: v.boolean(),
     inputCentsPerMillion: v.optional(v.number()),
     outputCentsPerMillion: v.optional(v.number()),
@@ -366,6 +369,7 @@ export const resolveModelByTag = internalAction({
             apiKey: provider.secrets.apiKey,
             modelId: definition.id,
             dimensions: definition.dimensions,
+            maxOutputTokens: definition.maxOutputTokens,
             supportsStructuredOutputs:
               provider.config.supportsStructuredOutputs ?? false,
             inputCentsPerMillion: definition.cost?.inputCentsPerMillion,
@@ -387,6 +391,7 @@ export const resolveModelByTag = internalAction({
           apiKey: provider.secrets.apiKey,
           modelId: definition.id,
           dimensions: definition.dimensions,
+          maxOutputTokens: definition.maxOutputTokens,
           supportsStructuredOutputs:
             provider.config.supportsStructuredOutputs ?? false,
           inputCentsPerMillion: definition.cost?.inputCentsPerMillion,
