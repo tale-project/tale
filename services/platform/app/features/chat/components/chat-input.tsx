@@ -236,7 +236,20 @@ export function ChatInput({
                       const info = indexingStatuses?.get(attachment.fileId);
                       const ragStatus = info?.status;
                       if (ragStatus === 'queued' || ragStatus === 'running') {
-                        const progress = info?.progress;
+                        const raw = info?.progress;
+                        // Convert "extracting 42/108" → "39%"
+                        let progressLabel = tChat('indexing');
+                        if (raw) {
+                          const match = /(\d+)\/(\d+)/.exec(raw);
+                          if (match) {
+                            const pct = Math.round(
+                              (Number(match[1]) / Number(match[2])) * 100,
+                            );
+                            progressLabel = `${pct}%`;
+                          } else {
+                            progressLabel = raw;
+                          }
+                        }
                         return (
                           <HStack gap={1} align="center">
                             <Loader className="text-muted-foreground/50 size-3 animate-spin" />
@@ -245,7 +258,7 @@ export function ChatInput({
                               variant="caption"
                               className="text-muted-foreground/50"
                             >
-                              {progress || tChat('indexing')}
+                              {progressLabel}
                             </Text>
                           </HStack>
                         );

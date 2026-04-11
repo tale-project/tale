@@ -9,22 +9,24 @@ import { getRagConfig } from '../lib/helpers/rag_config';
 import { ragAction } from '../workflow_engine/action_defs/rag/rag_action';
 
 const INITIAL_POLLING_DELAY_MS = 5_000;
-const MAX_ATTEMPTS = 60;
+const MAX_ATTEMPTS = 120;
 
 /**
  * Polling interval for chat file RAG status checks.
  * Fast initial polling for quick feedback, then backs off for large files.
- * - Attempts 1-12:  every 5s  (~1 min)   — small files complete here
- * - Attempts 13-24: every 10s (~2 min)    — medium files
- * - Attempts 25-40: every 30s (~8 min)    — large PDFs with images
- * - Attempts 41-60: every 60s (~20 min)   — very large files
- * Total coverage: ~31 minutes
+ * - Attempts 1-12:   every 5s   (~1 min)    — small files complete here
+ * - Attempts 13-24:  every 10s  (~2 min)    — medium files
+ * - Attempts 25-40:  every 30s  (~8 min)    — large PDFs with images
+ * - Attempts 41-60:  every 60s  (~20 min)   — very large files
+ * - Attempts 61-120: every 120s (~2 hours)  — extremely large files (100MB+ PDFs)
+ * Total coverage: ~2.5 hours
  */
 function getFilePollingInterval(attempt: number): number {
   if (attempt <= 12) return 5_000;
   if (attempt <= 24) return 10_000;
   if (attempt <= 40) return 30_000;
-  return 60_000;
+  if (attempt <= 60) return 60_000;
+  return 120_000;
 }
 
 /**
