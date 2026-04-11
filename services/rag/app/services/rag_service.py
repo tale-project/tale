@@ -614,16 +614,18 @@ class RagService:
     ) -> dict[str, Any] | None:
         """Compare two documents using deterministic paragraph-level diffing.
 
-        Returns structured diff with change blocks, or None for individual
-        documents that are not found (caller should check which).
+        Fetches both documents in parallel. Returns structured diff with
+        change blocks, or an error dict when a document is not found.
         """
         from .diff_service import compute_diff
 
-        base = await self.get_document_content(base_file_id)
+        base, comp = await asyncio.gather(
+            self.get_document_content(base_file_id),
+            self.get_document_content(comparison_file_id),
+        )
+
         if base is None:
             return {"error": "not_found", "file_id": base_file_id, "role": "base"}
-
-        comp = await self.get_document_content(comparison_file_id)
         if comp is None:
             return {"error": "not_found", "file_id": comparison_file_id, "role": "comparison"}
 
@@ -658,6 +660,7 @@ class RagService:
         """Compare two uploaded files using deterministic paragraph-level diffing.
 
         Extracts text directly from file bytes — no database storage or embedding.
+        Text extraction runs in parallel for both files via asyncio.gather.
         """
         self._maybe_refresh_clients()
 
@@ -665,19 +668,19 @@ class RagService:
 
         from .diff_service import compute_diff
 
-        base_text, _ = await extract_text(
-            base_bytes,
-            base_filename,
-            vision_client=self._vision_client,
+        t0 = time.time()
+
+        (base_text, _), (comp_text, _) = await asyncio.gather(
+            extract_text(base_bytes, base_filename, vision_client=self._vision_client),
+            extract_text(comparison_bytes, comparison_filename, vision_client=self._vision_client),
         )
+
+        extraction_ms = (time.time() - t0) * 1000
+        logger.info("Parallel text extraction completed in {:.1f}ms", extraction_ms)
+
         if not base_text or not base_text.strip():
             raise ValueError(f"No text could be extracted from base file: {base_filename}")
 
-        comp_text, _ = await extract_text(
-            comparison_bytes,
-            comparison_filename,
-            vision_client=self._vision_client,
-        )
         if not comp_text or not comp_text.strip():
             raise ValueError(f"No text could be extracted from comparison file: {comparison_filename}")
 

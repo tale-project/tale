@@ -76,6 +76,11 @@ export function isImage(mimeType: string): boolean {
   return mimeType.startsWith('image/');
 }
 
+export function isTextFile(mimeType: string, fileName?: string): boolean {
+  if (!fileName) return mimeType.startsWith('text/plain');
+  return isTextBasedFile(fileName, mimeType);
+}
+
 export function isSpreadsheet(fileName: string): boolean {
   const lower = fileName.toLowerCase();
   return (

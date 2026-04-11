@@ -133,18 +133,13 @@ export async function buildStructuredContext(
     parentThreadId,
   } = params;
 
-  // 1. Load prioritized message history (conversational first, then tool messages)
-  const { messages, toolMessageAges } = await loadPrioritizedMessages(
-    ctx,
-    threadId,
-    maxHistoryTokens,
-  );
-
-  // 2. Query related approvals for this thread
-  const approvals = await ctx.runQuery(
-    internal.approvals.internal_queries.getApprovalsForThread,
-    { threadId },
-  );
+  // 1. Load message history and approvals in parallel (independent queries)
+  const [{ messages, toolMessageAges }, approvals] = await Promise.all([
+    loadPrioritizedMessages(ctx, threadId, maxHistoryTokens),
+    ctx.runQuery(internal.approvals.internal_queries.getApprovalsForThread, {
+      threadId,
+    }),
+  ]);
 
   // 3. Build structured context parts
   const contextParts: string[] = [];
