@@ -53,6 +53,68 @@ function createParams(
   };
 }
 
+describe('useSendMessage — thread creation optimization', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockCreateThread.mockResolvedValue('new_thread_id');
+    mockChatWithAgent.mockResolvedValue({
+      messageAlreadyExists: false,
+      streamId: 'stream_1',
+    });
+  });
+
+  it('does not call updateThread for new conversations (title passed to createThread)', async () => {
+    const params = createParams({ threadId: undefined, messages: [] });
+    const { result } = renderHook(() => useSendMessage(params));
+
+    await act(async () => {
+      await result.current.sendMessage('Hello world');
+    });
+
+    // createThread should be called with the title
+    expect(mockCreateThread).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Hello world' }),
+    );
+    // updateThread should NOT be called — title was already set in createThread
+    expect(mockUpdateThread).not.toHaveBeenCalled();
+  });
+
+  it('does not call updateThread for first message on existing thread', async () => {
+    const params = createParams({ threadId: 'existing_thread', messages: [] });
+    const { result } = renderHook(() => useSendMessage(params));
+
+    await act(async () => {
+      await result.current.sendMessage('Hello world');
+    });
+
+    // No thread creation needed
+    expect(mockCreateThread).not.toHaveBeenCalled();
+    // Title update is skipped — title was already set when thread was created
+    expect(mockUpdateThread).not.toHaveBeenCalled();
+  });
+
+  it('does not call updateThread for subsequent messages', async () => {
+    const existingMessages = [
+      { key: 'msg_1', role: 'user', content: 'First message' },
+    ];
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test mock
+    const params = createParams({
+      threadId: 'existing_thread',
+      messages: existingMessages as unknown as Parameters<
+        typeof useSendMessage
+      >[0]['messages'],
+    });
+    const { result } = renderHook(() => useSendMessage(params));
+
+    await act(async () => {
+      await result.current.sendMessage('Second message');
+    });
+
+    expect(mockCreateThread).not.toHaveBeenCalled();
+    expect(mockUpdateThread).not.toHaveBeenCalled();
+  });
+});
+
 describe('useSendMessage — error handling', () => {
   beforeEach(() => {
     vi.clearAllMocks();

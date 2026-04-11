@@ -799,7 +799,7 @@ export async function generateAgentResponse(
               excludeToolMessages: true,
               searchOtherThreads: false,
             },
-            saveStreamDeltas: { chunking: 'line', throttleMs: 200 },
+            saveStreamDeltas: { chunking: 'line', throttleMs: 100 },
           },
         );
 

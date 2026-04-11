@@ -82,6 +82,7 @@ export const chatWithAgent = action({
       },
     );
 
+    // PII scrubbing: apply if enabled
     let message = args.message;
     if (piiPolicy?.enabled && piiPolicy.config) {
       const piiConfig: PiiConfig = {

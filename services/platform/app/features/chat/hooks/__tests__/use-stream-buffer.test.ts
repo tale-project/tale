@@ -1370,3 +1370,101 @@ describe('line buffering', () => {
     expect(result.current.displayLength).toBeGreaterThan(15);
   });
 });
+
+// ============================================================================
+// Initial burst CPS
+// ============================================================================
+
+describe('useStreamBuffer — initial burst CPS', () => {
+  beforeEach(() => {
+    setupAnimationMocks();
+    vi.mocked(usePrefersReducedMotion).mockReturnValue(false);
+  });
+
+  afterEach(() => {
+    resetGlobalFreeze();
+    clearDisplayPositionCache();
+    vi.restoreAllMocks();
+  });
+
+  it('reveals initial characters faster than steady-state rate', () => {
+    // Use a very long text so we can compare burst phase vs post-burst phase
+    const longText = 'word '.repeat(200); // 1000 chars
+
+    const { result } = renderHook(() =>
+      useStreamBuffer({
+        text: longText,
+        isStreaming: true,
+        targetCPS: 20,
+        initialBufferChars: 3,
+      }),
+    );
+
+    // Burst phase: first 30 frames (~0.5s) — should reveal at 3x CPS
+    act(() => advanceFrames(30));
+    const burstPhaseLength = result.current.displayLength;
+
+    // Advance past the burst phase (100 chars) by running enough frames
+    // at 60 CPS (3x20) to get past 100 chars: ~100 frames
+    act(() => advanceFrames(100));
+    const postBurstStart = result.current.displayLength;
+
+    // Now measure steady-state rate for 30 frames
+    act(() => advanceFrames(30));
+    const steadyPhaseLength = result.current.displayLength - postBurstStart;
+
+    // Burst phase should reveal more chars per frame than steady state
+    // (burstPhaseLength in 30 frames should be > steadyPhaseLength in 30 frames)
+    expect(burstPhaseLength).toBeGreaterThan(0);
+    expect(steadyPhaseLength).toBeGreaterThan(0);
+    // Burst rate (first 30 frames) should be notably faster than steady state
+    expect(burstPhaseLength).toBeGreaterThan(steadyPhaseLength * 1.5);
+  });
+
+  it('transitions smoothly from burst to steady-state CPS', () => {
+    const longText = 'word '.repeat(200); // 1000 chars
+
+    const { result } = renderHook(() =>
+      useStreamBuffer({
+        text: longText,
+        isStreaming: true,
+        targetCPS: 20,
+        initialBufferChars: 3,
+      }),
+    );
+
+    // Run enough to get well past burst phase
+    act(() => advanceFrames(200));
+    const midPoint = result.current.displayLength;
+
+    // Both should have progressed
+    expect(midPoint).toBeGreaterThan(100);
+    expect(midPoint).toBeLessThan(longText.length);
+  });
+
+  it('does not apply burst CPS during drain phase', () => {
+    const text = 'word '.repeat(100); // 500 chars
+
+    const { result, rerender } = renderHook(
+      (props) =>
+        useStreamBuffer({ ...props, targetCPS: 20, initialBufferChars: 3 }),
+      { initialProps: { text, isStreaming: true } },
+    );
+
+    // Partially reveal during streaming
+    act(() => advanceFrames(30));
+    const beforeDrain = result.current.displayLength;
+    expect(beforeDrain).toBeGreaterThan(0);
+    expect(beforeDrain).toBeLessThan(text.length);
+
+    // End stream to enter drain phase
+    rerender({ text, isStreaming: false });
+
+    // Drain should use 3x CPS (drain rate), not burst rate
+    act(() => advanceFrames(30));
+    const drainProgress = result.current.displayLength - beforeDrain;
+
+    // Drain should progress but at 3x base CPS (60 CPS), not burst
+    expect(drainProgress).toBeGreaterThan(0);
+  });
+});

@@ -52,7 +52,11 @@ const DEFAULT_CONFIG = {
   /** Characters per second for reveal animation */
   targetCPS: 20,
   /** Characters to buffer before starting reveal */
-  initialBufferChars: 30,
+  initialBufferChars: 15,
+  /** CPS multiplier for the first N characters to clear initial buffer faster */
+  initialBurstMultiplier: 3,
+  /** Number of characters over which the initial burst applies */
+  initialBurstChars: 100,
   /** Interval between React state updates (ms) */
   stateUpdateInterval: 30,
   /** Maximum delta time (ms) to prevent jumps after tab switching */
@@ -349,8 +353,15 @@ export function useStreamBuffer({
       const frameRatio = normalizedDelta / 16.67;
 
       const safeCPS = Math.max(1, targetCPS);
+      // Initial burst: use higher CPS for the first N characters to clear
+      // the initial buffer faster and reduce perceived TTFT
+      const inBurstPhase =
+        streaming && currentDisplayed < DEFAULT_CONFIG.initialBurstChars;
+      const burstCPS = inBurstPhase
+        ? safeCPS * DEFAULT_CONFIG.initialBurstMultiplier
+        : safeCPS;
       const effectiveCPS =
-        drainCPSRef.current > 0 && !streaming ? drainCPSRef.current : safeCPS;
+        drainCPSRef.current > 0 && !streaming ? drainCPSRef.current : burstCPS;
       const charsPerFrame = effectiveCPS / 60;
 
       accumulatedCharsRef.current += charsPerFrame * frameRatio;

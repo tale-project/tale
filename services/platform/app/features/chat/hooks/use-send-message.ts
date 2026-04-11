@@ -17,7 +17,6 @@ import {
   useUnifiedChatWithAgent,
   useArenaChat,
   useCreateThread,
-  useUpdateThread,
 } from './mutations';
 import type { ChatMessage } from './use-message-processing';
 import { resetGlobalFreeze } from './use-stream-buffer';
@@ -73,7 +72,6 @@ export function useSendMessage({
   const navigate = useNavigate();
 
   const { mutateAsync: createThread } = useCreateThread();
-  const { mutateAsync: updateThread } = useUpdateThread();
   const { mutateAsync: chatWithAgent } = useUnifiedChatWithAgent();
   const { mutateAsync: arenaChatAction } = useArenaChat();
   const convexClient = useConvexClient();
@@ -237,7 +235,6 @@ export function useSendMessage({
         } else {
           // --- Standard mode: send to one model ---
           let currentThreadId = threadId;
-          let isFirstMessage = false;
 
           const lastMessageKey = messages[messages.length - 1]?.key;
 
@@ -260,7 +257,6 @@ export function useSendMessage({
               teamId,
             });
             currentThreadId = newThreadId;
-            isFirstMessage = true;
 
             // Update pending state synchronously (high priority) so that
             // ThreadGate sees pendingThreadId immediately and skips the
@@ -289,14 +285,11 @@ export function useSendMessage({
               timestamp: new Date(),
               lastMessageKey,
             });
-            isFirstMessage = messages?.length === 0;
           }
 
-          if (isFirstMessage && currentThreadId) {
-            const title =
-              message.length > 50 ? message.slice(0, 50) + '...' : message;
-            await updateThread({ threadId: currentThreadId, title });
-          }
+          // Title is already set during createThread (new conversations) or
+          // on the original thread creation (existing threads). No separate
+          // updateThread round-trip needed for the first message.
 
           await chatWithAgent({
             agentSlug: selectedAgent.name,
@@ -340,7 +333,6 @@ export function useSendMessage({
       clearChatState,
       onBeforeSend,
       createThread,
-      updateThread,
       chatWithAgent,
       selectedAgent,
       modelId,
