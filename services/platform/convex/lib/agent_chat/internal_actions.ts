@@ -32,7 +32,10 @@ import {
 } from '../../agent_tools/workflows/create_bound_workflow_tool';
 import { extractInputSchema } from '../../agent_tools/workflows/helpers/extract_input_schema';
 import { recordFailure } from '../../providers/circuit_breaker';
-import { isTransientProviderError } from '../../providers/errors';
+import {
+  isTransientProviderError,
+  shouldFailoverToNextModel,
+} from '../../providers/errors';
 import { resolveLanguageModelWithFallback } from '../../providers/failover';
 import { resolveLanguageModelById } from '../../providers/resolve_model';
 import { generateAgentResponse } from '../agent_response';
@@ -401,6 +404,10 @@ export const runAgentGeneration = internalAction({
               maxSteps,
               deadlineMs,
               generationParams,
+              // Suppress error cleanup (stream error, generation status clear,
+              // failed message) when there are more fallback models to try.
+              // The fallback loop handles cleanup itself.
+              suppressErrorCleanup: attempt < modelsToTry.length - 1,
             },
           );
 
@@ -443,13 +450,22 @@ export const runAgentGeneration = internalAction({
           lastFallbackError = fallbackError;
           const hasMoreFallbacks = attempt < modelsToTry.length - 1;
 
-          // Only retry on transient provider errors with remaining fallbacks
-          if (hasMoreFallbacks && isTransientProviderError(fallbackError)) {
+          // Retry on any provider-specific error with remaining fallbacks.
+          // This includes transient errors (429, 5xx) AND non-transient
+          // provider errors (401 auth, 404 model-not-found) because a
+          // different fallback model may use a different provider.
+          if (hasMoreFallbacks && shouldFailoverToNextModel(fallbackError)) {
             const failedModelLabel = currentModelId ?? model;
             const nextModel = modelsToTry[attempt + 1] ?? 'default';
 
-            // Record circuit breaker failure for the failed model
-            if (currentModelId && agentConfig.provider) {
+            // Record circuit breaker failure only for transient errors
+            // (429, 5xx, timeouts). Non-transient errors like 401/404 are
+            // config issues, not provider flakiness.
+            if (
+              currentModelId &&
+              agentConfig.provider &&
+              isTransientProviderError(fallbackError)
+            ) {
               recordFailure(agentConfig.provider, currentModelId);
             }
 
@@ -462,10 +478,19 @@ export const runAgentGeneration = internalAction({
               throw fallbackError;
             }
 
+            const errStatus = isRecord(fallbackError)
+              ? (fallbackError['status'] ?? fallbackError['statusCode'])
+              : undefined;
+            const errMessage = isRecord(fallbackError)
+              ? getString(fallbackError, 'message')
+              : undefined;
             debugLog('MODEL_FALLBACK', {
               attempt: attempt + 1,
               failedModel: failedModelLabel,
               nextModel,
+              errorStatus:
+                typeof errStatus === 'number' ? errStatus : undefined,
+              errorMessage: errMessage?.slice(0, 200),
             });
 
             // Save system message so the user sees the fallback in chat
@@ -484,22 +509,25 @@ export const runAgentGeneration = internalAction({
               );
             }
 
-            // Clean up all failed assistant messages from this attempt so
-            // the next attempt starts cleanly. We overwrite them to system
-            // role so the UI does not show stale error bubbles.
+            // Clean up stale assistant messages from this attempt.
+            // With suppressErrorCleanup, generateAgentResponse skips saving
+            // failed messages, but the Agent SDK may have created a pending
+            // message before the error. Convert any failed/pending assistant
+            // messages to a system fallback note.
             try {
               const msgs = await listMessages(ctx, components.agent, {
                 threadId,
                 paginationOpts: { cursor: null, numItems: 5 },
                 excludeToolMessages: true,
               });
-              const failedAssistants = msgs.page.filter(
+              const staleAssistants = msgs.page.filter(
                 (m: MessageDoc) =>
-                  m.message?.role === 'assistant' && m.status === 'failed',
+                  m.message?.role === 'assistant' &&
+                  (m.status === 'failed' || m.status === 'pending'),
               );
-              for (const failed of failedAssistants) {
+              for (const stale of staleAssistants) {
                 await ctx.runMutation(components.agent.messages.updateMessage, {
-                  messageId: failed._id,
+                  messageId: stale._id,
                   patch: {
                     status: 'success',
                     message: {
@@ -511,18 +539,6 @@ export const runAgentGeneration = internalAction({
               }
             } catch (cleanupError) {
               debugLog('FALLBACK_CLEANUP_ERROR', { error: cleanupError });
-            }
-
-            // Reset stream state to 'streaming' for the next attempt
-            if (streamId) {
-              try {
-                await ctx.runMutation(
-                  internal.streaming.internal_mutations.startStream,
-                  { streamId },
-                );
-              } catch {
-                // Stream reset is best-effort; next attempt creates its own state
-              }
             }
 
             continue;

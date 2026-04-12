@@ -92,6 +92,7 @@ export function ChatInterface({
     pendingMessage,
     setPendingMessage,
     selectedModelOverrides,
+    setSelectedModelOverride,
   } = useChatLayout();
 
   const arenaContext = useArenaModeOptional();
@@ -280,6 +281,56 @@ export function ChatInterface({
       resetCancelled();
     }
   }, [isLoading, resetCancelled]);
+
+  // Auto-switch model selector after a successful fallback.
+  // Watches messages reactively: when a [MODEL_FALLBACK] "retrying with X"
+  // message is followed by a successful assistant response, update the
+  // selector so future messages use the working model.
+  const lastProcessedFallbackRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!effectiveAgent?.name || !messages.length) return;
+
+    // Find the latest MODEL_FALLBACK "retrying with" message
+    const fallbackMsg = messages
+      .toReversed()
+      .find(
+        (msg) =>
+          msg.role === 'system' &&
+          msg.content?.includes('[MODEL_FALLBACK]') &&
+          msg.content?.includes('retrying with'),
+      );
+    if (
+      !fallbackMsg?.content ||
+      fallbackMsg.id === lastProcessedFallbackRef.current
+    )
+      return;
+
+    // Only switch after a successful assistant message appears after the fallback
+    const fallbackIdx = messages.findIndex((msg) => msg.id === fallbackMsg.id);
+    const hasSuccessAfter = messages
+      .slice(fallbackIdx + 1)
+      .some((msg) => msg.role === 'assistant');
+    if (!hasSuccessAfter) return;
+
+    lastProcessedFallbackRef.current = fallbackMsg.id;
+
+    // Extract target model: "X failed — retrying with <model>."
+    // Greedy match up to the trailing period to handle dots in model
+    // names (e.g. "moonshotai/kimi-k2.5").
+    const match = fallbackMsg.content.match(/retrying with (.+)\./);
+    if (!match) return;
+
+    const successfulModel = match[1];
+    const currentSelected = selectedModelOverrides[effectiveAgent.name];
+    if (successfulModel && successfulModel !== currentSelected) {
+      setSelectedModelOverride(effectiveAgent.name, successfulModel);
+    }
+  }, [
+    messages,
+    effectiveAgent?.name,
+    selectedModelOverrides,
+    setSelectedModelOverride,
+  ]);
 
   // Scroll utility (no auto-follow — ChatGPT-style)
   const { containerRef, contentRef, scrollToBottom, isAtBottom } =
