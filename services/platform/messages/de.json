@@ -2787,7 +2787,9 @@
     },
     "aria": {
       "messageHistory": "Nachrichtenverlauf",
-      "scrollToBottom": "Nach unten scrollen"
+      "scrollToBottom": "Nach unten scrollen",
+      "chatRegion": "Chat",
+      "chatInput": "Nachrichteneingabe"
     },
     "structured": {
       "nextSteps": "Vorgeschlagene Folgefragen"

@@ -12,6 +12,7 @@ import {
 import {
   ComponentPropsWithoutRef,
   useCallback,
+  useId,
   useRef,
   useMemo,
   useState,
@@ -130,6 +131,8 @@ export function ChatInput({
     return policyLimits.allowedExtensions.map((ext) => `.${ext}`).join(',');
   }, [policyLimits]);
 
+  const textareaId = useId();
+  const textareaLabelId = `${textareaId}-label`;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [previewImage, setPreviewImage] = useState<{
@@ -376,7 +379,15 @@ export function ChatInput({
           )}
 
           <div className="relative">
+            <label
+              id={textareaLabelId}
+              htmlFor={textareaId}
+              className="sr-only"
+            >
+              {tChat('aria.chatInput')}
+            </label>
             <Textarea
+              id={textareaId}
               ref={textareaRef}
               value={value}
               onChange={(e) => handleInputChange(e.target.value)}
@@ -385,7 +396,7 @@ export function ChatInput({
               className="text-foreground placeholder:text-muted-foreground relative min-h-[100px] resize-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
               disabled={inputDisabled}
               placeholder=""
-              aria-label={defaultPlaceholder}
+              aria-labelledby={textareaLabelId}
             />
             {value.length === 0 && !inputDisabled && (
               <Text

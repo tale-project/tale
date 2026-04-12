@@ -3,7 +3,7 @@
 import { useNavigate } from '@tanstack/react-router';
 import { m, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, Archive, ArrowDown, Share, X } from 'lucide-react';
-import { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useId, useState, useCallback } from 'react';
 
 import { PanelFooter } from '@/app/components/layout/panel-footer';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
@@ -79,6 +79,7 @@ export function ChatInterface({
   readOnly = false,
 }: ChatInterfaceProps) {
   const { t } = useT('chat');
+  const chatRegionLabelId = useId();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -607,11 +608,16 @@ export function ChatInterface({
   return (
     <div
       ref={containerRef}
+      role="region"
+      aria-labelledby={chatRegionLabelId}
       className={cn(
         'flex h-full min-h-0 flex-1 flex-col',
         !showArena && 'overflow-y-auto scroll-smooth will-change-transform',
       )}
     >
+      <h2 id={chatRegionLabelId} className="sr-only">
+        {t('aria.chatRegion')}
+      </h2>
       {budgetStatus && !budgetWarningDismissed && !threadId && (
         <div
           className={cn(
