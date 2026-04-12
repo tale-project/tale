@@ -133,7 +133,9 @@ async def _insert_processing_row(
             INSERT INTO {SCHEMA}.documents (file_id, filename, status)
             VALUES ($1, $2, 'processing')
             ON CONFLICT (file_id, COALESCE(team_id, ''))
-            DO UPDATE SET status = 'processing', error = NULL, chunks_count = 0, updated_at = NOW()
+            DO UPDATE SET status = 'processing', error = NULL, chunks_count = 0,
+                         progress_phase = NULL, progress_detail = NULL,
+                         updated_at = NOW()
             """,
             file_id,
             filename,
@@ -153,7 +155,9 @@ async def _record_failure(
             INSERT INTO {SCHEMA}.documents (file_id, filename, status, error)
             VALUES ($1, $2, 'failed', $3)
             ON CONFLICT (file_id, COALESCE(team_id, ''))
-            DO UPDATE SET status = 'failed', error = EXCLUDED.error, chunks_count = 0, updated_at = NOW()
+            DO UPDATE SET status = 'failed', error = EXCLUDED.error, chunks_count = 0,
+                         progress_phase = NULL, progress_detail = NULL,
+                         updated_at = NOW()
             """,
             file_id,
             filename,

@@ -53,8 +53,7 @@ def _mock_pool(
     mock_conn.fetchrow = AsyncMock(
         side_effect=[
             None,  # early-dedup check (no existing row with same content)
-            existing_row,
-            {"id": inserted_doc_id},
+            {"id": inserted_doc_id, "is_insert": existing_row is None},
         ]
     )
     mock_conn.execute = AsyncMock()
@@ -283,13 +282,11 @@ class TestContentHashDedup:
 
         # The connection is used multiple times:
         # 1. fetchrow for early-dedup check -> returns row with different hash
-        # 2. fetchrow for cross-scope dedup -> returns existing row
-        # 3. fetchrow for INSERT new doc RETURNING id
+        # 2. fetchrow for UPSERT RETURNING id, is_insert
         mock_conn.fetchrow = AsyncMock(
             side_effect=[
                 {"content_hash": DIFFERENT_HASH, "chunk_count": 3},
-                existing,
-                {"id": "new-uuid"},
+                {"id": "new-uuid", "is_insert": False},
             ]
         )
 
@@ -322,7 +319,7 @@ class TestContentHashDedup:
 class TestExplicitChunkDeletion:
     """Chunks must be deleted explicitly before documents to prevent BM25 index corruption."""
 
-    async def test_replacement_deletes_chunks_before_document(self):
+    async def test_replacement_deletes_chunks_before_inserting_new(self):
         from app.services.indexing_service import index_document
 
         existing = {"id": "existing-uuid", "content_hash": DIFFERENT_HASH}
@@ -333,8 +330,7 @@ class TestExplicitChunkDeletion:
         mock_conn.fetchrow = AsyncMock(
             side_effect=[
                 {"content_hash": DIFFERENT_HASH, "chunk_count": 3},
-                existing,
-                {"id": "new-uuid"},
+                {"id": "new-uuid", "is_insert": False},
             ]
         )
 
@@ -344,8 +340,6 @@ class TestExplicitChunkDeletion:
         async def track_execute(sql, *args, **kwargs):
             if "DELETE" in sql and "chunks" in sql:
                 call_order.append("delete_chunks")
-            elif "DELETE" in sql and "documents" in sql:
-                call_order.append("delete_documents")
             return await original_execute(sql, *args, **kwargs)
 
         mock_conn.execute = AsyncMock(side_effect=track_execute)
@@ -368,7 +362,8 @@ class TestExplicitChunkDeletion:
                 embedding_service=mock_embed,
             )
 
-        assert call_order == ["delete_chunks", "delete_documents"]
+        # UPSERT updates document in place; only chunks are deleted before re-insertion
+        assert call_order == ["delete_chunks"]
 
     async def test_replacement_uses_transaction(self):
         from app.services.indexing_service import index_document
@@ -381,8 +376,7 @@ class TestExplicitChunkDeletion:
         mock_conn.fetchrow = AsyncMock(
             side_effect=[
                 {"content_hash": DIFFERENT_HASH, "chunk_count": 3},
-                existing,
-                {"id": "new-uuid"},
+                {"id": "new-uuid", "is_insert": False},
             ]
         )
 
@@ -565,8 +559,13 @@ class TestHnswIndexSelfHealing:
         from app.services.indexing_service import store_prepared_document, PreparedDocument
 
         pool, mock_conn = _mock_pool(existing_row=None)
-        # fetchrow: SELECT (dedup) → None, INSERT (attempt 1) → id, INSERT (attempt 2) → id
-        mock_conn.fetchrow = AsyncMock(side_effect=[None, {"id": "uuid-1"}, {"id": "uuid-2"}])
+        # fetchrow: UPSERT (attempt 1) → id, UPSERT (attempt 2) → id
+        mock_conn.fetchrow = AsyncMock(
+            side_effect=[
+                {"id": "uuid-1", "is_insert": True},
+                {"id": "uuid-2", "is_insert": True},
+            ]
+        )
 
         prepared = PreparedDocument(
             content_hash=SAMPLE_HASH,
@@ -612,8 +611,13 @@ class TestHnswIndexSelfHealing:
         from app.services.indexing_service import store_prepared_document, PreparedDocument
 
         pool, mock_conn = _mock_pool(existing_row=None)
-        # fetchrow: SELECT (dedup) → None, INSERT (attempt 1) → id, INSERT (attempt 2) → id
-        mock_conn.fetchrow = AsyncMock(side_effect=[None, {"id": "uuid-1"}, {"id": "uuid-2"}])
+        # fetchrow: UPSERT (attempt 1) → id, UPSERT (attempt 2) → id
+        mock_conn.fetchrow = AsyncMock(
+            side_effect=[
+                {"id": "uuid-1", "is_insert": True},
+                {"id": "uuid-2", "is_insert": True},
+            ]
+        )
 
         prepared = PreparedDocument(
             content_hash=SAMPLE_HASH,
@@ -643,8 +647,8 @@ class TestHnswIndexSelfHealing:
         from app.services.indexing_service import store_prepared_document, PreparedDocument
 
         pool, mock_conn = _mock_pool(existing_row=None)
-        # store_prepared_document calls _do_store directly (no early-dedup)
-        mock_conn.fetchrow = AsyncMock(side_effect=[None, {"id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"}])
+        # store_prepared_document calls _do_store directly (UPSERT)
+        mock_conn.fetchrow = AsyncMock(return_value={"id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", "is_insert": True})
 
         prepared = PreparedDocument(
             content_hash=SAMPLE_HASH,
@@ -724,12 +728,12 @@ class TestCrossHashClone:
         from app.services.indexing_service import clone_from_existing
 
         pool, mock_conn = _mock_pool()
-        # fetchrow calls: 1) dedup check → None, 2) source check → exists, 3) INSERT doc → id
+        # fetchrow calls: 1) dedup check → None, 2) source check → exists, 3) UPSERT doc → id
         mock_conn.fetchrow = AsyncMock(
             side_effect=[
                 None,
                 {"chunks_count": 5, "source_created_at": None, "source_modified_at": None},
-                {"id": "new-uuid"},
+                {"id": "new-uuid", "is_insert": True},
             ]
         )
         mock_conn.fetchval = AsyncMock(return_value=5)

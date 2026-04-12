@@ -304,8 +304,6 @@ async def clone_from_existing(
             "skip_reason": "content_unchanged",
         }
 
-    existing_id = existing["id"] if existing else None
-
     for attempt in range(2):
         try:
             result = await _do_clone(
@@ -314,7 +312,6 @@ async def clone_from_existing(
                 file_id,
                 filename,
                 content_hash,
-                existing_id,
                 source_created_at=source_created_at,
                 source_modified_at=source_modified_at,
             )
@@ -340,14 +337,15 @@ async def _do_clone(
     file_id: str,
     filename: str,
     content_hash: str,
-    existing_id: uuid.UUID | None,
     *,
     source_created_at: dt.datetime | None = None,
     source_modified_at: dt.datetime | None = None,
 ) -> dict[str, Any] | None:
     """Clone chunks from source document in a single transaction.
 
-    Returns None if the source document has no chunks (e.g. deleted concurrently).
+    Uses ON CONFLICT to atomically handle concurrent writes for the same
+    file_id.  Returns None if the source document has no chunks (e.g.
+    deleted concurrently).
     """
     async with acquire_with_retry(pool) as conn, conn.transaction():
         source = await conn.fetchrow(
@@ -358,17 +356,25 @@ async def _do_clone(
         if not source:
             return None
 
-        if existing_id is not None:
-            await conn.execute(f"DELETE FROM {SCHEMA}.chunks WHERE document_id = $1", existing_id)
-            await conn.execute(f"DELETE FROM {SCHEMA}.documents WHERE id = $1", existing_id)
-
         doc_row = await conn.fetchrow(
             f"""
             INSERT INTO {SCHEMA}.documents
                 (file_id, filename, content_hash, status, chunks_count,
                  source_created_at, source_modified_at)
             VALUES ($1, $2, $3, 'completed', $4, $5, $6)
-            RETURNING id
+            ON CONFLICT (file_id, COALESCE(team_id, ''))
+            DO UPDATE SET
+                filename = EXCLUDED.filename,
+                content_hash = EXCLUDED.content_hash,
+                status = 'completed',
+                chunks_count = EXCLUDED.chunks_count,
+                source_created_at = EXCLUDED.source_created_at,
+                source_modified_at = EXCLUDED.source_modified_at,
+                error = NULL,
+                progress_phase = NULL,
+                progress_detail = NULL,
+                updated_at = NOW()
+            RETURNING id, (xmax = 0) AS is_insert
             """,
             file_id,
             filename,
@@ -377,7 +383,14 @@ async def _do_clone(
             source_created_at or source["source_created_at"],
             source_modified_at or source["source_modified_at"],
         )
-        new_doc_uuid = doc_row["id"]
+        doc_uuid = doc_row["id"]
+
+        # On UPDATE (not a fresh insert), remove old chunks first
+        if not doc_row["is_insert"]:
+            await conn.execute(
+                f"DELETE FROM {SCHEMA}.chunks WHERE document_id = $1",
+                doc_uuid,
+            )
 
         chunks_created = await conn.fetchval(
             f"""
@@ -391,7 +404,7 @@ async def _do_clone(
             )
             SELECT count(*) FROM inserted
             """,
-            new_doc_uuid,
+            doc_uuid,
             source_doc_id,
         )
 
@@ -417,21 +430,39 @@ async def _do_store(
     file_id: str,
     filename: str,
     prepared: PreparedDocument,
-    existing_id: uuid.UUID | None,
 ) -> dict[str, Any]:
-    """Execute the delete-old + insert-new DB operations in a single transaction."""
-    async with acquire_with_retry(pool) as conn, conn.transaction():
-        if existing_id is not None:
-            await conn.execute(f"DELETE FROM {SCHEMA}.chunks WHERE document_id = $1", existing_id)
-            await conn.execute(f"DELETE FROM {SCHEMA}.documents WHERE id = $1", existing_id)
+    """Upsert document and replace chunks in a single transaction.
 
+    Uses ON CONFLICT to atomically handle concurrent writes for the same
+    file_id.  A WHERE clause on content_hash skips the update (and chunk
+    replacement) when the content hasn't changed — this is the atomic
+    equivalent of the old pre-transaction dedup SELECT.
+
+    When the WHERE filters out the update, RETURNING yields no rows —
+    we treat that as "content unchanged, skip".
+    """
+    async with acquire_with_retry(pool) as conn, conn.transaction():
         doc_row = await conn.fetchrow(
             f"""
                 INSERT INTO {SCHEMA}.documents
                     (file_id, filename, content_hash, status, chunks_count,
                      source_created_at, source_modified_at, ocr_applied)
                 VALUES ($1, $2, $3, 'completed', $4, $5, $6, $7)
-                RETURNING id
+                ON CONFLICT (file_id, COALESCE(team_id, ''))
+                DO UPDATE SET
+                    filename = EXCLUDED.filename,
+                    content_hash = EXCLUDED.content_hash,
+                    status = 'completed',
+                    chunks_count = EXCLUDED.chunks_count,
+                    source_created_at = EXCLUDED.source_created_at,
+                    source_modified_at = EXCLUDED.source_modified_at,
+                    ocr_applied = EXCLUDED.ocr_applied,
+                    error = NULL,
+                    progress_phase = NULL,
+                    progress_detail = NULL,
+                    updated_at = NOW()
+                WHERE {SCHEMA}.documents.content_hash IS DISTINCT FROM EXCLUDED.content_hash
+                RETURNING id, (xmax = 0) AS is_insert
                 """,
             file_id,
             filename,
@@ -441,7 +472,25 @@ async def _do_store(
             prepared.source_modified_at,
             prepared.vision_used,
         )
+
+        # No row returned → content_hash matched, nothing to do
+        if doc_row is None:
+            return {
+                "success": True,
+                "file_id": file_id,
+                "chunks_created": 0,
+                "skipped": True,
+                "skip_reason": "content_unchanged",
+            }
+
         doc_uuid = doc_row["id"]
+
+        # On UPDATE (not a fresh insert), remove old chunks first
+        if not doc_row["is_insert"]:
+            await conn.execute(
+                f"DELETE FROM {SCHEMA}.chunks WHERE document_id = $1",
+                doc_uuid,
+            )
 
         chunk_rows = [
             (
@@ -480,43 +529,21 @@ async def store_prepared_document(
 ) -> dict[str, Any]:
     """Store a pre-processed document.
 
-    Handles dedup check, old-version replacement, and HNSW index self-healing.
+    Content-hash dedup is handled atomically inside _do_store's UPSERT
+    (WHERE content_hash IS DISTINCT FROM).  HNSW index self-healing is
+    retained via the retry loop.
     """
-    async with acquire_with_retry(pool) as conn:
-        existing = await conn.fetchrow(
-            f"SELECT id, content_hash FROM {SCHEMA}.documents WHERE file_id = $1",
-            file_id,
-        )
-
-    if existing and existing["content_hash"] == prepared.content_hash:
-        logger.info("Document {} content unchanged, skipping", file_id)
-        return {
-            "success": True,
-            "file_id": file_id,
-            "chunks_created": 0,
-            "skipped": True,
-            "skip_reason": "content_unchanged",
-        }
-
-    if existing:
-        logger.info("Document {} content changed, replacing", file_id)
-
-    existing_id = existing["id"] if existing else None
-
     for attempt in range(2):
         try:
-            result = await _do_store(
-                pool,
-                file_id,
-                filename,
-                prepared,
-                existing_id,
-            )
-            logger.info(
-                "Indexed document {}: {} chunks",
-                file_id,
-                result["chunks_created"],
-            )
+            result = await _do_store(pool, file_id, filename, prepared)
+            if result["skipped"]:
+                logger.info("Document {} content unchanged, skipping", file_id)
+            else:
+                logger.info(
+                    "Indexed document {}: {} chunks",
+                    file_id,
+                    result["chunks_created"],
+                )
             return result
         except asyncpg.exceptions.InternalServerError as exc:
             if _HNSW_CORRUPTION_MARKER in str(exc) and attempt == 0:

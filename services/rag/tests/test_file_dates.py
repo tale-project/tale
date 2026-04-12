@@ -276,7 +276,8 @@ class TestIndexDocumentDatesThreaded:
         caller_created = dt.datetime(2022, 6, 1, tzinfo=dt.UTC)
 
         mock_conn = AsyncMock()
-        mock_conn.fetchrow = AsyncMock(side_effect=[None, None, {"id": "uuid-1"}])
+        # fetchrow calls: 1) early-dedup check → None, 2) UPSERT → id
+        mock_conn.fetchrow = AsyncMock(side_effect=[None, {"id": "uuid-1", "is_insert": True}])
         mock_conn.executemany = AsyncMock()
         mock_tx = AsyncMock()
         mock_tx.__aenter__ = AsyncMock(return_value=mock_tx)
@@ -317,11 +318,11 @@ class TestIndexDocumentDatesThreaded:
 
         assert result["success"] is True
 
-        # The INSERT query has 7 positional args:
+        # The UPSERT query has 7 positional args:
         # $1=file_id, $2=filename, $3=content_hash, $4=chunks_count,
         # $5=source_created_at, $6=source_modified_at, $7=ocr_applied
-        # call_args_list[0] = early-dedup check, [1] = cross-scope dedup, [2] = INSERT
-        insert_call = mock_conn.fetchrow.call_args_list[2]
+        # call_args_list[0] = early-dedup check, [1] = UPSERT
+        insert_call = mock_conn.fetchrow.call_args_list[1]
         args = insert_call[0]
         # args[0] is the SQL string, positional params start at args[1]
         source_created_arg = args[5]  # $5
@@ -347,7 +348,7 @@ class TestCloneDateOverride:
                     "source_created_at": source_created,
                     "source_modified_at": source_modified,
                 },
-                {"id": "new-uuid"},
+                {"id": "new-uuid", "is_insert": True},
             ]
         )
         mock_conn.fetchval = AsyncMock(return_value=5)
@@ -371,7 +372,6 @@ class TestCloneDateOverride:
                 file_id="clone-test",
                 filename="test.pdf",
                 content_hash="hash456",
-                existing_id=None,
                 source_created_at=caller_created,
                 source_modified_at=caller_modified,
             )
@@ -400,7 +400,7 @@ class TestCloneDateOverride:
                     "source_created_at": source_created,
                     "source_modified_at": source_modified,
                 },
-                {"id": "new-uuid"},
+                {"id": "new-uuid", "is_insert": True},
             ]
         )
         mock_conn.fetchval = AsyncMock(return_value=5)
@@ -424,7 +424,6 @@ class TestCloneDateOverride:
                 file_id="clone-test",
                 filename="test.pdf",
                 content_hash="hash456",
-                existing_id=None,
             )
 
         assert result is not None
