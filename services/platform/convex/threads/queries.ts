@@ -403,6 +403,7 @@ export const getThreadForkInfo = query({
       forkedFromShare: metadata.forkedFromShare ?? false,
       forkedMessageCount: metadata.forkedMessageCount ?? null,
       lastForkedMessageOrder: metadata.lastForkedMessageOrder ?? null,
+      forkedAt: metadata.forkedAt ?? null,
     };
   },
 });

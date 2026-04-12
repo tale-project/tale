@@ -788,6 +788,7 @@ export function ChatInterface({
               lastForkedMessageOrder={
                 forkInfo?.lastForkedMessageOrder ?? undefined
               }
+              forkedAt={forkInfo?.forkedAt ?? undefined}
               forkedFromShare={forkInfo?.forkedFromShare}
               onHumanInputResponseSubmitted={handleHumanInputResponseSubmitted}
               onSendFollowUp={

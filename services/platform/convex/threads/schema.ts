@@ -32,6 +32,7 @@ export const threadMetadataTable = defineTable({
   forkedFromShare: v.optional(v.boolean()),
   forkedMessageCount: v.optional(v.number()),
   lastForkedMessageOrder: v.optional(v.number()),
+  forkedAt: v.optional(v.number()),
   // Arena mode fields
   arenaGroupId: v.optional(v.string()),
   arenaModelId: v.optional(v.string()),
