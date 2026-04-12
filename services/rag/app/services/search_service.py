@@ -94,6 +94,18 @@ class RagSearchService:
             vec_ms = (time.time() - vec_t0) * 1000
             logger.debug("PERF vector search: {:.1f}ms", vec_ms)
 
+            # Pre-filter vector results by cosine similarity to reject clearly irrelevant content
+            if settings.vector_quality_threshold > 0:
+                pre_count = len(vector_results)
+                vector_results = [r for r in vector_results if r["score"] >= settings.vector_quality_threshold]
+                if pre_count != len(vector_results):
+                    logger.debug(
+                        "Vector pre-filter: {}/{} results passed threshold {}",
+                        len(vector_results),
+                        pre_count,
+                        settings.vector_quality_threshold,
+                    )
+
             if not fts_results and not vector_results:
                 return []
 
@@ -167,13 +179,13 @@ class RagSearchService:
                 return [
                     {
                         "content": item["chunk_content"],
-                        "score": 1.0 / (i + 1),
+                        "score": item["score"],
                         "file_id": str(item["file_id"]) if item.get("file_id") else None,
                         "filename": item.get("filename"),
                         "source_created_at": item.get("source_created_at"),
                         "source_modified_at": item.get("source_modified_at"),
                     }
-                    for i, item in enumerate(vector_results)
+                    for item in vector_results
                 ]
             raise
 
@@ -279,10 +291,5 @@ def _apply_recency_boost(
         recency_factor = max(0.0, 1.0 - age_days / max_age_days)
         boost = decay_base + (1.0 - decay_base) * recency_factor
         item["rrf_score"] *= boost
-
-    max_score = max((r["rrf_score"] for r in results), default=1.0)
-    if max_score > 0:
-        for r in results:
-            r["rrf_score"] /= max_score
 
     results.sort(key=lambda x: x.get("rrf_score", 0), reverse=True)

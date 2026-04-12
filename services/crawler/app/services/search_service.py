@@ -115,8 +115,9 @@ class SearchService:
 
         sorted_ids = sorted(scores, key=lambda k: scores[k], reverse=True)[:limit]
 
-        # Normalize scores
-        max_score = scores[sorted_ids[0]] if sorted_ids else 1.0
+        # Normalize against theoretical max so scores reflect absolute quality
+        num_contributing = max(1, sum(1 for r in ranked_lists if r))
+        max_score = num_contributing / (RRF_K + 1) if sorted_ids else 1.0
 
         return [
             SearchResult(

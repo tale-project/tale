@@ -600,12 +600,11 @@ export function ChatInterface({
     (messageId: string) => {
       if (!dataThreadId) return;
 
-      // Find message index in the raw messages array
-      const msgIndex = rawMessages.findIndex((msg) => msg.id === messageId);
-      if (msgIndex < 0) return;
+      const msg = rawMessages.find((rm) => rm.id === messageId);
+      if (msg?.order === undefined) return;
 
       forkOwnThread(
-        { threadId: dataThreadId, upToMessageIndex: msgIndex },
+        { threadId: dataThreadId, upToMessageOrder: msg.order },
         {
           onSuccess: (newThreadId) => {
             void navigate({
@@ -786,6 +785,9 @@ export function ChatInterface({
               containerRef={containerRef}
               activeApproval={activeApproval}
               forkedMessageCount={forkInfo?.forkedMessageCount ?? undefined}
+              lastForkedMessageOrder={
+                forkInfo?.lastForkedMessageOrder ?? undefined
+              }
               forkedFromShare={forkInfo?.forkedFromShare}
               onHumanInputResponseSubmitted={handleHumanInputResponseSubmitted}
               onSendFollowUp={

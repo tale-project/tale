@@ -54,7 +54,7 @@ class TestMergeRrfOverlappingItems:
         results = SearchService._merge_rrf([list_a, list_b], limit=10)
         expected_raw = 2 * (1.0 / (RRF_K + 0 + 1))
         assert len(results) == 1
-        # Single item → normalized score is always 1.0 (raw / max where max == raw)
+        # Rank 0 in both lists = theoretical max → normalized score is 1.0
         assert results[0].score == pytest.approx(1.0)
         # Verify raw RRF formula: rank-0 item in 2 lists → 2 * 1/(K+1)
         assert expected_raw == pytest.approx(2.0 / (RRF_K + 1))
@@ -86,13 +86,17 @@ class TestMergeRrfDisjointItems:
         list_a = [_item(1), _item(2)]
         list_b = [_item(3)]
         results = SearchService._merge_rrf([list_a, list_b], limit=10)
+        # Theoretical max = 2/(K+1) since two non-empty lists
+        theoretical_max = 2.0 / (RRF_K + 1)
         rank0_score = 1.0 / (RRF_K + 0 + 1)
         rank1_score = 1.0 / (RRF_K + 1 + 1)
-        top = [r for r in results if r.score == pytest.approx(1.0)]
+        # Items 1 and 3 are both rank 0 in their respective lists → equal score
+        top = [r for r in results if r.score == pytest.approx(rank0_score / theoretical_max)]
         assert len(top) == 2
-        bottom = [r for r in results if r.score < 1.0]
+        # Item 2 is rank 1 in list_a only
+        bottom = [r for r in results if r.score < rank0_score / theoretical_max]
         assert len(bottom) == 1
-        assert bottom[0].score == pytest.approx(rank1_score / rank0_score)
+        assert bottom[0].score == pytest.approx(rank1_score / theoretical_max)
 
 
 class TestMergeRrfLimitTruncation:
@@ -124,11 +128,15 @@ class TestMergeRrfScoreNormalization:
         results = SearchService._merge_rrf([items], limit=10)
         assert results[0].score == pytest.approx(1.0)
 
-    def test_top_result_score_one_with_multiple_lists(self):
+    def test_top_result_score_with_multiple_lists(self):
         list_a = [_item(1), _item(2), _item(3)]
         list_b = [_item(4), _item(1), _item(5)]
         results = SearchService._merge_rrf([list_a, list_b], limit=10)
-        assert results[0].score == pytest.approx(1.0)
+        # Item 1 is rank 0 in list_a and rank 1 in list_b
+        # Theoretical max = 2/(K+1), raw = 1/(K+1) + 1/(K+2)
+        theoretical_max = 2.0 / (RRF_K + 1)
+        expected = (1.0 / (RRF_K + 1) + 1.0 / (RRF_K + 2)) / theoretical_max
+        assert results[0].score == pytest.approx(expected)
 
     def test_scores_are_between_zero_and_one(self):
         list_a = [_item(i) for i in range(10)]

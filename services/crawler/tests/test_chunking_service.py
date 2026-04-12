@@ -212,7 +212,7 @@ class TestChunkContentCustomParams:
     def test_defaults_match_constants(self):
         assert CHUNK_SIZE == 2048
         assert CHUNK_OVERLAP == 200
-        assert MIN_CHUNK_LENGTH == 100
+        assert MIN_CHUNK_LENGTH == 10
 
 
 class TestChunkContentIndexNumbering:

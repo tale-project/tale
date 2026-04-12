@@ -22,8 +22,10 @@
  *    - Cursor stays visible while waiting for next chunk
  *    - Resumes at the same rate when text arrives
  *
- * 4. STREAM ENDS: Drains remaining buffer at 3× the streaming CPS
- *    - Fast enough to clear the backlog, slow enough to stay readable
+ * 4. STREAM ENDS: Drains remaining buffer at whichever is faster:
+ *    3× the streaming CPS or the rate needed to finish in ≤ 2 seconds.
+ *    - Small buffers drain at 3× CPS for a natural feel
+ *    - Large buffers ramp up to guarantee ≤ 2 s total drain time
  *    - Reduced motion: reveals immediately (no animation)
  *
  * USAGE:
@@ -533,9 +535,14 @@ export function useStreamBuffer({
         setDisplayLength(text.length);
         setIsTyping(false);
       } else {
-        // Stream ended — drain remaining buffer at a moderately faster rate.
-        // Cap at 3× the streaming CPS so the speed-up is noticeable but not jarring.
-        drainCPSRef.current = Math.max(1, targetCPS) * 3;
+        // Stream ended — drain remaining buffer quickly.
+        // Use whichever is faster: 3× CPS or the rate to finish in ≤ 2 seconds.
+        const remaining = text.length - displayedLengthRef.current;
+        const drainInTwoSecs = remaining / 2;
+        drainCPSRef.current = Math.max(
+          Math.max(1, targetCPS) * 3,
+          drainInTwoSecs,
+        );
         if (!animationFrameRef.current) {
           lastFrameTimeRef.current = 0;
           animationFrameRef.current = requestAnimationFrame(animate);
