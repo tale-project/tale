@@ -28,6 +28,16 @@ export const contextStatsValidator = v.object({
   hasIntegrations: v.optional(v.boolean()),
 });
 
+export const citationItemValidator = v.object({
+  index: v.number(),
+  type: v.union(v.literal('rag'), v.literal('web')),
+  source: v.string(),
+  fileId: v.optional(v.string()),
+  url: v.optional(v.string()),
+  page: v.optional(v.number()),
+  relevance: v.optional(v.number()),
+});
+
 export const messageMetadataValidator = v.object({
   _id: v.id('messageMetadata'),
   _creationTime: v.number(),
@@ -46,6 +56,7 @@ export const messageMetadataValidator = v.object({
   timeToFirstTokenMs: v.optional(v.number()),
   subAgentUsage: v.optional(v.array(toolUsageItemValidator)),
   toolsUsage: v.optional(v.array(toolUsageItemValidator)),
+  citations: v.optional(v.array(citationItemValidator)),
   contextWindow: v.optional(v.string()),
   contextStats: v.optional(contextStatsValidator),
   error: v.optional(v.string()),

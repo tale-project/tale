@@ -24,7 +24,31 @@ import {
 } from '../lib/rate_limiter/helpers';
 import { persistentStreaming } from '../streaming/helpers';
 import { extractClientIp } from '../workflows/triggers/helpers/validate';
-import { parseCitationsFromToolsUsage } from './citations';
+import type { Citation } from './citations';
+
+/** Map structured citation metadata to the Citation interface used by response formatting. */
+function toApiCitations(
+  raw?: Array<{
+    index: number;
+    type: 'rag' | 'web';
+    source: string;
+    fileId?: string;
+    url?: string;
+    page?: number;
+    relevance?: number;
+  }>,
+): Citation[] {
+  if (!raw) return [];
+  return raw.map((c) => ({
+    index: c.index,
+    type: c.type,
+    source: c.source,
+    fileId: c.fileId,
+    url: c.url,
+    page: c.page,
+    relevance: c.relevance ?? 0,
+  }));
+}
 import {
   buildChatCompletion,
   buildChatCompletionChunk,
@@ -686,13 +710,12 @@ async function pollOpenAIResponse(
     const body = await persistentStreaming.getStreamBody(ctx, streamId);
 
     if (body.status === 'done') {
-      const toolsUsage = await ctx.runQuery(
+      const result = await ctx.runQuery(
         internal.openai_compat.internal_queries.getLatestThreadToolsUsage,
         { threadId: chatResult.threadId },
       );
-      const citations = toolsUsage
-        ? parseCitationsFromToolsUsage(toolsUsage)
-        : [];
+      // Use structured citations directly if available
+      const citations = toApiCitations(result?.citations);
 
       const response = buildChatCompletion(
         chatResult.streamId,
@@ -796,13 +819,12 @@ async function streamOpenAIResponse(
         );
         await writer.write(encoder.encode(formatSSEChunk(finalChunk)));
 
-        const toolsUsage = await ctx.runQuery(
+        const result = await ctx.runQuery(
           internal.openai_compat.internal_queries.getLatestThreadToolsUsage,
           { threadId: chatResult.threadId },
         );
-        const citations = toolsUsage
-          ? parseCitationsFromToolsUsage(toolsUsage)
-          : [];
+        // Use structured citations directly if available
+        const citations = toApiCitations(result?.citations);
         if (citations.length > 0) {
           await writer.write(encoder.encode(formatSSECitations(citations)));
         }

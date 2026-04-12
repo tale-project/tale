@@ -44,6 +44,15 @@ export interface AgentResponseResult {
     input?: string;
     output?: string;
   }>;
+  citations?: Array<{
+    index: number;
+    type: 'rag' | 'web';
+    source: string;
+    fileId?: string;
+    url?: string;
+    page?: number;
+    relevance?: number;
+  }>;
   contextWindow?: string;
   contextStats?: {
     totalTokens: number;
@@ -113,6 +122,10 @@ export async function onAgentComplete(
     const messageId = result.messageId;
 
     if (messageId) {
+      console.log('[onAgentComplete] DEBUG citations:', {
+        hasCitations: !!result.citations,
+        citationsLength: result.citations?.length,
+      });
       promises.push(
         ctx
           .runMutation(
@@ -131,6 +144,7 @@ export async function onAgentComplete(
               durationMs: result.durationMs,
               timeToFirstTokenMs: result.timeToFirstTokenMs,
               toolsUsage: result.toolsUsage,
+              citations: result.citations,
               contextWindow: result.contextWindow,
               contextStats: result.contextStats,
               error: result.error,

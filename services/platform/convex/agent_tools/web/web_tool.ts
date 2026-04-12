@@ -106,7 +106,6 @@ EXAMPLES:
         return {
           success: true,
           response: responseText,
-          output: responseText,
           ...(result.usage && {
             usage: {
               inputTokens: result.usage.input_tokens,
@@ -118,11 +117,11 @@ EXAMPLES:
         };
       }
 
-      const searchResult = await searchPages(ctx, {
+      const { text: searchResult, citations } = await searchPages(ctx, {
         query: args.query,
         domain: args.domain,
       });
-      return { success: true, response: searchResult, output: searchResult };
+      return { success: true, response: searchResult, citations };
     },
   }),
 };

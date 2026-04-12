@@ -49,6 +49,19 @@ export const messageMetadataTable = defineTable({
       }),
     ),
   ),
+  citations: v.optional(
+    v.array(
+      v.object({
+        index: v.number(),
+        type: v.union(v.literal('rag'), v.literal('web')),
+        source: v.string(),
+        fileId: v.optional(v.string()),
+        url: v.optional(v.string()),
+        page: v.optional(v.number()),
+        relevance: v.optional(v.number()),
+      }),
+    ),
+  ),
   // Structured context window for debugging (XML-like formatted)
   contextWindow: v.optional(v.string()),
   contextStats: v.optional(

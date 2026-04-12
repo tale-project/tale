@@ -183,6 +183,15 @@ export interface GenerateResponseResult {
     input?: string;
     output?: string;
   }>;
+  citations?: Array<{
+    index: number;
+    type: 'rag' | 'web';
+    source: string;
+    fileId?: string;
+    url?: string;
+    page?: number;
+    relevance?: number;
+  }>;
   contextWindow?: string;
   contextStats?: {
     totalTokens: number;
