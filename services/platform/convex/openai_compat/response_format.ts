@@ -11,6 +11,18 @@ import type { Citation } from './citations';
 // Non-streaming response
 // ---------------------------------------------------------------------------
 
+export interface OpenAIUsage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+}
+
+const ZERO_USAGE: OpenAIUsage = {
+  prompt_tokens: 0,
+  completion_tokens: 0,
+  total_tokens: 0,
+};
+
 export interface OpenAIToolCall {
   id: string;
   type: 'function';
@@ -33,11 +45,7 @@ interface ChatCompletionResponse {
     };
     finish_reason: FinishReason;
   }>;
-  usage: {
-    prompt_tokens: number;
-    completion_tokens: number;
-    total_tokens: number;
-  };
+  usage: OpenAIUsage;
   citations: Citation[];
 }
 
@@ -47,6 +55,7 @@ export function buildChatCompletion(
   content: string,
   created: number,
   citations: Citation[] = [],
+  usage: OpenAIUsage = ZERO_USAGE,
 ): ChatCompletionResponse {
   return {
     id: `chatcmpl-${id}`,
@@ -60,7 +69,7 @@ export function buildChatCompletion(
         finish_reason: 'stop',
       },
     ],
-    usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+    usage,
     citations,
   };
 }
@@ -74,6 +83,7 @@ export function buildChatCompletionWithToolCalls(
   toolCalls: OpenAIToolCall[],
   created: number,
   content: string | null = null,
+  usage: OpenAIUsage = ZERO_USAGE,
 ): ChatCompletionResponse {
   return {
     id: `chatcmpl-${id}`,
@@ -87,7 +97,7 @@ export function buildChatCompletionWithToolCalls(
         finish_reason: 'tool_calls',
       },
     ],
-    usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+    usage,
     citations: [],
   };
 }
@@ -117,6 +127,7 @@ interface ChatCompletionChunk {
     delta: ChatCompletionChunkDelta;
     finish_reason: FinishReason | null;
   }>;
+  usage?: OpenAIUsage | null;
 }
 
 export function buildChatCompletionChunk(
@@ -132,6 +143,27 @@ export function buildChatCompletionChunk(
     created,
     model,
     choices: [{ index: 0, delta, finish_reason: finishReason }],
+  };
+}
+
+/**
+ * Build a streaming usage-only chunk (emitted as the final chunk before [DONE]
+ * when stream_options.include_usage is true). Per OpenAI spec, this chunk has
+ * an empty choices array and a populated usage field.
+ */
+export function buildStreamingUsageChunk(
+  id: string,
+  model: string,
+  usage: OpenAIUsage,
+  created: number,
+): ChatCompletionChunk {
+  return {
+    id: `chatcmpl-${id}`,
+    object: 'chat.completion.chunk',
+    created,
+    model,
+    choices: [],
+    usage,
   };
 }
 

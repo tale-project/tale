@@ -149,8 +149,9 @@ function injectOpenAICompatPaths(spec: OpenApiSpec) {
     properties: {
       model: {
         type: 'string',
-        description: 'Agent slug (e.g., "chat-agent").',
-        example: 'chat-agent',
+        description:
+          'Model ID (e.g., "claude-sonnet-4-20250514"). Use GET /api/v1/models to list available models.',
+        example: 'claude-sonnet-4-20250514',
       },
       messages: {
         type: 'array',
@@ -215,30 +216,90 @@ function injectOpenAICompatPaths(spec: OpenApiSpec) {
         ],
         description: 'Controls tool calling behavior.',
       },
+      stream_options: {
+        type: 'object',
+        nullable: true,
+        properties: {
+          include_usage: {
+            type: 'boolean',
+            description:
+              'If set, an additional chunk will be streamed before the `[DONE]` message with token usage statistics.',
+          },
+        },
+        description:
+          'Options for streaming. Only applicable when `stream` is true.',
+      },
     },
   };
 
-  schemas.ChatMessage = {
+  // Role-specific message schemas
+  schemas.ChatMessageSystem = {
+    type: 'object',
+    required: ['role', 'content'],
+    properties: {
+      role: { type: 'string', enum: ['system'] },
+      content: { type: 'string', description: 'System prompt content.' },
+    },
+  };
+
+  schemas.ChatMessageUser = {
+    type: 'object',
+    required: ['role', 'content'],
+    properties: {
+      role: { type: 'string', enum: ['user'] },
+      content: { type: 'string', description: 'User message content.' },
+    },
+  };
+
+  schemas.ChatMessageAssistant = {
     type: 'object',
     required: ['role'],
     properties: {
-      role: {
-        type: 'string',
-        enum: ['system', 'user', 'assistant', 'tool'],
-      },
+      role: { type: 'string', enum: ['assistant'] },
       content: {
-        oneOf: [{ type: 'string' }, { type: 'null' }],
-        description: 'Message content.',
+        type: 'string',
+        nullable: true,
+        description: 'Assistant message content.',
       },
       tool_calls: {
         type: 'array',
         items: { $ref: '#/components/schemas/ToolCall' },
-        description: 'Tool calls (assistant messages only).',
+        description: 'Tool calls made by the assistant.',
+      },
+    },
+  };
+
+  schemas.ChatMessageTool = {
+    type: 'object',
+    required: ['role', 'content', 'tool_call_id'],
+    properties: {
+      role: { type: 'string', enum: ['tool'] },
+      content: {
+        type: 'string',
+        nullable: true,
+        description: 'Tool result content.',
       },
       tool_call_id: {
         type: 'string',
-        description:
-          'ID of the tool call this result is for (tool messages only).',
+        description: 'ID of the tool call this result is for.',
+      },
+    },
+  };
+
+  schemas.ChatMessage = {
+    oneOf: [
+      { $ref: '#/components/schemas/ChatMessageSystem' },
+      { $ref: '#/components/schemas/ChatMessageUser' },
+      { $ref: '#/components/schemas/ChatMessageAssistant' },
+      { $ref: '#/components/schemas/ChatMessageTool' },
+    ],
+    discriminator: {
+      propertyName: 'role',
+      mapping: {
+        system: '#/components/schemas/ChatMessageSystem',
+        user: '#/components/schemas/ChatMessageUser',
+        assistant: '#/components/schemas/ChatMessageAssistant',
+        tool: '#/components/schemas/ChatMessageTool',
       },
     },
   };
@@ -294,7 +355,7 @@ function injectOpenAICompatPaths(spec: OpenApiSpec) {
           type: 'object',
           properties: {
             index: { type: 'integer' },
-            message: { $ref: '#/components/schemas/ChatMessage' },
+            message: { $ref: '#/components/schemas/ChatMessageAssistant' },
             finish_reason: {
               type: 'string',
               enum: ['stop', 'length', 'tool_calls'],
@@ -309,6 +370,47 @@ function injectOpenAICompatPaths(spec: OpenApiSpec) {
           completion_tokens: { type: 'integer' },
           total_tokens: { type: 'integer' },
         },
+      },
+      citations: {
+        type: 'array',
+        items: { $ref: '#/components/schemas/Citation' },
+        description:
+          'Source citations referenced in the response text via [N] markers. Present when knowledge tools (RAG, web search) were used.',
+      },
+    },
+  };
+
+  schemas.Citation = {
+    type: 'object',
+    properties: {
+      index: {
+        type: 'integer',
+        description: 'Citation index corresponding to [N] markers in text.',
+      },
+      type: {
+        type: 'string',
+        enum: ['rag', 'web'],
+        description: 'Source type: RAG knowledge base or web search.',
+      },
+      source: {
+        type: 'string',
+        description: 'Source name or title.',
+      },
+      fileId: {
+        type: 'string',
+        description: 'File ID for RAG citations.',
+      },
+      url: {
+        type: 'string',
+        description: 'URL for web citations.',
+      },
+      page: {
+        type: 'integer',
+        description: 'Page number for document citations.',
+      },
+      relevance: {
+        type: 'number',
+        description: 'Relevance score (0-1).',
       },
     },
   };

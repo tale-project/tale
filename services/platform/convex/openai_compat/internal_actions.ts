@@ -206,6 +206,10 @@ interface ToolCallResult {
     function: { name: string; arguments: string };
   }> | null;
   finishReason: string;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  resolvedModel: string;
 }
 
 export const chatViaOpenAIWithTools = internalAction({
@@ -383,61 +387,61 @@ export const chatViaOpenAIWithTools = internalAction({
 
     // Track usage for client tool mode (this path bypasses onAgentComplete)
     const usage = await result.usage;
-    if (usage && args.organizationId) {
+    const inputTokens = usage?.inputTokens ?? 0;
+    const outputTokens = usage?.outputTokens ?? 0;
+    const totalTokens = inputTokens + outputTokens;
+
+    if (usage && args.organizationId && (inputTokens > 0 || outputTokens > 0)) {
       const { estimateCostCents } =
         await import('../governance/cost_estimation');
-      const inputTokens = usage.inputTokens ?? 0;
-      const outputTokens = usage.outputTokens ?? 0;
-      if (inputTokens > 0 || outputTokens > 0) {
-        const costCents = estimateCostCents(modelId, inputTokens, outputTokens);
-        await ctx
-          .runMutation(
-            internal.governance.internal_mutations.incrementUsageLedger,
-            {
-              organizationId: args.organizationId,
-              userId: args.userId ?? 'system',
-              inputTokens,
-              outputTokens,
-              costEstimateCents: costCents,
-              timestamp: Date.now(),
-            },
-          )
-          .catch((error) => {
-            console.error(
-              '[OpenAI-compat:clientTools] Failed to increment usage ledger:',
-              error,
-            );
-          });
-
-        // AI audit log for OpenAI-compat client tool mode
-        await ctx
-          .runMutation(internal.audit_logs.internal_mutations.createAuditLog, {
+      const costCents = estimateCostCents(modelId, inputTokens, outputTokens);
+      await ctx
+        .runMutation(
+          internal.governance.internal_mutations.incrementUsageLedger,
+          {
             organizationId: args.organizationId,
-            actorId: args.userId ?? 'system',
-            actorType: 'api' as const,
-            action: 'ai.completion',
-            category: 'ai' as const,
-            resourceType: 'agent_completion',
-            resourceId: threadId,
-            status: 'success' as const,
-            metadata: {
-              model: modelId,
-              inputTokens,
-              outputTokens,
-              totalTokens: inputTokens + outputTokens,
-              costEstimateCents: costCents,
-              threadId,
-              agentType: 'openai_compat',
-              toolCallCount: toolCalls.length,
-            },
-          })
-          .catch((error) => {
-            console.error(
-              '[OpenAI-compat:clientTools] Failed to write AI audit log:',
-              error,
-            );
-          });
-      }
+            userId: args.userId ?? 'system',
+            inputTokens,
+            outputTokens,
+            costEstimateCents: costCents,
+            timestamp: Date.now(),
+          },
+        )
+        .catch((error) => {
+          console.error(
+            '[OpenAI-compat:clientTools] Failed to increment usage ledger:',
+            error,
+          );
+        });
+
+      // AI audit log for OpenAI-compat client tool mode
+      await ctx
+        .runMutation(internal.audit_logs.internal_mutations.createAuditLog, {
+          organizationId: args.organizationId,
+          actorId: args.userId ?? 'system',
+          actorType: 'api' as const,
+          action: 'ai.completion',
+          category: 'ai' as const,
+          resourceType: 'agent_completion',
+          resourceId: threadId,
+          status: 'success' as const,
+          metadata: {
+            model: modelId,
+            inputTokens,
+            outputTokens,
+            totalTokens,
+            costEstimateCents: costCents,
+            threadId,
+            agentType: 'openai_compat',
+            toolCallCount: toolCalls.length,
+          },
+        })
+        .catch((error) => {
+          console.error(
+            '[OpenAI-compat:clientTools] Failed to write AI audit log:',
+            error,
+          );
+        });
     }
 
     return {
@@ -445,12 +449,242 @@ export const chatViaOpenAIWithTools = internalAction({
       text: text || null,
       toolCalls: toolCalls.length > 0 ? toolCalls : null,
       finishReason,
+      inputTokens,
+      outputTokens,
+      totalTokens,
+      resolvedModel: resolved.modelData.modelId,
     };
   },
 });
 
 // ---------------------------------------------------------------------------
-// List visible agents (for /api/v1/models)
+// Direct model mode: bypass agent pipeline, route to provider directly
+// ---------------------------------------------------------------------------
+
+export const chatDirectModel = internalAction({
+  args: {
+    modelId: v.string(),
+    organizationId: v.string(),
+    userId: v.string(),
+    userEmail: v.optional(v.string()),
+    userName: v.optional(v.string()),
+    message: v.string(),
+    threadId: v.optional(v.string()),
+    tools: v.optional(v.any()),
+    toolChoice: v.optional(v.any()),
+    conversationMessages: v.optional(v.any()),
+    generationParams: v.optional(v.any()),
+    responseFormat: v.optional(v.string()),
+  },
+  returns: v.any(),
+  handler: async (ctx, args): Promise<ToolCallResult> => {
+    const message = await scrubMessagePii(
+      ctx,
+      args.message,
+      args.organizationId,
+      args.userId,
+      args.userEmail ?? '',
+      args.modelId,
+    );
+
+    // Resolve model directly — no agent config
+    const resolved = await resolveLanguageModelWithFallback(ctx, {
+      modelId: args.modelId,
+      tag: 'chat',
+    });
+
+    // Convert client tools to AI SDK format if provided
+    /* oxlint-disable typescript/no-unsafe-type-assertion -- Tool definitions are dynamically converted from OpenAI format; the ToolSet branded type requires exact static shape */
+    const aiTools = args.tools
+      ? (convertOpenAITools(args.tools) as unknown as Parameters<
+          typeof streamText
+        >[0]['tools'])
+      : undefined;
+    /* oxlint-enable typescript/no-unsafe-type-assertion */
+
+    // Create or reuse thread, save user message
+    const threadId: string = await ctx.runMutation(
+      internal.openai_compat.internal_mutations.createThreadAndSaveMessage,
+      {
+        organizationId: args.organizationId,
+        userId: args.userId,
+        userEmail: args.userEmail,
+        userName: args.userName,
+        threadId: args.threadId,
+        message,
+      },
+    );
+
+    // Fetch mandatory system prompt governance policy
+    const systemPromptPolicy = await ctx.runQuery(
+      internal.governance.internal_queries.getSystemPromptPolicyInternal,
+      { organizationId: args.organizationId },
+    );
+
+    // Build system prompt — no agent instructions, only governance
+    let systemPrompt = 'You are a helpful assistant.';
+    if (
+      systemPromptPolicy?.enabled !== false &&
+      isRecord(systemPromptPolicy?.config)
+    ) {
+      const cfg = systemPromptPolicy.config;
+      const prefix =
+        typeof cfg.mandatoryPrefixPrompt === 'string'
+          ? cfg.mandatoryPrefixPrompt.trim()
+          : '';
+      const suffix =
+        typeof cfg.mandatorySuffixPrompt === 'string'
+          ? cfg.mandatorySuffixPrompt.trim()
+          : '';
+      if (prefix) systemPrompt = prefix + '\n\n' + systemPrompt;
+      if (suffix) systemPrompt = systemPrompt + '\n\n' + suffix;
+    }
+
+    // Build generation params
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- generationParams is v.any() from Convex validator; shape is controlled by http_actions.ts buildGenerationParams
+    const genParams = (args.generationParams ?? {}) as Record<string, unknown>;
+
+    // Build messages — use full conversation if provided, otherwise single message
+    const hasConversation =
+      args.conversationMessages &&
+      Array.isArray(args.conversationMessages) &&
+      args.conversationMessages.length > 0;
+
+    const messages: ModelMessage[] = hasConversation
+      ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- conversationMessages is built by convertToModelMessages in http_actions.ts; shape matches ModelMessage[]
+        (args.conversationMessages as ModelMessage[])
+      : [{ role: 'user' as const, content: message }];
+
+    const result = streamText({
+      model: resolved.languageModel,
+      system: systemPrompt,
+      messages,
+      ...(aiTools && { tools: aiTools }),
+      ...(args.toolChoice != null && {
+        toolChoice: mapToolChoice(args.toolChoice),
+      }),
+      ...(genParams.temperature != null && {
+        temperature: Number(genParams.temperature),
+      }),
+      ...(genParams.maxTokens != null && {
+        maxTokens: Number(genParams.maxTokens),
+      }),
+      ...(genParams.topP != null && { topP: Number(genParams.topP) }),
+      ...(genParams.frequencyPenalty != null && {
+        frequencyPenalty: Number(genParams.frequencyPenalty),
+      }),
+      ...(genParams.presencePenalty != null && {
+        presencePenalty: Number(genParams.presencePenalty),
+      }),
+      ...(Array.isArray(genParams.stopSequences) && {
+        stopSequences: genParams.stopSequences,
+      }),
+    });
+
+    const text: string = await result.text;
+    const finishReason: string = await result.finishReason;
+    const steps = await result.steps;
+
+    // Extract tool calls from steps
+    interface ToolCallContent {
+      type: string;
+      toolCallId?: string;
+      toolName?: string;
+      input?: unknown;
+    }
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- StepResult serialized to extract tool-call content parts; shape is known from AI SDK v6
+    const rawSteps = JSON.parse(JSON.stringify(steps)) as Array<{
+      content?: ToolCallContent[];
+    }>;
+    const toolCalls = rawSteps
+      .flatMap((step) => step.content ?? [])
+      .filter((part): part is ToolCallContent => part.type === 'tool-call')
+      .map((tc) => ({
+        id: tc.toolCallId ?? generateToolCallId(),
+        type: 'function' as const,
+        function: {
+          name: tc.toolName ?? '',
+          arguments: JSON.stringify(tc.input ?? {}),
+        },
+      }));
+
+    // Track usage
+    const usage = await result.usage;
+    const inputTokens = usage?.inputTokens ?? 0;
+    const outputTokens = usage?.outputTokens ?? 0;
+    const totalTokens = inputTokens + outputTokens;
+
+    if (args.organizationId && (inputTokens > 0 || outputTokens > 0)) {
+      const { estimateCostCents } =
+        await import('../governance/cost_estimation');
+      const costCents = estimateCostCents(
+        resolved.modelData.modelId,
+        inputTokens,
+        outputTokens,
+      );
+      await ctx
+        .runMutation(
+          internal.governance.internal_mutations.incrementUsageLedger,
+          {
+            organizationId: args.organizationId,
+            userId: args.userId ?? 'system',
+            inputTokens,
+            outputTokens,
+            costEstimateCents: costCents,
+            timestamp: Date.now(),
+          },
+        )
+        .catch((error) => {
+          console.error(
+            '[OpenAI-compat:directModel] Failed to increment usage ledger:',
+            error,
+          );
+        });
+
+      await ctx
+        .runMutation(internal.audit_logs.internal_mutations.createAuditLog, {
+          organizationId: args.organizationId,
+          actorId: args.userId ?? 'system',
+          actorType: 'api' as const,
+          action: 'ai.completion',
+          category: 'ai' as const,
+          resourceType: 'agent_completion',
+          resourceId: threadId,
+          status: 'success' as const,
+          metadata: {
+            model: resolved.modelData.modelId,
+            inputTokens,
+            outputTokens,
+            totalTokens,
+            costEstimateCents: costCents,
+            threadId,
+            agentType: 'direct_model',
+            toolCallCount: toolCalls.length,
+          },
+        })
+        .catch((error) => {
+          console.error(
+            '[OpenAI-compat:directModel] Failed to write AI audit log:',
+            error,
+          );
+        });
+    }
+
+    return {
+      threadId,
+      text: text || null,
+      toolCalls: toolCalls.length > 0 ? toolCalls : null,
+      finishReason,
+      inputTokens,
+      outputTokens,
+      totalTokens,
+      resolvedModel: resolved.modelData.modelId,
+    };
+  },
+});
+
+// ---------------------------------------------------------------------------
+// List visible agents (for /api/v1/models) — DEPRECATED: replaced by getAllModelIds
 // ---------------------------------------------------------------------------
 
 export const listVisibleAgents = internalAction({

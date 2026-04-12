@@ -475,6 +475,8 @@ export const getAllModelIds = internalAction({
     v.object({
       id: v.string(),
       tags: v.array(v.string()),
+      providerName: v.string(),
+      displayName: v.optional(v.string()),
     }),
   ),
   handler: async (_ctx, args) => {
@@ -485,10 +487,20 @@ export const getAllModelIds = internalAction({
     } catch {
       return [];
     }
-    const models: Array<{ id: string; tags: string[] }> = [];
+    const models: Array<{
+      id: string;
+      tags: string[];
+      providerName: string;
+      displayName?: string;
+    }> = [];
     for (const provider of providers) {
       for (const m of provider.config.models) {
-        models.push({ id: m.id, tags: [...m.tags] });
+        models.push({
+          id: m.id,
+          tags: [...m.tags],
+          providerName: provider.name,
+          displayName: m.displayName,
+        });
       }
     }
     return models;

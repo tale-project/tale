@@ -7,12 +7,8 @@
  *   GET     /api/v1/models
  *   OPTIONS /api/v1/models
  *
- * Two modes:
- * - Agent mode (no `tools` param): uses server-side agent tools, async generation
- * - Client tool mode (`tools` param present): uses client-defined tools, direct streamText
+ * Direct model gateway: routes requests to providers by model ID.
  */
-
-import type { StreamId } from '@convex-dev/persistent-text-streaming';
 
 import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
@@ -22,46 +18,18 @@ import {
   checkIpRateLimit,
   RateLimitExceededError,
 } from '../lib/rate_limiter/helpers';
-import { persistentStreaming } from '../streaming/helpers';
 import { extractClientIp } from '../workflows/triggers/helpers/validate';
-import type { Citation } from './citations';
-
-/** Map structured citation metadata to the Citation interface used by response formatting. */
-function toApiCitations(
-  raw?: Array<{
-    index: number;
-    type: 'rag' | 'web';
-    source: string;
-    fileId?: string;
-    url?: string;
-    page?: number;
-    relevance?: number;
-  }>,
-): Citation[] {
-  if (!raw) return [];
-  return raw.map((c) => ({
-    index: c.index,
-    type: c.type,
-    source: c.source,
-    fileId: c.fileId,
-    url: c.url,
-    page: c.page,
-    relevance: c.relevance ?? 0,
-  }));
-}
 import {
   buildChatCompletion,
   buildChatCompletionChunk,
   buildChatCompletionWithToolCalls,
-  formatSSECitations,
+  buildStreamingUsageChunk,
   formatSSEChunk,
   formatSSEDone,
   openAIErrorResponse,
   type OpenAIToolCall,
+  type OpenAIUsage,
 } from './response_format';
-
-const MAX_POLL_MS = 540_000;
-const POLL_INTERVAL_MS = 100;
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -101,6 +69,7 @@ interface ChatCompletionsRequestBody {
     function: { name: string; description?: string; parameters?: unknown };
   }>;
   tool_choice?: unknown;
+  stream_options?: { include_usage?: boolean } | null;
   seed?: number;
   n?: number;
 }
@@ -349,87 +318,86 @@ export const chatCompletionsHandler = httpAction(async (ctx, request) => {
   }
 
   const shouldStream = body.stream === true;
+  const includeUsage =
+    shouldStream && body.stream_options?.include_usage === true;
   const threadId =
     request.headers.get('x-thread-id') ??
     request.headers.get('X-Thread-Id') ??
     undefined;
   const generationParams = buildGenerationParams(body);
   const responseFormat = body.response_format?.type;
-  const hasClientTools = Array.isArray(body.tools) && body.tools.length > 0;
 
   // -----------------------------------------------------------------------
-  // Client tool mode: direct streamText with client-defined tools
+  // Direct model mode: route to provider via model ID
   // -----------------------------------------------------------------------
-  if (hasClientTools) {
-    return handleToolCallingMode(ctx, {
-      model,
-      messages,
-      lastUserMessage: lastUserMessage.content,
-      tools: body.tools ?? [],
-      toolChoice: body.tool_choice,
-      shouldStream,
-      threadId,
-      generationParams,
-      responseFormat,
-      orgInfo,
-      user,
-    });
-  }
+  const isContinuation = hasToolInteraction(messages);
+  const conversationMessages = isContinuation
+    ? convertToModelMessages(messages)
+    : undefined;
 
-  // -----------------------------------------------------------------------
-  // Agent mode: server-side tools, async generation via persistent stream
-  // -----------------------------------------------------------------------
-  let chatResult: { threadId: string; streamId: string };
-  try {
-    chatResult = await ctx.runAction(
-      internal.openai_compat.internal_actions.chatViaOpenAI,
-      {
-        agentSlug: model,
-        organizationId: orgInfo.organizationId,
-        userId: user.userId,
-        userEmail: user.email,
-        userName: user.name,
-        message: lastUserMessage.content,
-        threadId,
-        enableStreaming: shouldStream,
-        generationParams,
-        responseFormat,
-      },
-    );
-  } catch (error) {
-    return handleChatError(error, model);
-  }
+  // Strip $-prefixed keys from tool parameters (Convex reserves $ prefix)
+  const tools = body.tools?.map((t) => ({
+    ...t,
+    function: {
+      ...t.function,
+      parameters: t.function.parameters
+        ? stripDollarKeys(t.function.parameters)
+        : undefined,
+    },
+  }));
 
-  if (shouldStream) {
-    return streamOpenAIResponse(ctx, chatResult, model);
-  }
-  return pollOpenAIResponse(ctx, chatResult, model);
+  return handleDirectModelMode(ctx, {
+    model,
+    messages,
+    lastUserMessage: lastUserMessage.content,
+    tools,
+    toolChoice: body.tool_choice,
+    shouldStream,
+    includeUsage,
+    threadId,
+    generationParams,
+    responseFormat,
+    conversationMessages,
+    orgInfo,
+    user,
+  });
 });
 
+/** Recursively strip keys starting with '$' (Convex reserves this prefix). */
+function stripDollarKeys(obj: unknown): unknown {
+  if (Array.isArray(obj)) return obj.map(stripDollarKeys);
+  if (typeof obj === 'object' && obj !== null) {
+    const result: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(obj)) {
+      if (!k.startsWith('$')) result[k] = stripDollarKeys(v);
+    }
+    return result;
+  }
+  return obj;
+}
+
 // ---------------------------------------------------------------------------
-// Client tool calling mode handler
+// Direct model mode handler
 // ---------------------------------------------------------------------------
 
-async function handleToolCallingMode(
+async function handleDirectModelMode(
   ctx: ActionCtx,
   opts: {
     model: string;
     messages: OpenAIMessage[];
     lastUserMessage: string;
-    tools: ChatCompletionsRequestBody['tools'];
+    tools?: ChatCompletionsRequestBody['tools'];
     toolChoice?: unknown;
     shouldStream: boolean;
+    includeUsage: boolean;
     threadId?: string;
     generationParams?: Record<string, unknown>;
     responseFormat?: string;
+    conversationMessages?: Array<Record<string, unknown>>;
     orgInfo: { organizationId: string; orgSlug: string };
     user: { userId: string; email: string; name: string };
   },
 ) {
-  const isContinuation = hasToolInteraction(opts.messages);
-  const conversationMessages = isContinuation
-    ? convertToModelMessages(opts.messages)
-    : undefined;
   const created = Math.floor(Date.now() / 1000);
 
   let result: {
@@ -437,13 +405,17 @@ async function handleToolCallingMode(
     text: string | null;
     toolCalls: OpenAIToolCall[] | null;
     finishReason: string;
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    resolvedModel: string;
   };
 
   try {
     result = await ctx.runAction(
-      internal.openai_compat.internal_actions.chatViaOpenAIWithTools,
+      internal.openai_compat.internal_actions.chatDirectModel,
       {
-        agentSlug: opts.model,
+        modelId: opts.model,
         organizationId: opts.orgInfo.organizationId,
         userId: opts.user.userId,
         userEmail: opts.user.email,
@@ -452,7 +424,7 @@ async function handleToolCallingMode(
         threadId: opts.threadId,
         tools: opts.tools,
         toolChoice: opts.toolChoice,
-        conversationMessages,
+        conversationMessages: opts.conversationMessages,
         generationParams: opts.generationParams,
         responseFormat: opts.responseFormat,
       },
@@ -462,26 +434,34 @@ async function handleToolCallingMode(
   }
 
   const completionId = result.threadId;
+  const responseModel = result.resolvedModel ?? opts.model;
+  const usage: OpenAIUsage = {
+    prompt_tokens: result.inputTokens,
+    completion_tokens: result.outputTokens,
+    total_tokens: result.totalTokens,
+  };
 
   // Tool calls returned — return them to client
   if (result.toolCalls && result.toolCalls.length > 0) {
     if (opts.shouldStream) {
       return streamToolCallsResponse(
         completionId,
-        opts.model,
+        responseModel,
         result.toolCalls,
         result.text,
         result.threadId,
         created,
+        opts.includeUsage ? usage : undefined,
       );
     }
 
     const response = buildChatCompletionWithToolCalls(
       completionId,
-      opts.model,
+      responseModel,
       result.toolCalls,
       created,
       result.text,
+      usage,
     );
     return jsonResponseWithThreadId(response, result.threadId);
   }
@@ -490,18 +470,21 @@ async function handleToolCallingMode(
   if (opts.shouldStream) {
     return streamDirectTextResponse(
       completionId,
-      opts.model,
+      responseModel,
       result.text ?? '',
       result.threadId,
       created,
+      opts.includeUsage ? usage : undefined,
     );
   }
 
   const response = buildChatCompletion(
     completionId,
-    opts.model,
+    responseModel,
     result.text ?? '',
     created,
+    [],
+    usage,
   );
   return jsonResponseWithThreadId(response, result.threadId);
 }
@@ -528,6 +511,7 @@ function streamToolCallsResponse(
   text: string | null,
   threadId: string,
   created: number,
+  usage?: OpenAIUsage,
 ): Response {
   const encoder = new TextEncoder();
   const { readable, writable } = new TransformStream();
@@ -584,6 +568,17 @@ function streamToolCallsResponse(
       );
       await writer.write(encoder.encode(formatSSEChunk(finishChunk)));
 
+      // Usage chunk (only when stream_options.include_usage is true)
+      if (usage) {
+        const usageChunk = buildStreamingUsageChunk(
+          completionId,
+          model,
+          usage,
+          created,
+        );
+        await writer.write(encoder.encode(formatSSEChunk(usageChunk)));
+      }
+
       await writer.write(encoder.encode(formatSSEDone()));
     } catch (error) {
       console.error('[openai_compat] Tool calls stream error:', error);
@@ -614,6 +609,7 @@ function streamDirectTextResponse(
   text: string,
   threadId: string,
   created: number,
+  usage?: OpenAIUsage,
 ): Response {
   const encoder = new TextEncoder();
   const { readable, writable } = new TransformStream();
@@ -649,6 +645,17 @@ function streamDirectTextResponse(
         created,
       );
       await writer.write(encoder.encode(formatSSEChunk(finishChunk)));
+
+      // Usage chunk (only when stream_options.include_usage is true)
+      if (usage) {
+        const usageChunk = buildStreamingUsageChunk(
+          completionId,
+          model,
+          usage,
+          created,
+        );
+        await writer.write(encoder.encode(formatSSEChunk(usageChunk)));
+      }
 
       await writer.write(encoder.encode(formatSSEDone()));
     } catch (error) {
@@ -693,170 +700,12 @@ function handleChatError(error: unknown, model: string): Response {
 }
 
 // ---------------------------------------------------------------------------
-// Agent mode: poll until done (non-streaming)
-// ---------------------------------------------------------------------------
-
-async function pollOpenAIResponse(
-  ctx: ActionCtx,
-  chatResult: { threadId: string; streamId: string },
-  model: string,
-) {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- StreamId is a branded string from the persistent-streaming SDK; runMutation returns plain string
-  const streamId = chatResult.streamId as StreamId;
-  const maxPolls = Math.ceil(MAX_POLL_MS / POLL_INTERVAL_MS);
-  const created = Math.floor(Date.now() / 1000);
-
-  for (let i = 0; i < maxPolls; i++) {
-    const body = await persistentStreaming.getStreamBody(ctx, streamId);
-
-    if (body.status === 'done') {
-      const result = await ctx.runQuery(
-        internal.openai_compat.internal_queries.getLatestThreadToolsUsage,
-        { threadId: chatResult.threadId },
-      );
-      // Use structured citations directly if available
-      const citations = toApiCitations(result?.citations);
-
-      const response = buildChatCompletion(
-        chatResult.streamId,
-        model,
-        body.text,
-        created,
-        citations,
-      );
-      return new Response(JSON.stringify(response), {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
-      });
-    }
-
-    if (body.status === 'error' || body.status === 'timeout') {
-      return openAIErrorResponse('Generation failed', 'server_error', 500);
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
-  }
-
-  return openAIErrorResponse(
-    'Response timed out',
-    'server_error',
-    504,
-    'timeout',
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Agent mode: SSE streaming
-// ---------------------------------------------------------------------------
-
-async function streamOpenAIResponse(
-  ctx: ActionCtx,
-  chatResult: { threadId: string; streamId: string },
-  model: string,
-) {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- StreamId is a branded string from the persistent-streaming SDK; runMutation returns plain string
-  const streamId = chatResult.streamId as StreamId;
-  const encoder = new TextEncoder();
-  const maxPolls = Math.ceil(MAX_POLL_MS / POLL_INTERVAL_MS);
-  const created = Math.floor(Date.now() / 1000);
-  const completionId = chatResult.streamId;
-
-  const { readable, writable } = new TransformStream();
-  const writer = writable.getWriter();
-
-  void (async () => {
-    try {
-      const roleChunk = buildChatCompletionChunk(
-        completionId,
-        model,
-        { role: 'assistant' },
-        null,
-        created,
-      );
-      await writer.write(encoder.encode(formatSSEChunk(roleChunk)));
-
-      let lastLength = 0;
-      let streamDone = false;
-
-      for (let i = 0; i < maxPolls; i++) {
-        const body = await persistentStreaming.getStreamBody(ctx, streamId);
-
-        if (body.text.length > lastLength) {
-          const delta = body.text.slice(lastLength);
-          const chunk = buildChatCompletionChunk(
-            completionId,
-            model,
-            { content: delta },
-            null,
-            created,
-          );
-          await writer.write(encoder.encode(formatSSEChunk(chunk)));
-          lastLength = body.text.length;
-        }
-
-        if (
-          body.status === 'done' ||
-          body.status === 'error' ||
-          body.status === 'timeout'
-        ) {
-          streamDone = true;
-          break;
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
-      }
-
-      if (streamDone) {
-        const finalChunk = buildChatCompletionChunk(
-          completionId,
-          model,
-          {},
-          'stop',
-          created,
-        );
-        await writer.write(encoder.encode(formatSSEChunk(finalChunk)));
-
-        const result = await ctx.runQuery(
-          internal.openai_compat.internal_queries.getLatestThreadToolsUsage,
-          { threadId: chatResult.threadId },
-        );
-        // Use structured citations directly if available
-        const citations = toApiCitations(result?.citations);
-        if (citations.length > 0) {
-          await writer.write(encoder.encode(formatSSECitations(citations)));
-        }
-      }
-
-      await writer.write(encoder.encode(formatSSEDone()));
-    } catch (error) {
-      console.error('[openai_compat] Stream polling error:', error);
-    } finally {
-      await writer.close();
-    }
-  })();
-
-  return new Response(readable, {
-    status: 200,
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
-      ...CORS_HEADERS,
-    },
-  });
-}
-
-// ---------------------------------------------------------------------------
 // GET /api/v1/models
 // ---------------------------------------------------------------------------
 
 export const modelsListHandler = httpAction(async (ctx, request) => {
-  let user: { userId: string; email: string; name: string };
   try {
-    user = await authenticateRequest(ctx, request);
+    await authenticateRequest(ctx, request);
   } catch (error) {
     if (error instanceof AuthError) {
       return openAIErrorResponse(
@@ -869,28 +718,16 @@ export const modelsListHandler = httpAction(async (ctx, request) => {
     throw error;
   }
 
-  const orgSlugHeader =
-    request.headers.get('x-organization-slug') ??
-    request.headers.get('X-Organization-Slug');
-
-  let orgInfo: { organizationId: string; orgSlug: string };
+  let models: Array<{
+    id: string;
+    tags: string[];
+    providerName: string;
+    displayName?: string;
+  }>;
   try {
-    orgInfo = await ctx.runQuery(
-      internal.openai_compat.internal_queries.resolveUserOrganization,
-      { userId: user.userId, orgSlug: orgSlugHeader ?? undefined },
-    );
-  } catch (error) {
-    const msg =
-      error instanceof Error ? error.message : 'Failed to resolve organization';
-    return openAIErrorResponse(msg, 'invalid_request_error', 400);
-  }
-
-  // oxlint-disable-next-line typescript/no-explicit-any -- listVisibleAgents returns v.any(); shape is validated at runtime
-  let agents: any[];
-  try {
-    agents = await ctx.runAction(
-      internal.openai_compat.internal_actions.listVisibleAgents,
-      { orgSlug: orgInfo.orgSlug },
+    models = await ctx.runAction(
+      internal.providers.file_actions.getAllModelIds,
+      {},
     );
   } catch (error) {
     const msg =
@@ -899,11 +736,11 @@ export const modelsListHandler = httpAction(async (ctx, request) => {
   }
 
   const created = Math.floor(Date.now() / 1000);
-  const data = agents.map((agent) => ({
-    id: String(agent.name ?? ''),
+  const data = models.map((m) => ({
+    id: m.id,
     object: 'model' as const,
     created,
-    owned_by: orgInfo.orgSlug,
+    owned_by: m.providerName,
   }));
 
   return new Response(JSON.stringify({ object: 'list', data }), {

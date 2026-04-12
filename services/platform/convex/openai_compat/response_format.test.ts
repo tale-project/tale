@@ -3,9 +3,13 @@ import { describe, expect, it } from 'vitest';
 import type { Citation } from './citations';
 import {
   buildChatCompletion,
+  buildChatCompletionChunk,
+  buildChatCompletionWithToolCalls,
+  buildStreamingUsageChunk,
   formatSSECitations,
   formatSSEChunk,
   formatSSEDone,
+  type OpenAIUsage,
 } from './response_format';
 
 describe('buildChatCompletion', () => {
@@ -61,6 +65,151 @@ describe('buildChatCompletion', () => {
     );
 
     expect(result.citations).toEqual([]);
+  });
+
+  it('defaults usage to zeros when not provided', () => {
+    const result = buildChatCompletion(
+      'test-id',
+      'my-agent',
+      'Response',
+      1700000000,
+    );
+
+    expect(result.usage).toEqual({
+      prompt_tokens: 0,
+      completion_tokens: 0,
+      total_tokens: 0,
+    });
+  });
+
+  it('passes through custom usage values', () => {
+    const usage: OpenAIUsage = {
+      prompt_tokens: 100,
+      completion_tokens: 50,
+      total_tokens: 150,
+    };
+
+    const result = buildChatCompletion(
+      'test-id',
+      'my-agent',
+      'Response',
+      1700000000,
+      [],
+      usage,
+    );
+
+    expect(result.usage).toEqual(usage);
+  });
+});
+
+describe('buildChatCompletionWithToolCalls', () => {
+  const toolCalls = [
+    {
+      id: 'call_1',
+      type: 'function' as const,
+      function: { name: 'get_weather', arguments: '{"city":"NYC"}' },
+    },
+  ];
+
+  it('returns correct structure with tool_calls', () => {
+    const result = buildChatCompletionWithToolCalls(
+      'test-id',
+      'my-agent',
+      toolCalls,
+      1700000000,
+    );
+
+    expect(result.id).toBe('chatcmpl-test-id');
+    expect(result.object).toBe('chat.completion');
+    expect(result.choices[0].message.role).toBe('assistant');
+    expect(result.choices[0].message.tool_calls).toEqual(toolCalls);
+    expect(result.choices[0].message.content).toBeNull();
+    expect(result.choices[0].finish_reason).toBe('tool_calls');
+  });
+
+  it('passes through custom usage values', () => {
+    const usage: OpenAIUsage = {
+      prompt_tokens: 200,
+      completion_tokens: 80,
+      total_tokens: 280,
+    };
+
+    const result = buildChatCompletionWithToolCalls(
+      'test-id',
+      'my-agent',
+      toolCalls,
+      1700000000,
+      null,
+      usage,
+    );
+
+    expect(result.usage).toEqual(usage);
+  });
+
+  it('defaults usage to zeros when not provided', () => {
+    const result = buildChatCompletionWithToolCalls(
+      'test-id',
+      'my-agent',
+      toolCalls,
+      1700000000,
+    );
+
+    expect(result.usage).toEqual({
+      prompt_tokens: 0,
+      completion_tokens: 0,
+      total_tokens: 0,
+    });
+  });
+});
+
+describe('buildChatCompletionChunk', () => {
+  it('returns correct chunk structure', () => {
+    const result = buildChatCompletionChunk(
+      'test-id',
+      'my-agent',
+      { content: 'hello' },
+      null,
+      1700000000,
+    );
+
+    expect(result.id).toBe('chatcmpl-test-id');
+    expect(result.object).toBe('chat.completion.chunk');
+    expect(result.choices[0].delta).toEqual({ content: 'hello' });
+    expect(result.choices[0].finish_reason).toBeNull();
+  });
+
+  it('includes finish_reason on final chunk', () => {
+    const result = buildChatCompletionChunk(
+      'test-id',
+      'my-agent',
+      {},
+      'stop',
+      1700000000,
+    );
+
+    expect(result.choices[0].finish_reason).toBe('stop');
+  });
+});
+
+describe('buildStreamingUsageChunk', () => {
+  it('returns chunk with empty choices and populated usage', () => {
+    const usage: OpenAIUsage = {
+      prompt_tokens: 50,
+      completion_tokens: 25,
+      total_tokens: 75,
+    };
+
+    const result = buildStreamingUsageChunk(
+      'test-id',
+      'my-agent',
+      usage,
+      1700000000,
+    );
+
+    expect(result.id).toBe('chatcmpl-test-id');
+    expect(result.object).toBe('chat.completion.chunk');
+    expect(result.choices).toEqual([]);
+    expect(result.usage).toEqual(usage);
   });
 });
 

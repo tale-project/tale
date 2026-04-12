@@ -3,7 +3,7 @@
   "info": {
     "title": "Tale Public API",
     "version": "1.0.0",
-    "description": "Tale Platform REST API.\n\n## Authentication\n\nAll endpoints require a Bearer token:\n\n```\nAuthorization: Bearer tale_...\n```\n\nCreate API keys in **Settings > API Keys**.\n\n## Quick start — REST API\n\n```bash\n# List documents\ncurl -H \"Authorization: Bearer tale_...\" https://your-instance.com/api/v1/documents\n\n# Create a product\ncurl -X POST -H \"Authorization: Bearer tale_...\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"name\": \"New Product\", \"price\": 9.99}' \\\n  https://your-instance.com/api/v1/products\n\n# List chat threads\ncurl -H \"Authorization: Bearer tale_...\" https://your-instance.com/api/v1/threads\n```\n\n## Quick start — OpenAI Compatible\n\n```python\nfrom openai import OpenAI\n\nclient = OpenAI(\n    base_url=\"https://your-instance.com/api/v1\",\n    api_key=\"tale_...\",\n)\n\nresponse = client.chat.completions.create(\n    model=\"chat-agent\",\n    messages=[{\"role\": \"user\", \"content\": \"Hello!\"}],\n)\n```\n\n## Citations\n\nAgent mode responses include a `citations` array when knowledge tools (RAG search, web search) are used:\n\n```python\nresponse = client.chat.completions.create(\n    model=\"my-agent\",\n    messages=[{\"role\": \"user\", \"content\": \"What does the policy say about returns?\"}],\n)\n\n# Access citations\nfor citation in response.model_extra.get(\"citations\", []):\n    print(f\"[{citation['index']}] {citation['source']} (relevance: {citation['relevance']})\")\n```\n\nFor streaming, citations arrive as a separate SSE event before `[DONE]`."
+    "description": "Tale Platform REST API.\n\n## Authentication\n\nAll endpoints require a Bearer token:\n\n```\nAuthorization: Bearer tale_...\n```\n\nCreate API keys in **Settings > API Keys**.\n\n## Quick start — REST API\n\n```bash\n# List documents\ncurl -H \"Authorization: Bearer tale_...\" https://your-instance.com/api/v1/documents\n\n# Create a product\ncurl -X POST -H \"Authorization: Bearer tale_...\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"name\": \"New Product\", \"price\": 9.99}' \\\n  https://your-instance.com/api/v1/products\n\n# List chat threads\ncurl -H \"Authorization: Bearer tale_...\" https://your-instance.com/api/v1/threads\n```\n\n## Quick start — OpenAI Compatible\n\n```python\nfrom openai import OpenAI\n\nclient = OpenAI(\n    base_url=\"https://your-instance.com/api/v1\",\n    api_key=\"tale_...\",\n)\n\nresponse = client.chat.completions.create(\n    model=\"chat-agent\",\n    messages=[{\"role\": \"user\", \"content\": \"Hello!\"}],\n)\n```"
   },
   "servers": [
     {
@@ -19,9 +19,11 @@
   "paths": {
     "/api/v1/chat/completions": {
       "post": {
-        "tags": ["OpenAI Compatible"],
+        "tags": [
+          "OpenAI Compatible"
+        ],
         "summary": "Create chat completion",
-        "description": "Send messages to an agent and receive a response. Fully compatible with the OpenAI Chat Completions API.\n\n**Two modes:**\n- **Agent mode** (no `tools`): The agent uses server-side tools and auto-executes them. Response includes `citations` array when knowledge tools (RAG, web search) were used.\n- **Client tool mode** (`tools` provided): Only client-defined tools are used. Returns `tool_calls` for client execution.",
+        "description": "Send messages to an agent and receive a response. Fully compatible with the OpenAI Chat Completions API.\n\n**Two modes:**\n- **Agent mode** (no `tools`): The agent uses server-side tools and auto-executes them.\n- **Client tool mode** (`tools` provided): Only client-defined tools are used. Returns `tool_calls` for client execution.",
         "operationId": "createChatCompletion",
         "security": [
           {
@@ -89,7 +91,9 @@
     },
     "/api/v1/models": {
       "get": {
-        "tags": ["OpenAI Compatible"],
+        "tags": [
+          "OpenAI Compatible"
+        ],
         "summary": "List models",
         "description": "List available agents as OpenAI-compatible models. Only agents with `visibleInChat: true` are returned.",
         "operationId": "listModels",
@@ -118,7 +122,9 @@
     },
     "/api/v1/documents": {
       "get": {
-        "tags": ["Documents"],
+        "tags": [
+          "Documents"
+        ],
         "summary": "List documents",
         "operationId": "listDocuments",
         "security": [
@@ -190,7 +196,9 @@
         }
       },
       "post": {
-        "tags": ["Documents"],
+        "tags": [
+          "Documents"
+        ],
         "summary": "Create document",
         "operationId": "createDocument",
         "security": [
@@ -236,7 +244,9 @@
     },
     "/api/v1/documents/{id}": {
       "get": {
-        "tags": ["Documents"],
+        "tags": [
+          "Documents"
+        ],
         "summary": "Get document",
         "operationId": "getDocument",
         "security": [
@@ -281,7 +291,9 @@
         }
       },
       "patch": {
-        "tags": ["Documents"],
+        "tags": [
+          "Documents"
+        ],
         "summary": "Update document",
         "operationId": "updateDocument",
         "security": [
@@ -336,7 +348,9 @@
         }
       },
       "delete": {
-        "tags": ["Documents"],
+        "tags": [
+          "Documents"
+        ],
         "summary": "Delete document",
         "operationId": "deleteDocument",
         "security": [
@@ -376,7 +390,9 @@
     },
     "/api/v1/documents/{id}/retry-indexing": {
       "post": {
-        "tags": ["Documents"],
+        "tags": [
+          "Documents"
+        ],
         "summary": "Retry RAG indexing",
         "operationId": "retryDocumentIndexing",
         "security": [
@@ -416,7 +432,9 @@
     },
     "/api/v1/websites": {
       "get": {
-        "tags": ["Websites"],
+        "tags": [
+          "Websites"
+        ],
         "summary": "List websites",
         "operationId": "listWebsites",
         "security": [
@@ -488,7 +506,9 @@
         }
       },
       "post": {
-        "tags": ["Websites"],
+        "tags": [
+          "Websites"
+        ],
         "summary": "Create website",
         "operationId": "createWebsite",
         "security": [
@@ -534,7 +554,9 @@
     },
     "/api/v1/websites/{id}": {
       "get": {
-        "tags": ["Websites"],
+        "tags": [
+          "Websites"
+        ],
         "summary": "Get website",
         "operationId": "getWebsite",
         "security": [
@@ -579,7 +601,9 @@
         }
       },
       "patch": {
-        "tags": ["Websites"],
+        "tags": [
+          "Websites"
+        ],
         "summary": "Update website",
         "operationId": "updateWebsite",
         "security": [
@@ -634,7 +658,9 @@
         }
       },
       "delete": {
-        "tags": ["Websites"],
+        "tags": [
+          "Websites"
+        ],
         "summary": "Delete website",
         "operationId": "deleteWebsite",
         "security": [
@@ -674,7 +700,9 @@
     },
     "/api/v1/websites/{id}/pages": {
       "get": {
-        "tags": ["Websites"],
+        "tags": [
+          "Websites"
+        ],
         "summary": "Fetch pages",
         "operationId": "listWebsitePages",
         "security": [
@@ -739,7 +767,9 @@
     },
     "/api/v1/websites/{id}/sync": {
       "post": {
-        "tags": ["Websites"],
+        "tags": [
+          "Websites"
+        ],
         "summary": "Sync statuses",
         "operationId": "syncWebsite",
         "security": [
@@ -779,7 +809,9 @@
     },
     "/api/v1/websites/{id}/search": {
       "post": {
-        "tags": ["Websites"],
+        "tags": [
+          "Websites"
+        ],
         "summary": "Search content",
         "operationId": "searchWebsite",
         "security": [
@@ -836,7 +868,9 @@
     },
     "/api/v1/products": {
       "get": {
-        "tags": ["Products"],
+        "tags": [
+          "Products"
+        ],
         "summary": "List products",
         "operationId": "listProducts",
         "security": [
@@ -908,7 +942,9 @@
         }
       },
       "post": {
-        "tags": ["Products"],
+        "tags": [
+          "Products"
+        ],
         "summary": "Create product",
         "operationId": "createProduct",
         "security": [
@@ -954,7 +990,9 @@
     },
     "/api/v1/products/{id}": {
       "get": {
-        "tags": ["Products"],
+        "tags": [
+          "Products"
+        ],
         "summary": "Get product",
         "operationId": "getProduct",
         "security": [
@@ -999,7 +1037,9 @@
         }
       },
       "patch": {
-        "tags": ["Products"],
+        "tags": [
+          "Products"
+        ],
         "summary": "Update product",
         "operationId": "updateProduct",
         "security": [
@@ -1054,7 +1094,9 @@
         }
       },
       "delete": {
-        "tags": ["Products"],
+        "tags": [
+          "Products"
+        ],
         "summary": "Delete product",
         "operationId": "deleteProduct",
         "security": [
@@ -1094,7 +1136,9 @@
     },
     "/api/v1/customers": {
       "get": {
-        "tags": ["Customers"],
+        "tags": [
+          "Customers"
+        ],
         "summary": "List customers",
         "operationId": "listCustomers",
         "security": [
@@ -1175,7 +1219,9 @@
         }
       },
       "post": {
-        "tags": ["Customers"],
+        "tags": [
+          "Customers"
+        ],
         "summary": "Create customer",
         "operationId": "createCustomer",
         "security": [
@@ -1221,7 +1267,9 @@
     },
     "/api/v1/customers/{id}": {
       "get": {
-        "tags": ["Customers"],
+        "tags": [
+          "Customers"
+        ],
         "summary": "Get customer",
         "operationId": "getCustomer",
         "security": [
@@ -1266,7 +1314,9 @@
         }
       },
       "patch": {
-        "tags": ["Customers"],
+        "tags": [
+          "Customers"
+        ],
         "summary": "Update customer",
         "operationId": "updateCustomer",
         "security": [
@@ -1321,7 +1371,9 @@
         }
       },
       "delete": {
-        "tags": ["Customers"],
+        "tags": [
+          "Customers"
+        ],
         "summary": "Delete customer",
         "operationId": "deleteCustomer",
         "security": [
@@ -1361,7 +1413,9 @@
     },
     "/api/v1/vendors": {
       "get": {
-        "tags": ["Vendors"],
+        "tags": [
+          "Vendors"
+        ],
         "summary": "List vendors",
         "operationId": "listVendors",
         "security": [
@@ -1433,7 +1487,9 @@
         }
       },
       "post": {
-        "tags": ["Vendors"],
+        "tags": [
+          "Vendors"
+        ],
         "summary": "Create vendor",
         "operationId": "createVendor",
         "security": [
@@ -1479,7 +1535,9 @@
     },
     "/api/v1/vendors/{id}": {
       "get": {
-        "tags": ["Vendors"],
+        "tags": [
+          "Vendors"
+        ],
         "summary": "Get vendor",
         "operationId": "getVendor",
         "security": [
@@ -1524,7 +1582,9 @@
         }
       },
       "patch": {
-        "tags": ["Vendors"],
+        "tags": [
+          "Vendors"
+        ],
         "summary": "Update vendor",
         "operationId": "updateVendor",
         "security": [
@@ -1579,7 +1639,9 @@
         }
       },
       "delete": {
-        "tags": ["Vendors"],
+        "tags": [
+          "Vendors"
+        ],
         "summary": "Delete vendor",
         "operationId": "deleteVendor",
         "security": [
@@ -1619,7 +1681,9 @@
     },
     "/api/v1/agents": {
       "get": {
-        "tags": ["Agents"],
+        "tags": [
+          "Agents"
+        ],
         "summary": "List agents",
         "operationId": "listAgents",
         "security": [
@@ -1655,7 +1719,9 @@
     },
     "/api/v1/agents/tools": {
       "get": {
-        "tags": ["Agents"],
+        "tags": [
+          "Agents"
+        ],
         "summary": "List available tools",
         "operationId": "listAgentTools",
         "security": [
@@ -1684,7 +1750,9 @@
     },
     "/api/v1/agents/integrations": {
       "get": {
-        "tags": ["Agents"],
+        "tags": [
+          "Agents"
+        ],
         "summary": "List available integrations",
         "operationId": "listAgentIntegrations",
         "security": [
@@ -1713,7 +1781,9 @@
     },
     "/api/v1/agents/{slug}": {
       "get": {
-        "tags": ["Agents"],
+        "tags": [
+          "Agents"
+        ],
         "summary": "Get agent config and binding",
         "operationId": "getAgent",
         "security": [
@@ -1758,7 +1828,9 @@
         }
       },
       "patch": {
-        "tags": ["Agents"],
+        "tags": [
+          "Agents"
+        ],
         "summary": "Update agent binding",
         "operationId": "updateAgentBinding",
         "security": [
@@ -1815,7 +1887,9 @@
     },
     "/api/v1/workflows/{slug}/schedules": {
       "get": {
-        "tags": ["Workflows"],
+        "tags": [
+          "Workflows"
+        ],
         "summary": "List schedules",
         "operationId": "listWorkflowSchedules",
         "security": [
@@ -1860,7 +1934,9 @@
         }
       },
       "post": {
-        "tags": ["Workflows"],
+        "tags": [
+          "Workflows"
+        ],
         "summary": "Create schedule",
         "operationId": "createWorkflowSchedule",
         "security": [
@@ -1917,7 +1993,9 @@
     },
     "/api/v1/workflows/schedules/{id}": {
       "patch": {
-        "tags": ["Workflows"],
+        "tags": [
+          "Workflows"
+        ],
         "summary": "Update schedule",
         "operationId": "updateWorkflowSchedule",
         "security": [
@@ -1972,7 +2050,9 @@
         }
       },
       "delete": {
-        "tags": ["Workflows"],
+        "tags": [
+          "Workflows"
+        ],
         "summary": "Delete schedule",
         "operationId": "deleteWorkflowSchedule",
         "security": [
@@ -2012,7 +2092,9 @@
     },
     "/api/v1/workflows/{slug}/webhooks": {
       "get": {
-        "tags": ["Workflows"],
+        "tags": [
+          "Workflows"
+        ],
         "summary": "List webhooks",
         "operationId": "listWorkflowWebhooks",
         "security": [
@@ -2057,7 +2139,9 @@
         }
       },
       "post": {
-        "tags": ["Workflows"],
+        "tags": [
+          "Workflows"
+        ],
         "summary": "Create webhook",
         "operationId": "createWorkflowWebhook",
         "security": [
@@ -2104,7 +2188,9 @@
     },
     "/api/v1/workflows/webhooks/{id}": {
       "delete": {
-        "tags": ["Workflows"],
+        "tags": [
+          "Workflows"
+        ],
         "summary": "Delete webhook",
         "operationId": "deleteWorkflowWebhook",
         "security": [
@@ -2144,7 +2230,9 @@
     },
     "/api/v1/workflows/{slug}/logs": {
       "get": {
-        "tags": ["Workflows"],
+        "tags": [
+          "Workflows"
+        ],
         "summary": "Get trigger logs",
         "operationId": "getWorkflowLogs",
         "security": [
@@ -2184,7 +2272,9 @@
     },
     "/api/v1/workflows/{slug}/executions": {
       "get": {
-        "tags": ["Workflows"],
+        "tags": [
+          "Workflows"
+        ],
         "summary": "List executions",
         "operationId": "listWorkflowExecutions",
         "security": [
@@ -2276,7 +2366,9 @@
     },
     "/api/v1/workflows/executions/{id}": {
       "get": {
-        "tags": ["Workflows"],
+        "tags": [
+          "Workflows"
+        ],
         "summary": "Get execution details",
         "operationId": "getWorkflowExecution",
         "security": [
@@ -2323,7 +2415,9 @@
     },
     "/api/v1/workflows/executions/{id}/cancel": {
       "post": {
-        "tags": ["Workflows"],
+        "tags": [
+          "Workflows"
+        ],
         "summary": "Cancel execution",
         "operationId": "cancelWorkflowExecution",
         "security": [
@@ -2363,7 +2457,9 @@
     },
     "/api/v1/workflows/{slug}/run": {
       "post": {
-        "tags": ["Workflows"],
+        "tags": [
+          "Workflows"
+        ],
         "summary": "Trigger workflow",
         "operationId": "triggerWorkflow",
         "security": [
@@ -2420,7 +2516,9 @@
     },
     "/api/v1/threads": {
       "get": {
-        "tags": ["Threads"],
+        "tags": [
+          "Threads"
+        ],
         "summary": "List threads",
         "operationId": "listThreads",
         "security": [
@@ -2483,7 +2581,9 @@
         }
       },
       "post": {
-        "tags": ["Threads"],
+        "tags": [
+          "Threads"
+        ],
         "summary": "Create thread",
         "operationId": "createThread",
         "security": [
@@ -2529,7 +2629,9 @@
     },
     "/api/v1/threads/{id}": {
       "get": {
-        "tags": ["Threads"],
+        "tags": [
+          "Threads"
+        ],
         "summary": "Get thread",
         "operationId": "getThread",
         "security": [
@@ -2574,7 +2676,9 @@
         }
       },
       "patch": {
-        "tags": ["Threads"],
+        "tags": [
+          "Threads"
+        ],
         "summary": "Update thread title",
         "operationId": "updateThread",
         "security": [
@@ -2622,7 +2726,9 @@
         }
       },
       "delete": {
-        "tags": ["Threads"],
+        "tags": [
+          "Threads"
+        ],
         "summary": "Delete thread",
         "operationId": "deleteThread",
         "security": [
@@ -2662,7 +2768,9 @@
     },
     "/api/v1/threads/{id}/messages": {
       "get": {
-        "tags": ["Threads"],
+        "tags": [
+          "Threads"
+        ],
         "summary": "Get thread messages",
         "operationId": "getThreadMessages",
         "security": [
@@ -2709,7 +2817,9 @@
     },
     "/api/v1/threads/{id}/archive": {
       "post": {
-        "tags": ["Threads"],
+        "tags": [
+          "Threads"
+        ],
         "summary": "Archive thread",
         "operationId": "archiveThread",
         "security": [
@@ -2749,7 +2859,9 @@
     },
     "/api/v1/threads/{id}/unarchive": {
       "post": {
-        "tags": ["Threads"],
+        "tags": [
+          "Threads"
+        ],
         "summary": "Unarchive thread",
         "operationId": "unarchiveThread",
         "security": [
@@ -2799,12 +2911,15 @@
     "schemas": {
       "ChatCompletionRequest": {
         "type": "object",
-        "required": ["model", "messages"],
+        "required": [
+          "model",
+          "messages"
+        ],
         "properties": {
           "model": {
             "type": "string",
-            "description": "Agent slug (e.g., \"chat-agent\").",
-            "example": "chat-agent"
+            "description": "Model ID (e.g., \"claude-sonnet-4-20250514\"). Use GET /api/v1/models to list available models.",
+            "example": "claude-sonnet-4-20250514"
           },
           "messages": {
             "type": "array",
@@ -2857,7 +2972,10 @@
             "properties": {
               "type": {
                 "type": "string",
-                "enum": ["text", "json_object"]
+                "enum": [
+                  "text",
+                  "json_object"
+                ]
               }
             },
             "description": "Set to `{\"type\": \"json_object\"}` for JSON mode."
@@ -2873,14 +2991,20 @@
             "oneOf": [
               {
                 "type": "string",
-                "enum": ["auto", "required", "none"]
+                "enum": [
+                  "auto",
+                  "required",
+                  "none"
+                ]
               },
               {
                 "type": "object",
                 "properties": {
                   "type": {
                     "type": "string",
-                    "enum": ["function"]
+                    "enum": [
+                      "function"
+                    ]
                   },
                   "function": {
                     "type": "object",
@@ -2889,12 +3013,25 @@
                         "type": "string"
                       }
                     },
-                    "required": ["name"]
+                    "required": [
+                      "name"
+                    ]
                   }
                 }
               }
             ],
             "description": "Controls tool calling behavior."
+          },
+          "stream_options": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "include_usage": {
+                "type": "boolean",
+                "description": "If set, an additional chunk will be streamed before the `[DONE]` message with token usage statistics."
+              }
+            },
+            "description": "Options for streaming. Only applicable when `stream` is true."
           }
         }
       },
@@ -2907,7 +3044,9 @@
           },
           "object": {
             "type": "string",
-            "enum": ["chat.completion"]
+            "enum": [
+              "chat.completion"
+            ]
           },
           "created": {
             "type": "integer"
@@ -2924,11 +3063,15 @@
                   "type": "integer"
                 },
                 "message": {
-                  "$ref": "#/components/schemas/ChatMessage"
+                  "$ref": "#/components/schemas/ChatMessageAssistant"
                 },
                 "finish_reason": {
                   "type": "string",
-                  "enum": ["stop", "length", "tool_calls"]
+                  "enum": [
+                    "stop",
+                    "length",
+                    "tool_calls"
+                  ]
                 }
               }
             }
@@ -2952,42 +3095,7 @@
             "items": {
               "$ref": "#/components/schemas/Citation"
             },
-            "description": "Source citations referenced in the response text via [N] markers. Empty array when no knowledge tools were used."
-          }
-        }
-      },
-      "Citation": {
-        "type": "object",
-        "required": ["index", "type", "source", "relevance"],
-        "properties": {
-          "index": {
-            "type": "integer",
-            "description": "The [N] citation marker number in the response text"
-          },
-          "type": {
-            "type": "string",
-            "enum": ["rag", "web"],
-            "description": "Source type"
-          },
-          "source": {
-            "type": "string",
-            "description": "Filename (rag) or page title (web)"
-          },
-          "fileId": {
-            "type": "string",
-            "description": "Document file ID (rag only)"
-          },
-          "url": {
-            "type": "string",
-            "description": "Source URL (web only)"
-          },
-          "page": {
-            "type": "integer",
-            "description": "Page number within document (rag only)"
-          },
-          "relevance": {
-            "type": "number",
-            "description": "Relevance score (0-1)"
+            "description": "Source citations referenced in the response text via [N] markers. Present when knowledge tools (RAG, web search) were used."
           }
         }
       },
@@ -2996,7 +3104,9 @@
         "properties": {
           "object": {
             "type": "string",
-            "enum": ["list"]
+            "enum": [
+              "list"
+            ]
           },
           "data": {
             "type": "array",
@@ -3009,7 +3119,9 @@
                 },
                 "object": {
                   "type": "string",
-                  "enum": ["model"]
+                  "enum": [
+                    "model"
+                  ]
                 },
                 "created": {
                   "type": "integer"
@@ -3041,7 +3153,9 @@
       },
       "CreateDocumentRequest": {
         "type": "object",
-        "required": ["title"],
+        "required": [
+          "title"
+        ],
         "properties": {
           "title": {
             "type": "string"
@@ -3152,7 +3266,10 @@
       },
       "CreateWebsiteRequest": {
         "type": "object",
-        "required": ["domain", "scanInterval"],
+        "required": [
+          "domain",
+          "scanInterval"
+        ],
         "properties": {
           "domain": {
             "type": "string"
@@ -3230,7 +3347,9 @@
       },
       "WebsiteSearchRequest": {
         "type": "object",
-        "required": ["query"],
+        "required": [
+          "query"
+        ],
         "properties": {
           "query": {
             "type": "string"
@@ -3284,7 +3403,9 @@
       },
       "CreateProductRequest": {
         "type": "object",
-        "required": ["name"],
+        "required": [
+          "name"
+        ],
         "properties": {
           "name": {
             "type": "string"
@@ -3422,7 +3543,9 @@
       },
       "CreateCustomerRequest": {
         "type": "object",
-        "required": ["email"],
+        "required": [
+          "email"
+        ],
         "properties": {
           "email": {
             "type": "string"
@@ -3664,7 +3787,10 @@
       },
       "CreateScheduleRequest": {
         "type": "object",
-        "required": ["cronExpression", "timezone"],
+        "required": [
+          "cronExpression",
+          "timezone"
+        ],
         "properties": {
           "cronExpression": {
             "type": "string"
@@ -3838,7 +3964,11 @@
           },
           "status": {
             "type": "string",
-            "enum": ["active", "archived", "deleted"]
+            "enum": [
+              "active",
+              "archived",
+              "deleted"
+            ]
           },
           "chatType": {
             "type": "string"
@@ -3856,7 +3986,9 @@
       },
       "UpdateThreadRequest": {
         "type": "object",
-        "required": ["title"],
+        "required": [
+          "title"
+        ],
         "properties": {
           "title": {
             "type": "string"
@@ -3879,7 +4011,10 @@
                 },
                 "role": {
                   "type": "string",
-                  "enum": ["user", "assistant"]
+                  "enum": [
+                    "user",
+                    "assistant"
+                  ]
                 },
                 "content": {
                   "type": "string"
@@ -3890,48 +4025,48 @@
         }
       },
       "ChatMessage": {
-        "type": "object",
-        "required": ["role"],
-        "properties": {
-          "role": {
-            "type": "string",
-            "enum": ["system", "user", "assistant", "tool"]
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ChatMessageSystem"
           },
-          "content": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Message content."
+          {
+            "$ref": "#/components/schemas/ChatMessageUser"
           },
-          "tool_calls": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ToolCall"
-            },
-            "description": "Tool calls (assistant messages only)."
+          {
+            "$ref": "#/components/schemas/ChatMessageAssistant"
           },
-          "tool_call_id": {
-            "type": "string",
-            "description": "ID of the tool call this result is for (tool messages only)."
+          {
+            "$ref": "#/components/schemas/ChatMessageTool"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "role",
+          "mapping": {
+            "system": "#/components/schemas/ChatMessageSystem",
+            "user": "#/components/schemas/ChatMessageUser",
+            "assistant": "#/components/schemas/ChatMessageAssistant",
+            "tool": "#/components/schemas/ChatMessageTool"
           }
         }
       },
       "ToolDefinition": {
         "type": "object",
-        "required": ["type", "function"],
+        "required": [
+          "type",
+          "function"
+        ],
         "properties": {
           "type": {
             "type": "string",
-            "enum": ["function"]
+            "enum": [
+              "function"
+            ]
           },
           "function": {
             "type": "object",
-            "required": ["name"],
+            "required": [
+              "name"
+            ],
             "properties": {
               "name": {
                 "type": "string"
@@ -3944,6 +4079,69 @@
                 "description": "JSON Schema for the function parameters."
               }
             }
+          }
+        }
+      },
+      "ChatMessageAssistant": {
+        "type": "object",
+        "required": [
+          "role"
+        ],
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "assistant"
+            ]
+          },
+          "content": {
+            "type": "string",
+            "nullable": true,
+            "description": "Assistant message content."
+          },
+          "tool_calls": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ToolCall"
+            },
+            "description": "Tool calls made by the assistant."
+          }
+        }
+      },
+      "Citation": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer",
+            "description": "Citation index corresponding to [N] markers in text."
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "rag",
+              "web"
+            ],
+            "description": "Source type: RAG knowledge base or web search."
+          },
+          "source": {
+            "type": "string",
+            "description": "Source name or title."
+          },
+          "fileId": {
+            "type": "string",
+            "description": "File ID for RAG citations."
+          },
+          "url": {
+            "type": "string",
+            "description": "URL for web citations."
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number for document citations."
+          },
+          "relevance": {
+            "type": "number",
+            "description": "Relevance score (0-1)."
           }
         }
       },
@@ -3981,6 +4179,69 @@
           }
         }
       },
+      "ChatMessageSystem": {
+        "type": "object",
+        "required": [
+          "role",
+          "content"
+        ],
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "system"
+            ]
+          },
+          "content": {
+            "type": "string",
+            "description": "System prompt content."
+          }
+        }
+      },
+      "ChatMessageUser": {
+        "type": "object",
+        "required": [
+          "role",
+          "content"
+        ],
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "user"
+            ]
+          },
+          "content": {
+            "type": "string",
+            "description": "User message content."
+          }
+        }
+      },
+      "ChatMessageTool": {
+        "type": "object",
+        "required": [
+          "role",
+          "content",
+          "tool_call_id"
+        ],
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "tool"
+            ]
+          },
+          "content": {
+            "type": "string",
+            "nullable": true,
+            "description": "Tool result content."
+          },
+          "tool_call_id": {
+            "type": "string",
+            "description": "ID of the tool call this result is for."
+          }
+        }
+      },
       "ToolCall": {
         "type": "object",
         "properties": {
@@ -3989,7 +4250,9 @@
           },
           "type": {
             "type": "string",
-            "enum": ["function"]
+            "enum": [
+              "function"
+            ]
           },
           "function": {
             "type": "object",
