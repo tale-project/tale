@@ -1,0 +1,63 @@
+name: Feature request
+description: Suggest a new feature or capability.
+title: "Feature: "
+labels: ["feat"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: What would you like?
+      description: A clear description of the feature you'd like to see.
+      placeholder: "e.g. I'd like to be able to export conversation history as a PDF."
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Why do you need this?
+      description: What problem does this solve or what use case does it enable?
+      placeholder: "e.g. Our team needs to archive conversations for compliance."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: service
+    attributes:
+      label: Affected service
+      description: Which part of Tale would this affect?
+      options:
+        - Platform
+        - RAG
+        - Crawler
+        - Database
+        - Graph DB
+        - Operator
+        - Proxy
+        - Not sure
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Have you considered any workarounds or alternative solutions?
+    validations:
+      required: false
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots or mockups
+      description: Drag and drop images or paste links to illustrate the idea.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this hasn't been requested yet.
+          required: true

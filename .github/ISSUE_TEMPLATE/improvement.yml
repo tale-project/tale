@@ -1,0 +1,56 @@
+name: Improvement
+description: Suggest an enhancement to an existing feature.
+title: "Improvement: "
+labels: ["improvement"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: What should be improved?
+      description: Which existing feature could be better?
+      placeholder: "e.g. The document preview should support syntax highlighting for more languages."
+    validations:
+      required: true
+
+  - type: textarea
+    id: current
+    attributes:
+      label: Current behavior
+      description: How does it work today?
+      placeholder: "e.g. Only JavaScript and Python files get syntax highlighting in the preview."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed
+    attributes:
+      label: Proposed change
+      description: What would the improved behavior look like?
+      placeholder: "e.g. Add highlighting for Go, Rust, and YAML files using the existing Shiki setup."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: service
+    attributes:
+      label: Affected service
+      description: Which part of Tale would this affect?
+      options:
+        - Platform
+        - RAG
+        - Crawler
+        - Database
+        - Graph DB
+        - Operator
+        - Proxy
+        - Not sure
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this hasn't been suggested yet.
+          required: true

@@ -1,0 +1,94 @@
+name: Bug report
+description: Something is broken or not working as expected.
+title: "Bug: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: A clear description of the bug.
+      placeholder: "e.g. When I click 'Send' in the chat, nothing happens and the message disappears."
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What did you do to trigger this?
+      placeholder: |
+        1. Go to ...
+        2. Click on ...
+        3. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should have happened instead?
+      placeholder: "e.g. The message should appear in the chat and the agent should respond."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: service
+    attributes:
+      label: Affected service
+      description: Which part of Tale is affected?
+      options:
+        - Platform
+        - RAG
+        - Crawler
+        - Database
+        - Graph DB
+        - Operator
+        - Proxy
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: Which version or commit SHA are you running?
+      placeholder: "e.g. 0.1.0 or abc1234"
+    validations:
+      required: false
+
+  - type: input
+    id: environment
+    attributes:
+      label: Browser and OS
+      description: Only needed for UI bugs.
+      placeholder: "e.g. Chrome 124 on macOS 15.4"
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: Paste any error messages or logs.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots or recordings
+      description: Drag and drop images or paste links. Especially helpful for UI issues.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this hasn't been reported yet.
+          required: true
