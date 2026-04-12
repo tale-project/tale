@@ -69,6 +69,19 @@ export const forkThread = mutation({
       threadId: newThreadId,
     });
 
+    let lastSavedOrder: number | undefined;
+    for (const msg of messages) {
+      const result = await saveMessage(ctx, components.agent, {
+        threadId: newThreadId,
+        userId,
+        message: {
+          role: msg.role,
+          content: msg.content,
+        },
+      });
+      lastSavedOrder = result.message.order;
+    }
+
     const createdAt = thread?._creationTime ?? Date.now();
     await ctx.db.insert('threadMetadata', {
       threadId: newThreadId,
@@ -81,22 +94,12 @@ export const forkThread = mutation({
       forkedFrom: metadata.threadId,
       forkedFromShare: true,
       forkedMessageCount: messages.length,
-      lastForkedMessageOrder: messages.at(-1)?.order,
+      lastForkedMessageOrder: lastSavedOrder,
+      forkedAt: Date.now(),
       ...(metadata.organizationId && {
         organizationId: metadata.organizationId,
       }),
     });
-
-    for (const msg of messages) {
-      await saveMessage(ctx, components.agent, {
-        threadId: newThreadId,
-        userId,
-        message: {
-          role: msg.role,
-          content: msg.content,
-        },
-      });
-    }
 
     return newThreadId;
   },

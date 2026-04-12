@@ -94,6 +94,7 @@ interface ChatMessagesProps {
   activeApproval: ChatItem | null;
   forkedMessageCount?: number;
   lastForkedMessageOrder?: number;
+  forkedAt?: number;
   forkedFromShare?: boolean;
   onHumanInputResponseSubmitted?: () => void;
   onSendFollowUp?: (message: string) => void;
@@ -137,6 +138,7 @@ export function ChatMessages({
   activeApproval,
   forkedMessageCount,
   lastForkedMessageOrder,
+  forkedAt,
   forkedFromShare,
   onHumanInputResponseSubmitted,
   onSendFollowUp,
@@ -411,12 +413,25 @@ export function ChatMessages({
   };
 
   // Compute fork divider position: after the last forked message.
-  // Prefer lastForkedMessageOrder (order-based, immune to UIMessage ID
-  // mismatches caused by excludeToolMessages — see get_thread_messages_streaming.ts)
-  // with forkedMessageCount as fallback for older threads.
+  // Priority: forkedAt (timestamp) > lastForkedMessageOrder > forkedMessageCount.
   const forkDividerAfterIdx = useMemo(() => {
+    // Preferred: timestamp-based — all copied messages have _creationTime <= forkedAt
+    if (forkedAt !== undefined) {
+      let lastMatch = -1;
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (
+          item.type === 'message' &&
+          item.data._creationTime !== undefined &&
+          item.data._creationTime <= forkedAt
+        ) {
+          lastMatch = i;
+        }
+      }
+      if (lastMatch >= 0) return lastMatch;
+    }
+    // Fallback: order-based for threads created before forkedAt existed
     if (lastForkedMessageOrder !== undefined) {
-      // Find the last message item whose order <= lastForkedMessageOrder
       let lastMatch = -1;
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
@@ -430,7 +445,7 @@ export function ChatMessages({
       }
       if (lastMatch >= 0) return lastMatch;
     }
-    // Fallback: count-based for threads forked before lastForkedMessageOrder existed
+    // Fallback: count-based for oldest threads
     if (!forkedMessageCount || forkedMessageCount <= 0) return -1;
     let msgCount = 0;
     for (let i = 0; i < items.length; i++) {
@@ -440,7 +455,7 @@ export function ChatMessages({
       }
     }
     return -1;
-  }, [items, lastForkedMessageOrder, forkedMessageCount]);
+  }, [items, forkedAt, lastForkedMessageOrder, forkedMessageCount]);
 
   const forkDivider =
     forkDividerAfterIdx >= 0 ? (

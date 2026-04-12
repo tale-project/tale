@@ -177,6 +177,7 @@ function ArenaColumn({
             lastForkedMessageOrder={
               forkInfo?.lastForkedMessageOrder ?? undefined
             }
+            forkedAt={forkInfo?.forkedAt ?? undefined}
             forkedFromShare={forkInfo?.forkedFromShare}
             hideBranchNavigator
           />
