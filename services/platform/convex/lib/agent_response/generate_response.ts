@@ -437,7 +437,12 @@ export async function generateAgentResponse(
       webSearchMode === 'context' || webSearchMode === 'both';
 
     // Start context injection queries (non-blocking) for context/both modes
-    let knowledgeContextPromise: Promise<string | undefined> | undefined;
+    let knowledgeContextPromise:
+      | Promise<
+          | import('../../agent_tools/rag/query_rag_context').RagContextResult
+          | undefined
+        >
+      | undefined;
     if (needsKnowledgeContext && organizationId && promptMessage) {
       const accessibleFileIds: string[] = await ctx.runQuery(
         internal.documents.internal_queries.getAgentScopedFileIds,
@@ -468,7 +473,12 @@ export async function generateAgentResponse(
       }
     }
 
-    let webContextPromise: Promise<string | undefined> | undefined;
+    let webContextPromise:
+      | Promise<
+          | import('../../agent_tools/web/helpers/query_web_context').WebContextResult
+          | undefined
+        >
+      | undefined;
     if (needsWebContext && organizationId && promptMessage) {
       webContextPromise = queryWebContext(ctx, organizationId, promptMessage);
       debugLog('Web context query started', {
@@ -495,13 +505,15 @@ export async function generateAgentResponse(
 
     if (knowledgeContextResult) {
       debugLog('Knowledge context injected', {
-        contextLength: knowledgeContextResult.length,
+        contextLength: knowledgeContextResult.text.length,
+        citationCount: knowledgeContextResult.citations.length,
         elapsedMs: Date.now() - startTime,
       });
     }
     if (webContextResult) {
       debugLog('Web context injected', {
-        contextLength: webContextResult.length,
+        contextLength: webContextResult.text.length,
+        citationCount: webContextResult.citations.length,
         elapsedMs: Date.now() - startTime,
       });
     }
@@ -535,8 +547,8 @@ export async function generateAgentResponse(
       additionalContext,
       parentThreadId,
       maxHistoryTokens: effectiveMaxHistoryTokens,
-      ragContext: knowledgeContextResult ?? hookData?.ragContext,
-      webContext: webContextResult,
+      ragContext: knowledgeContextResult?.text ?? hookData?.ragContext,
+      webContext: webContextResult?.text,
     });
     const contextBuildMs = Date.now() - contextBuildStart;
 
@@ -1377,8 +1389,8 @@ export async function generateAgentResponse(
       totalMs: durationMs,
       ttftMs: timeToFirstTokenMs,
       contextBuildMs,
-      ragContextLength: knowledgeContextResult?.length ?? 0,
-      webContextLength: webContextResult?.length ?? 0,
+      ragContextLength: knowledgeContextResult?.text?.length ?? 0,
+      webContextLength: webContextResult?.text?.length ?? 0,
       contextTokens: structuredThreadContext.stats.totalTokens,
       messageCount: structuredThreadContext.stats.messageCount,
       inputTokens: result.usage?.inputTokens,
@@ -1386,9 +1398,22 @@ export async function generateAgentResponse(
     });
 
     // Extract tool calls from steps
-    const { toolCalls, toolsUsage, citations } = extractToolCallsFromSteps(
-      result.steps ?? [],
-    );
+    const {
+      toolCalls,
+      toolsUsage,
+      citations: toolCitations,
+    } = extractToolCallsFromSteps(result.steps ?? []);
+
+    // Context-mode citations (known before generation, from RAG/web injection)
+    const contextCitations = [
+      ...(knowledgeContextResult?.citations ?? []),
+      ...(webContextResult?.citations ?? []),
+    ];
+
+    // Simple selection: tool citations are authoritative when tools were called;
+    // fall back to context citations when no tool calls produced citations.
+    const citations =
+      toolCitations.length > 0 ? toolCitations : contextCitations;
 
     // ── Response cache store ──
     if (cacheKey && result.text?.trim()) {

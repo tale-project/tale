@@ -307,15 +307,37 @@ export const runAgentGeneration = internalAction({
 
           // Create agent factory function from serializable config
           const createAgent = () => {
+            // Filter tools: exclude rag_search/web when their retrieval mode
+            // is 'context' or 'off' (tool should only be available in 'tool'/'both').
+            const knowledgeMode = agentConfig.knowledgeMode ?? 'off';
+            const webSearchMode = agentConfig.webSearchMode ?? 'off';
+            const filteredToolNames = agentConfig.convexToolNames?.filter(
+              (n): n is ToolName => {
+                if (!(TOOL_NAMES as readonly string[]).includes(n))
+                  return false;
+                if (
+                  n === 'rag_search' &&
+                  knowledgeMode !== 'tool' &&
+                  knowledgeMode !== 'both'
+                )
+                  return false;
+                if (
+                  n === 'web' &&
+                  webSearchMode !== 'tool' &&
+                  webSearchMode !== 'both'
+                )
+                  return false;
+                return true;
+              },
+            );
             const config = createAgentConfig({
               name: agentConfig.name,
               instructions: finalInstructions,
               languageModel,
-              convexToolNames: agentConfig.convexToolNames
-                ? agentConfig.convexToolNames.filter((n): n is ToolName =>
-                    (TOOL_NAMES as readonly string[]).includes(n),
-                  )
-                : undefined,
+              convexToolNames:
+                filteredToolNames && filteredToolNames.length > 0
+                  ? filteredToolNames
+                  : undefined,
               extraTools: allExtraTools,
               maxSteps: agentConfig.maxSteps,
               outputFormat: agentConfig.outputFormat,

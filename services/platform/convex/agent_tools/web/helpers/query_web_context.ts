@@ -32,17 +32,34 @@ interface SearchApiResponse {
   total: number;
 }
 
+interface WebContextCitation {
+  index: number;
+  type: 'web';
+  source: string;
+  url: string;
+  relevance: number;
+}
+
 /**
- * Query crawled website pages and return formatted context string.
+ * Result from a web context query, containing both the formatted
+ * text for injection and structured citation metadata.
+ */
+export interface WebContextResult {
+  text: string;
+  citations: WebContextCitation[];
+}
+
+/**
+ * Query crawled website pages and return formatted context with citations.
  *
- * @returns Formatted context string or undefined if no results / on failure
+ * @returns Formatted context with citation metadata, or undefined if no results / on failure
  */
 export async function queryWebContext(
   _ctx: ActionCtx,
   _organizationId: string,
   query: string,
   limit = DEFAULT_LIMIT,
-): Promise<string | undefined> {
+): Promise<WebContextResult | undefined> {
   try {
     debugLog('Querying web context', {
       query: query.slice(0, 100),
@@ -102,15 +119,25 @@ export async function queryWebContext(
         })
         .sort((a, b) => b.score - a.score);
 
-      const webContext = formatWebResults(pages) ?? '';
+      const webContext = formatWebResults(pages);
+      if (!webContext) return undefined;
+
+      const citations: WebContextCitation[] = pages.map((p, idx) => ({
+        index: idx + 1,
+        type: 'web' as const,
+        source: p.title,
+        url: p.url,
+        relevance: p.score,
+      }));
 
       debugLog('Web context retrieved', {
         resultCount: results.length,
         pageCount: byUrl.size,
         contextLength: webContext.length,
+        citationCount: citations.length,
       });
 
-      return webContext;
+      return { text: webContext, citations };
     } catch (fetchError) {
       clearTimeout(timeoutId);
 

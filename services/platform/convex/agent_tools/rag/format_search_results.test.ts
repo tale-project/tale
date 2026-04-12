@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatSearchResults } from './format_search_results';
+import {
+  extractCitationsFromSearchResults,
+  formatSearchResults,
+} from './format_search_results';
 
 describe('formatSearchResults', () => {
   it('returns undefined for empty results', () => {
@@ -137,5 +140,104 @@ describe('formatSearchResults', () => {
       { content: 'Content', score: 0.8, filename: undefined },
     ]);
     expect(result).toBe('[1] (Relevance: 80.0%)\nContent');
+  });
+});
+
+describe('extractCitationsFromSearchResults', () => {
+  it('returns empty array for empty results', () => {
+    expect(extractCitationsFromSearchResults([])).toEqual([]);
+  });
+
+  it('extracts citation from a single result with all metadata', () => {
+    const citations = extractCitationsFromSearchResults([
+      {
+        content: 'Hello world',
+        score: 0.873,
+        file_id: 'doc-123',
+        filename: 'report.pdf',
+      },
+    ]);
+    expect(citations).toEqual([
+      {
+        index: 1,
+        type: 'rag',
+        source: 'report.pdf',
+        fileId: 'doc-123',
+        relevance: 0.873,
+      },
+    ]);
+  });
+
+  it('extracts citations from multiple results with correct indices', () => {
+    const citations = extractCitationsFromSearchResults([
+      { content: 'A', score: 0.9, file_id: 'doc-1', filename: 'a.pdf' },
+      { content: 'B', score: 0.7, file_id: 'doc-2', filename: 'b.pdf' },
+    ]);
+    expect(citations).toHaveLength(2);
+    expect(citations[0].index).toBe(1);
+    expect(citations[1].index).toBe(2);
+    expect(citations[0].source).toBe('a.pdf');
+    expect(citations[1].source).toBe('b.pdf');
+  });
+
+  it('deduplicates by file_id and keeps highest score', () => {
+    const citations = extractCitationsFromSearchResults([
+      {
+        content: 'Chunk 1',
+        score: 0.85,
+        file_id: 'doc-123',
+        filename: 'report.pdf',
+      },
+      {
+        content: 'Chunk 2',
+        score: 0.72,
+        file_id: 'doc-456',
+        filename: 'memo.docx',
+      },
+      {
+        content: 'Chunk 3',
+        score: 0.9,
+        file_id: 'doc-123',
+        filename: 'report.pdf',
+      },
+    ]);
+    expect(citations).toHaveLength(2);
+    expect(citations[0]).toEqual({
+      index: 1,
+      type: 'rag',
+      source: 'report.pdf',
+      fileId: 'doc-123',
+      relevance: 0.9,
+    });
+    expect(citations[1].source).toBe('memo.docx');
+  });
+
+  it('falls back to filename then unknown-N when file_id is missing', () => {
+    const citations = extractCitationsFromSearchResults([
+      { content: 'A', score: 0.8, filename: 'report.pdf' },
+      { content: 'B', score: 0.7 },
+    ]);
+    expect(citations).toHaveLength(2);
+    expect(citations[0].source).toBe('report.pdf');
+    expect(citations[0]).not.toHaveProperty('fileId');
+    expect(citations[1].source).toBe('Unknown');
+  });
+
+  it('preserves relevance of 0 (not filtered by falsy check)', () => {
+    const citations = extractCitationsFromSearchResults([
+      { content: 'A', score: 0, file_id: 'doc-1', filename: 'a.pdf' },
+    ]);
+    expect(citations[0].relevance).toBe(0);
+  });
+
+  it('omits undefined optional fields for Convex compatibility', () => {
+    const citations = extractCitationsFromSearchResults([
+      { content: 'A', score: 0.5 },
+    ]);
+    expect(citations[0]).not.toHaveProperty('fileId');
+    // relevance is always set from score
+    expect(citations[0].relevance).toBe(0.5);
+    expect(citations[0]).not.toHaveProperty('url');
+    expect(citations[0]).not.toHaveProperty('page');
   });
 });

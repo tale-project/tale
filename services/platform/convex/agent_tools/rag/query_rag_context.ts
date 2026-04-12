@@ -13,7 +13,9 @@ import { fetchJson } from '../../../lib/utils/type-cast-helpers';
 import { createDebugLog } from '../../lib/debug_log';
 import { getRagConfig } from '../../lib/helpers/rag_config';
 import {
+  extractCitationsFromSearchResults,
   formatSearchResults,
+  type ContextCitation,
   type SearchResponse,
 } from './format_search_results';
 
@@ -114,6 +116,15 @@ Current question: ${currentQuery}`;
 }
 
 /**
+ * Result from a RAG context query, containing both the formatted
+ * text for injection and structured citation metadata.
+ */
+export interface RagContextResult {
+  text: string;
+  citations: ContextCitation[];
+}
+
+/**
  * Options for RAG context queries.
  */
 export interface RagContextOptions {
@@ -140,7 +151,7 @@ export async function queryRagContext(
   signal?: AbortSignal,
   recentMessages?: RecentMessage[],
   options?: RagContextOptions,
-): Promise<string | undefined> {
+): Promise<RagContextResult | undefined> {
   try {
     const ragServiceUrl = getRagConfig().serviceUrl;
     const url = `${ragServiceUrl}/api/v1/search`;
@@ -209,14 +220,18 @@ export async function queryRagContext(
       }
 
       const ragContext = formatSearchResults(result.results);
+      if (!ragContext) return undefined;
+
+      const citations = extractCitationsFromSearchResults(result.results);
 
       debugLog('RAG context retrieved', {
         resultCount: result.total_results,
-        contextLength: ragContext?.length ?? 0,
+        contextLength: ragContext.length,
+        citationCount: citations.length,
         processingTimeMs: result.processing_time_ms,
       });
 
-      return ragContext;
+      return { text: ragContext, citations };
     } catch (fetchError) {
       clearTimeout(timeoutId);
 
