@@ -46,6 +46,7 @@ class RagSearchService:
         *,
         file_ids: list[str] | None = None,
         top_k: int = 10,
+        similarity_threshold: float = 0.0,
     ) -> list[dict[str, Any]]:
         """Hybrid BM25 + vector search with document scoping.
 
@@ -53,6 +54,8 @@ class RagSearchService:
             query: Search query text.
             file_ids: Optional file IDs to restrict search to.
             top_k: Maximum number of results to return.
+            similarity_threshold: Minimum cosine similarity for vector results.
+                Results below this threshold are discarded before RRF merge.
 
         Returns:
             List of result dicts with content, score, file_id.
@@ -94,17 +97,21 @@ class RagSearchService:
             vec_ms = (time.time() - vec_t0) * 1000
             logger.debug("PERF vector search: {:.1f}ms", vec_ms)
 
-            # Pre-filter vector results by cosine similarity to reject clearly irrelevant content
-            if settings.vector_quality_threshold > 0:
+            # Pre-filter vector results by cosine similarity to reject clearly irrelevant content.
+            # If ALL vector results are below threshold, the query is semantically irrelevant
+            # to the indexed documents — discard FTS results too (they are keyword noise).
+            if similarity_threshold > 0:
                 pre_count = len(vector_results)
-                vector_results = [r for r in vector_results if r["score"] >= settings.vector_quality_threshold]
+                vector_results = [r for r in vector_results if r["score"] >= similarity_threshold]
                 if pre_count != len(vector_results):
                     logger.debug(
                         "Vector pre-filter: {}/{} results passed threshold {}",
                         len(vector_results),
                         pre_count,
-                        settings.vector_quality_threshold,
+                        similarity_threshold,
                     )
+                if pre_count > 0 and not vector_results:
+                    return []
 
             if not fts_results and not vector_results:
                 return []

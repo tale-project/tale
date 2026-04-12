@@ -296,12 +296,10 @@ class RagService:
             query,
             file_ids=file_ids,
             top_k=effective_top_k,
+            similarity_threshold=threshold,
         )
 
         self.last_search_usage = getattr(self._search_service, "last_search_usage", None)
-
-        if threshold > 0:
-            results = [r for r in results if r.get("score", 0) >= threshold]
 
         # If no results and some files are still indexing, wait and retry once
         if not results and file_ids:
@@ -314,10 +312,9 @@ class RagService:
                     query,
                     file_ids=file_ids,
                     top_k=effective_top_k,
+                    similarity_threshold=threshold,
                 )
                 self.last_search_usage = getattr(self._search_service, "last_search_usage", None)
-                if threshold > 0:
-                    results = [r for r in results if r.get("score", 0) >= threshold]
 
         return results
 

@@ -179,8 +179,8 @@ class QueryRequest(BaseModel):
     top_k: int | None = Field(
         default=None, ge=1, le=1000, description="Number of results to return (overrides default)"
     )
-    similarity_threshold: float | None = Field(
-        default=None, ge=0.0, le=1.0, description="Minimum similarity score (overrides default)"
+    similarity_threshold: float = Field(
+        default=0.3, ge=0.0, le=1.0, description="Minimum cosine similarity for vector results (pre-RRF filtering)"
     )
     include_metadata: bool = Field(default=True, description="Whether to include metadata in results")
     file_ids: list[str] = Field(

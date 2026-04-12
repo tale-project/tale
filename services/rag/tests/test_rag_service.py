@@ -163,25 +163,25 @@ class TestSearch:
             "test query",
             file_ids=["doc-1"],
             top_k=10,
+            similarity_threshold=0.0,
         )
 
     async def test_applies_similarity_threshold(self):
         service = _make_service()
-        service._search_service.search = AsyncMock(
-            return_value=[
-                {"content": "good", "score": 0.9, "file_id": "d1"},
-                {"content": "marginal", "score": 0.5, "file_id": "d2"},
-                {"content": "bad", "score": 0.1, "file_id": "d3"},
-            ]
-        )
+        service._search_service.search = AsyncMock(return_value=[])
 
         with patch("app.services.rag_service.settings") as mock_settings:
             mock_settings.top_k = 10
             mock_settings.similarity_threshold = 0.7
-            results = await service.search("query")
+            await service.search("query")
 
-        assert len(results) == 1
-        assert results[0]["content"] == "good"
+        # Threshold is now passed to search_service for vector pre-filtering
+        service._search_service.search.assert_awaited_once_with(
+            "query",
+            file_ids=None,
+            top_k=10,
+            similarity_threshold=0.7,
+        )
 
     async def test_custom_top_k_overrides_settings(self):
         service = _make_service()
@@ -196,6 +196,7 @@ class TestSearch:
             "query",
             file_ids=None,
             top_k=20,
+            similarity_threshold=0.0,
         )
 
     async def test_custom_threshold_overrides_settings(self):
@@ -242,6 +243,7 @@ class TestSearch:
             "q",
             file_ids=["doc-1", "doc-2"],
             top_k=10,
+            similarity_threshold=0.0,
         )
 
 
