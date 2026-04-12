@@ -157,7 +157,15 @@ export function UserButton({
               {
                 type: 'radio-group',
                 value: selectedTeamId ?? '',
-                onValueChange: (val) => setSelectedTeamId?.(val || null),
+                onValueChange: (val) => {
+                  setSelectedTeamId?.(val || null);
+                  if (organizationId) {
+                    void navigate({
+                      to: '/dashboard/$id/chat',
+                      params: { id: organizationId },
+                    });
+                  }
+                },
                 options: [
                   { value: '', label: tNav('teamFilter.allTeams') },
                   ...teams.map((team) => ({

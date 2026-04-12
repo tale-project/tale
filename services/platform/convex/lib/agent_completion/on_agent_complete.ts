@@ -180,32 +180,30 @@ export async function onAgentComplete(
   if (totalTokens > 0 && organizationId && userId && costCents != null) {
     const timestamp = Date.now();
 
-    const ledgerTeamIds = teamIds && teamIds.length > 0 ? teamIds : [undefined];
+    const teamId = teamIds?.[0];
 
-    for (const teamId of ledgerTeamIds) {
-      promises.push(
-        ctx
-          .runMutation(
-            internal.governance.internal_mutations.incrementUsageLedger,
-            {
-              organizationId,
-              userId,
-              teamId,
-              inputTokens: msgInputTokens,
-              outputTokens: msgOutputTokens,
-              costEstimateCents: costCents,
-              timestamp,
-            },
-          )
-          .catch((error) => {
-            console.error(`[${agentType}] Failed to increment usage ledger:`, {
-              threadId,
-              teamId,
-              error,
-            });
-          }),
-      );
-    }
+    promises.push(
+      ctx
+        .runMutation(
+          internal.governance.internal_mutations.incrementUsageLedger,
+          {
+            organizationId,
+            userId,
+            teamId,
+            inputTokens: msgInputTokens,
+            outputTokens: msgOutputTokens,
+            costEstimateCents: costCents,
+            timestamp,
+          },
+        )
+        .catch((error) => {
+          console.error(`[${agentType}] Failed to increment usage ledger:`, {
+            threadId,
+            teamId,
+            error,
+          });
+        }),
+    );
 
     // AI audit log for usage tracking
     promises.push(

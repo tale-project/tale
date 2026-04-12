@@ -27,9 +27,13 @@ export function useMyFeatureFlags(organizationId: string) {
   });
 }
 
-export function useMyBudgetStatus(organizationId: string) {
+export function useMyBudgetStatus(
+  organizationId: string,
+  selectedTeamId?: string | null,
+) {
   return useConvexQuery(api.governance.queries.getMyBudgetStatus, {
     organizationId,
+    selectedTeamId: selectedTeamId ?? null,
   });
 }
 

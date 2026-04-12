@@ -10,6 +10,7 @@ import { PanelFooter } from '@/app/components/layout/panel-footer';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Button } from '@/app/components/ui/primitives/button';
 import { ArenaModeProvider } from '@/app/features/chat/components/arena/arena-mode-context';
+import { BudgetBanner } from '@/app/features/chat/components/budget-banner';
 import { CanvasProvider } from '@/app/features/chat/components/canvas/canvas-context';
 import { ChatHeader } from '@/app/features/chat/components/chat-header';
 import { ChatHistorySidebar } from '@/app/features/chat/components/chat-history-sidebar';
@@ -260,6 +261,7 @@ function ChatLayoutContent({ organizationId }: { organizationId: string }) {
         </AnimatePresence>
 
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <BudgetBanner organizationId={organizationId} />
           <LayoutErrorBoundary organizationId={organizationId}>
             <ThreadGate
               organizationId={organizationId}

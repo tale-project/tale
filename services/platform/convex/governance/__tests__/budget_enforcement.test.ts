@@ -400,4 +400,97 @@ describe('resolveEffectiveLimits', () => {
     expect(result.orgMaxTokens).toBe(50_000_000);
     expect(result.orgMaxCostCents).toBe(100_000);
   });
+
+  it('resolves limits independently across different periods', () => {
+    const rules: BudgetRule[] = [
+      { scope: 'default', period: 'daily', maxRequests: 10 },
+      { scope: 'default', period: 'monthly', maxTokens: 500_000 },
+    ];
+    const dailyResult = resolveEffectiveLimits(
+      rules.filter((r) => r.period === 'daily'),
+      'user-1',
+      [],
+      'member',
+    );
+    const monthlyResult = resolveEffectiveLimits(
+      rules.filter((r) => r.period === 'monthly'),
+      'user-1',
+      [],
+      'member',
+    );
+    expect(dailyResult.maxRequests).toBe(10);
+    expect(dailyResult.maxTokens).toBeUndefined();
+    expect(monthlyResult.maxTokens).toBe(500_000);
+    expect(monthlyResult.maxRequests).toBeUndefined();
+  });
+});
+
+describe('checkRuleAgainstUsage — multi-period scenarios', () => {
+  it('enforces daily request limit', () => {
+    const rule: BudgetRule = {
+      scope: 'default',
+      period: 'daily',
+      maxRequests: 2,
+    };
+    const result = checkRuleAgainstUsage(rule, {
+      totalTokens: 0,
+      costEstimate: 0,
+      requestCount: 2,
+    });
+    expect(result).not.toBeNull();
+    expect(result?.allowed).toBe(false);
+    expect(result?.code).toBe('REQUEST_LIMIT');
+    expect(result?.period).toBe('daily');
+  });
+
+  it('enforces weekly token limit', () => {
+    const rule: BudgetRule = {
+      scope: 'default',
+      period: 'weekly',
+      maxTokens: 50_000,
+    };
+    const result = checkRuleAgainstUsage(rule, {
+      totalTokens: 50_000,
+      costEstimate: 0,
+      requestCount: 0,
+    });
+    expect(result).not.toBeNull();
+    expect(result?.code).toBe('TOKEN_LIMIT');
+    expect(result?.period).toBe('weekly');
+  });
+
+  it('allows request under daily limit', () => {
+    const rule: BudgetRule = {
+      scope: 'default',
+      period: 'daily',
+      maxRequests: 5,
+    };
+    const result = checkRuleAgainstUsage(rule, {
+      totalTokens: 0,
+      costEstimate: 0,
+      requestCount: 4,
+    });
+    expect(result).toBeNull();
+  });
+});
+
+describe('collectAllApplicableRules — mixed periods', () => {
+  it('collects rules across different periods for the same user', () => {
+    const rules: BudgetRule[] = [
+      { scope: 'default', period: 'daily', maxRequests: 10 },
+      { scope: 'default', period: 'monthly', maxTokens: 500_000 },
+      {
+        scope: 'user',
+        scopeId: 'user-1',
+        period: 'weekly',
+        maxCostCents: 1000,
+      },
+    ];
+    const result = collectAllApplicableRules(rules, 'user-1', [], 'member');
+    expect(result).toHaveLength(3);
+    const periods = result.map((r) => r.period);
+    expect(periods).toContain('daily');
+    expect(periods).toContain('weekly');
+    expect(periods).toContain('monthly');
+  });
 });

@@ -42,5 +42,11 @@ export const usageLedgerTable = defineTable({
   requestCount: v.number(),
 })
   .index('by_org_user_period', ['organizationId', 'userId', 'periodKey'])
+  .index('by_org_user_period_team', [
+    'organizationId',
+    'userId',
+    'periodKey',
+    'teamId',
+  ])
   .index('by_org_team_period', ['organizationId', 'teamId', 'periodKey'])
   .index('by_org_period', ['organizationId', 'periodKey']);

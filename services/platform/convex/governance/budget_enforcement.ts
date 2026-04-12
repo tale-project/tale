@@ -206,25 +206,26 @@ async function getUserPeriodUsage(
   userId: string,
   periodKey: string,
 ): Promise<UsageTotals> {
-  const entry = await ctx.db
+  const totals: UsageTotals = {
+    totalTokens: 0,
+    costEstimate: 0,
+    requestCount: 0,
+  };
+
+  for await (const entry of ctx.db
     .query('usageLedger')
     .withIndex('by_org_user_period', (q) =>
       q
         .eq('organizationId', organizationId)
         .eq('userId', userId)
         .eq('periodKey', periodKey),
-    )
-    .first();
-
-  if (!entry) {
-    return { totalTokens: 0, costEstimate: 0, requestCount: 0 };
+    )) {
+    totals.totalTokens += entry.totalTokens;
+    totals.costEstimate += entry.costEstimate;
+    totals.requestCount += entry.requestCount;
   }
 
-  return {
-    totalTokens: entry.totalTokens,
-    costEstimate: entry.costEstimate,
-    requestCount: entry.requestCount,
-  };
+  return totals;
 }
 
 /**
