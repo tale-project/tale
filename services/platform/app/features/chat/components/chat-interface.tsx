@@ -2,7 +2,7 @@
 
 import { useNavigate } from '@tanstack/react-router';
 import { m, AnimatePresence } from 'framer-motion';
-import { Archive, ArrowDown, Share, X } from 'lucide-react';
+import { Archive, ArrowDown, Share } from 'lucide-react';
 import { useRef, useEffect, useId, useState, useCallback } from 'react';
 
 import { PanelFooter } from '@/app/components/layout/panel-footer';
