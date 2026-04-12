@@ -75,7 +75,7 @@ class Settings(BaseServiceSettings):
     def get_llm_config(self) -> dict:
         """Get LLM configuration from provider files."""
         base_url, api_key, model = self.get_chat_config()
-        _emb_base_url, _emb_api_key, embedding_model, _dims = self.get_embedding_config()
+        emb_base_url, emb_api_key, embedding_model, _dims = self.get_embedding_config()
 
         config: dict = {
             "provider": "openai",
@@ -83,6 +83,8 @@ class Settings(BaseServiceSettings):
             "embedding_model": embedding_model,
             "api_key": api_key,
             "base_url": base_url,
+            "embedding_api_key": emb_api_key,
+            "embedding_base_url": emb_base_url,
         }
 
         if self.openai_max_tokens is not None:
