@@ -43,7 +43,7 @@ describe('TeamMultiSelect', () => {
   it('opens dropdown on click', () => {
     render(<TeamMultiSelect {...defaultProps} />);
 
-    const trigger = screen.getByRole('button', { expanded: false });
+    const trigger = screen.getByRole('combobox');
     fireEvent.click(trigger);
 
     expect(screen.getByRole('listbox')).toBeInTheDocument();
@@ -61,7 +61,7 @@ describe('TeamMultiSelect', () => {
     );
 
     // Open dropdown
-    fireEvent.click(screen.getByRole('button', { expanded: false }));
+    fireEvent.click(screen.getByRole('combobox'));
 
     // Toggle Support on
     fireEvent.click(screen.getByRole('option', { name: /support/i }));
@@ -86,7 +86,7 @@ describe('TeamMultiSelect', () => {
   it('disables trigger when disabled prop is true', () => {
     render(<TeamMultiSelect {...defaultProps} disabled />);
 
-    const trigger = screen.getByRole('button');
-    expect(trigger).toBeDisabled();
+    const trigger = screen.getByRole('combobox');
+    expect(trigger).toHaveAttribute('aria-disabled', 'true');
   });
 });
