@@ -15,6 +15,8 @@ type CSVParseOptions = {
   delimiter?: string;
   /** Skip empty lines (default: true) */
   skipEmptyLines?: boolean;
+  /** Whether the first row contains column headers (default: true) */
+  hasHeaders?: boolean;
 };
 
 type CSVParseOutput = {
@@ -92,7 +94,7 @@ function parseCSVText(
   }
 
   let headers: string[] | null = null;
-  if (rows.length > 0) {
+  if (options.hasHeaders !== false && rows.length > 0) {
     headers = rows.shift()?.map((h) => h.toLowerCase()) ?? null;
   }
 
@@ -112,7 +114,10 @@ export function parseCSVWithMapper<T>(
   } = {},
 ): FileParseResult<T> {
   const { recordMapper, ...csvOptions } = options;
-  const { headers, rows } = parseCSVText(csvText, csvOptions);
+  const { headers, rows } = parseCSVText(csvText, {
+    ...csvOptions,
+    hasHeaders: !!recordMapper,
+  });
   const data: T[] = [];
   const errors: string[] = [];
 
