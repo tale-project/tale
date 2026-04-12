@@ -2669,6 +2669,8 @@
       "label": "Select model",
       "searchPlaceholder": "Search models...",
       "noResults": "No models found",
+      "auto": "Auto",
+      "autoDescription": "Automatically selects the best available model with fallback",
       "tags": {
         "chat": "Chat",
         "vision": "Vision",
@@ -2696,6 +2698,9 @@
     "errorHintRateLimited": "Too many requests. Please wait a moment and try again.",
     "errorHintContentFilter": "The message was flagged by the content filter. Try rephrasing your message.",
     "errorHintToolFailure": "The agent encountered an error while accessing data. Try rephrasing your request or asking for a smaller set of data.",
+    "errorHintAuthError": "The API key is invalid or does not have access to this model. Contact your administrator.",
+    "errorHintModelNotFound": "The selected model was not found or is unavailable. Contact your administrator.",
+    "errorHintProviderError": "The AI provider is temporarily experiencing issues. Please try again in a moment.",
     "showMore": "Show more",
     "showLess": "Show less",
     "editMessage": "Edit message",
