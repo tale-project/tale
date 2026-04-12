@@ -502,18 +502,9 @@ export const chatDirectModel = internalAction({
       : undefined;
     /* oxlint-enable typescript/no-unsafe-type-assertion */
 
-    // Create or reuse thread, save user message
-    const threadId: string = await ctx.runMutation(
-      internal.openai_compat.internal_mutations.createThreadAndSaveMessage,
-      {
-        organizationId: args.organizationId,
-        userId: args.userId,
-        userEmail: args.userEmail,
-        userName: args.userName,
-        threadId: args.threadId,
-        message,
-      },
-    );
+    // Direct model mode is stateless — no thread/message persistence.
+    // Use a transient ID for usage tracking and audit log correlation.
+    const threadId = args.threadId ?? `direct-${Date.now().toString(36)}`;
 
     // Fetch mandatory system prompt governance policy
     const systemPromptPolicy = await ctx.runQuery(
