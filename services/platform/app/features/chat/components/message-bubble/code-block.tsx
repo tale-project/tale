@@ -20,6 +20,7 @@ import {
   useCanvasOptional,
   type CanvasContentType,
 } from '../canvas/canvas-context';
+import { useMessageContentOptional } from './message-content-context';
 
 function resolveCanvasType(language?: string): CanvasContentType {
   if (!language) return 'code';
@@ -93,6 +94,7 @@ export function CodeBlock({
   const preRef = useRef<HTMLPreElement>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const canvasContext = useCanvasOptional();
+  const messageContext = useMessageContentOptional();
 
   useEffect(() => {
     return () => {
@@ -121,8 +123,20 @@ export function CodeBlock({
     if (!canvasContext) return;
     const textContent = preRef.current?.textContent ?? '';
     const canvasType = resolveCanvasType(lang);
-    canvasContext.openCanvas(textContent, canvasType, lang ?? 'code', lang);
-  }, [canvasContext, lang]);
+    canvasContext.openCanvas(
+      textContent,
+      canvasType,
+      lang ?? 'code',
+      lang,
+      messageContext
+        ? {
+            messageId: messageContext.messageId,
+            messageContent: messageContext.messageContent,
+            threadId: messageContext.threadId,
+          }
+        : undefined,
+    );
+  }, [canvasContext, lang, messageContext]);
 
   return (
     <div className="border-border bg-background my-4 overflow-hidden rounded-lg border">

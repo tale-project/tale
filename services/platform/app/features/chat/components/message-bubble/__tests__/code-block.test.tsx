@@ -8,6 +8,14 @@ import { checkAccessibility } from '@/test/utils/a11y';
 import { CanvasProvider } from '../../canvas/canvas-context';
 import { CodeBlock, HighlightedCode } from '../code-block';
 
+vi.mock('convex/react', () => ({
+  useMutation: () => vi.fn(),
+}));
+
+vi.mock('@/app/hooks/use-toast', () => ({
+  useToast: () => ({ toast: vi.fn() }),
+}));
+
 // Mock Shiki — returns a predictable HTML string
 vi.mock('@/lib/utils/shiki', () => ({
   highlightCode: vi.fn((code: string) =>
