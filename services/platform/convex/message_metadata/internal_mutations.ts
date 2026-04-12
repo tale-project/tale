@@ -4,6 +4,7 @@ import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 import { internalMutation } from '../_generated/server';
 import {
   toolUsageItemValidator,
+  citationItemValidator,
   contextStatsValidator,
 } from '../streaming/validators';
 
@@ -25,6 +26,7 @@ export const saveMessageMetadata = internalMutation({
     durationMs: v.optional(v.number()),
     timeToFirstTokenMs: v.optional(v.number()),
     toolsUsage: v.optional(v.array(toolUsageItemValidator)),
+    citations: v.optional(v.array(citationItemValidator)),
     contextWindow: v.optional(v.string()),
     contextStats: v.optional(contextStatsValidator),
     error: v.optional(v.string()),
@@ -32,6 +34,11 @@ export const saveMessageMetadata = internalMutation({
   },
   returns: v.id('messageMetadata'),
   handler: async (ctx, args) => {
+    console.log('[saveMessageMetadata] DEBUG citations:', {
+      hasCitations: !!args.citations,
+      citationsLength: args.citations?.length,
+      firstCitation: args.citations?.[0],
+    });
     let contextWindow = args.contextWindow;
     if (contextWindow && contextWindow.length > MAX_CONTEXT_WINDOW_CHARS) {
       console.warn(
@@ -61,6 +68,7 @@ export const saveMessageMetadata = internalMutation({
         timeToFirstTokenMs:
           args.timeToFirstTokenMs ?? existing.timeToFirstTokenMs,
         toolsUsage: args.toolsUsage ?? existing.toolsUsage,
+        citations: args.citations ?? existing.citations,
         contextWindow: contextWindow ?? existing.contextWindow,
         contextStats: args.contextStats ?? existing.contextStats,
         error: args.error ?? existing.error,
@@ -84,6 +92,7 @@ export const saveMessageMetadata = internalMutation({
       durationMs: args.durationMs,
       timeToFirstTokenMs: args.timeToFirstTokenMs,
       toolsUsage: args.toolsUsage,
+      citations: args.citations,
       contextWindow,
       contextStats: args.contextStats,
       error: args.error,

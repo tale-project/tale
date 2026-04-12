@@ -143,7 +143,7 @@ function MessageBubbleComponent({
   const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const { metadata } = useMessageMetadata(message.id, message.threadId);
-  const { citations, hasCitations } = useCitations(metadata?.toolsUsage);
+  const { citations, hasCitations } = useCitations(metadata?.citations);
   const citationNumbers = useMemo(() => new Set(citations.keys()), [citations]);
   const citationsContextValue = useMemo(() => ({ citations }), [citations]);
   const galleryImages = useMessageGallery(message);
@@ -469,7 +469,7 @@ function MessageBubbleComponent({
         )}
 
         {!isUser && hasCitations && !isAssistantStreaming && (
-          <SourceCards citations={citations} />
+          <SourceCards citations={citations} organizationId={organizationId} />
         )}
 
         <MessageInfoDialog

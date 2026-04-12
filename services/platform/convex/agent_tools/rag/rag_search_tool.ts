@@ -237,9 +237,19 @@ RESPONSE (list_indexed):
           hasMore,
         });
 
+        const citations = [
+          {
+            index: 1,
+            type: 'rag' as const,
+            source: result.title ?? 'Unknown',
+            fileId: result.file_id,
+          },
+        ];
+
         return {
           success: true,
           response: text || 'Document has no text content.',
+          citations,
           fileId: result.file_id,
           filename: result.title,
           sourceCreatedAt: result.source_created_at,
@@ -302,6 +312,37 @@ RESPONSE (list_indexed):
           formatSearchResults(result.results) ??
           'No relevant results found in the knowledge base.';
 
+        // Merge citations by fileId — keep one entry per file with highest relevance
+        const citationsByFile = new Map<
+          string,
+          { source: string; fileId?: string; relevance?: number }
+        >();
+        for (const r of result.results) {
+          const key =
+            r.file_id ?? r.filename ?? `unknown-${citationsByFile.size}`;
+          const existing = citationsByFile.get(key);
+          if (
+            !existing ||
+            (r.score != null &&
+              (existing.relevance == null || r.score > existing.relevance))
+          ) {
+            citationsByFile.set(key, {
+              source: r.filename ?? 'Unknown',
+              fileId: r.file_id,
+              relevance: r.score,
+            });
+          }
+        }
+        const citations = Array.from(citationsByFile.values()).map(
+          (c, idx) => ({
+            index: idx + 1,
+            type: 'rag' as const,
+            source: c.source,
+            fileId: c.fileId,
+            relevance: c.relevance,
+          }),
+        );
+
         debugLog('tool:rag_search success', {
           query: args.query,
           resultCount: result.total_results,
@@ -312,7 +353,7 @@ RESPONSE (list_indexed):
         return {
           success: true,
           response: formatted,
-          output: formatted,
+          citations,
           ...(result.usage && {
             usage: {
               inputTokens: result.usage.input_tokens,

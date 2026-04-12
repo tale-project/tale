@@ -1386,7 +1386,7 @@ export async function generateAgentResponse(
     });
 
     // Extract tool calls from steps
-    const { toolCalls, toolsUsage } = extractToolCallsFromSteps(
+    const { toolCalls, toolsUsage, citations } = extractToolCallsFromSteps(
       result.steps ?? [],
     );
 
@@ -1457,6 +1457,7 @@ export async function generateAgentResponse(
       timeToFirstTokenMs,
       toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
       toolsUsage: toolsUsage.length > 0 ? toolsUsage : undefined,
+      citations: citations.length > 0 ? citations : undefined,
       contextWindow: completeContextWindow,
       contextStats,
       model: actualModel,
@@ -1492,6 +1493,7 @@ export async function generateAgentResponse(
         timeToFirstTokenMs,
         toolCalls: responseResult.toolCalls,
         toolsUsage: responseResult.toolsUsage,
+        citations: responseResult.citations,
         contextWindow: completeContextWindow,
         contextStats: responseResult.contextStats,
       },
@@ -1834,7 +1836,7 @@ export async function generateAgentResponse(
     if (metadataMessageId) {
       try {
         const durationMs = Date.now() - startTime;
-        const { toolCalls, toolsUsage } = extractToolCallsFromSteps(
+        const { toolCalls, toolsUsage, citations } = extractToolCallsFromSteps(
           result.steps ?? [],
         );
         const contextWindowParts: string[] = [];
@@ -1866,6 +1868,7 @@ export async function generateAgentResponse(
               : undefined,
             toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
             toolsUsage: toolsUsage.length > 0 ? toolsUsage : undefined,
+            citations: citations.length > 0 ? citations : undefined,
             contextWindow:
               contextWindowParts.length > 0
                 ? contextWindowParts.join('\n\n')
@@ -1941,6 +1944,15 @@ function extractToolCallsFromSteps(steps: unknown[]): {
     output?: string;
     costEstimateCents?: number;
   }>;
+  citations: Array<{
+    index: number;
+    type: 'rag' | 'web';
+    source: string;
+    fileId?: string;
+    url?: string;
+    page?: number;
+    relevance?: number;
+  }>;
 } {
   type StepWithTools = {
     toolCalls?: Array<{
@@ -1970,6 +1982,15 @@ function extractToolCallsFromSteps(steps: unknown[]): {
     input?: string;
     output?: string;
     costEstimateCents?: number;
+  }> = [];
+  const allCitations: Array<{
+    index: number;
+    type: 'rag' | 'web';
+    source: string;
+    fileId?: string;
+    url?: string;
+    page?: number;
+    relevance?: number;
   }> = [];
 
   for (const rawStep of steps) {
@@ -2008,9 +2029,60 @@ function extractToolCallsFromSteps(steps: unknown[]): {
         status: isSuccess ? 'completed' : 'failed',
       });
 
+      // Extract structured citations from raw tool result before safeStringify truncation.
+      // The result may be the direct return value, or wrapped as {value: {...}} by @convex-dev/agent.
+      const rawOutput = matchingResult?.output ?? matchingResult?.result;
+      const citationSource =
+        isRecord(rawOutput) && Array.isArray(rawOutput.citations)
+          ? rawOutput.citations
+          : isRecord(rawOutput) &&
+              isRecord(rawOutput.value) &&
+              Array.isArray(rawOutput.value.citations)
+            ? rawOutput.value.citations
+            : undefined;
+      if (Array.isArray(citationSource)) {
+        for (const c of citationSource) {
+          if (
+            isRecord(c) &&
+            typeof c.index === 'number' &&
+            typeof c.type === 'string' &&
+            (c.type === 'rag' || c.type === 'web')
+          ) {
+            const citationType: 'rag' | 'web' = c.type;
+            // Convex validators reject explicit `undefined` — omit undefined fields
+            const entry: (typeof allCitations)[number] = {
+              index: typeof c.index === 'number' ? c.index : 0,
+              type: citationType,
+              source: typeof c.source === 'string' ? c.source : 'Unknown',
+            };
+            if (typeof c.fileId === 'string') entry.fileId = c.fileId;
+            if (typeof c.url === 'string') entry.url = c.url;
+            if (typeof c.page === 'number') entry.page = c.page;
+            if (typeof c.relevance === 'number') entry.relevance = c.relevance;
+            allCitations.push(entry);
+          }
+        }
+      }
+
       const inputStr = safeStringify(toolCall.input ?? toolCall.args);
+      // Serialize only fields needed by downstream consumers (citation content parsing, debug display).
+      // Strips duplicate `output`, `usage`, `model`, `citations` to reduce truncation.
+      const rawForOutput = matchingResult?.output ?? matchingResult?.result;
+      // Unwrap {value: {...}} wrapper if present (from @convex-dev/agent)
+      const unwrapped =
+        isRecord(rawForOutput) && isRecord(rawForOutput.value)
+          ? rawForOutput.value
+          : isRecord(rawForOutput)
+            ? rawForOutput
+            : undefined;
       const outputStr = safeStringify(
-        matchingResult?.output ?? matchingResult?.result,
+        unwrapped
+          ? {
+              response: unwrapped.response,
+              fileId: unwrapped.fileId,
+              filename: unwrapped.filename ?? unwrapped.title,
+            }
+          : rawForOutput,
       );
 
       const usageEntry: (typeof toolsUsage)[number] = {
@@ -2103,7 +2175,7 @@ function extractToolCallsFromSteps(steps: unknown[]): {
     }
   }
 
-  return { toolCalls, toolsUsage };
+  return { toolCalls, toolsUsage, citations: allCitations };
 }
 
 /**

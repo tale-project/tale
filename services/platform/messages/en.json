@@ -2823,8 +2823,7 @@
       "visitPage": "Visit page",
       "showAllSources": "Show all {count} sources",
       "hideSources": "Hide sources",
-      "chunkCount": "{count, plural, one {# chunk} other {# chunks}}",
-      "noContent": "Content not available"
+      "chunkCount": "{count, plural, one {# chunk} other {# chunks}}"
     },
     "feedback": {
       "thumbsUp": "Helpful",

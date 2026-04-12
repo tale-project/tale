@@ -12,10 +12,12 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { Heading } from '@/app/components/ui/typography/heading';
 import { Text } from '@/app/components/ui/typography/text';
+import { useFileUrl } from '@/app/features/chat/hooks/queries';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useLocale } from '@/app/hooks/use-locale';
 import { useToast } from '@/app/hooks/use-toast';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { formatBytes } from '@/lib/utils/format/number';
 
@@ -29,6 +31,8 @@ interface DocumentPreviewDialogProps {
   onOpenChange: (open: boolean) => void;
   organizationId: string;
   documentId?: string;
+  /** Convex storage ID — used when documentId is not available (e.g. citation source cards). */
+  fileId?: string;
   fileName?: string;
 }
 
@@ -156,28 +160,40 @@ export function DocumentPreviewDialog({
   onOpenChange,
   organizationId,
   documentId,
+  fileId,
   fileName,
 }: DocumentPreviewDialogProps) {
   const { t } = useT('documents');
   const [isDownloading, setIsDownloading] = useState(false);
   const { toast } = useToast();
 
-  const { documents, isLoading } = useDocuments(organizationId);
+  const { documents, isLoading: isLoadingDocs } = useDocuments(organizationId);
 
   const doc = useMemo(() => {
-    if (!documents || !open || !documentId) return undefined;
-    return documents.find((d: Document) => d.id === documentId);
+    if (!documents || !open) return undefined;
+    if (documentId) {
+      return documents.find((d: Document) => d.id === documentId);
+    }
+    return undefined;
   }, [documents, open, documentId]);
 
+  // When no documentId is available, resolve fileId (storage ID) directly to a URL
+  const { data: storageUrl, isLoading: isLoadingUrl } = useFileUrl(
+    !documentId && fileId ? toId<'_storage'>(fileId) : undefined,
+    !open,
+  );
+
+  const resolvedUrl = doc?.url ?? storageUrl ?? undefined;
+  const isLoading = documentId ? isLoadingDocs : isLoadingUrl;
   const displayName = fileName || doc?.name || t('preview.document');
 
   const handleDownload = async () => {
-    if (!doc?.url) return;
+    if (!resolvedUrl) return;
 
     try {
       setIsDownloading(true);
 
-      const response = await fetch(doc.url);
+      const response = await fetch(resolvedUrl);
       if (!response.ok) throw new Error(t('preview.downloadFailed'));
 
       const blob = await response.blob();
@@ -225,7 +241,7 @@ export function DocumentPreviewDialog({
           </Heading>
 
           <ActionRow gap={2}>
-            {doc?.url && (
+            {resolvedUrl && (
               <Button
                 variant="secondary"
                 size="sm"
@@ -257,19 +273,19 @@ export function DocumentPreviewDialog({
           </Text>
         </div>
       )}
-      {!isLoading && !doc && open && (
+      {!isLoading && !resolvedUrl && open && (
         <div className="grid flex-1 place-items-center p-6">
           <Text as="div" variant="error">
             {t('preview.failedToLoad')}
           </Text>
         </div>
       )}
-      {!isLoading && doc?.url && (
+      {!isLoading && resolvedUrl && (
         <div className="flex min-h-0 flex-1 gap-5 px-5 pb-5">
           <div className="flex min-w-0 flex-1 flex-col">
-            <DocumentPreview url={doc.url} fileName={displayName} />
+            <DocumentPreview url={resolvedUrl} fileName={displayName} />
           </div>
-          <DetailsSidebar doc={doc} />
+          {doc && <DetailsSidebar doc={doc} />}
         </div>
       )}
     </Dialog>

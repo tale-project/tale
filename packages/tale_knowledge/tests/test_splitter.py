@@ -52,9 +52,16 @@ class TestChunkContent:
         assert "https://example.com" in chunks[0].content
 
     def test_min_chunk_length_filter(self):
-        text = "Hi"  # Shorter than MIN_CHUNK_LENGTH
+        text = "Hi"  # Shorter than MIN_CHUNK_LENGTH (10)
         chunks = chunk_content(text)
         assert chunks == []
+
+    def test_short_valid_content_indexed(self):
+        text = "2025年我们的销售额度是1000万"
+        chunks = chunk_content(text)
+        assert len(chunks) == 1
+        assert chunks[0].content == text
+        assert chunks[0].index == 0
 
     def test_custom_chunk_size(self):
         text = "word " * 1000
@@ -65,7 +72,7 @@ class TestChunkContent:
     def test_default_values(self):
         assert CHUNK_SIZE == 2048
         assert CHUNK_OVERLAP == 200
-        assert MIN_CHUNK_LENGTH == 100
+        assert MIN_CHUNK_LENGTH == 10
 
     def test_long_content_multiple_chunks(self):
         # Generate content that's definitely larger than one chunk

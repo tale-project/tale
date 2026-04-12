@@ -537,6 +537,16 @@ export interface ContextStats {
   hasRag: boolean;
 }
 
+export interface StructuredCitation {
+  index: number;
+  type: 'rag' | 'web';
+  source: string;
+  fileId?: string;
+  url?: string;
+  page?: number;
+  relevance?: number;
+}
+
 export interface MessageMetadata {
   model: string;
   provider: string;
@@ -552,6 +562,7 @@ export interface MessageMetadata {
   contextWindow?: string;
   contextStats?: ContextStats;
   costEstimateCents?: number;
+  citations?: StructuredCitation[];
 }
 
 export function useMessageError(threadId: string | null) {
@@ -589,6 +600,7 @@ export function useMessageMetadata(
           contextWindow: metadata.contextWindow,
           contextStats: metadata.contextStats,
           costEstimateCents: metadata.costEstimateCents,
+          citations: metadata.citations,
         }
       : undefined,
     isLoading,

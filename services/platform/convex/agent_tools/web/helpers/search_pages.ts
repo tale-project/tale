@@ -58,10 +58,23 @@ async function fetchSearch(
   return response.json();
 }
 
+interface Citation {
+  index: number;
+  type: 'web';
+  source: string;
+  url: string;
+  relevance: number;
+}
+
+interface SearchPagesResult {
+  text: string;
+  citations: Citation[];
+}
+
 export async function searchPages(
   ctx: ToolCtx,
   args: { query: string; domain?: string },
-): Promise<string> {
+): Promise<SearchPagesResult> {
   let validDomain: string | undefined;
 
   if (args.domain && isValidDomain(args.domain) && ctx.organizationId) {
@@ -71,7 +84,10 @@ export async function searchPages(
     );
 
     if (!website) {
-      return `The website "${args.domain}" is not in your knowledge base. Ask the user to add it via the Websites settings page, or provide a specific URL to fetch content directly.`;
+      return {
+        text: `The website "${args.domain}" is not in your knowledge base. Ask the user to add it via the Websites settings page, or provide a specific URL to fetch content directly.`,
+        citations: [],
+      };
     }
 
     validDomain = args.domain;
@@ -83,7 +99,10 @@ export async function searchPages(
   });
 
   if (!args.query.trim() && validDomain) {
-    return 'Please provide a search query along with the domain filter.';
+    return {
+      text: 'Please provide a search query along with the domain filter.',
+      citations: [],
+    };
   }
 
   const crawlerUrl = getCrawlerServiceUrl();
@@ -104,7 +123,10 @@ export async function searchPages(
 
   if (!results || results.length === 0) {
     debugLog('web:search_pages no results', { query: args.query });
-    return 'No matching website pages found for your query. Try rephrasing, or suggest the user add the relevant website to their knowledge base.';
+    return {
+      text: 'No matching website pages found for your query. Try rephrasing, or suggest the user add the relevant website to their knowledge base.',
+      citations: [],
+    };
   }
 
   debugLog('web:search_pages success', {
@@ -135,9 +157,20 @@ export async function searchPages(
 
   const output = formatWebResults(pages) ?? '';
 
+  const citations = pages.map((p, idx) => ({
+    index: idx + 1,
+    type: 'web' as const,
+    source: p.title,
+    url: p.url,
+    relevance: p.score,
+  }));
+
   if (domainFallback) {
-    return `No results found on ${validDomain}. Showing results from all indexed websites:\n\n${output}`;
+    return {
+      text: `No results found on ${validDomain}. Showing results from all indexed websites:\n\n${output}`,
+      citations,
+    };
   }
 
-  return output;
+  return { text: output, citations };
 }

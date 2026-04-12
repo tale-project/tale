@@ -10,6 +10,7 @@ import { v } from 'convex/values';
 import { isRecord, getString } from '../../lib/utils/type-guards';
 import { components } from '../_generated/api';
 import { internalQuery } from '../_generated/server';
+import { citationItemValidator } from '../streaming/validators';
 
 /**
  * Resolve the user's organization.
@@ -99,12 +100,15 @@ export const getLatestThreadToolsUsage = internalQuery({
     threadId: v.string(),
   },
   returns: v.union(
-    v.array(
-      v.object({
-        toolName: v.string(),
-        output: v.optional(v.string()),
-      }),
-    ),
+    v.object({
+      toolsUsage: v.array(
+        v.object({
+          toolName: v.string(),
+          output: v.optional(v.string()),
+        }),
+      ),
+      citations: v.optional(v.array(citationItemValidator)),
+    }),
     v.null(),
   ),
   handler: async (ctx, args) => {
@@ -116,9 +120,12 @@ export const getLatestThreadToolsUsage = internalQuery({
 
     if (!metadata?.toolsUsage) return null;
 
-    return metadata.toolsUsage.map((t) => ({
-      toolName: t.toolName,
-      output: t.output,
-    }));
+    return {
+      toolsUsage: metadata.toolsUsage.map((t) => ({
+        toolName: t.toolName,
+        output: t.output,
+      })),
+      citations: metadata.citations,
+    };
   },
 });
