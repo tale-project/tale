@@ -1,6 +1,6 @@
 name: Improvement
 description: Suggest an enhancement to an existing feature.
-title: "improvement: "
+title: "Improvement: "
 labels: ["improvement"]
 body:
   - type: textarea
