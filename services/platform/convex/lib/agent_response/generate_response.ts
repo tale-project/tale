@@ -23,7 +23,6 @@ import {
 } from '@convex-dev/agent';
 import type { StreamMessage } from '@convex-dev/agent/validators';
 import type { ModelMessage } from 'ai';
-import { isUndefined, omitBy } from 'lodash';
 
 import { isRecord, getString } from '../../../lib/utils/type-guards';
 import { components, internal } from '../../_generated/api';
@@ -2033,32 +2032,13 @@ function extractToolCallsFromSteps(steps: unknown[]): {
       // Extract structured citations from raw tool result before safeStringify truncation.
       // The result may be the direct return value, or wrapped as {value: {...}} by @convex-dev/agent.
       const rawOutput = matchingResult?.output ?? matchingResult?.result;
-      console.log('[extractToolCalls] DEBUG tool:', toolCall.toolName, {
-        hasMatchingResult: !!matchingResult,
-        rawOutputType: typeof rawOutput,
-        rawOutputIsRecord: isRecord(rawOutput),
-        rawOutputKeys: isRecord(rawOutput) ? Object.keys(rawOutput) : [],
-        hasCitationsDirect:
-          isRecord(rawOutput) && Array.isArray(rawOutput.citations),
-        hasValue: isRecord(rawOutput) && isRecord(rawOutput.value),
-        valueKeys:
-          isRecord(rawOutput) && isRecord(rawOutput.value)
-            ? Object.keys(rawOutput.value as Record<string, unknown>)
-            : [],
-        hasValueCitations:
-          isRecord(rawOutput) &&
-          isRecord(rawOutput.value) &&
-          Array.isArray((rawOutput.value as Record<string, unknown>).citations),
-      });
       const citationSource =
         isRecord(rawOutput) && Array.isArray(rawOutput.citations)
           ? rawOutput.citations
           : isRecord(rawOutput) &&
               isRecord(rawOutput.value) &&
-              Array.isArray(
-                (rawOutput.value as Record<string, unknown>).citations,
-              )
-            ? (rawOutput.value as Record<string, unknown>).citations
+              Array.isArray(rawOutput.value.citations)
+            ? rawOutput.value.citations
             : undefined;
       if (Array.isArray(citationSource)) {
         for (const c of citationSource) {
@@ -2070,21 +2050,16 @@ function extractToolCallsFromSteps(steps: unknown[]): {
           ) {
             const citationType: 'rag' | 'web' = c.type;
             // Convex validators reject explicit `undefined` — omit undefined fields
-            allCitations.push(
-              omitBy(
-                {
-                  index: typeof c.index === 'number' ? c.index : 0,
-                  type: citationType,
-                  source: typeof c.source === 'string' ? c.source : 'Unknown',
-                  fileId: typeof c.fileId === 'string' ? c.fileId : undefined,
-                  url: typeof c.url === 'string' ? c.url : undefined,
-                  page: typeof c.page === 'number' ? c.page : undefined,
-                  relevance:
-                    typeof c.relevance === 'number' ? c.relevance : undefined,
-                },
-                isUndefined,
-              ) as (typeof allCitations)[number],
-            );
+            const entry: (typeof allCitations)[number] = {
+              index: typeof c.index === 'number' ? c.index : 0,
+              type: citationType,
+              source: typeof c.source === 'string' ? c.source : 'Unknown',
+            };
+            if (typeof c.fileId === 'string') entry.fileId = c.fileId;
+            if (typeof c.url === 'string') entry.url = c.url;
+            if (typeof c.page === 'number') entry.page = c.page;
+            if (typeof c.relevance === 'number') entry.relevance = c.relevance;
+            allCitations.push(entry);
           }
         }
       }
@@ -2096,7 +2071,7 @@ function extractToolCallsFromSteps(steps: unknown[]): {
       // Unwrap {value: {...}} wrapper if present (from @convex-dev/agent)
       const unwrapped =
         isRecord(rawForOutput) && isRecord(rawForOutput.value)
-          ? (rawForOutput.value as Record<string, unknown>)
+          ? rawForOutput.value
           : isRecord(rawForOutput)
             ? rawForOutput
             : undefined;
@@ -2200,12 +2175,6 @@ function extractToolCallsFromSteps(steps: unknown[]): {
     }
   }
 
-  console.log('[extractToolCalls] DEBUG final:', {
-    toolCallCount: toolCalls.length,
-    toolsUsageCount: toolsUsage.length,
-    citationsCount: allCitations.length,
-    citations: allCitations.slice(0, 3),
-  });
   return { toolCalls, toolsUsage, citations: allCitations };
 }
 
