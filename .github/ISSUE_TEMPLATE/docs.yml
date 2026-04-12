@@ -1,0 +1,38 @@
+name: Documentation
+description: Report missing, incorrect, or unclear documentation.
+title: "Docs: "
+labels: ["docs"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: What's wrong or missing?
+      description: Describe the documentation issue.
+      placeholder: "e.g. The setup guide doesn't mention the required environment variables for the RAG service."
+    validations:
+      required: true
+
+  - type: input
+    id: page
+    attributes:
+      label: Which page or section?
+      description: Link or path to the affected documentation.
+      placeholder: "e.g. docs/getting-started.md or https://docs.tale.dev/setup"
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested fix
+      description: How should the documentation be changed?
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this hasn't been reported yet.
+          required: true
