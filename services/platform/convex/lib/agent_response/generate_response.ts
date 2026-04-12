@@ -201,6 +201,7 @@ export async function generateAgentResponse(
     promptMessageId,
     maxSteps: _maxSteps,
     generationParams,
+    suppressErrorCleanup,
   } = args;
 
   const debugLog = createDebugLog(
@@ -1582,19 +1583,31 @@ export async function generateAgentResponse(
     // Complete stream if streamId provided
     const cancelled = await checkCancelled();
     if (streamId && !cancelled) {
-      if (responseResult.text) {
+      // Persistent stream finalization is non-fatal: the Agent SDK's
+      // DeltaStreamer already delivered text to the client in real-time.
+      // If the persistent stream is in a terminal state (e.g. from a
+      // previous failed fallback attempt), these mutations may fail —
+      // that must not cause the overall response to be treated as failed.
+      try {
+        if (responseResult.text) {
+          await ctx.runMutation(
+            internal.streaming.internal_mutations.appendToStream,
+            {
+              streamId,
+              text: responseResult.text,
+            },
+          );
+        }
         await ctx.runMutation(
-          internal.streaming.internal_mutations.appendToStream,
-          {
-            streamId,
-            text: responseResult.text,
-          },
+          internal.streaming.internal_mutations.completeStream,
+          { streamId },
+        );
+      } catch (streamError) {
+        console.error(
+          '[generateAgentResponse] Persistent stream finalization failed (non-fatal):',
+          streamError,
         );
       }
-      await ctx.runMutation(
-        internal.streaming.internal_mutations.completeStream,
-        { streamId },
-      );
     } else if (streamId && cancelled) {
       // User cancelled — complete the stream cleanly (content already streamed)
       try {
@@ -1720,8 +1733,12 @@ export async function generateAgentResponse(
       savedMessageId = cancelMeta.cancelledMessageId;
     }
 
-    // Handle persistent text stream cleanup
-    if (streamId) {
+    // Handle persistent text stream cleanup.
+    // When suppressErrorCleanup is set (fallback retry in progress), skip
+    // marking the stream as error and clearing generation status — the
+    // caller will handle cleanup. This prevents the loading indicator from
+    // disappearing and error messages from flashing between retries.
+    if (streamId && !suppressErrorCleanup) {
       try {
         if (userCancelled) {
           // Complete the stream cleanly — content was already streamed
@@ -1744,7 +1761,7 @@ export async function generateAgentResponse(
     }
 
     // Clear generation status so isThreadGenerating returns false
-    if (streamId) {
+    if (streamId && !suppressErrorCleanup) {
       try {
         await ctx.runMutation(
           internal.threads.internal_mutations.clearGenerationStatus,
@@ -1796,8 +1813,9 @@ export async function generateAgentResponse(
     }
 
     // Save failed message — skip if user cancelled (cancelGeneration handles it)
+    // or if suppressErrorCleanup is set (fallback retry will handle it).
     let failedMessageId: string | undefined;
-    if (!userCancelled) {
+    if (!userCancelled && !suppressErrorCleanup) {
       try {
         const msgs = await listMessages(ctx, components.agent, {
           threadId,

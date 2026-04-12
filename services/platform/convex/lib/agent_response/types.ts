@@ -152,6 +152,13 @@ export interface GenerateResponseArgs {
   };
   /** Governance-resolved max context tokens (overrides agent default) */
   maxContextTokens?: number;
+  /**
+   * When true, the error path skips saving a failed message, marking the
+   * stream as error, and clearing the generation status. Used by the
+   * fallback retry loop so the caller can handle cleanup itself without
+   * causing UI flicker (loading disappearing, error message flashing).
+   */
+  suppressErrorCleanup?: boolean;
 }
 
 /**
