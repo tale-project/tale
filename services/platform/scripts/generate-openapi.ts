@@ -64,22 +64,11 @@ function injectOpenAICompatPaths(spec: OpenApiSpec) {
     post: {
       tags: [openaiTag],
       summary: 'Create chat completion',
-      description: `Send messages to an agent and receive a response. Fully compatible with the OpenAI Chat Completions API.
+      description: `Send messages to a model and receive a response. Fully compatible with the OpenAI Chat Completions API.
 
-**Two modes:**
-- **Agent mode** (no \`tools\`): The agent uses server-side tools and auto-executes them.
-- **Client tool mode** (\`tools\` provided): Only client-defined tools are used. Returns \`tool_calls\` for client execution.`,
+Use \`GET /api/v1/models\` to list available models. Supports tool calling via the \`tools\` parameter — the model returns \`tool_calls\` for client-side execution.`,
       operationId: 'createChatCompletion',
       security: [{ bearerAuth: [] }],
-      parameters: [
-        {
-          name: 'X-Thread-Id',
-          in: 'header',
-          required: false,
-          schema: { type: 'string' },
-          description: 'Reuse a conversation thread across requests.',
-        },
-      ],
       requestBody: {
         required: true,
         content: {
@@ -149,8 +138,9 @@ function injectOpenAICompatPaths(spec: OpenApiSpec) {
     properties: {
       model: {
         type: 'string',
-        description: 'Agent slug (e.g., "chat-agent").',
-        example: 'chat-agent',
+        description:
+          'Model ID (e.g., "claude-sonnet-4-20250514"). Use GET /api/v1/models to list available models.',
+        example: 'claude-sonnet-4-20250514',
       },
       messages: {
         type: 'array',
@@ -215,30 +205,90 @@ function injectOpenAICompatPaths(spec: OpenApiSpec) {
         ],
         description: 'Controls tool calling behavior.',
       },
+      stream_options: {
+        type: 'object',
+        nullable: true,
+        properties: {
+          include_usage: {
+            type: 'boolean',
+            description:
+              'If set, an additional chunk will be streamed before the `[DONE]` message with token usage statistics.',
+          },
+        },
+        description:
+          'Options for streaming. Only applicable when `stream` is true.',
+      },
     },
   };
 
-  schemas.ChatMessage = {
+  // Role-specific message schemas
+  schemas.ChatMessageSystem = {
+    type: 'object',
+    required: ['role', 'content'],
+    properties: {
+      role: { type: 'string', enum: ['system'] },
+      content: { type: 'string', description: 'System prompt content.' },
+    },
+  };
+
+  schemas.ChatMessageUser = {
+    type: 'object',
+    required: ['role', 'content'],
+    properties: {
+      role: { type: 'string', enum: ['user'] },
+      content: { type: 'string', description: 'User message content.' },
+    },
+  };
+
+  schemas.ChatMessageAssistant = {
     type: 'object',
     required: ['role'],
     properties: {
-      role: {
-        type: 'string',
-        enum: ['system', 'user', 'assistant', 'tool'],
-      },
+      role: { type: 'string', enum: ['assistant'] },
       content: {
-        oneOf: [{ type: 'string' }, { type: 'null' }],
-        description: 'Message content.',
+        type: 'string',
+        nullable: true,
+        description: 'Assistant message content.',
       },
       tool_calls: {
         type: 'array',
         items: { $ref: '#/components/schemas/ToolCall' },
-        description: 'Tool calls (assistant messages only).',
+        description: 'Tool calls made by the assistant.',
+      },
+    },
+  };
+
+  schemas.ChatMessageTool = {
+    type: 'object',
+    required: ['role', 'content', 'tool_call_id'],
+    properties: {
+      role: { type: 'string', enum: ['tool'] },
+      content: {
+        type: 'string',
+        nullable: true,
+        description: 'Tool result content.',
       },
       tool_call_id: {
         type: 'string',
-        description:
-          'ID of the tool call this result is for (tool messages only).',
+        description: 'ID of the tool call this result is for.',
+      },
+    },
+  };
+
+  schemas.ChatMessage = {
+    oneOf: [
+      { $ref: '#/components/schemas/ChatMessageSystem' },
+      { $ref: '#/components/schemas/ChatMessageUser' },
+      { $ref: '#/components/schemas/ChatMessageAssistant' },
+      { $ref: '#/components/schemas/ChatMessageTool' },
+    ],
+    discriminator: {
+      propertyName: 'role',
+      mapping: {
+        system: '#/components/schemas/ChatMessageSystem',
+        user: '#/components/schemas/ChatMessageUser',
+        assistant: '#/components/schemas/ChatMessageAssistant',
+        tool: '#/components/schemas/ChatMessageTool',
       },
     },
   };
@@ -294,7 +344,7 @@ function injectOpenAICompatPaths(spec: OpenApiSpec) {
           type: 'object',
           properties: {
             index: { type: 'integer' },
-            message: { $ref: '#/components/schemas/ChatMessage' },
+            message: { $ref: '#/components/schemas/ChatMessageAssistant' },
             finish_reason: {
               type: 'string',
               enum: ['stop', 'length', 'tool_calls'],
@@ -310,6 +360,47 @@ function injectOpenAICompatPaths(spec: OpenApiSpec) {
           total_tokens: { type: 'integer' },
         },
       },
+      citations: {
+        type: 'array',
+        items: { $ref: '#/components/schemas/Citation' },
+        description:
+          'Source citations referenced in the response text via [N] markers. Present when knowledge tools (RAG, web search) were used.',
+      },
+    },
+  };
+
+  schemas.Citation = {
+    type: 'object',
+    properties: {
+      index: {
+        type: 'integer',
+        description: 'Citation index corresponding to [N] markers in text.',
+      },
+      type: {
+        type: 'string',
+        enum: ['rag', 'web'],
+        description: 'Source type: RAG knowledge base or web search.',
+      },
+      source: {
+        type: 'string',
+        description: 'Source name or title.',
+      },
+      fileId: {
+        type: 'string',
+        description: 'File ID for RAG citations.',
+      },
+      url: {
+        type: 'string',
+        description: 'URL for web citations.',
+      },
+      page: {
+        type: 'integer',
+        description: 'Page number for document citations.',
+      },
+      relevance: {
+        type: 'number',
+        description: 'Relevance score (0-1).',
+      },
     },
   };
 
@@ -322,7 +413,7 @@ function injectOpenAICompatPaths(spec: OpenApiSpec) {
         items: {
           type: 'object',
           properties: {
-            id: { type: 'string', example: 'chat-agent' },
+            id: { type: 'string', example: 'anthropic/claude-sonnet-4.6' },
             object: { type: 'string', enum: ['model'] },
             created: { type: 'integer' },
             owned_by: { type: 'string' },
@@ -1873,6 +1964,8 @@ curl -H "Authorization: Bearer tale_..." https://your-instance.com/api/v1/thread
 
 ## Quick start — OpenAI Compatible
 
+Use any OpenAI-compatible SDK. List available models with \`GET /api/v1/models\`.
+
 \`\`\`python
 from openai import OpenAI
 
@@ -1881,10 +1974,17 @@ client = OpenAI(
     api_key="tale_...",
 )
 
+# List available models
+models = client.models.list()
+for m in models.data:
+    print(m.id, m.owned_by)
+
+# Chat completion
 response = client.chat.completions.create(
-    model="chat-agent",
+    model="anthropic/claude-sonnet-4.6",  # Use a model ID from the list above
     messages=[{"role": "user", "content": "Hello!"}],
 )
+print(response.choices[0].message.content)
 \`\`\`
 `.trim(),
     },

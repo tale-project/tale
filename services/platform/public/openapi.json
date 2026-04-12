@@ -3,7 +3,7 @@
   "info": {
     "title": "Tale Public API",
     "version": "1.0.0",
-    "description": "Tale Platform REST API.\n\n## Authentication\n\nAll endpoints require a Bearer token:\n\n```\nAuthorization: Bearer tale_...\n```\n\nCreate API keys in **Settings > API Keys**.\n\n## Quick start — REST API\n\n```bash\n# List documents\ncurl -H \"Authorization: Bearer tale_...\" https://your-instance.com/api/v1/documents\n\n# Create a product\ncurl -X POST -H \"Authorization: Bearer tale_...\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"name\": \"New Product\", \"price\": 9.99}' \\\n  https://your-instance.com/api/v1/products\n\n# List chat threads\ncurl -H \"Authorization: Bearer tale_...\" https://your-instance.com/api/v1/threads\n```\n\n## Quick start — OpenAI Compatible\n\n```python\nfrom openai import OpenAI\n\nclient = OpenAI(\n    base_url=\"https://your-instance.com/api/v1\",\n    api_key=\"tale_...\",\n)\n\nresponse = client.chat.completions.create(\n    model=\"chat-agent\",\n    messages=[{\"role\": \"user\", \"content\": \"Hello!\"}],\n)\n```\n\n## Citations\n\nAgent mode responses include a `citations` array when knowledge tools (RAG search, web search) are used:\n\n```python\nresponse = client.chat.completions.create(\n    model=\"my-agent\",\n    messages=[{\"role\": \"user\", \"content\": \"What does the policy say about returns?\"}],\n)\n\n# Access citations\nfor citation in response.model_extra.get(\"citations\", []):\n    print(f\"[{citation['index']}] {citation['source']} (relevance: {citation['relevance']})\")\n```\n\nFor streaming, citations arrive as a separate SSE event before `[DONE]`."
+    "description": "Tale Platform REST API.\n\n## Authentication\n\nAll endpoints require a Bearer token:\n\n```\nAuthorization: Bearer tale_...\n```\n\nCreate API keys in **Settings > API Keys**.\n\n## Quick start — REST API\n\n```bash\n# List documents\ncurl -H \"Authorization: Bearer tale_...\" https://your-instance.com/api/v1/documents\n\n# Create a product\ncurl -X POST -H \"Authorization: Bearer tale_...\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"name\": \"New Product\", \"price\": 9.99}' \\\n  https://your-instance.com/api/v1/products\n\n# List chat threads\ncurl -H \"Authorization: Bearer tale_...\" https://your-instance.com/api/v1/threads\n```\n\n## Quick start — OpenAI Compatible\n\nUse any OpenAI-compatible SDK. List available models with `GET /api/v1/models`.\n\n```python\nfrom openai import OpenAI\n\nclient = OpenAI(\n    base_url=\"https://your-instance.com/api/v1\",\n    api_key=\"tale_...\",\n)\n\n# List available models\nmodels = client.models.list()\nfor m in models.data:\n    print(m.id, m.owned_by)\n\n# Chat completion\nresponse = client.chat.completions.create(\n    model=\"anthropic/claude-sonnet-4.6\",  # Use a model ID from the list above\n    messages=[{\"role\": \"user\", \"content\": \"Hello!\"}],\n)\nprint(response.choices[0].message.content)\n```"
   },
   "servers": [
     {
@@ -21,22 +21,11 @@
       "post": {
         "tags": ["OpenAI Compatible"],
         "summary": "Create chat completion",
-        "description": "Send messages to an agent and receive a response. Fully compatible with the OpenAI Chat Completions API.\n\n**Two modes:**\n- **Agent mode** (no `tools`): The agent uses server-side tools and auto-executes them. Response includes `citations` array when knowledge tools (RAG, web search) were used.\n- **Client tool mode** (`tools` provided): Only client-defined tools are used. Returns `tool_calls` for client execution.",
+        "description": "Send messages to a model and receive a response. Fully compatible with the OpenAI Chat Completions API.\n\nUse `GET /api/v1/models` to list available models. Supports tool calling via the `tools` parameter — the model returns `tool_calls` for client-side execution.",
         "operationId": "createChatCompletion",
         "security": [
           {
             "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "X-Thread-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Reuse a conversation thread across requests."
           }
         ],
         "requestBody": {
@@ -2803,8 +2792,8 @@
         "properties": {
           "model": {
             "type": "string",
-            "description": "Agent slug (e.g., \"chat-agent\").",
-            "example": "chat-agent"
+            "description": "Model ID (e.g., \"claude-sonnet-4-20250514\"). Use GET /api/v1/models to list available models.",
+            "example": "claude-sonnet-4-20250514"
           },
           "messages": {
             "type": "array",
@@ -2895,6 +2884,17 @@
               }
             ],
             "description": "Controls tool calling behavior."
+          },
+          "stream_options": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "include_usage": {
+                "type": "boolean",
+                "description": "If set, an additional chunk will be streamed before the `[DONE]` message with token usage statistics."
+              }
+            },
+            "description": "Options for streaming. Only applicable when `stream` is true."
           }
         }
       },
@@ -2924,7 +2924,7 @@
                   "type": "integer"
                 },
                 "message": {
-                  "$ref": "#/components/schemas/ChatMessage"
+                  "$ref": "#/components/schemas/ChatMessageAssistant"
                 },
                 "finish_reason": {
                   "type": "string",
@@ -2952,42 +2952,7 @@
             "items": {
               "$ref": "#/components/schemas/Citation"
             },
-            "description": "Source citations referenced in the response text via [N] markers. Empty array when no knowledge tools were used."
-          }
-        }
-      },
-      "Citation": {
-        "type": "object",
-        "required": ["index", "type", "source", "relevance"],
-        "properties": {
-          "index": {
-            "type": "integer",
-            "description": "The [N] citation marker number in the response text"
-          },
-          "type": {
-            "type": "string",
-            "enum": ["rag", "web"],
-            "description": "Source type"
-          },
-          "source": {
-            "type": "string",
-            "description": "Filename (rag) or page title (web)"
-          },
-          "fileId": {
-            "type": "string",
-            "description": "Document file ID (rag only)"
-          },
-          "url": {
-            "type": "string",
-            "description": "Source URL (web only)"
-          },
-          "page": {
-            "type": "integer",
-            "description": "Page number within document (rag only)"
-          },
-          "relevance": {
-            "type": "number",
-            "description": "Relevance score (0-1)"
+            "description": "Source citations referenced in the response text via [N] markers. Present when knowledge tools (RAG, web search) were used."
           }
         }
       },
@@ -3005,7 +2970,7 @@
               "properties": {
                 "id": {
                   "type": "string",
-                  "example": "chat-agent"
+                  "example": "anthropic/claude-sonnet-4.6"
                 },
                 "object": {
                   "type": "string",
@@ -3890,34 +3855,27 @@
         }
       },
       "ChatMessage": {
-        "type": "object",
-        "required": ["role"],
-        "properties": {
-          "role": {
-            "type": "string",
-            "enum": ["system", "user", "assistant", "tool"]
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ChatMessageSystem"
           },
-          "content": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Message content."
+          {
+            "$ref": "#/components/schemas/ChatMessageUser"
           },
-          "tool_calls": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ToolCall"
-            },
-            "description": "Tool calls (assistant messages only)."
+          {
+            "$ref": "#/components/schemas/ChatMessageAssistant"
           },
-          "tool_call_id": {
-            "type": "string",
-            "description": "ID of the tool call this result is for (tool messages only)."
+          {
+            "$ref": "#/components/schemas/ChatMessageTool"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "role",
+          "mapping": {
+            "system": "#/components/schemas/ChatMessageSystem",
+            "user": "#/components/schemas/ChatMessageUser",
+            "assistant": "#/components/schemas/ChatMessageAssistant",
+            "tool": "#/components/schemas/ChatMessageTool"
           }
         }
       },
@@ -3944,6 +3902,62 @@
                 "description": "JSON Schema for the function parameters."
               }
             }
+          }
+        }
+      },
+      "ChatMessageAssistant": {
+        "type": "object",
+        "required": ["role"],
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": ["assistant"]
+          },
+          "content": {
+            "type": "string",
+            "nullable": true,
+            "description": "Assistant message content."
+          },
+          "tool_calls": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ToolCall"
+            },
+            "description": "Tool calls made by the assistant."
+          }
+        }
+      },
+      "Citation": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer",
+            "description": "Citation index corresponding to [N] markers in text."
+          },
+          "type": {
+            "type": "string",
+            "enum": ["rag", "web"],
+            "description": "Source type: RAG knowledge base or web search."
+          },
+          "source": {
+            "type": "string",
+            "description": "Source name or title."
+          },
+          "fileId": {
+            "type": "string",
+            "description": "File ID for RAG citations."
+          },
+          "url": {
+            "type": "string",
+            "description": "URL for web citations."
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number for document citations."
+          },
+          "relevance": {
+            "type": "number",
+            "description": "Relevance score (0-1)."
           }
         }
       },
@@ -3978,6 +3992,53 @@
           },
           "country": {
             "type": "string"
+          }
+        }
+      },
+      "ChatMessageSystem": {
+        "type": "object",
+        "required": ["role", "content"],
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": ["system"]
+          },
+          "content": {
+            "type": "string",
+            "description": "System prompt content."
+          }
+        }
+      },
+      "ChatMessageUser": {
+        "type": "object",
+        "required": ["role", "content"],
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": ["user"]
+          },
+          "content": {
+            "type": "string",
+            "description": "User message content."
+          }
+        }
+      },
+      "ChatMessageTool": {
+        "type": "object",
+        "required": ["role", "content", "tool_call_id"],
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": ["tool"]
+          },
+          "content": {
+            "type": "string",
+            "nullable": true,
+            "description": "Tool result content."
+          },
+          "tool_call_id": {
+            "type": "string",
+            "description": "ID of the tool call this result is for."
           }
         }
       },

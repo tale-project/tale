@@ -89,11 +89,12 @@ export const resolveUserOrganization = internalQuery({
 });
 
 /**
- * Fetch the latest toolsUsage for a thread.
+ * Fetch the latest toolsUsage and token counts for a thread.
  *
  * In agent mode, each request creates a single assistant message.
  * This query retrieves the most recent messageMetadata for the thread
- * and returns its toolsUsage array (used to build API citation data).
+ * and returns its toolsUsage array (used to build API citation data)
+ * plus token counts for the usage field in the OpenAI response.
  */
 export const getLatestThreadToolsUsage = internalQuery({
   args: {
@@ -108,6 +109,9 @@ export const getLatestThreadToolsUsage = internalQuery({
         }),
       ),
       citations: v.optional(v.array(citationItemValidator)),
+      inputTokens: v.optional(v.number()),
+      outputTokens: v.optional(v.number()),
+      totalTokens: v.optional(v.number()),
     }),
     v.null(),
   ),
@@ -118,14 +122,17 @@ export const getLatestThreadToolsUsage = internalQuery({
       .order('desc')
       .first();
 
-    if (!metadata?.toolsUsage) return null;
+    if (!metadata) return null;
 
     return {
-      toolsUsage: metadata.toolsUsage.map((t) => ({
+      toolsUsage: (metadata.toolsUsage ?? []).map((t) => ({
         toolName: t.toolName,
         output: t.output,
       })),
       citations: metadata.citations,
+      inputTokens: metadata.inputTokens,
+      outputTokens: metadata.outputTokens,
+      totalTokens: metadata.totalTokens,
     };
   },
 });
