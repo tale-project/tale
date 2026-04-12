@@ -1,7 +1,7 @@
 'use client';
 
 import { AlertTriangle, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -11,12 +11,22 @@ import { useMyBudgetStatus } from '../../settings/governance/hooks/queries';
 export function BudgetBanner({ organizationId }: { organizationId: string }) {
   const { t } = useT('chat');
   const { data: budgetStatus } = useMyBudgetStatus(organizationId);
+  // Derive a stable key so dismissed state resets only when the status meaningfully changes,
+  // not on every Convex subscription tick (which creates new object references).
+  const budgetStatusKey = useMemo(
+    () =>
+      budgetStatus
+        ? `${budgetStatus.exceeded}-${budgetStatus.code}-${budgetStatus.period}-${budgetStatus.warnings?.map((w) => `${w.code}:${w.percent}`).join(',')}`
+        : null,
+    [budgetStatus],
+  );
   const [dismissed, setDismissed] = useState(false);
+  const [prevKey, setPrevKey] = useState(budgetStatusKey);
 
-  // Reset dismissed state when budget status changes (e.g. new period or threshold crossed)
-  useEffect(() => {
+  if (budgetStatusKey !== prevKey) {
+    setPrevKey(budgetStatusKey);
     setDismissed(false);
-  }, [budgetStatus]);
+  }
 
   if (!budgetStatus || dismissed) return null;
 

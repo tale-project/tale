@@ -80,7 +80,7 @@ export const incrementUsageLedger = internalMutation({
             (a, b) => a._creationTime - b._creationTime,
           );
           const keep = sorted[0];
-          if (!keep) return null;
+          if (!keep) continue;
 
           let sumInput = 0;
           let sumOutput = 0;
