@@ -7,20 +7,13 @@
  * and direct tool-calling mode.
  */
 
-import { readdir } from 'node:fs/promises';
-
 import { streamText, type ModelMessage } from 'ai';
 import { v } from 'convex/values';
 
-import { isRecord, getString } from '../../lib/utils/type-guards';
-import { components, internal } from '../_generated/api';
+import { isRecord } from '../../lib/utils/type-guards';
+import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import { internalAction } from '../_generated/server';
-import {
-  agentNameFromFileName,
-  resolveAgentsDir,
-  validateAgentName,
-} from '../agents/file_utils';
 import { scrubPii, type PiiConfig } from '../governance/pii';
 import { resolveLanguageModelWithFallback } from '../providers/failover';
 import { convertOpenAITools, generateToolCallId } from './tool_conversion';
@@ -59,20 +52,6 @@ function mapToolChoice(
 // ---------------------------------------------------------------------------
 // Shared helpers
 // ---------------------------------------------------------------------------
-
-async function resolveOrgSlug(
-  ctx: ActionCtx,
-  organizationId: string,
-): Promise<string> {
-  const org = await ctx.runQuery(components.betterAuth.adapter.findOne, {
-    model: 'organization',
-    where: [{ field: '_id', value: organizationId, operator: 'eq' }],
-  });
-  const orgRecord = isRecord(org) ? org : undefined;
-  const slug = orgRecord ? getString(orgRecord, 'slug') : undefined;
-  if (!slug) throw new Error('Organization not found');
-  return slug;
-}
 
 async function scrubMessagePii(
   ctx: ActionCtx,
@@ -126,79 +105,11 @@ async function scrubMessagePii(
 }
 
 // ---------------------------------------------------------------------------
-// Agent mode: chat via scheduled generation (no client tools)
+// Result type for direct model completions
 // ---------------------------------------------------------------------------
 
-export const chatViaOpenAI = internalAction({
-  args: {
-    agentSlug: v.string(),
-    organizationId: v.string(),
-    userId: v.string(),
-    userEmail: v.optional(v.string()),
-    userName: v.optional(v.string()),
-    message: v.string(),
-    threadId: v.optional(v.string()),
-    enableStreaming: v.optional(v.boolean()),
-    generationParams: v.optional(v.any()),
-    responseFormat: v.optional(v.string()),
-  },
-  returns: v.object({
-    threadId: v.string(),
-    streamId: v.string(),
-  }),
-  handler: async (
-    ctx,
-    args,
-  ): Promise<{ threadId: string; streamId: string }> => {
-    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
-
-    const message = await scrubMessagePii(
-      ctx,
-      args.message,
-      args.organizationId,
-      args.userId,
-      args.userEmail ?? '',
-      args.agentSlug,
-    );
-
-    const agentConfig = await ctx.runAction(
-      internal.agents.file_actions.resolveAgentConfig,
-      {
-        orgSlug,
-        agentSlug: args.agentSlug,
-        organizationId: args.organizationId,
-      },
-    );
-
-    // Apply response_format override
-    if (args.responseFormat === 'json_object') {
-      agentConfig.outputFormat = 'json';
-    }
-
-    return ctx.runMutation(
-      internal.openai_compat.internal_mutations.startOpenAIChat,
-      {
-        agentSlug: args.agentSlug,
-        organizationId: args.organizationId,
-        userId: args.userId,
-        userEmail: args.userEmail,
-        userName: args.userName,
-        message,
-        threadId: args.threadId,
-        enableStreaming: args.enableStreaming,
-        agentConfig,
-        generationParams: args.generationParams,
-      },
-    );
-  },
-});
-
-// ---------------------------------------------------------------------------
-// Client tool mode: direct streamText with client-defined tools
-// ---------------------------------------------------------------------------
-
-interface ToolCallResult {
-  threadId: string;
+interface DirectModelResult {
+  requestId: string;
   text: string | null;
   toolCalls: Array<{
     id: string;
@@ -212,251 +123,6 @@ interface ToolCallResult {
   resolvedModel: string;
 }
 
-export const chatViaOpenAIWithTools = internalAction({
-  args: {
-    agentSlug: v.string(),
-    organizationId: v.string(),
-    userId: v.string(),
-    userEmail: v.optional(v.string()),
-    userName: v.optional(v.string()),
-    message: v.string(),
-    threadId: v.optional(v.string()),
-    tools: v.any(),
-    toolChoice: v.optional(v.any()),
-    conversationMessages: v.optional(v.any()),
-    generationParams: v.optional(v.any()),
-    responseFormat: v.optional(v.string()),
-  },
-  returns: v.any(),
-  handler: async (ctx, args): Promise<ToolCallResult> => {
-    const orgSlug = await resolveOrgSlug(ctx, args.organizationId);
-
-    const message = await scrubMessagePii(
-      ctx,
-      args.message,
-      args.organizationId,
-      args.userId,
-      args.userEmail ?? '',
-      args.agentSlug,
-    );
-
-    // Resolve agent config (for system prompt + model)
-    // oxlint-disable-next-line typescript/no-explicit-any -- resolveAgentConfig returns v.any(); fields accessed dynamically
-    const agentConfig: any = await ctx.runAction(
-      internal.agents.file_actions.resolveAgentConfig,
-      {
-        orgSlug,
-        agentSlug: args.agentSlug,
-        organizationId: args.organizationId,
-      },
-    );
-
-    if (args.responseFormat === 'json_object') {
-      agentConfig.outputFormat = 'json';
-    }
-
-    // Resolve language model
-    const modelId = String(agentConfig.model ?? 'default');
-    const providerName = agentConfig.provider
-      ? String(agentConfig.provider)
-      : undefined;
-    const resolved = await resolveLanguageModelWithFallback(ctx, {
-      modelId,
-      providerName,
-      tag: 'chat',
-    });
-
-    // Convert client tools to AI SDK format (no execute functions)
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Tool definitions are dynamically converted from OpenAI format; the ToolSet branded type requires exact static shape
-    const aiTools = convertOpenAITools(
-      args.tools ?? [],
-    ) as unknown as Parameters<typeof streamText>[0]['tools'];
-
-    // Create or reuse thread, save user message
-    const threadId: string = await ctx.runMutation(
-      internal.openai_compat.internal_mutations.createThreadAndSaveMessage,
-      {
-        organizationId: args.organizationId,
-        userId: args.userId,
-        userEmail: args.userEmail,
-        userName: args.userName,
-        threadId: args.threadId,
-        message,
-      },
-    );
-
-    // Fetch mandatory system prompt governance policy
-    const systemPromptPolicy = await ctx.runQuery(
-      internal.governance.internal_queries.getSystemPromptPolicyInternal,
-      { organizationId: args.organizationId },
-    );
-
-    // Build system prompt from agent instructions
-    let systemPrompt: string =
-      String(agentConfig.instructions ?? '') ||
-      `You are ${String(agentConfig.name ?? 'assistant')}, a helpful assistant.`;
-
-    // Apply mandatory governance system prompt (non-overridable)
-    if (
-      systemPromptPolicy?.enabled !== false &&
-      isRecord(systemPromptPolicy?.config)
-    ) {
-      const cfg = systemPromptPolicy.config;
-      const prefix =
-        typeof cfg.mandatoryPrefixPrompt === 'string'
-          ? cfg.mandatoryPrefixPrompt.trim()
-          : '';
-      const suffix =
-        typeof cfg.mandatorySuffixPrompt === 'string'
-          ? cfg.mandatorySuffixPrompt.trim()
-          : '';
-      if (prefix) systemPrompt = prefix + '\n\n' + systemPrompt;
-      if (suffix) systemPrompt = systemPrompt + '\n\n' + suffix;
-    }
-
-    // Build generation params
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- generationParams is v.any() from Convex validator; shape is controlled by http_actions.ts buildGenerationParams
-    const genParams = (args.generationParams ?? {}) as Record<string, unknown>;
-
-    // Direct streamText call with client tools (no auto-execute)
-    // Always use messages format for proper tool calling support.
-    // For continuation, use the full conversation history from the client.
-    const hasConversation =
-      args.conversationMessages &&
-      Array.isArray(args.conversationMessages) &&
-      args.conversationMessages.length > 0;
-
-    const messages: ModelMessage[] = hasConversation
-      ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- conversationMessages is built by convertToModelMessages in http_actions.ts; shape matches ModelMessage[]
-        (args.conversationMessages as ModelMessage[])
-      : [{ role: 'user' as const, content: message }];
-
-    const result = streamText({
-      model: resolved.languageModel,
-      system: systemPrompt,
-      messages,
-      tools: aiTools,
-      ...(args.toolChoice != null && {
-        toolChoice: mapToolChoice(args.toolChoice),
-      }),
-      ...(genParams.temperature != null && {
-        temperature: Number(genParams.temperature),
-      }),
-      ...(genParams.maxTokens != null && {
-        maxTokens: Number(genParams.maxTokens),
-      }),
-      ...(genParams.topP != null && { topP: Number(genParams.topP) }),
-      ...(genParams.frequencyPenalty != null && {
-        frequencyPenalty: Number(genParams.frequencyPenalty),
-      }),
-      ...(genParams.presencePenalty != null && {
-        presencePenalty: Number(genParams.presencePenalty),
-      }),
-      ...(Array.isArray(genParams.stopSequences) && {
-        stopSequences: genParams.stopSequences,
-      }),
-    });
-
-    const text: string = await result.text;
-    const finishReason: string = await result.finishReason;
-    const steps = await result.steps;
-
-    // Extract tool calls from steps.
-    // AI SDK v6 stores tool calls in step.content[] as { type: "tool-call", toolCallId, toolName, input }
-    interface ToolCallContent {
-      type: string;
-      toolCallId?: string;
-      toolName?: string;
-      input?: unknown;
-    }
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- StepResult serialized to extract tool-call content parts; shape is known from AI SDK v6
-    const rawSteps = JSON.parse(JSON.stringify(steps)) as Array<{
-      content?: ToolCallContent[];
-    }>;
-    const toolCalls = rawSteps
-      .flatMap((step) => step.content ?? [])
-      .filter((part): part is ToolCallContent => part.type === 'tool-call')
-      .map((tc) => ({
-        id: tc.toolCallId ?? generateToolCallId(),
-        type: 'function' as const,
-        function: {
-          name: tc.toolName ?? '',
-          arguments: JSON.stringify(tc.input ?? {}),
-        },
-      }));
-
-    // Track usage for client tool mode (this path bypasses onAgentComplete)
-    const usage = await result.usage;
-    const inputTokens = usage?.inputTokens ?? 0;
-    const outputTokens = usage?.outputTokens ?? 0;
-    const totalTokens = inputTokens + outputTokens;
-
-    if (usage && args.organizationId && (inputTokens > 0 || outputTokens > 0)) {
-      const { estimateCostCents } =
-        await import('../governance/cost_estimation');
-      const costCents = estimateCostCents(modelId, inputTokens, outputTokens);
-      await ctx
-        .runMutation(
-          internal.governance.internal_mutations.incrementUsageLedger,
-          {
-            organizationId: args.organizationId,
-            userId: args.userId ?? 'system',
-            inputTokens,
-            outputTokens,
-            costEstimateCents: costCents,
-            timestamp: Date.now(),
-          },
-        )
-        .catch((error) => {
-          console.error(
-            '[OpenAI-compat:clientTools] Failed to increment usage ledger:',
-            error,
-          );
-        });
-
-      // AI audit log for OpenAI-compat client tool mode
-      await ctx
-        .runMutation(internal.audit_logs.internal_mutations.createAuditLog, {
-          organizationId: args.organizationId,
-          actorId: args.userId ?? 'system',
-          actorType: 'api' as const,
-          action: 'ai.completion',
-          category: 'ai' as const,
-          resourceType: 'agent_completion',
-          resourceId: threadId,
-          status: 'success' as const,
-          metadata: {
-            model: modelId,
-            inputTokens,
-            outputTokens,
-            totalTokens,
-            costEstimateCents: costCents,
-            threadId,
-            agentType: 'openai_compat',
-            toolCallCount: toolCalls.length,
-          },
-        })
-        .catch((error) => {
-          console.error(
-            '[OpenAI-compat:clientTools] Failed to write AI audit log:',
-            error,
-          );
-        });
-    }
-
-    return {
-      threadId,
-      text: text || null,
-      toolCalls: toolCalls.length > 0 ? toolCalls : null,
-      finishReason,
-      inputTokens,
-      outputTokens,
-      totalTokens,
-      resolvedModel: resolved.modelData.modelId,
-    };
-  },
-});
-
 // ---------------------------------------------------------------------------
 // Direct model mode: bypass agent pipeline, route to provider directly
 // ---------------------------------------------------------------------------
@@ -469,7 +135,6 @@ export const chatDirectModel = internalAction({
     userEmail: v.optional(v.string()),
     userName: v.optional(v.string()),
     message: v.string(),
-    threadId: v.optional(v.string()),
     tools: v.optional(v.any()),
     toolChoice: v.optional(v.any()),
     conversationMessages: v.optional(v.any()),
@@ -477,7 +142,7 @@ export const chatDirectModel = internalAction({
     responseFormat: v.optional(v.string()),
   },
   returns: v.any(),
-  handler: async (ctx, args): Promise<ToolCallResult> => {
+  handler: async (ctx, args): Promise<DirectModelResult> => {
     const message = await scrubMessagePii(
       ctx,
       args.message,
@@ -503,8 +168,8 @@ export const chatDirectModel = internalAction({
     /* oxlint-enable typescript/no-unsafe-type-assertion */
 
     // Direct model mode is stateless — no thread/message persistence.
-    // Use a transient ID for usage tracking and audit log correlation.
-    const threadId = args.threadId ?? `direct-${Date.now().toString(36)}`;
+    // Transient ID for audit log correlation only.
+    const requestId = `direct-${Date.now().toString(36)}`;
 
     // Fetch mandatory system prompt governance policy
     const systemPromptPolicy = await ctx.runQuery(
@@ -640,7 +305,7 @@ export const chatDirectModel = internalAction({
           action: 'ai.completion',
           category: 'ai' as const,
           resourceType: 'agent_completion',
-          resourceId: threadId,
+          resourceId: requestId,
           status: 'success' as const,
           metadata: {
             model: resolved.modelData.modelId,
@@ -648,7 +313,7 @@ export const chatDirectModel = internalAction({
             outputTokens,
             totalTokens,
             costEstimateCents: costCents,
-            threadId,
+            requestId,
             agentType: 'direct_model',
             toolCallCount: toolCalls.length,
           },
@@ -662,7 +327,7 @@ export const chatDirectModel = internalAction({
     }
 
     return {
-      threadId,
+      requestId,
       text: text || null,
       toolCalls: toolCalls.length > 0 ? toolCalls : null,
       finishReason,
@@ -671,58 +336,5 @@ export const chatDirectModel = internalAction({
       totalTokens,
       resolvedModel: resolved.modelData.modelId,
     };
-  },
-});
-
-// ---------------------------------------------------------------------------
-// List visible agents (for /api/v1/models) — DEPRECATED: replaced by getAllModelIds
-// ---------------------------------------------------------------------------
-
-export const listVisibleAgents = internalAction({
-  args: {
-    orgSlug: v.string(),
-  },
-  returns: v.any(),
-  handler: async (_ctx, args) => {
-    const dir = resolveAgentsDir(args.orgSlug);
-    let entries: string[];
-    try {
-      entries = await readdir(dir);
-    } catch {
-      return [];
-    }
-
-    const jsonFiles = entries.filter(
-      (e) => e.endsWith('.json') && !e.startsWith('.'),
-    );
-
-    const { readJsonFile } = await import('../lib/file_io');
-    const { parseAgentJson, resolveAgentFilePath, MAX_FILE_SIZE_BYTES } =
-      await import('../agents/file_utils');
-
-    const results = await Promise.all(
-      jsonFiles.map(async (fileName) => {
-        const agentName = agentNameFromFileName(fileName);
-        if (!validateAgentName(agentName)) return null;
-
-        const filePath = resolveAgentFilePath(args.orgSlug, agentName);
-        const result = await readJsonFile(
-          filePath,
-          MAX_FILE_SIZE_BYTES,
-          parseAgentJson,
-        );
-
-        if (!result.ok) return null;
-        if (!result.data.visibleInChat) return null;
-
-        return {
-          name: agentName,
-          displayName: result.data.displayName,
-          description: result.data.description,
-        };
-      }),
-    );
-
-    return results.filter(Boolean);
   },
 });

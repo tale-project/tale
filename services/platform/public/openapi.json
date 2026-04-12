@@ -30,17 +30,6 @@
             "bearerAuth": []
           }
         ],
-        "parameters": [
-          {
-            "name": "X-Thread-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Reuse a conversation thread across requests."
-          }
-        ],
         "requestBody": {
           "required": true,
           "content": {

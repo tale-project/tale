@@ -35,7 +35,7 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
   'Access-Control-Allow-Headers':
-    'Content-Type, Authorization, X-Organization-Slug, X-Thread-Id',
+    'Content-Type, Authorization, X-Organization-Slug',
 };
 
 // ---------------------------------------------------------------------------
@@ -320,10 +320,6 @@ export const chatCompletionsHandler = httpAction(async (ctx, request) => {
   const shouldStream = body.stream === true;
   const includeUsage =
     shouldStream && body.stream_options?.include_usage === true;
-  const threadId =
-    request.headers.get('x-thread-id') ??
-    request.headers.get('X-Thread-Id') ??
-    undefined;
   const generationParams = buildGenerationParams(body);
   const responseFormat = body.response_format?.type;
 
@@ -354,7 +350,6 @@ export const chatCompletionsHandler = httpAction(async (ctx, request) => {
     toolChoice: body.tool_choice,
     shouldStream,
     includeUsage,
-    threadId,
     generationParams,
     responseFormat,
     conversationMessages,
@@ -390,7 +385,6 @@ async function handleDirectModelMode(
     toolChoice?: unknown;
     shouldStream: boolean;
     includeUsage: boolean;
-    threadId?: string;
     generationParams?: Record<string, unknown>;
     responseFormat?: string;
     conversationMessages?: Array<Record<string, unknown>>;
@@ -401,7 +395,7 @@ async function handleDirectModelMode(
   const created = Math.floor(Date.now() / 1000);
 
   let result: {
-    threadId: string;
+    requestId: string;
     text: string | null;
     toolCalls: OpenAIToolCall[] | null;
     finishReason: string;
@@ -421,7 +415,6 @@ async function handleDirectModelMode(
         userEmail: opts.user.email,
         userName: opts.user.name,
         message: opts.lastUserMessage,
-        threadId: opts.threadId,
         tools: opts.tools,
         toolChoice: opts.toolChoice,
         conversationMessages: opts.conversationMessages,
@@ -433,7 +426,7 @@ async function handleDirectModelMode(
     return handleChatError(error, opts.model);
   }
 
-  const completionId = result.threadId;
+  const completionId = result.requestId;
   const responseModel = result.resolvedModel ?? opts.model;
   const usage: OpenAIUsage = {
     prompt_tokens: result.inputTokens,
@@ -449,7 +442,6 @@ async function handleDirectModelMode(
         responseModel,
         result.toolCalls,
         result.text,
-        result.threadId,
         created,
         opts.includeUsage ? usage : undefined,
       );
@@ -463,7 +455,7 @@ async function handleDirectModelMode(
       result.text,
       usage,
     );
-    return jsonResponseWithThreadId(response, result.threadId);
+    return jsonResponse(response);
   }
 
   // No tool calls — return text
@@ -472,7 +464,6 @@ async function handleDirectModelMode(
       completionId,
       responseModel,
       result.text ?? '',
-      result.threadId,
       created,
       opts.includeUsage ? usage : undefined,
     );
@@ -486,16 +477,15 @@ async function handleDirectModelMode(
     [],
     usage,
   );
-  return jsonResponseWithThreadId(response, result.threadId);
+  return jsonResponse(response);
 }
 
-function jsonResponseWithThreadId(body: unknown, threadId: string): Response {
+function jsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), {
     status: 200,
     headers: {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
-      'X-Thread-Id': threadId,
     },
   });
 }
@@ -509,7 +499,6 @@ function streamToolCallsResponse(
   model: string,
   toolCalls: OpenAIToolCall[],
   text: string | null,
-  threadId: string,
   created: number,
   usage?: OpenAIUsage,
 ): Response {
@@ -593,7 +582,6 @@ function streamToolCallsResponse(
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
       Connection: 'keep-alive',
-      'X-Thread-Id': threadId,
       ...CORS_HEADERS,
     },
   });
@@ -607,7 +595,6 @@ function streamDirectTextResponse(
   completionId: string,
   model: string,
   text: string,
-  threadId: string,
   created: number,
   usage?: OpenAIUsage,
 ): Response {
@@ -671,7 +658,6 @@ function streamDirectTextResponse(
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
       Connection: 'keep-alive',
-      'X-Thread-Id': threadId,
       ...CORS_HEADERS,
     },
   });

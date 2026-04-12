@@ -69,15 +69,6 @@ function injectOpenAICompatPaths(spec: OpenApiSpec) {
 Use \`GET /api/v1/models\` to list available models. Supports tool calling via the \`tools\` parameter — the model returns \`tool_calls\` for client-side execution.`,
       operationId: 'createChatCompletion',
       security: [{ bearerAuth: [] }],
-      parameters: [
-        {
-          name: 'X-Thread-Id',
-          in: 'header',
-          required: false,
-          schema: { type: 'string' },
-          description: 'Reuse a conversation thread across requests.',
-        },
-      ],
       requestBody: {
         required: true,
         content: {
