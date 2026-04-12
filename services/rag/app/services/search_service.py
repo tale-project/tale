@@ -97,7 +97,9 @@ class RagSearchService:
             vec_ms = (time.time() - vec_t0) * 1000
             logger.debug("PERF vector search: {:.1f}ms", vec_ms)
 
-            # Pre-filter vector results by cosine similarity to reject clearly irrelevant content
+            # Pre-filter vector results by cosine similarity to reject clearly irrelevant content.
+            # If ALL vector results are below threshold, the query is semantically irrelevant
+            # to the indexed documents — discard FTS results too (they are keyword noise).
             if similarity_threshold > 0:
                 pre_count = len(vector_results)
                 vector_results = [r for r in vector_results if r["score"] >= similarity_threshold]
@@ -108,6 +110,8 @@ class RagSearchService:
                         pre_count,
                         similarity_threshold,
                     )
+                if pre_count > 0 and not vector_results:
+                    return []
 
             if not fts_results and not vector_results:
                 return []
