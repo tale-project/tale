@@ -64,11 +64,9 @@ function injectOpenAICompatPaths(spec: OpenApiSpec) {
     post: {
       tags: [openaiTag],
       summary: 'Create chat completion',
-      description: `Send messages to an agent and receive a response. Fully compatible with the OpenAI Chat Completions API.
+      description: `Send messages to a model and receive a response. Fully compatible with the OpenAI Chat Completions API.
 
-**Two modes:**
-- **Agent mode** (no \`tools\`): The agent uses server-side tools and auto-executes them.
-- **Client tool mode** (\`tools\` provided): Only client-defined tools are used. Returns \`tool_calls\` for client execution.`,
+Use \`GET /api/v1/models\` to list available models. Supports tool calling via the \`tools\` parameter — the model returns \`tool_calls\` for client-side execution.`,
       operationId: 'createChatCompletion',
       security: [{ bearerAuth: [] }],
       parameters: [

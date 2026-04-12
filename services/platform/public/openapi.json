@@ -23,7 +23,7 @@
           "OpenAI Compatible"
         ],
         "summary": "Create chat completion",
-        "description": "Send messages to an agent and receive a response. Fully compatible with the OpenAI Chat Completions API.\n\n**Two modes:**\n- **Agent mode** (no `tools`): The agent uses server-side tools and auto-executes them.\n- **Client tool mode** (`tools` provided): Only client-defined tools are used. Returns `tool_calls` for client execution.",
+        "description": "Send messages to a model and receive a response. Fully compatible with the OpenAI Chat Completions API.\n\nUse `GET /api/v1/models` to list available models. Supports tool calling via the `tools` parameter — the model returns `tool_calls` for client-side execution.",
         "operationId": "createChatCompletion",
         "security": [
           {
