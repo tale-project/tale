@@ -100,14 +100,21 @@ export function TeamMultiSelect({
                 className="bg-muted inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium"
               >
                 {team.name}
-                <button
-                  type="button"
+                <span
+                  role="button"
+                  tabIndex={0}
                   onClick={(e) => removeTeam(team.id, e)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      removeTeam(team.id, e as unknown as React.MouseEvent);
+                    }
+                  }}
                   className="text-muted-foreground hover:text-foreground -mr-0.5 rounded-sm"
                   aria-label={`Remove ${team.name}`}
                 >
                   <X className="size-3" />
-                </button>
+                </span>
               </span>
             ))
           )}
