@@ -249,7 +249,7 @@
     "logs": "Protokolle",
     "agents": "Agents",
     "teamFilter": {
-      "allTeams": "Alle Teams",
+      "allTeams": "Alle",
       "label": "Team"
     }
   },

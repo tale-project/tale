@@ -252,7 +252,7 @@
     "logs": "Logs",
     "agents": "Agents",
     "teamFilter": {
-      "allTeams": "All teams",
+      "allTeams": "All",
       "label": "Team"
     }
   },
