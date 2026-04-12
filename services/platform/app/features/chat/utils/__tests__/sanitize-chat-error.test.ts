@@ -130,6 +130,15 @@ describe('sanitizeChatError', () => {
       });
     });
 
+    it('matches "Missing Authentication header" error', () => {
+      const raw = `Uncaught Error: Missing Authentication header
+    at <anonymous> (../../../../node_modules/ai/src/ui/process-ui-message-stream.ts:776:14)`;
+      expect(sanitizeChatError(raw)).toEqual({
+        category: 'authError',
+        i18nKey: 'errorHintAuthError',
+      });
+    });
+
     it('matches "User not found" error from invalid API key', () => {
       const raw = `Uncaught Error: User not found.
     at <anonymous> (../../../../node_modules/ai/src/ui/process-ui-message-stream.ts:776:14)`;

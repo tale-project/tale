@@ -24,7 +24,7 @@ const ERROR_PATTERNS: { pattern: RegExp; category: ErrorCategory }[] = [
   },
   {
     pattern:
-      /\b401\b|\b403\b|invalid.*key|expired.*key|api.?key.*invalid|unauthorized|forbidden|authentication.*fail|user not found/i,
+      /\b401\b|\b403\b|invalid.*key|expired.*key|api.?key.*invalid|unauthorized|forbidden|authentication.*fail|user not found|missing.*authentication/i,
     category: 'authError',
   },
   {
