@@ -489,11 +489,12 @@ export async function rlsRules(
       },
     },
 
-    // Prompt Templates - organization-scoped
+    // Prompt Templates - organization-scoped, team-filtered
     promptTemplates: {
       read: async (_, prompt) => {
         if (!user) return false;
         if (!userOrgIds.has(prompt.organizationId)) return false;
+        if (!hasTeamAccess(prompt, userTeamIds)) return false;
         const membership = userOrganizations.find(
           (m) => m.organizationId === prompt.organizationId,
         );
@@ -502,6 +503,7 @@ export async function rlsRules(
       modify: async (_, prompt) => {
         if (!user) return false;
         if (!userOrgIds.has(prompt.organizationId)) return false;
+        if (!hasTeamAccess(prompt, userTeamIds)) return false;
         const membership = userOrganizations.find(
           (m) => m.organizationId === prompt.organizationId,
         );

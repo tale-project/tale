@@ -1,8 +1,10 @@
 import { v } from 'convex/values';
 
+import { getUserTeamIds } from '../lib/get_user_teams';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { queryWithRLS } from '../lib/rls/helpers/query_with_rls';
 import { getUserOrganizations } from '../lib/rls/organization/get_user_organizations';
+import { hasTeamAccess } from '../lib/team_access';
 import { promptScopeValidator, promptTemplateValidator } from './validators';
 
 export const listPrompts = queryWithRLS({
@@ -21,6 +23,7 @@ export const listPrompts = queryWithRLS({
     );
     if (!membership) return [];
 
+    const userTeamIds = await getUserTeamIds(ctx, user.userId);
     const results = [];
 
     const { scope } = args;
@@ -31,6 +34,9 @@ export const listPrompts = queryWithRLS({
           q.eq('organizationId', args.organizationId).eq('scope', scope),
         )) {
         if (scope === 'personal' && prompt.createdBy !== user.userId) {
+          continue;
+        }
+        if (!hasTeamAccess(prompt, userTeamIds)) {
           continue;
         }
         if (prompt.isPublished || prompt.createdBy === user.userId) {
@@ -44,6 +50,9 @@ export const listPrompts = queryWithRLS({
           q.eq('organizationId', args.organizationId),
         )) {
         if (prompt.scope === 'personal' && prompt.createdBy !== user.userId) {
+          continue;
+        }
+        if (!hasTeamAccess(prompt, userTeamIds)) {
           continue;
         }
         if (prompt.isPublished || prompt.createdBy === user.userId) {
@@ -70,6 +79,11 @@ export const getPrompt = queryWithRLS({
 
     if (prompt.scope === 'personal' && prompt.createdBy !== user.userId) {
       return null;
+    }
+
+    if (prompt.scope === 'team') {
+      const userTeamIds = await getUserTeamIds(ctx, user.userId);
+      if (!hasTeamAccess(prompt, userTeamIds)) return null;
     }
 
     return prompt;
