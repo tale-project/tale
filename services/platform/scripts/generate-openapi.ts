@@ -424,7 +424,7 @@ function injectOpenAICompatPaths(spec: OpenApiSpec) {
         items: {
           type: 'object',
           properties: {
-            id: { type: 'string', example: 'chat-agent' },
+            id: { type: 'string', example: 'anthropic/claude-sonnet-4.6' },
             object: { type: 'string', enum: ['model'] },
             created: { type: 'integer' },
             owned_by: { type: 'string' },
@@ -1975,6 +1975,8 @@ curl -H "Authorization: Bearer tale_..." https://your-instance.com/api/v1/thread
 
 ## Quick start — OpenAI Compatible
 
+Use any OpenAI-compatible SDK. List available models with \`GET /api/v1/models\`.
+
 \`\`\`python
 from openai import OpenAI
 
@@ -1983,10 +1985,17 @@ client = OpenAI(
     api_key="tale_...",
 )
 
+# List available models
+models = client.models.list()
+for m in models.data:
+    print(m.id, m.owned_by)
+
+# Chat completion
 response = client.chat.completions.create(
-    model="chat-agent",
+    model="anthropic/claude-sonnet-4.6",  # Use a model ID from the list above
     messages=[{"role": "user", "content": "Hello!"}],
 )
+print(response.choices[0].message.content)
 \`\`\`
 `.trim(),
     },

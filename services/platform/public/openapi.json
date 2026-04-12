@@ -3,7 +3,7 @@
   "info": {
     "title": "Tale Public API",
     "version": "1.0.0",
-    "description": "Tale Platform REST API.\n\n## Authentication\n\nAll endpoints require a Bearer token:\n\n```\nAuthorization: Bearer tale_...\n```\n\nCreate API keys in **Settings > API Keys**.\n\n## Quick start — REST API\n\n```bash\n# List documents\ncurl -H \"Authorization: Bearer tale_...\" https://your-instance.com/api/v1/documents\n\n# Create a product\ncurl -X POST -H \"Authorization: Bearer tale_...\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"name\": \"New Product\", \"price\": 9.99}' \\\n  https://your-instance.com/api/v1/products\n\n# List chat threads\ncurl -H \"Authorization: Bearer tale_...\" https://your-instance.com/api/v1/threads\n```\n\n## Quick start — OpenAI Compatible\n\n```python\nfrom openai import OpenAI\n\nclient = OpenAI(\n    base_url=\"https://your-instance.com/api/v1\",\n    api_key=\"tale_...\",\n)\n\nresponse = client.chat.completions.create(\n    model=\"chat-agent\",\n    messages=[{\"role\": \"user\", \"content\": \"Hello!\"}],\n)\n```"
+    "description": "Tale Platform REST API.\n\n## Authentication\n\nAll endpoints require a Bearer token:\n\n```\nAuthorization: Bearer tale_...\n```\n\nCreate API keys in **Settings > API Keys**.\n\n## Quick start — REST API\n\n```bash\n# List documents\ncurl -H \"Authorization: Bearer tale_...\" https://your-instance.com/api/v1/documents\n\n# Create a product\ncurl -X POST -H \"Authorization: Bearer tale_...\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"name\": \"New Product\", \"price\": 9.99}' \\\n  https://your-instance.com/api/v1/products\n\n# List chat threads\ncurl -H \"Authorization: Bearer tale_...\" https://your-instance.com/api/v1/threads\n```\n\n## Quick start — OpenAI Compatible\n\nUse any OpenAI-compatible SDK. List available models with `GET /api/v1/models`.\n\n```python\nfrom openai import OpenAI\n\nclient = OpenAI(\n    base_url=\"https://your-instance.com/api/v1\",\n    api_key=\"tale_...\",\n)\n\n# List available models\nmodels = client.models.list()\nfor m in models.data:\n    print(m.id, m.owned_by)\n\n# Chat completion\nresponse = client.chat.completions.create(\n    model=\"anthropic/claude-sonnet-4.6\",  # Use a model ID from the list above\n    messages=[{\"role\": \"user\", \"content\": \"Hello!\"}],\n)\nprint(response.choices[0].message.content)\n```"
   },
   "servers": [
     {
@@ -3115,7 +3115,7 @@
               "properties": {
                 "id": {
                   "type": "string",
-                  "example": "chat-agent"
+                  "example": "anthropic/claude-sonnet-4.6"
                 },
                 "object": {
                   "type": "string",
