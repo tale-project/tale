@@ -188,6 +188,7 @@ export const getMyFeatureFlags = query({
 export const getMyBudgetStatus = query({
   args: {
     organizationId: v.string(),
+    selectedTeamId: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
@@ -202,30 +203,45 @@ export const getMyBudgetStatus = query({
       name: authUser.name,
     });
 
-    const teamIds = await getUserTeamIds(ctx, userId);
-    const result = await checkBudget(
+    const allTeamIds = await getUserTeamIds(ctx, userId);
+
+    // For exceeded checks, always use all teams so hard blocks are never hidden
+    const fullResult = await checkBudget(
       ctx,
       args.organizationId,
       userId,
-      teamIds,
+      allTeamIds,
       member.role,
     );
 
-    // Budget exceeded — return the violation so the UI can show a hard limit banner
-    if (!result.allowed) {
+    // Budget exceeded — always show regardless of team selection
+    if (!fullResult.allowed) {
       return {
         exceeded: true as const,
-        code: result.code ?? null,
-        period: result.period ?? null,
-        used: result.used ?? null,
-        limit: result.limit ?? null,
-        reason: result.reason ?? null,
+        code: fullResult.code ?? null,
+        period: fullResult.period ?? null,
+        used: fullResult.used ?? null,
+        limit: fullResult.limit ?? null,
+        reason: fullResult.reason ?? null,
         warnings: null,
       };
     }
 
-    // Approaching limit — return warnings
-    if (result.warnings && result.warnings.length > 0) {
+    // For warnings, filter by selected team context
+    const displayTeamIds =
+      args.selectedTeamId && allTeamIds.includes(args.selectedTeamId)
+        ? [args.selectedTeamId]
+        : [];
+    const displayResult = await checkBudget(
+      ctx,
+      args.organizationId,
+      userId,
+      displayTeamIds,
+      member.role,
+    );
+
+    // Approaching limit — return warnings scoped to team selection
+    if (displayResult.warnings && displayResult.warnings.length > 0) {
       return {
         exceeded: false as const,
         code: null,
@@ -233,7 +249,7 @@ export const getMyBudgetStatus = query({
         used: null,
         limit: null,
         reason: null,
-        warnings: result.warnings,
+        warnings: displayResult.warnings,
       };
     }
 

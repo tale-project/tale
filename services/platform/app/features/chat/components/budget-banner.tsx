@@ -3,6 +3,7 @@
 import { AlertTriangle, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
+import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -10,7 +11,11 @@ import { useMyBudgetStatus } from '../../settings/governance/hooks/queries';
 
 export function BudgetBanner({ organizationId }: { organizationId: string }) {
   const { t } = useT('chat');
-  const { data: budgetStatus } = useMyBudgetStatus(organizationId);
+  const teamFilter = useOptionalTeamFilter();
+  const { data: budgetStatus } = useMyBudgetStatus(
+    organizationId,
+    teamFilter?.selectedTeamId,
+  );
   // Derive a stable key so dismissed state resets only when the status meaningfully changes,
   // not on every Convex subscription tick (which creates new object references).
   const budgetStatusKey = useMemo(

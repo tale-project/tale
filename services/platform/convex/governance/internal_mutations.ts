@@ -26,11 +26,12 @@ export const incrementUsageLedger = internalMutation({
 
       const existing = await ctx.db
         .query('usageLedger')
-        .withIndex('by_org_user_period', (q) =>
+        .withIndex('by_org_user_period_team', (q) =>
           q
             .eq('organizationId', args.organizationId)
             .eq('userId', args.userId)
-            .eq('periodKey', periodKey),
+            .eq('periodKey', periodKey)
+            .eq('teamId', args.teamId),
         )
         .first();
 
@@ -41,8 +42,6 @@ export const incrementUsageLedger = internalMutation({
           totalTokens: existing.totalTokens + totalTokens,
           costEstimate: existing.costEstimate + args.costEstimateCents,
           requestCount: existing.requestCount + 1,
-          // Backfill teamId if the existing entry has none and we now have one
-          ...(args.teamId && !existing.teamId ? { teamId: args.teamId } : {}),
         });
       } else {
         await ctx.db.insert('usageLedger', {
@@ -61,11 +60,12 @@ export const incrementUsageLedger = internalMutation({
         // both saw existing===null and inserted, merge into the older row.
         const dupQuery = ctx.db
           .query('usageLedger')
-          .withIndex('by_org_user_period', (q) =>
+          .withIndex('by_org_user_period_team', (q) =>
             q
               .eq('organizationId', args.organizationId)
               .eq('userId', args.userId)
-              .eq('periodKey', periodKey),
+              .eq('periodKey', periodKey)
+              .eq('teamId', args.teamId),
           );
         const allEntries = [];
         for await (const entry of dupQuery) {
