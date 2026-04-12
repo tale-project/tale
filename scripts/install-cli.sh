@@ -41,14 +41,25 @@ download() {
 }
 
 get_latest_tag() {
-    local api_url="https://api.github.com/repos/${REPO}/releases/latest"
-    local tag
+    local api_url="https://api.github.com/repos/${REPO}/releases"
+    local asset_name="${BINARY_NAME}_${PLATFORM}"
+    local releases_json
+
     if [ "$DOWNLOADER" = "curl" ]; then
-        tag=$(curl -fsSL "$api_url" | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+        releases_json=$(curl -fsSL "$api_url")
     else
-        tag=$(wget -qO- "$api_url" | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+        releases_json=$(wget -qO- "$api_url")
     fi
-    [ -z "$tag" ] && error "Failed to fetch latest version"
+
+    [ -z "$releases_json" ] && error "Failed to fetch releases"
+
+    # Find first release that has our platform binary in its assets.
+    # Iterates the JSON line-by-line: remembers the most recent tag_name,
+    # and prints it on the first occurrence of the expected asset filename.
+    local tag=""
+    tag=$(echo "$releases_json" | sed -n '/"tag_name"/{ s/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/; h; }; /'"$asset_name"'/{ g; p; q; }')
+
+    [ -z "$tag" ] && error "No release found with ${asset_name} binary"
     echo "$tag"
 }
 
