@@ -71,21 +71,30 @@ export function TeamMultiSelect({
 
   return (
     <div ref={containerRef} className="relative">
-      {/* Trigger */}
-      <button
-        type="button"
+      {/* Trigger — uses <div> instead of <button> so that chip remove <button>s are not nested */}
+      <div
+        role="combobox"
+        tabIndex={disabled || teams.length === 0 ? -1 : 0}
         onClick={() =>
           !disabled && teams.length > 0 && setIsOpen((prev) => !prev)
         }
-        disabled={disabled || teams.length === 0}
+        onKeyDown={(e) => {
+          if (disabled || teams.length === 0) return;
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setIsOpen((prev) => !prev);
+          }
+        }}
         aria-expanded={isOpen}
-        aria-haspopup="listbox"
+        aria-controls={isOpen ? 'team-multi-select-listbox' : undefined}
+        aria-disabled={disabled || teams.length === 0}
         className={cn(
-          'flex w-full items-center gap-1.5 rounded-lg border bg-background px-3 py-2 text-sm shadow-xs transition-colors',
+          'flex w-full cursor-pointer items-center gap-1.5 rounded-lg border bg-background px-3 py-2 text-sm shadow-xs transition-colors',
           isOpen
             ? 'border-primary ring-2 ring-primary/20'
             : 'border-border hover:border-border/80',
-          disabled && 'cursor-not-allowed opacity-50',
+          (disabled || teams.length === 0) &&
+            'pointer-events-none cursor-not-allowed opacity-50',
         )}
       >
         <div className="flex flex-1 flex-wrap items-center gap-1.5">
@@ -118,11 +127,12 @@ export function TeamMultiSelect({
             isOpen ? 'text-primary' : 'text-muted-foreground',
           )}
         />
-      </button>
+      </div>
 
       {/* Dropdown */}
       {isOpen && (
         <div
+          id="team-multi-select-listbox"
           role="listbox"
           aria-multiselectable="true"
           className="ring-border bg-muted absolute top-full left-0 z-50 mt-1 w-full overflow-hidden rounded-lg p-1 shadow-lg ring-1"

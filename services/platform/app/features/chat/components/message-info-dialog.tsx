@@ -112,7 +112,7 @@ interface ToolCallCardProps {
 
 function ToolCallCard({ usage, locale, t }: ToolCallCardProps) {
   return (
-    <div className="bg-muted rounded px-3 py-2 text-sm">
+    <div className="bg-muted min-w-0 overflow-hidden rounded px-3 py-2 text-sm">
       <Text as="div" variant="label">
         {formatAgentName(usage.toolName)}
         {usage.model && (
@@ -286,7 +286,7 @@ export function MessageInfoDialog({
       description={t('messageInfo.description')}
       className="sm:max-w-[500px]"
     >
-      <FieldGroup gap={4}>
+      <FieldGroup gap={4} className="min-w-0 overflow-hidden">
         <Field label={t('messageInfo.timestamp')}>
           <Text as="div">{formatDate(timestamp, 'long')}</Text>
         </Field>
