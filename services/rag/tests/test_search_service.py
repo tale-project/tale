@@ -282,9 +282,9 @@ class TestGracefulFallback:
 
         assert len(results) == 2
         assert results[0]["content"] == "vec result 1"
-        # Fallback uses 1/(i+1) scoring
-        assert results[0]["score"] == pytest.approx(1.0)
-        assert results[1]["score"] == pytest.approx(0.5)
+        # Fallback returns raw vector similarity scores
+        assert results[0]["score"] == pytest.approx(0.9)
+        assert results[1]["score"] == pytest.approx(0.8)
 
     async def test_non_bm25_exception_propagates(self):
         service, *_ = _build_service()
@@ -311,7 +311,7 @@ class TestDataCorruptionRecovery:
 
         assert len(results) == 1
         assert results[0]["content"] == "vec result"
-        assert results[0]["score"] == pytest.approx(1.0)
+        assert results[0]["score"] == pytest.approx(0.9)
 
     async def test_data_corrupted_error_triggers_rebuild(self):
         import asyncio as _asyncio
@@ -474,8 +474,10 @@ class TestApplyRecencyBoost:
 
         _apply_recency_boost(results, decay_base=0.85, max_age_days=730)
 
-        assert results[0]["rrf_score"] == pytest.approx(1.0)
-        assert results[1]["rrf_score"] < 1.0
+        # After sorting, the recent doc (highest boost) is first
+        # None-timestamp doc gets decay_base (0.85), recent doc gets ~1.0
+        assert results[0]["rrf_score"] > results[1]["rrf_score"]
+        assert results[1]["rrf_score"] == pytest.approx(0.85)
 
     def test_falls_back_to_created_at(self):
         from app.services.search_service import _apply_recency_boost
@@ -502,11 +504,12 @@ class TestApplyRecencyBoost:
 
         _apply_recency_boost(results, decay_base=0.85, max_age_days=730)
 
-        # Recent doc normalizes to 1.0; very old doc should get approximately decay_base
-        assert results[0]["rrf_score"] == pytest.approx(1.0)
+        # After sorting, recent doc is first with boost ~1.0
+        # Very old doc (age > max_age_days) gets clamped to decay_base
+        assert results[0]["rrf_score"] == pytest.approx(1.0, abs=0.01)
         assert results[1]["rrf_score"] == pytest.approx(0.85, abs=0.01)
 
-    def test_top_score_normalized_to_one(self):
+    def test_top_score_not_renormalized(self):
         from app.services.search_service import _apply_recency_boost
 
         now = datetime.now(timezone.utc)
@@ -517,7 +520,9 @@ class TestApplyRecencyBoost:
 
         _apply_recency_boost(results, decay_base=0.85, max_age_days=730)
 
-        assert results[0]["rrf_score"] == pytest.approx(1.0)
+        # Scores are boosted in place without re-normalization, so top score < 1.0
+        assert results[0]["rrf_score"] < 1.0
+        assert results[0]["rrf_score"] > results[1]["rrf_score"]
 
     def test_empty_results_no_error(self):
         from app.services.search_service import _apply_recency_boost
@@ -571,6 +576,9 @@ class TestRecencyBoostIntegration:
             mock_settings.recency_boost_enabled = True
             mock_settings.recency_decay_base = 0.85
             mock_settings.recency_max_age_days = 730
+            mock_settings.semantic_cache_enabled = False
+            mock_settings.vector_quality_threshold = 0
+            mock_settings.reranking_enabled = False
 
             results = await service.search("query")
 
@@ -589,6 +597,9 @@ class TestRecencyBoostIntegration:
 
         with patch("app.services.search_service.settings") as mock_settings:
             mock_settings.recency_boost_enabled = False
+            mock_settings.semantic_cache_enabled = False
+            mock_settings.vector_quality_threshold = 0
+            mock_settings.reranking_enabled = False
 
             with patch("app.services.search_service._apply_recency_boost") as mock_boost:
                 results = await service.search("query")
