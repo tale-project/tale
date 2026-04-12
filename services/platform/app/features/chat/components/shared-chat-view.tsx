@@ -2,7 +2,7 @@
 
 import { useNavigate } from '@tanstack/react-router';
 import { GitFork, ArrowLeft, Loader2 } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { useCallback, useId, useState } from 'react';
 
 import { PanelFooter } from '@/app/components/layout/panel-footer';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
@@ -31,6 +31,7 @@ export function SharedChatView({
   shareToken,
 }: SharedChatViewProps) {
   const { t } = useT('chat');
+  const messageHistoryLabelId = useId();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [inputValue, setInputValue] = useState('');
@@ -182,7 +183,11 @@ export function SharedChatView({
             className="mx-auto flex w-full max-w-(--chat-max-width) flex-col gap-3 pt-6"
             role="log"
             aria-live="polite"
+            aria-labelledby={messageHistoryLabelId}
           >
+            <h2 id={messageHistoryLabelId} className="sr-only">
+              {t('aria.messageHistory')}
+            </h2>
             {sharedThread.messages.map(
               (message: {
                 _id: string;

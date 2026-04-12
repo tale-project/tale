@@ -3,6 +3,7 @@
 import type { UIMessage } from '@convex-dev/agent/react';
 import { AlertTriangle, Loader2, CheckCircle2, Lock } from 'lucide-react';
 import {
+  useId,
   useMemo,
   useRef,
   useLayoutEffect,
@@ -149,6 +150,7 @@ export function ChatMessages({
   hideFeedback,
 }: ChatMessagesProps) {
   const { t } = useT('chat');
+  const messageHistoryLabelId = useId();
   const { branches, activeBranchThreadId } = useBranchContext();
   const editInputScrollRef = useRef<HTMLDivElement>(null);
 
@@ -457,8 +459,11 @@ export function ChatMessages({
       className="mx-auto flex w-full max-w-(--chat-max-width) flex-col"
       role="log"
       aria-live="polite"
-      aria-label={t('aria.messageHistory')}
+      aria-labelledby={messageHistoryLabelId}
     >
+      <h2 id={messageHistoryLabelId} className="sr-only">
+        {t('aria.messageHistory')}
+      </h2>
       <div className="flex flex-col gap-3 pt-6">
         {(canLoadMore || isLoadingMore) && (
           <div className="flex justify-center py-2">

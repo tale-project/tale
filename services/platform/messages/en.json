@@ -2802,7 +2802,9 @@
     },
     "aria": {
       "messageHistory": "Message history",
-      "scrollToBottom": "Scroll to bottom"
+      "scrollToBottom": "Scroll to bottom",
+      "chatRegion": "Chat",
+      "chatInput": "Message input"
     },
     "structured": {
       "nextSteps": "Suggested follow-ups"
