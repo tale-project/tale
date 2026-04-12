@@ -2,7 +2,7 @@
 
 import { useNavigate } from '@tanstack/react-router';
 import { m, AnimatePresence } from 'framer-motion';
-import { AlertTriangle, Archive, ArrowDown, Share, X } from 'lucide-react';
+import { Archive, ArrowDown, Share, X } from 'lucide-react';
 import { useRef, useEffect, useId, useState, useCallback } from 'react';
 
 import { PanelFooter } from '@/app/components/layout/panel-footer';
@@ -18,10 +18,7 @@ import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import {
-  useMyBudgetStatus,
-  useMyFeatureFlags,
-} from '../../settings/governance/hooks/queries';
+import { useMyFeatureFlags } from '../../settings/governance/hooks/queries';
 import { useBranchContext } from '../context/branch-context';
 import { useChatLayout } from '../context/chat-layout-context';
 import { useEditAndBranch, useForkOwnThread } from '../hooks/mutations';
@@ -157,14 +154,6 @@ export function ChatInterface({
 
   const { data: featureFlags } = useMyFeatureFlags(organizationId);
   const fileUploadDisabled = featureFlags?.fileUpload === false;
-
-  const { data: budgetStatus } = useMyBudgetStatus(organizationId);
-  const [budgetWarningDismissed, setBudgetWarningDismissed] = useState(false);
-
-  // Reset dismissed state when budget status changes (e.g. new period or threshold crossed)
-  useEffect(() => {
-    setBudgetWarningDismissed(false);
-  }, [budgetStatus]);
 
   usePersistedAttachments({
     userId: user?.userId,
@@ -668,90 +657,6 @@ export function ChatInterface({
       <h2 id={chatRegionLabelId} className="sr-only">
         {t('aria.chatRegion')}
       </h2>
-      {budgetStatus && !budgetWarningDismissed && !threadId && (
-        <div
-          className={cn(
-            'flex items-center gap-2 border-b px-4 py-2',
-            budgetStatus.exceeded
-              ? 'bg-destructive/10 border-destructive/30'
-              : 'bg-warning/10 border-warning/30',
-          )}
-        >
-          <AlertTriangle
-            className={cn(
-              'size-4 shrink-0',
-              budgetStatus.exceeded ? 'text-destructive' : 'text-warning',
-            )}
-          />
-          <span
-            className={cn(
-              'flex-1 text-sm',
-              budgetStatus.exceeded ? 'text-destructive' : 'text-foreground',
-            )}
-          >
-            {budgetStatus.exceeded
-              ? (() => {
-                  const isCost = budgetStatus.code === 'COST_LIMIT';
-                  const used =
-                    isCost && budgetStatus.used != null
-                      ? `$${(budgetStatus.used / 100).toFixed(2)}`
-                      : budgetStatus.used?.toLocaleString();
-                  const limit =
-                    isCost && budgetStatus.limit != null
-                      ? `$${(budgetStatus.limit / 100).toFixed(2)}`
-                      : budgetStatus.limit?.toLocaleString();
-                  const type = isCost
-                    ? t('budgetWarningTypeCost')
-                    : budgetStatus.code === 'TOKEN_LIMIT'
-                      ? t('budgetWarningTypeTokens')
-                      : t('budgetWarningTypeRequests');
-                  return used != null && limit != null
-                    ? t('budgetExceededDetail', {
-                        type,
-                        period: budgetStatus.period ?? 'monthly',
-                        used,
-                        limit,
-                      })
-                    : t('budgetExceededDefault');
-                })()
-              : budgetStatus.warnings
-                  ?.map((w) => {
-                    const type =
-                      w.code === 'TOKEN_WARNING'
-                        ? t('budgetWarningTypeTokens')
-                        : w.code === 'COST_WARNING'
-                          ? t('budgetWarningTypeCost')
-                          : t('budgetWarningTypeRequests');
-                    const used =
-                      w.code === 'COST_WARNING'
-                        ? `$${(w.used / 100).toFixed(2)}`
-                        : w.used.toLocaleString();
-                    const limit =
-                      w.code === 'COST_WARNING'
-                        ? `$${(w.limit / 100).toFixed(2)}`
-                        : w.limit.toLocaleString();
-                    return t('budgetWarning', {
-                      percent: w.percent,
-                      period: w.period,
-                      type,
-                      used,
-                      limit,
-                    });
-                  })
-                  .join(' · ')}
-          </span>
-          {!budgetStatus.exceeded && (
-            <button
-              type="button"
-              onClick={() => setBudgetWarningDismissed(true)}
-              className="text-muted-foreground hover:text-foreground shrink-0"
-              aria-label={t('budgetWarningDismiss')}
-            >
-              <X className="size-4" />
-            </button>
-          )}
-        </div>
-      )}
       {showArena ? (
         <ArenaSplitView organizationId={organizationId} />
       ) : (
