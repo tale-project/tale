@@ -348,6 +348,7 @@ export async function startAgentChat(
       deadlineMs,
       generationParams: args.generationParams,
       maxContextTokens: governanceMaxContextTokens,
+      threadTeamId: threadMeta?.teamId,
     },
   );
 

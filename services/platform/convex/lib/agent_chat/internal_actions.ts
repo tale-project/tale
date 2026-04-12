@@ -150,6 +150,7 @@ export const runAgentGeneration = internalAction({
     deadlineMs: v.optional(v.number()),
     generationParams: v.optional(v.any()),
     maxContextTokens: v.optional(v.number()),
+    threadTeamId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const actionStartTime = Date.now();
@@ -380,11 +381,7 @@ export const runAgentGeneration = internalAction({
               organizationId,
               userId,
               agentSlug: args.agentSlug,
-              teamIds:
-                agentConfig.agentTeamIds ??
-                (agentConfig.agentTeamId
-                  ? [agentConfig.agentTeamId]
-                  : undefined),
+              teamIds: args.threadTeamId ? [args.threadTeamId] : undefined,
               providerCost:
                 modelData.inputCentsPerMillion != null
                   ? {
