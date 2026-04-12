@@ -81,6 +81,7 @@ export const forkThread = mutation({
       forkedFrom: metadata.threadId,
       forkedFromShare: true,
       forkedMessageCount: messages.length,
+      lastForkedMessageOrder: messages.at(-1)?.order,
       ...(metadata.organizationId && {
         organizationId: metadata.organizationId,
       }),

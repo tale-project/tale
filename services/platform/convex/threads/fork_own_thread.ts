@@ -9,7 +9,7 @@ import { getThreadMessages } from './get_thread_messages';
 export const forkOwnThread = mutation({
   args: {
     threadId: v.string(),
-    upToMessageIndex: v.optional(v.number()),
+    upToMessageOrder: v.optional(v.number()),
   },
   returns: v.string(),
   handler: async (ctx, args) => {
@@ -37,10 +37,14 @@ export const forkOwnThread = mutation({
       metadata.threadId,
     );
 
-    // Fork up to a specific message index, or all messages
+    // Fork up to a specific message (by turn order), or all messages.
+    // Uses `order` (turn-level, stable regardless of tool-message filtering)
+    // instead of UIMessage.id (which differs between streaming and
+    // excludeToolMessages queries — see get_thread_messages_streaming.ts).
+    const cutoffOrder = args.upToMessageOrder;
     const messages =
-      args.upToMessageIndex !== undefined
-        ? allMessages.slice(0, args.upToMessageIndex + 1)
+      cutoffOrder !== undefined
+        ? allMessages.filter((m) => m.order <= cutoffOrder)
         : allMessages;
 
     const title = metadata.title ? `Fork of ${metadata.title}` : 'Forked chat';
@@ -65,6 +69,7 @@ export const forkOwnThread = mutation({
       updatedAt: createdAt,
       forkedFrom: metadata.threadId,
       forkedMessageCount: messages.length,
+      lastForkedMessageOrder: messages.at(-1)?.order,
       ...(metadata.teamId && { teamId: metadata.teamId }),
     });
 

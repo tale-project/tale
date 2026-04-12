@@ -44,6 +44,26 @@ class TestMergeRrf:
         assert merged[0]["rrf_score"] == 1.0
         assert 0 < merged[1]["rrf_score"] < 1.0
 
+    def test_disjoint_lists_score_below_one(self):
+        """Items appearing in only one of two lists should score below 1.0."""
+        list1 = [{"id": 1, "text": "a"}]
+        list2 = [{"id": 2, "text": "b"}]
+        merged = merge_rrf([list1, list2], limit=2)
+        assert len(merged) == 2
+        # Both items only appear in one list, so max possible = 0.5
+        assert merged[0]["rrf_score"] == 0.5
+        assert merged[1]["rrf_score"] == 0.5
+
+    def test_overlap_both_rank_zero_scores_one(self):
+        """Item at rank 0 in both lists achieves theoretical max = 1.0."""
+        list1 = [{"id": 1, "text": "a"}, {"id": 2, "text": "b"}]
+        list2 = [{"id": 1, "text": "a"}, {"id": 3, "text": "c"}]
+        merged = merge_rrf([list1, list2], limit=3)
+        assert merged[0]["id"] == 1
+        assert merged[0]["rrf_score"] == 1.0
+        # Items only in one list should be 0.5
+        assert merged[1]["rrf_score"] < 1.0
+
     def test_custom_k(self):
         list1 = [{"id": 1}, {"id": 2}]
         list2 = [{"id": 2}, {"id": 1}]

@@ -174,6 +174,9 @@ function ArenaColumn({
             containerRef={containerRef}
             activeApproval={activeApproval}
             forkedMessageCount={forkInfo?.forkedMessageCount ?? undefined}
+            lastForkedMessageOrder={
+              forkInfo?.lastForkedMessageOrder ?? undefined
+            }
             forkedFromShare={forkInfo?.forkedFromShare}
             hideBranchNavigator
           />

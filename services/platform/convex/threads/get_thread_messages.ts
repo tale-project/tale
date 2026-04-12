@@ -15,6 +15,7 @@ import { QueryCtx } from '../_generated/server';
 export interface ThreadMessage {
   _id: string;
   _creationTime: number;
+  order: number;
   role: 'user' | 'assistant';
   content: string;
 }
@@ -58,6 +59,7 @@ export async function getThreadMessages(
     .map((msg) => ({
       _id: msg.id,
       _creationTime: msg._creationTime,
+      order: msg.order,
       role: msg.role,
       content: msg.text,
     }));

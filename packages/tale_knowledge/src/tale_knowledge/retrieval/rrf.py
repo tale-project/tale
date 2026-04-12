@@ -44,7 +44,8 @@ def merge_rrf(
 
     sorted_ids = sorted(scores, key=lambda i: scores[i], reverse=True)[:limit]
 
-    max_score = scores[sorted_ids[0]] if sorted_ids else 1.0
+    num_contributing = max(1, sum(1 for r in ranked_lists if r))
+    max_score = num_contributing / (k + 1) if sorted_ids else 1.0
 
     return [
         {**items[item_id], "rrf_score": scores[item_id] / max_score}

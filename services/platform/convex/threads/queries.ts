@@ -402,6 +402,7 @@ export const getThreadForkInfo = query({
       forkedFrom: metadata.forkedFrom,
       forkedFromShare: metadata.forkedFromShare ?? false,
       forkedMessageCount: metadata.forkedMessageCount ?? null,
+      lastForkedMessageOrder: metadata.lastForkedMessageOrder ?? null,
     };
   },
 });

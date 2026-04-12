@@ -93,6 +93,7 @@ interface ChatMessagesProps {
   containerRef: RefObject<HTMLDivElement | null>;
   activeApproval: ChatItem | null;
   forkedMessageCount?: number;
+  lastForkedMessageOrder?: number;
   forkedFromShare?: boolean;
   onHumanInputResponseSubmitted?: () => void;
   onSendFollowUp?: (message: string) => void;
@@ -135,6 +136,7 @@ export function ChatMessages({
   containerRef,
   activeApproval,
   forkedMessageCount,
+  lastForkedMessageOrder,
   forkedFromShare,
   onHumanInputResponseSubmitted,
   onSendFollowUp,
@@ -408,8 +410,27 @@ export function ChatMessages({
     );
   };
 
-  // Compute fork divider position: after the Nth message (forkedMessageCount)
+  // Compute fork divider position: after the last forked message.
+  // Prefer lastForkedMessageOrder (order-based, immune to UIMessage ID
+  // mismatches caused by excludeToolMessages — see get_thread_messages_streaming.ts)
+  // with forkedMessageCount as fallback for older threads.
   const forkDividerAfterIdx = useMemo(() => {
+    if (lastForkedMessageOrder !== undefined) {
+      // Find the last message item whose order <= lastForkedMessageOrder
+      let lastMatch = -1;
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (
+          item.type === 'message' &&
+          item.data.order !== undefined &&
+          item.data.order <= lastForkedMessageOrder
+        ) {
+          lastMatch = i;
+        }
+      }
+      if (lastMatch >= 0) return lastMatch;
+    }
+    // Fallback: count-based for threads forked before lastForkedMessageOrder existed
     if (!forkedMessageCount || forkedMessageCount <= 0) return -1;
     let msgCount = 0;
     for (let i = 0; i < items.length; i++) {
@@ -419,7 +440,7 @@ export function ChatMessages({
       }
     }
     return -1;
-  }, [items, forkedMessageCount]);
+  }, [items, lastForkedMessageOrder, forkedMessageCount]);
 
   const forkDivider =
     forkDividerAfterIdx >= 0 ? (
@@ -486,9 +507,8 @@ export function ChatMessages({
           </div>
         )}
 
-        {/* Messages before the last user message — content-visibility skips
-            rendering work for messages scrolled offscreen. */}
-        <div className="flex flex-col gap-3 [contain-intrinsic-size:auto_none] [content-visibility:auto]">
+        {/* Messages before the last user message */}
+        <div className="flex flex-col gap-3">
           {beforeItems.map((item, i) => renderItemWithDivider(item, i))}
         </div>
 
