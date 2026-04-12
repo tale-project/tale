@@ -73,6 +73,14 @@ describe('forkThread', () => {
     mockGetAuthUser.mockResolvedValue({ _id: 'user_2' });
     mockIsOrgMember.mockResolvedValue(true);
     mockCreateThread.mockResolvedValue('new_thread_1');
+    let orderCounter = 0;
+    mockSaveMessage.mockImplementation(() => {
+      orderCounter += 1;
+      return Promise.resolve({
+        messageId: `saved_msg_${orderCounter}`,
+        message: { order: orderCounter },
+      });
+    });
     mockGetThreadMessages.mockResolvedValue({
       messages: [
         { _id: 'msg_1', _creationTime: 1000, role: 'user', content: 'hello' },
