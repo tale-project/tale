@@ -35,7 +35,7 @@ function SourceCard({ source, onClick }: SourceCardProps) {
     (source.url
       ? getDomain(source.url)
       : t('citations.source', { number: String(source.number) }));
-  const chunkCount = source.chunkNumbers.length;
+  const chunkCount = source.chunks.length;
 
   const tooltipContent = (
     <div className="flex flex-col gap-0.5">
