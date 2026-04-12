@@ -20,14 +20,22 @@ if ($existing) {
     $InstallDir = $existingDir
 }
 
-# Fetch latest release tag
-Write-Info "Fetching latest version..."
+# Find latest release that has the CLI binary asset
+# This handles the window where a release exists but CLI binaries haven't been uploaded yet
+Write-Info "Fetching latest version with CLI binary..."
+$tag = $null
 try {
-    $release = Invoke-RestMethod "https://api.github.com/repos/$Repo/releases/latest" -Headers @{ "User-Agent" = "tale-installer/1.0" }
+    $releases = Invoke-RestMethod "https://api.github.com/repos/$Repo/releases" -Headers @{ "User-Agent" = "tale-installer/1.0" }
+    foreach ($rel in $releases) {
+        if ($rel.assets.name -contains "tale_windows.exe") {
+            $tag = $rel.tag_name
+            break
+        }
+    }
 } catch {
-    Write-Err "Failed to fetch latest release. $_"
+    Write-Err "Failed to fetch releases. $_"
 }
-$tag = $release.tag_name
+if (-not $tag) { Write-Err "No release found with tale_windows.exe binary" }
 Write-Info "Latest version: $tag"
 
 # Download binary
