@@ -2893,7 +2893,10 @@
       "download": "Herunterladen",
       "copied": "Kopiert!",
       "mermaidError": "Diagramm konnte nicht gerendert werden",
-      "resizeHandle": "Canvas-Größe ändern"
+      "resizeHandle": "Canvas-Größe ändern",
+      "apply": "Änderungen übernehmen",
+      "applied": "Änderungen übernommen",
+      "applyFailed": "Änderungen konnten nicht übernommen werden"
     },
     "promptLibrary": "Prompt-Bibliothek",
     "saveAsPrompt": "Als Prompt speichern"

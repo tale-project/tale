@@ -8,6 +8,14 @@ import { checkAccessibility } from '@/test/utils/a11y';
 import { CanvasProvider, useCanvas } from '../canvas-context';
 import { CanvasPane } from '../canvas-pane';
 
+vi.mock('convex/react', () => ({
+  useMutation: () => vi.fn(),
+}));
+
+vi.mock('@/app/hooks/use-toast', () => ({
+  useToast: () => ({ toast: vi.fn() }),
+}));
+
 vi.mock('@/lib/i18n/client', () => ({
   useT: () => ({
     t: (key: string) => {

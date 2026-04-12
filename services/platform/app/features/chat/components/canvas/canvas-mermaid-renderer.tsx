@@ -6,9 +6,12 @@ import { useTheme } from '@/app/components/theme/theme-provider';
 import { Spinner } from '@/app/components/ui/feedback/spinner';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 
 interface CanvasMermaidRendererProps {
   code: string;
+  isEditing: boolean;
+  onContentChange: (content: string) => void;
 }
 
 type MermaidApi = {
@@ -26,7 +29,11 @@ async function getMermaid(): Promise<MermaidApi> {
   return mermaidDefault;
 }
 
-function CanvasMermaidRendererComponent({ code }: CanvasMermaidRendererProps) {
+function CanvasMermaidRendererComponent({
+  code,
+  isEditing,
+  onContentChange,
+}: CanvasMermaidRendererProps) {
   const { t } = useT('chat');
   const containerRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -69,6 +76,30 @@ function CanvasMermaidRendererComponent({ code }: CanvasMermaidRendererProps) {
       }
     })();
   }, [code, resolvedTheme, t]);
+
+  if (isEditing) {
+    return (
+      <div className="flex h-full flex-col">
+        <textarea
+          value={code}
+          onChange={(e) => onContentChange(e.target.value)}
+          className={cn(
+            'bg-muted text-foreground min-h-0 flex-1 resize-none p-4 font-mono text-xs leading-relaxed',
+            'focus:outline-none',
+          )}
+          spellCheck={false}
+          aria-label="Mermaid editor"
+        />
+        {error && (
+          <div className="border-border bg-destructive/10 border-t px-4 py-2">
+            <Text variant="muted" className="text-destructive text-xs">
+              {error}
+            </Text>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   if (error) {
     return (

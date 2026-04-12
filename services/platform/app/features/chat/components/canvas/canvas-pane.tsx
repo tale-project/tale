@@ -12,6 +12,8 @@ import {
   Globe,
   GitBranch,
   Image,
+  Save,
+  Loader2,
 } from 'lucide-react';
 import { useState, useCallback, useRef, useEffect, memo } from 'react';
 
@@ -77,6 +79,9 @@ function CanvasPaneComponent() {
     canvasLanguage,
     closeCanvas,
     updateCanvasContent,
+    applyCanvasContent,
+    canApply,
+    isApplying,
   } = useCanvas();
 
   const [isEditing, setIsEditing] = useState(false);
@@ -172,7 +177,6 @@ function CanvasPaneComponent() {
   if (!isCanvasOpen) return null;
 
   const TypeIcon = TYPE_ICONS[canvasType];
-  const canEdit = canvasType === 'code' || canvasType === 'markdown';
 
   return (
     <div
@@ -198,22 +202,39 @@ function CanvasPaneComponent() {
         </div>
 
         <div className="flex items-center gap-1">
-          {canEdit && (
-            <Tooltip
-              content={isEditing ? t('canvas.preview') : t('canvas.edit')}
-              side="bottom"
+          <Tooltip
+            content={isEditing ? t('canvas.preview') : t('canvas.edit')}
+            side="bottom"
+          >
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7"
+              onClick={toggleEdit}
+              aria-label={isEditing ? t('canvas.preview') : t('canvas.edit')}
             >
+              {isEditing ? (
+                <Eye className="size-3.5" />
+              ) : (
+                <Pencil className="size-3.5" />
+              )}
+            </Button>
+          </Tooltip>
+
+          {canApply && (
+            <Tooltip content={t('canvas.apply')} side="bottom">
               <Button
                 variant="ghost"
                 size="icon"
                 className="size-7"
-                onClick={toggleEdit}
-                aria-label={isEditing ? t('canvas.preview') : t('canvas.edit')}
+                onClick={applyCanvasContent}
+                disabled={isApplying}
+                aria-label={t('canvas.apply')}
               >
-                {isEditing ? (
-                  <Eye className="size-3.5" />
+                {isApplying ? (
+                  <Loader2 className="size-3.5 animate-spin" />
                 ) : (
-                  <Pencil className="size-3.5" />
+                  <Save className="size-3.5" />
                 )}
               </Button>
             </Tooltip>
@@ -273,10 +294,26 @@ function CanvasPaneComponent() {
             onContentChange={updateCanvasContent}
           />
         )}
-        {canvasType === 'html' && <CanvasHtmlRenderer html={canvasContent} />}
-        {canvasType === 'svg' && <CanvasHtmlRenderer html={canvasContent} />}
+        {canvasType === 'html' && (
+          <CanvasHtmlRenderer
+            html={canvasContent}
+            isEditing={isEditing}
+            onContentChange={updateCanvasContent}
+          />
+        )}
+        {canvasType === 'svg' && (
+          <CanvasHtmlRenderer
+            html={canvasContent}
+            isEditing={isEditing}
+            onContentChange={updateCanvasContent}
+          />
+        )}
         {canvasType === 'mermaid' && (
-          <CanvasMermaidRenderer code={canvasContent} />
+          <CanvasMermaidRenderer
+            code={canvasContent}
+            isEditing={isEditing}
+            onContentChange={updateCanvasContent}
+          />
         )}
         {canvasType === 'markdown' && (
           <CanvasMarkdownRenderer

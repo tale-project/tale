@@ -39,6 +39,7 @@ import {
   ImagePreviewDialog,
   type GalleryImage,
 } from './message-bubble/image-preview-dialog';
+import { MessageContentContext } from './message-bubble/message-content-context';
 import type { Message } from './message-bubble/types';
 import { MessageFeedback } from './message-feedback';
 import { MessageInfoDialog } from './message-info-dialog';
@@ -146,6 +147,14 @@ function MessageBubbleComponent({
   const { citations, hasCitations } = useCitations(metadata?.citations);
   const citationNumbers = useMemo(() => new Set(citations.keys()), [citations]);
   const citationsContextValue = useMemo(() => ({ citations }), [citations]);
+  const messageContentContextValue = useMemo(
+    () => ({
+      messageId: message.id,
+      messageContent: message.content,
+      threadId: message.threadId,
+    }),
+    [message.id, message.content, message.threadId],
+  );
   const galleryImages = useMessageGallery(message);
 
   const displayContent = message.content ?? '';
@@ -262,13 +271,17 @@ function MessageBubbleComponent({
                   {displayContent}
                 </p>
               ) : (
-                <CitationsContext.Provider value={citationsContextValue}>
-                  <StructuredMessage
-                    text={assistantContent}
-                    isStreaming={!!isAssistantStreaming}
-                    onSendFollowUp={onSendFollowUp}
-                  />
-                </CitationsContext.Provider>
+                <MessageContentContext.Provider
+                  value={messageContentContextValue}
+                >
+                  <CitationsContext.Provider value={citationsContextValue}>
+                    <StructuredMessage
+                      text={assistantContent}
+                      isStreaming={!!isAssistantStreaming}
+                      onSendFollowUp={onSendFollowUp}
+                    />
+                  </CitationsContext.Provider>
+                </MessageContentContext.Provider>
               )}
             </div>
             {isUser && (isOverflowing || isExpanded) && (

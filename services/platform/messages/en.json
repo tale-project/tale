@@ -2918,7 +2918,10 @@
       "download": "Download",
       "copied": "Copied!",
       "mermaidError": "Failed to render diagram",
-      "resizeHandle": "Resize canvas"
+      "resizeHandle": "Resize canvas",
+      "apply": "Apply changes",
+      "applied": "Changes applied",
+      "applyFailed": "Failed to apply changes"
     },
     "promptLibrary": "Prompt library",
     "saveAsPrompt": "Save as prompt"

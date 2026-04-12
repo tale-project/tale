@@ -2,11 +2,19 @@
 
 import { memo, useMemo } from 'react';
 
+import { cn } from '@/lib/utils/cn';
+
 interface CanvasHtmlRendererProps {
   html: string;
+  isEditing: boolean;
+  onContentChange: (content: string) => void;
 }
 
-function CanvasHtmlRendererComponent({ html }: CanvasHtmlRendererProps) {
+function CanvasHtmlRendererComponent({
+  html,
+  isEditing,
+  onContentChange,
+}: CanvasHtmlRendererProps) {
   const srcDoc = useMemo(
     () =>
       `<!DOCTYPE html>
@@ -22,6 +30,21 @@ function CanvasHtmlRendererComponent({ html }: CanvasHtmlRendererProps) {
 </html>`,
     [html],
   );
+
+  if (isEditing) {
+    return (
+      <textarea
+        value={html}
+        onChange={(e) => onContentChange(e.target.value)}
+        className={cn(
+          'bg-muted text-foreground h-full w-full resize-none p-4 font-mono text-xs leading-relaxed',
+          'focus:outline-none',
+        )}
+        spellCheck={false}
+        aria-label="HTML editor"
+      />
+    );
+  }
 
   return (
     <iframe
