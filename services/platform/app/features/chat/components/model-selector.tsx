@@ -19,7 +19,6 @@ import { useT } from '@/lib/i18n/client';
 
 import { useChatLayout } from '../context/chat-layout-context';
 import { useChatAgents } from '../hooks/queries';
-import { useDefaultModel } from '../hooks/use-default-model';
 import { useEffectiveAgent } from '../hooks/use-effective-agent';
 import { ModelTagIcons } from './model-tag-icons';
 
@@ -40,7 +39,6 @@ export function ModelSelector({ organizationId }: ModelSelectorProps) {
   const { agents } = useChatAgents(organizationId);
   const { providers } = useListProviders('default');
   const { selectedModelOverrides, setSelectedModelOverride } = useChatLayout();
-  const { data: governanceDefault } = useDefaultModel(organizationId);
   const [open, setOpen] = useState(false);
 
   const supportedModels = useMemo(() => {
