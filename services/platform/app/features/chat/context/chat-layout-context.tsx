@@ -38,6 +38,14 @@ export interface SelectedAgent {
   displayName: string;
 }
 
+/** Internal storage shape — includes expiry timestamp per override. */
+interface ModelOverrideEntry {
+  modelId: string;
+  expiresAt: number;
+}
+
+const MODEL_OVERRIDE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
 interface ChatLayoutContextType {
   isPending: boolean;
   setIsPending: (pending: boolean) => void;
@@ -89,21 +97,43 @@ export function ChatLayoutProvider({
   const modelOverridesKey = user?.userId
     ? `selected-models-${user.userId}-${organizationId}`
     : `selected-models-${organizationId}`;
-  const [selectedModelOverrides, setSelectedModelOverrides] = usePersistedState<
-    Record<string, string>
+  const [rawModelOverrides, setRawModelOverrides] = usePersistedState<
+    Record<string, ModelOverrideEntry | string>
   >(modelOverridesKey, {});
+
+  // Expose a flat Record<string, string> to consumers, filtering out expired entries.
+  const selectedModelOverrides = useMemo(() => {
+    const now = Date.now();
+    const result: Record<string, string> = {};
+    for (const [key, value] of Object.entries(rawModelOverrides)) {
+      if (typeof value === 'string') {
+        // Legacy format (no expiry) — treat as expired
+        continue;
+      }
+      if (value.expiresAt > now) {
+        result[key] = value.modelId;
+      }
+    }
+    return result;
+  }, [rawModelOverrides]);
 
   const setSelectedModelOverride = useCallback(
     (agentName: string, modelId: string | null) => {
-      setSelectedModelOverrides((prev) => {
+      setRawModelOverrides((prev) => {
         if (modelId === null) {
           const { [agentName]: _, ...rest } = prev;
           return rest;
         }
-        return { ...prev, [agentName]: modelId };
+        return {
+          ...prev,
+          [agentName]: {
+            modelId,
+            expiresAt: Date.now() + MODEL_OVERRIDE_TTL_MS,
+          },
+        };
       });
     },
-    [setSelectedModelOverrides],
+    [setRawModelOverrides],
   );
 
   const clearChatState = useCallback(() => {

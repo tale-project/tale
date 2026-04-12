@@ -2664,7 +2664,9 @@
     "modelSelector": {
       "label": "Modell auswählen",
       "searchPlaceholder": "Modelle suchen...",
-      "noResults": "Keine Modelle gefunden"
+      "noResults": "Keine Modelle gefunden",
+      "auto": "Auto",
+      "autoDescription": "Wählt automatisch das beste verfügbare Modell mit Fallback"
     },
     "searchChat": "Chat durchsuchen",
     "hideSearch": "Suche ausblenden",
@@ -2687,6 +2689,9 @@
     "errorHintRateLimited": "Zu viele Anfragen. Bitte warte einen Moment und versuche es erneut.",
     "errorHintContentFilter": "Die Nachricht wurde vom Inhaltsfilter markiert. Versuche, deine Nachricht umzuformulieren.",
     "errorHintToolFailure": "Der Agent hat beim Datenzugriff einen Fehler festgestellt. Versuche, deine Anfrage umzuformulieren oder weniger Daten anzufordern.",
+    "errorHintAuthError": "Der API-Schlüssel ist ungültig oder hat keinen Zugriff auf dieses Modell. Kontaktiere deinen Administrator.",
+    "errorHintModelNotFound": "Das ausgewählte Modell wurde nicht gefunden oder ist nicht verfügbar. Kontaktiere deinen Administrator.",
+    "errorHintProviderError": "Der KI-Anbieter hat vorübergehend technische Probleme. Bitte versuche es in einem Moment erneut.",
     "showMore": "Mehr anzeigen",
     "showLess": "Weniger anzeigen",
     "editMessage": "Nachricht bearbeiten",

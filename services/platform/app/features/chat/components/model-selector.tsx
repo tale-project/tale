@@ -19,9 +19,10 @@ import { useT } from '@/lib/i18n/client';
 
 import { useChatLayout } from '../context/chat-layout-context';
 import { useChatAgents } from '../hooks/queries';
-import { useDefaultModel } from '../hooks/use-default-model';
 import { useEffectiveAgent } from '../hooks/use-effective-agent';
 import { ModelTagIcons } from './model-tag-icons';
+
+const AUTO_MODEL = 'auto';
 
 interface ModelSelectorProps {
   organizationId: string;
@@ -38,7 +39,6 @@ export function ModelSelector({ organizationId }: ModelSelectorProps) {
   const { agents } = useChatAgents(organizationId);
   const { providers } = useListProviders('default');
   const { selectedModelOverrides, setSelectedModelOverride } = useChatLayout();
-  const { data: governanceDefault } = useDefaultModel(organizationId);
   const [open, setOpen] = useState(false);
 
   const supportedModels = useMemo(() => {
@@ -102,25 +102,13 @@ export function ModelSelector({ organizationId }: ModelSelectorProps) {
   );
 
   const currentModelId = useMemo(() => {
-    // 1. User's explicit override (localStorage) takes highest priority
+    // User's explicit override (localStorage) takes highest priority
     if (effectiveAgent?.name && selectedModelOverrides[effectiveAgent.name]) {
       return selectedModelOverrides[effectiveAgent.name];
     }
-    // 2. Governance team/role default (if model is in agent's supported list)
-    if (
-      governanceDefault?.modelId &&
-      filteredModels.includes(governanceDefault.modelId)
-    ) {
-      return governanceDefault.modelId;
-    }
-    // 3. Agent's primary model
-    return filteredModels[0] ?? null;
-  }, [
-    effectiveAgent?.name,
-    selectedModelOverrides,
-    governanceDefault,
-    filteredModels,
-  ]);
+    // No override → Auto mode
+    return AUTO_MODEL;
+  }, [effectiveAgent?.name, selectedModelOverrides]);
 
   // Clear stale override when agent changes
   useEffect(() => {
@@ -139,30 +127,21 @@ export function ModelSelector({ organizationId }: ModelSelectorProps) {
   const handleSelect = useCallback(
     (modelId: string) => {
       if (!effectiveAgent?.name) return;
-      // Only clear the override when the user picks the effective default
-      // (governance default if present, otherwise the agent's primary model).
-      const effectiveDefault =
-        governanceDefault?.modelId &&
-        filteredModels.includes(governanceDefault.modelId)
-          ? governanceDefault.modelId
-          : filteredModels[0];
-      if (modelId === effectiveDefault) {
+      if (modelId === AUTO_MODEL) {
         setSelectedModelOverride(effectiveAgent.name, null);
       } else {
         setSelectedModelOverride(effectiveAgent.name, modelId);
       }
     },
-    [
-      effectiveAgent?.name,
-      filteredModels,
-      governanceDefault,
-      setSelectedModelOverride,
-    ],
+    [effectiveAgent?.name, setSelectedModelOverride],
   );
 
-  if (!currentModelId) return null;
+  if (!filteredModels.length) return null;
 
-  const currentLabel = getDisplayName(currentModelId);
+  const currentLabel =
+    currentModelId === AUTO_MODEL
+      ? t('modelSelector.auto')
+      : getDisplayName(currentModelId);
 
   // Single model — show as read-only text
   if (filteredModels.length <= 1) {
@@ -174,11 +153,19 @@ export function ModelSelector({ organizationId }: ModelSelectorProps) {
     );
   }
 
-  const options = filteredModels.map((modelId) => ({
+  const autoOption: SearchableSelectOption = {
+    value: AUTO_MODEL,
+    label: t('modelSelector.auto'),
+    description: t('modelSelector.autoDescription'),
+  };
+
+  const modelOptions = filteredModels.map((modelId) => ({
     value: modelId,
     label: getDisplayName(modelId),
     description: modelInfoMap.get(modelId)?.description,
   }));
+
+  const options = [autoOption, ...modelOptions];
 
   return (
     <SearchableSelect
