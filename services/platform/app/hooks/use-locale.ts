@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
+import { i18n } from '@/lib/i18n/i18n';
 import { loadDayjsLocale } from '@/lib/utils/date/format';
 import { isValidLocale } from '@/lib/utils/intl/is-valid-locale';
 import { parseAcceptLanguage } from '@/lib/utils/intl/parse-accept-language';
@@ -29,6 +30,9 @@ export function useLocale(defaultLocale = 'en-US') {
   const [locale, setLocaleState] = useState(() => detectLocale(defaultLocale));
 
   useEffect(() => {
+    if (i18n.language !== locale) {
+      void i18n.changeLanguage(locale);
+    }
     void loadDayjsLocale(locale).then(() => setLocaleState(locale));
   }, [locale]);
 
@@ -37,6 +41,7 @@ export function useLocale(defaultLocale = 'en-US') {
       if (isValidLocale(newLocale)) {
         setLocaleState(newLocale);
         localStorage.setItem('user-locale', newLocale);
+        void i18n.changeLanguage(newLocale);
         void loadDayjsLocale(newLocale);
       } else {
         console.warn(
@@ -44,6 +49,7 @@ export function useLocale(defaultLocale = 'en-US') {
         );
         setLocaleState(defaultLocale);
         localStorage.setItem('user-locale', defaultLocale);
+        void i18n.changeLanguage(defaultLocale);
         void loadDayjsLocale(defaultLocale);
       }
     },
