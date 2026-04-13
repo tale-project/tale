@@ -1,4 +1,4 @@
-import { PROJECT_NAME } from '../../utils/load-env';
+import { getProjectId } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import { docker } from './docker';
 
@@ -15,16 +15,36 @@ async function createVolume(volumeName: string): Promise<boolean> {
   }
 
   logger.info(`Creating volume: ${volumeName}`);
-  const result = await docker('volume', 'create', volumeName);
+  // Label the volume with its project ID so `tale reset` can prune only this
+  // project's volumes (symmetric with network pruning).
+  const result = await docker(
+    'volume',
+    'create',
+    '--label',
+    `project=${getProjectId()}`,
+    volumeName,
+  );
+  if (!result.success) {
+    logger.error(
+      `Failed to create volume ${volumeName}: ${result.stderr.trim()}`,
+    );
+  }
   return result.success;
 }
 
-export async function ensureVolumes(volumeNames: string[]): Promise<boolean> {
+/**
+ * Ensure the named volumes exist, namespaced under the given prefix.
+ * Default prefix is `${projectId}_` (prod); dev should pass `${projectId}-dev_`.
+ */
+export async function ensureVolumes(
+  volumeNames: string[],
+  prefix: string = `${getProjectId()}_`,
+): Promise<boolean> {
   for (const name of volumeNames) {
-    const fullName = `${PROJECT_NAME}_${name}`;
+    const fullName = `${prefix}${name}`;
     const success = await createVolume(fullName);
     if (!success) {
-      logger.error(`Failed to create volume: ${fullName}`);
+      // createVolume already logged the underlying stderr.
       return false;
     }
   }

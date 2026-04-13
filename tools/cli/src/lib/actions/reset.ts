@@ -1,7 +1,7 @@
 import { unlink } from 'node:fs/promises';
 
 import { confirm } from '../../utils/confirm';
-import { PROJECT_NAME, type DeploymentEnv } from '../../utils/load-env';
+import { getProjectId, type DeploymentEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import type { DeploymentColor } from '../compose/types';
 import { ROTATABLE_SERVICES, STATEFUL_SERVICES } from '../compose/types';
@@ -42,7 +42,7 @@ export async function reset(options: ResetOptions): Promise<void> {
     for (const color of ['blue', 'green'] as DeploymentColor[]) {
       logger.step(`${prefix}Removing ${color} containers...`);
       for (const service of ROTATABLE_SERVICES) {
-        const containerName = `${PROJECT_NAME}-${service}-${color}`;
+        const containerName = `${getProjectId()}-${service}-${color}`;
         if (dryRun) {
           logger.info(`${prefix}Would remove: ${containerName}`);
         } else {
@@ -55,7 +55,7 @@ export async function reset(options: ResetOptions): Promise<void> {
     if (includeStateful) {
       logger.step(`${prefix}Removing stateful containers...`);
       for (const service of STATEFUL_SERVICES) {
-        const containerName = `${PROJECT_NAME}-${service}`;
+        const containerName = `${getProjectId()}-${service}`;
         if (dryRun) {
           logger.info(`${prefix}Would remove: ${containerName}`);
         } else {
@@ -94,12 +94,38 @@ export async function reset(options: ResetOptions): Promise<void> {
         'prune',
         '-f',
         '--filter',
-        `label=project=${PROJECT_NAME}`,
+        `label=project=${getProjectId()}`,
       );
     } else {
       logger.info(
-        `${prefix}Would prune unused Docker networks for project ${PROJECT_NAME}`,
+        `${prefix}Would prune unused Docker networks for project ${getProjectId()}`,
       );
+    }
+
+    // Only prune volumes when the user explicitly asked to include stateful
+    // services — volume data is not recoverable. `includeStateful` is the
+    // `--all` flag, which is the same consent boundary used for removing
+    // db/proxy containers above.
+    if (includeStateful) {
+      logger.step(`${prefix}Pruning unused Docker volumes...`);
+      if (!dryRun) {
+        const result = await docker(
+          'volume',
+          'prune',
+          '-f',
+          '--filter',
+          `label=project=${getProjectId()}`,
+        );
+        if (!result.success) {
+          logger.warn(
+            `Failed to prune project volumes: ${result.stderr.trim()}`,
+          );
+        }
+      } else {
+        logger.info(
+          `${prefix}Would prune unused Docker volumes for project ${getProjectId()}`,
+        );
+      }
     }
 
     if (dryRun) {

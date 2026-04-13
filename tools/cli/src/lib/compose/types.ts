@@ -31,6 +31,7 @@ export interface ComposeService {
   depends_on?: string[] | Record<string, { condition: string }>;
   logging?: LoggingConfig;
   networks?: string[] | Record<string, { aliases?: string[] }>;
+  extra_hosts?: string[];
 }
 
 export interface ComposeConfig {

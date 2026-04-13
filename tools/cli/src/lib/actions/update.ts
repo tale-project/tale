@@ -1,9 +1,10 @@
 import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 
 import pkg from '../../../package.json';
 import * as logger from '../../utils/logger';
+import { migrateOldVolumes } from '../docker/migrate-volumes';
 import {
   computeContentHash,
   computeFileHash,
@@ -15,8 +16,11 @@ import {
   getEmbeddedExamples,
 } from '../project/fetch-reference';
 import { findProject } from '../project/find-project';
+import { generateProjectId } from '../project/generate-project-id';
+import { setProjectId } from '../project/project-context';
 import { readProject } from '../project/read-project';
 import type { Checksums } from '../project/types';
+import { writeProject } from '../project/write-project';
 import { generateAllRules } from '../rules/generators';
 
 interface UpdateOptions {
@@ -47,6 +51,22 @@ export async function update(options: UpdateOptions): Promise<void> {
 
   logger.info(`Current version: ${project.cliVersion}`);
   logger.info(`Target version:  ${pkg.version}`);
+
+  // Legacy projects (pre-ID) get an ID auto-assigned here. We also attempt
+  // volume migration immediately, but the migration function itself defers
+  // (via a marker file) if any legacy containers are running, so production
+  // deployments are never impacted by `tale upgrade`.
+  let assignedId: string | undefined;
+  if (!project.id) {
+    assignedId = generateProjectId(basename(projectDir));
+    project.id = assignedId;
+    if (!options.dryRun) {
+      await writeProject(join(projectDir, 'tale.json'), project);
+      setProjectId(assignedId);
+    }
+    logger.blank();
+    logger.info(`Assigned project ID: ${assignedId}`);
+  }
 
   // Update reference code
   logger.step(`${prefix}Updating reference code...`);
@@ -156,10 +176,7 @@ export async function update(options: UpdateOptions): Promise<void> {
       ...project,
       cliVersion: pkg.version,
     };
-    await Bun.write(
-      join(projectDir, 'tale.json'),
-      JSON.stringify(updatedProject, null, 2) + '\n',
-    );
+    await writeProject(join(projectDir, 'tale.json'), updatedProject);
 
     const checksums: Checksums = {
       cliVersion: pkg.version,
@@ -183,5 +200,26 @@ export async function update(options: UpdateOptions): Promise<void> {
     logger.info(
       'Skipped files can be compared against .tale/reference/examples/ to merge changes.',
     );
+  }
+
+  // Attempt to migrate legacy Docker volumes for newly-assigned IDs.
+  // This is safe — the migration function defers if any legacy containers are
+  // running, so production deployments remain untouched by `tale upgrade`.
+  if (assignedId && !options.dryRun) {
+    logger.blank();
+    const result = await migrateOldVolumes(assignedId, projectDir);
+    if (result.deferred) {
+      // Message already logged by migrateOldVolumes
+    } else if (
+      result.migrated.length === 0 &&
+      result.failed.length === 0 &&
+      result.skipped.length === 0
+    ) {
+      // No legacy volumes existed; silent
+    } else {
+      logger.success(
+        `Volume migration: ${result.migrated.length} migrated, ${result.skipped.length} skipped, ${result.failed.length} failed`,
+      );
+    }
   }
 }

@@ -1,4 +1,5 @@
-import { PROJECT_NAME } from '../../../utils/load-env';
+import { getProjectId } from '../../../utils/load-env';
+import { EXTRA_HOSTS } from '../generators/constants';
 import type { ComposeService, DeploymentColor, ServiceConfig } from '../types';
 import { DEFAULT_LOGGING } from '../types';
 
@@ -8,7 +9,7 @@ export function createCrawlerService(
 ): ComposeService {
   return {
     image: `${config.registry}/tale-crawler:${config.version}`,
-    container_name: `${PROJECT_NAME}-crawler-${color}`,
+    container_name: `${getProjectId()}-crawler-${color}`,
     env_file: ['.env'],
     restart: 'unless-stopped',
     healthcheck: {
@@ -28,5 +29,6 @@ export function createCrawlerService(
         aliases: ['crawler', `crawler-${color}`],
       },
     },
+    extra_hosts: EXTRA_HOSTS,
   };
 }

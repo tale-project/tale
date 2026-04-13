@@ -1,13 +1,13 @@
 import { stringify } from 'yaml';
 
-import { PROJECT_NAME } from '../../../utils/load-env';
+import { getProjectId } from '../../../utils/load-env';
 import { createCrawlerService } from '../services/create-crawler-service';
 import { createDbService } from '../services/create-db-service';
 import { createPlatformService } from '../services/create-platform-service';
 import { createProxyService } from '../services/create-proxy-service';
 import { createRagService } from '../services/create-rag-service';
 import type { ComposeConfig, ServiceConfig } from '../types';
-import { NETWORKS, VOLUMES } from './constants';
+import { DEV_VOLUME_NAMES } from './constants';
 
 const DEV_COLOR = 'blue' as const;
 
@@ -22,7 +22,7 @@ export function generateDevCompose(
   options: DevComposeOptions = {},
 ): string {
   const platform = createPlatformService(config, DEV_COLOR);
-  platform.container_name = `${PROJECT_NAME}-platform`;
+  platform.container_name = `${getProjectId()}-platform`;
   platform.volumes = [
     'platform-data:/app/data',
     './agents:/app/data/agents',
@@ -42,7 +42,7 @@ export function generateDevCompose(
   platform.depends_on = { db: { condition: 'service_healthy' } };
 
   const rag = createRagService(config, DEV_COLOR);
-  rag.container_name = `${PROJECT_NAME}-rag`;
+  rag.container_name = `${getProjectId()}-rag`;
   rag.depends_on = { db: { condition: 'service_healthy' } };
   rag.volumes = [
     'rag-data:/app/data',
@@ -50,7 +50,7 @@ export function generateDevCompose(
   ];
 
   const crawler = createCrawlerService(config, DEV_COLOR);
-  crawler.container_name = `${PROJECT_NAME}-crawler`;
+  crawler.container_name = `${getProjectId()}-crawler`;
   crawler.volumes = [
     'crawler-data:/app/data',
     './providers:/app/platform-config/providers:ro',
@@ -58,6 +58,17 @@ export function generateDevCompose(
 
   const proxy = createProxyService(config, hostAlias);
   proxy.ports = [`${port}:443`];
+
+  // Scope dev volumes/networks explicitly via `external: true` + `name:`.
+  // Dev volumes live under the `${projectId}-dev_` prefix (matching the
+  // `-p ${projectId}-dev` passed to docker compose). They are pre-created by
+  // `ensureVolumes` / `ensureNetwork` in start.ts so the compose-level
+  // reference is valid even if someone runs `docker compose` by hand.
+  const devPrefix = `${getProjectId()}-dev_`;
+  const volumes: Record<string, { external: true; name: string }> = {};
+  for (const name of DEV_VOLUME_NAMES) {
+    volumes[name] = { external: true, name: `${devPrefix}${name}` };
+  }
 
   const compose: ComposeConfig = {
     services: {
@@ -67,8 +78,13 @@ export function generateDevCompose(
       rag,
       crawler,
     },
-    volumes: VOLUMES,
-    networks: NETWORKS,
+    volumes,
+    networks: {
+      internal: {
+        external: true,
+        name: `${devPrefix}internal`,
+      },
+    },
   };
 
   return stringify(compose);

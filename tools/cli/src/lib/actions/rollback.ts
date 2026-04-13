@@ -1,4 +1,4 @@
-import { PROJECT_NAME, type DeploymentEnv } from '../../utils/load-env';
+import { getProjectId, type DeploymentEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import { generateColorCompose } from '../compose/generators/generate-color-compose';
 import { ROTATABLE_SERVICES } from '../compose/types';
@@ -52,7 +52,7 @@ export async function rollback(options: RollbackOptions): Promise<void> {
 
     // Get current version before rollback (for version history)
     const currentVersion = await getContainerVersion(
-      `${PROJECT_NAME}-platform-${currentColor}`,
+      `${getProjectId()}-platform-${currentColor}`,
     );
 
     logger.info(`Current color: ${currentColor}`);
@@ -76,6 +76,17 @@ export async function rollback(options: RollbackOptions): Promise<void> {
       }
     }
 
+    // Clean up any stale containers from a previous failed rollback on this
+    // color. Without this, `docker compose up -d` will silently restart the
+    // existing container (possibly with different/old config) and report
+    // success. Deploy does the same cleanup; mirror it here.
+    logger.step(`Cleaning up any stale ${rollbackColor} containers...`);
+    for (const service of ROTATABLE_SERVICES) {
+      const containerName = `${getProjectId()}-${service}-${rollbackColor}`;
+      await stopContainer(containerName);
+      await removeContainer(containerName);
+    }
+
     // Deploy rollback color
     logger.step(
       `Deploying ${rollbackColor} services with version ${rollbackVersion}...`,
@@ -83,7 +94,7 @@ export async function rollback(options: RollbackOptions): Promise<void> {
     const colorCompose = generateColorCompose(serviceConfig, rollbackColor);
 
     const deployResult = await dockerCompose(colorCompose, ['up', '-d'], {
-      projectName: `${PROJECT_NAME}-${rollbackColor}`,
+      projectName: `${getProjectId()}-${rollbackColor}`,
       cwd: env.DEPLOY_DIR,
     });
 
@@ -96,7 +107,7 @@ export async function rollback(options: RollbackOptions): Promise<void> {
     // Wait for services to be healthy
     logger.step('Waiting for services to be healthy...');
     for (const service of ROTATABLE_SERVICES) {
-      const containerName = `${PROJECT_NAME}-${service}-${rollbackColor}`;
+      const containerName = `${getProjectId()}-${service}-${rollbackColor}`;
       const healthy = await waitForHealthy(containerName, {
         timeout: env.HEALTH_CHECK_TIMEOUT,
       });
@@ -122,7 +133,7 @@ export async function rollback(options: RollbackOptions): Promise<void> {
     // Stop and remove current color containers
     logger.step(`Stopping ${currentColor} services...`);
     for (const service of ROTATABLE_SERVICES) {
-      const containerName = `${PROJECT_NAME}-${service}-${currentColor}`;
+      const containerName = `${getProjectId()}-${service}-${currentColor}`;
       const stopped = await stopContainer(containerName);
       if (!stopped) {
         logger.warn(`Failed to stop ${containerName}`);

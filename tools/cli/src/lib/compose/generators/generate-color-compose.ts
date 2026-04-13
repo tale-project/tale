@@ -1,6 +1,6 @@
 import { stringify } from 'yaml';
 
-import { PROJECT_NAME } from '../../../utils/load-env';
+import { getProjectId } from '../../../utils/load-env';
 import { createCrawlerService } from '../services/create-crawler-service';
 import { createPlatformService } from '../services/create-platform-service';
 import { createRagService } from '../services/create-rag-service';
@@ -32,25 +32,25 @@ export function generateColorCompose(
     volumes: {
       'platform-data': {
         external: true,
-        name: `${PROJECT_NAME}_platform-data`,
+        name: `${getProjectId()}_platform-data`,
       },
       'caddy-data': {
         external: true,
-        name: `${PROJECT_NAME}_caddy-data`,
+        name: `${getProjectId()}_caddy-data`,
       },
       'rag-data': {
         external: true,
-        name: `${PROJECT_NAME}_rag-data`,
+        name: `${getProjectId()}_rag-data`,
       },
       'crawler-data': {
         external: true,
-        name: `${PROJECT_NAME}_crawler-data`,
+        name: `${getProjectId()}_crawler-data`,
       },
     },
     networks: {
       internal: {
         external: true,
-        name: `${PROJECT_NAME}_internal`,
+        name: `${getProjectId()}_internal`,
       },
     },
   };

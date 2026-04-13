@@ -1,6 +1,8 @@
 import { Command } from 'commander';
 
 import { resetOwner } from '../lib/actions/reset-owner';
+import { requireProject } from '../lib/project/find-project';
+import { resolveProjectContext } from '../lib/project/project-context';
 import * as logger from '../utils/logger';
 
 export function createAuthCommand(): Command {
@@ -53,6 +55,7 @@ export function createAuthCommand(): Command {
           }
         }
 
+        await resolveProjectContext(requireProject());
         await resetOwner({ email, password });
       } catch (err) {
         logger.error(err instanceof Error ? err.message : String(err));

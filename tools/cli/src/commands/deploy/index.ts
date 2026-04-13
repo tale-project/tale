@@ -8,6 +8,7 @@ import {
 } from '../../lib/compose/types';
 import { ensureEnv } from '../../lib/config/ensure-env';
 import { requireProject } from '../../lib/project/find-project';
+import { resolveOrAssignProjectContext } from '../../lib/project/project-context';
 import { selectVersion } from '../../lib/registry/select-version';
 import { loadEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
@@ -28,9 +29,15 @@ export function createDeployCommand(): Command {
       'force re-seed builtin agent/workflow/integration configs',
     )
     .option('-q, --quiet', 'Suppress container logs during deployment')
+    .option(
+      '--migrate-volumes',
+      'Migrate legacy Docker volumes before deploying (requires stopping any running legacy containers)',
+      false,
+    )
     .action(async (versionArg: string | undefined, options) => {
       try {
         const projectDir = requireProject();
+        await resolveOrAssignProjectContext(projectDir);
         const { success: envSetupSuccess } = await ensureEnv({
           deployDir: projectDir,
         });
@@ -72,6 +79,7 @@ export function createDeployCommand(): Command {
           services,
           fresh: options.fresh,
           quiet: options.quiet,
+          migrateVolumes: options.migrateVolumes,
         });
       } catch (err) {
         logger.error(err instanceof Error ? err.message : String(err));

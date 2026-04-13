@@ -2,6 +2,7 @@ import { Command } from 'commander';
 
 import { status } from '../lib/actions/status';
 import { requireProject } from '../lib/project/find-project';
+import { resolveProjectContext } from '../lib/project/project-context';
 import { loadEnv } from '../utils/load-env';
 import * as logger from '../utils/logger';
 
@@ -11,6 +12,7 @@ export function createStatusCommand(): Command {
     .action(async () => {
       try {
         const projectDir = requireProject();
+        await resolveProjectContext(projectDir);
         const env = loadEnv(projectDir);
         await status({
           deployDir: env.DEPLOY_DIR,

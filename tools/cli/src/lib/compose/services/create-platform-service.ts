@@ -1,4 +1,5 @@
-import { PROJECT_NAME } from '../../../utils/load-env';
+import { getProjectId } from '../../../utils/load-env';
+import { EXTRA_HOSTS } from '../generators/constants';
 import type { ComposeService, DeploymentColor, ServiceConfig } from '../types';
 import { DEFAULT_LOGGING } from '../types';
 
@@ -8,7 +9,7 @@ export function createPlatformService(
 ): ComposeService {
   return {
     image: `${config.registry}/tale-platform:${config.version}`,
-    container_name: `${PROJECT_NAME}-platform-${color}`,
+    container_name: `${getProjectId()}-platform-${color}`,
     volumes: ['platform-data:/app/data', 'caddy-data:/caddy-data:ro'],
     env_file: ['.env'],
     restart: 'unless-stopped',
@@ -28,5 +29,6 @@ export function createPlatformService(
         aliases: ['platform', `platform-${color}`],
       },
     },
+    extra_hosts: EXTRA_HOSTS,
   };
 }

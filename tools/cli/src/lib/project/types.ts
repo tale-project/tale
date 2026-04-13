@@ -3,6 +3,13 @@ export interface TaleProject {
   cliVersion: string;
   createdAt: string;
   name?: string;
+  /**
+   * Unique project ID used to namespace Docker resources (containers, volumes,
+   * networks). Format: `{sanitized-name}-{6-hex}` (e.g. `my-app-a3f1b2`).
+   * Optional for backwards compatibility with pre-ID projects; `tale upgrade`
+   * auto-assigns one to legacy projects.
+   */
+  id?: string;
 }
 
 export interface Checksums {

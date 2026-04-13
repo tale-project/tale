@@ -1,11 +1,11 @@
-import { PROJECT_NAME } from '../../../utils/load-env';
+import { getProjectId } from '../../../utils/load-env';
 import type { ComposeService, ServiceConfig } from '../types';
 import { DEFAULT_LOGGING } from '../types';
 
 export function createDbService(config: ServiceConfig): ComposeService {
   return {
     image: `${config.registry}/tale-db:${config.version}`,
-    container_name: `${PROJECT_NAME}-db`,
+    container_name: `${getProjectId()}-db`,
     stop_grace_period: '60s',
     shm_size: '256mb',
     volumes: [
