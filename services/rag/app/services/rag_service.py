@@ -96,8 +96,8 @@ class RagService:
         dimensions = settings.get_embedding_dimensions()
 
         self._embedding_service = EmbeddingService(
-            api_key=llm_config["api_key"],
-            base_url=llm_config["base_url"],
+            api_key=llm_config["embedding_api_key"],
+            base_url=llm_config["embedding_base_url"],
             model=embedding_model,
             dimensions=dimensions,
         )
@@ -168,7 +168,7 @@ class RagService:
         # Check chat/embedding config
         new_llm_config = settings.get_llm_config()
         if new_llm_config != self._llm_config:
-            if not new_llm_config.get("api_key"):
+            if not new_llm_config.get("api_key") or not new_llm_config.get("embedding_api_key"):
                 logger.warning("Skipping LLM config reload: empty API key")
             else:
                 new_dims = settings.get_embedding_dimensions()
@@ -181,8 +181,8 @@ class RagService:
                 else:
                     # Prepare new clients before swapping any state
                     new_emb = EmbeddingService(
-                        api_key=new_llm_config["api_key"],
-                        base_url=new_llm_config["base_url"],
+                        api_key=new_llm_config["embedding_api_key"],
+                        base_url=new_llm_config["embedding_base_url"],
                         model=new_llm_config["embedding_model"],
                         dimensions=new_dims,
                     )
