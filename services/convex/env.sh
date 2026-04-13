@@ -4,7 +4,7 @@
 # Application-level secrets (BETTER_AUTH_SECRET, SOPS_AGE_KEY, etc.) are
 # pushed from the platform service via `bunx convex env set` and are NOT
 # consumed by this container directly.
-set -e
+set -eo pipefail
 
 env_normalize_common() {
   # Database configuration

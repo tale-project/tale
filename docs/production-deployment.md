@@ -14,15 +14,16 @@ description: Deploy Tale to a production server using the Tale CLI with zero-dow
 
 Tale pulls pre-built images from GitHub Container Registry. Here are the current image sizes:
 
-| Service | Image                                      | Size     |
-|---------|--------------------------------------------|---------|
-| Platform | `ghcr.io/tale-project/tale/tale-platform` | ~2.6 GB  |
-| Crawler  | `ghcr.io/tale-project/tale/tale-crawler`  | ~1.9 GB  |
-| RAG      | `ghcr.io/tale-project/tale/tale-rag`      | ~515 MB  |
-| DB       | `ghcr.io/tale-project/tale/tale-db`       | ~1.1 GB  |
-| Proxy    | `ghcr.io/tale-project/tale/tale-proxy`    | ~88 MB   |
+| Service  | Image                                      | Size     |
+|----------|--------------------------------------------|----------|
+| Platform | `ghcr.io/tale-project/tale/tale-platform`  | ~320 MB  |
+| Convex   | `ghcr.io/tale-project/tale/tale-convex`    | ~485 MB  |
+| Crawler  | `ghcr.io/tale-project/tale/tale-crawler`   | ~1.9 GB  |
+| RAG      | `ghcr.io/tale-project/tale/tale-rag`       | ~515 MB  |
+| DB       | `ghcr.io/tale-project/tale/tale-db`        | ~1.1 GB  |
+| Proxy    | `ghcr.io/tale-project/tale/tale-proxy`     | ~88 MB   |
 
-> **Tip:** First pull downloads ~4.2 GB total (compressed). Subsequent updates only download changed layers.
+> **Tip:** First pull downloads ~4.4 GB total (compressed). Subsequent updates only download changed layers. Sizes shown are post-Phase-2 (split-Convex) — the Platform image is significantly smaller now that the Convex backend lives in its own service.
 
 ## Installing the Tale CLI
 

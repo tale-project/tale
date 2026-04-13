@@ -26,6 +26,15 @@ export function createPlatformService(
       retries: 3,
       start_period: '180s',
     },
+    // Mirror the hand-written compose.yml dependency graph so blue/green
+    // deploys gate platform on every supporting service being healthy.
+    depends_on: {
+      db: { condition: 'service_healthy' },
+      convex: { condition: 'service_healthy' },
+      rag: { condition: 'service_healthy' },
+      crawler: { condition: 'service_healthy' },
+      proxy: { condition: 'service_healthy' },
+    },
     logging: DEFAULT_LOGGING,
     networks: {
       internal: {

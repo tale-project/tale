@@ -162,8 +162,13 @@ services:
     #       memory: 2G
 
     # Dependencies
+    # Wait for convex to finish seeding agents/workflows/integrations/providers
+    # into the shared convex-data volume before mounting it read-only.
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+      convex:
+        condition: service_healthy
 
     # Volume mounts
     # Persist crawler data (website registry + per-site URL databases)
@@ -229,8 +234,12 @@ services:
       start_period: 40s
 
     # Dependencies
+    # Wait for convex to finish seeding the shared config volume.
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+      convex:
+        condition: service_healthy
 
     # Resource limits (optional, adjust based on your needs)
     # deploy:
@@ -383,7 +392,7 @@ services:
       crawler:
         condition: service_healthy
       proxy:
-        condition: service_started
+        condition: service_healthy
 
     # Resource limits (optional, adjust based on your needs)
     # deploy:

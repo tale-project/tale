@@ -103,7 +103,7 @@ if [ "${SKIP_BUILD:-false}" != "true" ]; then
     printf "  ${BOLD}%-15s %-45s %10s${NC}\n" "SERVICE" "IMAGE" "SIZE"
     echo "  ─────────────────────────────────────────────────────────────────────"
     TOTAL_SIZE_MB=0
-    for svc in db crawler rag platform proxy; do
+    for svc in db convex crawler rag platform proxy; do
         # Get the image name from compose config
         img=$(cd "${PROJECT_ROOT}" && ${COMPOSE_CMD} config --images 2>/dev/null | grep "${svc}" | head -1)
         if [ -z "$img" ]; then
@@ -292,7 +292,15 @@ vite_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "http://localho
 if [ "$vite_code" = "200" ]; then
     pass "Platform /api/health: HTTP ${vite_code}"
 else
-    echo -e "  ${YELLOW}⚠${NC} Platform /api/health: HTTP ${vite_code} (not ready yet — Convex deploy may still be in progress)"
+    fail "Platform /api/health: expected HTTP 200, got ${vite_code}"
+fi
+
+# Readiness marker only present after deploy_convex_functions succeeds; this
+# distinguishes "Vite serving but Convex deploy failed" from "fully ready".
+if docker exec "${PLATFORM_CONTAINER}" test -f /tmp/platform-ready >/dev/null 2>&1; then
+    pass "Platform readiness marker (/tmp/platform-ready)"
+else
+    fail "Platform readiness marker (/tmp/platform-ready)"
 fi
 
 # =============================================================================
@@ -312,6 +320,15 @@ if docker exec "${PLATFORM_CONTAINER}" curl -sf http://crawler:8002/health >/dev
     pass "Platform → Crawler connectivity"
 else
     fail "Platform → Crawler connectivity"
+fi
+
+# Phase 2 critical path: Platform must reach Convex over the docker network
+# using the DNS name `convex`. This is what `bunx convex deploy` does at
+# startup; if this is broken, everything downstream is broken.
+if docker exec "${PLATFORM_CONTAINER}" curl -sf http://convex:3210/version >/dev/null 2>&1; then
+    pass "Platform → Convex /version connectivity"
+else
+    fail "Platform → Convex /version connectivity"
 fi
 
 # RAG can reach DB

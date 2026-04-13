@@ -30,8 +30,13 @@ export function createDeployCommand(): Command {
     )
     .option('-q, --quiet', 'Suppress container logs during deployment')
     .option(
+      '-y, --yes',
+      'Non-interactive: automatically accept any pending migrations',
+      false,
+    )
+    .option(
       '--migrate-volumes',
-      'Migrate legacy Docker volumes before deploying (requires stopping any running legacy containers)',
+      '[deprecated] alias for --yes; will be removed in a future release',
       false,
     )
     .action(async (versionArg: string | undefined, options) => {
@@ -69,6 +74,11 @@ export function createDeployCommand(): Command {
           services = serviceList as ServiceName[];
         }
 
+        if (options.migrateVolumes && !options.yes) {
+          logger.warn(
+            '--migrate-volumes is deprecated; use --yes for non-interactive migration acceptance.',
+          );
+        }
         const hostAlias = options.host ?? process.env.HOST ?? 'tale.local';
         await deploy({
           version,
@@ -79,7 +89,7 @@ export function createDeployCommand(): Command {
           services,
           fresh: options.fresh,
           quiet: options.quiet,
-          migrateVolumes: options.migrateVolumes,
+          assumeYes: options.yes || options.migrateVolumes,
         });
       } catch (err) {
         logger.error(err instanceof Error ? err.message : String(err));

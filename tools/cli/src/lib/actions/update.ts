@@ -4,7 +4,6 @@ import { basename, dirname, join } from 'node:path';
 
 import pkg from '../../../package.json';
 import * as logger from '../../utils/logger';
-import { migrateOldVolumes } from '../docker/migrate-volumes';
 import {
   computeContentHash,
   computeFileHash,
@@ -22,6 +21,8 @@ import { readProject } from '../project/read-project';
 import type { Checksums } from '../project/types';
 import { writeProject } from '../project/write-project';
 import { generateAllRules } from '../rules/generators';
+import { MIGRATIONS } from '../upgrade/registry';
+import { planPendingMigrations } from '../upgrade/runner';
 
 interface UpdateOptions {
   force?: boolean;
@@ -202,24 +203,21 @@ export async function update(options: UpdateOptions): Promise<void> {
     );
   }
 
-  // Attempt to migrate legacy Docker volumes for newly-assigned IDs.
-  // This is safe — the migration function defers if any legacy containers are
-  // running, so production deployments remain untouched by `tale upgrade`.
-  if (assignedId && !options.dryRun) {
-    logger.blank();
-    const result = await migrateOldVolumes(assignedId, projectDir);
-    if (result.deferred) {
-      // Message already logged by migrateOldVolumes
-    } else if (
-      result.migrated.length === 0 &&
-      result.failed.length === 0 &&
-      result.skipped.length === 0
-    ) {
-      // No legacy volumes existed; silent
-    } else {
-      logger.success(
-        `Volume migration: ${result.migrated.length} migrated, ${result.skipped.length} skipped, ${result.failed.length} failed`,
-      );
+  // Plan (but do NOT apply) any pending migrations so operators know what
+  // `tale start` / `tale deploy` will prompt them about next. Never stops
+  // containers or modifies Docker state from within `tale upgrade` itself —
+  // production deployments remain untouched.
+  if (!options.dryRun) {
+    const projectId = assignedId ?? project.id;
+    if (projectId) {
+      logger.blank();
+      const pending = await planPendingMigrations(MIGRATIONS, {
+        projectId,
+        projectDir,
+      });
+      if (pending.length === 0) {
+        logger.debug('No pending migrations.');
+      }
     }
   }
 }

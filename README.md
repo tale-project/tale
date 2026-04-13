@@ -132,12 +132,23 @@ For local development (non-Docker):
 
 ```bash
 bun install                      # Install dependencies
-bun run dev                      # Start development servers
+bun run dev                      # Start development servers (spawns local Convex)
 bun run typecheck                # Type checking
 bun run lint                     # Linting
 bun run test                     # Run tests
 bun run build                    # Build all services
 ```
+
+#### Optional: hybrid mode against a containerised Convex
+
+After the v0.3.0 split, you can run Vite locally against the dedicated `convex` container instead of spawning `bunx convex dev`:
+
+```bash
+docker compose up convex                        # in one terminal
+CONVEX_EXTERNAL=true bun run dev                # in another (CONVEX_URL optional)
+```
+
+Useful when you want fast Vite reloads but a stable Convex backend that mirrors production. Set `CONVEX_URL` if your container exposes Convex on a non-default host/port.
 
 For Python services:
 

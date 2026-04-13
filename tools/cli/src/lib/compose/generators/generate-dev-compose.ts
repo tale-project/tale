@@ -1,6 +1,10 @@
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { stringify } from 'yaml';
 
 import { getProjectId } from '../../../utils/load-env';
+import * as logger from '../../../utils/logger';
 import { createConvexService } from '../services/create-convex-service';
 import { createCrawlerService } from '../services/create-crawler-service';
 import { createDbService } from '../services/create-db-service';
@@ -11,9 +15,43 @@ import type { ComposeConfig, ServiceConfig } from '../types';
 import { DEV_VOLUME_NAMES } from './constants';
 
 const DEV_COLOR = 'blue' as const;
+/** Project-root subdirs that `tale init` populates from embedded examples. */
+const HOST_CONFIG_DIRS = [
+  'agents',
+  'workflows',
+  'integrations',
+  'branding',
+  'providers',
+] as const;
 
 interface DevComposeOptions {
   fresh?: boolean;
+  /** Project root, used to verify host bind-mount sources exist before
+   *  emitting them. Defaults to process.cwd() (which is what `tale start`
+   *  passes implicitly via the deploy-compose temp-file location). */
+  projectDir?: string;
+}
+
+/** Return host bind-mount fragments (e.g. './agents:/app/data/agents{ro}')
+ *  only for directories that actually exist on the host, with one warning
+ *  per missing directory so the operator can fix it without docker emitting
+ *  a confusing 'no such file or directory' error. */
+function existingHostMounts(
+  projectDir: string,
+  containerBase: string,
+  suffix = '',
+): string[] {
+  const mounts: string[] = [];
+  for (const dir of HOST_CONFIG_DIRS) {
+    if (existsSync(join(projectDir, dir))) {
+      mounts.push(`./${dir}:${containerBase}/${dir}${suffix}`);
+    } else {
+      logger.warn(
+        `Skipping host bind mount for ./${dir} (directory not found in project root). Container will fall back to convex-data volume contents.`,
+      );
+    }
+  }
+  return mounts;
 }
 
 export function generateDevCompose(
@@ -22,18 +60,17 @@ export function generateDevCompose(
   port: number,
   options: DevComposeOptions = {},
 ): string {
+  const projectDir = options.projectDir ?? process.cwd();
+
   // Convex service owns the /app/data volume in Phase 2.
   const convex = createConvexService(config, DEV_COLOR);
   convex.container_name = `${getProjectId()}-convex`;
   convex.volumes = [
     'convex-data:/app/data',
-    // Dev overrides: live bind-mount examples/ subfolders so edits on the host
-    // are visible to the Convex actions that read them.
-    './agents:/app/data/agents',
-    './workflows:/app/data/workflows',
-    './integrations:/app/data/integrations',
-    './branding:/app/data/branding',
-    './providers:/app/data/providers',
+    // Dev overrides: live bind-mount tale-init-populated dirs so edits on
+    // the host are visible to the Convex actions that read them. Only
+    // emitted when the directory actually exists on disk.
+    ...existingHostMounts(projectDir, '/app/data'),
     'caddy-data:/caddy-data:ro',
   ];
   convex.depends_on = { db: { condition: 'service_healthy' } };
@@ -56,11 +93,7 @@ export function generateDevCompose(
   platform.container_name = `${getProjectId()}-platform`;
   platform.volumes = [
     'convex-data:/app/data:ro',
-    './agents:/app/data/agents:ro',
-    './workflows:/app/data/workflows:ro',
-    './integrations:/app/data/integrations:ro',
-    './branding:/app/data/branding:ro',
-    './providers:/app/data/providers:ro',
+    ...existingHostMounts(projectDir, '/app/data', ':ro'),
   ];
   // TALE_CONFIG_DIR is the only file-config path platform needs to push to
   // Convex (sub-dirs are derived in convex/*/file_utils.ts). Platform also
@@ -74,19 +107,23 @@ export function generateDevCompose(
     convex: { condition: 'service_healthy' },
   };
 
+  const providersBindMount = existsSync(join(projectDir, 'providers'))
+    ? './providers:/app/platform-config/providers:ro'
+    : null;
+
   const rag = createRagService(config, DEV_COLOR);
   rag.container_name = `${getProjectId()}-rag`;
   rag.depends_on = { db: { condition: 'service_healthy' } };
   rag.volumes = [
     'rag-data:/app/data',
-    './providers:/app/platform-config/providers:ro',
+    ...(providersBindMount ? [providersBindMount] : []),
   ];
 
   const crawler = createCrawlerService(config, DEV_COLOR);
   crawler.container_name = `${getProjectId()}-crawler`;
   crawler.volumes = [
     'crawler-data:/app/data',
-    './providers:/app/platform-config/providers:ro',
+    ...(providersBindMount ? [providersBindMount] : []),
   ];
 
   const proxy = createProxyService(config, hostAlias);

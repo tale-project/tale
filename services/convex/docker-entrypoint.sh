@@ -1,5 +1,10 @@
 #!/bin/bash
-set -e
+# pipefail catches the common pattern of `cmd | sed ...` silently producing
+# empty output when cmd fails. -u (nounset) is intentionally NOT enabled —
+# it would break the many `${VAR:-default}` patterns and conditional tests
+# below; turning it on without an audit risks regressions worse than the
+# noise it would catch.
+set -eo pipefail
 
 # ============================================================================
 # Tale Convex Service Entrypoint

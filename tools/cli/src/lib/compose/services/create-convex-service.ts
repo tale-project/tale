@@ -34,6 +34,10 @@ export function createConvexService(
       retries: 3,
       start_period: '60s',
     },
+    // Convex needs the Postgres backend up before it can boot.
+    depends_on: {
+      db: { condition: 'service_healthy' },
+    },
     logging: DEFAULT_LOGGING,
     networks: {
       internal: {

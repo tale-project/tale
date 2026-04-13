@@ -1,5 +1,8 @@
 #!/bin/bash
-set -e
+# pipefail so silent pipe failures (e.g. `bunx convex env list | sed ...`)
+# surface instead of producing empty downstream values. -u is intentionally
+# omitted to avoid breaking the many `${VAR:-default}` patterns.
+set -eo pipefail
 
 # ============================================================================
 # Tale Platform Docker Entrypoint (Phase 2: split architecture)
@@ -242,15 +245,30 @@ deploy_convex_functions() {
     CONVEX_ENV_MAP["$key"]="${line#*=}"
   done <<< "$CONVEX_ENV_OUTPUT"
 
-  # One-shot cleanup: remove env vars that earlier Tale versions pushed but
-  # the current architecture no longer needs. Safe to run on every deploy —
-  # no-op if the var isn't present.
-  local ORPHAN_VARS=(AGENTS_DIR WORKFLOWS_DIR INTEGRATIONS_DIR PROVIDERS_DIR)
-  for orphan in "${ORPHAN_VARS[@]}"; do
+  # One-shot cleanup: remove env vars that earlier Tale versions auto-pushed
+  # but the current architecture derives from TALE_CONFIG_DIR.
+  #
+  # Safety: only remove the var if its current value matches the auto-derived
+  # path (i.e. it's a stale auto-push, not an operator's custom override).
+  # An override like AGENTS_DIR=/data/custom-agents is preserved untouched.
+  local config_dir="${TALE_CONFIG_DIR:-/app/data}"
+  local -A ORPHAN_DERIVED=(
+    [AGENTS_DIR]="${config_dir}/agents"
+    [WORKFLOWS_DIR]="${config_dir}/workflows"
+    [INTEGRATIONS_DIR]="${config_dir}/integrations"
+    [PROVIDERS_DIR]="${config_dir}/providers"
+  )
+  for orphan in "${!ORPHAN_DERIVED[@]}"; do
     if [ "${CONVEX_ENV_MAP[$orphan]+_}" ]; then
-      if bunx convex env remove "$orphan" --url "$CONVEX_URL" --admin-key "$ADMIN_KEY" >/dev/null 2>&1; then
-        echo "   ✓ $orphan (orphan removed — derived from TALE_CONFIG_DIR)"
-        unset 'CONVEX_ENV_MAP[$orphan]'
+      local current="${CONVEX_ENV_MAP[$orphan]}"
+      local derived="${ORPHAN_DERIVED[$orphan]}"
+      if [ "$current" = "$derived" ]; then
+        if bunx convex env remove "$orphan" --url "$CONVEX_URL" --admin-key "$ADMIN_KEY" >/dev/null 2>&1; then
+          echo "   ✓ $orphan (orphan removed — derived from TALE_CONFIG_DIR)"
+          unset 'CONVEX_ENV_MAP[$orphan]'
+        fi
+      else
+        log_info "$orphan=$current preserved (custom override; not the derived $derived)"
       fi
     fi
   done
@@ -373,7 +391,11 @@ deploy_convex_functions() {
 
   elif grep -q "SearchIndexesUnavailable\|VectorIndexesUnavailable" "$deploy_log"; then
     log_error "Reason: search indexes not yet bootstrapped on convex side"
-    echo "  fix: raise the sleep after /version in this script; or restart convex."
+    echo "  → Cold boot: index workers take 30–90s to come up; will back off and retry."
+    retry=true
+    # Use a bigger backoff specifically for index bootstrap; the standard 10s
+    # is rarely enough on first boot.
+    SEARCH_INDEX_RETRY_BACKOFF=45
 
   elif grep -q "AuthConfigMissingEnvironmentVariable" "$deploy_log"; then
     local missing_var
@@ -400,17 +422,28 @@ deploy_convex_functions() {
   dump_diagnostics "Convex deploy failure"
 
   if [ "$retry" = "true" ]; then
-    log_warn "Retryable error detected; sleeping 10s and trying once more..."
-    sleep 10
-    if timeout "$CONVEX_DEPLOY_TIMEOUT" bunx convex deploy \
-        --url "$CONVEX_URL" \
-        --admin-key "$ADMIN_KEY" \
-        --typecheck disable --yes 2>&1 | tee -a "$deploy_log"; then
-      log_ok "Convex functions deployed on retry"
-      rm -f "$deploy_log"
-      return 0
-    fi
-    log_error "Retry also failed"
+    # Up to 3 attempts with exponential backoff (capped); the first sleep is
+    # the classification-specific backoff if set (search-index bootstrap),
+    # otherwise the default 10s.
+    local backoff="${SEARCH_INDEX_RETRY_BACKOFF:-10}"
+    local attempt
+    for attempt in 1 2 3; do
+      log_warn "Retryable error detected; sleeping ${backoff}s before attempt ${attempt}/3..."
+      sleep "$backoff"
+      if timeout "$CONVEX_DEPLOY_TIMEOUT" bunx convex deploy \
+          --url "$CONVEX_URL" \
+          --admin-key "$ADMIN_KEY" \
+          --typecheck disable --yes 2>&1 | tee -a "$deploy_log"; then
+        log_ok "Convex functions deployed on retry attempt ${attempt}"
+        rm -f "$deploy_log"
+        return 0
+      fi
+      # Cap at ~90s to avoid runaway waits but still cover the longest
+      # observed search-index bootstrap.
+      backoff=$(( backoff * 2 ))
+      [ $backoff -gt 90 ] && backoff=90
+    done
+    log_error "All retries failed"
   fi
 
   rm -f "$deploy_log"

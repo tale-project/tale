@@ -40,7 +40,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && ln -s /convex/generate_key /usr/local/bin/generate_key \
     && groupadd --system --gid 1001 app || true \
     && useradd --system --uid 1001 --gid app app || true \
-    && mkdir -p /home/app && chmod 777 /home/app \
+    && mkdir -p /home/app && chown app:app /home/app && chmod 755 /home/app \
     && mkdir -p /app/data/convex /app/data/agents /app/data/workflows /app/data/integrations /app/data/providers /app/data/branding \
                 /dashboard \
                 /app/agents-builtin /app/workflows-builtin /app/integrations-builtin /app/providers-builtin /app/branding-builtin \

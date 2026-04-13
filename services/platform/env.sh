@@ -1,6 +1,6 @@
 #!/bin/bash
 # Centralized environment normalization for Tale Platform
-set -e
+set -eo pipefail
 
 # Normalize and export environment variables.
 # Does not print or log secret values.

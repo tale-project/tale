@@ -13,13 +13,10 @@ import { dockerCompose } from '../docker/docker-compose';
 import { ensureNetwork } from '../docker/ensure-network';
 import { ensureVolumes } from '../docker/ensure-volumes';
 import { exec } from '../docker/exec';
-import {
-  clearMigrationPending,
-  hasPendingMigration,
-  migrateOldVolumes,
-} from '../docker/migrate-volumes';
 import { findProject } from '../project/find-project';
 import { resolveOrAssignProjectContext } from '../project/project-context';
+import { MIGRATIONS } from '../upgrade/registry';
+import { runPendingMigrations } from '../upgrade/runner';
 import { init } from './init';
 
 async function assertDockerAvailable(): Promise<void> {
@@ -159,32 +156,44 @@ export async function start(options: StartOptions): Promise<void> {
   // `tale upgrade` as a separate step before `tale start` works.
   await resolveOrAssignProjectContext(projectDir);
 
-  // Run any pending legacy-volume migration. The marker is written by
-  // `tale upgrade` when it can't migrate safely (e.g. legacy containers were
-  // running at upgrade time).
-  if (hasPendingMigration(projectDir)) {
-    logger.step('Running pending volume migration from legacy project...');
-    // Stop any still-running legacy dev containers before copying volumes.
-    // (We're about to bring up new containers anyway.) Best-effort — if the
-    // legacy compose project doesn't exist, `down` exits non-zero harmlessly.
-    await exec(
-      'docker',
-      ['compose', '-p', 'tale-dev', 'down', '--remove-orphans'],
-      { silent: true },
+  // Detect and apply any pending migrations. This runs on every `tale start`
+  // and is a no-op when nothing's pending. When migrations ARE pending, the
+  // runner prints the plan and prompts the user (default No); declining
+  // cancels start cleanly without touching anything.
+  {
+    const migrationResult = await runPendingMigrations(
+      MIGRATIONS,
+      { projectId: getProjectId(), projectDir },
+      {
+        context: 'start',
+        async performStops(stops) {
+          // `stops` is the union of compose project names (e.g. legacy
+          // 'tale-dev') and individual container names (e.g.
+          // '${projectId}-dev-platform-blue'). Try each as a compose project
+          // first, then fall back to `docker stop` for container names.
+          for (const name of stops) {
+            // Best-effort compose-down — `down` on a non-existent project
+            // exits non-zero harmlessly.
+            const composeDown = await exec(
+              'docker',
+              ['compose', '-p', name, 'down', '--remove-orphans'],
+              { silent: true },
+            );
+            if (!composeDown.success) {
+              // Try plain container stop; ignore failures (the container may
+              // simply not exist).
+              await exec('docker', ['stop', '-t', '30', name], {
+                silent: true,
+              }).catch(() => undefined);
+            }
+          }
+        },
+      },
     );
-    const result = await migrateOldVolumes(getProjectId(), projectDir);
-    if (result.deferred) {
-      throw new Error(
-        'Volume migration could not proceed. Check Docker availability and stop any running legacy Tale containers.',
-      );
+    if (!migrationResult.proceed) {
+      logger.info('Aborting start until migrations are approved.');
+      process.exit(2);
     }
-    if (result.failed.length > 0) {
-      throw new Error(
-        `Volume migration failed for ${result.failed.length} volume(s). Aborting to avoid starting with inconsistent state.`,
-      );
-    }
-    await clearMigrationPending(projectDir);
-    logger.success('Volume migration complete.');
   }
 
   // Pre-create dev volumes and network with explicit project-scoped names.
