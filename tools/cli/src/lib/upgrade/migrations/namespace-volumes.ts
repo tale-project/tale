@@ -6,7 +6,7 @@ import {
   resolveMigrationImage,
   stopContainerOrThrow,
   volumeExists,
-  volumeHasSentinel,
+  volumeHasData,
 } from '../volume-helpers';
 
 /**
@@ -70,8 +70,19 @@ async function findRunningLegacyContainers(): Promise<string[]> {
     .filter((name) => name && legacyPattern.test(name));
 }
 
-/** Pairs that have a source volume and whose destination isn't already
- *  sentinelled. Re-evaluates every call so idempotent re-runs return []. */
+/** Pairs where the end-state does NOT yet hold and there is something to copy.
+ *
+ *  End-state for this migration: the destination volume exists and has data.
+ *  Therefore a pair is pending iff:
+ *    - destination is absent or empty, AND
+ *    - source exists and has data.
+ *
+ *  If the destination already has data we always skip — regardless of whether
+ *  a sentinel is present, regardless of what legacy volumes sit on the host.
+ *  This is the key idempotency guarantee: a project whose namespaced volumes
+ *  were populated by the compose stack directly (v0.2.33+ fresh init, or a
+ *  previous successful migration) must never be touched by this migration
+ *  again, even if stray `tale-dev_*` volumes from unrelated installs exist. */
 async function findPending(
   projectId: string,
   image: string,
@@ -79,13 +90,20 @@ async function findPending(
   const all = buildPairs(projectId);
   const pending: Array<{ oldName: string; newName: string }> = [];
   for (const p of all) {
-    if (!(await volumeExists(p.oldName))) continue;
+    // End-state check first: if the destination already has data, this pair
+    // is satisfied. We do not trust, nor require, the sentinel here — a
+    // populated destination that predates the migration infrastructure
+    // (v0.2.33 fresh inits) will legitimately lack one.
     if (
       (await volumeExists(p.newName)) &&
-      (await volumeHasSentinel(p.newName, image))
+      (await volumeHasData(p.newName, image))
     ) {
       continue;
     }
+    // Destination is absent or empty. Only migrate if there's actual source
+    // data to copy — an empty source would just recreate an empty dst.
+    if (!(await volumeExists(p.oldName))) continue;
+    if (!(await volumeHasData(p.oldName, image))) continue;
     pending.push(p);
   }
   return pending;
@@ -98,15 +116,21 @@ export const namespaceVolumesMigration: Migration = {
     `Rename legacy Docker volumes (tale_* / tale-dev_*) to the per-project scope (${ctx.projectId}_*).`,
 
   async detect(ctx: MigrationContext): Promise<boolean> {
-    // Cheap shortcut: if no legacy volumes exist at all, skip the image probe.
+    // Cheap shortcut: if no legacy source volume exists anywhere on the host,
+    // there is nothing we could ever copy. Bail before pulling an image.
     const all = buildPairs(ctx.projectId);
+    let anySourceExists = false;
     for (const p of all) {
       if (await volumeExists(p.oldName)) {
-        const image = await resolveMigrationImage();
-        return (await findPending(ctx.projectId, image)).length > 0;
+        anySourceExists = true;
+        break;
       }
     }
-    return false;
+    if (!anySourceExists) return false;
+    // Otherwise defer to findPending — it applies the full end-state check
+    // per pair and is the single source of truth for "do we have work?".
+    const image = await resolveMigrationImage();
+    return (await findPending(ctx.projectId, image)).length > 0;
   },
 
   async requiredStops(): Promise<string[]> {

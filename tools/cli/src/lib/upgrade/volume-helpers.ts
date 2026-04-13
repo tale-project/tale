@@ -272,6 +272,27 @@ export async function copyVolumeWithVerify(
       );
       return;
     }
+    // Safety rail: by the time we reach here, the calling migration's
+    // `detect`/`findPending` has already asserted this destination is NOT
+    // in its end-state. But if a migration has a detection bug and asks us
+    // to copy something SMALLER than what's already on the destination,
+    // this is almost certainly either (a) a stale / unrelated source being
+    // pulled in, or (b) a logic error in the migration. Either way, silent
+    // clobbering is wrong — fail loudly and let the operator investigate.
+    const srcCountPre = await volumeFileCount(src, image);
+    const dstCountPre = await volumeFileCount(dst, image);
+    if (srcCountPre != null && dstCountPre != null) {
+      if (srcCountPre === 0 && dstCountPre > 0) {
+        throw new Error(
+          `refusing to overwrite ${dst} (${dstCountPre} files) with empty source ${src}. This looks like a migration detection bug — destination already populated but source is empty.`,
+        );
+      }
+      if (dstCountPre > srcCountPre * 2) {
+        throw new Error(
+          `refusing to overwrite ${dst} (${dstCountPre} files) with much smaller source ${src} (${srcCountPre} files). A migration should not replace populated destination data with a substantially smaller source — this looks like a stale/unrelated source volume.`,
+        );
+      }
+    }
     logger.warn(
       `  ⚠  ${dst} has data but no sentinel; moving partial contents to backup volume`,
     );

@@ -7,7 +7,6 @@ import {
   stopContainerOrThrow,
   volumeExists,
   volumeHasData,
-  volumeHasSentinel,
 } from '../volume-helpers';
 
 interface SplitPair {
@@ -31,23 +30,30 @@ function buildPairs(projectId: string): SplitPair[] {
   ];
 }
 
-/** Pairs for which we genuinely have work to do: the old platform-data
- *  volume exists and has data, and the new convex-data volume either does
- *  not exist or has not been sentinelled yet. */
+/** Pairs where the end-state does NOT yet hold and there is something to copy.
+ *
+ *  End-state: the new `*_convex-data` volume exists and has data.
+ *
+ *  A pair is pending iff the destination is absent or empty AND the old
+ *  platform-data volume exists with data. We deliberately do not require a
+ *  sentinel on the destination — a destination populated by the compose
+ *  stack (e.g. a fresh install of a CLI that already ships the split layout)
+ *  legitimately has no sentinel and must be left alone. */
 async function findPending(
   projectId: string,
   image: string,
 ): Promise<SplitPair[]> {
   const pending: SplitPair[] = [];
   for (const p of buildPairs(projectId)) {
-    if (!(await volumeExists(p.oldName))) continue;
-    if (!(await volumeHasData(p.oldName, image))) continue;
+    // End-state check: if dst already has data, this pair is satisfied.
     if (
       (await volumeExists(p.newName)) &&
-      (await volumeHasSentinel(p.newName, image))
+      (await volumeHasData(p.newName, image))
     ) {
       continue;
     }
+    if (!(await volumeExists(p.oldName))) continue;
+    if (!(await volumeHasData(p.oldName, image))) continue;
     pending.push(p);
   }
   return pending;
@@ -86,16 +92,17 @@ export const splitConvexMigration: Migration = {
     `Copy ${ctx.projectId}_platform-data into ${ctx.projectId}_convex-data so the new dedicated Convex service can own its data volume.`,
 
   async detect(ctx: MigrationContext): Promise<boolean> {
-    // Cheap check first: if neither legacy volume exists, nothing to do.
+    // Cheap check first: if no legacy platform-data volume exists at all,
+    // there is nothing we could ever copy — bail before pulling an image.
     const pairs = buildPairs(ctx.projectId);
-    let anyExists = false;
+    let anyOldExists = false;
     for (const p of pairs) {
       if (await volumeExists(p.oldName)) {
-        anyExists = true;
+        anyOldExists = true;
         break;
       }
     }
-    if (!anyExists) return false;
+    if (!anyOldExists) return false;
     const image = await resolveMigrationImage();
     return (await findPending(ctx.projectId, image)).length > 0;
   },

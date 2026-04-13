@@ -10,10 +10,25 @@ export type ApplyOutcome = 'applied' | 'noop';
 /**
  * A single migration step registered in the pipeline.
  *
- * Each migration must be idempotent: running `apply` twice must be safe.
- * Each migration's `detect` should inspect concrete state (volumes, files,
- * container layout) — never rely on CLI-version history — so version-skip
- * upgrades work correctly.
+ * Every migration must be **idempotent**, and its `detect` must be a pure
+ * feature check against observable end-state:
+ *
+ *   - `detect` must return `true` only when the migration's postcondition
+ *     does NOT already hold. Mere existence of source artifacts is not
+ *     enough; the destination must also be absent/incomplete. Stray
+ *     legacy volumes on the host from unrelated installs must never
+ *     cause `detect` to return `true`.
+ *   - `apply` must be safe to re-run at any point — on a fully satisfied
+ *     system, on a partially-migrated system after an interruption, and
+ *     on a freshly-initialised system. It must independently re-check
+ *     each unit of work against the target state and skip units already
+ *     satisfied.
+ *   - `detect` and `apply` must NOT consult `migrations.json`, CLI
+ *     versions, or any other external history. Those are caches/logs,
+ *     not sources of truth — the filesystem/volume/container state is.
+ *
+ * A migration that can't express its precondition in terms of observable
+ * end-state is a bug.
  */
 export interface Migration {
   /** Stable id, used as the key in `.tale/migrations.json`. */
