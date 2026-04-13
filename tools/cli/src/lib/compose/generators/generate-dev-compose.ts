@@ -111,11 +111,14 @@ export function generateDevCompose(
     ? './providers:/app/platform-config/providers:ro'
     : null;
 
+  // RAG/crawler need convex-data:/app/platform-config:ro for non-provider
+  // config (integrations, branding, …). The providers bind mount is a more
+  // specific path and shadows just providers/ for host-edit hot reload.
   const rag = createRagService(config, DEV_COLOR);
   rag.container_name = `${getProjectId()}-rag`;
-  rag.depends_on = { db: { condition: 'service_healthy' } };
   rag.volumes = [
     'rag-data:/app/data',
+    'convex-data:/app/platform-config:ro',
     ...(providersBindMount ? [providersBindMount] : []),
   ];
 
@@ -123,6 +126,7 @@ export function generateDevCompose(
   crawler.container_name = `${getProjectId()}-crawler`;
   crawler.volumes = [
     'crawler-data:/app/data',
+    'convex-data:/app/platform-config:ro',
     ...(providersBindMount ? [providersBindMount] : []),
   ];
 

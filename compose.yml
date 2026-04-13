@@ -302,7 +302,8 @@ services:
 
     # Readiness: /version responds as soon as HTTP server binds, but we also
     # require /tmp/convex-ready which entrypoint writes AFTER builtin seed
-    # and Dashboard startup.
+    # and Dashboard startup. start_period covers cold-boot with search-index
+    # warmup; platform's wait_for_http budget is 120s, so align here.
     healthcheck:
       test:
         [
@@ -312,7 +313,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 3
-      start_period: 60s
+      start_period: 120s
 
     depends_on:
       db:

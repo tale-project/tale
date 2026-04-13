@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 import * as logger from '../../utils/logger';
@@ -48,8 +48,17 @@ export async function readMigrationsState(
     }
     return { applied: parsed.applied };
   } catch (err) {
+    // Preserve the corrupt file for postmortem rather than silently losing
+    // history. A truncated write (crash, disk full) can land here; the
+    // operator will want to see the bytes that were there.
+    const backupPath = `${path}.corrupted-${new Date()
+      .toISOString()
+      .replace(/[:.]/g, '-')}`;
+    await rename(path, backupPath).catch(() => {
+      /* best-effort — if even rename fails, log and continue */
+    });
     logger.warn(
-      `Could not parse ${path}: ${err instanceof Error ? err.message : String(err)}. Treating as empty.`,
+      `Could not parse ${path}: ${err instanceof Error ? err.message : String(err)}. Moved to ${backupPath} and treating as empty.`,
     );
     return { applied: [] };
   }
@@ -61,7 +70,13 @@ export async function writeMigrationsState(
 ): Promise<void> {
   const path = statePath(projectDir);
   await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, `${JSON.stringify(state, null, 2)}\n`);
+  // Atomic write: write to a sibling tmp file then rename. rename(2) is
+  // atomic on POSIX when source and destination are on the same filesystem,
+  // so a crash during write leaves the previous migrations.json intact
+  // instead of producing a truncated/parseable-as-empty file.
+  const tmpPath = `${path}.tmp`;
+  await writeFile(tmpPath, `${JSON.stringify(state, null, 2)}\n`);
+  await rename(tmpPath, path);
 }
 
 export async function recordApplied(

@@ -24,6 +24,9 @@ export function createConvexService(
     volumes: ['convex-data:/app/data', 'caddy-data:/caddy-data:ro'],
     env_file: ['.env'],
     restart: 'unless-stopped',
+    // start_period covers cold-boot with search-index warmup; platform's
+    // wait_for_http for convex is 120s, so align here to avoid a window
+    // where Docker flags convex healthy before indexes are queryable.
     healthcheck: {
       test: [
         'CMD-SHELL',
@@ -32,7 +35,7 @@ export function createConvexService(
       interval: '5s',
       timeout: '3s',
       retries: 3,
-      start_period: '60s',
+      start_period: '120s',
     },
     // Convex needs the Postgres backend up before it can boot.
     depends_on: {

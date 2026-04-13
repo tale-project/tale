@@ -72,16 +72,18 @@ shutdown() {
   current_convex_pid=$(cat "$CONVEX_PID_FILE" 2>/dev/null || echo "")
 
   log_info "Sending SIGTERM to child processes..."
-  kill -TERM "$MONITOR_PID" 2>/dev/null || true
-  kill -TERM "$DASHBOARD_PID" 2>/dev/null || true
+  # Every kill is guarded on a non-empty PID: `kill -TERM ""` is invalid and
+  # would be silently swallowed by `|| true`, leaving an orphan process.
+  [ -n "$MONITOR_PID" ]        && kill -TERM "$MONITOR_PID" 2>/dev/null || true
+  [ -n "$DASHBOARD_PID" ]      && kill -TERM "$DASHBOARD_PID" 2>/dev/null || true
   [ -n "$current_convex_pid" ] && kill -TERM "$current_convex_pid" 2>/dev/null || true
 
   local shutdown_timeout="${SHUTDOWN_TIMEOUT_SECONDS:-30}"
   local waited=0
   while [ "$waited" -lt "$shutdown_timeout" ]; do
     local still_running=0
-    kill -0 "$MONITOR_PID" 2>/dev/null && still_running=1
-    kill -0 "$DASHBOARD_PID" 2>/dev/null && still_running=1
+    [ -n "$MONITOR_PID" ]        && kill -0 "$MONITOR_PID" 2>/dev/null && still_running=1
+    [ -n "$DASHBOARD_PID" ]      && kill -0 "$DASHBOARD_PID" 2>/dev/null && still_running=1
     [ -n "$current_convex_pid" ] && kill -0 "$current_convex_pid" 2>/dev/null && still_running=1
     [ $still_running -eq 0 ] && break
     sleep 1; waited=$((waited + 1))
@@ -89,7 +91,12 @@ shutdown() {
 
   if [ "$waited" -ge "$shutdown_timeout" ]; then
     log_warn "Timeout reached; force killing remaining processes"
-    kill -KILL "$MONITOR_PID" "$DASHBOARD_PID" "$current_convex_pid" 2>/dev/null || true
+    # Collect only non-empty PIDs so `kill -KILL ""` doesn't short-circuit.
+    local force_pids=()
+    [ -n "$MONITOR_PID" ]        && force_pids+=("$MONITOR_PID")
+    [ -n "$DASHBOARD_PID" ]      && force_pids+=("$DASHBOARD_PID")
+    [ -n "$current_convex_pid" ] && force_pids+=("$current_convex_pid")
+    [ ${#force_pids[@]} -gt 0 ] && kill -KILL "${force_pids[@]}" 2>/dev/null || true
   fi
 
   rm -f "$SHUTDOWN_MARKER" "$READY_MARKER" "$CONVEX_PID_FILE"
@@ -344,16 +351,30 @@ dump_diagnostics() {
 # ============================================================================
 # Start convex-local-backend
 # ============================================================================
-DB_ARGS=""
+# Build command args as arrays so values with spaces / special chars don't
+# word-split at expansion time. Quoting variables in a single string does not
+# protect against this — only `"${array[@]}"` does.
+DB_ARGS=()
 if [[ "$POSTGRES_URL" == postgresql* || "$POSTGRES_URL" == postgres* ]]; then
-  DB_ARGS="-d postgres-v5 $POSTGRES_URL"
+  DB_ARGS=(-d postgres-v5 "$POSTGRES_URL")
   log_info "Using PostgreSQL backend"
 else
-  DB_ARGS="/app/data/convex/convex_local_backend.sqlite3"
+  DB_ARGS=("/app/data/convex/convex_local_backend.sqlite3")
   log_warn "POSTGRES_URL not a postgres URL; falling back to local SQLite (not recommended for production)"
 fi
 
-SITE_ARGS="--site-proxy-port ${CONVEX_SITE_PROXY_PORT} --port ${CONVEX_BACKEND_PORT} --interface 0.0.0.0 --do-not-require-ssl --instance-name $INSTANCE_NAME --instance-secret $INSTANCE_SECRET"
+# NOTE: --instance-secret is passed via argv because convex-local-backend has
+# no env-var channel for it. This exposes the secret to `ps`/`/proc/*/cmdline`
+# for the life of the process; callers must treat the container's process
+# table as sensitive. Investigate an env-var upstream before re-evaluating.
+SITE_ARGS=(
+  --site-proxy-port "${CONVEX_SITE_PROXY_PORT}"
+  --port            "${CONVEX_BACKEND_PORT}"
+  --interface       0.0.0.0
+  --do-not-require-ssl
+  --instance-name   "$INSTANCE_NAME"
+  --instance-secret "$INSTANCE_SECRET"
+)
 
 # Log rotation: truncate backend.log if > 50MB (keep last 10MB).
 if [ -f /app/data/convex/backend.log ] && \
@@ -366,7 +387,7 @@ fi
 log_section "Starting convex-local-backend on port ${CONVEX_BACKEND_PORT}"
 export RUST_LOG="${RUST_LOG:-info,common::errors=off,isolate::client=off,application::scheduled_jobs=off}"
 
-convex-local-backend ${DB_ARGS} --local-storage /app/data/convex ${SITE_ARGS} \
+convex-local-backend "${DB_ARGS[@]}" --local-storage /app/data/convex "${SITE_ARGS[@]}" \
   > >(tee -a /app/data/convex/backend.log) \
   2> >(tee -a /app/data/convex/backend.log >&2) &
 CONVEX_PID=$!
@@ -407,15 +428,22 @@ else
   log_warn "/dashboard/server.js not found; skipping Dashboard launch"
 fi
 
-(
-  cd /dashboard
-  NEXT_PUBLIC_DEPLOYMENT_URL="${SITE_URL}" \
-    PORT="${CONVEX_DASHBOARD_PORT}" \
-    HOSTNAME=0.0.0.0 \
-    node server.js > /dev/null &
-  echo $! > /tmp/dashboard.pid
-)
-DASHBOARD_PID=$(cat /tmp/dashboard.pid 2>/dev/null || echo "")
+# Capture the Dashboard PID in the parent shell directly. The previous
+# implementation forked a subshell and wrote `$!` to /tmp/dashboard.pid, then
+# read it back in the parent — a race where the parent could read before the
+# subshell wrote, leaving DASHBOARD_PID empty and the process un-shutdownable.
+if [ -f /dashboard/server.js ]; then
+  ( cd /dashboard && exec env \
+      NEXT_PUBLIC_DEPLOYMENT_URL="${SITE_URL}" \
+      PORT="${CONVEX_DASHBOARD_PORT}" \
+      HOSTNAME=0.0.0.0 \
+      node server.js > /dev/null ) &
+  DASHBOARD_PID=$!
+  if [ -z "$DASHBOARD_PID" ]; then
+    log_error "Failed to capture Convex Dashboard PID — cannot manage lifecycle"
+    exit 1
+  fi
+fi
 
 wait_for_http "http://localhost:${CONVEX_DASHBOARD_PORT}" 30 "Convex Dashboard" true
 
@@ -517,4 +545,12 @@ echo "   Site proxy: http://localhost:${CONVEX_SITE_PROXY_PORT}"
 echo "   Dashboard:  http://localhost:${CONVEX_DASHBOARD_PORT}  (base path: ${DASHBOARD_BASE_PATH})"
 echo
 
-wait "$CONVEX_PID" "$DASHBOARD_PID" "$MONITOR_PID"
+# Only wait on PIDs that were actually captured. `wait ""` is a silent no-op
+# and would mask a child that failed to start; enumerating explicitly ensures
+# we surface the correct exit status.
+wait_pids=()
+[ -n "$CONVEX_PID" ]    && wait_pids+=("$CONVEX_PID")
+[ -n "$DASHBOARD_PID" ] && wait_pids+=("$DASHBOARD_PID")
+[ -n "$MONITOR_PID" ]   && wait_pids+=("$MONITOR_PID")
+[ -n "$CONVEX_PID" ] || { log_error "CONVEX_PID missing; cannot wait on backend"; exit 1; }
+wait "${wait_pids[@]}"

@@ -126,6 +126,9 @@ export async function moveContentsToBackupVolume(
     );
     return null;
   }
+  // Fail-fast wipe: `find -delete` without `-e` continues past errors and can
+  // leave the destination half-wiped; a subsequent copyVolumeWithVerify would
+  // then see corrupted state. Use `sh -e` so any rm failure aborts loudly.
   const wipe = await docker(
     'run',
     '--rm',
@@ -134,11 +137,13 @@ export async function moveContentsToBackupVolume(
     '--entrypoint',
     'sh',
     image,
-    '-c',
-    'find /vol -mindepth 1 -delete',
+    '-ec',
+    'cd /vol && find . -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +',
   );
   if (!wipe.success) {
-    logger.warn(`  failed to wipe ${name}: ${wipe.stderr.trim()}`);
+    logger.warn(
+      `  failed to wipe ${name} (destination may be partial): ${wipe.stderr.trim()}`,
+    );
     return null;
   }
   return backup;

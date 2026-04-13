@@ -322,29 +322,32 @@ This keeps the service definition (so `depends_on` references don't break) but p
 v0.3.0 splits the Convex backend into its own `convex` service. Existing
 deployments store Convex data in the `platform-data` volume; new deployments
 (and v0.2.x installations after upgrade) use a dedicated `convex-data`
-volume. The one-time migration is scripted:
+volume. Migrations are auto-detected and applied at the next `tale start`
+or `tale deploy` — there is **no separate `tale migrate` command**:
 
 ```bash
 tale upgrade                          # Pull new CLI + images
-tale migrate split-convex --dry-run   # Preview the plan
-tale migrate split-convex             # Perform the copy
-tale start                            # Bring the split stack back up
+tale deploy --yes                     # Non-interactive: auto-apply pending migrations
+                                      # (or `tale deploy` for interactive confirm)
+tale status                           # Verify new setup works
 ```
 
-What `tale migrate split-convex` does:
+What the split-convex migration does when triggered:
 
 1. **Detect** — looks for `${projectId}_platform-data` (prod) and/or
    `${projectId}-dev_platform-data` (dev) with data in them, and confirms
    the corresponding `convex-data` volume is empty or absent.
-2. **Plan** — prints source/destination, estimated size, and which
-   containers will be stopped.
-3. **Stop** — `docker compose stop platform convex` + `docker wait` to
-   ensure processes have fully exited (SQLite safety).
+2. **Plan** — prints source/destination and which containers will be
+   stopped. In interactive mode the runner asks for confirmation
+   (default No); non-interactive runs require `--yes`.
+3. **Stop** — brings down compose projects / individual containers holding
+   the source volume so `cp -a` doesn't race a live writer.
 4. **Copy** — `docker run --rm --user 1001:1001 -v src:/src:ro -v dst:/dst
    alpine sh -c "cp -a /src/. /dst/ && touch /dst/.tale-migration-complete"`.
 5. **Verify** — compares file counts between source and destination.
-6. **Report** — prints a summary; the legacy volume is **preserved** so you
-   can downgrade if needed.
+6. **Record** — appends the migration id to `.tale/migrations.json` so
+   subsequent runs skip it. The legacy volume is **preserved** so you can
+   downgrade if needed.
 
 ### Safety notes
 
@@ -357,10 +360,11 @@ What `tale migrate split-convex` does:
   docker volume rm <projectId>-dev_platform-data   # if you use dev mode
   ```
 
-- If anything goes wrong mid-copy, re-run the command — the
-  `.tale-migration-complete` sentinel file is checked before any copy,
-  and partial destinations are automatically wiped and retried.
-- Running the command after migration succeeds is a no-op.
+- If anything goes wrong mid-copy, re-run `tale deploy` / `tale start` —
+  the `.tale-migration-complete` sentinel is checked before any copy, and
+  any partial destination is moved to a timestamped backup volume
+  (`…partial-<ts>`) before retrying.
+- Re-running after a successful migration is a no-op.
 
 ### Rolling back a failed upgrade
 

@@ -33,7 +33,11 @@ import { MIGRATIONS } from '../upgrade/registry';
 import { runPendingMigrations } from '../upgrade/runner';
 
 const REQUIRED_VOLUMES = [
+  // platform-data is kept for upgrade scenarios where split-convex migrates
+  // its contents into convex-data; on fresh installs it is an unused empty
+  // volume. Removing it would break detect() for pre-0.3.0 deployments.
   'platform-data',
+  'convex-data',
   'caddy-data',
   'rag-data',
   'crawler-data',
@@ -133,17 +137,30 @@ export async function deploy(options: DeployOptions): Promise<void> {
               // `stops` may contain compose project names (e.g. 'tale',
               // 'tale-blue') and/or individual container names (e.g.
               // '${projectId}-platform-blue'). Try each as a compose project
-              // first, fall back to plain `docker stop`.
+              // first, fall back to plain `docker stop`. Failures MUST
+              // surface — a silently-swallowed stop can let the migration
+              // copy a live volume, corrupting data.
               for (const name of stops) {
                 const composeDown = await exec(
                   'docker',
                   ['compose', '-p', name, 'down', '--remove-orphans'],
                   { silent: true },
                 );
-                if (!composeDown.success) {
-                  await exec('docker', ['stop', '-t', '30', name], {
-                    silent: true,
-                  }).catch(() => undefined);
+                if (composeDown.success) continue;
+                const stopResult = await exec(
+                  'docker',
+                  ['stop', '-t', '30', name],
+                  { silent: true },
+                );
+                if (stopResult.success) continue;
+                const stderr = `${stopResult.stderr ?? ''}`.toLowerCase();
+                const looksMissing =
+                  stderr.includes('no such container') ||
+                  stderr.includes('not found');
+                if (!looksMissing) {
+                  throw new Error(
+                    `Failed to stop '${name}' before migration: ${stopResult.stderr?.trim() || 'unknown error'}`,
+                  );
                 }
               }
             },
