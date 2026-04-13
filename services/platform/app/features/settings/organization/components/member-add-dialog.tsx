@@ -182,6 +182,7 @@ export function AddMemberDialog({
           <Input
             id="password"
             type="password"
+            autoComplete="new-password"
             label={tSettings('form.password')}
             placeholder={tSettings('form.passwordPlaceholder')}
             description={tSettings('form.forgotPassword')}

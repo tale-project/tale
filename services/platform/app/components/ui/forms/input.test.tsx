@@ -188,7 +188,7 @@ describe('Input', () => {
     it('sets autocomplete for password', () => {
       render(<Input type="password" label="Password" />);
       const input = screen.getByLabelText('Password');
-      expect(input).toHaveAttribute('autocomplete', 'current-password');
+      expect(input).toHaveAttribute('autocomplete', 'off');
     });
 
     it('allows custom autocomplete', () => {

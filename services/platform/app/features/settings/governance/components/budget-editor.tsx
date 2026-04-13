@@ -22,10 +22,12 @@ import {
   type BudgetConfig,
   type BudgetRule,
 } from '@/lib/shared/schemas/governance';
+import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-guards';
 
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
+import { SelectTriggerButton } from './select-trigger-button';
 
 interface BudgetEditorProps {
   organizationId: string;
@@ -176,20 +178,15 @@ function RuleDialog({
                 emptyText={t('budgets.noUsersFound')}
                 aria-label={t('budgets.selectUserAriaLabel')}
                 trigger={
-                  <button
-                    type="button"
+                  <SelectTriggerButton
                     disabled={cannotManage}
-                    className="border-input ring-offset-background flex h-8 w-full items-center justify-between rounded-md border bg-transparent px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                    hasValue={!!draft.scopeId}
                   >
-                    <span
-                      className={draft.scopeId ? '' : 'text-muted-foreground'}
-                    >
-                      {draft.scopeId
-                        ? (memberOptions.find((o) => o.value === draft.scopeId)
-                            ?.label ?? draft.scopeId)
-                        : t('budgets.selectUser')}
-                    </span>
-                  </button>
+                    {draft.scopeId
+                      ? (memberOptions.find((o) => o.value === draft.scopeId)
+                          ?.label ?? draft.scopeId)
+                      : t('budgets.selectUser')}
+                  </SelectTriggerButton>
                 }
               />
             </div>
@@ -208,20 +205,15 @@ function RuleDialog({
                 emptyText={t('budgets.noTeamsFound')}
                 aria-label={t('budgets.selectTeamAriaLabel')}
                 trigger={
-                  <button
-                    type="button"
+                  <SelectTriggerButton
                     disabled={cannotManage}
-                    className="border-input ring-offset-background flex h-8 w-full items-center justify-between rounded-md border bg-transparent px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                    hasValue={!!draft.scopeId}
                   >
-                    <span
-                      className={draft.scopeId ? '' : 'text-muted-foreground'}
-                    >
-                      {draft.scopeId
-                        ? (teamOptions.find((o) => o.value === draft.scopeId)
-                            ?.label ?? draft.scopeId)
-                        : t('budgets.selectTeam')}
-                    </span>
-                  </button>
+                    {draft.scopeId
+                      ? (teamOptions.find((o) => o.value === draft.scopeId)
+                          ?.label ?? draft.scopeId)
+                      : t('budgets.selectTeam')}
+                  </SelectTriggerButton>
                 }
               />
             </div>
@@ -506,132 +498,139 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
         />
       }
     >
-      <Stack gap={6}>
-        <Text variant="muted" className="text-xs">
-          {t('budgets.overrideHint')}
-        </Text>
+      <div
+        className={cn(
+          'transition-opacity duration-200',
+          !enabled && 'pointer-events-none opacity-50',
+        )}
+      >
+        <Stack gap={6}>
+          <Text variant="muted" className="text-xs">
+            {t('budgets.overrideHint')}
+          </Text>
 
-        <Stack gap={3}>
-          {rules.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <caption className="sr-only">{t('budgets.title')}</caption>
-                <thead>
-                  <tr className="border-border border-b">
-                    <th
-                      scope="col"
-                      className="text-muted-foreground px-3 py-2 text-left font-medium"
-                    >
-                      {t('budgets.scope')}
-                    </th>
-                    <th
-                      scope="col"
-                      className="text-muted-foreground px-3 py-2 text-left font-medium"
-                    >
-                      {t('budgets.target')}
-                    </th>
-                    <th
-                      scope="col"
-                      className="text-muted-foreground px-3 py-2 text-left font-medium"
-                    >
-                      {t('budgets.period')}
-                    </th>
-                    <th
-                      scope="col"
-                      className="text-muted-foreground px-3 py-2 text-right font-medium"
-                    >
-                      {t('budgets.tokenLimit')}
-                    </th>
-                    <th
-                      scope="col"
-                      className="text-muted-foreground px-3 py-2 text-right font-medium"
-                    >
-                      {t('budgets.maxCost')}
-                    </th>
-                    <th
-                      scope="col"
-                      className="text-muted-foreground px-3 py-2 text-right font-medium"
-                    >
-                      {t('budgets.maxRequests')}
-                    </th>
-                    <th
-                      scope="col"
-                      className="text-muted-foreground px-3 py-2 text-right font-medium"
-                    >
-                      {t('budgets.actions')}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rules.map((rule, index) => (
-                    <tr key={index} className="border-border border-b">
-                      <td className="px-3 py-2 capitalize">{rule.scope}</td>
-                      <td className="px-3 py-2">{resolveTarget(rule)}</td>
-                      <td className="px-3 py-2 capitalize">{rule.period}</td>
-                      <td className="px-3 py-2 text-right">
-                        {rule.maxTokens != null
-                          ? rule.maxTokens.toLocaleString()
-                          : '\u2014'}
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        {rule.maxCostCents != null
-                          ? formatCost(rule.maxCostCents)
-                          : '\u2014'}
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        {rule.maxRequests != null
-                          ? rule.maxRequests.toLocaleString()
-                          : '\u2014'}
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        <HStack gap={1} justify="end">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => openEditDialog(index)}
-                            disabled={cannotManage}
-                            aria-label={t('budgets.editRuleAriaLabel', {
-                              index: index + 1,
-                            })}
-                          >
-                            <Pencil className="size-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => removeRule(index)}
-                            disabled={cannotManage}
-                            aria-label={t('budgets.removeRuleAriaLabel', {
-                              index: index + 1,
-                            })}
-                          >
-                            <Trash2 className="size-4" />
-                          </Button>
-                        </HStack>
-                      </td>
+          <Stack gap={3}>
+            {rules.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <caption className="sr-only">{t('budgets.title')}</caption>
+                  <thead>
+                    <tr className="border-border border-b">
+                      <th
+                        scope="col"
+                        className="text-muted-foreground px-3 py-2 text-left font-medium"
+                      >
+                        {t('budgets.scope')}
+                      </th>
+                      <th
+                        scope="col"
+                        className="text-muted-foreground px-3 py-2 text-left font-medium"
+                      >
+                        {t('budgets.target')}
+                      </th>
+                      <th
+                        scope="col"
+                        className="text-muted-foreground px-3 py-2 text-left font-medium"
+                      >
+                        {t('budgets.period')}
+                      </th>
+                      <th
+                        scope="col"
+                        className="text-muted-foreground px-3 py-2 text-right font-medium"
+                      >
+                        {t('budgets.tokenLimit')}
+                      </th>
+                      <th
+                        scope="col"
+                        className="text-muted-foreground px-3 py-2 text-right font-medium"
+                      >
+                        {t('budgets.maxCost')}
+                      </th>
+                      <th
+                        scope="col"
+                        className="text-muted-foreground px-3 py-2 text-right font-medium"
+                      >
+                        {t('budgets.maxRequests')}
+                      </th>
+                      <th
+                        scope="col"
+                        className="text-muted-foreground px-3 py-2 text-right font-medium"
+                      >
+                        {t('budgets.actions')}
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <Text variant="muted" className="text-sm">
-              {t('budgets.noRules')}
-            </Text>
-          )}
+                  </thead>
+                  <tbody>
+                    {rules.map((rule, index) => (
+                      <tr key={index} className="border-border border-b">
+                        <td className="px-3 py-2 capitalize">{rule.scope}</td>
+                        <td className="px-3 py-2">{resolveTarget(rule)}</td>
+                        <td className="px-3 py-2 capitalize">{rule.period}</td>
+                        <td className="px-3 py-2 text-right">
+                          {rule.maxTokens != null
+                            ? rule.maxTokens.toLocaleString()
+                            : '\u2014'}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          {rule.maxCostCents != null
+                            ? formatCost(rule.maxCostCents)
+                            : '\u2014'}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          {rule.maxRequests != null
+                            ? rule.maxRequests.toLocaleString()
+                            : '\u2014'}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          <HStack gap={1} justify="end">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => openEditDialog(index)}
+                              disabled={cannotManage}
+                              aria-label={t('budgets.editRuleAriaLabel', {
+                                index: index + 1,
+                              })}
+                            >
+                              <Pencil className="size-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removeRule(index)}
+                              disabled={cannotManage}
+                              aria-label={t('budgets.removeRuleAriaLabel', {
+                                index: index + 1,
+                              })}
+                            >
+                              <Trash2 className="size-4" />
+                            </Button>
+                          </HStack>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <Text variant="muted" className="text-sm">
+                {t('budgets.noRules')}
+              </Text>
+            )}
 
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={openAddDialog}
-            disabled={cannotManage}
-            className="self-start"
-          >
-            <Plus className="mr-1.5 size-4" />
-            {t('budgets.addRule')}
-          </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={openAddDialog}
+              disabled={cannotManage}
+              className="self-start"
+            >
+              <Plus className="mr-1.5 size-4" />
+              {t('budgets.addRule')}
+            </Button>
+          </Stack>
         </Stack>
-      </Stack>
+      </div>
 
       <RuleDialog
         open={dialogOpen}

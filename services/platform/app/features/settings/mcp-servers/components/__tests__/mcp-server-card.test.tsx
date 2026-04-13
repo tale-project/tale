@@ -27,17 +27,38 @@ function makeServer(
 
 describe('McpServerCard', () => {
   it('renders server display name', () => {
-    render(<McpServerCard server={makeServer()} onClick={vi.fn()} />);
+    render(
+      <McpServerCard
+        server={makeServer()}
+        onClick={vi.fn()}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
     expect(screen.getByText('Test Server')).toBeInTheDocument();
   });
 
   it('renders description', () => {
-    render(<McpServerCard server={makeServer()} onClick={vi.fn()} />);
+    render(
+      <McpServerCard
+        server={makeServer()}
+        onClick={vi.fn()}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
     expect(screen.getByText('A test MCP server')).toBeInTheDocument();
   });
 
   it('renders tool count', () => {
-    render(<McpServerCard server={makeServer()} onClick={vi.fn()} />);
+    render(
+      <McpServerCard
+        server={makeServer()}
+        onClick={vi.fn()}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
     expect(screen.getByText('1 tool')).toBeInTheDocument();
   });
 
@@ -51,6 +72,8 @@ describe('McpServerCard', () => {
           ],
         })}
         onClick={vi.fn()}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
       />,
     );
     expect(screen.getByText('2 tools')).toBeInTheDocument();
@@ -59,7 +82,12 @@ describe('McpServerCard', () => {
   it('calls onClick when clicked', async () => {
     const onClick = vi.fn();
     const { user } = render(
-      <McpServerCard server={makeServer()} onClick={onClick} />,
+      <McpServerCard
+        server={makeServer()}
+        onClick={onClick}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+      />,
     );
     await user.click(screen.getByRole('button'));
     expect(onClick).toHaveBeenCalledTimes(1);
@@ -70,6 +98,8 @@ describe('McpServerCard', () => {
       <McpServerCard
         server={makeServer({ status: 'active' })}
         onClick={vi.fn()}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
       />,
     );
     expect(screen.getByText('Connected')).toBeInTheDocument();
@@ -80,6 +110,8 @@ describe('McpServerCard', () => {
       <McpServerCard
         server={makeServer({ status: 'inactive' })}
         onClick={vi.fn()}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
       />,
     );
     expect(screen.getByText('Disconnected')).toBeInTheDocument();
@@ -90,6 +122,8 @@ describe('McpServerCard', () => {
       <McpServerCard
         server={makeServer({ status: 'error' })}
         onClick={vi.fn()}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
       />,
     );
     expect(screen.getByText('Error')).toBeInTheDocument();
@@ -98,7 +132,12 @@ describe('McpServerCard', () => {
   describe('accessibility', () => {
     it('passes axe audit for active server', async () => {
       const { container } = render(
-        <McpServerCard server={makeServer()} onClick={vi.fn()} />,
+        <McpServerCard
+          server={makeServer()}
+          onClick={vi.fn()}
+          onEdit={vi.fn()}
+          onDelete={vi.fn()}
+        />,
       );
       await checkAccessibility(container);
     });
@@ -108,6 +147,8 @@ describe('McpServerCard', () => {
         <McpServerCard
           server={makeServer({ status: 'inactive' })}
           onClick={vi.fn()}
+          onEdit={vi.fn()}
+          onDelete={vi.fn()}
         />,
       );
       await checkAccessibility(container);
@@ -118,6 +159,8 @@ describe('McpServerCard', () => {
         <McpServerCard
           server={makeServer({ status: 'error' })}
           onClick={vi.fn()}
+          onEdit={vi.fn()}
+          onDelete={vi.fn()}
         />,
       );
       await checkAccessibility(container);

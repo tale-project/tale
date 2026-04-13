@@ -17,6 +17,10 @@ interface McpServerFormProps {
   isSubmitting?: boolean;
   onSubmit: (data: McpServerFormData) => void;
   onCancel?: () => void;
+  /** HTML id for the form element — allows external submit buttons via form attribute */
+  formId?: string;
+  /** Hide the built-in action buttons (Cancel / Save) when rendering them externally */
+  hideActions?: boolean;
 }
 
 export interface McpServerFormData {
@@ -94,6 +98,8 @@ export function McpServerForm({
   isSubmitting,
   onSubmit,
   onCancel,
+  formId,
+  hideActions,
 }: McpServerFormProps) {
   const { t } = useT('mcpServers');
 
@@ -258,7 +264,7 @@ export function McpServerForm({
   );
 
   return (
-    <form onSubmit={handleSubmit} noValidate>
+    <form id={formId} onSubmit={handleSubmit} noValidate>
       <Stack gap={6}>
         <FormSection label={t('form.connectionSection')}>
           <Input
@@ -409,21 +415,23 @@ export function McpServerForm({
           )}
         </FormSection>
 
-        <div className="flex justify-end gap-3">
-          {onCancel && (
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={onCancel}
-              disabled={isSubmitting}
-            >
-              {t('form.cancel')}
+        {!hideActions && (
+          <div className="flex justify-end gap-3">
+            {onCancel && (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={onCancel}
+                disabled={isSubmitting}
+              >
+                {t('form.cancel')}
+              </Button>
+            )}
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? t('form.saving') : t('form.save')}
             </Button>
-          )}
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? t('form.saving') : t('form.save')}
-          </Button>
-        </div>
+          </div>
+        )}
       </Stack>
     </form>
   );

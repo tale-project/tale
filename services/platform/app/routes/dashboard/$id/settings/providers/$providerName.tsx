@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { ChevronRight, Pencil, Trash2 } from 'lucide-react';
+import { ChevronRight, Loader2, Pencil, Trash2, X } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import {
@@ -11,18 +11,18 @@ import {
   TableRow,
 } from '@/app/components/ui/data-display/table';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
-import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Input } from '@/app/components/ui/forms/input';
-import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Card } from '@/app/components/ui/layout/card';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
+import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { Button } from '@/app/components/ui/primitives/button';
 import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { Text } from '@/app/components/ui/typography/text';
+import { ProviderEditPanel } from '@/app/features/settings/providers/components/provider-edit-panel';
 import { useSaveProviderSecret } from '@/app/features/settings/providers/hooks/mutations';
 import {
   useHasProviderSecret,
@@ -162,9 +162,8 @@ function ProviderDetailContent({
         </Text>
       </HStack>
 
-      <GeneralSection />
+      <GeneralSection providerName={providerName} />
       <ApiKeySection providerName={providerName} />
-      <DefaultModelsSection />
       <ModelsSection
         providerName={providerName}
         maskedModelKeys={maskedModelKeys}
@@ -194,40 +193,19 @@ function InfoRow({
   );
 }
 
-function GeneralSection() {
+function GeneralSection({ providerName }: { providerName: string }) {
   const { t } = useT('settings');
-  const { config, saveConfig, isSaving } = useProviderConfig();
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [form, setForm] = useState({
-    displayName: '',
-    description: '',
-    baseUrl: '',
-  });
+  const { config } = useProviderConfig();
+  const [panelOpen, setPanelOpen] = useState(false);
 
-  const openDialog = useCallback(() => {
-    setForm({
-      displayName: config.displayName,
-      description: config.description ?? '',
-      baseUrl: config.baseUrl,
-    });
-    setDialogOpen(true);
-  }, [config]);
-
-  const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault();
-      try {
-        await saveConfig({
-          displayName: form.displayName,
-          description: form.description || undefined,
-          baseUrl: form.baseUrl,
-        });
-        setDialogOpen(false);
-      } catch {
-        toast({ title: t('providers.saveFailed'), variant: 'destructive' });
-      }
+  const modelDisplayName = useCallback(
+    (modelId: string | undefined) => {
+      if (!modelId) return '—';
+      return (
+        config.models.find((m) => m.id === modelId)?.displayName ?? modelId
+      );
     },
-    [form, saveConfig, t],
+    [config.models],
   );
 
   return (
@@ -239,7 +217,7 @@ function GeneralSection() {
           </Text>
           <button
             type="button"
-            onClick={openDialog}
+            onClick={() => setPanelOpen(true)}
             className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 text-[13px] font-medium"
           >
             <Pencil className="size-3.5" />
@@ -257,53 +235,56 @@ function GeneralSection() {
         </Stack>
       </Card>
 
-      <FormDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        title={t('providers.editGeneral')}
-        onSubmit={handleSubmit}
-        isSubmitting={isSaving}
-        isDirty={
-          form.displayName !== config.displayName ||
-          form.description !== (config.description ?? '') ||
-          form.baseUrl !== config.baseUrl
-        }
-      >
-        <Stack gap={4}>
-          <Input
-            label={t('providers.displayName')}
-            value={form.displayName}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, displayName: e.target.value }))
-            }
-            placeholder={t('providers.displayNamePlaceholder')}
-            autoFocus
-          />
-          <Textarea
-            label={t('providers.description_field')}
-            value={form.description}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, description: e.target.value }))
-            }
-            placeholder={t('providers.descriptionPlaceholder')}
-            rows={3}
-          />
-          <Input
-            label={t('providers.baseUrl')}
-            value={form.baseUrl}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, baseUrl: e.target.value }))
-            }
-            placeholder={t('providers.baseUrlPlaceholder')}
-          />
+      <Card contentClassName="p-5">
+        <HStack justify="between" align="start" className="border-b pb-4">
+          <Stack gap={1}>
+            <Text className="text-sm font-semibold">
+              {t('providers.defaultModels')}
+            </Text>
+            <Text className="text-muted-foreground text-[13px]">
+              {t('providers.defaultModelsDescription')}
+            </Text>
+          </Stack>
+          <button
+            type="button"
+            onClick={() => setPanelOpen(true)}
+            className="text-muted-foreground hover:text-foreground flex shrink-0 items-center gap-1.5 text-[13px] font-medium"
+          >
+            <Pencil className="size-3.5" />
+            {t('providers.editGeneral')}
+          </button>
+        </HStack>
+        <Stack className="divide-y">
+          <InfoRow label={t('providers.tagChat')}>
+            <Text className="text-sm font-medium">
+              {modelDisplayName(config.defaults?.chat)}
+            </Text>
+          </InfoRow>
+          <InfoRow label={t('providers.tagVision')}>
+            <Text className="text-sm font-medium">
+              {modelDisplayName(config.defaults?.vision)}
+            </Text>
+          </InfoRow>
+          <InfoRow label={t('providers.tagEmbedding')}>
+            <Text className="text-sm font-medium">
+              {modelDisplayName(config.defaults?.embedding)}
+            </Text>
+          </InfoRow>
         </Stack>
-      </FormDialog>
+      </Card>
+
+      <ProviderEditPanel
+        open={panelOpen}
+        onOpenChange={setPanelOpen}
+        providerName={providerName}
+      />
     </>
   );
 }
 
 function ApiKeySection({ providerName }: { providerName: string }) {
   const { t } = useT('settings');
+  const { t: tCommon } = useT('common');
   const { data: maskedKey } = useHasProviderSecret('default', providerName);
   const hasSecret = maskedKey != null;
   const saveSecret = useSaveProviderSecret();
@@ -372,7 +353,7 @@ function ApiKeySection({ providerName }: { providerName: string }) {
         </HStack>
       </Card>
 
-      <FormDialog
+      <Sheet
         open={dialogOpen}
         onOpenChange={(open) => {
           setDialogOpen(open);
@@ -381,27 +362,71 @@ function ApiKeySection({ providerName }: { providerName: string }) {
         title={
           hasSecret ? t('providers.replaceApiKey') : t('providers.addApiKey')
         }
-        description={
-          hasSecret
-            ? t('providers.replaceApiKeyDescription', {
-                maskedKey: maskedKey ?? '',
-              })
-            : undefined
-        }
-        onSubmit={handleSaveKey}
-        isSubmitting={saving}
-        isDirty={apiKey.trim().length > 0}
-        submitText={t('providers.saveKey')}
-        submittingText={t('providers.saving')}
+        size="md"
+        hideClose
+        className="flex flex-col gap-0 p-0"
       >
-        <Input
-          type="password"
-          placeholder={t('providers.apiKeyEnter')}
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          autoFocus
-        />
-      </FormDialog>
+        <HStack
+          justify="between"
+          align="center"
+          className="border-border shrink-0 border-b p-4 sm:px-6 sm:py-4"
+        >
+          <Text variant="label" className="text-base font-semibold">
+            {hasSecret
+              ? t('providers.replaceApiKey')
+              : t('providers.addApiKey')}
+          </Text>
+          <IconButton
+            icon={X}
+            aria-label={tCommon('aria.close')}
+            variant="ghost"
+            onClick={() => {
+              setDialogOpen(false);
+              setApiKey('');
+            }}
+          />
+        </HStack>
+
+        <form onSubmit={handleSaveKey} className="flex min-h-0 flex-1 flex-col">
+          <div className="flex-1 overflow-y-auto p-4 sm:px-6 sm:py-5">
+            <Stack gap={4}>
+              {hasSecret && (
+                <Text className="text-muted-foreground text-sm">
+                  {t('providers.replaceApiKeyDescription', {
+                    maskedKey: maskedKey ?? '',
+                  })}
+                </Text>
+              )}
+              <Input
+                type="password"
+                label={t('providers.apiKey')}
+                placeholder={t('providers.apiKeyEnter')}
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                autoFocus
+              />
+            </Stack>
+          </div>
+
+          <div className="border-border shrink-0 border-t p-4 sm:px-6 sm:py-4">
+            <HStack justify="end" align="center">
+              <Button
+                type="submit"
+                disabled={saving || apiKey.trim().length === 0}
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="mr-2 size-4 animate-spin" />
+                    {t('providers.saving')}
+                  </>
+                ) : (
+                  t('providers.saveKey')
+                )}
+              </Button>
+            </HStack>
+          </div>
+        </form>
+      </Sheet>
     </>
   );
 }
@@ -438,6 +463,7 @@ function ModelsSection({
   maskedModelKeys: Record<string, string>;
 }) {
   const { t } = useT('settings');
+  const { t: tCommon } = useT('common');
   const { config, saveConfig, isSaving } = useProviderConfig();
   const saveSecret = useSaveProviderSecret();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -678,7 +704,7 @@ function ModelsSection({
         </div>
       </Stack>
 
-      <FormDialog
+      <Sheet
         open={dialogOpen}
         onOpenChange={(open) => {
           setDialogOpen(open);
@@ -689,191 +715,241 @@ function ModelsSection({
             ? t('providers.editModel')
             : t('providers.addModel')
         }
-        onSubmit={handleSubmitModel}
-        isSubmitting={isSaving || savingSecret}
-        isDirty={
-          form.id.trim().length > 0 &&
-          form.displayName.trim().length > 0 &&
-          (editingIndex == null ||
-            modelKeyAction === 'remove' ||
-            JSON.stringify(form) !== JSON.stringify(initialForm))
-        }
-        submitText={
-          editingIndex != null ? t('providers.save') : t('providers.addModel')
-        }
-        large
-        className="sm:max-w-lg"
+        size="md"
+        hideClose
+        className="flex flex-col gap-0 p-0"
       >
-        <Stack gap={4}>
-          <Input
-            label={t('providers.modelId')}
-            value={form.id}
-            onChange={(e) => setForm((f) => ({ ...f, id: e.target.value }))}
-            placeholder={t('providers.modelIdPlaceholder')}
-            autoFocus
+        <HStack
+          justify="between"
+          align="center"
+          className="border-border shrink-0 border-b p-4 sm:px-6 sm:py-4"
+        >
+          <Text variant="label" className="text-base font-semibold">
+            {editingIndex != null
+              ? t('providers.editModel')
+              : t('providers.addModel')}
+          </Text>
+          <IconButton
+            icon={X}
+            aria-label={tCommon('aria.close')}
+            variant="ghost"
+            onClick={() => {
+              setDialogOpen(false);
+              setForm(EMPTY_MODEL_FORM);
+            }}
           />
-          <Input
-            label={t('providers.displayName')}
-            value={form.displayName}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, displayName: e.target.value }))
-            }
-            placeholder={t('providers.modelDisplayNamePlaceholder')}
-          />
-          <Textarea
-            label={t('providers.description_field')}
-            value={form.description}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, description: e.target.value }))
-            }
-            placeholder={t('providers.modelDescriptionPlaceholder')}
-            rows={2}
-          />
-          <HStack gap={4} align="center" className="flex-wrap">
-            {(['chat', 'vision', 'embedding'] as const).map((tag) => (
-              <label key={tag} className="flex items-center gap-1.5 text-sm">
-                <Checkbox
-                  checked={form.tags.includes(tag)}
-                  onCheckedChange={(checked) => {
+        </HStack>
+
+        <form
+          onSubmit={handleSubmitModel}
+          className="flex min-h-0 flex-1 flex-col"
+        >
+          <div className="flex-1 overflow-y-auto p-4 sm:px-6 sm:py-5">
+            <Stack gap={4}>
+              <Input
+                label={t('providers.modelId')}
+                value={form.id}
+                onChange={(e) => setForm((f) => ({ ...f, id: e.target.value }))}
+                placeholder={t('providers.modelIdPlaceholder')}
+                autoFocus
+              />
+              <Input
+                label={t('providers.displayName')}
+                value={form.displayName}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, displayName: e.target.value }))
+                }
+                placeholder={t('providers.modelDisplayNamePlaceholder')}
+              />
+              <Textarea
+                label={t('providers.description_field')}
+                value={form.description}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, description: e.target.value }))
+                }
+                placeholder={t('providers.modelDescriptionPlaceholder')}
+                rows={2}
+              />
+              <HStack gap={4} align="center" className="flex-wrap">
+                {(['chat', 'vision', 'embedding'] as const).map((tag) => (
+                  <label
+                    key={tag}
+                    className="flex items-center gap-1.5 text-sm"
+                  >
+                    <Checkbox
+                      checked={form.tags.includes(tag)}
+                      onCheckedChange={(checked) => {
+                        setForm((f) => ({
+                          ...f,
+                          tags: checked
+                            ? [...f.tags, tag]
+                            : f.tags.filter((v) => v !== tag),
+                        }));
+                      }}
+                    />
+                    {tag === 'chat'
+                      ? t('providers.tagChat')
+                      : tag === 'vision'
+                        ? t('providers.tagVision')
+                        : tag === 'embedding'
+                          ? t('providers.tagEmbedding')
+                          : tag}
+                  </label>
+                ))}
+              </HStack>
+              {form.tags.includes('embedding') && (
+                <Input
+                  label={t('providers.dimensions')}
+                  type="number"
+                  value={form.dimensions}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, dimensions: e.target.value }))
+                  }
+                  placeholder="e.g., 1536"
+                />
+              )}
+              <HStack gap={3}>
+                <Input
+                  label="Input cost (USD / 1M tokens)"
+                  type="number"
+                  value={form.inputCostPerMillion}
+                  onChange={(e) =>
                     setForm((f) => ({
                       ...f,
-                      tags: checked
-                        ? [...f.tags, tag]
-                        : f.tags.filter((v) => v !== tag),
-                    }));
-                  }}
+                      inputCostPerMillion: e.target.value,
+                    }))
+                  }
+                  placeholder="e.g., 2.50"
+                  min={0}
+                  step={0.01}
                 />
-                {tag === 'chat'
-                  ? t('providers.tagChat')
-                  : tag === 'vision'
-                    ? t('providers.tagVision')
-                    : tag === 'embedding'
-                      ? t('providers.tagEmbedding')
-                      : tag}
-              </label>
-            ))}
-          </HStack>
-          {form.tags.includes('embedding') && (
-            <Input
-              label={t('providers.dimensions')}
-              type="number"
-              value={form.dimensions}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, dimensions: e.target.value }))
-              }
-              placeholder="e.g., 1536"
-            />
-          )}
-          <HStack gap={3}>
-            <Input
-              label="Input cost (USD / 1M tokens)"
-              type="number"
-              value={form.inputCostPerMillion}
-              onChange={(e) =>
-                setForm((f) => ({
-                  ...f,
-                  inputCostPerMillion: e.target.value,
-                }))
-              }
-              placeholder="e.g., 2.50"
-              min={0}
-              step={0.01}
-            />
-            <Input
-              label="Output cost (USD / 1M tokens)"
-              type="number"
-              value={form.outputCostPerMillion}
-              onChange={(e) =>
-                setForm((f) => ({
-                  ...f,
-                  outputCostPerMillion: e.target.value,
-                }))
-              }
-              placeholder="e.g., 10.00"
-              min={0}
-              step={0.01}
-            />
-          </HStack>
-          <Text className="text-muted-foreground text-xs">
-            {t('providers.costHelp')}
-          </Text>
-          <Input
-            label={t('providers.modelBaseUrl')}
-            value={form.baseUrl}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, baseUrl: e.target.value }))
-            }
-            placeholder={t('providers.modelBaseUrlPlaceholder')}
-          />
-          <Text className="text-muted-foreground text-xs">
-            {t('providers.modelBaseUrlHelp')}
-          </Text>
-          {maskedModelKeys[form.id] && modelKeyAction === 'none' ? (
-            <HStack gap={2} align="center" className="flex-wrap">
-              <Badge variant="green" dot>
-                {t('providers.modelApiKeyConfigured')}
-              </Badge>
-              <Text className="text-muted-foreground font-mono text-sm">
-                {maskedModelKeys[form.id]}
-              </Text>
-              <HStack gap={3}>
-                <button
-                  type="button"
-                  onClick={() => setModelKeyAction('replace')}
-                  className="text-muted-foreground hover:text-foreground text-xs font-medium"
-                >
-                  {t('providers.editKey')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setModelKeyAction('remove')}
-                  className="text-muted-foreground hover:text-destructive text-xs font-medium"
-                >
-                  {t('providers.deleteModelApiKey')}
-                </button>
+                <Input
+                  label="Output cost (USD / 1M tokens)"
+                  type="number"
+                  value={form.outputCostPerMillion}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      outputCostPerMillion: e.target.value,
+                    }))
+                  }
+                  placeholder="e.g., 10.00"
+                  min={0}
+                  step={0.01}
+                />
               </HStack>
-            </HStack>
-          ) : maskedModelKeys[form.id] && modelKeyAction === 'remove' ? (
-            <HStack gap={2} align="center">
-              <Badge variant="outline">
-                {t('providers.modelApiKeyNotConfigured')}
-              </Badge>
-              <button
-                type="button"
-                onClick={() => setModelKeyAction('none')}
-                className="text-muted-foreground hover:text-foreground text-xs font-medium"
-              >
-                {t('providers.undoRemoveKey')}
-              </button>
-            </HStack>
-          ) : (
-            <>
-              {modelKeyAction === 'replace' && (
-                <HStack gap={2} align="center">
+              <Text className="text-muted-foreground text-xs">
+                {t('providers.costHelp')}
+              </Text>
+              <Input
+                label={t('providers.modelBaseUrl')}
+                value={form.baseUrl}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, baseUrl: e.target.value }))
+                }
+                placeholder={t('providers.modelBaseUrlPlaceholder')}
+              />
+              <Text className="text-muted-foreground text-xs">
+                {t('providers.modelBaseUrlHelp')}
+              </Text>
+              {maskedModelKeys[form.id] && modelKeyAction === 'none' ? (
+                <HStack gap={2} align="center" className="flex-wrap">
                   <Badge variant="green" dot>
                     {t('providers.modelApiKeyConfigured')}
                   </Badge>
                   <Text className="text-muted-foreground font-mono text-sm">
                     {maskedModelKeys[form.id]}
                   </Text>
+                  <HStack gap={3}>
+                    <button
+                      type="button"
+                      onClick={() => setModelKeyAction('replace')}
+                      className="text-muted-foreground hover:text-foreground text-xs font-medium"
+                    >
+                      {t('providers.editKey')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setModelKeyAction('remove')}
+                      className="text-muted-foreground hover:text-destructive text-xs font-medium"
+                    >
+                      {t('providers.deleteModelApiKey')}
+                    </button>
+                  </HStack>
                 </HStack>
+              ) : maskedModelKeys[form.id] && modelKeyAction === 'remove' ? (
+                <HStack gap={2} align="center">
+                  <Badge variant="outline">
+                    {t('providers.modelApiKeyNotConfigured')}
+                  </Badge>
+                  <button
+                    type="button"
+                    onClick={() => setModelKeyAction('none')}
+                    className="text-muted-foreground hover:text-foreground text-xs font-medium"
+                  >
+                    {t('providers.undoRemoveKey')}
+                  </button>
+                </HStack>
+              ) : (
+                <>
+                  {modelKeyAction === 'replace' && (
+                    <HStack gap={2} align="center">
+                      <Badge variant="green" dot>
+                        {t('providers.modelApiKeyConfigured')}
+                      </Badge>
+                      <Text className="text-muted-foreground font-mono text-sm">
+                        {maskedModelKeys[form.id]}
+                      </Text>
+                    </HStack>
+                  )}
+                  <Input
+                    label={t('providers.modelApiKey')}
+                    type="password"
+                    value={form.apiKey}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, apiKey: e.target.value }))
+                    }
+                    placeholder={t('providers.modelApiKeyPlaceholder')}
+                  />
+                  <Text className="text-muted-foreground text-xs">
+                    {t('providers.modelApiKeyHelp')}
+                  </Text>
+                </>
               )}
-              <Input
-                label={t('providers.modelApiKey')}
-                type="password"
-                value={form.apiKey}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, apiKey: e.target.value }))
+            </Stack>
+          </div>
+
+          <div className="border-border shrink-0 border-t p-4 sm:px-6 sm:py-4">
+            <HStack justify="end" align="center">
+              <Button
+                type="submit"
+                disabled={
+                  isSaving ||
+                  savingSecret ||
+                  !(
+                    form.id.trim().length > 0 &&
+                    form.displayName.trim().length > 0 &&
+                    (editingIndex == null ||
+                      modelKeyAction === 'remove' ||
+                      JSON.stringify(form) !== JSON.stringify(initialForm))
+                  )
                 }
-                placeholder={t('providers.modelApiKeyPlaceholder')}
-              />
-              <Text className="text-muted-foreground text-xs">
-                {t('providers.modelApiKeyHelp')}
-              </Text>
-            </>
-          )}
-        </Stack>
-      </FormDialog>
+              >
+                {isSaving || savingSecret ? (
+                  <>
+                    <Loader2 className="mr-2 size-4 animate-spin" />
+                    {t('providers.saving')}
+                  </>
+                ) : editingIndex != null ? (
+                  t('providers.save')
+                ) : (
+                  t('providers.addModel')
+                )}
+              </Button>
+            </HStack>
+          </div>
+        </form>
+      </Sheet>
 
       <ConfirmDialog
         open={deleteIndex != null}
@@ -893,133 +969,6 @@ function ModelsSection({
         isLoading={isSaving}
         onConfirm={() => void handleDeleteModel()}
       />
-    </>
-  );
-}
-
-const NONE_VALUE = '__none__';
-
-function DefaultModelsSection() {
-  const { t } = useT('settings');
-  const { config, saveConfig } = useProviderConfig();
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [form, setForm] = useState<Record<string, string>>({});
-
-  const modelDisplayName = useCallback(
-    (modelId: string | undefined) => {
-      if (!modelId) return '—';
-      return (
-        config.models.find((m) => m.id === modelId)?.displayName ?? modelId
-      );
-    },
-    [config.models],
-  );
-
-  const openDialog = useCallback(() => {
-    setForm({ ...config.defaults });
-    setDialogOpen(true);
-  }, [config.defaults]);
-
-  const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault();
-      const cleaned = Object.fromEntries(
-        Object.entries(form).filter(([, v]) => v && v !== NONE_VALUE),
-      );
-      try {
-        await saveConfig({
-          defaults: Object.keys(cleaned).length > 0 ? cleaned : undefined,
-        });
-        setDialogOpen(false);
-      } catch {
-        toast({ title: t('providers.saveFailed'), variant: 'destructive' });
-      }
-    },
-    [form, saveConfig, t],
-  );
-
-  return (
-    <>
-      <Card contentClassName="p-5">
-        <HStack justify="between" align="start" className="border-b pb-4">
-          <Stack gap={1}>
-            <Text className="text-sm font-semibold">
-              {t('providers.defaultModels')}
-            </Text>
-            <Text className="text-muted-foreground text-[13px]">
-              {t('providers.defaultModelsDescription')}
-            </Text>
-          </Stack>
-          <button
-            type="button"
-            onClick={openDialog}
-            className="text-muted-foreground hover:text-foreground flex shrink-0 items-center gap-1.5 text-[13px] font-medium"
-          >
-            <Pencil className="size-3.5" />
-            {t('providers.editGeneral')}
-          </button>
-        </HStack>
-        <Stack className="divide-y">
-          <InfoRow label={t('providers.tagChat')}>
-            <Text className="text-sm font-medium">
-              {modelDisplayName(config.defaults?.chat)}
-            </Text>
-          </InfoRow>
-          <InfoRow label={t('providers.tagVision')}>
-            <Text className="text-sm font-medium">
-              {modelDisplayName(config.defaults?.vision)}
-            </Text>
-          </InfoRow>
-          <InfoRow label={t('providers.tagEmbedding')}>
-            <Text className="text-sm font-medium">
-              {modelDisplayName(config.defaults?.embedding)}
-            </Text>
-          </InfoRow>
-        </Stack>
-      </Card>
-
-      <FormDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        title={t('providers.defaultModels')}
-        onSubmit={handleSubmit}
-        isDirty={
-          form.chat !== (config.defaults?.chat ?? NONE_VALUE) ||
-          form.vision !== (config.defaults?.vision ?? NONE_VALUE) ||
-          form.embedding !== (config.defaults?.embedding ?? NONE_VALUE)
-        }
-      >
-        <Stack gap={4}>
-          {(['chat', 'vision', 'embedding'] as const).map((tag) => {
-            const modelsWithTag = config.models.filter((m) =>
-              (m.tags as readonly string[]).includes(tag),
-            );
-            return (
-              <Select
-                key={tag}
-                label={
-                  tag === 'chat'
-                    ? t('providers.tagChat')
-                    : tag === 'vision'
-                      ? t('providers.tagVision')
-                      : t('providers.tagEmbedding')
-                }
-                options={[
-                  { value: NONE_VALUE, label: t('providers.defaultNone') },
-                  ...modelsWithTag.map((m) => ({
-                    value: m.id,
-                    label: m.displayName,
-                  })),
-                ]}
-                value={form[tag] ?? NONE_VALUE}
-                onValueChange={(value) =>
-                  setForm((f) => ({ ...f, [tag]: value }))
-                }
-              />
-            );
-          })}
-        </Stack>
-      </FormDialog>
     </>
   );
 }

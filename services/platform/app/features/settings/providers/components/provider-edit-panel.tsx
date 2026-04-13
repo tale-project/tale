@@ -4,6 +4,8 @@ import { Loader2, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
 import { Input } from '@/app/components/ui/forms/input';
+import { Select } from '@/app/components/ui/forms/select';
+import { Textarea } from '@/app/components/ui/forms/textarea';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { Button } from '@/app/components/ui/primitives/button';
@@ -14,6 +16,8 @@ import { useT } from '@/lib/i18n/client';
 
 import { useSaveProvider } from '../hooks/mutations';
 import { useReadProvider } from '../hooks/queries';
+
+const NONE_VALUE = '__none__';
 
 interface ProviderEditPanelProps {
   open: boolean;
@@ -34,7 +38,9 @@ export function ProviderEditPanel({
   const [form, setForm] = useState({
     name: '',
     displayName: '',
+    description: '',
     baseUrl: '',
+    defaults: {} as Record<string, string>,
   });
 
   useEffect(() => {
@@ -42,7 +48,9 @@ export function ProviderEditPanel({
       setForm({
         name: providerName,
         displayName: data.config.displayName,
+        description: data.config.description ?? '',
         baseUrl: data.config.baseUrl,
+        defaults: { ...data.config.defaults },
       });
     }
   }, [data, providerName]);
@@ -51,6 +59,9 @@ export function ProviderEditPanel({
     async (e: React.FormEvent) => {
       e.preventDefault();
       if (!data?.ok) return;
+      const cleanedDefaults = Object.fromEntries(
+        Object.entries(form.defaults).filter(([, v]) => v && v !== NONE_VALUE),
+      );
       try {
         await saveProvider({
           orgSlug: 'default',
@@ -58,7 +69,12 @@ export function ProviderEditPanel({
           config: {
             ...data.config,
             displayName: form.displayName,
+            description: form.description || undefined,
             baseUrl: form.baseUrl,
+            defaults:
+              Object.keys(cleanedDefaults).length > 0
+                ? cleanedDefaults
+                : undefined,
           },
         });
         toast({ title: t('providers.saved'), variant: 'success' });
@@ -78,7 +94,14 @@ export function ProviderEditPanel({
   const isDirty =
     data?.ok &&
     (form.displayName !== data.config.displayName ||
-      form.baseUrl !== data.config.baseUrl);
+      form.description !== (data.config.description ?? '') ||
+      form.baseUrl !== data.config.baseUrl ||
+      form.defaults.chat !== (data.config.defaults?.chat ?? NONE_VALUE) ||
+      form.defaults.vision !== (data.config.defaults?.vision ?? NONE_VALUE) ||
+      form.defaults.embedding !==
+        (data.config.defaults?.embedding ?? NONE_VALUE));
+
+  const models = data?.ok ? data.config.models : [];
 
   return (
     <Sheet
@@ -127,6 +150,16 @@ export function ProviderEditPanel({
               placeholder={t('providers.displayNamePlaceholder')}
             />
 
+            <Textarea
+              label={t('providers.description_field')}
+              value={form.description}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, description: e.target.value }))
+              }
+              placeholder={t('providers.descriptionPlaceholder')}
+              rows={3}
+            />
+
             <Input
               label={t('providers.baseUrl')}
               value={form.baseUrl}
@@ -135,6 +168,48 @@ export function ProviderEditPanel({
               }
               placeholder={t('providers.baseUrlPlaceholder')}
             />
+
+            <div className="border-border border-t pt-4">
+              <Text className="mb-3 text-sm font-semibold">
+                {t('providers.defaultModels')}
+              </Text>
+              <Stack gap={4}>
+                {(['chat', 'vision', 'embedding'] as const).map((tag) => {
+                  const modelsWithTag = models.filter((m) =>
+                    (m.tags as readonly string[]).includes(tag),
+                  );
+                  return (
+                    <Select
+                      key={tag}
+                      label={
+                        tag === 'chat'
+                          ? t('providers.tagChat')
+                          : tag === 'vision'
+                            ? t('providers.tagVision')
+                            : t('providers.tagEmbedding')
+                      }
+                      options={[
+                        {
+                          value: NONE_VALUE,
+                          label: t('providers.defaultNone'),
+                        },
+                        ...modelsWithTag.map((m) => ({
+                          value: m.id,
+                          label: m.displayName,
+                        })),
+                      ]}
+                      value={form.defaults[tag] ?? NONE_VALUE}
+                      onValueChange={(value) =>
+                        setForm((f) => ({
+                          ...f,
+                          defaults: { ...f.defaults, [tag]: value },
+                        }))
+                      }
+                    />
+                  );
+                })}
+              </Stack>
+            </div>
           </Stack>
         </div>
 

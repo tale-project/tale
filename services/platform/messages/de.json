@@ -1632,8 +1632,11 @@
       "auditLogs": "Audit-Protokolle",
       "activityLogs": "Aktivitätsprotokolle",
       "errorLogs": "Fehlerprotokolle",
+      "auditDescription": "Alle Aktionen in Ihrer Organisation nachverfolgen.",
       "activityDescription": "Systemaktivität und Audit-Protokolle anzeigen.",
+      "activityComingSoon": "Aktivitätsprotokolle sind bald verfügbar.",
       "errorDescription": "Systemfehler und Warnungen anzeigen.",
+      "errorComingSoon": "Fehlerprotokolle sind bald verfügbar.",
       "audit": {
         "tableCaption": "Audit-Protokoll-Datentabelle",
         "emptyTitle": "Keine Audit-Protokolle",
@@ -3724,7 +3727,15 @@
       "systemPrompt": "System-Prompt",
       "budgets": "Budgets",
       "featureControls": "Funktionskontrolle",
-      "usage": "Nutzung"
+      "usage": "Nutzung",
+      "pii": "PII-Schutz",
+      "modelAccess": "Modellzugriff",
+      "retention": "Aufbewahrung"
+    },
+    "groups": {
+      "contentAndModels": "Inhalte & Modelle",
+      "policiesAndLimits": "Richtlinien & Limits",
+      "securityAndMonitoring": "Sicherheit & Überwachung"
     },
     "featureFlags": {
       "title": "Funktionskontrolle",

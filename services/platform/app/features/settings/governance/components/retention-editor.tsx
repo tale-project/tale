@@ -14,6 +14,7 @@ import {
   retentionPolicyConfigSchema,
   type RetentionPolicyConfig,
 } from '@/lib/shared/schemas/governance';
+import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-guards';
 
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
@@ -125,23 +126,30 @@ export function RetentionEditor({ organizationId }: RetentionEditorProps) {
           />
         }
       >
-        <div className="max-w-xs">
-          <Input
-            label="Retention Days"
-            type="number"
-            value={retentionDays}
-            onChange={(e) =>
-              setRetentionDays(e.target.value ? Number(e.target.value) : 0)
-            }
-            onBlur={() => void saveConfig({ retentionDays })}
-            disabled={cannotManage || !enabled}
-            size="sm"
-            placeholder="e.g. 90"
-            min={0}
-          />
-          <Text className="text-muted-foreground mt-1 text-xs">
-            Documents older than this will be deleted.
-          </Text>
+        <div
+          className={cn(
+            'transition-opacity duration-200',
+            !enabled && 'pointer-events-none opacity-50',
+          )}
+        >
+          <div className="max-w-xs">
+            <Input
+              label="Retention Days"
+              type="number"
+              value={retentionDays}
+              onChange={(e) =>
+                setRetentionDays(e.target.value ? Number(e.target.value) : 0)
+              }
+              onBlur={() => void saveConfig({ retentionDays })}
+              disabled={cannotManage || !enabled}
+              size="sm"
+              placeholder="e.g. 90"
+              min={0}
+            />
+            <Text className="text-muted-foreground mt-1 text-xs">
+              Documents older than this will be deleted.
+            </Text>
+          </div>
         </div>
       </PageSection>
 
@@ -160,25 +168,32 @@ export function RetentionEditor({ organizationId }: RetentionEditorProps) {
           />
         }
       >
-        <div className="max-w-xs">
-          <Input
-            label="Retention Hours"
-            type="number"
-            value={userTempRetentionHours}
-            onChange={(e) =>
-              setUserTempRetentionHours(
-                e.target.value ? Number(e.target.value) : 0,
-              )
-            }
-            onBlur={() => void saveConfig({ userTempRetentionHours })}
-            disabled={cannotManage || !userTempEnabled}
-            size="sm"
-            placeholder="e.g. 24"
-            min={0}
-          />
-          <Text className="text-muted-foreground mt-1 text-xs">
-            Temporary files older than this will be deleted.
-          </Text>
+        <div
+          className={cn(
+            'transition-opacity duration-200',
+            !userTempEnabled && 'pointer-events-none opacity-50',
+          )}
+        >
+          <div className="max-w-xs">
+            <Input
+              label="Retention Hours"
+              type="number"
+              value={userTempRetentionHours}
+              onChange={(e) =>
+                setUserTempRetentionHours(
+                  e.target.value ? Number(e.target.value) : 0,
+                )
+              }
+              onBlur={() => void saveConfig({ userTempRetentionHours })}
+              disabled={cannotManage || !userTempEnabled}
+              size="sm"
+              placeholder="e.g. 24"
+              min={0}
+            />
+            <Text className="text-muted-foreground mt-1 text-xs">
+              Temporary files older than this will be deleted.
+            </Text>
+          </div>
         </div>
       </PageSection>
 
@@ -197,25 +212,32 @@ export function RetentionEditor({ organizationId }: RetentionEditorProps) {
           />
         }
       >
-        <div className="max-w-xs">
-          <Input
-            label="Retention Hours"
-            type="number"
-            value={agentTempRetentionHours}
-            onChange={(e) =>
-              setAgentTempRetentionHours(
-                e.target.value ? Number(e.target.value) : 0,
-              )
-            }
-            onBlur={() => void saveConfig({ agentTempRetentionHours })}
-            disabled={cannotManage || !agentTempEnabled}
-            size="sm"
-            placeholder="e.g. 24"
-            min={0}
-          />
-          <Text className="text-muted-foreground mt-1 text-xs">
-            Temporary files older than this will be deleted.
-          </Text>
+        <div
+          className={cn(
+            'transition-opacity duration-200',
+            !agentTempEnabled && 'pointer-events-none opacity-50',
+          )}
+        >
+          <div className="max-w-xs">
+            <Input
+              label="Retention Hours"
+              type="number"
+              value={agentTempRetentionHours}
+              onChange={(e) =>
+                setAgentTempRetentionHours(
+                  e.target.value ? Number(e.target.value) : 0,
+                )
+              }
+              onBlur={() => void saveConfig({ agentTempRetentionHours })}
+              disabled={cannotManage || !agentTempEnabled}
+              size="sm"
+              placeholder="e.g. 24"
+              min={0}
+            />
+            <Text className="text-muted-foreground mt-1 text-xs">
+              Temporary files older than this will be deleted.
+            </Text>
+          </div>
         </div>
       </PageSection>
     </Stack>

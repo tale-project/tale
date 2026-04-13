@@ -1,17 +1,18 @@
 'use client';
 
 import { ShieldCheck } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { Alert } from '@/app/components/ui/feedback/alert';
 import { Badge } from '@/app/components/ui/feedback/badge';
-import { Spinner } from '@/app/components/ui/feedback/spinner';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import { PageSection } from '@/app/components/ui/layout/page-section';
 import { Button } from '@/app/components/ui/primitives/button';
+import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
 import { detectPii } from '@/convex/governance/pii/pii_detector';
 import {
@@ -39,6 +40,7 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
   const { t } = useT('governance');
   const { t: tCommon } = useT('common');
   const { toast } = useToast();
+  const ability = useAbility();
 
   const { data: policy, isLoading } = usePiiConfig(organizationId);
   const upsertMutation = useUpsertPiiConfig();
@@ -56,18 +58,20 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
   const [testResults, setTestResults] = useState<ReturnType<
     typeof detectPii
   > | null>(null);
-  const [initialized, setInitialized] = useState(false);
 
-  // Sync from server data once loaded
-  if (policy && !initialized) {
-    setEnabled(policy.enabled ?? false);
-    setMode(policy.config?.mode ?? 'mask');
-    setEnabledPatterns(
-      new Set<string>(policy.config?.enabledPatterns ?? PATTERN_NAMES),
-    );
-    setCustomPatterns(policy.config?.customPatterns ?? []);
-    setInitialized(true);
-  }
+  const cannotManage = ability.cannot('write', 'orgSettings');
+
+  // Sync from server data
+  useEffect(() => {
+    if (policy) {
+      setEnabled(policy.enabled ?? false);
+      setMode(policy.config?.mode ?? 'mask');
+      setEnabledPatterns(
+        new Set<string>(policy.config?.enabledPatterns ?? PATTERN_NAMES),
+      );
+      setCustomPatterns(policy.config?.customPatterns ?? []);
+    }
+  }, [policy]);
 
   const saveConfig = useCallback(
     async (overrides: {
@@ -88,8 +92,10 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
       try {
         await upsertMutation.mutateAsync(resolved);
         toast({ title: t('pii.saved'), variant: 'success' });
-      } catch {
-        toast({ title: t('pii.saveFailed'), variant: 'destructive' });
+      } catch (error: unknown) {
+        const message =
+          error instanceof Error ? error.message : t('pii.saveFailed');
+        toast({ title: message, variant: 'destructive' });
       }
     },
     [
@@ -197,11 +203,7 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
   }, [testText, enabledPatterns, customPatterns]);
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Spinner aria-label={tCommon('actions.loading')} />
-      </div>
-    );
+    return null;
   }
 
   const modeOptions = [
@@ -210,24 +212,27 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
   ];
 
   return (
-    <div className="flex max-w-2xl flex-col gap-6">
-      <FormSection label={t('pii.title')} description={t('pii.description')}>
+    <PageSection
+      title={t('pii.title')}
+      description={t('pii.description')}
+      action={
         <Switch
           label={t('pii.enableLabel')}
-          description={t('pii.enableDescription')}
           checked={enabled}
           onCheckedChange={handleEnabledChange}
+          disabled={cannotManage || upsertMutation.isPending}
         />
-      </FormSection>
-
+      }
+    >
       {enabled && (
-        <>
+        <div className="flex flex-col gap-6">
           <FormSection label={t('pii.modeLabel')}>
             <Select
               label={t('pii.modeLabel')}
               options={modeOptions}
               value={mode}
               onValueChange={handleModeChange}
+              disabled={cannotManage}
             />
           </FormSection>
 
@@ -245,6 +250,7 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
                   onCheckedChange={(checked) =>
                     handlePatternToggle(pattern.name, checked)
                   }
+                  disabled={cannotManage}
                 />
               ))}
             </div>
@@ -270,6 +276,7 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
                   variant="destructive"
                   size="sm"
                   onClick={() => handleRemoveCustomPattern(index)}
+                  disabled={cannotManage}
                 >
                   {tCommon('actions.delete')}
                 </Button>
@@ -284,6 +291,7 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
                     handleEditingPatternChange('name', e.target.value)
                   }
                   placeholder={t('pii.customPatternNamePlaceholder')}
+                  disabled={cannotManage}
                 />
                 <Input
                   label={t('pii.customPatternRegex')}
@@ -292,6 +300,7 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
                     handleEditingPatternChange('regex', e.target.value)
                   }
                   placeholder={t('pii.customPatternRegexPlaceholder')}
+                  disabled={cannotManage}
                 />
                 <Input
                   label={t('pii.customPatternReplacement')}
@@ -300,6 +309,7 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
                     handleEditingPatternChange('replacement', e.target.value)
                   }
                   placeholder={t('pii.customPatternReplacementPlaceholder')}
+                  disabled={cannotManage}
                 />
                 <div className="flex gap-2">
                   <Button
@@ -307,6 +317,7 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
                     size="sm"
                     onClick={handleSaveCustomPattern}
                     disabled={
+                      cannotManage ||
                       !editingPattern.name ||
                       !editingPattern.regex ||
                       !editingPattern.replacement
@@ -331,6 +342,7 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
                 variant="secondary"
                 size="sm"
                 onClick={handleAddCustomPattern}
+                disabled={cannotManage}
               >
                 {t('pii.addCustomPattern')}
               </Button>
@@ -382,8 +394,8 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
               <Alert icon={ShieldCheck} title={t('pii.testNoResults')} />
             )}
           </FormSection>
-        </>
+        </div>
       )}
-    </div>
+    </PageSection>
   );
 }

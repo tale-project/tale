@@ -23,11 +23,13 @@ import {
   type FeatureFlagsConfig,
   type FeatureFlagRule,
 } from '@/lib/shared/schemas/governance';
+import { cn } from '@/lib/utils/cn';
 import { formatNumber } from '@/lib/utils/format/number';
 import { isRecord } from '@/lib/utils/type-guards';
 
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
+import { SelectTriggerButton } from './select-trigger-button';
 
 interface FeatureFlagsEditorProps {
   organizationId: string;
@@ -191,20 +193,15 @@ function RuleDialog({
                 emptyText={t('featureFlags.noUsersFound')}
                 aria-label={t('featureFlags.selectUser')}
                 trigger={
-                  <button
-                    type="button"
+                  <SelectTriggerButton
                     disabled={cannotManage}
-                    className="border-input ring-offset-background flex h-8 w-full items-center justify-between rounded-md border bg-transparent px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                    hasValue={!!draft.scopeId}
                   >
-                    <span
-                      className={draft.scopeId ? '' : 'text-muted-foreground'}
-                    >
-                      {draft.scopeId
-                        ? (memberOptions.find((o) => o.value === draft.scopeId)
-                            ?.label ?? draft.scopeId)
-                        : t('featureFlags.selectUser')}
-                    </span>
-                  </button>
+                    {draft.scopeId
+                      ? (memberOptions.find((o) => o.value === draft.scopeId)
+                          ?.label ?? draft.scopeId)
+                      : t('featureFlags.selectUser')}
+                  </SelectTriggerButton>
                 }
               />
             </div>
@@ -223,20 +220,15 @@ function RuleDialog({
                 emptyText={t('featureFlags.noTeamsFound')}
                 aria-label={t('featureFlags.selectTeam')}
                 trigger={
-                  <button
-                    type="button"
+                  <SelectTriggerButton
                     disabled={cannotManage}
-                    className="border-input ring-offset-background flex h-8 w-full items-center justify-between rounded-md border bg-transparent px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                    hasValue={!!draft.scopeId}
                   >
-                    <span
-                      className={draft.scopeId ? '' : 'text-muted-foreground'}
-                    >
-                      {draft.scopeId
-                        ? (teamOptions.find((o) => o.value === draft.scopeId)
-                            ?.label ?? draft.scopeId)
-                        : t('featureFlags.selectTeam')}
-                    </span>
-                  </button>
+                    {draft.scopeId
+                      ? (teamOptions.find((o) => o.value === draft.scopeId)
+                          ?.label ?? draft.scopeId)
+                      : t('featureFlags.selectTeam')}
+                  </SelectTriggerButton>
                 }
               />
             </div>
@@ -481,125 +473,134 @@ export function FeatureFlagsEditor({
         />
       }
     >
-      <Stack gap={6}>
-        <Stack gap={3}>
-          {rules.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table
-                className="w-full text-sm"
-                aria-label={t('featureFlags.title')}
-              >
-                <caption className="sr-only">{t('featureFlags.title')}</caption>
-                <thead>
-                  <tr className="border-border border-b">
-                    <th
-                      scope="col"
-                      className="text-muted-foreground px-3 py-2 text-left font-medium"
-                    >
-                      {t('featureFlags.scope')}
-                    </th>
-                    <th
-                      scope="col"
-                      className="text-muted-foreground px-3 py-2 text-left font-medium"
-                    >
-                      {t('featureFlags.target')}
-                    </th>
-                    <th
-                      scope="col"
-                      className="text-muted-foreground px-3 py-2 text-center font-medium"
-                    >
-                      {t('featureFlags.webSearch')}
-                    </th>
-                    <th
-                      scope="col"
-                      className="text-muted-foreground px-3 py-2 text-center font-medium"
-                    >
-                      {t('featureFlags.codeExecution')}
-                    </th>
-                    <th
-                      scope="col"
-                      className="text-muted-foreground px-3 py-2 text-center font-medium"
-                    >
-                      {t('featureFlags.fileUpload')}
-                    </th>
-                    <th
-                      scope="col"
-                      className="text-muted-foreground px-3 py-2 text-right font-medium"
-                    >
-                      {t('featureFlags.maxContextTokens')}
-                    </th>
-                    <th
-                      scope="col"
-                      className="text-muted-foreground px-3 py-2 text-right font-medium"
-                    >
-                      {t('featureFlags.actions')}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rules.map((rule, index) => (
-                    <tr key={index} className="border-border border-b">
-                      <td className="px-3 py-2 capitalize">{rule.scope}</td>
-                      <td className="px-3 py-2">{resolveTarget(rule)}</td>
-                      <td className="px-3 py-2 text-center">
-                        {rule.webSearch === false ? '\u2718' : '\u2714'}
-                      </td>
-                      <td className="px-3 py-2 text-center">
-                        {rule.codeExecution === false ? '\u2718' : '\u2714'}
-                      </td>
-                      <td className="px-3 py-2 text-center">
-                        {rule.fileUpload === false ? '\u2718' : '\u2714'}
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        {rule.maxContextTokens != null
-                          ? formatNumber(rule.maxContextTokens)
-                          : '\u2014'}
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        <HStack gap={1} justify="end">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => openEditDialog(index)}
-                            disabled={cannotManage}
-                            aria-label={`${t('featureFlags.editRule')} ${index + 1}`}
-                          >
-                            <Pencil className="size-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => removeRule(index)}
-                            disabled={cannotManage}
-                            aria-label={`${t('featureFlags.deleteRule')} ${index + 1}`}
-                          >
-                            <Trash2 className="size-4" />
-                          </Button>
-                        </HStack>
-                      </td>
+      <div
+        className={cn(
+          'transition-opacity duration-200',
+          !enabled && 'pointer-events-none opacity-50',
+        )}
+      >
+        <Stack gap={6}>
+          <Stack gap={3}>
+            {rules.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table
+                  className="w-full text-sm"
+                  aria-label={t('featureFlags.title')}
+                >
+                  <caption className="sr-only">
+                    {t('featureFlags.title')}
+                  </caption>
+                  <thead>
+                    <tr className="border-border border-b">
+                      <th
+                        scope="col"
+                        className="text-muted-foreground px-3 py-2 text-left font-medium"
+                      >
+                        {t('featureFlags.scope')}
+                      </th>
+                      <th
+                        scope="col"
+                        className="text-muted-foreground px-3 py-2 text-left font-medium"
+                      >
+                        {t('featureFlags.target')}
+                      </th>
+                      <th
+                        scope="col"
+                        className="text-muted-foreground px-3 py-2 text-center font-medium"
+                      >
+                        {t('featureFlags.webSearch')}
+                      </th>
+                      <th
+                        scope="col"
+                        className="text-muted-foreground px-3 py-2 text-center font-medium"
+                      >
+                        {t('featureFlags.codeExecution')}
+                      </th>
+                      <th
+                        scope="col"
+                        className="text-muted-foreground px-3 py-2 text-center font-medium"
+                      >
+                        {t('featureFlags.fileUpload')}
+                      </th>
+                      <th
+                        scope="col"
+                        className="text-muted-foreground px-3 py-2 text-right font-medium"
+                      >
+                        {t('featureFlags.maxContextTokens')}
+                      </th>
+                      <th
+                        scope="col"
+                        className="text-muted-foreground px-3 py-2 text-right font-medium"
+                      >
+                        {t('featureFlags.actions')}
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <Text variant="muted" className="text-sm">
-              {t('featureFlags.noRules')}
-            </Text>
-          )}
+                  </thead>
+                  <tbody>
+                    {rules.map((rule, index) => (
+                      <tr key={index} className="border-border border-b">
+                        <td className="px-3 py-2 capitalize">{rule.scope}</td>
+                        <td className="px-3 py-2">{resolveTarget(rule)}</td>
+                        <td className="px-3 py-2 text-center">
+                          {rule.webSearch === false ? '\u2718' : '\u2714'}
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          {rule.codeExecution === false ? '\u2718' : '\u2714'}
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          {rule.fileUpload === false ? '\u2718' : '\u2714'}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          {rule.maxContextTokens != null
+                            ? formatNumber(rule.maxContextTokens)
+                            : '\u2014'}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          <HStack gap={1} justify="end">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => openEditDialog(index)}
+                              disabled={cannotManage}
+                              aria-label={`${t('featureFlags.editRule')} ${index + 1}`}
+                            >
+                              <Pencil className="size-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removeRule(index)}
+                              disabled={cannotManage}
+                              aria-label={`${t('featureFlags.deleteRule')} ${index + 1}`}
+                            >
+                              <Trash2 className="size-4" />
+                            </Button>
+                          </HStack>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <Text variant="muted" className="text-sm">
+                {t('featureFlags.noRules')}
+              </Text>
+            )}
 
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={openAddDialog}
-            disabled={cannotManage}
-            className="self-start"
-          >
-            <Plus className="mr-1.5 size-4" />
-            {t('featureFlags.addRule')}
-          </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={openAddDialog}
+              disabled={cannotManage}
+              className="self-start"
+            >
+              <Plus className="mr-1.5 size-4" />
+              {t('featureFlags.addRule')}
+            </Button>
+          </Stack>
         </Stack>
-      </Stack>
+      </div>
 
       <RuleDialog
         open={dialogOpen}

@@ -7,13 +7,9 @@ import { useCallback, useMemo, useState } from 'react';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Stack } from '@/app/components/ui/layout/layout';
-import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
-import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useListPage } from '@/app/hooks/use-list-page';
-import { useToast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -26,7 +22,6 @@ interface AuditLogTableProps {
   organizationId: string;
   paginatedResult: UsePaginatedQueryResult<AuditLog>;
   category?: string;
-  isAdmin?: boolean;
   userEmailMap?: Map<string, string>;
 }
 
@@ -34,13 +29,11 @@ export function AuditLogTable({
   organizationId,
   paginatedResult,
   category,
-  isAdmin: isAdminUser = false,
   userEmailMap,
 }: AuditLogTableProps) {
   const navigate = useNavigate();
   const { formatDate } = useFormatDate();
   const { t } = useT('settings');
-  const { toast } = useToast();
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
 
   const resolveEmail = useCallback(
@@ -52,35 +45,6 @@ export function AuditLogTable({
   const { columns, stickyLayout, pageSize } = useAuditLogTableConfig({
     resolveEmail,
   });
-
-  const exportAction = useConvexAction(api.audit_logs.actions.requestExport, {
-    onSuccess: (data) => {
-      if (data.url) {
-        window.open(data.url, '_blank', 'noopener,noreferrer');
-      }
-      toast({
-        title: t('logs.audit.export.complete'),
-        description: data.fileName,
-      });
-    },
-    onError: () => {
-      toast({
-        title: t('logs.audit.export.error'),
-        variant: 'destructive',
-      });
-    },
-  });
-
-  const handleExport = useCallback(
-    (format: 'csv' | 'json') => {
-      exportAction.mutate({
-        organizationId,
-        format,
-        filter: category ? { category } : undefined,
-      });
-    },
-    [organizationId, category, exportAction],
-  );
 
   const handleCategoryChange = useCallback(
     (values: string[]) => {
@@ -146,33 +110,6 @@ export function AuditLogTable({
 
   return (
     <>
-      {isAdminUser && (
-        <div className="mb-4 flex items-center gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => handleExport('csv')}
-            disabled={exportAction.isPending}
-            aria-label={t('logs.audit.export.csvLabel')}
-          >
-            {exportAction.isPending
-              ? t('logs.audit.export.inProgress')
-              : t('logs.audit.export.csv')}
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => handleExport('json')}
-            disabled={exportAction.isPending}
-            aria-label={t('logs.audit.export.jsonLabel')}
-          >
-            {exportAction.isPending
-              ? t('logs.audit.export.inProgress')
-              : t('logs.audit.export.json')}
-          </Button>
-        </div>
-      )}
-
       <DataTable
         columns={columns}
         caption={t('logs.audit.tableCaption')}

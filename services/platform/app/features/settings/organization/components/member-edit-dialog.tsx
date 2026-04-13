@@ -262,6 +262,7 @@ export function EditMemberDialog({
             <Input
               id="password"
               type="password"
+              autoComplete="new-password"
               label={t('form.password')}
               placeholder={t('organization.enterNewPassword')}
               {...register('password')}

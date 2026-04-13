@@ -17,7 +17,10 @@ interface TeamsTableConfig {
   infiniteScroll: boolean;
 }
 
-export function useTeamsTableConfig(organizationId: string): TeamsTableConfig {
+export function useTeamsTableConfig(
+  organizationId: string,
+  onViewTeam?: (team: Team) => void,
+): TeamsTableConfig {
   const { t: tSettings } = useT('settings');
 
   const columns = useMemo<ColumnDef<Team>[]>(
@@ -36,11 +39,15 @@ export function useTeamsTableConfig(organizationId: string): TeamsTableConfig {
         size: 44,
         meta: { isAction: true },
         cell: ({ row }) => (
-          <TeamRowActions team={row.original} organizationId={organizationId} />
+          <TeamRowActions
+            team={row.original}
+            organizationId={organizationId}
+            onView={onViewTeam ? () => onViewTeam(row.original) : undefined}
+          />
         ),
       },
     ],
-    [tSettings, organizationId],
+    [tSettings, organizationId, onViewTeam],
   );
 
   return {
