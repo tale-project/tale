@@ -76,6 +76,17 @@ export async function rollback(options: RollbackOptions): Promise<void> {
       }
     }
 
+    // Clean up any stale containers from a previous failed rollback on this
+    // color. Without this, `docker compose up -d` will silently restart the
+    // existing container (possibly with different/old config) and report
+    // success. Deploy does the same cleanup; mirror it here.
+    logger.step(`Cleaning up any stale ${rollbackColor} containers...`);
+    for (const service of ROTATABLE_SERVICES) {
+      const containerName = `${getProjectId()}-${service}-${rollbackColor}`;
+      await stopContainer(containerName);
+      await removeContainer(containerName);
+    }
+
     // Deploy rollback color
     logger.step(
       `Deploying ${rollbackColor} services with version ${rollbackVersion}...`,

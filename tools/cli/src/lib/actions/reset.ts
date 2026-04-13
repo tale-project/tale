@@ -102,6 +102,32 @@ export async function reset(options: ResetOptions): Promise<void> {
       );
     }
 
+    // Only prune volumes when the user explicitly asked to include stateful
+    // services — volume data is not recoverable. `includeStateful` is the
+    // `--all` flag, which is the same consent boundary used for removing
+    // db/proxy containers above.
+    if (includeStateful) {
+      logger.step(`${prefix}Pruning unused Docker volumes...`);
+      if (!dryRun) {
+        const result = await docker(
+          'volume',
+          'prune',
+          '-f',
+          '--filter',
+          `label=project=${getProjectId()}`,
+        );
+        if (!result.success) {
+          logger.warn(
+            `Failed to prune project volumes: ${result.stderr.trim()}`,
+          );
+        }
+      } else {
+        logger.info(
+          `${prefix}Would prune unused Docker volumes for project ${getProjectId()}`,
+        );
+      }
+    }
+
     if (dryRun) {
       logger.success(
         `${prefix}Dry-run complete! Would remove all blue-green containers`,

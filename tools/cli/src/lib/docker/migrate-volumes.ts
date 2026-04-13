@@ -66,6 +66,45 @@ async function volumeHasData(name: string): Promise<boolean> {
   return result.success && result.stdout.trim().length > 0;
 }
 
+// Sentinel file written inside a destination volume once the `cp -a` completes
+// successfully. Presence guarantees a complete migration; absence (with data
+// present) indicates a partial/interrupted copy that must be redone.
+const MIGRATION_SENTINEL = '.tale-migration-complete';
+
+async function volumeHasSentinel(
+  name: string,
+  image: string,
+): Promise<boolean> {
+  const result = await docker(
+    'run',
+    '--rm',
+    '-v',
+    `${name}:/vol:ro`,
+    '--entrypoint',
+    'sh',
+    image,
+    '-c',
+    `test -f /vol/${MIGRATION_SENTINEL}`,
+  );
+  return result.success;
+}
+
+/** Wipe a volume's contents (keeping the volume itself) so a retry can copy cleanly. */
+async function wipeVolume(name: string, image: string): Promise<boolean> {
+  const result = await docker(
+    'run',
+    '--rm',
+    '-v',
+    `${name}:/vol`,
+    '--entrypoint',
+    'sh',
+    image,
+    '-c',
+    'find /vol -mindepth 1 -delete',
+  );
+  return result.success;
+}
+
 /** Find a locally-available image suitable for volume copying. */
 async function resolveMigrationImage(): Promise<string> {
   // Prefer images that are guaranteed present after any prior Tale run.
@@ -142,7 +181,11 @@ export function hasPendingMigration(projectDir: string): boolean {
 }
 
 export async function clearMigrationPending(projectDir: string): Promise<void> {
-  await unlink(markerPath(projectDir)).catch(() => {});
+  await unlink(markerPath(projectDir)).catch((err: NodeJS.ErrnoException) => {
+    if (err.code !== 'ENOENT') {
+      logger.debug(`Failed to clear migration-pending marker: ${err.message}`);
+    }
+  });
 }
 
 /**
@@ -200,6 +243,11 @@ export async function migrateOldVolumes(
 
   if (candidates.length === 0) {
     logger.debug('No legacy volumes found, nothing to migrate.');
+    // Clear any stale marker — there's nothing to migrate, so the pending
+    // state is no longer meaningful. Without this, a marker written during
+    // a previous deferral (e.g. user manually cleaned the legacy volumes)
+    // would trap every subsequent `tale start` in an infinite-defer loop.
+    await clearMigrationPending(projectDir);
     return result;
   }
 
@@ -207,17 +255,33 @@ export async function migrateOldVolumes(
   const image = await resolveMigrationImage();
 
   for (const { oldName, newName } of candidates) {
-    // Idempotency: if destination already has data, skip.
-    if ((await volumeExists(newName)) && (await volumeHasData(newName))) {
-      logger.info(
-        `  ⏭  ${oldName} → ${newName} (destination has data, skipping)`,
-      );
-      result.skipped.push(newName);
-      continue;
-    }
-
-    // Create destination volume if absent
-    if (!(await volumeExists(newName))) {
+    // Idempotency: sentinel file indicates a completed migration. If data is
+    // present but the sentinel is missing, assume a prior copy was
+    // interrupted and wipe so we can retry cleanly.
+    if (await volumeExists(newName)) {
+      const hasData = await volumeHasData(newName);
+      const hasSentinel = hasData && (await volumeHasSentinel(newName, image));
+      if (hasSentinel) {
+        logger.info(
+          `  ⏭  ${oldName} → ${newName} (already migrated, skipping)`,
+        );
+        result.skipped.push(newName);
+        continue;
+      }
+      if (hasData) {
+        logger.warn(
+          `  ⚠  ${newName} has data but no completion marker — treating as partial migration and retrying`,
+        );
+        const wiped = await wipeVolume(newName, image);
+        if (!wiped) {
+          logger.warn(
+            `  ✗ Failed to wipe partial destination ${newName}; aborting this volume`,
+          );
+          result.failed.push(newName);
+          continue;
+        }
+      }
+    } else {
       const created = await docker('volume', 'create', newName);
       if (!created.success) {
         logger.warn(
@@ -228,7 +292,10 @@ export async function migrateOldVolumes(
       }
     }
 
-    // Copy data via a throwaway container. Mount old read-only as safety.
+    // Copy data via a throwaway container, then write the sentinel in the
+    // same shell invocation so the two are atomic from our perspective:
+    // either both happen (complete) or neither (failure → no sentinel, will
+    // be retried next run).
     const copy = await docker(
       'run',
       '--rm',
@@ -240,7 +307,7 @@ export async function migrateOldVolumes(
       'sh',
       image,
       '-c',
-      'cp -a /old/. /new/',
+      `cp -a /old/. /new/ && : > /new/${MIGRATION_SENTINEL}`,
     );
 
     if (copy.success) {
@@ -257,6 +324,28 @@ export async function migrateOldVolumes(
     logger.info('Old volumes preserved. After verifying, reclaim disk with:');
     const oldNames = candidates.map((p) => p.oldName).join(' ');
     logger.info(`  docker volume rm ${oldNames}`);
+
+    // List any stopped legacy containers so the user can clean them up too.
+    const stopped = await docker(
+      'ps',
+      '-a',
+      '--filter',
+      'name=tale-',
+      '--format',
+      '{{.Names}}',
+    );
+    if (stopped.success) {
+      const legacyPattern =
+        /^tale(-(dev|blue|green))?-(platform|db|rag|crawler|proxy)(-(blue|green))?$/;
+      const names = stopped.stdout
+        .split('\n')
+        .map((l) => l.trim())
+        .filter((n) => n && legacyPattern.test(n));
+      if (names.length > 0) {
+        logger.info('Legacy containers remain (stopped). Remove with:');
+        logger.info(`  docker rm ${names.join(' ')}`);
+      }
+    }
   }
 
   return result;

@@ -8,7 +8,7 @@ import {
 } from '../../lib/compose/types';
 import { ensureEnv } from '../../lib/config/ensure-env';
 import { requireProject } from '../../lib/project/find-project';
-import { resolveProjectContext } from '../../lib/project/project-context';
+import { resolveOrAssignProjectContext } from '../../lib/project/project-context';
 import { selectVersion } from '../../lib/registry/select-version';
 import { loadEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
@@ -37,7 +37,7 @@ export function createDeployCommand(): Command {
     .action(async (versionArg: string | undefined, options) => {
       try {
         const projectDir = requireProject();
-        await resolveProjectContext(projectDir);
+        await resolveOrAssignProjectContext(projectDir);
         const { success: envSetupSuccess } = await ensureEnv({
           deployDir: projectDir,
         });

@@ -7,8 +7,11 @@ import { getProjectId, loadEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import { StatusHeader, isHealthCheckLog } from '../../utils/terminal';
 import { findComposeOverride } from '../compose/find-compose-override';
+import { DEV_VOLUME_NAMES } from '../compose/generators/constants';
 import { generateDevCompose } from '../compose/generators/generate-dev-compose';
 import { dockerCompose } from '../docker/docker-compose';
+import { ensureNetwork } from '../docker/ensure-network';
+import { ensureVolumes } from '../docker/ensure-volumes';
 import { exec } from '../docker/exec';
 import {
   clearMigrationPending,
@@ -16,7 +19,7 @@ import {
   migrateOldVolumes,
 } from '../docker/migrate-volumes';
 import { findProject } from '../project/find-project';
-import { resolveProjectContext } from '../project/project-context';
+import { resolveOrAssignProjectContext } from '../project/project-context';
 import { init } from './init';
 
 async function assertDockerAvailable(): Promise<void> {
@@ -65,8 +68,12 @@ async function openBrowser(url: string): Promise<void> {
       });
       const exitCode = await proc.exited;
       if (exitCode === 0) return;
-    } catch {
-      // Command not found, try next
+    } catch (err) {
+      // Command not found (ENOENT) is expected as we try each opener in turn;
+      // other errors are worth noting at debug level.
+      logger.debug(
+        `Browser opener ${cmd[0]} failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
   logger.warn(`Could not open browser automatically. Visit: ${url}`);
@@ -90,8 +97,13 @@ async function waitForHealthAndOpenBrowser(
         await openBrowser(url);
         return true;
       }
-    } catch {
+    } catch (err) {
       if (signal?.aborted) return false;
+      // Expected during startup (connection refused / timeout); log at debug
+      // level so it's available when diagnosing health-check issues.
+      logger.debug(
+        `Health check attempt ${i + 1} failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
     await Bun.sleep(1000);
   }
@@ -142,8 +154,10 @@ export async function start(options: StartOptions): Promise<void> {
 
   await assertDockerAvailable();
 
-  // Resolve project ID from tale.json before any Docker-resource naming
-  await resolveProjectContext(projectDir);
+  // Resolve project ID from tale.json before any Docker-resource naming.
+  // Auto-assign an ID for legacy projects so users don't have to run
+  // `tale upgrade` as a separate step before `tale start` works.
+  await resolveOrAssignProjectContext(projectDir);
 
   // Run any pending legacy-volume migration. The marker is written by
   // `tale upgrade` when it can't migrate safely (e.g. legacy containers were
@@ -171,6 +185,19 @@ export async function start(options: StartOptions): Promise<void> {
     }
     await clearMigrationPending(projectDir);
     logger.success('Volume migration complete.');
+  }
+
+  // Pre-create dev volumes and network with explicit project-scoped names.
+  // The dev compose file references them as external, so they must exist
+  // before `docker compose up`.
+  const devPrefix = `${getProjectId()}-dev_`;
+  const volumesOk = await ensureVolumes([...DEV_VOLUME_NAMES], devPrefix);
+  if (!volumesOk) {
+    throw new Error('Failed to create dev volumes');
+  }
+  const networkOk = await ensureNetwork('internal', devPrefix);
+  if (!networkOk) {
+    throw new Error('Failed to create dev network');
   }
 
   const env = loadEnv(projectDir);

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 
 import { getProjectId } from '../../utils/load-env';
+import * as logger from '../../utils/logger';
 import { type ExecResult, exec } from './exec';
 
 interface DockerComposeOptions {
@@ -86,6 +87,12 @@ export async function dockerCompose(
     });
   } finally {
     const { unlink } = await import('node:fs/promises');
-    await unlink(tempFile).catch(() => {});
+    await unlink(tempFile).catch((err: NodeJS.ErrnoException) => {
+      if (err.code !== 'ENOENT') {
+        logger.debug(
+          `Failed to remove temp compose file ${tempFile}: ${err.message}`,
+        );
+      }
+    });
   }
 }

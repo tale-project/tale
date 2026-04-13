@@ -13,9 +13,13 @@ export async function findPlatformContainer(): Promise<string> {
     return green;
   }
 
+  // Fallback: list containers under this project and match ONLY the exact
+  // blue/green platform names. Permissive `/platform/` matching could pick up
+  // unrelated containers such as `${projectId}-platform-build` or
+  // user-created `${projectId}-platform-*` variants.
   const containers = await listContainers(`name=${projectId}`);
   const platform = containers.find(
-    (c) => /platform/.test(c.name) && c.status.startsWith('Up'),
+    (c) => (c.name === blue || c.name === green) && c.status.startsWith('Up'),
   );
   if (platform) {
     return platform.name;

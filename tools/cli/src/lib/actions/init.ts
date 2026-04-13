@@ -17,6 +17,7 @@ import {
   type Checksums,
   type TaleProject,
 } from '../project/types';
+import { writeProject } from '../project/write-project';
 import { generateAllRules } from '../rules/generators';
 
 interface InitOptions {
@@ -201,7 +202,7 @@ export async function init(options: InitOptions): Promise<void> {
     createdAt: existingProject?.createdAt ?? new Date().toISOString(),
     id: projectId,
   };
-  await Bun.write(taleJsonPath, JSON.stringify(project, null, 2) + '\n');
+  await writeProject(taleJsonPath, project);
 
   // Make the ID available to subsequent steps (ensureEnv uses getProjectId()).
   setProjectId(projectId);

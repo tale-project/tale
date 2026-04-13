@@ -23,12 +23,17 @@ async function createNetwork(networkName: string): Promise<boolean> {
     networkName,
   );
   if (!result.success) {
-    logger.error(`Failed to create network: ${networkName}`);
+    logger.error(
+      `Failed to create network ${networkName}: ${result.stderr.trim()}`,
+    );
   }
   return result.success;
 }
 
-export async function ensureNetwork(networkName: string): Promise<boolean> {
-  const fullName = `${getProjectId()}_${networkName}`;
+export async function ensureNetwork(
+  networkName: string,
+  prefix: string = `${getProjectId()}_`,
+): Promise<boolean> {
+  const fullName = `${prefix}${networkName}`;
   return createNetwork(fullName);
 }

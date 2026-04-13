@@ -95,8 +95,11 @@ export async function deploy(options: DeployOptions): Promise<void> {
         Bun.spawnSync(['docker', 'stop', '-t', '2', name]);
         Bun.spawnSync(['docker', 'rm', '-f', name]);
         logger.info(`Stopped ${name}`);
-      } catch {
-        // best effort
+      } catch (err) {
+        // Best-effort cleanup: log so an operator can follow up manually.
+        logger.warn(
+          `Failed to clean up ${name}: ${err instanceof Error ? err.message : String(err)}`,
+        );
       }
     }
     process.removeListener('SIGINT', onInterrupt);
@@ -123,7 +126,11 @@ export async function deploy(options: DeployOptions): Promise<void> {
             'Volume migration pending. Run "tale deploy --migrate-volumes" to migrate and deploy (includes brief downtime of any legacy tale-* containers).',
           );
         }
-        if (!dryRun) {
+        if (dryRun) {
+          logger.notice(
+            `${prefix}Would stop legacy tale-* containers and migrate legacy volumes. Marker will NOT be cleared in dry-run — run without --dry-run to apply.`,
+          );
+        } else {
           logger.step('Stopping legacy Tale containers before migration...');
           // Stop both prod (tale / tale-blue / tale-green) and dev (tale-dev)
           // projects. Best-effort; non-existent projects fail harmlessly.
@@ -283,7 +290,9 @@ export async function deploy(options: DeployOptions): Promise<void> {
           if (!result.success) {
             logger.error('Failed to deploy stateful services');
             logger.error(result.stderr);
-            throw new Error('Stateful deployment failed');
+            throw new Error(
+              `Stateful deployment failed: ${result.stderr.trim().slice(0, 500) || 'no stderr captured'}`,
+            );
           }
 
           for (const service of statefulToUpdate) {

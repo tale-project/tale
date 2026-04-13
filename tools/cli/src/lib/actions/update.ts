@@ -20,6 +20,7 @@ import { generateProjectId } from '../project/generate-project-id';
 import { setProjectId } from '../project/project-context';
 import { readProject } from '../project/read-project';
 import type { Checksums } from '../project/types';
+import { writeProject } from '../project/write-project';
 import { generateAllRules } from '../rules/generators';
 
 interface UpdateOptions {
@@ -60,10 +61,7 @@ export async function update(options: UpdateOptions): Promise<void> {
     assignedId = generateProjectId(basename(projectDir));
     project.id = assignedId;
     if (!options.dryRun) {
-      await Bun.write(
-        join(projectDir, 'tale.json'),
-        JSON.stringify(project, null, 2) + '\n',
-      );
+      await writeProject(join(projectDir, 'tale.json'), project);
       setProjectId(assignedId);
     }
     logger.blank();
@@ -178,10 +176,7 @@ export async function update(options: UpdateOptions): Promise<void> {
       ...project,
       cliVersion: pkg.version,
     };
-    await Bun.write(
-      join(projectDir, 'tale.json'),
-      JSON.stringify(updatedProject, null, 2) + '\n',
-    );
+    await writeProject(join(projectDir, 'tale.json'), updatedProject);
 
     const checksums: Checksums = {
       cliVersion: pkg.version,
