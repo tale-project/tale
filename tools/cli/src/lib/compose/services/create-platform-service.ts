@@ -10,18 +10,21 @@ export function createPlatformService(
   return {
     image: `${config.registry}/tale-platform:${config.version}`,
     container_name: `${getProjectId()}-platform-${color}`,
-    volumes: ['platform-data:/app/data', 'caddy-data:/caddy-data:ro'],
+    // Phase 2 (split): /app/data lives in convex-data, mounted read-only so
+    // server.ts can watch config files and serve branding images. Platform
+    // does not mount caddy-data any more (zero outbound HTTPS).
+    volumes: ['convex-data:/app/data:ro'],
     env_file: ['.env'],
     restart: 'unless-stopped',
     healthcheck: {
       test: [
         'CMD-SHELL',
-        'curl -sf http://localhost:3000/api/health && curl -sf http://localhost:3210/version',
+        'curl -sf http://localhost:3000/api/health && [ -f /tmp/platform-ready ]',
       ],
       interval: '5s',
       timeout: '3s',
       retries: 3,
-      start_period: '120s',
+      start_period: '180s',
     },
     logging: DEFAULT_LOGGING,
     networks: {

@@ -213,7 +213,7 @@ wait_for_healthy() {
     done
 }
 
-SERVICES=(db crawler rag platform proxy)
+SERVICES=(db convex crawler rag platform proxy)
 HEALTH_FAILED=0
 
 for svc in "${SERVICES[@]}"; do
@@ -271,23 +271,28 @@ else
     fail "DB pg_isready"
 fi
 
-# Platform: Convex backend is the critical component.
-# TanStack Start (Vite) may not be ready in CI because Convex function
-# deployment takes 5+ minutes. We check it but don't fail on it.
-PLATFORM_CONTAINER=$(get_container_name platform)
-if docker exec "${PLATFORM_CONTAINER}" curl -sf http://localhost:3210/version >/dev/null 2>&1; then
+# Phase 2 (split): Convex lives in its own container. We probe it directly.
+CONVEX_CONTAINER=$(get_container_name convex)
+if docker exec "${CONVEX_CONTAINER}" curl -sf http://localhost:3210/version >/dev/null 2>&1; then
     pass "Convex backend /version"
 else
     fail "Convex backend /version"
 fi
 
-# Vite server check — warn only (may not be ready due to slow Convex deploy)
+if docker exec "${CONVEX_CONTAINER}" test -f /tmp/convex-ready >/dev/null 2>&1; then
+    pass "Convex readiness marker (/tmp/convex-ready)"
+else
+    fail "Convex readiness marker (/tmp/convex-ready)"
+fi
+
+# Platform: Vite server with platform-ready marker. Takes longer in CI
+# because platform must finish pushing functions + env to convex.
+PLATFORM_CONTAINER=$(get_container_name platform)
 vite_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "http://localhost:13000/api/health" 2>/dev/null || echo "000")
 if [ "$vite_code" = "200" ]; then
     pass "Platform /api/health: HTTP ${vite_code}"
 else
-    echo -e "  ${YELLOW}⚠${NC} Platform /api/health: HTTP ${vite_code} (Vite not ready — expected in CI)"
-    # Don't count as failure — Convex backend check above is what matters
+    echo -e "  ${YELLOW}⚠${NC} Platform /api/health: HTTP ${vite_code} (not ready yet — Convex deploy may still be in progress)"
 fi
 
 # =============================================================================

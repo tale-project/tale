@@ -8,8 +8,13 @@
  * cumulative counts), and passes counter/gauge metrics through unchanged.
  */
 
-const CONVEX_PORT = process.env.CONVEX_PORT || '3210';
-const CONVEX_METRICS_URL = `http://localhost:${CONVEX_PORT}/metrics`;
+// Post-split (Phase 2): Convex backend runs in its own container. Default to
+// the compose-internal DNS name `convex`; CONVEX_URL overrides fully; legacy
+// CONVEX_PORT is still honored for localhost use (e.g., `bun run dev`).
+const CONVEX_BASE_URL =
+  process.env.CONVEX_URL ||
+  `http://${process.env.CONVEX_HOST || 'convex'}:${process.env.CONVEX_PORT || '3210'}`;
+const CONVEX_METRICS_URL = `${CONVEX_BASE_URL}/metrics`;
 const PROMETHEUS_CONTENT_TYPE = 'text/plain; version=0.0.4; charset=utf-8';
 const PLAIN_CONTENT_TYPE = 'text/plain; charset=utf-8';
 

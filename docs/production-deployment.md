@@ -117,6 +117,11 @@ tale rollback
 tale rollback --version 0.9.0
 ```
 
+> **Forward-only schema changes.** `tale rollback` reverts container
+> images only; it does **not** roll back Convex data or indexes. See
+> [Schema compatibility and rollback](#schema-compatibility-and-rollback)
+> for what to watch out for.
+
 ### Cleanup
 
 ```bash
@@ -310,6 +315,117 @@ services:
 ```
 
 This keeps the service definition (so `depends_on` references don't break) but prevents it from starting unless you explicitly request the `disabled` profile.
+
+## Upgrading from v0.2.x
+
+v0.3.0 splits the Convex backend into its own `convex` service. Existing
+deployments store Convex data in the `platform-data` volume; new deployments
+(and v0.2.x installations after upgrade) use a dedicated `convex-data`
+volume. The one-time migration is scripted:
+
+```bash
+tale upgrade                          # Pull new CLI + images
+tale migrate split-convex --dry-run   # Preview the plan
+tale migrate split-convex             # Perform the copy
+tale start                            # Bring the split stack back up
+```
+
+What `tale migrate split-convex` does:
+
+1. **Detect** — looks for `${projectId}_platform-data` (prod) and/or
+   `${projectId}-dev_platform-data` (dev) with data in them, and confirms
+   the corresponding `convex-data` volume is empty or absent.
+2. **Plan** — prints source/destination, estimated size, and which
+   containers will be stopped.
+3. **Stop** — `docker compose stop platform convex` + `docker wait` to
+   ensure processes have fully exited (SQLite safety).
+4. **Copy** — `docker run --rm --user 1001:1001 -v src:/src:ro -v dst:/dst
+   alpine sh -c "cp -a /src/. /dst/ && touch /dst/.tale-migration-complete"`.
+5. **Verify** — compares file counts between source and destination.
+6. **Report** — prints a summary; the legacy volume is **preserved** so you
+   can downgrade if needed.
+
+### Safety notes
+
+- The migration does **not** delete or alter the legacy `platform-data`
+  volume. After verifying the new setup works end-to-end, reclaim disk
+  space manually:
+
+  ```bash
+  docker volume rm <projectId>_platform-data
+  docker volume rm <projectId>-dev_platform-data   # if you use dev mode
+  ```
+
+- If anything goes wrong mid-copy, re-run the command — the
+  `.tale-migration-complete` sentinel file is checked before any copy,
+  and partial destinations are automatically wiped and retried.
+- Running the command after migration succeeds is a no-op.
+
+### Rolling back a failed upgrade
+
+If v0.3.x misbehaves and you need to return to v0.2.x, **do not delete
+the legacy `platform-data` volume**:
+
+```bash
+tale rollback --version 0.2.<last-known-good>
+# Or downgrade the CLI itself:
+curl -fsSL https://raw.githubusercontent.com/tale-project/tale/v0.2.x/scripts/install-cli.sh | bash
+tale start
+```
+
+The old image expects `platform-data:/app/data`; as long as that volume
+is still intact, the rollback is clean.
+
+## Schema compatibility and rollback
+
+Tale deployments are not automatically rollback-safe if your code change
+modifies the Convex schema. Convex data persists independently of the
+application code, and `tale rollback` only swaps container images — not
+database state.
+
+### Safe changes (roll-back friendly)
+
+- Adding new **optional** fields to existing tables
+- Adding new tables
+- Adding new indexes
+- Adding new queries/mutations/actions
+- Removing fields that the old code already tolerated as optional
+
+### Risky changes (forward-only)
+
+- Adding a **required** field to an existing table
+- Renaming a field
+- Changing a field's type
+- Removing a required field the new code relies on
+- Restructuring denormalised documents
+
+### Recommended pattern: expand-contract
+
+For any change in the "risky" category, release it in **two versions**:
+
+1. **Expand** — Add the new shape alongside the old one. Write code that
+   handles both forms. Migrate existing data to the new shape (one-shot
+   backfill mutation). Safe to roll back because both shapes work.
+2. **Contract** — Once production has run on the expand release long
+   enough to confirm stability, release a follow-up that removes the old
+   shape. This release is forward-only, but at this point the data is
+   guaranteed to be in the new shape.
+
+### Blue-green transient window
+
+Because `convex deploy` replaces the function set atomically, there is a
+brief (~10–30s) window during a blue/green cutover where the old
+platform color's users may call the new function signatures:
+
+1. `green` platform starts, pushes functions V2 to convex.
+2. Convex now serves V2 to everyone — including open sessions on `blue`.
+3. Caddy's health check detects `green` healthy and swings traffic
+   over; `blue` drains.
+4. Browser clients reconnect and pick up the new platform code.
+
+If V2 removes or renames functions, the `blue` users see errors during
+the window — so treat "remove/rename a function" as a risky change and
+follow the expand-contract pattern above.
 
 ## Vulnerability scanning
 

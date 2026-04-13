@@ -35,13 +35,23 @@ services:
     environment:
       - RAG_LOG_LEVEL=debug
 
+  # Phase 2 (split): convex gets live source for hot-reloadable functions
+  # and the Dashboard, and owns the data volume. Platform mounts convex-data
+  # read-only for config watching + branding image serving only.
+  convex:
+    volumes:
+      - ./services/platform/convex:/app/convex
+      - convex-data:/app/data
+      - caddy-data:/caddy-data:ro
+    environment:
+      - RUST_LOG=debug
+
   platform:
     volumes:
       - ./services/platform/app:/app/services/platform/app
       - ./services/platform/lib:/app/services/platform/lib
       - ./services/platform/convex:/app/services/platform/convex
-      - platform-data:/app/data
-      - caddy-data:/caddy-data:ro
+      - convex-data:/app/data:ro
     environment:
       - NODE_ENV=development
 

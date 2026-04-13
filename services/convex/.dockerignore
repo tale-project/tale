@@ -1,0 +1,43 @@
+# This file mirrors the root .dockerignore but is specific to builds of
+# services/convex/Dockerfile. BuildKit will merge this with the root one.
+#
+# Build MUST be run from repo root:
+#   docker build -f services/convex/Dockerfile .
+#
+# Things we explicitly do NOT want in the convex image:
+
+# Application code (not needed — platform service owns this)
+services/platform/app/
+services/platform/dist/
+services/platform/lib/
+services/platform/test/
+services/platform/vite-plugins/
+services/platform/public/
+services/platform/scripts/
+services/platform/node_modules/
+services/platform/telemetry.ts
+services/platform/convex-metrics.ts
+services/platform/server.ts
+services/platform/vite.config.ts
+services/platform/package.json
+services/platform/package-lock.json
+services/platform/bun.lock
+services/platform/tsconfig*.json
+
+# Convex function source (platform pushes via `convex deploy` remotely)
+services/platform/convex/
+
+# Other services
+services/crawler/
+services/rag/
+services/db/
+services/proxy/
+
+# Tools / docs
+tools/
+docs/
+designs/
+tests/
+
+# Node modules anywhere
+**/node_modules/

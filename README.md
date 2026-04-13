@@ -88,6 +88,19 @@ tale cleanup                       # Remove inactive containers
 tale reset --force                 # Remove all containers
 ```
 
+### Upgrading from v0.2.x → v0.3.x (split-convex)
+
+v0.3.0 splits the Convex backend into its own service. Run the one-time migration after upgrading the CLI:
+
+```bash
+tale upgrade                       # Pull new CLI + images
+tale migrate split-convex --dry-run   # Preview the data migration
+tale migrate split-convex          # Copy data from platform-data → convex-data
+tale start                         # Bring the new split stack up
+```
+
+The old `platform-data` volume is preserved so you can roll back by reverting to the previous CLI version. After verifying the new setup works, reclaim disk space with `docker volume rm <projectId>_platform-data`.
+
 See the [CLI reference](tools/cli/README.md) for all options and flags.
 
 ## Deploy to production

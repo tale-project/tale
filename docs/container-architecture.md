@@ -3,7 +3,13 @@ title: Container architecture
 description: How Tale's Docker images are structured, built, and connected.
 ---
 
-Tale runs as five Docker containers managed by Docker Compose. Each container has a single responsibility and communicates over an internal bridge network.
+Tale runs as **six** Docker containers managed by Docker Compose. Each container has a single responsibility and communicates over an internal bridge network.
+
+> **Phase 2 split architecture** (since v0.3.0): Convex runs as its own service
+> (`convex`) instead of being embedded in the `platform` container. Platform
+> becomes a thin Vite client that pushes schema + env to Convex over HTTP. See
+> [Upgrading from v0.2.x](/production-deployment#upgrading-from-v02x) for the
+> one-time migration step.
 
 ## Service overview
 
@@ -15,7 +21,8 @@ graph TB
 
     subgraph Docker Network
         Proxy["Proxy (Caddy)"]
-        Platform["Platform (TanStack Start + Convex)"]
+        Platform["Platform (TanStack Start)"]
+        Convex["Convex (backend + Dashboard)"]
         RAG["RAG (FastAPI)"]
         Crawler["Crawler (Crawl4AI + Playwright)"]
         DB["DB (ParadeDB / PostgreSQL 16)"]
@@ -23,23 +30,28 @@ graph TB
 
     Browser -->|"HTTPS :443"| Proxy
     Proxy -->|"HTTP :3000"| Platform
-    Platform -->|"HTTP :8001"| RAG
-    Platform -->|"HTTP :8002"| Crawler
-    Platform -->|"TCP :5432"| DB
+    Proxy -->|"WS/HTTP :3210/3211"| Convex
+    Proxy -->|"HTTP :6791"| Convex
+    Platform -->|"HTTP :3210<br/>(convex env set + deploy)"| Convex
+    Convex -->|"TCP :5432"| DB
+    Convex -->|"HTTP :8001"| RAG
+    Convex -->|"HTTP :8002"| Crawler
     RAG -->|"TCP :5432"| DB
     Crawler -->|"TCP :5432"| DB
 ```
 
 ## Image details
 
-| Service | Base image | Original size | Optimized size | Savings | Build strategy |
-|---------|-----------|---------------|----------------|---------|----------------|
-| Platform | `ghcr.io/get-convex/convex-backend` | ~2.98 GB | **2.58 GB** | 13% | 6-stage: deps → builder → pruner → dashboard → runner → squash |
-| Crawler | `python:3.11-slim` | ~2.05 GB | **1.85 GB** | 10% | 3-stage: builder → runtime → squash. Chromium headless_shell only |
-| RAG | `python:3.11-slim` | ~539 MB | **515 MB** | 4% | 3-stage: builder → runtime → squash. libpq5 only |
-| DB | `paradedb/paradedb:0.22.5-pg16` | ~2.44 GB | **1.06 GB** | 57% | 3-stage: cleanup → runtime → squash. Debug symbols + LLVM stripped |
-| Proxy | `caddy:2.11-alpine` | ~88 MB | **88 MB** | — | Single stage. Already minimal |
-| **Total** | | **~10.1 GB** | **~6.1 GB** | **40%** | |
+| Service | Base image | Optimized size | Build strategy |
+|---------|-----------|----------------|----------------|
+| Platform | `ghcr.io/get-convex/convex-backend` (for `generate_key` glibc binary) | **~320 MB compressed** | 5-stage: deps → builder → pruner → runner → squash |
+| Convex | `ghcr.io/get-convex/convex-backend` | **~485 MB compressed** | 2-stage: dashboard → runner (Dashboard COPY-ed from upstream image) |
+| Crawler | `python:3.11-slim` | **~650 MB compressed** | 3-stage: builder → runtime → squash. Chromium headless_shell only |
+| RAG | `python:3.11-slim` | **~515 MB** | 3-stage: builder → runtime → squash. libpq5 only |
+| DB | `paradedb/paradedb:0.22.5-pg16` | **~1.06 GB** | 3-stage: cleanup → runtime → squash |
+| Proxy | `caddy:2.11-alpine` | **~88 MB** | Single stage |
+
+Splitting Convex out of platform reduced the platform image from ~2.58 GB to ~320 MB compressed; the convex service is a new ~485 MB image. Net image disk is similar but the platform layer rebuilds much faster for app-only changes.
 
 ## Port mapping
 
@@ -50,7 +62,8 @@ graph TB
 | DB | 5432 | 5432 | TCP (PostgreSQL) |
 | Crawler | 8002 | 8002 | HTTP |
 | RAG | 8001 | 8001 | HTTP |
-| Platform | — | 3000, 3210 | HTTP (via proxy) |
+| Convex | — | 3210, 3211, 6791 | WS/HTTP (via proxy) |
+| Platform | — | 3000 | HTTP (via proxy) |
 | Proxy | 80, 443 | 80, 443 | HTTP/HTTPS |
 
 ### Test ports (`compose.test.yml`)
@@ -60,7 +73,8 @@ graph TB
 | DB | 15432 | 5432 |
 | Crawler | 18002 | 8002 |
 | RAG | 18001 | 8001 |
-| Platform | 13000, 13210 | 3000, 3210 |
+| Convex | 13210, 13211, 16791 | 3210, 3211, 6791 |
+| Platform | 13000 | 3000 |
 | Proxy | 10080, 10443 | 80, 443 |
 
 ## Volume mapping
@@ -71,10 +85,12 @@ graph TB
 | `db-backup` | DB | `/var/lib/postgresql/backup` | Database backups |
 | `rag-data` | RAG | `/app/data` | Temp files, document processing |
 | `crawler-data` | Crawler | `/app/data` | Website registry, URL databases |
-| `platform-data` | Platform | `/app/data` | Convex DB, agents, workflows |
-| `platform-data` | Crawler, RAG | `/app/platform-config` | Shared provider config (read-only) |
-| `caddy-data` | Proxy, Platform | `/data`, `/caddy-data` | TLS certificates |
+| `convex-data` | Convex | `/app/data` | Convex DB (SQLite/pg-local), search indexes, files, agents/workflows/integrations/providers JSON |
+| `convex-data` | Platform | `/app/data` **(read-only)** | Config SSE watcher + branding image serving |
+| `convex-data` | Crawler, RAG | `/app/platform-config` **(read-only)** | Shared provider config |
+| `caddy-data` | Proxy, Convex | `/data`, `/caddy-data` | TLS certificates |
 | `caddy-config` | Proxy | `/config` | Caddy configuration |
+| `platform-data` | — *(legacy, unmounted)* | — | Preserved after upgrade for rollback safety; remove manually after verifying the split: `docker volume rm <projectId>_platform-data` |
 
 > **Important:** Never run `docker compose down -v`. The `-v` flag deletes all Docker volumes, permanently erasing your database and all platform data.
 
@@ -89,14 +105,19 @@ graph TB
 
 All services use a `FROM scratch` squash as their final stage. This flattens Docker layers so that file deletions in cleanup stages actually reclaim disk space, rather than just adding masking layers.
 
-### Platform (6 stages)
+### Platform (5 stages, post-split)
 
 1. **bun-bin** — Extracts Bun binary
 2. **workspace-deps** — Installs all npm dependencies (including devDependencies)
 3. **builder** — Runs `vite build` to produce the SPA
 4. **pruner** — Reinstalls production-only deps, removes dev packages (`@vitest`, `@storybook`, `typescript`, etc.)
-5. **runner** — Final runtime on Convex backend base with pruned `node_modules`, strips LLVM/Clang (~155 MB)
-6. **squash** — `FROM scratch` + `COPY --from=runner`. Runs as root, drops to `app` user via `gosu` in entrypoint
+5. **runner** — Final runtime on the `convex-backend` base image (kept for the `generate_key` glibc binary used to sign Convex admin tokens). Vite SPA + Bun server only — no Convex backend process.
+6. **squash** — `FROM scratch` + `COPY --from=runner`. Runs as root, drops to `app` user via `gosu` in entrypoint.
+
+### Convex (2 stages, new in Phase 2)
+
+1. **convex-dashboard** — `FROM ghcr.io/get-convex/convex-dashboard` to COPY the Next.js standalone build.
+2. **runner** — `FROM ghcr.io/get-convex/convex-backend`. Contains `convex-local-backend` daemon, Dashboard, builtin seed assets (agents/workflows/integrations/providers/branding), entrypoint. Strips LLVM/Clang (~155 MB).
 
 ### Crawler (3 stages)
 
@@ -123,8 +144,11 @@ All services use a `FROM scratch` squash as their final stage. This flattens Doc
 | DB | `pg_isready -U tale -d tale` | CLI | 60s |
 | Crawler | `GET /health` on :8002 | HTTP | 40s |
 | RAG | `GET /health` on :8001 | HTTP | 40s |
-| Platform | `GET /api/health` + `GET :3210/version` | HTTP | 120s |
+| Convex | `GET :3210/version` + `[ -f /tmp/convex-ready ]` | HTTP + file | 60s |
+| Platform | `GET :3000/api/health` + `[ -f /tmp/platform-ready ]` | HTTP + file | 180s |
 | Proxy | `GET /health` on :2020 (internal) | HTTP | 10s |
+
+The `/tmp/<service>-ready` markers are touched by each service's entrypoint after its one-shot initialization work completes (Convex: backend up + builtin seed; Platform: env sync + `convex deploy`). This prevents traffic from being routed before the service is truly ready to serve requests.
 
 ## Container testing
 

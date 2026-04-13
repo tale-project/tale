@@ -239,14 +239,28 @@ function killProcessTree(
 }
 
 async function main() {
+  // Phase 2 (split architecture): if CONVEX_EXTERNAL=true, the developer has
+  // a convex backend running externally (e.g., `docker compose up convex`).
+  // Skip spawning a local `bunx convex dev` and just run Vite with env sync.
+  const useExternalConvex = process.env.CONVEX_EXTERNAL === 'true';
+
   console.log('[dev] 🚀 Starting development environment...');
-  console.log(
-    '[dev] 🔧 Using LOCAL development mode for Convex (anonymous mode)',
-  );
-  console.log(
-    '[dev] ✅ Login prompt automatically skipped - running in local-only mode',
-  );
-  console.log('[dev] 💡 No cloud account required - all data stays local');
+  if (useExternalConvex) {
+    console.log(
+      '[dev] 🌐 Using EXTERNAL Convex backend (CONVEX_EXTERNAL=true)',
+    );
+    console.log(
+      `[dev]    Target: ${process.env.CONVEX_URL || 'http://127.0.0.1:3210'}`,
+    );
+  } else {
+    console.log(
+      '[dev] 🔧 Using LOCAL development mode for Convex (anonymous mode)',
+    );
+    console.log(
+      '[dev] ✅ Login prompt automatically skipped - running in local-only mode',
+    );
+    console.log('[dev] 💡 No cloud account required - all data stays local');
+  }
   console.log('[dev] 💡 Press Ctrl+C to stop all services');
   console.log('');
 
@@ -381,10 +395,16 @@ async function main() {
       healthCheckTimer.unref();
     }
 
-    console.log('[dev] ⏳ Starting Convex backend...');
-    spawnConvex();
-
-    await waitForConvex();
+    if (useExternalConvex) {
+      console.log(
+        '[dev] ⏭  Skipping local Convex spawn (CONVEX_EXTERNAL=true)',
+      );
+      await waitForConvex();
+    } else {
+      console.log('[dev] ⏳ Starting Convex backend...');
+      spawnConvex();
+      await waitForConvex();
+    }
 
     // Re-read CONVEX_DEPLOYMENT from .env.local in case `convex dev` wrote it
     // after our initial loadEnvFiles() call (happens on first run with fresh DB)

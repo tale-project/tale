@@ -1,6 +1,7 @@
 import { stringify } from 'yaml';
 
 import { getProjectId } from '../../../utils/load-env';
+import { createConvexService } from '../services/create-convex-service';
 import { createCrawlerService } from '../services/create-crawler-service';
 import { createDbService } from '../services/create-db-service';
 import { createPlatformService } from '../services/create-platform-service';
@@ -21,10 +22,13 @@ export function generateDevCompose(
   port: number,
   options: DevComposeOptions = {},
 ): string {
-  const platform = createPlatformService(config, DEV_COLOR);
-  platform.container_name = `${getProjectId()}-platform`;
-  platform.volumes = [
-    'platform-data:/app/data',
+  // Convex service owns the /app/data volume in Phase 2.
+  const convex = createConvexService(config, DEV_COLOR);
+  convex.container_name = `${getProjectId()}-convex`;
+  convex.volumes = [
+    'convex-data:/app/data',
+    // Dev overrides: live bind-mount examples/ subfolders so edits on the host
+    // are visible to the Convex actions that read them.
     './agents:/app/data/agents',
     './workflows:/app/data/workflows',
     './integrations:/app/data/integrations',
@@ -32,14 +36,28 @@ export function generateDevCompose(
     './providers:/app/data/providers',
     'caddy-data:/caddy-data:ro',
   ];
+  convex.depends_on = { db: { condition: 'service_healthy' } };
+  if (options.fresh) {
+    convex.environment = { ...convex.environment, FORCE_SEED: 'true' };
+  }
+
+  // Platform becomes a thin client — mounts convex-data read-only so
+  // server.ts can watch config files + serve branding images.
+  const platform = createPlatformService(config, DEV_COLOR);
+  platform.container_name = `${getProjectId()}-platform`;
+  platform.volumes = ['convex-data:/app/data:ro'];
   platform.environment = {
     TALE_CONFIG_DIR: '/app/data',
     AGENTS_DIR: '/app/data/agents',
     WORKFLOWS_DIR: '/app/data/workflows',
     INTEGRATIONS_DIR: '/app/data/integrations',
-    ...(options.fresh ? { FORCE_SEED: 'true' } : {}),
+    PROVIDERS_DIR: '/app/data/providers',
+    CONVEX_URL: 'http://convex:3210',
   };
-  platform.depends_on = { db: { condition: 'service_healthy' } };
+  platform.depends_on = {
+    db: { condition: 'service_healthy' },
+    convex: { condition: 'service_healthy' },
+  };
 
   const rag = createRagService(config, DEV_COLOR);
   rag.container_name = `${getProjectId()}-rag`;
@@ -74,6 +92,7 @@ export function generateDevCompose(
     services: {
       db: createDbService(config),
       proxy,
+      convex,
       platform,
       rag,
       crawler,
