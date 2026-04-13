@@ -19,6 +19,8 @@ import {
 } from '../project/types';
 import { writeProject } from '../project/write-project';
 import { generateAllRules } from '../rules/generators';
+import { MIGRATIONS } from '../upgrade/registry';
+import { writeMigrationsState } from '../upgrade/state';
 
 interface InitOptions {
   directory?: string;
@@ -206,6 +208,26 @@ export async function init(options: InitOptions): Promise<void> {
 
   // Make the ID available to subsequent steps (ensureEnv uses getProjectId()).
   setProjectId(projectId);
+
+  // Seed `.tale/migrations.json` for fresh projects so historical migrations
+  // never apply to data that was born in the current CLI's schema. Without
+  // this, a `tale init` in a directory where the host still has legacy
+  // `tale_*` volumes from some older project would trigger namespace-volumes
+  // to copy that unrelated data into the new project's namespace.
+  //
+  // Only seed when there was no existing tale.json AND no migrations.json
+  // already present — reinit must not clobber prior state.
+  const migrationsJsonPath = join(target, '.tale', 'migrations.json');
+  if (existingProject === null && !existsSync(migrationsJsonPath)) {
+    const now = new Date().toISOString();
+    await writeMigrationsState(target, {
+      applied: MIGRATIONS.map((m) => ({
+        id: m.id,
+        at: now,
+        cliVersion: pkg.version,
+      })),
+    });
+  }
 
   // Write AI rules files
   logger.step('Writing AI rules files...');
