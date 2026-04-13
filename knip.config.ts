@@ -23,7 +23,7 @@ export default {
         'reset-owner.ts',
       ],
       project: ['**/*.{ts,tsx}'],
-      ignoreDependencies: ['convex-test', 'mermaid'],
+      ignoreDependencies: ['convex-test'],
     },
     'tools/cli': {
       project: ['**/*.ts'],

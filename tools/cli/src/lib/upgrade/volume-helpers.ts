@@ -6,7 +6,7 @@ import { docker } from '../docker/docker';
  * successfully. Presence guarantees a complete migration; absence (with data
  * present) indicates a partial/interrupted copy that must be recovered.
  */
-export const MIGRATION_SENTINEL = '.tale-migration-complete';
+const MIGRATION_SENTINEL = '.tale-migration-complete';
 
 export async function volumeExists(name: string): Promise<boolean> {
   const r = await docker('volume', 'inspect', name);
@@ -31,7 +31,7 @@ export async function volumeHasData(
   return r.success && r.stdout.trim().length > 0;
 }
 
-export async function volumeHasSentinel(
+async function volumeHasSentinel(
   name: string,
   image: string,
 ): Promise<boolean> {
@@ -49,27 +49,7 @@ export async function volumeHasSentinel(
   return r.success;
 }
 
-export async function volumeSizeBytes(
-  name: string,
-  image: string,
-): Promise<number | null> {
-  const r = await docker(
-    'run',
-    '--rm',
-    '-v',
-    `${name}:/vol:ro`,
-    '--entrypoint',
-    'sh',
-    image,
-    '-c',
-    'du -sb /vol | cut -f1',
-  );
-  if (!r.success) return null;
-  const n = parseInt(r.stdout.trim(), 10);
-  return Number.isFinite(n) ? n : null;
-}
-
-export async function volumeFileCount(
+async function volumeFileCount(
   name: string,
   image: string,
 ): Promise<number | null> {
@@ -145,7 +125,7 @@ async function diffVolumes(
  *  operator can recover by hand. Note: docker volumes can't be renamed, so we
  *  create a sibling *-partial-<ts> volume and copy the unsentinelled contents
  *  into it before wiping the destination. */
-export async function moveContentsToBackupVolume(
+async function moveContentsToBackupVolume(
   name: string,
   image: string,
 ): Promise<string | null> {

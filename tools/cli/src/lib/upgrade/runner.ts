@@ -11,7 +11,7 @@ import type { Migration, MigrationContext } from './types';
  *
  * Order is preserved from the registry — callers must not reorder.
  */
-export async function computePending(
+async function computePending(
   registry: readonly Migration[],
   ctx: MigrationContext,
 ): Promise<Migration[]> {
@@ -64,7 +64,7 @@ function isNonInteractive(): boolean {
   return !(process.stdin.isTTY && process.stdout.isTTY);
 }
 
-export interface RunPendingOptions {
+interface RunPendingOptions {
   /** Where we're being called from — used in messages only. */
   context: 'start' | 'deploy' | 'upgrade';
   /** Skip the interactive prompt and proceed. Required for non-TTY use. */
@@ -80,7 +80,7 @@ export interface RunPendingOptions {
   performStops?: (stops: string[]) => Promise<void>;
 }
 
-export interface RunPendingResult {
+interface RunPendingResult {
   /** True if the caller should keep executing the original command. */
   proceed: boolean;
   /** Migrations that ran successfully this pass. */
