@@ -66,6 +66,30 @@ Customize the look of the platform for your organization. Admin only. Available 
 
 Available to all users. Change your password here. If you signed up via SSO, you can also set a regular password from this page to enable direct login.
 
+## Governance
+
+Admin only. Configure organization-wide AI policies and controls. The governance page is organized into three groups accessible from a left-hand navigation:
+
+### Content & Models
+
+- **System Prompt**: set a global system prompt prepended to every AI conversation in the organization.
+- **Default Models**: choose the default chat, vision, and embedding models used when users don't pick one explicitly.
+- **Model Access**: control which models are available to specific teams or users.
+
+### Policies & Limits
+
+- **Budgets**: set spending limits per user, team, or the entire organization with configurable periods and thresholds.
+- **Upload Policy**: restrict file uploads by type, size, or count.
+- **Retention**: configure how long conversations and files are kept before automatic deletion.
+- **Feature Controls**: toggle platform features (e.g., file uploads, web search, image generation) on or off organization-wide.
+
+### Security & Monitoring
+
+- **PII Detection**: enable automatic detection and masking (or blocking) of personally identifiable information in messages. Supports built-in patterns and custom regex rules.
+- **Usage Dashboard**: view token consumption, cost breakdowns, and usage trends across the organization.
+
 ## Audit logs
 
 Admin only. A time-ordered record of significant actions taken in the organization. Categories include authentication events, member changes, data operations, integration updates, workflow publications, security events, and admin actions. Useful for compliance and troubleshooting.
+
+Admins can export audit logs as **CSV** or **JSON** using the export buttons above the log table. Exports respect the currently active category filter.
