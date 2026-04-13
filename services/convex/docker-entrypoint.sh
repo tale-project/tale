@@ -214,7 +214,7 @@ run_seed() {
   log_section "Seeding builtin configs (TALE_VERSION=${TALE_VERSION:-dev})"
 
   # --- Agents ---
-  local agents_dir="${AGENTS_DIR:-${data_dir}/agents}"
+  local agents_dir="${data_dir}/agents"
   local agents_builtin="/app/agents-builtin"
   mkdir -p "$agents_dir"
   if [ -d "$agents_builtin" ] && [ "$(ls -A "$agents_builtin" 2>/dev/null)" ]; then
@@ -237,7 +237,7 @@ run_seed() {
   fi
 
   # --- Workflows (nested paths allowed) ---
-  local workflows_dir="${WORKFLOWS_DIR:-${data_dir}/workflows}"
+  local workflows_dir="${data_dir}/workflows"
   local workflows_builtin="/app/workflows-builtin"
   mkdir -p "$workflows_dir"
   if [ -d "$workflows_builtin" ] && [ "$(ls -A "$workflows_builtin" 2>/dev/null)" ]; then
@@ -261,7 +261,7 @@ run_seed() {
   fi
 
   # --- Integrations (directory-based) ---
-  local integrations_dir="${INTEGRATIONS_DIR:-${data_dir}/integrations}"
+  local integrations_dir="${data_dir}/integrations"
   local integrations_builtin="/app/integrations-builtin"
   mkdir -p "$integrations_dir"
   if [ -d "$integrations_builtin" ] && [ "$(ls -A "$integrations_builtin" 2>/dev/null)" ]; then
@@ -278,7 +278,7 @@ run_seed() {
   fi
 
   # --- Providers (skip encrypted .secrets.json) ---
-  local providers_dir="${PROVIDERS_DIR:-${data_dir}/providers}"
+  local providers_dir="${data_dir}/providers"
   local providers_builtin="/app/providers-builtin"
   mkdir -p "$providers_dir"
   if [ -d "$providers_builtin" ] && [ "$(ls -A "$providers_builtin" 2>/dev/null)" ]; then

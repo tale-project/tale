@@ -90,12 +90,10 @@ ENV NODE_ENV=production \
     DO_NOT_TRACK=1 \
     # CA cert path for self-signed mode (entrypoint checks if file exists)
     CADDY_CA_CERT_PATH=/caddy-data/caddy/pki/authorities/local/root.crt \
-    # Filesystem directories consumed by Convex actions (file-based configs)
-    TALE_CONFIG_DIR=/app/data \
-    AGENTS_DIR=/app/data/agents \
-    WORKFLOWS_DIR=/app/data/workflows \
-    INTEGRATIONS_DIR=/app/data/integrations \
-    PROVIDERS_DIR=/app/data/providers
+    # Root config directory consumed by Convex actions (file-based configs).
+    # Sub-dirs (agents/workflows/integrations/providers) are derived inside
+    # Convex via `convex/*/file_utils.ts` — no need to set them explicitly.
+    TALE_CONFIG_DIR=/app/data
 
 # ----------------------------------------------------------------------------
 # Convex Dashboard (Next.js standalone) — served as /convex-dashboard via Caddy

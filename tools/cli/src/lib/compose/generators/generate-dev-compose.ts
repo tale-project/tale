@@ -41,17 +41,32 @@ export function generateDevCompose(
     convex.environment = { ...convex.environment, FORCE_SEED: 'true' };
   }
 
-  // Platform becomes a thin client — mounts convex-data read-only so
-  // server.ts can watch config files + serve branding images.
+  // Platform becomes a thin client.
+  //
+  // Read-only mount of `convex-data` for server.ts (config SSE watcher +
+  // branding image serving). In dev we ALSO bind-mount the same host-side
+  // dirs that convex sees, so that:
+  //   - host edits to ./agents/foo.json fire chokidar events in platform
+  //     (named-volume-only mounts wouldn't see bind-mount overlays from a
+  //     sibling container — bind mounts shadow but don't write through to
+  //     the underlying named volume).
+  //   - server.ts can serve branding images from the same bytes the convex
+  //     functions read.
   const platform = createPlatformService(config, DEV_COLOR);
   platform.container_name = `${getProjectId()}-platform`;
-  platform.volumes = ['convex-data:/app/data:ro'];
+  platform.volumes = [
+    'convex-data:/app/data:ro',
+    './agents:/app/data/agents:ro',
+    './workflows:/app/data/workflows:ro',
+    './integrations:/app/data/integrations:ro',
+    './branding:/app/data/branding:ro',
+    './providers:/app/data/providers:ro',
+  ];
+  // TALE_CONFIG_DIR is the only file-config path platform needs to push to
+  // Convex (sub-dirs are derived in convex/*/file_utils.ts). Platform also
+  // needs it locally for server.ts (chokidar root + branding image dir).
   platform.environment = {
     TALE_CONFIG_DIR: '/app/data',
-    AGENTS_DIR: '/app/data/agents',
-    WORKFLOWS_DIR: '/app/data/workflows',
-    INTEGRATIONS_DIR: '/app/data/integrations',
-    PROVIDERS_DIR: '/app/data/providers',
     CONVEX_URL: 'http://convex:3210',
   };
   platform.depends_on = {

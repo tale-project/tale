@@ -69,19 +69,10 @@ function envNormalizeCommon() {
     process.env.SITE_URL = `http://${host}${host === 'localhost' ? `:${port}` : ''}`;
   }
 
+  // Root config directory only — Convex derives sub-dirs (agents/workflows/
+  // integrations/providers) from TALE_CONFIG_DIR via `convex/*/file_utils.ts`.
   if (!process.env.TALE_CONFIG_DIR) {
     process.env.TALE_CONFIG_DIR = join(repoRoot, 'examples');
-  }
-  const configDir = process.env.TALE_CONFIG_DIR;
-
-  if (!process.env.AGENTS_DIR) {
-    process.env.AGENTS_DIR = join(configDir, 'agents');
-  }
-  if (!process.env.WORKFLOWS_DIR) {
-    process.env.WORKFLOWS_DIR = join(configDir, 'workflows');
-  }
-  if (!process.env.INTEGRATIONS_DIR) {
-    process.env.INTEGRATIONS_DIR = join(configDir, 'integrations');
   }
 }
 
@@ -433,39 +424,8 @@ async function main() {
         console.log(`[dev] ✅ TALE_CONFIG_DIR=${taleConfigDir}`);
       }
 
-      const agentsDir = process.env.AGENTS_DIR;
-      if (agentsDir) {
-        await runCommand('bunx', [
-          'convex',
-          'env',
-          'set',
-          `AGENTS_DIR=${agentsDir}`,
-        ]);
-        console.log(`[dev] ✅ AGENTS_DIR=${agentsDir}`);
-      }
-
-      const workflowsDir = process.env.WORKFLOWS_DIR;
-      if (workflowsDir) {
-        await runCommand('bunx', [
-          'convex',
-          'env',
-          'set',
-          `WORKFLOWS_DIR=${workflowsDir}`,
-        ]);
-        console.log(`[dev] ✅ WORKFLOWS_DIR=${workflowsDir}`);
-      }
-
-      const integrationsDir = process.env.INTEGRATIONS_DIR;
-      if (integrationsDir) {
-        await runCommand('bunx', [
-          'convex',
-          'env',
-          'set',
-          `INTEGRATIONS_DIR=${integrationsDir}`,
-        ]);
-        console.log(`[dev] ✅ INTEGRATIONS_DIR=${integrationsDir}`);
-      }
-
+      // Convex derives AGENTS_DIR / WORKFLOWS_DIR / INTEGRATIONS_DIR /
+      // PROVIDERS_DIR from TALE_CONFIG_DIR via convex/*/file_utils.ts.
       console.log('[dev] ✅ Environment variables synced successfully');
     } catch (err) {
       console.warn(
