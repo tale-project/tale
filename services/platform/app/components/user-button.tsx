@@ -27,6 +27,7 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
+import { useLocale } from '@/app/hooks/use-locale';
 import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
 import { toast } from '@/app/hooks/use-toast';
 import { getEnv } from '@/lib/env';
@@ -57,6 +58,7 @@ export function UserButton({
   const params = useParams({ strict: false });
   const organizationId = params.id;
   const { theme, setTheme } = useTheme();
+  const { locale, setLocale } = useLocale();
   const teamFilter = useOptionalTeamFilter();
   const teams = teamFilter?.teams;
   const selectedTeamId = teamFilter?.selectedTeamId ?? null;
@@ -215,6 +217,29 @@ export function UserButton({
           </div>
         ),
       },
+      {
+        type: 'custom',
+        content: (
+          <div className="bg-muted flex items-center justify-between gap-2 rounded-lg p-1">
+            <Button
+              variant={!locale.startsWith('de') ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setLocale('en')}
+              className="flex-1"
+            >
+              EN
+            </Button>
+            <Button
+              variant={locale.startsWith('de') ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setLocale('de')}
+              className="flex-1"
+            >
+              DE
+            </Button>
+          </div>
+        ),
+      },
     ]);
 
     groups.push([
@@ -246,11 +271,13 @@ export function UserButton({
     teams,
     selectedTeamId,
     theme,
+    locale,
     t,
     tNav,
     navigate,
     onNavigate,
     setTheme,
+    setLocale,
     setSelectedTeamId,
     handleSignOutClick,
   ]);
