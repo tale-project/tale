@@ -94,8 +94,8 @@ async function findPending(
 export const namespaceVolumesMigration: Migration = {
   id: 'namespace-volumes',
   introducedIn: '0.2.33',
-  description:
-    'Rename legacy Docker volumes (tale_* / tale-dev_*) to the per-project scope (${projectId}_*).',
+  description: (ctx: MigrationContext) =>
+    `Rename legacy Docker volumes (tale_* / tale-dev_*) to the per-project scope (${ctx.projectId}_*).`,
 
   async detect(ctx: MigrationContext): Promise<boolean> {
     // Cheap shortcut: if no legacy volumes exist at all, skip the image probe.

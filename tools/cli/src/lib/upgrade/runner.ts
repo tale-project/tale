@@ -35,15 +35,22 @@ export async function computePending(
   return pending;
 }
 
+function resolveDescription(m: Migration, ctx: MigrationContext): string {
+  return typeof m.description === 'function'
+    ? m.description(ctx)
+    : m.description;
+}
+
 function printPlan(
   pending: readonly Migration[],
   stops: readonly string[],
+  ctx: MigrationContext,
 ): void {
   logger.blank();
   logger.header(`${pending.length} pending migration(s)`);
   for (const m of pending) {
     logger.info(`  • ${m.id} (introduced in ${m.introducedIn})`);
-    logger.info(`      ${m.description}`);
+    logger.info(`      ${resolveDescription(m, ctx)}`);
   }
   if (stops.length > 0) {
     logger.blank();
@@ -113,7 +120,7 @@ export async function runPendingMigrations(
   }
   const stops = [...stopsSet];
 
-  printPlan(pending, stops);
+  printPlan(pending, stops, ctx);
 
   if (opts.dryRun) {
     logger.notice(
@@ -183,7 +190,7 @@ export async function planPendingMigrations(
   for (const m of pending) {
     for (const s of await m.requiredStops(ctx)) stopsSet.add(s);
   }
-  printPlan(pending, [...stopsSet]);
+  printPlan(pending, [...stopsSet], ctx);
   logger.notice(
     'Run "tale start" (dev) or "tale deploy" (prod) to apply — the CLI will prompt before changing anything.',
   );

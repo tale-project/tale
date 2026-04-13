@@ -73,6 +73,13 @@ export async function volumeFileCount(
   name: string,
   image: string,
 ): Promise<number | null> {
+  // `cp -a` preserves regular files, directories, and symlinks but silently
+  // skips sockets, FIFOs, and device nodes. To keep src/dst counts
+  // comparable, only count things cp will actually copy: regular files and
+  // symlinks. Exclude the migration sentinel itself so chained migrations
+  // (whose source may already carry a sentinel from an earlier pipeline
+  // step) compare cleanly — sentinel presence is verified separately via
+  // volumeHasSentinel.
   const r = await docker(
     'run',
     '--rm',
@@ -82,11 +89,55 @@ export async function volumeFileCount(
     'sh',
     image,
     '-c',
-    'find /vol -type f | wc -l',
+    `find /vol \\( -type f -o -type l \\) ! -name '${MIGRATION_SENTINEL}' | wc -l`,
   );
   if (!r.success) return null;
   const n = parseInt(r.stdout.trim(), 10);
   return Number.isFinite(n) ? n : null;
+}
+
+/** Diagnostic: list relative paths present in `/src` but not in `/dst`, plus
+ *  any special (non-regular, non-symlink, non-dir) files in src that cp -a
+ *  would have skipped. Best-effort — used only on verification failure. */
+async function diffVolumes(
+  src: string,
+  dst: string,
+  image: string,
+): Promise<string> {
+  const r = await docker(
+    'run',
+    '--rm',
+    '-v',
+    `${src}:/src:ro`,
+    '-v',
+    `${dst}:/dst:ro`,
+    '--entrypoint',
+    'sh',
+    image,
+    '-c',
+    [
+      '(cd /src && find . \\( -type f -o -type l \\) | sort) > /tmp/s',
+      '(cd /dst && find . \\( -type f -o -type l \\) | sort) > /tmp/d',
+      'echo "--- src counts ---"',
+      'echo "regular files: $(find /src -type f | wc -l)"',
+      'echo "symlinks:      $(find /src -type l | wc -l)"',
+      'echo "dirs:          $(find /src -type d | wc -l)"',
+      'echo "special:       $(find /src ! -type f ! -type l ! -type d | wc -l)"',
+      'echo "sentinel:      $(ls -la /src/.tale-migration-complete 2>/dev/null || echo absent)"',
+      'echo "--- dst counts ---"',
+      'echo "regular files: $(find /dst -type f | wc -l)"',
+      'echo "symlinks:      $(find /dst -type l | wc -l)"',
+      'echo "dirs:          $(find /dst -type d | wc -l)"',
+      'echo "special:       $(find /dst ! -type f ! -type l ! -type d | wc -l)"',
+      'echo "sentinel:      $(ls -la /dst/.tale-migration-complete 2>/dev/null || echo absent)"',
+      'echo "--- in src but not dst (first 20) ---"',
+      'comm -23 /tmp/s /tmp/d | head -20',
+      'echo "--- in dst but not src (first 20) ---"',
+      'comm -13 /tmp/s /tmp/d | head -20',
+    ].join(' && '),
+  );
+  if (!r.success) return `diff failed: ${r.stderr.trim()}`;
+  return r.stdout.trim();
 }
 
 /** Rename a volume's contents aside by moving them into a timestamped sub-dir.
@@ -233,13 +284,15 @@ export async function copyVolumeWithVerify(
     logger.info(`  partial contents preserved at volume: ${backup}`);
   }
 
-  // `--user 1001:1001` ensures destination files are owned by the `app` user
-  // that tale containers run as (UID 1001).
+  // Run the copy as root (no --user flag). Destination volume is newly
+  // created by docker with a root-owned / directory, so a non-root process
+  // cannot write into it. `cp -a` preserves ownership from source, so files
+  // populated by the convex container (uid 1001) stay uid 1001. We chown
+  // the dst root + sentinel explicitly so the app user can read/write at
+  // the top level when convex later mounts it.
   const copy = await docker(
     'run',
     '--rm',
-    '--user',
-    '1001:1001',
     '-v',
     `${src}:/src:ro`,
     '-v',
@@ -247,8 +300,8 @@ export async function copyVolumeWithVerify(
     '--entrypoint',
     'sh',
     image,
-    '-c',
-    `cp -a /src/. /dst/ && : > /dst/${MIGRATION_SENTINEL}`,
+    '-ec',
+    `cp -a /src/. /dst/ && : > /dst/${MIGRATION_SENTINEL} && chown 1001:1001 /dst /dst/${MIGRATION_SENTINEL}`,
   );
   if (!copy.success) {
     throw new Error(`copy ${src} → ${dst} failed: ${copy.stderr.trim()}`);
@@ -261,11 +314,18 @@ export async function copyVolumeWithVerify(
       `could not verify file counts for ${src} → ${dst} (src=${srcCount}, dst=${dstCount})`,
     );
   }
-  // Destination includes the sentinel file; src does not.
-  const expectedDst = srcCount + 1;
-  if (dstCount !== expectedDst) {
+  // Both counts exclude the sentinel itself (see volumeFileCount) so chained
+  // migrations compare cleanly regardless of whether src already carries a
+  // sentinel from an earlier pipeline step.
+  if (dstCount !== srcCount) {
+    const diff = await diffVolumes(src, dst, image);
     throw new Error(
-      `file count mismatch for ${src} → ${dst}: src=${srcCount}, dst=${dstCount} (expected ${expectedDst} = src + sentinel). Refusing to mark migration complete.`,
+      `file count mismatch for ${src} → ${dst}: src=${srcCount}, dst=${dstCount}. Refusing to mark migration complete.\n${diff}`,
+    );
+  }
+  if (!(await volumeHasSentinel(dst, image))) {
+    throw new Error(
+      `migration sentinel missing on ${dst} after copy. Refusing to mark migration complete.`,
     );
   }
   logger.success(`  ${src} → ${dst} (${srcCount} files)`);

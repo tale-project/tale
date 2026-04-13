@@ -82,8 +82,8 @@ async function findContainersUsingPlatformData(
 export const splitConvexMigration: Migration = {
   id: 'split-convex',
   introducedIn: '0.3.0',
-  description:
-    'Copy ${projectId}_platform-data into ${projectId}_convex-data so the new dedicated Convex service can own its data volume.',
+  description: (ctx: MigrationContext) =>
+    `Copy ${ctx.projectId}_platform-data into ${ctx.projectId}_convex-data so the new dedicated Convex service can own its data volume.`,
 
   async detect(ctx: MigrationContext): Promise<boolean> {
     // Cheap check first: if neither legacy volume exists, nothing to do.

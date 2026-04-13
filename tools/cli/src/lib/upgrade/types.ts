@@ -20,8 +20,14 @@ export interface Migration {
   id: string;
   /** CLI version that introduced this migration (for logs only). */
   introducedIn: string;
-  /** One-line human-readable description, shown in plan output. */
-  description: string;
+  /**
+   * One-line human-readable description, shown in plan output. May be a
+   * static string OR a function of the context when the description needs
+   * to interpolate projectId etc. — plain strings never get template-literal
+   * expansion at use site, so use the function form whenever the text
+   * contains per-project names.
+   */
+  description: string | ((ctx: MigrationContext) => string);
   /** Returns true iff this migration has work to do given current state. */
   detect(ctx: MigrationContext): Promise<boolean>;
   /**
