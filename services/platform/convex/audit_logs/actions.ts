@@ -9,6 +9,7 @@ import { v } from 'convex/values';
 import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
 import { authComponent } from '../auth';
+import { buildDownloadUrl } from '../lib/helpers/public_storage_url';
 
 export const requestExport = action({
   args: {
@@ -29,12 +30,12 @@ export const requestExport = action({
   returns: v.object({
     storageId: v.string(),
     fileName: v.string(),
-    url: v.union(v.string(), v.null()),
+    url: v.string(),
   }),
   handler: async (
     ctx,
     args,
-  ): Promise<{ storageId: string; fileName: string; url: string | null }> => {
+  ): Promise<{ storageId: string; fileName: string; url: string }> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
       throw new Error('Unauthenticated');
@@ -64,7 +65,7 @@ export const requestExport = action({
       },
     );
 
-    const url = await ctx.storage.getUrl(result.storageId);
+    const url = buildDownloadUrl(result.storageId, result.fileName);
 
     return {
       storageId: result.storageId,
