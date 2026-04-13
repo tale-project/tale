@@ -1,4 +1,5 @@
-import { PROJECT_NAME } from '../../../utils/load-env';
+import { getProjectId } from '../../../utils/load-env';
+import { EXTRA_HOSTS } from '../generators/constants';
 import type { ComposeService, DeploymentColor, ServiceConfig } from '../types';
 import { DEFAULT_LOGGING } from '../types';
 
@@ -8,7 +9,7 @@ export function createRagService(
 ): ComposeService {
   return {
     image: `${config.registry}/tale-rag:${config.version}`,
-    container_name: `${PROJECT_NAME}-rag-${color}`,
+    container_name: `${getProjectId()}-rag-${color}`,
     volumes: ['rag-data:/app/data', 'platform-data:/app/platform-config:ro'],
     env_file: ['.env'],
     restart: 'unless-stopped',
@@ -25,5 +26,6 @@ export function createRagService(
         aliases: ['rag', `rag-${color}`],
       },
     },
+    extra_hosts: EXTRA_HOSTS,
   };
 }

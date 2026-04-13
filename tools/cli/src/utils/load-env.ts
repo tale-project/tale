@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 import * as logger from './logger';
 
-export const PROJECT_NAME = 'tale';
+export { getProjectId } from '../lib/project/project-context';
 
 export interface DeploymentEnv {
   GHCR_REGISTRY: string;

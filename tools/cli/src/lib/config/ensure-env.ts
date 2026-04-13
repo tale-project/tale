@@ -4,12 +4,14 @@ import { existsSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
+import { getProjectId } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import { deriveAgePublicKey, generateAgeKeypair } from '../crypto/age-keygen';
 
 function listTaleVolumes(): string[] {
   try {
-    const result = execSync('docker volume ls --filter name=tale-dev -q', {
+    const filter = `name=${getProjectId()}-dev`;
+    const result = execSync(`docker volume ls --filter ${filter} -q`, {
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'ignore'],
     });
@@ -303,12 +305,13 @@ async function runEnvSetup(envPath: string): Promise<EnvSetupResult> {
       return { success: false };
     }
     logger.step('Stopping Tale containers...');
+    const composeProject = `${getProjectId()}-dev`;
     try {
-      execSync('docker compose -p tale-dev down --remove-orphans', {
+      execSync(`docker compose -p ${composeProject} down --remove-orphans`, {
         stdio: 'ignore',
       });
     } catch (err) {
-      logger.debug(`Failed to stop tale-dev containers: ${err}`);
+      logger.debug(`Failed to stop ${composeProject} containers: ${err}`);
     }
 
     for (const v of existingVolumes) {

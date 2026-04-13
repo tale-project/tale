@@ -3,6 +3,7 @@ import { Command } from 'commander';
 import { reset } from '../lib/actions/reset';
 import { ensureEnv } from '../lib/config/ensure-env';
 import { requireProject } from '../lib/project/find-project';
+import { resolveProjectContext } from '../lib/project/project-context';
 import { loadEnv } from '../utils/load-env';
 import * as logger from '../utils/logger';
 
@@ -15,6 +16,7 @@ export function createResetCommand(): Command {
     .action(async (options) => {
       try {
         const projectDir = requireProject();
+        await resolveProjectContext(projectDir);
         const { success: envSetupSuccess } = await ensureEnv({
           deployDir: projectDir,
         });

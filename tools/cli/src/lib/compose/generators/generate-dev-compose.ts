@@ -1,6 +1,6 @@
 import { stringify } from 'yaml';
 
-import { PROJECT_NAME } from '../../../utils/load-env';
+import { getProjectId } from '../../../utils/load-env';
 import { createCrawlerService } from '../services/create-crawler-service';
 import { createDbService } from '../services/create-db-service';
 import { createPlatformService } from '../services/create-platform-service';
@@ -22,7 +22,7 @@ export function generateDevCompose(
   options: DevComposeOptions = {},
 ): string {
   const platform = createPlatformService(config, DEV_COLOR);
-  platform.container_name = `${PROJECT_NAME}-platform`;
+  platform.container_name = `${getProjectId()}-platform`;
   platform.volumes = [
     'platform-data:/app/data',
     './agents:/app/data/agents',
@@ -42,7 +42,7 @@ export function generateDevCompose(
   platform.depends_on = { db: { condition: 'service_healthy' } };
 
   const rag = createRagService(config, DEV_COLOR);
-  rag.container_name = `${PROJECT_NAME}-rag`;
+  rag.container_name = `${getProjectId()}-rag`;
   rag.depends_on = { db: { condition: 'service_healthy' } };
   rag.volumes = [
     'rag-data:/app/data',
@@ -50,7 +50,7 @@ export function generateDevCompose(
   ];
 
   const crawler = createCrawlerService(config, DEV_COLOR);
-  crawler.container_name = `${PROJECT_NAME}-crawler`;
+  crawler.container_name = `${getProjectId()}-crawler`;
   crawler.volumes = [
     'crawler-data:/app/data',
     './providers:/app/platform-config/providers:ro',

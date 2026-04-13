@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { PROJECT_NAME, type DeploymentEnv } from '../../utils/load-env';
+import { getProjectId, type DeploymentEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import { generateColorCompose } from '../compose/generators/generate-color-compose';
 import { generateStatefulCompose } from '../compose/generators/generate-stateful-compose';
@@ -20,6 +20,11 @@ import { ensureVolumes } from '../docker/ensure-volumes';
 import { exec } from '../docker/exec';
 import { getContainerVersion } from '../docker/get-container-version';
 import { isContainerRunning } from '../docker/is-container-running';
+import {
+  clearMigrationPending,
+  hasPendingMigration,
+  migrateOldVolumes,
+} from '../docker/migrate-volumes';
 import { pullImage } from '../docker/pull-image';
 import { removeContainer } from '../docker/remove-container';
 import { stopContainer } from '../docker/stop-container';
@@ -44,9 +49,9 @@ async function ensureInfrastructure(
   logger.step(`${prefix}Ensuring volumes and network exist...`);
   if (dryRun) {
     for (const vol of REQUIRED_VOLUMES) {
-      logger.info(`${prefix}Would ensure volume: ${PROJECT_NAME}_${vol}`);
+      logger.info(`${prefix}Would ensure volume: ${getProjectId()}_${vol}`);
     }
-    logger.info(`${prefix}Would ensure network: ${PROJECT_NAME}_internal`);
+    logger.info(`${prefix}Would ensure network: ${getProjectId()}_internal`);
     return;
   }
 
@@ -69,6 +74,7 @@ interface DeployOptions {
   services?: ServiceName[];
   fresh?: boolean;
   quiet?: boolean;
+  migrateVolumes?: boolean;
 }
 
 export async function deploy(options: DeployOptions): Promise<void> {
@@ -108,6 +114,52 @@ export async function deploy(options: DeployOptions): Promise<void> {
       const prefix = dryRun ? '[DRY-RUN] ' : '';
       logger.header(`${prefix}Deploying Tale ${version}`);
 
+      // If a legacy-volume migration is pending, require explicit opt-in.
+      // Production deploys are zero-downtime; running migration here stops
+      // legacy containers briefly, so we want the user to acknowledge it.
+      if (hasPendingMigration(env.DEPLOY_DIR)) {
+        if (!options.migrateVolumes) {
+          throw new Error(
+            'Volume migration pending. Run "tale deploy --migrate-volumes" to migrate and deploy (includes brief downtime of any legacy tale-* containers).',
+          );
+        }
+        if (!dryRun) {
+          logger.step('Stopping legacy Tale containers before migration...');
+          // Stop both prod (tale / tale-blue / tale-green) and dev (tale-dev)
+          // projects. Best-effort; non-existent projects fail harmlessly.
+          for (const projectName of [
+            'tale',
+            'tale-blue',
+            'tale-green',
+            'tale-dev',
+          ]) {
+            await exec(
+              'docker',
+              ['compose', '-p', projectName, 'down', '--remove-orphans'],
+              { silent: true },
+            );
+          }
+
+          logger.step('Migrating legacy volumes...');
+          const result = await migrateOldVolumes(
+            getProjectId(),
+            env.DEPLOY_DIR,
+          );
+          if (result.deferred) {
+            throw new Error(
+              'Volume migration could not proceed — legacy containers may still be running.',
+            );
+          }
+          if (result.failed.length > 0) {
+            throw new Error(
+              `Volume migration failed for ${result.failed.length} volume(s). Aborting deploy.`,
+            );
+          }
+          await clearMigrationPending(env.DEPLOY_DIR);
+          logger.success('Volume migration complete.');
+        }
+      }
+
       // Check if this is a first-time deployment
       const currentColor = await getCurrentColor(env.DEPLOY_DIR);
       const isFirstDeploy = currentColor === null;
@@ -135,7 +187,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
           // Check if any required stateful services are not running
           const missingStateful: StatefulService[] = [];
           for (const service of STATEFUL_SERVICES) {
-            const containerName = `${PROJECT_NAME}-${service}`;
+            const containerName = `${getProjectId()}-${service}`;
             const running = await isContainerRunning(containerName);
             if (!running) {
               missingStateful.push(service);
@@ -225,7 +277,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
           const result = await dockerCompose(
             statefulCompose,
             ['up', '-d', ...statefulToUpdate],
-            { projectName: PROJECT_NAME, cwd: env.DEPLOY_DIR },
+            { projectName: getProjectId(), cwd: env.DEPLOY_DIR },
           );
 
           if (!result.success) {
@@ -235,12 +287,12 @@ export async function deploy(options: DeployOptions): Promise<void> {
           }
 
           for (const service of statefulToUpdate) {
-            startedContainers.push(`${PROJECT_NAME}-${service}`);
+            startedContainers.push(`${getProjectId()}-${service}`);
           }
 
           // Wait for stateful services to be healthy
           for (const service of statefulToUpdate) {
-            const containerName = `${PROJECT_NAME}-${service}`;
+            const containerName = `${getProjectId()}-${service}`;
             const healthy = await waitForHealthy(containerName, {
               timeout: env.HEALTH_CHECK_TIMEOUT,
               streamLogs,
@@ -267,7 +319,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
           // Save current version as previous (for rollback)
           if (!dryRun) {
             const currentPlatformVersion = await getContainerVersion(
-              `${PROJECT_NAME}-platform-${currentColor}`,
+              `${getProjectId()}-platform-${currentColor}`,
             );
             if (currentPlatformVersion) {
               await setPreviousVersion(env.DEPLOY_DIR, currentPlatformVersion);
@@ -290,7 +342,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
           if (dryRun) {
             for (const service of rotatableToUpdate) {
               logger.info(
-                `${prefix}Would update: ${PROJECT_NAME}-${service}-${currentColor}`,
+                `${prefix}Would update: ${getProjectId()}-${service}-${currentColor}`,
               );
             }
           } else {
@@ -301,14 +353,14 @@ export async function deploy(options: DeployOptions): Promise<void> {
               colorCompose,
               ['up', '-d', ...coloredServices],
               {
-                projectName: `${PROJECT_NAME}-${currentColor}`,
+                projectName: `${getProjectId()}-${currentColor}`,
                 cwd: env.DEPLOY_DIR,
               },
             );
 
             for (const service of rotatableToUpdate) {
               startedContainers.push(
-                `${PROJECT_NAME}-${service}-${currentColor}`,
+                `${getProjectId()}-${service}-${currentColor}`,
               );
             }
 
@@ -321,7 +373,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
             // Wait for services to be healthy
             logger.step('Waiting for services to be healthy...');
             for (const service of rotatableToUpdate) {
-              const containerName = `${PROJECT_NAME}-${service}-${currentColor}`;
+              const containerName = `${getProjectId()}-${service}-${currentColor}`;
               const healthy = await waitForHealthy(containerName, {
                 timeout: env.HEALTH_CHECK_TIMEOUT,
                 streamLogs,
@@ -346,7 +398,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
           // Save current version as previous (for rollback)
           if (currentColor && !dryRun) {
             const currentPlatformVersion = await getContainerVersion(
-              `${PROJECT_NAME}-platform-${currentColor}`,
+              `${getProjectId()}-platform-${currentColor}`,
             );
             if (currentPlatformVersion) {
               await setPreviousVersion(env.DEPLOY_DIR, currentPlatformVersion);
@@ -365,10 +417,10 @@ export async function deploy(options: DeployOptions): Promise<void> {
           if (dryRun) {
             for (const service of rotatableToUpdate) {
               logger.info(
-                `${prefix}Would clean up stale: ${PROJECT_NAME}-${service}-${nextColor}`,
+                `${prefix}Would clean up stale: ${getProjectId()}-${service}-${nextColor}`,
               );
               logger.info(
-                `${prefix}Would deploy: ${PROJECT_NAME}-${service}-${nextColor}`,
+                `${prefix}Would deploy: ${getProjectId()}-${service}-${nextColor}`,
               );
             }
             logger.step(`${prefix}Would switch traffic to ${nextColor}`);
@@ -378,14 +430,14 @@ export async function deploy(options: DeployOptions): Promise<void> {
               );
               for (const service of rotatableToUpdate) {
                 logger.info(
-                  `${prefix}Would stop/remove: ${PROJECT_NAME}-${service}-${currentColor}`,
+                  `${prefix}Would stop/remove: ${getProjectId()}-${service}-${currentColor}`,
                 );
               }
             }
           } else {
             // Clean up any stale next-color containers from a previous failed deployment
             for (const service of rotatableToUpdate) {
-              const containerName = `${PROJECT_NAME}-${service}-${nextColor}`;
+              const containerName = `${getProjectId()}-${service}-${nextColor}`;
               const stopped = await stopContainer(containerName);
               if (stopped) {
                 await removeContainer(containerName);
@@ -399,13 +451,15 @@ export async function deploy(options: DeployOptions): Promise<void> {
               colorCompose,
               ['up', '-d', ...coloredServices],
               {
-                projectName: `${PROJECT_NAME}-${nextColor}`,
+                projectName: `${getProjectId()}-${nextColor}`,
                 cwd: env.DEPLOY_DIR,
               },
             );
 
             for (const service of rotatableToUpdate) {
-              startedContainers.push(`${PROJECT_NAME}-${service}-${nextColor}`);
+              startedContainers.push(
+                `${getProjectId()}-${service}-${nextColor}`,
+              );
             }
 
             if (!deployResult.success) {
@@ -417,7 +471,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
             // Wait for new services to be healthy
             logger.step('Waiting for services to be healthy...');
             for (const service of rotatableToUpdate) {
-              const containerName = `${PROJECT_NAME}-${service}-${nextColor}`;
+              const containerName = `${getProjectId()}-${service}-${nextColor}`;
               const healthy = await waitForHealthy(containerName, {
                 timeout: env.HEALTH_CHECK_TIMEOUT,
                 streamLogs,
@@ -445,7 +499,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
               // Stop and remove old color containers (non-fatal - traffic already switched)
               logger.step(`Stopping ${currentColor} services...`);
               for (const service of rotatableToUpdate) {
-                const containerName = `${PROJECT_NAME}-${service}-${currentColor}`;
+                const containerName = `${getProjectId()}-${service}-${currentColor}`;
                 const stopped = await stopContainer(containerName);
                 if (!stopped) {
                   logger.warn(`Failed to stop ${containerName}, continuing...`);
@@ -480,7 +534,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
       // Sync project files to the active container
       if (activeColor) {
         await syncProjectFiles(
-          `${PROJECT_NAME}-platform-${activeColor}`,
+          `${getProjectId()}-platform-${activeColor}`,
           env.DEPLOY_DIR,
           dryRun,
           prefix,

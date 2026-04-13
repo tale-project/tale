@@ -1,4 +1,4 @@
-import { PROJECT_NAME } from '../../utils/load-env';
+import { getProjectId } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import { docker } from './docker';
 
@@ -19,7 +19,7 @@ async function createNetwork(networkName: string): Promise<boolean> {
     'network',
     'create',
     '--label',
-    `project=${PROJECT_NAME}`,
+    `project=${getProjectId()}`,
     networkName,
   );
   if (!result.success) {
@@ -29,6 +29,6 @@ async function createNetwork(networkName: string): Promise<boolean> {
 }
 
 export async function ensureNetwork(networkName: string): Promise<boolean> {
-  const fullName = `${PROJECT_NAME}_${networkName}`;
+  const fullName = `${getProjectId()}_${networkName}`;
   return createNetwork(fullName);
 }

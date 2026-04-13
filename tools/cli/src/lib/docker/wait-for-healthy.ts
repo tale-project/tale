@@ -1,3 +1,4 @@
+import { getProjectId } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import { pipeLines } from './docker-compose';
 import { getContainerHealth } from './get-container-health';
@@ -11,9 +12,14 @@ interface HealthCheckOptions {
 }
 
 function extractServiceName(containerName: string): string {
-  // "tale-platform-blue" → "platform-blue", "tale-db" → "db"
-  const parts = containerName.split('-');
-  return parts.length > 1 ? parts.slice(1).join('-') : containerName;
+  // Strip the project ID prefix to get the service name.
+  // e.g. "my-app-a3f1b2-platform-blue" → "platform-blue" (project ID = "my-app-a3f1b2").
+  // Splitting on '-' is wrong because project IDs contain hyphens.
+  const projectId = getProjectId();
+  const prefix = `${projectId}-`;
+  return containerName.startsWith(prefix)
+    ? containerName.slice(prefix.length)
+    : containerName;
 }
 
 function startLogTail(containerName: string): {

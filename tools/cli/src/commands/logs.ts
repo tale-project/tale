@@ -2,6 +2,7 @@ import { Command } from 'commander';
 
 import { logs } from '../lib/actions/logs';
 import { requireProject } from '../lib/project/find-project';
+import { resolveProjectContext } from '../lib/project/project-context';
 import { loadEnv } from '../utils/load-env';
 import * as logger from '../utils/logger';
 
@@ -19,6 +20,7 @@ export function createLogsCommand(): Command {
     .action(async (service: string, options) => {
       try {
         const projectDir = requireProject();
+        await resolveProjectContext(projectDir);
         const env = loadEnv(projectDir);
 
         if (

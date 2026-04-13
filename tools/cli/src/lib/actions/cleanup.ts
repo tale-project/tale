@@ -1,4 +1,4 @@
-import { PROJECT_NAME, type DeploymentEnv } from '../../utils/load-env';
+import { getProjectId, type DeploymentEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import { ROTATABLE_SERVICES } from '../compose/types';
 import { containerExists } from '../docker/container-exists';
@@ -30,7 +30,7 @@ export async function cleanup(options: CleanupOptions): Promise<void> {
 
     let cleaned = 0;
     for (const service of ROTATABLE_SERVICES) {
-      const containerName = `${PROJECT_NAME}-${service}-${inactiveColor}`;
+      const containerName = `${getProjectId()}-${service}-${inactiveColor}`;
       const exists = await containerExists(containerName);
 
       if (exists) {

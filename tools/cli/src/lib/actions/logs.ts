@@ -1,5 +1,5 @@
 import { isUserInterrupt } from '../../utils/exit-codes';
-import { PROJECT_NAME } from '../../utils/load-env';
+import { getProjectId } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import type { DeploymentColor } from '../compose/types';
 import {
@@ -50,7 +50,7 @@ export async function logs(options: LogsOptions): Promise<void> {
       logger.info(`Auto-detected active color: ${targetColor}`);
     }
 
-    containerName = `${PROJECT_NAME}-${service}-${targetColor}`;
+    containerName = `${getProjectId()}-${service}-${targetColor}`;
   } else {
     // Stateful services don't have colors
     if (color) {
@@ -58,7 +58,7 @@ export async function logs(options: LogsOptions): Promise<void> {
         `Ignoring --color for stateful service ${service} (stateful services don't use blue/green)`,
       );
     }
-    containerName = `${PROJECT_NAME}-${service}`;
+    containerName = `${getProjectId()}-${service}`;
   }
 
   // Check if container exists (docker logs works for both running and stopped containers)

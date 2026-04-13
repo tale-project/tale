@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 
 import pkg from '../../../package.json';
 import * as logger from '../../utils/logger';
@@ -9,7 +9,14 @@ import {
   fetchReference,
   getEmbeddedExamples,
 } from '../project/fetch-reference';
-import { CURRENT_PROJECT_VERSION, type Checksums } from '../project/types';
+import { generateProjectId } from '../project/generate-project-id';
+import { setProjectId } from '../project/project-context';
+import { readProject } from '../project/read-project';
+import {
+  CURRENT_PROJECT_VERSION,
+  type Checksums,
+  type TaleProject,
+} from '../project/types';
 import { generateAllRules } from '../rules/generators';
 
 interface InitOptions {
@@ -18,7 +25,13 @@ interface InitOptions {
   noEnv?: boolean;
 }
 
-const GITIGNORE_ENTRIES = ['.tale/', '.env', '.history/'];
+const GITIGNORE_ENTRIES = [
+  '.tale/',
+  '.env',
+  '.history/',
+  'compose.override.yml',
+  'compose.override.yaml',
+];
 
 export async function init(options: InitOptions): Promise<void> {
   let directory = options.directory;
@@ -170,14 +183,28 @@ export async function init(options: InitOptions): Promise<void> {
   };
   await writeChecksums(target, checksums);
 
-  // Write tale.json
+  // Write tale.json. On reinit, preserve the existing project id and
+  // createdAt so Docker volumes/containers keyed on the id remain valid.
   logger.step('Writing tale.json...');
-  const project = {
+  let existingProject: TaleProject | null = null;
+  if (existsSync(taleJsonPath)) {
+    try {
+      existingProject = await readProject(target);
+    } catch (err) {
+      logger.debug(`Could not read existing tale.json: ${err}`);
+    }
+  }
+  const projectId = existingProject?.id ?? generateProjectId(basename(target));
+  const project: TaleProject = {
     version: CURRENT_PROJECT_VERSION,
     cliVersion: pkg.version,
-    createdAt: new Date().toISOString(),
+    createdAt: existingProject?.createdAt ?? new Date().toISOString(),
+    id: projectId,
   };
   await Bun.write(taleJsonPath, JSON.stringify(project, null, 2) + '\n');
+
+  // Make the ID available to subsequent steps (ensureEnv uses getProjectId()).
+  setProjectId(projectId);
 
   // Write AI rules files
   logger.step('Writing AI rules files...');

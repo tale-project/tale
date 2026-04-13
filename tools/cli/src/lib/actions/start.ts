@@ -3,13 +3,20 @@ import { join } from 'node:path';
 
 import pkg from '../../../package.json';
 import { isUserInterrupt } from '../../utils/exit-codes';
-import { loadEnv, PROJECT_NAME } from '../../utils/load-env';
+import { getProjectId, loadEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import { StatusHeader, isHealthCheckLog } from '../../utils/terminal';
+import { findComposeOverride } from '../compose/find-compose-override';
 import { generateDevCompose } from '../compose/generators/generate-dev-compose';
 import { dockerCompose } from '../docker/docker-compose';
 import { exec } from '../docker/exec';
+import {
+  clearMigrationPending,
+  hasPendingMigration,
+  migrateOldVolumes,
+} from '../docker/migrate-volumes';
 import { findProject } from '../project/find-project';
+import { resolveProjectContext } from '../project/project-context';
 import { init } from './init';
 
 async function assertDockerAvailable(): Promise<void> {
@@ -89,7 +96,7 @@ async function waitForHealthAndOpenBrowser(
     await Bun.sleep(1000);
   }
   logger.warn(
-    `Services did not become healthy within ${maxAttempts}s. Check logs: docker compose -p ${PROJECT_NAME}-dev logs`,
+    `Services did not become healthy within ${maxAttempts}s. Check logs: docker compose -p ${getProjectId()}-dev logs`,
   );
   return false;
 }
@@ -135,6 +142,37 @@ export async function start(options: StartOptions): Promise<void> {
 
   await assertDockerAvailable();
 
+  // Resolve project ID from tale.json before any Docker-resource naming
+  await resolveProjectContext(projectDir);
+
+  // Run any pending legacy-volume migration. The marker is written by
+  // `tale upgrade` when it can't migrate safely (e.g. legacy containers were
+  // running at upgrade time).
+  if (hasPendingMigration(projectDir)) {
+    logger.step('Running pending volume migration from legacy project...');
+    // Stop any still-running legacy dev containers before copying volumes.
+    // (We're about to bring up new containers anyway.) Best-effort — if the
+    // legacy compose project doesn't exist, `down` exits non-zero harmlessly.
+    await exec(
+      'docker',
+      ['compose', '-p', 'tale-dev', 'down', '--remove-orphans'],
+      { silent: true },
+    );
+    const result = await migrateOldVolumes(getProjectId(), projectDir);
+    if (result.deferred) {
+      throw new Error(
+        'Volume migration could not proceed. Check Docker availability and stop any running legacy Tale containers.',
+      );
+    }
+    if (result.failed.length > 0) {
+      throw new Error(
+        `Volume migration failed for ${result.failed.length} volume(s). Aborting to avoid starting with inconsistent state.`,
+      );
+    }
+    await clearMigrationPending(projectDir);
+    logger.success('Volume migration complete.');
+  }
+
   const env = loadEnv(projectDir);
   const version = pkg.version.includes('-dev') ? 'latest' : pkg.version;
   const port = options.port ?? 443;
@@ -148,6 +186,11 @@ export async function start(options: StartOptions): Promise<void> {
     port,
     { fresh: options.fresh },
   );
+
+  const overrideFile = findComposeOverride(projectDir);
+  if (overrideFile) {
+    logger.info(`Using compose override: compose.override.yml`);
+  }
 
   const args = ['up', ...(options.detach ? ['-d'] : [])];
 
@@ -166,9 +209,10 @@ export async function start(options: StartOptions): Promise<void> {
     logger.step('Starting services...');
 
     const result = await dockerCompose(compose, args, {
-      projectName: `${PROJECT_NAME}-dev`,
+      projectName: `${getProjectId()}-dev`,
       cwd: projectDir,
       inherit: true,
+      overrideFile: overrideFile ?? undefined,
     });
 
     if (!result.success) {
@@ -187,7 +231,7 @@ export async function start(options: StartOptions): Promise<void> {
     } else {
       logger.warn(
         'Tale is running but services may not be ready yet. Check logs: docker compose -p ' +
-          `${PROJECT_NAME}-dev logs`,
+          `${getProjectId()}-dev logs`,
       );
     }
     logger.blank();
@@ -198,7 +242,7 @@ export async function start(options: StartOptions): Promise<void> {
       'Edits to agents/, workflows/, integrations/, and branding/ will auto-refresh the browser.',
     );
     logger.blank();
-    logger.info(`Stop with: docker compose -p ${PROJECT_NAME}-dev down`);
+    logger.info(`Stop with: docker compose -p ${getProjectId()}-dev down`);
     return;
   }
 
@@ -212,8 +256,9 @@ export async function start(options: StartOptions): Promise<void> {
   const capturedUrls: Record<string, string> = {};
 
   const result = await dockerCompose(compose, args, {
-    projectName: `${PROJECT_NAME}-dev`,
+    projectName: `${getProjectId()}-dev`,
     cwd: projectDir,
+    overrideFile: overrideFile ?? undefined,
     onLine(line) {
       // Filter health check logs
       if (isHealthCheckLog(line)) return;

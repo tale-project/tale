@@ -1,15 +1,19 @@
+import { getProjectId } from '../../utils/load-env';
 import { isContainerRunning } from './is-container-running';
 import { listContainers } from './list-containers';
 
 export async function findPlatformContainer(): Promise<string> {
-  if (await isContainerRunning('tale-platform-blue')) {
-    return 'tale-platform-blue';
+  const projectId = getProjectId();
+  const blue = `${projectId}-platform-blue`;
+  const green = `${projectId}-platform-green`;
+  if (await isContainerRunning(blue)) {
+    return blue;
   }
-  if (await isContainerRunning('tale-platform-green')) {
-    return 'tale-platform-green';
+  if (await isContainerRunning(green)) {
+    return green;
   }
 
-  const containers = await listContainers('name=tale');
+  const containers = await listContainers(`name=${projectId}`);
   const platform = containers.find(
     (c) => /platform/.test(c.name) && c.status.startsWith('Up'),
   );

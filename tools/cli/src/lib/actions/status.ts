@@ -1,4 +1,4 @@
-import { PROJECT_NAME } from '../../utils/load-env';
+import { getProjectId } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import {
   type DeploymentColor,
@@ -93,7 +93,7 @@ export async function status(options: StatusOptions): Promise<void> {
   logger.step('Stateful Services:');
   const statefulResults = await Promise.all(
     STATEFUL_SERVICES.map(async (service) => {
-      const containerName = `${PROJECT_NAME}-${service}`;
+      const containerName = `${getProjectId()}-${service}`;
       const info = await getContainerStatus(containerName);
       return Object.assign({ service }, info);
     }),
@@ -117,7 +117,7 @@ export async function status(options: StatusOptions): Promise<void> {
 
     const rotatableResults = await Promise.all(
       ROTATABLE_SERVICES.map(async (service) => {
-        const containerName = `${PROJECT_NAME}-${service}-${color}`;
+        const containerName = `${getProjectId()}-${service}-${color}`;
         const info = await getContainerStatus(containerName);
         return Object.assign({ service }, info);
       }),
@@ -148,7 +148,7 @@ export async function status(options: StatusOptions): Promise<void> {
   }
 
   // Show all tale containers for reference
-  const containers = await listContainers(`name=${PROJECT_NAME}`);
+  const containers = await listContainers(`name=${getProjectId()}`);
   if (containers.length > 0) {
     logger.step('All Containers:');
     for (const container of containers) {
