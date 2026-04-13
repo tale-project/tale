@@ -89,7 +89,7 @@ describe('McpServerCard', () => {
         onDelete={vi.fn()}
       />,
     );
-    await user.click(screen.getByRole('button'));
+    await user.click(screen.getByText('Test Server'));
     expect(onClick).toHaveBeenCalledTimes(1);
   });
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { ShieldCheck } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Alert } from '@/app/components/ui/feedback/alert';
 import { Badge } from '@/app/components/ui/feedback/badge';
@@ -60,10 +60,12 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
   > | null>(null);
 
   const cannotManage = ability.cannot('write', 'orgSettings');
+  const initialized = useRef(false);
 
-  // Sync from server data
+  // Sync from server data once loaded
   useEffect(() => {
-    if (policy) {
+    if (policy && !initialized.current) {
+      initialized.current = true;
       setEnabled(policy.enabled ?? false);
       setMode(policy.config?.mode ?? 'mask');
       setEnabledPatterns(
