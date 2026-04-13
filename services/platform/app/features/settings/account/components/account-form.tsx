@@ -270,6 +270,7 @@ function ChangePasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
       <Input
         id="current-password"
         type="password"
+        autoComplete="current-password"
         label={tAuth('changePassword.currentPassword')}
         placeholder={tAuth('changePassword.placeholder.current')}
         disabled={isSubmitting}
@@ -281,6 +282,7 @@ function ChangePasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
         <Input
           id="new-password"
           type="password"
+          autoComplete="new-password"
           label={tAuth('changePassword.newPassword')}
           placeholder={tAuth('changePassword.placeholder.new')}
           disabled={isSubmitting}
@@ -298,6 +300,7 @@ function ChangePasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
       <Input
         id="confirm-password"
         type="password"
+        autoComplete="new-password"
         label={tAuth('changePassword.confirmPassword')}
         placeholder={tAuth('changePassword.placeholder.confirm')}
         disabled={isSubmitting}
@@ -398,6 +401,7 @@ function SetPasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
         <Input
           id="new-password"
           type="password"
+          autoComplete="new-password"
           label={tAuth('setPassword.newPassword')}
           placeholder={tAuth('changePassword.placeholder.new')}
           disabled={isSubmitting}
@@ -415,6 +419,7 @@ function SetPasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
       <Input
         id="confirm-password"
         type="password"
+        autoComplete="new-password"
         label={tAuth('setPassword.confirmPassword')}
         placeholder={tAuth('changePassword.placeholder.confirm')}
         disabled={isSubmitting}

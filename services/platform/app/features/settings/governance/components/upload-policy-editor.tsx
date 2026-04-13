@@ -15,6 +15,7 @@ import {
   uploadPolicyConfigSchema,
   type UploadPolicyConfig,
 } from '@/lib/shared/schemas/governance';
+import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-guards';
 
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
@@ -164,77 +165,84 @@ export function UploadPolicyEditor({
           </Text>
         )}
 
-        <Stack gap={4}>
-          <div>
-            <Input
-              label={t('uploadPolicy.allowedExtensions')}
-              value={allowedExtensions}
-              onChange={(e) => setAllowedExtensions(e.target.value)}
-              placeholder={t('uploadPolicy.extensionPlaceholder')}
-              disabled={cannotManage || !enabled}
-              size="sm"
-            />
-          </div>
-
-          <div>
-            <Input
-              label={t('uploadPolicy.blockedExtensions')}
-              value={blockedExtensions}
-              onChange={(e) => setBlockedExtensions(e.target.value)}
-              placeholder={t('uploadPolicy.extensionPlaceholder')}
-              disabled={cannotManage || !enabled}
-              size="sm"
-            />
-          </div>
-
-          <div>
-            <Input
-              label={t('uploadPolicy.allowedMimeTypes')}
-              value={allowedMimeTypes}
-              onChange={(e) => setAllowedMimeTypes(e.target.value)}
-              placeholder={t('uploadPolicy.mimeTypePlaceholder')}
-              disabled={cannotManage || !enabled}
-              size="sm"
-            />
-          </div>
-
-          <div>
-            <Input
-              label={`${t('uploadPolicy.maxFileSize')} (${t('uploadPolicy.mbUnit')})`}
-              type="number"
-              value={maxFileSizeMB}
-              onChange={(e) => setMaxFileSizeMB(e.target.value)}
-              disabled={cannotManage || !enabled}
-              size="sm"
-              min={0}
-              step={1}
-            />
-          </div>
-
-          <div>
-            <Input
-              label={`${t('uploadPolicy.maxVolumePerUser')} (${t('uploadPolicy.gbUnit')})`}
-              type="number"
-              value={maxVolumeGB}
-              onChange={(e) => setMaxVolumeGB(e.target.value)}
-              disabled={cannotManage || !enabled}
-              size="sm"
-              min={0}
-              step={0.1}
-            />
-          </div>
-        </Stack>
-
-        <Button
-          onClick={handleSave}
-          disabled={cannotManage || upsertMutation.isPending}
-          size="sm"
-          className="self-start"
+        <div
+          className={cn(
+            'flex flex-col gap-6 transition-opacity duration-200',
+            !enabled && 'pointer-events-none opacity-50',
+          )}
         >
-          {upsertMutation.isPending
-            ? t('systemPrompt.saving')
-            : t('systemPrompt.save')}
-        </Button>
+          <Stack gap={4}>
+            <div>
+              <Input
+                label={t('uploadPolicy.allowedExtensions')}
+                value={allowedExtensions}
+                onChange={(e) => setAllowedExtensions(e.target.value)}
+                placeholder={t('uploadPolicy.extensionPlaceholder')}
+                disabled={cannotManage || !enabled}
+                size="sm"
+              />
+            </div>
+
+            <div>
+              <Input
+                label={t('uploadPolicy.blockedExtensions')}
+                value={blockedExtensions}
+                onChange={(e) => setBlockedExtensions(e.target.value)}
+                placeholder={t('uploadPolicy.extensionPlaceholder')}
+                disabled={cannotManage || !enabled}
+                size="sm"
+              />
+            </div>
+
+            <div>
+              <Input
+                label={t('uploadPolicy.allowedMimeTypes')}
+                value={allowedMimeTypes}
+                onChange={(e) => setAllowedMimeTypes(e.target.value)}
+                placeholder={t('uploadPolicy.mimeTypePlaceholder')}
+                disabled={cannotManage || !enabled}
+                size="sm"
+              />
+            </div>
+
+            <div>
+              <Input
+                label={`${t('uploadPolicy.maxFileSize')} (${t('uploadPolicy.mbUnit')})`}
+                type="number"
+                value={maxFileSizeMB}
+                onChange={(e) => setMaxFileSizeMB(e.target.value)}
+                disabled={cannotManage || !enabled}
+                size="sm"
+                min={0}
+                step={1}
+              />
+            </div>
+
+            <div>
+              <Input
+                label={`${t('uploadPolicy.maxVolumePerUser')} (${t('uploadPolicy.gbUnit')})`}
+                type="number"
+                value={maxVolumeGB}
+                onChange={(e) => setMaxVolumeGB(e.target.value)}
+                disabled={cannotManage || !enabled}
+                size="sm"
+                min={0}
+                step={0.1}
+              />
+            </div>
+          </Stack>
+
+          <Button
+            onClick={handleSave}
+            disabled={cannotManage || upsertMutation.isPending}
+            size="sm"
+            className="self-start"
+          >
+            {upsertMutation.isPending
+              ? t('systemPrompt.saving')
+              : t('systemPrompt.save')}
+          </Button>
+        </div>
       </Stack>
     </PageSection>
   );

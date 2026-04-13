@@ -681,7 +681,8 @@
       "saveChanges": "Save changes",
       "loadingMembers": "Loading...",
       "unknownMember": "Unknown",
-      "memberChecklistHint": "A member can be part of multiple teams. If no one is selected, you will be added automatically."
+      "memberChecklistHint": "A member can be part of multiple teams. If no one is selected, you will be added automatically.",
+      "teamDetails": "Team details"
     },
     "agents": {
       "title": "Agents",
@@ -1636,8 +1637,11 @@
       "auditLogs": "Audit logs",
       "activityLogs": "Activity logs",
       "errorLogs": "Error logs",
+      "auditDescription": "Track all actions performed across your organization.",
       "activityDescription": "View system activity and audit logs.",
+      "activityComingSoon": "Activity logs are coming soon.",
       "errorDescription": "View system errors and warnings.",
+      "errorComingSoon": "Error logs are coming soon.",
       "audit": {
         "tableCaption": "Audit logs data table",
         "emptyTitle": "No audit logs",
@@ -3962,7 +3966,13 @@
       "usage": "Usage",
       "pii": "PII protection",
       "featureControls": "Feature controls",
-      "modelAccess": "Model access"
+      "modelAccess": "Model access",
+      "retention": "Retention"
+    },
+    "groups": {
+      "contentAndModels": "Content & Models",
+      "policiesAndLimits": "Policies & Limits",
+      "securityAndMonitoring": "Security & Monitoring"
     },
     "modelAccess": {
       "title": "Model access",

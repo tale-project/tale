@@ -23,10 +23,12 @@ import {
   type ModelAccessConfig,
   type ModelAccessRule,
 } from '@/lib/shared/schemas/governance';
+import { cn } from '@/lib/utils/cn';
 import { isRecord } from '@/lib/utils/type-guards';
 
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
+import { SelectTriggerButton } from './select-trigger-button';
 
 interface ModelAccessEditorProps {
   organizationId: string;
@@ -180,20 +182,15 @@ function RuleDialog({
                 emptyText={t('modelAccess.noUsersFound')}
                 aria-label={t('modelAccess.selectUser')}
                 trigger={
-                  <button
-                    type="button"
+                  <SelectTriggerButton
                     disabled={cannotManage}
-                    className="border-input ring-offset-background flex h-8 w-full items-center justify-between rounded-md border bg-transparent px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                    hasValue={!!draft.scopeId}
                   >
-                    <span
-                      className={draft.scopeId ? '' : 'text-muted-foreground'}
-                    >
-                      {draft.scopeId
-                        ? (memberOptions.find((o) => o.value === draft.scopeId)
-                            ?.label ?? draft.scopeId)
-                        : t('modelAccess.selectUser')}
-                    </span>
-                  </button>
+                    {draft.scopeId
+                      ? (memberOptions.find((o) => o.value === draft.scopeId)
+                          ?.label ?? draft.scopeId)
+                      : t('modelAccess.selectUser')}
+                  </SelectTriggerButton>
                 }
               />
             </div>
@@ -212,20 +209,15 @@ function RuleDialog({
                 emptyText={t('modelAccess.noTeamsFound')}
                 aria-label={t('modelAccess.selectTeam')}
                 trigger={
-                  <button
-                    type="button"
+                  <SelectTriggerButton
                     disabled={cannotManage}
-                    className="border-input ring-offset-background flex h-8 w-full items-center justify-between rounded-md border bg-transparent px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                    hasValue={!!draft.scopeId}
                   >
-                    <span
-                      className={draft.scopeId ? '' : 'text-muted-foreground'}
-                    >
-                      {draft.scopeId
-                        ? (teamOptions.find((o) => o.value === draft.scopeId)
-                            ?.label ?? draft.scopeId)
-                        : t('modelAccess.selectTeam')}
-                    </span>
-                  </button>
+                    {draft.scopeId
+                      ? (teamOptions.find((o) => o.value === draft.scopeId)
+                          ?.label ?? draft.scopeId)
+                      : t('modelAccess.selectTeam')}
+                  </SelectTriggerButton>
                 }
               />
             </div>
@@ -454,9 +446,22 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
     <PageSection
       title={t('modelAccess.title')}
       description={t('modelAccess.description')}
+      action={
+        <Switch
+          label={t('modelAccess.enabled')}
+          checked={enabled}
+          onCheckedChange={handleToggleEnabled}
+          disabled={cannotManage || upsertMutation.isPending}
+        />
+      }
     >
-      <Stack gap={6}>
-        <HStack gap={3} align="center" justify="between">
+      <div
+        className={cn(
+          'transition-opacity duration-200',
+          !enabled && 'pointer-events-none opacity-50',
+        )}
+      >
+        <Stack gap={6}>
           <HStack gap={2} align="center">
             <Text className="text-sm font-medium">{t('modelAccess.mode')}</Text>
             <div className="w-36">
@@ -469,106 +474,102 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
               />
             </div>
           </HStack>
-          <Switch
-            label={t('modelAccess.enabled')}
-            checked={enabled}
-            onCheckedChange={handleToggleEnabled}
-            disabled={cannotManage || upsertMutation.isPending}
-          />
-        </HStack>
-        <Stack gap={3}>
-          {rules.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table
-                className="w-full text-sm"
-                aria-label={t('modelAccess.title')}
-              >
-                <caption className="sr-only">{t('modelAccess.title')}</caption>
-                <thead>
-                  <tr className="border-border border-b">
-                    <th
-                      scope="col"
-                      className="text-muted-foreground px-3 py-2 text-left font-medium"
-                    >
-                      {t('modelAccess.scope')}
-                    </th>
-                    <th
-                      scope="col"
-                      className="text-muted-foreground px-3 py-2 text-left font-medium"
-                    >
-                      {t('modelAccess.target')}
-                    </th>
-                    <th
-                      scope="col"
-                      className="text-muted-foreground px-3 py-2 text-left font-medium"
-                    >
-                      {mode === 'allowlist'
-                        ? t('modelAccess.allowedModels')
-                        : t('modelAccess.blockedModels')}
-                    </th>
-                    <th
-                      scope="col"
-                      className="text-muted-foreground px-3 py-2 text-right font-medium"
-                    >
-                      {t('modelAccess.actions')}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rules.map((rule, index) => (
-                    <tr key={index} className="border-border border-b">
-                      <td className="px-3 py-2 capitalize">{rule.scope}</td>
-                      <td className="px-3 py-2">{resolveTarget(rule)}</td>
-                      <td className="px-3 py-2">
+          <Stack gap={3}>
+            {rules.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table
+                  className="w-full text-sm"
+                  aria-label={t('modelAccess.title')}
+                >
+                  <caption className="sr-only">
+                    {t('modelAccess.title')}
+                  </caption>
+                  <thead>
+                    <tr className="border-border border-b">
+                      <th
+                        scope="col"
+                        className="text-muted-foreground px-3 py-2 text-left font-medium"
+                      >
+                        {t('modelAccess.scope')}
+                      </th>
+                      <th
+                        scope="col"
+                        className="text-muted-foreground px-3 py-2 text-left font-medium"
+                      >
+                        {t('modelAccess.target')}
+                      </th>
+                      <th
+                        scope="col"
+                        className="text-muted-foreground px-3 py-2 text-left font-medium"
+                      >
                         {mode === 'allowlist'
-                          ? resolveModelNames(rule.allowedModels)
-                          : resolveModelNames(rule.blockedModels ?? [])}
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        <HStack gap={1} justify="end">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => openEditDialog(index)}
-                            disabled={cannotManage}
-                            aria-label={t('modelAccess.editRule')}
-                          >
-                            <Pencil className="size-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => removeRule(index)}
-                            disabled={cannotManage}
-                            aria-label={t('modelAccess.deleteRule')}
-                          >
-                            <Trash2 className="size-4" />
-                          </Button>
-                        </HStack>
-                      </td>
+                          ? t('modelAccess.allowedModels')
+                          : t('modelAccess.blockedModels')}
+                      </th>
+                      <th
+                        scope="col"
+                        className="text-muted-foreground px-3 py-2 text-right font-medium"
+                      >
+                        {t('modelAccess.actions')}
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <Text variant="muted" className="text-sm">
-              {t('modelAccess.noRules')}
-            </Text>
-          )}
+                  </thead>
+                  <tbody>
+                    {rules.map((rule, index) => (
+                      <tr key={index} className="border-border border-b">
+                        <td className="px-3 py-2 capitalize">{rule.scope}</td>
+                        <td className="px-3 py-2">{resolveTarget(rule)}</td>
+                        <td className="px-3 py-2">
+                          {mode === 'allowlist'
+                            ? resolveModelNames(rule.allowedModels)
+                            : resolveModelNames(rule.blockedModels ?? [])}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          <HStack gap={1} justify="end">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => openEditDialog(index)}
+                              disabled={cannotManage}
+                              aria-label={t('modelAccess.editRule')}
+                            >
+                              <Pencil className="size-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removeRule(index)}
+                              disabled={cannotManage}
+                              aria-label={t('modelAccess.deleteRule')}
+                            >
+                              <Trash2 className="size-4" />
+                            </Button>
+                          </HStack>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <Text variant="muted" className="text-sm">
+                {t('modelAccess.noRules')}
+              </Text>
+            )}
 
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={openAddDialog}
-            disabled={cannotManage}
-            className="self-start"
-          >
-            <Plus className="mr-1.5 size-4" />
-            {t('modelAccess.addRule')}
-          </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={openAddDialog}
+              disabled={cannotManage}
+              className="self-start"
+            >
+              <Plus className="mr-1.5 size-4" />
+              {t('modelAccess.addRule')}
+            </Button>
+          </Stack>
         </Stack>
-      </Stack>
+      </div>
 
       {dialogOpen && (
         <RuleDialog

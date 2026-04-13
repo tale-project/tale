@@ -1,12 +1,25 @@
 'use client';
 
 import { useAction } from 'convex/react';
-import { CheckCircle2, Loader2, ShieldAlert, Wrench, X } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import {
+  CheckCircle2,
+  Ellipsis,
+  Loader2,
+  Pencil,
+  ShieldAlert,
+  Trash2,
+  Wrench,
+  X,
+} from 'lucide-react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { HStack, Stack } from '@/app/components/ui/layout/layout';
+import {
+  DropdownMenu,
+  type DropdownMenuGroup,
+} from '@/app/components/ui/overlays/dropdown-menu';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { Button } from '@/app/components/ui/primitives/button';
 import { IconButton } from '@/app/components/ui/primitives/icon-button';
@@ -26,6 +39,7 @@ interface McpServerPanelProps {
   server: McpServerListItem;
   onDeleted: () => void;
   onUpdated: () => void;
+  initialEditing?: boolean;
 }
 
 export function McpServerPanel({
@@ -34,6 +48,7 @@ export function McpServerPanel({
   server,
   onDeleted,
   onUpdated,
+  initialEditing = false,
 }: McpServerPanelProps) {
   const { t } = useT('mcpServers');
   const { t: tCommon } = useT('common');
@@ -48,7 +63,7 @@ export function McpServerPanel({
   );
 
   const [isTesting, setIsTesting] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(initialEditing);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -147,6 +162,31 @@ export function McpServerPanel({
 
   const discoveredTools = server.discoveredTools ?? [];
 
+  const menuItems = useMemo<DropdownMenuGroup[]>(
+    () => [
+      [
+        {
+          type: 'item' as const,
+          label: t('editServer'),
+          icon: Pencil,
+          onClick: () => setIsEditing(true),
+          disabled: isTesting || isDeleting,
+        },
+      ],
+      [
+        {
+          type: 'item' as const,
+          label: t('deleteServer'),
+          icon: Trash2,
+          onClick: () => setConfirmDelete(true),
+          destructive: true,
+          disabled: isTesting || isDeleting,
+        },
+      ],
+    ],
+    [t, isTesting, isDeleting],
+  );
+
   return (
     <>
       <Sheet
@@ -165,21 +205,38 @@ export function McpServerPanel({
           <Text variant="label" className="text-base font-semibold">
             {isEditing ? t('editServer') : server.displayName}
           </Text>
-          <IconButton
-            icon={X}
-            aria-label={tCommon('aria.close')}
-            variant="ghost"
-            onClick={() => onOpenChange(false)}
-          />
+          <HStack gap={1}>
+            {!isEditing && (
+              <DropdownMenu
+                trigger={
+                  <IconButton
+                    icon={Ellipsis}
+                    aria-label={tCommon('aria.actionsMenu')}
+                    variant="ghost"
+                    disabled={isTesting || isDeleting}
+                  />
+                }
+                items={menuItems}
+                align="end"
+              />
+            )}
+            <IconButton
+              icon={X}
+              aria-label={tCommon('aria.close')}
+              variant="ghost"
+              onClick={() => onOpenChange(false)}
+            />
+          </HStack>
         </HStack>
 
         <div className="flex-1 overflow-y-auto p-4 sm:px-6 sm:py-5">
           {isEditing ? (
             <McpServerForm
+              formId="edit-mcp-server"
+              hideActions
               server={server}
               isSubmitting={isSubmitting}
               onSubmit={handleUpdate}
-              onCancel={() => setIsEditing(false)}
             />
           ) : (
             <Stack gap={6}>
@@ -320,51 +377,50 @@ export function McpServerPanel({
           )}
         </div>
 
-        {!isEditing && (
-          <div className="border-border shrink-0 border-t p-4 sm:px-6 sm:py-4">
-            <Stack gap={3}>
-              <HStack justify="between" align="center">
-                <Button
-                  variant="secondary"
-                  onClick={handleToggleStatus}
-                  disabled={isTesting || isDeleting}
-                >
-                  {server.status === 'active' ? t('deactivate') : t('activate')}
-                </Button>
-                <HStack gap={2}>
-                  <Button
-                    variant="secondary"
-                    onClick={() => setIsEditing(true)}
-                    disabled={isTesting || isDeleting}
-                  >
-                    {t('editServer')}
-                  </Button>
-                  <Button
-                    onClick={handleTestConnection}
-                    disabled={isTesting || isDeleting}
-                  >
-                    {isTesting ? (
-                      <>
-                        <Loader2 className="mr-2 size-4 animate-spin" />
-                        {t('testing')}
-                      </>
-                    ) : (
-                      t('testConnection')
-                    )}
-                  </Button>
-                </HStack>
-              </HStack>
-              <button
+        <div className="border-border shrink-0 border-t p-4 sm:px-6 sm:py-4">
+          {isEditing ? (
+            <div className="flex justify-end gap-3">
+              <Button
                 type="button"
-                onClick={() => setConfirmDelete(true)}
-                disabled={isTesting || isDeleting}
-                className="text-destructive hover:text-destructive/80 flex items-center gap-1.5 text-sm font-medium transition-colors disabled:opacity-50"
+                variant="secondary"
+                onClick={() => setIsEditing(false)}
+                disabled={isSubmitting}
               >
-                {t('deleteServer')}
-              </button>
-            </Stack>
-          </div>
-        )}
+                {t('form.cancel')}
+              </Button>
+              <Button
+                type="submit"
+                form="edit-mcp-server"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? t('form.saving') : t('form.save')}
+              </Button>
+            </div>
+          ) : (
+            <HStack justify="between" align="center">
+              <Button
+                variant="secondary"
+                onClick={handleToggleStatus}
+                disabled={isTesting || isDeleting}
+              >
+                {server.status === 'active' ? t('deactivate') : t('activate')}
+              </Button>
+              <Button
+                onClick={handleTestConnection}
+                disabled={isTesting || isDeleting}
+              >
+                {isTesting ? (
+                  <>
+                    <Loader2 className="mr-2 size-4 animate-spin" />
+                    {t('testing')}
+                  </>
+                ) : (
+                  t('testConnection')
+                )}
+              </Button>
+            </HStack>
+          )}
+        </div>
       </Sheet>
 
       <DeleteDialog

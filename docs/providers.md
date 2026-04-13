@@ -12,7 +12,7 @@ Tale connects to AI models through **providers** — OpenAI-compatible API endpo
 Providers are managed in **Settings > Providers** in the management UI. Admins can:
 
 - **Add a provider** with a name, display name, base URL, API key, and one or more models
-- **Edit a provider** to update its configuration or add/remove models
+- **Edit a provider** to update its display name, description, base URL, and default models. The description is shown in the provider list to help users understand what the provider is for. Default models let you pre-select which model is used for chat, vision, and embedding when users pick this provider.
 - **Delete a provider** to remove it entirely
 
 Each model definition includes an ID (must match the model name expected by the API), a display name, and one or more tags (`chat`, `vision`, `embedding`) that control where the model appears in the platform.

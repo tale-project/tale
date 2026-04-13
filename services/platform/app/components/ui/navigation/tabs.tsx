@@ -19,6 +19,8 @@ interface TabsProps {
   onValueChange?: (value: string) => void;
   className?: string;
   listClassName?: string;
+  /** Optional actions rendered to the right of the tab list */
+  actions?: ReactNode;
 }
 
 export function Tabs({
@@ -28,6 +30,7 @@ export function Tabs({
   onValueChange,
   className,
   listClassName,
+  actions,
 }: TabsProps) {
   return (
     <TabsPrimitive.Root
@@ -36,30 +39,33 @@ export function Tabs({
       onValueChange={onValueChange}
       className={className}
     >
-      <TabsPrimitive.List
-        className={cn(
-          'scrollbar-hide inline-flex items-center overflow-x-auto bg-muted p-1 text-muted-foreground rounded-lg',
-          listClassName,
-        )}
-      >
-        {items.map((item) => (
-          <TabsPrimitive.Trigger
-            key={item.value}
-            value={item.value}
-            disabled={item.disabled}
-            className="ring-offset-background focus-visible:ring-ring data-[state=active]:bg-background data-[state=active]:text-foreground inline-flex items-center justify-center rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 data-[state=active]:shadow-sm"
-          >
-            {item.label}
-          </TabsPrimitive.Trigger>
-        ))}
-      </TabsPrimitive.List>
+      <div className="flex items-center justify-between gap-4">
+        <TabsPrimitive.List
+          className={cn(
+            'scrollbar-hide inline-flex items-center overflow-x-auto bg-muted p-1 text-muted-foreground rounded-lg',
+            listClassName,
+          )}
+        >
+          {items.map((item) => (
+            <TabsPrimitive.Trigger
+              key={item.value}
+              value={item.value}
+              disabled={item.disabled}
+              className="ring-offset-background focus-visible:ring-ring data-[state=active]:bg-background data-[state=active]:text-foreground inline-flex items-center justify-center rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 data-[state=active]:shadow-sm"
+            >
+              {item.label}
+            </TabsPrimitive.Trigger>
+          ))}
+        </TabsPrimitive.List>
+        {actions && <div className="shrink-0">{actions}</div>}
+      </div>
       {items.map(
         (item) =>
           item.content && (
             <TabsPrimitive.Content
               key={item.value}
               value={item.value}
-              className="ring-offset-background focus-visible:ring-ring mt-2 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+              className="ring-offset-background focus-visible:ring-ring mt-2 flex min-h-0 flex-1 flex-col focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
             >
               {item.content}
             </TabsPrimitive.Content>

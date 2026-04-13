@@ -82,7 +82,7 @@ export const Input = forwardRef<HTMLInputElement, BaseProps>(
     const [showShake, setShowShake] = useState(false);
     const inputType = isPassword ? (show ? 'text' : 'password') : type;
     const resolvedAutoComplete =
-      autoComplete ?? (isPassword ? 'current-password' : undefined);
+      autoComplete ?? (isPassword ? 'off' : undefined);
     const hasError = !!errorMessage;
     const showInvalid = hasError || !!isInvalid;
     const describedBy =

@@ -135,7 +135,7 @@ describe('McpServerPanel', () => {
     expect(screen.getByText('https://example.com/mcp')).toBeInTheDocument();
   });
 
-  it('renders delete button', () => {
+  it('renders actions menu with edit and delete', () => {
     render(
       <McpServerPanel
         open
@@ -145,7 +145,9 @@ describe('McpServerPanel', () => {
         onUpdated={vi.fn()}
       />,
     );
-    expect(screen.getByRole('button', { name: /delete/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /actions menu/i }),
+    ).toBeInTheDocument();
   });
 
   describe('accessibility', () => {

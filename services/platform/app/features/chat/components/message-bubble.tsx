@@ -419,7 +419,7 @@ function MessageBubbleComponent({
           </div>
         )}
         {!isUser && !isAssistantStreaming && !!displayContent && (
-          <div className="flex items-center pt-2">
+          <div className="flex items-start pt-2">
             <Tooltip
               content={isCopied ? t('actions.copied') : t('actions.copy')}
               side="bottom"

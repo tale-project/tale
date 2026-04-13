@@ -1,6 +1,6 @@
 'use client';
 
-import { Pencil, Trash2 } from 'lucide-react';
+import { Eye, Pencil, Trash2 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import {
@@ -16,9 +16,14 @@ import { TeamEditDialog } from './team-edit-dialog';
 interface TeamRowActionsProps {
   team: Team;
   organizationId: string;
+  onView?: () => void;
 }
 
-export function TeamRowActions({ team, organizationId }: TeamRowActionsProps) {
+export function TeamRowActions({
+  team,
+  organizationId,
+  onView,
+}: TeamRowActionsProps) {
   const { t: tCommon } = useT('common');
   const dialogs = useEntityRowDialogs(['edit', 'delete']);
   const [isDeleted, setIsDeleted] = useState(false);
@@ -27,6 +32,17 @@ export function TeamRowActions({ team, organizationId }: TeamRowActionsProps) {
 
   const actions = useMemo(
     () => [
+      ...(onView
+        ? [
+            {
+              key: 'view',
+              label: tCommon('actions.view'),
+              icon: Eye,
+              onClick: onView,
+              disabled: isDeleted,
+            },
+          ]
+        : []),
       {
         key: 'edit',
         label: tCommon('actions.edit'),
@@ -43,7 +59,7 @@ export function TeamRowActions({ team, organizationId }: TeamRowActionsProps) {
         disabled: isDeleted,
       },
     ],
-    [tCommon, dialogs.open, isDeleted],
+    [tCommon, dialogs.open, isDeleted, onView],
   );
 
   return (

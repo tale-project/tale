@@ -1,6 +1,7 @@
 'use client';
 
 import { Users } from 'lucide-react';
+import { useCallback, useState } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { useListPage } from '@/app/hooks/use-list-page';
@@ -8,6 +9,7 @@ import { useT } from '@/lib/i18n/client';
 
 import type { Team } from '../hooks/queries';
 import { useTeamsTableConfig } from '../hooks/use-teams-table-config';
+import { TeamDetailDialog } from './team-detail-dialog';
 import { TeamsActionMenu } from './teams-action-menu';
 
 interface TeamsTableProps {
@@ -18,8 +20,14 @@ interface TeamsTableProps {
 export function TeamsTable({ teams, organizationId }: TeamsTableProps) {
   const { t: tEmpty } = useT('emptyStates');
   const { t: tSettings } = useT('settings');
+  const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
+
+  const handleViewTeam = useCallback((team: Team) => {
+    setSelectedTeam(team);
+  }, []);
+
   const { columns, searchPlaceholder, stickyLayout, pageSize } =
-    useTeamsTableConfig(organizationId);
+    useTeamsTableConfig(organizationId, handleViewTeam);
 
   const list = useListPage<Team>({
     dataSource: { type: 'query', data: teams },
@@ -48,8 +56,21 @@ export function TeamsTable({ teams, organizationId }: TeamsTableProps) {
           title: tEmpty('teams.title'),
           description: tEmpty('teams.description'),
         }}
+        onRowClick={(row) => setSelectedTeam(row.original)}
+        clickableRows
         {...list.tableProps}
       />
+
+      {selectedTeam && (
+        <TeamDetailDialog
+          team={selectedTeam}
+          organizationId={organizationId}
+          open={!!selectedTeam}
+          onOpenChange={(open) => {
+            if (!open) setSelectedTeam(null);
+          }}
+        />
+      )}
     </div>
   );
 }

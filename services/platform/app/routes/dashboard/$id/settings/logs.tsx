@@ -1,17 +1,18 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { z } from 'zod';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
-import { Card } from '@/app/components/ui/layout/card';
-import { Stack } from '@/app/components/ui/layout/layout';
 import { Tabs } from '@/app/components/ui/navigation/tabs';
+import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { AuditLogTable } from '@/app/features/settings/audit-logs/components/audit-log-table';
 import { useListAuditLogsPaginated } from '@/app/features/settings/audit-logs/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
+import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
+import { useToast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
@@ -56,51 +57,105 @@ function LogsPage() {
     return map;
   }, [membersQuery.data]);
 
+  const { toast } = useToast();
+
+  const exportAction = useConvexAction(api.audit_logs.actions.requestExport, {
+    onSuccess: (data) => {
+      if (data.url) {
+        window.open(data.url, '_blank', 'noopener,noreferrer');
+      }
+      toast({
+        title: t('logs.audit.export.complete'),
+        description: data.fileName,
+      });
+    },
+    onError: () => {
+      toast({
+        title: t('logs.audit.export.error'),
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const handleExport = useCallback(
+    (format: 'csv' | 'json') => {
+      exportAction.mutate({
+        organizationId,
+        format,
+        filter: search.category ? { category: search.category } : undefined,
+      });
+    },
+    [organizationId, search.category, exportAction],
+  );
+
   if (ability.cannot('read', 'orgSettings')) {
     return <AccessDenied message={tAccess('organization')} />;
   }
 
   return (
-    <Stack gap={4}>
-      <Tabs
-        defaultValue="audit"
-        className="space-y-4"
-        items={[
-          {
-            value: 'audit',
-            label: t('logs.auditLogs'),
-            content: (
-              <Card title={t('logs.auditLogs')}>
-                <AuditLogTable
-                  organizationId={organizationId}
-                  paginatedResult={paginatedResult}
-                  category={search.category}
-                  isAdmin={isAdminUser}
-                  userEmailMap={userEmailMap}
-                />
-              </Card>
-            ),
-          },
-          {
-            value: 'activity',
-            label: t('logs.activityLogs'),
-            content: (
-              <Card title={t('logs.activityLogs')}>
-                <Text variant="muted">{t('logs.activityDescription')}</Text>
-              </Card>
-            ),
-          },
-          {
-            value: 'errors',
-            label: t('logs.errorLogs'),
-            content: (
-              <Card title={t('logs.errorLogs')}>
-                <Text variant="muted">{t('logs.errorDescription')}</Text>
-              </Card>
-            ),
-          },
-        ]}
-      />
-    </Stack>
+    <Tabs
+      defaultValue="audit"
+      className="flex min-h-0 flex-1 flex-col"
+      actions={
+        isAdminUser ? (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => handleExport('csv')}
+              disabled={exportAction.isPending}
+              aria-label={t('logs.audit.export.csvLabel')}
+            >
+              {exportAction.isPending
+                ? t('logs.audit.export.inProgress')
+                : t('logs.audit.export.csv')}
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => handleExport('json')}
+              disabled={exportAction.isPending}
+              aria-label={t('logs.audit.export.jsonLabel')}
+            >
+              {exportAction.isPending
+                ? t('logs.audit.export.inProgress')
+                : t('logs.audit.export.json')}
+            </Button>
+          </div>
+        ) : undefined
+      }
+      items={[
+        {
+          value: 'audit',
+          label: t('logs.auditLogs'),
+          content: (
+            <AuditLogTable
+              organizationId={organizationId}
+              paginatedResult={paginatedResult}
+              category={search.category}
+              userEmailMap={userEmailMap}
+            />
+          ),
+        },
+        {
+          value: 'activity',
+          label: t('logs.activityLogs'),
+          content: (
+            <Text variant="muted" className="text-sm">
+              {t('logs.activityComingSoon')}
+            </Text>
+          ),
+        },
+        {
+          value: 'errors',
+          label: t('logs.errorLogs'),
+          content: (
+            <Text variant="muted" className="text-sm">
+              {t('logs.errorComingSoon')}
+            </Text>
+          ),
+        },
+      ]}
+    />
   );
 }

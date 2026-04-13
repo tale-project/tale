@@ -115,7 +115,7 @@ export function SystemPromptEditor({
             value={prefix}
             onChange={(e) => setPrefix(e.target.value)}
             placeholder={t('systemPrompt.prefixPlaceholder')}
-            rows={6}
+            rows={4}
             aria-label={t('systemPrompt.prefixLabel')}
             errorMessage={
               prefixOverLimit ? t('systemPrompt.charLimitExceeded') : undefined
@@ -137,7 +137,7 @@ export function SystemPromptEditor({
             value={suffix}
             onChange={(e) => setSuffix(e.target.value)}
             placeholder={t('systemPrompt.suffixPlaceholder')}
-            rows={6}
+            rows={4}
             aria-label={t('systemPrompt.suffixLabel')}
             errorMessage={
               suffixOverLimit ? t('systemPrompt.charLimitExceeded') : undefined
