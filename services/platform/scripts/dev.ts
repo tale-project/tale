@@ -69,19 +69,10 @@ function envNormalizeCommon() {
     process.env.SITE_URL = `http://${host}${host === 'localhost' ? `:${port}` : ''}`;
   }
 
+  // Root config directory only — Convex derives sub-dirs (agents/workflows/
+  // integrations/providers) from TALE_CONFIG_DIR via `convex/*/file_utils.ts`.
   if (!process.env.TALE_CONFIG_DIR) {
     process.env.TALE_CONFIG_DIR = join(repoRoot, 'examples');
-  }
-  const configDir = process.env.TALE_CONFIG_DIR;
-
-  if (!process.env.AGENTS_DIR) {
-    process.env.AGENTS_DIR = join(configDir, 'agents');
-  }
-  if (!process.env.WORKFLOWS_DIR) {
-    process.env.WORKFLOWS_DIR = join(configDir, 'workflows');
-  }
-  if (!process.env.INTEGRATIONS_DIR) {
-    process.env.INTEGRATIONS_DIR = join(configDir, 'integrations');
   }
 }
 
@@ -186,13 +177,43 @@ function runCommand(
   });
 }
 
-const CONVEX_PORT = 3210;
-const CONVEX_HOST = '127.0.0.1';
+const DEFAULT_CONVEX_PORT = 3210;
+const DEFAULT_CONVEX_HOST = '127.0.0.1';
 const HEALTH_CHECK_INTERVAL_MS = 30_000;
 const HEALTH_CHECK_TIMEOUT_MS = 5_000;
 const MAX_CONSECUTIVE_FAILURES = 3;
 const MAX_AUTO_RESTARTS = 5;
 const STABLE_THRESHOLD_MS = 120_000;
+
+/** Resolve the Convex host:port we should probe / proxy. Honours CONVEX_URL
+ *  when set so external-mode users can point at a non-default backend. */
+function resolveConvexProbeTarget(): {
+  host: string;
+  port: number;
+  url: string;
+} {
+  const raw = process.env.CONVEX_URL;
+  if (raw) {
+    try {
+      const parsed = new URL(raw);
+      const port = parsed.port
+        ? Number(parsed.port)
+        : parsed.protocol === 'https:'
+          ? 443
+          : 80;
+      return { host: parsed.hostname, port, url: raw };
+    } catch {
+      console.warn(
+        `[dev] ⚠️  CONVEX_URL=${raw} is not a valid URL; falling back to ${DEFAULT_CONVEX_HOST}:${DEFAULT_CONVEX_PORT}`,
+      );
+    }
+  }
+  return {
+    host: DEFAULT_CONVEX_HOST,
+    port: DEFAULT_CONVEX_PORT,
+    url: `http://${DEFAULT_CONVEX_HOST}:${DEFAULT_CONVEX_PORT}`,
+  };
+}
 
 function tcpProbe(
   host: string,
@@ -239,14 +260,31 @@ function killProcessTree(
 }
 
 async function main() {
+  // Phase 2 (split architecture): if CONVEX_EXTERNAL=true, the developer has
+  // a convex backend running externally (e.g., `docker compose up convex`).
+  // Skip spawning a local `bunx convex dev` and just run Vite with env sync.
+  // Accept any case-variant truthy value so CONVEX_EXTERNAL=1 / True / yes work.
+  const useExternalConvex = /^(1|true|yes|on)$/i.test(
+    process.env.CONVEX_EXTERNAL ?? '',
+  );
+
   console.log('[dev] 🚀 Starting development environment...');
-  console.log(
-    '[dev] 🔧 Using LOCAL development mode for Convex (anonymous mode)',
-  );
-  console.log(
-    '[dev] ✅ Login prompt automatically skipped - running in local-only mode',
-  );
-  console.log('[dev] 💡 No cloud account required - all data stays local');
+  if (useExternalConvex) {
+    console.log(
+      '[dev] 🌐 Using EXTERNAL Convex backend (CONVEX_EXTERNAL=true)',
+    );
+    console.log(
+      `[dev]    Target: ${process.env.CONVEX_URL || 'http://127.0.0.1:3210'}`,
+    );
+  } else {
+    console.log(
+      '[dev] 🔧 Using LOCAL development mode for Convex (anonymous mode)',
+    );
+    console.log(
+      '[dev] ✅ Login prompt automatically skipped - running in local-only mode',
+    );
+    console.log('[dev] 💡 No cloud account required - all data stays local');
+  }
   console.log('[dev] 💡 Press Ctrl+C to stop all services');
   console.log('');
 
@@ -296,15 +334,29 @@ async function main() {
     }
 
     async function waitForConvex() {
-      console.log('[dev] ⏳ Waiting for Convex backend on port 3210...');
-      await runCommand('bunx', [
-        'wait-on',
-        `tcp:${CONVEX_HOST}:${CONVEX_PORT}`,
-        '--timeout',
-        '180000',
-        '--interval',
-        '250',
-      ]);
+      const target = resolveConvexProbeTarget();
+      console.log(
+        `[dev] ⏳ Waiting for Convex backend at ${target.host}:${target.port}...`,
+      );
+      try {
+        await runCommand('bunx', [
+          'wait-on',
+          `tcp:${target.host}:${target.port}`,
+          '--timeout',
+          '180000',
+          '--interval',
+          '250',
+        ]);
+      } catch (err) {
+        // Re-throw with a clearer message for the external case so the
+        // developer immediately understands which target failed.
+        throw new Error(
+          useExternalConvex
+            ? `External Convex backend at ${target.url} is not reachable. Is it running? (set CONVEX_URL to override.) Underlying: ${err instanceof Error ? err.message : String(err)}`
+            : `Local Convex backend at ${target.host}:${target.port} did not start within 180s. Underlying: ${err instanceof Error ? err.message : String(err)}`,
+          { cause: err },
+        );
+      }
       convexReadyAt = Date.now();
       consecutiveFailures = 0;
       console.log('[dev] ✅ Convex backend is ready!');
@@ -312,6 +364,13 @@ async function main() {
 
     async function restartConvex() {
       if (shuttingDown || restarting) return;
+      // We don't own the external backend's process; restart is a no-op.
+      if (useExternalConvex) {
+        console.warn(
+          '[dev] ⚠️  External Convex appears unreachable; cannot restart it from here. Check the external backend and re-run `tale start` / `bun run dev` if needed.',
+        );
+        return;
+      }
       restarting = true;
 
       if (convexReadyAt && Date.now() - convexReadyAt > STABLE_THRESHOLD_MS) {
@@ -351,12 +410,13 @@ async function main() {
     }
 
     function startHealthCheck() {
+      const target = resolveConvexProbeTarget();
       healthCheckTimer = setInterval(async () => {
         if (shuttingDown || restarting) return;
 
         const alive = await tcpProbe(
-          CONVEX_HOST,
-          CONVEX_PORT,
+          target.host,
+          target.port,
           HEALTH_CHECK_TIMEOUT_MS,
         );
 
@@ -365,11 +425,18 @@ async function main() {
           return;
         }
 
-        if (convexProcess?.killed || convexProcess?.exitCode != null) return;
+        // Local-mode only: skip if our spawned process already exited (avoids
+        // double-counting during shutdown). External mode has no process to
+        // inspect, so we just count failures and warn.
+        if (
+          !useExternalConvex &&
+          (convexProcess?.killed || convexProcess?.exitCode != null)
+        )
+          return;
 
         consecutiveFailures++;
         console.warn(
-          `[dev] Convex health check failed (${consecutiveFailures}/${MAX_CONSECUTIVE_FAILURES})`,
+          `[dev] Convex health check failed at ${target.host}:${target.port} (${consecutiveFailures}/${MAX_CONSECUTIVE_FAILURES})`,
         );
 
         if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
@@ -381,10 +448,16 @@ async function main() {
       healthCheckTimer.unref();
     }
 
-    console.log('[dev] ⏳ Starting Convex backend...');
-    spawnConvex();
-
-    await waitForConvex();
+    if (useExternalConvex) {
+      console.log(
+        '[dev] ⏭  Skipping local Convex spawn (CONVEX_EXTERNAL=true)',
+      );
+      await waitForConvex();
+    } else {
+      console.log('[dev] ⏳ Starting Convex backend...');
+      spawnConvex();
+      await waitForConvex();
+    }
 
     // Re-read CONVEX_DEPLOYMENT from .env.local in case `convex dev` wrote it
     // after our initial loadEnvFiles() call (happens on first run with fresh DB)
@@ -413,39 +486,8 @@ async function main() {
         console.log(`[dev] ✅ TALE_CONFIG_DIR=${taleConfigDir}`);
       }
 
-      const agentsDir = process.env.AGENTS_DIR;
-      if (agentsDir) {
-        await runCommand('bunx', [
-          'convex',
-          'env',
-          'set',
-          `AGENTS_DIR=${agentsDir}`,
-        ]);
-        console.log(`[dev] ✅ AGENTS_DIR=${agentsDir}`);
-      }
-
-      const workflowsDir = process.env.WORKFLOWS_DIR;
-      if (workflowsDir) {
-        await runCommand('bunx', [
-          'convex',
-          'env',
-          'set',
-          `WORKFLOWS_DIR=${workflowsDir}`,
-        ]);
-        console.log(`[dev] ✅ WORKFLOWS_DIR=${workflowsDir}`);
-      }
-
-      const integrationsDir = process.env.INTEGRATIONS_DIR;
-      if (integrationsDir) {
-        await runCommand('bunx', [
-          'convex',
-          'env',
-          'set',
-          `INTEGRATIONS_DIR=${integrationsDir}`,
-        ]);
-        console.log(`[dev] ✅ INTEGRATIONS_DIR=${integrationsDir}`);
-      }
-
+      // Convex derives AGENTS_DIR / WORKFLOWS_DIR / INTEGRATIONS_DIR /
+      // PROVIDERS_DIR from TALE_CONFIG_DIR via convex/*/file_utils.ts.
       console.log('[dev] ✅ Environment variables synced successfully');
     } catch (err) {
       console.warn(
@@ -458,9 +500,12 @@ async function main() {
     await runCommand('bunx', ['convex', 'codegen']);
     console.log('[dev] ✅ Code generation completed');
 
+    // Preserve any existing CONVEX_URL the user set (external mode); only
+    // synthesize one for local mode where we own the spawned backend.
     const convexUrl =
+      process.env.CONVEX_URL ||
       process.env.NEXT_PUBLIC_CONVEX_URL ||
-      `http://${CONVEX_HOST}:${CONVEX_PORT}`;
+      `http://${DEFAULT_CONVEX_HOST}:${DEFAULT_CONVEX_PORT}`;
     process.env.CONVEX_URL = convexUrl;
     console.log(`[dev] ✅ Set CONVEX_URL=${convexUrl} for Vite proxy`);
 

@@ -5,7 +5,10 @@ export const DEV_VOLUME_NAMES = [
   'db-data',
   'db-backup',
   'rag-data',
+  // Retained for legacy migration (used by `tale migrate split-convex` to
+  // locate pre-split data). Not mounted by any container after Phase 2.
   'platform-data',
+  'convex-data',
   'caddy-data',
   'caddy-config',
   'crawler-data',

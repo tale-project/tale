@@ -99,6 +99,16 @@ const buttonVariants = cva('base-button', {
 - DO NOT keep deprecated functions. Remove them entirely instead of marking with `@deprecated`.
 - AVOID conditional endpoint determination. Use separate hardcoded fetch calls instead of if/else to determine endpoints dynamically.
 
+### Split architecture (Phase 2+)
+
+- Convex runs as its own Docker service (`services/convex/`). Function source still lives at `services/platform/convex/`; the convex image COPY-es it in at build time.
+- Platform pushes schema + env vars at its startup: `bunx convex env set` then `bunx convex deploy --url http://convex:3210`. This happens in `services/platform/docker-entrypoint.sh`.
+- Convex env vars are PERSISTENT (stored in Convex's own DB), so pushes only need to happen on code/env changes, not on every convex restart.
+- Code updates rebuild the platform image ONLY. The convex container does not restart for function changes — WebSocket clients stay connected.
+- `api.d.ts` is committed to git. Regenerate locally with `bunx convex codegen` against a running backend; commit the result.
+- Local development: `docker compose up convex` then `CONVEX_EXTERNAL=true bun run dev` (Vite proxies to the containerised convex), OR run everything inside the local `bunx convex dev` spawn (default `bun run dev` behaviour — still works).
+- Schema changes: additive (new optional fields, new tables) are safe for rollback. Breaking changes (new required fields, renames, type changes) are effectively forward-only — document a two-release expand-contract migration for them.
+
 ### Query iteration
 
 ```typescript

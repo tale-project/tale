@@ -8,6 +8,15 @@ import { serveBrandingImages } from './vite-plugins/serve-branding-images';
 import { stubSSRImports } from './vite-plugins/stub-ssr';
 import { watchExamples } from './vite-plugins/watch-examples';
 
+// Convex service endpoints for dev proxy. Defaults to localhost so local
+// developers running `bunx convex-local-backend` standalone just work; for
+// compose-based dev (`docker compose up convex` + `bun run dev`) set
+// CONVEX_URL=http://localhost:3210 in .env.local or similar.
+const CONVEX_BASE = process.env.CONVEX_URL || 'http://127.0.0.1:3210';
+// Site-proxy lives on a separate port (default 3211) on the same host.
+const CONVEX_SITE_PROXY =
+  process.env.CONVEX_SITE_PROXY_URL || CONVEX_BASE.replace(/:\d+$/, ':3211');
+
 export default defineConfig({
   base: './',
   resolve: {
@@ -17,30 +26,30 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
-      // Proxy Convex API requests to internal backend (matches Next.js rewrites)
+      // Proxy Convex API requests to the (possibly remote) convex service.
       '/ws_api': {
-        target: 'http://127.0.0.1:3210',
+        target: CONVEX_BASE,
         changeOrigin: true,
         ws: true,
         rewrite: (p) => p.replace(/^\/ws_api/, ''),
       },
       '/http_api': {
-        target: 'http://127.0.0.1:3211',
+        target: CONVEX_SITE_PROXY,
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/http_api/, ''),
       },
-      // Storage and internal action callbacks go to the Convex backend (port 3210)
+      // Storage and internal action callbacks go to the Convex backend (3210)
       '/api/storage': {
-        target: 'http://127.0.0.1:3210',
+        target: CONVEX_BASE,
         changeOrigin: true,
       },
       '/api/actions': {
-        target: 'http://127.0.0.1:3210',
+        target: CONVEX_BASE,
         changeOrigin: true,
       },
       // All other /api/* requests to Convex HTTP endpoint (auth, SSO, documents, workflows, etc.)
       '/api': {
-        target: 'http://127.0.0.1:3211',
+        target: CONVEX_SITE_PROXY,
         changeOrigin: true,
       },
     },

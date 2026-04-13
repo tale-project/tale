@@ -59,21 +59,21 @@
 	# Direct Convex Proxies (bypass Express for better WebSocket stability)
 	# ============================================================================
 
-	# WebSocket: Main app Convex sync (/ws_api/* -> platform:3210)
+	# WebSocket: Main app Convex sync (/ws_api/* -> convex:3210)
 	handle /ws_api/* {
 		uri strip_prefix /ws_api
-		reverse_proxy platform:3210
+		reverse_proxy convex:3210
 	}
 
-	# WebSocket: Dashboard Convex sync (/api/:version/sync -> platform:3210)
+	# WebSocket: Dashboard Convex sync (/api/:version/sync -> convex:3210)
 	handle /api/*/sync {
-		reverse_proxy platform:3210
+		reverse_proxy convex:3210
 	}
 
-	# HTTP: Convex site proxy for actions (/http_api/* -> platform:3211)
+	# HTTP: Convex site proxy for actions (/http_api/* -> convex:3211)
 	handle /http_api/* {
 		uri strip_prefix /http_api
-		reverse_proxy platform:3211
+		reverse_proxy convex:3211
 	}
 
 	# HTTP: Convex Dashboard static assets at root paths (logo, icons)
@@ -83,7 +83,7 @@
 	}
 	handle @convexDashboardAssets {
 		uri replace / /convex-dashboard/ 1
-		reverse_proxy platform:6791
+		reverse_proxy convex:6791
 	}
 
 	# Redirect dashboard routes at root to /convex-dashboard prefix
@@ -94,34 +94,34 @@
 	}
 	redir @convexDashboardRedirect {$BASE_PATH:}/convex-dashboard{uri} temporary
 
-	# HTTP: Convex Dashboard UI (/convex-dashboard* -> platform:6791)
+	# HTTP: Convex Dashboard UI (/convex-dashboard* -> convex:6791)
 	handle /convex-dashboard* {
-		reverse_proxy platform:6791
+		reverse_proxy convex:6791
 	}
 
-	# HTTP: Convex internal action callbacks (/api/actions/* -> platform:3210)
+	# HTTP: Convex internal action callbacks (/api/actions/* -> convex:3210)
 	handle /api/actions/* {
-		reverse_proxy platform:3210
+		reverse_proxy convex:3210
 	}
 
-	# HTTP: Convex storage upload/download (/api/storage/* -> platform:3210)
+	# HTTP: Convex storage upload/download (/api/storage/* -> convex:3210)
 	handle /api/storage/* {
-		reverse_proxy platform:3210
+		reverse_proxy convex:3210
 	}
 
-	# HTTP: Convex Dashboard admin API (Authorization: Convex* header -> platform:3210)
+	# HTTP: Convex Dashboard admin API (Authorization: Convex* header -> convex:3210)
 	@convexAdminApi {
 		path /api/*
 		header Authorization Convex*
 	}
 	handle @convexAdminApi {
-		reverse_proxy platform:3210
+		reverse_proxy convex:3210
 	}
 
-	# HTTP: All other /api/* requests -> Convex HTTP endpoint (platform:3211)
+	# HTTP: All other /api/* requests -> Convex HTTP endpoint (convex:3211)
 	# Covers auth, SSO, documents, API gateway, workflow triggers, etc.
 	handle /api/* {
-		reverse_proxy platform:3211
+		reverse_proxy convex:3211
 	}
 
 	# ============================================================================

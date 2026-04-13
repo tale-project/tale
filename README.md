@@ -88,6 +88,20 @@ tale cleanup                       # Remove inactive containers
 tale reset --force                 # Remove all containers
 ```
 
+### Upgrading from v0.2.x → v0.3.x (split-convex)
+
+v0.3.0 splits the Convex backend into its own service. Migrations are detected
+and applied automatically on the next `tale start` or `tale deploy`; there is
+no separate `tale migrate` command.
+
+```bash
+tale upgrade                       # Pull new CLI + images
+tale start                         # Detects pending migrations, prompts to confirm
+#                                  #   (non-interactive: tale deploy --yes)
+```
+
+The old `platform-data` volume is preserved so you can roll back by reverting to the previous CLI version. After verifying the new setup works, reclaim disk space with `docker volume rm <projectId>_platform-data`.
+
 See the [CLI reference](tools/cli/README.md) for all options and flags.
 
 ## Deploy to production
@@ -119,12 +133,23 @@ For local development (non-Docker):
 
 ```bash
 bun install                      # Install dependencies
-bun run dev                      # Start development servers
+bun run dev                      # Start development servers (spawns local Convex)
 bun run typecheck                # Type checking
 bun run lint                     # Linting
 bun run test                     # Run tests
 bun run build                    # Build all services
 ```
+
+#### Optional: hybrid mode against a containerised Convex
+
+After the v0.3.0 split, you can run Vite locally against the dedicated `convex` container instead of spawning `bunx convex dev`:
+
+```bash
+docker compose up convex                        # in one terminal
+CONVEX_EXTERNAL=true bun run dev                # in another (CONVEX_URL optional)
+```
+
+Useful when you want fast Vite reloads but a stable Convex backend that mirrors production. Set `CONVEX_URL` if your container exposes Convex on a non-default host/port.
 
 For Python services:
 

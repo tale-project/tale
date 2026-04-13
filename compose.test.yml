@@ -41,26 +41,42 @@ services:
     volumes:
       - ./tests/fixtures/platform-config:/app/platform-config:ro
 
-  platform:
+  # Phase 2 (split): convex service gets its own test port mapping + health.
+  convex:
     env_file:
       - .env.test
-    # Override healthcheck for CI — only check Convex backend (port 3210).
-    # The Vite server (port 3000) requires Convex function deployment which
-    # takes 5+ minutes in CI — too slow for a health check.
+    ports:
+      # Expose Convex backend + dashboard for direct CI probes.
+      - '13210:3210'
+      - '13211:3211'
+      - '16791:6791'
     healthcheck:
       test:
         [
           'CMD-SHELL',
-          'curl -sf http://localhost:3210/version || exit 1',
+          'curl -sf http://localhost:3210/version && [ -f /tmp/convex-ready ] || exit 1',
         ]
       interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 12
       start_period: 180s
-    # Expose platform ports for direct testing
+
+  platform:
+    env_file:
+      - .env.test
+    # Platform is a thin client now — Vite + deploy marker only.
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'curl -sf http://localhost:3000/api/health && [ -f /tmp/platform-ready ] || exit 1',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 300s
     ports:
       - '13000:3000'
-      - '13210:3210'
 
   proxy:
     env_file:

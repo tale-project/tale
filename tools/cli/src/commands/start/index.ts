@@ -13,12 +13,17 @@ export function createStartCommand(): Command {
       '--fresh',
       'force re-seed builtin agent/workflow/integration configs',
     )
+    .option(
+      '-y, --yes',
+      'automatically accept any pending migrations (non-interactive; required in CI/non-TTY)',
+    )
     .action(
       async (opts: {
         detach?: boolean;
         port: string;
         host: string;
         fresh?: boolean;
+        yes?: boolean;
       }) => {
         try {
           await start({
@@ -26,6 +31,7 @@ export function createStartCommand(): Command {
             port: Number(opts.port),
             host: opts.host,
             fresh: opts.fresh,
+            assumeYes: opts.yes,
           });
         } catch (err) {
           logger.error(err instanceof Error ? err.message : String(err));

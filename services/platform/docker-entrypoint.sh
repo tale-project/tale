@@ -1,694 +1,294 @@
 #!/bin/bash
-set -e
+# pipefail so silent pipe failures (e.g. `bunx convex env list | sed ...`)
+# surface instead of producing empty downstream values. -u is intentionally
+# omitted to avoid breaking the many `${VAR:-default}` patterns.
+set -eo pipefail
 
 # ============================================================================
-# Tale Platform Docker Entrypoint
-# ============================================================================
-# This script orchestrates the startup of three services:
-# 1. Convex backend (local backend server on ports 3210/3211)
-# 2. Vite application (frontend on port 3000)
-# 3. Convex Dashboard (admin UI on port 6791)
+# Tale Platform Docker Entrypoint (Phase 2: split architecture)
+# ----------------------------------------------------------------------------
+# Platform is a Vite/TanStack Start frontend + HTTP server. It acts as a
+# Convex client: on startup it pushes env vars and function code to the
+# sibling `convex` service (see services/convex/).
+#
+# Responsibilities:
+#   1. Privilege drop (root → uid 1001 app)
+#   2. Env normalization (incl. ensure_instance_secret)
+#   3. Wait for the convex service to be reachable (http://convex:3210/version)
+#   4. Deploy Convex functions + sync env vars (push model; three-stage error
+#      classification on failure)
+#   5. Start Vite server (`bun server.ts`)
+#   6. Touch /tmp/platform-ready (compose healthcheck gate)
+#   7. Graceful shutdown on SIGTERM
+#
+# NOT done here any more (owned by convex service):
+#   - convex-local-backend daemon
+#   - Convex Dashboard
+#   - Builtin JSON seed
+#   - CA certificate trust for the Rust backend
+#   - monitor_convex crash loop
 # ============================================================================
 
 # ----------------------------------------------------------------------------
-# Privilege handling: fix data directory ownership, then drop to app user.
-# When /app/data is a Docker volume, it may be mounted with root ownership.
-# We fix that here (as root) and re-exec as the unprivileged app user.
+# Logging helpers
+# ----------------------------------------------------------------------------
+log_info()    { echo "[$(date '+%Y-%m-%d %H:%M:%S')] ℹ️  $*"; }
+log_ok()      { echo "[$(date '+%Y-%m-%d %H:%M:%S')] ✅ $*"; }
+log_warn()    { echo "[$(date '+%Y-%m-%d %H:%M:%S')] ⚠️  $*" >&2; }
+log_error()   { echo "[$(date '+%Y-%m-%d %H:%M:%S')] ❌ $*" >&2; }
+log_section() { echo; echo "════════════════════════════════════"; echo "  $*"; echo "════════════════════════════════════"; }
+
+# ----------------------------------------------------------------------------
+# Privilege handling: platform no longer owns /app/data. The only thing the
+# re-exec dance still does is make sure we run as the app user so that Bun
+# picks up the right HOME etc. Volume ownership is now the convex container's
+# problem.
 # ----------------------------------------------------------------------------
 if [ "$(id -u)" = '0' ]; then
-  data_dir="${TALE_CONFIG_DIR:-/app/data}"
-  # Ensure all data directories exist and are owned by app
-  mkdir -p "$data_dir/convex" "$data_dir/agents" "$data_dir/workflows" "$data_dir/integrations" "$data_dir/providers"
-  chown -R app:app "$data_dir"
-  # Re-exec this script as the app user
   exec gosu app "$0" "$@"
 fi
 
-echo "🚀 Starting Tale Platform with integrated Convex backend..."
+log_section "Tale Platform starting (version ${TALE_VERSION:-unknown})"
 
 # ============================================================================
-# Signal Handling - Graceful Shutdown for Blue-Green Deployments
+# Shutdown handling
 # ============================================================================
+SHUTDOWN_MARKER="/tmp/platform-shutting-down"
+READY_MARKER="/tmp/platform-ready"
+rm -f "$SHUTDOWN_MARKER" "$READY_MARKER"
 
-# PIDs for background processes
-CONVEX_PID=""
 VITE_PID=""
-DASHBOARD_PID=""
-MONITOR_PID=""
 
-# Shutdown marker file - health check will return 503 when this exists
-SHUTDOWN_MARKER="/tmp/shutting_down"
-
-# Clear any stale shutdown marker from previous runs
-rm -f "$SHUTDOWN_MARKER"
-
-# PID file for Convex process (shared between main script and monitor subshell)
-CONVEX_PID_FILE="/app/data/convex/convex.pid"
-
-# Lock file for blue-green deployment coordination
-# Prevents restart loops when both blue and green containers are running
-CONVEX_LOCK_FILE="/app/data/convex/convex.lock"
-CONTAINER_NAME=$(hostname)
-
-# Gracefully shutdown all services with connection draining
-# This supports zero-downtime blue-green deployments by:
-# 1. Creating shutdown marker (health checks will fail)
-# 2. Waiting for load balancer to stop sending traffic
-# 3. Waiting for in-flight requests to complete
-# 4. Sending SIGTERM to gracefully stop services
 shutdown() {
-  echo "🛑 Starting graceful shutdown..."
-
-  # Step 1: Signal that we're shutting down
-  # The health check endpoint can check for this marker
+  log_section "Platform graceful shutdown"
   touch "$SHUTDOWN_MARKER"
-  echo "   ✓ Shutdown marker created"
 
-  # Step 2: Wait for load balancer to detect unhealthy status
-  # Caddy health checks run every 3s, so wait 2 health check cycles
   local drain_wait="${SHUTDOWN_DRAIN_SECONDS:-6}"
-  echo "   ⏳ Waiting ${drain_wait}s for load balancer to stop routing traffic..."
+  log_info "Draining ${drain_wait}s for load balancer to stop routing..."
   sleep "$drain_wait"
 
-  # Step 3: Wait for in-flight requests to complete
-  # Give requests a grace period to finish
   local grace_period="${SHUTDOWN_GRACE_SECONDS:-5}"
-  echo "   ⏳ Waiting ${grace_period}s for in-flight requests to complete..."
+  log_info "Waiting ${grace_period}s for in-flight requests..."
   sleep "$grace_period"
 
-  # Read current Convex PID from file (may have been updated by monitor subshell)
-  local current_convex_pid
-  current_convex_pid=$(cat "$CONVEX_PID_FILE" 2>/dev/null || echo "")
-
-  # Step 4: Send SIGTERM to all services (including monitor)
-  echo "   🔌 Sending SIGTERM to services..."
-  kill -TERM "$MONITOR_PID" 2>/dev/null || true
+  log_info "Sending SIGTERM to Vite server..."
   kill -TERM "$VITE_PID" 2>/dev/null || true
-  [ -n "$current_convex_pid" ] && kill -TERM "$current_convex_pid" 2>/dev/null || true
-  kill -TERM "$DASHBOARD_PID" 2>/dev/null || true
 
-  # Step 5: Wait for processes to exit gracefully
   local shutdown_timeout="${SHUTDOWN_TIMEOUT_SECONDS:-30}"
-  echo "   ⏳ Waiting up to ${shutdown_timeout}s for services to stop..."
-
-  # Wait with timeout
   local waited=0
   while [ "$waited" -lt "$shutdown_timeout" ]; do
-    # Check if all processes have exited
-    local still_running=0
-    kill -0 "$MONITOR_PID" 2>/dev/null && still_running=1
-    kill -0 "$VITE_PID" 2>/dev/null && still_running=1
-    [ -n "$current_convex_pid" ] && kill -0 "$current_convex_pid" 2>/dev/null && still_running=1
-    kill -0 "$DASHBOARD_PID" 2>/dev/null && still_running=1
-
-    if [ $still_running -eq 0 ]; then
+    if ! kill -0 "$VITE_PID" 2>/dev/null; then
       break
     fi
-
     sleep 1
     waited=$((waited + 1))
   done
 
-  # Force kill if still running
   if [ "$waited" -ge "$shutdown_timeout" ]; then
-    echo "   ⚠️  Timeout reached, force killing remaining processes..."
-    kill -KILL "$MONITOR_PID" "$VITE_PID" "$current_convex_pid" "$DASHBOARD_PID" 2>/dev/null || true
+    log_warn "Timeout reached; force killing Vite"
+    kill -KILL "$VITE_PID" 2>/dev/null || true
   fi
 
-  # Cleanup
-  rm -f "$SHUTDOWN_MARKER"
-  rm -f "$CONVEX_PID_FILE"
-  # Only remove lock if we own it (allow other instance to take over)
-  lock_holder=$(cat "$CONVEX_LOCK_FILE" 2>/dev/null || echo "")
-  if [ "$lock_holder" = "$CONTAINER_NAME" ]; then
-    rm -f "$CONVEX_LOCK_FILE"
-  fi
-
-  echo "✅ Services stopped gracefully"
+  rm -f "$SHUTDOWN_MARKER" "$READY_MARKER"
+  log_ok "Platform stopped gracefully"
   exit 0
 }
-
 trap shutdown SIGTERM SIGINT
 
 # ============================================================================
-# Environment Variable Normalization
+# Environment normalization
 # ============================================================================
-
-# Centralized environment normalization
 source "$(dirname "$0")/env.sh"
 env_normalize_common
-
-# ============================================================================
-# Trust Caddy's Self-Signed CA Certificate (Development Only)
-# ============================================================================
-# When using self-signed certificates from Caddy, we need to trust the CA
-# so that Convex backend (Rust) can make HTTPS requests to tale.local
-#
-# This supports both old env vars (CADDY_ROOT_CA, NODE_EXTRA_CA_CERTS) and
-# new env var (CADDY_CA_CERT_PATH) for blue-green deployment compatibility.
-
-# Determine CA cert path from available environment variables
-CA_CERT_PATH="${CADDY_CA_CERT_PATH:-${CADDY_ROOT_CA:-}}"
-
-# For self-signed mode, trigger and wait for Caddy to generate CA certificate
-# Caddy generates certificates on-demand (lazy), so we need to trigger it
-if [ "${TLS_MODE:-selfsigned}" != "letsencrypt" ] && [ "${TLS_MODE:-selfsigned}" != "external" ] && [ -n "${CA_CERT_PATH}" ]; then
-  CA_WAIT_TIMEOUT="${CA_WAIT_TIMEOUT:-60}"
-  CA_WAIT_INTERVAL=2
-  waited=0
-
-  echo "⏳ Waiting for Caddy CA certificate at ${CA_CERT_PATH}..."
-
-  while [ ! -f "${CA_CERT_PATH}" ] && [ "$waited" -lt "$CA_WAIT_TIMEOUT" ]; do
-    # Trigger certificate generation by making a request to Caddy
-    # Use insecure mode since cert doesn't exist yet
-    curl -sk "https://${HOST:-tale.local}/health" >/dev/null 2>&1 || true
-    sleep "$CA_WAIT_INTERVAL"
-    waited=$((waited + CA_WAIT_INTERVAL))
-  done
-
-  if [ -f "${CA_CERT_PATH}" ]; then
-    echo "✅ CA certificate ready after ${waited}s"
-  else
-    echo "⚠️  CA certificate not found after ${CA_WAIT_TIMEOUT}s, continuing without it"
-  fi
-fi
-
-if [ -n "${CA_CERT_PATH}" ] && [ -f "${CA_CERT_PATH}" ]; then
-  echo "🔐 Setting up Caddy root CA certificate for self-signed HTTPS..."
-  # Create a combined CA bundle: system CAs + Caddy's CA
-  COMBINED_CA_BUNDLE="/tmp/ca-certificates.crt"
-  SYSTEM_CA_BUNDLE="/etc/ssl/certs/ca-certificates.crt"
-
-  if [ -f "${SYSTEM_CA_BUNDLE}" ]; then
-    # Start with system CA bundle
-    cp "${SYSTEM_CA_BUNDLE}" "${COMBINED_CA_BUNDLE}" 2>/dev/null || true
-    # Append Caddy's root CA
-    cat "${CA_CERT_PATH}" >> "${COMBINED_CA_BUNDLE}" 2>/dev/null || true
-    chmod 644 "${COMBINED_CA_BUNDLE}"
-    # Set SSL_CERT_FILE for Rust/native TLS libraries
-    export SSL_CERT_FILE="${COMBINED_CA_BUNDLE}"
-    # Also set REQUESTS_CA_BUNDLE for Python requests library
-    export REQUESTS_CA_BUNDLE="${COMBINED_CA_BUNDLE}"
-    # Set NODE_EXTRA_CA_CERTS for Node.js - only when file exists
-    export NODE_EXTRA_CA_CERTS="${CA_CERT_PATH}"
-    echo "   ✓ Combined CA bundle created with Caddy root CA"
-    echo "   ✓ SSL_CERT_FILE=${COMBINED_CA_BUNDLE}"
-    echo "   ✓ NODE_EXTRA_CA_CERTS=${CA_CERT_PATH}"
-  else
-    echo "   ⚠️  System CA bundle not found at ${SYSTEM_CA_BUNDLE}"
-  fi
-else
-  # CA cert file not found - this is normal for Let's Encrypt mode
-  # Unset any pre-existing NODE_EXTRA_CA_CERTS to avoid Node.js errors
-  unset NODE_EXTRA_CA_CERTS 2>/dev/null || true
-  if [ -n "${CA_CERT_PATH}" ]; then
-    echo "ℹ️  Using public CA certificates (Let's Encrypt or similar)"
-    echo "   Self-signed CA not found at: ${CA_CERT_PATH}"
-  fi
-fi
+ensure_instance_secret
 
 echo "🔍 Environment after normalization:"
 echo "   HOST=${HOST}"
 echo "   SITE_URL=${SITE_URL}"
 echo "   PORT=${PORT}"
+echo "   CONVEX_URL=${CONVEX_URL:-http://convex:3210}"
 
-# Authentication configuration
+# Export auth / encryption / rag env vars that platform itself uses
+# (the rest get pushed to Convex via `convex env set` below).
 export BETTER_AUTH_SECRET="${BETTER_AUTH_SECRET}"
 export BETTER_AUTH_URL="${BETTER_AUTH_URL}"
-# Note: SITE_URL is already set by env_normalize_common, don't override it here
-
-# Encryption configuration
 export ENCRYPTION_SECRET_HEX="${ENCRYPTION_SECRET_HEX}"
 
-# RAG database configuration
-# RAG and Crawler share the tale_knowledge database with separate schemas
-if [ -z "${RAG_DATABASE_URL:-}" ]; then
+# Default RAG DB URL constructed by env_normalize_common.
+if [ -z "${RAG_DATABASE_URL:-}" ] && [ -n "${POSTGRES_URL:-}" ]; then
   export RAG_DATABASE_URL="${POSTGRES_URL}/tale_knowledge"
 fi
 
 # ============================================================================
-# Helper Functions
+# Helpers
 # ============================================================================
-
-# Detect database type from connection string
-detect_database_type() {
-  local url="$1"
-  if [[ "$url" == postgresql* || "$url" == postgres* ]]; then
-    echo "postgres"
-  elif [[ "$url" == mysql* ]]; then
-    echo "mysql"
-  else
-    echo "unknown"
-  fi
-}
-
-# Extract database host from connection string
-extract_db_host() {
-  local url="$1"
-  local db_type="$2"
-
-  if [ "$db_type" = "postgres" ]; then
-    echo "$url" | sed -E 's#^postgres(ql)?://([^@/]+@)?([^:/?]+).*#\3#'
-  elif [ "$db_type" = "mysql" ]; then
-    echo "$url" | sed -E 's#^mysql://([^@/]+@)?([^:/?]+).*#\2#'
-  fi
-}
-
-# Extract database port from connection string
-extract_db_port() {
-  local url="$1"
-  local db_type="$2"
-  local default_port="$3"
-
-  local port=""
-  if [ "$db_type" = "postgres" ]; then
-    port=$(echo "$url" | sed -nE 's#^postgres(ql)?://([^@/]+@)?[^:/?]+:([0-9]+).*#\3#p')
-  elif [ "$db_type" = "mysql" ]; then
-    port=$(echo "$url" | sed -nE 's#^mysql://([^@/]+@)?[^:/?]+:([0-9]+).*#\2#p')
-  fi
-
-  echo "${port:-$default_port}"
-}
-
-# Wait for a TCP port to be available
-wait_for_port() {
-  local host="$1"
-  local port="$2"
-  local timeout="${3:-60}"
-  local service_name="${4:-Service}"
-
-  echo "⏳ Waiting for ${service_name} at ${host}:${port}..."
-
-  local counter=0
-  while ! (echo > /dev/tcp/${host}/${port}) >/dev/null 2>&1; do
-    counter=$((counter + 1))
-    if [ $counter -gt $timeout ]; then
-      echo "❌ ${service_name} at ${host}:${port} not reachable within ${timeout}s"
-      return 1
-    fi
-    sleep 1
-  done
-
-  echo "✅ ${service_name} at ${host}:${port} is reachable"
-  return 0
-}
-
-# Wait for HTTP endpoint to respond
 wait_for_http() {
-  local url="$1"
-  local timeout="${2:-30}"
-  local service_name="${3:-Service}"
-  local allow_timeout="${4:-false}"
-
-  echo "⏳ Waiting for ${service_name} at ${url}..."
-
+  local url="$1" timeout="${2:-60}" name="${3:-Service}" allow_timeout="${4:-false}"
+  log_info "Waiting for ${name} at ${url}..."
   local counter=0
   until curl -sf "$url" > /dev/null 2>&1; do
     counter=$((counter + 1))
     if [ $counter -gt $timeout ]; then
       if [ "$allow_timeout" = "true" ]; then
-        echo "⚠️  ${service_name} health check timeout (this may be normal)"
+        log_warn "${name} health-check timeout (continuing)"
         return 0
-      else
-        echo "❌ ${service_name} failed to start within ${timeout}s"
-        return 1
       fi
+      log_error "${name} failed to respond within ${timeout}s"
+      return 1
     fi
     sleep 1
   done
+  log_ok "${name} is reachable"
+}
 
-  echo "✅ ${service_name} is ready"
-  return 0
+dump_diagnostics() {
+  local ctx="$1"
+  echo
+  echo "──────── 🔍 Diagnostics: $ctx ────────"
+  echo "  Timestamp:   $(date -Iseconds)"
+  echo "  Hostname:    $(hostname)"
+  echo "  CONVEX_URL:  ${CONVEX_URL}"
+  echo "  Memory:      $(free -h 2>/dev/null | awk '/^Mem:/ {print $3" / "$2}')"
+  echo "──────────────────────────────────────"
+  echo
 }
 
 # ============================================================================
-# Database Configuration
+# Deploy Convex functions (remote push to convex:3210)
+# ----------------------------------------------------------------------------
+# This is the core Phase 2 change: we run `bunx convex deploy` against the
+# sibling convex service, not a local backend. Env vars are synced first so
+# functions can read them at runtime (Convex persists them in its own DB).
 # ============================================================================
+CONVEX_URL="${CONVEX_URL:-http://convex:3210}"
+CONVEX_DEPLOY_TIMEOUT="${CONVEX_DEPLOY_TIMEOUT:-300}"
 
-# Determine which database to use (priority: POSTGRES_URL > MYSQL_URL > DATABASE_URL > SQLite)
-configure_database() {
-  local db_url=""
-  local db_type=""
-
-  # Determine database URL and type
-  if [ -n "$POSTGRES_URL" ]; then
-    db_url="$POSTGRES_URL"
-    db_type="postgres"
-  elif [ -n "$DATABASE_URL" ]; then
-    db_url="$DATABASE_URL"
-    db_type=$(detect_database_type "$db_url")
-  elif [ -n "$MYSQL_URL" ]; then
-    db_url="$MYSQL_URL"
-    db_type="mysql"
-  fi
-
-  # Build database arguments for convex-local-backend
-  if [ "$db_type" = "postgres" ]; then
-    echo "   ✓ Using PostgreSQL database" >&2
-    echo "-d postgres-v5 $db_url"
-  elif [ "$db_type" = "mysql" ]; then
-    echo "   ✓ Using MySQL database" >&2
-    echo "-d mysql-v5 $db_url"
-  else
-    echo "   ✓ Using local SQLite database" >&2
-    echo "/app/data/convex/convex_local_backend.sqlite3"
-  fi
-}
-
-# Wait for external database to be ready
-wait_for_database() {
-  local db_url=""
-  local db_type=""
-
-  # Determine database URL and type
-  if [ -n "$POSTGRES_URL" ]; then
-    db_url="$POSTGRES_URL"
-    db_type="postgres"
-  elif [ -n "$DATABASE_URL" ]; then
-    db_url="$DATABASE_URL"
-    db_type=$(detect_database_type "$db_url")
-  elif [ -n "$MYSQL_URL" ]; then
-    db_url="$MYSQL_URL"
-    db_type="mysql"
-  fi
-
-  # Only wait for external databases (not SQLite)
-  if [ "$db_type" = "postgres" ] || [ "$db_type" = "mysql" ]; then
-    local db_host=$(extract_db_host "$db_url" "$db_type")
-    local default_port=5432
-    [ "$db_type" = "mysql" ] && default_port=3306
-    local db_port=$(extract_db_port "$db_url" "$db_type" "$default_port")
-
-    if [ -n "$db_host" ] && [ -n "$db_port" ]; then
-      wait_for_port "$db_host" "$db_port" 60 "Database" || exit 1
-    fi
-  fi
-}
-
-# ============================================================================
-# Convex Backend Startup
-# ============================================================================
-
-# Hardcoded Convex ports (internal to container, proxied via TanStack Start)
-CONVEX_BACKEND_PORT=3210
-CONVEX_SITE_PROXY_PORT=3211
-CONVEX_DASHBOARD_PORT=6791
-
-export SENTRY_RELEASE="${TALE_VERSION:-unknown}"
-
-echo "📦 Starting Convex backend on port ${CONVEX_BACKEND_PORT}..."
-
-# Configure Convex backend logging
-# Suppress expected retry/operational ERROR logs from the Convex backend:
-# - common::errors: OCC (Optimistic Concurrency Control) retry errors from workflow component
-# - isolate::client: Memory carry-over messages when isolates restart (normal behavior)
-# - application::scheduled_jobs: Job retry/sleep messages (expected retry behavior)
-# These are all normal operational messages that the backend handles automatically.
-# Set RUST_LOG=info or RUST_LOG=debug in .env to see all logs for troubleshooting.
-export RUST_LOG="${RUST_LOG:-info,common::errors=off,isolate::client=off,application::scheduled_jobs=off}"
-
-# Prepare working directory
-mkdir -p /app/data/convex
-# Ensure temp dir on same filesystem as local storage to avoid cross-device rename (EXDEV)
-export TMPDIR=/app/data/convex/tmp
-mkdir -p "$TMPDIR"
-cd /app
-
-# Ensure TALE_CONFIG_DIR is set for derived paths
-data_dir="${TALE_CONFIG_DIR:-/app/data}"
-
-# Seed default agent JSON files — skip agents the user already has or has modified
-agents_dir="${AGENTS_DIR:-${data_dir}/agents}"
-builtin_dir="/app/agents-builtin"
-mkdir -p "$agents_dir"
-if [ -d "$builtin_dir" ] && [ "$(ls -A "$builtin_dir" 2>/dev/null)" ]; then
-  for src in "$builtin_dir"/*.json; do
-    [ -f "$src" ] || continue
-    name="$(basename "$src")"
-    slug="$(basename "$src" .json)"
-    dest="$agents_dir/$name"
-    history_dir="$agents_dir/.history/$slug"
-    if [ "$FORCE_SEED" = "true" ]; then
-      cp "$src" "$dest"
-      echo "   ✓ Seeded $name (forced)"
-    elif [ -f "$dest" ]; then
-      echo "   ⏭ Skipping $name (already exists)"
-    elif [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
-      echo "   ⏭ Skipping $name (user has modifications in .history)"
-    else
-      cp "$src" "$dest"
-    fi
-  done
-fi
-
-# Seed default workflow template JSON files — skip workflows the user has modified or installed
-workflows_dir="${WORKFLOWS_DIR:-${data_dir}/workflows}"
-workflows_builtin_dir="/app/workflows-builtin"
-mkdir -p "$workflows_dir"
-if [ -d "$workflows_builtin_dir" ] && [ "$(ls -A "$workflows_builtin_dir" 2>/dev/null)" ]; then
-  find "$workflows_builtin_dir" -name '*.json' -type f | while read -r src; do
-    rel_path="${src#$workflows_builtin_dir/}"
-    dest="$workflows_dir/$rel_path"
-    dest_dir="$(dirname "$dest")"
-
-    # Derive the flat slug for history check (general/foo → general__foo)
-    slug="${rel_path%.json}"
-    flat_slug="$(echo "$slug" | sed 's|/|__|g')"
-    history_dir="$workflows_dir/.history/$flat_slug"
-
-    if [ "$FORCE_SEED" = "true" ]; then
-      mkdir -p "$dest_dir"
-      cp "$src" "$dest"
-      echo "   ✓ Seeded workflow $rel_path (forced)"
-      continue
-    fi
-
-    # Skip if file already exists (user-provided config takes priority)
-    if [ -f "$dest" ]; then
-      echo "   ⏭ Skipping workflow $rel_path (already exists)"
-      continue
-    fi
-
-    # Skip if user has history entries (manual edits to a now-deleted file)
-    if [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
-      echo "   ⏭ Skipping workflow $rel_path (user has modifications in .history)"
-      continue
-    fi
-
-    mkdir -p "$dest_dir"
-    cp "$src" "$dest"
-  done
-fi
-
-# Seed builtin integration template directories — skip integrations the user has installed
-integrations_dir="${INTEGRATIONS_DIR:-${data_dir}/integrations}"
-integrations_builtin_dir="/app/integrations-builtin"
-mkdir -p "$integrations_dir"
-if [ -d "$integrations_builtin_dir" ] && [ "$(ls -A "$integrations_builtin_dir" 2>/dev/null)" ]; then
-  for src_dir in "$integrations_builtin_dir"/*/; do
-    [ -d "$src_dir" ] || continue
-    name="$(basename "$src_dir")"
-    dest_dir="$integrations_dir/$name"
-
-    if [ "$FORCE_SEED" = "true" ]; then
-      cp -r "$src_dir" "$dest_dir"
-      echo "   ✓ Seeded integration $name (forced)"
-      continue
-    fi
-
-    # Skip if directory already exists (user-provided config takes priority)
-    if [ -d "$dest_dir" ]; then
-      echo "   ⏭ Skipping integration $name (already exists)"
-      continue
-    fi
-
-    cp -r "$src_dir" "$dest_dir"
-  done
-fi
-
-# Seed builtin provider config files — skip providers the user has configured
-providers_dir="${PROVIDERS_DIR:-${data_dir}/providers}"
-providers_builtin_dir="/app/providers-builtin"
-mkdir -p "$providers_dir"
-if [ -d "$providers_builtin_dir" ] && [ "$(ls -A "$providers_builtin_dir" 2>/dev/null)" ]; then
-  for src in "$providers_builtin_dir"/*.json; do
-    [ -f "$src" ] || continue
-    name="$(basename "$src")"
-    # Skip encrypted secrets files
-    [[ "$name" == *.secrets.json ]] && continue
-    slug="$(basename "$src" .json)"
-    dest="$providers_dir/$name"
-    history_dir="$providers_dir/.history/$slug"
-    if [ "$FORCE_SEED" = "true" ]; then
-      cp "$src" "$dest"
-      echo "   ✓ Seeded provider $name (forced)"
-    elif [ -f "$dest" ]; then
-      echo "   ⏭ Skipping provider $name (already exists)"
-    elif [ -d "$history_dir" ] && [ "$(ls -A "$history_dir" 2>/dev/null)" ]; then
-      echo "   ⏭ Skipping provider $name (user has modifications in .history)"
-    else
-      cp "$src" "$dest"
-    fi
-  done
-fi
-
-# Clean up derived data that is safe to rebuild.
-# Search indexes and compiled modules are rebuilt automatically from the database.
-# User uploads (files/) are NEVER touched — they contain permanent user data.
-clean_convex_derived_data() {
-  local data_dir="/app/data/convex"
-
-  # Search indexes: rebuilt automatically from document data on startup
-  if [ -d "$data_dir/search" ]; then
-    rm -rf "$data_dir/search"
-    echo "   ✓ Cleaned search indexes (will rebuild from database)"
-  fi
-
-  # NEVER delete modules/ — the database stores references to module storage
-  # keys (ObjectKeys) and deploy needs to load existing modules to compare.
-  # Deleting files while DB references remain creates an unrecoverable state
-  # where deploy returns 500 (Src Pkg storage key not found).
-
-  # Stale temp files from interrupted operations
-  rm -rf "$data_dir/tmp/"*
-
-  # Fix permissions on all files we own (non-fatal if some files are owned by root)
-  chmod -R 755 "$data_dir" 2>/dev/null || true
-}
-
-# If a previous crash was recorded, clean derived data before starting.
-# This prevents crash loops where the backend repeatedly hits corrupted search
-# index segments left behind by an unclean shutdown (e.g. VectorCompactor killed
-# mid-compaction, leaving segment metadata pointing to files that don't exist).
-if [ -f "/app/data/convex/crash.log" ]; then
-  echo "⚠️  Previous crash detected, cleaning derived data to prevent crash loop..."
-  clean_convex_derived_data
-  rm -f /app/data/convex/crash.log
-fi
-
-# Clean stale process state from previous container runs
-rm -f /app/data/convex/convex.pid /app/data/convex/convex.lock
-
-# Configure database
-DB_ARGS=$(configure_database)
-
-# Wait for database to be ready
-wait_for_database
-
-# Build Convex site arguments
-SITE_ARGS="--site-proxy-port ${CONVEX_SITE_PROXY_PORT} --port ${CONVEX_BACKEND_PORT} --interface 0.0.0.0 --do-not-require-ssl"
-
-# Ensure instance secret is present (allows local dev fallback)
-ensure_instance_secret
-
-SITE_ARGS="$SITE_ARGS --instance-name $INSTANCE_NAME --instance-secret $INSTANCE_SECRET"
-
-# Start Convex backend
-convex-local-backend ${DB_ARGS} --local-storage /app/data/convex ${SITE_ARGS} &
-CONVEX_PID=$!
-# Write initial PID to file for cross-subshell visibility (used by monitor and shutdown)
-echo "$CONVEX_PID" > "$CONVEX_PID_FILE"
-# Acquire lock for blue-green deployment coordination
-echo "$CONTAINER_NAME" > "$CONVEX_LOCK_FILE"
-
-# Wait for Convex backend to be ready
-wait_for_http "http://localhost:${CONVEX_BACKEND_PORT}/version" 60 "Convex backend API" false || {
-  kill -TERM "$CONVEX_PID" 2>/dev/null || true
-  exit 1
-}
-
-wait_for_http "http://localhost:${CONVEX_SITE_PROXY_PORT}" 30 "Convex site proxy" true
-
-# ============================================================================
-# Convex Function Deployment
-# ============================================================================
+# ENV vars to sync to the convex service so Convex actions/mutations can read
+# them at runtime. See services/platform/convex/ code for consumers.
+ENV_VARS_TO_SYNC=(
+  "SITE_URL"
+  "BASE_PATH"
+  "ENCRYPTION_SECRET_HEX"
+  "BETTER_AUTH_SECRET"
+  "AUTH_MICROSOFT_ENTRA_ID_ID"
+  "AUTH_MICROSOFT_ENTRA_ID_SECRET"
+  "AUTH_MICROSOFT_ENTRA_ID_TENANT_ID"
+  "AUTH_MICROSOFT_ENTRA_ID_ISSUER"
+  "CRAWLER_URL"
+  "RAG_URL"
+  "SEARCH_SERVICE_URL"
+  "POSTGRES_URL"
+  "RAG_DATABASE_URL"
+  "TRUSTED_HEADERS_ENABLED"
+  "TRUSTED_HEADERS_INTERNAL_SECRET"
+  "TRUSTED_EMAIL_HEADER"
+  "TRUSTED_NAME_HEADER"
+  "TRUSTED_ROLE_HEADER"
+  "TRUSTED_TEAMS_HEADER"
+  # TALE_CONFIG_DIR only — convex `file_utils.ts` derives the 4 sub-dirs
+  # (agents/workflows/integrations/providers) from it.
+  "TALE_CONFIG_DIR"
+  "DEBUG_MODE"
+  "SOPS_AGE_KEY"
+)
 
 deploy_convex_functions() {
-  echo "📤 Deploying Convex functions..."
+  log_section "Deploying Convex functions (remote push to ${CONVEX_URL})"
 
-  # Check if Convex project exists
   if [ ! -d "/app/convex" ]; then
-    echo "⚠️  No convex/ directory found, skipping function deployment"
+    log_warn "No /app/convex directory found, skipping function deployment"
     return 0
   fi
 
-  # Generate admin key for deployment
+  # Force TALE_CONFIG_DIR to the convex container's internal mount point.
+  # The `.env` file may contain a host-side value (e.g.
+  # `/home/you/tale/examples`) left over from running `bun scripts/dev.ts`
+  # on the host — that path is unreachable inside the convex container.
+  #
+  # Only TALE_CONFIG_DIR is pushed; AGENTS_DIR/WORKFLOWS_DIR/INTEGRATIONS_DIR/
+  # PROVIDERS_DIR are derived inside Convex (`convex/*/file_utils.ts` falls
+  # back to `${TALE_CONFIG_DIR}/<subdir>` when the specific var is absent).
+  #
+  # For local dev against real `examples/` edits, bind-mount the host
+  # examples dir into the convex container via compose.dev.yml:
+  #   convex:
+  #     volumes:
+  #       - ./examples:/app/data
+  export TALE_CONFIG_DIR=/app/data
+
+  # 1. Wait for the convex service to accept HTTP.
+  if ! wait_for_http "${CONVEX_URL}/version" 120 "Convex service /version" false; then
+    log_error "Convex service is not reachable. Is the \`convex\` container running?"
+    dump_diagnostics "Convex unreachable"
+    exit 1
+  fi
+
+  # 2. Give search-index bootstrap a moment to settle before push.
+  log_info "Waiting 10s for search-index workers to initialize..."
+  sleep 10
+
+  # 3. Compute admin key locally (generate_key binary is installed in this image).
+  local ADMIN_KEY
   ADMIN_KEY=$(generate_key "$INSTANCE_NAME" "$INSTANCE_SECRET")
 
-  # Set HOME for bun to work properly
-  export HOME=/home/tanstack
+  # 4. Fetch current Convex env vars to compute a diff.
+  export HOME=/home/app
+  log_info "Fetching current Convex env vars..."
+  local CONVEX_ENV_OUTPUT
+  CONVEX_ENV_OUTPUT=$(bunx convex env list --url "$CONVEX_URL" --admin-key "$ADMIN_KEY" 2>/dev/null || echo "")
 
-  # List of environment variables to sync to Convex
-  # These are the variables that Convex functions need access to
-  ENV_VARS_TO_SYNC=(
-    "SITE_URL"
-    "BASE_PATH"
-    "ENCRYPTION_SECRET_HEX"
-    "BETTER_AUTH_SECRET"
-    "AUTH_MICROSOFT_ENTRA_ID_ID"
-    "AUTH_MICROSOFT_ENTRA_ID_SECRET"
-    "AUTH_MICROSOFT_ENTRA_ID_TENANT_ID"
-    "AUTH_MICROSOFT_ENTRA_ID_ISSUER"
-    "CRAWLER_URL"
-    "RAG_URL"
-    "SEARCH_SERVICE_URL"
-    "POSTGRES_URL"
-    "RAG_DATABASE_URL"
-    "TRUSTED_HEADERS_ENABLED"
-    "TRUSTED_HEADERS_INTERNAL_SECRET"
-    "TRUSTED_EMAIL_HEADER"
-    "TRUSTED_NAME_HEADER"
-    "TRUSTED_ROLE_HEADER"
-    "TRUSTED_TEAMS_HEADER"
-    # Root directory for file-based configs (agents, workflows, integrations, branding)
-    "TALE_CONFIG_DIR"
-    # Agents directory (filesystem path for agent JSON configs)
-    "AGENTS_DIR"
-    # Workflows directory (filesystem path for workflow template JSON configs)
-    "WORKFLOWS_DIR"
-    # Integrations directory (filesystem path for integration template files)
-    "INTEGRATIONS_DIR"
-    # Debug flag (enables all debug loggers when set to "true")
-    "DEBUG_MODE"
-    # Age secret key for SOPS provider secret encryption/decryption
-    "SOPS_AGE_KEY"
-  )
-
-  # Fetch current env vars from Convex (output format: KEY=value per line)
-  echo "   Fetching current Convex env vars..."
-  CONVEX_ENV_OUTPUT=$(bunx convex env list \
-    --url "http://localhost:${CONVEX_BACKEND_PORT}" \
-    --admin-key "$ADMIN_KEY" 2>/dev/null || echo "")
-
-  # Parse KEY=value lines into an associative array
   declare -A CONVEX_ENV_MAP
   while IFS= read -r line; do
     [ -z "$line" ] && continue
-    key="${line%%=*}"
-    # Skip lines without '='
+    local key="${line%%=*}"
     [ "$key" = "$line" ] && continue
     CONVEX_ENV_MAP["$key"]="${line#*=}"
   done <<< "$CONVEX_ENV_OUTPUT"
 
-  sync_count=0
-  skip_count=0
-  unchanged_count=0
-  remove_count=0
+  # One-shot cleanup: remove env vars that earlier Tale versions auto-pushed
+  # but the current architecture derives from TALE_CONFIG_DIR.
+  #
+  # Safety: only remove the var if its current value matches the auto-derived
+  # path (i.e. it's a stale auto-push, not an operator's custom override).
+  # An override like AGENTS_DIR=/data/custom-agents is preserved untouched.
+  local config_dir="${TALE_CONFIG_DIR:-/app/data}"
+  local -A ORPHAN_DERIVED=(
+    [AGENTS_DIR]="${config_dir}/agents"
+    [WORKFLOWS_DIR]="${config_dir}/workflows"
+    [INTEGRATIONS_DIR]="${config_dir}/integrations"
+    [PROVIDERS_DIR]="${config_dir}/providers"
+  )
+  for orphan in "${!ORPHAN_DERIVED[@]}"; do
+    if [ "${CONVEX_ENV_MAP[$orphan]+_}" ]; then
+      local current="${CONVEX_ENV_MAP[$orphan]}"
+      local derived="${ORPHAN_DERIVED[$orphan]}"
+      if [ "$current" = "$derived" ]; then
+        if bunx convex env remove "$orphan" --url "$CONVEX_URL" --admin-key "$ADMIN_KEY" >/dev/null 2>&1; then
+          echo "   ✓ $orphan (orphan removed — derived from TALE_CONFIG_DIR)"
+          unset 'CONVEX_ENV_MAP[$orphan]'
+        fi
+      else
+        log_info "$orphan=$current preserved (custom override; not the derived $derived)"
+      fi
+    fi
+  done
+
+  # 5. Sync each var in ENV_VARS_TO_SYNC.
+  local sync_count=0 skip_count=0 unchanged_count=0 remove_count=0
+  local failed_vars=()
 
   for var_name in "${ENV_VARS_TO_SYNC[@]}"; do
-    var_value="${!var_name}"
+    local var_value="${!var_name}"
 
     if [ -z "$var_value" ]; then
-      # Remove from Convex if it was previously set but is now empty/unset
+      # Unset: remove from Convex if previously present.
       if [ "${CONVEX_ENV_MAP[$var_name]+_}" ]; then
-        if bunx convex env remove "$var_name" \
-          --url "http://localhost:${CONVEX_BACKEND_PORT}" \
-          --admin-key "$ADMIN_KEY" >/dev/null 2>&1; then
+        if bunx convex env remove "$var_name" --url "$CONVEX_URL" --admin-key "$ADMIN_KEY" >/dev/null 2>&1; then
           remove_count=$((remove_count + 1))
           echo "   ✓ $var_name (removed)"
         else
-          echo "   ⚠️  Failed to remove $var_name"
+          failed_vars+=("$var_name")
+          log_warn "Failed to remove $var_name"
         fi
       else
         skip_count=$((skip_count + 1))
@@ -696,7 +296,7 @@ deploy_convex_functions() {
       continue
     fi
 
-    # Compare against current Convex value
+    # Unchanged?
     if [ "${CONVEX_ENV_MAP[$var_name]+_}" ] && [ "${CONVEX_ENV_MAP[$var_name]}" = "$var_value" ]; then
       unchanged_count=$((unchanged_count + 1))
       continue
@@ -705,173 +305,183 @@ deploy_convex_functions() {
     local change_type="updated"
     [ -z "${CONVEX_ENV_MAP[$var_name]+_}" ] && change_type="new"
 
-    if bunx convex env set "$var_name" "$var_value" \
-      --url "http://localhost:${CONVEX_BACKEND_PORT}" \
-      --admin-key "$ADMIN_KEY" >/dev/null 2>&1; then
+    if bunx convex env set "$var_name" "$var_value" --url "$CONVEX_URL" --admin-key "$ADMIN_KEY" >/dev/null 2>&1; then
       sync_count=$((sync_count + 1))
       echo "   ✓ $var_name ($change_type)"
     else
-      echo "   ⚠️  Failed to set $var_name"
+      failed_vars+=("$var_name")
+      log_warn "Failed to set $var_name (value length: ${#var_value})"
     fi
   done
+
+  if [ ${#failed_vars[@]} -gt 0 ]; then
+    log_warn "Failed env vars:"
+    for v in "${failed_vars[@]}"; do
+      echo "    - $v (value length: ${#v} / ${#!v})"
+    done
+    echo "  Possible causes: name > 40 chars / value > 8 KB / invalid characters"
+  fi
 
   if [ $sync_count -eq 0 ] && [ $remove_count -eq 0 ] && [ $unchanged_count -gt 0 ]; then
     echo "   ⏭️  All $unchanged_count env vars unchanged"
   else
-    echo "   ✅ Synced $sync_count (new/updated), removed $remove_count, unchanged $unchanged_count, skipped $skip_count"
+    echo "   ✅ Synced $sync_count, removed $remove_count, unchanged $unchanged_count, skipped $skip_count"
   fi
 
-  # Deploy functions
-  # Note: --typecheck disable is used because TypeScript is removed from the Docker image to reduce size
-  echo "   Deploying functions..."
-  if bunx convex deploy --url "http://localhost:${CONVEX_BACKEND_PORT}" --admin-key "$ADMIN_KEY" --typecheck disable --yes 2>&1; then
-    echo "✅ Convex functions deployed successfully"
-  else
-    echo "❌ Convex function deployment failed" >&2
-    exit 1
+  # 6. Deploy functions (three-stage error classification below).
+  log_info "Running convex deploy (timeout ${CONVEX_DEPLOY_TIMEOUT}s)..."
+  sleep 2  # Avoid RaceDetected (env sync race)
+
+  local deploy_log
+  deploy_log=$(mktemp)
+  local deploy_exit=0
+
+  timeout "$CONVEX_DEPLOY_TIMEOUT" bunx convex deploy \
+    --url "$CONVEX_URL" \
+    --admin-key "$ADMIN_KEY" \
+    --typecheck disable --yes 2>&1 | tee "$deploy_log" || deploy_exit=$?
+
+  if [ $deploy_exit -eq 0 ]; then
+    log_ok "Convex functions deployed successfully"
+    rm -f "$deploy_log"
+    return 0
   fi
+
+  # --- Failure classification (three-stage) ---
+  log_error "Convex deploy failed (exit code: $deploy_exit)"
+  echo
+  echo "━━━ Error diagnosis ━━━"
+
+  local retry=false
+
+  if [ $deploy_exit -eq 124 ]; then
+    # wait_for_schema stage
+    log_error "Reason: timeout (${CONVEX_DEPLOY_TIMEOUT}s)"
+    echo "  → Most likely stuck in wait_for_schema (search-index backfill)."
+    if grep -q "Backfilling indexes" "$deploy_log"; then
+      echo "  ✔ Confirmed: deploy blocked on index backfill."
+      grep "Backfilling indexes" "$deploy_log" | tail -1 | sed 's/^/  last progress: /'
+    fi
+    if grep -q "TextLiveFlusher died" "$deploy_log"; then
+      echo "  ⚠️  TextLiveFlusher errors detected in convex logs."
+      echo "     docker compose logs convex | grep TextLiveFlusher"
+    fi
+    echo "  fix: inspect convex-data /app/data/convex/search; see plan section."
+
+  elif grep -q "RaceDetected" "$deploy_log"; then
+    log_error "Reason: RaceDetected (env vars modified mid-push)"
+    echo "  fix: check for parallel deploys; retry will happen automatically."
+    retry=true
+
+  elif grep -q "ConcurrentPush" "$deploy_log"; then
+    log_error "Reason: ConcurrentPush (another deploy in progress)"
+    echo "  fix: ps -ef | grep convex; ensure only one platform color is pushing."
+
+  elif grep -q "ModulesTooLarge" "$deploy_log"; then
+    log_error "Reason: compiled modules exceed the 45 MB gzip limit"
+    echo "  fix: du -sh /app/convex; prune unused deps; move big libs behind \"use node\""
+
+  elif grep -q "InvalidSchema" "$deploy_log"; then
+    log_error "Reason: schema conflicts with existing data"
+    echo "  fix: migrate data first, or make the new field optional."
+
+  elif grep -q "TextIndexTooLarge\|VectorIndexTooLarge" "$deploy_log"; then
+    log_error "Reason: search or vector index exceeds memory limit (default 100 MiB)"
+    echo "  fix: raise SEARCH_INDEX_SIZE_HARD_LIMIT or reduce index scope."
+
+  elif grep -q "SearchIndexesUnavailable\|VectorIndexesUnavailable" "$deploy_log"; then
+    log_error "Reason: search indexes not yet bootstrapped on convex side"
+    echo "  → Cold boot: index workers take 30–90s to come up; will back off and retry."
+    retry=true
+    # Use a bigger backoff specifically for index bootstrap; the standard 10s
+    # is rarely enough on first boot.
+    SEARCH_INDEX_RETRY_BACKOFF=45
+
+  elif grep -q "AuthConfigMissingEnvironmentVariable" "$deploy_log"; then
+    local missing_var
+    missing_var=$(grep -oP 'Environment variable \K\w+' "$deploy_log" | head -1)
+    log_error "Reason: auth.config.ts references unset env var"
+    [ -n "$missing_var" ] && echo "  missing: $missing_var"
+    echo "  fix: add it to ENV_VARS_TO_SYNC in this entrypoint + ensure it is exported."
+
+  elif grep -qi "fetch failed\|ECONNREFUSED\|ETIMEDOUT" "$deploy_log"; then
+    log_error "Reason: network/connection issue to ${CONVEX_URL}"
+    echo "  fix: check convex container health; check docker network."
+    retry=true
+
+  elif grep -qi "invalid admin key\|unauthorized" "$deploy_log"; then
+    log_error "Reason: admin key invalid"
+    echo "  fix: check INSTANCE_NAME and INSTANCE_SECRET match on both services."
+
+  else
+    log_error "Reason: unclassified. See full deploy log above."
+    echo "  fix: try RUST_LOG=debug on the convex service and re-run deploy."
+  fi
+
+  echo
+  dump_diagnostics "Convex deploy failure"
+
+  if [ "$retry" = "true" ]; then
+    # Up to 3 attempts with exponential backoff (capped); the first sleep is
+    # the classification-specific backoff if set (search-index bootstrap),
+    # otherwise the default 10s.
+    local backoff="${SEARCH_INDEX_RETRY_BACKOFF:-10}"
+    local attempt
+    for attempt in 1 2 3; do
+      log_warn "Retryable error detected; sleeping ${backoff}s before attempt ${attempt}/3..."
+      sleep "$backoff"
+      if timeout "$CONVEX_DEPLOY_TIMEOUT" bunx convex deploy \
+          --url "$CONVEX_URL" \
+          --admin-key "$ADMIN_KEY" \
+          --typecheck disable --yes 2>&1 | tee -a "$deploy_log"; then
+        log_ok "Convex functions deployed on retry attempt ${attempt}"
+        rm -f "$deploy_log"
+        return 0
+      fi
+      # Cap at ~90s to avoid runaway waits but still cover the longest
+      # observed search-index bootstrap.
+      backoff=$(( backoff * 2 ))
+      [ $backoff -gt 90 ] && backoff=90
+    done
+    log_error "All retries failed"
+  fi
+
+  rm -f "$deploy_log"
+  exit 1
 }
 
 deploy_convex_functions
 
 # ============================================================================
-# Vite Application Startup
+# Vite application
 # ============================================================================
+log_section "Starting Vite server on port ${PORT}"
 
-echo "🌐 Starting Vite server on port ${PORT}..."
+export SENTRY_RELEASE="${TALE_VERSION:-unknown}"
+
 bun server.ts &
 VITE_PID=$!
 
 wait_for_http "http://localhost:${PORT}/api/health" 30 "Vite server" true
 
 # ============================================================================
-# Convex Dashboard Startup
+# Readiness marker (compose healthcheck gate)
 # ============================================================================
-
-echo "📊 Starting Convex Dashboard on port ${CONVEX_DASHBOARD_PORT}..."
-cd /dashboard
-
-# Configure Dashboard to run under /convex-dashboard basePath
-# This allows the Dashboard to coexist with the main app on the same domain
-# We patch the server.js config to set basePath and assetPrefix
-DASHBOARD_BASE_PATH="/convex-dashboard"
-sed -i "s|\"basePath\":\"\"|\"basePath\":\"${DASHBOARD_BASE_PATH}\"|g" server.js
-sed -i "s|\"assetPrefix\":\"\"|\"assetPrefix\":\"${DASHBOARD_BASE_PATH}\"|g" server.js
-
-# Derive deployment URL from SITE_URL for dashboard
-# The deployment URL should point to the main site (for API calls)
-NEXT_PUBLIC_DEPLOYMENT_URL="${SITE_URL}" \
-  PORT=${CONVEX_DASHBOARD_PORT} \
-  HOSTNAME=0.0.0.0 \
-  node server.js > /dev/null &
-DASHBOARD_PID=$!
-cd /app
-
-wait_for_http "http://localhost:${CONVEX_DASHBOARD_PORT}" 30 "Convex Dashboard" true
+touch "$READY_MARKER"
+log_ok "Platform ready (marker: $READY_MARKER)"
 
 # ============================================================================
-# Startup Complete - Derive display URLs from SITE_URL
+# Derived display URLs
 # ============================================================================
-
-# Display URLs use SITE_URL (which includes protocol and domain)
-# For localhost development, SITE_URL will be like "http://localhost:3000"
-# For production, SITE_URL will be like "https://demo.tale.dev"
 DISPLAY_BASE_URL="${SITE_URL:-http://localhost:${PORT}}${BASE_PATH:-}"
 
-echo ""
+echo
 echo "🎉 Tale Platform is running!"
-echo ""
-echo "   📱 Vite Application:     ${DISPLAY_BASE_URL}"
-echo "   🔌 Convex API:           ${DISPLAY_BASE_URL}/ws_api"
-echo "   ⚡ Convex Actions:        ${DISPLAY_BASE_URL}/http_api"
-echo "   📊 Convex Dashboard:     ${DISPLAY_BASE_URL}/convex-dashboard"
-echo ""
+echo
+echo "   📱 Application:       ${DISPLAY_BASE_URL}"
+echo "   🔌 Convex API (WS):   ${DISPLAY_BASE_URL}/ws_api"
+echo "   ⚡ Convex Actions:     ${DISPLAY_BASE_URL}/http_api"
+echo "   📊 Convex Dashboard:  ${DISPLAY_BASE_URL}/convex-dashboard"
+echo
 
-# ============================================================================
-# Process Supervisor - Monitor and restart Convex if it crashes
-# ============================================================================
-
-CRASH_LOG="/app/data/convex/crash.log"
-
-monitor_convex() {
-  local max_restarts=10
-  local restart_count=0
-  local restart_window=3600  # Reset counter after 1 hour of stability
-  local last_restart_time=0
-
-  while true; do
-    sleep 10
-
-    # Check if Convex backend is responding
-    if ! curl -sf "http://localhost:${CONVEX_BACKEND_PORT}/version" > /dev/null 2>&1; then
-      current_time=$(date +%s)
-
-      # Reset counter if stable for restart_window
-      if [ $((current_time - last_restart_time)) -gt $restart_window ]; then
-        restart_count=0
-      fi
-
-      restart_count=$((restart_count + 1))
-      last_restart_time=$current_time
-
-      # Log crash event
-      echo "[$(date -Iseconds)] Convex backend crash detected (restart #$restart_count)" | tee -a "$CRASH_LOG"
-
-      if [ $restart_count -gt $max_restarts ]; then
-        echo "[$(date -Iseconds)] Max restarts ($max_restarts) exceeded, exiting container" | tee -a "$CRASH_LOG"
-        exit 1
-      fi
-
-      # Check if another instance holds the lock (blue-green deployment in progress)
-      lock_holder=$(cat "$CONVEX_LOCK_FILE" 2>/dev/null || echo "")
-      if [ -n "$lock_holder" ] && [ "$lock_holder" != "$CONTAINER_NAME" ]; then
-        echo "[$(date -Iseconds)] Another instance ($lock_holder) holds the lock, skipping restart" | tee -a "$CRASH_LOG"
-        # Don't count this as a restart attempt since it's expected during deployment
-        restart_count=$((restart_count - 1))
-        continue
-      fi
-
-      # Kill stale process if exists (read PID from file for cross-subshell visibility)
-      local current_pid
-      current_pid=$(cat "$CONVEX_PID_FILE" 2>/dev/null || echo "")
-      if [ -n "$current_pid" ] && kill -0 "$current_pid" 2>/dev/null; then
-        kill "$current_pid" 2>/dev/null || true
-        wait "$current_pid" 2>/dev/null || true
-      fi
-
-      # Clean search indexes before restarting to prevent crash loops from
-      # corrupted vector index segments left by the previous crash (e.g.
-      # VectorCompactor killed mid-compaction). Compiled modules are left
-      # intact — they are written atomically during deploy and don't corrupt.
-      echo "[$(date -Iseconds)] Cleaning search indexes before restart..." | tee -a "$CRASH_LOG"
-      if [ -d "/app/data/convex/search" ]; then
-        rm -rf "/app/data/convex/search"
-        echo "   ✓ Cleaned search indexes (will rebuild from database)"
-      fi
-      rm -rf /app/data/convex/tmp/*
-
-      # Restart Convex backend
-      echo "[$(date -Iseconds)] Restarting Convex backend..." | tee -a "$CRASH_LOG"
-      convex-local-backend ${DB_ARGS} --local-storage /app/data/convex ${SITE_ARGS} &
-      echo $! > "$CONVEX_PID_FILE"
-      # Update lock after restart
-      echo "$CONTAINER_NAME" > "$CONVEX_LOCK_FILE"
-
-      # Wait for recovery
-      sleep 5
-
-      if curl -sf "http://localhost:${CONVEX_BACKEND_PORT}/version" > /dev/null 2>&1; then
-        echo "[$(date -Iseconds)] Convex backend recovered successfully" | tee -a "$CRASH_LOG"
-      else
-        echo "[$(date -Iseconds)] Convex backend recovery pending..." | tee -a "$CRASH_LOG"
-      fi
-    fi
-  done
-}
-
-# Start process supervisor in background
-monitor_convex &
-MONITOR_PID=$!
-
-# Wait for all background processes
-wait "$CONVEX_PID" "$VITE_PID" "$DASHBOARD_PID" "$MONITOR_PID"
+wait "$VITE_PID"

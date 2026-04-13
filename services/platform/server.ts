@@ -1,8 +1,14 @@
+import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import { convexMetricsResponse } from './convex-metrics';
 import { createConfigWatcher } from './lib/config-watcher';
 import { initTelemetry, metricsResponse } from './telemetry';
+
+// Platform graceful shutdown marker (written by docker-entrypoint.sh trap).
+// When present, /api/health returns 503 so Caddy/Docker drain traffic before
+// the process actually terminates.
+const SHUTDOWN_MARKER = '/tmp/platform-shutting-down';
 
 // ---------------------------------------------------------------------------
 // Config file events (SSE)
@@ -15,7 +21,10 @@ import { initTelemetry, metricsResponse } from './telemetry';
 const sseClients = new Set<ReadableStreamDefaultController>();
 
 const configDir = process.env.TALE_CONFIG_DIR;
-if (configDir) {
+// Post-split (Phase 2): TALE_CONFIG_DIR points at the convex-data volume
+// mounted read-only on the platform container (for config-file SSE + branding
+// image serving). Skip watcher setup gracefully if the directory is absent.
+if (configDir && existsSync(configDir)) {
   const watcher = createConfigWatcher(configDir);
   watcher.onChange((event) => {
     const payload = `data: ${JSON.stringify(event)}\n\n`;
@@ -88,6 +97,9 @@ Bun.serve({
     const pathname = url.pathname;
 
     if (pathname === '/api/health') {
+      if (existsSync(SHUTDOWN_MARKER)) {
+        return Response.json({ status: 'shutting_down' }, { status: 503 });
+      }
       return Response.json({ status: 'ok' });
     }
 

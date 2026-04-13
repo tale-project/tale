@@ -123,12 +123,13 @@ RUN cd /tmp/workspace && HUSKY=0 bun install --production \
     && find /app/node_modules -type d -empty -delete 2>/dev/null || true
 
 # ============================================================================
-# Stage 4: Convex Dashboard
-# ============================================================================
-FROM ghcr.io/get-convex/convex-dashboard:5f66740ae8dd506577d27294adc55b81e4fbe91b AS convex-dashboard
-
-# ============================================================================
-# Stage 5: Runtime
+# Stage 4: Runtime
+# ----------------------------------------------------------------------------
+# Platform container runs Vite + TanStack Start only.
+# Convex backend + Dashboard live in the sibling `convex` service (see
+# services/convex/Dockerfile). Platform KEEPS the convex-backend base so
+# `generate_key` (glibc Rust binary) is available for computing the admin
+# key used when pushing functions/env vars to the remote convex service.
 # ============================================================================
 FROM ghcr.io/get-convex/convex-backend:5f66740ae8dd506577d27294adc55b81e4fbe91b AS runner
 
@@ -144,14 +145,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && curl -fsSL "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.$(dpkg --print-architecture)" -o /usr/local/bin/sops && chmod +x /usr/local/bin/sops \
     && mkdir -p /usr/local/share/ca-certificates \
     && chmod 755 /usr/local/share/ca-certificates \
-    && chmod +x /convex/convex-local-backend /convex/generate_key \
-    && ln -s /convex/convex-local-backend /usr/local/bin/convex-local-backend \
+    # Phase 2: platform does NOT run the convex backend; only needs
+    # `generate_key` (glibc Rust binary) to compute admin keys for remote
+    # `convex env set` / `convex deploy` calls.
+    && chmod +x /convex/generate_key \
     && ln -s /convex/generate_key /usr/local/bin/generate_key \
     && groupadd --system --gid 1001 app || true \
     && useradd --system --uid 1001 --gid app app || true \
     && mkdir -p /home/app && chmod 777 /home/app \
-    && mkdir -p /app/data/convex /app/data/agents /app/data/workflows /app/data/integrations /app/data/providers /dashboard /app/agents-builtin /app/workflows-builtin /app/integrations-builtin /app/providers-builtin \
-    && chown -R app:app /app/data /dashboard /app/agents-builtin /app/workflows-builtin /app/integrations-builtin /app/providers-builtin \
     # Strip system bloat from Convex backend base (~155 MB)
     && ARCH_LIB="/usr/lib/$(dpkg --print-architecture | sed 's/amd64/x86_64-linux-gnu/;s/arm64/aarch64-linux-gnu/')" \
     && rm -rf "${ARCH_LIB}"/libLLVM* "${ARCH_LIB}"/libclang* \
@@ -173,57 +174,17 @@ ENV NODE_ENV=production \
     TALE_VERSION=${VERSION} \
     PORT=3000 \
     HOSTNAME="0.0.0.0" \
-    CONVEX_PORT=3210 \
+    # Convex service DNS name (compose-internal). Overridable via CONVEX_URL.
+    CONVEX_URL=http://convex:3210 \
+    # INSTANCE_NAME is shared with convex service; platform uses it + INSTANCE_SECRET
+    # to compute the admin key for `bunx convex env set` and `bunx convex deploy`.
     INSTANCE_NAME=tale_platform \
-    # Increase UDF timeout from default 1s to 5s to handle thundering herd on reconnect.
-    # When a browser tab is idle and reconnects, all subscribed queries fire simultaneously,
-    # causing burst load that can exceed the default timeout under contention.
-    DATABASE_UDF_USER_TIMEOUT_SECONDS=5 \
-    # Increase V8 isolate memory thresholds to reduce cold-start latency spikes.
-    # Default heap (64MB) triggers memory_carry_over recycling when V8 external
-    # memory accumulates to ~48 MiB, causing 3-5s cold-start on the next query.
-    # USER_HEAP 256MB + EXTRA 128MB = 384MB total heap limit per isolate.
-    ISOLATE_MAX_USER_HEAP_SIZE=268435456 \
-    ISOLATE_MAX_HEAP_EXTRA_SIZE=134217728 \
-    # Increase V8 isolate idle timeout from default 10min to 1 hour.
-    # Keeps warm isolates alive longer, avoiding cold-start latency on
-    # queries that fire every 5-10 minutes.
-    ISOLATE_IDLE_TIMEOUT_SECONDS=3600 \
-    # Increase isolate max lifetime from default 1h to 4h (must be >= idle timeout).
-    ISOLATE_MAX_LIFETIME_SECONDS=14400 \
-    # CA cert path for self-signed mode - entrypoint script checks if file exists
-    # With Let's Encrypt, this file doesn't exist and is safely ignored
-    CADDY_CA_CERT_PATH=/caddy-data/caddy/pki/authorities/local/root.crt \
     DO_NOT_TRACK=1 \
-    # Increase action timeout from default 5min to 30min for both Node and V8 actions
-    ACTIONS_USER_TIMEOUT_SECS=1800 \
-    # Increase max concurrent queries/mutations/actions from defaults to 32 for higher throughput
-    APPLICATION_MAX_CONCURRENT_QUERIES=32 \
-    APPLICATION_MAX_CONCURRENT_MUTATIONS=32 \
-    APPLICATION_MAX_CONCURRENT_V8_ACTIONS=32 \
-    APPLICATION_MAX_CONCURRENT_NODE_ACTIONS=32 \
-    # Custom agent JSON files directory
-    AGENTS_DIR=/app/data/agents \
-    # Workflow template JSON files directory
-    WORKFLOWS_DIR=/app/data/workflows \
-    # Integration template files directory
-    INTEGRATIONS_DIR=/app/data/integrations \
-    # Provider config files directory
-    PROVIDERS_DIR=/app/data/providers
-
-COPY --from=convex-dashboard --chown=app:app /app /dashboard
-
-# Copy builtin agent JSON files (used to seed /app/agents on first run)
-COPY --chown=app:app examples/agents/ /app/agents-builtin/
-
-# Copy builtin workflow template JSON files (used to seed /app/data/workflows on first run)
-COPY --chown=app:app examples/workflows/ /app/workflows-builtin/
-
-# Copy builtin integration template files (used to seed /app/data/integrations on first run)
-COPY --chown=app:app examples/integrations/ /app/integrations-builtin/
-
-# Copy builtin provider config files (used to seed /app/data/providers on first run)
-COPY --chown=app:app examples/providers/ /app/providers-builtin/
+    # Semantic value of the file-config parent path inside the convex
+    # container. Platform forces this at push time in docker-entrypoint.sh
+    # (to tombstone any stale host-side `.env` value). Convex derives the
+    # sub-dirs (agents/workflows/integrations/providers) from it.
+    TALE_CONFIG_DIR=/app/data
 
 COPY --from=pruner --chown=app:app /app/services/platform/dist ./dist
 COPY --from=pruner --chown=app:app \
@@ -239,14 +200,14 @@ COPY --from=pruner --chown=app:app /app/services/platform/docker-entrypoint.sh /
 
 RUN chmod +x ./docker-entrypoint.sh ./generate-admin-key.sh ./reset-owner.sh
 
-EXPOSE 3000 3210 3211 6791
+EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s CMD curl -f http://localhost:3000/api/health || exit 1
 
 ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["/app/docker-entrypoint.sh"]
 
 # =============================================================================
-# Stage 6: SQUASH — flatten layers to eliminate Docker layer bloat
+# Stage 5: SQUASH — flatten layers to eliminate Docker layer bloat
 # =============================================================================
 FROM scratch
 COPY --from=runner / /
@@ -263,25 +224,12 @@ ENV NODE_ENV=production \
     TALE_VERSION=${VERSION} \
     PORT=3000 \
     HOSTNAME="0.0.0.0" \
-    CONVEX_PORT=3210 \
+    CONVEX_URL=http://convex:3210 \
     INSTANCE_NAME=tale_platform \
-    DATABASE_UDF_USER_TIMEOUT_SECONDS=5 \
-    ISOLATE_MAX_USER_HEAP_SIZE=268435456 \
-    ISOLATE_MAX_HEAP_EXTRA_SIZE=134217728 \
-    ISOLATE_IDLE_TIMEOUT_SECONDS=3600 \
-    ISOLATE_MAX_LIFETIME_SECONDS=14400 \
-    CADDY_CA_CERT_PATH=/caddy-data/caddy/pki/authorities/local/root.crt \
     DO_NOT_TRACK=1 \
-    ACTIONS_USER_TIMEOUT_SECS=1800 \
-    APPLICATION_MAX_CONCURRENT_QUERIES=32 \
-    APPLICATION_MAX_CONCURRENT_MUTATIONS=32 \
-    APPLICATION_MAX_CONCURRENT_V8_ACTIONS=32 \
-    APPLICATION_MAX_CONCURRENT_NODE_ACTIONS=32 \
-    AGENTS_DIR=/app/data/agents \
-    WORKFLOWS_DIR=/app/data/workflows \
-    INTEGRATIONS_DIR=/app/data/integrations
+    TALE_CONFIG_DIR=/app/data
 
-EXPOSE 3000 3210 3211 6791
+EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s CMD curl -f http://localhost:3000/api/health || exit 1
 
 ENTRYPOINT ["/usr/bin/tini", "--"]

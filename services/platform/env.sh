@@ -1,6 +1,6 @@
 #!/bin/bash
 # Centralized environment normalization for Tale Platform
-set -e
+set -eo pipefail
 
 # Normalize and export environment variables.
 # Does not print or log secret values.
@@ -54,11 +54,10 @@ env_normalize_common() {
 	  export INSTANCE_NAME="tale_platform"
 	  export INSTANCE_SECRET="${INSTANCE_SECRET}"
 
-  # Filesystem directories for file-based configs
+  # Root config directory. Sub-dirs (agents/workflows/integrations/providers)
+  # are derived inside Convex via `convex/*/file_utils.ts` — no need to set
+  # AGENTS_DIR / WORKFLOWS_DIR / INTEGRATIONS_DIR / PROVIDERS_DIR explicitly.
   export TALE_CONFIG_DIR="${TALE_CONFIG_DIR:-/app/data}"
-  export AGENTS_DIR="${AGENTS_DIR:-${TALE_CONFIG_DIR}/agents}"
-  export WORKFLOWS_DIR="${WORKFLOWS_DIR:-${TALE_CONFIG_DIR}/workflows}"
-  export INTEGRATIONS_DIR="${INTEGRATIONS_DIR:-${TALE_CONFIG_DIR}/integrations}"
 
   # Site URL - the canonical base URL for the platform (required)
   # All other URLs (Convex HTTP API, WebSocket API, etc.) are derived from this in code

@@ -162,14 +162,19 @@ services:
     #       memory: 2G
 
     # Dependencies
+    # Wait for convex to finish seeding agents/workflows/integrations/providers
+    # into the shared convex-data volume before mounting it read-only.
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+      convex:
+        condition: service_healthy
 
     # Volume mounts
     # Persist crawler data (website registry + per-site URL databases)
     volumes:
       - crawler-data:/app/data
-      - ${PLATFORM_SHARED_CONFIG:-platform-data}:/app/platform-config:ro
+      - ${PLATFORM_SHARED_CONFIG:-convex-data}:/app/platform-config:ro
 
     # Logging configuration
     logging:
@@ -208,7 +213,7 @@ services:
     # Volume mounts
     volumes:
       - rag-data:/app/data
-      - ${PLATFORM_SHARED_CONFIG:-platform-data}:/app/platform-config:ro
+      - ${PLATFORM_SHARED_CONFIG:-convex-data}:/app/platform-config:ro
 
     # Environment file
     # Create a .env file in the project root with your API keys
@@ -229,8 +234,12 @@ services:
       start_period: 40s
 
     # Dependencies
+    # Wait for convex to finish seeding the shared config volume.
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+      convex:
+        condition: service_healthy
 
     # Resource limits (optional, adjust based on your needs)
     # deploy:
@@ -250,6 +259,72 @@ services:
         max-file: '3'
 
     # Networks
+    networks:
+      - internal
+
+  # ============================================================================
+  # Tale Convex (Phase 1: added alongside legacy all-in-one platform; not yet
+  # wired into Caddy. See designs: `giggly-napping-honey.md`.)
+  # ----------------------------------------------------------------------------
+  # This service runs convex-local-backend + Convex Dashboard independently
+  # from the platform service. Platform pushes schema & env via HTTP client
+  # (`bunx convex deploy --url http://convex:3210`). Convex never restarts for
+  # code or env changes; only backend-version upgrades rebuild this image.
+  #
+  # Phase 1 goal: verify this service runs standalone without disturbing the
+  # existing all-in-one platform. Caddy still routes /ws_api etc. to platform.
+  # Phase 2 will flip the Caddy upstream and slim the platform container.
+  # ============================================================================
+  convex:
+    image: ghcr.io/tale-project/tale/tale-convex:${VERSION:-latest}
+    container_name: tale-convex
+    pull_policy: ${PULL_POLICY:-build}
+    build:
+      context: .
+      dockerfile: services/convex/Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
+
+    # No ports published — access only via Caddy on the internal network.
+    # Ports 3210/3211/6791 remain host-internal to this container.
+
+    volumes:
+      # Independent convex data volume. Once Phase 2 migration completes, this
+      # contains everything platform-data previously held under /app/data/.
+      - convex-data:/app/data
+      # Caddy self-signed CA (for Rust backend → tale.local outbound HTTPS).
+      - caddy-data:/caddy-data:ro
+
+    env_file:
+      - .env
+
+    restart: unless-stopped
+
+    # Readiness: /version responds as soon as HTTP server binds, but we also
+    # require /tmp/convex-ready which entrypoint writes AFTER builtin seed
+    # and Dashboard startup. start_period covers cold-boot with search-index
+    # warmup; platform's wait_for_http budget is 120s, so align here.
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'curl -sf http://localhost:3210/version && [ -f /tmp/convex-ready ]',
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 120s
+
+    depends_on:
+      db:
+        condition: service_healthy
+
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+
     networks:
       - internal
 
@@ -274,17 +349,14 @@ services:
     # No port mapping needed - accessed via proxy at https://tale.local (or your domain)
     # internally via http://platform:3000
 
-    # Volume mounts
-    # Persist Convex local data
+    # Volume mounts — Phase 2 split:
+    #   * Convex backend + data live in the `convex` service (see convex-data).
+    #   * Platform mounts convex-data READ-ONLY so server.ts can:
+    #       - watch config JSON changes (TALE_CONFIG_DIR SSE)
+    #       - serve branding images from {TALE_CONFIG_DIR}/branding/images
+    #   * `caddy-data` CA mount removed — platform makes zero outbound HTTPS.
     volumes:
-      # All persistent platform data (Convex DB, agents, workflows, integrations)
-      - platform-data:/app/data
-      # Mount Caddy's CA certificates for trusting self-signed certificates (development only)
-      - caddy-data:/caddy-data:ro
-      # Development: mount local agents directory to override defaults
-      # - ./examples/agents:/app/data/agents
-      # Development: mount local provider configs
-      # - ./examples/providers:/app/data/providers
+      - convex-data:/app/data:ro
 
     # Environment file
     # Create a .env file in the project root with your configuration
@@ -295,26 +367,33 @@ services:
     # Automatically restart the container if it crashes
     restart: unless-stopped
 
-    # Health check - optimized for faster blue-green deployment
-    # Docker will check if the service is healthy (both TanStack Start and Convex)
+    # Health check — only checks Vite now (Convex is a separate service with
+    # its own healthcheck). The /tmp/platform-ready marker is written by
+    # entrypoint AFTER env sync + `bunx convex deploy` succeeds.
     healthcheck:
       test:
         [
           'CMD-SHELL',
-          'curl -sf http://localhost:3000/api/health && curl -sf http://localhost:3210/version',
+          'curl -sf http://localhost:3000/api/health && [ -f /tmp/platform-ready ]',
         ]
       interval: 5s
       timeout: 3s
       retries: 3
-      start_period: 120s
+      start_period: 180s
 
     # Dependencies
-    # Wait for backend services to be ready
+    # Must wait for convex (remote deploy target) AND supporting services.
     depends_on:
-      - db
-      - rag
-      - crawler
-      - proxy
+      db:
+        condition: service_healthy
+      convex:
+        condition: service_healthy
+      rag:
+        condition: service_healthy
+      crawler:
+        condition: service_healthy
+      proxy:
+        condition: service_healthy
 
     # Resource limits (optional, adjust based on your needs)
     # deploy:
@@ -455,7 +534,16 @@ volumes:
     driver: local
 
   # Persistent storage for all platform data (Convex DB, agents, workflows, integrations)
+  # LEGACY: once `tale migrate split-convex` has run, data lives in convex-data.
+  # This volume is preserved in case users need to rollback; safe to remove
+  # manually after a successful Phase 2 upgrade.
   platform-data:
+    driver: local
+
+  # Persistent storage for the Convex service (Phase 1+). Holds the Convex
+  # local-backend DB (SQLite or pg-local), search indexes, uploaded files,
+  # and seeded file-based configs (agents/workflows/integrations/providers).
+  convex-data:
     driver: local
 
   # Persistent storage for Caddy proxy data (certificates, etc.)

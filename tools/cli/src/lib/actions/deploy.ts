@@ -20,11 +20,6 @@ import { ensureVolumes } from '../docker/ensure-volumes';
 import { exec } from '../docker/exec';
 import { getContainerVersion } from '../docker/get-container-version';
 import { isContainerRunning } from '../docker/is-container-running';
-import {
-  clearMigrationPending,
-  hasPendingMigration,
-  migrateOldVolumes,
-} from '../docker/migrate-volumes';
 import { pullImage } from '../docker/pull-image';
 import { removeContainer } from '../docker/remove-container';
 import { stopContainer } from '../docker/stop-container';
@@ -34,9 +29,15 @@ import { getNextColor } from '../state/get-next-color';
 import { setCurrentColor } from '../state/set-current-color';
 import { setPreviousVersion } from '../state/set-previous-version';
 import { withLock } from '../state/with-lock';
+import { MIGRATIONS } from '../upgrade/registry';
+import { runPendingMigrations } from '../upgrade/runner';
 
 const REQUIRED_VOLUMES = [
+  // platform-data is kept for upgrade scenarios where split-convex migrates
+  // its contents into convex-data; on fresh installs it is an unused empty
+  // volume. Removing it would break detect() for pre-0.3.0 deployments.
   'platform-data',
+  'convex-data',
   'caddy-data',
   'rag-data',
   'crawler-data',
@@ -74,6 +75,9 @@ interface DeployOptions {
   services?: ServiceName[];
   fresh?: boolean;
   quiet?: boolean;
+  /** Non-interactive acceptance of any pending migrations. */
+  assumeYes?: boolean;
+  /** @deprecated use assumeYes. Kept for one release of CLI back-compat. */
   migrateVolumes?: boolean;
 }
 
@@ -117,53 +121,54 @@ export async function deploy(options: DeployOptions): Promise<void> {
       const prefix = dryRun ? '[DRY-RUN] ' : '';
       logger.header(`${prefix}Deploying Tale ${version}`);
 
-      // If a legacy-volume migration is pending, require explicit opt-in.
-      // Production deploys are zero-downtime; running migration here stops
-      // legacy containers briefly, so we want the user to acknowledge it.
-      if (hasPendingMigration(env.DEPLOY_DIR)) {
-        if (!options.migrateVolumes) {
-          throw new Error(
-            'Volume migration pending. Run "tale deploy --migrate-volumes" to migrate and deploy (includes brief downtime of any legacy tale-* containers).',
-          );
-        }
-        if (dryRun) {
-          logger.notice(
-            `${prefix}Would stop legacy tale-* containers and migrate legacy volumes. Marker will NOT be cleared in dry-run — run without --dry-run to apply.`,
-          );
-        } else {
-          logger.step('Stopping legacy Tale containers before migration...');
-          // Stop both prod (tale / tale-blue / tale-green) and dev (tale-dev)
-          // projects. Best-effort; non-existent projects fail harmlessly.
-          for (const projectName of [
-            'tale',
-            'tale-blue',
-            'tale-green',
-            'tale-dev',
-          ]) {
-            await exec(
-              'docker',
-              ['compose', '-p', projectName, 'down', '--remove-orphans'],
-              { silent: true },
-            );
-          }
-
-          logger.step('Migrating legacy volumes...');
-          const result = await migrateOldVolumes(
-            getProjectId(),
-            env.DEPLOY_DIR,
-          );
-          if (result.deferred) {
-            throw new Error(
-              'Volume migration could not proceed — legacy containers may still be running.',
-            );
-          }
-          if (result.failed.length > 0) {
-            throw new Error(
-              `Volume migration failed for ${result.failed.length} volume(s). Aborting deploy.`,
-            );
-          }
-          await clearMigrationPending(env.DEPLOY_DIR);
-          logger.success('Volume migration complete.');
+      // Detect and apply any pending migrations before deploying. The runner
+      // prints the plan and prompts the user (default No) when anything is
+      // pending; non-interactive callers must pass --yes (aliased from the
+      // deprecated --migrate-volumes). Declining aborts deploy cleanly.
+      {
+        const migrationResult = await runPendingMigrations(
+          MIGRATIONS,
+          { projectId: getProjectId(), projectDir: env.DEPLOY_DIR },
+          {
+            context: 'deploy',
+            assumeYes: options.assumeYes ?? options.migrateVolumes,
+            dryRun,
+            async performStops(stops) {
+              // `stops` may contain compose project names (e.g. 'tale',
+              // 'tale-blue') and/or individual container names (e.g.
+              // '${projectId}-platform-blue'). Try each as a compose project
+              // first, fall back to plain `docker stop`. Failures MUST
+              // surface — a silently-swallowed stop can let the migration
+              // copy a live volume, corrupting data.
+              for (const name of stops) {
+                const composeDown = await exec(
+                  'docker',
+                  ['compose', '-p', name, 'down', '--remove-orphans'],
+                  { silent: true },
+                );
+                if (composeDown.success) continue;
+                const stopResult = await exec(
+                  'docker',
+                  ['stop', '-t', '30', name],
+                  { silent: true },
+                );
+                if (stopResult.success) continue;
+                const stderr = `${stopResult.stderr ?? ''}`.toLowerCase();
+                const looksMissing =
+                  stderr.includes('no such container') ||
+                  stderr.includes('not found');
+                if (!looksMissing) {
+                  throw new Error(
+                    `Failed to stop '${name}' before migration: ${stopResult.stderr?.trim() || 'unknown error'}`,
+                  );
+                }
+              }
+            },
+          },
+        );
+        if (!migrationResult.proceed) {
+          logger.info('Aborting deploy until migrations are approved.');
+          return;
         }
       }
 
