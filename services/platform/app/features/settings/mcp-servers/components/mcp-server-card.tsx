@@ -84,7 +84,7 @@ export function McpServerCard({
       contentClassName="p-0"
     >
       <div className="relative">
-        <div className="absolute bottom-5 right-5 z-10">
+        <div className="absolute right-5 bottom-5 z-10">
           <DropdownMenu
             trigger={
               <IconButton
