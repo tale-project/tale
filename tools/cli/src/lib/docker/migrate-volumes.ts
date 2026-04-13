@@ -120,7 +120,7 @@ async function detectRunningLegacyContainers(): Promise<RunningContainersResult>
   return { containers, hasLegacy: containers.length > 0 };
 }
 
-export interface MigrationResult {
+interface MigrationResult {
   migrated: string[];
   failed: string[];
   skipped: string[];
@@ -131,7 +131,7 @@ function markerPath(projectDir: string): string {
   return join(projectDir, '.tale', 'migration-pending');
 }
 
-export async function writeMigrationPending(projectDir: string): Promise<void> {
+async function writeMigrationPending(projectDir: string): Promise<void> {
   const path = markerPath(projectDir);
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, new Date().toISOString() + '\n');

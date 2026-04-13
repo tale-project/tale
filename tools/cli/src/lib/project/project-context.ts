@@ -26,11 +26,6 @@ export function getProjectId(): string {
   return _projectId;
 }
 
-/** For tests. */
-export function resetProjectContext(): void {
-  _projectId = null;
-}
-
 /**
  * Read tale.json from the project directory, validate the `id` field, and
  * cache it in the module-level singleton. Must be called by every command

@@ -13,7 +13,7 @@ const VALID_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
  * re-strip trailing `-`. If the result is empty (e.g., CJK/emoji directory),
  * fall back to 'tale'.
  */
-export function sanitizePrefix(dirBasename: string): string {
+function sanitizePrefix(dirBasename: string): string {
   let name = dirBasename.toLowerCase().replace(/[^a-z0-9]/g, '-');
   name = name.replace(/-{2,}/g, '-');
   name = name.replace(/^-+|-+$/g, '');
