@@ -61,7 +61,7 @@ jobs:
         run: |
           VERSION="${{ needs.prepare.outputs.version_number }}"
           REGISTRY="${{ env.REGISTRY }}/${{ github.repository }}"
-          for svc in platform rag crawler db proxy; do
+          for svc in platform rag crawler db proxy convex; do
             IMAGE="${REGISTRY}/tale-${svc}:${VERSION}"
             echo "Verifying manifest: ${IMAGE}"
             docker manifest inspect "${IMAGE}" > /dev/null 2>&1 || {
@@ -103,6 +103,8 @@ jobs:
             context: '.'
           - name: proxy
             context: '.'
+          - name: convex
+            context: '.'
         arch:
           - name: amd64
             runner: ubuntu-latest
@@ -116,7 +118,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Free disk space
-        if: matrix.service.name == 'platform' || matrix.service.name == 'rag' || matrix.service.name == 'crawler'
+        if: matrix.service.name == 'platform' || matrix.service.name == 'rag' || matrix.service.name == 'crawler' || matrix.service.name == 'convex'
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
           sudo docker image prune -af
@@ -188,7 +190,7 @@ jobs:
         run: |
           VERSION="${{ needs.prepare.outputs.version_number }}"
           ARCH="amd64"
-          for svc in platform rag crawler db proxy; do
+          for svc in platform rag crawler db proxy convex; do
             IMAGE="${{ env.REGISTRY }}/${{ github.repository }}/tale-${svc}:${VERSION}-${ARCH}"
             echo "Pulling ${IMAGE}..."
             docker pull "${IMAGE}"
@@ -226,7 +228,7 @@ jobs:
 
     strategy:
       matrix:
-        service: [platform, rag, crawler, db, proxy]
+        service: [platform, rag, crawler, db, proxy, convex]
 
     steps:
       - name: Log in to GHCR
@@ -288,7 +290,7 @@ jobs:
         run: |
           echo "## Release ${{ needs.prepare.outputs.version }} Complete" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "All 5 service images have been built, tested, and pushed to GHCR (native amd64 + arm64)." >> $GITHUB_STEP_SUMMARY
+          echo "All 6 service images have been built, tested, and pushed to GHCR (native amd64 + arm64)." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Images" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -299,6 +301,7 @@ jobs:
           echo "| Crawler | \`${{ env.REGISTRY }}/${{ github.repository }}/tale-crawler:${{ needs.prepare.outputs.version_number }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| DB | \`${{ env.REGISTRY }}/${{ github.repository }}/tale-db:${{ needs.prepare.outputs.version_number }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Proxy | \`${{ env.REGISTRY }}/${{ github.repository }}/tale-proxy:${{ needs.prepare.outputs.version_number }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Convex | \`${{ env.REGISTRY }}/${{ github.repository }}/tale-convex:${{ needs.prepare.outputs.version_number }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### CLI" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
