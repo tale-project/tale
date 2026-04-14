@@ -28,6 +28,13 @@ vi.mock('../../_generated/api', () => ({
     governance: {
       internal_queries: {
         getPiiConfigInternal: 'getPiiConfigInternal',
+        resolveDefaultModelInternal: 'resolveDefaultModelInternal',
+      },
+    },
+    threads: {
+      internal_mutations: {
+        markGenerating: 'markGenerating',
+        clearGenerationStatus: 'clearGenerationStatus',
       },
     },
     agents: {
@@ -135,9 +142,20 @@ describe('chatWithAgent — TTFT parallelization', () => {
         instructions: 'test instructions',
         model: 'gpt-4o',
       }),
-      runMutation: vi.fn().mockResolvedValue({
-        messageAlreadyExists: false,
-        streamId: 'stream_1',
+      runMutation: vi.fn().mockImplementation((fn: string) => {
+        if (fn === 'markGenerating') {
+          return Promise.resolve({
+            streamId: 'stream_1',
+            userId: 'user_1',
+            userEmail: 'test@example.com',
+            userName: 'Test User',
+          });
+        }
+        // startChat and other mutations
+        return Promise.resolve({
+          messageAlreadyExists: false,
+          streamId: 'stream_1',
+        });
       }),
     };
   });

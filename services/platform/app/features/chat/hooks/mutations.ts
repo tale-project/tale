@@ -52,6 +52,10 @@ export function useCreateThread() {
   return useConvexMutation(api.threads.mutations.createChatThread);
 }
 
+export function useCreateArenaThreadB() {
+  return useConvexMutation(api.threads.mutations.createArenaThreadB);
+}
+
 export function useGenerateUploadUrl() {
   return useConvexMutation(api.files.mutations.generateUploadUrl);
 }

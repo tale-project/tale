@@ -42,6 +42,10 @@ export function usePendingMessages({
   useEffect(() => {
     if (!pendingMessage) return;
 
+    // Arena: each column manages its own lifecycle via local state (props-based).
+    // Don't clear the shared pendingMessage from individual column effects.
+    if (pendingMessage.arenaThreadIdB) return;
+
     // Edit-and-branch: clear when dataThreadId diverges from the source thread
     // (branch subscription delivered the new branch, messages are now from it)
     if (pendingMessage.editedMessageId) {

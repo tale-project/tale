@@ -44,7 +44,6 @@ function createParams(
     organizationId: 'org_1',
     threadId: 'thread_1',
     messages: [],
-    setIsPending: vi.fn(),
     setPendingThreadId: vi.fn(),
     setPendingMessage: vi.fn<(msg: PendingMessage | null) => void>(),
     clearChatState: vi.fn(),
@@ -129,7 +128,7 @@ describe('useSendMessage — error handling', () => {
     });
 
     expect(mockChatWithAgent).not.toHaveBeenCalled();
-    expect(params.setIsPending).not.toHaveBeenCalled();
+    expect(params.setPendingMessage).not.toHaveBeenCalled();
   });
 
   it('allows sending a new message after a previous error', async () => {
