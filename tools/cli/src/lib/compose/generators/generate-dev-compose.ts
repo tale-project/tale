@@ -63,7 +63,7 @@ export function generateDevCompose(
   const projectDir = options.projectDir ?? process.cwd();
 
   // Convex service owns the /app/data volume in Phase 2.
-  const convex = createConvexService(config, DEV_COLOR);
+  const convex = createConvexService(config);
   convex.container_name = `${getProjectId()}-convex`;
   convex.volumes = [
     'convex-data:/app/data',

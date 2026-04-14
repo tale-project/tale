@@ -54,7 +54,7 @@ export interface ServiceConfig {
 }
 
 export const ROTATABLE_SERVICES = ['platform', 'rag', 'crawler'] as const;
-export const STATEFUL_SERVICES = ['db', 'proxy'] as const;
+export const STATEFUL_SERVICES = ['db', 'proxy', 'convex'] as const;
 export const ALL_SERVICES = [
   ...ROTATABLE_SERVICES,
   ...STATEFUL_SERVICES,

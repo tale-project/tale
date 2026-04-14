@@ -3,6 +3,7 @@ import { join } from 'node:path';
 
 import { getProjectId, type DeploymentEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
+import { REQUIRED_VOLUMES } from '../compose/generators/constants';
 import { generateColorCompose } from '../compose/generators/generate-color-compose';
 import { generateStatefulCompose } from '../compose/generators/generate-stateful-compose';
 import {
@@ -32,17 +33,6 @@ import { withLock } from '../state/with-lock';
 import { MIGRATIONS } from '../upgrade/registry';
 import { runPendingMigrations } from '../upgrade/runner';
 
-const REQUIRED_VOLUMES = [
-  // platform-data is kept for upgrade scenarios where split-convex migrates
-  // its contents into convex-data; on fresh installs it is an unused empty
-  // volume. Removing it would break detect() for pre-0.3.0 deployments.
-  'platform-data',
-  'convex-data',
-  'caddy-data',
-  'rag-data',
-  'crawler-data',
-];
-
 async function ensureInfrastructure(
   prefix: string,
   dryRun: boolean,
@@ -56,7 +46,7 @@ async function ensureInfrastructure(
     return;
   }
 
-  const volumesCreated = await ensureVolumes(REQUIRED_VOLUMES);
+  const volumesCreated = await ensureVolumes([...REQUIRED_VOLUMES]);
   if (!volumesCreated) {
     throw new Error('Failed to create required volumes');
   }
@@ -273,12 +263,18 @@ export async function deploy(options: DeployOptions): Promise<void> {
         }
       }
 
+      // Must run AFTER migrations (which may `docker compose down`, removing
+      // networks) and BEFORE any `docker compose up` for stateful or rotatable
+      // services.
+      await ensureInfrastructure(prefix, dryRun);
+
       // Deploy stateful services if any
       if (statefulToUpdate.length > 0) {
         logger.step(`${prefix}Deploying stateful services...`);
         const statefulCompose = generateStatefulCompose(
           serviceConfig,
           hostAlias,
+          { fresh: options.fresh },
         );
 
         if (dryRun) {
@@ -341,16 +337,11 @@ export async function deploy(options: DeployOptions): Promise<void> {
             }
           }
 
-          await ensureInfrastructure(prefix, dryRun);
-
           // Update services in current color
           logger.step(`${prefix}Updating ${currentColor} services...`);
           const colorCompose = generateColorCompose(
             serviceConfig,
             currentColor,
-            {
-              fresh: options.fresh,
-            },
           );
 
           if (dryRun) {
@@ -420,13 +411,9 @@ export async function deploy(options: DeployOptions): Promise<void> {
             }
           }
 
-          await ensureInfrastructure(prefix, dryRun);
-
           // Deploy new color
           logger.step(`${prefix}Deploying ${nextColor} services...`);
-          const colorCompose = generateColorCompose(serviceConfig, nextColor, {
-            fresh: options.fresh,
-          });
+          const colorCompose = generateColorCompose(serviceConfig, nextColor);
 
           if (dryRun) {
             for (const service of rotatableToUpdate) {

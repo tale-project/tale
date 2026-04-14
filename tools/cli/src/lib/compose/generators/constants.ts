@@ -14,6 +14,23 @@ export const DEV_VOLUME_NAMES = [
   'crawler-data',
 ] as const;
 
+// All volumes that must exist before any `docker compose up` in production.
+// Every volume declared as `external: true` in the stateful or color compose
+// must appear here so `ensureVolumes` pre-creates it.
+export const REQUIRED_VOLUMES = [
+  // platform-data is kept for upgrade scenarios where split-convex migrates
+  // its contents into convex-data; on fresh installs it is an unused empty
+  // volume. Removing it would break detect() for pre-0.3.0 deployments.
+  'platform-data',
+  'convex-data',
+  'caddy-data',
+  'caddy-config',
+  'db-data',
+  'db-backup',
+  'rag-data',
+  'crawler-data',
+] as const;
+
 // Enables containers to reach host services (e.g. Ollama on localhost:11434)
 // via `host.docker.internal`. `host-gateway` requires Docker 20.10+ (project
 // already requires 24.0+). Safe on Docker Desktop where host.docker.internal

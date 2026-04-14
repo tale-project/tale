@@ -20,7 +20,7 @@ interface VersionsResult {
   error?: 'network' | 'unknown';
 }
 
-const SERVICE_NAMES = ['platform', 'rag', 'crawler', 'db', 'proxy'];
+const SERVICE_NAMES = ['platform', 'rag', 'crawler', 'db', 'proxy', 'convex'];
 
 function parseRegistry(registry: string): string | null {
   const match = registry.match(/^ghcr\.io\/(.+)$/);

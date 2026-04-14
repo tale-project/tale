@@ -28,6 +28,7 @@ const DEV_VOLUMES = [
 const PROD_VOLUMES = [
   'platform-data',
   'caddy-data',
+  'caddy-config',
   'rag-data',
   'crawler-data',
   'db-data',

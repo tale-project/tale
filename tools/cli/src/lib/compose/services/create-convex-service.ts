@@ -1,6 +1,6 @@
 import { getProjectId } from '../../../utils/load-env';
 import { EXTRA_HOSTS } from '../generators/constants';
-import type { ComposeService, DeploymentColor, ServiceConfig } from '../types';
+import type { ComposeService, ServiceConfig } from '../types';
 import { DEFAULT_LOGGING } from '../types';
 
 /**
@@ -10,14 +10,8 @@ import { DEFAULT_LOGGING } from '../types';
  * Note: Convex is a singleton (like a Postgres primary) — it does NOT follow
  * the blue/green pattern. Both platform colors point at the same convex
  * instance. Docker restart policy handles crash recovery.
- *
- * The `color` parameter is currently ignored but kept in the signature so
- * callers can stay uniform; only one convex container exists per project.
  */
-export function createConvexService(
-  config: ServiceConfig,
-  _color: DeploymentColor,
-): ComposeService {
+export function createConvexService(config: ServiceConfig): ComposeService {
   return {
     image: `${config.registry}/tale-convex:${config.version}`,
     container_name: `${getProjectId()}-convex`,

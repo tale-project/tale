@@ -24,12 +24,6 @@ export function createRagService(
       retries: 2,
       start_period: '40s',
     },
-    // Wait for convex to seed providers/*.json into the shared volume before
-    // mounting it.
-    depends_on: {
-      db: { condition: 'service_healthy' },
-      convex: { condition: 'service_healthy' },
-    },
     logging: DEFAULT_LOGGING,
     networks: {
       internal: {

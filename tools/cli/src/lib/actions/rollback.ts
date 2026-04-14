@@ -1,8 +1,11 @@
 import { getProjectId, type DeploymentEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
+import { REQUIRED_VOLUMES } from '../compose/generators/constants';
 import { generateColorCompose } from '../compose/generators/generate-color-compose';
 import { ROTATABLE_SERVICES } from '../compose/types';
 import { dockerCompose } from '../docker/docker-compose';
+import { ensureNetwork } from '../docker/ensure-network';
+import { ensureVolumes } from '../docker/ensure-volumes';
 import { getContainerVersion } from '../docker/get-container-version';
 import { pullImage } from '../docker/pull-image';
 import { removeContainer } from '../docker/remove-container';
@@ -86,6 +89,10 @@ export async function rollback(options: RollbackOptions): Promise<void> {
       await stopContainer(containerName);
       await removeContainer(containerName);
     }
+
+    // Ensure infrastructure exists before compose up
+    await ensureVolumes([...REQUIRED_VOLUMES]);
+    await ensureNetwork('internal');
 
     // Deploy rollback color
     logger.step(
