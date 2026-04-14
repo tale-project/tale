@@ -9,6 +9,18 @@
             "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/format.sh"
           }
         ]
+      },
+      {
+        "matcher": "mcp__pencil__batch_design",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && git add -A && git diff --cached --quiet || git commit -m 'auto-save design changes' 2>/dev/null || true",
+            "timeout": 15,
+            "statusMessage": "Auto-saving...",
+            "async": true
+          }
+        ]
       }
     ]
   }
