@@ -112,13 +112,27 @@ export function ChatInterface({
     if (arenaSetupThreadRef.current === threadId) return;
     arenaSetupThreadRef.current = threadId;
 
+    console.log(
+      `[arena-setup] threadId=${threadId} arenaThreadIdA=${arenaContext.arenaThreadIdA} arenaThreadIdB=${arenaContext.arenaThreadIdB}`,
+    );
     arenaContext.setArenaThreadIdA(threadId);
+
+    // Skip if Thread B was already created (e.g. by use-send-message's
+    // new-chat arena path which creates both threads during send).
+    if (arenaContext.arenaThreadIdB) {
+      console.log(
+        `[arena-setup] Thread B already exists: ${arenaContext.arenaThreadIdB}, skipping creation`,
+      );
+      return;
+    }
 
     // Create fresh Thread B (always new — history may have changed since last arena session)
     if (!creatingThreadBRef.current) {
+      console.log(`[arena-setup] Creating Thread B for threadIdA=${threadId}`);
       creatingThreadBRef.current = true;
       void createArenaThreadB({ threadIdA: threadId, organizationId })
         .then((threadIdB) => {
+          console.log(`[arena-setup] Thread B created: ${threadIdB}`);
           arenaContext.setArenaThreadIdB(threadIdB);
         })
         .catch((error) => {

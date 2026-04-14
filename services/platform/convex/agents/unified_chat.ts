@@ -69,6 +69,9 @@ export const chatWithAgent = action({
     // commits before the slower PII/config/budget checks below.
     // Also performs auth + thread ownership check (saves a round trip).
     // If anything fails later, we roll back via clearGenerationStatus.
+    console.log(
+      `[chatWithAgent] START threadId=${args.threadId} agentSlug=${args.agentSlug}`,
+    );
     const {
       streamId: preAllocatedStreamId,
       userId: authUserId,
@@ -77,6 +80,9 @@ export const chatWithAgent = action({
     } = await ctx.runMutation(
       internal.threads.internal_mutations.markGenerating,
       { threadId: args.threadId, agentSlug: args.agentSlug },
+    );
+    console.log(
+      `[chatWithAgent] markGenerating OK threadId=${args.threadId} streamId=${preAllocatedStreamId} userId=${authUserId}`,
     );
 
     // PII query, governance default model resolution, and agent config
@@ -184,7 +190,8 @@ export const chatWithAgent = action({
     // Delegate to the internal mutation for transactional chat start.
     // Pass preAllocatedStreamId so startAgentChat reuses the stream
     // created by markGenerating (avoids redundant stream + status patch).
-    return ctx.runMutation(internal.agents.start_chat.startChat, {
+    console.log(`[chatWithAgent] calling startChat threadId=${args.threadId}`);
+    const result = await ctx.runMutation(internal.agents.start_chat.startChat, {
       threadId: args.threadId,
       organizationId: args.organizationId,
       userId: authUserId,
@@ -199,6 +206,10 @@ export const chatWithAgent = action({
       agentSlug: args.agentSlug,
       preAllocatedStreamId,
     });
+    console.log(
+      `[chatWithAgent] DONE threadId=${args.threadId} messageAlreadyExists=${result.messageAlreadyExists}`,
+    );
+    return result;
   },
 });
 

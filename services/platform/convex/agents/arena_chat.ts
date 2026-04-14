@@ -69,6 +69,9 @@ export const arenaChat = action({
       userContext: args.userContext,
     };
 
+    console.log(
+      `[arenaChat] START threadIdA=${args.threadIdA} threadIdB=${args.threadIdB} modelA=${args.modelIdA} modelB=${args.modelIdB}`,
+    );
     const [resultA, resultB] = await Promise.all([
       ctx.runAction(api.agents.unified_chat.chatWithAgent, {
         ...sharedArgs,
@@ -81,6 +84,9 @@ export const arenaChat = action({
         modelId: args.modelIdB,
       }),
     ]);
+    console.log(
+      `[arenaChat] DONE streamIdA=${resultA.streamId} streamIdB=${resultB.streamId}`,
+    );
 
     // Create branch link so thread B appears as a branch of thread A
     await ctx.runMutation(internal.threads.mutations.createArenaBranchLink, {

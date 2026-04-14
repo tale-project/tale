@@ -1,7 +1,7 @@
 'use client';
 
 import { Loader2 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
@@ -64,40 +64,21 @@ function ArenaColumn({
     activeMessage,
   } = useMessageProcessing(threadId);
 
-  // --- Local pending state (independent per column) ---
-  const [showPending, setShowPending] = useState(false);
-  const pendingKeyRef = useRef<number | null>(null);
-
-  // New pending content from parent → show optimistic message
-  useEffect(() => {
-    if (
-      pendingTimestamp &&
-      pendingKeyRef.current !== pendingTimestamp.getTime()
-    ) {
-      pendingKeyRef.current = pendingTimestamp.getTime();
-      setShowPending(true);
-    }
-  }, [pendingTimestamp]);
-
-  // Real user message arrived → hide optimistic
-  const userMsgCount = useMemo(
-    () => rawMessages.filter((m) => m.role === 'user').length,
-    [rawMessages],
-  );
-  const baselineRef = useRef(userMsgCount);
-  useEffect(() => {
-    if (showPending && userMsgCount > baselineRef.current) {
-      setShowPending(false);
-    }
-    if (!showPending) {
-      baselineRef.current = userMsgCount;
-    }
-  }, [userMsgCount, showPending]);
-
-  // Build messages with optional optimistic user message
+  // --- Local optimistic message (independent per column) ---
+  // Pure derivation in useMemo — no useEffect, no state, no race conditions.
+  // Shows the optimistic message only when:
+  // 1. pendingContent exists (user just sent a message)
+  // 2. The real message hasn't arrived yet (no real message with the same content
+  //    at the tail of the list)
   const messages: ChatMessage[] = useMemo(() => {
-    if (!showPending || !pendingContent || !pendingTimestamp)
+    if (!pendingContent || !pendingTimestamp) return rawMessages;
+
+    // Check if the real message already arrived — compare content of the
+    // last user message. If it matches the pending content, skip optimistic.
+    const lastUserMsg = rawMessages.toReversed().find((m) => m.role === 'user');
+    if (lastUserMsg && lastUserMsg.content === pendingContent) {
       return rawMessages;
+    }
 
     const attachments: FileAttachment[] | undefined = pendingAttachments?.map(
       (a) => ({
@@ -119,13 +100,7 @@ function ArenaColumn({
         attachments && attachments.length > 0 ? attachments : undefined,
     };
     return [...rawMessages, optimistic];
-  }, [
-    rawMessages,
-    showPending,
-    pendingContent,
-    pendingAttachments,
-    pendingTimestamp,
-  ]);
+  }, [rawMessages, pendingContent, pendingAttachments, pendingTimestamp]);
 
   // Loading state: each column subscribes to its own generationStatus
   const { data: isGenerating } = useConvexQuery(

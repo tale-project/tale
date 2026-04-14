@@ -198,8 +198,9 @@ export function useSendMessage({
             tIdA = currentArena.arenaThreadIdA;
             tIdB = currentArena.arenaThreadIdB;
           } else {
-            // New chat — create threads progressively.
-            // Navigate after Thread A so split view renders while B is created.
+            // New chat — create BOTH threads before navigating so that
+            // the arena-setup effect in chat-interface sees arenaThreadIdB
+            // already set and skips duplicate creation.
             const newA = await createThread({
               organizationId,
               title,
@@ -208,24 +209,6 @@ export function useSendMessage({
               arenaModelId: modelA,
               teamId,
             });
-
-            tIdA = newA;
-            currentArena.setArenaThreadIdA(newA);
-            setPendingThreadId(tIdA);
-            setPendingMessage({
-              content: message,
-              threadId: tIdA,
-              attachments: mutationAttachments,
-              timestamp: pendingTimestamp,
-              lastMessageKey,
-            });
-            startTransition(() => {
-              void navigate({
-                to: '/dashboard/$id/chat/$threadId',
-                params: { id: organizationId, threadId: tIdA },
-              });
-            });
-
             const newB = await createThread({
               organizationId,
               title,
@@ -237,10 +220,11 @@ export function useSendMessage({
               teamId,
             });
 
+            tIdA = newA;
             tIdB = newB;
+            currentArena.setArenaThreadIdA(newA);
             currentArena.setArenaThreadIdB(newB);
-
-            // Update pending message with both thread IDs
+            setPendingThreadId(tIdA);
             setPendingMessage({
               content: message,
               threadId: tIdA,
@@ -248,6 +232,12 @@ export function useSendMessage({
               attachments: mutationAttachments,
               timestamp: pendingTimestamp,
               lastMessageKey,
+            });
+            startTransition(() => {
+              void navigate({
+                to: '/dashboard/$id/chat/$threadId',
+                params: { id: organizationId, threadId: tIdA },
+              });
             });
           }
 

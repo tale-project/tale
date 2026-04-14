@@ -64,6 +64,9 @@ export const markGenerating = internalMutation({
       .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
       .first();
     if (!meta || meta.userId !== authUser.userId) {
+      console.error(
+        `[markGenerating] Thread not found or ownership mismatch: threadId=${args.threadId} metaExists=${!!meta} metaUserId=${meta?.userId} authUserId=${authUser.userId}`,
+      );
       throw new Error('Thread not found');
     }
 
