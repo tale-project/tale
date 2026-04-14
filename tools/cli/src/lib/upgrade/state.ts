@@ -24,7 +24,7 @@ function legacyMarkerPath(projectDir: string): string {
  * per-migration identity, so we must let each registered migration's detect()
  * re-discover any real pending work) and delete the legacy marker.
  */
-export async function readMigrationsState(
+async function readMigrationsState(
   projectDir: string,
 ): Promise<MigrationsState> {
   const path = statePath(projectDir);
@@ -91,8 +91,4 @@ export async function recordApplied(
   }
   state.applied.push(entry);
   await writeMigrationsState(projectDir, state);
-}
-
-export function appliedIds(state: MigrationsState): Set<string> {
-  return new Set(state.applied.map((a) => a.id));
 }
