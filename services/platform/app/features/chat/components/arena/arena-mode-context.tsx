@@ -9,6 +9,9 @@ import {
   type ReactNode,
 } from 'react';
 
+import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
+import { api } from '@/convex/_generated/api';
+
 type Verdict = 'a_better' | 'b_better' | 'tie' | 'both_bad';
 
 interface ArenaModeContextType {
@@ -19,6 +22,7 @@ interface ArenaModeContextType {
   setModelB: (modelId: string | null) => void;
   enableArenaMode: () => void;
   disableArenaMode: () => void;
+  exitArenaMode: () => void;
   arenaThreadIdA: string | null;
   arenaThreadIdB: string | null;
   setArenaThreadIdA: (threadId: string | null) => void;
@@ -57,6 +61,10 @@ export function ArenaModeProvider({ children }: ArenaModeProviderProps) {
     setIsArenaMode(true);
   }, []);
 
+  const { mutateAsync: cleanupArenaBranch } = useConvexMutation(
+    api.threads.mutations.cleanupArenaBranch,
+  );
+
   const disableArenaMode = useCallback(() => {
     setIsArenaMode(false);
     setModelA(null);
@@ -65,6 +73,33 @@ export function ArenaModeProvider({ children }: ArenaModeProviderProps) {
     setArenaThreadIdB(null);
     setVerdict(null);
   }, []);
+
+  const exitArenaMode = useCallback(() => {
+    // Capture values before clearing state
+    const tidA = arenaThreadIdA;
+    const tidB = arenaThreadIdB;
+    const currentVerdict = verdict;
+
+    // Reset UI state immediately for snappy UX
+    disableArenaMode();
+
+    // Fire-and-forget backend cleanup
+    if (tidA && tidB) {
+      void cleanupArenaBranch({
+        threadIdA: tidA,
+        threadIdB: tidB,
+        verdict: currentVerdict ?? undefined,
+      }).catch((err: unknown) => {
+        console.error('[arena] cleanup failed:', err);
+      });
+    }
+  }, [
+    arenaThreadIdA,
+    arenaThreadIdB,
+    verdict,
+    disableArenaMode,
+    cleanupArenaBranch,
+  ]);
 
   const value = useMemo(
     () => ({
@@ -75,6 +110,7 @@ export function ArenaModeProvider({ children }: ArenaModeProviderProps) {
       setModelB,
       enableArenaMode,
       disableArenaMode,
+      exitArenaMode,
       arenaThreadIdA,
       arenaThreadIdB,
       setArenaThreadIdA,
@@ -88,6 +124,7 @@ export function ArenaModeProvider({ children }: ArenaModeProviderProps) {
       modelB,
       enableArenaMode,
       disableArenaMode,
+      exitArenaMode,
       arenaThreadIdA,
       arenaThreadIdB,
       verdict,

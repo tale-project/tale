@@ -104,6 +104,13 @@ export function ChatInterface({
   const creatingThreadBRef = useRef(false);
   const arenaSetupThreadRef = useRef<string | null>(null);
 
+  // Reset setup ref when arena mode is turned off, so re-enabling triggers setup again
+  useEffect(() => {
+    if (!isArenaMode) {
+      arenaSetupThreadRef.current = null;
+    }
+  }, [isArenaMode]);
+
   // When arena mode is enabled on an existing thread, eagerly set Thread A
   // and create a fresh Thread B with the current message history snapshot.
   useEffect(() => {
@@ -152,7 +159,7 @@ export function ChatInterface({
     const hadThread = prevThreadIdRef.current;
     prevThreadIdRef.current = threadId;
     if (hadThread && !threadId && arenaContext?.isArenaMode) {
-      arenaContext.disableArenaMode();
+      arenaContext.exitArenaMode();
     }
   }, [threadId, arenaContext]);
 

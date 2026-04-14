@@ -15,11 +15,11 @@ export function ArenaModeToggle({ disabled }: { disabled?: boolean }) {
 
   if (!arenaContext) return null;
 
-  const { isArenaMode, enableArenaMode, disableArenaMode } = arenaContext;
+  const { isArenaMode, enableArenaMode, exitArenaMode } = arenaContext;
 
   const handleToggle = () => {
     if (isArenaMode) {
-      disableArenaMode();
+      exitArenaMode();
     } else {
       enableArenaMode();
     }
