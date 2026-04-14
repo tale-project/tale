@@ -113,7 +113,9 @@ export function usePendingMessages({
         pendingThreadId !== null &&
         pendingMessage.threadId === pendingThreadId);
     const isSecondaryArenaThread =
-      pendingMessage.arenaThreadIdB === threadId && !isPrimaryThread;
+      pendingMessage.arenaThreadIdB != null &&
+      pendingMessage.arenaThreadIdB === threadId &&
+      !isPrimaryThread;
 
     if (!isPrimaryThread && !isSecondaryArenaThread) return realMessages;
 
