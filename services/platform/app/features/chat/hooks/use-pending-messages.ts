@@ -51,14 +51,16 @@ export function usePendingMessages({
       return;
     }
 
-    // Only clear for matching thread
-    const isMatchingThread =
+    // Only clear for the primary thread — the secondary arena column must NOT
+    // clear the shared pending message because its lastMessageKey comes from a
+    // different thread and would never match the baseline.
+    const isPrimaryThread =
       pendingMessage.threadId === threadId ||
       (threadId === undefined && pendingMessage.threadId === 'pending') ||
       (threadId === undefined &&
         pendingThreadId !== null &&
         pendingMessage.threadId === pendingThreadId);
-    if (!isMatchingThread) return;
+    if (!isPrimaryThread) return;
 
     // For new threads: clear when any real message arrives
     if (hasMessages && pendingMessage.lastMessageKey === undefined) {
@@ -104,14 +106,16 @@ export function usePendingMessages({
       return [...before, edited];
     }
 
-    const isMatchingThread =
+    const isPrimaryThread =
       pendingMessage.threadId === threadId ||
       (threadId === undefined && pendingMessage.threadId === 'pending') ||
       (threadId === undefined &&
         pendingThreadId !== null &&
         pendingMessage.threadId === pendingThreadId);
+    const isSecondaryArenaThread =
+      pendingMessage.arenaThreadIdB === threadId && !isPrimaryThread;
 
-    if (!isMatchingThread) return realMessages;
+    if (!isPrimaryThread && !isSecondaryArenaThread) return realMessages;
 
     const attachments: FileAttachment[] | undefined =
       pendingMessage.attachments?.map((a) => ({
@@ -135,6 +139,12 @@ export function usePendingMessages({
     // New thread (no real messages yet): show only optimistic
     if (realMessages.length === 0) {
       return [optimisticMessage];
+    }
+
+    // Secondary arena thread: always show optimistic until primary clears it.
+    // Its lastMessageKey comes from a different thread so cannot be compared.
+    if (isSecondaryArenaThread) {
+      return [...realMessages, optimisticMessage];
     }
 
     // Existing thread: append optimistic until real message arrives at the end
