@@ -2035,6 +2035,10 @@ function extractToolCallsFromSteps(steps: unknown[]): {
     page?: number;
     relevance?: number;
   }> = [];
+  // Track running offset so citations from different tool calls get unique indices.
+  // Without this, both rag_search and web tools start at index 1, and the frontend
+  // Map<number, CitationInfo> keyed by index would let later tools overwrite earlier ones.
+  let citationIndexOffset = 0;
 
   for (const rawStep of steps) {
     if (!isRecord(rawStep)) continue;
@@ -2084,6 +2088,7 @@ function extractToolCallsFromSteps(steps: unknown[]): {
             ? rawOutput.value.citations
             : undefined;
       if (Array.isArray(citationSource)) {
+        let maxIndexThisToolCall = 0;
         for (const c of citationSource) {
           if (
             isRecord(c) &&
@@ -2092,9 +2097,11 @@ function extractToolCallsFromSteps(steps: unknown[]): {
             (c.type === 'rag' || c.type === 'web')
           ) {
             const citationType: 'rag' | 'web' = c.type;
+            const adjustedIndex =
+              (typeof c.index === 'number' ? c.index : 0) + citationIndexOffset;
             // Convex validators reject explicit `undefined` — omit undefined fields
             const entry: (typeof allCitations)[number] = {
-              index: typeof c.index === 'number' ? c.index : 0,
+              index: adjustedIndex,
               type: citationType,
               source: typeof c.source === 'string' ? c.source : 'Unknown',
             };
@@ -2103,7 +2110,14 @@ function extractToolCallsFromSteps(steps: unknown[]): {
             if (typeof c.page === 'number') entry.page = c.page;
             if (typeof c.relevance === 'number') entry.relevance = c.relevance;
             allCitations.push(entry);
+            if (adjustedIndex > maxIndexThisToolCall) {
+              maxIndexThisToolCall = adjustedIndex;
+            }
           }
+        }
+        // Advance offset so the next tool call's citations don't collide
+        if (maxIndexThisToolCall > 0) {
+          citationIndexOffset = maxIndexThisToolCall;
         }
       }
 
