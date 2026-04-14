@@ -31,6 +31,11 @@ export interface PendingMessage {
    * Cleared when dataThreadId changes (branch subscription caught up).
    */
   editedMessageId?: string;
+  /**
+   * Secondary thread ID for arena mode. When set, pending message matches
+   * both `threadId` (column A) and `arenaThreadIdB` (column B).
+   */
+  arenaThreadIdB?: string;
 }
 
 export interface SelectedAgent {

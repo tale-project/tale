@@ -172,11 +172,15 @@ export function ChatInterface({
     terminalAssistantCount,
   } = useMessageProcessing(dataThreadId);
 
-  // Merge with pending messages from context for optimistic UI
-  const messages = usePendingMessages({
+  // Merge with pending messages from context for optimistic UI.
+  // In arena mode, ArenaColumns handle their own pending messages —
+  // use rawMessages to keep a stable reference and avoid triggering
+  // useMergedChatItems recalculation for components that won't render.
+  const pendingMergedMessages = usePendingMessages({
     threadId: dataThreadId,
     realMessages: rawMessages,
   });
+  const messages = isArenaMode ? rawMessages : pendingMergedMessages;
 
   // Agent availability — disable input when no agents exist
   const { agents } = useChatAgents(organizationId);

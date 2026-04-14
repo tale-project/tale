@@ -94,6 +94,51 @@ export function useSendMessage({
         return;
       }
 
+      // Convert attachments format (synchronous — needed for optimistic message)
+      const mutationAttachments = attachments?.map((a) => ({
+        fileId: a.fileId,
+        fileName: a.fileName,
+        fileType: a.fileType,
+        fileSize: a.fileSize,
+      }));
+
+      const currentArena = arenaRef.current;
+      const modelA = currentArena?.modelA;
+      const modelB = currentArena?.modelB;
+      const isArena = currentArena?.isArenaMode && modelA && modelB;
+
+      // Set pending state scoped to this thread (null for new-chat page)
+      setPendingThreadId(threadId ?? null);
+      setIsPending(true);
+      onBeforeSend?.();
+
+      // For arena mode, show optimistic message SYNCHRONOUSLY before any
+      // network calls (PII check, thread creation) so the UI updates instantly.
+      const lastMessageKey = messages[messages.length - 1]?.key;
+      const pendingTimestamp = new Date();
+      if (isArena) {
+        if (currentArena.arenaThreadIdA && currentArena.arenaThreadIdB) {
+          setPendingMessage({
+            content: message,
+            threadId: currentArena.arenaThreadIdA,
+            arenaThreadIdB: currentArena.arenaThreadIdB,
+            attachments: mutationAttachments,
+            timestamp: pendingTimestamp,
+            lastMessageKey,
+          });
+        } else {
+          // Threads need to be created — use 'pending' so both columns
+          // (threadId=undefined) display the user message immediately.
+          setPendingMessage({
+            content: message,
+            threadId: 'pending',
+            attachments: mutationAttachments,
+            timestamp: pendingTimestamp,
+            lastMessageKey,
+          });
+        }
+      }
+
       // Pre-check PII policy before creating thread
       try {
         const piiPolicy = await convexClient.query(
@@ -113,6 +158,7 @@ export function useSendMessage({
         const errorMessage =
           error instanceof Error ? error.message : String(error);
         if (errorMessage.includes('Message blocked: PII')) {
+          clearChatState();
           toast({
             title: t('toast.piiBlocked'),
             description: errorMessage,
@@ -122,25 +168,7 @@ export function useSendMessage({
         }
       }
 
-      // Set pending state scoped to this thread (null for new-chat page)
-      setPendingThreadId(threadId ?? null);
-      setIsPending(true);
-      onBeforeSend?.();
-
       try {
-        // Convert attachments format
-        const mutationAttachments = attachments?.map((a) => ({
-          fileId: a.fileId,
-          fileName: a.fileName,
-          fileType: a.fileType,
-          fileSize: a.fileSize,
-        }));
-
-        const currentArena = arenaRef.current;
-        const modelA = currentArena?.modelA;
-        const modelB = currentArena?.modelB;
-        const isArena = currentArena?.isArenaMode && modelA && modelB;
-
         if (isArena) {
           // --- Arena mode: Thread A = root, Thread B = branch ---
           const title =
@@ -171,6 +199,16 @@ export function useSendMessage({
             });
             tIdB = newB;
             currentArena.setArenaThreadIdB(newB);
+
+            // Update pending message with real thread IDs
+            setPendingMessage({
+              content: message,
+              threadId: tIdA,
+              arenaThreadIdB: tIdB,
+              attachments: mutationAttachments,
+              timestamp: pendingTimestamp,
+              lastMessageKey,
+            });
           } else {
             // New chat — create both threads
             const newA = await createThread({
@@ -196,7 +234,25 @@ export function useSendMessage({
             tIdB = newB;
             currentArena.setArenaThreadIdA(newA);
             currentArena.setArenaThreadIdB(newB);
+
+            // Update pending message with real thread IDs
+            setPendingMessage({
+              content: message,
+              threadId: tIdA,
+              arenaThreadIdB: tIdB,
+              attachments: mutationAttachments,
+              timestamp: pendingTimestamp,
+              lastMessageKey,
+            });
           }
+
+          setPendingThreadId(tIdA);
+          startTransition(() => {
+            void navigate({
+              to: '/dashboard/$id/chat/$threadId',
+              params: { id: organizationId, threadId: tIdA },
+            });
+          });
 
           // Start both models generating (split view shows "Thinking")
           await arenaChatRef.current({
@@ -217,32 +273,12 @@ export function useSendMessage({
               : undefined,
             copyHistoryToB: needsCopyHistory || undefined,
           });
-
-          // Navigate AFTER arena chat completes — split view is already
-          // showing, so this just updates the URL without visual change.
-          setPendingMessage({
-            content: message,
-            threadId: tIdA,
-            attachments: mutationAttachments,
-            timestamp: new Date(),
-            lastMessageKey: messages[messages.length - 1]?.key,
-          });
-          setPendingThreadId(tIdA);
-          startTransition(() => {
-            void navigate({
-              to: '/dashboard/$id/chat/$threadId',
-              params: { id: organizationId, threadId: tIdA },
-            });
-          });
         } else {
           // --- Standard mode: send to one model ---
           let currentThreadId = threadId;
           let isFirstMessage = false;
 
-          const lastMessageKey = messages[messages.length - 1]?.key;
-
           if (!currentThreadId) {
-            const pendingTimestamp = new Date();
             setPendingMessage({
               content: message,
               threadId: 'pending',
