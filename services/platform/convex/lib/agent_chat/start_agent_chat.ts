@@ -92,6 +92,12 @@ export interface StartAgentChatArgs {
   agentId?: Id<'agentBindings'>;
   /** Optional per-request generation parameters (temperature, etc.) */
   generationParams?: GenerationParams;
+  /**
+   * Pre-created stream ID from markGenerating. When provided, stream creation
+   * and the generationStatus patch are skipped (already committed in the
+   * earlier markGenerating mutation for faster subscriber notification).
+   */
+  preAllocatedStreamId?: string;
 }
 
 export interface StartAgentChatResult {
@@ -133,28 +139,32 @@ export async function startAgentChat(
   // Use caller's maxSteps if provided, otherwise use agent config's maxSteps
   const maxSteps = args.maxSteps ?? agentConfig.maxSteps ?? 20;
 
-  // Always create a persistent stream for async result delivery.
-  // enableStreaming only controls the LLM call strategy (streamText vs generateText).
-  const streamId = await persistentStreaming.createStream(ctx);
+  // When markGenerating was called earlier (pre-allocated stream), reuse its
+  // streamId and skip the generationStatus patch (already committed).
+  // Otherwise create a fresh stream and mark generating here (backward compat
+  // for callers that don't use the two-phase flow).
+  let streamId: string;
   const threadMeta = await ctx.db
     .query('threadMetadata')
     .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
     .first();
-  // No server-side concurrent generation guard here. The frontend prevents
-  // duplicate submissions via the isThreadGenerating subscription + input disable.
-  // A server-side throw would risk permanently deadlocking a thread if the
-  // generation action crashes without resetting generationStatus.
-  if (threadMeta) {
-    await ctx.db.patch(threadMeta._id, {
-      generationStatus: 'generating' as const,
-      streamId,
-      generationStartTime: Date.now(),
-      updatedAt: Date.now(),
-      cancelledAt: undefined,
-      cancelledMessageId: undefined,
-      ...(args.agentSlug ? { agentSlug: args.agentSlug } : {}),
-      ...(args.agentId ? { agentId: args.agentId } : {}),
-    });
+
+  if (args.preAllocatedStreamId) {
+    streamId = args.preAllocatedStreamId;
+  } else {
+    streamId = await persistentStreaming.createStream(ctx);
+    if (threadMeta) {
+      await ctx.db.patch(threadMeta._id, {
+        generationStatus: 'generating' as const,
+        streamId,
+        generationStartTime: Date.now(),
+        updatedAt: Date.now(),
+        cancelledAt: undefined,
+        cancelledMessageId: undefined,
+        ...(args.agentSlug ? { agentSlug: args.agentSlug } : {}),
+        ...(args.agentId ? { agentId: args.agentId } : {}),
+      });
+    }
   }
 
   const thread = await ctx.runQuery(components.agent.threads.getThread, {

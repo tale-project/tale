@@ -17,7 +17,6 @@ import { v } from 'convex/values';
 
 import { internal } from '../_generated/api';
 import { action, type ActionCtx } from '../_generated/server';
-import { authComponent } from '../auth';
 import { scrubPii, type PiiConfig } from '../governance/pii';
 import type { SerializableAgentConfig } from '../lib/agent_chat/types';
 import { readJsonFile } from '../lib/file_io';
@@ -65,8 +64,20 @@ export const chatWithAgent = action({
     ctx,
     args,
   ): Promise<{ messageAlreadyExists: boolean; streamId: string }> => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) throw new Error('Unauthenticated');
+    // Mark as generating IMMEDIATELY so the Convex subscription delivers
+    // isGenerating=true to the client with minimal delay. This mutation
+    // commits before the slower PII/config/budget checks below.
+    // Also performs auth + thread ownership check (saves a round trip).
+    // If anything fails later, we roll back via clearGenerationStatus.
+    const {
+      streamId: preAllocatedStreamId,
+      userId: authUserId,
+      userEmail: authUserEmail,
+      userName: authUserName,
+    } = await ctx.runMutation(
+      internal.threads.internal_mutations.markGenerating,
+      { threadId: args.threadId, agentSlug: args.agentSlug },
+    );
 
     // PII query, governance default model resolution, and agent config
     // resolution are independent — run them in parallel to reduce TTFT.
@@ -81,9 +92,9 @@ export const chatWithAgent = action({
             internal.governance.internal_queries.resolveDefaultModelInternal,
             {
               organizationId: args.organizationId,
-              userId: String(authUser._id),
-              userEmail: authUser.email,
-              userName: authUser.name,
+              userId: authUserId,
+              userEmail: authUserEmail,
+              userName: authUserName,
             },
           )
         : null,
@@ -108,6 +119,13 @@ export const chatWithAgent = action({
       );
     }
 
+    // Helper to roll back generationStatus if we need to abort before startChat
+    const rollbackGenerating = () =>
+      ctx.runMutation(
+        internal.threads.internal_mutations.clearGenerationStatus,
+        { threadId: args.threadId, streamId: preAllocatedStreamId },
+      );
+
     // PII scrubbing must still happen before startChat (modifies message)
     let message = args.message;
     if (piiPolicy?.enabled && piiPolicy.config) {
@@ -126,8 +144,8 @@ export const chatWithAgent = action({
           internal.audit_logs.internal_mutations.createAuditLog,
           {
             organizationId: args.organizationId,
-            actorId: String(authUser._id),
-            actorEmail: authUser.email,
+            actorId: authUserId,
+            actorEmail: authUserEmail,
             actorType: 'user',
             action: 'pii.detected_in_chat',
             category: 'security',
@@ -151,24 +169,27 @@ export const chatWithAgent = action({
         internal.governance.internal_queries.checkModelAccessInternal,
         {
           organizationId: args.organizationId,
-          userId: String(authUser._id),
+          userId: authUserId,
           modelId: args.modelId,
         },
       );
       if (!accessCheck.allowed) {
+        await rollbackGenerating();
         throw new Error(
           accessCheck.reason ?? 'You do not have access to the selected model.',
         );
       }
     }
 
-    // Delegate to the internal mutation for transactional chat start
+    // Delegate to the internal mutation for transactional chat start.
+    // Pass preAllocatedStreamId so startAgentChat reuses the stream
+    // created by markGenerating (avoids redundant stream + status patch).
     return ctx.runMutation(internal.agents.start_chat.startChat, {
       threadId: args.threadId,
       organizationId: args.organizationId,
-      userId: String(authUser._id),
-      userEmail: authUser.email,
-      userName: authUser.name,
+      userId: authUserId,
+      userEmail: authUserEmail,
+      userName: authUserName,
       message,
       maxSteps: args.maxSteps,
       attachments: args.attachments,
@@ -176,6 +197,7 @@ export const chatWithAgent = action({
       userContext: args.userContext,
       agentConfig,
       agentSlug: args.agentSlug,
+      preAllocatedStreamId,
     });
   },
 });

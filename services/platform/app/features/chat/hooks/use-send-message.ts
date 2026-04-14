@@ -37,7 +37,6 @@ interface UseSendMessageParams {
   organizationId: string;
   threadId: string | undefined;
   messages: ChatMessage[];
-  setIsPending: (pending: boolean) => void;
   setPendingThreadId: (threadId: string | null) => void;
   setPendingMessage: (message: PendingMessage | null) => void;
   clearChatState: () => void;
@@ -58,7 +57,6 @@ export function useSendMessage({
   organizationId,
   threadId,
   messages,
-  setIsPending,
   setPendingThreadId,
   setPendingMessage,
   clearChatState,
@@ -84,8 +82,12 @@ export function useSendMessage({
   const arenaChatRef = useRef(arenaChatAction);
   arenaChatRef.current = arenaChatAction;
 
+  // Simple ref guard to prevent double-send during the async gap
+  const sendingRef = useRef(false);
+
   const sendMessage = useCallback(
     async (message: string, attachments?: FileAttachment[]) => {
+      if (sendingRef.current) return;
       if (!selectedAgent) {
         toast({
           title: t('toast.sendFailed'),
@@ -93,6 +95,8 @@ export function useSendMessage({
         });
         return;
       }
+
+      sendingRef.current = true;
 
       // Convert attachments format (synchronous — needed for optimistic message)
       const mutationAttachments = attachments?.map((a) => ({
@@ -107,13 +111,12 @@ export function useSendMessage({
       const modelB = currentArena?.modelB;
       const isArena = currentArena?.isArenaMode && modelA && modelB;
 
-      // Set pending state scoped to this thread (null for new-chat page)
+      // Set pending thread scope (null for new-chat page)
       setPendingThreadId(threadId ?? null);
-      setIsPending(true);
       onBeforeSend?.();
 
-      // For arena mode, show optimistic message SYNCHRONOUSLY before any
-      // network calls (PII check, thread creation) so the UI updates instantly.
+      // Show optimistic message SYNCHRONOUSLY before any network calls
+      // (PII check, thread creation) so the UI updates instantly.
       const lastMessageKey = messages[messages.length - 1]?.key;
       const pendingTimestamp = new Date();
       if (isArena) {
@@ -138,6 +141,15 @@ export function useSendMessage({
             lastMessageKey,
           });
         }
+      } else {
+        // Standard mode: show optimistic message SYNCHRONOUSLY before PII check
+        setPendingMessage({
+          content: message,
+          threadId: threadId ?? 'pending',
+          attachments: mutationAttachments,
+          timestamp: pendingTimestamp,
+          lastMessageKey,
+        });
       }
 
       // Pre-check PII policy before creating thread
@@ -178,38 +190,13 @@ export function useSendMessage({
 
           let tIdA: string;
           let tIdB: string;
-          let needsCopyHistory = false;
 
           if (currentArena.arenaThreadIdA && currentArena.arenaThreadIdB) {
-            // Both threads exist — reuse (subsequent messages in arena)
+            // Both threads exist — reuse.
+            // Thread B is pre-created when arena mode is enabled, so this
+            // is the normal path for both first and subsequent messages.
             tIdA = currentArena.arenaThreadIdA;
             tIdB = currentArena.arenaThreadIdB;
-          } else if (currentArena.arenaThreadIdA) {
-            // Thread A exists (existing thread) — only create B as branch
-            tIdA = currentArena.arenaThreadIdA;
-            needsCopyHistory = true;
-            const newB = await createThread({
-              organizationId,
-              title,
-              chatType: 'general',
-              arenaGroupId,
-              arenaModelId: modelB,
-              isBranch: true,
-              forkedFrom: tIdA,
-              teamId,
-            });
-            tIdB = newB;
-            currentArena.setArenaThreadIdB(newB);
-
-            // Update pending message with real thread IDs
-            setPendingMessage({
-              content: message,
-              threadId: tIdA,
-              arenaThreadIdB: tIdB,
-              attachments: mutationAttachments,
-              timestamp: pendingTimestamp,
-              lastMessageKey,
-            });
           } else {
             // New chat — create threads progressively.
             // Navigate after Thread A so split view renders while B is created.
@@ -292,7 +279,8 @@ export function useSendMessage({
                   language: userContext.language,
                 }
               : undefined,
-            copyHistoryToB: needsCopyHistory || undefined,
+            // History is copied when Thread B is created (arena enable),
+            // not at send time — no need to copy again.
           });
         } else {
           // --- Standard mode: send to one model ---
@@ -339,13 +327,7 @@ export function useSendMessage({
               });
             });
           } else {
-            setPendingMessage({
-              content: message,
-              threadId: currentThreadId,
-              attachments: mutationAttachments,
-              timestamp: new Date(),
-              lastMessageKey,
-            });
+            // Optimistic message already set before PII check
             isFirstMessage = messages?.length === 0;
           }
 
@@ -385,13 +367,14 @@ export function useSendMessage({
           description: isPiiBlocked ? errorMessage : undefined,
           variant: 'destructive',
         });
+      } finally {
+        sendingRef.current = false;
       }
     },
     [
       threadId,
       messages,
       organizationId,
-      setIsPending,
       setPendingThreadId,
       setPendingMessage,
       clearChatState,

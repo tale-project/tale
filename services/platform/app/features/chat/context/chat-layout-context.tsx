@@ -52,8 +52,6 @@ interface ModelOverrideEntry {
 const MODEL_OVERRIDE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 interface ChatLayoutContextType {
-  isPending: boolean;
-  setIsPending: (pending: boolean) => void;
   pendingThreadId: string | null;
   setPendingThreadId: (threadId: string | null) => void;
   clearChatState: () => void;
@@ -87,7 +85,6 @@ export function ChatLayoutProvider({
   children,
 }: ChatLayoutProviderProps) {
   const { user } = useAuth();
-  const [isPending, setIsPending] = useState(false);
   const [pendingThreadId, setPendingThreadId] = useState<string | null>(null);
   const [pendingMessage, setPendingMessage] = useState<PendingMessage | null>(
     null,
@@ -142,15 +139,12 @@ export function ChatLayoutProvider({
   );
 
   const clearChatState = useCallback(() => {
-    setIsPending(false);
     setPendingThreadId(null);
     setPendingMessage(null);
   }, []);
 
   const value = useMemo(
     () => ({
-      isPending,
-      setIsPending,
       pendingThreadId,
       setPendingThreadId,
       clearChatState,
@@ -164,7 +158,6 @@ export function ChatLayoutProvider({
       setSelectedModelOverride,
     }),
     [
-      isPending,
       pendingThreadId,
       clearChatState,
       pendingMessage,

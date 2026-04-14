@@ -21,8 +21,12 @@ import { cn } from '@/lib/utils/cn';
 import { useMyFeatureFlags } from '../../settings/governance/hooks/queries';
 import { useBranchContext } from '../context/branch-context';
 import { useChatLayout } from '../context/chat-layout-context';
-import { useEditAndBranch, useForkOwnThread } from '../hooks/mutations';
-import { useUnarchiveThread } from '../hooks/mutations';
+import {
+  useEditAndBranch,
+  useCreateArenaThreadB,
+  useForkOwnThread,
+  useUnarchiveThread,
+} from '../hooks/mutations';
 import {
   useChatAgents,
   useDocumentWriteApprovals,
@@ -34,7 +38,6 @@ import {
   useWorkflowRunApprovals,
   useWorkflowUpdateApprovals,
 } from '../hooks/queries';
-import { useChatLoadingState } from '../hooks/use-chat-loading-state';
 import { useConvexFileUpload } from '../hooks/use-convex-file-upload';
 import { useDefaultModel } from '../hooks/use-default-model';
 import { useEffectiveAgent } from '../hooks/use-effective-agent';
@@ -81,9 +84,6 @@ export function ChatInterface({
   const { toast } = useToast();
   const { user } = useAuth();
   const {
-    isPending,
-    setIsPending,
-    pendingThreadId,
     setPendingThreadId,
     clearChatState,
     pendingMessage,
@@ -97,42 +97,38 @@ export function ChatInterface({
   // Restore arena thread pair when re-enabling arena mode on an existing arena thread
   const isArenaMode = arenaContext?.isArenaMode ?? false;
 
-  // Track which threadId we've started restoration for to avoid re-querying
-  // after the eager setArenaThreadIdA below makes the original condition false.
-  const arenaRestoreThreadRef = useRef<string | null>(null);
-  const needsArenaRestore =
-    isArenaMode && !!threadId && arenaRestoreThreadRef.current !== threadId;
-  const { data: arenaPair } = useConvexQuery(
-    api.threads.queries.getArenaThreadPair,
-    needsArenaRestore ? { threadId } : 'skip',
-  );
+  // Idempotent: ensure Thread B exists for the current thread.
+  // If an arena pair already exists, returns the existing Thread B ID.
+  // If not, creates Thread B and copies message history from Thread A.
+  const { mutateAsync: createArenaThreadB } = useCreateArenaThreadB();
+  const creatingThreadBRef = useRef(false);
+  const arenaSetupThreadRef = useRef<string | null>(null);
 
-  // Eagerly set arenaThreadIdA so the split view renders immediately
-  // instead of flashing the single-chat view while the query loads.
+  // When arena mode is enabled on an existing thread, eagerly set Thread A
+  // and create a fresh Thread B with the current message history snapshot.
   useEffect(() => {
-    if (
-      !arenaContext ||
-      arenaContext.arenaThreadIdA ||
-      !isArenaMode ||
-      !threadId
-    )
-      return;
+    if (!arenaContext || !isArenaMode || !threadId) return;
+    // Already set up for this thread
+    if (arenaSetupThreadRef.current === threadId) return;
+    arenaSetupThreadRef.current = threadId;
+
     arenaContext.setArenaThreadIdA(threadId);
-  }, [arenaContext, isArenaMode, threadId]);
 
-  // Once the query resolves, correct both IDs with the real pair.
-  useEffect(() => {
-    if (!arenaContext || !threadId || !isArenaMode) return;
-    if (arenaPair) {
-      arenaRestoreThreadRef.current = threadId;
-      arenaContext.setArenaThreadIdA(arenaPair.threadIdA);
-      arenaContext.setArenaThreadIdB(arenaPair.threadIdB);
-    } else if (arenaPair === null) {
-      arenaRestoreThreadRef.current = threadId;
-      // Non-arena thread — A stays as threadId, B will be created on send
-      arenaContext.setArenaThreadIdA(threadId);
+    // Create fresh Thread B (always new — history may have changed since last arena session)
+    if (!creatingThreadBRef.current) {
+      creatingThreadBRef.current = true;
+      void createArenaThreadB({ threadIdA: threadId, organizationId })
+        .then((threadIdB) => {
+          arenaContext.setArenaThreadIdB(threadIdB);
+        })
+        .catch((error) => {
+          console.error('Failed to create arena thread B:', error);
+        })
+        .finally(() => {
+          creatingThreadBRef.current = false;
+        });
     }
-  }, [arenaPair, arenaContext, isArenaMode, threadId]);
+  }, [arenaContext, isArenaMode, threadId, createArenaThreadB, organizationId]);
 
   // Reset arena mode when navigating FROM a thread back to new chat.
   // Track whether we previously had a threadId to avoid disabling
@@ -189,7 +185,6 @@ export function ChatInterface({
     canLoadMore,
     isLoadingMore,
     activeMessage,
-    terminalAssistantCount,
   } = useMessageProcessing(dataThreadId);
 
   // Merge with pending messages from context for optimistic UI.
@@ -272,15 +267,10 @@ export function ChatInterface({
     dataThreadId ? { threadId: dataThreadId } : 'skip',
   );
 
-  // Single derived loading state: "Is the AI turn active?"
-  const { isLoading } = useChatLoadingState({
-    isPending,
-    setIsPending,
-    isGenerating: isGenerating ?? false,
-    threadId: dataThreadId,
-    pendingThreadId,
-    terminalAssistantCount,
-  });
+  // Loading state: generationStatus is the single source of truth.
+  // The Convex subscription on isThreadGenerating reflects
+  // threadMetadata.generationStatus in real-time.
+  const isLoading = isGenerating ?? false;
 
   // Stop generating
   const { stopGenerating, resetCancelled } = useStopGenerating({
@@ -353,6 +343,9 @@ export function ChatInterface({
 
   // Scroll intent ref: 'smooth' on send, 'instant' on thread init, null when idle.
   const scrollingToBottomBehaviorRef = useRef<ScrollBehavior | null>(null);
+  // Direction-based escape: track scroll position and programmatic scrolls
+  const lastScrollTopRef = useRef(0);
+  const programmaticScrollRef = useRef(false);
 
   // Scroll + resize handler — handles intentional scrolls and scroll button visibility.
   useEffect(() => {
@@ -369,11 +362,13 @@ export function ChatInterface({
       }
       const scrollBehavior = scrollingToBottomBehaviorRef.current;
       if (scrollBehavior) {
+        programmaticScrollRef.current = true;
         container.scrollTo({
           top: container.scrollHeight,
           behavior: scrollBehavior,
         });
       } else if (isAtBottom()) {
+        programmaticScrollRef.current = true;
         container.scrollTo({
           top: container.scrollHeight,
           behavior: 'instant',
@@ -383,9 +378,23 @@ export function ChatInterface({
     };
 
     const onScroll = () => {
-      if (scrollingToBottomBehaviorRef.current && isAtBottom()) {
-        scrollingToBottomBehaviorRef.current = null;
+      const currentTop = container.scrollTop;
+      const prevTop = lastScrollTopRef.current;
+      lastScrollTopRef.current = currentTop;
+
+      const ref = scrollingToBottomBehaviorRef.current;
+      if (ref) {
+        if (!programmaticScrollRef.current && currentTop < prevTop) {
+          // User scrolled UP while auto-follow is active → escape
+          scrollingToBottomBehaviorRef.current = null;
+        } else if (ref === 'smooth' && isAtBottom()) {
+          // Smooth scroll reached bottom → downgrade to instant
+          // so future content-growth corrections are instantaneous
+          scrollingToBottomBehaviorRef.current = 'instant';
+        }
       }
+
+      programmaticScrollRef.current = false;
       setShowScrollButton(!isAtBottom());
     };
 
@@ -413,6 +422,16 @@ export function ChatInterface({
       container.removeEventListener('scroll', onScroll);
     };
   }, [containerRef, contentRef, isAtBottom, arenaContext?.isArenaMode]);
+
+  // Clear scroll intent when streaming ends — covers the case where
+  // the ref stayed as 'instant' throughout the entire streaming session.
+  const prevIsLoadingRef = useRef(isLoading);
+  useEffect(() => {
+    if (prevIsLoadingRef.current && !isLoading) {
+      scrollingToBottomBehaviorRef.current = null;
+    }
+    prevIsLoadingRef.current = isLoading;
+  }, [isLoading]);
 
   // Scroll to bottom on thread initial load.
   const scrolledForThreadRef = useRef<string | null>(null);
@@ -495,7 +514,6 @@ export function ChatInterface({
     organizationId,
     threadId: dataThreadId,
     messages: rawMessages,
-    setIsPending: setIsPending,
     setPendingThreadId,
     setPendingMessage,
     clearChatState,
@@ -523,9 +541,10 @@ export function ChatInterface({
     await sendMessage(message, sentAttachments);
   };
 
-  const handleHumanInputResponseSubmitted = useCallback(() => {
-    setIsPending(true);
-  }, [setIsPending]);
+  // No client-side optimistic loading needed — server sets
+  // generationStatus='generating' when the agent resumes and the
+  // Convex subscription delivers it in real-time.
+  const handleHumanInputResponseSubmitted = useCallback(() => {}, []);
 
   const handleSendFollowUp = useCallback(
     (message: string) => {
@@ -655,10 +674,10 @@ export function ChatInterface({
 
   const showArena = arenaContext?.isArenaMode && !!arenaContext.arenaThreadIdA;
 
-  // In arena mode, while waiting for thread creation (isPending but no arena
-  // threads yet), don't let isLoading alone trigger the messages view.
-  // This keeps the welcome page visible with just the send button loading.
-  const arenaWaiting = arenaContext?.isArenaMode && isPending && !showArena;
+  // In arena mode, while waiting for thread creation (pendingMessage set but
+  // no arena threads yet), keep the welcome page visible.
+  const arenaWaiting =
+    arenaContext?.isArenaMode && pendingMessage != null && !showArena;
 
   // Show messages view when we have content or are loading (to show ThinkingAnimation)
   const showMessages =

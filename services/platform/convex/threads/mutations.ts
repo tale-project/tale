@@ -38,7 +38,7 @@ export const createChatThread = mutation({
       throw new Error('Unauthenticated');
     }
 
-    return await createChatThreadHelper(
+    const threadId = await createChatThreadHelper(
       ctx,
       authUser._id,
       args.title,
@@ -54,6 +54,71 @@ export const createChatThread = mutation({
       args.teamId,
       args.organizationId,
     );
+
+    return threadId;
+  },
+});
+
+/**
+ * Create a fresh arena Thread B branched from Thread A with its current
+ * message history. Called each time arena mode is enabled on an existing
+ * thread — always creates a new branch so the history snapshot is fresh
+ * (the user may have continued chatting on Thread A since the last arena session).
+ *
+ * Idempotent within a single arena session via the client-side
+ * `ensuringThreadBRef` guard.
+ */
+export const createArenaThreadB = mutation({
+  args: {
+    threadIdA: v.string(),
+    organizationId: v.string(),
+  },
+  returns: v.string(),
+  handler: async (ctx, args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) throw new Error('Unauthenticated');
+
+    const metaA = await ctx.db
+      .query('threadMetadata')
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadIdA))
+      .first();
+    if (!metaA || metaA.userId !== authUser._id) {
+      throw new Error('Thread not found');
+    }
+
+    // Each arena session gets a fresh group ID
+    const arenaGroupId = crypto.randomUUID();
+
+    // Tag Thread A with the new arena group
+    await ctx.db.patch(metaA._id, { arenaGroupId });
+
+    // Create Thread B as a branch of Thread A
+    const threadIdB = await createChatThreadHelper(
+      ctx,
+      authUser._id,
+      metaA.title ?? '',
+      metaA.chatType ?? 'general',
+      {
+        arenaGroupId,
+        arenaModelId: '',
+        isBranch: true,
+        forkedFrom: args.threadIdA,
+      },
+      metaA.teamId,
+      args.organizationId,
+    );
+
+    // Copy current conversation history from Thread A → Thread B
+    const { messages } = await getThreadMessages(ctx, args.threadIdA);
+    for (const msg of messages) {
+      await saveMessage(ctx, components.agent, {
+        threadId: threadIdB,
+        userId: authUser._id,
+        message: { role: msg.role, content: msg.content },
+      });
+    }
+
+    return threadIdB;
   },
 });
 
