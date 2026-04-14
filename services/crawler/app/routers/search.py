@@ -29,7 +29,11 @@ async def search_all(request: SearchRequest):
     """Search across all indexed website content."""
     try:
         service = _get_search_service()
-        results = await service.search(query=request.query, limit=request.limit)
+        results = await service.search(
+            query=request.query,
+            limit=request.limit,
+            similarity_threshold=request.similarity_threshold,
+        )
         return SearchResponse(
             query=request.query,
             results=[
@@ -56,7 +60,12 @@ async def search_domain(domain: str, request: SearchRequest):
     """Search within a specific website's indexed content."""
     try:
         service = _get_search_service()
-        results = await service.search(query=request.query, domain=domain, limit=request.limit)
+        results = await service.search(
+            query=request.query,
+            domain=domain,
+            limit=request.limit,
+            similarity_threshold=request.similarity_threshold,
+        )
         return SearchResponse(
             query=request.query,
             results=[
