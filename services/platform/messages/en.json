@@ -598,6 +598,7 @@
       "membersEntityLabel": "members",
       "manageAccess": "Manage access to the organization",
       "defaultLocale": "Default language",
+      "defaultLocaleDescription": "The base language for agent names, descriptions, and conversation starters.",
       "searchMember": "Search member",
       "addMember": "Add member",
       "members": {

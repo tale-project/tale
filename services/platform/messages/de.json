@@ -595,6 +595,7 @@
       "membersEntityLabel": "Mitglieder",
       "manageAccess": "Zugriff auf die Organisation verwalten",
       "defaultLocale": "Standardsprache",
+      "defaultLocaleDescription": "Die Basissprache für Agentennamen, Beschreibungen und Gesprächseinstiege.",
       "searchMember": "Mitglied suchen",
       "addMember": "Mitglied hinzufügen",
       "members": {

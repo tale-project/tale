@@ -6,8 +6,17 @@ import { defaultLocale } from '../../i18n/config';
  * is missing or does not contain a valid defaultLocale string.
  */
 export function getOrganizationDefaultLocale(metadata: unknown): string {
-  if (metadata && typeof metadata === 'object' && 'defaultLocale' in metadata) {
-    const value = (metadata as { defaultLocale: unknown }).defaultLocale; // oxlint-disable-line typescript/no-unsafe-type-assertion
+  let parsed = metadata;
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch (e) {
+      console.warn('Failed to parse organization metadata', e);
+      return defaultLocale;
+    }
+  }
+  if (parsed && typeof parsed === 'object' && 'defaultLocale' in parsed) {
+    const value = (parsed as { defaultLocale: unknown }).defaultLocale; // oxlint-disable-line typescript/no-unsafe-type-assertion
     if (typeof value === 'string') return value;
   }
   return defaultLocale;

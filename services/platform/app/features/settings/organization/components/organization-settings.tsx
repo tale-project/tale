@@ -52,9 +52,18 @@ function parseMetadata(metadata: unknown): {
   defaultLocale?: string;
   [key: string]: unknown;
 } {
-  if (!metadata || typeof metadata !== 'object') return {};
+  let parsed = metadata;
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch (e) {
+      console.warn('Failed to parse organization metadata', e);
+      return {};
+    }
+  }
+  if (!parsed || typeof parsed !== 'object') return {};
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- metadata is validated above
-  return metadata as { defaultLocale?: string; [key: string]: unknown };
+  return parsed as { defaultLocale?: string; [key: string]: unknown };
 }
 
 export function OrganizationSettings({
@@ -171,6 +180,7 @@ export function OrganizationSettings({
           <Select
             id="default-locale"
             label={tSettings('organization.defaultLocale')}
+            description={tSettings('organization.defaultLocaleDescription')}
             value={defaultLocale}
             onValueChange={(value) =>
               setValue('defaultLocale', value, { shouldDirty: true })
