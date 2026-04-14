@@ -46,7 +46,7 @@ class TestSearchAll:
         assert len(data["results"]) == 2
         assert data["results"][0]["url"] == "https://example.com/page1"
         assert data["results"][0]["score"] == 0.95
-        mock_search_service.search.assert_awaited_once_with(query="hello", limit=10)
+        mock_search_service.search.assert_awaited_once_with(query="hello", limit=10, similarity_threshold=0.4)
 
     async def test_returns_empty_results(self, mock_search_service):
         mock_search_service.search.return_value = []
@@ -66,7 +66,7 @@ class TestSearchAll:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             await client.post("/api/v1/search", json={"query": "test"})
 
-        mock_search_service.search.assert_awaited_once_with(query="test", limit=10)
+        mock_search_service.search.assert_awaited_once_with(query="test", limit=10, similarity_threshold=0.4)
 
     async def test_503_when_service_not_initialized(self):
         set_search_service(None)
@@ -102,7 +102,9 @@ class TestSearchDomain:
         data = response.json()
         assert data["total"] == 1
         assert data["results"][0]["url"] == "https://docs.example.com/intro"
-        mock_search_service.search.assert_awaited_once_with(query="welcome", domain="docs.example.com", limit=5)
+        mock_search_service.search.assert_awaited_once_with(
+            query="welcome", domain="docs.example.com", limit=5, similarity_threshold=0.4
+        )
 
     async def test_empty_domain_results(self, mock_search_service):
         mock_search_service.search.return_value = []

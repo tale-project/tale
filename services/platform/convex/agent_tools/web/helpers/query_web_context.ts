@@ -16,6 +16,7 @@ import { getCrawlerServiceUrl } from './get_crawler_service_url';
 const debugLog = createDebugLog('DEBUG_WEB_CONTEXT', '[WebContext]');
 
 const DEFAULT_LIMIT = 10;
+const DEFAULT_SIMILARITY_THRESHOLD = 0.4;
 const WEB_CONTEXT_TIMEOUT_MS = 10_000;
 
 interface SearchResult {
@@ -77,7 +78,11 @@ export async function queryWebContext(
       const response = await fetch(`${crawlerUrl}/api/v1/search`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query, limit }),
+        body: JSON.stringify({
+          query,
+          limit,
+          similarity_threshold: DEFAULT_SIMILARITY_THRESHOLD,
+        }),
         signal: controller.signal,
       });
 

@@ -418,6 +418,14 @@ class SearchRequest(BaseModel):
 
     query: str = Field(..., description="Search query")
     limit: int = Field(10, ge=1, le=100, description="Maximum results")
+    similarity_threshold: float = Field(
+        0.4,
+        ge=0.0,
+        le=1.0,
+        description="Minimum cosine similarity for vector results. "
+        "If all vector results fall below this threshold the query is considered "
+        "semantically irrelevant and an empty result set is returned.",
+    )
 
 
 class SearchResultItem(BaseModel):

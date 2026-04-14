@@ -35,6 +35,7 @@ class SearchService:
         query: str,
         domain: str | None = None,
         limit: int = 10,
+        similarity_threshold: float = 0.4,
     ) -> list[SearchResult]:
         # Generate query embedding and run both searches in parallel
         embedding_task = asyncio.create_task(get_embedding_service().embed_query(query))
@@ -43,6 +44,22 @@ class SearchService:
         query_embedding = await embedding_task
         fts_results = await fts_task
         vector_results = await self._vector_search(query_embedding, domain, limit * 3)
+
+        # Pre-filter vector results by cosine similarity (matches RAG pipeline).
+        # If ALL vector results fall below the threshold the query is considered
+        # semantically irrelevant — discard FTS results too (keyword noise).
+        if similarity_threshold > 0:
+            pre_count = len(vector_results)
+            vector_results = [r for r in vector_results if r["score"] >= similarity_threshold]
+            if pre_count != len(vector_results):
+                logger.debug(
+                    "Vector pre-filter: {}/{} results passed threshold {}",
+                    len(vector_results),
+                    pre_count,
+                    similarity_threshold,
+                )
+            if pre_count > 0 and not vector_results:
+                return []
 
         return self._merge_rrf([fts_results, vector_results], limit)
 

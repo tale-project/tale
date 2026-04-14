@@ -34,7 +34,7 @@ class Settings(BaseServiceSettings):
     chunk_size: int = 2048
     chunk_overlap: int = 200
     top_k: int = 5
-    similarity_threshold: float = 0.3
+    similarity_threshold: float = 0.4
     max_document_size_mb: int = 100
     ingestion_timeout_seconds: int = 10800
 

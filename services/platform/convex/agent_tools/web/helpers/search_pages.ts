@@ -15,6 +15,7 @@ import { getCrawlerServiceUrl } from './get_crawler_service_url';
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 
 const DEFAULT_LIMIT = 10;
+const DEFAULT_SIMILARITY_THRESHOLD = 0.4;
 
 const DOMAIN_PATTERN = /^[a-zA-Z0-9]([a-zA-Z0-9-]*\.)*[a-zA-Z0-9-]+(:\d+)?$/;
 
@@ -48,7 +49,11 @@ async function fetchSearch(
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query, limit: DEFAULT_LIMIT }),
+    body: JSON.stringify({
+      query,
+      limit: DEFAULT_LIMIT,
+      similarity_threshold: DEFAULT_SIMILARITY_THRESHOLD,
+    }),
   });
 
   if (!response.ok) {
