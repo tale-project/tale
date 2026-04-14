@@ -1,13 +1,17 @@
 import pkg from '../../../package.json';
 import { confirm } from '../../utils/confirm';
 import * as logger from '../../utils/logger';
-import { readMigrationsState, recordApplied, appliedIds } from './state';
+import { recordApplied } from './state';
 import type { Migration, MigrationContext } from './types';
 
 /**
- * Compute the pending subset of migrations: those whose `id` is not already
- * recorded in `.tale/migrations.json` and whose `detect()` returns true for
- * the current state.
+ * Compute the pending subset of migrations: those whose `detect()` returns
+ * true for the current observable state.
+ *
+ * Per the contract in types.ts, `detect()` is the sole source of truth —
+ * `migrations.json` is a log, not a gate. A migration whose end-state has
+ * drifted (e.g. a volume was deleted after the migration was recorded) will
+ * be re-detected and re-applied automatically.
  *
  * Order is preserved from the registry — callers must not reorder.
  */
@@ -15,11 +19,8 @@ async function computePending(
   registry: readonly Migration[],
   ctx: MigrationContext,
 ): Promise<Migration[]> {
-  const state = await readMigrationsState(ctx.projectDir);
-  const already = appliedIds(state);
   const pending: Migration[] = [];
   for (const m of registry) {
-    if (already.has(m.id)) continue;
     try {
       if (await m.detect(ctx)) pending.push(m);
     } catch (err) {
