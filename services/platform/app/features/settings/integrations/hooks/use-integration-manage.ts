@@ -746,13 +746,25 @@ export function useIntegrationManage(
 
     setIsSavingOAuth2(true);
     try {
+      // If no credential record exists yet (uninstalled integration), install first
+      let credentialId = integration._id;
+      const slug = integration.name ?? '';
+      if (credentialId === slug && slug && integration.organizationId) {
+        const installResult = await installFn({
+          orgSlug: 'default',
+          slug,
+          organizationId: integration.organizationId,
+        });
+        credentialId = installResult.credentialId;
+      }
+
       const parsedScopes = oauth2Fields.scopes
         .split(/[,\s]+/)
         .map((s) => s.trim())
         .filter(Boolean);
 
       await saveOAuth2Credentials({
-        credentialId: toId<'integrationCredentials'>(integration._id),
+        credentialId: toId<'integrationCredentials'>(credentialId),
         authorizationUrl: oauth2Fields.authorizationUrl.trim(),
         tokenUrl: oauth2Fields.tokenUrl.trim(),
         scopes: parsedScopes.length > 0 ? parsedScopes : undefined,
@@ -777,13 +789,33 @@ export function useIntegrationManage(
     } finally {
       setIsSavingOAuth2(false);
     }
-  }, [oauth2Fields, integration._id, saveOAuth2Credentials, t]);
+  }, [
+    oauth2Fields,
+    integration._id,
+    integration.name,
+    integration.organizationId,
+    saveOAuth2Credentials,
+    installFn,
+    t,
+  ]);
 
   const handleReauthorize = useCallback(async () => {
     setIsSavingOAuth2(true);
     try {
+      // If no credential record exists yet (uninstalled integration), install first
+      let credentialId = integration._id;
+      const slug = integration.name ?? '';
+      if (credentialId === slug && slug && integration.organizationId) {
+        const installResult = await installFn({
+          orgSlug: 'default',
+          slug,
+          organizationId: integration.organizationId,
+        });
+        credentialId = installResult.credentialId;
+      }
+
       const authUrl = await generateOAuth2Url({
-        credentialId: toId<'integrationCredentials'>(integration._id),
+        credentialId: toId<'integrationCredentials'>(credentialId),
         organizationId: integration.organizationId ?? '',
       });
       window.location.href = authUrl;
@@ -795,7 +827,14 @@ export function useIntegrationManage(
       });
       setIsSavingOAuth2(false);
     }
-  }, [integration._id, integration.organizationId, generateOAuth2Url, t]);
+  }, [
+    integration._id,
+    integration.name,
+    integration.organizationId,
+    generateOAuth2Url,
+    installFn,
+    t,
+  ]);
 
   const oauth2FieldsComplete =
     oauth2Fields.clientId.trim().length > 0 &&
