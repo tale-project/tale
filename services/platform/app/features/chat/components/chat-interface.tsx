@@ -96,20 +96,40 @@ export function ChatInterface({
 
   // Restore arena thread pair when re-enabling arena mode on an existing arena thread
   const isArenaMode = arenaContext?.isArenaMode ?? false;
+
+  // Track which threadId we've started restoration for to avoid re-querying
+  // after the eager setArenaThreadIdA below makes the original condition false.
+  const arenaRestoreThreadRef = useRef<string | null>(null);
   const needsArenaRestore =
-    isArenaMode && threadId && !arenaContext?.arenaThreadIdA;
+    isArenaMode && !!threadId && arenaRestoreThreadRef.current !== threadId;
   const { data: arenaPair } = useConvexQuery(
     api.threads.queries.getArenaThreadPair,
     needsArenaRestore ? { threadId } : 'skip',
   );
+
+  // Eagerly set arenaThreadIdA so the split view renders immediately
+  // instead of flashing the single-chat view while the query loads.
   useEffect(() => {
-    if (!arenaContext || arenaContext.arenaThreadIdA) return;
+    if (
+      !arenaContext ||
+      arenaContext.arenaThreadIdA ||
+      !isArenaMode ||
+      !threadId
+    )
+      return;
+    arenaContext.setArenaThreadIdA(threadId);
+  }, [arenaContext, isArenaMode, threadId]);
+
+  // Once the query resolves, correct both IDs with the real pair.
+  useEffect(() => {
+    if (!arenaContext || !threadId || !isArenaMode) return;
     if (arenaPair) {
-      // Existing arena thread — restore both IDs
+      arenaRestoreThreadRef.current = threadId;
       arenaContext.setArenaThreadIdA(arenaPair.threadIdA);
       arenaContext.setArenaThreadIdB(arenaPair.threadIdB);
-    } else if (isArenaMode && threadId && arenaPair === null) {
-      // Non-arena thread — use current thread as A, B will be created on send
+    } else if (arenaPair === null) {
+      arenaRestoreThreadRef.current = threadId;
+      // Non-arena thread — A stays as threadId, B will be created on send
       arenaContext.setArenaThreadIdA(threadId);
     }
   }, [arenaPair, arenaContext, isArenaMode, threadId]);
