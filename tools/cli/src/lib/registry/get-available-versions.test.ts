@@ -110,6 +110,7 @@ describe('getAvailableVersions', () => {
         'tale-project/tale/tale-crawler:0.2.16': false,
         'tale-project/tale/tale-db:0.2.16': true,
         'tale-project/tale/tale-proxy:0.2.16': true,
+        'tale-project/tale/tale-convex:0.2.16': true,
       },
     });
 

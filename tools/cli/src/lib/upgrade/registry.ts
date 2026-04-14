@@ -1,3 +1,5 @@
+import { adoptConvexStatefulMigration } from './migrations/adopt-convex-stateful';
+import { namespaceCaddyConfigMigration } from './migrations/namespace-caddy-config';
 import { namespaceVolumesMigration } from './migrations/namespace-volumes';
 import { splitConvexMigration } from './migrations/split-convex';
 import type { Migration } from './types';
@@ -16,4 +18,6 @@ import type { Migration } from './types';
 export const MIGRATIONS: readonly Migration[] = [
   namespaceVolumesMigration, // v0.2.33 — rename tale_* → ${projectId}_*
   splitConvexMigration, // v0.3.0  — platform-data → convex-data
+  namespaceCaddyConfigMigration, // v0.3.1  — fix: caddy-config missed by namespace-volumes
+  adoptConvexStatefulMigration, // v0.3.1  — convex from color→stateful project
 ];

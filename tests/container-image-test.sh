@@ -35,6 +35,7 @@ declare -A SIZE_BUDGETS=(
     [platform]=2900
     [db]=1200
     [proxy]=100
+    [convex]=2500
 )
 
 header() {
@@ -75,7 +76,7 @@ get_image() {
 cd "${PROJECT_ROOT}"
 header "Building all images locally"
 
-SERVICES=(crawler rag platform db proxy)
+SERVICES=(crawler rag platform db proxy convex)
 declare -A IMAGES
 
 echo -e "  ${YELLOW}Building images using compose...${NC}"
@@ -126,9 +127,9 @@ for svc in "${SERVICES[@]}"; do
             # Platform runs as root initially, then drops to 'app' user via gosu in entrypoint
             pass "${svc}: root (expected — gosu to app at runtime)"
             ;;
-        db)
-            # DB runs as root initially, then gosu to postgres — this is expected
-            pass "${svc}: root (expected — gosu to postgres at runtime)"
+        db|convex)
+            # DB/Convex run as root initially, then drop privileges via gosu in entrypoint
+            pass "${svc}: root (expected — gosu to app/postgres at runtime)"
             ;;
         proxy)
             # Caddy Alpine image — non-root not required

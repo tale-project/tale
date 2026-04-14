@@ -23,7 +23,7 @@ export async function reset(options: ResetOptions): Promise<void> {
 
   logger.warn('This will remove ALL blue-green containers');
   if (includeStateful) {
-    logger.warn('Including stateful services: db, proxy');
+    logger.warn(`Including stateful services: ${STATEFUL_SERVICES.join(', ')}`);
   }
 
   if (!force) {
@@ -136,7 +136,9 @@ export async function reset(options: ResetOptions): Promise<void> {
       logger.success('Reset complete! All blue-green containers removed');
     }
     if (!includeStateful) {
-      logger.info('Stateful services (db, proxy) were preserved');
+      logger.info(
+        `Stateful services (${STATEFUL_SERVICES.join(', ')}) were preserved`,
+      );
       logger.info('Use --all to remove them as well');
     }
   });

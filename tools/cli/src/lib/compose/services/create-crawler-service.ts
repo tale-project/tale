@@ -22,11 +22,9 @@ export function createCrawlerService(
     // Phase 2 (split): platform-config source moved from platform-data to
     // convex-data (see create-rag-service for rationale).
     volumes: ['crawler-data:/app/data', 'convex-data:/app/platform-config:ro'],
-    // Wait for convex to seed shared config before the read-only mount.
-    depends_on: {
-      db: { condition: 'service_healthy' },
-      convex: { condition: 'service_healthy' },
-    },
+    // Cross-compose dependencies (db, convex) are handled by the CLI's
+    // deploy ordering: stateful services are health-checked before color
+    // services start.
     logging: DEFAULT_LOGGING,
     networks: {
       internal: {
