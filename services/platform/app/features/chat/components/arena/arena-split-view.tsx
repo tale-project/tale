@@ -6,6 +6,7 @@ import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
+import { useChatLayout } from '../../context/chat-layout-context';
 import {
   useDocumentWriteApprovals,
   useHumanInputRequests,
@@ -51,12 +52,22 @@ function ArenaColumn({
     realMessages: rawMessages,
   });
 
-  // Per-column loading: check if THIS thread is generating
+  // Per-column loading: combine client-side isPending (instant) with
+  // server-side isGenerating (reactive subscription) — mirrors single-chat's
+  // useChatLoadingState pattern so "Thinking" appears immediately on send.
   const { data: isGenerating } = useConvexQuery(
     api.threads.queries.isThreadGenerating,
     resolvedThreadId ? { threadId: resolvedThreadId } : 'skip',
   );
-  const columnLoading = isGenerating ?? false;
+  const { isPending, pendingMessage } = useChatLayout();
+  const columnPending =
+    isPending &&
+    pendingMessage != null &&
+    (pendingMessage.threadId === resolvedThreadId ||
+      pendingMessage.arenaThreadIdB === resolvedThreadId ||
+      (resolvedThreadId === undefined &&
+        pendingMessage.threadId === 'pending'));
+  const columnLoading = columnPending || (isGenerating ?? false);
 
   // Approvals
   const { approvals: integrationApprovals } = useIntegrationApprovals(

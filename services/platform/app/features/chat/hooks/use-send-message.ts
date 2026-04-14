@@ -127,11 +127,12 @@ export function useSendMessage({
             lastMessageKey,
           });
         } else {
-          // Threads need to be created — use 'pending' so both columns
-          // (threadId=undefined) display the user message immediately.
+          // Thread A may exist (arenaThreadIdA set) but B needs creation,
+          // or neither exists yet (new chat). Use the known A ID so
+          // ArenaColumn A can match and display the optimistic message.
           setPendingMessage({
             content: message,
-            threadId: 'pending',
+            threadId: currentArena.arenaThreadIdA ?? 'pending',
             attachments: mutationAttachments,
             timestamp: pendingTimestamp,
             lastMessageKey,
@@ -210,7 +211,8 @@ export function useSendMessage({
               lastMessageKey,
             });
           } else {
-            // New chat — create both threads
+            // New chat — create threads progressively.
+            // Navigate after Thread A so split view renders while B is created.
             const newA = await createThread({
               organizationId,
               title,
@@ -219,6 +221,24 @@ export function useSendMessage({
               arenaModelId: modelA,
               teamId,
             });
+
+            tIdA = newA;
+            currentArena.setArenaThreadIdA(newA);
+            setPendingThreadId(tIdA);
+            setPendingMessage({
+              content: message,
+              threadId: tIdA,
+              attachments: mutationAttachments,
+              timestamp: pendingTimestamp,
+              lastMessageKey,
+            });
+            startTransition(() => {
+              void navigate({
+                to: '/dashboard/$id/chat/$threadId',
+                params: { id: organizationId, threadId: tIdA },
+              });
+            });
+
             const newB = await createThread({
               organizationId,
               title,
@@ -230,12 +250,10 @@ export function useSendMessage({
               teamId,
             });
 
-            tIdA = newA;
             tIdB = newB;
-            currentArena.setArenaThreadIdA(newA);
             currentArena.setArenaThreadIdB(newB);
 
-            // Update pending message with real thread IDs
+            // Update pending message with both thread IDs
             setPendingMessage({
               content: message,
               threadId: tIdA,
@@ -246,13 +264,16 @@ export function useSendMessage({
             });
           }
 
-          setPendingThreadId(tIdA);
-          startTransition(() => {
-            void navigate({
-              to: '/dashboard/$id/chat/$threadId',
-              params: { id: organizationId, threadId: tIdA },
+          // Navigate for existing-thread branches (new-chat navigated above)
+          if (currentArena.arenaThreadIdA) {
+            setPendingThreadId(tIdA);
+            startTransition(() => {
+              void navigate({
+                to: '/dashboard/$id/chat/$threadId',
+                params: { id: organizationId, threadId: tIdA },
+              });
             });
-          });
+          }
 
           // Start both models generating (split view shows "Thinking")
           await arenaChatRef.current({
