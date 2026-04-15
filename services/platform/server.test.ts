@@ -22,9 +22,13 @@ describe('security headers', () => {
     expect(csp).toContain("frame-ancestors 'none'");
     expect(csp).toContain("frame-src 'self'");
     expect(csp).toContain("object-src 'none'");
-    expect(csp).toContain('https://cdnjs.cloudflare.com');
-    expect(csp).toContain('https://fonts.googleapis.com');
-    expect(csp).toContain('https://nominatim.openstreetmap.org');
+    // Third-party CDNs must stay out of the baseline CSP — libraries and
+    // fonts are bundled, reverse-geocoding was removed (see
+    // buildContentSecurityPolicy for the standing policy).
+    expect(csp).not.toContain('https://cdnjs.cloudflare.com');
+    expect(csp).not.toContain('https://fonts.googleapis.com');
+    expect(csp).not.toContain('https://fonts.gstatic.com');
+    expect(csp).not.toContain('https://nominatim.openstreetmap.org');
     expect(csp).not.toContain('https://*.ingest.sentry.io');
     expect(csp).not.toContain('https://*.convex.cloud');
     // mcp.figma.com is a localhost-only dev tool; production CSP omits it.
