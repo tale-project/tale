@@ -129,15 +129,15 @@ export function LogInPage() {
   );
 
   const handleAuthError = useCallback(
-    (ctx: {
+    (ctx?: {
       error?: { status?: number; retryAfter?: unknown } | null;
       response?: Response;
     }) => {
-      const status = ctx.error?.status;
+      const status = ctx?.error?.status;
       if (status === 429) {
-        const headerVal = ctx.response?.headers.get('retry-after');
+        const headerVal = ctx?.response?.headers.get('retry-after');
         const headerSec = headerVal ? Number(headerVal) : NaN;
-        const errVal = ctx.error?.retryAfter;
+        const errVal = ctx?.error?.retryAfter;
         const errSec =
           typeof errVal === 'number'
             ? errVal
