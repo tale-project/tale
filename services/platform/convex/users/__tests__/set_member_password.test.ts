@@ -24,6 +24,19 @@ vi.mock('better-auth/crypto', () => ({
   hashPassword: vi.fn().mockResolvedValue('hashed_new_password'),
 }));
 
+const mockGetPasswordPolicy = vi.fn();
+vi.mock('../../governance/helpers', () => ({
+  getPasswordPolicy: (...args: unknown[]) => mockGetPasswordPolicy(...args),
+}));
+
+vi.mock('../password_metadata', () => ({
+  recordPasswordChange: vi.fn(),
+}));
+
+vi.mock('../../audit_logs/helpers', () => ({
+  createAuditLog: vi.fn(),
+}));
+
 vi.mock('convex/values', () => {
   const stub = () => 'validator';
   return {
@@ -70,6 +83,14 @@ const VALID_PASSWORD = 'StrongP@ss1';
 describe('setMemberPassword', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetPasswordPolicy.mockResolvedValue({
+      minLength: 8,
+      requireLower: true,
+      requireUpper: true,
+      requireDigit: true,
+      requireSpecial: true,
+      maxAgeDays: null,
+    });
   });
 
   async function getHandler() {
@@ -93,11 +114,25 @@ describe('setMemberPassword', () => {
   it('throws when password is invalid', async () => {
     mockGetAuthUser.mockResolvedValue(AUTH_USER);
     const ctx = createMockCtx();
+    // findMany for target member
+    ctx.runQuery.mockResolvedValueOnce({
+      page: [
+        {
+          _id: 'member_1',
+          userId: 'target_user_id',
+          organizationId: 'org_1',
+        },
+      ],
+    });
+    // findMany for caller member - admin
+    ctx.runQuery.mockResolvedValueOnce({
+      page: [{ _id: 'caller_member', userId: 'caller_user_id', role: 'admin' }],
+    });
     const handler = await getHandler();
 
     await expect(
       handler(ctx, { ...defaultArgs, newPassword: 'weak' }),
-    ).rejects.toThrow('Password must be at least 8 characters');
+    ).rejects.toThrow('Password does not meet policy');
   });
 
   it('throws when member not found', async () => {

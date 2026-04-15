@@ -39,8 +39,6 @@ export function isPasswordValid(
   return Object.values(result).every(Boolean);
 }
 
-export type PasswordValidationKey = keyof ReturnType<typeof validatePassword>;
-
 /**
  * Returns the subset of rule keys that are enabled for the given policy —
  * used by the UI to render only the applicable checklist items.

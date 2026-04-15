@@ -17,6 +17,14 @@ vi.mock('../hooks/mutations', () => ({
   useCreateMember: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
+vi.mock('@/app/features/settings/governance/hooks/queries', async () => {
+  const { DEFAULT_PASSWORD_POLICY } =
+    await import('@/lib/shared/schemas/governance');
+  return {
+    usePasswordPolicy: () => DEFAULT_PASSWORD_POLICY,
+  };
+});
+
 describe('AddMemberDialog', () => {
   describe('accessibility', () => {
     it('passes axe audit when open', async () => {
