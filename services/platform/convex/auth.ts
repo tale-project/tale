@@ -1,6 +1,8 @@
 import { createClient, type GenericCtx } from '@convex-dev/better-auth';
 import { convex } from '@convex-dev/better-auth/plugins';
+import { requireRunMutationCtx } from '@convex-dev/better-auth/utils';
 import { betterAuth } from 'better-auth';
+import { APIError, createAuthMiddleware } from 'better-auth/api';
 import { apiKey, organization } from 'better-auth/plugins';
 import { createAccessControl } from 'better-auth/plugins/access';
 import {
@@ -9,10 +11,15 @@ import {
 } from 'better-auth/plugins/organization/access';
 
 import { isRecord, getString } from '../lib/utils/type-guards';
-import { components } from './_generated/api';
+import { components, internal } from './_generated/api';
 import { DataModel } from './_generated/dataModel';
 import authConfig from './auth.config';
 import authSchema from './betterAuth/schema';
+import {
+  checkIpRateLimit,
+  RateLimitExceededError,
+} from './lib/rate_limiter/helpers';
+import { getClientIp, loadTrustedProxies } from './lib/utils/client_ip';
 
 const siteUrl = process.env.SITE_URL || 'http://127.0.0.1:3000';
 
@@ -254,6 +261,24 @@ export const authComponent = createClient<DataModel, typeof authSchema>(
     },
   },
 );
+const SIGN_IN_EMAIL_PATH = '/sign-in/email';
+// Random delay (ms) added to lockout responses to fuzz the timing channel
+// between "wrong password" (which runs bcrypt, ~100ms) and "locked"
+// (which is a single DB read). Without this, an attacker could distinguish
+// the two by latency alone.
+const LOCKOUT_JITTER_MAX_MS = 200;
+
+function bodyEmail(body: unknown): string | null {
+  if (!isRecord(body)) return null;
+  const email = getString(body, 'email');
+  return email ? email.toLowerCase() : null;
+}
+
+async function jitterDelay() {
+  const ms = Math.floor(Math.random() * LOCKOUT_JITTER_MAX_MS);
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 // Helper function to get auth options (for createApi)
 export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
   // Determine if we're running in HTTPS mode
@@ -275,6 +300,16 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
       // Force secure cookies when running over HTTPS (this adds __Secure- prefix automatically)
       useSecureCookies: isHttps,
     },
+    // Disable Better Auth's built-in rate limiting — our `hooks.before`
+    // gate owns all sign-in throttling (per-IP flood guard via
+    // @convex-dev/rate-limiter + per-account exponential lockout via the
+    // loginAttempts table). Leaving the built-in enabled would stack an
+    // opaque fixed-window limiter on top of our gate in production, with
+    // Better Auth's in-memory store that doesn't survive Convex's
+    // stateless runtime.
+    rateLimit: {
+      enabled: false,
+    },
     session: {
       additionalFields: {
         trustedRole: {
@@ -286,6 +321,101 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
           required: false,
         },
       },
+    },
+    hooks: {
+      // Pre-flight gate: reject sign-in attempts that are over the per-IP
+      // flood limit OR against a currently locked account. Returns the
+      // MAX retry-after of the two so the user sees the true unlock time
+      // (the IP window is short — 1 minute — and would otherwise hide a
+      // longer account lockout).
+      before: createAuthMiddleware(async (mw) => {
+        if (mw.path !== SIGN_IN_EMAIL_PATH) return;
+
+        const email = bodyEmail(mw.body);
+        const runCtx = requireRunMutationCtx(ctx);
+        const trusted = await loadTrustedProxies(runCtx);
+        const ip = mw.request
+          ? getClientIp(mw.request.headers, trusted)
+          : 'unknown';
+
+        let lockoutMs = 0;
+        if (email) {
+          const { lockedUntil } = await runCtx.runQuery(
+            internal.login_attempts.internal_queries.getLockState,
+            { email },
+          );
+          if (lockedUntil && lockedUntil > Date.now()) {
+            lockoutMs = lockedUntil - Date.now();
+          }
+        }
+
+        let ipLimitMs = 0;
+        try {
+          await checkIpRateLimit(runCtx, 'security:login-ip', ip);
+        } catch (err) {
+          if (err instanceof RateLimitExceededError) {
+            ipLimitMs = err.retryAfter;
+          } else {
+            throw err;
+          }
+        }
+
+        const retryAfterMs = Math.max(lockoutMs, ipLimitMs);
+        if (retryAfterMs > 0) {
+          // Record into the coalesced block-counter BEFORE throwing. When a
+          // before-hook throws, Better Auth bails out of `runAfterHooks`
+          // entirely (see node_modules/better-auth/dist/api/to-auth-endpoints.mjs),
+          // so the after-hook is the wrong place for this.
+          if (email) {
+            await runCtx.runMutation(
+              internal.login_attempts.internal_mutations.recordBlocked,
+              { email, ip },
+            );
+          }
+          await jitterDelay();
+          throw new APIError('TOO_MANY_REQUESTS', {
+            message: 'Invalid credentials',
+            retryAfter: Math.ceil(retryAfterMs / 1000),
+          });
+        }
+      }),
+
+      // Post-flight: classify the result and update the per-account
+      // failure counter. `mw.context.returned` is an APIError on the
+      // failure path (Better Auth catches the throw before invoking
+      // after-hooks, see node_modules/better-auth/dist/api/to-auth-endpoints.mjs).
+      after: createAuthMiddleware(async (mw) => {
+        if (mw.path !== SIGN_IN_EMAIL_PATH) return;
+
+        const email = bodyEmail(mw.body);
+        if (!email) return;
+
+        const returned = mw.context.returned;
+        const runCtx = requireRunMutationCtx(ctx);
+        const trusted = await loadTrustedProxies(runCtx);
+        const ip = mw.request
+          ? getClientIp(mw.request.headers, trusted)
+          : undefined;
+        const userAgent = mw.request?.headers.get('user-agent') ?? undefined;
+
+        // Note: if the before-hook threw 429, Better Auth does NOT invoke
+        // runAfterHooks. `recordBlocked` is called from the before-hook
+        // directly. Anything that reaches here actually made it to the
+        // password-check stage.
+
+        const failed = returned instanceof APIError || !mw.context.newSession;
+        if (failed) {
+          await runCtx.runMutation(
+            internal.login_attempts.internal_mutations.recordFailure,
+            { email, ip, userAgent },
+          );
+        } else {
+          await runCtx.runMutation(
+            internal.login_attempts.internal_mutations.clearOnSuccess,
+            { email, ip, userAgent },
+          );
+        }
+      }),
     },
     plugins: [
       // The Convex plugin is required for Convex compatibility

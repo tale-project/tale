@@ -7,6 +7,7 @@ import { Tabs } from '@/app/components/ui/navigation/tabs';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Text } from '@/app/components/ui/typography/text';
 import { AuditLogTable } from '@/app/features/settings/audit-logs/components/audit-log-table';
+import { BlockCountersTable } from '@/app/features/settings/audit-logs/components/block-counters-table';
 import { useListAuditLogsPaginated } from '@/app/features/settings/audit-logs/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
@@ -136,6 +137,11 @@ function LogsPage() {
               userEmailMap={userEmailMap}
             />
           ),
+        },
+        {
+          value: 'blocks',
+          label: t('logs.blockCounters.tabLabel'),
+          content: <BlockCountersTable organizationId={organizationId} />,
         },
         {
           value: 'activity',

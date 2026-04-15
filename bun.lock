@@ -118,6 +118,7 @@
         "mysql2": "3.21.1",
         "pg": "8.20.0",
         "prom-client": "15.1.3",
+        "proxy-addr": "^2.0.7",
         "react-datepicker": "9.1.0",
         "react-day-picker": "9.14.0",
         "react-file-icon": "1.6.0",
@@ -158,6 +159,7 @@
         "@types/mssql": "9.1.11",
         "@types/mustache": "4.2.6",
         "@types/pg": "8.20.0",
+        "@types/proxy-addr": "^2.0.3",
         "@types/react": "19.2.14",
         "@types/react-dom": "19.2.3",
         "@types/react-file-icon": "1.0.5",
@@ -1524,6 +1526,8 @@
     "@types/pg-pool": ["@types/pg-pool@2.0.7", "", { "dependencies": { "@types/pg": "*" } }, "sha512-U4CwmGVQcbEuqpyju8/ptOKg6gEC+Tqsvj2xS9o1g71bUh8twxnC6ZL5rZKCsGN0iyH0CwgUyc9VR5owNQF9Ng=="],
 
     "@types/prismjs": ["@types/prismjs@1.26.6", "", {}, "sha512-vqlvI7qlMvcCBbVe0AKAb4f97//Hy0EBTaiW8AalRnG/xAN5zOiWWyrNqNXeq8+KAuvRewjCVY1+IPxk4RdNYw=="],
+
+    "@types/proxy-addr": ["@types/proxy-addr@2.0.3", "", { "dependencies": { "@types/node": "*" } }, "sha512-TgAHHO4tNG3HgLTUhB+hM4iwW6JUNeQHCLnF1DjaDA9c69PN+IasoFu2MYDhubFc+ZIw5c5t9DMtjvrD6R3Egg=="],
 
     "@types/ramda": ["@types/ramda@0.30.2", "", { "dependencies": { "types-ramda": "^0.30.1" } }, "sha512-PyzHvjCalm2BRYjAU6nIB3TprYwMNOUY/7P/N8bSzp9W/yM2YrtGtAnnVtaCNSeOZ8DzKyFDvaqQs7LnWwwmBA=="],
 

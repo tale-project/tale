@@ -202,12 +202,14 @@ export function AuditLogTable({
                 <DetailSection
                   label={t('logs.audit.columns.previousState')}
                   data={selectedLog.previousState}
+                  formatDate={formatDate}
                 />
               )}
               {selectedLog.newState && (
                 <DetailSection
                   label={t('logs.audit.columns.newState')}
                   data={selectedLog.newState}
+                  formatDate={formatDate}
                 />
               )}
               {selectedLog.category === 'ai' && selectedLog.metadata ? (
@@ -218,6 +220,7 @@ export function AuditLogTable({
                   <DetailSection
                     label={t('logs.audit.columns.metadata')}
                     data={selectedLog.metadata}
+                    formatDate={formatDate}
                   />
                 )
               )}
@@ -338,12 +341,83 @@ function DetailRow({
   );
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.getPrototypeOf(value) === Object.prototype
+  );
+}
+
+// Field-name suffixes that hint a value is a timestamp. Combined with a
+// numeric/ISO-string check below this lets the JSON view render dates in a
+// readable form instead of raw epoch ms — works for any audit log without
+// per-action plumbing.
+const TIMESTAMP_FIELD_SUFFIXES = ['at', 'until', 'time', 'timestamp'];
+
+function looksLikeTimestampField(key: string): boolean {
+  const lower = key.toLowerCase();
+  return TIMESTAMP_FIELD_SUFFIXES.some((s) => lower.endsWith(s));
+}
+
+function tryFormatTimestamp(
+  key: string,
+  value: unknown,
+  formatDate: (d: Date, preset?: 'short' | 'medium' | 'long') => string,
+): string | null {
+  if (!looksLikeTimestampField(key)) return null;
+  if (typeof value === 'number' && value > 1e12 && Number.isFinite(value)) {
+    return formatDate(new Date(value), 'long');
+  }
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value);
+    if (!Number.isNaN(parsed)) return formatDate(new Date(parsed), 'long');
+  }
+  return null;
+}
+
+function formatMetadataValue(
+  key: string,
+  value: unknown,
+  formatDate: (d: Date, preset?: 'short' | 'medium' | 'long') => string,
+  indent: number,
+): string {
+  const friendly = tryFormatTimestamp(key, value, formatDate);
+  if (friendly !== null) {
+    const raw = typeof value === 'number' ? value : JSON.stringify(value);
+    return `${friendly}  (${raw})`;
+  }
+  if (isPlainObject(value)) {
+    return formatMetadataObject(value, formatDate, indent);
+  }
+  return JSON.stringify(value);
+}
+
+function formatMetadataObject(
+  obj: Record<string, unknown>,
+  formatDate: (d: Date, preset?: 'short' | 'medium' | 'long') => string,
+  indent: number,
+): string {
+  const entries = Object.entries(obj);
+  if (entries.length === 0) return '{}';
+  const pad = '  '.repeat(indent + 1);
+  const closePad = '  '.repeat(indent);
+  const lines = entries.map(
+    ([k, v]) =>
+      `${pad}"${k}": ${formatMetadataValue(k, v, formatDate, indent + 1)}`,
+  );
+  return `{\n${lines.join(',\n')}\n${closePad}}`;
+}
+
 function DetailSection({
   label,
   data,
+  formatDate,
 }: {
   label: string;
   data: Record<string, unknown>;
+  formatDate: (d: Date, preset?: 'short' | 'medium' | 'long') => string;
 }) {
   return (
     <Stack gap={2}>
@@ -351,7 +425,7 @@ function DetailSection({
         {label}
       </Text>
       <pre className="bg-muted/50 max-h-40 overflow-auto rounded-lg p-3 text-xs">
-        {JSON.stringify(data, null, 2)}
+        {formatMetadataObject(data, formatDate, 0)}
       </pre>
     </Stack>
   );

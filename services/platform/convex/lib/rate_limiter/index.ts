@@ -136,6 +136,11 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 200,
     period: MINUTE,
   },
+  'security:login-ip': {
+    kind: 'fixed window',
+    rate: 30,
+    period: MINUTE,
+  },
 
   // ============================================
   // TIER 5: Workflow Operations (Token Bucket)

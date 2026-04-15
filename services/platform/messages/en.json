@@ -470,6 +470,10 @@
       "loginButton": "Log in",
       "continueWithSso": "Continue with SSO",
       "wrongCredentials": "Wrong email or password",
+      "accountLockedGeneric": "Account temporarily locked due to repeated failures. Please try again later or contact an administrator.",
+      "accountLockedSeconds": "Account temporarily locked. Try again in {seconds, plural, one {# second} other {# seconds}}, or contact an administrator.",
+      "accountLockedMinutes": "Account temporarily locked. Try again in {minutes, plural, one {# minute} other {# minutes}}, or contact an administrator.",
+      "accountLockedHours": "Account temporarily locked. Try again in {hours, plural, one {# hour} other {# hours}}, or contact an administrator.",
       "forgotPassword": "Forgot password? Contact an admin for assistance.",
       "toast": {
         "success": "Signed in successfully",
@@ -1643,6 +1647,18 @@
       "activityComingSoon": "Activity logs are coming soon.",
       "errorDescription": "View system errors and warnings.",
       "errorComingSoon": "Error logs are coming soon.",
+      "blockCounters": {
+        "tabLabel": "Sign-in blocks",
+        "description": "Hourly counters of sign-in attempts rejected at the gate (account lockout or per-IP flood guard). Last 7 days.",
+        "empty": "No rejected sign-in attempts in the last 7 days.",
+        "columns": {
+          "window": "Hour",
+          "email": "Account",
+          "lockout": "Lockout",
+          "ipLimit": "IP limit",
+          "lastIp": "Last IP"
+        }
+      },
       "audit": {
         "tableCaption": "Audit logs data table",
         "emptyTitle": "No audit logs",
@@ -3873,6 +3889,23 @@
       "tempFileRetentionHours": "Temporary file retention (hours)",
       "saved": "Retention policy saved"
     },
+    "loginPolicy": {
+      "title": "Login attempt limits",
+      "description": "Lock accounts after repeated sign-in failures and grow the wait between attempts.",
+      "enabled": "Enable login attempt limits",
+      "policyDisabledHint": "Sign-in failures are not throttled while this policy is disabled.",
+      "maxAttempts": "Failures before lockout",
+      "maxAttemptsHint": "Number of consecutive wrong-password attempts before the account is temporarily locked.",
+      "backoffSchedule": "Backoff schedule (seconds)",
+      "backoffScheduleHint": "Comma-separated wait times applied after each lockout, in seconds. The last entry is reused for further failures. Default: 1, 10, 60, 600.",
+      "trustedProxies": "Trusted proxies",
+      "trustedProxiesHint": "Comma-separated list of IPs / CIDRs / keywords (loopback, uniquelocal, linklocal) for reverse proxies sitting in front of this deployment. Used to recover the real client IP from X-Forwarded-For. Default: loopback, uniquelocal.",
+      "invalidAttempts": "Failure threshold must be an integer between 1 and 50.",
+      "invalidSchedule": "Backoff schedule must be a comma-separated list of non-negative numbers.",
+      "invalidProxies": "Trusted proxies must be a comma-separated list of IPs, CIDRs, or keywords (max 32).",
+      "saved": "Login policy saved",
+      "saveFailed": "Failed to save login policy"
+    },
     "tabs": {
       "systemPrompt": "System Prompt",
       "budgets": "Budgets",
@@ -3973,7 +4006,12 @@
     "groups": {
       "contentAndModels": "Content & Models",
       "policiesAndLimits": "Policies & Limits",
-      "securityAndMonitoring": "Security & Monitoring"
+      "securityAndMonitoring": "Security & Monitoring",
+      "subtabs": {
+        "login": "Login & authentication",
+        "pii": "PII protection",
+        "usage": "Usage"
+      }
     },
     "modelAccess": {
       "title": "Model access",
@@ -4123,6 +4161,17 @@
     },
     "saved": "MCP server saved",
     "deleted": "MCP server deleted"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "tooltip": "Notifications",
+    "ariaLabel": "Open notifications",
+    "ariaUnread": "Unread",
+    "unreadCount": "{count, plural, one {# unread} other {# unread}}",
+    "empty": "No notifications.",
+    "markAsRead": "Mark as read",
+    "accountLocked": "Account temporarily locked: {email}",
+    "lockoutDetails": "{consecutiveFailures} failed sign-in attempts from {ip}."
   },
   "documentComparison": {
     "title": "Compare Documents",

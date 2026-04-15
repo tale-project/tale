@@ -36,6 +36,7 @@ import {
 } from './lib/rate_limiter/helpers';
 import { restOptionsHandler } from './lib/rest/helpers';
 import { toId } from './lib/type_cast_helpers';
+import { getClientIp, loadTrustedProxies } from './lib/utils/client_ip';
 import {
   chatCompletionsHandler,
   chatCompletionsOptionsHandler,
@@ -119,10 +120,8 @@ http.route({
       return new Response('Missing storage ID', { status: 400 });
     }
 
-    const ip =
-      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-      req.headers.get('x-real-ip') ||
-      'unknown';
+    const trusted = await loadTrustedProxies(ctx);
+    const ip = getClientIp(req.headers, trusted);
     try {
       await checkIpRateLimit(ctx, 'security:storage-access', ip);
     } catch (error) {

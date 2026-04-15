@@ -13,6 +13,7 @@ export const GOVERNANCE_POLICY_TYPES = [
   'default_models',
   'model_access',
   'audit_retention',
+  'login_policy',
 ] as const;
 
 const policyTypeValidator = v.union(

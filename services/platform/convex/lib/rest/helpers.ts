@@ -12,6 +12,7 @@ import {
   checkIpRateLimit,
   RateLimitExceededError,
 } from '../rate_limiter/helpers';
+import { getClientIp, loadTrustedProxies } from '../utils/client_ip';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -162,10 +163,8 @@ export async function applyRateLimit(
   key: string,
   request: Request,
 ): Promise<Response | null> {
-  const ip =
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    request.headers.get('x-real-ip') ||
-    'unknown';
+  const trusted = await loadTrustedProxies(ctx);
+  const ip = getClientIp(request.headers, trusted);
   try {
     await checkIpRateLimit(ctx, key, ip);
     return null;
