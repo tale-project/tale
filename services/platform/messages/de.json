@@ -3756,7 +3756,14 @@
       "subtabs": {
         "login": "Anmeldung & Authentifizierung",
         "pii": "PII-Schutz",
-        "usage": "Nutzung"
+        "usage": "Nutzung",
+        "systemPrompt": "System-Prompt",
+        "defaultModels": "Standardmodelle",
+        "modelAccess": "Modellzugriff",
+        "budgets": "Budgets",
+        "uploadPolicy": "Upload-Richtlinie",
+        "retention": "Aufbewahrung",
+        "featureControls": "Funktionssteuerung"
       }
     },
     "featureFlags": {
