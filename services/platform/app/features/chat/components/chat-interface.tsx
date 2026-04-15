@@ -693,19 +693,20 @@ export function ChatInterface({
     void sendMessage(lastUserMessage.content);
   }, [messages, sendMessage]);
 
-  const showArena = arenaContext?.isArenaMode && !!arenaContext.arenaThreadIdA;
+  // Arena mode: mount ArenaSplitView as soon as we're in arena mode and
+  // either have thread IDs or are mid-send (pendingMessage set synchronously
+  // by useSendMessage). ArenaSplitView's ArenaColumnSkeleton handles the
+  // null-threadId case, eliminating the white flash during thread creation.
+  // The `messages.length === 0` guard avoids hiding existing thread messages
+  // during the "enable arena on existing thread" transition.
+  const showArena =
+    !!arenaContext?.isArenaMode &&
+    (!!arenaContext.arenaThreadIdA ||
+      (pendingMessage != null && messages.length === 0));
 
-  // In arena mode, while waiting for thread creation (pendingMessage set but
-  // no arena threads yet), keep the welcome page visible.
-  const arenaWaiting =
-    arenaContext?.isArenaMode && pendingMessage != null && !showArena;
-
-  // Show messages view when we have content or are loading (to show ThinkingAnimation)
   const showMessages =
-    dataThreadId ||
-    messages.length > 0 ||
-    pendingMessage ||
-    (isLoading && !arenaWaiting);
+    !showArena &&
+    (dataThreadId || messages.length > 0 || pendingMessage || isLoading);
   const showWelcome = !showMessages && !showArena;
 
   return (
