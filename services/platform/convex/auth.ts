@@ -16,6 +16,25 @@ import authSchema from './betterAuth/schema';
 
 const siteUrl = process.env.SITE_URL || 'http://127.0.0.1:3000';
 
+// Fail fast if a non-loopback hostname is served over HTTP. Mirrors the
+// HTTPS guard in services/cli/.../docker-entrypoint.sh; kept here so the
+// Convex backend never silently downgrades to insecure cookies when
+// SITE_URL is misconfigured. NODE_ENV is unreliable inside the Convex
+// runtime, so we use the SITE_URL hostname as the production signal.
+{
+  const parsed = new URL(siteUrl);
+  const isLoopback = ['localhost', '127.0.0.1', '::1', '[::1]'].includes(
+    parsed.hostname,
+  );
+  if (parsed.protocol === 'http:' && !isLoopback) {
+    throw new Error(
+      `SITE_URL must use HTTPS for non-loopback hostnames (got ${siteUrl}). ` +
+        `Set SITE_URL=https://your-domain or run behind a TLS-terminating proxy ` +
+        `with TLS_MODE=external.`,
+    );
+  }
+}
+
 // Define Better Auth Access Control (custom roles + permissions)
 // Centralize table-keyed permissions used by RLS and the org plugin
 // Only includes resources that exist in schema.ts
