@@ -17,59 +17,10 @@ import { useChatLayout } from '../context/chat-layout-context';
 import { useSubmitLocationResponse } from '../hooks/mutations';
 import { useEffectiveAgent } from '../hooks/use-effective-agent';
 
-const LOCATION_CACHE_KEY = 'tale:user-location';
-const COORD_THRESHOLD = 0.01;
-
-interface CachedLocation {
-  lat: number;
-  lng: number;
-  address?: string;
-}
-
-function isCachedLocation(value: unknown): value is CachedLocation {
-  if (typeof value !== 'object' || value === null) return false;
-  return (
-    'lat' in value &&
-    typeof value.lat === 'number' &&
-    'lng' in value &&
-    typeof value.lng === 'number'
-  );
-}
-
-function getCachedLocation(): CachedLocation | null {
-  try {
-    const raw = localStorage.getItem(LOCATION_CACHE_KEY);
-    if (!raw) return null;
-    const parsed: unknown = JSON.parse(raw);
-    return isCachedLocation(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-function isNearby(lat: number, lng: number, cached: CachedLocation) {
-  return (
-    Math.abs(lat - cached.lat) < COORD_THRESHOLD &&
-    Math.abs(lng - cached.lng) < COORD_THRESHOLD
-  );
-}
-
-async function reverseGeocode(
-  lat: number,
-  lng: number,
-): Promise<string | undefined> {
-  try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=10`,
-    );
-    const data = await res.json();
-    return typeof data.display_name === 'string'
-      ? data.display_name
-      : undefined;
-  } catch {
-    return undefined;
-  }
-}
+// No reverse-geocoding: resolving coords to an address would require a
+// third-party service (previously nominatim.openstreetmap.org), which breaks
+// air-gapped deployments and sends user location data to a non-contracted
+// processor under GDPR. Raw coordinates are submitted instead.
 
 interface LocationRequestCardProps {
   approvalId: Id<'approvals'>;
@@ -148,29 +99,9 @@ function LocationRequestCardComponent({
     setError(null);
 
     navigator.geolocation.getCurrentPosition(
-      async (pos) => {
+      (pos) => {
         const { latitude: lat, longitude: lng } = pos.coords;
-
-        // Check cache for nearby reverse-geocoded address
-        const cached = getCachedLocation();
-        let address: string | undefined;
-
-        if (cached?.address && isNearby(lat, lng, cached)) {
-          address = cached.address;
-        } else {
-          address = await reverseGeocode(lat, lng);
-          // Update cache
-          try {
-            localStorage.setItem(
-              LOCATION_CACHE_KEY,
-              JSON.stringify({ lat, lng, address }),
-            );
-          } catch {
-            // localStorage full — not critical
-          }
-        }
-
-        const location = address ?? `${lat.toFixed(2)}, ${lng.toFixed(2)}`;
+        const location = `${lat.toFixed(2)}, ${lng.toFixed(2)}`;
 
         submitResponse(
           { approvalId, location, modelId },

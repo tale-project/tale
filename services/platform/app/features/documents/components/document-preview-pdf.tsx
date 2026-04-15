@@ -1,46 +1,24 @@
 'use client';
 
 import { ChevronUp, ChevronDown, ZoomIn, ZoomOut } from 'lucide-react';
+// PDF.js is bundled locally (see pdfjs-dist in package.json). Loading it from
+// a CDN would break offline deployments and count as a third-party data
+// transfer for GDPR purposes. The worker URL is resolved through Vite's
+// `new URL(..., import.meta.url)` pattern so it ships as a build asset
+// served same-origin.
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.js?url';
+import type {
+  PDFDocumentProxy,
+  PDFPageProxy,
+  RenderTask,
+} from 'pdfjs-dist/types/src/display/api';
+import type { PageViewport } from 'pdfjs-dist/types/src/display/display_utils';
 import React, { useReducer, useEffect, useRef, useCallback } from 'react';
 
 import { HStack } from '@/app/components/ui/layout/layout';
 import { useT } from '@/lib/i18n/client';
 
 import { PreviewPane } from './preview-pane';
-
-interface PageViewport {
-  width: number;
-  height: number;
-}
-
-interface RenderTask {
-  promise: Promise<void>;
-  cancel: () => void;
-}
-
-interface PDFPageProxy {
-  getViewport: (options: { scale: number }) => PageViewport;
-  render: (options: {
-    canvas: HTMLCanvasElement | null;
-    canvasContext: CanvasRenderingContext2D;
-    viewport: PageViewport;
-    intent: string;
-  }) => RenderTask;
-}
-
-interface PDFDocumentProxy {
-  numPages: number;
-  getPage: (pageNumber: number) => Promise<PDFPageProxy>;
-}
-
-interface PDFDocumentLoadingTask {
-  promise: Promise<PDFDocumentProxy>;
-}
-
-interface PdfJsLib {
-  getDocument: (url: string) => PDFDocumentLoadingTask;
-  GlobalWorkerOptions: { workerSrc: string };
-}
 
 interface ViewerState {
   pdfDoc: PDFDocumentProxy | null;
@@ -142,7 +120,6 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
       }
 
       const renderTask = page.render({
-        canvas: null,
         canvasContext: bufferCtx,
         viewport: scaledViewport,
         intent: 'display',
@@ -201,32 +178,21 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
   }, [state.pdfDoc]);
 
   useEffect(() => {
-    let loadingTask: PDFDocumentLoadingTask | null = null;
-    const script = document.createElement('script');
-    script.src =
-      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-    const onLoad = () => {
-      if ('pdfjsLib' in window) {
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- pdfjsLib is injected by the CDN script loaded above
-        const lib = (window as unknown as { pdfjsLib: PdfJsLib }).pdfjsLib;
-        lib.GlobalWorkerOptions.workerSrc =
-          'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-        loadingTask = lib.getDocument(url);
-        loadingTask.promise
-          .then((doc: PDFDocumentProxy) => {
-            dispatch({ type: 'PDF_LOADED', doc });
-          })
-          .catch((error: unknown) => {
-            console.error('Error loading PDF:', error);
-          });
+    let cancelled = false;
+    void (async () => {
+      const lib = await import('pdfjs-dist');
+      if (cancelled) return;
+      lib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+      try {
+        const doc = await lib.getDocument(url).promise;
+        if (cancelled) return;
+        dispatch({ type: 'PDF_LOADED', doc });
+      } catch (error) {
+        console.error('Error loading PDF:', error);
       }
-    };
-    script.addEventListener('load', onLoad);
-    document.head.appendChild(script);
-
+    })();
     return () => {
-      script.removeEventListener('load', onLoad);
-      script.remove();
+      cancelled = true;
     };
   }, [url]);
 
