@@ -54,6 +54,7 @@ import { useArenaModeOptional } from './arena/arena-mode-context';
 import { ArenaSplitView } from './arena/arena-split-view';
 import { ChatInput } from './chat-input';
 import { ChatMessages } from './chat-messages';
+import { MessagesSkeleton } from './messages-skeleton';
 import { WelcomeView } from './welcome-view';
 
 function chatDraftKey(
@@ -704,10 +705,18 @@ export function ChatInterface({
     (!!arenaContext.arenaThreadIdA ||
       (pendingMessage != null && messages.length === 0));
 
+  // While cleanupArenaBranch is running the underlying messages are being
+  // rewritten (verdict='b_better' wipes Thread A and copies B's messages in).
+  // Render a skeleton in this window so the user doesn't see the pre-cleanup
+  // Thread A content flash before the new messages arrive.
+  const showExitingSkeleton =
+    !showArena && !!arenaContext?.isExitingArena && !!dataThreadId;
+
   const showMessages =
     !showArena &&
+    !showExitingSkeleton &&
     (dataThreadId || messages.length > 0 || pendingMessage || isLoading);
-  const showWelcome = !showMessages && !showArena;
+  const showWelcome = !showMessages && !showArena && !showExitingSkeleton;
 
   return (
     <div
@@ -740,6 +749,8 @@ export function ChatInterface({
               onSuggestionClick={setInputValue}
             />
           )}
+
+          {showExitingSkeleton && <MessagesSkeleton />}
 
           {showMessages && (
             <ChatMessages
