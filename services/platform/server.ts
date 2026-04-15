@@ -99,10 +99,12 @@ function getEnvConfig(): EnvConfig {
 // CSP is built from env vars at app construction time. SITE_URL hostname
 // determines whether HSTS is emitted (only when the deployment is HTTPS).
 // External origins reflect the few third-party resources actually loaded
-// today: cdnjs (PDF.js), Google Fonts, Sentry (when SENTRY_DSN is set), and
-// Convex storage. Most Convex traffic is proxied same-origin via Caddy, but
-// `*.convex.cloud` is allowed defensively for storage URLs that bypass the
-// proxy.
+// today: cdnjs (PDF.js), Google Fonts, and Sentry (when SENTRY_DSN is set).
+// All Convex traffic — including storage uploads via `generateUploadUrl()` —
+// flows same-origin through Caddy (`/ws_api`, `/api/storage/*`), so `'self'`
+// covers it without needing a `*.convex.cloud` connect-src entry.
+// `*.convex.cloud` / `*.convex.site` remain in `img-src` to render legacy
+// email content that may embed Convex Cloud–hosted images.
 // ---------------------------------------------------------------------------
 
 function buildContentSecurityPolicy(env: EnvConfig) {
@@ -131,7 +133,6 @@ function buildContentSecurityPolicy(env: EnvConfig) {
     fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
     connectSrc: [
       "'self'",
-      'https://*.convex.cloud',
       // Reverse-geocoding for the location-request approval card
       // (services/platform/app/features/chat/components/location-request-card.tsx).
       // The lat/lng→address lookup runs in the browser; without this entry
